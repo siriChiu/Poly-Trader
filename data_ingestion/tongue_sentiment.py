@@ -1,11 +1,19 @@
 """
-五感之「舌」：社群情緒與多空對比模組
-- Alternative.me 恐惧贪婪指數
-- Binance 多空账户比率 (Long/Short Ratio)
+五感之「舌」v2：多維度市場情緒模組
+
+舊版問題：FNG 更新慢、卡在極端值無變異 → IC=0
+新版方案：多指標即時情緒綜合分數
+
+數據源（全部免費 via Binance Futures API）：
+1. 多空帳戶比 (Long/Short Account Ratio)
+2. 主動買賣比 (Taker Buy/Sell Ratio)
+3. 大戶持倉比 (Top Trader Position Ratio)
+
+綜合情緒分數：-1（極度悲觀）到 +1（極度樂觀）
 """
 
 import requests
-import statistics
+import math
 from typing import Optional, List, Dict
 from datetime import datetime
 from requests.adapters import HTTPAdapter
@@ -14,114 +22,182 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-# API endpoints
-FNG_URL = "https://api.alternative.me/fng/"
+# Binance Futures 免費端點
 LSR_URL = "https://fapi.binance.com/futures/data/globalLongShortAccountRatio"
+TAKER_URL = "https://fapi.binance.com/futures/data/takerlongshortRatio"
+TOP_TRADER_URL = "https://fapi.binance.com/futures/data/topLongShortPositionRatio"
+FNG_URL = "https://api.alternative.me/fng/"
+
 
 def _create_session(retries: int = 3, backoff_factor: float = 0.5):
     session = requests.Session()
     retry = Retry(
-        total=retries,
-        read=retries,
-        connect=retries,
+        total=retries, read=retries, connect=retries,
         backoff_factor=backoff_factor,
         status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET"]
+        allowed_methods=["GET"],
     )
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("http://", adapter)
     session.mount("https://", adapter)
     return session
 
-def fetch_fear_greed_index(limit: int = 2) -> Optional[int]:
-    """
-    获取 Alternative.me 恐惧贪婪指数（Latest）。
-    Returns:
-        整数 0~100，失败返回 None。
-    """
-    try:
-        session = _create_session()
-        resp = session.get(FNG_URL, params={"limit": limit}, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-        if data.get("data") and len(data["data"]) > 0:
-            value = int(data["data"][0]["value"])
-            return value
-    except Exception as e:
-        logger.error(f"FNG API 请求失败: {e}")
-    return None
 
-def fetch_long_short_ratio(symbol: str = "BTCUSDT", period: str = "1d", limit: int = 30) -> Optional[List[float]]:
-    """
-    获取 Binance 多空账户比率 (Long/Short Ratio)。
-    Returns:
-        按时间顺序排列的 ratio 列表（从旧到新），失败返回 None。
-    """
+def fetch_ratio(url: str, symbol: str = "BTCUSDT", period: str = "1h", limit: int = 24) -> Optional[List[float]]:
+    """通用：獲取 Binance Futures 比率類數據"""
     try:
         session = _create_session()
         params = {"symbol": symbol, "period": period, "limit": limit}
-        resp = session.get(LSR_URL, params=params, timeout=10)
+        resp = session.get(url, params=params, timeout=10)
         resp.raise_for_status()
-        data = resp.json()
-        ratios = [float(item["longShortRatio"]) for item in data if "longShortRatio" in item]
-        return ratios
+        key = "longShortRatio" if "longShort" in url else "takerBuySellRatio" if "taker" in url else "topTraderLongShortRatio"
+        return [float(d[key]) for d in resp.json() if key in d]
     except Exception as e:
-        logger.error(f"Binance LSR API 请求失败: {e}")
-    return None
-
-def calculate_tongue_features(fng_value: Optional[int], ls_ratios: Optional[List[float]]) -> Optional[dict]:
-    """
-    计算舌部两个特征：
-    - Feat_Tongue_FNG: 恐惧贪婪指数标准化到 0~1
-    - Feat_Tongue_LSR: 多空比 Z-score (当前与历史对比)
-    若某个来源失败，该特征置为 None。
-    """
-    features = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "fear_greed_index": fng_value,
-        "feat_tongue_fng": None,
-        "long_short_ratio": None,
-        "feat_tongue_lsr": None
-    }
-
-    # FNG 标准化
-    if fng_value is not None:
-        features["feat_tongue_fng"] = fng_value / 100.0
-
-    # 多空比 Z-score
-    if ls_ratios and len(ls_ratios) >= 2:
-        current_ratio = ls_ratios[-1]
-        mean = statistics.mean(ls_ratios)
-        stdev = statistics.stdev(ls_ratios) if len(ls_ratios) > 1 else 0.0
-        features["long_short_ratio"] = current_ratio
-        if stdev > 0:
-            features["feat_tongue_lsr"] = (current_ratio - mean) / stdev
-        else:
-            features["feat_tongue_lsr"] = 0.0  # 所有值相同，无偏离
-
-    return features
-
-def get_tongue_feature() -> Optional[dict]:
-    """
-    主函数：合并两个数据源的特征。
-    """
-    try:
-        fng = fetch_fear_greed_index()
-        ls_ratios = fetch_long_short_ratio()
-        features = calculate_tongue_features(fng, ls_ratios)
-        # 如果两个主要特征都为 None，则返回失败
-        if features["feat_tongue_fng"] is None and features["feat_tongue_lsr"] is None:
-            logger.warning("舌部特征获取失败：所有数据源无效")
-            return None
-        return features
-    except Exception as e:
-        logger.exception(f"计算 Tongue 特征时发生错误: {e}")
+        logger.error(f"Ratio API 失敗 ({url}): {e}")
         return None
 
+
+def fetch_fng() -> Optional[int]:
+    """獲取 Fear & Greed Index（備用）"""
+    try:
+        session = _create_session()
+        resp = session.get(FNG_URL, params={"limit": 1, "format": "json"}, timeout=10)
+        resp.raise_for_status()
+        data = resp.json().get("data", [])
+        return int(data[0]["value"]) if data else None
+    except Exception as e:
+        logger.error(f"FNG API 失敗: {e}")
+        return None
+
+
+def ratio_to_signal(ratios: Optional[List[float]], invert: bool = False) -> Optional[float]:
+    """
+    將比率序列轉換為標準化信號 (-1~1)。
+    使用 Z-score + tanh 壓縮。
+    invert=True 表示該比率越高代表越悲觀（如 Taker Buy/Sell）。
+    """
+    if not ratios or len(ratios) < 2:
+        return None
+    import numpy as np
+    arr = np.array(ratios)
+    current = arr[-1]
+    mean = arr.mean()
+    std = arr.std()
+    if std == 0:
+        return 0.0
+    z = (current - mean) / std
+    signal = math.tanh(z)  # 壓縮到 -1~1
+    return float(-signal) if invert else float(signal)
+
+
+def compute_sentiment_score(
+    lsr: Optional[List[float]],
+    taker: Optional[List[float]],
+    top_trader: Optional[List[float]],
+    fng: Optional[int],
+) -> Dict:
+    """
+    計算多維度情緒綜合分數。
+
+    各因子：
+    - LSR (多空帳戶比): 比值越高 → 散戶越看多 → 反轉指標（invert）
+    - Taker (主買賣比): 比值越高 → 買壓越大 → 正向
+    - Top Trader (大戶持倉比): 比值越高 → 大戶看多 → 正向
+    - FNG: 備用，權重較低
+
+    Returns:
+        {
+            "feat_tongue_sentiment": float (-1~1),
+            "components": {...},
+            "sentiment_label": str
+        }
+    """
+    components = []
+    raw_values = {}
+
+    # 因子 A: 多空帳戶比（散戶情緒，反向指標）
+    lsr_signal = ratio_to_signal(lsr, invert=True)  # 散戶多=反轉
+    if lsr_signal is not None:
+        components.append(("lsr", lsr_signal, 0.35))
+        raw_values["lsr_current"] = lsr[-1] if lsr else None
+
+    # 因子 B: 主動買賣比（真實買壓，正向）
+    taker_signal = ratio_to_signal(taker, invert=False)
+    if taker_signal is not None:
+        components.append(("taker", taker_signal, 0.35))
+        raw_values["taker_current"] = taker[-1] if taker else None
+
+    # 因子 C: 大戶持倉比（smart money，正向）
+    top_signal = ratio_to_signal(top_trader, invert=False)
+    if top_signal is not None:
+        components.append(("top_trader", top_signal, 0.20))
+        raw_values["top_trader_current"] = top_trader[-1] if top_trader else None
+
+    # 因子 D: FNG（低頻備用）
+    if fng is not None:
+        fng_signal = (fng - 50) / 50  # 0~100 → -1~1
+        components.append(("fng", fng_signal, 0.10))
+        raw_values["fng"] = fng
+
+    # 加權合併
+    if components:
+        total_weight = sum(w for _, _, w in components)
+        score = sum(sig * w for _, sig, w in components) / total_weight
+    else:
+        score = 0.0
+
+    # 標籤
+    if score > 0.3:
+        label = "樂觀"
+    elif score < -0.3:
+        label = "悲觀"
+    else:
+        label = "中性"
+
+    return {
+        "feat_tongue_sentiment": float(score),
+        "components": raw_values,
+        "sentiment_label": label,
+    }
+
+
+def get_tongue_feature(symbol: str = "BTCUSDT") -> Optional[dict]:
+    """主函數：抓取多維度情緒數據並返回特徵。"""
+    try:
+        lsr = fetch_ratio(LSR_URL, symbol)
+        taker = fetch_ratio(TAKER_URL, symbol)
+        top_trader = fetch_ratio(TOP_TRADER_URL, symbol)
+        fng = fetch_fng()
+
+        result = compute_sentiment_score(lsr, taker, top_trader, fng)
+
+        logger.info(
+            f"Tongue (情緒v2): score={result['feat_tongue_sentiment']:.4f}, "
+            f"label={result['sentiment_label']}, "
+            f"LSR={result['components'].get('lsr_current')}, "
+            f"Taker={result['components'].get('taker_current')}, "
+            f"FNG={result['components'].get('fng')}"
+        )
+
+        return {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "fear_greed_index": fng,
+            "feat_tongue_fng": fng / 100.0 if fng is not None else None,
+            "feat_tongue_sentiment": result["feat_tongue_sentiment"],
+            "long_short_ratio": result["components"].get("lsr_current"),
+            "taker_ratio": result["components"].get("taker_current"),
+            "top_trader_ratio": result["components"].get("top_trader_current"),
+            "sentiment_label": result["sentiment_label"],
+        }
+    except Exception as e:
+        logger.exception(f"計算 Tongue (情緒v2) 特徵時發生錯誤: {e}")
+        return None
+
+
 if __name__ == "__main__":
-    logger.info("开始测试 tongue_sentiment 模块...")
+    logger.info("開始測試 tongue_sentiment (v2) 模組...")
     result = get_tongue_feature()
     if result:
         print(f"[SUCCESS] Tongue 特徵: {result}")
     else:
-        print("[FAIL] 无法获取 Tongue 特徵")
+        print("[FAIL] 無法獲取 Tongue 特徵")
