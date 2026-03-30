@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional, Dict
 
-from data_ingestion.body_defillama import get_body_feature
+from data_ingestion.body_liquidation import get_body_feature
 from data_ingestion.tongue_sentiment import get_tongue_feature
 from data_ingestion.nose_futures import get_nose_feature
 from data_ingestion.eye_binance import get_eye_feature
