@@ -1,122 +1,200 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { useWebSocket } from '../hooks/useWebSocket'
-import { useApi, useApiPost } from '../hooks/useApi'
-import SenseCard from '../components/SenseCard'
-import SignalBanner from '../components/SignalBanner'
-import FeatureChart from '../components/FeatureChart'
+/**
+ * Dashboard — TradingView-style layout
+ * Top: Candlestick chart (full width)
+ * Bottom left: 5 Sense cards
+ * Bottom right: Signal banner + manual trade
+ */
+import { useState } from "react";
+import CandlestickChart from "../components/CandlestickChart";
+import SenseCard from "../components/SenseCard";
+import SignalBanner from "../components/SignalBanner";
+import { useApi } from "../hooks/useApi";
+import { useWebSocket } from "../hooks/useWebSocket";
 
-const SENSE_CONFIG = [
-  { key: 'eye_dist', name: 'Eye', nameZh: '眼·技術面', icon: '👁️', description: '價格與阻力/支撐距離比例' },
-  { key: 'ear_prob', name: 'Ear', nameZh: '耳·市場共識', icon: '👂', description: 'Polymarket 預測市場概率' },
-  { key: 'funding_rate', name: 'Nose', nameZh: '鼻·衍生品', icon: '👃', description: '永續合約資金費率' },
-  { key: 'fear_greed_index', name: 'Tongue', nameZh: '舌·情緒', icon: '👅', description: '恐懼貪婪指數 (0-100)' },
-  { key: 'stablecoin_mcap', name: 'Body', nameZh: '身·鏈上資金', icon: '💪', description: '穩定幣市值變化率 (ROC)' },
-]
+interface StatusData {
+  mode: string;
+  automation: boolean;
+  raw_count: number;
+  feature_count: number;
+  model_loaded: boolean;
+}
+
+interface SenseData {
+  timestamp: string;
+  close_price: number;
+  eye_dist: number | null;
+  ear_prob: number | null;
+  funding_rate: number | null;
+  fng_index: number | null;
+  body_roc: number | null;
+}
+
+interface FeatureData {
+  timestamp: string;
+  feat_eye_dist: number | null;
+  feat_ear_zscore: number | null;
+  feat_nose_sigmoid: number | null;
+  feat_tongue_pct: number | null;
+  feat_body_roc: number | null;
+}
+
+interface SignalData {
+  confidence: number;
+  signal: string;
+  timestamp: string;
+}
 
 export default function Dashboard() {
-  const { senses: wsSenses, signal: wsSignal, isConnected } = useWebSocket()
-  const { data: status, refetch: refetchStatus } = useApi<any>('/status')
-  const { data: features, refetch: refetchFeatures } = useApi<any[]>('/features?days=1')
-  const { post: toggleAutomation, loading: isToggling } = useApiPost<any>()
-  const { post: manualTrade, loading: isTrading } = useApiPost<any>()
+  const [interval, setInterval] = useState("1h");
+  const [days, setDays] = useState(7);
 
-  const [automation, setAutomation] = useState(false)
+  const { data: status } = useApi<StatusData>("/api/status");
+  const { data: senses } = useApi<SenseData>("/api/senses/latest");
+  const { data: features } = useApi<FeatureData[]>("/api/features?days=1");
 
-  // 同步自動模式狀態
-  useEffect(() => {
-    if (status?.automation !== undefined) {
-      setAutomation(status.automation)
-    }
-  }, [status])
+  // WebSocket for real-time updates
+  const wsData = useWebSocket("/ws/live");
 
-  // WebSocket 推送的最新五感數據
-  const latestSenses = wsSenses || {}
-
-  const handleToggleAutomation = async () => {
-    const result = await toggleAutomation('/automation/toggle')
-    if (result) {
-      setAutomation(result.automation)
-    }
-  }
-
-  const handleManualTrade = async (side: 'buy' | 'sell') => {
-    const result = await manualTrade('/trade', {
-      side,
-      symbol: status?.symbol || 'BTCUSDT',
-      qty: 0.001,
-    })
-    if (result?.success) {
-      refetchStatus()
-    }
-  }
+  const signal: SignalData | null = wsData?.signal || null;
+  const liveSenses: SenseData | null = wsData?.senses || senses || null;
 
   return (
-    <div className="space-y-6">
-      {/* 系統狀態欄 */}
-      <div className="card">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-6">
-            <div>
-              <span className="text-xs text-dark-400">BTC 價格</span>
-              <div className="text-2xl font-bold font-mono text-dark-100">
-                ${latestSenses.close_price?.toLocaleString() ?? '—'}
-              </div>
-            </div>
-            <div className="h-10 w-px bg-dark-700" />
-            <div>
-              <span className="text-xs text-dark-400">模式</span>
-              <div className={`text-lg font-semibold ${automation ? 'text-buy' : 'text-dark-300'}`}>
-                {automation ? '🤖 自動' : '🖐️ 手動'}
-              </div>
-            </div>
-            <div className="h-10 w-px bg-dark-700" />
-            <div>
-              <span className="text-xs text-dark-400">數據量</span>
-              <div className="text-lg font-mono text-dark-200">
-                {status?.data_counts?.raw_market_data ?? 0} 筆
-              </div>
-            </div>
+    <div className="min-h-screen bg-slate-950 text-white">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
+        <div className="flex items-center gap-4">
+          <h1 className="text-lg font-bold text-blue-400">
+            🐰 Poly-Trader
+          </h1>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-slate-400">BTC/USDT</span>
+            {liveSenses?.close_price && (
+              <span className="text-white font-mono text-base">
+                ${liveSenses.close_price.toLocaleString()}
+              </span>
+            )}
           </div>
+        </div>
+        <div className="flex items-center gap-3 text-sm">
+          {/* Timeframe selector */}
+          <div className="flex gap-1">
+            {[
+              { label: "1H", iv: "1h", d: 3 },
+              { label: "4H", iv: "4h", d: 14 },
+              { label: "1D", iv: "1d", d: 90 },
+              { label: "1W", iv: "1w", d: 365 },
+            ].map((opt) => (
+              <button
+                key={opt.iv}
+                onClick={() => {
+                  setInterval(opt.iv);
+                  setDays(opt.d);
+                }}
+                className={`px-2 py-1 text-xs rounded transition ${
+                  interval === opt.iv
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {/* Status indicators */}
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-buy animate-pulse' : 'bg-sell'}`} />
-            <span className="text-xs text-dark-400">
-              {isConnected ? '即時連線' : '斷線中'}
+            <span
+              className={`w-2 h-2 rounded-full ${
+                status?.model_loaded ? "bg-green-400" : "bg-red-400"
+              }`}
+            />
+            <span className="text-slate-400">
+              {status?.raw_count || 0} 數據
+            </span>
+            <span
+              className={`px-2 py-0.5 rounded text-xs ${
+                status?.automation
+                  ? "bg-green-900 text-green-300"
+                  : "bg-yellow-900 text-yellow-300"
+              }`}
+            >
+              {status?.automation ? "🤖 自動" : "🖱️ 手動"}
             </span>
           </div>
         </div>
       </div>
 
-      {/* 五感卡片 */}
-      <div>
-        <h2 className="text-lg font-semibold text-dark-300 mb-3">五感即時數據</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {SENSE_CONFIG.map((s) => (
-            <SenseCard
-              key={s.key}
-              name={s.name}
-              nameZh={s.nameZh}
-              icon={s.icon}
-              value={latestSenses[s.key] ?? null}
-              description={s.description}
-              updatedAt={latestSenses.timestamp}
+      {/* Main content: chart + panels */}
+      <div className="flex flex-col lg:flex-row h-[calc(100vh-44px)]">
+        {/* Left: Candlestick chart (70% width) */}
+        <div className="lg:w-[70%] w-full border-r border-slate-800">
+          <CandlestickChart
+            symbol="BTCUSDT"
+            interval={interval}
+            days={days}
+            height={undefined}
+          />
+        </div>
+
+        {/* Right: Sense cards + Signal (30% width) */}
+        <div className="lg:w-[30%] w-full flex flex-col overflow-y-auto">
+          {/* 5 Sense Cards */}
+          <div className="p-3 border-b border-slate-800">
+            <h2 className="text-sm font-semibold text-slate-400 mb-2">
+              五感即時狀態
+            </h2>
+            <div className="grid grid-cols-1 gap-2">
+              <SenseCard
+                name="👁️ Eye"
+                label="技術面"
+                value={liveSenses?.eye_dist}
+                format="pct"
+                description="價格與阻力/支撐距離"
+              />
+              <SenseCard
+                name="👂 Ear"
+                label="市場共識"
+                value={liveSenses?.ear_prob}
+                format="pct"
+                description="預測市場概率"
+              />
+              <SenseCard
+                name="👃 Nose"
+                label="衍生品"
+                value={
+                  liveSenses?.funding_rate
+                    ? liveSenses.funding_rate * 10000
+                    : null
+                }
+                format="fixed4"
+                description="資金費率 (×10⁴)"
+              />
+              <SenseCard
+                name="👅 Tongue"
+                label="情緒"
+                value={liveSenses?.fng_index}
+                format="int"
+                description="恐懼貪婪指數 (0~100)"
+              />
+              <SenseCard
+                name="💪 Body"
+                label="鏈上資金"
+                value={liveSenses?.body_roc}
+                format="pct"
+                description="穩定幣市值 ROC"
+              />
+            </div>
+          </div>
+
+          {/* Signal Banner */}
+          <div className="p-3 flex-1">
+            <SignalBanner
+              confidence={signal?.confidence || 0}
+              signal={signal?.signal || "HOLD"}
+              timestamp={signal?.timestamp}
             />
-          ))}
+          </div>
         </div>
       </div>
-
-      {/* 信號橫幅 */}
-      <SignalBanner
-        signal={wsSignal?.signal ?? null}
-        confidence={wsSignal?.confidence ?? null}
-        automation={automation}
-        onToggleAutomation={handleToggleAutomation}
-        onManualTrade={handleManualTrade}
-        isToggling={isToggling}
-        isTrading={isTrading}
-      />
-
-      {/* 特徵趨勢圖 */}
-      <FeatureChart data={features || []} />
     </div>
-  )
+  );
 }

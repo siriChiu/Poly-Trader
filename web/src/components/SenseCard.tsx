@@ -1,54 +1,63 @@
-import React from 'react'
-
-interface SenseCardProps {
-  name: string
-  nameZh: string
-  icon: string
-  value: number | null
-  unit?: string
-  description: string
-  updatedAt?: string | null
+/**
+ * SenseCard — Single sense status card
+ */
+interface Props {
+  name: string;
+  label: string;
+  value: number | null | undefined;
+  format?: "pct" | "int" | "fixed4" | "raw";
+  description?: string;
 }
 
-const statusColor = (value: number | null): string => {
-  if (value === null || value === undefined) return 'text-dark-500'
-  if (value > 0.3) return 'text-buy'
-  if (value < -0.3) return 'text-sell'
-  return 'text-hold'
+function formatValue(val: number | null | undefined, format: string): string {
+  if (val === null || val === undefined) return "—";
+  switch (format) {
+    case "pct":
+      return `${(val * 100).toFixed(2)}%`;
+    case "int":
+      return `${Math.round(val)}`;
+    case "fixed4":
+      return val.toFixed(4);
+    default:
+      return val.toString();
+  }
 }
 
-const statusIcon = (value: number | null): string => {
-  if (value === null || value === undefined) return '⚪'
-  if (value > 0.3) return '🟢'
-  if (value < -0.3) return '🔴'
-  return '🟡'
+function getStatusColor(val: number | null | undefined): string {
+  if (val === null || val === undefined) return "bg-slate-600";
+  if (typeof val === "number" && Math.abs(val) > 0.5) return "bg-amber-500";
+  return "bg-green-500";
 }
 
-export default function SenseCard({ name, nameZh, icon, value, unit = '', description, updatedAt }: SenseCardProps) {
+export default function SenseCard({
+  name,
+  label,
+  value,
+  format = "raw",
+  description,
+}: Props) {
   return (
-    <div className="card hover:border-dark-500 transition-colors">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">{icon}</span>
-          <div>
-            <div className="text-sm font-semibold text-dark-200">{nameZh}</div>
-            <div className="text-xs text-dark-500">{name}</div>
+    <div className="flex items-center justify-between px-3 py-2 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-slate-600 transition">
+      <div className="flex items-center gap-2">
+        <span className="text-lg">{name.split(" ")[0]}</span>
+        <div>
+          <div className="text-sm font-medium text-white">
+            {name.split(" ").slice(1).join(" ")}
           </div>
+          {description && (
+            <div className="text-xs text-slate-500">{description}</div>
+          )}
         </div>
-        <span className="text-lg">{statusIcon(value)}</span>
       </div>
-
-      <div className={`text-3xl font-bold font-mono ${statusColor(value)}`}>
-        {value !== null && value !== undefined ? `${value.toFixed(4)}${unit}` : '—'}
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-mono text-slate-200">
+          {formatValue(value, format)}
+        </span>
+        <span
+          className={`w-2 h-2 rounded-full ${getStatusColor(value)}`}
+          title={value !== null && value !== undefined ? "正常" : "無數據"}
+        />
       </div>
-
-      <p className="text-xs text-dark-400 mt-2">{description}</p>
-
-      {updatedAt && (
-        <div className="text-xs text-dark-600 mt-1">
-          更新: {new Date(updatedAt).toLocaleTimeString('zh-TW')}
-        </div>
-      )}
     </div>
-  )
+  );
 }

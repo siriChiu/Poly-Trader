@@ -1,131 +1,175 @@
-import React, { useState } from 'react'
+/**
+ * SignalBanner — Trading signal + manual buy/sell + automation toggle
+ */
+import { useState } from "react";
 
-interface SignalBannerProps {
-  signal: string | null
-  confidence: number | null
-  automation: boolean
-  onToggleAutomation: () => void
-  onManualTrade: (side: 'buy' | 'sell') => void
-  isToggling?: boolean
-  isTrading?: boolean
+interface Props {
+  confidence: number;
+  signal: string;
+  timestamp?: string;
 }
 
-export default function SignalBanner({
-  signal,
-  confidence,
-  automation,
-  onToggleAutomation,
-  onManualTrade,
-  isToggling = false,
-  isTrading = false,
-}: SignalBannerProps) {
-  const [confirmTrade, setConfirmTrade] = useState<'buy' | 'sell' | null>(null)
+export default function SignalBanner({ confidence, signal, timestamp }: Props) {
+  const [confirmBuy, setConfirmBuy] = useState(false);
+  const [confirmSell, setConfirmSell] = useState(false);
+  const [automation, setAutomation] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
-  const signalColor = signal === 'BUY' ? 'border-buy bg-green-900/20' : 'border-hold bg-yellow-900/20'
-  const signalText = signal === 'BUY' ? '📈 買進信號' : '⏸️ 觀望'
-  const confidencePct = confidence !== null ? (confidence * 100).toFixed(1) : '—'
+  const isBuy = signal === "BUY";
+  const confidencePct = Math.round(confidence * 100);
 
-  const handleConfirm = () => {
-    if (confirmTrade) {
-      onManualTrade(confirmTrade)
-      setConfirmTrade(null)
+  const handleTrade = async (side: string) => {
+    try {
+      const resp = await fetch("/api/trade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ side: side.toLowerCase(), symbol: "BTCUSDT" }),
+      });
+      const data = await resp.json();
+      setStatusMsg(
+        data.error
+          ? `❌ ${data.error}`
+          : `✅ ${side} 訂單已提交: ${data.order_id || "dry_run"}`
+      );
+    } catch (e: any) {
+      setStatusMsg(`❌ ${e.message}`);
     }
-  }
+    setConfirmBuy(false);
+    setConfirmSell(false);
+    setTimeout(() => setStatusMsg(null), 5000);
+  };
+
+  const toggleAutomation = async () => {
+    const newState = !automation;
+    setAutomation(newState);
+    try {
+      await fetch("/api/automation/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: newState }),
+      });
+      setStatusMsg(newState ? "🤖 自動模式已開啟" : "🖱️ 手動模式已開啟");
+    } catch (e: any) {
+      setStatusMsg(`❌ ${e.message}`);
+    }
+    setTimeout(() => setStatusMsg(null), 3000);
+  };
 
   return (
-    <div className={`card border-2 ${signalColor}`}>
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        {/* 信號區域 */}
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-2xl font-bold">{signalText}</span>
-            {signal === 'BUY' && (
-              <span className="badge bg-buy/20 text-buy">BUY</span>
-            )}
-            {signal !== 'BUY' && signal && (
-              <span className="badge bg-hold/20 text-hold">HOLD</span>
-            )}
-          </div>
-
-          {/* 信心分數進度條 */}
-          <div className="w-full max-w-md">
-            <div className="flex justify-between text-xs text-dark-400 mb-1">
-              <span>信心分數</span>
-              <span className="font-mono">{confidencePct}%</span>
-            </div>
-            <div className="h-3 bg-dark-700 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  (confidence ?? 0) > 0.7 ? 'bg-buy' : (confidence ?? 0) > 0.5 ? 'bg-hold' : 'bg-sell'
-                }`}
-                style={{ width: `${confidence ?? 0}%` }}
-              />
-            </div>
+    <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4">
+      {/* Signal display */}
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="text-xs text-slate-400 mb-1">交易信號</div>
+          <div
+            className={`text-2xl font-bold ${
+              isBuy ? "text-green-400" : "text-slate-400"
+            }`}
+          >
+            {signal}
           </div>
         </div>
-
-        {/* 操作區域 */}
-        <div className="flex items-center gap-3">
-          {/* 手動下單 */}
-          {confirmTrade ? (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-dark-300">
-                確認{confirmTrade === 'buy' ? '買進' : '賣出'}？
-              </span>
-              <button
-                onClick={handleConfirm}
-                disabled={isTrading}
-                className="btn-buy text-sm py-1 px-3"
-              >
-                ✓ 確認
-              </button>
-              <button
-                onClick={() => setConfirmTrade(null)}
-                className="text-sm text-dark-400 hover:text-dark-200 px-2 py-1"
-              >
-                取消
-              </button>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmTrade('buy')}
-                className="btn-buy"
-                disabled={isTrading}
-              >
-                🛒 買進
-              </button>
-              <button
-                onClick={() => setConfirmTrade('sell')}
-                className="btn-sell"
-                disabled={isTrading}
-              >
-                💰 賣出
-              </button>
-            </div>
-          )}
-
-          {/* 自動模式開關 */}
-          <div className="flex flex-col items-center ml-4">
-            <button
-              onClick={onToggleAutomation}
-              disabled={isToggling}
-              className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${
-                automation ? 'bg-buy' : 'bg-dark-600'
-              }`}
-            >
-              <span
-                className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow transition-transform duration-300 ${
-                  automation ? 'translate-x-6' : ''
-                }`}
-              />
-            </button>
-            <span className={`text-xs mt-1 font-medium ${automation ? 'text-buy' : 'text-dark-400'}`}>
-              {automation ? '自動模式' : '手動模式'}
-            </span>
-          </div>
+        <div className="text-right">
+          <div className="text-xs text-slate-400 mb-1">信心分數</div>
+          <div className="text-xl font-mono text-white">{confidencePct}%</div>
         </div>
       </div>
+
+      {/* Confidence bar */}
+      <div className="w-full bg-slate-700 rounded-full h-2 mb-4">
+        <div
+          className={`h-2 rounded-full transition-all duration-500 ${
+            isBuy ? "bg-green-500" : "bg-slate-500"
+          }`}
+          style={{ width: `${confidencePct}%` }}
+        />
+      </div>
+
+      {/* Trade buttons */}
+      <div className="flex gap-2 mb-3">
+        {/* Buy button */}
+        {!confirmBuy ? (
+          <button
+            onClick={() => setConfirmBuy(true)}
+            disabled={automation}
+            className="flex-1 py-2 px-4 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg text-white font-medium transition"
+          >
+            🟢 買進
+          </button>
+        ) : (
+          <div className="flex-1 flex gap-1">
+            <button
+              onClick={() => handleTrade("BUY")}
+              className="flex-1 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-white text-sm font-medium"
+            >
+              ✓ 確認買進
+            </button>
+            <button
+              onClick={() => setConfirmBuy(false)}
+              className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 text-sm"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Sell button */}
+        {!confirmSell ? (
+          <button
+            onClick={() => setConfirmSell(true)}
+            disabled={automation}
+            className="flex-1 py-2 px-4 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg text-white font-medium transition"
+          >
+            🔴 賣出
+          </button>
+        ) : (
+          <div className="flex-1 flex gap-1">
+            <button
+              onClick={() => handleTrade("SELL")}
+              className="flex-1 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-white text-sm font-medium"
+            >
+              ✓ 確認賣出
+            </button>
+            <button
+              onClick={() => setConfirmSell(false)}
+              className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 text-sm"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Automation toggle */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-slate-400">自動交易</span>
+        <button
+          onClick={toggleAutomation}
+          className={`relative w-12 h-6 rounded-full transition-colors ${
+            automation ? "bg-green-600" : "bg-slate-600"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+              automation ? "translate-x-6" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+
+      {/* Status message */}
+      {statusMsg && (
+        <div className="mt-3 text-sm text-center text-slate-300 bg-slate-900/50 rounded-lg py-2">
+          {statusMsg}
+        </div>
+      )}
+
+      {/* Timestamp */}
+      {timestamp && (
+        <div className="mt-2 text-xs text-slate-500 text-center">
+          更新: {new Date(timestamp).toLocaleString("zh-TW")}
+        </div>
+      )}
     </div>
-  )
+  );
 }

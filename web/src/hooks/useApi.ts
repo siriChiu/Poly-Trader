@@ -1,66 +1,65 @@
-import { useState, useEffect, useCallback } from 'react'
+/**
+ * useApi — Generic API fetch hooks
+ */
+import { useEffect, useState, useCallback } from "react";
 
-const API_BASE = '/api'
+const BASE = import.meta.env.DEV ? "http://localhost:8000" : "";
 
-async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || 'API 請求失敗')
-  }
-  return res.json()
-}
+export function useApi<T>(endpoint: string, refreshMs?: number) {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-export function useApi<T>(path: string, deps: any[] = []) {
-  const [data, setData] = useState<T | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const refetch = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  const fetch_ = useCallback(async () => {
     try {
-      const result = await fetchApi<T>(path)
-      setData(result)
+      const resp = await fetch(`${BASE}${endpoint}`);
+      if (!resp.ok) throw new Error(`${resp.status}`);
+      const json = await resp.json();
+      setData(json);
+      setError(null);
     } catch (e: any) {
-      setError(e.message)
+      setError(e.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [path])
+  }, [endpoint]);
 
   useEffect(() => {
-    refetch()
-  }, [refetch, ...deps])
-
-  return { data, loading, error, refetch }
-}
-
-export function useApiPost<T>() {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const post = useCallback(async (path: string, body?: any): Promise<T | null> => {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await fetchApi<T>(path, {
-        method: 'POST',
-        body: body ? JSON.stringify(body) : undefined,
-      })
-      return result
-    } catch (e: any) {
-      setError(e.message)
-      return null
-    } finally {
-      setLoading(false)
+    fetch_();
+    if (refreshMs) {
+      const timer = setInterval(fetch_, refreshMs);
+      return () => clearInterval(timer);
     }
-  }, [])
+  }, [fetch_, refreshMs]);
 
-  return { post, loading, error }
+  return { data, loading, error, refresh: fetch_ };
 }
 
-export { fetchApi }
+export function useApiPost<T>(endpoint: string) {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const post = async (body: any) => {
+    setLoading(true);
+    try {
+      const resp = await fetch(`${BASE}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json.detail || `${resp.status}`);
+      setData(json);
+      setError(null);
+      return json;
+    } catch (e: any) {
+      setError(e.message);
+      return { error: e.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { data, loading, error, post };
+}
