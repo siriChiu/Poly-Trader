@@ -58,25 +58,32 @@ def fetch_stablecoin_chart(timeout: int = 10) -> Optional[list]:
 def calculate_body_trend(chart_data: list) -> Tuple[float, int]:
     """
     计算最近7天的稳定币总市值变化率 (ROC) 并离散化为 -1/0/1。
-    Args:
-        chart_data: DefiLlama 返回的 all 数组。
-    Returns:
-        (raw_roc, discrete_trend)
-        - raw_roc: 浮点数变化率（如 0.0123 表示 1.23%）
-        - discrete_trend: -1 (资金撤出), 0 (停滞), 1 (流入)
+    支持多种字段名（totalCirculatingUSD, totalUSD, value 等）。
     """
     if not chart_data or len(chart_data) < 8:
         raise ValueError("chart_data 数据不足，至少需要8个点以计算7日变化")
 
-    # 数组按时间排序，最后一个是今天，倒数第8个是7天前
+    # 取最近两个点
     today = chart_data[-1]
     week_ago = chart_data[-8]
 
-    today_usd = today.get("totalCirculatingUSD", 0.0)
-    week_ago_usd = week_ago.get("totalCirculatingUSD", 0.0)
+    # 尝试多个可能的字段名
+    possible_keys = ["totalCirculatingUSD", "totalUSD", "value", "circulatingUSD"]
+    def extract_usd(item):
+        for k in possible_keys:
+            if k in item:
+                val = item[k]
+                # 确保是数值
+                if isinstance(val, (int, float)):
+                    return float(val)
+        return 0.0
+
+    today_usd = extract_usd(today)
+    week_ago_usd = extract_usd(week_ago)
 
     if week_ago_usd == 0:
-        raise ValueError("7天前的市值为0，无法计算ROC")
+        logger.warning(f"Week ago USD is zero: {week_ago}, using fallback 0")
+        return 0.0, 0
 
     raw_roc = (today_usd - week_ago_usd) / week_ago_usd
 
