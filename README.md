@@ -1,227 +1,236 @@
 # Poly-Trader 🐰
 
-> **五感量化交易系统** - 基于免费API与开源工具的自动化策略平台
+> **五感量化交易系統** — 用免費 API 打造的 AI 自動化交易引擎
 
-![GitHub last commit](https://img.shields.io/github/lastcommit/your-org/poly-trader)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![React](https://img.shields.io/badge/React-18-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-latest-green)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
 
-## ✨ 特色功能
+## ✨ 五感官系統
 
-| 模块 | 描述 |
-|------|------|
-| **👀 Eye** | Binance Order Book 流动性分析，计算价格阻力/支撑距离 |
-| **👂 Ear** | Polymarket 预测市场概率 + Binance 多空比 Z-score |
-| **👃 Nose** | Binance Futures 资金费率 Sigmoid 压缩 + 未平仓量增长率 |
-| **👅 Tongue** | Alternative.me 恐惧贪婪指数 + 社群多空情绪 |
-| **💪 Body** | DefiLlama 全网稳定币市值 7日 ROC（链上资金水位） |
-| **🧠 Brain** | XGBoost 分类器（信心分數 0~1） |
-| **📊 Dashboard** | Streamlit 实时仪表板：特征分析、回测、参数优化、五感有效性 |
-| **🔁 LCM** | 集成 `lossless-claw-enhanced` 实现 CJK 友好的长期上下文管理 |
+| 感官 | 數據源 | 特徵 | 狀態 |
+|------|--------|------|------|
+| 👁️ **Eye**（眼） | Binance Order Book | 阻力/支撐距離比例 | ✅ |
+| 👂 **Ear**（耳） | Polymarket + 價格動量 | 市場共識 Z-score | ✅ |
+| 👃 **Nose**（鼻） | Binance Futures | 資金費率 Sigmoid + OI ROC | ✅ |
+| 👅 **Tongue**（舌） | Alternative.me | 恐懼貪婪指數 0~1 | ✅ |
+| 💪 **Body**（身） | Binance Futures OI/LS | **清算壓力綜合指標**（v3） | ✅ 🆕 |
+
+**🧠 決策引擎**：XGBoost 分類器 → 信心分數 0~1 → BUY/HOLD 信號
+
+**特徵重要性排名**（667 筆訓練樣本）：
+```
+🥇 Nose (資金費率)    ████████████████  33.7%
+🥈 Tongue (情緒)     ███████████████   32.5%
+🥉 Eye (技術面)      █████████         18.5%
+4️⃣  Ear (市場共識)   ████████          15.3%
+5️⃣  Body (清算壓力)   待重新訓練驗證     🔄
+```
 
 ---
 
-## 🗂️ 项目结构
+## 🚀 快速開始
+
+### 環境需求
+
+- Python 3.10+
+- Node.js 18+（前端）
+- Git
+
+### 安裝
+
+```bash
+# 1. 克隆
+git clone https://github.com/siriChiu/Poly-Trader.git
+cd poly-trader
+
+# 2. Python 後端
+pip install -r requirements.txt
+pip install fastapi uvicorn websockets
+
+# 3. 初始化資料庫
+python init_db.py
+
+# 4. 回填歷史數據（一次性，約 30 秒）
+python data_ingestion/backfill_historical.py
+
+# 5. 啟動後端 API
+uvicorn server.main:app --reload --port 8000
+
+# 6. 啟動前端（新終端）
+cd web
+npm install
+npm run dev
+```
+
+### 🌐 打開儀表板
+
+瀏覽器前往：**http://localhost:5173**
+
+---
+
+## 📊 Dashboard 功能
+
+### TradingView 風格 K 線圖
+- 即時 BTC/USDT K 線（來自 Binance）
+- 成交量柱狀圖
+- 時間框架切換：1H / 4H / 1D / 1W
+- 暗色主題，專業級圖表
+
+### 五感即時狀態
+- 5 個感官卡片，即時顯示數值與狀態
+- WebSocket 推送，無需手動刷新
+
+### 手動交易
+- 🟢 **買進按鈕** — 點擊 → 確認 → 下單
+- 🔴 **賣出按鈕** — 同上
+- 🤖 **自動模式開關** — 一鍵切換自動/手動
+
+### 回測 & 參數優化
+- 選擇時間範圍、初始資金
+- 一鍵執行回測，查看 Sharpe / Max DD / 勝率
+- 網格搜索最佳參數組合
+
+### 感官有效性分析
+- IC（Information Coefficient）條形圖
+- 分位數勝率熱圖
+- 自動標記無效感官
+
+---
+
+## 📁 專案結構
 
 ```
 poly-trader/
-├── data_ingestion/       # 五感数据采集
-│   ├── body_defillama.py
-│   ├── tongue_sentiment.py
-│   ├── nose_futures.py
-│   ├── eye_binance.py
-│   ├── ear_polymarket.py
-│   └── collector.py      # 整合五感写入 raw_market_data
+├── data_ingestion/           # 五感數據採集
+│   ├── eye_binance.py        # Eye: 訂單簿流動性
+│   ├── ear_polymarket.py     # Ear: 預測市場概率
+│   ├── nose_futures.py       # Nose: 資金費率 + OI
+│   ├── tongue_sentiment.py   # Tongue: 恐懼貪婪指數
+│   ├── body_liquidation.py   # Body: 清算壓力（v3）🆕
+│   ├── collector.py          # 整合五感 → DB
+│   ├── labeling.py           # 生成訓練標籤
+│   └── backfill_historical.py # 歷史數據回填 🆕
 ├── feature_engine/
-│   └── preprocessor.py   # 特征标准化 (ROC, Z-score, Sigmoid)
+│   └── preprocessor.py       # 特徵標準化
 ├── model/
-│   ├── predictor.py      # Dummy/真实模型预测
-│   └── train.py          # XGBoost 训练脚本
+│   ├── predictor.py          # 模型預測
+│   └── train.py              # XGBoost 訓練
 ├── execution/
-│   ├── risk_control.py   # 部位控制、止損
-│   └── order_manager.py  # CCXT 下單 (Dry Run 模式)
+│   ├── order_manager.py      # 下單管理（CCXT）
+│   └── risk_control.py       # 風控 & 止損
 ├── backtesting/
-│   ├── engine.py         # 回测引擎
-│   ├── metrics.py        # 绩效指标 (Sharpe, Max DD, Win Rate)
-│   └── optimizer.py      # 网格搜索最佳参数
+│   ├── engine.py             # 回測引擎
+│   ├── metrics.py            # 績效指標
+│   └── optimizer.py          # 參數優化
 ├── analysis/
-│   └── sense_effectiveness.py  # 五感有效性分析 (IC, Quantile Win Rate)
-├── dashboard/
-│   └── app.py            # Streamlit 仪表板
+│   ├── sense_effectiveness.py # 五感有效性分析
+│   └── sense_validator.py    # 感官驗證 + 六帽觸發
+├── server/                   # FastAPI 後端 🆕
+│   ├── main.py               # API + WebSocket
+│   ├── routes/api.py         # 9 個 REST 端點
+│   └── routes/ws.py          # WebSocket 即時推送
+├── web/                      # React 前端 🆕
+│   └── src/
+│       ├── components/       # K線圖、感官卡片、信號面板
+│       └── pages/            # 首頁、交易歷史、回測、驗證
+├── dashboard/                # 舊版 Streamlit（備用）
 ├── database/
-│   └── models.py         # SQLAlchemy ORM (RawMarketData, FeaturesNormalized, TradeHistory, Labels)
-├── utils/
-│   └── logger.py         # 日志配置
-├── main.py               # APScheduler 排程闭环
-├── test_pipeline.py      # 端到端测试
-├── dev_heartbeat.py      # 开发进度心跳
-├── comprehensive_test.py # 全面规格验证
-├── config.yaml           # 配置文件
-└── requirements.txt      # Python 依赖
+│   └── models.py             # SQLAlchemy ORM
+├── config.yaml               # 設定檔
+├── main.py                   # 主程式排程器
+├── comprehensive_test.py     # 全面規格驗證
+├── dev_heartbeat.py          # 開發心跳
+├── ISSUES.md                 # 問題追蹤
+├── ROADMAP.md                # 發展路線圖
+└── ai_dev_role.md            # 閉迴路開發角色
 ```
 
 ---
 
-## 🚀 快速开始
+## ⚙️ 配置
 
-### 环境需求
-
-- Python 3.10+
-- Git
-- (可选) Streamlit 用于仪表板
-
-### 安装步骤
-
-```bash
-# 1. 克隆仓库
-git clone <your-repo-url>
-cd poly-trader
-
-# 2. 创建虚拟环境
-python -m venv .venv
-# Windows:
-# .venv\Scripts\activate
-# Linux/macOS:
-source .venv/bin/activate
-
-# 3. 安装依赖
-pip install -r requirements.txt
-
-# 4. 初始化数据库
-python init_db.py
-
-# 5. 配置 API Keys（编辑 config.yaml）
-#   - Binance: api_key, api_secret
-#   - Tavily (可选, 用于搜索)
-
-# 6. 启动仪表板
-streamlit run dashboard/app.py
-```
-
----
-
-## 📈 使用流程
-
-1. **数据收集**（自动/手动）
-   ```bash
-   # 手动执行一次五感收集
-   python -c "from data_ingestion.collector import run_collection_and_save; from database.models import init_db; from config import load_config; cfg=load_config(); session=init_db(cfg['database']['url']); run_collection_and_save(session); session.close()"
-   ```
-
-2. **特征工程**
-   ```python
-   from feature_engine.preprocessor import run_preprocessor
-   run_preprocessor(session, "BTCUSDT")
-   ```
-
-3. **标签生成**（首次）
-   ```python
-   from data_ingestion.labeling import generate_future_return_labels
-   labels_df = generate_future_return_labels(session, "BTCUSDT", horizon_hours=24)
-   ```
-
-4. **模型训练**（有足够标签后）
-   ```bash
-   python -c "from model.train import run_training; from database.models import init_db; from config import load_config; cfg=load_config(); session=init_db(cfg['database']['url']); run_training(session); session.close()"
-   ```
-
-5. **策略回测**（仪表板页面）
-   - 选择日期范围、初始资金
-   - 点击「执行回测」查看资金曲线与绩效指标
-
-6. **参数优化**（仪表板页面）
-   - 调整 confidence、position ratio、stop loss 的搜索范围
-   - 运行网格搜索，查看 Sharpe 热图
-
-7. **五感有效性分析**（仪表板页面）
-   - 查看每个感官的 **Information Coefficient (IC)**
-   - 分位数胜率热图 → 判断哪些感官设计有效/需调整
-
----
-
-## ⚙️ 配置说明
-
-`config.yaml` 主要字段：
+`config.yaml`：
 
 ```yaml
 database:
   url: sqlite:///poly_trader.db
 
 binance:
-  api_key: ""        # 填入你的 Binance API Key
-  api_secret: ""      # 填入你的 Binance API Secret
+  api_key: ""         # 填入 Binance API Key（選填，Dry Run 不需要）
+  api_secret: ""
 
 trading:
-  symbol: "BTC/USDT"
-  confidence_threshold: 0.7   # 预测信心阈值
-  max_position_ratio: 0.05    # 最大仓位比例（5%）
-  dry_run: true              # True=模拟, False=实盘
+  symbol: "BTCUSDT"
+  confidence_threshold: 0.7   # 預測信心閾值
+  max_position_ratio: 0.05    # 最大倉位比例 5%
+  dry_run: true              # true=模擬, false=實盤
 ```
 
 ---
 
-## 📊 仪表板功能详解
+## 🔄 自動化
 
-| 页签 | 功能 |
-|------|------|
-| **🔍 特徵分析** | 五感时间序列图 + 特徵相关性热图 |
-| **🤖 模型預測** | 输入特徵 → 输出信心分數與交易信號 |
-| **📜 交易歷史** | 历史交易列表 + 累计 P&L 曲线 |
-| **📈 策略回測** | 选择时间范围 → 回测 → 展示资金曲线、Sharpe、Max DD等 |
-| **🔧 參數優化** | 网格搜索 → Sharpe 热图 → 最佳参数组合 |
-| **🔬 五感有效性** | 信息系数 (IC) 条形图 + 分位数胜率热图（用于调整感官设计） |
+### Heartbeat（每 5 分鐘）
+自動執行：
+1. 五感數據收集
+2. 特徵計算
+3. 感官有效性驗證（IC）
+4. 結構健康檢查
+5. 六帽會議（感官有問題時自動觸發）
 
----
-
-## 🔧 开发与自动化
-
-### Cron 作业（OpenClaw）
-
-| 作业名称 | 频率 | 操作 |
-|----------|------|------|
-| `Poly-Trader Dev Heartbeat` | 每 5 分钟 | 检查文件结构与语法 |
-| `Poly-Trader Comprehensive Test` | 每日 02:00 UTC | 运行 `comprehensive_test.py`，确保无回归 |
-
-### 验证套件
-
+### 歷史回填
 ```bash
-# 快速检查
-python dev_heartbeat.py
+python data_ingestion/backfill_historical.py
+```
+一次拉取 30 天歷史數據（720 筆），立即可用於訓練。
 
-# 全面规格验证（7项测试）
-python comprehensive_test.py
+### 模型訓練
+```bash
+python -c "from model.train import run_training; from database.models import init_db; from config import load_config; cfg=load_config(); s=init_db(cfg['database']['url']); run_training(s)"
 ```
 
 ---
 
-## 📝 贡献与开发流程
+## 📈 API 端點
 
-1. Fork 本仓库
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
----
-
-## 📄 许可证
-
-MIT License - 详见 [LICENSE](LICENSE) 文件
-
----
-
-## 🙏 致谢
-
-- [OpenClaw](https://github.com/openclaw/openclaw) - AI Agent 平台
-- [lossless-claw-enhanced](https://github.com/win4r/lossless-claw-enhanced) - CJK token estimation 修复
-- [CCXT](https://github.com/ccxt/ccxt) - 交易所 API 封装
-- [XGBoost](https://xgboost.ai/) - 机器学习模型
-- [Streamlit](https://streamlit.io/) - 仪表板框架
-- [DefiLlama](https://defillama.com/) - 链上数据
-- [Polymarket](https://polymarket.com/) - 预测市场 Gamma API
+| 端點 | 方法 | 說明 |
+|------|------|------|
+| `/api/status` | GET | 系統狀態 |
+| `/api/senses/latest` | GET | 最新五感數據 |
+| `/api/features` | GET | 特徵歷史 |
+| `/api/trades` | GET | 交易歷史 |
+| `/api/predict` | POST | 觸發預測 |
+| `/api/trade` | POST | 手動下單 |
+| `/api/automation/toggle` | POST | 切換自動/手動 |
+| `/api/backtest` | GET | 觸發回測 |
+| `/api/validation` | GET | 感官有效性 |
+| `/ws/live` | WebSocket | 即時推送 |
 
 ---
 
-**Happy Trading! 🚀**
+## 🛠️ 開發
+
+### 閉迴路開發流程
+每個任務經過三個角色：
+1. **架構師** — 設計符合 PRD 的架構
+2. **工程師** — 撰寫完整程式碼
+3. **QA** — 實際測試驗證
+
+### 六帽會議
+當感官驗證發現 Critical 問題時自動觸發，六個角度分析後產出決議。
+
+### 驗證
+```bash
+python comprehensive_test.py   # 7 項全面測試
+python dev_heartbeat.py        # 快速心跳
+```
+
+---
+
+## 📄 License
+
+MIT
