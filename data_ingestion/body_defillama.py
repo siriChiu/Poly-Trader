@@ -4,7 +4,6 @@
 """
 
 import requests
-import time
 from typing import Optional, Tuple
 from datetime import datetime
 from requests.adapters import HTTPAdapter
@@ -13,11 +12,10 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-# API 端點
 API_URL = "https://stablecoins.llama.fi/stablecoincharts/all"
 
+
 def _create_session(retries: int = 3, backoff_factor: float = 0.5) -> requests.Session:
-    """建立具有重試機制的 requests.Session"""
     session = requests.Session()
     retry = Retry(
         total=retries,
@@ -25,25 +23,21 @@ def _create_session(retries: int = 3, backoff_factor: float = 0.5) -> requests.S
         connect=retries,
         backoff_factor=backoff_factor,
         status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET"]
+        allowed_methods=["GET"],
     )
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("http://", adapter)
     session.mount("https://", adapter)
     return session
 
+
 def fetch_stablecoin_chart(timeout: int = 10) -> Optional[list]:
-    """
-    抓取全网稳定币市值历史数据。
-    Returns:
-        数据列表，每个元素包含 date 和 totalCirculatingUSD。
-    """
+    """抓取全網穩定幣市值歷史數據。"""
     try:
         session = _create_session()
         resp = session.get(API_URL, timeout=timeout)
         resp.raise_for_status()
         data = resp.json()
-        # 根据实际响应，可能是 {"all": [...]} 或直接为 [...]
         if isinstance(data, dict):
             return data.get("all")
         elif isinstance(data, list):
@@ -52,42 +46,45 @@ def fetch_stablecoin_chart(timeout: int = 10) -> Optional[list]:
             logger.error(f"Unexpected response type: {type(data)}")
             return None
     except requests.RequestException as e:
-        logger.error(f"DefiLlama API 请求失败: {e}")
+        logger.error(f"DefiLlama API 請求失敗: {e}")
         return None
 
+
+def _extract_total_usd(item: dict) -> float:
+    """
+    從 DefiLlama 圖表數據點提取 totalCirculatingUSD。
+    支持兩種格式：
+    1. totalCirculatingUSD: float (舊版)
+    2. totalCirculatingUSD: dict (新版，按幣種拆分)
+       → 需加總所有 peggedUSD 值
+    """
+    val = item.get("totalCirculatingUSD")
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, dict):
+        # 新版：按 peggedUSD 加總
+        total = 0.0
+        for v in val.values():
+            if isinstance(v, (int, float)):
+                total += float(v)
+        return total
+    return 0.0
+
+
 def calculate_body_trend(chart_data: list) -> Tuple[float, int]:
-    """
-    计算最近7天的稳定币总市值变化率 (ROC) 并离散化为 -1/0/1。
-    支持多种字段名（totalCirculatingUSD, totalUSD, value 等）。
-    """
+    """計算最近7天的穩定幣總市值變化率 (ROC) 並離散化為 -1/0/1。"""
     if not chart_data or len(chart_data) < 8:
-        raise ValueError("chart_data 数据不足，至少需要8个点以计算7日变化")
+        raise ValueError("chart_data 數據不足，至少需要8個點")
 
-    # 取最近两个点
-    today = chart_data[-1]
-    week_ago = chart_data[-8]
-
-    # 尝试多个可能的字段名
-    possible_keys = ["totalCirculatingUSD", "totalUSD", "value", "circulatingUSD"]
-    def extract_usd(item):
-        for k in possible_keys:
-            if k in item:
-                val = item[k]
-                # 确保是数值
-                if isinstance(val, (int, float)):
-                    return float(val)
-        return 0.0
-
-    today_usd = extract_usd(today)
-    week_ago_usd = extract_usd(week_ago)
+    today_usd = _extract_total_usd(chart_data[-1])
+    week_ago_usd = _extract_total_usd(chart_data[-8])
 
     if week_ago_usd == 0:
-        logger.warning(f"Week ago USD is zero: {week_ago}, using fallback 0")
+        logger.warning("Week ago USD is zero, using fallback")
         return 0.0, 0
 
     raw_roc = (today_usd - week_ago_usd) / week_ago_usd
 
-    # 离散化阈值 0.5%
     threshold = 0.005
     if raw_roc > threshold:
         discrete = 1
@@ -98,16 +95,9 @@ def calculate_body_trend(chart_data: list) -> Tuple[float, int]:
 
     return raw_roc, discrete
 
+
 def get_body_feature() -> Optional[dict]:
-    """
-    主函数：抓取数据并返回特徵字典。
-    返回格式：
-        {
-            "raw_roc": 0.0123,
-            "feat_body_trend": 1
-        }
-    若失败返回 None。
-    """
+    """主函數：抓取數據並返回特徵字典。"""
     try:
         chart = fetch_stablecoin_chart()
         if not chart:
@@ -116,17 +106,8 @@ def get_body_feature() -> Optional[dict]:
         return {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "raw_roc": raw_roc,
-            "feat_body_trend": discrete
+            "feat_body_trend": discrete,
         }
     except Exception as e:
-        logger.exception(f"计算 Body 特徵时发生错误: {e}")
+        logger.exception(f"計算 Body 特徵時發生錯誤: {e}")
         return None
-
-# 單元測試 (若直接執行此文件)
-if __name__ == "__main__":
-    logger.info("开始测试 body_defillama 模块...")
-    result = get_body_feature()
-    if result:
-        print(f"[SUCCESS] Body 特徵: {result}")
-    else:
-        print("[FAIL] 无法获取 Body 特徵")

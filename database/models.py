@@ -1,3 +1,7 @@
+"""
+Database models for Poly-Trader
+"""
+
 from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -5,6 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 Base = declarative_base()
+
 
 class RawMarketData(Base):
     """原始市場數據表"""
@@ -19,6 +24,9 @@ class RawMarketData(Base):
     fear_greed_index = Column(Float)
     stablecoin_mcap = Column(Float)
     polymarket_prob = Column(Float)
+    eye_dist = Column(Float, nullable=True)   # Eye 原始：價格與阻力/支撐距離
+    ear_prob = Column(Float, nullable=True)   # Ear 原始：預測市場概率
+
 
 class FeaturesNormalized(Base):
     """正規化特徵表"""
@@ -29,8 +37,9 @@ class FeaturesNormalized(Base):
     feat_eye_dist = Column(Float)      # 眼：價格距離痛點比例
     feat_ear_zscore = Column(Float)    # 耳：市場共識 Z-score
     feat_nose_sigmoid = Column(Float)  # 鼻：資金費率 Sigmoid 壓縮
-    feat_tongue_pct = Column(Float)    # 舌情緒指数百分比
+    feat_tongue_pct = Column(Float)    # 舌：情緒指數百分比
     feat_body_roc = Column(Float)      # 身：資金增長率
+
 
 class TradeHistory(Base):
     """交易歷史表"""
@@ -42,15 +51,27 @@ class TradeHistory(Base):
     price = Column(Float, nullable=False)
     amount = Column(Float, nullable=False)
     model_confidence = Column(Float, nullable=False)
-    pnl = Column(Float, nullable=True)  # 損益，可後續更新
+    pnl = Column(Float, nullable=True)
+
+
+class Labels(Base):
+    """未來收益率標籤表"""
+    __tablename__ = "labels"
+
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, nullable=False, index=True)
+    symbol = Column(String, nullable=False)
+    horizon_hours = Column(Integer, nullable=False)
+    future_return_pct = Column(Float)
+    label = Column(Integer)  # 1=上漲, 0=下跌
+
 
 def init_db(db_url: str):
     """
     初始化資料庫並建立所有 tables。
-    返回 Session 物件供後續使用。
+    返回 Session 工廠。
     """
-    from sqlalchemy import create_engine
     engine = create_engine(db_url, echo=False, future=True)
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    return Session()
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    return SessionLocal()

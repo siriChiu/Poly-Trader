@@ -6,17 +6,17 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional, Dict
-import pandas as pd
 
 from data_ingestion.body_defillama import get_body_feature
 from data_ingestion.tongue_sentiment import get_tongue_feature
 from data_ingestion.nose_futures import get_nose_feature
 from data_ingestion.eye_binance import get_eye_feature
 from data_ingestion.ear_polymarket import get_ear_feature
-from database.models import RawMarketData, init_db
+from database.models import RawMarketData
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
 
 def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
     """
@@ -26,26 +26,42 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
     """
     logger.info("開始五感數據收集...")
 
-    # 分別獲取各感特徵
     body = get_body_feature() or {}
     tongue = get_tongue_feature() or {}
     nose = get_nose_feature() or {}
     eye = get_eye_feature() or {}
     ear = get_ear_feature() or {}
 
-    # 組裝爲 RawMarketData 記錄
+    # Eye: 取 feat_eye_up 或 feat_eye_down 作為 eye_dist
+    eye_dist_val = eye.get("feat_eye_up") or eye.get("feat_eye_down")
+
+    # Ear: 取 prob
+    ear_prob_val = ear.get("prob")
+
+    # Body: stablecoin_mcap 存原始 ROC（注意：非市值，而是變化率）
+    stablecoin_roc = body.get("raw_roc")
+
     record = RawMarketData(
         timestamp=datetime.utcnow(),
         symbol=symbol,
         close_price=eye.get("current_price"),
-        volume=None,  # TODO: 從 eye 模組補充
+        volume=None,
         funding_rate=nose.get("funding_rate_raw"),
         fear_greed_index=tongue.get("fear_greed_index"),
-        stablecoin_mcap=body.get("raw_roc"),  # 注意：這裡存的是 ROC，實際應存市值
-        polymarket_prob=ear.get("prob")
+        stablecoin_mcap=stablecoin_roc,
+        polymarket_prob=ear_prob_val,
+        eye_dist=eye_dist_val,
+        ear_prob=ear_prob_val,
     )
-    logger.info(f"收集完成: {record.__dict__}")
+    logger.info(
+        f"收集完成: price={eye.get('current_price')}, "
+        f"eye_dist={eye_dist_val}, ear_prob={ear_prob_val}, "
+        f"funding={nose.get('funding_rate_raw')}, "
+        f"fng={tongue.get('fear_greed_index')}, "
+        f"body_roc={stablecoin_roc}"
+    )
     return record
+
 
 def run_collection_and_save(session: Session, symbol: str = "BTCUSDT") -> bool:
     """
@@ -64,17 +80,3 @@ def run_collection_and_save(session: Session, symbol: str = "BTCUSDT") -> bool:
         session.rollback()
         logger.exception(f"保存 raw data 失敗: {e}")
         return False
-
-if __name__ == "__main__":
-    # 單元測試：初始化 DB 並執行一次收集
-    from config import load_config
-    cfg = load_config()
-    db_url = cfg["database"]["url"]
-    Session = init_db(db_url)
-    session = Session()
-    success = run_collection_and_save(session)
-    session.close()
-    if success:
-        print("[SUCCESS] 数据收集完成")
-    else:
-        print("[FAIL] 数据收集失败")
