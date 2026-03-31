@@ -45,6 +45,16 @@ app.include_router(api_router, prefix="/api")
 app.include_router(ws_router)
 
 
+@app.get("/")
+async def root():
+    return {
+        "name": "Poly-Trader API",
+        "version": "2.0.0",
+        "docs": "/docs",
+        "api": "/api/status",
+        "ws": "/ws/live",
+    }
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
