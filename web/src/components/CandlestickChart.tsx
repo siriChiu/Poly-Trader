@@ -120,7 +120,7 @@ export default function CandlestickChart({ symbol = "BTCUSDT", interval = "1h", 
     const fetchData = async () => {
       try {
         setLoading(true);
-        const BASE = import.meta.env.DEV ? "http://localhost:8001" : "";
+        const BASE = "";
         const limit = Math.min(days * 24, 1000);
         const resp = await fetch(`${BASE}/api/chart/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
         if (!resp.ok) throw new Error(`${resp.status}`);

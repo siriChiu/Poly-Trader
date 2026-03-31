@@ -3,7 +3,7 @@
  */
 import { useEffect, useState, useCallback } from "react";
 
-const BASE = import.meta.env.DEV ? "http://localhost:8001" : "";
+const BASE = "";
 
 export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const resp = await fetch(`${BASE}${endpoint}`, options);
