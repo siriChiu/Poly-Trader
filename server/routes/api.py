@@ -178,53 +178,107 @@ async def get_klines(
 
 
 @router.get("/backtest")
-async def get_backtest():
-    """回測結果"""
-    # 返回模擬回測數據
-    import random
-    initial = 10000
-    equity = initial
-    equity_curve = []
-    trades = []
-    base_time = datetime.utcnow() - timedelta(days=30)
+async def get_backtest(days: int = Query(default=30, ge=1, le=365)):
+    """真實回測：用 K 線數據跑策略"""
+    try:
+        import math
+        symbol = "BTCUSDT"
+        interval = "4h" if days <= 7 else "1d"
+        limit = 200 if interval == "4h" else 365
 
-    for i in range(30 * 24):
-        t = base_time + timedelta(hours=i)
-        change = random.gauss(0.0002, 0.01)
-        equity *= (1 + change)
-        equity_curve.append({"timestamp": t.isoformat() + "Z", "equity": round(equity, 2)})
+        exchange = ccxt.binance()
+        ohlcv = exchange.fetch_ohlcv(symbol, interval, limit=limit)
 
-        if random.random() < 0.05:
-            action = random.choice(["buy", "sell"])
-            pnl = random.gauss(10, 50)
-            trades.append({
-                "timestamp": t.isoformat() + "Z",
-                "action": action,
-                "price": round(random.uniform(60000, 70000), 2),
-                "amount": round(random.uniform(0.001, 0.01), 4),
-                "confidence": round(random.uniform(0.5, 0.95), 2),
-                "pnl": round(pnl, 2),
+        if not ohlcv or len(ohlcv) < 20:
+            return {"error": "數據不足"}
+
+        initial = 10000
+        equity = initial
+        position = 0
+        entry_price = 0
+        equity_curve = []
+        trades = []
+        threshold = 0.65
+        stop_loss = 0.03  # 3% 止損
+
+        # 計算 SMA
+        closes = [bar[4] for bar in ohlcv]
+        sma20 = [sum(closes[max(0, i-20):max(1, i)]) / max(1, min(i, 20)) for i in range(len(closes))]
+        rsi = [50.0] * len(closes)
+        gains = []
+        losses = []
+        for i in range(1, len(closes)):
+            diff = closes[i] - closes[i-1]
+            gains.append(max(diff, 0))
+            losses.append(max(-diff, 0))
+
+        for bar in ohlcv:
+            t, o, h, l, c, v = bar
+
+            # 簡單信號：價格在 SMA20 以上 → 偏多，以下 → 偏空
+            idx = ohlcv.index(bar)
+            price = c
+            sma = sma20[idx] if idx < len(sma20) else price
+            trend_signal = 1.0 if price > sma else -1.0
+            confidence_raw = 0.5 + trend_signal * 0.15 + min(max(rsii, -0.2), 0.2)
+
+            # 隨機加入一些變異使回測更真實
+            noise = (ord(symbol[0]) % 100) / 10000.0
+            confidence = max(0.0, min(1.0, confidence_raw + noise))
+
+            # 止損
+            if position > 0 and entry_price > 0:
+                if price <= entry_price * (1 - stop_loss):
+                    pnl = (price - entry_price) * position
+                    equity += pnl
+                    trades.append({"timestamp": datetime.fromtimestamp(t/1000).isoformat() + "Z",
+                                   "action": "sell", "price": round(price, 2), "amount": position,
+                                   "confidence": 0, "pnl": round(pnl, 2), "reason": "stop_loss"})
+                    position = 0
+
+            # 交易邏輯
+            if confidence >= threshold and position == 0:
+                size = (equity * 0.05) / price
+                pos_qty = round(size * 1000) / 1000  # round down
+                if pos_qty > 0:
+                    position = pos_qty
+                    entry_price = price
+
+            equity_curve.append({
+                "timestamp": datetime.fromtimestamp(t/1000).isoformat() + "Z",
+                "equity": round(equity + (position * price if position else 0), 2)
             })
 
-    winning = [t for t in trades if t["pnl"] > 0]
-    total_pnl = sum(t["pnl"] for t in trades)
-    max_dd = _calc_max_drawdown([e["equity"] for e in equity_curve])
+        # 平倉
+        if position > 0 and len(ohlcv) > 0:
+            last_c = ohlcv[-1][4]
+            pnl = (last_c - entry_price) * position
+            equity += pnl
+            trades.append({"timestamp": datetime.fromtimestamp(ohlcv[-1][0]/1000).isoformat() + "Z",
+                           "action": "sell", "price": round(last_c, 2), "amount": position,
+                           "confidence": 0, "pnl": round(pnl, 2), "reason": "close"})
+            position = 0
 
-    return {
-        "final_equity": round(equity, 2),
-        "initial_capital": initial,
-        "total_trades": len(trades),
-        "win_rate": round(len(winning) / max(len(trades), 1) * 100, 1),
-        "profit_loss_ratio": round(
-            sum(t["pnl"] for t in winning) / max(len(winning), 1) /
-            max(abs(sum(t["pnl"] for t in trades if t["pnl"] < 0)) / max(len(trades) - len(winning), 1), 0.01),
-            2
-        ) if trades else 0,
-        "max_drawdown": round(max_dd * 100, 2),
-        "total_return": round((equity - initial) / initial * 100, 2),
-        "equity_curve": equity_curve[-200:],  # 最後 200 點
-        "trades": trades[-50:],  # 最後 50 筆
-    }
+        winning = [t for t in trades if t["pnl"] > 0]
+        max_dd = _calc_max_drawdown([e["equity"] for e in equity_curve])
+
+        avg_win = sum(t["pnl"] for t in winning) / len(winning) if winning else 0
+        avg_loss = sum(t["pnl"] for t in trades if t["pnl"] < 0) / max(len(trades) - len(winning), 1)
+
+        return {
+            "final_equity": round(equity, 2),
+            "initial_capital": initial,
+            "total_trades": len(trades),
+            "win_rate": round(len(winning) / max(len(trades), 1) * 100, 1),
+            "profit_loss_ratio": round(abs(avg_win) / max(abs(avg_loss), 0.01), 2),
+            "max_drawdown": round(max_dd * 100, 2),
+            "total_return": round((equity - initial) / initial * 100, 2),
+            "equity_curve": equity_curve[-200:],
+            "trades": trades[-50:],
+        }
+    except Exception as e:
+        logger.error(f"回測失敗: {e}")
+        return {"error": str(e)}
 
 
 @router.post("/backtest/run")
@@ -232,8 +286,8 @@ async def run_backtest_api(
     days: int = Query(default=30, ge=1, le=365),
     initial_capital: float = Query(default=10000.0),
 ):
-    """執行回測（同 GET /backtest，但可用 POST 觸發）"""
-    return await get_backtest()
+    """執行回測（POST）"""
+    return await get_backtest(days=days)
 
 
 @router.post("/trade")
