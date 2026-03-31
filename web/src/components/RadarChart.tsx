@@ -17,7 +17,7 @@ const SENSE_LABELS: Record<string, string> = {
   body: "💪 Body",
 };
 
-const COLORS = {
+const COLORS: Record<string, string> = {
   eye: "#3b82f6",
   ear: "#8b5cf6",
   nose: "#f59e0b",

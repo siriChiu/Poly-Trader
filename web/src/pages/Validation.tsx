@@ -40,7 +40,7 @@ const STATUS_ICONS = {
 }
 
 export default function Validation() {
-  const { data, loading, error, refetch } = useApi<ValidationData>('/validation')
+  const { data, loading, error, refresh } = useApi<ValidationData>('/validation')
 
   if (loading) {
     return (
@@ -54,7 +54,7 @@ export default function Validation() {
     return (
       <div className="card text-sell">
         載入失敗: {error}
-        <button onClick={refetch} className="ml-4 btn-primary text-sm">重試</button>
+        <button onClick={refresh} className="ml-4 btn-primary text-sm">重試</button>
       </div>
     )
   }
