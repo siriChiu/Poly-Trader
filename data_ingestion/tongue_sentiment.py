@@ -1,15 +1,12 @@
 """
-五感之「舌」v2：多維度市場情緒模組
+五感之「舌」v3：多因子情緒溫度計
 
-舊版問題：FNG 更新慢、卡在極端值無變異 → IC=0
-新版方案：多指標即時情緒綜合分數
+組成：
+1. FNG 正規化：(FNG - 50) / 50 → -1~1
+2. 波動率信號：高波動 = 恐懼（負值），低波動 = 平靜
+3. 資金費率方向：正 = 多頭擁擠（偏負面），負 = 空頭擁擠
 
-數據源（全部免費 via Binance Futures API）：
-1. 多空帳戶比 (Long/Short Account Ratio)
-2. 主動買賣比 (Taker Buy/Sell Ratio)
-3. 大戶持倉比 (Top Trader Position Ratio)
-
-綜合情緒分數：-1（極度悲觀）到 +1（極度樂觀）
+數據源：Alternative.me + Binance + Binance Futures（全部免費）
 """
 
 import requests
@@ -22,11 +19,9 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-# Binance Futures 免費端點
-LSR_URL = "https://fapi.binance.com/futures/data/globalLongShortAccountRatio"
-TAKER_URL = "https://fapi.binance.com/futures/data/takerlongshortRatio"
-TOP_TRADER_URL = "https://fapi.binance.com/futures/data/topLongShortPositionRatio"
 FNG_URL = "https://api.alternative.me/fng/"
+KLINES_URL = "https://api.binance.com/api/v3/klines"
+FUNDING_URL = "https://fapi.binance.com/fapi/v1/premiumIndex"
 
 
 def _create_session(retries: int = 3, backoff_factor: float = 0.5):
@@ -43,22 +38,8 @@ def _create_session(retries: int = 3, backoff_factor: float = 0.5):
     return session
 
 
-def fetch_ratio(url: str, symbol: str = "BTCUSDT", period: str = "1h", limit: int = 24) -> Optional[List[float]]:
-    """通用：獲取 Binance Futures 比率類數據"""
-    try:
-        session = _create_session()
-        params = {"symbol": symbol, "period": period, "limit": limit}
-        resp = session.get(url, params=params, timeout=10)
-        resp.raise_for_status()
-        key = "longShortRatio" if "longShort" in url else "takerBuySellRatio" if "taker" in url else "topTraderLongShortRatio"
-        return [float(d[key]) for d in resp.json() if key in d]
-    except Exception as e:
-        logger.error(f"Ratio API 失敗 ({url}): {e}")
-        return None
-
-
 def fetch_fng() -> Optional[int]:
-    """獲取 Fear & Greed Index（備用）"""
+    """恐懼貪婪指數 (0~100)"""
     try:
         session = _create_session()
         resp = session.get(FNG_URL, params={"limit": 1, "format": "json"}, timeout=10)
@@ -70,79 +51,66 @@ def fetch_fng() -> Optional[int]:
         return None
 
 
-def ratio_to_signal(ratios: Optional[List[float]], invert: bool = False) -> Optional[float]:
-    """
-    將比率序列轉換為標準化信號 (-1~1)。
-    使用 Z-score + tanh 壓縮。
-    invert=True 表示該比率越高代表越悲觀（如 Taker Buy/Sell）。
-    """
-    if not ratios or len(ratios) < 2:
+def fetch_recent_volatility(symbol: str = "BTCUSDT", hours: int = 24) -> Optional[float]:
+    """計算最近 N 小時的相對波動率"""
+    try:
+        session = _create_session()
+        params = {"symbol": symbol, "interval": "1h", "limit": hours}
+        resp = session.get(KLINES_URL, params=params, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        if not data or len(data) < 2:
+            return None
+        closes = [float(k[4]) for k in data]
+        returns = [(closes[i] - closes[i-1]) / closes[i-1] for i in range(1, len(closes))]
+        import numpy as np
+        vol = float(np.std(returns))
+        return vol
+    except Exception as e:
+        logger.error(f"Volatility 計算失敗: {e}")
         return None
-    import numpy as np
-    arr = np.array(ratios)
-    current = arr[-1]
-    mean = arr.mean()
-    std = arr.std()
-    if std == 0:
-        return 0.0
-    z = (current - mean) / std
-    signal = math.tanh(z)  # 壓縮到 -1~1
-    return float(-signal) if invert else float(signal)
 
 
-def compute_sentiment_score(
-    lsr: Optional[List[float]],
-    taker: Optional[List[float]],
-    top_trader: Optional[List[float]],
-    fng: Optional[int],
-) -> Dict:
+def fetch_funding_rate(symbol: str = "BTCUSDT") -> Optional[float]:
+    """當前資金費率"""
+    try:
+        session = _create_session()
+        resp = session.get(FUNDING_URL, params={"symbol": symbol}, timeout=10)
+        resp.raise_for_status()
+        return float(resp.json().get("lastFundingRate", 0))
+    except Exception as e:
+        logger.error(f"Funding Rate 失敗: {e}")
+        return None
+
+
+def compute_tongue_score(fng: Optional[int], volatility: Optional[float], funding: Optional[float]) -> Dict:
     """
-    計算多維度情緒綜合分數。
-
-    各因子：
-    - LSR (多空帳戶比): 比值越高 → 散戶越看多 → 反轉指標（invert）
-    - Taker (主買賣比): 比值越高 → 買壓越大 → 正向
-    - Top Trader (大戶持倉比): 比值越高 → 大戶看多 → 正向
-    - FNG: 備用，權重較低
-
-    Returns:
-        {
-            "feat_tongue_sentiment": float (-1~1),
-            "components": {...},
-            "sentiment_label": str
-        }
+    多因子情緒溫度計：
+    - FNG 正規化 (-1~1)
+    - 波動率信號 (高波動=恐懼=負值)
+    - 資金費率方向 (正=擁擠=負面)
     """
     components = []
-    raw_values = {}
 
-    # 因子 A: 多空帳戶比（散戶情緒，反向指標）
-    lsr_signal = ratio_to_signal(lsr, invert=True)  # 散戶多=反轉
-    if lsr_signal is not None:
-        components.append(("lsr", lsr_signal, 0.35))
-        raw_values["lsr_current"] = lsr[-1] if lsr else None
-
-    # 因子 B: 主動買賣比（真實買壓，正向）
-    taker_signal = ratio_to_signal(taker, invert=False)
-    if taker_signal is not None:
-        components.append(("taker", taker_signal, 0.35))
-        raw_values["taker_current"] = taker[-1] if taker else None
-
-    # 因子 C: 大戶持倉比（smart money，正向）
-    top_signal = ratio_to_signal(top_trader, invert=False)
-    if top_signal is not None:
-        components.append(("top_trader", top_signal, 0.20))
-        raw_values["top_trader_current"] = top_trader[-1] if top_trader else None
-
-    # 因子 D: FNG（低頻備用）
+    # 因子 A: FNG (40% 權重)
     if fng is not None:
         fng_signal = (fng - 50) / 50  # 0~100 → -1~1
-        components.append(("fng", fng_signal, 0.10))
-        raw_values["fng"] = fng
+        components.append(("fng", fng_signal, 0.4))
 
-    # 加權合併
+    # 因子 B: 波動率 (30% 權重)
+    if volatility is not None:
+        # 歷史波動率通常 0.01~0.05，標準化
+        vol_signal = -math.tanh(volatility * 50)  # 高波動 = 負值 (恐懼)
+        components.append(("volatility", vol_signal, 0.3))
+
+    # 因子 C: 資金費率 (30% 權重)
+    if funding is not None:
+        fr_signal = -math.tanh(funding * 50000)  # 正費率 = 負值 (擁擠)
+        components.append(("funding", fr_signal, 0.3))
+
     if components:
-        total_weight = sum(w for _, _, w in components)
-        score = sum(sig * w for _, sig, w in components) / total_weight
+        total_w = sum(w for _, _, w in components)
+        score = sum(s * w for _, s, w in components) / total_w
     else:
         score = 0.0
 
@@ -156,27 +124,31 @@ def compute_sentiment_score(
 
     return {
         "feat_tongue_sentiment": float(score),
-        "components": raw_values,
-        "sentiment_label": label,
+        "tongue_label": label,
+        "components": {
+            "fng": fng,
+            "fng_signal": (fng - 50) / 50 if fng else None,
+            "volatility": volatility,
+            "vol_signal": -math.tanh(volatility * 50) if volatility else None,
+            "funding": funding,
+            "fr_signal": -math.tanh(funding * 50000) if funding else None,
+        },
     }
 
 
 def get_tongue_feature(symbol: str = "BTCUSDT") -> Optional[dict]:
-    """主函數：抓取多維度情緒數據並返回特徵。"""
+    """主函數：計算多因子情緒溫度計"""
     try:
-        lsr = fetch_ratio(LSR_URL, symbol)
-        taker = fetch_ratio(TAKER_URL, symbol)
-        top_trader = fetch_ratio(TOP_TRADER_URL, symbol)
         fng = fetch_fng()
+        volatility = fetch_recent_volatility(symbol, hours=24)
+        funding = fetch_funding_rate(symbol)
 
-        result = compute_sentiment_score(lsr, taker, top_trader, fng)
+        result = compute_tongue_score(fng, volatility, funding)
 
         logger.info(
-            f"Tongue (情緒v2): score={result['feat_tongue_sentiment']:.4f}, "
-            f"label={result['sentiment_label']}, "
-            f"LSR={result['components'].get('lsr_current')}, "
-            f"Taker={result['components'].get('taker_current')}, "
-            f"FNG={result['components'].get('fng')}"
+            f"Tongue (v3): score={result['feat_tongue_sentiment']:.4f}, "
+            f"label={result['tongue_label']}, "
+            f"FNG={fng}, vol={volatility}, FR={funding}"
         )
 
         return {
@@ -184,20 +156,10 @@ def get_tongue_feature(symbol: str = "BTCUSDT") -> Optional[dict]:
             "fear_greed_index": fng,
             "feat_tongue_fng": fng / 100.0 if fng is not None else None,
             "feat_tongue_sentiment": result["feat_tongue_sentiment"],
-            "long_short_ratio": result["components"].get("lsr_current"),
-            "taker_ratio": result["components"].get("taker_current"),
-            "top_trader_ratio": result["components"].get("top_trader_current"),
-            "sentiment_label": result["sentiment_label"],
+            "tongue_label": result["tongue_label"],
+            "volatility": volatility,
+            "funding_rate": funding,
         }
     except Exception as e:
-        logger.exception(f"計算 Tongue (情緒v2) 特徵時發生錯誤: {e}")
+        logger.exception(f"計算 Tongue (v3) 失敗: {e}")
         return None
-
-
-if __name__ == "__main__":
-    logger.info("開始測試 tongue_sentiment (v2) 模組...")
-    result = get_tongue_feature()
-    if result:
-        print(f"[SUCCESS] Tongue 特徵: {result}")
-    else:
-        print("[FAIL] 無法獲取 Tongue 特徵")
