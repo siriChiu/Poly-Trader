@@ -27,6 +27,7 @@ import { fetchApi } from "../hooks/useApi";
 
 interface Props {
   selectedSense?: string | null;
+  onClear?: () => void;
   days?: number;
 }
 
@@ -243,7 +244,7 @@ function scoreColor(score: number): string {
 
 // ─── Main Component ───
 
-export default function SenseChart({ selectedSense, days: initialDays = 7 }: Props) {
+export default function SenseChart({ selectedSense, onClear, days: initialDays = 7 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [days, setDays] = useState(initialDays);
   const [loading, setLoading] = useState(true);
@@ -257,18 +258,17 @@ export default function SenseChart({ selectedSense, days: initialDays = 7 }: Pro
     body: true,
   });
 
+  const [_autoHighlight, setAutoHighlight] = useState(false);
+
   // Auto-scroll into view when selectedSense changes
   useEffect(() => {
     if (selectedSense && containerRef.current) {
       containerRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-      // Highlight the selected sense
-      setVisibility((prev) => {
-        const next: Record<string, boolean> = {};
-        for (const k of Object.keys(SENSE_CONFIG)) {
-          next[k] = k === selectedSense ? true : false;
-        }
-        return next;
+      // Set auto-highlight but allow user to toggle senses back
+      setVisibility({
+        eye: true, ear: true, nose: true, tongue: true, body: true,
       });
+      setAutoHighlight(true);
     }
   }, [selectedSense]);
 
@@ -490,9 +490,9 @@ export default function SenseChart({ selectedSense, days: initialDays = 7 }: Pro
                   type="monotone"
                   dataKey={cfg.key}
                   stroke={cfg.color}
-                  strokeWidth={1.5}
+                  strokeWidth={selectedSense === key ? 3 : 1.5}
                   dot={false}
-                  activeDot={{ r: 3, fill: cfg.color }}
+                  activeDot={{ r: selectedSense === key ? 5 : 3, fill: cfg.color }}
                   hide={!visibility[key]}
                   animationDuration={600}
                   connectNulls={false}
