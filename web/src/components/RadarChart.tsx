@@ -6,6 +6,7 @@ import React, { useMemo, useState } from "react";
 interface Props {
   scores: Record<string, number>;
   size?: number;
+  onSenseClick?: (senseKey: string) => void;
 }
 
 const SENSE_KEYS = ["eye", "ear", "nose", "tongue", "body"];
@@ -27,7 +28,7 @@ function pentagonPoints(cx: number, cy: number, r: number, count: number = 5) {
   return points;
 }
 
-export default function RadarChart({ scores, size = 320 }: Props) {
+export default function RadarChart({ scores, size = 320, onSenseClick }: Props) {
   const cx = size / 2;
   const cy = size / 2;
   const maxR = size * 0.35;
@@ -88,6 +89,7 @@ export default function RadarChart({ scores, size = 320 }: Props) {
               <circle cx={p[0]} cy={p[1]} r={15} fill="transparent"
                 onMouseEnter={(e) => handleMouseEnter(key, e)}
                 onMouseLeave={() => setHoveredSense(null)}
+                onClick={() => onSenseClick?.(key)}
                 style={{ cursor: "pointer" }}
               />
               {/* Visible dot */}
@@ -113,6 +115,7 @@ export default function RadarChart({ scores, size = 320 }: Props) {
             <g key={key}
               onMouseEnter={(e) => handleMouseEnter(key, e)}
               onMouseLeave={() => setHoveredSense(null)}
+              onClick={() => onSenseClick?.(key)}
               style={{ cursor: "pointer" }}
             >
               <text x={lx} y={ly - 8} textAnchor="middle" fill="#e2e8f0" fontSize={13} fontWeight="bold">

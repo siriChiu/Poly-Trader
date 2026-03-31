@@ -1,12 +1,13 @@
 /**
  * Dashboard — 主頁面
- * 左側：五角雷達圖 | 右上：建議卡片 | 右下：K 線圖（全寬） | 底部：回測摘要
+ * 左側：五角雷達圖 | 右上：建議卡片 | 五感走勢圖 | 右下：K 線圖（全寬） | 底部：回測摘要
  */
 import { useState, useEffect, useCallback } from "react";
 import RadarChart from "../components/RadarChart";
 import AdviceCard from "../components/AdviceCard";
 import CandlestickChart from "../components/CandlestickChart";
 import BacktestSummary from "../components/BacktestSummary";
+import SenseChart from "../components/SenseChart";
 import { useApi, fetchApi } from "../hooks/useApi";
 
 interface SensesResponse {
@@ -33,6 +34,7 @@ interface BacktestData {
 export default function Dashboard() {
   const [interval, setInterval] = useState("1h");
   const [days, setDays] = useState(7);
+  const [selectedSense, setSelectedSense] = useState<string | null>(null);
   const [liveScores, setLiveScores] = useState<Record<string, number>>({
     eye: 0.5, ear: 0.5, nose: 0.5, tongue: 0.5, body: 0.5,
   });
@@ -105,7 +107,7 @@ export default function Dashboard() {
         {/* Left: Pentagon Radar */}
         <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-6 flex flex-col items-center justify-center">
           <h2 className="text-sm font-semibold text-slate-400 mb-4 self-start">🎯 五感雷達圖</h2>
-          <RadarChart scores={scores} size={300} />
+          <RadarChart scores={scores} size={300} onSenseClick={setSelectedSense} />
         </div>
 
         {/* Right: Advice Card */}
@@ -126,7 +128,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Row 2: K 線圖 (全寬) */}
+      {/* Row 2: Sense History Chart (full width) */}
+      <SenseChart selectedSense={selectedSense} days={days} />
+
+      {/* Row 3: K 線圖 (全寬) */}
       <div>
         {/* Timeframe selector */}
         <div className="flex items-center gap-2 mb-3">
@@ -153,7 +158,7 @@ export default function Dashboard() {
         <CandlestickChart symbol="BTCUSDT" interval={interval} days={days} />
       </div>
 
-      {/* Row 3: Backtest Summary */}
+      {/* Row 4: Backtest Summary */}
       {backtestData && (
         <BacktestSummary
           finalEquity={backtestData.final_equity}

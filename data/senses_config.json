@@ -1,0 +1,112 @@
+{
+  "eye": {
+    "name": "視覺 Eye",
+    "emoji": "👁️",
+    "description": "技術面分析",
+    "modules": {
+      "order_book": {
+        "name": "Order Book 距離",
+        "source": "Binance",
+        "enabled": true,
+        "weight": 0.5,
+        "value": 0.619
+      },
+      "kline_levels": {
+        "name": "K 線支撐阻力",
+        "source": "Binance",
+        "enabled": true,
+        "weight": 0.5,
+        "value": 0.619
+      }
+    },
+    "score": 0.619
+  },
+  "ear": {
+    "name": "聽覺 Ear",
+    "emoji": "👂",
+    "description": "市場共識",
+    "modules": {
+      "consensus": {
+        "name": "資金費率共識",
+        "source": "Binance Futures",
+        "enabled": true,
+        "weight": 0.5,
+        "value": 0.4178
+      },
+      "momentum": {
+        "name": "價格動量",
+        "source": "Binance",
+        "enabled": true,
+        "weight": 0.5,
+        "value": 0.4178
+      }
+    },
+    "score": 0.4178
+  },
+  "nose": {
+    "name": "嗅覺 Nose",
+    "emoji": "👃",
+    "description": "衍生品市場",
+    "modules": {
+      "funding_rate": {
+        "name": "資金費率",
+        "source": "Binance Futures",
+        "enabled": true,
+        "weight": 0.6,
+        "value": 0.5189
+      },
+      "open_interest": {
+        "name": "持倉量變化",
+        "source": "Binance Futures",
+        "enabled": true,
+        "weight": 0.4,
+        "value": 0.5189
+      }
+    },
+    "score": 0.5189
+  },
+  "tongue": {
+    "name": "味覺 Tongue",
+    "emoji": "👅",
+    "description": "市場情緒",
+    "modules": {
+      "fear_greed": {
+        "name": "恐懼貪婪指數",
+        "source": "Alternative.me",
+        "enabled": true,
+        "weight": 0.7,
+        "value": 0.54
+      },
+      "social": {
+        "name": "社交情緒",
+        "source": "Proxy",
+        "enabled": true,
+        "weight": 0.3,
+        "value": 0.54
+      }
+    },
+    "score": 0.54
+  },
+  "body": {
+    "name": "觸覺 Body",
+    "emoji": "💪",
+    "description": "鏈上資金",
+    "modules": {
+      "liquidation": {
+        "name": "清算壓力",
+        "source": "Binance Futures OI",
+        "enabled": true,
+        "weight": 0.5,
+        "value": 0.5
+      },
+      "capital_flow": {
+        "name": "資金流向",
+        "source": "Proxy",
+        "enabled": true,
+        "weight": 0.5,
+        "value": 0.5
+      }
+    },
+    "score": 0.5
+  }
+}
