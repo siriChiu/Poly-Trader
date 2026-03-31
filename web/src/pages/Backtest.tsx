@@ -30,17 +30,19 @@ export default function Backtest() {
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasRun, setHasRun] = useState(false);
 
   const runBacktest = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setHasRun(true);
     try {
       const data = await fetchApi<BacktestResult>(
         `/api/backtest?days=${days}`
       );
       setResult(data);
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || "回測失敗");
     } finally {
       setLoading(false);
     }
