@@ -45,7 +45,7 @@ export default function Dashboard() {
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.hostname;
-    const port = import.meta.env.DEV ? "8000" : window.location.port;
+    const port = import.meta.env.DEV ? "8001" : window.location.port;
     const url = `${protocol}//${host}:${port}/ws/live`;
 
     let ws: WebSocket | null = null;

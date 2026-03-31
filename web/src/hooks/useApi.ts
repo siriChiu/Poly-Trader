@@ -1,9 +1,18 @@
 /**
- * useApi — Generic API fetch hooks
+ * useApi — Generic API fetch hooks + fetchApi helper
  */
 import { useEffect, useState, useCallback } from "react";
 
-const BASE = import.meta.env.DEV ? "http://localhost:8000" : "";
+const BASE = import.meta.env.DEV ? "http://localhost:8001" : "";
+
+export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const resp = await fetch(`${BASE}${endpoint}`, options);
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+    throw new Error(err.detail || `${resp.status}`);
+  }
+  return resp.json();
+}
 
 export function useApi<T>(endpoint: string, refreshMs?: number) {
   const [data, setData] = useState<T | null>(null);
@@ -33,33 +42,4 @@ export function useApi<T>(endpoint: string, refreshMs?: number) {
   }, [fetch_, refreshMs]);
 
   return { data, loading, error, refresh: fetch_ };
-}
-
-export function useApiPost<T>(endpoint: string) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const post = async (body: any) => {
-    setLoading(true);
-    try {
-      const resp = await fetch(`${BASE}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = await resp.json();
-      if (!resp.ok) throw new Error(json.detail || `${resp.status}`);
-      setData(json);
-      setError(null);
-      return json;
-    } catch (e: any) {
-      setError(e.message);
-      return { error: e.message };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return { data, loading, error, post };
 }
