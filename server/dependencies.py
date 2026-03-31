@@ -1,5 +1,5 @@
 """
-依賴注入：DB Session、Config、OrderManager 等共用實例
+依賴注入：DB Session、Config、OrderManager、SensesEngine 等共用實例
 """
 
 import yaml
@@ -8,7 +8,6 @@ from typing import Optional, Dict
 
 from sqlalchemy.orm import Session as SASession
 from database.models import init_db
-from execution.order_manager import OrderManager
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -16,8 +15,7 @@ logger = setup_logger(__name__)
 # 全局狀態
 _db_session: Optional[SASession] = None
 _config: Optional[Dict] = None
-_order_manager: Optional[OrderManager] = None
-_automation_enabled: bool = False  # 預設手動模式
+_automation_enabled: bool = False
 
 
 def load_app_config(config_path: str = None) -> Dict:
@@ -37,13 +35,18 @@ def get_config() -> Dict:
 
 def init_dependencies():
     """啟動時初始化所有依賴。"""
-    global _db_session, _order_manager, _config
+    global _db_session, _config
 
     cfg = get_config()
-    db_url = cfg["database"]["url"]
+    db_url = cfg.get("database", {}).get("url", "sqlite:///poly_trader.db")
     _db_session = init_db(db_url)
-    _order_manager = OrderManager(cfg, _db_session)
-    logger.info("Dependencies initialized (DB + OrderManager)")
+
+    # 注入 DB 到 SensesEngine
+    from server.senses import get_engine
+    engine = get_engine()
+    engine.set_db(_db_session)
+
+    logger.info("Dependencies initialized (DB + SensesEngine)")
 
 
 def get_db() -> SASession:
@@ -51,13 +54,6 @@ def get_db() -> SASession:
     if _db_session is None:
         init_dependencies()
     return _db_session
-
-
-def get_order_manager() -> OrderManager:
-    global _order_manager
-    if _order_manager is None:
-        init_dependencies()
-    return _order_manager
 
 
 def is_automation_enabled() -> bool:

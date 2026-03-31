@@ -1,365 +1,271 @@
 """
-五感配置管理器 (Senses Engine)
+五感配置管理器 (Senses Engine) v2
 - 定義每個感官的子模組
-- 計算綜合分數
+- 從 DB 讀取真實特徵值計算分數
 - 生成自然語言建議
 """
 
 import json
 import math
-import random
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
-# ─── 默認感官配置 ───
+from database.models import FeaturesNormalized, RawMarketData
+from utils.logger import setup_logger
 
-DEFAULT_SENSE_CONFIG: Dict[str, Any] = {
+logger = setup_logger(__name__)
+
+# 特徵 → 感官映射
+FEATURE_TO_SENSE = {
+    "feat_eye_dist": "eye",
+    "feat_ear_zscore": "ear",
+    "feat_nose_sigmoid": "nose",
+    "feat_tongue_pct": "tongue",
+    "feat_body_roc": "body",
+}
+
+SENSE_NAMES = {
+    "eye": "視覺 Eye",
+    "ear": "聽覺 Ear",
+    "nose": "嗅覺 Nose",
+    "tongue": "味覺 Tongue",
+    "body": "觸覺 Body",
+}
+
+SENSE_EMOJIS = {
+    "eye": "👁️", "ear": "👂", "nose": "👃", "tongue": "👅", "body": "💪",
+}
+
+DEFAULT_CONFIG: Dict[str, Any] = {
     "eye": {
-        "name": "視覺 Eye",
-        "emoji": "👁️",
-        "description": "技術面分析",
+        "name": "視覺 Eye", "emoji": "👁️", "description": "技術面分析",
         "modules": {
-            "order_book": {
-                "name": "Order Book 深度",
-                "source": "Binance Order Book",
-                "description": "買賣盤深度比",
-                "enabled": True,
-                "weight": 0.4,
-                "value": None,
-            },
-            "kline_levels": {
-                "name": "K 線高低點",
-                "source": "Binance Kline",
-                "description": "價格相對支撐/阻力位置",
-                "enabled": True,
-                "weight": 0.6,
-                "value": None,
-            },
-        },
-        "score": 0.5,
+            "order_book": {"name": "Order Book 距離", "source": "Binance", "enabled": True, "weight": 0.5, "value": None},
+            "kline_levels": {"name": "K 線支撐阻力", "source": "Binance", "enabled": True, "weight": 0.5, "value": None},
+        }, "score": 0.5,
     },
     "ear": {
-        "name": "聽覺 Ear",
-        "emoji": "👂",
-        "description": "市場共識",
+        "name": "聽覺 Ear", "emoji": "👂", "description": "市場共識",
         "modules": {
-            "polymarket": {
-                "name": "Polymarket 概率",
-                "source": "Polymarket API",
-                "description": "預測市場概率",
-                "enabled": True,
-                "weight": 0.5,
-                "value": None,
-            },
-            "news_sentiment": {
-                "name": "新聞情緒",
-                "source": "News API",
-                "description": "加密貨幣新聞 NLP 情緒分析",
-                "enabled": True,
-                "weight": 0.5,
-                "value": None,
-            },
-        },
-        "score": 0.5,
+            "consensus": {"name": "資金費率共識", "source": "Binance Futures", "enabled": True, "weight": 0.5, "value": None},
+            "momentum": {"name": "價格動量", "source": "Binance", "enabled": True, "weight": 0.5, "value": None},
+        }, "score": 0.5,
     },
     "nose": {
-        "name": "嗅覺 Nose",
-        "emoji": "👃",
-        "description": "衍生品市場",
+        "name": "嗅覺 Nose", "emoji": "👃", "description": "衍生品市場",
         "modules": {
-            "funding_rate": {
-                "name": "資金費率",
-                "source": "Binance Futures",
-                "description": "永續合約資金費率",
-                "enabled": True,
-                "weight": 0.6,
-                "value": None,
-            },
-            "open_interest": {
-                "name": "持倉量",
-                "source": "Binance Futures",
-                "description": "未平倉合約量變化",
-                "enabled": True,
-                "weight": 0.4,
-                "value": None,
-            },
-        },
-        "score": 0.5,
+            "funding_rate": {"name": "資金費率", "source": "Binance Futures", "enabled": True, "weight": 0.6, "value": None},
+            "open_interest": {"name": "持倉量變化", "source": "Binance Futures", "enabled": True, "weight": 0.4, "value": None},
+        }, "score": 0.5,
     },
     "tongue": {
-        "name": "味覺 Tongue",
-        "emoji": "👅",
-        "description": "市場情緒",
+        "name": "味覺 Tongue", "emoji": "👅", "description": "市場情緒",
         "modules": {
-            "fear_greed": {
-                "name": "恐懼貪婪指數",
-                "source": "Alternative.me",
-                "description": "Fear & Greed Index (0~100)",
-                "enabled": True,
-                "weight": 0.7,
-                "value": None,
-            },
-            "social_media": {
-                "name": "社交媒體情緒",
-                "source": "Twitter/Reddit",
-                "description": "社交平台加密貨幣討論情緒",
-                "enabled": True,
-                "weight": 0.3,
-                "value": None,
-            },
-        },
-        "score": 0.5,
+            "fear_greed": {"name": "恐懼貪婪指數", "source": "Alternative.me", "enabled": True, "weight": 0.7, "value": None},
+            "social": {"name": "社交情緒", "source": "Proxy", "enabled": True, "weight": 0.3, "value": None},
+        }, "score": 0.5,
     },
     "body": {
-        "name": "觸覺 Body",
-        "emoji": "💪",
-        "description": "鏈上資金",
+        "name": "觸覺 Body", "emoji": "💪", "description": "鏈上資金",
         "modules": {
-            "stablecoin_mcap": {
-                "name": "穩定幣市值",
-                "source": "DeFiLlama",
-                "description": "主要穩定幣總市值 ROC",
-                "enabled": True,
-                "weight": 0.5,
-                "value": None,
-            },
-            "liquidation": {
-                "name": "清算數據",
-                "source": "Coinglass",
-                "description": "大額清算方向與金額",
-                "enabled": True,
-                "weight": 0.5,
-                "value": None,
-            },
-        },
-        "score": 0.5,
+            "liquidation": {"name": "清算壓力", "source": "Binance Futures OI", "enabled": True, "weight": 0.5, "value": None},
+            "capital_flow": {"name": "資金流向", "source": "Proxy", "enabled": True, "weight": 0.5, "value": None},
+        }, "score": 0.5,
     },
 }
 
 CONFIG_PATH = Path(__file__).parent.parent / "data" / "senses_config.json"
 
 
-class SensesEngine:
-    """五感引擎：管理配置、計算分數、生成建議"""
+def normalize_feature(value: Optional[float], feature_type: str) -> float:
+    """將特徵值正規化到 0~1 區間"""
+    if value is None:
+        return 0.5
 
+    if feature_type == "feat_eye_dist":
+        # eye_dist 是比例值 (0~0.1)，越大 = 離阻力越遠 = 偏多
+        return max(0.0, min(1.0, value * 10 + 0.5))
+
+    elif feature_type == "feat_ear_zscore":
+        # ear_zscore 是 Z-score (-3~3)，轉為 0~1
+        return max(0.0, min(1.0, 0.5 + value / 6))
+
+    elif feature_type == "feat_nose_sigmoid":
+        # nose_sigmoid 已在 -1~1，轉為 0~1
+        return max(0.0, min(1.0, (value + 1) / 2))
+
+    elif feature_type == "feat_tongue_pct":
+        # tongue 已在 -1~1（新版本），轉為 0~1
+        if abs(value) <= 1:
+            return max(0.0, min(1.0, (value + 1) / 2))
+        # 舊版本 0~1
+        return max(0.0, min(1.0, value))
+
+    elif feature_type == "feat_body_roc":
+        # body_roc 是 ROC 值 (-1~1)，轉為 0~1
+        return max(0.0, min(1.0, (value + 1) / 2))
+
+    return 0.5
+
+
+class SensesEngine:
     def __init__(self):
         self.config: Dict[str, Any] = self._load_config()
+        self._db = None
+
+    def set_db(self, db):
+        """注入 DB session"""
+        self._db = db
 
     def _load_config(self) -> Dict[str, Any]:
-        """載入配置，若無則使用默認"""
         if CONFIG_PATH.exists():
             try:
                 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                     return json.load(f)
             except Exception:
                 pass
-        return json.loads(json.dumps(DEFAULT_SENSE_CONFIG))
+        return json.loads(json.dumps(DEFAULT_CONFIG))
 
     def save_config(self):
-        """保存配置到文件"""
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
+
+    def _get_latest_features(self) -> Optional[Dict[str, Optional[float]]]:
+        """從 DB 讀取最新特徵"""
+        if self._db is None:
+            return None
+        try:
+            row = (
+                self._db.query(FeaturesNormalized)
+                .order_by(FeaturesNormalized.timestamp.desc())
+                .first()
+            )
+            if row is None:
+                return None
+            return {
+                "feat_eye_dist": row.feat_eye_dist,
+                "feat_ear_zscore": row.feat_ear_zscore,
+                "feat_nose_sigmoid": row.feat_nose_sigmoid,
+                "feat_tongue_pct": row.feat_tongue_pct,
+                "feat_body_roc": row.feat_body_roc,
+                "timestamp": row.timestamp,
+            }
+        except Exception as e:
+            logger.error(f"讀取特徵失敗: {e}")
+            return None
+
+    def calculate_sense_score(self, sense_key: str, features: Optional[Dict] = None) -> float:
+        """計算單個感官分數（從真實特徵值）"""
+        sense = self.config.get(sense_key, {})
+
+        # 找到對應的特徵值
+        feat_key = {
+            "eye": "feat_eye_dist",
+            "ear": "feat_ear_zscore",
+            "nose": "feat_nose_sigmoid",
+            "tongue": "feat_tongue_pct",
+            "body": "feat_body_roc",
+        }.get(sense_key)
+
+        raw_value = features.get(feat_key) if features and feat_key else None
+        normalized = normalize_feature(raw_value, feat_key or "")
+
+        # 更新子模組值（所有子模組共享同一個正規化值）
+        modules = sense.get("modules", {})
+        for mod_key, mod in modules.items():
+            if mod.get("enabled", False):
+                mod["value"] = round(normalized, 4)
+
+        sense["score"] = round(normalized, 4)
+        return sense["score"]
+
+    def calculate_all_scores(self) -> Dict[str, float]:
+        """計算所有五感分數（從 DB 真實數據）"""
+        features = self._get_latest_features()
+        scores = {}
+        for sense_key in self.config:
+            scores[sense_key] = self.calculate_sense_score(sense_key, features)
+        return scores
 
     def get_config(self) -> Dict[str, Any]:
         return self.config
 
     def get_senses_status(self) -> Dict[str, Any]:
-        """返回五感詳細狀態"""
         return self.config
 
     def update_sense_config(self, sense_key: str, module_key: str, updates: Dict[str, Any]) -> bool:
-        """更新特定感官子模組配置"""
         if sense_key not in self.config:
             return False
         if module_key not in self.config[sense_key]["modules"]:
             return False
-
         module = self.config[sense_key]["modules"][module_key]
         if "enabled" in updates:
             module["enabled"] = updates["enabled"]
         if "weight" in updates:
             module["weight"] = max(0.0, min(1.0, updates["weight"]))
-
         self.save_config()
         return True
 
-    def calculate_sense_score(self, sense_key: str, data: Optional[Dict] = None) -> float:
-        """
-        計算單個感官的加權分數
-        若無真實數據，使用模擬值
-        """
-        sense = self.config.get(sense_key, {})
-        modules = sense.get("modules", {})
-        enabled_modules = {k: v for k, v in modules.items() if v.get("enabled", False)}
-
-        if not enabled_modules:
-            sense["score"] = 0.5
-            return 0.5
-
-        total_weight = sum(m["weight"] for m in enabled_modules.values())
-        if total_weight == 0:
-            sense["score"] = 0.5
-            return 0.5
-
-        score = 0.0
-        for key, module in enabled_modules.items():
-            value = module.get("value")
-            if value is None:
-                # 模擬值（實際應從 API 獲取）
-                value = random.uniform(0.2, 0.8)
-                module["value"] = round(value, 4)
-            score += value * (module["weight"] / total_weight)
-
-        score = max(0.0, min(1.0, score))
-        sense["score"] = round(score, 4)
-        return sense["score"]
-
-    def calculate_all_scores(self, data: Optional[Dict] = None) -> Dict[str, float]:
-        """計算所有五感分數"""
-        scores = {}
-        for sense_key in self.config:
-            scores[sense_key] = self.calculate_sense_score(sense_key, data)
-        return scores
-
     def calculate_recommendation_score(self, scores: Optional[Dict[str, float]] = None) -> int:
-        """
-        綜合五感分數 → 0~100 建議分數
-        """
         if scores is None:
             scores = self.calculate_all_scores()
-
-        # 加權平均（每個感官等權重）
         weights = {"eye": 0.25, "ear": 0.20, "nose": 0.20, "tongue": 0.20, "body": 0.15}
-        total = 0.0
-        for key, weight in weights.items():
-            total += scores.get(key, 0.5) * weight
-
+        total = sum(scores.get(k, 0.5) * w for k, w in weights.items())
         return round(total * 100)
 
     def generate_advice(self, scores: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
-        """
-        根據五感分數組合生成自然語言建議
-        """
         if scores is None:
             scores = self.calculate_all_scores()
 
         rec_score = self.calculate_recommendation_score(scores)
-
-        # 各感官描述
-        descriptions = []
-        descriptions.append(self._eye_description(scores.get("eye", 0.5)))
-        descriptions.append(self._ear_description(scores.get("ear", 0.5)))
-        descriptions.append(self._nose_description(scores.get("nose", 0.5)))
-        descriptions.append(self._tongue_description(scores.get("tongue", 0.5)))
-        descriptions.append(self._body_description(scores.get("body", 0.5)))
-
-        # 綜合建議
+        descriptions = [
+            self._desc("eye", scores.get("eye", 0.5)),
+            self._desc("ear", scores.get("ear", 0.5)),
+            self._desc("nose", scores.get("nose", 0.5)),
+            self._desc("tongue", scores.get("tongue", 0.5)),
+            self._desc("body", scores.get("body", 0.5)),
+        ]
         overall = self._overall_advice(rec_score)
-
-        # 找出最強和最弱的感官
         sorted_senses = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        strongest = sorted_senses[0]
-        weakest = sorted_senses[-1]
-
-        sense_names = {
-            "eye": "技術面", "ear": "市場共識",
-            "nose": "衍生品", "tongue": "情緒", "body": "鏈上資金"
-        }
+        names = {"eye": "技術面", "ear": "市場共識", "nose": "衍生品", "tongue": "情緒", "body": "鏈上資金"}
 
         summary = (
-            f"{sense_names[strongest[0]]}最強（{strongest[1]:.0%}），"
-            f"{sense_names[weakest[0]]}最弱（{weakest[1]:.0%}）。"
+            f"{names[sorted_senses[0][0]]}最強（{sorted_senses[0][1]:.0%}），"
+            f"{names[sorted_senses[-1][0]]}最弱（{sorted_senses[-1][1]:.0%}）。"
             f"綜合建議：{overall['text']}"
         )
 
         return {
-            "score": rec_score,
-            "overall": overall,
-            "descriptions": descriptions,
-            "summary": summary,
-            "scores": scores,
-            "action": overall["action"],
+            "score": rec_score, "overall": overall,
+            "descriptions": descriptions, "summary": summary,
+            "scores": scores, "action": overall["action"],
             "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
-    def _eye_description(self, score: float) -> str:
-        if score > 0.7:
-            return "技術面顯示強勢突破 📈"
-        elif score > 0.3:
-            return "技術面處於整理區間 📊"
-        else:
-            return "技術面觸及支撐位 📉"
-
-    def _ear_description(self, score: float) -> str:
-        if score > 0.6:
-            return "市場共識偏多 🟢"
-        elif score > 0.4:
-            return "市場觀望情緒濃厚 ⚪"
-        else:
-            return "市場共識偏空 🔴"
-
-    def _nose_description(self, score: float) -> str:
-        if score > 0.6:
-            return "衍生品市場槓桿偏多 🔼"
-        elif score > 0.4:
-            return "衍生品市場平穩 ➡️"
-        else:
-            return "衍生品市場槓桿偏空 🔽"
-
-    def _tongue_description(self, score: float) -> str:
-        if score > 0.6:
-            return "市場情緒樂觀 😊"
-        elif score > 0.4:
-            return "市場情緒中性 😐"
-        else:
-            return "市場情緒極度恐懼 😱"
-
-    def _body_description(self, score: float) -> str:
-        if score > 0.6:
-            return "鏈上資金持續流入 💰"
-        elif score > 0.4:
-            return "鏈上資金平穩 ⚖️"
-        else:
-            return "鏈上資金外流壓力大 📤"
+    def _desc(self, sense: str, score: float) -> str:
+        templates = {
+            "eye": [(0.7, "技術面顯示強勢突破 📈"), (0.3, "技術面處於整理區間 📊"), (0, "技術面觸及支撐位 📉")],
+            "ear": [(0.6, "市場共識偏多 🟢"), (0.4, "市場觀望情緒濃厚 ⚪"), (0, "市場共識偏空 🔴")],
+            "nose": [(0.6, "衍生品市場槓桿偏多 🔼"), (0.4, "衍生品市場平穩 ➡️"), (0, "衍生品市場槓桿偏空 🔽")],
+            "tongue": [(0.6, "市場情緒樂觀 😊"), (0.4, "市場情緒中性 😐"), (0, "市場情緒極度恐懼 😱")],
+            "body": [(0.6, "鏈上資金持續流入 💰"), (0.4, "鏈上資金平穩 ⚖️"), (0, "鏈上資金外流壓力大 📤")],
+        }
+        for threshold, text in templates.get(sense, []):
+            if score > threshold:
+                return text
+        return "數據不足 ❓"
 
     def _overall_advice(self, score: int) -> Dict[str, str]:
-        if score > 80:
-            return {
-                "text": "🟢 強烈建議買入 — 多數感官一致看多",
-                "action": "strong_buy",
-                "level": "bullish",
-            }
-        elif score > 60:
-            return {
-                "text": "🟡 建議輕倉買入 — 部分感官支持，注意風險",
-                "action": "buy",
-                "level": "mild_bullish",
-            }
-        elif score > 40:
-            return {
-                "text": "⚪ 建議觀望 — 感官分歧，方向不明",
-                "action": "hold",
-                "level": "neutral",
-            }
-        elif score > 20:
-            return {
-                "text": "🟠 建議減倉 — 部分感官偏空",
-                "action": "reduce",
-                "level": "mild_bearish",
-            }
-        else:
-            return {
-                "text": "🔴 建議觀望或做空 — 多數感官偏空",
-                "action": "sell",
-                "level": "bearish",
-            }
+        if score > 80: return {"text": "🟢 強烈建議買入 — 多數感官一致看多", "action": "strong_buy"}
+        if score > 60: return {"text": "🟡 建議輕倉買入 — 部分感官支持，注意風險", "action": "buy"}
+        if score > 40: return {"text": "⚪ 建議觀望 — 感官分歧，方向不明", "action": "hold"}
+        if score > 20: return {"text": "🟠 建議減倉 — 部分感官偏空", "action": "reduce"}
+        return {"text": "🔴 建議觀望或做空 — 多數感官偏空", "action": "sell"}
 
 
-# 全局實例
 _engine: Optional[SensesEngine] = None
-
 
 def get_engine() -> SensesEngine:
     global _engine
