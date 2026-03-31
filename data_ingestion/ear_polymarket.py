@@ -1,13 +1,12 @@
 """
 五感之「耳」v3：市場共識模組
 
-舊版問題：Polymarket 免費 API 返回的事件概率全是近零值（~5.7e-08），資訊無效
-新版方案：用 Binance Futures 的資金費率方向 + 多空比變化作為市場共識代理
+舊版問題：Polymarket 免費 API 返回 ~5.7e-8 概率，無任何資訊量
+新版方案：Binance Futures 資金費率 + 多空比綜合共識
 
-邏輯：
-- 資金費率為正且上升 → 多頭佔優 → 共識偏多
-- 資金費率為負且下降 → 空頭佔優 → 共識偏空
-- 多空比變化趨勢 → 共識方向的確認
+數據源（全部免費）：
+1. 資金費率歷史（Binance Futures API）
+2. 多空帳戶比（Binance Futures API）
 """
 
 import requests
@@ -20,7 +19,6 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-FUNDING_URL = "https://fapi.binance.com/fapi/v1/premiumIndex"
 FUNDING_HIST_URL = "https://fapi.binance.com/fapi/v1/fundingRate"
 LSR_URL = "https://fapi.binance.com/futures/data/globalLongShortAccountRatio"
 
@@ -40,7 +38,7 @@ def _create_session(retries: int = 3, backoff_factor: float = 0.5):
 
 
 def fetch_funding_history(symbol: str = "BTCUSDT", limit: int = 8) -> Optional[List[float]]:
-    """獲取最近 N 次資金費率（每 8 小時一次）。"""
+    """最近 N 次資金費率"""
     try:
         session = _create_session()
         resp = session.get(FUNDING_HIST_URL, params={"symbol": symbol, "limit": limit}, timeout=10)
@@ -52,7 +50,7 @@ def fetch_funding_history(symbol: str = "BTCUSDT", limit: int = 8) -> Optional[L
 
 
 def fetch_lsr_history(symbol: str = "BTCUSDT", period: str = "1h", limit: int = 12) -> Optional[List[float]]:
-    """獲取多空帳戶比歷史。"""
+    """多空帳戶比歷史"""
     try:
         session = _create_session()
         params = {"symbol": symbol, "period": period, "limit": limit}
@@ -64,87 +62,60 @@ def fetch_lsr_history(symbol: str = "BTCUSDT", period: str = "1h", limit: int = 
         return None
 
 
-def compute_consensus_score(
-    funding_history: Optional[List[float]],
-    lsr_history: Optional[List[float]],
-) -> dict:
-    """
-    計算市場共識分數 (-1~1)。
-
-    正值 = 共識偏多（資金費率為正 + 多空比上升）
-    負值 = 共識偏空
-    """
-    components = []
-
-    # 因子 A: 資金費率趨勢（最近 8 次的變化方向）
-    if funding_history and len(funding_history) >= 2:
-        recent = funding_history[-1]
-        older = funding_history[0]
-        # 資金費率方向 + 變化
-        fr_direction = math.tanh(recent * 100000)  # 當前方向
-        fr_trend = math.tanh((recent - older) * 200000)  # 變化趨勢
-        components.append(("fr_direction", fr_direction, 0.3))
-        components.append(("fr_trend", fr_trend, 0.2))
-
-    # 因子 B: 多空比趨勢
-    if lsr_history and len(lsr_history) >= 2:
-        recent_lsr = lsr_history[-1]
-        older_lsr = lsr_history[0]
-        lsr_change = (recent_lsr - older_lsr) / max(older_lsr, 0.01)
-        lsr_signal = math.tanh(lsr_change * 5)
-        # 多空比上升 = 多頭增加 = 可能過熱（反向信號的一部分）
-        components.append(("lsr_trend", -lsr_signal, 0.3))  # 反向
-
-    # 因子 C: 資金費率絕對值（正=多頭付費=偏多）
-    if funding_history and len(funding_history) >= 1:
-        current_fr = funding_history[-1]
-        fr_abs = math.tanh(current_fr * 50000)
-        components.append(("fr_abs", fr_abs, 0.2))
-
-    # 加權合併
-    if components:
-        total_w = sum(w for _, _, w in components)
-        score = sum(s * w for _, s, w in components) / total_w
-    else:
-        score = 0.0
-
-    # 共識標籤
-    if score > 0.2:
-        label = "偏多"
-    elif score < -0.2:
-        label = "偏空"
-    else:
-        label = "中性"
-
-    return {
-        "feat_ear_consensus": float(score),
-        "consensus_label": label,
-        "current_funding": funding_history[-1] if funding_history else None,
-        "current_lsr": lsr_history[-1] if lsr_history else None,
-    }
-
-
 def get_ear_feature(symbol: str = "BTCUSDT") -> Optional[dict]:
-    """主函數：計算市場共識特徵。"""
+    """
+    計算市場共識特徵。
+    返回 prob (0~1), feat_ear_risk (0~1)
+    """
     try:
         funding_hist = fetch_funding_history(symbol, limit=8)
-        lsr_hist = fetch_lsr_history(symbol, limit=12)
+        lsr_hist = fetch_lsr_history(symbol)
 
-        result = compute_consensus_score(funding_hist, lsr_hist)
+        components = []
+
+        # 因子 A: 資金費率趨勢
+        if funding_hist and len(funding_hist) >= 2:
+            recent = funding_hist[-1]
+            older = funding_hist[0]
+            fr_direction = math.tanh(recent * 100000)
+            fr_trend = math.tanh((recent - older) * 200000)
+            components.append(("fr_dir", fr_direction, 0.3))
+            components.append(("fr_trend", fr_trend, 0.2))
+
+        # 因子 B: 多空比變化
+        if lsr_hist and len(lsr_hist) >= 2:
+            recent_lsr = lsr_hist[-1]
+            older_lsr = lsr_hist[0]
+            lsr_change = (recent_lsr - older_lsr) / max(older_lsr, 0.01)
+            lsr_signal = -math.tanh(lsr_change * 5)  # 反向
+            components.append(("lsr", lsr_signal, 0.3))
+
+        # 因子 C: 資金費率絕對值
+        if funding_hist:
+            current_fr = funding_hist[-1]
+            fr_abs = math.tanh(current_fr * 50000)
+            components.append(("fr_abs", fr_abs, 0.2))
+
+        if components:
+            total_w = sum(w for _, _, w in components)
+            score = sum(s * w for _, s, w in components) / total_w
+        else:
+            score = 0.0
+
+        # 正規化到 0~1
+        prob = (score + 1) / 2
 
         logger.info(
-            f"Ear (共識v3): score={result['feat_ear_consensus']:.4f}, "
-            f"label={result['consensus_label']}, "
-            f"FR={result['current_funding']}, "
-            f"LSR={result['current_lsr']}"
+            f"Ear: score={score:.4f}, prob={prob:.4f}, "
+            f"FR={funding_hist[-1] if funding_hist else None}, "
+            f"LSR={lsr_hist[-1] if lsr_hist else None}"
         )
 
         return {
             "timestamp": datetime.utcnow().isoformat() + "Z",
-            "prob": result["feat_ear_consensus"],  # 兼容 collector
-            "feat_ear_risk": result["feat_ear_consensus"],
-            "consensus_label": result["consensus_label"],
+            "prob": prob,
+            "feat_ear_risk": prob,
         }
     except Exception as e:
-        logger.exception(f"計算 Ear (共識v3) 特徵時發生錯誤: {e}")
+        logger.exception(f"計算 Ear (v3) 時發生錯誤: {e}")
         return None
