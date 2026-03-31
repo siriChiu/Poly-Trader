@@ -1,15 +1,13 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
-import Trades from './pages/Trades'
+import Senses from './pages/Senses'
 import Backtest from './pages/Backtest'
-import Validation from './pages/Validation'
 
 const NAV_ITEMS = [
   { to: '/', label: '📊 儀表板', end: true },
-  { to: '/trades', label: '📋 交易歷史' },
+  { to: '/senses', label: '🎛️ 感官管理' },
   { to: '/backtest', label: '🔬 回測' },
-  { to: '/validation', label: '🔍 感官驗證' },
 ]
 
 export default function App() {
@@ -51,9 +49,8 @@ export default function App() {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/trades" element={<Trades />} />
+            <Route path="/senses" element={<Senses />} />
             <Route path="/backtest" element={<Backtest />} />
-            <Route path="/validation" element={<Validation />} />
           </Routes>
         </main>
       </div>

@@ -1,200 +1,171 @@
 /**
- * Dashboard — TradingView-style layout
- * Top: Candlestick chart (full width)
- * Bottom left: 5 Sense cards
- * Bottom right: Signal banner + manual trade
+ * Dashboard — 主頁面
+ * 左側：五角雷達圖 | 右上：建議卡片 | 右下：K 線圖（全寬） | 底部：回測摘要
  */
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import RadarChart from "../components/RadarChart";
+import AdviceCard from "../components/AdviceCard";
 import CandlestickChart from "../components/CandlestickChart";
-import SenseCard from "../components/SenseCard";
-import SignalBanner from "../components/SignalBanner";
-import { useApi } from "../hooks/useApi";
-import { useWebSocket } from "../hooks/useWebSocket";
+import BacktestSummary from "../components/BacktestSummary";
+import { useApi, fetchApi } from "../hooks/useApi";
 
-interface StatusData {
-  mode: string;
-  automation: boolean;
-  raw_count: number;
-  feature_count: number;
-  model_loaded: boolean;
+interface SensesResponse {
+  senses: Record<string, any>;
+  scores: Record<string, number>;
+  recommendation: {
+    score: number;
+    summary: string;
+    descriptions: string[];
+    action: string;
+  };
 }
 
-interface SenseData {
-  timestamp: string;
-  close_price: number;
-  eye_dist: number | null;
-  ear_prob: number | null;
-  funding_rate: number | null;
-  fng_index: number | null;
-  body_roc: number | null;
-}
-
-interface FeatureData {
-  timestamp: string;
-  feat_eye_dist: number | null;
-  feat_ear_zscore: number | null;
-  feat_nose_sigmoid: number | null;
-  feat_tongue_pct: number | null;
-  feat_body_roc: number | null;
-}
-
-interface SignalData {
-  confidence: number;
-  signal: string;
-  timestamp: string;
+interface BacktestData {
+  final_equity: number;
+  initial_capital: number;
+  total_trades: number;
+  win_rate: number;
+  profit_loss_ratio: number;
+  max_drawdown: number;
+  total_return: number;
 }
 
 export default function Dashboard() {
   const [interval, setInterval] = useState("1h");
   const [days, setDays] = useState(7);
+  const [liveScores, setLiveScores] = useState<Record<string, number>>({
+    eye: 0.5, ear: 0.5, nose: 0.5, tongue: 0.5, body: 0.5,
+  });
+  const [liveAdvice, setLiveAdvice] = useState<any>(null);
 
-  const { data: status } = useApi<StatusData>("/api/status");
-  const { data: senses } = useApi<SenseData>("/api/senses/latest");
-  const { data: features } = useApi<FeatureData[]>("/api/features?days=1");
+  const { data: sensesData, refresh: refreshSenses } = useApi<SensesResponse>("/api/senses");
+  const { data: backtestData } = useApi<BacktestData>("/api/backtest");
 
   // WebSocket for real-time updates
-  const wsData = useWebSocket("/ws/live");
+  useEffect(() => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = window.location.hostname;
+    const port = import.meta.env.DEV ? "8000" : window.location.port;
+    const url = `${protocol}//${host}:${port}/ws/live`;
 
-  const signal: SignalData | null = wsData?.signal || null;
-  const liveSenses: SenseData | null = wsData?.senses || senses || null;
+    let ws: WebSocket | null = null;
+    let timer: number;
+
+    const connect = () => {
+      try {
+        ws = new WebSocket(url);
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "senses_update" || msg.type === "connected") {
+              const data = msg.data;
+              if (data?.scores) setLiveScores(data.scores);
+              if (data?.recommendation) setLiveAdvice(data.recommendation);
+            }
+          } catch {}
+        };
+        ws.onclose = () => {
+          timer = window.setTimeout(connect, 5000);
+        };
+      } catch {
+        timer = window.setTimeout(connect, 5000);
+      }
+    };
+
+    connect();
+    return () => {
+      clearTimeout(timer);
+      ws?.close();
+    };
+  }, []);
+
+  // Merge live data with API data
+  const scores = liveScores.eye !== 0.5 || liveScores.ear !== 0.5
+    ? liveScores
+    : sensesData?.scores || liveScores;
+
+  const advice = liveAdvice || sensesData?.recommendation;
+
+  const handleTrade = useCallback(async (side: string) => {
+    if (side === "hold") return;
+    try {
+      await fetchApi("/api/trade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ side, symbol: "BTCUSDT", qty: 0.001 }),
+      });
+    } catch (e) {
+      console.error("Trade failed:", e);
+    }
+  }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold text-blue-400">
-            🐰 Poly-Trader
-          </h1>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-slate-400">BTC/USDT</span>
-            {liveSenses?.close_price && (
-              <span className="text-white font-mono text-base">
-                ${liveSenses.close_price.toLocaleString()}
-              </span>
-            )}
-          </div>
+    <div className="space-y-6">
+      {/* Row 1: Radar + Advice */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Pentagon Radar */}
+        <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-6 flex flex-col items-center justify-center">
+          <h2 className="text-sm font-semibold text-slate-400 mb-4 self-start">🎯 五感雷達圖</h2>
+          <RadarChart scores={scores} size={300} />
         </div>
-        <div className="flex items-center gap-3 text-sm">
-          {/* Timeframe selector */}
-          <div className="flex gap-1">
-            {[
-              { label: "1H", iv: "1h", d: 3 },
-              { label: "4H", iv: "4h", d: 14 },
-              { label: "1D", iv: "1d", d: 90 },
-              { label: "1W", iv: "1w", d: 365 },
-            ].map((opt) => (
-              <button
-                key={opt.iv}
-                onClick={() => {
-                  setInterval(opt.iv);
-                  setDays(opt.d);
-                }}
-                className={`px-2 py-1 text-xs rounded transition ${
-                  interval === opt.iv
-                    ? "bg-blue-600 text-white"
-                    : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          {/* Status indicators */}
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                status?.model_loaded ? "bg-green-400" : "bg-red-400"
-              }`}
+
+        {/* Right: Advice Card */}
+        <div className="flex flex-col justify-center">
+          {advice ? (
+            <AdviceCard
+              score={advice.score}
+              summary={advice.summary}
+              descriptions={advice.descriptions}
+              action={advice.action}
+              onTrade={handleTrade}
             />
-            <span className="text-slate-400">
-              {status?.raw_count || 0} 數據
-            </span>
-            <span
-              className={`px-2 py-0.5 rounded text-xs ${
-                status?.automation
-                  ? "bg-green-900 text-green-300"
-                  : "bg-yellow-900 text-yellow-300"
+          ) : (
+            <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-6 flex items-center justify-center h-full">
+              <div className="text-slate-500 animate-pulse">載入建議...</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Row 2: K 線圖 (全寬) */}
+      <div>
+        {/* Timeframe selector */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-sm text-slate-400">時間週期：</span>
+          {[
+            { label: "1H", iv: "1h", d: 3 },
+            { label: "4H", iv: "4h", d: 14 },
+            { label: "1D", iv: "1d", d: 90 },
+            { label: "1W", iv: "1w", d: 365 },
+          ].map((opt) => (
+            <button
+              key={opt.iv}
+              onClick={() => { setInterval(opt.iv); setDays(opt.d); }}
+              className={`px-3 py-1 text-xs rounded-lg transition ${
+                interval === opt.iv
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-800 text-slate-400 hover:bg-slate-700"
               }`}
             >
-              {status?.automation ? "🤖 自動" : "🖱️ 手動"}
-            </span>
-          </div>
+              {opt.label}
+            </button>
+          ))}
         </div>
+        <CandlestickChart symbol="BTCUSDT" interval={interval} days={days} />
       </div>
 
-      {/* Main content: chart + panels */}
-      <div className="flex flex-col lg:flex-row h-[calc(100vh-44px)]">
-        {/* Left: Candlestick chart (70% width) */}
-        <div className="lg:w-[70%] w-full border-r border-slate-800">
-          <CandlestickChart
-            symbol="BTCUSDT"
-            interval={interval}
-            days={days}
-            height={undefined}
-          />
-        </div>
-
-        {/* Right: Sense cards + Signal (30% width) */}
-        <div className="lg:w-[30%] w-full flex flex-col overflow-y-auto">
-          {/* 5 Sense Cards */}
-          <div className="p-3 border-b border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-400 mb-2">
-              五感即時狀態
-            </h2>
-            <div className="grid grid-cols-1 gap-2">
-              <SenseCard
-                name="👁️ Eye"
-                label="技術面"
-                value={liveSenses?.eye_dist}
-                format="pct"
-                description="價格與阻力/支撐距離"
-              />
-              <SenseCard
-                name="👂 Ear"
-                label="市場共識"
-                value={liveSenses?.ear_prob}
-                format="pct"
-                description="預測市場概率"
-              />
-              <SenseCard
-                name="👃 Nose"
-                label="衍生品"
-                value={
-                  liveSenses?.funding_rate
-                    ? liveSenses.funding_rate * 10000
-                    : null
-                }
-                format="fixed4"
-                description="資金費率 (×10⁴)"
-              />
-              <SenseCard
-                name="👅 Tongue"
-                label="情緒"
-                value={liveSenses?.fng_index}
-                format="int"
-                description="恐懼貪婪指數 (0~100)"
-              />
-              <SenseCard
-                name="💪 Body"
-                label="鏈上資金"
-                value={liveSenses?.body_roc}
-                format="pct"
-                description="穩定幣市值 ROC"
-              />
-            </div>
-          </div>
-
-          {/* Signal Banner */}
-          <div className="p-3 flex-1">
-            <SignalBanner
-              confidence={signal?.confidence || 0}
-              signal={signal?.signal || "HOLD"}
-              timestamp={signal?.timestamp}
-            />
-          </div>
-        </div>
-      </div>
+      {/* Row 3: Backtest Summary */}
+      {backtestData && (
+        <BacktestSummary
+          finalEquity={backtestData.final_equity}
+          initialCapital={backtestData.initial_capital}
+          totalTrades={backtestData.total_trades}
+          winRate={backtestData.win_rate}
+          profitLossRatio={backtestData.profit_loss_ratio}
+          maxDrawdown={backtestData.max_drawdown}
+          totalReturn={backtestData.total_return}
+        />
+      )}
     </div>
   );
 }
