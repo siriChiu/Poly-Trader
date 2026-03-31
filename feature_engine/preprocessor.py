@@ -20,16 +20,19 @@ def sigmoid(x: float) -> float:
 
 
 def load_latest_raw_data(
-    session: Session, symbol: str, limit: int = 100
+    session: Session, symbol: str, limit: int = 0
 ) -> pd.DataFrame:
-    """從資料庫讀取最新的 raw_market_data（含 eye_dist, ear_prob）。"""
-    rows = (
+    """從資料庫讀取 raw_market_data（含 eye_dist, ear_prob）。
+    limit=0 表示載入全部記錄（用於 ear_zscore 全局統計）。
+    """
+    query = (
         session.query(RawMarketData)
         .filter(RawMarketData.symbol == symbol)
         .order_by(RawMarketData.timestamp.asc())
-        .limit(limit)
-        .all()
     )
+    if limit > 0:
+        query = query.limit(limit)
+    rows = query.all()
     if not rows:
         return pd.DataFrame()
 
@@ -44,6 +47,7 @@ def load_latest_raw_data(
             "polymarket_prob": r.polymarket_prob,
             "eye_dist": r.eye_dist,
             "ear_prob": r.ear_prob,
+            "tongue_sentiment": getattr(r, "tongue_sentiment", None),
         })
     return pd.DataFrame(data)
 
@@ -74,7 +78,7 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     if pd.notna(eye_val) and eye_val is not None:
         features["feat_eye_dist"] = float(eye_val)
 
-    # 2. Ear: ear_prob 的 Z-score（需 >= 2 筆）
+    # 2. Ear: ear_prob 的 Z-score（使用全局統計，與 recompute 一致）
     if "ear_prob" in df.columns:
         ear_series = df["ear_prob"].dropna()
         if len(ear_series) >= 2:
@@ -93,21 +97,20 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
         s = sigmoid(x)
         features["feat_nose_sigmoid"] = float(2 * s - 1)
 
-    # 4. Tongue: 恐懼貪婪指數 0~1
-    fng_val = latest.get("fear_greed_index")
-    if pd.notna(fng_val) and fng_val is not None:
-        features["feat_tongue_pct"] = float(fng_val) / 100.0
+    # 4. Tongue: 情緒綜合分數 v2（-1~1，直接使用）
+    tongue_val = latest.get("tongue_sentiment")
+    if pd.notna(tongue_val) and tongue_val is not None:
+        features["feat_tongue_pct"] = float(tongue_val)
+    else:
+        # Fallback: 舊版 FNG 百分比
+        fng_val = latest.get("fear_greed_index")
+        if pd.notna(fng_val) and fng_val is not None:
+            features["feat_tongue_pct"] = float(fng_val) / 100.0
 
-    # 5. Body: stablecoin_mcap 已存為 ROC 值，離散化為 -1/0/1
+    # 5. Body: stablecoin_mcap 已存為 ROC 值，使用連續值（不離散化）
     roc_val = latest.get("stablecoin_mcap")
     if pd.notna(roc_val) and roc_val is not None:
-        roc = float(roc_val)
-        if roc > 0.005:
-            features["feat_body_roc"] = 1.0
-        elif roc < -0.005:
-            features["feat_body_roc"] = -1.0
-        else:
-            features["feat_body_roc"] = 0.0
+        features["feat_body_roc"] = float(roc_val)
 
     return features
 
@@ -145,7 +148,7 @@ def run_preprocessor(
     3. 保存至資料庫
     """
     logger.info("開始執行特徵工程...")
-    df = load_latest_raw_data(session, symbol, limit=100)
+    df = load_latest_raw_data(session, symbol, limit=0)
     if df.empty:
         logger.error("無原始數據可供處理")
         return None
@@ -159,7 +162,7 @@ def run_preprocessor(
     if saved:
         logger.info(f"特徵計算完成: eye={features['feat_eye_dist']}, "
                      f"ear={features['feat_ear_zscore']}, "
-                     f"nose={features['feat_nose_sigmoid']:.4f}, "
+                     f"nose={features['feat_nose_sigmoid']}, "
                      f"tongue={features['feat_tongue_pct']}, "
                      f"body={features['feat_body_roc']}")
         return features
