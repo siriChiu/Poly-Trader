@@ -73,14 +73,31 @@ def load_training_data(
         logger.warning(f"合併後樣本不足: {len(merged)} < {min_samples}")
         return None
 
-    # IC 反轉：對負 IC 特徵取反，讓模型看到正相關信號
-    # 根據 IC 計算 (n=2160, 2026-04-02): eye=-0.103, ear=-0.090, nose=-0.093, tongue=-0.068, body=-0.070, pulse=-0.052, aura=-0.012, mind=+0.036
-    NEG_IC_FEATS = ["feat_eye_dist", "feat_ear_zscore", "feat_body_roc", "feat_aura", "feat_pulse", "feat_mind"]  # h=4 IC signs 04-02 05:14: nose removed (IC flipped +0.066)
+    # #H48: 動態計算 IC，自動決定是否反轉（避免硬編碼過期問題）
+    from scipy import stats as _stats
+    import json as _json
     merged = merged.copy()
-    for col in NEG_IC_FEATS:
-        if col in merged.columns:
-            merged[col] = -merged[col]
-    logger.info(f"IC 反轉完成: {NEG_IC_FEATS}")
+    ic_map = {}
+    NEG_IC_FEATS = []
+    labels_arr = merged["label"].astype(float).values
+    for col in FEATURE_COLS:
+        feat_arr = merged[col].astype(float).values
+        mask = ~(np.isnan(feat_arr) | np.isnan(labels_arr))
+        if mask.sum() > 30:
+            corr, pval = _stats.spearmanr(feat_arr[mask], labels_arr[mask])
+            ic_map[col] = float(corr)
+            if corr < 0:
+                NEG_IC_FEATS.append(col)
+                merged[col] = -merged[col]
+        else:
+            ic_map[col] = 0.0
+    # 保存 IC signs 供 predictor.py 推論時使用
+    import os as _os
+    _os.makedirs("model", exist_ok=True)
+    with open("model/ic_signs.json", "w") as _f:
+        _json.dump({"neg_ic_feats": NEG_IC_FEATS, "ic_map": ic_map}, _f, indent=2)
+    logger.info(f"動態 IC 計算完成: {ic_map}")
+    logger.info(f"NEG_IC 反轉特徵: {NEG_IC_FEATS}")
 
     X = merged[FEATURE_COLS]
     y = merged["label"].astype(int)
