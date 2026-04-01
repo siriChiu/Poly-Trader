@@ -23,7 +23,7 @@ FEATURE_COLS = [
     "feat_tongue_pct",  # volatility_24h (IC=-0.067)
     "feat_body_roc",    # range_pos_24h (IC=+0.018)
     "feat_pulse",       # funding_z_24h (IC=-0.075 n=2160)
-    "feat_aura",        # price vs funding divergence (IC=-0.051, leakage fixed)
+    "feat_aura",        # funding_zscore_288 — 長週期 funding z-score (IC=-0.094, v4)
     "feat_mind",        # funding_z_24 (IC=+0.063)
 ]
 
@@ -70,7 +70,7 @@ def load_training_data(
 
     # IC 反轉：對負 IC 特徵取反，讓模型看到正相關信號
     # 根據 IC 計算 (n=2160, 2026-04-02): eye=-0.103, ear=-0.090, nose=-0.093, tongue=-0.068, body=-0.070, pulse=-0.052, aura=-0.012, mind=+0.036
-    NEG_IC_FEATS = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc", "feat_pulse"]
+    NEG_IC_FEATS = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc", "feat_pulse", "feat_aura"]  # feat_aura v4: funding_zscore_288 IC=-0.094
     merged = merged.copy()
     for col in NEG_IC_FEATS:
         if col in merged.columns:

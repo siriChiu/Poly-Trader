@@ -137,18 +137,25 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_pulse"] = 0.0
 
-    # 7. Aura (v3): fund_x_roc — 資金費率 × 1h 價格變動率的交叉信號
-    #    原理：funding_rate × price_roc_1h 捕捉資金-趨勢共振
-    #    正值 = 資金與價格同向（多頭信號），負值 = 背離（空頭信號）
-    #    IC=+0.1262（n=1585）全場最高 IC，無需 NEG_IC_FEATS 反轉
-    #    實現：funding_rate × price_pct_change(12) × 1e6（縮放到合理範圍）
-    prices_full = df["close_price"].dropna()
-    fr_latest = df["funding_rate"].dropna()
-    if len(prices_full) >= 13 and len(fr_latest) >= 1:
-        price_roc_1h = float(prices_full.pct_change(12).iloc[-1])
-        funding_now = float(fr_latest.iloc[-1])
-        raw_val = funding_now * price_roc_1h * 1e6  # scale
-        features["feat_aura"] = float(np.clip(raw_val, -500, 500))
+    # 7. Aura (v4): funding_zscore_288 — 長週期 funding rate z-score（288期≈1天）
+    #    原理：相對長期基準的 funding 異常程度，捕捉大週期槓桿情緒
+    #    IC=-0.0941（p=0.0007, n=1297），與 ear_zscore 相關僅 0.20（互補信號）
+    #    屬於 NEG_IC_FEATS（反轉後使用）
+    if len(fr) >= 288:
+        window_288 = fr.iloc[-288:]
+        mu_288 = float(window_288.mean())
+        sigma_288 = float(window_288.std())
+        if sigma_288 > 0:
+            features["feat_aura"] = float((fr.iloc[-1] - mu_288) / sigma_288)
+        else:
+            features["feat_aura"] = 0.0
+    elif len(fr) >= 48:
+        mu = float(fr.mean())
+        sigma = float(fr.std())
+        if sigma > 0:
+            features["feat_aura"] = float((fr.iloc[-1] - mu) / sigma)
+        else:
+            features["feat_aura"] = 0.0
     else:
         features["feat_aura"] = 0.0
 
