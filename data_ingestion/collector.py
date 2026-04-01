@@ -3,6 +3,12 @@
 包含 Binance 衍生品數據 (LSR, GSR, Taker, OI)
 """
 
+import sys
+from pathlib import Path
+_PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 import time
 from sqlalchemy.orm import Session
 from datetime import datetime

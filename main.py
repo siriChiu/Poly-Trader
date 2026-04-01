@@ -96,7 +96,7 @@ def main():
     SessionLocal = init_db(db_url)
     session = SessionLocal
 
-    # 排程器：每小時第 01 分執行
+    # 排程器：每 5 分鐘執行（提高數據收集頻率）
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         func=lambda: trading_cycle(
@@ -105,12 +105,12 @@ def main():
             cfg["trading"]["symbol"],
             cfg["trading"]["confidence_threshold"],
         ),
-        trigger="cron",
-        minute="1",
+        trigger="interval",
+        minutes=5,
         id="trading_cycle_job",
     )
     scheduler.start()
-    logger.info("Poly-Trader 已啟動，排程：每小時第 1 分執行")
+    logger.info("Poly-Trader 已啟動，排程：每 5 分鐘執行")
 
     try:
         while True:
