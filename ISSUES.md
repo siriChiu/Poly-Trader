@@ -1,8 +1,8 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-02 07:14 GMT+8**
-> **🔄 心跳 #68：fix #H79 — predictor.py XGBoostPredictor dict 格式支援（AttributeError 修復），trading_cycle 恢復正常**
-> **✅ 上輪修復：心跳 #67：fix #H78 — ear 替換 MACD_hist→mom_12 (Pearson 假顯著 Spearman p=0.177→mom_12 Spearman p=0.027 ✅)，Train=60.1%/CV=45.8%**
+> **最後更新：2026-04-02 07:39 GMT+8**
+> **🔄 心跳 #69：fix #H80 — collector.py 移除重複 run_preprocessor 呼叫；重啟 server（舊 PID 13573 殘留導致 trading_cycle 重複執行已解決）**
+> **✅ 上輪修復：心跳 #68：fix #H79 — predictor.py XGBoostPredictor dict 格式支援（AttributeError 修復），trading_cycle 恢復正常**
 
 ---
 
@@ -16,19 +16,20 @@
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #H33 | 🟡 模型 CV=45.8%（Train/CV gap已縮至14%） | 2,272 筆，每天+288筆 | 🟡 P1 — 持續收集（5min 排程中） |
+| #H33 | 🟡 模型 CV=45.8%（Train/CV gap已縮至14%） | 2,277 筆，每天+288筆，累積數據改善中 | 🟡 P1 — 持續收集（5min 排程中） |
 
 ## 🟢 低優先級
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #IC4 | 模型動態 IC 加權 | 實現感官動態權重（加權 XGBoost 輸入） | 🟢 P3 |
-| #M06 | 缺少 lag 特徵 | 1h/4h/24h lag | 🟢 P3 |
+| #IC4 | 模型動態 IC 加權 | tongue IC=+0.148 遠高於其他，應加大 XGBoost 輸入權重 | 🟢 P3 |
+| #M06 | 缺少 lag 特徵 | 1h/4h/24h lag 增強時序記憶 | 🟢 P3 |
 
 ## 🏆 已解決
 
 | ID | 問題 | 解決方案 | 日期 |
 |----|------|----------|------|
+| **#H80** | **collector.py run_preprocessor 重複呼叫（每次 trading_cycle 特徵工程執行兩次）** | **移除 collector.py 內嵌的 run_preprocessor 呼叫，由 trading_cycle 統一管理** | **04-02 07:39** |
 | **#H79** | **predictor.py AttributeError: 'dict' has no attribute 'predict_proba'（XGBoostPredictor 未處理 dict 格式模型）** | **__init__ 判斷 dict 並解包 clf/imputer/neg_ic_feats，新增 _get_proba() 共用方法** | **04-02 07:14** |
 | **#H78** | **feat_ear_zscore MACD_hist 假顯著（79% |>100bps 極端值，Spearman p=0.177）** | **替換為 mom_12 (12期動量，Spearman p=0.027 ✅)，修正DB所有ear值** | **04-02 07:04** |
 | **#H77** | **feat_ear_zscore IC=-0.025 p=0.233 再次不顯著（RSI-72失效）** | **替換為 MACD histogram(12/26) (IC=-0.046 p=0.031 ✅)** | **04-02 07:01** |
@@ -50,31 +51,31 @@
 
 ---
 
-## 📊 當前系統健康 (2026-04-02 07:14 GMT+8)
+## 📊 當前系統健康 (2026-04-02 07:39 GMT+8)
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw data | 2,272 筆 | ✅ |
-| Features | 2,272 筆 | ✅ |
-| Labels (h=4, clean) | 2,208 筆 | ✅ |
-| 最新資料時間 | 2026-04-01 23:13 UTC | ✅ |
-| BTC 當前 | ~$68,201 | ✅ |
+| Raw data | 2,277 筆 | ✅ |
+| Features | 2,277 筆 | ✅ |
+| Labels (h=4, clean) | 2,236 筆 | ✅ |
+| 最新資料時間 | 2026-04-01 23:32 UTC | ✅ |
+| BTC 當前 | ~$68,154 | ✅ |
 | FNG | 8.0 (極度恐慌) | ⚠️ |
-| Funding Rate | 0.000034 (中性) | ℹ️ |
-| **main.py 進程** | **5分鐘排程運行中（trading_cycle 修復）** | ✅ |
+| Funding Rate | 3.4e-05 (中性) | ℹ️ |
+| **main.py 進程** | **5分鐘排程運行中（PID 26383）** | ✅ |
 
 ### 感官 IC（全量 2208 筆，h=4）
 | 感官 | IC | p值 | 顯著? | NEG_IC | 狀態 |
 |------|----|----|-------|--------|------|
-| feat_eye_dist | -0.077 | 0.0003 | ✅ | ✅反轉 | 有效 |
-| feat_ear_zscore | -0.047 | 0.0267 | ✅ | ✅反轉 | ✅ mom_12 |
-| feat_nose_sigmoid | -0.071 | 0.0009 | ✅ | ✅反轉 | 有效 |
-| feat_tongue_pct | +0.127 | <0.0001 | ✅ | ❌ | ✅ vol_ratio |
-| feat_body_roc | -0.053 | 0.0127 | ✅ | ✅反轉 | ✅ stoch_rsi_14 |
-| feat_pulse | -0.047 | 0.0271 | ✅ | ✅反轉 | 有效 |
-| feat_aura | -0.064 | 0.0028 | ✅ | ✅反轉 | 有效 |
-| feat_mind | -0.079 | 0.0002 | ✅ | ✅反轉 | 有效 |
+| feat_eye_dist | -0.069 | 0.0011 | ✅ | ✅反轉 | 有效 |
+| feat_ear_zscore | -0.056 | 0.0085 | ✅ | ✅反轉 | ✅ mom_12 |
+| feat_nose_sigmoid | -0.081 | 0.0001 | ✅ | ✅反轉 | 有效 |
+| feat_tongue_pct | +0.148 | <0.0001 | ✅ | ❌ | ✅ vol_ratio（最強）|
+| feat_body_roc | -0.055 | 0.0102 | ✅ | ✅反轉 | ✅ stoch_rsi_14 |
+| feat_pulse | -0.049 | 0.0208 | ✅ | ✅反轉 | 有效 |
+| feat_aura | -0.069 | 0.0012 | ✅ | ✅反轉 | 有效 |
+| feat_mind | -0.092 | <0.0001 | ✅ | ✅反轉 | 有效 |
 
 **🎉 里程碑：8/8 感官全部 IC 顯著！**
 
@@ -82,8 +83,9 @@
 | 指標 | 值 | 評估 |
 |------|----|----|
 | Train Accuracy | **60.1%** | ✅ |
-| TimeSeries CV | **45.8% ± 9.0%** | 🟡 持續改善中 |
-| 訓練樣本 | 2,208 筆 (clean h=4) | ✅ |
+| TimeSeries CV | **45.8% ± 7.3%** | 🟡 持續改善中 |
+| 最新預測 | conf=0.197, SELL | ✅ 運作正常 |
+| 訓練樣本 | 2,236 筆 (clean h=4) | ✅ |
 
 ### 測試狀態
 | 項目 | 狀態 |
@@ -98,8 +100,8 @@
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
-| P1 | **持續累積 h=4 乾淨數據**：5min 排程每天新增 ~288 筆 | #H33 |
-| P2 | **IC 動態加權**：tongue IC=+0.127 遠高於其他感官，應加大 XGBoost 輸入權重 | #IC4 |
+| P1 | **持續累積 h=4 乾淨數據**：5min 排程每天新增 ~288 筆，累積→CV 改善 | #H33 |
+| P2 | **IC 動態加權**：tongue IC=+0.148 遠高於其他感官，應加大 XGBoost 輸入權重 | #IC4 |
 | P3 | **lag 特徵**：加入 1h/4h/24h lag 增強時序記憶 | #M06 |
 
 ---
