@@ -32,6 +32,9 @@ const SENSE_COLORS: Record<string, string> = {
   nose: "#f59e0b",
   tongue: "#ec4899",
   body: "#14b8a6",
+  pulse: "#ef4444",
+  aura: "#a855f7",
+  mind: "#06b6d4",
 };
 
 export default function Senses() {
@@ -117,7 +120,7 @@ export default function Senses() {
           <RadarChart scores={previewScores} size={260} />
           <div className="mt-3 text-center">
             <div className="text-3xl font-mono font-bold text-slate-200">
-              {Math.round(Object.values(previewScores).reduce((a, b) => a + b, 0) / 5 * 100)}
+              {Math.round(Object.values(previewScores).reduce((a, b) => a + b, 0) / Math.max(Object.keys(previewScores).length, 1) * 100)}
             </div>
             <div className="text-xs text-slate-500">綜合分數</div>
           </div>

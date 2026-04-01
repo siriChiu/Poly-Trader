@@ -1,5 +1,5 @@
 """
-五感配置管理器 (Senses Engine) v2
+多感官配置管理器 (Senses Engine) v2
 - 定義每個感官的子模組
 - 從 DB 讀取真實特徵值計算分數
 - 生成自然語言建議
@@ -198,7 +198,7 @@ class SensesEngine:
         return sense["score"]
 
     def calculate_all_scores(self) -> Dict[str, float]:
-        """計算所有五感分數（從 DB 真實數據）"""
+        """計算所有多感官分數（從 DB 真實數據）"""
         features = self._get_latest_features()
         scores = {}
         for sense_key in self.config:

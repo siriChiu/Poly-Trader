@@ -1,6 +1,6 @@
 # Poly-Trader 🐰
 
-> **五感量化交易系統** — 用免費 API 打造的 AI 自動化交易引擎
+> **多感官量化交易系統** — 用免費 API 打造的 AI 自動化交易引擎
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![React](https://img.shields.io/badge/React-18-blue)
@@ -9,7 +9,7 @@
 
 ---
 
-## ✨ 五感官系統
+## ✨ 多感官系統
 
 | 感官 | 數據源 | 特徵 | 狀態 |
 |------|--------|------|------|
@@ -80,7 +80,7 @@ npm run dev
 - 時間框架切換：1H / 4H / 1D / 1W
 - 暗色主題，專業級圖表
 
-### 五感即時狀態
+### 多感官即時狀態
 - 5 個感官卡片，即時顯示數值與狀態
 - WebSocket 推送，無需手動刷新
 
@@ -105,13 +105,13 @@ npm run dev
 
 ```
 poly-trader/
-├── data_ingestion/           # 五感數據採集
+├── data_ingestion/           # 多感官數據採集
 │   ├── eye_binance.py        # Eye: 訂單簿流動性
 │   ├── ear_polymarket.py     # Ear: 預測市場概率
 │   ├── nose_futures.py       # Nose: 資金費率 + OI
 │   ├── tongue_sentiment.py   # Tongue: 恐懼貪婪指數
 │   ├── body_liquidation.py   # Body: 清算壓力（v3）🆕
-│   ├── collector.py          # 整合五感 → DB
+│   ├── collector.py          # 整合多感官 → DB
 │   ├── labeling.py           # 生成訓練標籤
 │   └── backfill_historical.py # 歷史數據回填 🆕
 ├── feature_engine/
@@ -127,7 +127,7 @@ poly-trader/
 │   ├── metrics.py            # 績效指標
 │   └── optimizer.py          # 參數優化
 ├── analysis/
-│   ├── sense_effectiveness.py # 五感有效性分析
+│   ├── sense_effectiveness.py # 多感官有效性分析
 │   └── sense_validator.py    # 感官驗證 + 六帽觸發
 ├── server/                   # FastAPI 後端 🆕
 │   ├── main.py               # API + WebSocket
@@ -176,7 +176,7 @@ trading:
 
 ### Heartbeat（每 5 分鐘）
 自動執行：
-1. 五感數據收集
+1. 多感官數據收集
 2. 特徵計算
 3. 感官有效性驗證（IC）
 4. 結構健康檢查
@@ -200,7 +200,7 @@ python -c "from model.train import run_training; from database.models import ini
 | 端點 | 方法 | 說明 |
 |------|------|------|
 | `/api/status` | GET | 系統狀態 |
-| `/api/senses/latest` | GET | 最新五感數據 |
+| `/api/senses/latest` | GET | 最新多感官數據 |
 | `/api/features` | GET | 特徵歷史 |
 | `/api/trades` | GET | 交易歷史 |
 | `/api/predict` | POST | 觸發預測 |

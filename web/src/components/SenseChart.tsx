@@ -1,5 +1,5 @@
 /**
- * SenseChart — 價格 × 五感歷史走勢圖（Recharts）
+ * SenseChart — 價格 × 多感官歷史走勢圖（Recharts）
  *
  * Props:
  *   selectedSense?  當設置時，自動高亮該感官線
@@ -38,6 +38,9 @@ interface FeatureRow {
   feat_nose_sigmoid: number | null;
   feat_tongue_pct: number | null;
   feat_body_roc: number | null;
+  feat_pulse: number | null;
+  feat_aura: number | null;
+  feat_mind: number | null;
 }
 
 interface KlineCandle {
@@ -62,6 +65,9 @@ interface MergedPoint {
   nose: number | null;
   tongue: number | null;
   body: number | null;
+  pulse: number | null;
+  aura: number | null;
+  mind: number | null;
   score: number | null;
   buySignal: number | null;
   sellSignal: number | null;
@@ -75,6 +81,9 @@ const SENSE_CONFIG: Record<string, { label: string; color: string; key: keyof Me
   nose:   { label: "👃 鼻", color: "#f59e0b", key: "nose" },
   tongue: { label: "👅 舌", color: "#ec4899", key: "tongue" },
   body:   { label: "💪 身", color: "#14b8a6", key: "body" },
+  pulse:  { label: "💓 脈", color: "#ef4444", key: "pulse" },
+  aura:   { label: "🌀 磁", color: "#a855f7", key: "aura" },
+  mind:   { label: "🧠 知", color: "#06b6d4", key: "mind" },
 };
 
 const TIMEFRAMES = [
@@ -100,7 +109,7 @@ function formatPrice(v: number): string {
 
 /** Combine 5 sense scores into a recommendation score 0–100 */
 function calcScore(point: Partial<MergedPoint>): number | null {
-  const vals = [point.eye, point.ear, point.nose, point.tongue, point.body];
+  const vals = Object.keys(SENSE_CONFIG).map((k) => point[SENSE_CONFIG[k].key]);
   const valid = vals.filter((v): v is number => v !== null && v !== undefined);
   if (valid.length === 0) return null;
   const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
@@ -326,6 +335,9 @@ export default function SenseChart({ selectedSense, onClear, days: initialDays =
             nose: feat?.feat_nose_sigmoid ?? null,
             tongue: feat?.feat_tongue_pct ?? null,
             body: feat?.feat_body_roc ?? null,
+            pulse: feat?.feat_pulse ?? null,
+            aura: feat?.feat_aura ?? null,
+            mind: feat?.feat_mind ?? null,
             score: null,
             buySignal: null,
             sellSignal: null,
@@ -375,7 +387,7 @@ export default function SenseChart({ selectedSense, onClear, days: initialDays =
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h2 className="text-sm font-semibold text-slate-400">
-          📈 價格 × 五感走勢
+          📈 價格 × 多感官走勢
           {selectedSense && (
             <span className="ml-2 text-xs px-2 py-0.5 rounded-full"
               style={{

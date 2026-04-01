@@ -54,7 +54,7 @@ def load_latest_raw_data(
 
 def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     """
-    從原始數據計算五感特徵（最新一筆）。
+    從原始數據計算多感官特徵（最新一筆）。
     需要多筆歷史數據才能計算 Z-score 等滾動特徵。
     """
     if df.empty:

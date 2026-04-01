@@ -1,5 +1,5 @@
 """
-REST API 路由 v3.0 — 五感策略回測引擎
+REST API 路由 v3.0 — 多感官策略回測引擎
 """
 import ccxt
 import math
@@ -128,7 +128,7 @@ async def api_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
 
 @router.get("/backtest")
 async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
-    """【五感策略回測】基於 XGBoost 信心分數的真實回測"""
+    """【多感官策略回測】基於 XGBoost 信心分數的真實回測"""
     try:
         symbol = "BTCUSDT"
         interval = "4h" if days <= 7 else "1d"
@@ -148,7 +148,7 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
         for f in features:
             feat_map[int(f.timestamp.timestamp())] = f
 
-        # 2. 執行五感策略回測
+        # 2. 執行多感官策略回測
         initial = 10000.0
         equity = initial; position = 0.0; entry_price = 0.0
         equity_curve = []; trades = []
@@ -169,7 +169,7 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
                 equity_curve.append({"timestamp": datetime.fromtimestamp(dt).isoformat() + "Z", "equity": round(equity + (position * price if position else 0), 2)})
                 continue
 
-            # 計算五感綜合分數 (0~1)
+            # 計算多感官綜合分數 (0~1)
             vals = [feat.feat_eye_dist, feat.feat_ear_zscore, feat.feat_nose_sigmoid, feat.feat_tongue_pct, feat.feat_body_roc]
             valid = [v for v in vals if v is not None]
             if not valid: continue

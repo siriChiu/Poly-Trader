@@ -31,7 +31,7 @@
 | #H09 | ~~Eye 分數恆為 1.0~~ | (value+1)/2 正規化 | 04-01 |
 | #H08 | ~~Ear 零變異~~ | funding z-score | 04-01 |
 | #H06 | ~~cross-join 83K 重複~~ | merge_asof 10min | 04-01 |
-| #H04 | ~~五感正規化不一致~~ | min-max | 04-01 |
+| #H04 | ~~多感官正規化不一致~~ | min-max | 04-01 |
 | #H01 | ~~回測用 random~~ | DB 真實回測 | 04-01 |
 | UX6-UX8 | ~~前端三 bug~~ | null safety | 04-01 |
 

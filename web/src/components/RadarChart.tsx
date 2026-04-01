@@ -1,5 +1,5 @@
 /**
- * RadarChart — 五角雷達圖（SVG）+ Hover Tooltip
+ * RadarChart — 多邊形雷達圖（SVG）+ Hover Tooltip
  */
 import React, { useMemo, useState } from "react";
 
@@ -9,17 +9,20 @@ interface Props {
   onSenseClick?: (senseKey: string) => void;
 }
 
-const SENSE_KEYS = ["eye", "ear", "nose", "tongue", "body"];
+export const SENSE_KEYS = ["eye", "ear", "nose", "tongue", "body", "pulse", "aura", "mind"];
 
-const SENSE_INFO: Record<string, { label: string; color: string; source: string }> = {
+export const SENSE_INFO: Record<string, { label: string; color: string; source: string }> = {
   eye:   { label: "👁️ Eye",   color: "#3b82f6", source: "Binance Order Book 阻力/支撐距離" },
-  ear:   { label: "👂 Ear",   color: "#8b5cf6", source: "資金費率+多空比 共識分數" },
-  nose:  { label: "👃 Nose",  color: "#f59e0b", source: "資金費率 Sigmoid 壓縮" },
-  tongue:{ label: "👅 Tongue",color: "#ec4899", source: "恐懼貪婪指數 + 波動率" },
-  body:  { label: "💪 Body",  color: "#14b8a6", source: "清算壓力 (OI+資金費率+多空比)" },
+  ear:   { label: "👂 Ear",   color: "#8b5cf6", source: "資金費率 Z-score" },
+  nose:  { label: "👃 Nose",  color: "#f59e0b", source: "Funding Rate z-score (解耦)" },
+  tongue:{ label: "👅 Tongue",color: "#ec4899", source: "恐懼貪婪指數" },
+  body:  { label: "💪 Body",  color: "#14b8a6", source: "OI ROC 持倉量變化率" },
+  pulse: { label: "💓 Pulse", color: "#ef4444", source: "20-period 波動率 Z-score" },
+  aura:  { label: "🌀 Aura",  color: "#a855f7", source: "Funding × Price 背離" },
+  mind:  { label: "🧠 Mind",  color: "#06b6d4", source: "BTC/ETH 成交量比" },
 };
 
-function pentagonPoints(cx: number, cy: number, r: number, count: number = 5) {
+function polygon(cx: number, cy: number, r: number, count: number) {
   const points: [number, number][] = [];
   for (let i = 0; i < count; i++) {
     const angle = (Math.PI * 2 * i) / count - Math.PI / 2;
@@ -36,12 +39,12 @@ export default function RadarChart({ scores, size = 320, onSenseClick }: Props) 
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   const gridLevels = [0.2, 0.4, 0.6, 0.8, 1.0];
-  const outerPoints = useMemo(() => pentagonPoints(cx, cy, maxR), [cx, cy, maxR]);
+  const outerPoints = useMemo(() => polygon(cx, cy, maxR), [cx, cy, maxR]);
 
   const dataPoints = useMemo(() => {
     return SENSE_KEYS.map((key, i) => {
       const score = scores[key] ?? 0.5;
-      const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2;
+      const angle = (Math.PI * 2 * i) / count - Math.PI / 2;
       const r = maxR * score;
       return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)] as [number, number];
     });
@@ -49,7 +52,7 @@ export default function RadarChart({ scores, size = 320, onSenseClick }: Props) 
 
   const dataPath = dataPoints.map((p, i) => `${i === 0 ? "M" : "L"}${p[0]},${p[1]}`).join(" ") + " Z";
 
-  const avgScore = SENSE_KEYS.reduce((sum, k) => sum + (scores[k] ?? 0.5), 0) / 5;
+  const avgScore = SENSE_KEYS.reduce((sum, k) => sum + (scores[k] ?? 0.5), 0) / SENSE_KEYS.length;
   const fillColor = avgScore > 0.6 ? "rgba(34,197,94,0.15)" : avgScore < 0.4 ? "rgba(239,68,68,0.15)" : "rgba(234,179,8,0.15)";
 
   const handleMouseEnter = (key: string, e: React.MouseEvent) => {
@@ -65,7 +68,7 @@ export default function RadarChart({ scores, size = 320, onSenseClick }: Props) 
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         {/* Grid */}
         {gridLevels.map((level) => {
-          const pts = pentagonPoints(cx, cy, maxR * level);
+          const pts = polygon(cx, cy, maxR * level);
           const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0]},${p[1]}`).join(" ") + " Z";
           return <path key={level} d={path} fill="none" stroke="#334155" strokeWidth={1} opacity={0.5} />;
         })}
@@ -106,7 +109,7 @@ export default function RadarChart({ scores, size = 320, onSenseClick }: Props) 
           const key = SENSE_KEYS[i];
           const info = SENSE_INFO[key];
           const score = scores[key] ?? 0.5;
-          const labelAngle = (Math.PI * 2 * i) / 5 - Math.PI / 2;
+          const labelAngle = (Math.PI * 2 * i) / count - Math.PI / 2;
           const labelR = maxR + 30;
           const lx = cx + labelR * Math.cos(labelAngle);
           const ly = cy + labelR * Math.sin(labelAngle);
