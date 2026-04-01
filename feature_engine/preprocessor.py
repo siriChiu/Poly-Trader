@@ -76,23 +76,24 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_eye_dist"] = 0.0
 
-    # 2. Ear: MACD histogram (12/26 EMA) — 動能轉折信號
-    #    MACD_hist = EMA12 - EMA26，正規化至 close price 的 bps
-    #    #H77 替換 RSI-72 (IC=-0.025 p=0.233 不顯著) — RSI 在震盪行情失效
-    #    預期：MACD histogram 正（上漲動能）→ 看漲，負 → 看跌
-    if len(close) >= 26:
-        ema12 = close.ewm(span=12, min_periods=6).mean()
-        ema26 = close.ewm(span=26, min_periods=13).mean()
-        macd_hist = float(ema12.iloc[-1] - ema26.iloc[-1])
-        # Normalize: histogram / current price * 10000 (bps)
-        last_price = float(close.iloc[-1]) if float(close.iloc[-1]) > 0 else 1.0
-        features["feat_ear_zscore"] = macd_hist / last_price * 10000.0
-    elif len(close) >= 12:
-        ema12 = close.ewm(span=12, min_periods=6).mean()
-        ema6 = close.ewm(span=6, min_periods=3).mean()
-        macd_hist = float(ema12.iloc[-1] - ema6.iloc[-1])
-        last_price = float(close.iloc[-1]) if float(close.iloc[-1]) > 0 else 1.0
-        features["feat_ear_zscore"] = macd_hist / last_price * 10000.0
+    # 2. Ear: mom_12 — 12期價格動量回報率
+    #    #H78 替換 MACD_hist (Pearson IC=-0.046 p=0.031 假顯著)
+    #    MACD_hist 的 79% 數值 |>100 bps 為極端值，真實 Spearman p=0.177 不顯著
+    #    mom_12 = (close_now - close_12h_ago) / close_12h_ago
+    #    IC=-0.056 Spearman=-0.047 p=0.027 ✅ 真實顯著，無極端值問題
+    #    負 IC → 12h 上漲 → 看跌（過熱反轉），加入 NEG_IC_FEATS
+    if len(close) >= 13:
+        c12 = float(close.iloc[-13])
+        if c12 > 0:
+            features["feat_ear_zscore"] = float(close.iloc[-1] / c12 - 1)
+        else:
+            features["feat_ear_zscore"] = 0.0
+    elif len(close) >= 4:
+        c_early = float(close.iloc[-4])
+        if c_early > 0:
+            features["feat_ear_zscore"] = float(close.iloc[-1] / c_early - 1)
+        else:
+            features["feat_ear_zscore"] = 0.0
     else:
         features["feat_ear_zscore"] = 0.0
 
