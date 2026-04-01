@@ -12,14 +12,14 @@ interface Props {
 export const SENSE_KEYS = ["eye", "ear", "nose", "tongue", "body", "pulse", "aura", "mind"];
 
 export const SENSE_INFO: Record<string, { label: string; color: string; source: string }> = {
-  eye:   { label: "👁️ Eye",   color: "#3b82f6", source: "Binance Order Book 阻力/支撐距離" },
-  ear:   { label: "👂 Ear",   color: "#8b5cf6", source: "資金費率 Z-score" },
-  nose:  { label: "👃 Nose",  color: "#f59e0b", source: "Funding Rate z-score (解耦)" },
-  tongue:{ label: "👅 Tongue",color: "#ec4899", source: "恐懼貪婪指數" },
-  body:  { label: "💪 Body",  color: "#14b8a6", source: "OI ROC 持倉量變化率" },
-  pulse: { label: "💓 Pulse", color: "#ef4444", source: "20-period 波動率 Z-score" },
-  aura:  { label: "🌀 Aura",  color: "#a855f7", source: "Funding × Price 背離" },
-  mind:  { label: "🧠 Mind",  color: "#06b6d4", source: "BTC/ETH 成交量比" },
+  eye:   { label: "👁️ Eye",   color: "#3b82f6", source: "72h Funding Rate 均值 (IC=-0.172)" },
+  ear:   { label: "👂 Ear",   color: "#8b5cf6", source: "48h 價格動量 (IC=-0.200)" },
+  nose:  { label: "👃 Nose",  color: "#f59e0b", source: "48h 收益率自相關 (IC=+0.062)" },
+  tongue:{ label: "👅 Tongue",color: "#ec4899", source: "24h 波動率 (IC=+0.028)" },
+  body:  { label: "💪 Body",  color: "#14b8a6", source: "24h 價格區間位置 (IC=+0.227)" },
+  pulse: { label: "💓 Pulse", color: "#ef4444", source: "Funding Rate 趨勢 (IC=+0.037)" },
+  aura:  { label: "🌀 Aura",  color: "#a855f7", source: "波動率×自相關交互 (IC=+0.303)" },
+  mind:  { label: "🧠 Mind",  color: "#06b6d4", source: "24h Funding Z-score (IC=-0.034)" },
 };
 
 function polygon(cx: number, cy: number, r: number, count: number) {

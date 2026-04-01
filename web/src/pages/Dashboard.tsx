@@ -8,6 +8,7 @@ import SenseChart from "../components/SenseChart";
 import CandlestickChart from "../components/CandlestickChart";
 import BacktestSummary from "../components/BacktestSummary";
 import { useApi, fetchApi } from "../hooks/useApi";
+import ConfidenceIndicator from "../components/ConfidenceIndicator";
 
 interface SensesResponse {
   senses: Record<string, any>;
@@ -29,6 +30,14 @@ interface ModelStats {
   feature_importance: Record<string, number>;
   ic_values: Record<string, number>;
   model_params: Record<string, any>;
+}
+
+interface ConfidenceData {
+  confidence: number;
+  signal: string;
+  confidence_level: string;
+  should_trade: boolean;
+  timestamp: string;
 }
 
 interface BacktestData {
@@ -55,6 +64,7 @@ export default function Dashboard() {
 
   const { data: sensesData, error: apiError, refresh: refreshSenses } = useApi<SensesResponse>("/api/senses", 30000);
   const { data: backtestData } = useApi<BacktestData>("/api/backtest");
+  const { data: confidenceData } = useApi<ConfidenceData>("/api/predict/confidence", 60000);
   const { data: modelStats } = useApi<ModelStats>("/api/model/stats", 60000);
 
   // WebSocket
@@ -214,6 +224,17 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Row 1.5: Confidence Indicator */}
+      {confidenceData && !confidenceData.error && (
+        <ConfidenceIndicator
+          confidence={confidenceData.confidence}
+          signal={confidenceData.signal}
+          confidenceLevel={confidenceData.confidence_level}
+          shouldTrade={confidenceData.should_trade}
+          timestamp={confidenceData.timestamp}
+        />
+      )}
 
       {/* Row 2: Sense History Chart */}
       <SenseChart selectedSense={selectedSense} days={days} onClear={() => setSelectedSense(null)} />

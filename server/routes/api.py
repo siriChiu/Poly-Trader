@@ -298,3 +298,22 @@ async def api_model_stats():
 @router.post("/backtest/run")
 async def api_run_backtest(days: int = Query(default=30)):
     return await api_backtest(days=days)
+
+
+# ─── Confidence Prediction ───
+@router.get("/api/predict/confidence")
+async def get_confidence_prediction():
+    """返回模型信心分層預測"""
+    from model.predictor import predict, load_predictor
+    from database.models import init_db
+    from config import load_config
+
+    cfg = load_config()
+    session = init_db(cfg["database"]["url"])
+    predictor = load_predictor()
+    result = predict(session, predictor)
+    session.close()
+
+    if result is None:
+        return {"error": "prediction failed", "confidence": 0.5, "signal": "HOLD", "confidence_level": "LOW", "should_trade": False}
+    return result
