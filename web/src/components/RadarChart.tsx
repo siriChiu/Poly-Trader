@@ -35,11 +35,12 @@ export default function RadarChart({ scores, size = 320, onSenseClick }: Props) 
   const cx = size / 2;
   const cy = size / 2;
   const maxR = size * 0.35;
+  const count = SENSE_KEYS.length;
   const [hoveredSense, setHoveredSense] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   const gridLevels = [0.2, 0.4, 0.6, 0.8, 1.0];
-  const outerPoints = useMemo(() => polygon(cx, cy, maxR), [cx, cy, maxR]);
+  const outerPoints = useMemo(() => polygon(cx, cy, maxR, count), [cx, cy, maxR, count]);
 
   const dataPoints = useMemo(() => {
     return SENSE_KEYS.map((key, i) => {
@@ -48,7 +49,7 @@ export default function RadarChart({ scores, size = 320, onSenseClick }: Props) 
       const r = maxR * score;
       return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)] as [number, number];
     });
-  }, [scores, cx, cy, maxR]);
+  }, [scores, cx, cy, maxR, count]);
 
   const dataPath = dataPoints.map((p, i) => `${i === 0 ? "M" : "L"}${p[0]},${p[1]}`).join(" ") + " Z";
 
@@ -68,7 +69,7 @@ export default function RadarChart({ scores, size = 320, onSenseClick }: Props) 
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         {/* Grid */}
         {gridLevels.map((level) => {
-          const pts = polygon(cx, cy, maxR * level);
+          const pts = polygon(cx, cy, maxR * level, count);
           const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0]},${p[1]}`).join(" ") + " Z";
           return <path key={level} d={path} fill="none" stroke="#334155" strokeWidth={1} opacity={0.5} />;
         })}
