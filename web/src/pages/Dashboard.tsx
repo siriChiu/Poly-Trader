@@ -21,6 +21,16 @@ interface SensesResponse {
   };
 }
 
+interface ModelStats {
+  model_loaded: boolean;
+  sample_count: number;
+  label_distribution: Record<string, number>;
+  cv_accuracy: number | null;
+  feature_importance: Record<string, number>;
+  ic_values: Record<string, number>;
+  model_params: Record<string, any>;
+}
+
 interface BacktestData {
   final_equity: number;
   initial_capital: number;
@@ -45,6 +55,7 @@ export default function Dashboard() {
 
   const { data: sensesData, error: apiError, refresh: refreshSenses } = useApi<SensesResponse>("/api/senses", 30000);
   const { data: backtestData } = useApi<BacktestData>("/api/backtest");
+  const { data: modelStats } = useApi<ModelStats>("/api/model/stats", 60000);
 
   // WebSocket
   useEffect(() => {
@@ -131,6 +142,18 @@ export default function Dashboard() {
           </span>
           {lastUpdate && (
             <span className="text-slate-500">更新: {lastUpdate}</span>
+          )}
+          {/* 模型準確率 */}
+          {modelStats && (
+            <span className="flex items-center gap-1 text-slate-400">
+              📊 樣本:{modelStats.sample_count}
+              {modelStats.ic_values?.eye !== undefined && (
+                <span className="text-xs opacity-70">
+                  | Eye IC:{modelStats.ic_values.eye > 0 ? '+' : ''}{modelStats.ic_values.eye?.toFixed(3)}
+                  | Ear IC:{modelStats.ic_values.ear > 0 ? '+' : ''}{modelStats.ic_values.ear?.toFixed(3)}
+                </span>
+              )}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-3 text-slate-500">

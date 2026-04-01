@@ -87,7 +87,9 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
                 e_max = eye_hist.max()
                 if e_max > e_min:
                     # Min-max to 0~1, then scale to -1~1
-                    features["feat_eye_dist"] = float(2 * (eye_val - e_min) / (e_max - e_min) - 1)
+                    # Note: IC=-0.432 means high eye_dist → bearish, so INVERT the signal
+                    raw_normalized = float(2 * (eye_val - e_min) / (e_max - e_min) - 1)
+                    features["feat_eye_dist"] = -raw_normalized  # #IC1: Eye IC is inverted
                 else:
                     features["feat_eye_dist"] = 0.0
             else:

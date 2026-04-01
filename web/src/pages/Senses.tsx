@@ -7,6 +7,12 @@ import SenseModule from "../components/SenseModule";
 import RadarChart from "../components/RadarChart";
 import { useApi, fetchApi } from "../hooks/useApi";
 
+interface ModelStats {
+  sample_count: number;
+  ic_values: Record<string, number>;
+  feature_importance: Record<string, number>;
+}
+
 interface SenseModuleData {
   name: string;
   source: string;
@@ -39,6 +45,7 @@ const SENSE_COLORS: Record<string, string> = {
 
 export default function Senses() {
   const { data: config, refresh } = useApi<SensesConfig>("/api/senses/config");
+  const { data: modelStats } = useApi<ModelStats>("/api/model/stats", 60000);
   const [previewScores, setPreviewScores] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>("");
@@ -142,11 +149,22 @@ export default function Senses() {
                     <span className="text-xs text-slate-500 ml-2">{sense.description}</span>
                   </div>
                 </div>
-                <div
-                  className="text-2xl font-mono font-bold"
-                  style={{ color: SENSE_COLORS[senseKey] }}
-                >
-                  {((previewScores[senseKey] ?? sense.score ?? 0.5) * 100).toFixed(0)}
+                <div className="flex items-center gap-2">
+                  <div
+                    className="text-2xl font-mono font-bold"
+                    style={{ color: SENSE_COLORS[senseKey] }}
+                  >
+                    {((previewScores[senseKey] ?? sense.score ?? 0.5) * 100).toFixed(0)}
+                  </div>
+                  {modelStats?.ic_values?.[senseKey] !== undefined && (
+                    <span className={"text-xs px-1.5 py-0.5 rounded font-mono " + (
+                      Math.abs(modelStats.ic_values[senseKey]) > 0.2 ? "bg-green-900/40 text-green-400" :
+                      Math.abs(modelStats.ic_values[senseKey]) > 0.05 ? "bg-yellow-900/40 text-yellow-400" :
+                      "bg-red-900/40 text-red-400"
+                    )}>
+                      IC {modelStats.ic_values[senseKey] > 0 ? "+" : ""}{modelStats.ic_values[senseKey].toFixed(3)}
+                    </span>
+                  )}
                 </div>
               </div>
 

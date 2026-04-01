@@ -230,6 +230,71 @@ async def api_features(days: int = Query(default=7, ge=1, le=90)):
         "feat_aura": getattr(r, 'feat_aura', None), "feat_mind": getattr(r, 'feat_mind', None)
     } for r in rows]
 
+
+@router.get("/model/stats")
+async def api_model_stats():
+    """返回模型準確率、IC 值等統計資訊，供 Web 顯示"""
+    import os, pickle, numpy as np
+    from model.train import FEATURE_COLS
+    from model.predictor import MODEL_PATH
+    from database.models import Labels, FeaturesNormalized
+    from sqlalchemy import text
+
+    db = get_db()
+    stats = {
+        "model_loaded": False,
+        "sample_count": 0,
+        "label_distribution": {},
+        "cv_accuracy": None,
+        "feature_importance": {},
+        "ic_values": {},
+        "model_params": {}
+    }
+
+    # 樣本數和標籤分布
+    try:
+        total = db.query(Labels).count()
+        stats["sample_count"] = total
+        dist = db.execute(text("SELECT label, COUNT(*) as cnt FROM labels GROUP BY label")).fetchall()
+        stats["label_distribution"] = {str(r[0]): r[1] for r in dist}
+    except Exception as e:
+        logger.error(f"Stats label error: {e}")
+
+    # 模型準確率 and feature importance
+    try:
+        if os.path.exists(MODEL_PATH):
+            with open(MODEL_PATH, "rb") as f:
+                model = pickle.load(f)
+            stats["model_loaded"] = True
+            if hasattr(model, "feature_importances_"):
+                imp = dict(zip(FEATURE_COLS, model.feature_importances_.tolist()))
+                stats["feature_importance"] = {k: round(v, 4) for k, v in sorted(imp.items(), key=lambda x: -x[1])}
+            if hasattr(model, "get_params"):
+                p = model.get_params()
+                stats["model_params"] = {k: p.get(k) for k in ["n_estimators", "max_depth", "reg_alpha", "reg_lambda"]}
+    except Exception as e:
+        logger.error(f"Stats model error: {e}")
+
+    # IC 計算 (Pearson correlation for each feature vs label)
+    try:
+        rows = db.execute(text("""
+            SELECT f.feat_eye_dist, f.feat_ear_zscore, f.feat_nose_sigmoid, f.feat_tongue_pct, f.feat_body_roc, l.label
+            FROM features_normalized f INNER JOIN labels l ON f.id = l.id
+            WHERE f.feat_eye_dist IS NOT NULL AND l.label IS NOT NULL
+        """)).fetchall()
+        if len(rows) > 30:
+            data = np.array(rows)
+            labels_arr = data[:, -1]
+            for i, name in enumerate(["eye", "ear", "nose", "tongue", "body"]):
+                feats = data[:, i]
+                if np.std(feats) > 0 and np.std(labels_arr) > 0:
+                    ic = float(np.corrcoef(feats, labels_arr)[0, 1])
+                    stats["ic_values"][name] = round(ic, 4)
+    except Exception as e:
+        logger.error(f"Stats IC error: {e}")
+
+    return stats
+
 @router.post("/backtest/run")
 async def api_run_backtest(days: int = Query(default=30)):
     return await api_backtest(days=days)
