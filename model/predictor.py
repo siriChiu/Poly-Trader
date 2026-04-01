@@ -32,7 +32,7 @@ class XGBoostPredictor:
     def predict_proba(self, features: Dict) -> float:
         import pandas as pd
         # IC 反轉：與 train.py 保持一致，負 IC 特徵取反
-        NEG_IC_FEATS = {"feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_body_roc", "feat_pulse", "feat_aura"}
+        NEG_IC_FEATS = {"feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc", "feat_aura"}
         adjusted = {col: (-features.get(col, 0) if col in NEG_IC_FEATS else features.get(col, 0)) for col in FEATURE_COLS}
         X = pd.DataFrame([adjusted]).fillna(0)
         proba = self.model.predict_proba(X)[0]
