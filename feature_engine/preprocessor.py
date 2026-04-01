@@ -66,12 +66,13 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
         "timestamp": latest.get("timestamp", datetime.utcnow()),
     }
 
-    # 1. Eye: funding_ma72 — 72h funding rate moving average
+    # 1. Eye: funding_ma72_bps — 72h funding rate moving average (in bps, ×10000)
     #    IC=-0.1720: 高 funding → 看跌（過度槓桿）
+    #    #H42 fix: scale to bps so XGBoost can meaningfully split on this feature
     if len(fr) >= 72:
-        features["feat_eye_dist"] = float(fr.tail(72).mean())
+        features["feat_eye_dist"] = float(fr.tail(72).mean()) * 10000.0
     elif len(fr) >= 8:
-        features["feat_eye_dist"] = float(fr.mean())
+        features["feat_eye_dist"] = float(fr.mean()) * 10000.0
     else:
         features["feat_eye_dist"] = 0.0
 
@@ -125,16 +126,17 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_body_roc"] = 0.5
 
-    # 6. Pulse: funding_trend — funding rate 趨勢（24h MA - 72h MA）
+    # 6. Pulse: funding_trend_bps — funding rate 趨勢（24h MA - 72h MA，in bps ×10000）
     #    IC=-0.0669: 下降趨勢 → 看漲（槓桿冷卻）
+    #    #H42 fix: scale to bps so XGBoost can meaningfully split on this feature
     if len(fr) >= 72:
         ma24 = fr.tail(24).mean()
         ma72 = fr.tail(72).mean()
-        features["feat_pulse"] = float(ma24 - ma72)
+        features["feat_pulse"] = float(ma24 - ma72) * 10000.0
     elif len(fr) >= 24:
         ma24 = fr.tail(24).mean()
         ma_all = fr.mean()
-        features["feat_pulse"] = float(ma24 - ma_all)
+        features["feat_pulse"] = float(ma24 - ma_all) * 10000.0
     else:
         features["feat_pulse"] = 0.0
 
