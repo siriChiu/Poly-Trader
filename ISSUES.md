@@ -1,8 +1,8 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-02 07:01 GMT+8**
-> **🔄 心跳 #66：fix #H77 — ear 替換 RSI-72→MACD_hist (IC=-0.046 p=0.031 ✅)，重訓 Train=60.5% / CV=45.8%**
-> **✅ 上輪修復：心跳 #64：feat: ear=RSI-72, tongue=vol_ratio_6_48, body=stoch_rsi_14 — 全 8 感官 IC 顯著！**
+> **最後更新：2026-04-02 07:04 GMT+8**
+> **🔄 心跳 #67：fix #H78 — ear 替換 MACD_hist→mom_12 (Pearson 假顯著 Spearman p=0.177→mom_12 Spearman p=0.027 ✅)，Train=60.1%/CV=45.8%**
+> **✅ 上輪修復：心跳 #66：fix #H77 — ear 替換 RSI-72→MACD_hist (IC=-0.046 p=0.031)，重訓 Train=60.5%/CV=45.8%**
 
 ---
 
@@ -29,6 +29,7 @@
 
 | ID | 問題 | 解決方案 | 日期 |
 |----|------|----------|------|
+| **#H78** | **feat_ear_zscore MACD_hist 假顯著（79% |>100bps 極端值，Spearman p=0.177）** | **替換為 mom_12 (12期動量，Spearman p=0.027 ✅)，修正DB所有ear值** | **04-02 07:04** |
 | **#H77** | **feat_ear_zscore IC=-0.025 p=0.233 再次不顯著（RSI-72失效）** | **替換為 MACD histogram(12/26) (IC=-0.046 p=0.031 ✅)** | **04-02 07:01** |
 | **#H76** | **模型嚴重過擬合 Train=80.2%/CV=42.8% gap=37%** | **加強正則化(max_depth=2,reg_lambda=8)+class_weight balance → Train=53.2%/CV=42.4% gap=9%** | **04-02 06:44** |
 | **#H74** | **feat_ear_zscore IC=-0.040 p=0.064 不顯著** | **RSI-24 → RSI-72 (IC=-0.044 p=0.039 ✅)** | **04-02 06:37** |
@@ -66,7 +67,7 @@
 | 感官 | IC | p值 | 顯著? | NEG_IC | 狀態 |
 |------|----|----|-------|--------|------|
 | feat_eye_dist | -0.077 | 0.0003 | ✅ | ✅反轉 | 有效 |
-| feat_ear_zscore | -0.046 | 0.0304 | ✅ | ✅反轉 | ✅ 升級 MACD_hist |
+| feat_ear_zscore | -0.056 | 0.0272 | ✅ | ✅反轉 | ✅ 升級 mom_12 |
 | feat_nose_sigmoid | -0.071 | 0.0009 | ✅ | ✅反轉 | 有效 |
 | feat_tongue_pct | +0.127 | <0.0001 | ✅ | ❌ | ✅ 升級 vol_ratio |
 | feat_body_roc | -0.053 | 0.0127 | ✅ | ✅反轉 | ✅ 升級 stoch_rsi_14 |
