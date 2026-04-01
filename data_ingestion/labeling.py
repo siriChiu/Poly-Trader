@@ -17,7 +17,8 @@ def generate_future_return_labels(
     session: Session,
     symbol: str,
     horizon_hours: int = 24,
-    threshold_pct: float = 0.0
+    threshold_pct: float = 0.005,
+    neutral_band: float = 0.005
 ) -> pd.DataFrame:
     """
     從 FeaturesNormalized 的時間戳，對應到未來 horizon_hooks 的收益率，並生成標籤。
@@ -64,7 +65,12 @@ def generate_future_return_labels(
         if current_price == 0:
             continue
         ret_pct = (future_price - current_price) / current_price
-        label = 1 if ret_pct > threshold_pct else 0
+        if ret_pct > threshold_pct:
+            label = 1
+        elif ret_pct < -threshold_pct:
+            label = -1
+        else:
+            label = 0  # neutral / hold
         labels.append({
             "timestamp": ts,
             "label": label,
@@ -72,7 +78,8 @@ def generate_future_return_labels(
         })
 
     df = pd.DataFrame(labels)
-    logger.info(f"標籤生成完成：共 {len(df)} 筆，正样例比例={df['label'].mean():.2%}")
+    dist = df['label'].value_counts().to_dict()
+    logger.info(f"標籤生成完成：共 {len(df)} 筆，分佈={dist}")
     return df
 
 def save_labels_to_db(session: Session, labels_df: pd.DataFrame):

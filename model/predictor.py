@@ -36,7 +36,25 @@ class XGBoostPredictor:
         adjusted = {col: (-features.get(col, 0) if col in NEG_IC_FEATS else features.get(col, 0)) for col in FEATURE_COLS}
         X = pd.DataFrame([adjusted]).fillna(0)
         proba = self.model.predict_proba(X)[0]
+        # 3-class: proba=[P(down), P(neutral), P(up)]  (encoded: 0=down, 1=neutral, 2=up)
+        if len(proba) == 3:
+            return float(proba[2])  # confidence of "up" signal
         return float(proba[1]) if len(proba) > 1 else float(proba[0])
+
+    def predict_signal(self, features: Dict) -> dict:
+        """返回完整3-class信號：down/neutral/up 及各機率。"""
+        import pandas as pd
+        NEG_IC_FEATS = {"feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc", "feat_aura"}
+        adjusted = {col: (-features.get(col, 0) if col in NEG_IC_FEATS else features.get(col, 0)) for col in FEATURE_COLS}
+        X = pd.DataFrame([adjusted]).fillna(0)
+        proba = self.model.predict_proba(X)[0]
+        if len(proba) == 3:
+            labels = ["down", "neutral", "up"]
+            pred_idx = int(proba.argmax())
+            return {"signal": labels[pred_idx], "proba": dict(zip(labels, [float(p) for p in proba]))}
+        # fallback binary
+        p_up = float(proba[1]) if len(proba) > 1 else float(proba[0])
+        return {"signal": "up" if p_up > 0.5 else "down", "proba": {"down": 1-p_up, "up": p_up}}
 
 
 class DummyPredictor:

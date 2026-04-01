@@ -1,8 +1,8 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-02 02:04 GMT+8**
-> **🔄 心跳 #41：NEG_IC_FEATS 修正（移除 pulse，加入 tongue），Raw=2,210，BTC=$68,179**
-> **✅ 上輪修復：NEG_IC_FEATS 校準 — feat_pulse(IC+0.01)移除，feat_tongue_pct(IC-0.07)加入**
+> **最後更新：2026-04-02 02:20 GMT+8**
+> **🔄 心跳 #42：3-class Labels 實作（#H25），Down=944/Neutral=435/Up=773，Train=68.0%, CV=40.1%**
+> **✅ 上輪修復：labels 從 binary→3-class(±0.5%)，train.py/predictor.py/labeling.py 全更新**
 
 ---
 
@@ -11,7 +11,7 @@
 | ID | 問題 | 影響 | 狀態 |
 |----|------|------|------|
 | #H33 | 🟡 模型 CV=49.4%（數據不足，需持續收集） | 乾淨數據只有 2,210 筆，不足以提升 CV | 🟡 P1 — 持續收集（5min 排程中） |
-| #H25 | 🔴 Labels 只有 2 類 (0,1)，無 class -1（持平） | 無「觀望」信號，binary 分類天花板偏低 | 🔴 P1 |
+| ~~#H25~~ | ~~Labels 只有 2 類~~ | ~~已修復：-1/0/1 三分類，±0.5% 閾值~~ | ✅ 04-02 02:20 |
 | #H31 | 🔴 歷史 raw data polymarket_prob 幾乎全 NULL | Ear/Polymarket 歷史信號缺失 | 🔴 P1 |
 
 ## 🟡 高優先級

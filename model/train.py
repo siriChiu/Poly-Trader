@@ -83,14 +83,30 @@ def load_training_data(
     return X, y
 
 
+LABEL_MAP = {-1: 0, 0: 1, 1: 2}   # XGBoost needs 0-based class indices
+LABEL_MAP_INV = {0: -1, 1: 0, 2: 1}
+
+
+def encode_labels(y: pd.Series) -> pd.Series:
+    """Map -1/0/1 → 0/1/2 for XGBoost multi:softprob."""
+    return y.map(LABEL_MAP).fillna(1).astype(int)
+
+
+def decode_label(pred: int) -> int:
+    """Map 0/1/2 → -1/0/1."""
+    return LABEL_MAP_INV.get(pred, 0)
+
+
 def train_xgboost(
     X: pd.DataFrame, y: pd.Series, params: Optional[dict] = None
 ) -> xgb.XGBClassifier:
-    """訓練 XGBoost，專為信心分層設計。"""
-    n_0 = (y == 0).sum()
-    n_1 = (y == 1).sum()
-    scale = n_0 / max(n_1, 1)
-    logger.info(f"Class dist: 0={n_0}, 1={n_1}, scale={scale:.2f}")
+    """訓練 XGBoost 3-class（跌/持平/漲）。"""
+    # Re-encode if still in -1/0/1 space
+    if y.min() < 0:
+        y = encode_labels(y)
+
+    dist = y.value_counts().sort_index().to_dict()
+    logger.info(f"Class dist (encoded): {dist}")
 
     if params is None:
         params = {
@@ -102,16 +118,15 @@ def train_xgboost(
             "reg_alpha": 2.0,
             "reg_lambda": 5.0,
             "min_child_weight": 15,
-            "eval_metric": "logloss",
-            "scale_pos_weight": scale,
+            "objective": "multi:softprob",
+            "num_class": 3,
+            "eval_metric": "mlogloss",
             "random_state": 42,
         }
-    else:
-        params.setdefault("scale_pos_weight", scale)
 
     model = xgb.XGBClassifier(**params)
     model.fit(X, y)
-    logger.info("XGBoost v3 訓練完成")
+    logger.info("XGBoost v3 3-class 訓練完成")
     return model
 
 
@@ -135,7 +150,8 @@ def run_training(session: Session) -> bool:
     if loaded is None:
         return False
     X, y = loaded
-    model = train_xgboost(X, y)
+    y_enc = encode_labels(y)  # -1/0/1 → 0/1/2 for XGBoost
+    model = train_xgboost(X, y_enc)
     save_model(model)
     imp = dict(zip(FEATURE_COLS, model.feature_importances_.tolist()))
     logger.info(f"特徵重要性: {imp}")
@@ -145,9 +161,9 @@ def run_training(session: Session) -> bool:
         from sklearn.model_selection import TimeSeriesSplit, cross_val_score
         from datetime import datetime
         import sqlite3
-        train_acc = float((model.predict(X) == y).mean())
+        train_acc = float((model.predict(X) == y_enc).mean())
         tscv = TimeSeriesSplit(n_splits=5)
-        cv_scores = cross_val_score(model, X, y, cv=tscv, scoring="accuracy")
+        cv_scores = cross_val_score(model, X, y_enc, cv=tscv, scoring="accuracy")
         cv_acc = float(cv_scores.mean())
         cv_std = float(cv_scores.std())
         db = sqlite3.connect("poly_trader.db")
