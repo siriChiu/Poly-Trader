@@ -123,10 +123,18 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
             else:
                 features["feat_ear_zscore"] = 0.0
 
-    # 3. Nose: OI ROC (取代 funding_rate，解除與 Ear 洩漏)
-    oi_val = latest.get("stablecoin_mcap")
-    if pd.notna(oi_val) and oi_val is not None:
-        features["feat_nose_sigmoid"] = float(oi_val)
+    # 3. Nose: Funding Rate Z-score (獨立數據源)
+    if "funding_rate" in df.columns:
+        fr_series=df["funding_rate"].dropna()
+        if len(fr_series)>=20:
+            window=min(30,len(fr_series))
+            fr_mean=fr_series.tail(window).mean()
+            fr_std=fr_series.tail(window).std()
+            cur=float(latest["funding_rate"])
+            if pd.notna(cur) and fr_std>0:
+                features["feat_nose_sigmoid"]=float(np.tanh((cur-fr_mean)/fr_std/2))
+    if features.get("feat_nose_sigmoid") is None:
+        features["feat_nose_sigmoid"]=0.0
 
     # 4. Tongue: 情緒綜合分數 v2（-1~1，直接使用）
     tongue_val = latest.get("tongue_sentiment")

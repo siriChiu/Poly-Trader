@@ -43,6 +43,9 @@ class FeaturesNormalized(Base):
     feat_nose_sigmoid = Column(Float)  # 鼻：資金費率 Sigmoid 壓縮
     feat_tongue_pct = Column(Float)    # 舌：情緒指數百分比
     feat_body_roc = Column(Float)      # 身：資金增長率
+    feat_pulse = Column(Float)         # 脈：波動率 z-score
+    feat_aura = Column(Float)          # 磁：funding×price 背離
+    feat_mind = Column(Float)          # 知：BTC/ETH 成交量比
 
 
 class TradeHistory(Base):
