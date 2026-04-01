@@ -11,6 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from config import load_config
 from database.models import init_db
 from data_ingestion.collector import run_collection_and_save
+from data_ingestion.labeling import generate_future_return_labels, save_labels_to_db
 from feature_engine.preprocessor import run_preprocessor
 from model.predictor import predict
 from execution.risk_control import validate_order
@@ -37,6 +38,15 @@ def trading_cycle(session, config: dict, symbol: str, confidence_threshold: floa
     if not features:
         logger.error("特徵計算失敗，本輪跳過")
         return
+
+    # Step 2.5: 標籤更新（fix #H61: 每輪心跳重新生成並寫入 labels）
+    try:
+        labels_df = generate_future_return_labels(session, symbol=symbol, horizon_hours=1, threshold_pct=0.001)
+        if not labels_df.empty:
+            save_labels_to_db(session, labels_df, symbol=symbol, horizon_hours=1)
+            logger.info(f"標籤更新完成: {len(labels_df)} 筆")
+    except Exception as e:
+        logger.warning(f"標籤更新失敗（非致命）: {e}")
 
     # Step 3: 模型預測
     pred = predict(session)

@@ -8,7 +8,7 @@ from datetime import timedelta
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from database.models import RawMarketData, FeaturesNormalized
+from database.models import RawMarketData, FeaturesNormalized, Labels
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -21,7 +21,7 @@ def generate_future_return_labels(
     neutral_band: float = 0.005
 ) -> pd.DataFrame:
     """
-    從 FeaturesNormalized 的時間戳，對應到未來 horizon_hooks 的收益率，並生成標籤。
+    從 FeaturesNormalized 的時間戳，對應到未來 horizon_hours 的收益率，並生成標籤。
 
     Returns:
         DataFrame 包含: timestamp (特徵時間), label (0/1), future_return_pct
@@ -82,14 +82,39 @@ def generate_future_return_labels(
     logger.info(f"標籤生成完成：共 {len(df)} 筆，分佈={dist}")
     return df
 
-def save_labels_to_db(session: Session, labels_df: pd.DataFrame):
+def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "BTCUSDT", horizon_hours: int = 1):
     """
-    將標籤寫入資料庫（需要新增 labels 表）。
-    為簡化，暫時不建立新表，而是將 label 與 future_return 存入 features_normalized 的備註欄（需要擴展 Schema）。
-    我們選擇返回 DataFrame，供 training 直接使用。
+    將標籤寫入 labels 表（upsert：相同 timestamp+symbol+horizon_hours 則更新）。
+    修復：原本此函數為 no-op，導致 labels 表不更新。(fix #H61 2026-04-02)
     """
-    logger.info("標籤 DataFrame 已準備好，可直接用於訓練。")
-    return labels_df
+    if labels_df.empty:
+        logger.warning("save_labels_to_db: 空 DataFrame，跳過寫入")
+        return
+
+    # 取得現有的 timestamps（避免重複）
+    existing_ts_set = set(
+        str(r.timestamp) for r in session.query(Labels.timestamp)
+        .filter(Labels.symbol == symbol, Labels.horizon_hours == horizon_hours)
+        .all()
+    )
+
+    new_count = 0
+    for _, row in labels_df.iterrows():
+        ts_str = str(row["timestamp"])
+        if ts_str in existing_ts_set:
+            continue  # 跳過已存在
+        label_row = Labels(
+            timestamp=row["timestamp"],
+            symbol=symbol,
+            horizon_hours=horizon_hours,
+            future_return_pct=float(row.get("future_return_pct", 0.0)),
+            label=int(row["label"]),
+        )
+        session.add(label_row)
+        new_count += 1
+
+    session.commit()
+    logger.info(f"save_labels_to_db: 新增 {new_count} 筆標籤（共 {len(labels_df)} 筆輸入）")
 
 if __name__ == "__main__":
     print("Labeling module loaded. Use generate_future_return_labels()")
