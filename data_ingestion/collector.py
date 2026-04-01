@@ -1,6 +1,6 @@
 """
-五感數據整合收集器
-依次調用五感模組，將結果寫入 raw_market_data 表
+多感官數據整合收集器
+依次調用多感官模組，將結果寫入 raw_market_data 表
 """
 
 from sqlalchemy.orm import Session
@@ -20,11 +20,11 @@ logger = setup_logger(__name__)
 
 def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
     """
-    執行完整的五感數據收集。
+    執行完整的多感官數據收集。
     Returns:
         整合後的數據字典，可用於寫入資料庫。
     """
-    logger.info("開始五感數據收集...")
+    logger.info("開始多感官數據收集...")
 
     body = get_body_feature() or {}
     tongue = get_tongue_feature() or {}

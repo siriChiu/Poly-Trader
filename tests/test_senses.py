@@ -1,5 +1,5 @@
 """
-逐個測試五感模組
+逐個測試多感官模組
 """
 import sys
 from pathlib import Path

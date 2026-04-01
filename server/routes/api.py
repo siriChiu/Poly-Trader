@@ -152,7 +152,8 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
         initial = 10000.0
         equity = initial; position = 0.0; entry_price = 0.0
         equity_curve = []; trades = []
-        threshold = 0.55  # 買入閾值
+        threshold = 0.50  # 買入閾值 (normalized 0~1)
+        exit_thresh = 0.45  # 賣出閾值
         stop_p = 0.03  # 3% 止損
 
         for bar in ohlcv:
@@ -173,7 +174,9 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
             vals = [feat.feat_eye_dist, feat.feat_ear_zscore, feat.feat_nose_sigmoid, feat.feat_tongue_pct, feat.feat_body_roc]
             valid = [v for v in vals if v is not None]
             if not valid: continue
-            score = sum(valid) / len(valid)
+            # Normalize: features are -1~1, convert to 0~1
+            normed = [(v + 1) / 2 for v in valid]
+            score = sum(normed) / len(normed)
 
             # 止損
             if position > 0 and price <= entry_price * (1 - stop_p):
@@ -186,7 +189,7 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
             if score >= threshold and position == 0:
                 position = (equity * 0.05) / price
                 entry_price = price
-            elif score < 0.45 and position > 0:
+            elif score < exit_thresh and position > 0:
                 pnl = (price - entry_price) * position
                 equity += pnl
                 trades.append({"timestamp": datetime.fromtimestamp(dt).isoformat() + "Z", "action": "sell", "price": round(price, 2), "amount": position, "pnl": round(pnl, 2), "reason": "signal_exit"})
@@ -223,7 +226,9 @@ async def api_features(days: int = Query(default=7, ge=1, le=90)):
     return [{"timestamp": r.timestamp.isoformat() if r.timestamp else None,
         "feat_eye_dist": r.feat_eye_dist, "feat_ear_zscore": r.feat_ear_zscore,
         "feat_nose_sigmoid": r.feat_nose_sigmoid, "feat_tongue_pct": r.feat_tongue_pct,
-        "feat_body_roc": r.feat_body_roc} for r in rows]
+        "feat_body_roc": r.feat_body_roc, "feat_pulse": getattr(r, 'feat_pulse', None),
+        "feat_aura": getattr(r, 'feat_aura', None), "feat_mind": getattr(r, 'feat_mind', None)
+    } for r in rows]
 
 @router.post("/backtest/run")
 async def api_run_backtest(days: int = Query(default=30)):

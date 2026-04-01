@@ -1,5 +1,5 @@
 """
-五感之「鼻」：衍生品氣味與資金成本模組
+感官之「鼻」：衍生品氣味與資金成本模組
 - Binance Futures API: Funding Rate 與 Open Interest
 """
 

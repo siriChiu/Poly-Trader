@@ -1,5 +1,5 @@
 """
-WebSocket 路由：即時推送五感數據、交易信號
+WebSocket 路由：即時推送多感官數據、交易信號
 """
 
 import asyncio
@@ -55,7 +55,7 @@ class WsManager:
             return {}
 
     async def data_push_loop(self):
-        """後台任務：定期收集五感數據並廣播"""
+        """後台任務：定期收集多感官數據並廣播"""
         while True:
             try:
                 if self.clients:

@@ -30,7 +30,7 @@ PHASE1_FILES = [
     "utils/logger.py"
 ]
 
-# Phase 2 五感模組
+# Phase 2 多感官模組
 PHASE2_FILES = [
     "data_ingestion/body_defillama.py",
     "data_ingestion/tongue_sentiment.py",
@@ -127,7 +127,7 @@ def main():
     if missing_p2:
         print(f"[WARN] Phase 2 缺失文件: {missing_p2}")
     else:
-        print("[OK] Phase 2 完成 (五感模組)")
+        print("[OK] Phase 2 完成 (多感官模組)")
 
     # 檢查 Phase 3
     missing_p3 = check_files(PHASE3_FILES)

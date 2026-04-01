@@ -1,5 +1,5 @@
 """
-五感有效性分析：量化每个感官特征与未来收益率的关系
+多感官有效性分析：量化每个感官特征与未来收益率的关系
 """
 
 import pandas as pd
@@ -20,7 +20,7 @@ def compute_information_coefficient(
     horizon_hours: int = 24
 ) -> Dict[str, float]:
     """
-    计算每个五感特征与未来收益率的相关性（IC）。
+    计算每个多感官特征与未来收益率的相关性（IC）。
     返回：{
         'feat_eye_dist': IC (相关系数),
         'feat_ear_zscore': IC,

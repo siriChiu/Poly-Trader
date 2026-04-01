@@ -25,7 +25,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("📊 Poly-Trader 五感量化交易系統")
+st.title("📊 Poly-Trader 多感官量化交易系統")
 
 # 資料庫連接
 DB_PATH = os.getenv("POLY_TRADER_DB", f"sqlite:///{PROJECT_ROOT / 'poly_trader.db'}")
@@ -121,11 +121,11 @@ st.divider()
 
 # Tabs
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "🔍 特徵分析", "🤖 模型預測", "📜 交易歷史", "📈 策略回測", "🔧 參數優化", "🔬 五感有效性"
+    "🔍 特徵分析", "🤖 模型預測", "📜 交易歷史", "📈 策略回測", "🔧 參數優化", "🔬 多感官有效性"
 ])
 
 with tab1:
-    st.subheader("五感特徵趨勢")
+    st.subheader("多感官特徵趨勢")
     if not features_df.empty:
         fig = go.Figure()
         for col in ["feat_eye_dist","feat_ear_zscore","feat_nose_sigmoid","feat_tongue_pct","feat_body_roc"]:
@@ -320,7 +320,7 @@ with tab5:
             st.exception(e)
 
 with tab6:
-    st.subheader("🔬 五感有效性分析")
+    st.subheader("🔬 多感官有效性分析")
     st.write("量化每个感官特征与未来收益率的相关性（IC）及分位数胜率。")
 
     # 从 config 加载
@@ -364,4 +364,4 @@ with tab6:
         session.close()
 
 st.divider()
-st.caption("💡 提示：若要啟用真實數據，請完成五感數據寫入與模型訓練流程。")
+st.caption("💡 提示：若要啟用真實數據，請完成多感官數據寫入與模型訓練流程。")
