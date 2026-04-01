@@ -27,21 +27,38 @@ CONFIDENCE_LOW = 0.3    # Only SELL/HOLD when prob < 0.3
 
 class XGBoostPredictor:
     def __init__(self, model):
+        # model can be a dict (new format) or XGBClassifier (legacy)
+        if isinstance(model, dict):
+            self._clf = model.get("clf")
+            self._imputer = model.get("imputer")
+            self._neg_ic_feats = set(model.get("neg_ic_feats", []))
+        else:
+            self._clf = model
+            self._imputer = None
+            self._neg_ic_feats = None
         self.model = model
 
-    def predict_proba(self, features: Dict) -> float:
-        import pandas as pd
-        # #H48: 從 ic_signs.json 動態載入 NEG_IC_FEATS，與 train.py 一致
+    def _get_neg_ic_feats(self):
+        if self._neg_ic_feats is not None:
+            return self._neg_ic_feats
         import json as _json, os as _os
         _ic_path = "model/ic_signs.json"
         if _os.path.exists(_ic_path):
             with open(_ic_path) as _f:
-                NEG_IC_FEATS = set(_json.load(_f).get("neg_ic_feats", []))
-        else:
-            NEG_IC_FEATS = {"feat_eye_dist", "feat_ear_zscore", "feat_body_roc", "feat_aura", "feat_pulse", "feat_mind"}
+                return set(_json.load(_f).get("neg_ic_feats", []))
+        return {"feat_eye_dist", "feat_ear_zscore", "feat_body_roc", "feat_aura", "feat_pulse", "feat_mind"}
+
+    def _get_proba(self, features: Dict):
+        import pandas as pd
+        NEG_IC_FEATS = self._get_neg_ic_feats()
         adjusted = {col: (-features.get(col, 0) if col in NEG_IC_FEATS else features.get(col, 0)) for col in FEATURE_COLS}
         X = pd.DataFrame([adjusted]).fillna(0)
-        proba = self.model.predict_proba(X)[0]
+        if self._imputer is not None:
+            X = pd.DataFrame(self._imputer.transform(X), columns=X.columns)
+        return self._clf.predict_proba(X)[0]
+
+    def predict_proba(self, features: Dict) -> float:
+        proba = self._get_proba(features)
         # 3-class: proba=[P(down), P(neutral), P(up)]  (encoded: 0=down, 1=neutral, 2=up)
         if len(proba) == 3:
             return float(proba[2])  # confidence of "up" signal
@@ -49,18 +66,7 @@ class XGBoostPredictor:
 
     def predict_signal(self, features: Dict) -> dict:
         """返回完整3-class信號：down/neutral/up 及各機率。"""
-        import pandas as pd
-        # #H48: 從 ic_signs.json 動態載入 NEG_IC_FEATS
-        import json as _json, os as _os
-        _ic_path = "model/ic_signs.json"
-        if _os.path.exists(_ic_path):
-            with open(_ic_path) as _f:
-                NEG_IC_FEATS = set(_json.load(_f).get("neg_ic_feats", []))
-        else:
-            NEG_IC_FEATS = {"feat_eye_dist", "feat_ear_zscore", "feat_body_roc", "feat_aura", "feat_pulse", "feat_mind"}
-        adjusted = {col: (-features.get(col, 0) if col in NEG_IC_FEATS else features.get(col, 0)) for col in FEATURE_COLS}
-        X = pd.DataFrame([adjusted]).fillna(0)
-        proba = self.model.predict_proba(X)[0]
+        proba = self._get_proba(features)
         if len(proba) == 3:
             labels = ["down", "neutral", "up"]
             pred_idx = int(proba.argmax())
