@@ -91,30 +91,39 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
         logger.warning("save_labels_to_db: 空 DataFrame，跳過寫入")
         return
 
-    # 取得現有的 timestamps（避免重複）
-    existing_ts_set = set(
-        str(r.timestamp) for r in session.query(Labels.timestamp)
+    # 取得現有行（包含 NULL 的需要更新，已有值的跳過）
+    existing_rows = {
+        str(r.timestamp): r for r in session.query(Labels)
         .filter(Labels.symbol == symbol, Labels.horizon_hours == horizon_hours)
         .all()
-    )
+    }
 
     new_count = 0
+    update_count = 0
     for _, row in labels_df.iterrows():
         ts_str = str(row["timestamp"])
-        if ts_str in existing_ts_set:
-            continue  # 跳過已存在
+        fut_ret = row.get("future_return_pct")
+        if ts_str in existing_rows:
+            existing = existing_rows[ts_str]
+            if existing.future_return_pct is None and fut_ret is not None:
+                # 更新 NULL label：現在有未來數據了
+                existing.future_return_pct = float(fut_ret)
+                existing.label = int(row["label"])
+                update_count += 1
+            # 已有值，跳過
+            continue
         label_row = Labels(
             timestamp=row["timestamp"],
             symbol=symbol,
             horizon_hours=horizon_hours,
-            future_return_pct=float(row.get("future_return_pct", 0.0)),
+            future_return_pct=float(fut_ret) if fut_ret is not None else None,
             label=int(row["label"]),
         )
         session.add(label_row)
         new_count += 1
 
     session.commit()
-    logger.info(f"save_labels_to_db: 新增 {new_count} 筆標籤（共 {len(labels_df)} 筆輸入）")
+    logger.info(f"save_labels_to_db: 新增 {new_count} 筆，更新 {update_count} 筆 NULL labels（共 {len(labels_df)} 筆輸入）")
 
 if __name__ == "__main__":
     print("Labeling module loaded. Use generate_future_return_labels()")

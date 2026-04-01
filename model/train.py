@@ -35,7 +35,7 @@ def load_training_data(
     feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
     label_rows = (
         session.query(Labels)
-        .filter(Labels.horizon_hours == 1, Labels.future_return_pct.isnot(None))
+        .filter(Labels.horizon_hours == 4, Labels.future_return_pct.isnot(None))
         .order_by(Labels.timestamp)
         .all()
     )  # fix #H62: only use h=1 labels with valid future_return_pct (exclude NULL pseudo-labels)
@@ -55,7 +55,7 @@ def load_training_data(
     label_df = pd.DataFrame([{
         "timestamp": r.timestamp,
         "label": r.label,
-    } for r in label_rows])  # filtered: horizon=1, future_return_pct IS NOT NULL
+    } for r in label_rows])  # filtered: horizon=4, future_return_pct IS NOT NULL
 
     feat_df["timestamp"] = pd.to_datetime(feat_df["timestamp"])
     label_df["timestamp"] = pd.to_datetime(label_df["timestamp"])
@@ -75,7 +75,7 @@ def load_training_data(
 
     # IC 反轉：對負 IC 特徵取反，讓模型看到正相關信號
     # 根據 IC 計算 (n=2160, 2026-04-02): eye=-0.103, ear=-0.090, nose=-0.093, tongue=-0.068, body=-0.070, pulse=-0.052, aura=-0.012, mind=+0.036
-    NEG_IC_FEATS = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc", "feat_aura", "feat_pulse", "feat_mind"]  # feat_pulse v2 IC=-0.160 added 04-02 03:44; feat_mind v2 IC=-0.146 added 04-02 03:44
+    NEG_IC_FEATS = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_body_roc", "feat_aura", "feat_pulse", "feat_mind"]  # h=4 IC signs: tongue positive so removed; 04-02 04:26  # feat_pulse v2 IC=-0.160 added 04-02 03:44; feat_mind v2 IC=-0.146 added 04-02 03:44
     merged = merged.copy()
     for col in NEG_IC_FEATS:
         if col in merged.columns:
