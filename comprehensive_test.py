@@ -97,7 +97,10 @@ def test_senses_engine_real_data():
         from server.senses import SensesEngine, normalize_feature
 
         cfg = load_config()
-        session = init_db(cfg["database"]["url"])
+        db_url = cfg["database"]["url"]
+        if db_url.startswith("sqlite:///") and not db_url.startswith("sqlite:////"):
+            db_url = "sqlite:///" + str(PROJECT_ROOT / db_url.replace("sqlite:///", ""))
+        session = init_db(db_url)
         engine = SensesEngine()
         engine.set_db(session)
 
@@ -179,7 +182,10 @@ def test_data_quality():
         import numpy as np
 
         cfg = load_config()
-        session = init_db(cfg["database"]["url"])
+        db_url = cfg["database"]["url"]
+        if db_url.startswith("sqlite:///") and not db_url.startswith("sqlite:////"):
+            db_url = "sqlite:///" + str(PROJECT_ROOT / db_url.replace("sqlite:///", ""))
+        session = init_db(db_url)
 
         # 檢查 DB 中有數據
         raw_count = session.query(RawMarketData).count()
@@ -191,7 +197,8 @@ def test_data_quality():
             return False
 
         # 檢查特徵有變異
-        feat_cols = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc"]
+        feat_cols = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc", "feat_pulse"]
+        # Note: feat_aura and feat_mind are new stubs, skip until data collection integrated
         all_ok = True
         for col in feat_cols:
             vals = [getattr(r, col) for r in session.query(FeaturesNormalized).all() if getattr(r, col) is not None]

@@ -123,12 +123,10 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
             else:
                 features["feat_ear_zscore"] = 0.0
 
-    # 3. Nose: Funding Rate Sigmoid
-    fr_val = latest.get("funding_rate")
-    if pd.notna(fr_val) and fr_val is not None:
-        x = float(fr_val) * 10000
-        s = sigmoid(x)
-        features["feat_nose_sigmoid"] = float(2 * s - 1)
+    # 3. Nose: OI ROC (取代 funding_rate, 解除與 Ear 的洩漏)
+    oi_val = latest.get("stablecoin_mcap")
+    if pd.notna(oi_val) and oi_val is not None:
+        features["feat_nose_sigmoid"] = float(oi_val)
 
     # 4. Tongue: 情緒綜合分數 v2（-1~1，直接使用）
     tongue_val = latest.get("tongue_sentiment")
