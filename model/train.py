@@ -27,6 +27,10 @@ FEATURE_COLS = [
     "feat_mind",        # funding_z_24 (IC=+0.063)
 ]
 
+# #M06: lag 特徵 — 加強時序記憶 (1h=12步, 4h=48步, 24h=288步)
+LAG_COLS = []  # 動態填充，由 add_lag_features() 計算
+BASE_FEATURE_COLS = FEATURE_COLS  # 不含 lag 的基礎特徵
+
 
 def load_training_data(
     session: Session, min_samples: int = 50
@@ -69,6 +73,22 @@ def load_training_data(
     )
     merged.dropna(subset=FEATURE_COLS + ["label"], inplace=True)
 
+    # #M06: 加入 lag 特徵 — 1h(12步)/4h(48步)/24h(288步) 時序記憶
+    # 每5min一筆 → 12步=1h, 48步=4h, 288步=24h
+    lag_steps = [12, 48, 288]
+    lag_feature_cols = []
+    for col in BASE_FEATURE_COLS:
+        for lag in lag_steps:
+            lag_col = f"{col}_lag{lag}"
+            merged[lag_col] = merged[col].shift(lag)
+            lag_feature_cols.append(lag_col)
+    # 移除 lag 導致的 NaN rows（前 288 行）
+    all_cols = FEATURE_COLS + lag_feature_cols
+    merged.dropna(subset=all_cols, inplace=True)
+    global LAG_COLS
+    LAG_COLS = lag_feature_cols
+    logger.info(f"加入 lag 特徵: {len(lag_feature_cols)} 個, 剩餘樣本: {len(merged)}")
+
     if len(merged) < min_samples:
         logger.warning(f"合併後樣本不足: {len(merged)} < {min_samples}")
         return None
@@ -80,7 +100,8 @@ def load_training_data(
     ic_map = {}
     NEG_IC_FEATS = []
     labels_arr = merged["label"].astype(float).values
-    for col in FEATURE_COLS:
+    all_feature_cols = FEATURE_COLS + LAG_COLS
+    for col in all_feature_cols:
         feat_arr = merged[col].astype(float).values
         mask = ~(np.isnan(feat_arr) | np.isnan(labels_arr))
         if mask.sum() > 30:
@@ -99,7 +120,7 @@ def load_training_data(
     logger.info(f"動態 IC 計算完成: {ic_map}")
     logger.info(f"NEG_IC 反轉特徵: {NEG_IC_FEATS}")
 
-    X = merged[FEATURE_COLS]
+    X = merged[FEATURE_COLS + LAG_COLS]
     y = merged["label"].astype(int)
     logger.info(f"載入訓練資料: {len(X)} 筆, {len(FEATURE_COLS)} features")
     return X, y
