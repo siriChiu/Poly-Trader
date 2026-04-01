@@ -69,7 +69,7 @@ def load_training_data(
         return None
 
     # IC 反轉：對負 IC 特徵取反，讓模型看到正相關信號
-    # 根據 IC 計算 (n=500): eye=-0.34, ear=-0.14, nose=-0.34, tongue=-0.07, body=-0.13, aura=-0.10 | pulse=+0.01(移除), mind=+0.10(移除)
+    # 根據 IC 計算 (n=2160, 2026-04-02): eye=-0.103, ear=-0.090, nose=-0.093, tongue=-0.068, body=-0.070, pulse=-0.052, aura=-0.012, mind=+0.036
     NEG_IC_FEATS = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc", "feat_pulse", "feat_aura"]
     merged = merged.copy()
     for col in NEG_IC_FEATS:
