@@ -70,7 +70,7 @@ def load_training_data(
 
     # IC 反轉：對負 IC 特徵取反，讓模型看到正相關信號
     # 根據 IC 計算 (n=2160, 2026-04-02): eye=-0.103, ear=-0.090, nose=-0.093, tongue=-0.068, body=-0.070, pulse=-0.052, aura=-0.012, mind=+0.036
-    NEG_IC_FEATS = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc", "feat_pulse", "feat_aura", "feat_mind"]  # feat_aura v4: funding_zscore_288 IC=-0.094; feat_mind v2: price_momentum_60 IC=-0.163
+    NEG_IC_FEATS = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc", "feat_pulse", "feat_aura"]  # feat_mind v2 IC=+0.054 (positive) - removed from negation 04-02 03:19
     merged = merged.copy()
     for col in NEG_IC_FEATS:
         if col in merged.columns:
