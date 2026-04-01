@@ -42,7 +42,7 @@ export default function FeatureChart({ data }: FeatureChartProps) {
 
   return (
     <div className="card">
-      <h3 className="text-lg font-semibold text-dark-200 mb-4">五感特徵趨勢</h3>
+      <h3 className="text-lg font-semibold text-dark-200 mb-4">多感官特徵趨勢</h3>
       <ResponsiveContainer width="100%" height={350}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#334155" />

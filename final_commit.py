@@ -26,7 +26,7 @@ print("Files to commit:")
 print(result.stdout)
 
 result2 = subprocess.run(
-    "git commit -m \"fix: web backtest + 8-sense API + RadarChart + 五感->多感官 docs\n\n- Backtest scoring: normalize features -1~1 to 0~1 before threshold comparison\n- Backtest threshold: 0.55 → 0.50, added exit_thresh 0.45\n- SensesChart: 5→8 features (pulse, aura, mind)\n- RadarChart: pentagon→polygon, dynamic 8-sense SENSE_KEYS/SENSE_INFO\n- /api/features: now returns 8 features\n- Senses.tsx: SENSE_COLORS 8 senses, dynamic avg\n- All docs: 五感->多感官 (AI_AGENT_ROLE.md, PRD.md, ROADMAP.md, architecture.md, README.md, ISSUES.md, 23 source files)\"",
+    "git commit -m \"fix: web backtest + 8-sense API + RadarChart + 感官->多感官 docs\n\n- Backtest scoring: normalize features -1~1 to 0~1 before threshold comparison\n- Backtest threshold: 0.55 → 0.50, added exit_thresh 0.45\n- SensesChart: 5→8 features (pulse, aura, mind)\n- RadarChart: pentagon→polygon, dynamic 8-sense SENSE_KEYS/SENSE_INFO\n- /api/features: now returns 8 features\n- Senses.tsx: SENSE_COLORS 8 senses, dynamic avg\n- All docs: 感官->多感官 (AI_AGENT_ROLE.md, PRD.md, ROADMAP.md, architecture.md, README.md, ISSUES.md, 23 source files)\"",
     shell=True, capture_output=True, text=True, cwd=REPO
 )
 print("Commit result:")
