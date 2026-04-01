@@ -118,6 +118,28 @@ function detectSignals(data: MergedPoint[]) {
   }
 }
 
+/**
+ * Normalize raw feature values (-1~1 or z-score) to 0~1 for chart display.
+ * All features are stored as -1~1 normalized, except ear_zscore (z-score, ~-3~3).
+ */
+function normalizeSense(val: number | null, sense: string): number | null {
+  if (val === null || val === undefined) return null;
+  switch (sense) {
+    case "eye":     // -1~1 → 0~1
+      return (val + 1) / 2;
+    case "ear":     // z-score ~-3~3 → 0~1 via tanh(z/3)*0.5+0.5
+      return Math.max(0, Math.min(1, 0.5 + 0.5 * Math.tanh(val / 3)));
+    case "nose":    // -1~1 → 0~1 (but actual ~-0.28~0.10, use original mapping)
+      return Math.max(0, Math.min(1, val + 1)); // already roughly 0~1 range due to sigmoid
+    case "tongue":  // -1~1 → 0~1
+      return (val + 1) / 2;
+    case "body":    // -1~1 → 0~1
+      return (val + 1) / 2;
+    default:
+      return val;
+  }
+}
+
 // ─── Custom Legend ───
 
 function CustomLegend({
@@ -317,15 +339,21 @@ export default function SenseChart({ selectedSense, onClear, days: initialDays =
           // Only use if within 2 hours
           if (minDiff > 2 * 3600 * 1000) feat = undefined;
 
+          const rawEye = feat?.feat_eye_dist ?? null;
+          const rawEar = feat?.feat_ear_zscore ?? null;
+          const rawNose = feat?.feat_nose_sigmoid ?? null;
+          const rawTongue = feat?.feat_tongue_pct ?? null;
+          const rawBody = feat?.feat_body_roc ?? null;
+
           return {
             time: c.time,
             label: formatTime(c.time),
             price: c.close,
-            eye: feat?.feat_eye_dist ?? null,
-            ear: feat?.feat_ear_zscore ?? null,
-            nose: feat?.feat_nose_sigmoid ?? null,
-            tongue: feat?.feat_tongue_pct ?? null,
-            body: feat?.feat_body_roc ?? null,
+            eye: normalizeSense(rawEye, "eye"),
+            ear: normalizeSense(rawEar, "ear"),
+            nose: normalizeSense(rawNose, "nose"),
+            tongue: normalizeSense(rawTongue, "tongue"),
+            body: normalizeSense(rawBody, "body"),
             score: null,
             buySignal: null,
             sellSignal: null,
