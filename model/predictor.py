@@ -14,12 +14,14 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 MODEL_PATH = "model/xgb_model.pkl"
+# Match train.py: exclude feat_mind (constant), feat_aura (near-constant)
 FEATURE_COLS = [
     "feat_eye_dist",
     "feat_ear_zscore",
     "feat_nose_sigmoid",
     "feat_tongue_pct",
     "feat_body_roc",
+    "feat_pulse",
 ]
 
 

@@ -16,6 +16,7 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 MODEL_PATH = "model/xgb_model.pkl"
+# Excluded: feat_mind (constant 0), feat_aura (std=0.001, near-constant)
 FEATURE_COLS = [
     "feat_eye_dist",
     "feat_ear_zscore",
@@ -23,8 +24,6 @@ FEATURE_COLS = [
     "feat_tongue_pct",
     "feat_body_roc",
     "feat_pulse",
-    "feat_aura",
-    "feat_mind",
 ]
 
 
@@ -91,8 +90,8 @@ def load_training_data(
 
     X = merged[FEATURE_COLS]
     y = merged["label"].astype(int)
-    # Remap 3-class labels: -1->0, 0->1, 1->2 (XGBoost needs 0,1,2,...)
-    y = y.map({-1: 0, 0: 1, 1: 2}).astype(int)
+    # Labels are already 0/1 (binary). No remap needed.
+    y = y.astype(int)
     logger.info(f"載入訓練資料: {len(X)} 筆 (merge_asof, 10min tolerance)")
     return X, y
 
@@ -112,14 +111,14 @@ def train_xgboost(
 
     if params is None:
         params = {
-            "n_estimators": 200,
-            "max_depth": 3,
-            "learning_rate": 0.05,
-            "subsample": 0.7,
-            "colsample_bytree": 0.7,
-            "reg_alpha": 0.1,
-            "reg_lambda": 1.0,
-            "min_child_weight": 5,
+            "n_estimators": 100,
+            "max_depth": 2,
+            "learning_rate": 0.01,
+            "subsample": 0.5,
+            "colsample_bytree": 0.5,
+            "reg_alpha": 5.0,
+            "reg_lambda": 10.0,
+            "min_child_weight": 20,
             "eval_metric": "logloss",
             "scale_pos_weight": scale_pos_weight,
             "random_state": 42,
