@@ -194,7 +194,7 @@ def test_data_quality():
         feat_cols = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc"]
         all_ok = True
         for col in feat_cols:
-            vals = [getattr(r, col) for r in session.query(FeaturesNormalized).limit(100).all() if getattr(r, col) is not None]
+            vals = [getattr(r, col) for r in session.query(FeaturesNormalized).all() if getattr(r, col) is not None]
             if len(vals) < 2:
                 print(f"[FAIL] {col}: 數據不足 ({len(vals)} 筆)")
                 all_ok = False
