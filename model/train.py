@@ -68,6 +68,15 @@ def load_training_data(
         logger.warning(f"合併後樣本不足: {len(merged)} < {min_samples}")
         return None
 
+    # IC 反轉：對負 IC 特徵取反，讓模型看到正相關信號
+    # 根據 IC 計算 (n=500): eye=-0.37, ear=-0.15, nose=-0.23, body=-0.19, pulse<0, aura=-0.12
+    NEG_IC_FEATS = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_body_roc", "feat_pulse", "feat_aura"]
+    merged = merged.copy()
+    for col in NEG_IC_FEATS:
+        if col in merged.columns:
+            merged[col] = -merged[col]
+    logger.info(f"IC 反轉完成: {NEG_IC_FEATS}")
+
     X = merged[FEATURE_COLS]
     y = merged["label"].astype(int)
     logger.info(f"載入訓練資料: {len(X)} 筆, {len(FEATURE_COLS)} features")
