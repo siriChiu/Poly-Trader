@@ -38,34 +38,50 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
     # Ear: 取 prob
     ear_prob_val = ear.get("prob")
 
-    # Body: stablecoin_mcap 存原始 ROC（注意：非市值，而是變化率）
+    # Body: 清算壓力 v3
     stablecoin_roc = body.get("raw_roc")
+
+    # Tongue: 情緒綜合分數 v2
+    tongue_sentiment = tongue.get("feat_tongue_sentiment")
+
+    # Body v4 額外欄位
+    body_label = body.get("body_label")
+    oi_roc = body.get("oi_roc")
+
+    # Tongue v3 額外欄位
+    volatility = tongue.get("volatility")
 
     record = RawMarketData(
         timestamp=datetime.utcnow(),
         symbol=symbol,
         close_price=eye.get("current_price"),
-        volume=None,
+        volume=eye.get("volume"),
         funding_rate=nose.get("funding_rate_raw"),
         fear_greed_index=tongue.get("fear_greed_index"),
         stablecoin_mcap=stablecoin_roc,
         polymarket_prob=ear_prob_val,
         eye_dist=eye_dist_val,
         ear_prob=ear_prob_val,
+        tongue_sentiment=tongue_sentiment,
+        volatility=volatility,
+        oi_roc=oi_roc,
+        body_label=body_label,
     )
     logger.info(
         f"收集完成: price={eye.get('current_price')}, "
-        f"eye_dist={eye_dist_val}, ear_prob={ear_prob_val}, "
+        f"eye={eye_dist_val}, ear={ear_prob_val}, "
         f"funding={nose.get('funding_rate_raw')}, "
         f"fng={tongue.get('fear_greed_index')}, "
-        f"body_roc={stablecoin_roc}"
+        f"tongue_v2={tongue_sentiment}, "
+        f"body={stablecoin_roc}, "
+        f"vol={volatility}, oi_roc={oi_roc}, body_label={body_label}"
     )
     return record
 
 
 def run_collection_and_save(session: Session, symbol: str = "BTCUSDT") -> bool:
     """
-    執行收集並保存到資料庫。
+    執行收集並保存到資料庫，同時自動計算特徵。
     """
     try:
         record = collect_all_senses(symbol)
@@ -75,6 +91,14 @@ def run_collection_and_save(session: Session, symbol: str = "BTCUSDT") -> bool:
         session.add(record)
         session.commit()
         logger.info(f"Raw data 已保存，id={record.id}")
+
+        # 自動跑特徵工程，確保 features 不 lag
+        try:
+            from feature_engine.preprocessor import run_preprocessor
+            run_preprocessor(session)
+        except Exception as pe:
+            logger.warning(f"特徵工程自動執行失敗（不影響原始數據）: {pe}")
+
         return True
     except Exception as e:
         session.rollback()

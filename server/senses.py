@@ -23,9 +23,6 @@ FEATURE_TO_SENSE = {
     "feat_nose_sigmoid": "nose",
     "feat_tongue_pct": "tongue",
     "feat_body_roc": "body",
-    "feat_pulse": "pulse",
-    "feat_aura": "aura",
-    "feat_mind": "mind",
 }
 
 SENSE_NAMES = {
@@ -34,14 +31,10 @@ SENSE_NAMES = {
     "nose": "嗅覺 Nose",
     "tongue": "味覺 Tongue",
     "body": "觸覺 Body",
-    "pulse": "脈動 Pulse",
-    "aura": "磁場 Aura",
-    "mind": "認知 Mind",
 }
 
 SENSE_EMOJIS = {
     "eye": "👁️", "ear": "👂", "nose": "👃", "tongue": "👅", "body": "💪",
-    "pulse": "💓", "aura": "🌀", "mind": "🧠",
 }
 
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -80,26 +73,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "capital_flow": {"name": "資金流向", "source": "Proxy", "enabled": True, "weight": 0.5, "value": None},
         }, "score": 0.5,
     },
-    "pulse": {
-        "name": "脈動 Pulse", "emoji": "💓", "description": "波動率感知",
-        "modules": {
-            "realized_vol": {"name": "已實現波動率", "source": "Binance OHLCV", "enabled": True, "weight": 0.7, "value": None},
-            "ret_24h": {"name": "24h 回報率", "source": "Binance", "enabled": True, "weight": 0.3, "value": None},
-        }, "score": 0.5,
-    },
-    "aura": {
-        "name": "磁場 Aura", "emoji": "🌀", "description": "資金費率/OI背離",
-        "modules": {
-            "funding_oi_divergence": {"name": "資金/OI背離", "source": "Binance Futures", "enabled": True, "weight": 0.6, "value": None},
-            "liquidation_magnet": {"name": "清算磁力", "source": "Binance", "enabled": True, "weight": 0.4, "value": None},
-        }, "score": 0.5,
-    },
-    "mind": {
-        "name": "認知 Mind", "emoji": "🧠", "description": "BTC支配度/資金流向",
-        "modules": {
-            "btc_eth_vol_ratio": {"name": "BTC/ETH成交量比", "source": "Binance", "enabled": True, "weight": 1.0, "value": None},
-        }, "score": 0.5,
-    },
 }
 
 CONFIG_PATH = Path(__file__).parent.parent / "data" / "senses_config.json"
@@ -111,8 +84,8 @@ def normalize_feature(value: Optional[float], feature_type: str) -> float:
         return 0.5
 
     if feature_type == "feat_eye_dist":
-        # eye_dist 是比例值 (0~0.1)，越大 = 離阻力越遠 = 偏多
-        return max(0.0, min(1.0, value * 10 + 0.5))
+        # eye_dist 現在是 min-max 正規化到 -1~1，轉為 0~1
+        return max(0.0, min(1.0, (value + 1) / 2))
 
     elif feature_type == "feat_ear_zscore":
         # ear_zscore 是 Z-score (-3~3)，轉為 0~1
@@ -131,18 +104,6 @@ def normalize_feature(value: Optional[float], feature_type: str) -> float:
 
     elif feature_type == "feat_body_roc":
         # body_roc 是 ROC 值 (-1~1)，轉為 0~1
-        return max(0.0, min(1.0, (value + 1) / 2))
-
-    elif feature_type == "feat_pulse":
-        # pulse 已是 tanh(z/2) 壓縮在 -1~1
-        return max(0.0, min(1.0, (value + 1) / 2))
-
-    elif feature_type == "feat_aura":
-        # aura 也是壓縮在 -1~1
-        return max(0.0, min(1.0, (value + 1) / 2))
-
-    elif feature_type == "feat_mind":
-        # mind 也是 tanh 壓縮在 -1~1
         return max(0.0, min(1.0, (value + 1) / 2))
 
     return 0.5
@@ -206,9 +167,6 @@ class SensesEngine:
             "nose": "feat_nose_sigmoid",
             "tongue": "feat_tongue_pct",
             "body": "feat_body_roc",
-            "pulse": "feat_pulse",
-            "aura": "feat_aura",
-            "mind": "feat_mind",
         }.get(sense_key)
 
         raw_value = features.get(feat_key) if features and feat_key else None
@@ -253,7 +211,8 @@ class SensesEngine:
     def calculate_recommendation_score(self, scores: Optional[Dict[str, float]] = None) -> int:
         if scores is None:
             scores = self.calculate_all_scores()
-        weights = {"eye": 0.25, "ear": 0.20, "nose": 0.20, "tongue": 0.20, "body": 0.15}
+        # ORID 09:49 — Tongue IC 極低且 FNG 近零變異，暫降權重；Eye IC 反向但有資訊量
+        weights = {"eye": 0.30, "ear": 0.25, "nose": 0.25, "tongue": 0.05, "body": 0.15}
         total = sum(scores.get(k, 0.5) * w for k, w in weights.items())
         return round(total * 100)
 

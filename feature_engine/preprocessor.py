@@ -76,20 +76,50 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
         "feat_mind": None,
     }
 
-    # 1. Eye: eye_dist 直接使用（已為比例值）
+    # 1. Eye: eye_dist 使用歷史 min-max 正規化到 -1~1
     eye_val = latest.get("eye_dist")
     if pd.notna(eye_val) and eye_val is not None:
-        features["feat_eye_dist"] = float(eye_val)
+        eye_val = float(eye_val)
+        if "eye_dist" in df.columns:
+            eye_hist = df["eye_dist"].dropna()
+            if len(eye_hist) >= 2:
+                e_min = eye_hist.min()
+                e_max = eye_hist.max()
+                if e_max > e_min:
+                    # Min-max to 0~1, then scale to -1~1
+                    features["feat_eye_dist"] = float(2 * (eye_val - e_min) / (e_max - e_min) - 1)
+                else:
+                    features["feat_eye_dist"] = 0.0
+            else:
+                features["feat_eye_dist"] = 0.0
+        else:
+            features["feat_eye_dist"] = eye_val
 
-    # 2. Ear: ear_prob 的 Z-score（使用全局統計，與 recompute 一致）
-    if "ear_prob" in df.columns:
-        ear_series = df["ear_prob"].dropna()
-        if len(ear_series) >= 2:
-            mean = ear_series.mean()
-            std = ear_series.std()
-            current = latest["ear_prob"]
+    # 2. Ear: Funding Rate 短期 Z-score（取代 ear_prob，因 ear_prob 壓縮後近零變異）
+    #    使用 funding_rate 的短期波動作為市場「聲音」
+    if "funding_rate" in df.columns:
+        fr_series = df["funding_rate"].dropna().astype(float)
+        if len(fr_series) >= 10:
+            # 用最近 50 筆計算 rolling stats，再取最新值的 zscore
+            window = min(50, len(fr_series))
+            recent_fr = fr_series.tail(window)
+            mean = recent_fr.mean()
+            std = recent_fr.std()
+            current = float(latest["funding_rate"])
             if pd.notna(current) and std > 0:
-                features["feat_ear_zscore"] = float((current - mean) / std)
+                import math
+                z = (current - mean) / std
+                features["feat_ear_zscore"] = float(math.tanh(z / 2))  # tanh(z/2) → -1~1, z=±2→±0.76
+            else:
+                features["feat_ear_zscore"] = 0.0
+        elif len(fr_series) >= 2:
+            mean = fr_series.mean()
+            std = fr_series.std()
+            current = float(latest["funding_rate"])
+            if pd.notna(current) and std > 0:
+                import math
+                z = (current - mean) / std
+                features["feat_ear_zscore"] = float(math.tanh(z / 2))
             else:
                 features["feat_ear_zscore"] = 0.0
 
@@ -122,32 +152,30 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
             returns = closes.pct_change().dropna()
             if len(returns) >= 20:
                 vol = returns.tail(20).std()
-                vol_window = [returns.iloc[max(0,i-19):i+1].std() for i in range(19, len(returns))]
-                if len(vol_window) >= 20:
-                    vol_mean = np.mean(vol_window[:-1])
-                    vol_std = np.std(vol_window[:-1])
-                    if vol_std > 0:
-                        z = (vol - vol_mean) / vol_std
+                vol_window = []
+                for i in range(19, len(returns)):
+                    chunk = returns.iloc[max(0,i-19):i+1]
+                    vol_window.append(chunk.std())
+                if len(vol_window) >= 10:
+                    v_mean = np.mean(vol_window[:-1])
+                    v_std = np.std(vol_window[:-1])
+                    if v_std > 0:
+                        z = (vol - v_mean) / v_std
                         features["feat_pulse"] = float(np.tanh(z / 2))
-                    else:
-                        features["feat_pulse"] = 0.0
-                else:
-                    features["feat_pulse"] = 0.0
-            else:
-                features["feat_pulse"] = 0.0
 
-    # 7. Aura: funding_rate * oi_roc divergence (same data already in DB)
+    # 7. Aura: funding_rate * price_roc divergence
     fr_val = latest.get("funding_rate")
-    oi_val = latest.get("stablecoin_mcap") if latest.get("stablecoin_mcap") is not None else None
-    # oi_roc is not in raw_data — compute from funding_rate & available price data
-    # Simplified: use price change * funding_rate as divergence proxy
-    if pd.notna(fr_val) and fr_val is not None and len(closes) >= 2:
-        price_roc = (closes.iloc[-1] - closes.iloc[-2]) / closes.iloc[-2]
-        product = float(fr_val) * price_roc
-        if product >= 0:
-            features["feat_aura"] = float(np.tanh(product * 10000) * 0.3)
-        else:
-            features["feat_aura"] = float(-np.tanh(product * 10000) * 0.6)
+    if pd.notna(fr_val) and fr_val is not None:
+        closes2 = df["close_price"].dropna()
+        if len(closes2) >= 2:
+            prev_close = float(closes2.iloc[-2])
+            curr_close = float(closes2.iloc[-1])
+            price_roc = (curr_close - prev_close) / prev_close if prev_close > 0 else 0
+            product = float(fr_val) * price_roc
+            if product >= 0:
+                features["feat_aura"] = float(np.tanh(product * 10000) * 0.3)
+            else:
+                features["feat_aura"] = float(-np.tanh(product * 10000) * 0.6)
 
     return features
 
@@ -155,10 +183,21 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
 def save_features_to_db(
     session: Session, features: Dict
 ) -> Optional[FeaturesNormalized]:
-    """將特徵保存為 FeaturesNormalized 記錄。"""
+    """將特徵保存為 FeaturesNormalized 記錄（含去重檢查）。"""
     try:
+        ts = features["timestamp"]
+        # 去重：若相同時間戳已存在，跳過
+        existing = (
+            session.query(FeaturesNormalized)
+            .filter(FeaturesNormalized.timestamp == ts)
+            .first()
+        )
+        if existing:
+            logger.info(f"特徵已存在 (timestamp={ts}, id={existing.id})，跳過重複寫入")
+            return existing
+
         record = FeaturesNormalized(
-            timestamp=features["timestamp"],
+            timestamp=ts,
             feat_eye_dist=features.get("feat_eye_dist"),
             feat_ear_zscore=features.get("feat_ear_zscore"),
             feat_nose_sigmoid=features.get("feat_nose_sigmoid"),
@@ -204,8 +243,6 @@ def run_preprocessor(
                      f"ear={features['feat_ear_zscore']}, "
                      f"nose={features['feat_nose_sigmoid']}, "
                      f"tongue={features['feat_tongue_pct']}, "
-                     f"body={features['feat_body_roc']}, "
-                     f"pulse={features['feat_pulse']}, "
-                     f"aura={features['feat_aura']}")
+                     f"body={features['feat_body_roc']}")
         return features
     return None

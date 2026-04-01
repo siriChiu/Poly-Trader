@@ -40,10 +40,25 @@ def fetch_current_price(symbol: str = "BTCUSDT") -> Optional[float]:
         resp.raise_for_status()
         data = resp.json()
         if data and isinstance(data, list) and len(data) > 0:
-            # kline 結構: [open, high, low, close, ...]
+            # kline 結構: [openTime, open, high, low, close, volume, closeTime, ...]
             return float(data[0][4])  # close price
     except Exception as e:
         logger.error(f"获取当前价格失败: {e}")
+    return None
+
+
+def fetch_current_volume(symbol: str = "BTCUSDT") -> Optional[float]:
+    """從 klines 末端獲取當前成交量"""
+    try:
+        session = _create_session()
+        params = {"symbol": symbol, "interval": "4h", "limit": 1}
+        resp = session.get(KLINES_URL, params=params, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        if data and isinstance(data, list) and len(data) > 0:
+            return float(data[0][5])  # volume
+    except Exception as e:
+        logger.error(f"获取成交量失败: {e}")
     return None
 
 def fetch_order_book(symbol: str = "BTCUSDT", limit: int = 1000) -> Optional[dict]:
@@ -129,10 +144,13 @@ def get_eye_feature(symbol: str = "BTCUSDT") -> Optional[Dict]:
             logger.warning("无法获取当前价格")
             return None
 
+        volume = fetch_current_volume(symbol)
+
         ob = fetch_order_book(symbol)
         support, resistance = find_liquidity_clusters(ob)
 
         features = calculate_eye_features(price, support, resistance)
+        features["volume"] = volume
         return features
     except Exception as e:
         logger.exception(f"计算 Eye 特征时发生错误: {e}")

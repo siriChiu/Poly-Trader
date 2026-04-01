@@ -29,6 +29,7 @@ interface BacktestData {
   profit_loss_ratio: number;
   max_drawdown: number;
   total_return: number;
+  error?: string;
 }
 
 export default function Dashboard() {
@@ -192,7 +193,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 2: Sense History Chart */}
-      <SenseChart selectedSense={selectedSense} days={days} onClear={setSelectedSense} />
+      <SenseChart selectedSense={selectedSense} days={days} onClear={() => setSelectedSense(null)} />
 
       {/* Row 3: K 線圖 */}
       <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
@@ -229,7 +230,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 4: Backtest */}
-      {backtestData && (
+      {backtestData && backtestData.total_trades !== undefined && !backtestData.error && (
         <BacktestSummary
           finalEquity={backtestData.final_equity}
           initialCapital={backtestData.initial_capital}
