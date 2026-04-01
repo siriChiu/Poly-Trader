@@ -33,7 +33,12 @@ def load_training_data(
 ) -> Optional[Tuple[pd.DataFrame, pd.Series]]:
     """從 DB 提取特徵 + Labels，以時間戳 JOIN。"""
     feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
-    label_rows = session.query(Labels).order_by(Labels.timestamp).all()
+    label_rows = (
+        session.query(Labels)
+        .filter(Labels.horizon_hours == 1, Labels.future_return_pct.isnot(None))
+        .order_by(Labels.timestamp)
+        .all()
+    )  # fix #H62: only use h=1 labels with valid future_return_pct (exclude NULL pseudo-labels)
 
     feat_df = pd.DataFrame([{
         "timestamp": r.timestamp,
@@ -50,7 +55,7 @@ def load_training_data(
     label_df = pd.DataFrame([{
         "timestamp": r.timestamp,
         "label": r.label,
-    } for r in label_rows])
+    } for r in label_rows])  # filtered: horizon=1, future_return_pct IS NOT NULL
 
     feat_df["timestamp"] = pd.to_datetime(feat_df["timestamp"])
     label_df["timestamp"] = pd.to_datetime(label_df["timestamp"])
