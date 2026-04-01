@@ -89,7 +89,7 @@ def run_collection_and_save(session: Session, symbol: str = "BTCUSDT") -> bool:
         # Run preprocessor with derivatives data
         try:
             from feature_engine.preprocessor import run_preprocessor
-            run_preprocessor(session, symbol=symbol, extra_data=derivatives)
+            run_preprocessor(session, symbol=symbol)
         except Exception as pe:
             logger.warning(f"特徵工程自動執行失敗: {pe}")
 
