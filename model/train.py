@@ -132,22 +132,25 @@ def train_xgboost(
 
     if params is None:
         params = {
-            "n_estimators": 150,
-            "max_depth": 3,
-            "learning_rate": 0.03,
-            "subsample": 0.6,
-            "colsample_bytree": 0.7,
-            "reg_alpha": 2.0,
-            "reg_lambda": 5.0,
-            "min_child_weight": 15,
+            "n_estimators": 200,      # #H76: 增加估計量配合更強正則化
+            "max_depth": 2,           # #H76: 降為2，減少過擬合 (was 3)
+            "learning_rate": 0.02,    # #H76: 降低學習率 (was 0.03)
+            "subsample": 0.5,         # #H76: 更強 subsample (was 0.6)
+            "colsample_bytree": 0.6,  # #H76: 減少特徵採樣 (was 0.7)
+            "reg_alpha": 3.0,         # #H76: 加強 L1 (was 2.0)
+            "reg_lambda": 8.0,        # #H76: 加強 L2 (was 5.0)
+            "min_child_weight": 20,   # #H76: 加大最小葉節點 (was 15)
             "objective": "multi:softprob",
             "num_class": 3,
             "eval_metric": "mlogloss",
             "random_state": 42,
         }
 
+    # #H76: class_weight 平衡 — neutral=50% 過多，用 balanced sample_weight
+    from sklearn.utils.class_weight import compute_sample_weight
+    sample_weight = compute_sample_weight("balanced", y)
     model = xgb.XGBClassifier(**params)
-    model.fit(X, y)
+    model.fit(X, y, sample_weight=sample_weight)
     logger.info("XGBoost v3 3-class 訓練完成")
     return model
 
