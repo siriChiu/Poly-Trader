@@ -4,14 +4,14 @@ REST API 路由 v3.0 — 五感策略回測引擎
 import ccxt
 import math
 import json
-from fastapi import APIRouter, Query, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 
 from server.dependencies import get_db, get_config, is_automation_enabled, set_automation_enabled
-from server.senses import get_engine, WsManager as _WsManager
-from database.models import TradeHistory, RawMarketData, FeaturesNormalized
+from server.senses import get_engine
+from database.models import FeaturesNormalized
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -223,38 +223,3 @@ async def api_features(days: int = Query(default=7, ge=1, le=90)):
 @router.post("/backtest/run")
 async def api_run_backtest(days: int = Query(default=30)):
     return await api_backtest(days=days)
-
-# WebSocket Manager (Single Instance)
-_ws_manager = _WsManager()
-
-@router.websocket("/ws/live")
-async def api_websocket(ws: WebSocket):
-    await ws.accept()
-    _ws_manager.clients.add(ws)
-    try:
-        if _ws_manager._task is None or _ws_manager._task.done():
-            _ws_manager._task = asyncio.create_task(_ws_manager.data_push_loop())
-        await ws.send_text(json.dumps({"type": "connected", "data": {"message": "已連接"}}))
-        raw = _ws_manager.get_latest_raw()
-        if raw: await ws.send_text(json.dumps({"type": "senses_update", "data": raw}, default=str))
-        while True:
-            msg = await ws.receive_text()
-            d = json.loads(msg)
-            if d.get("type") == "ping": await ws.send_text(json.dumps({"type": "pong"}))
-    except WebSocketDisconnect: pass
-    except Exception as e: logger.error(f"WS error: {e}")
-    finally:
-        _ws_manager.clients.discard(ws)
-
-# Helpers
-def _calc_max_dd(eq):
-    if not eq: return 0; pk = eq[0]; mdd = 0
-    for v in eq:
-        if v > pk: pk = v
-        dd = (pk - v) / pk
-        if dd > mdd: mdd = dd
-    return mdd
-
-import asyncio
-
-# Re-export WsManager if not defined
