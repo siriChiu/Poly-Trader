@@ -1,8 +1,8 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-02 07:04 GMT+8**
-> **🔄 心跳 #67：fix #H78 — ear 替換 MACD_hist→mom_12 (Pearson 假顯著 Spearman p=0.177→mom_12 Spearman p=0.027 ✅)，Train=60.1%/CV=45.8%**
-> **✅ 上輪修復：心跳 #66：fix #H77 — ear 替換 RSI-72→MACD_hist (IC=-0.046 p=0.031)，重訓 Train=60.5%/CV=45.8%**
+> **最後更新：2026-04-02 07:14 GMT+8**
+> **🔄 心跳 #68：fix #H79 — predictor.py XGBoostPredictor dict 格式支援（AttributeError 修復），trading_cycle 恢復正常**
+> **✅ 上輪修復：心跳 #67：fix #H78 — ear 替換 MACD_hist→mom_12 (Pearson 假顯著 Spearman p=0.177→mom_12 Spearman p=0.027 ✅)，Train=60.1%/CV=45.8%**
 
 ---
 
@@ -16,7 +16,7 @@
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #H33 | 🟡 模型 CV=42.4%（Train/CV gap已縮至9%） | 2,208 筆，每天+288筆 | 🟡 P1 — 持續收集（5min 排程中） |
+| #H33 | 🟡 模型 CV=45.8%（Train/CV gap已縮至14%） | 2,272 筆，每天+288筆 | 🟡 P1 — 持續收集（5min 排程中） |
 
 ## 🟢 低優先級
 
@@ -29,6 +29,7 @@
 
 | ID | 問題 | 解決方案 | 日期 |
 |----|------|----------|------|
+| **#H79** | **predictor.py AttributeError: 'dict' has no attribute 'predict_proba'（XGBoostPredictor 未處理 dict 格式模型）** | **__init__ 判斷 dict 並解包 clf/imputer/neg_ic_feats，新增 _get_proba() 共用方法** | **04-02 07:14** |
 | **#H78** | **feat_ear_zscore MACD_hist 假顯著（79% |>100bps 極端值，Spearman p=0.177）** | **替換為 mom_12 (12期動量，Spearman p=0.027 ✅)，修正DB所有ear值** | **04-02 07:04** |
 | **#H77** | **feat_ear_zscore IC=-0.025 p=0.233 再次不顯著（RSI-72失效）** | **替換為 MACD histogram(12/26) (IC=-0.046 p=0.031 ✅)** | **04-02 07:01** |
 | **#H76** | **模型嚴重過擬合 Train=80.2%/CV=42.8% gap=37%** | **加強正則化(max_depth=2,reg_lambda=8)+class_weight balance → Train=53.2%/CV=42.4% gap=9%** | **04-02 06:44** |
@@ -49,38 +50,38 @@
 
 ---
 
-## 📊 當前系統健康 (2026-04-02 06:37 GMT+8)
+## 📊 當前系統健康 (2026-04-02 07:14 GMT+8)
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw data | 2,265 筆 | ✅ |
-| Features | 2,265 筆 | ✅ |
+| Raw data | 2,272 筆 | ✅ |
+| Features | 2,272 筆 | ✅ |
 | Labels (h=4, clean) | 2,208 筆 | ✅ |
-| 最新資料時間 | 2026-04-01 22:28 UTC | ✅ |
-| BTC 當前 | ~$68,160 | ✅ |
+| 最新資料時間 | 2026-04-01 23:13 UTC | ✅ |
+| BTC 當前 | ~$68,201 | ✅ |
 | FNG | 8.0 (極度恐慌) | ⚠️ |
-| Funding Rate | 0.0000356 (中性) | ℹ️ |
-| **main.py 進程** | **5分鐘排程運行中** | ✅ |
+| Funding Rate | 0.000034 (中性) | ℹ️ |
+| **main.py 進程** | **5分鐘排程運行中（trading_cycle 修復）** | ✅ |
 
-### 感官 IC（全量 2208 筆，h=4，心跳 #64 更新）
+### 感官 IC（全量 2208 筆，h=4）
 | 感官 | IC | p值 | 顯著? | NEG_IC | 狀態 |
 |------|----|----|-------|--------|------|
 | feat_eye_dist | -0.077 | 0.0003 | ✅ | ✅反轉 | 有效 |
-| feat_ear_zscore | -0.056 | 0.0272 | ✅ | ✅反轉 | ✅ 升級 mom_12 |
+| feat_ear_zscore | -0.047 | 0.0267 | ✅ | ✅反轉 | ✅ mom_12 |
 | feat_nose_sigmoid | -0.071 | 0.0009 | ✅ | ✅反轉 | 有效 |
-| feat_tongue_pct | +0.127 | <0.0001 | ✅ | ❌ | ✅ 升級 vol_ratio |
-| feat_body_roc | -0.053 | 0.0127 | ✅ | ✅反轉 | ✅ 升級 stoch_rsi_14 |
-| feat_pulse | -0.047 | 0.0274 | ✅ | ✅反轉 | 有效 |
+| feat_tongue_pct | +0.127 | <0.0001 | ✅ | ❌ | ✅ vol_ratio |
+| feat_body_roc | -0.053 | 0.0127 | ✅ | ✅反轉 | ✅ stoch_rsi_14 |
+| feat_pulse | -0.047 | 0.0271 | ✅ | ✅反轉 | 有效 |
 | feat_aura | -0.064 | 0.0028 | ✅ | ✅反轉 | 有效 |
 | feat_mind | -0.079 | 0.0002 | ✅ | ✅反轉 | 有效 |
 
 **🎉 里程碑：8/8 感官全部 IC 顯著！**
 
-### 模型性能（#64 重訓）
+### 模型性能（#67 重訓）
 | 指標 | 值 | 評估 |
 |------|----|----|
-| Train Accuracy | **60.5%** | ✅ |
+| Train Accuracy | **60.1%** | ✅ |
 | TimeSeries CV | **45.8% ± 9.0%** | 🟡 持續改善中 |
 | 訓練樣本 | 2,208 筆 (clean h=4) | ✅ |
 
