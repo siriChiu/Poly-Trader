@@ -71,6 +71,9 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
         "feat_nose_sigmoid": None,
         "feat_tongue_pct": None,
         "feat_body_roc": None,
+        "feat_pulse": None,
+        "feat_aura": None,
+        "feat_mind": None,
     }
 
     # 1. Eye: eye_dist 直接使用（已為比例值）
@@ -112,6 +115,40 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     if pd.notna(roc_val) and roc_val is not None:
         features["feat_body_roc"] = float(roc_val)
 
+    # 6. Pulse: 20-period return volatility z-score
+    if "close_price" in df.columns:
+        closes = df["close_price"].dropna()
+        if len(closes) >= 20:
+            returns = closes.pct_change().dropna()
+            if len(returns) >= 20:
+                vol = returns.tail(20).std()
+                vol_window = [returns.iloc[max(0,i-19):i+1].std() for i in range(19, len(returns))]
+                if len(vol_window) >= 20:
+                    vol_mean = np.mean(vol_window[:-1])
+                    vol_std = np.std(vol_window[:-1])
+                    if vol_std > 0:
+                        z = (vol - vol_mean) / vol_std
+                        features["feat_pulse"] = float(np.tanh(z / 2))
+                    else:
+                        features["feat_pulse"] = 0.0
+                else:
+                    features["feat_pulse"] = 0.0
+            else:
+                features["feat_pulse"] = 0.0
+
+    # 7. Aura: funding_rate * oi_roc divergence (same data already in DB)
+    fr_val = latest.get("funding_rate")
+    oi_val = latest.get("stablecoin_mcap") if latest.get("stablecoin_mcap") is not None else None
+    # oi_roc is not in raw_data — compute from funding_rate & available price data
+    # Simplified: use price change * funding_rate as divergence proxy
+    if pd.notna(fr_val) and fr_val is not None and len(closes) >= 2:
+        price_roc = (closes.iloc[-1] - closes.iloc[-2]) / closes.iloc[-2]
+        product = float(fr_val) * price_roc
+        if product >= 0:
+            features["feat_aura"] = float(np.tanh(product * 10000) * 0.3)
+        else:
+            features["feat_aura"] = float(-np.tanh(product * 10000) * 0.6)
+
     return features
 
 
@@ -127,6 +164,9 @@ def save_features_to_db(
             feat_nose_sigmoid=features.get("feat_nose_sigmoid"),
             feat_tongue_pct=features.get("feat_tongue_pct"),
             feat_body_roc=features.get("feat_body_roc"),
+            feat_pulse=features.get("feat_pulse"),
+            feat_aura=features.get("feat_aura"),
+            feat_mind=features.get("feat_mind"),
         )
         session.add(record)
         session.commit()
@@ -164,6 +204,8 @@ def run_preprocessor(
                      f"ear={features['feat_ear_zscore']}, "
                      f"nose={features['feat_nose_sigmoid']}, "
                      f"tongue={features['feat_tongue_pct']}, "
-                     f"body={features['feat_body_roc']}")
+                     f"body={features['feat_body_roc']}, "
+                     f"pulse={features['feat_pulse']}, "
+                     f"aura={features['feat_aura']}")
         return features
     return None

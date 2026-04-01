@@ -23,6 +23,9 @@ FEATURE_TO_SENSE = {
     "feat_nose_sigmoid": "nose",
     "feat_tongue_pct": "tongue",
     "feat_body_roc": "body",
+    "feat_pulse": "pulse",
+    "feat_aura": "aura",
+    "feat_mind": "mind",
 }
 
 SENSE_NAMES = {
@@ -31,10 +34,14 @@ SENSE_NAMES = {
     "nose": "嗅覺 Nose",
     "tongue": "味覺 Tongue",
     "body": "觸覺 Body",
+    "pulse": "脈動 Pulse",
+    "aura": "磁場 Aura",
+    "mind": "認知 Mind",
 }
 
 SENSE_EMOJIS = {
     "eye": "👁️", "ear": "👂", "nose": "👃", "tongue": "👅", "body": "💪",
+    "pulse": "💓", "aura": "🌀", "mind": "🧠",
 }
 
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -73,6 +80,26 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "capital_flow": {"name": "資金流向", "source": "Proxy", "enabled": True, "weight": 0.5, "value": None},
         }, "score": 0.5,
     },
+    "pulse": {
+        "name": "脈動 Pulse", "emoji": "💓", "description": "波動率感知",
+        "modules": {
+            "realized_vol": {"name": "已實現波動率", "source": "Binance OHLCV", "enabled": True, "weight": 0.7, "value": None},
+            "ret_24h": {"name": "24h 回報率", "source": "Binance", "enabled": True, "weight": 0.3, "value": None},
+        }, "score": 0.5,
+    },
+    "aura": {
+        "name": "磁場 Aura", "emoji": "🌀", "description": "資金費率/OI背離",
+        "modules": {
+            "funding_oi_divergence": {"name": "資金/OI背離", "source": "Binance Futures", "enabled": True, "weight": 0.6, "value": None},
+            "liquidation_magnet": {"name": "清算磁力", "source": "Binance", "enabled": True, "weight": 0.4, "value": None},
+        }, "score": 0.5,
+    },
+    "mind": {
+        "name": "認知 Mind", "emoji": "🧠", "description": "BTC支配度/資金流向",
+        "modules": {
+            "btc_eth_vol_ratio": {"name": "BTC/ETH成交量比", "source": "Binance", "enabled": True, "weight": 1.0, "value": None},
+        }, "score": 0.5,
+    },
 }
 
 CONFIG_PATH = Path(__file__).parent.parent / "data" / "senses_config.json"
@@ -104,6 +131,18 @@ def normalize_feature(value: Optional[float], feature_type: str) -> float:
 
     elif feature_type == "feat_body_roc":
         # body_roc 是 ROC 值 (-1~1)，轉為 0~1
+        return max(0.0, min(1.0, (value + 1) / 2))
+
+    elif feature_type == "feat_pulse":
+        # pulse 已是 tanh(z/2) 壓縮在 -1~1
+        return max(0.0, min(1.0, (value + 1) / 2))
+
+    elif feature_type == "feat_aura":
+        # aura 也是壓縮在 -1~1
+        return max(0.0, min(1.0, (value + 1) / 2))
+
+    elif feature_type == "feat_mind":
+        # mind 也是 tanh 壓縮在 -1~1
         return max(0.0, min(1.0, (value + 1) / 2))
 
     return 0.5
@@ -167,6 +206,9 @@ class SensesEngine:
             "nose": "feat_nose_sigmoid",
             "tongue": "feat_tongue_pct",
             "body": "feat_body_roc",
+            "pulse": "feat_pulse",
+            "aura": "feat_aura",
+            "mind": "feat_mind",
         }.get(sense_key)
 
         raw_value = features.get(feat_key) if features and feat_key else None
