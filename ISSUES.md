@@ -1,5 +1,6 @@
 # Poly-Trader Issues 追踪
 
+<<<<<<< Updated upstream
 > **最後更新：2026-04-01 14:41 GMT+8**
 > **資料量：Raw 2514 | Features 2499 | Labels 2444 | Trades 0**
 > **模型：XGBoost 3-class (neg/neutral/pos), 5 核心特徵, 正則化**
@@ -14,13 +15,32 @@
 | #M13 | 回填 90 天歷史數據 | 38h→90d 大幅增加樣本 | 🟡 tests/backfill_90d.py |
 | #H15 | Tongue 重要性=0 (FNG 靜態, 30 unique) | 純噪音 | 🟡 權重 0.0 |
 | #M06 | 缺少 lag 特徵 | 無時間滯後資訊 | 🟡 LAG_COLS 已定義 |
+=======
+> **最後更新：2026-04-01 17:00 GMT+8**
+> **⚠️ 資料量崩潰：Raw 2514 → 6 | Features 2498 → 6 | Labels 2444 → 0**
+> **模型：XGBoost 3-class（pickle 存在但無法使用，因 labels=0、features=6）**
 
 ---
+
+## 🔴 危急（新發現）
+
+| ID | 問題 | 影響 | 狀態 |
+|----|------|------|------|
+| #H23 | 🔴 資料庫崩潰 — Raw 2514→6, Features 2498→6, Labels 2444→0 | 模型無法重新訓練 | 🔴 **立即處理** — 需 90 天回填 |
+| #H24 | 🔴 Collector 數據卡死 — 6 筆原始數據中 funding/fng/stablecoin/oi_roc 全零變異 | 新數據無增量資訊 | 🔴 Collector API 可能限速或模組故障 |
+>>>>>>> Stashed changes
+
+## 🔴 高優先級（既有）
+
+| ID | 問題 | 影響 | 狀態 |
+|----|------|------|------|
+| #H15 | 🔴 Tongue 重要性=0 (FNG 靜態) | 純噪音 | ✅ 權重 0.0, 待找新 API |
 
 ## 🟢 已解決
 
 | ID | 問題 | 方案 | 日期 |
 |----|------|------|------|
+<<<<<<< Updated upstream
 | #H20 | ~~Nose/Ear 特徵洩漏~~ | Nose→funding z-score(30-period), 與 Ear 窗口不同 | 04-01 14:39 |
 | #H22 | ~~標籤管線 horizon=24h~~ | horizon 4h, 2444 labels (3-class) | 04-01 13:30 |
 | #H13 | ~~無負標籤~~ | label(-1/0/1) ±0.3% | 04-01 13:30 |
@@ -36,9 +56,15 @@
 | UX6-UX8 | ~~前端三 bug~~ | null safety | 04-01 |
 
 ---
+=======
+| #M13 | 回填 90 天歷史數據 | tests/backfill_90d.py | 🔴 **升級為 P0** — 現在 labels=0，必須回填 |
+| #M06 | 缺少 lag features | 增加時間滯後特徵 | 🟡 LAG_COLS 已定義 |
+| #D01 | TypeScript 編譯失敗 (tsc Permission denied) | 無法驗證前端 | 🟡 npx/tsc 權限問題 |
+>>>>>>> Stashed changes
 
 ## 📊 當前狀態 (14:41 Heartbeat)
 
+<<<<<<< Updated upstream
 **特徵統計 (最近 50 筆)：**
 | 感官 | Mean | Std | Unique | 狀態 |
 |------|------|-----|--------|------|
@@ -52,6 +78,60 @@
 
 **標籤**：2444 筆 (neg=759 31% / neutral=839 34% / pos=846 35%) — **分布均勻**
 **測試**：6/6 PASS ✅
+=======
+| ID | 問題 | 當前狀態 |
+|----|------|----------|
+| #H16 | Eye IC 反向 (-0.22) | Eye 仍是最佳感官 (score=0.81) — 反向？需評估 |
+| #NEW | Mind 感官無數據 | 0% 重要性，待注入 BTC/ETH ratio |
+
+## 🏆 已解決
+
+| ID | 問題 | 解決方案 | 日期 |
+|----|------|----------|------|
+| #H01 | 回測用 random 數據 | 基於 DB 真實回測 | 04-01 |
+| #H02 | collector 未寫入新欄位 | 更新 v3/v4 模組 | 04-01 |
+| #H03 | 前端 Vite 跨域問題 | 相對路徑 + proxy | 04-01 |
+| #H04 | 五感特徵正規化不一致 | eye_dist min-max | 04-01 |
+| #H06 | cross-join 83K 重複 | merge_asof 10min | 04-01 |
+| #H07 | 模型 CV 準確率低 | 正則化 + 8特徵 3-class | 04-01 |
+| #H08 | Ear 零變異 | funding_rate z-score | 04-01 |
+| #H09 | Eye 分數恆為 1.0 | (value+1)/2 | 04-01 |
+| #H10 | Volume 全 NaN | fetch_current_volume | 04-01 |
+| #H11 | SensesEngine DB bug | init_dependencies | 04-01 |
+| #H12 | 過擬合 train96%/CV36% | max_depth=3, reg=0.1/1.0 | 04-01 |
+| #H13 | 無負標籤 | label(-1/0/1) ±0.3% | 04-01 |
+| #H14 | Ear 極端值 | 真實信號，非 bug | 04-01 |
+| #H19 | ear_zscore 回歸 bug | 手動修 DB | 04-01 |
+| #H20 | Ear/Nose 洩漏 r=0.998 | Nose→OI ROC | 04-01 13:30 |
+| #H21 | api.py WsManager ECONNABORTED | 移除 import | 04-01 |
+| #H22 | 標籤斷裂 251→2444 | 4h horizon | 04-01 13:30 |
+| UX6-8 | 前端 UI bugs | Props 防護/Null Safety/MergedPoint | 04-01 |
+
+---
+
+## 📊 當前系統健康 (2026-04-01 17:00)
+
+### 數據管線狀態
+| 項目 | 數值 | 狀態 |
+|------|------|------|
+| Raw data | 6 筆 | ❌ 崩潰 (→2514) |
+| Features | 6 筆 | ❌ 崩潰 (→2498) |
+| Labels | 0 筆 | ❌ 崩潰 (→2444) |
+| 模型 pickle | 存在 (107KB) | ⚠️ 無法重新訓練 |
+
+### 當前五感分數
+| 感官 | 分數 | 變異性 | 診斷 |
+|------|------|--------|------|
+| 👁️ Eye | 0.81 (最強) | ✅ std=0.815, 6 unique | 正常，技術面活躍 |
+| 👂 Ear | 0.57 (中) | ⚠️ std=0.171, 2 unique | Ear z-score 僅 2 值跳變 |
+| 👃 Nose | 0.52 (中) | ❌ std=0.000, 1 unique | funding 凍結 → sigmoid 死值 |
+| 👅 Tongue | 0.23 (弱) | ⚠️ std=0.0001, 6 unique | FNG=8 靜態, 微幅變異 |
+| 💪 Body | 0.62 (中) | ❌ std=0.000, 1 unique | stablecoin 凍結 |
+
+### 綜合建議
+- **Score**: 62/100 → 🟡 建議輕倉買入
+- **摘要**: 技術面最強（81%），情緒最弱（23%）
+>>>>>>> Stashed changes
 
 ---
 
@@ -59,9 +139,16 @@
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
+<<<<<<< Updated upstream
 | P0 | OOS 回測驗證 | #H07 |
 | P1 | 90 天歷史數據回填 | #M13 |
 | P2 | Tongue 替換 (Twitter/CryptoPanic) | #H15 |
+=======
+| P0 | 執行 90 天回填 (backfill_90d.py) → 重建 features + labels | #H23/#M13 |
+| P0 | 檢查 collector 各 API 來源 → 找出凍結原因 | #H24 |
+| P1 | 修復 TypeScript 編譯權限 | #D01 |
+| P2 | Tongue 替換 FNG 為新情源 | #H15 |
+>>>>>>> Stashed changes
 | P3 | lag features 實現 | #M06 |
 | P4 | 擴充 Pulse/Aura/Mind 數據源 | 新 |
 
