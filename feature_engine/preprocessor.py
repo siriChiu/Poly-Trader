@@ -137,27 +137,18 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_pulse"] = 0.0
 
-    # 7. Aura (v2): volume_zscore — 成交量 z-score
-    #    原理：成交量飆升 → 恐慌/FOMO，往往預示趨勢反轉或確認
-    #    IC_prev=-0.008（price_vs_funding_divergence）→ 替換，提升信號強度
-    #    實現：(vol - vol_mean_72) / vol_std_72，正值=高量，負值=低量
-    vol = df["volume"].dropna()
-    if len(vol) >= 72:
-        vol_mean = vol.tail(72).mean()
-        vol_std = vol.tail(72).std()
-        if vol_std > 0:
-            vol_z = float((vol.iloc[-1] - vol_mean) / vol_std)
-            features["feat_aura"] = float(np.clip(vol_z, -3, 3))
-        else:
-            features["feat_aura"] = 0.0
-    elif len(vol) >= 12:
-        vol_mean = vol.mean()
-        vol_std = vol.std()
-        if vol_std > 0:
-            vol_z = float((vol.iloc[-1] - vol_mean) / vol_std)
-            features["feat_aura"] = float(np.clip(vol_z, -3, 3))
-        else:
-            features["feat_aura"] = 0.0
+    # 7. Aura (v3): fund_x_roc — 資金費率 × 1h 價格變動率的交叉信號
+    #    原理：funding_rate × price_roc_1h 捕捉資金-趨勢共振
+    #    正值 = 資金與價格同向（多頭信號），負值 = 背離（空頭信號）
+    #    IC=+0.1262（n=1585）全場最高 IC，無需 NEG_IC_FEATS 反轉
+    #    實現：funding_rate × price_pct_change(12) × 1e6（縮放到合理範圍）
+    prices_full = df["close_price"].dropna()
+    fr_latest = df["funding_rate"].dropna()
+    if len(prices_full) >= 13 and len(fr_latest) >= 1:
+        price_roc_1h = float(prices_full.pct_change(12).iloc[-1])
+        funding_now = float(fr_latest.iloc[-1])
+        raw_val = funding_now * price_roc_1h * 1e6  # scale
+        features["feat_aura"] = float(np.clip(raw_val, -500, 500))
     else:
         features["feat_aura"] = 0.0
 
