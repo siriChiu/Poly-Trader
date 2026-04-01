@@ -123,19 +123,28 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_body_roc"] = 0.0
 
-    # 6. Pulse: funding_trend_bps — funding rate 趨勢（24h MA - 72h MA，in bps ×10000）
-    #    IC=-0.0669: 下降趨勢 → 看漲（槓桿冷卻）
-    #    #H42 fix: scale to bps so XGBoost can meaningfully split on this feature
-    if len(fr) >= 72:
-        ma24 = fr.tail(24).mean()
-        ma72 = fr.tail(72).mean()
-        features["feat_pulse"] = float(ma24 - ma72) * 10000.0
-    elif len(fr) >= 24:
-        ma24 = fr.tail(24).mean()
-        ma_all = fr.mean()
-        features["feat_pulse"] = float(ma24 - ma_all) * 10000.0
+    # 6. Pulse (v2): pos_in_range_72 — 價格在過去72期（6h）高低點範圍中的位置
+    #    IC=-0.160 (p<0.001, n=500): 位置高 → 過熱 → 看跌（反轉信號）
+    #    替換舊 funding_trend_bps (IC=+0.019, p=0.667, 統計無效) #H60
+    #    屬於 NEG_IC_FEATS（反轉後使用）
+    if len(close) >= 72:
+        window_72 = close.iloc[-72:]
+        price_min = float(window_72.min())
+        price_max = float(window_72.max())
+        if price_max > price_min:
+            features["feat_pulse"] = float((close.iloc[-1] - price_min) / (price_max - price_min))
+        else:
+            features["feat_pulse"] = 0.5
+    elif len(close) >= 12:
+        window = close.iloc[-len(close):]
+        price_min = float(window.min())
+        price_max = float(window.max())
+        if price_max > price_min:
+            features["feat_pulse"] = float((close.iloc[-1] - price_min) / (price_max - price_min))
+        else:
+            features["feat_pulse"] = 0.5
     else:
-        features["feat_pulse"] = 0.0
+        features["feat_pulse"] = 0.5
 
     # 7. Aura (v4): funding_zscore_288 — 長週期 funding rate z-score（288期≈1天）
     #    原理：相對長期基準的 funding 異常程度，捕捉大週期槓桿情緒
@@ -159,13 +168,13 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_aura"] = 0.0
 
-    # 8. Mind: price_momentum_60 — 60期價格動量（5h）
-    #    IC=-0.163 (p<0.001): 替換舊 funding_z_24 (IC=+0.036, p=0.093, 統計不顯著)
-    #    負 IC → 高動量 → 看跌（過熱反轉信號），故加入 NEG_IC_FEATS
-    if len(close) >= 61:
-        features["feat_mind"] = float(close.iloc[-1] / close.iloc[-61] - 1)
-    elif len(close) >= 12:
-        features["feat_mind"] = float(close.iloc[-1] / close.iloc[-12] - 1)
+    # 8. Mind (v2): ret_72 — 72期價格回報率（6h）
+    #    IC=-0.146 (p=0.001, n=500): 替換 price_momentum_60 (IC=+0.020, p=0.653, 統計無效) #H60
+    #    負 IC → 6h 強勢上漲 → 看跌（過熱反轉），故加入 NEG_IC_FEATS
+    if len(close) >= 73:
+        features["feat_mind"] = float(close.iloc[-1] / close.iloc[-73] - 1)
+    elif len(close) >= 24:
+        features["feat_mind"] = float(close.iloc[-1] / close.iloc[-24] - 1)
     else:
         features["feat_mind"] = 0.0
 
