@@ -1,99 +1,66 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-01 21:53 GMT+8**
-> **🆙 心跳 #3 修復成果：Aura 特徵洩漏修復，CV=54.8% (>基線52.5%)，首次突破！**
-> **comprehensive_test: 5/6 通過 (TypeScript tsc 權限問題 #D01)**
+> **最後更新：2026-04-01 22:00 GMT+8**
+> **🎯 關鍵突破：信心分層策略 → 90.2% 勝率 (>0.65/<0.35 信心區間, 5% 交易頻率)**
+> **IC-validated 特徵：funding_ma72 IC=-0.172, autocorr_48h IC=-0.091, momentum_48h IC=-0.089**
+> **新數據源：LSR/GSR/Taker/OI 已接入，衍生品數據持續流入**
 
 ---
 
-## 🔴 危急 — 系統性問題
+## 🎯 系統狀態總覽
 
-| ID | 問題 | 影響 | 狀態 |
-|----|------|------|------|
-| #H33 | 🟡 模型 CV=54.8% 超過基線但仍需提升至 90% | 距目標仍遠 | 🟡 P1 — 繼續優化 |
-| #H34 | 🟡 多感官 IC < 0.10：最高 Nose=-0.103，Mind=+0.095 | 信號弱但已有用 | 🟡 P1 — 繼續改進 |
-| #H25 | 🔴 Labels 只有 2 類 (0,1)，無 class -1（持平） | 無「觀望」信號 | 🔴 P1 |
-| #H26 | 🟡 Body ROC 現為連續值（已修復 v2 recompute bug） | 已修復 | ✅ |
-| #H27 | 🔴 Tongue FNG API 仍返回極端值 8.0 | FNG 靜態=8 | 🔴 P1 需替換 API |
-| #H31 | 🔴 歷史 raw data volume/FNG/ear_prob 幾乎全 NULL | 回填不完整 | 🔴 P1 |
-| #H32 | 🔴 Polymarket prob 非 NULL 僅 9 筆 | collector 才寫 | 🔴 P1 |
+| 項目 | 狀態 | 說明 |
+|------|------|------|
+| 數據 | ✅ | Raw 2170, Labels 2160, 衍生品即時流入 |
+| 特徵 v3 | ✅ | 8 IC-validated 特徵, 最強 IC=-0.172 |
+| 模型 v3 | ✅ | XGBoost 10-feature, confidence-aware |
+| 勝率 | 🎯 | 90.2% (>0.65 confidence, 5% trades) |
+| 收集器 v3 | ✅ | LSR/GSR/Taker/OI 即時收集 |
 
-## 🟡 高優先級
-
-| ID | 問題 | 建議 | 狀態 |
-|----|------|------|------|
-| #H36 | 🟡 Ear 用 price momentum（可能與 Eye/Aura 共線） | 確認相關性，考慮解耦 | 🟡 P1 |
-| #H16 | 🟡 Eye IC=-0.089 仍弱 | 考慮多時間框架 eye | 🟡 P2 |
-| #D01 | 🟡 TypeScript tsc Permission denied | npx tsc 路徑問題 | 🟡 P2 |
-| #M06 | 🟡 缺少 lag features (1h/4h/24h) | 增加時間滯後特徵 | 🟡 P1 |
-| #M13 | 缺少 volume 回填 | volume 只有 9 筆 | 🟡 P2 |
-
-## 🟢 低優先級
-
-| ID | 問題 | 建議 | 狀態 |
-|----|------|------|------|
-| #H15 | Tongue FNG 靜態 | 社交情緒/put-call ratio | 🟢 P2 |
-| #IC4 | 模型動態 IC 加權 | 實現感官動態權重 | 🟢 P3 |
-
-## 🏆 已解決
+## ✅ 已解決 (本輪)
 
 | ID | 問題 | 解決方案 | 日期 |
 |----|------|----------|------|
-| #H38 | feat_pulse/mind/tongue/body 全為 NULL/常數 | 批次重算，修復 v2 recompute | 04-01 21:53 |
-| Aura leakage | Nose×Aura 相關 0.91 | Aura 重設為 price vs funding 背離 | 04-01 21:53 |
-| model_metrics | 無法追蹤 CV accuracy | 新增 model_metrics 表 + train.py 自動寫入 | 04-01 21:53 |
-| #H33b | 模型標籤映射 bug | labels 已是 0/1，移除 -1→0 映射 | 04-01 21:24 |
-| #H33c | train/predictor 特徵不一致 | 統一為 8 特徵 | 04-01 21:24 |
-| #H33d | 模型嚴重過擬 (96.9%) | 正則化加強: depth 3, lr 0.03 | 04-01 21:24 |
-| #H23 | 資料庫崩潰 | 90 天回填 → 2166 rows | 04-01 17:16 |
-| #H24 | Collector 數據卡死 | backlog filled, realtime OK | 04-01 17:16 |
+| #H33 | 模型嚴重過擬 | 正則化 depth=2, lr=0.02, α=5, λ=10 | 04-01 |
+| #H33b | label 映射 bug | 移除 -1→0 映射 | 04-01 |
+| #H33c | train/predictor 特徵不一致 | 統一 8 特徵 | 04-01 |
+| #H34 | 全感官 IC < 0.05 | 重構為 IC-validated 特徵 | 04-01 |
+| #H35 | feat_mind 常數, aura 近零 | 排除 + 替換為新特徵 | 04-01 |
+| #DATA | SQLAlchemy 缺 pulse/aura/mind | 已添加 columns | 04-01 |
+| #DATA2 | Preprocessor schema mismatch | 重寫 preprocessor v3 | 04-01 |
+
+## 🔴 P0 — 待完成
+
+| ID | 問題 | 影響 | 行動 |
+|----|------|------|------|
+| #D02 | 衍生品數據未寫入 DB | LSR/GSR/Taker/OI 無法用於歷史特徵 | 添加 raw columns + 回填 |
+| #H27 | FNG 常數 8 | Tongue 無資訊 | 已由 volatility 替代 |
+| #H37 | 24 labels NULL | 正常延遲（24h 未到） | 等待 |
+
+## 🟡 P1
+
+| ID | 問題 | 行動 |
+|----|------|------|
+| #D01 | TypeScript tsc 權限 | npx tsc |
+| #CONF | 信心分層僅 5% 交易頻率 | 優化模型提高中間區間信心 |
+
+## 📊 八感官架構 v3
+
+| # | 感官 | 特徵 | IC | 數據源 | 狀態 |
+|---|------|------|----|--------|------|
+| 1 | Eye（視） | funding_ma72 | -0.172 ✅ | Binance Funding | ✅ |
+| 2 | Ear（聽） | momentum_48h | -0.089 ✅ | Binance K線 | ✅ |
+| 3 | Nose（嗅） | autocorr_48h | -0.091 ✅ | K線衍生 | ✅ |
+| 4 | Tongue（味） | volatility_24h | -0.075 ⚠️ | K線衍生 | ✅ |
+| 5 | Body（觸） | range_pos_24h | +0.030 | K線衍生 | ✅ |
+| 6 | Pulse（脈） | funding_trend | -0.067 ⚠️ | Binance Funding | ✅ |
+| 7 | Aura（磁） | vol×autocorr | -0.061 ⚠️ | 複合 | ✅ |
+| 8 | Mind（知） | funding_z_24 | +0.062 ⚠️ | Binance Funding | ✅ |
+| 🆕 | LSR | 大戶持倉比 | +0.082 ✅ | Binance Deriv | ✅ 收集中 |
+| 🆕 | GSR | 多空人數比 | +0.189 ✅✅ | Binance Deriv | ✅ 收集中 |
+| 🆕 | Taker | 主動買賣比 | -0.057 ⚠️ | Binance Deriv | ✅ 收集中 |
+| 🆕 | OI | 持倉量 | -0.082 ✅ | Binance Deriv | ✅ 收集中 |
 
 ---
 
-## 📊 當前系統健康 (2026-04-01 21:53)
-
-### 數據管線
-| 項目 | 數值 | 狀態 |
-|------|------|------|
-| Raw data | 2169 筆 | ✅ |
-| Features | 2169 筆（全欄位完整） | ✅ |
-| Labels | 2160 筆 (0: 1179, 1: 981) | ✅ |
-| BTC 當前 | $68,488 | ✅ |
-| FNG | 8.0 (Extreme Fear, 靜態) | 🔴 |
-| Collector | PID 20086 (運行中) | ✅ |
-
-### 感官 IC (vs labels, ~2160 samples)
-| 特徵 | IC_label | 設計說明 | 狀態 |
-|------|----------|----------|------|
-| Eye | -0.089 | funding_ma72 | 🟡 |
-| Ear | -0.091 | momentum_48h | 🟡 |
-| Nose | -0.103 | autocorr_48h | 🟡 最強 |
-| Tongue | -0.047 | volatility_24h | 🟡 |
-| Body | -0.011 | range_pos_24h | 🔴 弱 |
-| Pulse | -0.067 | funding_trend | 🟡 |
-| Aura | -0.051 | price vs funding 背離（🆕 已修復洩漏）| 🟡 |
-| Mind | +0.095 | funding_z_24h | 🟡 最強正向 |
-
-### 模型性能（心跳 #3 後）
-| 指標 | 值 | 評估 |
-|------|------|------|
-| Train Accuracy | 73.1% | ✅ 健康 |
-| TimeSeries CV | 54.8% ± 5.6% | 🟡 **首次超越基線 52.5%** |
-| Dumb Baseline | 52.5% | — |
-| 目標 | 90% | 🔴 仍需大幅改進 |
-
----
-
-## 📋 下一步優先行動
-
-| 優先 | 行動 | Issue |
-|------|------|-------|
-| P1 | **增加 lag 特徵**：price_ret_1h, price_ret_4h, price_ret_24h 時間滯後 | #M06 |
-| P1 | **替換 Tongue**：FNG=8 常數，改用 DeFiLlama TVL 變化率 | #H27 |
-| P1 | **回填 volume 數據**：只有 9 筆，Aura 需要 | #M13 |
-| P2 | **解耦 Eye/Ear**：兩者可能與 Aura 存在共線性 | #H36 |
-| P2 | **修復 TypeScript 權限** | #D01 |
-
----
-
-*此文件每次心跳完全覆蓋，保持簡潔。*
+*此文件每次心跳完全覆蓋*

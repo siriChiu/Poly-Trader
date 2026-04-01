@@ -1,8 +1,9 @@
 """
-多感官數據整合收集器
-依次調用多感官模組，將結果寫入 raw_market_data 表
+多感官數據整合收集器 v3
+包含 Binance 衍生品數據 (LSR, GSR, Taker, OI)
 """
 
+import time
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional, Dict
@@ -12,6 +13,7 @@ from data_ingestion.tongue_sentiment import get_tongue_feature
 from data_ingestion.nose_futures import get_nose_feature
 from data_ingestion.eye_binance import get_eye_feature
 from data_ingestion.ear_polymarket import get_ear_feature
+from data_ingestion.binance_derivatives import get_derivatives_features
 from database.models import RawMarketData
 from utils.logger import setup_logger
 
@@ -19,36 +21,27 @@ logger = setup_logger(__name__)
 
 
 def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
-    """
-    執行完整的多感官數據收集。
-    Returns:
-        整合後的數據字典，可用於寫入資料庫。
-    """
-    logger.info("開始多感官數據收集...")
+    """執行完整多感官數據收集（含衍生品）。"""
+    logger.info("開始多感官數據收集 v3...")
 
     body = get_body_feature() or {}
     tongue = get_tongue_feature() or {}
     nose = get_nose_feature() or {}
     eye = get_eye_feature() or {}
     ear = get_ear_feature() or {}
+    time.sleep(0.5)
+    derivatives = get_derivatives_features(symbol) or {}
 
-    # Eye: 取 feat_eye_up 或 feat_eye_down 作為 eye_dist
+    # Eye
     eye_dist_val = eye.get("feat_eye_up") or eye.get("feat_eye_down")
-
-    # Ear: 取 prob
+    # Ear
     ear_prob_val = ear.get("prob")
-
-    # Body: 清算壓力 v3
+    # Body
     stablecoin_roc = body.get("raw_roc")
-
-    # Tongue: 情緒綜合分數 v2
-    tongue_sentiment = tongue.get("feat_tongue_sentiment")
-
-    # Body v4 額外欄位
     body_label = body.get("body_label")
     oi_roc = body.get("oi_roc")
-
-    # Tongue v3 額外欄位
+    # Tongue
+    tongue_sentiment = tongue.get("feat_tongue_sentiment")
     volatility = tongue.get("volatility")
 
     record = RawMarketData(
@@ -67,37 +60,38 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
         oi_roc=oi_roc,
         body_label=body_label,
     )
+    
+    # Store derivatives in the record as extra attributes (for preprocessor)
+    record._derivatives = derivatives
+    
     logger.info(
-        f"收集完成: price={eye.get('current_price')}, "
-        f"eye={eye_dist_val}, ear={ear_prob_val}, "
-        f"funding={nose.get('funding_rate_raw')}, "
-        f"fng={tongue.get('fear_greed_index')}, "
-        f"tongue_v2={tongue_sentiment}, "
-        f"body={stablecoin_roc}, "
-        f"vol={volatility}, oi_roc={oi_roc}, body_label={body_label}"
+        f"收集完成 v3: price={eye.get('current_price')}, "
+        f"LSR={derivatives.get('lsr_ratio')}, GSR={derivatives.get('gsr_ratio')}, "
+        f"Taker={derivatives.get('taker_ratio')}, OI={derivatives.get('oi_value')}"
     )
     return record
 
 
 def run_collection_and_save(session: Session, symbol: str = "BTCUSDT") -> bool:
-    """
-    執行收集並保存到資料庫，同時自動計算特徵。
-    """
+    """執行收集並保存到資料庫。"""
     try:
         record = collect_all_senses(symbol)
         if record is None:
-            logger.error("收集失敗，無數據")
+            logger.error("收集失敗")
             return False
+        
+        derivatives = getattr(record, '_derivatives', {})
+        
         session.add(record)
         session.commit()
         logger.info(f"Raw data 已保存，id={record.id}")
 
-        # 自動跑特徵工程，確保 features 不 lag
+        # Run preprocessor with derivatives data
         try:
             from feature_engine.preprocessor import run_preprocessor
-            run_preprocessor(session)
+            run_preprocessor(session, symbol=symbol, extra_data=derivatives)
         except Exception as pe:
-            logger.warning(f"特徵工程自動執行失敗（不影響原始數據）: {pe}")
+            logger.warning(f"特徵工程自動執行失敗: {pe}")
 
         return True
     except Exception as e:

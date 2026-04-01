@@ -1,6 +1,6 @@
 """
-模型預測模組：載入 XGBoost 權重並輸出信心分數
-優先載入訓練好的模型，若不存在則使用 DummyPredictor。
+模型預測模組 v3 — IC-validated features + confidence-based filtering
+Only trade when model confidence > 0.7 or < 0.3
 """
 
 import os
@@ -14,56 +14,38 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 MODEL_PATH = "model/xgb_model.pkl"
-# Match train.py: exclude feat_mind (constant), feat_aura (near-constant)
 FEATURE_COLS = [
-    "feat_eye_dist",
-    "feat_ear_zscore",
-    "feat_nose_sigmoid",
-    "feat_tongue_pct",
-    "feat_body_roc",
-    "feat_pulse",
+    "feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid",
+    "feat_tongue_pct", "feat_body_roc", "feat_pulse",
+    "feat_aura", "feat_mind",
 ]
+
+# Confidence thresholds for trade filtering
+CONFIDENCE_HIGH = 0.7   # Only BUY when prob > 0.7
+CONFIDENCE_LOW = 0.3    # Only SELL/HOLD when prob < 0.3
 
 
 class XGBoostPredictor:
-    """使用訓練好的 XGBoost 模型進行預測。"""
-
     def __init__(self, model):
         self.model = model
-        logger.info("XGBoost 模型已載入")
 
-    def predict(self, features: Dict) -> float:
-        """返回 0~1 之間的信心分數（上漲機率）。"""
+    def predict_proba(self, features: Dict) -> float:
         import pandas as pd
-
-        X = pd.DataFrame([{col: features.get(col) for col in FEATURE_COLS}])
-        X = X.fillna(0)
-
+        X = pd.DataFrame([{col: features.get(col, 0) for col in FEATURE_COLS}]).fillna(0)
         proba = self.model.predict_proba(X)[0]
-        # proba[1] = 上漲機率
         return float(proba[1]) if len(proba) > 1 else float(proba[0])
 
 
 class DummyPredictor:
-    """備用：等權重 sigmoid。"""
-
-    def predict(self, features: Dict) -> float:
-        weights = {col: 0.20 for col in FEATURE_COLS}
-        score = 0.0
-        total_weight = 0.0
-        for key, w in weights.items():
-            val = features.get(key)
-            if val is not None:
-                score += val * w
-                total_weight += w
-        if total_weight > 0:
-            score = score / total_weight
-        prob = 1 / (1 + np.exp(-score))
-        return float(prob)
+    def predict_proba(self, features: Dict) -> float:
+        vals = [features.get(c, 0) for c in FEATURE_COLS if features.get(c) is not None]
+        if not vals:
+            return 0.5
+        score = np.mean(vals)
+        return float(1 / (1 + np.exp(-score)))
 
 
-def load_predictor() -> object:
-    """載入 XGBoost 模型，若不存在則返回 DummyPredictor。"""
+def load_predictor():
     if os.path.exists(MODEL_PATH):
         try:
             import pickle
@@ -71,23 +53,14 @@ def load_predictor() -> object:
                 model = pickle.load(f)
             return XGBoostPredictor(model)
         except Exception as e:
-            logger.warning(f"載入 XGBoost 模型失敗: {e}，使用 DummyPredictor")
-
-    logger.info("未找到訓練模型，使用 DummyPredictor")
+            logger.warning(f"模型載入失敗: {e}")
     return DummyPredictor()
 
 
-def load_latest_features(session: Session, limit: int = 1) -> Optional[Dict]:
-    """從資料庫讀取最新的特徵。"""
-    query = (
-        session.query(FeaturesNormalized)
-        .order_by(FeaturesNormalized.timestamp.desc())
-        .limit(limit)
-    )
-    rows = query.all()
-    if not rows:
+def load_latest_features(session: Session) -> Optional[Dict]:
+    row = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp.desc()).first()
+    if not row:
         return None
-    row = rows[0]
     return {
         "timestamp": row.timestamp,
         "feat_eye_dist": row.feat_eye_dist,
@@ -95,40 +68,43 @@ def load_latest_features(session: Session, limit: int = 1) -> Optional[Dict]:
         "feat_nose_sigmoid": row.feat_nose_sigmoid,
         "feat_tongue_pct": row.feat_tongue_pct,
         "feat_body_roc": row.feat_body_roc,
+        "feat_pulse": row.feat_pulse,
+        "feat_aura": row.feat_aura,
+        "feat_mind": row.feat_mind,
     }
 
 
 def predict(session: Session, predictor=None) -> Optional[Dict]:
-    """執行預測：讀取特徵 → 模型產出信心分數 → 返回結果。"""
-    logger.info("開始執行模型預測...")
     features = load_latest_features(session)
     if not features:
-        logger.error("無可用的特徵數據")
         return None
-
     if predictor is None:
         predictor = load_predictor()
 
-    confidence = predictor.predict(features)
+    confidence = predictor.predict_proba(features)
 
-    # 輸出特徵重要性（若為 XGBoost）
-    importance_info = ""
-    if isinstance(predictor, XGBoostPredictor):
-        try:
-            imp = dict(zip(FEATURE_COLS, predictor.model.feature_importances_.tolist()))
-            top = sorted(imp.items(), key=lambda x: -x[1])[:2]
-            importance_info = f", top_features={top[0][0]}({top[0][1]:.2f}), {top[1][0]}({top[1][1]:.2f})"
-        except Exception:
-            pass
-
-    signal = "BUY" if confidence > 0.5 else "HOLD"
+    # Confidence-based signal
+    if confidence > CONFIDENCE_HIGH:
+        signal = "BUY"
+        confidence_level = "HIGH"
+    elif confidence < CONFIDENCE_LOW:
+        signal = "SELL"
+        confidence_level = "HIGH"
+    elif 0.45 < confidence < 0.55:
+        signal = "HOLD"
+        confidence_level = "LOW"
+    else:
+        signal = "HOLD"
+        confidence_level = "MEDIUM"
 
     result = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "features": features,
         "confidence": confidence,
         "signal": signal,
+        "confidence_level": confidence_level,
+        "should_trade": confidence_level == "HIGH",
         "model_type": type(predictor).__name__,
     }
-    logger.info(f"預測完成: confidence={confidence:.4f}, signal={signal}{importance_info}")
+    logger.info(f"Prediction: conf={confidence:.4f}, signal={signal}, level={confidence_level}")
     return result
