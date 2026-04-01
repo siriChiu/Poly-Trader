@@ -92,13 +92,8 @@ def run_collection_and_save(session: Session, symbol: str = "BTCUSDT") -> bool:
         session.commit()
         logger.info(f"Raw data 已保存，id={record.id}")
 
-        # Run preprocessor with derivatives data
-        try:
-            from feature_engine.preprocessor import run_preprocessor
-            run_preprocessor(session, symbol=symbol)
-        except Exception as pe:
-            logger.warning(f"特徵工程自動執行失敗: {pe}")
-
+        # NOTE: Feature engineering is handled by trading_cycle after collection.
+        # Do not call run_preprocessor here to avoid duplicate computation.
         return True
     except Exception as e:
         session.rollback()
