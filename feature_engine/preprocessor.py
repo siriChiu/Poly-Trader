@@ -76,14 +76,36 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_eye_dist"] = 0.0
 
-    # 2. Ear: momentum_48h — 48h 價格動量
-    #    IC=-0.0937: 負動量 → 反轉信號
-    if len(close) >= 49:
-        features["feat_ear_zscore"] = float(close.iloc[-1] / close.iloc[-49] - 1)
-    elif len(close) >= 12:
-        features["feat_ear_zscore"] = float(close.iloc[-1] / close.iloc[-12] - 1)
+    # 2. Ear: RSI-24 — 24期相對強弱指標（normalized to [0,1]）
+    #    IC=-0.098 (p=0.028, n=500): RSI 高 → 過買 → 看跌（反轉信號）
+    #    替換 momentum_48h（IC=-0.059, p=0.187, 不顯著） #H69
+    #    屬於 NEG_IC_FEATS（反轉後使用）
+    if len(close) >= 25:
+        delta = close.diff()
+        gain = delta.clip(lower=0)
+        loss = -delta.clip(upper=0)
+        avg_gain = gain.ewm(com=23, min_periods=24).mean()
+        avg_loss = loss.ewm(com=23, min_periods=24).mean()
+        last_avg_gain = avg_gain.iloc[-1]
+        last_avg_loss = avg_loss.iloc[-1]
+        if last_avg_loss > 0:
+            rs = last_avg_gain / last_avg_loss
+            rsi = 100 - (100 / (1 + rs))
+        else:
+            rsi = 100.0
+        features["feat_ear_zscore"] = float(rsi) / 100.0  # normalize to [0,1]
+    elif len(close) >= 5:
+        # Fallback: simpler RSI-4
+        delta = close.diff()
+        gain = delta.clip(lower=0).tail(4).mean()
+        loss = (-delta.clip(upper=0)).tail(4).mean()
+        if loss > 0:
+            rsi = 100 - (100 / (1 + gain/loss))
+        else:
+            rsi = 100.0
+        features["feat_ear_zscore"] = float(rsi) / 100.0
     else:
-        features["feat_ear_zscore"] = 0.0
+        features["feat_ear_zscore"] = 0.5
 
     # 3. Nose: autocorr_48h — 48h 收益率自相關（regime 檢測）
     #    IC=-0.0712: 負自相關 → mean-reverting regime
