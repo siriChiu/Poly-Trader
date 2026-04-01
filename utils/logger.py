@@ -37,11 +37,12 @@ def setup_logger(
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
-    # 終端機 handler
-    stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.setLevel(level)
-    stdout_handler.setFormatter(formatter)
-    logger.addHandler(stdout_handler)
+    # 終端機 handler（nohup 環境 stdout 已重定向至 log 檔，避免重複記錄）
+    if sys.stdout.isatty():
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(level)
+        stdout_handler.setFormatter(formatter)
+        logger.addHandler(stdout_handler)
 
     # 檔案 handler (可選)
     if log_file:

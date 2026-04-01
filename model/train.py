@@ -19,7 +19,7 @@ MODEL_PATH = "model/xgb_model.pkl"
 FEATURE_COLS = [
     "feat_eye_dist",    # funding_ma72 (IC=-0.089)
     "feat_ear_zscore",  # momentum_48h (IC=-0.091)
-    "feat_nose_sigmoid",# autocorr_48h (IC=-0.103)
+    "feat_nose_sigmoid",# ret_96 (8h動量, IC=-0.076 全量, #H69)
     "feat_tongue_pct",  # volatility_24h (IC=-0.067)
     "feat_body_roc",    # range_pos_24h (IC=+0.018)
     "feat_pulse",       # funding_z_24h (IC=-0.075 n=2160)

@@ -107,22 +107,14 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_ear_zscore"] = 0.5
 
-    # 3. Nose: autocorr_48h — 48h 收益率自相關（regime 檢測）
-    #    IC=-0.0712: 負自相關 → mean-reverting regime
-    if len(returns) >= 49:
-        recent = returns.iloc[-48:].dropna()
-        if len(recent) > 5:
-            ac = recent.autocorr(lag=1)
-            features["feat_nose_sigmoid"] = float(ac) if not np.isnan(ac) else 0.0
-        else:
-            features["feat_nose_sigmoid"] = 0.0
-    elif len(returns) >= 12:
-        recent = returns.iloc[-11:].dropna()
-        if len(recent) > 3:
-            ac = recent.autocorr(lag=1)
-            features["feat_nose_sigmoid"] = float(ac) if not np.isnan(ac) else 0.0
-        else:
-            features["feat_nose_sigmoid"] = 0.0
+    # 3. Nose: ret_96 — 96期（8h）價格動量回報率
+    #    IC=-0.076 (全量, p=0.0004) / IC=-0.145 (近500, p=0.001)
+    #    替換 autocorr_48h (IC=+0.050, p=0.268, 不顯著) #H69
+    #    負 IC → 8h 強勢上漲 → 看跌（過熱反轉），加入 NEG_IC_FEATS
+    if len(close) >= 97:
+        features["feat_nose_sigmoid"] = float(close.iloc[-1] / close.iloc[-97] - 1)
+    elif len(close) >= 25:
+        features["feat_nose_sigmoid"] = float(close.iloc[-1] / close.iloc[-25] - 1)
     else:
         features["feat_nose_sigmoid"] = 0.0
 
@@ -135,13 +127,21 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_tongue_pct"] = 0.0
 
-    # 5. Body: macd_pct — MACD 背離百分比（EMA12 - EMA26）/ 當前價格 × 100
-    #    IC=-0.070 (upgraded from range_pos_24h IC=+0.012, #H16)
-    #    原理：MACD 負值 → 短期動能弱於長期 → 偏空（後續回升空間大）
-    if len(close) >= 26:
-        ema12 = close.ewm(span=12, adjust=False).mean().iloc[-1]
-        ema26 = close.ewm(span=26, adjust=False).mean().iloc[-1]
-        features["feat_body_roc"] = float((ema12 - ema26) / close.iloc[-1] * 100)
+    # 5. Body: atr_ratio_14 — ATR(14) / 當前價格（市場波動率比例）
+    #    IC=+0.046 (全量, p=0.031) / IC=+0.167 (近500, p=0.0002)
+    #    替換 macd_pct (IC=-0.065, p=0.144, 不顯著) #H69
+    #    正 IC → ATR 高 → 波動大 → 偏多（突破信號）
+    if len(close) >= 15:
+        highs = close.rolling(14).max()
+        lows = close.rolling(14).min()
+        tr = highs - lows
+        atr = tr.rolling(14).mean()
+        atr_val = atr.iloc[-1]
+        cur_price = close.iloc[-1]
+        if not np.isnan(atr_val) and cur_price > 0:
+            features["feat_body_roc"] = float(atr_val / cur_price)
+        else:
+            features["feat_body_roc"] = 0.0
     else:
         features["feat_body_roc"] = 0.0
 
