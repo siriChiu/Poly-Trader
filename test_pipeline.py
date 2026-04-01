@@ -3,7 +3,7 @@
 Poly-Trader End-to-End Test Pipeline
 Steps:
 1. Initialize DB
-2. Collect five senses data
+2. Collect multi-senses data
 3. Run feature engineering
 4. Generate labels
 5. Train XGBoost (if enough samples)
@@ -38,7 +38,7 @@ def main():
 
     try:
         # 2. Collect data
-        print("[2/5] Collecting five senses data...")
+        print("[2/5] Collecting multi-senses data...")
         ok = run_collection_and_save(session, symbol)
         if not ok:
             print("  FAIL: data collection failed")

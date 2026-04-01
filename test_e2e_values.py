@@ -20,7 +20,7 @@ symbol = cfg["trading"]["symbol"]
 print(f"=== E2E Pipeline Test (symbol={symbol}) ===\n")
 
 # Step 1: Collect
-print("Step 1: Collecting five senses...")
+print("Step 1: Collecting multi-senses...")
 ok = run_collection_and_save(session, symbol)
 print(f"  Collection: {'OK' if ok else 'FAILED'}")
 

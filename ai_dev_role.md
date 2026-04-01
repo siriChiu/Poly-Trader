@@ -40,4 +40,4 @@
 
 ---
 ## 啟動口令
-當我輸入 `[啟動開發：任務名稱]` 時，請自動讀取工作區內的 `prd.md`, `architecture.md`, `implementation.md` 與 `five_senses_implementation.md`，並按照上述閉迴路機制開始工作。
+當我輸入 `[啟動開發：任務名稱]` 時，請自動讀取工作區內的 `prd.md`, `architecture.md`, `implementation.md` 與 `multi_senses_implementation.md`，並按照上述閉迴路機制開始工作。
