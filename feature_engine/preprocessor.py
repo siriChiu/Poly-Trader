@@ -159,23 +159,13 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_aura"] = 0.0
 
-    # 8. Mind: funding_z_24 — 24h funding rate z-score
-    #    IC=+0.0619: 正 z-score → 多頭情緒
-    if len(fr) >= 25:
-        recent = fr.iloc[-24:]
-        mean = recent.mean()
-        std = recent.std()
-        if std > 0:
-            features["feat_mind"] = float((fr.iloc[-1] - mean) / std)
-        else:
-            features["feat_mind"] = 0.0
-    elif len(fr) >= 8:
-        mean = fr.mean()
-        std = fr.std()
-        if std > 0:
-            features["feat_mind"] = float((fr.iloc[-1] - mean) / std)
-        else:
-            features["feat_mind"] = 0.0
+    # 8. Mind: price_momentum_60 — 60期價格動量（5h）
+    #    IC=-0.163 (p<0.001): 替換舊 funding_z_24 (IC=+0.036, p=0.093, 統計不顯著)
+    #    負 IC → 高動量 → 看跌（過熱反轉信號），故加入 NEG_IC_FEATS
+    if len(close) >= 61:
+        features["feat_mind"] = float(close.iloc[-1] / close.iloc[-61] - 1)
+    elif len(close) >= 12:
+        features["feat_mind"] = float(close.iloc[-1] / close.iloc[-12] - 1)
     else:
         features["feat_mind"] = 0.0
 
