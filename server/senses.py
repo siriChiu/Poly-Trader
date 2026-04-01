@@ -23,6 +23,9 @@ FEATURE_TO_SENSE = {
     "feat_nose_sigmoid": "nose",
     "feat_tongue_pct": "tongue",
     "feat_body_roc": "body",
+    "feat_pulse": "pulse",
+    "feat_aura": "aura",
+    "feat_mind": "mind",
 }
 
 SENSE_NAMES = {
@@ -31,10 +34,14 @@ SENSE_NAMES = {
     "nose": "嗅覺 Nose",
     "tongue": "味覺 Tongue",
     "body": "觸覺 Body",
+    "pulse": "脈動 Pulse",
+    "aura": "磁場 Aura",
+    "mind": "認知 Mind",
 }
 
 SENSE_EMOJIS = {
     "eye": "👁️", "ear": "👂", "nose": "👃", "tongue": "👅", "body": "💪",
+    "pulse": "💓", "aura": "🌀", "mind": "🧠",
 }
 
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -106,6 +113,12 @@ def normalize_feature(value: Optional[float], feature_type: str) -> float:
         # body_roc 是 ROC 值 (-1~1)，轉為 0~1
         return max(0.0, min(1.0, (value + 1) / 2))
 
+    elif feature_type == "feat_pulse":
+        return max(0.0, min(1.0, (value + 1) / 2))
+    elif feature_type == "feat_aura":
+        return max(0.0, min(1.0, (value + 1) / 2))
+    elif feature_type == "feat_mind":
+        return max(0.0, min(1.0, (value + 1) / 2))
     return 0.5
 
 
@@ -167,6 +180,9 @@ class SensesEngine:
             "nose": "feat_nose_sigmoid",
             "tongue": "feat_tongue_pct",
             "body": "feat_body_roc",
+            "pulse": "feat_pulse",
+            "aura": "feat_aura",
+            "mind": "feat_mind",
         }.get(sense_key)
 
         raw_value = features.get(feat_key) if features and feat_key else None
@@ -212,7 +228,7 @@ class SensesEngine:
         if scores is None:
             scores = self.calculate_all_scores()
         # ORID 09:49 — Tongue IC 極低且 FNG 近零變異，暫降權重；Eye IC 反向但有資訊量
-        weights = {"eye": 0.30, "ear": 0.25, "nose": 0.25, "tongue": 0.05, "body": 0.15}
+        weights = {"eye": 0.15, "ear": 0.10, "nose": 0.15, "tongue": 0.0, "body": 0.10, "pulse": 0.20, "aura": 0.10, "mind": 0.20}
         total = sum(scores.get(k, 0.5) * w for k, w in weights.items())
         return round(total * 100)
 
