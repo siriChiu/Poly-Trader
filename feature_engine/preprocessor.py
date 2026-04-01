@@ -76,37 +76,25 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_eye_dist"] = 0.0
 
-    # 2. Ear: RSI-72 — 72期相對強弱指標（normalized to [0,1]）
-    #    IC=-0.052 (p=0.015, n=2172): RSI 高 → 過買 → 看跌（反轉信號）
-    #    RSI-72 優於 RSI-24 (IC=-0.040, p=0.064, 不顯著) #H74 替換
-    #    屬於 NEG_IC_FEATS（反轉後使用）
-    if len(close) >= 73:
-        delta = close.diff()
-        avg_gain = delta.clip(lower=0).ewm(com=71, min_periods=36).mean()
-        avg_loss = (-delta.clip(upper=0)).ewm(com=71, min_periods=36).mean()
-        last_avg_gain = float(avg_gain.iloc[-1])
-        last_avg_loss = float(avg_loss.iloc[-1])
-        if last_avg_loss > 0:
-            rs = last_avg_gain / last_avg_loss
-            rsi = 100 - (100 / (1 + rs))
-        else:
-            rsi = 100.0
-        features["feat_ear_zscore"] = float(rsi) / 100.0  # normalize to [0,1]
-    elif len(close) >= 25:
-        # Fallback: RSI-24
-        delta = close.diff()
-        avg_gain = delta.clip(lower=0).ewm(com=23, min_periods=12).mean()
-        avg_loss = (-delta.clip(upper=0)).ewm(com=23, min_periods=12).mean()
-        last_avg_gain = float(avg_gain.iloc[-1])
-        last_avg_loss = float(avg_loss.iloc[-1])
-        if last_avg_loss > 0:
-            rs = last_avg_gain / last_avg_loss
-            rsi = 100 - (100 / (1 + rs))
-        else:
-            rsi = 100.0
-        features["feat_ear_zscore"] = float(rsi) / 100.0
+    # 2. Ear: MACD histogram (12/26 EMA) — 動能轉折信號
+    #    MACD_hist = EMA12 - EMA26，正規化至 close price 的 bps
+    #    #H77 替換 RSI-72 (IC=-0.025 p=0.233 不顯著) — RSI 在震盪行情失效
+    #    預期：MACD histogram 正（上漲動能）→ 看漲，負 → 看跌
+    if len(close) >= 26:
+        ema12 = close.ewm(span=12, min_periods=6).mean()
+        ema26 = close.ewm(span=26, min_periods=13).mean()
+        macd_hist = float(ema12.iloc[-1] - ema26.iloc[-1])
+        # Normalize: histogram / current price * 10000 (bps)
+        last_price = float(close.iloc[-1]) if float(close.iloc[-1]) > 0 else 1.0
+        features["feat_ear_zscore"] = macd_hist / last_price * 10000.0
+    elif len(close) >= 12:
+        ema12 = close.ewm(span=12, min_periods=6).mean()
+        ema6 = close.ewm(span=6, min_periods=3).mean()
+        macd_hist = float(ema12.iloc[-1] - ema6.iloc[-1])
+        last_price = float(close.iloc[-1]) if float(close.iloc[-1]) > 0 else 1.0
+        features["feat_ear_zscore"] = macd_hist / last_price * 10000.0
     else:
-        features["feat_ear_zscore"] = 0.5
+        features["feat_ear_zscore"] = 0.0
 
     # 3. Nose: ret_96 — 96期（8h）價格動量回報率
     #    IC=-0.076 (全量, p=0.0004) / IC=-0.145 (近500, p=0.001)

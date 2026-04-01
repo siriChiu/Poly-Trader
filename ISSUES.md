@@ -1,7 +1,7 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-02 06:44 GMT+8**
-> **🔄 心跳 #65：fix #H76 — 加強正則化+class_weight平衡，Train/CV gap 37%→9% (Train=53.2% / CV=42.4%)**
+> **最後更新：2026-04-02 07:01 GMT+8**
+> **🔄 心跳 #66：fix #H77 — ear 替換 RSI-72→MACD_hist (IC=-0.046 p=0.031 ✅)，重訓 Train=60.5% / CV=45.8%**
 > **✅ 上輪修復：心跳 #64：feat: ear=RSI-72, tongue=vol_ratio_6_48, body=stoch_rsi_14 — 全 8 感官 IC 顯著！**
 
 ---
@@ -29,6 +29,7 @@
 
 | ID | 問題 | 解決方案 | 日期 |
 |----|------|----------|------|
+| **#H77** | **feat_ear_zscore IC=-0.025 p=0.233 再次不顯著（RSI-72失效）** | **替換為 MACD histogram(12/26) (IC=-0.046 p=0.031 ✅)** | **04-02 07:01** |
 | **#H76** | **模型嚴重過擬合 Train=80.2%/CV=42.8% gap=37%** | **加強正則化(max_depth=2,reg_lambda=8)+class_weight balance → Train=53.2%/CV=42.4% gap=9%** | **04-02 06:44** |
 | **#H74** | **feat_ear_zscore IC=-0.040 p=0.064 不顯著** | **RSI-24 → RSI-72 (IC=-0.044 p=0.039 ✅)** | **04-02 06:37** |
 | **#H75** | **feat_tongue_pct IC=+0.037 p=0.080 不顯著** | **volatility_24h → vol_ratio_6_48 (IC=+0.127 p<0.0001 ✅)** | **04-02 06:37** |
@@ -65,7 +66,7 @@
 | 感官 | IC | p值 | 顯著? | NEG_IC | 狀態 |
 |------|----|----|-------|--------|------|
 | feat_eye_dist | -0.077 | 0.0003 | ✅ | ✅反轉 | 有效 |
-| feat_ear_zscore | -0.044 | 0.0385 | ✅ | ✅反轉 | ✅ 升級 RSI-72 |
+| feat_ear_zscore | -0.046 | 0.0304 | ✅ | ✅反轉 | ✅ 升級 MACD_hist |
 | feat_nose_sigmoid | -0.071 | 0.0009 | ✅ | ✅反轉 | 有效 |
 | feat_tongue_pct | +0.127 | <0.0001 | ✅ | ❌ | ✅ 升級 vol_ratio |
 | feat_body_roc | -0.053 | 0.0127 | ✅ | ✅反轉 | ✅ 升級 stoch_rsi_14 |
@@ -78,8 +79,8 @@
 ### 模型性能（#64 重訓）
 | 指標 | 值 | 評估 |
 |------|----|----|
-| Train Accuracy | **53.2%** | ✅ (less overfit) |
-| TimeSeries CV | **45.4% ± 9.0%** | 🟡 持續改善中 |
+| Train Accuracy | **60.5%** | ✅ |
+| TimeSeries CV | **45.8% ± 9.0%** | 🟡 持續改善中 |
 | 訓練樣本 | 2,208 筆 (clean h=4) | ✅ |
 
 ### 測試狀態
