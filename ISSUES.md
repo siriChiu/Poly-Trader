@@ -1,8 +1,8 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-02 04:30 GMT+8**
-> **🔄 心跳 #55：fix #H64/#H65 — h=4 horizon + NULL label 更新 + 重訓 Train=59.8% CV=47.3%**
-> **✅ 上輪修復：心跳 #54：fix #H62 偽標籤清除（4383筆）+ train.py h=1/non-NULL 過濾 + 重訓 Train=52.9% CV=39.2%**
+> **最後更新：2026-04-02 05:11 GMT+8**
+> **🔄 心跳 #56：fix #H67 — labeling 5min 時間戳精確匹配問題修復（+52 新標籤）→ 重訓 Train=59.8% CV=46.7%**
+> **✅ 上輪修復：心跳 #55：fix #H64/#H65 — h=4 horizon + NULL label 更新 + 重訓 Train=59.8% CV=47.3%**
 
 ---
 
@@ -11,15 +11,15 @@
 | ID | 問題 | 影響 | 狀態 |
 |----|------|------|------|
 | #H31 | 🔴 歷史 raw data polymarket_prob 幾乎全 NULL | Ear/Polymarket 歷史信號缺失 | 🔴 P1 |
-| #H58 | 🔴 feat_tongue_pct 為 volatility_24h（h=4 IC=+0.027, p=0.21 不顯著）| 已從 NEG_IC_FEATS 移除，但信號本身仍弱 | 🟡 P2 |
 
 ## 🟡 高優先級
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #H33 | 🟡 模型 CV=47.3%（需持續收集乾淨數據） | 2,156 筆 h=4 訓練樣本，每天+240-288筆 | 🟡 P1 — 持續收集（5min 排程中） |
+| #H33 | 🟡 模型 CV=46.7%（需持續收集乾淨數據） | 2,208 筆 h=4 訓練樣本，每天+240-288筆 | 🟡 P1 — 持續收集（5min 排程中） |
 | #H48 | 🟡 NEG_IC_FEATS 硬編碼，未動態更新 | 動態計算 IC 決定是否反轉 | 🟡 P2 |
-| #H66 | 🟡 feat_tongue_pct 信號弱（h=4 IC=+0.027, p=0.21） | 替換為更強信號（stablecoin mcap ROC / put-call ratio） | 🟡 P2 |
+| #H58 | 🟡 feat_tongue_pct 信號弱（h=4 IC=+0.014, p=0.53 不顯著）| 已從 NEG_IC_FEATS 移除，但信號本身仍弱 | 🟡 P2 |
+| #H66 | 🟡 feat_ear/body/pulse/tongue IC 不顯著 | 待更多5min數據累積（目前52筆）或替換信號 | 🟡 P2 |
 
 ## 🟢 低優先級
 
@@ -31,54 +31,52 @@
 
 | ID | 問題 | 解決方案 | 日期 |
 |----|------|----------|------|
-| **#H65** | **h=1 horizon IC 全部不顯著（信噪比太低）** | **改為 h=4（eye/aura/mind IC 顯著 p<0.01）；重訓 Train=59.8% CV=47.3%** | **04-02 04:30** |
-| **#H64** | **save_labels_to_db 不更新已存在的 NULL labels** | **改為 upsert：NULL future_return_pct 行在有數據時更新** | **04-02 04:28** |
-| **#H63** | **IC 全量（h=1）不顯著** | **根本原因：1h 信噪比太低；改 h=4 解決** | **04-02 04:30** |
-| **#H62** | **偽標籤污染：4307筆h=24 hourly + 76筆h=1 NULL** | **清除4383筆偽標籤；train.py 過濾** | **04-02 04:15** |
+| **#H67** | **labeling 5min 時間戳精確匹配失敗（52筆5min era 標籤未生成）** | **改為 nearest-match（60min 容差），新增 52 筆標籤** | **04-02 05:11** |
+| **#H65** | **h=1 horizon IC 全部不顯著** | **改為 h=4；重訓 Train=59.8% CV=47.3%** | **04-02 04:30** |
+| **#H64** | **save_labels_to_db 不更新已存在的 NULL labels** | **改為 upsert** | **04-02 04:28** |
+| **#H62** | **偽標籤污染** | **清除4383筆偽標籤** | **04-02 04:15** |
 | **#H61** | **save_labels_to_db() 是 no-op** | **修復函數實際寫入 Labels 表** | **04-02 04:05** |
 | **#H60** | **feat_pulse IC=+0.019 → v2 pos_in_range_72** | **替換計算邏輯+回填+重訓** | **04-02 03:50** |
-| **#H59** | **feat_pulse IC=+0.019 誤放 NEG_IC_FEATS** | **從 train.py + predictor.py 移除** | **04-02 03:39** |
-| **#H56** | **feat_mind IC=+0.054 誤放 NEG_IC_FEATS** | **從 train.py + predictor.py 移除** | **04-02 03:19** |
-| **#H54** | **feat_mind funding_z_24 IC=+0.036 不顯著** | **替換為 price_momentum_60（IC=-0.163）** | **04-02 03:09** |
+| **#H59** | **feat_pulse 誤放 NEG_IC_FEATS** | **移除** | **04-02 03:39** |
+| **#H56** | **feat_mind 誤放 NEG_IC_FEATS** | **移除** | **04-02 03:19** |
 | #H46 | main.py 排程每小時一次 | 改為 interval(5min) | 04-02 01:52 |
 | #H43 | 8,760 筆 1969-era 污染數據 | 全部清除 | 04-02 00:06 |
 | #H23 | 資料庫崩潰 | 90 天回填 | 04-01 17:16 |
 
 ---
 
-## 📊 當前系統健康 (2026-04-02 04:30 GMT+8)
+## 📊 當前系統健康 (2026-04-02 05:11 GMT+8)
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw data | 2,237 筆 | ✅ |
-| Features | 2,237 筆 | ✅ |
-| Labels (h=4, clean) | 2,156 筆 | ✅ h=4 有效標籤 |
-| 最新資料時間 | 2026-04-01 20:18 UTC | ✅ |
-| BTC 當前 | ~$68,086 | ✅ |
+| Raw data | 2,245 筆 | ✅ |
+| Features | 2,245 筆 | ✅ |
+| Labels (h=4, clean) | 2,208 筆 (+52) | ✅ |
+| 最新資料時間 | 2026-04-01 21:03 UTC | ✅ |
+| BTC 當前 | ~$68,229 | ✅ |
 | FNG | 8.0 (極度恐慌) | ⚠️ |
-| Funding Rate | 0.0000356 (中性) | ℹ️ |
-| OI ROC | +0.0085 | ℹ️ |
+| Funding Rate | 0.0000362 (中性) | ℹ️ |
 | **main.py 進程** | **5分鐘排程（運行中 PID 13573）** | ✅ |
 
-### 感官 IC（h=4，n=2195，統計顯著性）
+### 感官 IC（h=4，n=2,147，統計顯著性）
 | 感官 | IC (h=4) | p值 | 顯著? | 狀態 |
 |------|----------|-----|-------|------|
-| feat_eye_dist (funding_ma72) | -0.069 | 0.00 | ✅ | 反轉使用 |
-| feat_ear_zscore (momentum_48h) | -0.009 | 0.66 | ❌ | ⚠️ 弱信號 |
-| feat_nose_sigmoid (autocorr_48h) | -0.047 | 0.03 | ✅ | 反轉使用 |
-| feat_tongue_pct (volatility_24h) | +0.027 | 0.21 | ❌ | ⚠️ 待替換 |
-| feat_body_roc (MACD%) | -0.021 | 0.34 | ❌ | ⚠️ 弱信號 |
-| feat_pulse v2 (pos_in_range_72) | -0.029 | 0.17 | ❌ | ⚠️ 弱信號 |
-| feat_aura (funding_zscore_288) | -0.074 | 0.00 | ✅ | 反轉使用 |
-| feat_mind v2 (ret_72) | -0.073 | 0.00 | ✅ | 反轉使用 |
+| feat_eye_dist (funding_ma72) | -0.066 | 0.00 | ✅ | 反轉使用 |
+| feat_ear_zscore (momentum_48h) | -0.008 | 0.70 | ❌ | ⚠️ 弱信號 |
+| feat_nose_sigmoid (autocorr_48h) | -0.050 | 0.02 | ✅ | 反轉使用 |
+| feat_tongue_pct (volatility_24h) | +0.014 | 0.53 | ❌ | ⚠️ 待替換 |
+| feat_body_roc (MACD%) | -0.015 | 0.49 | ❌ | ⚠️ 弱信號 |
+| feat_pulse v2 (pos_in_range_72) | -0.018 | 0.39 | ❌ | ⚠️ 弱信號 |
+| feat_aura (funding_zscore_288) | -0.059 | 0.01 | ✅ | 反轉使用 |
+| feat_mind v2 (ret_72) | -0.064 | 0.00 | ✅ | 反轉使用 |
 
-### 模型性能（#55 重訓 h=4）
+### 模型性能（#56 重訓 h=4）
 | 指標 | 值 | 評估 |
 |------|----|----|
-| Train Accuracy | 59.8% | ✅ 改善 |
-| TimeSeries CV | 47.3% ± 10.3% | 🟡 比 h=1 顯著提升 |
-| 訓練樣本 | 2,147 筆 (clean h=4) | ✅ |
+| Train Accuracy | 59.8% | ✅ |
+| TimeSeries CV | 46.7% ± 9.7% | 🟡 持續改善中 |
+| 訓練樣本 | 2,201 筆 (clean h=4) | ✅ +45 from last |
 
 ### 測試狀態
 | 項目 | 狀態 |
@@ -97,9 +95,9 @@
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
-| P1 | **持續累積 h=4 乾淨數據**：每天新增 ~240 筆有效標籤 | #H33 |
-| P2 | **feat_tongue 替換**：volatility_24h IC 弱，考慮 stablecoin_mcap ROC | #H66 |
-| P2 | **NEG_IC_FEATS 動態化** — 基於實際 IC 自動決定反轉方向 | #H48 |
+| P1 | **持續累積 h=4 乾淨數據**：5min 排程每天新增 ~288 筆 | #H33 |
+| P2 | **feat_tongue/ear/body/pulse 替換**：IC 不顯著，考慮 RSI、OBV、stablecoin ROC | #H66 |
+| P2 | **NEG_IC_FEATS 動態化** | #H48 |
 | P3 | **IC 動態加權** | #IC4 |
 
 ---
