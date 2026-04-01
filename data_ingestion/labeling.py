@@ -49,20 +49,30 @@ def generate_future_return_labels(
         for r in raw_rows if r.close_price is not None
     ]).dropna().set_index("timestamp").sort_index()
 
+    # fix #H67: use nearest-match (60min tolerance) for 5-min data where exact timestamps don't align
+    FUTURE_TOLERANCE = timedelta(minutes=60)
+
     labels = []
     for ts in feature_times:
         future_ts = ts + timedelta(hours=horizon_hours)
-        # 向前查找最接近 future_ts 的價格
-        future_price_series = prices_df.reindex(prices_df.index.union([future_ts])).loc[future_ts:]
-        if future_price_series.empty:
+        # 找未來最近的價格（容差 60min）
+        mask_future = (prices_df.index >= future_ts - FUTURE_TOLERANCE) &                       (prices_df.index <= future_ts + FUTURE_TOLERANCE)
+        candidates_future = prices_df[mask_future]
+        if candidates_future.empty:
             continue
-        future_price = future_price_series.iloc[0]["close_price"]
-        # 當前價格：用特徵時間對應的價格（若特徵表無，從 prices_df 找最近）
-        current_price_series = prices_df.reindex(prices_df.index.union([ts])).loc[:ts]
-        if current_price_series.empty:
+        # 取最近的
+        nearest_future_pos = (candidates_future.index - future_ts).to_series().abs().values.argmin()
+        future_price = candidates_future.iloc[nearest_future_pos]["close_price"]
+        if pd.isna(future_price):
             continue
-        current_price = current_price_series.iloc[-1]["close_price"]
-        if current_price == 0:
+        # 當前價格：找最近的（容差 10min）
+        mask_current = (prices_df.index >= ts - timedelta(minutes=10)) &                        (prices_df.index <= ts + timedelta(minutes=10))
+        candidates_current = prices_df[mask_current]
+        if candidates_current.empty:
+            continue
+        nearest_current_pos = (candidates_current.index - ts).to_series().abs().values.argmin()
+        current_price = candidates_current.iloc[nearest_current_pos]["close_price"]
+        if pd.isna(current_price) or current_price == 0:
             continue
         ret_pct = (future_price - current_price) / current_price
         if ret_pct > threshold_pct:
