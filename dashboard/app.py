@@ -14,6 +14,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timedelta
 import os
 
@@ -119,8 +120,8 @@ with col4:
 st.divider()
 
 # Tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🔍 特徵分析", "🤖 模型預測", "📜 交易歷史", "📈 策略回測", "🔧 參數優化"
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "🔍 特徵分析", "🤖 模型預測", "📜 交易歷史", "📈 策略回測", "🔧 參數優化", "🔬 五感有效性"
 ])
 
 with tab1:
@@ -317,6 +318,50 @@ with tab5:
                 st.error("優化失敗，可能數據不足或回測錯誤。")
         except Exception as e:
             st.exception(e)
+
+with tab6:
+    st.subheader("🔬 五感有效性分析")
+    st.write("量化每个感官特征与未来收益率的相关性（IC）及分位数胜率。")
+
+    # 从 config 加载
+    cfg = load_config()
+    db_url = cfg["database"]["url"]
+    engine_local = create_engine(db_url)
+    SessionLocal = sessionmaker(bind=engine_local)
+    session = SessionLocal()
+
+    try:
+        from analysis.sense_effectiveness import compute_information_coefficient, compute_win_rate_by_feature_quantile
+
+        # 1. 计算 IC
+        st.write("**📌 信息系数 (IC)**")
+        ic = compute_information_coefficient(session, cfg["trading"]["symbol"], horizon_hours=24)
+        if ic:
+            ic_df = pd.DataFrame(list(ic.items()), columns=["Feature", "IC"])
+            fig_ic = px.bar(ic_df, x="Feature", y="IC", title="Information Coefficient (Spearman) by Feature", color="IC", color_continuous_scale="RdYlGn")
+            st.plotly_chart(fig_ic, use_container_width=True)
+            st.dataframe(ic_df, use_container_width=True)
+        else:
+            st.warning("暂无足够数据计算 IC")
+
+        # 2. 分位数胜率
+        st.write("**📊 分位数胜率热图**")
+        quantile_df = compute_win_rate_by_feature_quantile(session, cfg["trading"]["symbol"], horizon_hours=24, n_quantiles=5)
+        if not quantile_df.empty:
+            # 热图：特征 vs 分位数，值为 win_rate
+            pivot = quantile_df.pivot_table(index="quantile", columns="feature", values="win_rate")
+            fig_heat = px.imshow(pivot, text_auto=".1%", aspect="auto", title="Win Rate by Feature Quantile", color_continuous_scale="YlOrRd")
+            st.plotly_chart(fig_heat, use_container_width=True)
+
+            # 显示原始数据
+            st.write("原始数据：")
+            st.dataframe(quantile_df, use_container_width=True)
+        else:
+            st.warning("暂无足够数据计算分位数胜率")
+    except Exception as e:
+        st.error(f"分析失败: {e}")
+    finally:
+        session.close()
 
 st.divider()
 st.caption("💡 提示：若要啟用真實數據，請完成五感數據寫入與模型訓練流程。")

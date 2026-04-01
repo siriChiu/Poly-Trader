@@ -16,8 +16,8 @@ logger = setup_logger(__name__)
 def generate_future_return_labels(
     session: Session,
     symbol: str,
-    horizon_hours: int = 4,
-    up_thresh: float = 0.003, down_thresh: float = -0.003
+    horizon_hours: int = 24,
+    threshold_pct: float = 0.0
 ) -> pd.DataFrame:
     """
     從 FeaturesNormalized 的時間戳，對應到未來 horizon_hooks 的收益率，並生成標籤。
@@ -64,12 +64,7 @@ def generate_future_return_labels(
         if current_price == 0:
             continue
         ret_pct = (future_price - current_price) / current_price
-        if ret_pct > 0.003:
-            label = 1
-        elif ret_pct < -0.003:
-            label = -1
-        else:
-            label = 0
+        label = 1 if ret_pct > threshold_pct else 0
         labels.append({
             "timestamp": ts,
             "label": label,

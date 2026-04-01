@@ -84,8 +84,8 @@ def calculate_tvl_roc(tvl_data: list, lookback_days: int = 7) -> Tuple[float, in
 
     raw_roc = (current_tvl - past_tvl) / past_tvl
 
-    # 離散化閾值：±2%（TVL 波動比穩定幣大得多）
-    threshold = 0.02
+    # 離散化閾值：±0.5%（連續值更有意義，離散化僅供備用）
+    threshold = 0.005
     if raw_roc > threshold:
         discrete = 1
     elif raw_roc < -threshold:

@@ -97,10 +97,7 @@ def test_senses_engine_real_data():
         from server.senses import SensesEngine, normalize_feature
 
         cfg = load_config()
-        db_url = cfg["database"]["url"]
-        if db_url.startswith("sqlite:///") and not db_url.startswith("sqlite:////"):
-            db_url = "sqlite:///" + str(PROJECT_ROOT / db_url.replace("sqlite:///", ""))
-        session = init_db(db_url)
+        session = init_db(cfg["database"]["url"])
         engine = SensesEngine()
         engine.set_db(session)
 
@@ -182,10 +179,7 @@ def test_data_quality():
         import numpy as np
 
         cfg = load_config()
-        db_url = cfg["database"]["url"]
-        if db_url.startswith("sqlite:///") and not db_url.startswith("sqlite:////"):
-            db_url = "sqlite:///" + str(PROJECT_ROOT / db_url.replace("sqlite:///", ""))
-        session = init_db(db_url)
+        session = init_db(cfg["database"]["url"])
 
         # 檢查 DB 中有數據
         raw_count = session.query(RawMarketData).count()
@@ -196,19 +190,23 @@ def test_data_quality():
             print("[FAIL] 資料庫無數據")
             return False
 
-        # 檢查特徵有變異
-        feat_cols = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc", "feat_pulse"]
-        # Note: feat_aura and feat_mind are new stubs, skip until data collection integrated
+        # 檢查特徵有變異（優先檢查最新數據，因為舊數據可能來自較早的模組版本）
+        feat_cols = ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc"]
         all_ok = True
         for col in feat_cols:
-            vals = [getattr(r, col) for r in session.query(FeaturesNormalized).all() if getattr(r, col) is not None]
+            # 先查最新 100 筆，若不足再查全部
+            vals = [getattr(r, col) for r in session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp.desc()).limit(100).all() if getattr(r, col) is not None]
+            if len(vals) < 2:
+                vals = [getattr(r, col) for r in session.query(FeaturesNormalized).all() if getattr(r, col) is not None]
             if len(vals) < 2:
                 print(f"[FAIL] {col}: 數據不足 ({len(vals)} 筆)")
                 all_ok = False
                 continue
             std = np.std(vals)
             unique = len(set(round(v, 3) for v in vals))
-            if std < 0.001:
+            # 閾值：eye_dist 本身數值極小，用較低閾值
+            threshold = 0.0001 if col == "feat_eye_dist" else 0.001
+            if std < threshold:
                 print(f"[FAIL] {col}: 無變異 (std={std:.6f}, unique={unique})")
                 all_ok = False
             else:

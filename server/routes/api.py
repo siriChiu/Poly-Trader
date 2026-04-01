@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from server.dependencies import get_db, get_config, is_automation_enabled, set_automation_enabled
 from server.senses import get_engine
-from database.models import FeaturesNormalized
+from database.models import TradeHistory, RawMarketData, FeaturesNormalized
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -37,12 +37,17 @@ def _calc_ma_at(data, period, i):
     return sum(data[s:i + 1]) / n if n > 0 else 0
 
 def _calc_max_dd(eq):
-    if not eq: return 0
-    pk = eq[0]; mdd = 0
+    """計算最大回撤"""
+    if not eq:
+        return 0
+    pk = eq[0]
+    mdd = 0
     for v in eq:
-        if v > pk: pk = v
+        if v > pk:
+            pk = v
         dd = (pk - v) / pk
-        if dd > mdd: mdd = dd
+        if dd > mdd:
+            mdd = dd
     return mdd
 
 # ─── API Endpoints ───
@@ -165,41 +170,10 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
                 continue
 
             # 計算五感綜合分數 (0~1)
-            # 特徵值在 -1~1 範圍，正規化到 0~1
-            feat_names = [
-                ("feat_eye_dist", feat.feat_eye_dist, "eye"),
-                ("feat_ear_zscore", feat.feat_ear_zscore, "ear"),
-                ("feat_nose_sigmoid", feat.feat_nose_sigmoid, "nose"),
-                ("feat_tongue_pct", feat.feat_tongue_pct, "tongue"),
-                ("feat_body_roc", feat.feat_body_roc, "body"),
-            ]
-            normalized = {}
-            for f_name, val, sense in feat_names:
-                if val is None:
-                    continue
-                if sense == "eye":
-                    normalized[sense] = (val + 1) / 2
-                elif sense == "ear":
-                    normalized[sense] = max(0, min(1, (val + 3) / 6))
-                elif sense == "nose":
-                    normalized[sense] = (val + 1) / 2
-                elif sense == "tongue":
-                    normalized[sense] = (val + 1) / 2
-                elif sense == "body":
-                    normalized[sense] = (val + 1) / 2
-            
-            if not normalized:
-                continue
-            
-            # 使用 IC 動態權重（與 SensesEngine 一致）
-            weights = {"eye": 0.30, "ear": 0.25, "nose": 0.25, "tongue": 0.05, "body": 0.15}
-            total_weight = 0
-            score = 0
-            for sense, val in normalized.items():
-                w = weights.get(sense, 0.2)
-                score += val * w
-                total_weight += w
-            score = score / total_weight if total_weight > 0 else 0
+            vals = [feat.feat_eye_dist, feat.feat_ear_zscore, feat.feat_nose_sigmoid, feat.feat_tongue_pct, feat.feat_body_roc]
+            valid = [v for v in vals if v is not None]
+            if not valid: continue
+            score = sum(valid) / len(valid)
 
             # 止損
             if position > 0 and price <= entry_price * (1 - stop_p):
@@ -208,7 +182,7 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
                 trades.append({"timestamp": datetime.fromtimestamp(dt).isoformat() + "Z", "action": "sell", "price": round(price, 2), "amount": position, "pnl": round(pnl, 2), "reason": "stop_loss"})
                 position = 0
 
-            # 策略邏輯：score 0~1, threshold 0.55 for buy
+            # 策略邏輯
             if score >= threshold and position == 0:
                 position = (equity * 0.05) / price
                 entry_price = price

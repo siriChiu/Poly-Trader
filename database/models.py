@@ -26,6 +26,10 @@ class RawMarketData(Base):
     polymarket_prob = Column(Float)
     eye_dist = Column(Float, nullable=True)   # Eye 原始：價格與阻力/支撐距離
     ear_prob = Column(Float, nullable=True)   # Ear 原始：預測市場概率
+    tongue_sentiment = Column(Float, nullable=True)  # Tongue 情緒綜合分數 v2
+    volatility = Column(Float, nullable=True)        # Tongue v3：24h 波動率
+    oi_roc = Column(Float, nullable=True)            # Body v4：持倉量變化率
+    body_label = Column(String, nullable=True)       # Body v4：槓桿狀態標籤
 
 
 class FeaturesNormalized(Base):
@@ -38,10 +42,7 @@ class FeaturesNormalized(Base):
     feat_ear_zscore = Column(Float)    # 耳：市場共識 Z-score
     feat_nose_sigmoid = Column(Float)  # 鼻：資金費率 Sigmoid 壓縮
     feat_tongue_pct = Column(Float)    # 舌：情緒指數百分比
-    feat_body_roc = Column(Float)
-    feat_pulse = Column(Float)       # 脈: 波動率 z-score
-    feat_aura = Column(Float)        # 磁: funding/OI 背離
-    feat_mind = Column(Float)        # 知: BTC/ETH 成交量比      # 身：資金增長率
+    feat_body_roc = Column(Float)      # 身：資金增長率
 
 
 class TradeHistory(Base):
