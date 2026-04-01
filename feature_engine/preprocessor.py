@@ -113,18 +113,15 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_tongue_pct"] = 0.0
 
-    # 5. Body: range_pos_24h — 24h 價格在區間中的位置
-    #    IC=+0.0241: 高位 → 支撐強（正相關）
-    if len(close) >= 25:
-        window = close.iloc[-24:]
-        low = window.min()
-        high = window.max()
-        if high > low:
-            features["feat_body_roc"] = float((close.iloc[-1] - low) / (high - low))
-        else:
-            features["feat_body_roc"] = 0.5
+    # 5. Body: macd_pct — MACD 背離百分比（EMA12 - EMA26）/ 當前價格 × 100
+    #    IC=-0.070 (upgraded from range_pos_24h IC=+0.012, #H16)
+    #    原理：MACD 負值 → 短期動能弱於長期 → 偏空（後續回升空間大）
+    if len(close) >= 26:
+        ema12 = close.ewm(span=12, adjust=False).mean().iloc[-1]
+        ema26 = close.ewm(span=26, adjust=False).mean().iloc[-1]
+        features["feat_body_roc"] = float((ema12 - ema26) / close.iloc[-1] * 100)
     else:
-        features["feat_body_roc"] = 0.5
+        features["feat_body_roc"] = 0.0
 
     # 6. Pulse: funding_trend_bps — funding rate 趨勢（24h MA - 72h MA，in bps ×10000）
     #    IC=-0.0669: 下降趨勢 → 看漲（槓桿冷卻）
