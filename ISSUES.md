@@ -1,7 +1,7 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-01 22:09 GMT+8**
-> **🔄 心跳 #6：Collector PID 20086 運行中，CV=54.8%，feat_mind NULL（最新行），Polymarket 仍 11/10931**
+> **最後更新：2026-04-01 22:14 GMT+8**
+> **🔄 心跳 #7：Collector PID 20086 運行中，CV=54.8%，feat_mind=1.046（最新行已修復），Polymarket 仍 13/10933**
 
 ---
 
@@ -12,17 +12,15 @@
 | #H33 | 🟡 模型 CV=54.8% 超過基線但仍需提升至 90% | 距目標仍遠 | 🟡 P1 — 繼續優化 |
 | #H34 | 🟡 多感官 IC < 0.10：Eye=+0.043, Ear=-0.166, Nose=-0.169, Body=-0.102, Aura=-0.112 | 多為負向預測，樹模型可自動處理 | 🟡 P1 — 繼續改進 |
 | #H25 | 🔴 Labels 只有 2 類 (0,1)，無 class -1（持平） | 無「觀望」信號 | 🔴 P1 |
-| #H31 | 🔴 歷史 raw data polymarket_prob 幾乎全 NULL（11/10931 筆） | Ear/Polymarket 信號缺失 | 🔴 P1 |
-| #H39 | 🟡 features_normalized 最新行 feat_mind=NULL | Mind 信號缺失於最新預測 | 🟡 P1 |
+| #H31 | 🔴 歷史 raw data polymarket_prob 幾乎全 NULL（13/10933 筆） | Ear/Polymarket 信號缺失 | 🔴 P1 |
 
 ## 🟡 高優先級
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
 | #H36 | 🟡 Ear 用 price momentum（可能與 Eye/Aura 共線） | 確認相關性，考慮解耦 | 🟡 P1 |
-| #H16 | 🟡 Eye/Pulse IC 弱 (Pulse=+0.013，近雜訊) | 替換 Pulse 特徵 | 🟡 P1 |
+| #H16 | 🟡 Pulse IC 弱 (+0.013，近雜訊) | 替換為 OI 變化率或 BTC/ETH 相對強度 | 🟡 P1 |
 | #D01 | 🟡 TypeScript tsc Permission denied | npx tsc 路徑問題 | 🟡 P2 |
-| #M06 | 🟡 lag 特徵 IC 測試：ret_1h=0.008, ret_4h=0.003, ret_24h=0.087 | neg_ret_24h IC OK 但不改善 CV | 🟡 已評估，暫緩 |
 
 ## 🟢 低優先級
 
@@ -34,6 +32,7 @@
 
 | ID | 問題 | 解決方案 | 日期 |
 |----|------|----------|------|
+| #H39 | feat_mind 最新行 NULL | 已修復，最新行 feat_mind=1.046 ✅ | 04-01 22:14 |
 | #H38 | feat_pulse/mind/tongue/body 全為 NULL/常數 | 批次重算，修復 v2 recompute | 04-01 21:53 |
 | Predictor mismatch | feature_names mismatch (raw vs feat_*) | 重訓後 model/xgb_model.pkl 已覆蓋為 feat_* | 04-01 22:05 |
 | Aura leakage | Nose×Aura 相關 0.91 | Aura 重設為 price vs funding 背離 | 04-01 21:53 |
@@ -45,21 +44,22 @@
 | #H33d | 模型嚴重過擬 (96.9%) | 正則化加強: depth 3, lr 0.03 | 04-01 21:24 |
 | #H23 | 資料庫崩潰 | 90 天回填 → 2166 rows | 04-01 17:16 |
 | #H24 | Collector 數據卡死 | backlog filled, realtime OK | 04-01 17:16 |
+| #M06 | lag 特徵 IC 測試 | ret_1h=0.008, ret_4h=0.003, ret_24h=0.087；不改善 CV，暫緩 | 04-01 |
 
 ---
 
-## 📊 當前系統健康 (2026-04-01 22:09 GMT+8)
+## 📊 當前系統健康 (2026-04-01 22:14 GMT+8)
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw data | 10931 筆 | ✅ |
-| Features | 2170 筆 | ✅ |
-| feat_mind (最新行) | NULL | 🔴 |
+| Raw data | 10933 筆 | ✅ |
+| Features | 2171 筆 | ✅ |
+| feat_mind (最新行) | 1.046 | ✅ |
 | Labels | 13067 筆 (0: 6855, 1: 6212) | ✅ |
-| 最新資料時間 | 2026-04-01 14:01 UTC | ✅ |
-| BTC 當前 | $68,190 | ✅ |
-| Polymarket prob | 0.3836 (只有 11 筆非空) | 🔴 |
+| 最新資料時間 | 2026-04-01 14:13 UTC | ✅ |
+| BTC 當前 | $68,157 | ✅ |
+| Polymarket prob | 非空 13/10933 | 🔴 |
 | Collector | PID 20086 (運行中) | ✅ |
 
 ### 感官 IC (vs labels, last 500 samples)
@@ -90,10 +90,9 @@
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
-| P1 | **調查 feat_mind NULL**：最新行 feat_mind=NULL，確認 recompute 是否漏算 | #H39 |
 | P1 | **替換 Pulse**：IC=+0.013 近雜訊，改用 OI 變化率或 BTC/ETH 相對強度 | #H16 |
-| P1 | **Polymarket 數據回填**：只有 11 筆，需修復收集邏輯 | #H31 |
-| P1 | **增加訓練樣本**：持續收集 realtime 數據 | #H33 |
+| P1 | **Polymarket 數據回填**：只有 13 筆，需修復收集邏輯 | #H31 |
+| P1 | **持續收集 realtime 數據**：增加訓練樣本量改善 CV | #H33 |
 | P2 | **Labels 3-class**：加入 class -1（持平/觀望信號） | #H25 |
 | P2 | **修復 TypeScript 權限** | #D01 |
 
