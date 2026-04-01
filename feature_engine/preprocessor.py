@@ -137,26 +137,27 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_pulse"] = 0.0
 
-    # 7. Aura: price_vs_funding_divergence — 價格動量 vs Funding Rate 背離
-    #    原理：價格上漲但 funding 低/負 → 未被槓桿確認的真實需求（bullish）
-    #    實現：price_return_24h rank - funding_rate_24h rank（rank-based 去除量綱）
-    if len(close) >= 25 and len(fr) >= 24:
-        price_ret = float(close.iloc[-1] / close.iloc[-24] - 1) if close.iloc[-24] != 0 else 0.0
-        # Normalize price return to [-1, 1] using historical std
-        price_std = close.pct_change().rolling(72).std().iloc[-1] if len(close) >= 72 else close.pct_change().std()
-        price_z = float(price_ret / price_std) if (price_std and price_std > 0) else 0.0
-        price_z = float(np.clip(price_z, -3, 3) / 3)  # scale to [-1, 1]
-        # Funding rate z-score (last vs rolling mean)
-        fr_mean = fr.tail(72).mean() if len(fr) >= 72 else fr.mean()
-        fr_std = fr.tail(72).std() if len(fr) >= 72 else fr.std()
-        fr_z = float((fr.iloc[-1] - fr_mean) / fr_std) if fr_std > 0 else 0.0
-        fr_z = float(np.clip(fr_z, -3, 3) / 3)
-        # Divergence: price up + funding low = bullish (positive); price up + funding high = warning
-        features["feat_aura"] = float(price_z - fr_z)
-    elif len(close) >= 12:
-        # Simplified version with shorter history
-        price_ret = float(close.iloc[-1] / close.iloc[-12] - 1) if close.iloc[-12] != 0 else 0.0
-        features["feat_aura"] = float(np.clip(price_ret * 10, -1, 1))
+    # 7. Aura (v2): volume_zscore — 成交量 z-score
+    #    原理：成交量飆升 → 恐慌/FOMO，往往預示趨勢反轉或確認
+    #    IC_prev=-0.008（price_vs_funding_divergence）→ 替換，提升信號強度
+    #    實現：(vol - vol_mean_72) / vol_std_72，正值=高量，負值=低量
+    vol = df["volume"].dropna()
+    if len(vol) >= 72:
+        vol_mean = vol.tail(72).mean()
+        vol_std = vol.tail(72).std()
+        if vol_std > 0:
+            vol_z = float((vol.iloc[-1] - vol_mean) / vol_std)
+            features["feat_aura"] = float(np.clip(vol_z, -3, 3))
+        else:
+            features["feat_aura"] = 0.0
+    elif len(vol) >= 12:
+        vol_mean = vol.mean()
+        vol_std = vol.std()
+        if vol_std > 0:
+            vol_z = float((vol.iloc[-1] - vol_mean) / vol_std)
+            features["feat_aura"] = float(np.clip(vol_z, -3, 3))
+        else:
+            features["feat_aura"] = 0.0
     else:
         features["feat_aura"] = 0.0
 
