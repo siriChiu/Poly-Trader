@@ -1,7 +1,7 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-01 22:14 GMT+8**
-> **🔄 心跳 #7：Collector PID 20086 運行中，CV=54.8%，feat_mind=1.046（最新行已修復），Polymarket 仍 13/10933**
+> **最後更新：2026-04-01 23:00 GMT+8**
+> **🔄 心跳 #15：Collector PID 20086 運行中，CV=54.8%，BTC=$68,583，已修復 senses.py 特徵缺漏 Bug**
 
 ---
 
@@ -10,28 +10,29 @@
 | ID | 問題 | 影響 | 狀態 |
 |----|------|------|------|
 | #H33 | 🟡 模型 CV=54.8% 超過基線但仍需提升至 90% | 距目標仍遠 | 🟡 P1 — 繼續優化 |
-| #H34 | 🟡 多感官 IC < 0.10：Eye=+0.043, Ear=-0.166, Nose=-0.169, Body=-0.102, Aura=-0.112 | 多為負向預測，樹模型可自動處理 | 🟡 P1 — 繼續改進 |
+| #H34 | 感官 IC 偏低：多感官負向或弱相關 | 樹模型可自動處理負向 | 🟡 P1 — 繼續改進 |
 | #H25 | 🔴 Labels 只有 2 類 (0,1)，無 class -1（持平） | 無「觀望」信號 | 🔴 P1 |
-| #H31 | 🔴 歷史 raw data polymarket_prob 幾乎全 NULL（13/10933 筆） | Ear/Polymarket 信號缺失 | 🔴 P1 |
+| #H31 | 🔴 歷史 raw data polymarket_prob 幾乎全 NULL（非空僅 17/10,940） | Ear/Polymarket 歷史信號缺失 | 🔴 P1 |
 
 ## 🟡 高優先級
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #H36 | 🟡 Ear 用 price momentum（可能與 Eye/Aura 共線） | 確認相關性，考慮解耦 | 🟡 P1 |
-| #H16 | 🟡 Pulse IC 弱 (+0.013，近雜訊) | 替換為 OI 變化率或 BTC/ETH 相對強度 | 🟡 P1 |
+| #H36 | 🟡 多感官可能共線（Ear/Aura/Eye 負向相似） | 確認相關性，考慮解耦 | 🟡 P1 |
+| #H16 | 🟡 Pulse IC 弱 (+0.043，近雜訊) | 替換為 OI 變化率或 BTC/ETH 相對強度 | 🟡 P1 |
 | #D01 | 🟡 TypeScript tsc Permission denied | npx tsc 路徑問題 | 🟡 P2 |
 
 ## 🟢 低優先級
 
 | ID | 問題 | 建議 | 狀態 |
-|----|------|------|------|
+|----|------|------|-------|
 | #IC4 | 模型動態 IC 加權 | 實現感官動態權重 | 🟢 P3 |
 
 ## 🏆 已解決
 
 | ID | 問題 | 解決方案 | 日期 |
 |----|------|----------|------|
+| #H40 | senses.py `_get_latest_features()` 缺少 feat_pulse/aura/mind | 補齊 3 個特徵欄位，XGBoost mismatch 修復 | 04-01 23:00 |
 | #H39 | feat_mind 最新行 NULL | 已修復，最新行 feat_mind=1.046 ✅ | 04-01 22:14 |
 | #H38 | feat_pulse/mind/tongue/body 全為 NULL/常數 | 批次重算，修復 v2 recompute | 04-01 21:53 |
 | Predictor mismatch | feature_names mismatch (raw vs feat_*) | 重訓後 model/xgb_model.pkl 已覆蓋為 feat_* | 04-01 22:05 |
@@ -48,31 +49,32 @@
 
 ---
 
-## 📊 當前系統健康 (2026-04-01 22:14 GMT+8)
+## 📊 當前系統健康 (2026-04-01 23:00 GMT+8)
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw data | 10933 筆 | ✅ |
-| Features | 2171 筆 | ✅ |
-| feat_mind (最新行) | 1.046 | ✅ |
-| Labels | 13067 筆 (0: 6855, 1: 6212) | ✅ |
-| 最新資料時間 | 2026-04-01 14:13 UTC | ✅ |
-| BTC 當前 | $68,157 | ✅ |
-| Polymarket prob | 非空 13/10933 | 🔴 |
+| Raw data | 10,940 筆 | ✅ |
+| Features | 10,931 筆 | ✅ |
+| feat_mind (最新) | -0.140 (IC) | ✅ |
+| Labels | 13,067 筆 (0: 6855, 1: 6212) | ✅ |
+| 最新資料時間 | 2026-04-01 15:01 UTC | ✅ |
+| BTC 當前 | $68,583 | ✅ |
+| Polymarket prob (realtime) | 0.3823 | ✅ |
+| Polymarket prob (歷史) | 非空 17/10,940 | 🔴 |
 | Collector | PID 20086 (運行中) | ✅ |
 
 ### 感官 IC (vs labels, last 500 samples)
 | 感官/特徵 | IC | 說明 | 狀態 |
 |-----------|-----|------|------|
-| Eye (feat_eye_dist) | +0.043 | funding_ma72 | 🟡 |
-| Ear (feat_ear_zscore) | -0.166 | momentum_48h（負向） | 🟡 XGB 可用 |
-| Nose (feat_nose_sigmoid) | -0.169 | autocorr_48h（負向最強） | 🟡 XGB 可用 |
-| Tongue (feat_tongue_pct) | -0.066 | volatility_24h | 🟡 |
-| Body (feat_body_roc) | -0.102 | range_pos_24h | 🟡 XGB 可用 |
-| Pulse (feat_pulse) | +0.013 | funding_trend（近雜訊） | 🔴 弱 |
-| Aura (feat_aura) | -0.112 | price vs funding 背離 | 🟡 XGB 可用 |
-| Mind (feat_mind) | +0.097 | funding_z_24h（最強正向） | 🟡 |
+| Eye (feat_eye_dist) | -0.043 | funding_ma72（負向弱） | 🟡 |
+| Ear (feat_ear_zscore) | -0.112 | momentum_48h（負向） | 🟡 XGB 可用 |
+| Nose (feat_nose_sigmoid) | +0.373 | autocorr_48h（最強正向！） | 🟢 |
+| Tongue (feat_tongue_pct) | +0.030 | volatility_24h | 🟡 |
+| Body (feat_body_roc) | -0.127 | range_pos_24h（負向） | 🟡 XGB 可用 |
+| Pulse (feat_pulse) | +0.043 | funding_trend（弱） | 🔴 弱 |
+| Aura (feat_aura) | -0.037 | price vs funding 背離 | 🟡 |
+| Mind (feat_mind) | -0.140 | funding_z_24h（負向） | 🟡 XGB 可用 |
 
 ### 模型性能（最新）
 | 指標 | 值 | 評估 |
@@ -90,8 +92,9 @@
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
-| P1 | **替換 Pulse**：IC=+0.013 近雜訊，改用 OI 變化率或 BTC/ETH 相對強度 | #H16 |
-| P1 | **Polymarket 數據回填**：只有 13 筆，需修復收集邏輯 | #H31 |
+| P1 | **Polymarket 數據回填**：只有 17 筆歷史，需修復收集邏輯 | #H31 |
+| P1 | **替換 Pulse**：IC=+0.043 近雜訊，改用 OI 變化率或 BTC/ETH 相對強度 | #H16 |
+| P1 | **Nose IC=+0.373 是最強信號**：深入研究 autocorr_48h，考慮擴展 | #H34 |
 | P1 | **持續收集 realtime 數據**：增加訓練樣本量改善 CV | #H33 |
 | P2 | **Labels 3-class**：加入 class -1（持平/觀望信號） | #H25 |
 | P2 | **修復 TypeScript 權限** | #D01 |

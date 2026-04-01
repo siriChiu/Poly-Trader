@@ -163,6 +163,9 @@ class SensesEngine:
                 "feat_nose_sigmoid": row.feat_nose_sigmoid,
                 "feat_tongue_pct": row.feat_tongue_pct,
                 "feat_body_roc": row.feat_body_roc,
+                "feat_pulse": row.feat_pulse,
+                "feat_aura": row.feat_aura,
+                "feat_mind": row.feat_mind,
                 "timestamp": row.timestamp,
             }
         except Exception as e:
