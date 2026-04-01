@@ -76,31 +76,32 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_eye_dist"] = 0.0
 
-    # 2. Ear: RSI-24 — 24期相對強弱指標（normalized to [0,1]）
-    #    IC=-0.098 (p=0.028, n=500): RSI 高 → 過買 → 看跌（反轉信號）
-    #    替換 momentum_48h（IC=-0.059, p=0.187, 不顯著） #H69
+    # 2. Ear: RSI-72 — 72期相對強弱指標（normalized to [0,1]）
+    #    IC=-0.052 (p=0.015, n=2172): RSI 高 → 過買 → 看跌（反轉信號）
+    #    RSI-72 優於 RSI-24 (IC=-0.040, p=0.064, 不顯著) #H74 替換
     #    屬於 NEG_IC_FEATS（反轉後使用）
-    if len(close) >= 25:
+    if len(close) >= 73:
         delta = close.diff()
-        gain = delta.clip(lower=0)
-        loss = -delta.clip(upper=0)
-        avg_gain = gain.ewm(com=23, min_periods=24).mean()
-        avg_loss = loss.ewm(com=23, min_periods=24).mean()
-        last_avg_gain = avg_gain.iloc[-1]
-        last_avg_loss = avg_loss.iloc[-1]
+        avg_gain = delta.clip(lower=0).ewm(com=71, min_periods=36).mean()
+        avg_loss = (-delta.clip(upper=0)).ewm(com=71, min_periods=36).mean()
+        last_avg_gain = float(avg_gain.iloc[-1])
+        last_avg_loss = float(avg_loss.iloc[-1])
         if last_avg_loss > 0:
             rs = last_avg_gain / last_avg_loss
             rsi = 100 - (100 / (1 + rs))
         else:
             rsi = 100.0
         features["feat_ear_zscore"] = float(rsi) / 100.0  # normalize to [0,1]
-    elif len(close) >= 5:
-        # Fallback: simpler RSI-4
+    elif len(close) >= 25:
+        # Fallback: RSI-24
         delta = close.diff()
-        gain = delta.clip(lower=0).tail(4).mean()
-        loss = (-delta.clip(upper=0)).tail(4).mean()
-        if loss > 0:
-            rsi = 100 - (100 / (1 + gain/loss))
+        avg_gain = delta.clip(lower=0).ewm(com=23, min_periods=12).mean()
+        avg_loss = (-delta.clip(upper=0)).ewm(com=23, min_periods=12).mean()
+        last_avg_gain = float(avg_gain.iloc[-1])
+        last_avg_loss = float(avg_loss.iloc[-1])
+        if last_avg_loss > 0:
+            rs = last_avg_gain / last_avg_loss
+            rsi = 100 - (100 / (1 + rs))
         else:
             rsi = 100.0
         features["feat_ear_zscore"] = float(rsi) / 100.0
@@ -118,32 +119,38 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_nose_sigmoid"] = 0.0
 
-    # 4. Tongue: volatility_24h — 24h 波動率
-    #    IC=-0.0560: 高波動 → 方向性不明，通常看跌
-    if len(returns) >= 25:
-        features["feat_tongue_pct"] = float(returns.iloc[-24:].std())
-    elif len(returns) >= 6:
-        features["feat_tongue_pct"] = float(returns.std())
+    # 4. Tongue: vol_ratio_6_48 — 短期/長期波動率比（波動爆發信號）
+    #    IC=+0.128 (p<0.0001, n=2184): 短期波動激增 → 市場動盪 → 偏多（突破信號）
+    #    替換 volatility_24h (IC=+0.037, p=0.080, 不顯著) #H75
+    #    正 IC → 無需反轉（不加入 NEG_IC_FEATS）
+    if len(returns) >= 48:
+        vol_short = float(returns.iloc[-6:].std())
+        vol_long = float(returns.iloc[-48:].std())
+        features["feat_tongue_pct"] = vol_short / (vol_long + 1e-10)
+    elif len(returns) >= 12:
+        vol_short = float(returns.iloc[-3:].std())
+        vol_long = float(returns.std())
+        features["feat_tongue_pct"] = vol_short / (vol_long + 1e-10)
     else:
-        features["feat_tongue_pct"] = 0.0
+        features["feat_tongue_pct"] = 1.0
 
-    # 5. Body: atr_ratio_14 — ATR(14) / 當前價格（市場波動率比例）
-    #    IC=+0.046 (全量, p=0.031) / IC=+0.167 (近500, p=0.0002)
-    #    替換 macd_pct (IC=-0.065, p=0.144, 不顯著) #H69
-    #    正 IC → ATR 高 → 波動大 → 偏多（突破信號）
+    # 5. Body: stoch_rsi_14 — 14期 Stochastic RSI（[0,1]）
+    #    IC=-0.054 (p=0.012, n=2188): Stoch RSI 高 → 過買 → 看跌（反轉信號）
+    #    替換 atr_ratio_14 (IC=+0.041, p=0.055, 邊緣不顯著) #H66
+    #    屬於 NEG_IC_FEATS（反轉後使用）
     if len(close) >= 15:
-        highs = close.rolling(14).max()
-        lows = close.rolling(14).min()
-        tr = highs - lows
-        atr = tr.rolling(14).mean()
-        atr_val = atr.iloc[-1]
-        cur_price = close.iloc[-1]
-        if not np.isnan(atr_val) and cur_price > 0:
-            features["feat_body_roc"] = float(atr_val / cur_price)
-        else:
-            features["feat_body_roc"] = 0.0
+        delta_b = close.diff()
+        gain_b = delta_b.clip(lower=0).ewm(com=13, min_periods=7).mean()
+        loss_b = (-delta_b.clip(upper=0)).ewm(com=13, min_periods=7).mean()
+        rs_b = gain_b / (loss_b + 1e-10)
+        rsi_b = 100 - (100 / (1 + rs_b))
+        rsi_min_b = rsi_b.rolling(14, min_periods=7).min()
+        rsi_max_b = rsi_b.rolling(14, min_periods=7).max()
+        stoch = (rsi_b - rsi_min_b) / (rsi_max_b - rsi_min_b + 1e-10)
+        val_b = float(stoch.iloc[-1])
+        features["feat_body_roc"] = val_b if not np.isnan(val_b) else 0.5
     else:
-        features["feat_body_roc"] = 0.0
+        features["feat_body_roc"] = 0.5
 
     # 6. Pulse (v2): pos_in_range_72 — 價格在過去72期（6h）高低點範圍中的位置
     #    IC=-0.160 (p<0.001, n=500): 位置高 → 過熱 → 看跌（反轉信號）
