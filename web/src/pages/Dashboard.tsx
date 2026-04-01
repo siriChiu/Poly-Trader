@@ -33,6 +33,7 @@ interface ModelStats {
 }
 
 interface ConfidenceData {
+  error?: string;
   confidence: number;
   signal: string;
   confidence_level: string;
