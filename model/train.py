@@ -22,9 +22,6 @@ FEATURE_COLS = [
     "feat_nose_sigmoid",
     "feat_tongue_pct",
     "feat_body_roc",
-    "feat_pulse",
-    "feat_aura",
-    "feat_mind",
 ]
 
 
@@ -55,9 +52,6 @@ def load_training_data(
             "feat_nose_sigmoid": r.feat_nose_sigmoid,
             "feat_tongue_pct": r.feat_tongue_pct,
             "feat_body_roc": r.feat_body_roc,
-            "feat_pulse": getattr(r, 'feat_pulse', None),
-            "feat_aura": getattr(r, 'feat_aura', None),
-            "feat_mind": getattr(r, 'feat_mind', None),
         }
         for r in feat_rows
     ])
@@ -88,8 +82,6 @@ def load_training_data(
 
     X = merged[FEATURE_COLS]
     y = merged["label"].astype(int)
-    # Remap 3-class labels: -1->0, 0->1, 1->2 (XGBoost requires 0,1,2,...)
-    y = y.map({-1: 0, 0: 1, 1: 2}).astype(int)
     logger.info(f"載入訓練資料: {len(X)} 筆 (merge_asof, 10min tolerance)")
     return X, y
 
@@ -102,19 +94,14 @@ def train_xgboost(
     n_neg = (y == 0).sum()
     n_pos = (y == 1).sum()
     scale_pos_weight = n_neg / max(n_pos, 1)
-    # For 3-class: also track neutral class distribution
-    n_neu = (y == 0).sum()
 
     if params is None:
         params = {
-            "n_estimators": 200,
-            "max_depth": 3,
-            "learning_rate": 0.05,
-            "subsample": 0.7,
-            "colsample_bytree": 0.7,
-            "reg_alpha": 0.1,
-            "reg_lambda": 1.0,
-            "min_child_weight": 5,
+            "n_estimators": 100,
+            "max_depth": 4,
+            "learning_rate": 0.1,
+            "subsample": 0.8,
+            "colsample_bytree": 0.8,
             "eval_metric": "logloss",
             "scale_pos_weight": scale_pos_weight,
             "random_state": 42,
@@ -123,12 +110,6 @@ def train_xgboost(
         params.setdefault("scale_pos_weight", scale_pos_weight)
 
     logger.info(f"類別平衡: neg={n_neg}, pos={n_pos}, scale_pos_weight={scale_pos_weight:.2f}")
-    # For 3-class: XGBoost auto-detects multi-class
-    n_classes = len(y.unique())
-    if n_classes > 2:
-        params.setdefault("objective", "multi:softprob")
-        params.setdefault("num_class", n_classes)
-        logger.info(f"Multi-class training: {n_classes} classes")
     model = xgb.XGBClassifier(**params)
     model.fit(X, y)
     logger.info("XGBoost 模型訓練完成")

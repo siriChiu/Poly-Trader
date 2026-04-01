@@ -71,9 +71,6 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
         "feat_nose_sigmoid": None,
         "feat_tongue_pct": None,
         "feat_body_roc": None,
-        "feat_pulse": None,
-        "feat_aura": None,
-        "feat_mind": None,
     }
 
     # 1. Eye: eye_dist 使用歷史 min-max 正規化到 -1~1
@@ -123,10 +120,12 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
             else:
                 features["feat_ear_zscore"] = 0.0
 
-    # 3. Nose: OI ROC (取代 funding_rate, 解除與 Ear 的洩漏)
-    oi_val = latest.get("stablecoin_mcap")
-    if pd.notna(oi_val) and oi_val is not None:
-        features["feat_nose_sigmoid"] = float(oi_val)
+    # 3. Nose: Funding Rate Sigmoid
+    fr_val = latest.get("funding_rate")
+    if pd.notna(fr_val) and fr_val is not None:
+        x = float(fr_val) * 10000
+        s = sigmoid(x)
+        features["feat_nose_sigmoid"] = float(2 * s - 1)
 
     # 4. Tongue: 情緒綜合分數 v2（-1~1，直接使用）
     tongue_val = latest.get("tongue_sentiment")
@@ -142,38 +141,6 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     roc_val = latest.get("stablecoin_mcap")
     if pd.notna(roc_val) and roc_val is not None:
         features["feat_body_roc"] = float(roc_val)
-
-    # 6. Pulse: 20-period return volatility z-score
-    if "close_price" in df.columns:
-        closes = df["close_price"].dropna()
-        if len(closes) >= 20:
-            returns = closes.pct_change().dropna()
-            if len(returns) >= 20:
-                vol = returns.tail(20).std()
-                vol_window = []
-                for i in range(19, len(returns)):
-                    chunk = returns.iloc[max(0,i-19):i+1]
-                    vol_window.append(chunk.std())
-                if len(vol_window) >= 10:
-                    v_mean = np.mean(vol_window[:-1])
-                    v_std = np.std(vol_window[:-1])
-                    if v_std > 0:
-                        z = (vol - v_mean) / v_std
-                        features["feat_pulse"] = float(np.tanh(z / 2))
-
-    # 7. Aura: funding_rate * price_roc divergence
-    fr_val = latest.get("funding_rate")
-    if pd.notna(fr_val) and fr_val is not None:
-        closes2 = df["close_price"].dropna()
-        if len(closes2) >= 2:
-            prev_close = float(closes2.iloc[-2])
-            curr_close = float(closes2.iloc[-1])
-            price_roc = (curr_close - prev_close) / prev_close if prev_close > 0 else 0
-            product = float(fr_val) * price_roc
-            if product >= 0:
-                features["feat_aura"] = float(np.tanh(product * 10000) * 0.3)
-            else:
-                features["feat_aura"] = float(-np.tanh(product * 10000) * 0.6)
 
     return features
 
@@ -201,9 +168,6 @@ def save_features_to_db(
             feat_nose_sigmoid=features.get("feat_nose_sigmoid"),
             feat_tongue_pct=features.get("feat_tongue_pct"),
             feat_body_roc=features.get("feat_body_roc"),
-            feat_pulse=features.get("feat_pulse"),
-            feat_aura=features.get("feat_aura"),
-            feat_mind=features.get("feat_mind"),
         )
         session.add(record)
         session.commit()
