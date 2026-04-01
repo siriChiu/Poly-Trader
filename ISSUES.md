@@ -1,8 +1,8 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-02 07:46 GMT+8**
-> **🔄 心跳 #70：修復重複 main.py 進程（#H81）；清理殘留 PID 25614**
-> **✅ 上輪修復：心跳 #69：fix #H80 — collector.py 移除重複 run_preprocessor 呼叫**
+> **最後更新：2026-04-02 07:49 GMT+8**
+> **🔄 心跳 #71：實作 lag 特徵 (#M06) — 1h/4h/24h 時序記憶，32 features 重訓**
+> **✅ 上輪修復：心跳 #70：fix #H81 — 修復重複 main.py 進程**
 
 ---
 
@@ -23,12 +23,13 @@
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
 | #IC4 | 模型動態 IC 加權 | tongue IC=+0.126 遠高於其他，應加大 XGBoost 輸入權重 | 🟢 P3 |
-| #M06 | 缺少 lag 特徵 | 1h/4h/24h lag 增強時序記憶 | 🟢 P3 |
+
 
 ## 🏆 已解決
 
 | ID | 問題 | 解決方案 | 日期 |
 |----|------|----------|------|
+| **#M06** | **lag 特徵缺失** | **加入 feat_*_lag12/lag48/lag288 共 24 個 lag 特徵；N=1955, CV=44.9%** | **04-02 07:49** |
 | **#H81** | **重複 main.py 進程（PID 25614+26388 同時運行）** | **kill 25614，更新 poly_trader.pid=26388，保留較新進程** | **04-02 07:46** |
 | **#H80** | **collector.py run_preprocessor 重複呼叫** | **移除 collector.py 內嵌的 run_preprocessor 呼叫** | **04-02 07:39** |
 | **#H79** | **predictor.py AttributeError: 'dict' has no attribute 'predict_proba'** | **__init__ 判斷 dict 並解包 clf/imputer/neg_ic_feats** | **04-02 07:14** |
@@ -57,10 +58,10 @@
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw data | 2,279 筆 | ✅ |
-| Features | 2,279 筆 | ✅ |
-| Labels (h=4, clean) | 2,239 筆 | ✅ |
-| 最新資料時間 | 2026-04-01 23:44 UTC | ✅ |
+| Raw data | 2,280 筆 | ✅ |
+| Features | 2,280 筆 | ✅ |
+| Labels (h=4, clean) | 2,240 筆 | ✅ |
+| 最新資料時間 | 2026-04-01 23:49 UTC | ✅ |
 | BTC 當前 | ~$68,122 | ✅ |
 | FNG | 8.0 (極度恐慌) | ⚠️ |
 | Funding Rate | 3.47e-05 (中性) | ℹ️ |
