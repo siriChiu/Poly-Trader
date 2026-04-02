@@ -22,7 +22,7 @@
 4. 所有 Git 操作：`ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && git ..."`
 5. 絕對禁止在 `~/.openclaw/workspace/Poly-Trader/` 建立或修改任何程式碼檔案
 
-*最後更新：2026-04-02 16:05 GMT+8*
+*最後更新：2026-04-02 17:55 GMT+8*
 > **🔄 心跳 #101：Pulse 失效替換（vol_ratio_12_48，IC=+0.1087）；全 8 感官 IC OK；BTC=$66,476；CV=56.30%；6/6測試通過**
 
 ---
@@ -125,3 +125,12 @@
 
 ---
 *此文件每次心跳完全覆蓋，保持簡潔。*
+
+
+## Backtest Engine v3
+
+- 加入交易成本模型：手續費 (0.1%%) + 滑點 (0.05%%)
+- 加入 Buy ^& Hold 基準線 + Alpha 計算
+- 修復 engine.py L116 重複 predict_proba bug
+- metrics.py 新增 Sortino、最大連續虧損、平均持倉時間
+- 新增 _build_results 輸出 buy_hold_curve / total_trading_cost

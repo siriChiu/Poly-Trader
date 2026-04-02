@@ -1,6 +1,6 @@
 """
-回測引擎 v2 — BUY/SELL 雙向 + 金字塔加碼
-支援：感官信心金字塔、斐波那契支撐加碼
+回測引擎 v3 — BUY/SELL 雙向 + 金字塔加碼 + 交易成本模型 + Buy & Hold 基準
+支援：感官信號金字塔、斐波那契支撐加碼、手續費/滑點模擬
 """
 
 import pandas as pd
@@ -34,7 +34,8 @@ MAX_TOTAL_EXPOSURE = 0.20
 class BacktestEngine:
     def __init__(self, session, initial_capital=10000, confidence_threshold=0.65,
                  max_position_ratio=0.20, stop_loss_pct=0.03, take_profit_pct=0.06,
-                 symbol="BTC/USDT", pyramid_mode="confidence"):
+                 symbol="BTC/USDT", pyramid_mode="confidence",
+                 commission_rate=0.001, slippage_bps=5):
         self.session = session
         self.initial_capital = initial_capital
         self.confidence_threshold = confidence_threshold
@@ -43,11 +44,22 @@ class BacktestEngine:
         self.take_profit_pct = take_profit_pct
         self.symbol = symbol
         self.pyramid_mode = pyramid_mode
+        self.commission_rate = commission_rate
+        self.slippage_bps = slippage_bps
         self.predictor = load_predictor()
         self.capital = initial_capital
         self.positions: List[Dict] = []
         self.equity_curve = []
         self.trade_log = []
+        self.total_commissions = 0.0
+        self.total_slippage_cost = 0.0
+
+    def _apply_cost(self, notional: float) -> float:
+        comm = notional * self.commission_rate
+        slip = notional * (self.slippage_bps / 10000.0)
+        self.total_commissions += comm
+        self.total_slippage_cost += slip
+        return comm + slip
 
     def _total_position_value(self, price):
         return sum(p["qty"] * price for p in self.positions)
@@ -103,16 +115,23 @@ class BacktestEngine:
         return None
 
     def run(self, features_df, price_series):
-        logger.info(f"Backtest v2: capital={self.initial_capital}, mode={self.pyramid_mode}, n={len(features_df)}")
+        logger.info(
+            f"Backtest v3: capital={self.initial_capital}, mode={self.pyramid_mode}, "
+            f"n={len(features_df)}, commission={self.commission_rate}, slippage={self.slippage_bps}bps"
+        )
         equity = self.initial_capital
+        first_price = None
+
         for idx, row in features_df.iterrows():
             ts = row["timestamp"]
             price = price_series.get(ts, None)
             if isinstance(price, pd.Series): price = price.iloc[-1]
             if price is None or (isinstance(price, float) and pd.isna(price)): continue
+            if first_price is None:
+                first_price = price
+
             features = {c: row.get(c) for c in ["feat_eye_dist","feat_ear_zscore","feat_nose_sigmoid",
                          "feat_tongue_pct","feat_body_roc","feat_pulse","feat_aura","feat_mind"]}
-            confidence = self.predictor.predict_proba(features)
             confidence = self.predictor.predict_proba(features)
 
             # SELL
@@ -124,11 +143,18 @@ class BacktestEngine:
                 elif pnl_pct >= self.take_profit_pct: sell, reason = True, "TAKE_PROFIT"
                 elif confidence < 0.4 and pnl_pct > 0.01: sell, reason = True, "SIGNAL_EXIT"
                 if sell:
-                    tp = sum((price - p["entry_price"]) * p["qty"] for p in self.positions)
-                    equity += tp
-                    self.trade_log.append({"timestamp": ts, "action": "SELL", "price": price,
-                        "amount": sum(p["qty"] for p in self.positions), "confidence": confidence,
-                        "pnl": tp, "reason": reason, "tiers_closed": len(self.positions)})
+                    gross_pnl = sum((price - p["entry_price"]) * p["qty"] for p in self.positions)
+                    notional = sum(price * p["qty"] for p in self.positions)
+                    cost = self._apply_cost(notional)
+                    net_pnl = gross_pnl - cost
+                    equity += net_pnl
+                    self.trade_log.append({
+                        "timestamp": ts, "action": "SELL", "price": price,
+                        "amount": sum(p["qty"] for p in self.positions),
+                        "confidence": confidence, "pnl": net_pnl,
+                        "gross_pnl": gross_pnl, "commission_slippage": cost,
+                        "reason": reason, "tiers_closed": len(self.positions)
+                    })
                     self.positions = []
 
             # BUY / Pyramid
@@ -138,11 +164,17 @@ class BacktestEngine:
                 ti = self._should_pyramid_fibonacci(confidence, price, price_series, ts)
             if ti:
                 sz = equity * ti["ratio"]
-                qty = round(sz / price, 4)
+                cost = self._apply_cost(sz)
+                net_sz = sz - cost
+                qty = round(net_sz / price, 4)
                 if qty > 0:
                     self.positions.append({"qty": qty, "entry_price": price, "tier": ti["label"]})
-                    self.trade_log.append({"timestamp": ts, "action": "BUY", "price": price,
-                        "amount": qty, "confidence": confidence, "tier": ti["label"], "tier_num": len(self.positions)})
+                    self.trade_log.append({
+                        "timestamp": ts, "action": "BUY", "price": price,
+                        "amount": qty, "confidence": confidence,
+                        "tier": ti["label"], "tier_num": len(self.positions),
+                        "commission_slippage": cost
+                    })
 
             # Equity
             if self.positions:
@@ -156,32 +188,60 @@ class BacktestEngine:
         # Force close
         if self.positions:
             lp = price_series.iloc[-1]
-            tp = sum((lp - p["entry_price"]) * p["qty"] for p in self.positions)
-            self.trade_log.append({"timestamp": features_df.iloc[-1]["timestamp"], "action": "SELL",
-                "price": lp, "amount": sum(p["qty"] for p in self.positions), "pnl": tp, "reason": "END"})
-        return self._build_results()
+            gross_pnl = sum((lp - p["entry_price"]) * p["qty"] for p in self.positions)
+            notional = sum(lp * p["qty"] for p in self.positions)
+            cost = self._apply_cost(notional)
+            net_pnl = gross_pnl - cost
+            self.trade_log.append({
+                "timestamp": features_df.iloc[-1]["timestamp"], "action": "SELL",
+                "price": lp, "amount": sum(p["qty"] for p in self.positions),
+                "pnl": net_pnl, "gross_pnl": gross_pnl,
+                "commission_slippage": cost, "reason": "END"
+            })
+        return self._build_results(features_df, price_series, first_price)
 
-    def _build_results(self):
+    def _build_results(self, features_df, price_series, first_price):
         eq = pd.DataFrame(self.equity_curve).set_index("timestamp") if self.equity_curve else pd.DataFrame()
+
+        bh_curve = None
+        bh_return = 0.0
+        if first_price and not eq.empty and not price_series.empty:
+            last_price = price_series.iloc[-1]
+            bh_prices = price_series.reindex(eq.index, method="ffill")
+            bh_curve = self.initial_capital * (bh_prices / first_price)
+            bh_curve.name = "buy_hold"
+            bh_return = (last_price / first_price - 1) * 100
+
         sells = [t for t in self.trade_log if t.get("pnl") is not None]
         wins = [t for t in sells if t.get("pnl", 0) > 0]
         tr = (eq["equity"].iloc[-1] / self.initial_capital - 1) * 100 if not eq.empty else 0
         pk = eq["equity"].expanding().max() if not eq.empty else pd.Series()
         dd = abs(((eq["equity"] - pk) / pk).min()) * 100 if not eq.empty else 0
-        return {"equity_curve": eq, "trade_log": pd.DataFrame(self.trade_log),
-                "final_equity": eq["equity"].iloc[-1] if not eq.empty else self.initial_capital,
-                "initial_capital": self.initial_capital, "total_trades": len(sells),
-                "total_buys": len([t for t in self.trade_log if t["action"] == "BUY"]),
-                "win_rate": len(wins) / len(sells) * 100 if sells else 0,
-                "total_return": tr, "max_drawdown": dd,
-                "avg_tiers": sum(t.get("tiers_closed", 1) for t in sells) / len(sells) if sells else 0}
+        alpha = tr - bh_return
+
+        return {
+            "equity_curve": eq, "buy_hold_curve": bh_curve,
+            "trade_log": pd.DataFrame(self.trade_log),
+            "final_equity": eq["equity"].iloc[-1] if not eq.empty else self.initial_capital,
+            "initial_capital": self.initial_capital,
+            "total_trades": len(sells),
+            "total_buys": len([t for t in self.trade_log if t["action"] == "BUY"]),
+            "win_rate": len(wins) / len(sells) * 100 if sells else 0,
+            "total_return": tr, "max_drawdown": dd,
+            "buy_hold_return": bh_return, "alpha": alpha,
+            "total_commissions": self.total_commissions,
+            "total_slippage_cost": self.total_slippage_cost,
+            "total_trading_cost": self.total_commissions + self.total_slippage_cost,
+            "avg_tiers": sum(t.get("tiers_closed", 1) for t in sells) / len(sells) if sells else 0
+        }
 
 def run_backtest(session, start_date=None, end_date=None, initial_capital=10000,
                  confidence_threshold=0.65, max_position_ratio=0.20,
                  stop_loss_pct=0.03, take_profit_pct=0.06, symbol="BTC/USDT",
-                 pyramid_mode="confidence"):
+                 pyramid_mode="confidence", commission_rate=0.001, slippage_bps=5):
     bt = BacktestEngine(session, initial_capital, confidence_threshold,
-                        max_position_ratio, stop_loss_pct, take_profit_pct, symbol, pyramid_mode)
+                        max_position_ratio, stop_loss_pct, take_profit_pct,
+                        symbol, pyramid_mode, commission_rate, slippage_bps)
     feat = bt.load_historical_features(start_date, end_date)
     if feat.empty: return None
     px = bt.load_historical_prices(feat["timestamp"].tolist())
