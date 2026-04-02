@@ -57,8 +57,8 @@
 - 了解當前 P0 問題清單、系統架構、當前目標
 
 ### Step 1: 數據收集
-- 運行 `dev_heartbeat.py` 檢查檔案結構和模組語法
-- 運行 `comprehensive_test.py` 檢查系統健康
+- 運行 `scripts/dev_heartbeat.py` 檢查檔案結構和模組語法
+- 運行 `tests/comprehensive_test.py` 檢查系統健康
 - 確認 raw_market_data / features_normalized 數據量增加
 - 記錄最新一筆的價格、FNG、funding rate、OI ROC
 - 確認 API / Web 是否正常運作
@@ -122,7 +122,7 @@
 - 修改後必須通過測試
 
 #### Step 5.2: 功能測試（如果有修改代碼的話）
-- 運行 `comprehensive_test.py` 確認不破壞現有功能
+- 運行 `tests/comprehensive_test.py` 確認不破壞現有功能
 - 確認 Python 語法正確（py_compile）
 - 確認前端 TypeScript 編譯通過
 

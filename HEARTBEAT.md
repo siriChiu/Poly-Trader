@@ -13,7 +13,7 @@
 - 不可跳過此步驟，即使是例行心跳
 
 ### Step 1: 數據收集
-- 運行 `Poly-Trader/dev_heartbeat.py` 檢查檔案結構和模組語法
+- 運行 `Poly-Trader/scripts/scripts/dev_heartbeat.py` 檢查檔案結構和模組語法
 - 運行 collector 收集最新數據
 - 記錄最新 raw/features/labels 數量、BTC 價格、衍生品數據
 
@@ -59,7 +59,7 @@
 - 修改前先審閱（git diff）
 
 #### Step 5.2: 功能測試（如果有修改代碼）
-- 運行 `comprehensive_test.py` 確認不破壞現有功能
+- 運行 `tests/comprehensive_test.py` 確認不破壞現有功能
 
 ### Step 6: 回報摘要
 輸出格式：

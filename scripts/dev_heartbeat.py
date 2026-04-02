@@ -10,7 +10,7 @@ import py_compile
 from pathlib import Path
 from typing import List, Dict
 
-PROJECT_ROOT = Path(__file__).parent.resolve()
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
 # 必需的目錄結構
 REQUIRED_DIRS = [
