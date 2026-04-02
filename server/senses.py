@@ -45,41 +45,14 @@ SENSE_EMOJIS = {
 }
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "eye": {
-        "name": "視覺 Eye", "emoji": "👁️", "description": "技術面分析",
-        "modules": {
-            "order_book": {"name": "Order Book 距離", "source": "Binance", "enabled": True, "weight": 0.5, "value": None},
-            "kline_levels": {"name": "K 線支撐阻力", "source": "Binance", "enabled": True, "weight": 0.5, "value": None},
-        }, "score": 0.5,
-    },
-    "ear": {
-        "name": "聽覺 Ear", "emoji": "👂", "description": "市場共識",
-        "modules": {
-            "consensus": {"name": "資金費率共識", "source": "Binance Futures", "enabled": True, "weight": 0.5, "value": None},
-            "momentum": {"name": "價格動量", "source": "Binance", "enabled": True, "weight": 0.5, "value": None},
-        }, "score": 0.5,
-    },
-    "nose": {
-        "name": "嗅覺 Nose", "emoji": "👃", "description": "衍生品市場",
-        "modules": {
-            "funding_rate": {"name": "資金費率", "source": "Binance Futures", "enabled": True, "weight": 0.6, "value": None},
-            "open_interest": {"name": "持倉量變化", "source": "Binance Futures", "enabled": True, "weight": 0.4, "value": None},
-        }, "score": 0.5,
-    },
-    "tongue": {
-        "name": "味覺 Tongue", "emoji": "👅", "description": "市場情緒",
-        "modules": {
-            "fear_greed": {"name": "恐懼貪婪指數", "source": "Alternative.me", "enabled": True, "weight": 0.7, "value": None},
-            "social": {"name": "社交情緒", "source": "Proxy", "enabled": True, "weight": 0.3, "value": None},
-        }, "score": 0.5,
-    },
-    "body": {
-        "name": "觸覺 Body", "emoji": "💪", "description": "鏈上資金",
-        "modules": {
-            "liquidation": {"name": "清算壓力", "source": "Binance Futures OI", "enabled": True, "weight": 0.5, "value": None},
-            "capital_flow": {"name": "資金流向", "source": "Proxy", "enabled": True, "weight": 0.5, "value": None},
-        }, "score": 0.5,
-    },
+    "eye":   {"name": "視覺 Eye",   "emoji": "👁️", "description": "72h Funding Rate 均值",        "modules": {"main": {"name": "72h Funding 均值",     "source": "Binance Futures",  "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "ear":   {"name": "聽覺 Ear",   "emoji": "👂", "description": "48h 價格動量",                "modules": {"main": {"name": "48h 價格動量",       "source": "Binance K線",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "nose":  {"name": "嗅覺 Nose",  "emoji": "👃", "description": "48h 收益率自相關",            "modules": {"main": {"name": "48h 自相關",         "source": "K線衍生",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "tongue":{"name": "味覺 Tongue","emoji": "👅", "description": "24h 波動率",                  "modules": {"main": {"name": "24h 波動率",         "source": "K線衍生",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "body":  {"name": "觸覺 Body",  "emoji": "💪", "description": "24h 價格區間位置",            "modules": {"main": {"name": "24h 區間位置",       "source": "K線衍生",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "pulse": {"name": "脈動 Pulse", "emoji": "💓", "description": "Funding Rate 趨勢",           "modules": {"main": {"name": "Funding 趨勢",       "source": "Binance Futures",  "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "aura":  {"name": "磁場 Aura",  "emoji": "🌀", "description": "波動率×自相關交互",            "modules": {"main": {"name": "波動率×自相關",     "source": "複合特徵",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "mind":  {"name": "認知 Mind",  "emoji": "🧠", "description": "24h Funding Z-score",         "modules": {"main": {"name": "24h Funding Z",     "source": "Binance Futures",  "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
 }
 
 CONFIG_PATH = Path(__file__).parent.parent / "data" / "senses_config.json"
@@ -249,7 +222,7 @@ class SensesEngine:
         ]
         overall = self._overall_advice(rec_score)
         sorted_senses = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        names = {"eye": "技術面", "ear": "市場共識", "nose": "衍生品", "tongue": "情緒", "body": "鏈上資金"}
+        names = {"eye": "技術面", "ear": "市場共識", "nose": "衍生品", "tongue": "情緒", "body": "鏈上資金", "pulse": "脈動", "aura": "磁場", "mind": "認知"}
 
         summary = (
             f"{names[sorted_senses[0][0]]}最強（{sorted_senses[0][1]:.0%}），"

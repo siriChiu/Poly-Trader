@@ -2,109 +2,119 @@
   "eye": {
     "name": "視覺 Eye",
     "emoji": "👁️",
-    "description": "技術面分析",
+    "description": "72h Funding Rate 均值",
     "modules": {
-      "order_book": {
-        "name": "Order Book 距離",
-        "source": "Binance",
+      "funding_ma72": {
+        "name": "72h Funding 均值",
+        "source": "Binance Futures",
         "enabled": true,
-        "weight": 0.5,
-        "value": 0.619
-      },
-      "kline_levels": {
-        "name": "K 線支撐阻力",
-        "source": "Binance",
-        "enabled": true,
-        "weight": 0.5,
-        "value": 0.619
+        "weight": 1.0,
+        "value": null
       }
     },
-    "score": 0.619
+    "score": 0.5
   },
   "ear": {
     "name": "聽覺 Ear",
     "emoji": "👂",
-    "description": "市場共識",
+    "description": "48h 價格動量",
     "modules": {
-      "consensus": {
-        "name": "資金費率共識",
-        "source": "Binance Futures",
-        "enabled": true,
-        "weight": 0.5,
-        "value": 0.4178
-      },
       "momentum": {
-        "name": "價格動量",
-        "source": "Binance",
+        "name": "48h 價格動量",
+        "source": "Binance K線",
         "enabled": true,
-        "weight": 0.5,
-        "value": 0.4178
+        "weight": 1.0,
+        "value": null
       }
     },
-    "score": 0.4178
+    "score": 0.5
   },
   "nose": {
     "name": "嗅覺 Nose",
     "emoji": "👃",
-    "description": "衍生品市場",
+    "description": "48h 收益率自相關",
     "modules": {
-      "funding_rate": {
-        "name": "資金費率",
-        "source": "Binance Futures",
+      "autocorr": {
+        "name": "48h 自相關",
+        "source": "K線衍生",
         "enabled": true,
-        "weight": 0.6,
-        "value": 0.5189
-      },
-      "open_interest": {
-        "name": "持倉量變化",
-        "source": "Binance Futures",
-        "enabled": true,
-        "weight": 0.4,
-        "value": 0.5189
+        "weight": 1.0,
+        "value": null
       }
     },
-    "score": 0.5189
+    "score": 0.5
   },
   "tongue": {
     "name": "味覺 Tongue",
     "emoji": "👅",
-    "description": "市場情緒",
+    "description": "24h 波動率",
     "modules": {
-      "fear_greed": {
-        "name": "恐懼貪婪指數",
-        "source": "Alternative.me",
+      "volatility": {
+        "name": "24h 波動率",
+        "source": "K線衍生",
         "enabled": true,
-        "weight": 0.7,
-        "value": 0.54
-      },
-      "social": {
-        "name": "社交情緒",
-        "source": "Proxy",
-        "enabled": true,
-        "weight": 0.3,
-        "value": 0.54
+        "weight": 1.0,
+        "value": null
       }
     },
-    "score": 0.54
+    "score": 0.5
   },
   "body": {
     "name": "觸覺 Body",
     "emoji": "💪",
-    "description": "鏈上資金",
+    "description": "24h 價格區間位置",
     "modules": {
-      "liquidation": {
-        "name": "清算壓力",
-        "source": "Binance Futures OI",
+      "range_pos": {
+        "name": "24h 區間位置",
+        "source": "K線衍生",
         "enabled": true,
-        "weight": 0.5,
-        "value": 0.5
-      },
-      "capital_flow": {
-        "name": "資金流向",
-        "source": "Proxy",
+        "weight": 1.0,
+        "value": null
+      }
+    },
+    "score": 0.5
+  },
+  "pulse": {
+    "name": "脈動 Pulse",
+    "emoji": "💓",
+    "description": "Funding Rate 趨勢",
+    "modules": {
+      "funding_trend": {
+        "name": "Funding 趨勢",
+        "source": "Binance Futures",
         "enabled": true,
-        "weight": 0.5,
-        "value": 0.5
+        "weight": 1.0,
+        "value": null
+      }
+    },
+    "score": 0.5
+  },
+  "aura": {
+    "name": "磁場 Aura",
+    "emoji": "🌀",
+    "description": "波動率×自相關交互",
+    "modules": {
+      "vol_autocorr": {
+        "name": "波動率×自相關",
+        "source": "複合特徵",
+        "enabled": true,
+        "weight": 1.0,
+        "value": null
+      }
+    },
+    "score": 0.5
+  },
+  "mind": {
+    "name": "認知 Mind",
+    "emoji": "🧠",
+    "description": "24h Funding Z-score",
+    "modules": {
+      "funding_z": {
+        "name": "24h Funding Z-score",
+        "source": "Binance Futures",
+        "enabled": true,
+        "weight": 1.0,
+        "value": null
       }
     },
     "score": 0.5
