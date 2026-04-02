@@ -66,32 +66,32 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
         "timestamp": latest.get("timestamp", datetime.utcnow()),
     }
 
-    # 1. Eye: funding_ma72_bps — 72h funding rate moving average (in bps, ×10000)
-    #    IC=-0.1720: 高 funding → 看跌（過度槓桿）
-    #    #H42 fix: scale to bps so XGBoost can meaningfully split on this feature
-    if len(fr) >= 72:
-        features["feat_eye_dist"] = float(fr.tail(72).mean()) * 10000.0
+    # 1. Eye: fr_cumsum_48 — 48期 funding rate 累加（資金傾向方向）
+    #    IC=-0.082 (N=6383, p<0.0001): 替換 funding_ma72 (IC=-0.021 弱) #H104
+    #    fr_cumsum_48 > 0 → 持續正 funding → 多頭過熱 → 看跌，負 IC
+    #    vs. funding_ma72: 累加更能反映 48h 方向累積強度，信號更強
+    if len(fr) >= 48:
+        features["feat_eye_dist"] = float(fr.tail(48).sum())
     elif len(fr) >= 8:
-        features["feat_eye_dist"] = float(fr.mean()) * 10000.0
+        features["feat_eye_dist"] = float(fr.sum())
     else:
         features["feat_eye_dist"] = 0.0
 
-    # 2. Ear: mom_12 — 12期價格動量回報率
-    #    #H78 替換 MACD_hist (Pearson IC=-0.046 p=0.031 假顯著)
-    #    MACD_hist 的 79% 數值 |>100 bps 為極端值，真實 Spearman p=0.177 不顯著
-    #    mom_12 = (close_now - close_12h_ago) / close_12h_ago
-    #    IC=-0.056 Spearman=-0.047 p=0.027 ✅ 真實顯著，無極端值問題
-    #    負 IC → 12h 上漲 → 看跌（過熱反轉），加入 NEG_IC_FEATS
-    if len(close) >= 13:
+    # 2. Ear: mom_24 — 24期價格動量回報率
+    #    #H105 替換 mom_12 (IC=-0.029，弱)
+    #    mom_24 = (close_now - close_24h_ago) / close_24h_ago
+    #    IC=-0.049 (N=4433, p=0.0011) — 比 mom_12 更強 1.7x
+    #    負 IC → 24h 上漲 → 看跌（過熱反轉），加入 NEG_IC_FEATS
+    if len(close) >= 25:
+        c24 = float(close.iloc[-25])
+        if c24 > 0:
+            features["feat_ear_zscore"] = float(close.iloc[-1] / c24 - 1)
+        else:
+            features["feat_ear_zscore"] = 0.0
+    elif len(close) >= 13:
         c12 = float(close.iloc[-13])
         if c12 > 0:
             features["feat_ear_zscore"] = float(close.iloc[-1] / c12 - 1)
-        else:
-            features["feat_ear_zscore"] = 0.0
-    elif len(close) >= 4:
-        c_early = float(close.iloc[-4])
-        if c_early > 0:
-            features["feat_ear_zscore"] = float(close.iloc[-1] / c_early - 1)
         else:
             features["feat_ear_zscore"] = 0.0
     else:
