@@ -164,25 +164,19 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_pulse"] = 0.5
 
-    # 7. Aura (v4): funding_zscore_288 — 長週期 funding rate z-score（288期≈1天）
-    #    原理：相對長期基準的 funding 異常程度，捕捉大週期槓桿情緒
-    #    IC=-0.0941（p=0.0007, n=1297），與 ear_zscore 相關僅 0.20（互補信號）
+    # 7. Aura (v5): fr_cum48_norm — 48h 累積資金費率（正規化）
+    #    原理：持倉成本累積量，反映槓桿多空誰在「燒錢」，長期正累積 → 多頭過熱 → 看跌
+    #    IC=-0.058（p=0.006, n=2274），替換 funding_zscore_288（IC=-0.004, p=0.83，白噪音）#H83
     #    屬於 NEG_IC_FEATS（反轉後使用）
-    if len(fr) >= 288:
-        window_288 = fr.iloc[-288:]
-        mu_288 = float(window_288.mean())
-        sigma_288 = float(window_288.std())
-        if sigma_288 > 0:
-            features["feat_aura"] = float((fr.iloc[-1] - mu_288) / sigma_288)
-        else:
-            features["feat_aura"] = 0.0
-    elif len(fr) >= 48:
-        mu = float(fr.mean())
-        sigma = float(fr.std())
-        if sigma > 0:
-            features["feat_aura"] = float((fr.iloc[-1] - mu) / sigma)
-        else:
-            features["feat_aura"] = 0.0
+    if len(fr) >= 12:
+        fr_filled = fr.fillna(method='ffill').fillna(0)
+        window = min(48, len(fr_filled))
+        fr_window = fr_filled.iloc[-window:]
+        fr_cum = float(fr_window.sum())
+        fr_std = float(fr_window.std())
+        # 正規化：除以 window * std 使量綱統一
+        denominator = window * fr_std if fr_std > 1e-12 else 1e-8
+        features["feat_aura"] = float(fr_cum / denominator)
     else:
         features["feat_aura"] = 0.0
 
