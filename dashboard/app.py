@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-Poly-Trader 可視化儀表板 (Streamlit) - v2 with Backtesting
+Poly-Trader Dashboard v3 — gmgn.ai style dark theme
 """
-
 import sys
 from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -11,457 +10,367 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timedelta
-import os
 
-# 頁面設定
-st.set_page_config(
-    page_title="Poly-Trader 儀表板",
-    page_icon="📊",
-    layout="wide"
-)
+st.set_page_config(page_title="Poly-Trader", page_icon="📡", layout="wide", initial_sidebar_state="collapsed")
 
-st.title("📊 Poly-Trader 多感官量化交易系統")
+st.markdown("""<style>
+.block-container{padding:1rem 2rem}
+.hero-card{background:#161616;border:1px solid #2a2a2a;border-radius:8px;padding:16px;text-align:center}
+.kpi-label{color:#888;font-size:.72rem;text-transform:uppercase;letter-spacing:1px}
+.kpi-value{font-size:1.4rem;font-weight:700;line-height:1.2}
+.conf-bar-bg{background:#1e1e1e;border-radius:4px;height:8px;margin-top:4px}
+</style>""", unsafe_allow_html=True)
 
-# 資料庫連接
-DB_PATH = os.getenv("POLY_TRADER_DB", f"sqlite:///{PROJECT_ROOT / 'poly_trader.db'}")
-engine = create_engine(DB_PATH)
+from config import load_config
+cfg = load_config()
+engine = create_engine(cfg["database"]["url"])
 
-# 側邊欄：全局設定
-st.sidebar.header("⚙️ 設定")
-days_back = st.sidebar.slider("顯示過去天數", 1, 30, 7)
-refresh_interval = st.sidebar.number_input("自動刷新秒數", 10, 300, 60)
-auto_refresh = st.sidebar.checkbox("自動刷新", True)
-if auto_refresh:
-    st.rerun_interval = refresh_interval
-
-# 載入數據函數
 @st.cache_data(ttl=30)
-def load_features(days: int):
-    start_time = datetime.utcnow() - timedelta(days=days)
-    query = text("""
-        SELECT timestamp, feat_eye_dist, feat_ear_zscore, feat_nose_sigmoid,
-               feat_tongue_pct, feat_body_roc
-        FROM features_normalized
-        WHERE timestamp >= :start
-        ORDER BY timestamp
-    """)
-    df = pd.read_sql(query, engine, params={"start": start_time})
-    if not df.empty:
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
+def get_latest_market():
+    with engine.connect() as conn:
+        row = conn.execute(text("SELECT r.timestamp,r.close_price,r.volume,r.funding_rate,f.feat_eye_dist,f.feat_ear_zscore,f.feat_nose_sigmoid,f.feat_tongue_pct,f.feat_body_roc,f.feat_pulse,f.feat_aura,f.feat_mind FROM raw_market_data r JOIN features_normalized f ON f.timestamp=r.timestamp ORDER BY r.timestamp DESC LIMIT 1")).fetchone()
+    return row
+
+@st.cache_data(ttl=30)
+def get_confidence():
+    try:
+        from model.predictor import load_predictor
+        pred = load_predictor()
+        with engine.connect() as conn:
+            row = conn.execute(text("SELECT feat_eye_dist,feat_ear_zscore,feat_nose_sigmoid,feat_tongue_pct,feat_body_roc,feat_pulse,feat_aura,feat_mind FROM features_normalized ORDER BY timestamp DESC LIMIT 1")).fetchone()
+        if row is None: return 0.5, "HOLD"
+        feats = {"feat_eye_dist":row[0],"feat_ear_zscore":row[1],"feat_nose_sigmoid":row[2],"feat_tongue_pct":row[3],"feat_body_roc":row[4],"feat_pulse":row[5],"feat_aura":row[6],"feat_mind":row[7]}
+        conf = pred.predict_proba(feats)
+        if conf is None: return 0.5, "HOLD"
+        sig = "BUY" if conf >= 0.65 else ("SELL" if conf <= 0.35 else "HOLD")
+        return float(conf), sig
+    except Exception:
+        return 0.5, "HOLD"
+
+@st.cache_data(ttl=60)
+def get_fng():
+    try:
+        import requests
+        d = requests.get("https://api.alternative.me/fng/?limit=1&format=json",timeout=5).json()["data"][0]
+        return int(d["value"]), d["value_classification"]
+    except Exception:
+        return None, "N/A"
+
+@st.cache_data(ttl=30)
+def get_price_history(days=7):
+    with engine.connect() as conn:
+        rows = conn.execute(text("SELECT timestamp,close_price FROM raw_market_data WHERE timestamp>=:s ORDER BY timestamp ASC"),{"s":datetime.utcnow()-timedelta(days=days)}).fetchall()
+    if not rows: return pd.DataFrame()
+    df = pd.DataFrame(rows,columns=["timestamp","close_price"])
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
     return df
 
 @st.cache_data(ttl=30)
-def load_trades(days: int):
-    start_time = datetime.utcnow() - timedelta(days=days)
-    query = text("""
-        SELECT timestamp, action, price, amount, model_confidence, pnl
-        FROM trade_history
-        WHERE timestamp >= :start
-        ORDER BY timestamp DESC
-    """)
-    df = pd.read_sql(query, engine, params={"start": start_time})
-    if not df.empty:
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
+def get_sense_history(hours=24):
+    with engine.connect() as conn:
+        rows = conn.execute(text("SELECT timestamp,feat_eye_dist,feat_ear_zscore,feat_nose_sigmoid,feat_tongue_pct,feat_body_roc,feat_pulse,feat_aura,feat_mind FROM features_normalized WHERE timestamp>=:s ORDER BY timestamp ASC"),{"s":datetime.utcnow()-timedelta(hours=hours)}).fetchall()
+    if not rows: return pd.DataFrame()
+    df = pd.DataFrame(rows,columns=["ts","eye","ear","nose","tongue","body","pulse","aura","mind"])
+    df["ts"] = pd.to_datetime(df["ts"])
     return df
 
 @st.cache_data(ttl=30)
-def load_latest_prediction():
-    query = text("""
-        SELECT timestamp, feat_eye_dist, feat_ear_zscore, feat_nose_sigmoid,
-               feat_tongue_pct, feat_body_roc
-        FROM features_normalized
-        ORDER BY timestamp DESC
-        LIMIT 1
-    """)
-    df = pd.read_sql(query, engine)
-    if not df.empty:
-        weights = [0.2]*5
-        vals = df.iloc[0][["feat_eye_dist","feat_ear_zscore","feat_nose_sigmoid","feat_tongue_pct","feat_body_roc"]].fillna(0).values
-        score = sum(v * w for v, w in zip(vals, weights))
-        import numpy as np
-        confidence = 1/(1+np.exp(-score))
-        df["confidence"] = confidence
-        df["signal"] = "BUY" if confidence > 0.5 else "HOLD"
+def get_trade_history(days=30):
+    with engine.connect() as conn:
+        rows = conn.execute(text("SELECT timestamp,action,price,amount,model_confidence,pnl FROM trade_history WHERE timestamp>=:s ORDER BY timestamp DESC"),{"s":datetime.utcnow()-timedelta(days=days)}).fetchall()
+    if not rows: return pd.DataFrame()
+    df = pd.DataFrame(rows,columns=["timestamp","action","price","amount","confidence","pnl"])
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
     return df
 
-# 載入數據
-features_df = load_features(days_back)
-trades_df = load_trades(days_back)
-latest_pred = load_latest_prediction()
+SENSE_LABELS = {"eye":"👁 眼","ear":"👂 耳","nose":"👃 鼻","tongue":"👅 舌","body":"🏃 身","pulse":"💓 脈","aura":"🌌 氣","mind":"🧠 心"}
+SENSE_COLORS = {"eye":"#00b0ff","ear":"#69ff47","nose":"#ff6d00","tongue":"#e040fb","body":"#ffea00","pulse":"#ff1744","aura":"#00e5ff","mind":"#b2ff59"}
 
-# 頂部指標
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("數據點數", len(features_df))
-with col2:
-    if not latest_pred.empty:
-        conf = latest_pred.iloc[0]["confidence"]
-        st.metric("最新信心分數", f"{conf:.2%}", delta=f"{conf-0.5:.2%}")
-    else:
-        st.metric("最新信心分數", "N/A")
-with col3:
-    if not trades_df.empty:
-        last_trade = trades_df.iloc[0]
-        st.metric("最後交易", f"{last_trade['action']} @ {last_trade['price']:.0f}")
-    else:
-        st.metric("最後交易", "無")
-with col4:
-    if not trades_df.empty and "pnl" in trades_df.columns:
-        total_pnl = trades_df["pnl"].sum()
-        st.metric("累計 P&L", f"{total_pnl:.2f} USDT")
-    else:
-        st.metric("累計 P&L", "N/A")
+# ── HERO ROW ──────────────────────────────────────────
+market_row = get_latest_market()
+confidence, signal = get_confidence()
+fng_val, fng_label = get_fng()
 
-st.divider()
+btc_price = round(float(market_row[1]),2) if market_row else 0
+funding_bps = float(market_row[3])*10000 if market_row and market_row[3] else 0
+conf_pct = round(confidence*100,1) if confidence else 50
 
-# Tabs
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "🔍 特徵分析", "🤖 模型預測", "📜 交易歷史", "📈 策略回測", "🔧 參數優化", "🔬 多感官有效性", "🔄 Walk-Forward 驗證"
+sig_color = "#00e676" if signal=="BUY" else ("#ff1744" if signal=="SELL" else "#ffea00")
+fr_color = "#ff1744" if funding_bps < 0 else "#00e676"
+fng_color = "#ff1744" if fng_val and fng_val<30 else ("#00e676" if fng_val and fng_val>70 else "#ffea00")
+conf_color = "#00e676" if conf_pct>=65 else ("#ff1744" if conf_pct<=35 else "#ffea00")
+
+c1,c2,c3,c4,c5 = st.columns([2,2,2,2,2])
+with c1:
+    st.markdown(f"""<div class="hero-card"><div class="kpi-label">交易信號</div>
+        <div class="kpi-value" style="color:{sig_color};font-size:2rem">{signal}</div></div>""",unsafe_allow_html=True)
+with c2:
+    st.markdown(f"""<div class="hero-card"><div class="kpi-label">模型信心</div>
+        <div class="kpi-value" style="color:{conf_color}">{conf_pct}%</div>
+        <div class="conf-bar-bg"><div style="width:{conf_pct}%;background:{conf_color};height:8px;border-radius:4px"></div></div></div>""",unsafe_allow_html=True)
+with c3:
+    st.markdown(f"""<div class="hero-card"><div class="kpi-label">BTC 價格</div>
+        <div class="kpi-value" style="color:#fff">${btc_price:,.0f}</div></div>""",unsafe_allow_html=True)
+with c4:
+    st.markdown(f"""<div class="hero-card"><div class="kpi-label">資金費率</div>
+        <div class="kpi-value" style="color:{fr_color}">{funding_bps:+.2f} bps</div></div>""",unsafe_allow_html=True)
+with c5:
+    st.markdown(f"""<div class="hero-card"><div class="kpi-label">恐懼貪婪</div>
+        <div class="kpi-value" style="color:{fng_color}">{fng_val if fng_val else "--"}</div>
+        <div style="color:#888;font-size:.75rem">{fng_label}</div></div>""",unsafe_allow_html=True)
+
+st.markdown("---")
+
+# ── TABS ──────────────────────────────────────────────
+tab1,tab2,tab3,tab4,tab5,tab6,tab7 = st.tabs([
+    "📡 信號儀表板","🔬 五感分析","📈 策略回測","🔧 參數優化","🔄 Walk-Forward","📜 交易歷史","🧬 感官有效性"
 ])
 
+# ── TAB1: 信號儀表板
 with tab1:
-    st.subheader("多感官特徵趨勢")
-    if not features_df.empty:
-        fig = go.Figure()
-        for col in ["feat_eye_dist","feat_ear_zscore","feat_nose_sigmoid","feat_tongue_pct","feat_body_roc"]:
-            fig.add_trace(go.Scatter(x=features_df["timestamp"], y=features_df[col],
-                                     mode='lines+markers', name=col))
-        fig.update_layout(height=400, hovermode='x unified')
-        st.plotly_chart(fig, use_container_width=True)
+    col_price, col_sense = st.columns([3,2])
+    with col_price:
+        st.subheader("BTC 價格")
+        price_df = get_price_history(days=7)
+        if not price_df.empty:
+            trend_color = "#00e676" if price_df["close_price"].iloc[-1]>=price_df["close_price"].iloc[0] else "#ff1744"
+            fig_p = go.Figure(go.Scatter(x=price_df["timestamp"],y=price_df["close_price"],mode="lines",
+                line=dict(color=trend_color,width=1.5)))
+            fig_p.update_layout(plot_bgcolor="#0d0d0d",paper_bgcolor="#0d0d0d",font_color="#e0e0e0",height=300,
+                xaxis=dict(gridcolor="#2a2a2a"),yaxis=dict(gridcolor="#2a2a2a"),margin=dict(l=0,r=0,t=0,b=0))
+            st.plotly_chart(fig_p,use_container_width=True)
+        else:
+            st.info("無價格數據")
+    with col_sense:
+        st.subheader("八感官即時")
+        sd = get_sense_history(hours=1)
+        if not sd.empty:
+            latest = sd.iloc[-1]
+            for key,label in SENSE_LABELS.items():
+                val = latest.get(key)
+                if val is None or (isinstance(val,float) and np.isnan(float(val))):
+                    c,b = "#555",50
+                else:
+                    norm = min(max((float(val)+1)/2,0),1)
+                    b = int(norm*100)
+                    c = "#00e676" if norm>0.6 else ("#ff1744" if norm<0.4 else "#ffea00")
+                val_str = f"{float(val):.4f}" if val is not None else "N/A"
+                st.markdown(f"""<div style="margin-bottom:6px">
+                    <div style="display:flex;justify-content:space-between;font-size:.8rem">
+                        <span>{label}</span><span style="color:{c}">{val_str}</span></div>
+                    <div style="background:#1e1e1e;border-radius:3px;height:5px">
+                        <div style="width:{b}%;background:{c};height:5px;border-radius:3px"></div></div>
+                </div>""",unsafe_allow_html=True)
+        else:
+            st.info("無感官數據")
 
-        st.subheader("特徵相關性")
-        corr = features_df[["feat_eye_dist","feat_ear_zscore","feat_nose_sigmoid","feat_tongue_pct","feat_body_roc"]].corr()
-        fig_corr = px.imshow(corr, text_auto=True, aspect="auto", color_continuous_scale='RdBu')
-        st.plotly_chart(fig_corr, use_container_width=True)
-    else:
-        st.info("暫無特徵數據")
-
+# ── TAB2: 五感分析
 with tab2:
-    st.subheader("模型預測详情")
-    if not latest_pred.empty:
-        lp = latest_pred.iloc[0]
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.write("**最新特徵**")
-            st.json({
-                "feat_eye_dist": lp["feat_eye_dist"],
-                "feat_ear_zscore": lp["feat_ear_zscore"],
-                "feat_nose_sigmoid": lp["feat_nose_sigmoid"],
-                "feat_tongue_pct": lp["feat_tongue_pct"],
-                "feat_body_roc": lp["feat_body_roc"]
-            })
-        with col_b:
-            st.write("**預測結果**")
-            st.success(f"信心分數: **{lp['confidence']:.2%}**")
-            st.info(f"交易信號: **{lp['signal']}**")
-            st.write(f"時間: {lp['timestamp']}")
+    hrs = st.slider("顯示小時數",1,168,24,key="t2h")
+    sdf = get_sense_history(hours=hrs)
+    if not sdf.empty:
+        fig2 = go.Figure()
+        for col_n,label in SENSE_LABELS.items():
+            if col_n in sdf.columns:
+                fig2.add_trace(go.Scatter(x=sdf["ts"],y=sdf[col_n],mode="lines",name=label,line=dict(width=1,color=SENSE_COLORS.get(col_n,"#aaa"))))
+        fig2.update_layout(plot_bgcolor="#0d0d0d",paper_bgcolor="#0d0d0d",font_color="#e0e0e0",height=400,
+            xaxis=dict(gridcolor="#2a2a2a"),yaxis=dict(gridcolor="#2a2a2a"),hovermode="x unified",
+            legend=dict(bgcolor="#161616",bordercolor="#2a2a2a",borderwidth=1))
+        st.plotly_chart(fig2,use_container_width=True)
+        sc = [c for c in SENSE_LABELS if c in sdf.columns]
+        corr = sdf[sc].corr()
+        fig_c = px.imshow(corr,text_auto=".2f",aspect="auto",color_continuous_scale="RdBu_r",range_color=[-1,1])
+        fig_c.update_layout(paper_bgcolor="#0d0d0d",font_color="#e0e0e0",height=350,title="相關性矩陣")
+        st.plotly_chart(fig_c,use_container_width=True)
     else:
-        st.warning("無預測數據")
+        st.info("無感官數據")
 
+# ── TAB3: 策略回測
 with tab3:
-    st.subheader("交易歷史")
-    if not trades_df.empty:
-        st.dataframe(trades_df, use_container_width=True, height=400)
-        if "pnl" in trades_df.columns:
-            trades_df["cum_pnl"] = trades_df["pnl"].cumsum()
-            fig_pnl = px.line(trades_df.sort_values("timestamp"), x="timestamp", y="cum_pnl",
-                              title="累計 P&L", markers=True)
-            st.plotly_chart(fig_pnl, use_container_width=True)
-    else:
-        st.info("暫無交易記錄")
+    ca,cb,cc,cd = st.columns(4)
+    with ca: sd3 = st.date_input("開始",datetime.utcnow()-timedelta(days=30),key="t3s")
+    with cb: ed3 = st.date_input("結束",datetime.utcnow(),key="t3e")
+    with cc: ic3 = st.number_input("初始資金",1000.0,1e6,10000.0,key="t3ic")
+    with cd: cr3 = st.slider("手續費 %%",0.0,0.5,0.1,step=0.05,key="t3cr")
 
+    if st.button("執行回測",type="primary",use_container_width=True,key="bt3"):
+        with st.spinner("回測中..."):
+            try:
+                from backtesting.engine import run_backtest
+                from backtesting.metrics import calculate_metrics
+                from sqlalchemy.orm import sessionmaker as SM3
+                from sqlalchemy import create_engine as CE3
+                _e3 = CE3(cfg["database"]["url"])
+                _s3 = SM3(bind=_e3)()
+                res = run_backtest(session=_s3,
+                    start_date=datetime.combine(sd3,datetime.min.time()),
+                    end_date=datetime.combine(ed3,datetime.max.time()),
+                    initial_capital=ic3, commission_rate=cr3/100,
+                    symbol=cfg["trading"]["symbol"])
+                _s3.close()
+                if res and not res["equity_curve"].empty:
+                    eq = res["equity_curve"]["equity"]
+                    mx = calculate_metrics(eq,res["trade_log"],benchmark_return=res.get("buy_hold_return",0),freq_minutes=5)
+                    tr = mx["total_return"]; bh = res.get("buy_hold_return",0)/100; alpha = tr-bh
+                    cost = res.get("total_trading_cost",0)
+                    k1,k2,k3,k4,k5,k6 = st.columns(6)
+                    k1.metric("總回報",f"{tr:.2%}",delta=f"B&H {bh:.2%}")
+                    k2.metric("Alpha",f"{alpha:.2%}")
+                    k3.metric("夏普",f"{mx['sharpe_ratio']:.2f}")
+                    k4.metric("索提諾",f"{mx.get('sortino_ratio',0):.2f}")
+                    k5.metric("最大回撤",f"{mx['max_drawdown']:.2%}")
+                    k6.metric("交易成本",f"-${cost:.0f}")
+                    k7,k8,k9,k10,k11,k12 = st.columns(6)
+                    k7.metric("勝率",f"{mx.get('win_rate',0):.1%}")
+                    k8.metric("盈虧比",f"{mx.get('profit_factor',0):.2f}")
+                    k9.metric("交易次數",int(mx.get("total_trades",0)))
+                    k10.metric("W/L/D",f"{mx.get('n_wins',0)}/{mx.get('n_losses',0)}/{mx.get('n_draws',0)}")
+                    k11.metric("連虧最長",int(mx.get("max_consecutive_losses",0)))
+                    k12.metric("卡爾瑪",f"{mx.get('calmar_ratio',0):.2f}")
+                    fig_eq = go.Figure()
+                    rc = "#00e676" if tr>=0 else "#ff1744"
+                    fig_eq.add_trace(go.Scatter(x=res["equity_curve"].index,y=eq,mode="lines",name="策略",line=dict(color=rc,width=2)))
+                    bh_c = res.get("buy_hold_curve")
+                    if bh_c is not None and not bh_c.empty:
+                        fig_eq.add_trace(go.Scatter(x=bh_c.index,y=bh_c,mode="lines",name="Buy & Hold",line=dict(color="#555",width=1.5,dash="dash")))
+                    fig_eq.update_layout(title="資金曲線 vs Buy & Hold",plot_bgcolor="#0d0d0d",paper_bgcolor="#0d0d0d",
+                        font_color="#e0e0e0",height=350,xaxis=dict(gridcolor="#2a2a2a"),yaxis=dict(gridcolor="#2a2a2a"),
+                        legend=dict(bgcolor="#161616"),hovermode="x unified")
+                    st.plotly_chart(fig_eq,use_container_width=True)
+                    tl = res["trade_log"]
+                    if not tl.empty:
+                        sc3 = [c for c in ["timestamp","action","price","amount","confidence","pnl","gross_pnl","commission_slippage","reason"] if c in tl.columns]
+                        st.dataframe(tl[sc3],use_container_width=True,height=280)
+                else:
+                    st.error("回測無數據，請確認日期範圍。")
+            except Exception as e:
+                st.exception(e)
+    else:
+        st.caption("設定後點擊執行。")
+
+# ── TAB4: 參數優化
 with tab4:
-    st.subheader("策略回測")
-    # 參數選擇
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        start_dt = st.date_input("開始日期", datetime.utcnow() - timedelta(days=30))
-    with col_c:
-        end_dt = st.date_input("結束日期", datetime.utcnow())
-    with col_b:
-        initial_capital = st.number_input("初始資金 (USDT)", 1000.0, 1000000.0, 10000.0)
+    st.caption("搜索最佳 confidence / position / stop-loss 以 Sharpe 排序")
+    p1,p2,p3 = st.columns(3)
+    with p1: cr4 = st.slider("Conf 範圍",0.5,0.9,(0.6,0.8),step=0.05,key="t4cr")
+    with p2: pr4 = st.slider("部位範圍",0.01,0.1,(0.02,0.06),step=0.01,key="t4pr")
+    with p3: sr4 = st.slider("止損範圍",0.01,0.1,(0.02,0.05),step=0.01,key="t4sr")
+    p4,p5,p6 = st.columns(3)
+    with p4: cs4 = st.number_input("Conf steps",2,8,3,key="cs4a")
+    with p5: ps4 = st.number_input("Pos steps",2,8,3,key="ps4a")
+    with p6: ss4 = st.number_input("Stop steps",2,8,2,key="ss4a")
+    if st.button("開始優化",type="primary",use_container_width=True,key="bt4"):
+        with st.spinner("網格搜索..."):
+            try:
+                from backtesting.optimizer import grid_search
+                from sqlalchemy.orm import sessionmaker as SM4
+                from sqlalchemy import create_engine as CE4
+                _e4 = CE4(cfg["database"]["url"]); _s4 = SM4(bind=_e4)()
+                def _ls(lo,hi,n): return [round(lo+i*(hi-lo)/(n-1),4) for i in range(int(n))]
+                rdf = grid_search(session=_s4,
+                    confidence_thresholds=_ls(*cr4,cs4),max_position_ratios=_ls(*pr4,ps4),stop_loss_pcts=_ls(*sr4,ss4),
+                    start_date=datetime.utcnow()-timedelta(days=30),end_date=datetime.utcnow(),initial_capital=10000.0,symbol=cfg["trading"]["symbol"])
+                _s4.close()
+                if not rdf.empty:
+                    best = rdf.loc[rdf["sharpe_ratio"].idxmax()]
+                    st.success(f"最佳 Sharpe {best['sharpe_ratio']:.2f} — conf={best['confidence_threshold']} pos={best['max_position_ratio']} stop={best['stop_loss_pct']}")
+                    st.dataframe(rdf.sort_values("sharpe_ratio",ascending=False),use_container_width=True,height=300)
+                    med = rdf["stop_loss_pct"].median()
+                    piv = rdf[rdf["stop_loss_pct"]==med].pivot_table(index="confidence_threshold",columns="max_position_ratio",values="sharpe_ratio")
+                    fig_h = px.imshow(piv,text_auto=".2f",aspect="auto",color_continuous_scale="RdYlGn",title=f"Sharpe 熱圖 (stop={med:.3f})")
+                    fig_h.update_layout(paper_bgcolor="#0d0d0d",font_color="#e0e0e0")
+                    st.plotly_chart(fig_h,use_container_width=True)
+                else:
+                    st.error("無結果，數據不足。")
+            except Exception as e: st.exception(e)
+    else: st.caption("設定後點擊執行。")
 
-    if st.button("🚀 執行回測", type="primary"):
-        st.info("正在執行回測，請稍候...")
-        try:
-            from backtesting.engine import run_backtest
-            from backtesting.metrics import calculate_metrics
-            from sqlalchemy.orm import Session
-            from database.models import init_db
-            from config import load_config
-
-            cfg = load_config()
-            db_url = cfg["database"]["url"]
-            engine_local = create_engine(db_url)
-            SessionLocal = sessionmaker(bind=engine_local)
-            session = SessionLocal()
-
-            start_date = datetime.combine(start_dt, datetime.min.time())
-            end_date = datetime.combine(end_dt, datetime.max.time())
-
-            results = run_backtest(
-                session=session,
-                start_date=start_date,
-                end_date=end_date,
-                initial_capital=initial_capital,
-                confidence_threshold=0.7,
-                max_position_ratio=0.05,
-                stop_loss_pct=0.03,
-                symbol=cfg["trading"]["symbol"]
-            )
-            session.close()
-
-            if results:
-                equity_df = results["equity_curve"]
-                trades = results["trade_log"]
-                metrics = calculate_metrics(equity_df["equity"], trades)
-
-                # 顯示結果
-                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-                st.metric("總回報", f"{metrics['total_return']:.2%}")
-                st.metric("年化回報", f"{metrics.get('annual_return', 0):.2%}")
-                st.metric("夏普比率", f"{metrics['sharpe_ratio']:.2f}")
-                st.metric("索提諾比率", f"{metrics.get('sortino_ratio', 0):.2f}")
-                st.metric("最大回撤", f"{metrics['max_drawdown']:.2%}")
-                st.metric("卡爾瑪比率", f"{metrics.get('calmar_ratio', 0):.2f}")
-                st.metric("勝率", f"{metrics.get('win_rate', 0):.1%}")
-                st.metric("盈虧比", f"{metrics.get('profit_factor', 0):.2f}")
-                st.metric("交易次數", int(metrics.get('total_trades', 0)))
-                st.metric("Win/Loss/Draw", f"{metrics.get('n_wins', 0)}/{metrics.get('n_losses', 0)}/{metrics.get('n_draws', 0)}")
-                st.metric("最大連續虧損", int(metrics.get('max_consecutive_losses', 0)))
-                cost = results.get("total_trading_cost", 0) if 'results' in dir() else 0
-                if cost > 0:
-                    st.metric("手續費+滑點", f"-${int(cost)} USDT")
-
-                # 收益曲線
-                fig_equity = go.Figure()
-                fig_equity.add_trace(go.Scatter(x=equity_df.index, y=equity_df["equity"],
-                                                mode='lines', name='策略 equity'))
-                fig_equity.update_layout(title='回測資金曲線', xaxis_title='日期', yaxis_title='USDT')
-                st.plotly_chart(fig_equity, use_container_width=True)
-
-                # 交易列表
-                if not trades.empty:
-                    st.dataframe(trades, use_container_width=True)
-            else:
-                st.error("回測失敗，可能是數據不足。")
-        except Exception as e:
-            st.exception(e)
-    else:
-        st.info("請選擇日期範圍並點擊執行回測。")
-
+# ── TAB5: Walk-Forward
 with tab5:
-    st.subheader("參數優化")
-    st.write("調整參數範圍以搜索最佳策略配置。這可能需要幾分鐘。")
+    st.caption("滑動窗口驗證，判斷參數是否穩健 (STABLE / UNSTABLE)")
+    w1,w2,w3 = st.columns(3)
+    with w1: wf_tr = st.slider("訓練窗口(天)",10,90,30,key="wtr")
+    with w2: wf_te = st.slider("測試窗口(天)",5,30,10,key="wte")
+    with w3: wf_n = st.slider("滑動次數",3,10,5,key="wfn")
+    w4,w5,w6 = st.columns(3)
+    with w4: wf_c = st.slider("Confidence",0.5,0.9,0.7,key="wfc")
+    with w5: wf_p = st.slider("部位比例",0.01,0.1,0.05,key="wfp")
+    with w6: wf_s = st.slider("止損",0.01,0.1,0.03,key="wfs")
+    if st.button("執行 Walk-Forward",type="primary",use_container_width=True,key="bwf"):
+        with st.spinner(f"執行 {wf_n} 個窗口..."):
+            try:
+                from backtesting.walkforward import run_walk_forward
+                from sqlalchemy.orm import sessionmaker as SM5
+                from sqlalchemy import create_engine as CE5
+                _e5 = CE5(cfg["database"]["url"]); _s5 = SM5(bind=_e5)()
+                wfr = run_walk_forward(_s5,{"confidence_threshold":wf_c,"max_position_ratio":wf_p,"stop_loss_pct":wf_s},train_days=wf_tr,test_days=wf_te,n_windows=wf_n)
+                _s5.close()
+                sm = wfr.get("summary",{})
+                vd = sm.get("verdict","N/A"); sc = sm.get("stability_score",0)
+                if vd=="STABLE": st.success(f"✅ {vd} — 穩健性 {sc:.0%}")
+                else: st.warning(f"⚠️ {vd} — 穩健性 {sc:.0%}")
+                wc1,wc2,wc3,wc4 = st.columns(4)
+                wc1.metric("平均OOS回報",f"{sm.get('avg_oos_return',0):.2%}")
+                wc2.metric("平均Sharpe",f"{sm.get('avg_sharpe',0):.2f}")
+                wc3.metric("獲利窗口",f"{sm.get('pct_profitable_windows',0):.0%}")
+                wc4.metric("打贏B&H",f"{sm.get('pct_beat_bh',0):.0%}")
+                wd = pd.DataFrame(wfr.get("windows",[]))
+                if not wd.empty:
+                    st.dataframe(wd,use_container_width=True)
+                    bc = ["#00e676" if v>0 else "#ff1744" for v in wd.get("total_return",[])]
+                    fg = go.Figure(go.Bar(x=[f"W{r}" for r in wd.get("window",range(len(wd)))],y=[v*100 for v in wd.get("total_return",[])],marker_color=bc))
+                    fg.add_hline(y=0,line_dash="dash",line_color="#888")
+                    fg.update_layout(title="各窗口OOS回報(%%)",plot_bgcolor="#0d0d0d",paper_bgcolor="#0d0d0d",font_color="#e0e0e0",height=260,xaxis=dict(gridcolor="#2a2a2a"),yaxis=dict(gridcolor="#2a2a2a"))
+                    st.plotly_chart(fg,use_container_width=True)
+            except Exception as e: st.exception(e)
+    else: st.caption("設定後執行。建議先在 Tab4 找最佳參數。")
 
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        conf_range = st.slider("Confidence 閾值", 0.5, 0.9, (0.6, 0.8), step=0.05)
-    with col_b:
-        pos_range = st.slider("最大部位比例", 0.01, 0.1, (0.02, 0.06), step=0.01)
-    with col_c:
-        stop_range = st.slider("止損 %", 0.01, 0.1, (0.02, 0.05), step=0.01)
-
-    # _grid steps
-    col_d, col_e, col_f = st.columns(3)
-    with col_d:
-        conf_steps = st.number_input("Confidence steps", 2, 10, 3)
-    with col_e:
-        pos_steps = st.number_input("部位比例 steps", 2, 10, 3)
-    with col_f:
-        stop_steps = st.number_input("止損 steps", 2, 10, 2)
-
-    if st.button("🔍 開始優化搜索", type="secondary"):
-        st.info("開始參數網格搜索...")
-        try:
-            from backtesting.optimizer import grid_search
-            from database.models import init_db
-            from config import load_config
-            from sqlalchemy.orm import sessionmaker
-            from sqlalchemy import create_engine
-
-            cfg = load_config()
-            db_url = cfg["database"]["url"]
-            engine_local = create_engine(db_url)
-            SessionLocal = sessionmaker(bind=engine_local)
-            session = SessionLocal()
-
-            # 生成網格
-            conf_values = [round(conf_range[0] + i * (conf_range[1]-conf_range[0])/(conf_steps-1), 2) for i in range(conf_steps)]
-            pos_values = [round(pos_range[0] + i * (pos_range[1]-pos_range[0])/(pos_steps-1), 2) for i in range(pos_steps)]
-            stop_values = [round(stop_range[0] + i * (stop_range[1]-stop_range[0])/(stop_steps-1), 3) for i in range(stop_steps)]
-
-            st.write(f"網格大小：{len(conf_values)} x {len(pos_values)} x {len(stop_values)} = {len(conf_values)*len(pos_values)*len(stop_values)} 次回測")
-
-            results_df = grid_search(
-                session=session,
-                confidence_thresholds=conf_values,
-                max_position_ratios=pos_values,
-                stop_loss_pcts=stop_values,
-                start_date=datetime.utcnow() - timedelta(days=30),
-                end_date=datetime.utcnow(),
-                initial_capital=10000.0,
-                symbol=cfg["trading"]["symbol"]
-            )
-            session.close()
-
-            if not results_df.empty:
-                st.success(f"優化完成，共測試 {len(results_df)} 組參數")
-
-                # 顯示最佳結果
-                best_sharpe = results_df.loc[results_df["sharpe_ratio"].idxmax()]
-                st.write("**最佳參數（Sharpe 最高）**：")
-                st.json(best_sharpe.to_dict())
-
-                # 熱圖：Confidence vs Position Ratio (固定 stop_loss 為中位數)
-                median_stop = results_df["stop_loss_pct"].median()
-                pivot_df = results_df[results_df["stop_loss_pct"] == median_stop]
-                pivot = pivot_df.pivot_table(index="confidence_threshold", columns="max_position_ratio", values="sharpe_ratio")
-                fig_heat = px.imshow(pivot, text_auto=True, aspect="auto", title=f"Sharpe Ratio (stop_loss={median_stop:.3f})")
-                st.plotly_chart(fig_heat, use_container_width=True)
-            else:
-                st.error("優化失敗，可能數據不足或回測錯誤。")
-        except Exception as e:
-            st.exception(e)
-
+# ── TAB6: 交易歷史
 with tab6:
-    st.subheader("🔬 多感官有效性分析")
-    st.write("量化每个感官特征与未来收益率的相关性（IC）及分位数胜率。")
-
-    # 从 config 加载
-    cfg = load_config()
-    db_url = cfg["database"]["url"]
-    engine_local = create_engine(db_url)
-    SessionLocal = sessionmaker(bind=engine_local)
-    session = SessionLocal()
-
-    try:
-        from analysis.sense_effectiveness import compute_information_coefficient, compute_win_rate_by_feature_quantile
-
-        # 1. 计算 IC
-        st.write("**📌 信息系数 (IC)**")
-        ic = compute_information_coefficient(session, cfg["trading"]["symbol"], horizon_hours=24)
-        if ic:
-            ic_df = pd.DataFrame(list(ic.items()), columns=["Feature", "IC"])
-            fig_ic = px.bar(ic_df, x="Feature", y="IC", title="Information Coefficient (Spearman) by Feature", color="IC", color_continuous_scale="RdYlGn")
-            st.plotly_chart(fig_ic, use_container_width=True)
-            st.dataframe(ic_df, use_container_width=True)
-        else:
-            st.warning("暂无足够数据计算 IC")
-
-        # 2. 分位数胜率
-        st.write("**📊 分位数胜率热图**")
-        quantile_df = compute_win_rate_by_feature_quantile(session, cfg["trading"]["symbol"], horizon_hours=24, n_quantiles=5)
-        if not quantile_df.empty:
-            # 热图：特征 vs 分位数，值为 win_rate
-            pivot = quantile_df.pivot_table(index="quantile", columns="feature", values="win_rate")
-            fig_heat = px.imshow(pivot, text_auto=".1%", aspect="auto", title="Win Rate by Feature Quantile", color_continuous_scale="YlOrRd")
-            st.plotly_chart(fig_heat, use_container_width=True)
-
-            # 显示原始数据
-            st.write("原始数据：")
-            st.dataframe(quantile_df, use_container_width=True)
-        else:
-            st.warning("暂无足够数据计算分位数胜率")
-    except Exception as e:
-        st.error(f"分析失败: {e}")
-    finally:
-        session.close()
-
-
-with tab7:
-    st.subheader("🔄 Walk-Forward 參數穩健性驗證")
-    st.write("在不同時間段驗證策略參數是否穩健，避免過擬合。")
-
-    col_wf1, col_wf2, col_wf3 = st.columns(3)
-    with col_wf1:
-        wf_train_days = st.slider("訓練窗口 (天)", 10, 90, 30)
-    with col_wf2:
-        wf_test_days = st.slider("測試窗口 (天)", 5, 30, 10)
-    with col_wf3:
-        wf_n_windows = st.slider("滑動次數", 3, 10, 5)
-
-    st.write("**最佳參數設定（用於驗證）**")
-    col_p1, col_p2, col_p3 = st.columns(3)
-    with col_p1:
-        wf_conf = st.slider("Confidence 閾值", 0.5, 0.9, 0.7, key="wf_conf")
-    with col_p2:
-        wf_pos = st.slider("最大部位比例", 0.01, 0.10, 0.05, key="wf_pos")
-    with col_p3:
-        wf_stop = st.slider("止損 %%", 0.01, 0.10, 0.03, key="wf_stop")
-
-    if st.button("🚀 執行 Walk-Forward", type="primary"):
-        st.info(f"執行 {wf_n_windows} 個窗口，每個訓練 {wf_train_days} 天 + 測試 {wf_test_days} 天...")
-        try:
-            from backtesting.walkforward import run_walk_forward
-            from sqlalchemy.orm import sessionmaker as SM
-            from sqlalchemy import create_engine as CE
-            from config import load_config
-
-            cfg = load_config()
-            _e = CE(cfg["database"]["url"])
-            _s = SM(bind=_e)()
-
-            best_params = {
-                "confidence_threshold": wf_conf,
-                "max_position_ratio": wf_pos,
-                "stop_loss_pct": wf_stop,
-            }
-
-            wf_result = run_walk_forward(
-                _s, best_params,
-                train_days=wf_train_days,
-                test_days=wf_test_days,
-                n_windows=wf_n_windows
-            )
-            _s.close()
-
-            summary = wf_result.get("summary", {})
-            verdict = summary.get("verdict", "N/A")
-            stability = summary.get("stability_score", 0)
-
-            if verdict == "STABLE":
-                st.success(f"✅ 策略穩健性：**{verdict}** (分數 {stability:.0%})")
-            else:
-                st.warning(f"⚠️ 策略穩健性：**{verdict}** (分數 {stability:.0%})")
-
-            col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-            col_s1.metric("平均 OOS 回報", f"{summary.get('avg_oos_return', 0):.2%}")
-            col_s2.metric("平均 Sharpe", f"{summary.get('avg_sharpe', 0):.2f}")
-            col_s3.metric("勝率窗口 %%", f"{summary.get('pct_profitable_windows', 0):.0%}")
-            col_s4.metric("打贏 B&H 窗口 %%", f"{summary.get('pct_beat_bh', 0):.0%}")
-
-            import pandas as pd
-            windows_df = pd.DataFrame(wf_result.get("windows", []))
-            if not windows_df.empty:
-                st.subheader("各窗口詳細結果")
-                display_cols = ["window", "test_start", "test_end", "total_return",
-                                "sharpe_ratio", "max_drawdown", "win_rate",
-                                "alpha", "total_trades", "status"]
-                show_cols = [c for c in display_cols if c in windows_df.columns]
-                st.dataframe(windows_df[show_cols], use_container_width=True)
-
-                import plotly.graph_objects as go
-                fig_wf = go.Figure()
-                fig_wf.add_trace(go.Bar(
-                    x=[f"W{r['window']}" for _, r in windows_df.iterrows()],
-                    y=[r.get("total_return", 0) * 100 for _, r in windows_df.iterrows()],
-                    name="OOS 回報 %%",
-                    marker_color=["green" if v > 0 else "red" for v in windows_df.get("total_return", [])]
-                ))
-                fig_wf.add_hline(y=0, line_dash="dash", line_color="white")
-                fig_wf.update_layout(title="Walk-Forward 各窗口回報", height=300)
-                st.plotly_chart(fig_wf, use_container_width=True)
-        except Exception as e:
-            st.exception(e)
+    d6 = st.slider("顯示天數",1,90,30,key="t6d")
+    trd = get_trade_history(days=d6)
+    if not trd.empty:
+        tpnl = trd["pnl"].sum() if "pnl" in trd.columns else 0
+        nt = len(trd); nw = len(trd[trd["pnl"]>0]) if "pnl" in trd.columns else 0
+        tc1,tc2,tc3 = st.columns(3)
+        tc1.metric("累計P&L",f"{tpnl:.2f} USDT",delta=f"勝率 {nw/nt:.0%}" if nt else "0%")
+        tc2.metric("交易次數",nt); tc3.metric("獲利筆數",nw)
+        fig_pl = go.Figure(go.Scatter(x=trd.sort_values("timestamp")["timestamp"],y=trd.sort_values("timestamp")["pnl"].cumsum(),mode="lines",fill="tozeroy",
+            line=dict(color="#00e676" if tpnl>=0 else "#ff1744"),fillcolor="rgba(0,230,118,.1)" if tpnl>=0 else "rgba(255,23,68,.1)"))
+        fig_pl.update_layout(title="累計P&L",plot_bgcolor="#0d0d0d",paper_bgcolor="#0d0d0d",font_color="#e0e0e0",height=240,xaxis=dict(gridcolor="#2a2a2a"),yaxis=dict(gridcolor="#2a2a2a"))
+        st.plotly_chart(fig_pl,use_container_width=True)
+        st.dataframe(trd,use_container_width=True,height=280)
     else:
-        st.info("設定參數後點擊執行。建議先在 Tab5 找到最佳參數，再來這裡驗證穩健性。")
+        st.info("無交易記錄")
 
-
-st.divider()
-st.caption("💡 提示：若要啟用真實數據，請完成多感官數據寫入與模型訓練流程。")
+# ── TAB7: 感官有效性
+with tab7:
+    try:
+        from sqlalchemy.orm import sessionmaker as SM7
+        from sqlalchemy import create_engine as CE7
+        from analysis.sense_effectiveness import compute_information_coefficient, compute_win_rate_by_feature_quantile
+        _e7 = CE7(cfg["database"]["url"]); _s7 = SM7(bind=_e7)()
+        ic = compute_information_coefficient(_s7,cfg["trading"]["symbol"],horizon_hours=24)
+        if ic:
+            ic_df = pd.DataFrame(list(ic.items()),columns=["Feature","IC"])
+            ic_df["color"] = ic_df["IC"].apply(lambda v:"#00e676" if abs(v)>=0.05 else "#ff1744")
+            fi = go.Figure(go.Bar(x=ic_df["Feature"],y=ic_df["IC"],marker_color=ic_df["color"]))
+            fi.add_hline(y=0.05,line_dash="dash",line_color="#888",annotation_text="0.05")
+            fi.add_hline(y=-0.05,line_dash="dash",line_color="#888")
+            fi.update_layout(title="IC 感官有效性",plot_bgcolor="#0d0d0d",paper_bgcolor="#0d0d0d",font_color="#e0e0e0",height=300,xaxis=dict(gridcolor="#2a2a2a"),yaxis=dict(gridcolor="#2a2a2a"))
+            st.plotly_chart(fi,use_container_width=True)
+        qdf = compute_win_rate_by_feature_quantile(_s7,cfg["trading"]["symbol"],horizon_hours=24,n_quantiles=5)
+        if not qdf.empty:
+            piv = qdf.pivot_table(index="quantile",columns="feature",values="win_rate")
+            fq = px.imshow(piv,text_auto=".1%%",aspect="auto",color_continuous_scale="RdYlGn",range_color=[0,1],title="分位數勝率熱圖")
+            fq.update_layout(paper_bgcolor="#0d0d0d",font_color="#e0e0e0",height=300)
+            st.plotly_chart(fq,use_container_width=True)
+        _s7.close()
+    except Exception as e:
+        st.error(f"分析失敗: {e}")
