@@ -14,11 +14,15 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 MODEL_PATH = "model/xgb_model.pkl"
-FEATURE_COLS = [
+BASE_FEATURE_COLS = [
     "feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid",
     "feat_tongue_pct", "feat_body_roc", "feat_pulse",
     "feat_aura", "feat_mind",
 ]
+LAG_STEPS = [12, 48, 288]
+LAG_FEATURE_COLS = [f"{col}_lag{lag}" for col in BASE_FEATURE_COLS for lag in LAG_STEPS]
+# FEATURE_COLS: 8 base only (legacy compat). Full feature list = BASE + LAG when model supports it.
+FEATURE_COLS = BASE_FEATURE_COLS
 
 # Confidence thresholds for trade filtering
 CONFIDENCE_HIGH = 0.7   # Only BUY when prob > 0.7
@@ -51,10 +55,18 @@ class XGBoostPredictor:
     def _get_proba(self, features: Dict):
         import pandas as pd
         NEG_IC_FEATS = self._get_neg_ic_feats()
-        adjusted = {col: (-features.get(col, 0) if col in NEG_IC_FEATS else features.get(col, 0)) for col in FEATURE_COLS}
+        # Determine which feature columns the model expects
+        if hasattr(self._clf, 'feature_names_in_') and self._clf.feature_names_in_ is not None:
+            all_feat_cols = list(self._clf.feature_names_in_)
+        else:
+            all_feat_cols = BASE_FEATURE_COLS
+        adjusted = {col: (-features.get(col, 0) if col in NEG_IC_FEATS else features.get(col, 0)) for col in all_feat_cols}
         X = pd.DataFrame([adjusted]).fillna(0)
         if self._imputer is not None:
-            X = pd.DataFrame(self._imputer.transform(X), columns=X.columns)
+            try:
+                X = pd.DataFrame(self._imputer.transform(X), columns=X.columns)
+            except Exception:
+                pass
         return self._clf.predict_proba(X)[0]
 
     def predict_proba(self, features: Dict) -> float:
@@ -98,20 +110,33 @@ def load_predictor():
 
 
 def load_latest_features(session: Session) -> Optional[Dict]:
-    row = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp.desc()).first()
-    if not row:
+    """Load latest features including lag features (for 32-feature model support)."""
+    max_lag = max(LAG_STEPS) + 1  # need 289 rows for lag288
+    rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp.desc()).limit(max_lag).all()
+    if not rows:
         return None
-    return {
-        "timestamp": row.timestamp,
-        "feat_eye_dist": row.feat_eye_dist,
-        "feat_ear_zscore": row.feat_ear_zscore,
-        "feat_nose_sigmoid": row.feat_nose_sigmoid,
-        "feat_tongue_pct": row.feat_tongue_pct,
-        "feat_body_roc": row.feat_body_roc,
-        "feat_pulse": row.feat_pulse,
-        "feat_aura": row.feat_aura,
-        "feat_mind": row.feat_mind,
+    # rows[0] is the latest
+    latest = rows[0]
+    features = {
+        "timestamp": latest.timestamp,
+        "feat_eye_dist": latest.feat_eye_dist,
+        "feat_ear_zscore": latest.feat_ear_zscore,
+        "feat_nose_sigmoid": latest.feat_nose_sigmoid,
+        "feat_tongue_pct": latest.feat_tongue_pct,
+        "feat_body_roc": latest.feat_body_roc,
+        "feat_pulse": latest.feat_pulse,
+        "feat_aura": latest.feat_aura,
+        "feat_mind": latest.feat_mind,
     }
+    # Compute lag features: rows are DESC, so rows[lag] is `lag` steps ago
+    for col in BASE_FEATURE_COLS:
+        for lag in LAG_STEPS:
+            lag_col = f"{col}_lag{lag}"
+            if lag < len(rows):
+                features[lag_col] = getattr(rows[lag], col, None)
+            else:
+                features[lag_col] = None  # Not enough history
+    return features
 
 
 def predict(session: Session, predictor=None) -> Optional[Dict]:
