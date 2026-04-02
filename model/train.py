@@ -208,10 +208,20 @@ def run_training(session: Session) -> bool:
         from datetime import datetime
         import sqlite3
         train_acc = float((model.predict(X) == y_enc).mean())
+        # fix #H88: skip folds where training set lacks all 3 classes (early backfill data is all bull)
+        import numpy as _np2
         tscv = TimeSeriesSplit(n_splits=5)
-        cv_scores = cross_val_score(model, X, y_enc, cv=tscv, scoring="accuracy")
-        cv_acc = float(cv_scores.mean())
-        cv_std = float(cv_scores.std())
+        valid_scores = []
+        from xgboost import XGBClassifier as _XGB
+        for _tr, _te in tscv.split(X):
+            y_tr = y_enc.iloc[_tr]
+            if len(y_tr.unique()) < 3:
+                continue  # skip fold missing classes
+            _m = _XGB(**{k: v for k, v in model.get_params().items()})
+            _m.fit(X.iloc[_tr], y_tr)
+            valid_scores.append(float((_m.predict(X.iloc[_te]) == y_enc.iloc[_te]).mean()))
+        cv_acc = float(_np2.mean(valid_scores)) if valid_scores else float("nan")
+        cv_std = float(_np2.std(valid_scores)) if valid_scores else float("nan")
         db = sqlite3.connect("poly_trader.db")
         cur = db.cursor()
         cur.execute("""
