@@ -228,3 +228,29 @@ Poly-Trader/
 | [ISSUES.md](ISSUES.md) | 問題追蹤 |
 | [PRD.md](PRD.md) | 產品需求 |
 | [ROADMAP.md](ROADMAP.md) | 發展路線 |
+
+
+## 決策層補充
+
+在感官層與回測層之間，新增兩個關鍵控制點：
+
+### 7. 時間對齊層
+- 負責價格、感官、標籤的 timestamp 對齊。
+- 支援 nearest-match 與資料窗覆蓋檢查。
+- 若樣本重疊不足，回傳明確 empty-state，而不是靜默空圖。
+
+### 8. 模型校準層
+- 負責 confidence calibration、regime-aware model selection、abstain 門檻。
+- 用來區分「感官有效」與「模型輸出不準」。
+- 不可直接把感官分數當成最終推薦分數，需保留校準與版本資訊。
+
+---
+
+## API 端點補充
+
+| 端點 | 方法 | 說明 |
+|------|------|------|
+| `/api/predict/confidence` | GET | 綜合信心預測與校準後信號 |
+| `/api/backtest` | GET | 回測結果與 sell_win_rate |
+| `/api/senses` | GET | 感官分數 + 建議 |
+

@@ -134,3 +134,18 @@
 - 修復 engine.py L116 重複 predict_proba bug
 - metrics.py 新增 Sortino、最大連續虧損、平均持倉時間
 - 新增 _build_results 輸出 buy_hold_curve / total_trading_cost
+
+
+## 🟡 新增 P1
+
+| ID | 問題 | 建議 | 狀態 |
+|----|------|------|------|
+| #H116 | 📈 價格 × 多感官走勢為空，疑似時間對齊 / 資料窗不足 / 回填缺口 | 改成 nearest-match 對齊 + 明確 empty-state + 補齊歷史窗 | 🟡 P1 |
+| #H117 | 綜合推薦分數仍不精確，疑似模型校準 / 選型不穩 | 做 confidence calibration、regime-aware model selection、驗證不是感官本身造成偏差 | 🟡 P1 |
+| #H118 | 🔬 回測引擎近期失效，需重新驗證交易曲線與指標輸出 | 重新跑 backtesting/engine.py、metrics.py、optimizer.py 的端到端驗證 | 🟡 P1 |
+
+## 📋 近期補充說明
+
+- `server.senses` 與 `database.models` 已補上新舊感官欄位相容，但若圖表仍空，優先檢查「時間對齊」與「資料窗是否有重疊樣本」。
+- 綜合推薦分數不精確，不應先假設感官失效；下一層應檢查模型校準、訓練樣本分佈、類別不平衡與 regime 切換。
+- 回測引擎已補 schema 相容，但仍需用同一批資料重新驗證 buy/sell/abstain 與 `sell_win_rate` 是否正確輸出。

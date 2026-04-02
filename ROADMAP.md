@@ -87,3 +87,23 @@
 3. 所有 Python 執行：`ssh Kazuha@192.168.0.238 "cd C:\\Users\\Kazuha\\repo\\Poly-Trader && python <script>"`
 4. 所有 Git 操作：`ssh Kazuha@192.168.0.238 "cd C:\\Users\\Kazuha\\repo\\Poly-Trader && git ..."`
 5. 絕對禁止在 `~/.openclaw/workspace/Poly-Trader/` 建立或修改任何程式碼檔案
+
+
+### Phase 12.5: 模型校準與圖表對齊修補
+**目標**：把「感官有效」與「模型不準」分開處理，讓儀表板與回測先恢復可信。
+
+- [ ] 價格 × 多感官走勢改成 nearest-match 對齊
+- [ ] 資料不足時顯示 empty-state / 缺口說明
+- [ ] 綜合推薦分數做 confidence calibration
+- [ ] 增加 regime-aware model selection / weighting
+- [ ] 重新驗證 backtesting/engine.py 與 metrics.py 端到端輸出
+
+### Phase 13: 儀表板與報告
+**目標**：讓策略狀態一眼可讀
+
+- [ ] sell_win_rate 主視覺
+- [ ] 感官 IC 條形圖
+- [ ] 分位數勝率熱圖
+- [ ] regime-wise 回測圖
+- [ ] 歷史補資料覆蓋率面板
+- [ ] 價格 × 多感官走勢圖與缺口提示
