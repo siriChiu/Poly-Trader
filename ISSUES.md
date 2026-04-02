@@ -1,7 +1,7 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-02 09:49 GMT+8**
-> **🔄 心跳 #81：重訓模型（N=15048, 32feats）CV=50.6%，驗證 lag pipeline 正常運作；model 格式由 dict→XGBClassifier**
+> **最後更新：2026-04-02 09:54 GMT+8**
+> **🔄 心跳 #82：修復 #H93 n_features DB 記錄（改用 X.shape[1]）；系統正常 raw=11068 feats=11056 BTC=$67201**
 
 ---
 
@@ -9,7 +9,7 @@
 
 | ID | 問題 | 影響 | 狀態 |
 |----|------|------|------|
-| #H93 | 🔴 **n_features DB 記錄為 8（bug）**：model_metrics.n_features 固定存 `len(FEATURE_COLS)=8`，但實際模型使用 32 特徵 | 指標誤導；但不影響訓練和推論 | 🔴 P1 minor |
+
 | #H31 | 🔴 歷史 raw data polymarket_prob 幾乎全 NULL | Ear/Polymarket 歷史信號缺失 | 🔴 P1 |
 
 ## 🟡 高優先級
@@ -30,6 +30,7 @@
 
 | ID | 問題 | 解決方案 | 日期 |
 |----|------|----------|------|
+| **#H93** | n_features DB 記錄為 8（bug）| 改用 X.shape[1]，現在正確記錄實際特徵數 | 04-02 09:54 |
 | **#H93-lag** | lag 特徵未存入 DB | 確認：訓練時 in-memory 計算 lag，predictor 也 in-memory 計算；DB 不需儲存 lag 欄位 | 04-02 09:49 |
 | **#H92** | ic_signs.json stale | 重算 N=8853 IC，修正 | 04-02 09:31 |
 | **#H89** | eye/body/aura IC 不顯著 | 替換特徵計算 | 04-02 09:08 |
@@ -48,12 +49,12 @@
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw data | 11,066 筆 | ✅ 正常增長 |
+| Raw data | 11,068 筆 | ✅ 正常增長 |
 | Features | 11,054 筆 | ✅ |
 | Labels h=4（aligned）| 15,048 筆（訓練用）| ✅ |
-| BTC 當前 | ~$67,246 | ✅ |
+| BTC 當前 | ~$67,201 | ✅ |
 | FNG | 12.0（極度恐慌）| ⚠️ |
-| Funding Rate | 7.47e-06（極低/中性）| ℹ️ |
+| Funding Rate | 4.45e-06（極低/中性）| ℹ️ |
 | main.py 進程 | 5分鐘排程運行中 | ✅ |
 
 ### 感官 IC（N≈15K aligned，h=4，含 IC 反轉修正）
