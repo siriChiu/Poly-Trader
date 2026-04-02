@@ -21,6 +21,16 @@ def calculate_metrics(
     if periods_per_year is None:
         periods_per_year = 365 * 24 * (60 // freq_minutes)
 
+    if equity_curve is None or len(equity_curve) < 2:
+        return {
+            "total_return": 0.0, "annual_return": 0.0, "sharpe_ratio": 0.0,
+            "sortino_ratio": 0.0, "max_drawdown": 0.0, "calmar_ratio": 0.0,
+            "alpha_vs_benchmark": 0.0, "total_trades": 0, "win_rate": 0.0,
+            "sell_win_rate": 0.0, "profit_factor": 0.0, "avg_win": 0.0,
+            "avg_loss": 0.0, "n_wins": 0, "n_losses": 0, "n_draws": 0,
+            "expectancy": 0.0, "max_consecutive_losses": 0,
+        }
+
     start_eq = float(equity_curve.iloc[0])
     end_eq = float(equity_curve.iloc[-1])
     total_return = (end_eq - start_eq) / start_eq if start_eq != 0 else 0.0

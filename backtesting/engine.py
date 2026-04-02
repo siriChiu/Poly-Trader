@@ -91,8 +91,11 @@ class BacktestEngine:
     def load_historical_prices(self, timestamps):
         rows = self.session.query(RawMarketData).filter(
             RawMarketData.symbol == self.symbol.replace("/", "")).order_by(RawMarketData.timestamp).all()
-        if not rows: return pd.Series(dtype=float)
-        prices = {r.timestamp: r.close_price for r in rows}
+        if not rows:
+            return pd.Series(dtype=float)
+        prices = {r.timestamp: r.close_price for r in rows if r.close_price is not None}
+        if not prices:
+            return pd.Series(dtype=float)
         return pd.Series(prices).reindex(timestamps, method="ffill")
 
     def _should_pyramid_confidence(self, confidence, equity, price):
@@ -256,7 +259,11 @@ def run_backtest(session, start_date=None, end_date=None, initial_capital=10000,
                         max_position_ratio, stop_loss_pct, take_profit_pct,
                         symbol, pyramid_mode, commission_rate, slippage_bps)
     feat = bt.load_historical_features(start_date, end_date)
-    if feat.empty: return None
+    if feat.empty:
+        logger.warning("run_backtest: no features in selected window")
+        return None
     px = bt.load_historical_prices(feat["timestamp"].tolist())
-    if px.empty: return None
+    if px.empty:
+        logger.warning("run_backtest: no prices in selected window")
+        return None
     return bt.run(feat, px)

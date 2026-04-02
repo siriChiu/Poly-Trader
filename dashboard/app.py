@@ -34,7 +34,24 @@ engine = create_engine(cfg["database"]["url"])
 @st.cache_data(ttl=30)
 def get_latest_market():
     with engine.connect() as conn:
-        row = conn.execute(text("SELECT r.timestamp,r.close_price,r.volume,r.funding_rate,COALESCE(f.feat_eye, f.feat_eye_dist) AS feat_eye,COALESCE(f.feat_ear, f.feat_ear_zscore) AS feat_ear,COALESCE(f.feat_nose, f.feat_nose_sigmoid) AS feat_nose,COALESCE(f.feat_tongue, f.feat_tongue_pct) AS feat_tongue,COALESCE(f.feat_body, f.feat_body_roc) AS feat_body,COALESCE(f.feat_pulse, 0) AS feat_pulse,COALESCE(f.feat_aura, 0) AS feat_aura,COALESCE(f.feat_mind, 0) AS feat_mind FROM raw_market_data r JOIN features_normalized f ON f.timestamp=r.timestamp ORDER BY r.timestamp DESC LIMIT 1")).fetchone()
+        row = conn.execute(text("""
+            SELECT r.timestamp,
+                   r.close_price,
+                   r.volume,
+                   r.funding_rate,
+                   COALESCE(f.feat_eye, 0.5) AS feat_eye,
+                   COALESCE(f.feat_ear, 0.5) AS feat_ear,
+                   COALESCE(f.feat_nose, 0.5) AS feat_nose,
+                   COALESCE(f.feat_tongue, 0.5) AS feat_tongue,
+                   COALESCE(f.feat_body, 0.5) AS feat_body,
+                   COALESCE(f.feat_pulse, 0) AS feat_pulse,
+                   COALESCE(f.feat_aura, 0) AS feat_aura,
+                   COALESCE(f.feat_mind, 0) AS feat_mind
+            FROM raw_market_data r
+            LEFT JOIN features_normalized f ON f.timestamp = r.timestamp
+            ORDER BY r.timestamp DESC
+            LIMIT 1
+        """)).fetchone()
     return row
 
 @st.cache_data(ttl=30)
@@ -43,11 +60,28 @@ def get_confidence():
         from model.predictor import load_predictor
         pred = load_predictor()
         with engine.connect() as conn:
-            row = conn.execute(text("SELECT COALESCE(feat_eye, feat_eye_dist) AS feat_eye,COALESCE(feat_ear, feat_ear_zscore) AS feat_ear,COALESCE(feat_nose, feat_nose_sigmoid) AS feat_nose,COALESCE(feat_tongue, feat_tongue_pct) AS feat_tongue,COALESCE(feat_body, feat_body_roc) AS feat_body,COALESCE(feat_pulse,0) AS feat_pulse,COALESCE(feat_aura,0) AS feat_aura,COALESCE(feat_mind,0) AS feat_mind FROM features_normalized ORDER BY timestamp DESC LIMIT 1")).fetchone()
-        if row is None: return 0.5, "HOLD"
-        feats = {"feat_eye":row[0],"feat_ear":row[1],"feat_nose":row[2],"feat_tongue":row[3],"feat_body":row[4],"feat_pulse":row[5],"feat_aura":row[6],"feat_mind":row[7]}
+            row = conn.execute(text("""
+                SELECT COALESCE(feat_eye, 0.5) AS feat_eye,
+                       COALESCE(feat_ear, 0.5) AS feat_ear,
+                       COALESCE(feat_nose, 0.5) AS feat_nose,
+                       COALESCE(feat_tongue, 0.5) AS feat_tongue,
+                       COALESCE(feat_body, 0.5) AS feat_body,
+                       COALESCE(feat_pulse, 0) AS feat_pulse,
+                       COALESCE(feat_aura, 0) AS feat_aura,
+                       COALESCE(feat_mind, 0) AS feat_mind
+                FROM features_normalized
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """)).fetchone()
+        if row is None:
+            return 0.5, "HOLD"
+        feats = {
+            "feat_eye": row[0], "feat_ear": row[1], "feat_nose": row[2], "feat_tongue": row[3],
+            "feat_body": row[4], "feat_pulse": row[5], "feat_aura": row[6], "feat_mind": row[7]
+        }
         conf = pred.predict_proba(feats)
-        if conf is None: return 0.5, "HOLD"
+        if conf is None:
+            return 0.5, "HOLD"
         sig = "BUY" if conf >= 0.65 else ("SELL" if conf <= 0.35 else "HOLD")
         return float(conf), sig
     except Exception:
@@ -75,10 +109,23 @@ def get_price_history(days=7):
 @st.cache_data(ttl=30)
 def get_sense_history(hours=24):
     with engine.connect() as conn:
-        rows = conn.execute(text("SELECT timestamp,COALESCE(feat_eye, feat_eye_dist) AS eye,COALESCE(feat_ear, feat_ear_zscore) AS ear,COALESCE(feat_nose, feat_nose_sigmoid) AS nose,COALESCE(feat_tongue, feat_tongue_pct) AS tongue,COALESCE(feat_body, feat_body_roc) AS body,COALESCE(feat_pulse, 0) AS pulse,COALESCE(feat_aura, 0) AS aura,COALESCE(feat_mind, 0) AS mind FROM features_normalized WHERE timestamp>=:s ORDER BY timestamp ASC"),{"s":datetime.utcnow()-timedelta(hours=hours)}).fetchall()
+        rows = conn.execute(text("""
+            SELECT timestamp,
+                   COALESCE(feat_eye, 0.5) AS eye,
+                   COALESCE(feat_ear, 0.5) AS ear,
+                   COALESCE(feat_nose, 0.5) AS nose,
+                   COALESCE(feat_tongue, 0.5) AS tongue,
+                   COALESCE(feat_body, 0.5) AS body,
+                   COALESCE(feat_pulse, 0) AS pulse,
+                   COALESCE(feat_aura, 0) AS aura,
+                   COALESCE(feat_mind, 0) AS mind
+            FROM features_normalized
+            WHERE timestamp >= :s
+            ORDER BY timestamp ASC
+        """), {"s": datetime.utcnow() - timedelta(hours=hours)}).fetchall()
     if not rows:
-        return pd.DataFrame(columns=["timestamp","close_price"])
-    df = pd.DataFrame(rows,columns=["ts","eye","ear","nose","tongue","body","pulse","aura","mind"])
+        return pd.DataFrame(columns=["ts", "eye", "ear", "nose", "tongue", "body", "pulse", "aura", "mind"])
+    df = pd.DataFrame(rows, columns=["ts", "eye", "ear", "nose", "tongue", "body", "pulse", "aura", "mind"])
     df["ts"] = pd.to_datetime(df["ts"])
     return df
 
@@ -87,19 +134,24 @@ def get_price_sense_overlay(days=7):
     """Nearest-match 對齊價格與多感官，提供同圖走勢。"""
     price_df = get_price_history(days=days)
     sense_df = get_sense_history(hours=days * 24)
+    cols = ["timestamp", "close_price", "eye", "ear", "nose", "tongue", "body", "pulse", "aura", "mind"]
     if price_df.empty or sense_df.empty:
-        return pd.DataFrame(columns=["timestamp", "close_price", "eye", "ear", "nose", "tongue", "body", "pulse", "aura", "mind"])
+        return pd.DataFrame(columns=cols)
 
     price_df = price_df.sort_values("timestamp").copy().rename(columns={"timestamp": "ts"})
     sense_df = sense_df.sort_values("ts").copy()
-    merged = pd.merge_asof(price_df, sense_df, on="ts", direction="nearest", tolerance=pd.Timedelta("90min"))
-    merged = merged.rename(columns={"ts": "timestamp"})
-    merged["timestamp"] = pd.to_datetime(merged["timestamp"])
-    # 早段樣本常有缺口，前後補值讓走勢可視化更連續。
-    for c in ["eye", "ear", "nose", "tongue", "body", "pulse", "aura", "mind"]:
-        if c in merged.columns:
-            merged[c] = pd.to_numeric(merged[c], errors="coerce").ffill().bfill()
-    return merged
+    merged = pd.merge_asof(price_df, sense_df, on="ts", direction="nearest", tolerance=pd.Timedelta("120min"))
+    if merged.empty:
+        merged = price_df.rename(columns={"ts": "timestamp"}).copy()
+        merged = merged.merge(sense_df, how="left", left_on="timestamp", right_on="ts")
+        merged = merged.drop(columns=["ts"], errors="ignore").ffill().bfill()
+    else:
+        merged = merged.rename(columns={"ts": "timestamp"})
+        merged["timestamp"] = pd.to_datetime(merged["timestamp"])
+        for c in ["eye", "ear", "nose", "tongue", "body", "pulse", "aura", "mind"]:
+            if c in merged.columns:
+                merged[c] = pd.to_numeric(merged[c], errors="coerce").ffill().bfill()
+    return merged[[c for c in cols if c in merged.columns]].copy()
 
 @st.cache_data(ttl=30)
 def get_trade_history(days=30):

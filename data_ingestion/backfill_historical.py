@@ -360,9 +360,10 @@ def save_historical_to_db(
             label = Labels(
                 timestamp=ts,
                 symbol=symbol,
-                horizon_hours=24,
+                horizon_minutes=24*60,
                 future_return_pct=row.get("future_return"),
-                label=int(row["label"]),
+                label_up=int(row["label"]),
+                label_sell_win=int(row["label"] == 1),
             )
             session.add(label)
             counts["labels"] += 1
@@ -421,7 +422,7 @@ def run_backfill(
 
 
 if __name__ == "__main__":
-    result = run_backfill(days=30)
+    result = run_backfill(days=365)
     print(f"\n=== Backfill Result ===")
     for k, v in result.items():
         print(f"  {k}: {v}")
