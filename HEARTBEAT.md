@@ -17,7 +17,7 @@
 - 不可跳過此步驟，即使是例行心跳
 
 ### Step 1: 數據收集
-- 運行 `Poly-Trader/scripts/dev_heartbeat.py` 檢查檔案結構和模組語法
+- 運行 `ssh Kazuha@192.168.0.238 "cd C:\\Users\\Kazuha\\repo\\Poly-Trader && python scripts/dev_heartbeat.py"` 檢查檔案結構和模組語法
 - 運行 collector 收集最新數據
 - 記錄最新 raw/features/labels 數量、BTC 價格、衍生品數據
 
@@ -63,7 +63,7 @@
 - 修改前先審閱（git diff）
 
 #### Step 5.2: 功能測試（如果有修改代碼）
-- 運行 `tests/comprehensive_test.py` 確認不破壞現有功能
+- 運行 `ssh Kazuha@192.168.0.238 "cd C:\\Users\\Kazuha\\repo\\Poly-Trader && python tests/comprehensive_test.py"` 確認不破壞現有功能
 
 ### Step 6: 回報摘要
 輸出格式：
@@ -91,3 +91,22 @@
 3. **D（決策）必須轉化為具體行動**
 4. **不問用戶意見，發現問題直接修復**
 5. **修改代碼後必須 commit**
+
+---
+
+## ⛔ 開發環境約束（嚴格遵守）
+
+**所有程式碼開發、修改、測試必須在本機 Windows 進行，嚴禁在 Raspberry Pi 上執行任何開發操作。**
+
+- **開發機器**：`Kazuha@192.168.0.238`
+- **工作目錄**：`C:\Users\Kazuha\repo\Poly-Trader`
+- **連線方式**：`ssh Kazuha@192.168.0.238`
+- **Raspberry Pi 僅執行 OpenClaw Gateway**，不進行任何程式碼修改
+
+**執行規則**：
+1. 所有檔案讀取：`ssh Kazuha@192.168.0.238 "type C:\Users\Kazuha\repo\Poly-Trader\<file>"`
+2. 所有檔案寫入：透過 SSH 執行寫入指令
+3. 所有 Python 執行：`ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && python <script>"`
+4. 所有 Git 操作：`ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && git ..."`
+5. 絕對禁止在 `~/.openclaw/workspace/Poly-Trader/` 建立或修改任何程式碼檔案
+
