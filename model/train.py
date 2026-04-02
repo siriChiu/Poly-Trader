@@ -227,7 +227,7 @@ def run_training(session: Session) -> bool:
         cur.execute("""
             INSERT INTO model_metrics (timestamp, train_accuracy, cv_accuracy, cv_std, n_features, notes)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (datetime.utcnow().isoformat(), train_acc, cv_acc, cv_std, len(FEATURE_COLS), "auto-train"))
+        """, (datetime.utcnow().isoformat(), train_acc, cv_acc, cv_std, X.shape[1], "auto-train"))
         db.commit()
         db.close()
         logger.info(f"模型指標: Train={train_acc:.3f}, CV={cv_acc:.3f}±{cv_std:.3f}")
