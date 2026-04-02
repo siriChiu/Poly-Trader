@@ -123,21 +123,18 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_tongue_pct"] = 1.0
 
-    # 5. Body: stoch_rsi_14 — 14期 Stochastic RSI（[0,1]）
-    #    IC=-0.054 (p=0.012, n=2188): Stoch RSI 高 → 過買 → 看跌（反轉信號）
-    #    替換 atr_ratio_14 (IC=+0.041, p=0.055, 邊緣不顯著) #H66
-    #    屬於 NEG_IC_FEATS（反轉後使用）
-    if len(close) >= 15:
-        delta_b = close.diff()
-        gain_b = delta_b.clip(lower=0).ewm(com=13, min_periods=7).mean()
-        loss_b = (-delta_b.clip(upper=0)).ewm(com=13, min_periods=7).mean()
-        rs_b = gain_b / (loss_b + 1e-10)
-        rsi_b = 100 - (100 / (1 + rs_b))
-        rsi_min_b = rsi_b.rolling(14, min_periods=7).min()
-        rsi_max_b = rsi_b.rolling(14, min_periods=7).max()
-        stoch = (rsi_b - rsi_min_b) / (rsi_max_b - rsi_min_b + 1e-10)
-        val_b = float(stoch.iloc[-1])
-        features["feat_body_roc"] = val_b if not np.isnan(val_b) else 0.5
+    # 5. Body: vol_zscore_24 — 24期成交量 z-score（正規化至[0,1]）
+    #    IC=+0.030 (p=0.006, n=8852): 成交量暴增 → 市場活躍 → 偏多
+    #    替換 stoch_rsi_14 (IC=-0.013, p=0.321, 不顯著) #H89
+    #    正 IC → 不加入 NEG_IC_FEATS（成交量暴增看多）
+    if len(volume) >= 12:
+        vol_mean_24 = float(volume.iloc[-min(24, len(volume)):].mean())
+        vol_std_24 = float(volume.iloc[-min(24, len(volume)):].std())
+        if vol_std_24 > 1e-10:
+            zscore = (float(volume.iloc[-1]) - vol_mean_24) / vol_std_24
+        else:
+            zscore = 0.0
+        features["feat_body_roc"] = float(np.clip((zscore + 3) / 6, 0, 1))
     else:
         features["feat_body_roc"] = 0.5
 
@@ -164,21 +161,28 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_pulse"] = 0.5
 
-    # 7. Aura (v5): fr_cum48_norm — 48h 累積資金費率（正規化）
-    #    原理：持倉成本累積量，反映槓桿多空誰在「燒錢」，長期正累積 → 多頭過熱 → 看跌
-    #    IC=-0.058（p=0.006, n=2274），替換 funding_zscore_288（IC=-0.004, p=0.83，白噪音）#H83
-    #    屬於 NEG_IC_FEATS（反轉後使用）
-    if len(fr) >= 12:
-        fr_filled = fr.fillna(method='ffill').fillna(0)
-        window = min(48, len(fr_filled))
-        fr_window = fr_filled.iloc[-window:]
-        fr_cum = float(fr_window.sum())
-        fr_std = float(fr_window.std())
-        # 正規化：除以 window * std 使量綱統一
-        denominator = window * fr_std if fr_std > 1e-12 else 1e-8
-        features["feat_aura"] = float(fr_cum / denominator)
+    # 7. Aura (v6): pos_in_24h_range — 當前價格在 24h 高低點中的位置
+    #    IC=+0.061 (p<0.0001, n=10976): 最強替換候選，位置高 → 過熱 → 偏多（趨勢信號）
+    #    替換 fr_cum48_norm (IC=-0.024, p=0.07, 邊緣不顯著) #H89
+    #    正 IC → 不加入 NEG_IC_FEATS（高位有追漲慣性）
+    if len(close) >= 48:
+        window_size = min(288, len(close))
+        window_close = close.iloc[-window_size:]
+        price_min = float(window_close.min())
+        price_max = float(window_close.max())
+        if price_max > price_min:
+            features["feat_aura"] = float((close.iloc[-1] - price_min) / (price_max - price_min))
+        else:
+            features["feat_aura"] = 0.5
+    elif len(close) >= 12:
+        price_min = float(close.min())
+        price_max = float(close.max())
+        if price_max > price_min:
+            features["feat_aura"] = float((close.iloc[-1] - price_min) / (price_max - price_min))
+        else:
+            features["feat_aura"] = 0.5
     else:
-        features["feat_aura"] = 0.0
+        features["feat_aura"] = 0.5
 
     # 8. Mind (v2): ret_72 — 72期價格回報率（6h）
     #    IC=-0.146 (p=0.001, n=500): 替換 price_momentum_60 (IC=+0.020, p=0.653, 統計無效) #H60
