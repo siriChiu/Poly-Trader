@@ -148,19 +148,24 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_body_roc"] = 0.0
 
-    # 6. Pulse (v4): vol_roc48 — 48期成交量變化率（成交量動能）
-    #    IC=+0.0436 (p<0.0001, N=23962): 替換 atr_ratio14 (IC=+0.0094, p=0.520, 不顯著) #H101
-    #    正 IC → 成交量增加 → 趨勢延續，不加入 NEG_IC_FEATS
+    # 6. Pulse (v6): vol_spike12 — 12期成交量 z-score（短期成交量激增）
+    #    IC=-0.0855 (p=0.007, N=1000): 替換 vol_zscore24 (IC=-0.0500, p=0.114, 不顯著) #H108
+    #    負 IC → 加入 NEG_IC_FEATS 取反；成交量激增 → 短期反轉信號
     if "volume" in df.columns:
         vol_series = df["volume"].dropna().astype(float)
     else:
         vol_series = pd.Series(dtype=float)
-    if len(vol_series) >= 49:
-        vol_roc = float((vol_series.iloc[-1] - vol_series.iloc[-49]) / (vol_series.iloc[-49] + 1e-10))
-        features["feat_pulse"] = float(1 / (1 + np.exp(-vol_roc)))
-    elif len(vol_series) >= 2:
-        vol_roc = float((vol_series.iloc[-1] - vol_series.iloc[0]) / (vol_series.iloc[0] + 1e-10))
-        features["feat_pulse"] = float(1 / (1 + np.exp(-vol_roc)))
+    if len(vol_series) >= 12:
+        vol_window = vol_series.iloc[-12:].values
+        mean_v = float(vol_window[:-1].mean())
+        std_v = float(vol_window[:-1].std()) + 1e-10
+        vol_z = (vol_window[-1] - mean_v) / std_v
+        features["feat_pulse"] = float(1 / (1 + np.exp(-vol_z / 2)))
+    elif len(vol_series) >= 3:
+        mean_v = float(vol_series.iloc[:-1].mean())
+        std_v = float(vol_series.iloc[:-1].std()) + 1e-10
+        vol_z = (float(vol_series.iloc[-1]) - mean_v) / std_v
+        features["feat_pulse"] = float(1 / (1 + np.exp(-vol_z / 2)))
     else:
         features["feat_pulse"] = 0.5
 
