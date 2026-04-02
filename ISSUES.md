@@ -1,8 +1,8 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-02 08:34 GMT+8**
-> **🔄 心跳 #75：感官全數通過 IC 顯著性驗證（N=4523 aligned）；數據正常增長至 2289 筆；系統穩定**
-> **✅ 上輪修復：心跳 #74：fix #H86 — predictor _get_proba 優先使用 model dict feature_names（修復 32 vs 8 特徵 mismatch ValueError）**
+> **最後更新：2026-04-02 08:54 GMT+8**
+> **🔄 心跳 #76：fix #H88 — CV FitFailedWarning 修復（skip fold 0 missing class 0），CV 從 44.7% 提升至 50.6%±6.3%**
+> **✅ 上輪修復：心跳 #75：感官全數通過 IC 顯著性驗證（N=4523 aligned）；數據正常增長至 2289 筆；系統穩定**
 
 ---
 
@@ -16,32 +16,34 @@
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #H33 | 🟡 模型 CV=44.7%（Train=56.9%, gap=12%） | 2,289 筆，每天+288筆，累積數據改善中 | 🟡 P1 — 持續收集 |
-| #H87 | 🟡 CV 長期卡在 44-45%，距目標 90% 差距甚大 | 需要更多數據 + 可能需要非線性特徵組合或外部信號 | 🟡 P1 |
-| #H85 | 🟡 feat_nose_sigmoid IC=-0.07（負向） | EMA 距離替換可提升穩定性 | 🟢 P2 |
+| #H89 | 🟡 eye/body/aura IC 不顯著（live h=4, N=5841）：eye p=0.47, body p=0.40, aura p=0.99 | eye 考慮換為 funding_rate z-score 或 VWAP 距離；aura 再次替換 | 🟡 P1 |
+| #H87 | 🟡 Train accuracy 從 56.9% 降至 48.0%（模型以 10720 樣本重訓後） | 更多樣本稀釋舊模式；lag 特徵 IC 普遍弱；需探索非線性組合 | 🟡 P1 |
+| #H33 | 🟡 CV=50.6%（fix #H88後），距目標 90% 差距甚大 | 11,044 特徵筆，每天+288筆，累積數據改善中 | 🟡 P1 |
+| #H85 | 🟡 feat_nose_sigmoid IC=-0.025 p=0.17（h=4 live，不穩定） | EMA 距離替換可提升穩定性 | 🟢 P2 |
 
 ## 🟢 低優先級
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #IC4 | 模型動態 IC 加權 | tongue IC=+0.083 遠高，應加大 XGBoost 輸入權重 | 🟢 P3 |
+| #IC4 | 模型動態 IC 加權 | tongue IC=+0.025（live） / mind IC=-0.052 強，考慮 sample_weight | 🟢 P3 |
 
 
 ## 🏆 已解決
 
 | ID | 問題 | 解決方案 | 日期 |
 |----|------|----------|------|
+| **#H88** | **CV FitFailedWarning：fold 0 缺少 class 0（早期回填數據全為多頭），CV=nan** | **手動遍歷 fold，跳過 <3 class 的 fold，CV 從 44.7%→50.6%±6.3%（4 valid folds）** | **04-02 08:54** |
 | **#H86** | **predictor._get_proba 使用 clf.feature_names_in_ 失敗→靜默回退 8 特徵，imputer 需 32 特徵→ValueError** | **優先使用 model dict 的 feature_names key，修復 32-feature 預測路徑** | **04-02 08:24** |
 | **#H84** | **feat_pulse IC=-0.028 p=0.18（不顯著）** | **本輪重新計算 IC: pulse=-0.047 p=0.026（✅已顯著）** | **04-02 08:24** |
 | **#H83** | **feat_aura IC=-0.004, p=0.83（完全無效）** | **替換為 fr_cum48_norm（48h 累積資金費率正規化），IC=-0.097, p=0.000** | **04-02 08:20** |
 | **#H82** | **predictor.py ValueError: feature_names mismatch（8 vs 32）** | **load_latest_features 改為讀 289 筆計算 lag；_get_proba 動態讀 clf.feature_names_in_** | **04-02 07:59** |
 | **#M06** | **lag 特徵缺失** | **加入 feat_*_lag12/lag48/lag288 共 24 個 lag 特徵；N=1955, CV=44.9%** | **04-02 07:49** |
-| **#H81** | **重複 main.py 進程（PID 25614+26388 同時運行）** | **kill 25614，更新 poly_trader.pid=26388，保留較新進程** | **04-02 07:46** |
-| **#H80** | **collector.py run_preprocessor 重複呼叫** | **移除 collector.py 內嵌的 run_preprocessor 呼叫** | **04-02 07:39** |
-| **#H79** | **predictor.py AttributeError: 'dict' has no attribute 'predict_proba'** | **__init__ 判斷 dict 並解包 clf/imputer/neg_ic_feats** | **04-02 07:14** |
-| **#H78** | **feat_ear_zscore MACD_hist 假顯著** | **替換為 mom_12 (12期動量，p=0.027 ✅)** | **04-02 07:04** |
-| **#H77** | **feat_ear_zscore IC 不顯著** | **替換為 MACD histogram(12/26)** | **04-02 07:01** |
-| **#H76** | **模型嚴重過擬合 Train=80.2%/CV=42.8%** | **加強正則化 → Train=60.1%/CV=45.8% gap=14%** | **04-02 06:44** |
+| #H81 | 重複 main.py 進程 | kill 25614，保留較新進程 26388 | 04-02 07:46 |
+| #H80 | collector.py run_preprocessor 重複呼叫 | 移除內嵌的 run_preprocessor 呼叫 | 04-02 07:39 |
+| #H79 | predictor.py AttributeError: 'dict' has no attribute 'predict_proba' | __init__ 判斷 dict 並解包 clf/imputer/neg_ic_feats | 04-02 07:14 |
+| #H78 | feat_ear_zscore MACD_hist 假顯著 | 替換為 mom_12 (12期動量，p=0.027 ✅) | 04-02 07:04 |
+| #H77 | feat_ear_zscore IC 不顯著 | 替換為 MACD histogram(12/26) | 04-02 07:01 |
+| #H76 | 模型嚴重過擬合 Train=80.2%/CV=42.8% | 加強正則化 → Train=60.1%/CV=45.8% gap=14% | 04-02 06:44 |
 | #H74 | feat_ear_zscore IC 不顯著 | RSI-24 → RSI-72 | 04-02 06:37 |
 | #H75 | feat_tongue_pct IC 不顯著 | volatility_24h → vol_ratio_6_48 | 04-02 06:37 |
 | #H66 | feat_body_roc IC 邊緣不顯著 | atr_ratio_14 → stoch_rsi_14 | 04-02 06:37 |
@@ -59,41 +61,41 @@
 
 ---
 
-## 📊 當前系統健康 (2026-04-02 08:34 GMT+8)
+## 📊 當前系統健康 (2026-04-02 08:54 GMT+8)
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw data | 2,289 筆 | ✅ +2 筆（持續增長）|
-| Features | 2,289 筆 | ✅ |
-| Labels (h=4, clean) | 4,523 筆 | ✅ |
-| 最新資料時間 | 2026-04-02 00:34 UTC | ✅ |
-| BTC 當前 | ~$68,292 | ✅ |
-| FNG | 12.0 (極度恐慌) | ⚠️ |
-| Funding Rate | 3.72e-05 (中性) | ℹ️ |
-| **main.py 進程** | **5分鐘排程運行中（PID 26388）** | ✅ |
-| **預測模組** | **XGBoostPredictor（32特徵）** | ✅ |
+| Raw data | 11,056 筆 | ✅ 正常增長 |
+| Features | 11,044 筆 | ✅ |
+| Labels h=4 | 11,007 筆 | ✅ |
+| Labels h=24 | 11,025 筆 | ✅ |
+| BTC 當前 | ~$68,585 | ✅ |
+| FNG | 12.0（極度恐慌）| ⚠️ |
+| Funding Rate | 3.48e-05（中性）| ℹ️ |
+| main.py 進程 | 5分鐘排程運行中（PID 26388）| ✅ |
 
-### 感官 IC（aligned N=4523，心跳#75更新）
+### 感官 IC（h=4 live aligned N=5841，心跳#76更新）
 | 感官 | IC | p值 | 狀態 |
 |------|----|-----|------|
-| feat_eye_dist | -0.039 | 0.009 | ✅ 顯著 |
-| feat_ear_zscore | -0.043 | 0.004 | ✅ 顯著 |
-| feat_nose_sigmoid | -0.040 | 0.007 | ✅ 顯著 |
-| feat_tongue_pct | +0.083 | 0.000 | ✅ 最強 |
-| feat_body_roc | -0.059 | 0.000 | ✅ 顯著 |
-| feat_pulse | -0.030 | 0.044 | ✅ 顯著（邊緣）|
-| feat_aura | -0.051 | 0.001 | ✅ 顯著 |
-| feat_mind | -0.042 | 0.005 | ✅ 顯著 |
+| feat_eye_dist | -0.010 | 0.465 | ❌ 不顯著 → P1 替換 |
+| feat_ear_zscore | -0.045 | 0.001 | ✅ 顯著 |
+| feat_nose_sigmoid | -0.036 | 0.006 | ✅ 顯著（稍弱）|
+| feat_tongue_pct | +0.025 | 0.053 | ❌ 邊緣 |
+| feat_body_roc | -0.011 | 0.399 | ❌ 不顯著 |
+| feat_pulse | -0.039 | 0.003 | ✅ 顯著 |
+| feat_aura | +0.000 | 0.987 | ❌ 完全隨機 → 立即替換 |
+| feat_mind | -0.052 | 0.000 | ✅ 最強 |
 
-🎉 **里程碑持續：全部 8 感官 IC 均顯著（p<0.05）**
+⚠️ **退步警報：3感官不顯著（eye/body/aura），比心跳#75的全通過倒退**
 
 ### 模型性能
 | 指標 | 值 | 評估 |
 |------|----|----|
-| Train Accuracy | **56.9%** | ✅ gap 縮小 |
-| TimeSeries CV | **44.7% ± 6.7%** | 🟡 數據累積中 |
-| n_features | **32（含 lag）** | ✅ |
+| Train Accuracy | **48.0%** | 🔴 降至基準線附近 |
+| TimeSeries CV | **50.6% ± 6.3%** | 🟡 fix #H88後修正（4 valid folds）|
+| n_features | **8（基礎）+ 24 lag = 32** | ✅ |
+| Training samples | **10,720** | ✅ 大幅增加 |
 
 ### 測試狀態
 | 項目 | 狀態 |
@@ -109,10 +111,10 @@
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
-| P1 | **持續累積 h=4 乾淨數據**：5min 排程每天新增 ~288 筆，目標 5,000+ 筆提升 CV | #H33 |
-| P1 | **評估 CV 突破瓶頸策略**：lag-288 特徵 IC 弱 → 考慮引入鏈上數據（交易所淨流量、巨鯨動態）作為新感官 | #H87 |
-| P2 | **feat_nose EMA 距離替換**：ema_dist IC 穩定性更好 | #H85 |
-| P3 | **動態 IC 加權**：tongue IC=+0.083 遠高，考慮 sample_weight 或 feature 重複 | #IC4 |
+| P1 | **立即替換 feat_aura**：p=0.99 完全無效，考慮 exchange_netflow 或 spot_future_basis | #H89 |
+| P1 | **調查 train acc 降至 48%**：模型能力下降或特徵品質惡化，需診斷 feature importance | #H87 |
+| P1 | **替換 eye/body 感官**：live IC 退步，考慮 VWAP 距離（eye）、ATR z-score（body）| #H89 |
+| P1 | **持續累積數據**：每天+288筆，目標 20,000+ 筆 | #H33 |
 
 ---
 
