@@ -95,6 +95,10 @@ def get_price_sense_overlay(days=7):
     merged = pd.merge_asof(price_df, sense_df, on="ts", direction="nearest", tolerance=pd.Timedelta("90min"))
     merged = merged.rename(columns={"ts": "timestamp"})
     merged["timestamp"] = pd.to_datetime(merged["timestamp"])
+    # 早段樣本常有缺口，前後補值讓走勢可視化更連續。
+    for c in ["eye", "ear", "nose", "tongue", "body", "pulse", "aura", "mind"]:
+        if c in merged.columns:
+            merged[c] = pd.to_numeric(merged[c], errors="coerce").ffill().bfill()
     return merged
 
 @st.cache_data(ttl=30)
@@ -190,7 +194,7 @@ with tab1:
 
     st.subheader("價格 × 多感官走勢")
     ov = get_price_sense_overlay(days=7)
-    if not ov.empty and ov["eye"].notna().any():
+    if not ov.empty and ov[[c for c in ["eye","ear","nose","tongue","body","pulse","aura","mind"] if c in ov.columns]].notna().any().any():
         fig_ov = go.Figure()
         fig_ov.add_trace(go.Scatter(x=ov["timestamp"], y=ov["close_price"], mode="lines", name="BTC 價格", line=dict(color="#ffffff", width=2)))
         pmin = float(ov["close_price"].min())
@@ -255,8 +259,11 @@ with tab3:
                     initial_capital=ic3, commission_rate=cr3/100,
                     symbol=cfg["trading"]["symbol"])
                 _s3.close()
-                if res and not res["equity_curve"].empty:
-                    eq = res["equity_curve"]["equity"]
+                if res is None:
+                    st.error("回測引擎沒有回傳結果；請先確認資料窗、symbol 與時間範圍。")
+                elif res.get("equity_curve") is not None and not res["equity_curve"].empty:
+                    eq_df = res["equity_curve"]
+                    eq = eq_df["equity"]
                     mx = calculate_metrics(eq,res["trade_log"],benchmark_return=res.get("buy_hold_return",0),freq_minutes=5)
                     tr = mx["total_return"]; bh = res.get("buy_hold_return",0)/100; alpha = tr-bh
                     cost = res.get("total_trading_cost",0)
@@ -276,7 +283,7 @@ with tab3:
                     k12.metric("卡爾瑪",f"{mx.get('calmar_ratio',0):.2f}")
                     fig_eq = go.Figure()
                     rc = "#00e676" if tr>=0 else "#ff1744"
-                    fig_eq.add_trace(go.Scatter(x=res["equity_curve"].index,y=eq,mode="lines",name="策略",line=dict(color=rc,width=2)))
+                    fig_eq.add_trace(go.Scatter(x=eq_df.index,y=eq,mode="lines",name="策略",line=dict(color=rc,width=2)))
                     bh_c = res.get("buy_hold_curve")
                     if bh_c is not None and not bh_c.empty:
                         fig_eq.add_trace(go.Scatter(x=bh_c.index,y=bh_c,mode="lines",name="Buy & Hold",line=dict(color="#555",width=1.5,dash="dash")))
@@ -284,12 +291,13 @@ with tab3:
                         font_color="#e0e0e0",height=350,xaxis=dict(gridcolor="#2a2a2a"),yaxis=dict(gridcolor="#2a2a2a"),
                         legend=dict(bgcolor="#161616"),hovermode="x unified")
                     st.plotly_chart(fig_eq,use_container_width=True)
+                    st.caption(f"權益曲線點數：{len(eq_df)}，最後權益：{float(eq.iloc[-1]):.2f}")
                     tl = res["trade_log"]
                     if not tl.empty:
                         sc3 = [c for c in ["timestamp","action","price","amount","confidence","pnl","gross_pnl","commission_slippage","reason"] if c in tl.columns]
                         st.dataframe(tl[sc3],use_container_width=True,height=280)
                 else:
-                    st.error("回測無數據，請確認日期範圍。")
+                    st.error("回測無權益曲線：通常是資料窗不足、symbol 不匹配，或時間範圍內沒有可交易樣本。")
             except Exception as e:
                 st.exception(e)
     else:
