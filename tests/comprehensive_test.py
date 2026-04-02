@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime
 import py_compile
 
-PROJECT_ROOT = Path(__file__).parent.resolve()
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()  # tests/ -> project root
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
@@ -37,7 +37,6 @@ def test_file_structure():
         "execution/risk_control.py", "execution/order_manager.py",
         "server/main.py", "server/routes/api.py", "server/senses.py",
         "web/package.json", "web/src/pages/Dashboard.tsx",
-        "comprehensive_test.py",
     ]
     missing = [f for f in required if not (PROJECT_ROOT / f).exists()]
     if missing:

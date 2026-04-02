@@ -123,18 +123,13 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_tongue_pct"] = 1.0
 
-    # 5. Body: vol_zscore_24 — 24期成交量 z-score（正規化至[0,1]）
-    #    IC=+0.030 (p=0.006, n=8852): 成交量暴增 → 市場活躍 → 偏多
-    #    替換 stoch_rsi_14 (IC=-0.013, p=0.321, 不顯著) #H89
-    #    正 IC → 不加入 NEG_IC_FEATS（成交量暴增看多）
-    if len(volume) >= 12:
-        vol_mean_24 = float(volume.iloc[-min(24, len(volume)):].mean())
-        vol_std_24 = float(volume.iloc[-min(24, len(volume)):].std())
-        if vol_std_24 > 1e-10:
-            zscore = (float(volume.iloc[-1]) - vol_mean_24) / vol_std_24
-        else:
-            zscore = 0.0
-        features["feat_body_roc"] = float(np.clip((zscore + 3) / 6, 0, 1))
+    # 5. Body: price_ret_20P — 20期價格報酬率（動量）
+    #    IC=-0.057 (p=0.0002, n=4412): 替換 vol_zscore_24 (IC=-0.017, p=0.21, 不顯著) #H95
+    #    負 IC → 近期上漲（正報酬）→ 負標籤（均值回歸）→ 加入 NEG_IC_FEATS
+    if len(close) >= 21:
+        ret_20 = float((close.iloc[-1] - close.iloc[-21]) / (close.iloc[-21] + 1e-10))
+        # sigmoid 轉換到 [0,1]，scale=50 讓 ±2% 範圍靈敏
+        features["feat_body_roc"] = float(1 / (1 + np.exp(50 * ret_20)))
     else:
         features["feat_body_roc"] = 0.5
 
