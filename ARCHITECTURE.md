@@ -10,7 +10,29 @@
 |----|------|
 | 前端 | React + TypeScript + Tailwind CSS + Recharts + lightweight-charts |
 | 後端 | FastAPI + SQLite + WebSocket |
-| 模型 | XGBoost (2-class) + confidence-based filtering |
+| 模型 | XGBoost / LightGBM + confidence-based filtering |
+
+---
+
+## 系統分層
+
+### 1. 資料層
+統一所有來源進入 raw event store，保留原始事件與來源資訊，支援回放與補歷史。
+
+### 2. 感官層
+將 raw 資料轉換為可量化感官特徵，並提供 IC、穩定性與版本控制。
+
+### 3. 標籤層
+根據未來報酬建立多 horizon 標籤，並新增 sell-win 標籤作為主 KPI。
+
+### 4. 模型層
+使用感官特徵做交易決策與賣出判斷，允許 abstain 與 regime-aware weights。
+
+### 5. 回測層
+驗證不同感官組合、不同市場狀態與不同賣出閾值下的表現。
+
+### 6. 可視化層
+顯示每個感官的 IC、勝率、風險貢獻、賣出勝率、回測摘要與會議整理。
 
 ---
 
@@ -18,103 +40,86 @@
 
 ```
 Poly-Trader/
-├── config.py / config.yaml     ← 配置
-├── main.py                      ← FastAPI 入口
-├── server/                      ← API + WebSocket + 感官引擎
-│   ├── main.py                  ← FastAPI app
-│   ├── senses.py                ← SensesEngine（8 感官計算）
-│   ├── dependencies.py          ← 依賴注入
-│   └── routes/
-│       ├── api.py               ← REST API
-│       └── ws.py                ← WebSocket
-├── data_ingestion/              ← 數據收集器
-│   ├── collector.py             ← 主收集器（整合所有模組）
-│   ├── binance_derivatives.py   ← LSR / GSR / Taker / OI
-│   ├── eye_binance.py           ← K 線數據
-│   ├── nose_futures.py          ← Funding Rate
-│   ├── ear_polymarket.py        ← Polymarket 概率
-│   ├── tongue_sentiment.py      ← FNG + 情緒
-│   ├── body_liquidation.py      ← OI + 清算
-│   ├── pulse.py                 ← 波動率
-│   ├── aura.py                  ← Funding×Price
-│   └── mind.py                  ← 量比
+├── data_ingestion/              ← 數據收集器 / backfill
+│   ├── collector.py             ← 主收集器（整合所有來源）
+│   ├── raw_events.py            ← raw event schema / 寫入介面（建議新增）
+│   ├── market.py                ← K 線 / funding / OI / liquidation
+│   ├── social.py                ← Twitter / RSS / 社群文本
+│   ├── prediction.py            ← Polymarket / prediction markets
+│   └── macro.py                 ← DXY / VIX / futures / event calendar
 ├── feature_engine/
-│   └── preprocessor.py          ← 特徵工程 v3（IC-validated）
+│   └── preprocessor.py          ← 特徵工程 v4（IC-validated + versioned）
+├── database/
+│   └── models.py                ← ORM：raw_events / features / labels
 ├── model/
-│   ├── predictor.py             ← 預測器（XGBoost + confidence）
-│   ├── train.py                 ← 訓練腳本
-│   └── xgb_model.pkl            ← 模型權重
+│   ├── predictor.py             ← 預測器（sell-win aware）
+│   └── train.py                 ← 訓練腳本
 ├── backtesting/
-│   ├── engine.py                ← 回測引擎 v2（金字塔加碼）
+│   ├── engine.py                ← 回測引擎（sell_win_rate / regime aware）
 │   ├── metrics.py               ← 績效指標
 │   └── optimizer.py             ← 參數優化
-├── execution/
-│   ├── risk_control.py          ← 風控
-│   └── order_manager.py         ← 下單管理
-├── database/
-│   └── models.py                ← SQLAlchemy ORM 模型
-├── web/                         ← React 前端
-│   └── src/
-│       ├── App.tsx              ← 路由
-│       ├── pages/               ← 頁面（Dashboard, Senses, Backtest）
-│       ├── components/          ← 元件（RadarChart, ConfidenceIndicator...）
-│       └── hooks/               ← useApi, useWebSocket
-├── scripts/                     ← 開發腳本
-│   ├── dev_heartbeat.py         ← 心跳檢查
-│   ├── recompute_features.py    ← 批量重算特徵
-│   ├── retrain.py               ← 重訓模型
-│   └── init_db.py               ← 初始化 DB
-├── tests/                       ← 測試腳本
-├── poly_trader.db               ← SQLite 資料庫（唯一）
-└── 文檔
-    ├── AI_AGENT_ROLE.md         ← AI 角色定義
-    ├── HEARTBEAT.md             ← 心跳流程
-    ├── ARCHITECTURE.md          ← 本文件
-    ├── ISSUES.md                ← 問題追蹤
-    ├── PRD.md                   ← 產品需求
-    └── ROADMAP.md               ← 發展路線
+├── analysis/
+│   ├── sense_effectiveness.py   ← IC / 分位數勝率 / regime analysis
+│   └── regime.py                ← 市場狀態分類（建議新增）
+├── dashboard/
+│   └── app.py                   ← 儀表板（總覽 / 回測 / 感官 / 會議）
+├── server/
+│   └── senses.py                ← 感官引擎
+└── tests/
 ```
 
 ---
 
-## 8 感官架構 v3（IC-validated）
+## 感官架構 v4（建議）
 
-| # | 感官 | 特徵 | IC | 數據源 | 計算方式 |
-|---|------|------|----|--------|----------|
-| 1 | Eye 👁️ | `feat_eye_dist` | — | Binance Funding | 72h funding rate 均值 |
-| 2 | Ear 👂 | `feat_ear_zscore` | — | Binance K線 | 48h 價格動量 |
-| 3 | Nose 👃 | `feat_nose_sigmoid` | — | K線衍生 | 48h 收益率自相關 |
-| 4 | Tongue 👅 | `feat_tongue_pct` | — | K線衍生 | 24h 波動率 |
-| 5 | Body 💪 | `feat_body_roc` | — | K線衍生 | 24h 價格區間位置 |
-| 6 | Pulse 💓 | `feat_pulse` | — | Binance Funding | Funding Rate 趨勢 |
-| 7 | Aura 🌀 | `feat_aura` | — | 複合 | 波動率×自相關交互 |
-| 8 | Mind 🧠 | `feat_mind` | — | Binance Funding | 24h Funding Z-score |
-
-> IC 值每次心跳更新，見 [ISSUES.md](ISSUES.md) 的感官 IC 表。
+| # | 感官 | 特徵主軸 | 資料源 | 用途 |
+|---|------|----------|--------|------|
+| 1 | Eye | 趨勢 / 方向 | K 線 / 報酬 | 判斷主方向 |
+| 2 | Ear | 波動 / 節奏 | K 線 / ATR | 判斷躁動 |
+| 3 | Nose | 均值回歸 / 自相關 | K 線衍生 | 判斷過熱 / 過冷 |
+| 4 | Tongue | 噪音 / 波動味覺 | K 線 / wick-body | 判斷亂跳 |
+| 5 | Body | 結構位置 | range / breakout | 判斷所處階段 |
+| 6 | Pulse | 資金壓力 | funding / OI / liquidation | 判斷多空擁擠 |
+| 7 | Aura | 複合結構 | vol×autocorr / funding×price | 判斷轉折區 |
+| 8 | Mind | 長周期風險 | funding z / macro proxy | 判斷風險狀態 |
+| 9 | Whisper | 討論量 / 爆量 | Twitter / RSS / 社群 | 判斷敘事熱度 |
+|10 | Tone | 情緒極性 | Text sentiment | 判斷正負情緒 |
+|11 | Chorus | 共識 / 分歧 | 文本聚類 / sentiment spread | 判斷市場一致性 |
+|12 | Hype | 炒作 / 噪訊 | 重複帖 / influencer spread | 判斷熱炒 |
+|13 | Oracle | 預期變化 | Polymarket | 判斷市場預期 |
+|14 | Shock | 事件驚訝程度 | news / calendar | 判斷事件衝擊 |
+|15 | Tide | 風險偏好 | DXY / VIX / futures | 判斷 risk-on / risk-off |
+|16 | Storm | 宏觀壓力 | macro news / rates shock | 判斷宏觀波動 |
 
 ---
 
-## 數據庫 Schema
+## 資料庫 Schema
 
-### raw_market_data
+### raw_events
 | 欄位 | 類型 | 說明 |
 |------|------|------|
 | id | INTEGER PK | 自增 ID |
-| timestamp | DATETIME | 時間戳 |
-| symbol | STRING | 交易對 |
-| close_price | FLOAT | 收盤價 |
-| volume | FLOAT | 成交量 |
-| funding_rate | FLOAT | 資金費率 |
-| fear_greed_index | FLOAT | FNG |
-| polymarket_prob | FLOAT | Polymarket 概率 |
-| eye_dist / ear_prob / tongue_sentiment / volatility / oi_roc / body_label | 各 FLOAT/STRING | 原始感官數據 |
+| timestamp | DATETIME | 事件時間 |
+| source | STRING | twitter / polymarket / news / macro / exchange |
+| entity | STRING | BTC / ETH / FED / ETF / event |
+| subtype | STRING | sentiment / probability / funding / etc. |
+| value | FLOAT | 原始值 |
+| confidence | FLOAT | 來源可信度 |
+| quality_score | FLOAT | 清洗後品質分數 |
+| language | STRING | 語言 |
+| region | STRING | 區域 |
+| payload_json | JSON/TEXT | 原始 payload |
+| ingested_at | DATETIME | 寫入時間 |
 
 ### features_normalized
 | 欄位 | 類型 | 說明 |
 |------|------|------|
 | id | INTEGER PK | 自增 ID |
 | timestamp | DATETIME | 時間戳 |
-| feat_eye_dist ~ feat_mind | 8 × FLOAT | IC-validated 特徵 |
+| symbol | STRING | 交易對 |
+| feat_eye ~ feat_storm | FLOAT | 感官特徵 |
+| regime_label | STRING | trend / chop / panic / event |
+| feature_version | STRING | 特徵版本 |
 
 ### labels
 | 欄位 | 類型 | 說明 |
@@ -122,9 +127,79 @@ Poly-Trader/
 | id | INTEGER PK | 自增 ID |
 | timestamp | DATETIME | 時間戳 |
 | symbol | STRING | 交易對 |
-| horizon_hours | INTEGER | 預測時間窗口 |
+| horizon_minutes | INTEGER | 預測窗口 |
 | future_return_pct | FLOAT | 未來收益率 |
-| label | INTEGER | 0=跌, 1=漲 |
+| future_max_drawdown | FLOAT | 未來最大回撤 |
+| future_max_runup | FLOAT | 未來最大漲幅 |
+| label_sell_win | INTEGER | 賣出後是否獲利 |
+| label_up | INTEGER | 漲跌分類 |
+| regime_label | STRING | 市場狀態 |
+
+---
+
+## 歷史補資料方案
+
+### 1. 可回補資料
+- K 線 / volume / funding / OI / liquidation
+- Polymarket 歷史事件
+- 宏觀資料（DXY / VIX / futures / calendar）
+- GDELT / RSS / 部分新聞歷史
+
+### 2. 只能前向累積資料
+- Twitter / X 即時流
+- Telegram / Discord 即時訊號
+- 私域社群事件
+
+### 3. 補資料流程
+1. 先寫 raw_events，不直接覆蓋。
+2. 統一 timestamp、entity、source。
+3. 依版本重算 features_normalized。
+4. 依 horizon 重生 labels。
+5. 重新回測與重訓。
+
+### 4. 原則
+- raw 永遠保留
+- 特徵版本化
+- labels 可重算
+- 嚴禁未來函數洩漏
+- 來源可信度需可追溯
+
+---
+
+## 回測評估指標
+
+### 交易績效
+- total return
+- annualized return
+- max drawdown
+- sharpe
+- calmar
+- profit factor
+- expectancy
+- trade count
+
+### 賣出勝率
+- sell_win_rate = profitable_sells / total_sells
+- average sell profit
+- average sell loss
+- sell precision
+- sell recall
+- forward sell win rate
+
+### 模型品質
+- coverage
+- abstain rate
+- confidence calibration
+- regime-wise performance
+- false sell rate
+- delayed sell rate
+
+### 特徵品質
+- IC / rank IC
+- stability
+- regime-wise IC
+- feature turnover
+- mutual information
 
 ---
 
@@ -140,6 +215,7 @@ Poly-Trader/
 | `/api/model/stats` | GET | 模型統計 |
 | `/api/chart/klines` | GET | K 線數據 |
 | `/ws/live` | WS | 即時推送 |
+```
 
 ---
 
@@ -149,28 +225,6 @@ Poly-Trader/
 |------|------|
 | [AI_AGENT_ROLE.md](AI_AGENT_ROLE.md) | AI 角色、紀律、邊界 |
 | [HEARTBEAT.md](HEARTBEAT.md) | 心跳詳細流程 |
-| [ISSUES.md](ISSUES.md) | 問題追蹤（含感官 IC 表） |
+| [ISSUES.md](ISSUES.md) | 問題追蹤 |
 | [PRD.md](PRD.md) | 產品需求 |
 | [ROADMAP.md](ROADMAP.md) | 發展路線 |
-
-
----
-
-## ⛔ 開發環境約束（嚴格遵守）
-
-**所有程式碼開發、修改、測試必須在本機 Windows 進行，嚴禁在 Raspberry Pi 上執行任何開發操作。**
-
-- **開發機器**：`Kazuha@192.168.0.238`
-- **工作目錄**：`C:\Users\Kazuha\repo\Poly-Trader`
-- **連線方式**：`ssh Kazuha@192.168.0.238`
-- **Raspberry Pi 僅執行 OpenClaw Gateway**，不進行任何程式碼修改
-
-**執行規則**：
-1. 所有檔案讀取：`ssh Kazuha@192.168.0.238 "type C:\Users\Kazuha\repo\Poly-Trader\<file>"`
-2. 所有檔案寫入：透過 SSH 執行寫入指令
-3. 所有 Python 執行：`ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && python <script>"`
-4. 所有 Git 操作：`ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && git ..."`
-5. 絕對禁止在 `~/.openclaw/workspace/Poly-Trader/` 建立或修改任何程式碼檔案
-
-
-*架構變更時請更新本文件，並同步更新 [ISSUES.md](ISSUES.md) 和 [ROADMAP.md](ROADMAP.md)。*

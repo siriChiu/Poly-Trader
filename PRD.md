@@ -1,66 +1,102 @@
-# Poly-Trader PRD v2.0
+# Poly-Trader PRD v3.0
 
 > 產品需求規格。架構見 [ARCHITECTURE.md](ARCHITECTURE.md)，路線見 [ROADMAP.md](ROADMAP.md)，問題見 [ISSUES.md](ISSUES.md)。
 
 ## 產品定位
-Poly-Trader 是一套以多感官為核心的加密貨幣量化交易系統。用戶是交易者，不是工程師——所以一切設計以「看一眼就知道該不該下單」為目標。
+Poly-Trader 是一套以「多感官訊號融合」為核心的加密貨幣預測系統。它將價格、衍生品、消息面、預期面與宏觀情緒轉成可量化感官，並對市場行為做可回測、可解釋、可持續擴充的預測。
 
-## 核心功能
+## 核心目標
+1. 模擬人類多感官，將加密貨幣市場拆成可辨識的訊號模組。
+2. 支援價格 / 衍生品 / 消息面 / 預期面 / 宏觀情緒融合。
+3. 支援歷史資料補齊與回測。
+4. 以「賣出勝率」作為主要交易 KPI。
+5. 感官可以替換、淘汰、重訓。
 
-### 1. 多邊形雷達圖（首頁核心）
-- 多個感官各 0~1 分數，組成多邊形雷達圖
-- 中心區域越大 = 多數感官偏多
-- 綜合建議分數 0~100，大字體顯示
-- 自然語言建議（中文），一眼看懂市場狀態
+## 成功定義
+### 主要 KPI
+- **賣出勝率 ≥ 90%**：`sell_win_rate = profitable_sells / total_sells`
+- **賣出勝率採樣一致**：所有回測與上線報表都使用相同定義。
+- **可交易樣本覆蓋率**：系統能在足夠多的市場狀態下維持可用訊號。
+- **期望值為正**：單筆交易平均期望報酬 > 0。
+- **最大回撤受控**：回撤維持在策略容許範圍。
+- **可解釋性**：每次決策可追溯至感官、來源與回測結果。
 
-### 2. TradingView K 線圖
-- lightweight-charts 專業級 K 線圖
-- 疊加 MA20 / MA60 均線
-- RSI / MACD 技術指標
-- 支撐 / 阻力線標記
+### 次要 KPI
+- precision / recall
+- profit factor
+- sharpe / calmar
+- sell precision / sell recall
+- regime-wise performance
+- coverage / abstain rate
 
-### 3. 回測系統
-- 歷史回測勝率、盈虧比、最大回撤
-- 資金曲線圖
-- 每筆交易詳細記錄
+## 產品範圍
+### 本期要做
+1. 新增消息面與宏觀感官。
+2. 建立 raw / normalized / labels 三層資料結構。
+3. 建立歷史補資料機制。
+4. 建立以賣出勝率為核心的回測評估。
+5. 建立感官淘汰與替換流程。
 
-### 4. 可插拔感官系統（最重要）
-- 每個感官有多個數據源子模組
-- Web UI 即時查看、啟用/停用、調整權重
-- 權重改變即時預覽對建議分數的影響
+### 暫不做
+- 不以「整體 accuracy」作為唯一目標。
+- 不做無法回放歷史的黑箱特徵。
+- 不把高勝率建立在低覆蓋率與過度 abstain 之上。
 
-## 目標用戶
-加密貨幣交易者（非工程師），需要：
-- 3 秒內判斷市場方向
-- 可調參數，不需要改代碼
-- 中文界面、暗色主題
+## 感官設計
+### 第一組：價格 / 衍生品感官
+- Eye：方向與趨勢
+- Ear：波動與節奏
+- Nose：均值回歸 / 自相關
+- Tongue：噪音與波動味覺
+- Body：結構位置與區間
+- Pulse：資金壓力與多空擁擠
+- Aura：複合結構與轉折區
+- Mind：長周期風險狀態
 
-## 技術棧
-- 後端：FastAPI + SQLite + WebSocket
-- 前端：React + TypeScript + Tailwind CSS + lightweight-charts
+### 第二組：消息面 / 社群感官
+- Whisper：消息出現與討論聲量
+- Tone：語氣正負向
+- Chorus：共識與分歧
+- Hype：炒作與爆量
 
-## 2026-04-01 Heartbeat 更新
-- 90 天回填完成 (Jan 1 - Apr 1, 2026): 2166 raw, 2160 labels (0:1179, 1:981)
-- XGBoost 重訓完成: train Acc=74.9%, recent200 Acc=69.0%, F1=0.68, WR=66%
-- **關鍵發現**: 所有感官 IC < 0.03 (極弱), Nose/Tongue/Body IC 全部負值
-- Tongue IC=-0.14 但模型給重要性 0.262 — 反向使用噪音
-- 必須替換 Tongue (FNG 靜態) 和 Nose (funding sigmoid 無效)
+### 第三組：預期面 / 事件面感官
+- Oracle：市場預期變化
+- Shock：事件驚訝程度
 
----
+### 第四組：國際情緒 / 宏觀感官
+- Tide：全球風險偏好
+- Storm：宏觀波動壓力
 
-## ⛔ 開發環境約束（嚴格遵守）
+## 資料需求
+### 資料源
+- 市場資料：Binance / OKX / Bybit K 線、funding、OI、liquidation、volume、basis
+- 消息資料：Twitter / X、RSS news、Reddit、Telegram / Discord 公開訊號、GDELT
+- 預期資料：Polymarket、prediction markets
+- 宏觀資料：DXY、VIX、SPX / NQ futures、收益率、宏觀事件日曆
 
-**所有程式碼開發、修改、測試必須在本機 Windows 進行，嚴禁在 Raspberry Pi 上執行任何開發操作。**
+### 歷史補資料要求
+- raw 資料需可回放、可追溯來源。
+- normalized 特徵可依版本重算。
+- labels 可依 horizon 重生。
+- 任何新來源都要能補歷史或明確標註為 only-forward collection。
 
-- **開發機器**：`Kazuha@192.168.0.238`
-- **工作目錄**：`C:\Users\Kazuha\repo\Poly-Trader`
-- **連線方式**：`ssh Kazuha@192.168.0.238`
-- **Raspberry Pi 僅執行 OpenClaw Gateway**，不進行任何程式碼修改
+## 回測要求
+### 必要指標
+- sell_win_rate
+- total return
+- max drawdown
+- profit factor
+- expectancy
+- coverage
+- abstain rate
+- regime-wise sell_win_rate
 
-**執行規則**：
-1. 所有檔案讀取：`ssh Kazuha@192.168.0.238 "type C:\Users\Kazuha\repo\Poly-Trader\<file>"`
-2. 所有檔案寫入：透過 SSH 執行寫入指令
-3. 所有 Python 執行：`ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && python <script>"`
-4. 所有 Git 操作：`ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && git ..."`
-5. 絕對禁止在 `~/.openclaw/workspace/Poly-Trader/` 建立或修改任何程式碼檔案
+### 評估原則
+- 90% 指的是賣出勝率，不是模型整體 accuracy。
+- 高勝率必須同時檢查 coverage，不允許靠過度不交易達成。
+- 所有回測必須可分市場狀態比較。
 
+## 使用者界面
+- 中文、暗色主題、3 秒內看懂。
+- 回測首頁先顯示結果摘要，再顯示風險與會議整理。
+- 感官頁需能看到 IC、分位數勝率、來源與版本。
