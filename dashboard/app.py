@@ -67,7 +67,7 @@ def get_price_history(days=7):
     with engine.connect() as conn:
         rows = conn.execute(text("SELECT timestamp,close_price FROM raw_market_data WHERE timestamp>=:s ORDER BY timestamp ASC"),{"s":datetime.utcnow()-timedelta(days=days)}).fetchall()
     if not rows:
-        return pd.DataFrame(columns=["ts","eye","ear","nose","tongue","body","pulse","aura","mind"])
+        return pd.DataFrame(columns=["timestamp","close_price"])
     df = pd.DataFrame(rows,columns=["timestamp","close_price"])
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     return df
@@ -77,17 +77,32 @@ def get_sense_history(hours=24):
     with engine.connect() as conn:
         rows = conn.execute(text("SELECT timestamp,COALESCE(feat_eye, feat_eye_dist) AS eye,COALESCE(feat_ear, feat_ear_zscore) AS ear,COALESCE(feat_nose, feat_nose_sigmoid) AS nose,COALESCE(feat_tongue, feat_tongue_pct) AS tongue,COALESCE(feat_body, feat_body_roc) AS body,COALESCE(feat_pulse, 0) AS pulse,COALESCE(feat_aura, 0) AS aura,COALESCE(feat_mind, 0) AS mind FROM features_normalized WHERE timestamp>=:s ORDER BY timestamp ASC"),{"s":datetime.utcnow()-timedelta(hours=hours)}).fetchall()
     if not rows:
-        return pd.DataFrame(columns=["ts","eye","ear","nose","tongue","body","pulse","aura","mind"])
+        return pd.DataFrame(columns=["timestamp","close_price"])
     df = pd.DataFrame(rows,columns=["ts","eye","ear","nose","tongue","body","pulse","aura","mind"])
     df["ts"] = pd.to_datetime(df["ts"])
     return df
+
+@st.cache_data(ttl=30)
+def get_price_sense_overlay(days=7):
+    """Nearest-match 對齊價格與多感官，提供同圖走勢。"""
+    price_df = get_price_history(days=days)
+    sense_df = get_sense_history(hours=days * 24)
+    if price_df.empty or sense_df.empty:
+        return pd.DataFrame(columns=["timestamp", "close_price", "eye", "ear", "nose", "tongue", "body", "pulse", "aura", "mind"])
+
+    price_df = price_df.sort_values("timestamp").copy().rename(columns={"timestamp": "ts"})
+    sense_df = sense_df.sort_values("ts").copy()
+    merged = pd.merge_asof(price_df, sense_df, on="ts", direction="nearest", tolerance=pd.Timedelta("90min"))
+    merged = merged.rename(columns={"ts": "timestamp"})
+    merged["timestamp"] = pd.to_datetime(merged["timestamp"])
+    return merged
 
 @st.cache_data(ttl=30)
 def get_trade_history(days=30):
     with engine.connect() as conn:
         rows = conn.execute(text("SELECT timestamp,action,price,amount,model_confidence,pnl FROM trade_history WHERE timestamp>=:s ORDER BY timestamp DESC"),{"s":datetime.utcnow()-timedelta(days=days)}).fetchall()
     if not rows:
-        return pd.DataFrame(columns=["ts","eye","ear","nose","tongue","body","pulse","aura","mind"])
+        return pd.DataFrame(columns=["timestamp","close_price"])
     df = pd.DataFrame(rows,columns=["timestamp","action","price","amount","confidence","pnl"])
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     return df
@@ -172,6 +187,29 @@ with tab1:
                 </div>""",unsafe_allow_html=True)
         else:
             st.warning("目前沒有可畫的感官資料；通常是資料窗還沒累積，或新的欄位尚未補齊。")
+
+    st.subheader("價格 × 多感官走勢")
+    ov = get_price_sense_overlay(days=7)
+    if not ov.empty and ov["eye"].notna().any():
+        fig_ov = go.Figure()
+        fig_ov.add_trace(go.Scatter(x=ov["timestamp"], y=ov["close_price"], mode="lines", name="BTC 價格", line=dict(color="#ffffff", width=2)))
+        pmin = float(ov["close_price"].min())
+        pmax = float(ov["close_price"].max())
+        pr = max(pmax - pmin, 1e-9)
+        for key in ["eye", "ear", "nose", "tongue", "body", "pulse", "aura", "mind"]:
+            if key in ov.columns and ov[key].notna().any():
+                series = pd.to_numeric(ov[key], errors="coerce")
+                if series.notna().sum() == 0:
+                    continue
+                smin = float(series.min())
+                smax = float(series.max())
+                sr = max(smax - smin, 1e-9)
+                scaled = pmin + ((series - smin) / sr) * pr
+                fig_ov.add_trace(go.Scatter(x=ov["timestamp"], y=scaled, mode="lines", name=key, line=dict(width=1.2, color=SENSE_COLORS.get(key, "#aaa")), opacity=0.75))
+        fig_ov.update_layout(title="價格 × 多感官走勢（nearest-match 對齊）", plot_bgcolor="#0d0d0d", paper_bgcolor="#0d0d0d", font_color="#e0e0e0", height=420, xaxis=dict(gridcolor="#2a2a2a"), yaxis=dict(gridcolor="#2a2a2a"), hovermode="x unified", legend=dict(bgcolor="#161616", bordercolor="#2a2a2a", borderwidth=1))
+        st.plotly_chart(fig_ov, use_container_width=True)
+    else:
+        st.info("價格 × 多感官走勢暫時沒有可對齊的資料：請先累積更多同時間窗樣本，或檢查新舊特徵是否都有寫入。")
 
 # ── TAB2: 五感分析
 with tab2:
