@@ -22,7 +22,7 @@
 4. 所有 Git 操作：`ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && git ..."`
 5. 絕對禁止在 `~/.openclaw/workspace/Poly-Trader/` 建立或修改任何程式碼檔案
 
-*最後更新：2026-04-02 17:55 GMT+8*
+*最後更新：2026-04-02 18:05 GMT+8*
 > **🔄 心跳 #101：Pulse 失效替換（vol_ratio_12_48，IC=+0.1087）；全 8 感官 IC OK；BTC=$66,476；CV=56.30%；6/6測試通過**
 
 ---
