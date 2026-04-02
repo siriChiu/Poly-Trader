@@ -1,143 +1,162 @@
-# HEARTBEAT.md - Poly-Trader 負熵心跳 (5 min loop)
+# HEARTBEAT.md — Poly-Trader 心跳任務（5 分鐘循環）
 
-> 角色定義: AI_AGENT_ROLE.md | 架構: ARCHITECTURE.md
+> 角色定義見 [AI_AGENT_ROLE.md](AI_AGENT_ROLE.md)，系統架構見 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
-## Core Mission: Negentropy
+## 🧬 核心使命：負熵驅動
 
-Poly-Trader is not a static system - it must continuously import energy (new data, new methods) and export entropy (bad features, stale models).
+Poly-Trader 不是靜態系統，而是持續引入外部能量、排出系統混亂、讓預測能力與日俱增的活系統。
 
-**Three Laws:**
-1. Closed systems decay -> must regularly inject new data / new perspectives / new methods
-2. Every sense must earn its place -> IC is the only judge; IC < 0.05 = replace
-3. Every decision traces to "what work it did" -> results over intent
+**負熵三律：**
+1. 封閉系統必然衰亡 → 必須定期引入新數據源、新視角、新方法
+2. 每個感官都必須被實證淘汰或升級 → IC（訊息係數）是唯一裁判
+3. 所有決策都要能追溯「它做了什麼功」→ 只問結果，不問意圖
 
-**Ultimate Target: sell_win_rate >= 90%**
+**終極目標：買賣勝率 ≧ 90%**  
+（定義：`sell_win_rate = profitable_sells / total_sells`，不是模型準確率，不是整體分類率）
 
 ---
 
-## Loop Steps (every heartbeat, no skipping)
+## 🔄 心跳完整流程
 
-### Step 0: Read AI_AGENT_ROLE.md
-- Confirm role, discipline, boundaries
-- Confirm current P0/P1 issues
-- Confirm 90% target
+每次心跳嚴格執行 **Step 0 〜 Step 6**，不可跳過。
 
-### Step 1: Data Collection
-- Run `ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && python scripts/dev_heartbeat.py"`
-- Run collector for latest raw data
-- Record: raw/feature/label counts, BTC price, derivatives
+---
 
-### Step 2: Sense Evidence Check
-- IC per sense (h=4h horizon)
-- Check std, range, unique_count
-- IC < 0.05 = RED flag -> must replace or redesign
-- std ~ 0 = WARNING -> no variance = noise
-- Ask: "Did replacing this sense last round improve win rate?"
+### Step 0：閱讀 AI_AGENT_ROLE.md（每次必讀）
+- 確認當前角色、紀律、邊界
+- 確認 P0 / P1 問題清單
+- 確認 90% 勝率目標與系統架構
 
-### Step 3: Multi-Forum Discussion
-#### 3.1: Six Hats (every heartbeat)
-| Hat | Question |
-|-----|----------|
-| WHITE | Facts: data volume, ICs, CV accuracy, test status? |
-| RED | Gut feeling: does the system feel trustworthy? What's unsettling? |
-| BLACK | Risk: where is entropy leaking? Overfit? Feature leak? Model selection unstable? |
-| YELLOW | Value: what's working? What improved last round? |
-| GREEN | Novelty: new data source? New method? Old assumption to discard? |
-| BLUE | Decision: next step, priority, resource allocation? |
+### Step 1：數據收集
+- 運行 `ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && python scripts/dev_heartbeat.py"`
+- 運行 collector 收集最新數據
+- 記錄最新 raw / features / labels 數量、BTC 價格、衍生品數據
 
-#### 3.2: ORID -> Action
-| Phase | Content |
-|-------|---------|
-| O (Objective) | White facts + IC + test results |
-| R (Reflective) | Red feelings + trend + risk |
-| I (Interpretive) | Black risks + causal analysis |
-| D (Decisional) | Blue priority -> P0-P5 actions written to ISSUES / PRD / ROADMAP / ARCHITECTURE |
+### Step 2：感官實證分析
+- 計算每個感官的 IC（Information Coefficient, h=4 小時）
+- 檢查 std、range、unique_count
+- **淘汰標準**：IC < 0.05 →  該感官必須替換或重設計
+- std ≈ 0 →  無變異 = 白噪音
+- 不只算 IC，還要問：「上次替換後，勝率有沒有提升？」
 
-### Step 4: ISSUES State
-- List unresolved issues + priority
-- Evaluate impact and urgency
-- If ISSUES is empty, CREATE issues -> ask: "Why aren't we at 90% yet?"
+### Step 3：多重會議激盪
+#### 3.1 六色帽會議（每輪心跳必開）
+針對數據、系統狀態、使用者體驗、目標差距、設計初衷進行討論。
 
-### Step 5: Fix and Test
-#### 5.1: Fix issues (no user questions, just fix)
-- Fix code, don't just discuss
-- git diff before committing
-- Verify no regression
+| 帽子 | 問什麼 |
+|------|--------|
+|  白帽 | 客觀事實：數據量、IC 值、測試結果、CV 準確率是多少？ |
+|  紅帽 | 直覺感受：系統現在感覺可信嗎？哪裡讓你不安心？ |
+|  黑帽 | 風險：哪裡在洩熵？過擬？特徵洩漏？模型選型不穩？ |
+|  黃帽 | 價值：什麼在正常運作？上輪改了什麼有效？ |
+|  綠帽 | 創新：有什麼新數據源可以接？有什麼新方法可以試？有什麼舊假設該推翻？ |
+|  藍帽 | 決策：下一步做什麼、優先級、資源怎麼分配？ |
 
-#### 5.2: Test if code changed
-- `ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && python tests/comprehensive_test.py"`
-- Narrow tests if data pipeline or model changed
+#### 3.2 ORID 循環（會議 output → 行動 plan）
 
-### Step 6: Report
+| 階段 | 內容 |
+|------|------|
+| **O** 客觀事實 | 白帽數據 + IC 值 + 測試結果 |
+| **R** 感受直覺 | 紅帽感受 + 數據透露的趨勢與風險 |
+| **I** 意義洞察 | 黑帽風險 + 因果鏈分析：「為什麼 CV 上不去？」「為什麼推薦不準？」 |
+| **D** 決策行動 | 藍帽 priority → 產出 P0-P5 行動項目，**寫進** ISSUES / PRD / ROADMAP / ARCHITECTURE |
+
+---
+
+### Step 4：ISSUES 狀態
+- 列出所有未解問題及優先級（ P0 /  P1 /  P2）
+- 評估影響範圍與緊急程度
+- 若 ISSUES 是空的，就**主動製造**：問「為什麼還沒到 90%？」
+
+### Step 5：修正與測試
+
+#### 5.1 ISSUES 修正（不問用戶意見，直接修）
+- 有問題直接修代碼，不要只討論
+- 修改前 `git diff` 審閱
+- 修改後確認不破壞既有功能
+
+#### 5.2 功能測試（如果有修改代碼）
+- 運行 `ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && python tests/comprehensive_test.py"`
+- 若修改資料流程或模型，再補跑對應的窄測試
+
+### Step 6：回報摘要
+
 ```
-Poly-Trader Heartbeat [time]
-- Raw: N / Features: N / Labels: N
-- BTC: $N | FNG: N | Derivatives: LSR=N GSR=N Taker=N OI=N
-- Sense IC (h=4): Eye=N / Ear=N / Nose=N / Tongue=N / Body=N / Pulse=N / Aura=N / Mind=N
-- Model: Train=% / CV=% / SellWR=%
-- Hats: WHITE=[facts] BLACK=[risk] GREEN=[novelty] BLUE=[decision]
-- ORID D: [action items]
-- Changes this round: [what was done]
-- Tests: pass/fail
-- Gap to 90%: [delta, main blocker]
-- Docs updated: ISSUES / PRD / ROADMAP / ARCHITECTURE
+ Poly-Trader 心跳摘要 [時間]
+- Raw: ?? / Features: ?? / Labels: ??
+- BTC: $??? | FNG: ?? | 衍生品: LSR=? GSR=? Taker=? OI=?
+- 感官 IC (h=4): Eye=? / Ear=? / Nose=? / Tongue=? / Body=? / Pulse=? / Aura=? / Mind=?
+- 六色帽結論：
+   白帽：[客觀事實]
+   黑帽：[主要風險]
+   綠帽：[創新建議]
+   藍帽：[決策與優先級]
+- ORID D：[具體行動項目]
+- 本輪修改：[做了什麼]
+- 測試結果：[pass/fail]
+- 距 90% 勝率差距：[還差多少，主要障礙]
+- ROADMAP / PRD / ARCHITECTURE：[更新了什麼]
 ```
 
 ---
 
-## Discipline
-1. Always read AI_AGENT_ROLE.md first
-2. Full Step 0-6, no shortcuts
-3. D must produce action items (written to ISSUES counts)
-4. No user questions - fix it directly
-5. Every change = git commit
-6. Negentropy - every round must ask: "Was today more ordered than yesterday?"
+## 紀律
+1. **每次都讀** AI_AGENT_ROLE.md → 不可跳過
+2. **全流程執行** Step 0-6 → 不做半套
+3. **D 必須轉化為行動** → 不寫在文件裡就不算做了
+4. **不問用戶，發現問題直接修** → 你是閉迴路 AI
+5. **每次修改都 commit** → git 歷史要清
+6. **負熵思維** → 每次心跳都要問：「今天比昨天更有序嗎？」
 
 ---
 
-## Path to 90% Win Rate
+## 通往 90% 勝率的策略路線
 
-### Phase A: Data Integrity
-- [ ] raw -> features -> labels pipeline, zero leakage
-- [ ] IC < 0.05 senses must be replaced
-- [ ] Historical data replayable, recomputable, versioned
-- [ ] sell_win label correctly aligned with trading behavior
+> 每一輪心跳都必須對照這份路線圖，檢查進度與偏離。
 
-### Phase B: Model Calibration
-- [ ] Replace DummyPredictor with IC-weighted multi-signal fusion
-- [ ] Confidence calibration (Platt / isotonic / temperature)
-- [ ] Regime-aware model selection
-- [ ] Abstain mechanism: low confidence = no trade
+### Phase A：資料品質（地基）
+- [ ] 確保 raw → features → labels 三層管線無 future leakage
+- [ ] 每個 feature 都有 IC 實證，IC < 0.05 的感官必須替換
+- [ ] 歷史資料能回放、能重算、版本化
+- [ ] 標籤定義與交易行為完全對齊（sell_win 是核心標籤）
 
-### Phase C: Backtest Verification
-- [ ] Reproducible, comparable, auditable backtests
-- [ ] sell_win_rate, profit_factor, sharpe visible on dashboard
-- [ ] Online metrics match backtest definition
+### Phase B：模型校準（核心引擎）
+- [ ] 不用 DummyPredictor，換成 IC 加權多信號融合
+- [ ] 做信心校準（Platt / isotonic / temperature scaling）
+- [ ] 市場狀態感知模型選擇（不同 regime 用不同權重或模型）
+- [ ] 放棄交易機制：低信心不交易，寧缺勿濫
 
-### Phase D: Dashboard Usability
-- [ ] Price x Senses overlay chart clear and visible
-- [ ] IC bars, win-rate heatmaps, regime-wise charts
-- [ ] Empty charts show WHY, not blank
-- [ ] Dark theme, Chinese, < 3s to understand
+### Phase C：回測可驗證（檢驗）
+- [ ] 回測結果可重跑、可比對、可追溯
+- [ ] 賣出勝率、利潤因子、夏普比率全部在 dashboard 顯示
+- [ ] 回測與上線指標完全一致，不偷換
 
-### Phase E: Perpetual Negentropy
-- [ ] Each heartbeat: top sense, worst sense, replace?
-- [ ] New sources: Twitter/X, news, Polymarket, VIX, DXY, macro calendar
-- [ ] New methods: SHAP, ensemble stacking, online learning
-- [ ] System health tracking: data volume, IC distribution, label balance, model drift
+### Phase D：儀表板可用（可視化）
+- [ ] 價格 × 多感官 overlay 圖清晰可辨
+- [ ] 感官 IC 條形圖、勝率熱圖、regime-wise 績效圖
+- [ ] 空圖要顯示具體原因，不是留白
+- [ ] 3 秒內看懂，暗色主題，中文界面
+
+### Phase E：負熵永動機（持續進化）
+- [ ] 每輪心跳檢查：哪個感官效能最高？哪個該替換？
+- [ ] 新數據源：Twitter/X、新聞、Polymarket、VIX、DXY、巨觀日曆
+- [ ] 新方法：SHAP 可解釋性、ensemble stacking、線上學習
+- [ ] 系統健康：資料量、IC 分佈、標籤均衡性、模型退化監測
 
 ---
 
-## Environment Constraints
+## 開發約束（嚴格遵守）
 
-All code development, modification, and testing must happen on Windows host:
-- Host: Kazuha@192.168.0.238
-- Dir: C:\Users\Kazuha\repo\Poly-Trader
-- No Raspberry Pi development (only runs OpenClaw Gateway)
+所有程式碼開發、修改、測試必須在本機 Windows 進行，嚴禁在 Raspberry Pi 上執行任何開發操作。
 
-Rules:
-1. Read: ssh Kazuha@192.168.0.238 "type C:\Users\Kazuha\repo\Poly-Trader\file"
-2. Write: via SSH
-3. Run: ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && python script"
-4. Git: ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && git ..."
-5. Never create/modify code in ~/.openclaw/workspace/Poly-Trader/
+- 開發機器：`Kazuha@192.168.0.238`
+- 工作目錄：`C:\Users\Kazuha\repo\Poly-Trader`
+- 連線方式：`ssh Kazuha@192.168.0.238`
+- Raspberry Pi 僅執行 OpenClaw Gateway，不進行任何程式碼修改
+
+執行規則：
+1. 讀取：`ssh Kazuha@192.168.0.238 "type C:\Users\Kazuha\repo\Poly-Trader\<file>"`
+2. 寫入：透過 SSH 執行寫入指令
+3. 執行：`ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && python <script>"`
+4. Git：`ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && git ..."`
+5. 絕對禁止在 `~/.openclaw/workspace/Poly-Trader/` 建立或修改任何程式碼檔案
