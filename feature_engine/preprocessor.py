@@ -114,15 +114,16 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_nose_sigmoid"] = 0.5
 
-    # 4. Tongue: bb_squeeze — Bollinger Band 壓縮度（短期/長期波動率比）
-    #    IC=+0.121 (p<0.001, N=4484): 替換 fr_acceleration (IC≈0, 連3輪失效) #H114
-    #    正 IC → 波動率壓縮 → 即將突破 → 偏多（breakout signal）
-    if len(returns) >= 100:
-        vol20 = float(returns.iloc[-20:].std())
-        vol100 = float(returns.iloc[-100:].std())
-        features["feat_tongue_pct"] = float(vol20 / (vol100 + 1e-10))
-    elif len(returns) >= 20:
-        vol_short = float(returns.iloc[-10:].std())
+    # 4. Tongue: vol_ratio_24_144 — 24期/144期波動率比（breakout 強度）
+    #    全量 IC=+0.130 (p<0.001, N=4484) / 近1000 IC=+0.212 (p<0.001)
+    #    替換 bb_squeeze(20/100) (近1000筆 p=0.52, 失效) #H114
+    #    正 IC → 短期波動激增 → 趨勢突破，不加入 NEG_IC_FEATS
+    if len(returns) >= 144:
+        vol24 = float(returns.iloc[-24:].std())
+        vol144 = float(returns.iloc[-144:].std())
+        features["feat_tongue_pct"] = float(vol24 / (vol144 + 1e-10))
+    elif len(returns) >= 24:
+        vol_short = float(returns.iloc[-12:].std())
         vol_long = float(returns.std())
         features["feat_tongue_pct"] = float(vol_short / (vol_long + 1e-10))
     else:
@@ -168,20 +169,16 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_pulse"] = 0.5
 
-    # 7. Aura (v9): oi_zscore_48 — OI ROC 的 48期 z-score（未平倉量動能）
-    #    IC=+0.107 (p<0.001, N=4484): 替換 volume_trend_12 (IC≈0, 連3輪失效) #H114
-    #    正 IC → OI 異常增加 → 趨勢延續，不加入 NEG_IC_FEATS
-    if "oi_roc" in df.columns:
-        oi_s = df["oi_roc"].dropna().astype(float)
-        if len(oi_s) >= 48:
-            oi_window = oi_s.iloc[-48:]
-            oi_mean = float(oi_window.mean())
-            oi_std = float(oi_window.std()) + 1e-10
-            features["feat_aura"] = float((float(oi_s.iloc[-1]) - oi_mean) / oi_std)
-        elif len(oi_s) >= 5:
-            oi_mean = float(oi_s.mean())
-            oi_std = float(oi_s.std()) + 1e-10
-            features["feat_aura"] = float((float(oi_s.iloc[-1]) - oi_mean) / oi_std)
+    # 7. Aura (v11): fr_abs_norm — Funding Rate 絕對值（倉位極端程度）
+    #    近1000 IC=+0.072 (p=0.022, N=1000): 替換 vol_ratio_12_96 (共線 tongue, 失效) #H114
+    #    正 IC → FR 絕對值高 → 市場倉位極端 → 趨勢延續
+    #    normalized by rolling 96-period max FR
+    if "funding_rate" in df.columns:
+        fr_series = df["funding_rate"].dropna().astype(float)
+        if len(fr_series) >= 2:
+            fr_abs = float(abs(fr_series.iloc[-1]))
+            fr_max = float(fr_series.abs().rolling(min(96, len(fr_series))).max().iloc[-1]) + 1e-10
+            features["feat_aura"] = float(fr_abs / fr_max)
         else:
             features["feat_aura"] = 0.0
     else:
