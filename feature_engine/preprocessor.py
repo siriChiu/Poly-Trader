@@ -97,14 +97,12 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_ear_zscore"] = 0.0
 
-    # 3. Nose: ret_96 — 96期（8h）價格動量回報率
-    #    IC=-0.076 (全量, p=0.0004) / IC=-0.145 (近500, p=0.001)
-    #    替換 autocorr_48h (IC=+0.050, p=0.268, 不顯著) #H69
-    #    負 IC → 8h 強勢上漲 → 看跌（過熱反轉），加入 NEG_IC_FEATS
-    if len(close) >= 97:
-        features["feat_nose_sigmoid"] = float(close.iloc[-1] / close.iloc[-97] - 1)
-    elif len(close) >= 25:
-        features["feat_nose_sigmoid"] = float(close.iloc[-1] / close.iloc[-25] - 1)
+    # 3. Nose: ret_1（1期均值回歸信號）
+    #    IC=-0.054 (全量 N=11042, p<0.0001) → 負 IC → 近期上漲預示下跌（均值回歸）
+    #    替換 ret_96 (IC≈0.005, p=0.60, 不顯著) #H99
+    #    負 IC → 加入 NEG_IC_FEATS（訓練時自動反轉）
+    if len(close) >= 2:
+        features["feat_nose_sigmoid"] = float(close.iloc[-1] / close.iloc[-2] - 1)
     else:
         features["feat_nose_sigmoid"] = 0.0
 
