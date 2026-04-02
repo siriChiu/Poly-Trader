@@ -56,10 +56,15 @@ class XGBoostPredictor:
         import pandas as pd
         NEG_IC_FEATS = self._get_neg_ic_feats()
         # Determine which feature columns the model expects
-        if hasattr(self._clf, 'feature_names_in_') and self._clf.feature_names_in_ is not None:
-            all_feat_cols = list(self._clf.feature_names_in_)
+        # Priority: (1) model dict's 'feature_names', (2) clf.feature_names_in_, (3) BASE_FEATURE_COLS
+        if isinstance(self.model, dict) and self.model.get('feature_names'):
+            all_feat_cols = list(self.model['feature_names'])
         else:
-            all_feat_cols = BASE_FEATURE_COLS
+            try:
+                fn = self._clf.feature_names_in_
+                all_feat_cols = list(fn) if fn is not None else BASE_FEATURE_COLS
+            except Exception:
+                all_feat_cols = BASE_FEATURE_COLS
         adjusted = {col: (-features.get(col, 0) if col in NEG_IC_FEATS else features.get(col, 0)) for col in all_feat_cols}
         X = pd.DataFrame([adjusted]).fillna(0)
         if self._imputer is not None:
