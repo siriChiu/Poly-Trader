@@ -1,8 +1,8 @@
 # Poly-Trader Issues 追踪
 
-> **最後更新：2026-04-02 09:08 GMT+8**
-> **🔄 心跳 #77：替換 feat_body_roc（stoch_rsi→vol_zscore_24）＋ feat_aura（fr_cum48→pos_in_24h_range），IC 顯著性改善**
-> **✅ 上輪修復：心跳 #76：fix #H88 — CV FitFailedWarning 修復，CV 從 44.7% 提升至 50.6%±6.3%**
+> **最後更新：2026-04-02 09:20 GMT+8**
+> **🔄 心跳 #78：定期重訓模型（10,760+ 樣本），CV=50.6%±6.3% 穩定**
+> **✅ 上輪修復：心跳 #77：替換 feat_body_roc（stoch_rsi→vol_zscore_24）＋ feat_aura（fr_cum48→pos_in_24h_range），IC 顯著性改善**
 
 ---
 
@@ -16,9 +16,9 @@
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #H90 | 🟡 feat_pulse IC=+0.004（不顯著）、feat_mind IC=+0.001（不顯著）— ic_signs 顯示兩者接近0 | 考慮替換 pulse→ATR-ratio / mind→ret_288 | 🟡 P1 |
-| #H87 | 🟡 Train accuracy 47.96%（基準線附近）；CV=50.5%，距目標 90% 差距甚大 | lag 特徵重算 ic_signs（本輪未更新）；持續累積數據 | 🟡 P1 |
-| #H33 | 🟡 CV=50.5%，距目標 90% 差距甚大 | 11,045 特徵筆，每天+288筆，累積數據改善中 | 🟡 P1 |
+| #H90 | 🟡 feat_pulse IC=+0.004（base 不顯著），但 pulse_lag288=+0.053✅；feat_mind IC=+0.001，但 mind_lag288=+0.084✅（最強 lag 信號） | lag 版本已有效，base 不替換；考慮 ic_sign 反映 lag 最強值 | 🟡 P1 觀察中 |
+| #H87 | 🟡 Train accuracy 46%（基準線附近）；CV=50.6%，距目標 90% 差距甚大 | 持續累積數據；現在用 10,760+ 樣本訓練 | 🟡 P1 |
+| #H33 | 🟡 CV=50.6%，距目標 90% 差距甚大 | 11,048 特徵筆，每天+288筆，累積數據改善中 | 🟡 P1 |
 
 ## 🟢 低優先級
 
@@ -48,38 +48,38 @@
 
 ---
 
-## 📊 當前系統健康 (2026-04-02 09:08 GMT+8)
+## 📊 當前系統健康 (2026-04-02 09:20 GMT+8)
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw data | 11,057 筆 | ✅ 正常增長 |
-| Features | 11,045 筆 | ✅ |
-| Labels h=4 | 11,008 筆 | ✅ |
-| BTC 當前 | ~$68,605 | ✅ |
+| Raw data | 11,060 筆 | ✅ 正常增長 |
+| Features | 11,048 筆 | ✅ |
+| Labels h=4 | ~15,332 筆 | ✅ |
+| BTC 當前 | ~$68,142 | ✅ |
 | FNG | 12.0（極度恐慌）| ⚠️ |
-| Funding Rate | 3.55e-05（中性）| ℹ️ |
+| Funding Rate | 3.04e-05（中性）| ℹ️ |
 | main.py 進程 | 5分鐘排程運行中 | ✅ |
 
-### 感官 IC（ic_signs.json 本輪更新，N=11014 aligned）
-| 感官 | 特徵 | IC | 狀態 |
-|------|------|----|------|
-| Eye（視覺）| feat_eye_dist | +0.035 | ✅ |
-| Ear（聽覺）| feat_ear_zscore | -0.022 | ✅（NEG） |
-| Nose（嗅覺）| feat_nose_sigmoid | +0.024 | ✅ |
-| Tongue（味覺）| feat_tongue_pct | +0.045 | ✅ 最強 |
-| Body（觸覺）| feat_body_roc（vol_zscore_24）| -0.020 | ✅（NEG）🆕替換 |
-| Pulse（脈動）| feat_pulse | +0.004 | ❌ 邊緣 → P1 |
-| Aura（磁場）| feat_aura（pos_in_24h_range）| +0.050 | ✅ 🆕替換 |
-| Mind（認知）| feat_mind | +0.001 | ❌ 邊緣 → P1 |
+### 感官 IC（ic_signs.json，N=11,048 aligned）
+| 感官 | 特徵 | Base IC | Best Lag IC | 狀態 |
+|------|------|---------|-------------|------|
+| Eye（視覺）| feat_eye_dist | +0.037 | lag12=+0.038 | ✅ |
+| Ear（聽覺）| feat_ear_zscore | -0.020 | lag288=-0.035 | ✅（NEG） |
+| Nose（嗅覺）| feat_nose_sigmoid | +0.026 | lag288=+0.070 | ✅ |
+| Tongue（味覺）| feat_tongue_pct | +0.045 | lag12=+0.029 | ✅ |
+| Body（觸覺）| feat_body_roc (vol_zscore_24) | -0.022 | lag288=-0.041 | ✅（NEG） |
+| Pulse（脈動）| feat_pulse | +0.004 | lag288=+0.053 | ⚠️ base 弱，lag 強 |
+| Aura（磁場）| feat_aura (pos_in_24h_range) | +0.053 | lag12=+0.048 | ✅ 最強 |
+| Mind（認知）| feat_mind | +0.001 | lag288=+0.084 | ⚠️ base 弱，lag=最強 |
 
 ### 模型性能
 | 指標 | 值 | 評估 |
 |------|----|----|
-| Train Accuracy | **47.96%** | 🔴 基準線附近 |
-| TimeSeries CV | **50.50% ± 6.24%** | 🟡 穩定 |
-| n_features | **8（基礎）** | ✅ |
-| Training samples | **10,720+** | ✅ |
+| Train Accuracy | **46.05%** | 🟡 無過擬合 |
+| TimeSeries CV | **50.62% ± 6.30%** | 🟡 穩定 |
+| Training samples | **~10,760**（心跳#78）| ✅ 新增 |
+| n_features | **32（含 lag）** | ✅ |
 
 ### 測試狀態
 | 項目 | 狀態 |
@@ -94,9 +94,9 @@
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
-| P1 | **替換 feat_pulse/feat_mind**：IC ≈ 0，考慮 ATR-ratio（IC=+0.046✅）替換 pulse | #H90 |
-| P1 | **lag 特徵 ic_signs 重算**：本輪只更新了 8 基礎特徵，32 個 lag 特徵的 IC 符號需更新 | #H87 |
 | P1 | **持續累積數據**：每天+288筆，目標 20,000+ 筆 | #H33 |
+| P1 | **觀察 mind/pulse lag 效果**：lag288 IC=+0.084/+0.053，可考慮提高這兩個 lag 在模型中的權重 | #H90 |
+| P2 | **考慮 IC 動態加權**：依 lag IC 強弱動態調整 sample_weight | #IC4 |
 
 ---
 
