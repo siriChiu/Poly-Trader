@@ -1,18 +1,17 @@
 """
-回測引擎 v3 — BUY/SELL 雙向 + 金字塔加碼 + 交易成本模型 + Buy & Hold 基準
-支援：感官信號金字塔、斐波那契支撐加碼、手續費/滑點模擬
+回測引擎 v4 — sell-win aware, regime aware, cost model, buy & hold benchmark
 """
 
 import pandas as pd
 import numpy as np
 from typing import Optional, Dict, List
-from datetime import datetime
 from sqlalchemy.orm import Session
 from database.models import FeaturesNormalized, RawMarketData
 from model.predictor import load_predictor
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
 
 def calc_fib_levels(high: float, low: float) -> Dict[str, float]:
     diff = high - low
@@ -31,6 +30,7 @@ PYRAMID_TIERS = [
 ]
 MAX_TOTAL_EXPOSURE = 0.20
 
+
 class BacktestEngine:
     def __init__(self, session, initial_capital=10000, confidence_threshold=0.65,
                  max_position_ratio=0.20, stop_loss_pct=0.03, take_profit_pct=0.06,
@@ -47,7 +47,6 @@ class BacktestEngine:
         self.commission_rate = commission_rate
         self.slippage_bps = slippage_bps
         self.predictor = load_predictor()
-        self.capital = initial_capital
         self.positions: List[Dict] = []
         self.equity_curve = []
         self.trade_log = []
@@ -76,11 +75,15 @@ class BacktestEngine:
         if end_date: q = q.filter(FeaturesNormalized.timestamp <= end_date)
         rows = q.all()
         if not rows: return pd.DataFrame()
-        data = [{"timestamp": r.timestamp, "feat_eye_dist": r.feat_eye_dist,
-                 "feat_ear_zscore": r.feat_ear_zscore, "feat_nose_sigmoid": r.feat_nose_sigmoid,
-                 "feat_tongue_pct": r.feat_tongue_pct, "feat_body_roc": r.feat_body_roc,
-                 "feat_pulse": r.feat_pulse, "feat_aura": r.feat_aura, "feat_mind": r.feat_mind}
-                for r in rows]
+        data = [{"timestamp": r.timestamp, "symbol": getattr(r, "symbol", self.symbol),
+                 "feat_eye": r.feat_eye, "feat_ear": r.feat_ear, "feat_nose": r.feat_nose,
+                 "feat_tongue": r.feat_tongue, "feat_body": r.feat_body,
+                 "feat_pulse": r.feat_pulse, "feat_aura": r.feat_aura, "feat_mind": r.feat_mind,
+                 "feat_whisper": getattr(r, "feat_whisper", 0.0), "feat_tone": getattr(r, "feat_tone", 0.0),
+                 "feat_chorus": getattr(r, "feat_chorus", 0.0), "feat_hype": getattr(r, "feat_hype", 0.0),
+                 "feat_oracle": getattr(r, "feat_oracle", 0.0), "feat_shock": getattr(r, "feat_shock", 0.0),
+                 "feat_tide": getattr(r, "feat_tide", 0.0), "feat_storm": getattr(r, "feat_storm", 0.0),
+                 "regime_label": getattr(r, "regime_label", None)} for r in rows]
         df = pd.DataFrame(data)
         df["timestamp"] = pd.to_datetime(df["timestamp"])
         return df.sort_values("timestamp").reset_index(drop=True)
@@ -88,7 +91,7 @@ class BacktestEngine:
     def load_historical_prices(self, timestamps):
         rows = self.session.query(RawMarketData).filter(
             RawMarketData.symbol == self.symbol.replace("/", "")).order_by(RawMarketData.timestamp).all()
-        if not rows: return pd.Series()
+        if not rows: return pd.Series(dtype=float)
         prices = {r.timestamp: r.close_price for r in rows}
         return pd.Series(prices).reindex(timestamps, method="ffill")
 
@@ -114,15 +117,17 @@ class BacktestEngine:
                 return PYRAMID_TIERS[len(self.positions)]
         return None
 
+    def _sell_win(self, sell_pnl: float) -> int:
+        return 1 if sell_pnl > 0 else 0
+
     def run(self, features_df, price_series):
         logger.info(
-            f"Backtest v3: capital={self.initial_capital}, mode={self.pyramid_mode}, "
-            f"n={len(features_df)}, commission={self.commission_rate}, slippage={self.slippage_bps}bps"
+            f"Backtest v4: capital={self.initial_capital}, mode={self.pyramid_mode}, n={len(features_df)}, commission={self.commission_rate}, slippage={self.slippage_bps}bps"
         )
         equity = self.initial_capital
         first_price = None
 
-        for idx, row in features_df.iterrows():
+        for _, row in features_df.iterrows():
             ts = row["timestamp"]
             price = price_series.get(ts, None)
             if isinstance(price, pd.Series): price = price.iloc[-1]
@@ -130,11 +135,10 @@ class BacktestEngine:
             if first_price is None:
                 first_price = price
 
-            features = {c: row.get(c) for c in ["feat_eye_dist","feat_ear_zscore","feat_nose_sigmoid",
-                         "feat_tongue_pct","feat_body_roc","feat_pulse","feat_aura","feat_mind"]}
+            features = {c: row.get(c) for c in ["feat_eye","feat_ear","feat_nose","feat_tongue","feat_body","feat_pulse","feat_aura","feat_mind","feat_whisper","feat_tone","feat_chorus","feat_hype","feat_oracle","feat_shock","feat_tide","feat_storm"]}
             confidence = self.predictor.predict_proba(features)
+            regime = row.get("regime_label", None)
 
-            # SELL
             if self.positions:
                 avg = self._avg_entry_price()
                 pnl_pct = (price - avg) / avg
@@ -153,11 +157,11 @@ class BacktestEngine:
                         "amount": sum(p["qty"] for p in self.positions),
                         "confidence": confidence, "pnl": net_pnl,
                         "gross_pnl": gross_pnl, "commission_slippage": cost,
-                        "reason": reason, "tiers_closed": len(self.positions)
+                        "reason": reason, "tiers_closed": len(self.positions),
+                        "regime_label": regime, "sell_win": self._sell_win(net_pnl)
                     })
                     self.positions = []
 
-            # BUY / Pyramid
             if self.pyramid_mode == "confidence":
                 ti = self._should_pyramid_confidence(confidence, equity, price)
             else:
@@ -173,10 +177,9 @@ class BacktestEngine:
                         "timestamp": ts, "action": "BUY", "price": price,
                         "amount": qty, "confidence": confidence,
                         "tier": ti["label"], "tier_num": len(self.positions),
-                        "commission_slippage": cost
+                        "commission_slippage": cost, "regime_label": regime
                     })
 
-            # Equity
             if self.positions:
                 unreal = sum((price - p["entry_price"]) * p["qty"] for p in self.positions)
                 real = sum(t.get("pnl", 0) for t in self.trade_log if t.get("pnl") is not None)
@@ -185,7 +188,6 @@ class BacktestEngine:
                 equity = self.initial_capital + sum(t.get("pnl", 0) for t in self.trade_log if t.get("pnl") is not None)
             self.equity_curve.append({"timestamp": ts, "equity": equity})
 
-        # Force close
         if self.positions:
             lp = price_series.iloc[-1]
             gross_pnl = sum((lp - p["entry_price"]) * p["qty"] for p in self.positions)
@@ -196,13 +198,13 @@ class BacktestEngine:
                 "timestamp": features_df.iloc[-1]["timestamp"], "action": "SELL",
                 "price": lp, "amount": sum(p["qty"] for p in self.positions),
                 "pnl": net_pnl, "gross_pnl": gross_pnl,
-                "commission_slippage": cost, "reason": "END"
+                "commission_slippage": cost, "reason": "END",
+                "sell_win": self._sell_win(net_pnl), "regime_label": features_df.iloc[-1].get("regime_label", None)
             })
         return self._build_results(features_df, price_series, first_price)
 
     def _build_results(self, features_df, price_series, first_price):
         eq = pd.DataFrame(self.equity_curve).set_index("timestamp") if self.equity_curve else pd.DataFrame()
-
         bh_curve = None
         bh_return = 0.0
         if first_price and not eq.empty and not price_series.empty:
@@ -218,6 +220,14 @@ class BacktestEngine:
         pk = eq["equity"].expanding().max() if not eq.empty else pd.Series()
         dd = abs(((eq["equity"] - pk) / pk).min()) * 100 if not eq.empty else 0
         alpha = tr - bh_return
+        sell_win_rate = len([t for t in sells if t.get("sell_win", 0) == 1]) / len(sells) if sells else 0
+        regime_win = {}
+        for t in sells:
+            regime = t.get("regime_label") or "unknown"
+            regime_win.setdefault(regime, {"wins": 0, "total": 0})
+            regime_win[regime]["total"] += 1
+            regime_win[regime]["wins"] += 1 if t.get("sell_win", 0) == 1 else 0
+        regime_sell_win_rate = {k: (v["wins"] / v["total"] if v["total"] else 0) for k, v in regime_win.items()}
 
         return {
             "equity_curve": eq, "buy_hold_curve": bh_curve,
@@ -227,13 +237,16 @@ class BacktestEngine:
             "total_trades": len(sells),
             "total_buys": len([t for t in self.trade_log if t["action"] == "BUY"]),
             "win_rate": len(wins) / len(sells) * 100 if sells else 0,
+            "sell_win_rate": sell_win_rate * 100,
             "total_return": tr, "max_drawdown": dd,
             "buy_hold_return": bh_return, "alpha": alpha,
             "total_commissions": self.total_commissions,
             "total_slippage_cost": self.total_slippage_cost,
             "total_trading_cost": self.total_commissions + self.total_slippage_cost,
-            "avg_tiers": sum(t.get("tiers_closed", 1) for t in sells) / len(sells) if sells else 0
+            "avg_tiers": sum(t.get("tiers_closed", 1) for t in sells) / len(sells) if sells else 0,
+            "regime_sell_win_rate": regime_sell_win_rate,
         }
+
 
 def run_backtest(session, start_date=None, end_date=None, initial_capital=10000,
                  confidence_threshold=0.65, max_position_ratio=0.20,
