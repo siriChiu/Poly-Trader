@@ -114,20 +114,20 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_nose_sigmoid"] = 0.5
 
-    # 4. Tongue: vol_ratio_6_48 — 短期/長期波動率比（波動爆發信號）
-    #    IC=+0.128 (p<0.0001, n=2184): 短期波動激增 → 市場動盪 → 偏多（突破信號）
-    #    替換 volatility_24h (IC=+0.037, p=0.080, 不顯著) #H75
-    #    正 IC → 無需反轉（不加入 NEG_IC_FEATS）
-    if len(returns) >= 48:
-        vol_short = float(returns.iloc[-6:].std())
-        vol_long = float(returns.iloc[-48:].std())
-        features["feat_tongue_pct"] = vol_short / (vol_long + 1e-10)
-    elif len(returns) >= 12:
-        vol_short = float(returns.iloc[-3:].std())
-        vol_long = float(returns.std())
-        features["feat_tongue_pct"] = vol_short / (vol_long + 1e-10)
+    # 4. Tongue: fr_acceleration — Funding Rate 加速度（資金費率變化動量）
+    #    IC=+0.1162 (p<0.001, N=1000): 替換 vol_ratio_6_48 (IC≈0, 失效) #H112
+    #    正 IC → FR 加速上升 → 多頭倉位增加 → 偏多，不加入 NEG_IC_FEATS
+    if len(df) >= 3 and "funding_rate" in df.columns:
+        fr_series = df["funding_rate"].dropna().astype(float)
+        if len(fr_series) >= 3:
+            fr_diff = float(fr_series.iloc[-1] - fr_series.iloc[-2])
+            # sigmoid normalize: centered at 0, scale by typical FR diff magnitude
+            fr_acc_scaled = fr_diff / (1e-5 + 1e-10)
+            features["feat_tongue_pct"] = float(1 / (1 + np.exp(-fr_acc_scaled)))
+        else:
+            features["feat_tongue_pct"] = 0.5
     else:
-        features["feat_tongue_pct"] = 1.0
+        features["feat_tongue_pct"] = 0.5
 
     # 5. Body: vol_zscore_48 — 48期波動率 z-score（volatility regime detector）
     #    IC=+0.056 (p=0.0002, N=4453): 替換 price_ret_20P (IC=-0.014, p=0.095, 不顯著) #H101
@@ -169,21 +169,23 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_pulse"] = 0.5
 
-    # 7. Aura (v7): vol_ratio_short_long — 短期/長期波動率比（波動率結構）
-    #    IC=+0.0994 (p<0.0001, N=23914): 替換 pos_in_24h_range (IC=+0.0029, p=0.808, 不顯著) #H101
-    #    正 IC → 波動率放大 → 趨勢延續，不加入 NEG_IC_FEATS
-    rets = close.pct_change()
-    if len(rets) >= 97:
-        vol_short = float(rets.tail(12).std())
-        vol_long = float(rets.tail(96).std())
-        vol_ratio = vol_short / (vol_long + 1e-10)
-        # sigmoid: centered at ratio=1.5, 小比值→0（低波動結構）, 大比值→1
-        features["feat_aura"] = float(1 / (1 + np.exp(-vol_ratio * 2 + 3)))
-    elif len(rets) >= 13:
-        vol_short = float(rets.tail(12).std())
-        vol_long = float(rets.std())
-        vol_ratio = vol_short / (vol_long + 1e-10)
-        features["feat_aura"] = float(1 / (1 + np.exp(-vol_ratio * 2 + 3)))
+    # 7. Aura (v8): volume_trend_12 — 12期成交量對數動量（量能趨勢）
+    #    IC=-0.2522 (p<0.001, N=1000): 替換 vol_ratio_short_long (IC≈0, 失效) #H113
+    #    負 IC → 量能增加 → 反轉信號（量價背離），加入 NEG_IC_FEATS
+    if "volume" in df.columns:
+        vol_s = df["volume"].dropna().astype(float)
+        if len(vol_s) >= 13:
+            # log returns of volume, sum over last 12 periods
+            log_vol = np.log(vol_s + 1)
+            vol_trend = float(log_vol.iloc[-1] - log_vol.iloc[-13])
+            # normalize with sigmoid
+            features["feat_aura"] = float(1 / (1 + np.exp(-vol_trend / 3)))
+        elif len(vol_s) >= 3:
+            log_vol = np.log(vol_s + 1)
+            vol_trend = float(log_vol.iloc[-1] - log_vol.iloc[-3])
+            features["feat_aura"] = float(1 / (1 + np.exp(-vol_trend / 3)))
+        else:
+            features["feat_aura"] = 0.5
     else:
         features["feat_aura"] = 0.5
 
