@@ -227,7 +227,7 @@ with tab3:
                     k5.metric("最大回撤",f"{mx['max_drawdown']:.2%}")
                     k6.metric("交易成本",f"-${cost:.0f}")
                     k7,k8,k9,k10,k11,k12 = st.columns(6)
-                    k7.metric("勝率",f"{mx.get('win_rate',0):.1%}")
+                    k7.metric("賣出勝率",f"{mx.get('sell_win_rate', mx.get('win_rate',0)):.1%}")
                     k8.metric("盈虧比",f"{mx.get('profit_factor',0):.2f}")
                     k9.metric("交易次數",int(mx.get("total_trades",0)))
                     k10.metric("W/L/D",f"{mx.get('n_wins',0)}/{mx.get('n_losses',0)}/{mx.get('n_draws',0)}")

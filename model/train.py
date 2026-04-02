@@ -1,5 +1,5 @@
 """
-模型訓練模組 v3 — IC-validated features + confidence-aware training
+模型訓練模組 v4 — sell-win aware + confidence-aware training
 """
 
 import os
@@ -17,49 +17,42 @@ logger = setup_logger(__name__)
 
 MODEL_PATH = "model/xgb_model.pkl"
 FEATURE_COLS = [
-    "feat_eye_dist",    # funding_ma72 (IC=-0.089)
-    "feat_ear_zscore",  # momentum_48h (IC=-0.091)
-    "feat_nose_sigmoid",# ret_96 (8h動量, IC=-0.076 全量, #H69)
-    "feat_tongue_pct",  # volatility_24h (IC=-0.067)
-    "feat_body_roc",    # range_pos_24h (IC=+0.018)
-    "feat_pulse",       # funding_z_24h (IC=-0.075 n=2160)
-    "feat_aura",        # funding_zscore_288 — 長週期 funding z-score (IC=-0.094, v4)
-    "feat_mind",        # funding_z_24 (IC=+0.063)
+    "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
+    "feat_body", "feat_pulse", "feat_aura", "feat_mind",
+    "feat_whisper", "feat_tone", "feat_chorus", "feat_hype",
+    "feat_oracle", "feat_shock", "feat_tide", "feat_storm",
 ]
-
-# #M06: lag 特徵 — 加強時序記憶 (1h=12步, 4h=48步, 24h=288步)
-LAG_COLS = []  # 動態填充，由 add_lag_features() 計算
-BASE_FEATURE_COLS = FEATURE_COLS  # 不含 lag 的基礎特徵
+LAG_STEPS = [12, 48, 288]
+BASE_FEATURE_COLS = FEATURE_COLS
 
 
-def load_training_data(
-    session: Session, min_samples: int = 50
-) -> Optional[Tuple[pd.DataFrame, pd.Series]]:
-    """從 DB 提取特徵 + Labels，以時間戳 JOIN。"""
+def _feature_row(r):
+    return {
+        "timestamp": r.timestamp,
+        "symbol": getattr(r, "symbol", "BTCUSDT"),
+        **{c: getattr(r, c, None) for c in FEATURE_COLS},
+        "regime_label": getattr(r, "regime_label", None),
+    }
+
+
+def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tuple[pd.DataFrame, pd.Series]]:
     feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
     label_rows = (
         session.query(Labels)
-        .filter(Labels.horizon_hours == 4, Labels.future_return_pct.isnot(None))
+        .filter(Labels.label_sell_win.isnot(None), Labels.future_return_pct.isnot(None))
         .order_by(Labels.timestamp)
         .all()
-    )  # fix #H62: only use h=1 labels with valid future_return_pct (exclude NULL pseudo-labels)
+    )
 
-    feat_df = pd.DataFrame([{
-        "timestamp": r.timestamp,
-        "feat_eye_dist": r.feat_eye_dist,
-        "feat_ear_zscore": r.feat_ear_zscore,
-        "feat_nose_sigmoid": r.feat_nose_sigmoid,
-        "feat_tongue_pct": r.feat_tongue_pct,
-        "feat_body_roc": r.feat_body_roc,
-        "feat_pulse": r.feat_pulse,
-        "feat_aura": r.feat_aura,
-        "feat_mind": r.feat_mind,
-    } for r in feat_rows])
+    if not feat_rows or not label_rows:
+        return None
 
+    feat_df = pd.DataFrame([_feature_row(r) for r in feat_rows])
     label_df = pd.DataFrame([{
         "timestamp": r.timestamp,
-        "label": r.label,
-    } for r in label_rows])  # filtered: horizon=4, future_return_pct IS NOT NULL
+        "label_sell_win": int(r.label_sell_win),
+        "label_up": int(r.label_up) if r.label_up is not None else None,
+    } for r in label_rows])
 
     feat_df["timestamp"] = pd.to_datetime(feat_df["timestamp"])
     label_df["timestamp"] = pd.to_datetime(label_df["timestamp"])
@@ -71,108 +64,76 @@ def load_training_data(
         direction="nearest",
         tolerance=pd.Timedelta("10min"),
     )
-    merged.dropna(subset=FEATURE_COLS + ["label"], inplace=True)
+    merged.dropna(subset=FEATURE_COLS + ["label_sell_win"], inplace=True)
 
-    # #M06: 加入 lag 特徵 — 1h(12步)/4h(48步)/24h(288步) 時序記憶
-    # 每5min一筆 → 12步=1h, 48步=4h, 288步=24h
-    lag_steps = [12, 48, 288]
     lag_feature_cols = []
     for col in BASE_FEATURE_COLS:
-        for lag in lag_steps:
+        for lag in LAG_STEPS:
             lag_col = f"{col}_lag{lag}"
             merged[lag_col] = merged[col].shift(lag)
             lag_feature_cols.append(lag_col)
-    # 移除 lag 導致的 NaN rows（前 288 行）
     all_cols = FEATURE_COLS + lag_feature_cols
     merged.dropna(subset=all_cols, inplace=True)
-    global LAG_COLS
-    LAG_COLS = lag_feature_cols
-    logger.info(f"加入 lag 特徵: {len(lag_feature_cols)} 個, 剩餘樣本: {len(merged)}")
 
     if len(merged) < min_samples:
         logger.warning(f"合併後樣本不足: {len(merged)} < {min_samples}")
         return None
 
-    # #H48: 動態計算 IC，自動決定是否反轉（避免硬編碼過期問題）
     from scipy import stats as _stats
     import json as _json
     merged = merged.copy()
     ic_map = {}
     NEG_IC_FEATS = []
-    labels_arr = merged["label"].astype(float).values
-    all_feature_cols = FEATURE_COLS + LAG_COLS
+    y_arr = merged["label_sell_win"].astype(float).values
+    all_feature_cols = FEATURE_COLS + lag_feature_cols
     for col in all_feature_cols:
         feat_arr = merged[col].astype(float).values
-        mask = ~(np.isnan(feat_arr) | np.isnan(labels_arr))
+        mask = ~(np.isnan(feat_arr) | np.isnan(y_arr))
         if mask.sum() > 30:
-            corr, pval = _stats.spearmanr(feat_arr[mask], labels_arr[mask])
+            corr, _ = _stats.spearmanr(feat_arr[mask], y_arr[mask])
             ic_map[col] = float(corr)
             if corr < 0:
                 NEG_IC_FEATS.append(col)
                 merged[col] = -merged[col]
         else:
             ic_map[col] = 0.0
-    # 保存 IC signs 供 predictor.py 推論時使用
-    import os as _os
-    _os.makedirs("model", exist_ok=True)
-    with open("model/ic_signs.json", "w") as _f:
-        _json.dump({"neg_ic_feats": NEG_IC_FEATS, "ic_map": ic_map}, _f, indent=2)
+
+    os.makedirs("model", exist_ok=True)
+    with open("model/ic_signs.json", "w", encoding="utf-8") as f:
+        _json.dump({"neg_ic_feats": NEG_IC_FEATS, "ic_map": ic_map, "target": "label_sell_win"}, f, indent=2, ensure_ascii=False)
     logger.info(f"動態 IC 計算完成: {ic_map}")
     logger.info(f"NEG_IC 反轉特徵: {NEG_IC_FEATS}")
 
-    X = merged[FEATURE_COLS + LAG_COLS]
-    y = merged["label"].astype(int)
-    logger.info(f"載入訓練資料: {len(X)} 筆, {len(FEATURE_COLS)} features")
+    X = merged[FEATURE_COLS + lag_feature_cols]
+    y = merged["label_sell_win"].astype(int)
+    logger.info(f"載入訓練資料: {len(X)} 筆, {len(FEATURE_COLS)} base features + {len(lag_feature_cols)} lags")
     return X, y
 
 
-LABEL_MAP = {-1: 0, 0: 1, 1: 2}   # XGBoost needs 0-based class indices
-LABEL_MAP_INV = {0: -1, 1: 0, 2: 1}
-
-
-def encode_labels(y: pd.Series) -> pd.Series:
-    """Map -1/0/1 → 0/1/2 for XGBoost multi:softprob."""
-    return y.map(LABEL_MAP).fillna(1).astype(int)
-
-
-def decode_label(pred: int) -> int:
-    """Map 0/1/2 → -1/0/1."""
-    return LABEL_MAP_INV.get(pred, 0)
-
-
-def train_xgboost(
-    X: pd.DataFrame, y: pd.Series, params: Optional[dict] = None
-) -> xgb.XGBClassifier:
-    """訓練 XGBoost 3-class（跌/持平/漲）。"""
-    # Re-encode if still in -1/0/1 space
-    if y.min() < 0:
-        y = encode_labels(y)
-
+def train_xgboost(X: pd.DataFrame, y: pd.Series, params: Optional[dict] = None) -> xgb.XGBClassifier:
     dist = y.value_counts().sort_index().to_dict()
-    logger.info(f"Class dist (encoded): {dist}")
+    logger.info(f"Class dist: {dist}")
 
     if params is None:
         params = {
-            "n_estimators": 200,      # #H76: 增加估計量配合更強正則化
-            "max_depth": 2,           # #H76: 降為2，減少過擬合 (was 3)
-            "learning_rate": 0.02,    # #H76: 降低學習率 (was 0.03)
-            "subsample": 0.5,         # #H76: 更強 subsample (was 0.6)
-            "colsample_bytree": 0.6,  # #H76: 減少特徵採樣 (was 0.7)
-            "reg_alpha": 3.0,         # #H76: 加強 L1 (was 2.0)
-            "reg_lambda": 8.0,        # #H76: 加強 L2 (was 5.0)
-            "min_child_weight": 20,   # #H76: 加大最小葉節點 (was 15)
-            "objective": "multi:softprob",
-            "num_class": 3,
-            "eval_metric": "mlogloss",
+            "n_estimators": 250,
+            "max_depth": 3,
+            "learning_rate": 0.03,
+            "subsample": 0.7,
+            "colsample_bytree": 0.7,
+            "reg_alpha": 2.0,
+            "reg_lambda": 6.0,
+            "min_child_weight": 10,
+            "objective": "binary:logistic",
+            "eval_metric": "logloss",
             "random_state": 42,
         }
 
-    # #H76: class_weight 平衡 — neutral=50% 過多，用 balanced sample_weight
     from sklearn.utils.class_weight import compute_sample_weight
     sample_weight = compute_sample_weight("balanced", y)
     model = xgb.XGBClassifier(**params)
     model.fit(X, y, sample_weight=sample_weight)
-    logger.info("XGBoost v3 3-class 訓練完成")
+    logger.info("XGBoost v4 binary training completed")
     return model
 
 
@@ -191,45 +152,39 @@ def load_model(path: str = MODEL_PATH):
 
 
 def run_training(session: Session) -> bool:
-    logger.info("開始模型訓練 v3...")
+    logger.info("開始模型訓練 v4...")
     loaded = load_training_data(session, min_samples=50)
     if loaded is None:
         return False
     X, y = loaded
-    y_enc = encode_labels(y)  # -1/0/1 → 0/1/2 for XGBoost
-    model = train_xgboost(X, y_enc)
+    model = train_xgboost(X, y)
     save_model(model)
-    imp = dict(zip(FEATURE_COLS, model.feature_importances_.tolist()))
+    imp = dict(zip(X.columns.tolist(), model.feature_importances_.tolist()))
     logger.info(f"特徵重要性: {imp}")
 
-    # Save metrics to model_metrics table
     try:
-        from sklearn.model_selection import TimeSeriesSplit, cross_val_score
+        from sklearn.model_selection import TimeSeriesSplit
         from datetime import datetime
         import sqlite3
-        train_acc = float((model.predict(X) == y_enc).mean())
-        # fix #H88: skip folds where training set lacks all 3 classes (early backfill data is all bull)
-        import numpy as _np2
+        train_acc = float((model.predict(X) == y).mean())
         tscv = TimeSeriesSplit(n_splits=5)
         valid_scores = []
-        from xgboost import XGBClassifier as _XGB
         for _tr, _te in tscv.split(X):
-            y_tr = y_enc.iloc[_tr]
-            if len(y_tr.unique()) < 3:
-                continue  # skip fold missing classes
-            _m = _XGB(**{k: v for k, v in model.get_params().items()})
+            y_tr = y.iloc[_tr]
+            if len(y_tr.unique()) < 2:
+                continue
+            _m = xgb.XGBClassifier(**{k: v for k, v in model.get_params().items()})
             _m.fit(X.iloc[_tr], y_tr)
-            valid_scores.append(float((_m.predict(X.iloc[_te]) == y_enc.iloc[_te]).mean()))
-        cv_acc = float(_np2.mean(valid_scores)) if valid_scores else float("nan")
-        cv_std = float(_np2.std(valid_scores)) if valid_scores else float("nan")
+            valid_scores.append(float((_m.predict(X.iloc[_te]) == y.iloc[_te]).mean()))
+        cv_acc = float(np.mean(valid_scores)) if valid_scores else float("nan")
+        cv_std = float(np.std(valid_scores)) if valid_scores else float("nan")
         db = sqlite3.connect("poly_trader.db")
         cur = db.cursor()
         cur.execute("""
             INSERT INTO model_metrics (timestamp, train_accuracy, cv_accuracy, cv_std, n_features, notes)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (datetime.utcnow().isoformat(), train_acc, cv_acc, cv_std, X.shape[1], "auto-train"))
-        db.commit()
-        db.close()
+        """, (datetime.utcnow().isoformat(), train_acc, cv_acc, cv_std, X.shape[1], "sell-win auto-train"))
+        db.commit(); db.close()
         logger.info(f"模型指標: Train={train_acc:.3f}, CV={cv_acc:.3f}±{cv_std:.3f}")
     except Exception as e:
         logger.warning(f"無法保存 model_metrics: {e}")
