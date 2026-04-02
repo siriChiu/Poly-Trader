@@ -97,14 +97,22 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_ear_zscore"] = 0.0
 
-    # 3. Nose: ret_1（1期均值回歸信號）
-    #    IC=-0.054 (全量 N=11042, p<0.0001) → 負 IC → 近期上漲預示下跌（均值回歸）
-    #    替換 ret_96 (IC≈0.005, p=0.60, 不顯著) #H99
-    #    負 IC → 加入 NEG_IC_FEATS（訓練時自動反轉）
-    if len(close) >= 2:
-        features["feat_nose_sigmoid"] = float(close.iloc[-1] / close.iloc[-2] - 1)
+    # 3. Nose: rsi14_norm — RSI(14) 正規化至 [0,1]
+    #    IC=-0.049 (p=0.001, N=4453): 替換 ret_1 (IC≈0, p=0.66, 不顯著) #H101
+    #    負 IC → RSI 高 → 超買 → 看跌（均值回歸），加入 NEG_IC_FEATS
+    if len(close) >= 15:
+        delta = close.diff()
+        gain = delta.clip(lower=0).rolling(14).mean()
+        loss = (-delta.clip(upper=0)).rolling(14).mean()
+        last_loss = float(loss.iloc[-1]) if not loss.empty else 1e-9
+        last_gain = float(gain.iloc[-1]) if not gain.empty else 0.0
+        if last_loss > 0:
+            rsi = 100 - 100 / (1 + last_gain / last_loss)
+        else:
+            rsi = 100.0
+        features["feat_nose_sigmoid"] = float(rsi) / 100.0
     else:
-        features["feat_nose_sigmoid"] = 0.0
+        features["feat_nose_sigmoid"] = 0.5
 
     # 4. Tongue: vol_ratio_6_48 — 短期/長期波動率比（波動爆發信號）
     #    IC=+0.128 (p<0.0001, n=2184): 短期波動激增 → 市場動盪 → 偏多（突破信號）
@@ -121,15 +129,24 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_tongue_pct"] = 1.0
 
-    # 5. Body: price_ret_20P — 20期價格報酬率（動量）
-    #    IC=-0.057 (p=0.0002, n=4412): 替換 vol_zscore_24 (IC=-0.017, p=0.21, 不顯著) #H95
-    #    負 IC → 近期上漲（正報酬）→ 負標籤（均值回歸）→ 加入 NEG_IC_FEATS
-    if len(close) >= 21:
-        ret_20 = float((close.iloc[-1] - close.iloc[-21]) / (close.iloc[-21] + 1e-10))
-        # sigmoid 轉換到 [0,1]，scale=50 讓 ±2% 範圍靈敏
-        features["feat_body_roc"] = float(1 / (1 + np.exp(50 * ret_20)))
+    # 5. Body: vol_zscore_48 — 48期波動率 z-score（volatility regime detector）
+    #    IC=+0.056 (p=0.0002, N=4453): 替換 price_ret_20P (IC=-0.014, p=0.095, 不顯著) #H101
+    #    正 IC → 高波動 → 市場活躍 → 偏多（趨勢延續）
+    if len(returns) >= 336:  # 288 for rolling mean + 48 for vol
+        vol48 = float(returns.iloc[-48:].std())
+        vol_hist = np.array([returns.iloc[max(0,i-48):i].std() for i in range(len(returns)-288, len(returns))])
+        vol_hist = vol_hist[~np.isnan(vol_hist)]
+        if len(vol_hist) > 5 and vol_hist.std() > 0:
+            features["feat_body_roc"] = float((vol48 - vol_hist.mean()) / vol_hist.std())
+        else:
+            features["feat_body_roc"] = 0.0
+    elif len(returns) >= 48:
+        vol48 = float(returns.iloc[-48:].std())
+        vol_all = float(returns.std())
+        vol_all_std = float(returns.rolling(48).std().std()) if len(returns) >= 96 else 1e-9
+        features["feat_body_roc"] = float((vol48 - vol_all) / (vol_all_std + 1e-9))
     else:
-        features["feat_body_roc"] = 0.5
+        features["feat_body_roc"] = 0.0
 
     # 6. Pulse (v4): vol_roc48 — 48期成交量變化率（成交量動能）
     #    IC=+0.0436 (p<0.0001, N=23962): 替換 atr_ratio14 (IC=+0.0094, p=0.520, 不顯著) #H101
