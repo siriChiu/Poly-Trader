@@ -77,14 +77,22 @@ def generate_future_return_labels(
         ret_pct = (future_price - current_price) / current_price
         if ret_pct > threshold_pct:
             label = 1
+            sell_win = 1
         elif ret_pct < -threshold_pct:
             label = -1
+            sell_win = 0
         else:
-            label = 0  # neutral / hold
+            label = 0
+            sell_win = 0
         labels.append({
             "timestamp": ts,
             "label": label,
-            "future_return_pct": ret_pct
+            "label_sell_win": sell_win,
+            "label_up": label,
+            "future_return_pct": ret_pct,
+            "future_max_drawdown": None,
+            "future_max_runup": None,
+            "regime_label": None,
         })
 
     df = pd.DataFrame(labels)
@@ -119,6 +127,8 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
                 # 更新 NULL label：現在有未來數據了
                 existing.future_return_pct = float(fut_ret)
                 existing.label = int(row["label"])
+                existing.label_sell_win = int(row.get("label_sell_win", 0))
+                existing.label_up = int(row.get("label_up", row["label"]))
                 update_count += 1
             # 已有值，跳過
             continue
@@ -128,6 +138,8 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
             horizon_hours=horizon_hours,
             future_return_pct=float(fut_ret) if fut_ret is not None else None,
             label=int(row["label"]),
+            label_sell_win=int(row.get("label_sell_win", 0)),
+            label_up=int(row.get("label_up", row["label"])),
         )
         session.add(label_row)
         new_count += 1

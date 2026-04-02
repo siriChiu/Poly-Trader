@@ -1,11 +1,15 @@
 """
-Database models for Poly-Trader v4 — multi-sense, sell-win aware
+Database models for Poly-Trader v5 — multi-sense, sell-win aware, SQLite migration tolerant
 """
 
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Dict, Iterable, Tuple
+
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
 
 Base = declarative_base()
 
@@ -52,7 +56,7 @@ class FeaturesNormalized(Base):
 
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    symbol = Column(String, nullable=False, index=True)
+    symbol = Column(String, nullable=True, index=True)
     feat_eye = Column(Float)
     feat_ear = Column(Float)
     feat_nose = Column(Float)
@@ -105,8 +109,83 @@ class Labels(Base):
     regime_label = Column(String, nullable=True)
 
 
+_SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
+    "features_normalized": (
+        ("symbol", "TEXT"),
+        ("feat_eye", "REAL"),
+        ("feat_ear", "REAL"),
+        ("feat_nose", "REAL"),
+        ("feat_tongue", "REAL"),
+        ("feat_body", "REAL"),
+        ("feat_pulse", "REAL"),
+        ("feat_aura", "REAL"),
+        ("feat_mind", "REAL"),
+        ("feat_whisper", "REAL"),
+        ("feat_tone", "REAL"),
+        ("feat_chorus", "REAL"),
+        ("feat_hype", "REAL"),
+        ("feat_oracle", "REAL"),
+        ("feat_shock", "REAL"),
+        ("feat_tide", "REAL"),
+        ("feat_storm", "REAL"),
+        ("regime_label", "TEXT"),
+        ("feature_version", "TEXT"),
+    ),
+    "trade_history": (
+        ("gross_pnl", "REAL"),
+        ("commission_slippage", "REAL"),
+        ("reason", "TEXT"),
+        ("regime_label", "TEXT"),
+        ("sell_win", "INTEGER"),
+    ),
+    "labels": (
+        ("horizon_minutes", "INTEGER"),
+        ("future_max_drawdown", "REAL"),
+        ("future_max_runup", "REAL"),
+        ("label_sell_win", "INTEGER"),
+        ("label_up", "INTEGER"),
+        ("regime_label", "TEXT"),
+    ),
+    "raw_events": (
+        ("source", "TEXT"),
+        ("entity", "TEXT"),
+        ("subtype", "TEXT"),
+        ("value", "REAL"),
+        ("confidence", "REAL"),
+        ("quality_score", "REAL"),
+        ("language", "TEXT"),
+        ("region", "TEXT"),
+        ("payload_json", "TEXT"),
+        ("ingested_at", "DATETIME"),
+    ),
+}
+
+
+def _sqlite_add_missing_columns(engine) -> None:
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    dialect_name = engine.dialect.name
+    if dialect_name != "sqlite":
+        return
+
+    with engine.begin() as conn:
+        for table, cols in _SQLITE_MIGRATIONS.items():
+            if table not in existing_tables:
+                continue
+            existing_cols = {c["name"] for c in inspector.get_columns(table)}
+            for col_name, col_type in cols:
+                if col_name in existing_cols:
+                    continue
+                try:
+                    conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {col_name} {col_type}'))
+                except Exception:
+                    # If a column already exists due to race/partial migration, keep going.
+                    pass
+
+
 def init_db(db_url: str):
     engine = create_engine(db_url, echo=False, future=True)
     Base.metadata.create_all(engine)
+    _sqlite_add_missing_columns(engine)
     SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     return SessionLocal()

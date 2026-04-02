@@ -15,9 +15,11 @@ logger = setup_logger(__name__)
 
 MODEL_PATH = "model/xgb_model.pkl"
 BASE_FEATURE_COLS = [
-    "feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid",
-    "feat_tongue_pct", "feat_body_roc", "feat_pulse",
+    "feat_eye", "feat_ear", "feat_nose",
+    "feat_tongue", "feat_body", "feat_pulse",
     "feat_aura", "feat_mind",
+    "feat_whisper", "feat_tone", "feat_chorus", "feat_hype",
+    "feat_oracle", "feat_shock", "feat_tide", "feat_storm",
 ]
 LAG_STEPS = [12, 48, 288]
 LAG_FEATURE_COLS = [f"{col}_lag{lag}" for col in BASE_FEATURE_COLS for lag in LAG_STEPS]
@@ -65,7 +67,18 @@ class XGBoostPredictor:
                 all_feat_cols = list(fn) if fn is not None else BASE_FEATURE_COLS
             except Exception:
                 all_feat_cols = BASE_FEATURE_COLS
-        adjusted = {col: (-features.get(col, 0) if col in NEG_IC_FEATS else features.get(col, 0)) for col in all_feat_cols}
+        legacy_map = {
+            "feat_eye_dist": "feat_eye",
+            "feat_ear_zscore": "feat_ear",
+            "feat_nose_sigmoid": "feat_nose",
+            "feat_tongue_pct": "feat_tongue",
+            "feat_body_roc": "feat_body",
+        }
+        def _feat(col):
+            key = legacy_map.get(col, col)
+            val = features.get(key, features.get(col, 0))
+            return 0 if val is None else val
+        adjusted = {col: (-_feat(col) if col in NEG_IC_FEATS else _feat(col)) for col in all_feat_cols}
         X = pd.DataFrame([adjusted]).fillna(0)
         if self._imputer is not None:
             try:
@@ -124,14 +137,22 @@ def load_latest_features(session: Session) -> Optional[Dict]:
     latest = rows[0]
     features = {
         "timestamp": latest.timestamp,
-        "feat_eye_dist": latest.feat_eye_dist,
-        "feat_ear_zscore": latest.feat_ear_zscore,
-        "feat_nose_sigmoid": latest.feat_nose_sigmoid,
-        "feat_tongue_pct": latest.feat_tongue_pct,
-        "feat_body_roc": latest.feat_body_roc,
-        "feat_pulse": latest.feat_pulse,
-        "feat_aura": latest.feat_aura,
-        "feat_mind": latest.feat_mind,
+        "feat_eye": getattr(latest, "feat_eye", None),
+        "feat_ear": getattr(latest, "feat_ear", None),
+        "feat_nose": getattr(latest, "feat_nose", None),
+        "feat_tongue": getattr(latest, "feat_tongue", None),
+        "feat_body": getattr(latest, "feat_body", None),
+        "feat_pulse": getattr(latest, "feat_pulse", None),
+        "feat_aura": getattr(latest, "feat_aura", None),
+        "feat_mind": getattr(latest, "feat_mind", None),
+        "feat_whisper": getattr(latest, "feat_whisper", None),
+        "feat_tone": getattr(latest, "feat_tone", None),
+        "feat_chorus": getattr(latest, "feat_chorus", None),
+        "feat_hype": getattr(latest, "feat_hype", None),
+        "feat_oracle": getattr(latest, "feat_oracle", None),
+        "feat_shock": getattr(latest, "feat_shock", None),
+        "feat_tide": getattr(latest, "feat_tide", None),
+        "feat_storm": getattr(latest, "feat_storm", None),
     }
     # Compute lag features: rows are DESC, so rows[lag] is `lag` steps ago
     for col in BASE_FEATURE_COLS:
