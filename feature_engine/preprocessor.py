@@ -131,43 +131,37 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_body_roc"] = 0.5
 
-    # 6. Pulse (v3): atr_ratio14 — ATR(14) / 當前價格（市場波動率比例）
-    #    IC=+0.059 (p<0.001, N=11010): 替換 pos_in_range_72 (IC≈0, p=0.892, 無效) #H89
-    #    正 IC → 高波動 → 趨勢突破訊號，不加入 NEG_IC_FEATS
-    if len(close) >= 15:
-        highs_14 = close.rolling(14).max()
-        lows_14 = close.rolling(14).min()
-        tr_14 = highs_14 - lows_14
-        atr_14 = tr_14.rolling(14).mean()
-        atr_val = atr_14.iloc[-1]
-        cur_price = close.iloc[-1]
-        if not np.isnan(atr_val) and cur_price > 0:
-            features["feat_pulse"] = float(atr_val / cur_price)
-        else:
-            features["feat_pulse"] = 0.0
+    # 6. Pulse (v4): vol_roc48 — 48期成交量變化率（成交量動能）
+    #    IC=+0.0436 (p<0.0001, N=23962): 替換 atr_ratio14 (IC=+0.0094, p=0.520, 不顯著) #H101
+    #    正 IC → 成交量增加 → 趨勢延續，不加入 NEG_IC_FEATS
+    if "volume" in df.columns:
+        vol_series = df["volume"].dropna().astype(float)
     else:
-        features["feat_pulse"] = 0.0
+        vol_series = pd.Series(dtype=float)
+    if len(vol_series) >= 49:
+        vol_roc = float((vol_series.iloc[-1] - vol_series.iloc[-49]) / (vol_series.iloc[-49] + 1e-10))
+        features["feat_pulse"] = float(1 / (1 + np.exp(-vol_roc)))
+    elif len(vol_series) >= 2:
+        vol_roc = float((vol_series.iloc[-1] - vol_series.iloc[0]) / (vol_series.iloc[0] + 1e-10))
+        features["feat_pulse"] = float(1 / (1 + np.exp(-vol_roc)))
+    else:
+        features["feat_pulse"] = 0.5
 
-    # 7. Aura (v6): pos_in_24h_range — 當前價格在 24h 高低點中的位置
-    #    IC=+0.061 (p<0.0001, n=10976): 最強替換候選，位置高 → 過熱 → 偏多（趨勢信號）
-    #    替換 fr_cum48_norm (IC=-0.024, p=0.07, 邊緣不顯著) #H89
-    #    正 IC → 不加入 NEG_IC_FEATS（高位有追漲慣性）
-    if len(close) >= 48:
-        window_size = min(288, len(close))
-        window_close = close.iloc[-window_size:]
-        price_min = float(window_close.min())
-        price_max = float(window_close.max())
-        if price_max > price_min:
-            features["feat_aura"] = float((close.iloc[-1] - price_min) / (price_max - price_min))
-        else:
-            features["feat_aura"] = 0.5
-    elif len(close) >= 12:
-        price_min = float(close.min())
-        price_max = float(close.max())
-        if price_max > price_min:
-            features["feat_aura"] = float((close.iloc[-1] - price_min) / (price_max - price_min))
-        else:
-            features["feat_aura"] = 0.5
+    # 7. Aura (v7): vol_ratio_short_long — 短期/長期波動率比（波動率結構）
+    #    IC=+0.0994 (p<0.0001, N=23914): 替換 pos_in_24h_range (IC=+0.0029, p=0.808, 不顯著) #H101
+    #    正 IC → 波動率放大 → 趨勢延續，不加入 NEG_IC_FEATS
+    rets = close.pct_change()
+    if len(rets) >= 97:
+        vol_short = float(rets.tail(12).std())
+        vol_long = float(rets.tail(96).std())
+        vol_ratio = vol_short / (vol_long + 1e-10)
+        # sigmoid: centered at ratio=1.5, 小比值→0（低波動結構）, 大比值→1
+        features["feat_aura"] = float(1 / (1 + np.exp(-vol_ratio * 2 + 3)))
+    elif len(rets) >= 13:
+        vol_short = float(rets.tail(12).std())
+        vol_long = float(rets.std())
+        vol_ratio = vol_short / (vol_long + 1e-10)
+        features["feat_aura"] = float(1 / (1 + np.exp(-vol_ratio * 2 + 3)))
     else:
         features["feat_aura"] = 0.5
 
