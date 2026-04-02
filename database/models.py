@@ -76,6 +76,47 @@ class FeaturesNormalized(Base):
     regime_label = Column(String, nullable=True)
     feature_version = Column(String, nullable=True)
 
+    # --- Backward-compatible aliases for legacy callers/tests ---
+    @property
+    def feat_eye_dist(self):
+        return self.feat_eye
+
+    @feat_eye_dist.setter
+    def feat_eye_dist(self, value):
+        self.feat_eye = value
+
+    @property
+    def feat_ear_zscore(self):
+        return self.feat_ear
+
+    @feat_ear_zscore.setter
+    def feat_ear_zscore(self, value):
+        self.feat_ear = value
+
+    @property
+    def feat_nose_sigmoid(self):
+        return self.feat_nose
+
+    @feat_nose_sigmoid.setter
+    def feat_nose_sigmoid(self, value):
+        self.feat_nose = value
+
+    @property
+    def feat_tongue_pct(self):
+        return self.feat_tongue
+
+    @feat_tongue_pct.setter
+    def feat_tongue_pct(self, value):
+        self.feat_tongue = value
+
+    @property
+    def feat_body_roc(self):
+        return self.feat_body
+
+    @feat_body_roc.setter
+    def feat_body_roc(self, value):
+        self.feat_body = value
+
 
 class TradeHistory(Base):
     __tablename__ = "trade_history"

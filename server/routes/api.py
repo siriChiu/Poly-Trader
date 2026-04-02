@@ -305,7 +305,7 @@ async def api_run_backtest(days: int = Query(default=30)):
 
 
 # ─── Confidence Prediction ───
-@router.get("/api/predict/confidence")
+@router.get("/predict/confidence")
 async def get_confidence_prediction():
     """返回模型信心分層預測"""
     from model.predictor import predict, load_predictor
