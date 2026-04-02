@@ -1,3 +1,7 @@
+# HEARTBEAT.md — 心跳流程
+
+> 心跳詳細流程。角色定義見 [AI_AGENT_ROLE.md](AI_AGENT_ROLE.md)，系統架構見 [ARCHITECTURE.md](ARCHITECTURE.md)。
+
 # HEARTBEAT.md — Poly-Trader 心跳任務（5 分鐘循環）
 
 ## 🔄 心跳完整流程
@@ -13,7 +17,7 @@
 - 不可跳過此步驟，即使是例行心跳
 
 ### Step 1: 數據收集
-- 運行 `Poly-Trader/scripts/scripts/dev_heartbeat.py` 檢查檔案結構和模組語法
+- 運行 `Poly-Trader/scripts/dev_heartbeat.py` 檢查檔案結構和模組語法
 - 運行 collector 收集最新數據
 - 記錄最新 raw/features/labels 數量、BTC 價格、衍生品數據
 
@@ -41,13 +45,13 @@
 | 🔧 現實家 | 實際上怎麼做？ |
 | 🎯 裁判 | 最終決策：做不做？優先級？ |
 
-#### Step 3.3: ORID 循環（會議→行動）
+#### Step 3.3: ORID 循環（整合會議→行動）
 | 階段 | 內容 |
 |------|------|
-| **O** 客觀事實 | 收集到的數據、測試結果、IC 值 |
-| **R** 感受直覺 | 對問題的感覺、潛在風險 |
-| **I** 意義洞察 | 根本原因、系統性問題 |
-| **D** 決策行動 | 列出 P0-P5 行動項目，記錄在 ISSUES.md / PRD.md / ROADMAP.md |
+| **O** 客觀事實 | 綜合六帽會議的白帽事實 + 迪士尼會議的批評分析 + 收集到的數據與 IC 值 |
+| **R** 感受直覺 | 六帽紅帽的直覺感受 + 迪士尼夢想家的願景感受 + 數據揭示的趨勢風險 |
+| **I** 意義洞察 | 六帽黑帽的風險分析 + 迪士尼現實家的執行洞察 + 數據的因果推論 |
+| **D** 決策行動 | 六帽藍帽的優先級 + 迪士尼裁判的最終決策 → 產出 P0-P5 行動項目，記錄在 ISSUES.md / PRD.md / ROADMAP.md |
 
 ### Step 4: ISSUES 狀態
 - 列出當前所有未解決問題及優先級
@@ -66,10 +70,17 @@
 ```
 📊 心跳摘要 [時間]
 - Raw: ?? / Features: ?? / Labels: ??
-- BTC: $???
-- 感官 IC: Eye=? / Ear=? / Nose=? / Tongue=? / Body=?
+- BTC: $??? | 衍生品: LSR=? GSR=? Taker=? OI=?
+- 感官 IC: Eye=? / Ear=? / Nose=? / Tongue=? / Body=? / Pulse=? / Aura=? / Mind=?
+- 會議結論：
+  ⚪ 白帽：[簡述事實]
+  🔴 黑帽：[主要風險]
+  🟢 綠帽：[建議方案]
+  🔵 藍帽：[決策與優先級]
+  📋 ORID D：[具體行動項目]
 - 本輪修改：[做了什麼]
 - 測試結果：[pass/fail]
+- ROADMAP：[更新了什麼]
 ```
 
 ---

@@ -1,5 +1,7 @@
 # Poly-Trader PRD v2.0
 
+> 產品需求規格。架構見 [ARCHITECTURE.md](ARCHITECTURE.md)，路線見 [ROADMAP.md](ROADMAP.md)，問題見 [ISSUES.md](ISSUES.md)。
+
 ## 產品定位
 Poly-Trader 是一套以多感官為核心的加密貨幣量化交易系統。用戶是交易者，不是工程師——所以一切設計以「看一眼就知道該不該下單」為目標。
 

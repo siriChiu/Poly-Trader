@@ -1,5 +1,7 @@
 # Poly-Trader 發展路線圖
 
+> 發展路線與進度。架構見 [ARCHITECTURE.md](ARCHITECTURE.md)，需求見 [PRD.md](PRD.md)，問題見 [ISSUES.md](ISSUES.md)。
+
 > 六帽會議決議 (2026-03-30)：從「能跑」到「有意義」
 
 ## 核心理念

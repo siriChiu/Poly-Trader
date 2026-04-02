@@ -1,4 +1,7 @@
-# Poly-Trader Issues 追踪
+# ISSUES.md — 問題追蹤
+
+> 問題追蹤與狀態。架構見 [ARCHITECTURE.md](ARCHITECTURE.md)，路線見 [ROADMAP.md](ROADMAP.md)。
+
 
 > **最後更新：2026-04-02 13:39 GMT+8**
 > **🔄 心跳 #100：Tongue/Aura 失效替換；BTC=$66,476；CV=56.30%；6/6測試通過**
