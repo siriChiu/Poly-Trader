@@ -99,24 +99,24 @@ class WsManager:
         def norm(val, key):
             if val is None:
                 return 0.5
-            if key == "feat_eye_dist":
+            if key == "feat_eye":
                 return max(0, min(1, val * 10 + 0.5))
-            elif key == "feat_ear_zscore":
+            elif key == "feat_ear":
                 return max(0, min(1, 0.5 + val / 6))
-            elif key == "feat_nose_sigmoid":
+            elif key == "feat_nose":
                 return max(0, min(1, (val + 1) / 2))
-            elif key == "feat_tongue_pct":
+            elif key == "feat_tongue":
                 return max(0, min(1, (val + 1) / 2)) if abs(val) <= 1 else max(0, min(1, val))
-            elif key == "feat_body_roc":
+            elif key == "feat_body":
                 return max(0, min(1, (val + 1) / 2))
             return 0.5
 
         return {
-            "eye": norm(features.get("feat_eye_dist"), "feat_eye_dist"),
-            "ear": norm(features.get("feat_ear_zscore"), "feat_ear_zscore"),
-            "nose": norm(features.get("feat_nose_sigmoid"), "feat_nose_sigmoid"),
-            "tongue": norm(features.get("feat_tongue_pct"), "feat_tongue_pct"),
-            "body": norm(features.get("feat_body_roc"), "feat_body_roc"),
+            "eye": norm(features.get("feat_eye"), "feat_eye"),
+            "ear": norm(features.get("feat_ear"), "feat_ear"),
+            "nose": norm(features.get("feat_nose"), "feat_nose"),
+            "tongue": norm(features.get("feat_tongue"), "feat_tongue"),
+            "body": norm(features.get("feat_body"), "feat_body"),
         }
 
 

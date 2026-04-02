@@ -171,7 +171,7 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
                 continue
 
             # 計算多感官綜合分數 (0~1)
-            vals = [feat.feat_eye_dist, feat.feat_ear_zscore, feat.feat_nose_sigmoid, feat.feat_tongue_pct, feat.feat_body_roc]
+            vals = [getattr(feat, "feat_eye", None), getattr(feat, "feat_ear", None), getattr(feat, "feat_nose", None), getattr(feat, "feat_tongue", None), getattr(feat, "feat_body", None)]
             valid = [v for v in vals if v is not None]
             if not valid: continue
             # Normalize: features are -1~1, convert to 0~1
@@ -224,10 +224,14 @@ async def api_features(days: int = Query(default=7, ge=1, le=90)):
     since = datetime.utcnow() - timedelta(days=days)
     rows = db.query(FeaturesNormalized).filter(FeaturesNormalized.timestamp >= since).order_by(FeaturesNormalized.timestamp).all()
     return [{"timestamp": r.timestamp.isoformat() if r.timestamp else None,
-        "feat_eye_dist": r.feat_eye_dist, "feat_ear_zscore": r.feat_ear_zscore,
-        "feat_nose_sigmoid": r.feat_nose_sigmoid, "feat_tongue_pct": r.feat_tongue_pct,
-        "feat_body_roc": r.feat_body_roc, "feat_pulse": getattr(r, 'feat_pulse', None),
-        "feat_aura": getattr(r, 'feat_aura', None), "feat_mind": getattr(r, 'feat_mind', None)
+        "feat_eye": getattr(r, 'feat_eye', None), "feat_ear": getattr(r, 'feat_ear', None),
+        "feat_nose": getattr(r, 'feat_nose', None), "feat_tongue": getattr(r, 'feat_tongue', None),
+        "feat_body": getattr(r, 'feat_body', None), "feat_pulse": getattr(r, 'feat_pulse', None),
+        "feat_aura": getattr(r, 'feat_aura', None), "feat_mind": getattr(r, 'feat_mind', None),
+        "feat_whisper": getattr(r, 'feat_whisper', None), "feat_tone": getattr(r, 'feat_tone', None),
+        "feat_chorus": getattr(r, 'feat_chorus', None), "feat_hype": getattr(r, 'feat_hype', None),
+        "feat_oracle": getattr(r, 'feat_oracle', None), "feat_shock": getattr(r, 'feat_shock', None),
+        "feat_tide": getattr(r, 'feat_tide', None), "feat_storm": getattr(r, 'feat_storm', None)
     } for r in rows]
 
 
@@ -278,9 +282,9 @@ async def api_model_stats():
     # IC 計算 (Pearson correlation for each feature vs label)
     try:
         rows = db.execute(text("""
-            SELECT f.feat_eye_dist, f.feat_ear_zscore, f.feat_nose_sigmoid, f.feat_tongue_pct, f.feat_body_roc, l.label
+            SELECT f.feat_eye, f.feat_ear, f.feat_nose, f.feat_tongue, f.feat_body, l.label_sell_win
             FROM features_normalized f INNER JOIN labels l ON f.id = l.id
-            WHERE f.feat_eye_dist IS NOT NULL AND l.label IS NOT NULL
+            WHERE f.feat_eye IS NOT NULL AND l.label_sell_win IS NOT NULL
         """)).fetchall()
         if len(rows) > 30:
             data = np.array(rows)
