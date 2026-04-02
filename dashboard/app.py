@@ -34,7 +34,7 @@ engine = create_engine(cfg["database"]["url"])
 @st.cache_data(ttl=30)
 def get_latest_market():
     with engine.connect() as conn:
-        row = conn.execute(text("SELECT r.timestamp,r.close_price,r.volume,r.funding_rate,f.feat_eye_dist,f.feat_ear_zscore,f.feat_nose_sigmoid,f.feat_tongue_pct,f.feat_body_roc,f.feat_pulse,f.feat_aura,f.feat_mind FROM raw_market_data r JOIN features_normalized f ON f.timestamp=r.timestamp ORDER BY r.timestamp DESC LIMIT 1")).fetchone()
+        row = conn.execute(text("SELECT r.timestamp,r.close_price,r.volume,r.funding_rate,COALESCE(f.feat_eye, f.feat_eye_dist) AS feat_eye,COALESCE(f.feat_ear, f.feat_ear_zscore) AS feat_ear,COALESCE(f.feat_nose, f.feat_nose_sigmoid) AS feat_nose,COALESCE(f.feat_tongue, f.feat_tongue_pct) AS feat_tongue,COALESCE(f.feat_body, f.feat_body_roc) AS feat_body,COALESCE(f.feat_pulse, 0) AS feat_pulse,COALESCE(f.feat_aura, 0) AS feat_aura,COALESCE(f.feat_mind, 0) AS feat_mind FROM raw_market_data r JOIN features_normalized f ON f.timestamp=r.timestamp ORDER BY r.timestamp DESC LIMIT 1")).fetchone()
     return row
 
 @st.cache_data(ttl=30)
@@ -43,9 +43,9 @@ def get_confidence():
         from model.predictor import load_predictor
         pred = load_predictor()
         with engine.connect() as conn:
-            row = conn.execute(text("SELECT feat_eye_dist,feat_ear_zscore,feat_nose_sigmoid,feat_tongue_pct,feat_body_roc,feat_pulse,feat_aura,feat_mind FROM features_normalized ORDER BY timestamp DESC LIMIT 1")).fetchone()
+            row = conn.execute(text("SELECT COALESCE(feat_eye, feat_eye_dist) AS feat_eye,COALESCE(feat_ear, feat_ear_zscore) AS feat_ear,COALESCE(feat_nose, feat_nose_sigmoid) AS feat_nose,COALESCE(feat_tongue, feat_tongue_pct) AS feat_tongue,COALESCE(feat_body, feat_body_roc) AS feat_body,COALESCE(feat_pulse,0) AS feat_pulse,COALESCE(feat_aura,0) AS feat_aura,COALESCE(feat_mind,0) AS feat_mind FROM features_normalized ORDER BY timestamp DESC LIMIT 1")).fetchone()
         if row is None: return 0.5, "HOLD"
-        feats = {"feat_eye_dist":row[0],"feat_ear_zscore":row[1],"feat_nose_sigmoid":row[2],"feat_tongue_pct":row[3],"feat_body_roc":row[4],"feat_pulse":row[5],"feat_aura":row[6],"feat_mind":row[7]}
+        feats = {"feat_eye":row[0],"feat_ear":row[1],"feat_nose":row[2],"feat_tongue":row[3],"feat_body":row[4],"feat_pulse":row[5],"feat_aura":row[6],"feat_mind":row[7]}
         conf = pred.predict_proba(feats)
         if conf is None: return 0.5, "HOLD"
         sig = "BUY" if conf >= 0.65 else ("SELL" if conf <= 0.35 else "HOLD")
@@ -74,7 +74,7 @@ def get_price_history(days=7):
 @st.cache_data(ttl=30)
 def get_sense_history(hours=24):
     with engine.connect() as conn:
-        rows = conn.execute(text("SELECT timestamp,feat_eye_dist,feat_ear_zscore,feat_nose_sigmoid,feat_tongue_pct,feat_body_roc,feat_pulse,feat_aura,feat_mind FROM features_normalized WHERE timestamp>=:s ORDER BY timestamp ASC"),{"s":datetime.utcnow()-timedelta(hours=hours)}).fetchall()
+        rows = conn.execute(text("SELECT timestamp,COALESCE(feat_eye, feat_eye_dist) AS eye,COALESCE(feat_ear, feat_ear_zscore) AS ear,COALESCE(feat_nose, feat_nose_sigmoid) AS nose,COALESCE(feat_tongue, feat_tongue_pct) AS tongue,COALESCE(feat_body, feat_body_roc) AS body,COALESCE(feat_pulse, 0) AS pulse,COALESCE(feat_aura, 0) AS aura,COALESCE(feat_mind, 0) AS mind FROM features_normalized WHERE timestamp>=:s ORDER BY timestamp ASC"),{"s":datetime.utcnow()-timedelta(hours=hours)}).fetchall()
     if not rows: return pd.DataFrame()
     df = pd.DataFrame(rows,columns=["ts","eye","ear","nose","tongue","body","pulse","aura","mind"])
     df["ts"] = pd.to_datetime(df["ts"])
