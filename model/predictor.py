@@ -52,7 +52,7 @@ class XGBoostPredictor:
         if _os.path.exists(_ic_path):
             with open(_ic_path) as _f:
                 return set(_json.load(_f).get("neg_ic_feats", []))
-        return {"feat_eye_dist", "feat_ear_zscore", "feat_body_roc", "feat_aura", "feat_pulse", "feat_mind"}
+        return {"feat_eye", "feat_ear", "feat_nose", "feat_tongue", "feat_body", "feat_aura", "feat_pulse", "feat_mind"}
 
     def _get_proba(self, features: Dict):
         import pandas as pd

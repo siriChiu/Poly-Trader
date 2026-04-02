@@ -66,7 +66,8 @@ def get_fng():
 def get_price_history(days=7):
     with engine.connect() as conn:
         rows = conn.execute(text("SELECT timestamp,close_price FROM raw_market_data WHERE timestamp>=:s ORDER BY timestamp ASC"),{"s":datetime.utcnow()-timedelta(days=days)}).fetchall()
-    if not rows: return pd.DataFrame()
+    if not rows:
+        return pd.DataFrame(columns=["ts","eye","ear","nose","tongue","body","pulse","aura","mind"])
     df = pd.DataFrame(rows,columns=["timestamp","close_price"])
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     return df
@@ -75,7 +76,8 @@ def get_price_history(days=7):
 def get_sense_history(hours=24):
     with engine.connect() as conn:
         rows = conn.execute(text("SELECT timestamp,COALESCE(feat_eye, feat_eye_dist) AS eye,COALESCE(feat_ear, feat_ear_zscore) AS ear,COALESCE(feat_nose, feat_nose_sigmoid) AS nose,COALESCE(feat_tongue, feat_tongue_pct) AS tongue,COALESCE(feat_body, feat_body_roc) AS body,COALESCE(feat_pulse, 0) AS pulse,COALESCE(feat_aura, 0) AS aura,COALESCE(feat_mind, 0) AS mind FROM features_normalized WHERE timestamp>=:s ORDER BY timestamp ASC"),{"s":datetime.utcnow()-timedelta(hours=hours)}).fetchall()
-    if not rows: return pd.DataFrame()
+    if not rows:
+        return pd.DataFrame(columns=["ts","eye","ear","nose","tongue","body","pulse","aura","mind"])
     df = pd.DataFrame(rows,columns=["ts","eye","ear","nose","tongue","body","pulse","aura","mind"])
     df["ts"] = pd.to_datetime(df["ts"])
     return df
@@ -84,7 +86,8 @@ def get_sense_history(hours=24):
 def get_trade_history(days=30):
     with engine.connect() as conn:
         rows = conn.execute(text("SELECT timestamp,action,price,amount,model_confidence,pnl FROM trade_history WHERE timestamp>=:s ORDER BY timestamp DESC"),{"s":datetime.utcnow()-timedelta(days=days)}).fetchall()
-    if not rows: return pd.DataFrame()
+    if not rows:
+        return pd.DataFrame(columns=["ts","eye","ear","nose","tongue","body","pulse","aura","mind"])
     df = pd.DataFrame(rows,columns=["timestamp","action","price","amount","confidence","pnl"])
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     return df
@@ -168,7 +171,7 @@ with tab1:
                         <div style="width:{b}%;background:{c};height:5px;border-radius:3px"></div></div>
                 </div>""",unsafe_allow_html=True)
         else:
-            st.info("無感官數據")
+            st.warning("目前沒有可畫的感官資料；通常是資料窗還沒累積，或新的欄位尚未補齊。")
 
 # ── TAB2: 五感分析
 with tab2:
@@ -189,7 +192,7 @@ with tab2:
         fig_c.update_layout(paper_bgcolor="#0d0d0d",font_color="#e0e0e0",height=350,title="相關性矩陣")
         st.plotly_chart(fig_c,use_container_width=True)
     else:
-        st.info("無感官數據")
+        st.warning("目前沒有可畫的感官資料；通常是資料窗還沒累積，或新的欄位尚未補齊。")
 
 # ── TAB3: 策略回測
 with tab3:
