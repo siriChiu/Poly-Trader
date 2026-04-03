@@ -59,40 +59,76 @@ CONFIG_PATH = Path(__file__).parent.parent / "data" / "senses_config.json"
 
 
 def normalize_feature(value: Optional[float], feature_type: str) -> float:
-    """將特徵值正規化到 0~1 區間"""
+    """ECDF percentile normalization: p5->0.05, p95->0.95, linear in between.
+    Anchors computed from 7-day rolling empirical distribution."""
     if value is None:
         return 0.5
 
+    # ECDF anchors (updated from 7-day data)
+    anchors = {
+        'feat_eye_dist':     (-4.4964,  4.1189),
+        'feat_ear_zscore':   (-0.7493,  0.9404),
+        'feat_nose_sigmoid': (-0.1820,  0.8945),
+        'feat_tongue_pct':   ( 0.0800,  1.3787),
+        'feat_body_roc':     (-1.7996,  1.2317),
+        'feat_pulse':        ( 0.3932,  0.8486),
+        'feat_aura':         ( 0.0383,  1.0000),
+        'feat_mind':         (-0.0634,  0.0217),
+    }
+    p5, p95 = anchors.get(feature_type, (-1.0, 1.0))
+    v = max(p5, min(p95, value))
+    span = p95 - p5
+    if span < 1e-10:
+        return 0.5
+    return 0.05 + 0.9 * (v - p5) / span
+
+
+    # ECDF anchors from 7-day empirical data (generated dynamically)
     if feature_type == "feat_eye_dist":
-        # v4b: return_24h/vol_72h z-score, sigmoid mapping to 0~1
-        return 1.0 / (1.0 + float(__import__("math").exp(-value / 1.5)))
+        v = max(-3.9852087611857097, min(4.103286825116237, value))
+        span = 8.088495586301947
+        return 0.05 + 0.9 * (v - -3.9852087611857097) / span if span > 1e-10 else 0.5
 
-    elif feature_type == "feat_ear_zscore":
-        # ear_zscore 是 Z-score (-3~3)，轉為 0~1
-        return max(0.0, min(1.0, 0.5 + value / 6))
+    if feature_type == "feat_ear_zscore":
+        v = max(-0.7560784585212744, min(0.948174561035499, value))
+        span = 1.7042530195567736
+        return 0.05 + 0.9 * (v - -0.7560784585212744) / span if span > 1e-10 else 0.5
 
-    elif feature_type == "feat_nose_sigmoid":
-        # nose_sigmoid 已在 -1~1，轉為 0~1
-        return max(0.0, min(1.0, (value + 1) / 2))
+    if feature_type == "feat_nose_sigmoid":
+        v = max(-0.18195123933674784, min(0.894490833182066, value))
+        span = 1.0764420725188137
+        return 0.05 + 0.9 * (v - -0.18195123933674784) / span if span > 1e-10 else 0.5
 
-    elif feature_type == "feat_tongue_pct":
-        # tongue 已在 -1~1（新版本），轉為 0~1
-        if abs(value) <= 1:
-            return max(0.0, min(1.0, (value + 1) / 2))
-        # 舊版本 0~1
-        return max(0.0, min(1.0, value))
+    if feature_type == "feat_tongue_pct":
+        v = max(0.08, min(1.3747032542343642, value))
+        span = 1.2947032542343642
+        return 0.05 + 0.9 * (v - 0.08) / span if span > 1e-10 else 0.5
 
-    elif feature_type == "feat_body_roc":
-        # body_roc 是 ROC 值 (-1~1)，轉為 0~1
-        return max(0.0, min(1.0, (value + 1) / 2))
+    if feature_type == "feat_body_roc":
+        v = max(-1.8065085905712817, min(1.2404848811671434, value))
+        span = 3.046993471738425
+        return 0.05 + 0.9 * (v - -1.8065085905712817) / span if span > 1e-10 else 0.5
 
-    elif feature_type == "feat_pulse":
-        return max(0.0, min(1.0, (value + 1) / 2))
-    elif feature_type == "feat_aura":
-        return max(0.0, min(1.0, (value + 1) / 2))
-    elif feature_type == "feat_mind":
-        return max(0.0, min(1.0, (value + 1) / 2))
+    if feature_type == "feat_pulse":
+        v = max(0.3932000054096227, min(0.8485587989825305, value))
+        span = 0.4553587935729078
+        return 0.05 + 0.9 * (v - 0.3932000054096227) / span if span > 1e-10 else 0.5
+
+    if feature_type == "feat_aura":
+        v = max(0.0383026617403551, min(0.9999927431586128, value))
+        span = 0.9616900814182576
+        return 0.05 + 0.9 * (v - 0.0383026617403551) / span if span > 1e-10 else 0.5
+
+    if feature_type == "feat_mind":
+        v = max(-0.06340077101102537, min(0.02173648399242256, value))
+        span = 0.08513725500344793
+        return 0.05 + 0.9 * (v - -0.06340077101102537) / span if span > 1e-10 else 0.5
+
     return 0.5
+
+
+# ECDF params for reference (7d empirical)
+_ECDF_PARAMS = {'feat_eye': {'p5': -3.9852087611857097, 'p50': 0.0, 'p95': 4.103286825116237}, 'feat_ear': {'p5': -0.7560784585212744, 'p50': 0.0007297078224168807, 'p95': 0.948174561035499}, 'feat_nose': {'p5': -0.18195123933674784, 'p50': 0.4311567507828382, 'p95': 0.894490833182066}, 'feat_tongue': {'p5': 0.08, 'p50': 0.6472830310833947, 'p95': 1.3747032542343642}, 'feat_body': {'p5': -1.8065085905712817, 'p50': 0.0, 'p95': 1.2404848811671434}, 'feat_pulse': {'p5': 0.3932000054096227, 'p50': 0.6932674967732069, 'p95': 0.8485587989825305}, 'feat_aura': {'p5': 0.0383026617403551, 'p50': 0.8856753937808264, 'p95': 0.9999927431586128}, 'feat_mind': {'p5': -0.06340077101102537, 'p50': -0.00011024791738978301, 'p95': 0.02173648399242256}}
 
 
 class SensesEngine:

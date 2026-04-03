@@ -6,22 +6,6 @@
 > *
 ---
 
-## ⛔ 開發環境約束（嚴格遵守）
-
-**所有程式碼開發、修改、測試必須在本機 Windows 進行，嚴禁在 Raspberry Pi 上執行任何開發操作。**
-
-- **開發機器**：`Kazuha@192.168.0.238`
-- **工作目錄**：`C:\Users\Kazuha\repo\Poly-Trader`
-- **連線方式**：`ssh Kazuha@192.168.0.238`
-- **Raspberry Pi 僅執行 OpenClaw Gateway**，不進行任何程式碼修改
-
-**執行規則**：
-1. 所有檔案讀取：`ssh Kazuha@192.168.0.238 "type C:\Users\Kazuha\repo\Poly-Trader\<file>"`
-2. 所有檔案寫入：透過 SSH 執行寫入指令
-3. 所有 Python 執行：`ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && python <script>"`
-4. 所有 Git 操作：`ssh Kazuha@192.168.0.238 "cd C:\Users\Kazuha\repo\Poly-Trader && git ..."`
-5. 絕對禁止在 `~/.openclaw/workspace/Poly-Trader/` 建立或修改任何程式碼檔案
-
 *最後更新：2026-04-02 18:05 GMT+8*
 > **🔄 心跳 #101：Pulse 失效替換（vol_ratio_12_48，IC=+0.1087）；全 8 感官 IC OK；BTC=$66,476；CV=56.30%；6/6測試通過**
 
