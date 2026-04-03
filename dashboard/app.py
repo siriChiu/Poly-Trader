@@ -30,6 +30,7 @@ st.markdown("""<style>
 from config import load_config
 cfg = load_config()
 engine = create_engine(cfg["database"]["url"])
+API_BASE = st.sidebar.text_input("API Base", value="http://127.0.0.1:8000/api")
 
 @st.cache_data(ttl=30)
 def get_latest_market():
@@ -202,8 +203,8 @@ with c5:
 st.markdown("---")
 
 # ── TABS ──────────────────────────────────────────────
-tab1,tab2,tab3,tab4,tab5,tab6,tab7 = st.tabs([
-    "📡 信號儀表板","🔬 五感分析","📈 策略回測","🔧 參數優化","🔄 Walk-Forward","📜 交易歷史","🧬 感官有效性"
+tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8 = st.tabs([
+    "📡 信號儀表板","🔬 五感分析","📈 策略回測","🔧 參數優化","🔄 Walk-Forward","📜 交易歷史","🧬 感官有效性","🧪 Web CLI"
 ])
 
 # ── TAB1: 信號儀表板
@@ -475,3 +476,52 @@ with tab7:
         _s7.close()
     except Exception as e:
         st.error(f"分析失敗: {e}")
+
+
+# ── TAB8: Web CLI / API control ───────────────────────
+with tab8:
+    st.subheader("Web CLI 參數控制")
+    st.caption("把 CLI 參數同步到 Web：單次回測 / 網格搜索 / Walk-Forward")
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        days = st.slider("回測天數", 1, 365, 30, key="web_days")
+        confidence_threshold = st.slider("confidence_threshold", 0.0, 1.0, 0.55, 0.01, key="web_conf")
+    with c2:
+        max_position_ratio = st.slider("max_position_ratio", 0.0, 1.0, 0.05, 0.01, key="web_pos")
+        stop_loss_pct = st.slider("stop_loss_pct", 0.0, 1.0, 0.02, 0.01, key="web_stop")
+    with c3:
+        mode = st.selectbox("模式", ["single", "grid", "walkforward"], key="web_mode")
+        n_windows = st.number_input("n_windows", 1, 20, 5, key="web_nw")
+
+    if st.button("執行 Web 回測", type="primary", use_container_width=True):
+        import requests
+        params = {
+            "days": days,
+            "confidence_threshold": confidence_threshold,
+            "max_position_ratio": max_position_ratio,
+            "stop_loss_pct": stop_loss_pct,
+            "test_days": 10,
+            "train_days": 30,
+            "n_windows": int(n_windows),
+            "mode": mode,
+        }
+        try:
+            resp = requests.get(f"{API_BASE}/backtest", params=params, timeout=120)
+            resp.raise_for_status()
+            data = resp.json()
+            st.json(data)
+        except Exception as e:
+            st.error(f"Web 回測失敗: {e}")
+
+    if st.button("刷新感官與模型統計", use_container_width=True):
+        import requests
+        try:
+            senses = requests.get(f"{API_BASE}/senses", timeout=30).json()
+            stats = requests.get(f"{API_BASE}/model/stats", timeout=30).json()
+            st.write("### Sensory Scores")
+            st.json(senses)
+            st.write("### Model Stats")
+            st.json(stats)
+        except Exception as e:
+            st.error(f"刷新失敗: {e}")

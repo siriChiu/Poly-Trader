@@ -17,51 +17,55 @@ logger = setup_logger(__name__)
 def compute_information_coefficient(
     session: Session,
     symbol: str,
-    horizon_hours: int = 24
+    horizon_hours: int = 24,
+    use_recent_n: int = None
 ) -> Dict[str, float]:
     """
     计算每个多感官特征与未来收益率的相关性（IC）。
-    返回：{
-        'feat_eye_dist': IC (相关系数),
-        'feat_ear_zscore': IC,
-        'feat_nose_sigmoid': IC,
-        'feat_tongue_pct': IC,
-        'feat_body_roc': IC
-    }
+    返回：{ 'eye': IC, 'ear': IC, 'nose': IC, 'tongue': IC, 'body': IC }
     """
-    # 取特徵 + 標籤
-    labels_df = generate_labels_from_raw(session, symbol, horizon_hours)
-    if labels_df.empty:
-        logger.warning("無標籤數據可計算 IC")
-        return {}
-
-    # 合併特徵
-    feat_query = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp)
-    feat_rows = feat_query.all()
+    import numpy as np
+    from sqlalchemy import asc
+    # get features
+    q = session.query(FeaturesNormalized).order_by(asc(FeaturesNormalized.timestamp))
+    feat_rows = q.all()
     if not feat_rows:
         return {}
     feat_data = [{
-        "timestamp": r.timestamp,
-        "feat_eye_dist": r.feat_eye_dist,
-        "feat_ear_zscore": r.feat_ear_zscore,
-        "feat_nose_sigmoid": r.feat_nose_sigmoid,
-        "feat_tongue_pct": r.feat_tongue_pct,
-        "feat_body_roc": r.feat_body_roc
+        "ts": r.timestamp,
+        "eye": r.feat_eye if r.feat_eye is not None else getattr(r, "feat_eye_dist", None),
+        "ear": r.feat_ear if r.feat_ear is not None else getattr(r, "feat_ear_zscore", None),
+        "nose": r.feat_nose if r.feat_nose is not None else getattr(r, "feat_nose_sigmoid", None),
+        "tongue": r.feat_tongue if r.feat_tongue is not None else getattr(r, "feat_tongue_pct", None),
+        "body": r.feat_body if r.feat_body is not None else getattr(r, "feat_body_roc", None),
+        "regime": getattr(r, "regime_label", None),
     } for r in feat_rows]
     feat_df = pd.DataFrame(feat_data)
-
-    merged = pd.merge(feat_df, labels_df, left_on="timestamp", right_on="timestamp", how="inner")
+    feat_df["ts"] = pd.to_datetime(feat_df["ts"])
+    feat_df = feat_df.sort_values("ts").reset_index(drop=True)
+    if use_recent_n and len(feat_df) > use_recent_n:
+        feat_df = feat_df.iloc[-use_recent_n:].reset_index(drop=True)
+    # labels: forward return
+    prices = generate_labels_from_raw(session, symbol, horizon_hours)
+    if prices.empty:
+        return {}
+    prices = prices.rename(columns={"timestamp": "ts"})
+    prices["ts"] = pd.to_datetime(prices["ts"])
+    # nearest-match merge
+    merged = pd.merge_asof(feat_df, prices, on="ts", direction="nearest", tolerance=timedelta(hours=1))
     if merged.empty:
         return {}
-
     ic = {}
-    for col in ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc"]:
-        if col in merged.columns and merged[col].notna().any():
-            # 使用 Spearman 相关系数（对异常值鲁棒）
-            ic_val = merged[col].corr(merged["future_return_pct"], method="spearman")
-            ic[col] = ic_val if pd.notna(ic_val) else 0.0
-        else:
-            ic[col] = 0.0
+    for col_label, col_key in [("eye","eye"),("ear","ear"),("nose","nose"),("tongue","tongue"),("body","body")]:
+        if col_key not in merged.columns or merged[col_key].notna().sum() < 10:
+            ic[col_label] = 0.0
+            continue
+        valid = merged[[col_key, "future_return_pct"]].dropna()
+        if len(valid) < 10 or valid[col_key].std() < 1e-10 or valid["future_return_pct"].std() < 1e-10:
+            ic[col_label] = 0.0
+            continue
+        ic_val = float(valid[col_key].corr(valid["future_return_pct"], method="spearman"))
+        ic[col_label] = ic_val if np.isfinite(ic_val) else 0.0
     return ic
 
 def compute_win_rate_by_feature_quantile(
@@ -71,44 +75,48 @@ def compute_win_rate_by_feature_quantile(
     n_quantiles: int = 5
 ) -> pd.DataFrame:
     """
-    將每個特徵分為 n 分位數，計算每個分位數的未來收益率與 win rate。
-    返回 DataFrame: quantile, feature, avg_return, win_rate, sample_count
+    分位數勝率熱圖數據。
+    返回 DataFrame: quantile, feature, avg_return, win_rate, samples
     """
-    labels_df = generate_labels_from_raw(session, symbol, horizon_hours)
-    if labels_df.empty:
+    q = session.query(FeaturesNormalized).order_by(asc(FeaturesNormalized.timestamp))
+    feat_rows = q.all()
+    if not feat_rows:
         return pd.DataFrame()
-
-    feat_query = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp)
-    feat_rows = feat_query.all()
     feat_data = [{
-        "timestamp": r.timestamp,
-        "feat_eye_dist": r.feat_eye_dist,
-        "feat_ear_zscore": r.feat_ear_zscore,
-        "feat_nose_sigmoid": r.feat_nose_sigmoid,
-        "feat_tongue_pct": r.feat_tongue_pct,
-        "feat_body_roc": r.feat_body_roc
+        "ts": r.timestamp,
+        "eye": r.feat_eye if r.feat_eye is not None else getattr(r, "feat_eye_dist", None),
+        "ear": r.feat_ear if r.feat_ear is not None else getattr(r, "feat_ear_zscore", None),
+        "nose": r.feat_nose if r.feat_nose is not None else getattr(r, "feat_nose_sigmoid", None),
+        "tongue": r.feat_tongue if r.feat_tongue is not None else getattr(r, "feat_tongue_pct", None),
+        "body": r.feat_body if r.feat_body is not None else getattr(r, "feat_body_roc", None),
     } for r in feat_rows]
     feat_df = pd.DataFrame(feat_data)
-
-    merged = pd.merge(feat_df, labels_df, on="timestamp", how="inner")
+    feat_df["ts"] = pd.to_datetime(feat_df["ts"])
+    feat_df = feat_df.sort_values("ts").reset_index(drop=True)
+    prices = generate_labels_from_raw(session, symbol, horizon_hours)
+    if prices.empty:
+        return pd.DataFrame()
+    prices = prices.rename(columns={"timestamp": "ts"})
+    prices["ts"] = pd.to_datetime(prices["ts"])
+    merged = pd.merge_asof(feat_df, prices, on="ts", direction="nearest", tolerance=timedelta(hours=1))
     if merged.empty:
         return pd.DataFrame()
-
     results = []
-    for col in ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc"]:
-        if col not in merged.columns or merged[col].notna().sum() < 10:
+    for col in ["eye", "ear", "nose", "tongue", "body"]:
+        if col not in merged.columns or merged[col].notna().sum() < 20:
             continue
-        # 按特征分位数
-        merged[f"{col}_q"] = pd.qcut(merged[col].rank(method='first'), q=n_quantiles, labels=False, duplicates='drop')
-        grp = merged.groupby(f"{col}_q")
-        for q in range(n_quantiles):
-            grp_q = grp.get_group(q) if q in grp.groups else pd.DataFrame()
+        clean = merged[[col, "future_return_pct", "label", "ts"]].dropna()
+        if len(clean) < 20:
+            continue
+        clean["_q"] = pd.qcut(clean[col].rank(method='first'), q=n_quantiles, labels=False, duplicates='drop')
+        for qv in range(n_quantiles):
+            grp_q = clean[clean["_q"] == qv]
             if grp_q.empty:
                 continue
             avg_ret = grp_q["future_return_pct"].mean()
-            win_rate = (grp_q["label"] == 1).mean()
+            win_rate = float((grp_q["label"] == 1).mean())
             results.append({
-                "quantile": q,
+                "quantile": qv,
                 "feature": col,
                 "avg_return": avg_ret,
                 "win_rate": win_rate,
