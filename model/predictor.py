@@ -34,15 +34,40 @@ CONFIDENCE_LOW = 0.3    # Only SELL/HOLD when prob < 0.3
 class XGBoostPredictor:
     def __init__(self, model):
         # model can be a dict (new format) or XGBClassifier (legacy)
+        self._feature_names = None
+        self._imputer = None
+        self._neg_ic_feats = None
+        self._calibration = {"kind": "none"}
+
         if isinstance(model, dict):
             self._clf = model.get("clf")
             self._imputer = model.get("imputer")
             self._neg_ic_feats = set(model.get("neg_ic_feats", []))
+            self._calibration = model.get("calibration", {"kind": "none"})
+            self._feature_names = model.get("feature_names")
         else:
             self._clf = model
-            self._imputer = None
-            self._neg_ic_feats = None
         self.model = model
+
+    def _apply_calibration(self, score: float) -> float:
+        cal = self._calibration or {"kind": "none"}
+        kind = cal.get("kind", "none")
+        score = float(np.clip(score, 1e-6, 1 - 1e-6))
+        if kind == "isotonic":
+            try:
+                xs = np.asarray(cal.get("isotonic_x", []), dtype=float)
+                ys = np.asarray(cal.get("isotonic_y", []), dtype=float)
+                if len(xs) >= 2 and len(xs) == len(ys):
+                    return float(np.interp(score, xs, ys, left=ys[0], right=ys[-1]))
+            except Exception:
+                pass
+        elif kind == "logit_affine":
+            mu = float(cal.get("mu", 0.0))
+            sigma = float(cal.get("sigma", 1.0) or 1.0)
+            logit = np.log(score / (1 - score))
+            z = (logit - mu) / sigma
+            return float(1 / (1 + np.exp(-z)))
+        return score
 
     def _get_neg_ic_feats(self):
         if self._neg_ic_feats is not None:
@@ -59,8 +84,8 @@ class XGBoostPredictor:
         NEG_IC_FEATS = self._get_neg_ic_feats()
         # Determine which feature columns the model expects
         # Priority: (1) model dict's 'feature_names', (2) clf.feature_names_in_, (3) BASE_FEATURE_COLS
-        if isinstance(self.model, dict) and self.model.get('feature_names'):
-            all_feat_cols = list(self.model['feature_names'])
+        if self._feature_names:
+            all_feat_cols = list(self._feature_names)
         else:
             try:
                 fn = self._clf.feature_names_in_
@@ -91,8 +116,12 @@ class XGBoostPredictor:
         proba = self._get_proba(features)
         # 3-class: proba=[P(down), P(neutral), P(up)]  (encoded: 0=down, 1=neutral, 2=up)
         if len(proba) == 3:
-            return float(proba[2])  # confidence of "up" signal
-        return float(proba[1]) if len(proba) > 1 else float(proba[0])
+            raw = float(proba[2])  # confidence of "up" signal
+        elif len(proba) > 1:
+            raw = float(proba[1])
+        else:
+            raw = float(proba[0])
+        return self._apply_calibration(raw)
 
     def predict_signal(self, features: Dict) -> dict:
         """返回完整3-class信號：down/neutral/up 及各機率。"""

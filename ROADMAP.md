@@ -94,7 +94,7 @@
 
 - [x] 價格 × 多感官走勢改成 nearest-match 對齊
 - [x] 資料不足時顯示 empty-state / 缺口說明
-- [ ] 綜合推薦分數做 confidence calibration
+- [x] 綜合推薦分數做 confidence calibration
 - [ ] 增加 regime-aware model selection / weighting
 - [ ] 重新驗證 backtesting/engine.py 與 metrics.py 端到端輸出（optimizer 待補）
 

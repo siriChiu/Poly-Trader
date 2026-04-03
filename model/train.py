@@ -1,14 +1,19 @@
 """
-模型訓練模組 v4 — sell-win aware + confidence-aware training
+模型訓練模組 v5 — sell-win aware + probability calibration
 """
 
 import os
+import json
 import pickle
+from pathlib import Path
 from typing import Optional, Tuple
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 import xgboost as xgb
 from sqlalchemy.orm import Session
+from sklearn.utils.class_weight import compute_sample_weight
+from sklearn.isotonic import IsotonicRegression
 
 from database.models import FeaturesNormalized, Labels
 from utils.logger import setup_logger
@@ -64,7 +69,7 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
         direction="nearest",
         tolerance=pd.Timedelta("10min"),
     )
-    merged.dropna(subset=FEATURE_COLS + ["label_sell_win"], inplace=True)
+    merged = merged.dropna(subset=["label_sell_win"]).copy()
 
     lag_feature_cols = []
     for col in BASE_FEATURE_COLS:
@@ -72,15 +77,15 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
             lag_col = f"{col}_lag{lag}"
             merged[lag_col] = merged[col].shift(lag)
             lag_feature_cols.append(lag_col)
+
     all_cols = FEATURE_COLS + lag_feature_cols
-    merged.dropna(subset=all_cols, inplace=True)
+    merged[all_cols] = merged[all_cols].fillna(0.0)
 
     if len(merged) < min_samples:
         logger.warning(f"合併後樣本不足: {len(merged)} < {min_samples}")
         return None
 
     from scipy import stats as _stats
-    import json as _json
     merged = merged.copy()
     ic_map = {}
     NEG_IC_FEATS = []
@@ -100,7 +105,7 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
 
     os.makedirs("model", exist_ok=True)
     with open("model/ic_signs.json", "w", encoding="utf-8") as f:
-        _json.dump({"neg_ic_feats": NEG_IC_FEATS, "ic_map": ic_map, "target": "label_sell_win"}, f, indent=2, ensure_ascii=False)
+        json.dump({"neg_ic_feats": NEG_IC_FEATS, "ic_map": ic_map, "target": "label_sell_win"}, f, indent=2, ensure_ascii=False)
     logger.info(f"動態 IC 計算完成: {ic_map}")
     logger.info(f"NEG_IC 反轉特徵: {NEG_IC_FEATS}")
 
@@ -129,12 +134,40 @@ def train_xgboost(X: pd.DataFrame, y: pd.Series, params: Optional[dict] = None) 
             "random_state": 42,
         }
 
-    from sklearn.utils.class_weight import compute_sample_weight
     sample_weight = compute_sample_weight("balanced", y)
     model = xgb.XGBClassifier(**params)
     model.fit(X, y, sample_weight=sample_weight)
-    logger.info("XGBoost v4 binary training completed")
+    logger.info("XGBoost v5 binary training completed")
     return model
+
+
+def fit_probability_calibrator(model, X: pd.DataFrame, y: pd.Series):
+    """Fit a lightweight calibration layer and return serializable metadata."""
+    try:
+        raw = model.predict_proba(X)
+        scores = raw[:, -1] if raw.ndim == 2 and raw.shape[1] >= 2 else np.asarray(raw).ravel()
+        scores = np.asarray(scores, dtype=float)
+        y_arr = y.astype(float).values
+
+        if len(np.unique(y_arr)) >= 2 and len(y_arr) >= 30:
+            iso = IsotonicRegression(out_of_bounds='clip')
+            iso.fit(scores, y_arr)
+            return {
+                'kind': 'isotonic',
+                'x': [float(v) for v in iso.X_thresholds_.tolist()],
+                'y': [float(v) for v in iso.y_thresholds_.tolist()],
+            }
+
+        p = np.clip(scores, 1e-6, 1 - 1e-6)
+        logit = np.log(p / (1 - p))
+        return {
+            'kind': 'logit_affine',
+            'mu': float(np.mean(logit)),
+            'sigma': float(np.std(logit) or 1.0),
+        }
+    except Exception as e:
+        logger.warning(f"calibrator fit failed: {e}")
+        return {'kind': 'none'}
 
 
 def save_model(model, path: str = MODEL_PATH):
@@ -152,13 +185,29 @@ def load_model(path: str = MODEL_PATH):
 
 
 def run_training(session: Session) -> bool:
-    logger.info("開始模型訓練 v4...")
+    logger.info("開始模型訓練 v5...")
     loaded = load_training_data(session, min_samples=50)
     if loaded is None:
         return False
     X, y = loaded
     model = train_xgboost(X, y)
-    save_model(model)
+    calibrator = fit_probability_calibrator(model, X, y)
+
+    neg_ic = []
+    ic_path = Path('model/ic_signs.json')
+    if ic_path.exists():
+        try:
+            neg_ic = json.loads(ic_path.read_text(encoding='utf-8')).get('neg_ic_feats', [])
+        except Exception:
+            neg_ic = []
+
+    payload = {
+        'clf': model,
+        'feature_names': X.columns.tolist(),
+        'neg_ic_feats': neg_ic,
+        'calibration': calibrator,
+    }
+    save_model(payload)
     imp = dict(zip(X.columns.tolist(), model.feature_importances_.tolist()))
     logger.info(f"特徵重要性: {imp}")
 
@@ -176,14 +225,14 @@ def run_training(session: Session) -> bool:
             _m = xgb.XGBClassifier(**{k: v for k, v in model.get_params().items()})
             _m.fit(X.iloc[_tr], y_tr)
             valid_scores.append(float((_m.predict(X.iloc[_te]) == y.iloc[_te]).mean()))
-        cv_acc = float(np.mean(valid_scores)) if valid_scores else float("nan")
-        cv_std = float(np.std(valid_scores)) if valid_scores else float("nan")
-        db = sqlite3.connect("poly_trader.db")
+        cv_acc = float(np.mean(valid_scores)) if valid_scores else float('nan')
+        cv_std = float(np.std(valid_scores)) if valid_scores else float('nan')
+        db = sqlite3.connect('poly_trader.db')
         cur = db.cursor()
         cur.execute("""
             INSERT INTO model_metrics (timestamp, train_accuracy, cv_accuracy, cv_std, n_features, notes)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (datetime.utcnow().isoformat(), train_acc, cv_acc, cv_std, X.shape[1], "sell-win auto-train"))
+        """, (datetime.utcnow().isoformat(), train_acc, cv_acc, cv_std, X.shape[1], 'sell-win auto-train'))
         db.commit(); db.close()
         logger.info(f"模型指標: Train={train_acc:.3f}, CV={cv_acc:.3f}±{cv_std:.3f}")
     except Exception as e:

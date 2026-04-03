@@ -185,7 +185,7 @@ with c1:
     st.markdown(f"""<div class="hero-card"><div class="kpi-label">交易信號</div>
         <div class="kpi-value" style="color:{sig_color};font-size:2rem">{signal}</div></div>""",unsafe_allow_html=True)
 with c2:
-    st.markdown(f"""<div class="hero-card"><div class="kpi-label">模型信心</div>
+    st.markdown(f"""<div class="hero-card"><div class="kpi-label">校準信心</div>
         <div class="kpi-value" style="color:{conf_color}">{conf_pct}%</div>
         <div class="conf-bar-bg"><div style="width:{conf_pct}%;background:{conf_color};height:8px;border-radius:4px"></div></div></div>""",unsafe_allow_html=True)
 with c3:
