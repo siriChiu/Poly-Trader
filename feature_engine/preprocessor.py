@@ -175,16 +175,20 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_pulse"] = 0.5
 
-    # 7. Aura (v11): fr_abs_norm — Funding Rate 絕對值（倉位極端程度）
-    #    近1000 IC=+0.072 (p=0.022, N=1000): 替換 vol_ratio_12_96 (共線 tongue, 失效) #H114
-    #    正 IC → FR 絕對值高 → 市場倉位極端 → 趨勢延續
-    #    normalized by rolling 96-period max FR
-    if "funding_rate" in df.columns:
-        fr_series = df["funding_rate"].dropna().astype(float)
-        if len(fr_series) >= 2:
-            fr_abs = float(abs(fr_series.iloc[-1]))
-            fr_max = float(fr_series.abs().rolling(min(96, len(fr_series))).max().iloc[-1]) + 1e-10
-            features["feat_aura"] = float(fr_abs / fr_max)
+    # 7. Aura (v12): price_sma144_deviation — 價格偏離 144 期均線程度（倉位極端程度代理）
+    #    fr_abs_norm 失效：funding_rate 只有 10 筆非 NULL 且恆為 2.775e-05 → Aura 二值化
+    #    新公式: (close - sma_144) / sma_144 → 價格偏離長期均線 = 市場極端程度
+    #    正 IC 預期: 偏離均線越遠 → 趨勢越極端 → 可能延續或反轉
+    if len(close) >= 145:
+        sma144 = float(close.iloc[-144:].mean())
+        if sma144 > 0:
+            features["feat_aura"] = float((close.iloc[-1] - sma144) / sma144)
+        else:
+            features["feat_aura"] = 0.0
+    elif len(close) >= 25:
+        sma24 = float(close.iloc[-24:].mean())
+        if sma24 > 0:
+            features["feat_aura"] = float((close.iloc[-1] - sma24) / sma24)
         else:
             features["feat_aura"] = 0.0
     else:
