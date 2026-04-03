@@ -18,19 +18,14 @@ logger = setup_logger(__name__)
 
 # 特徵 → 感官映射
 FEATURE_TO_SENSE = {
-    "feat_eye": "eye",
-    "feat_ear": "ear",
-    "feat_nose": "nose",
-    "feat_tongue": "tongue",
-    "feat_body": "body",
-    "feat_pulse": "pulse",
-    "feat_aura": "aura",
-    "feat_mind": "mind",
     "feat_eye_dist": "eye",
     "feat_ear_zscore": "ear",
     "feat_nose_sigmoid": "nose",
     "feat_tongue_pct": "tongue",
     "feat_body_roc": "body",
+    "feat_pulse": "pulse",
+    "feat_aura": "aura",
+    "feat_mind": "mind",
 }
 
 SENSE_NAMES = {
@@ -68,21 +63,27 @@ def normalize_feature(value: Optional[float], feature_type: str) -> float:
     if value is None:
         return 0.5
 
-    if feature_type in ("feat_eye", "feat_eye_dist"):
-        return max(0.0, min(1.0, (value + 1) / 2))
+    if feature_type == "feat_eye_dist":
+        # v4b: return_24h/vol_72h z-score, sigmoid mapping to 0~1
+        return 1.0 / (1.0 + float(__import__("math").exp(-value / 1.5)))
 
-    elif feature_type in ("feat_ear", "feat_ear_zscore"):
+    elif feature_type == "feat_ear_zscore":
+        # ear_zscore 是 Z-score (-3~3)，轉為 0~1
         return max(0.0, min(1.0, 0.5 + value / 6))
 
-    elif feature_type in ("feat_nose", "feat_nose_sigmoid"):
+    elif feature_type == "feat_nose_sigmoid":
+        # nose_sigmoid 已在 -1~1，轉為 0~1
         return max(0.0, min(1.0, (value + 1) / 2))
 
-    elif feature_type in ("feat_tongue", "feat_tongue_pct"):
+    elif feature_type == "feat_tongue_pct":
+        # tongue 已在 -1~1（新版本），轉為 0~1
         if abs(value) <= 1:
             return max(0.0, min(1.0, (value + 1) / 2))
+        # 舊版本 0~1
         return max(0.0, min(1.0, value))
 
-    elif feature_type in ("feat_body", "feat_body_roc"):
+    elif feature_type == "feat_body_roc":
+        # body_roc 是 ROC 值 (-1~1)，轉為 0~1
         return max(0.0, min(1.0, (value + 1) / 2))
 
     elif feature_type == "feat_pulse":
@@ -130,11 +131,11 @@ class SensesEngine:
             if row is None:
                 return None
             return {
-                "feat_eye": getattr(row, "feat_eye", None) if getattr(row, "feat_eye", None) is not None else getattr(row, "feat_eye_dist", None),
-                "feat_ear": getattr(row, "feat_ear", None) if getattr(row, "feat_ear", None) is not None else getattr(row, "feat_ear_zscore", None),
-                "feat_nose": getattr(row, "feat_nose", None) if getattr(row, "feat_nose", None) is not None else getattr(row, "feat_nose_sigmoid", None),
-                "feat_tongue": getattr(row, "feat_tongue", None) if getattr(row, "feat_tongue", None) is not None else getattr(row, "feat_tongue_pct", None),
-                "feat_body": getattr(row, "feat_body", None) if getattr(row, "feat_body", None) is not None else getattr(row, "feat_body_roc", None),
+                "feat_eye_dist": row.feat_eye_dist,
+                "feat_ear_zscore": row.feat_ear_zscore,
+                "feat_nose_sigmoid": row.feat_nose_sigmoid,
+                "feat_tongue_pct": row.feat_tongue_pct,
+                "feat_body_roc": row.feat_body_roc,
                 "feat_pulse": row.feat_pulse,
                 "feat_aura": row.feat_aura,
                 "feat_mind": row.feat_mind,
@@ -150,11 +151,11 @@ class SensesEngine:
 
         # 找到對應的特徵值
         feat_key = {
-            "eye": "feat_eye",
-            "ear": "feat_ear",
-            "nose": "feat_nose",
-            "tongue": "feat_tongue",
-            "body": "feat_body",
+            "eye": "feat_eye_dist",
+            "ear": "feat_ear_zscore",
+            "nose": "feat_nose_sigmoid",
+            "tongue": "feat_tongue_pct",
+            "body": "feat_body_roc",
             "pulse": "feat_pulse",
             "aura": "feat_aura",
             "mind": "feat_mind",
