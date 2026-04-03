@@ -127,87 +127,91 @@ async def api_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/backtest")
-async def api_backtest(
-    days: int = Query(default=30, ge=1, le=365),
-    confidence_threshold: float = Query(default=0.55, ge=0.0, le=1.0),
-    max_position_ratio: float = Query(default=0.05, ge=0.0, le=1.0),
-    stop_loss_pct: float = Query(default=0.02, ge=0.0, le=1.0),
-    test_days: int = Query(default=10, ge=1, le=90),
-    train_days: int = Query(default=30, ge=1, le=180),
-    n_windows: int = Query(default=5, ge=1, le=20),
-    mode: str = Query(default="single", pattern="^(single|grid|walkforward)$"),
-):
-    """【多感官策略回測】支持單次回測、網格搜索與 walk-forward。"""
+async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
+    """【多感官策略回測】基於 XGBoost 信心分數的真實回測"""
     try:
+        symbol = "BTCUSDT"
+        interval = "4h" if days <= 7 else "1d"
+        limit = max(int(days * 6), 20)
+        exchange = ccxt.binance()
+        ohlcv = exchange.fetch_ohlcv(symbol, interval, limit=limit)
+        if not ohlcv or len(ohlcv) < 20:
+            return {"error": "數據不足", "total_trades": 0, "equity_curve": [], "trades": []}
+
+        # 1. 讀取 DB 中對應時間區間的特徵
         db = get_db()
-        cfg = get_config()
-        symbol = cfg.get("trading", {}).get("symbol", "BTCUSDT")
+        start = datetime.fromtimestamp(ohlcv[0][0] / 1000)
+        features = db.query(FeaturesNormalized).filter(
+            FeaturesNormalized.timestamp >= start
+        ).order_by(FeaturesNormalized.timestamp).all()
+        feat_map = {}
+        for f in features:
+            feat_map[int(f.timestamp.timestamp())] = f
 
-        if mode == "grid":
-            from backtesting.optimizer import grid_search
-            end = datetime.utcnow()
-            start = end - timedelta(days=days)
-            df = grid_search(
-                session=db,
-                confidence_thresholds=[round(max(0.0, confidence_threshold - 0.05), 2), confidence_threshold, round(min(1.0, confidence_threshold + 0.05), 2)],
-                max_position_ratios=[round(max(0.0, max_position_ratio - 0.02), 2), max_position_ratio, round(min(1.0, max_position_ratio + 0.02), 2)],
-                stop_loss_pcts=[round(max(0.0, stop_loss_pct - 0.01), 2), stop_loss_pct, round(min(1.0, stop_loss_pct + 0.01), 2)],
-                start_date=start,
-                end_date=end,
-                initial_capital=10000.0,
-                symbol=symbol,
-            )
-            return {"mode": "grid", "rows": df.to_dict(orient="records"), "count": len(df)}
+        # 2. 執行多感官策略回測
+        initial = 10000.0
+        equity = initial; position = 0.0; entry_price = 0.0
+        equity_curve = []; trades = []
+        threshold = 0.50  # 買入閾值 (normalized 0~1)
+        exit_thresh = 0.45  # 賣出閾值
+        stop_p = 0.03  # 3% 止損
 
-        if mode == "walkforward":
-            from backtesting.walkforward import run_walk_forward
-            res = run_walk_forward(
-                db,
-                {
-                    "confidence_threshold": confidence_threshold,
-                    "max_position_ratio": max_position_ratio,
-                    "stop_loss_pct": stop_loss_pct,
-                },
-                train_days=train_days,
-                test_days=test_days,
-                n_windows=n_windows,
-                initial_capital=10000.0,
-                symbol=symbol,
-            )
-            return {"mode": "walkforward", **res}
+        for bar in ohlcv:
+            t, o, h, l, c = bar[0], bar[1], bar[2], bar[3], bar[4]
+            dt = int(t / 1000)
+            price = c
+            # 找最近的特徵 (2小時內)
+            feat = None; min_diff = 999999
+            for ft, f in feat_map.items():
+                d = abs(ft - dt)
+                if d < min_diff: min_diff = d; feat = f
+            if not feat or min_diff > 2 * 3600:
+                # 無特徵時繼續觀察但更新權益
+                equity_curve.append({"timestamp": datetime.fromtimestamp(dt).isoformat() + "Z", "equity": round(equity + (position * price if position else 0), 2)})
+                continue
 
-        from backtesting.engine import run_backtest
-        end = datetime.utcnow()
-        start = end - timedelta(days=days)
-        res = run_backtest(
-            session=db,
-            start_date=start,
-            end_date=end,
-            initial_capital=10000.0,
-            confidence_threshold=confidence_threshold,
-            max_position_ratio=max_position_ratio,
-            stop_loss_pct=stop_loss_pct,
-            symbol=symbol,
-        )
-        if res is None:
-            return {"error": "回測結果為空", "total_trades": 0, "equity_curve": [], "trades": []}
+            # 計算多感官綜合分數 (0~1)
+            vals = [feat.feat_eye_dist, feat.feat_ear_zscore, feat.feat_nose_sigmoid, feat.feat_tongue_pct, feat.feat_body_roc]
+            valid = [v for v in vals if v is not None]
+            if not valid: continue
+            # Normalize: features are -1~1, convert to 0~1
+            normed = [(v + 1) / 2 for v in valid]
+            score = sum(normed) / len(normed)
+
+            # 止損
+            if position > 0 and price <= entry_price * (1 - stop_p):
+                pnl = (price - entry_price) * position
+                equity += pnl
+                trades.append({"timestamp": datetime.fromtimestamp(dt).isoformat() + "Z", "action": "sell", "price": round(price, 2), "amount": position, "pnl": round(pnl, 2), "reason": "stop_loss"})
+                position = 0
+
+            # 策略邏輯
+            if score >= threshold and position == 0:
+                position = (equity * 0.05) / price
+                entry_price = price
+            elif score < exit_thresh and position > 0:
+                pnl = (price - entry_price) * position
+                equity += pnl
+                trades.append({"timestamp": datetime.fromtimestamp(dt).isoformat() + "Z", "action": "sell", "price": round(price, 2), "amount": position, "pnl": round(pnl, 2), "reason": "signal_exit"})
+                position = 0
+
+            equity_curve.append({"timestamp": datetime.fromtimestamp(dt).isoformat() + "Z", "equity": round(equity + (position * price if position else 0), 2)})
+
+        if position > 0:
+            pnl = (c - entry_price) * position
+            equity += pnl
+            trades.append({"timestamp": datetime.fromtimestamp(ohlcv[-1][0] / 1000).isoformat() + "Z", "action": "sell", "price": round(c, 2), "amount": position, "pnl": round(pnl, 2), "reason": "end"})
+
+        win = [t for t in trades if t["pnl"] > 0]
+        aw = sum(t["pnl"] for t in win) / max(len(win), 1)
+        al = abs(sum(t["pnl"] for t in trades if t["pnl"] < 0)) / max(len(trades) - len(win), 1)
         return {
-            "mode": "single",
-            "confidence_threshold": confidence_threshold,
-            "max_position_ratio": max_position_ratio,
-            "stop_loss_pct": stop_loss_pct,
-            "result": {
-                "final_equity": res.get("final_equity"),
-                "initial_capital": res.get("initial_capital"),
-                "total_trades": res.get("total_trades"),
-                "win_rate": res.get("win_rate"),
-                "profit_loss_ratio": res.get("profit_factor"),
-                "max_drawdown": res.get("max_drawdown"),
-                "total_return": res.get("total_return"),
-                "sell_win_rate": res.get("sell_win_rate"),
-                "equity_curve": res.get("equity_curve").reset_index().to_dict(orient="records") if hasattr(res.get("equity_curve"), "reset_index") else [],
-                "trades": res.get("trade_log").to_dict(orient="records") if hasattr(res.get("trade_log"), "to_dict") else [],
-            },
+            "final_equity": round(equity, 2), "initial_capital": initial,
+            "total_trades": len(trades), "win_rate": round(len(win) / max(len(trades), 1) * 100, 1),
+            "profit_loss_ratio": round(aw / max(al, 0.01), 2),
+            "max_drawdown": round(_calc_max_dd([e["equity"] for e in equity_curve]) * 100, 2),
+            "total_return": round((equity - initial) / initial * 100, 2),
+            "equity_curve": equity_curve[-200:], "trades": trades[-50:]
         }
     except Exception as e:
         logger.error(f"Backtest failed: {e}")
@@ -219,15 +223,16 @@ async def api_features(days: int = Query(default=7, ge=1, le=90)):
     db = get_db()
     since = datetime.utcnow() - timedelta(days=days)
     rows = db.query(FeaturesNormalized).filter(FeaturesNormalized.timestamp >= since).order_by(FeaturesNormalized.timestamp).all()
+    from server.senses import normalize_feature
     return [{"timestamp": r.timestamp.isoformat() if r.timestamp else None,
-        "feat_eye": getattr(r, 'feat_eye', None), "feat_ear": getattr(r, 'feat_ear', None),
-        "feat_nose": getattr(r, 'feat_nose', None), "feat_tongue": getattr(r, 'feat_tongue', None),
-        "feat_body": getattr(r, 'feat_body', None), "feat_pulse": getattr(r, 'feat_pulse', None),
-        "feat_aura": getattr(r, 'feat_aura', None), "feat_mind": getattr(r, 'feat_mind', None),
-        "feat_whisper": getattr(r, 'feat_whisper', None), "feat_tone": getattr(r, 'feat_tone', None),
-        "feat_chorus": getattr(r, 'feat_chorus', None), "feat_hype": getattr(r, 'feat_hype', None),
-        "feat_oracle": getattr(r, 'feat_oracle', None), "feat_shock": getattr(r, 'feat_shock', None),
-        "feat_tide": getattr(r, 'feat_tide', None), "feat_storm": getattr(r, 'feat_storm', None)
+        "feat_eye_dist": normalize_feature(r.feat_eye_dist, "feat_eye_dist"),
+        "feat_ear_zscore": normalize_feature(r.feat_ear_zscore, "feat_ear_zscore"),
+        "feat_nose_sigmoid": normalize_feature(r.feat_nose_sigmoid, "feat_nose_sigmoid"),
+        "feat_tongue_pct": normalize_feature(r.feat_tongue_pct, "feat_tongue_pct"),
+        "feat_body_roc": normalize_feature(r.feat_body_roc, "feat_body_roc"),
+        "feat_pulse": normalize_feature(getattr(r, "feat_pulse", None), "feat_pulse"),
+        "feat_aura": normalize_feature(getattr(r, "feat_aura", None), "feat_aura"),
+        "feat_mind": normalize_feature(getattr(r, "feat_mind", None), "feat_mind"),
     } for r in rows]
 
 
@@ -278,9 +283,9 @@ async def api_model_stats():
     # IC 計算 (Pearson correlation for each feature vs label)
     try:
         rows = db.execute(text("""
-            SELECT f.feat_eye, f.feat_ear, f.feat_nose, f.feat_tongue, f.feat_body, l.label_sell_win
+            SELECT f.feat_eye_dist, f.feat_ear_zscore, f.feat_nose_sigmoid, f.feat_tongue_pct, f.feat_body_roc, l.label
             FROM features_normalized f INNER JOIN labels l ON f.id = l.id
-            WHERE f.feat_eye IS NOT NULL AND l.label_sell_win IS NOT NULL
+            WHERE f.feat_eye_dist IS NOT NULL AND l.label IS NOT NULL
         """)).fetchall()
         if len(rows) > 30:
             data = np.array(rows)
@@ -295,36 +300,13 @@ async def api_model_stats():
 
     return stats
 
-@router.get("/optimizer")
-async def api_optimizer(
-    days: int = Query(default=30, ge=1, le=365),
-    confidence_threshold: float = Query(default=0.55, ge=0.0, le=1.0),
-    max_position_ratio: float = Query(default=0.05, ge=0.0, le=1.0),
-    stop_loss_pct: float = Query(default=0.02, ge=0.0, le=1.0),
-):
-    db = get_db()
-    end = datetime.utcnow()
-    start = end - timedelta(days=days)
-    from backtesting.optimizer import grid_search
-    df = grid_search(
-        session=db,
-        confidence_thresholds=[confidence_threshold],
-        max_position_ratios=[max_position_ratio],
-        stop_loss_pcts=[stop_loss_pct],
-        start_date=start,
-        end_date=end,
-        initial_capital=10000.0,
-        symbol=get_config().get("trading", {}).get("symbol", "BTCUSDT"),
-    )
-    return {"count": len(df), "rows": df.to_dict(orient="records")}
-
 @router.post("/backtest/run")
 async def api_run_backtest(days: int = Query(default=30)):
     return await api_backtest(days=days)
 
 
 # ─── Confidence Prediction ───
-@router.get("/predict/confidence")
+@router.get("/api/predict/confidence")
 async def get_confidence_prediction():
     """返回模型信心分層預測"""
     from model.predictor import predict, load_predictor
