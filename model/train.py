@@ -106,11 +106,20 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
         feat_arr = merged[col].astype(float).values
         mask = ~(np.isnan(feat_arr) | np.isnan(y_arr))
         if mask.sum() > 30:
-            corr, _ = _stats.spearmanr(feat_arr[mask], y_arr[mask])
-            ic_map[col] = float(corr)
-            if corr < 0:
-                NEG_IC_FEATS.append(col)
-                merged[col] = -merged[col]
+            masked = feat_arr[mask]
+            # Skip constant columns to avoid ConstantInputWarning and NaN IC
+            if np.ptp(masked) == 0.0 or np.unique(masked).size <= 1:
+                ic_map[col] = 0.0
+                continue
+            corr, _ = _stats.spearmanr(masked, y_arr[mask])
+            # Guard against NaN from edge cases in spearmanr
+            if corr is None or (isinstance(corr, float) and not np.isfinite(corr)):
+                ic_map[col] = 0.0
+            else:
+                ic_map[col] = float(corr)
+                if corr < 0:
+                    NEG_IC_FEATS.append(col)
+                    merged[col] = -merged[col]
         else:
             ic_map[col] = 0.0
 

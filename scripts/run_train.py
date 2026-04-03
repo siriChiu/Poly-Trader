@@ -2,13 +2,19 @@
 Standalone model training script (no server needed)
 """
 import sys
-sys.path.insert(0, '/home/admin/.openclaw/workspace/Poly-Trader')
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from database.models import init_db
 import json
 
-with open('/home/admin/.openclaw/workspace/Poly-Trader/config.json') as f:
-    cfg = json.load(f)
+cfg_path = PROJECT_ROOT / 'config.json'
+cfg = {}
+if cfg_path.exists():
+    with open(cfg_path) as f:
+        cfg = json.load(f)
 
 session = init_db(cfg.get('database', {}).get('url', 'sqlite:///poly_trader.db'))
 
@@ -19,7 +25,7 @@ result = run_training(session)
 print(f"Training result: {result}")
 
 import sqlite3, json as _json
-conn = sqlite3.connect('/home/admin/.openclaw/workspace/Poly-Trader/poly_trader.db')
+conn = sqlite3.connect(str(PROJECT_ROOT / 'poly_trader.db'))
 c = conn.cursor()
 row = c.execute("SELECT train_accuracy, cv_accuracy, cv_std, timestamp FROM model_metrics ORDER BY timestamp DESC LIMIT 1").fetchone()
 if row:
@@ -36,7 +42,7 @@ if row:
         'n_features': n_features[0] if n_features else 32,
         'trained_at': row[3]
     }
-    with open('/home/admin/.openclaw/workspace/Poly-Trader/model/last_metrics.json', 'w') as f:
+    with open(str(PROJECT_ROOT / 'model/last_metrics.json'), 'w') as f:
         _json.dump(metrics, f, indent=2)
     print(f"Updated last_metrics.json (raw={raw_cnt}, feat={feat_cnt})")
 conn.close()
