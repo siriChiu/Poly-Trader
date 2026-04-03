@@ -21,11 +21,12 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 MODEL_PATH = "model/xgb_model.pkl"
+# 8 core senses + 8 auxiliary (all zero/constant in DB v6 — removed from training to eliminate 33% noise)
+# The 8 auxiliary cols (whisper/tone/chorus/hype/oracle/shock/tide/storm) are kept in DB schema
+# for future feature engineering but excluded from FEATURE_COLS until they carry signal
 FEATURE_COLS = [
     "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
     "feat_body", "feat_pulse", "feat_aura", "feat_mind",
-    "feat_whisper", "feat_tone", "feat_chorus", "feat_hype",
-    "feat_oracle", "feat_shock", "feat_tide", "feat_storm",
 ]
 LAG_STEPS = [12, 48, 288]
 BASE_FEATURE_COLS = FEATURE_COLS
@@ -130,12 +131,13 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
     logger.info(f"NEG_IC 反轉特徵: {NEG_IC_FEATS}")
 
     # New feature exploration: a small cross-feature set that often captures regime friction.
+    # (only using 8 core senses — not the aux columns which are all-zero)
     merged["feat_mind_x_pulse"] = merged["feat_mind"] * merged["feat_pulse"]
     merged["feat_eye_x_ear"] = merged["feat_eye"] * merged["feat_ear"]
-    merged["feat_aura_x_tide"] = merged["feat_aura"] * merged["feat_tide"]
+    merged["feat_nose_x_aura"] = merged["feat_nose"] * merged["feat_aura"]
     merged["feat_regime_flag"] = merged["regime_label"].map({"trend": 1.0, "chop": -1.0, "panic": -0.5, "event": 0.5, "normal": 0.0}).fillna(0.0)
 
-    X = merged[FEATURE_COLS + lag_feature_cols + ["feat_mind_x_pulse", "feat_eye_x_ear", "feat_aura_x_tide", "feat_regime_flag"]]
+    X = merged[FEATURE_COLS + lag_feature_cols + ["feat_mind_x_pulse", "feat_eye_x_ear", "feat_nose_x_aura", "feat_regime_flag"]]
     y = merged["label_sell_win"].astype(int)
     logger.info(f"載入訓練資料: {len(X)} 筆, {len(FEATURE_COLS)} base features + {len(lag_feature_cols)} lags + 4 cross-features")
     return X, y
@@ -146,16 +148,18 @@ def train_xgboost(X: pd.DataFrame, y: pd.Series, params: Optional[dict] = None) 
     logger.info(f"Class dist: {dist}")
 
     if params is None:
+        # P0 Fix #H130: Rollback from overfitted depth=5, reg_alpha=0.5
+        # Conservative params that avoid memorization (8 core features only, no constant noise)
         params = {
-            "n_estimators": 300,
-            "max_depth": 5,
-            "learning_rate": 0.03,
+            "n_estimators": 200,
+            "max_depth": 3,
+            "learning_rate": 0.05,
             "subsample": 0.8,
             "colsample_bytree": 0.8,
-            "reg_alpha": 0.5,
-            "reg_lambda": 1.0,
-            "min_child_weight": 5,
-            "gamma": 0.1,
+            "reg_alpha": 2.0,
+            "reg_lambda": 6.0,
+            "min_child_weight": 10,
+            "gamma": 0.2,
             "objective": "binary:logistic",
             "eval_metric": "logloss",
             "random_state": 42,

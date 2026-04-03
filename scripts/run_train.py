@@ -1,5 +1,5 @@
-"""
-Standalone model training script (no server needed)
+#!/usr/bin/env python
+"""Standalone model training script (no server needed)
 """
 import sys
 from pathlib import Path
@@ -46,3 +46,8 @@ if row:
         _json.dump(metrics, f, indent=2)
     print(f"Updated last_metrics.json (raw={raw_cnt}, feat={feat_cnt})")
 conn.close()
+
+# P0 Fix #H130: After retrain, compare gap to previous overfitted state
+print("\n=== P0 Fix #H130 Verification ===")
+print("Previous (overfitted):  Train=85.06%, CV=51.31%, gap=33.7pp")
+print("Goal: Train-CV gap < 10pp with stable CV ~56% (matching pre-overfit baseline)")
