@@ -51,7 +51,7 @@ def test_syntax():
     section("2. Python 語法檢查")
     errors = 0
     for py_file in PROJECT_ROOT.rglob("*.py"):
-        if "__pycache__" in str(py_file) or ".venv" in str(py_file):
+        if "__pycache__" in str(py_file) or ".venv" in str(py_file) or "venv/" in str(py_file) or "site-packages" in str(py_file):
             continue
         try:
             py_compile.compile(str(py_file), doraise=True)

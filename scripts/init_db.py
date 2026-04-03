@@ -5,6 +5,8 @@ Poly-Trader 資料庫初始化腳本
 """
 
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from database.models import init_db
 from config import load_config
 
