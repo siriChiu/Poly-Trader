@@ -10,7 +10,7 @@ import py_compile
 from pathlib import Path
 from typing import List
 
-PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+PROJECT_ROOT = Path(__file__).parent.resolve()
 
 # 必需目錄（動態檢查，不硬編碼特定感官檔案）
 REQUIRED_DIRS = [

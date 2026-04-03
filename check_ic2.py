@@ -2,7 +2,9 @@ import sqlite3
 import numpy as np
 from scipy import stats
 
-conn = sqlite3.connect(r"C:\Users\Kazuha\repo\Poly-Trader\poly_trader.db")
+import os
+_db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "poly_trader.db")
+conn = sqlite3.connect(_db_path)
 
 senses = {
     "pulse": "feat_pulse",
@@ -17,13 +19,13 @@ senses = {
 
 for sense, col in senses.items():
     rows = conn.execute(
-        f"SELECT f.{col}, l\.future_return_pct FROM features_normalized f "
+        f"SELECT f.{col}, l.future_return_pct FROM features_normalized f "
         f"JOIN labels l ON f.timestamp = l.timestamp "
         f"WHERE l.horizon_minutes = 240 ORDER BY f.timestamp DESC LIMIT 1000"
     ).fetchall()
     if not rows:
         rows = conn.execute(
-            f"SELECT f.{col}, l\.future_return_pct FROM features_normalized f "
+            f"SELECT f.{col}, l.future_return_pct FROM features_normalized f "
             f"JOIN labels l ON f.timestamp = l.timestamp "
             f"ORDER BY f.timestamp DESC LIMIT 1000"
         ).fetchall()
