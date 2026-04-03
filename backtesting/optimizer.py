@@ -59,13 +59,18 @@ def grid_search(
             "stop_loss_pct": stop_loss,
             "total_return": metrics["total_return"],
             "sharpe_ratio": metrics["sharpe_ratio"],
+            "sortino_ratio": metrics.get("sortino_ratio", 0),
             "max_drawdown": metrics["max_drawdown"],
             "win_rate": metrics.get("win_rate", 0),
+            "sell_win_rate": metrics.get("sell_win_rate", metrics.get("win_rate", 0)),
             "profit_factor": metrics.get("profit_factor", 0),
-            "total_trades": metrics.get("total_trades", 0)
+            "total_trades": metrics.get("total_trades", 0),
+            "avg_trade_duration_minutes": metrics.get("avg_trade_duration_minutes", 0),
         })
 
     df = pd.DataFrame(results)
+    if not df.empty:
+        df = df.sort_values(["sharpe_ratio", "sell_win_rate", "total_return"], ascending=False).reset_index(drop=True)
     return df
 
 def find_best_params(results_df: pd.DataFrame, metric: str = "sharpe_ratio") -> Dict:
