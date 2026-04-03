@@ -138,14 +138,15 @@ def train_xgboost(X: pd.DataFrame, y: pd.Series, params: Optional[dict] = None) 
 
     if params is None:
         params = {
-            "n_estimators": 250,
-            "max_depth": 3,
+            "n_estimators": 300,
+            "max_depth": 5,
             "learning_rate": 0.03,
-            "subsample": 0.7,
-            "colsample_bytree": 0.7,
-            "reg_alpha": 2.0,
-            "reg_lambda": 6.0,
-            "min_child_weight": 10,
+            "subsample": 0.8,
+            "colsample_bytree": 0.8,
+            "reg_alpha": 0.5,
+            "reg_lambda": 1.0,
+            "min_child_weight": 5,
+            "gamma": 0.1,
             "objective": "binary:logistic",
             "eval_metric": "logloss",
             "random_state": 42,
