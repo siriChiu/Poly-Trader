@@ -92,11 +92,11 @@
 ### Phase 12.5: 模型校準與圖表對齊修補
 **目標**：把「感官有效」與「模型不準」分開處理，讓儀表板與回測先恢復可信。
 
-- [ ] 價格 × 多感官走勢改成 nearest-match 對齊
-- [ ] 資料不足時顯示 empty-state / 缺口說明
+- [x] 價格 × 多感官走勢改成 nearest-match 對齊
+- [x] 資料不足時顯示 empty-state / 缺口說明
 - [ ] 綜合推薦分數做 confidence calibration
 - [ ] 增加 regime-aware model selection / weighting
-- [ ] 重新驗證 backtesting/engine.py 與 metrics.py 端到端輸出
+- [ ] 重新驗證 backtesting/engine.py 與 metrics.py 端到端輸出（optimizer 待補）
 
 ### Phase 13: 儀表板與報告
 **目標**：讓策略狀態一眼可讀

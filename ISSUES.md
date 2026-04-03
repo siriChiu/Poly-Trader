@@ -136,18 +136,19 @@
 - 新增 _build_results 輸出 buy_hold_curve / total_trading_cost
 
 
-## 🟡 新增 P1
+## 🟡 近期狀態更新
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #H116 | 📈 價格 × 多感官走勢為空，疑似時間對齊 / 資料窗不足 / 回填缺口 | 改成 nearest-match 對齊 + 明確 empty-state + 補齊歷史窗 | 🟡 P1（進行中） |
+| #H116 | 📈 價格 × 多感官走勢為空，疑似時間對齊 / 資料窗不足 / 回填缺口 | nearest-match 對齊 + empty-state + 補齊歷史窗 | ✅ 已修復 |
 | #H117 | 綜合推薦分數仍不精確，疑似模型校準 / 選型不穩 | 做 confidence calibration、regime-aware model selection、驗證不是感官本身造成偏差 | 🟡 P1 |
-| #H118 | 🔬 回測引擎近期失效，需重新驗證交易曲線與指標輸出 | 重新跑 backtesting/engine.py、metrics.py、optimizer.py 的端到端驗證 | 🟡 P1（進行中） |
+| #H118 | 🔬 回測引擎近期失效，需重新驗證交易曲線與指標輸出 | 重新跑 backtesting/engine.py、metrics.py、optimizer.py 的端到端驗證 | 🔄 部分完成 |
 
 ## 📋 近期補充說明
 
 - `dashboard/app.py` 已補上價格 × 多感官 nearest-match 對齊與 empty-state 退化路徑；當資料窗不足時不再整張圖空白。
 - `backtesting/engine.py` 與 `backtesting/metrics.py` 已補資料不足防呆，避免回測在空窗時直接炸掉。
+- `tests/backfill_90d.py` 已通過，證實回填 / 標籤寫入可正常落庫（2160 rows）。
 - `server.senses` 與 `database.models` 已補上新舊感官欄位相容，但若圖表仍空，優先檢查「時間對齊」與「資料窗是否有重疊樣本」。
 - 綜合推薦分數不精確，不應先假設感官失效；下一層應檢查模型校準、訓練樣本分佈、類別不平衡與 regime 切換。
-- 回測引擎仍需用同一批資料重新驗證 buy/sell/abstain 與 `sell_win_rate` 是否正確輸出。
+- 回測引擎仍需補跑 `optimizer.py` 的端到端驗證，確認 buy/sell/abstain 與 `sell_win_rate` 輸出一致。
