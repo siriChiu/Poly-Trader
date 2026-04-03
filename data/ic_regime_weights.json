@@ -1,0 +1,164 @@
+{
+  "timestamp": "2026-04-04T05:50:49.667562",
+  "ic_threshold": 0.05,
+  "regime_weights": {
+    "bear": {
+      "Eye": {
+        "ic": 0.0322,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Ear": {
+        "ic": -0.0747,
+        "weight": 0.3686,
+        "above_threshold": true
+      },
+      "Nose": {
+        "ic": -0.0746,
+        "weight": 0.368,
+        "above_threshold": true
+      },
+      "Tongue": {
+        "ic": 0.0023,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Body": {
+        "ic": -0.0088,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Pulse": {
+        "ic": 0.0165,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Aura": {
+        "ic": -0.0534,
+        "weight": 0.2633,
+        "above_threshold": true
+      },
+      "Mind": {
+        "ic": -0.0271,
+        "weight": 0.0,
+        "above_threshold": false
+      }
+    },
+    "bull": {
+      "Eye": {
+        "ic": -0.0269,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Ear": {
+        "ic": -0.0353,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Nose": {
+        "ic": -0.0373,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Tongue": {
+        "ic": -0.0137,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Body": {
+        "ic": -0.0041,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Pulse": {
+        "ic": 0.0001,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Aura": {
+        "ic": -0.0103,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Mind": {
+        "ic": -0.0224,
+        "weight": 0.0,
+        "above_threshold": false
+      }
+    },
+    "chop": {
+      "Eye": {
+        "ic": 0.0383,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Ear": {
+        "ic": -0.0312,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Nose": {
+        "ic": -0.0267,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Tongue": {
+        "ic": 0.0238,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Body": {
+        "ic": 0.0382,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Pulse": {
+        "ic": 0.015,
+        "weight": 0.0,
+        "above_threshold": false
+      },
+      "Aura": {
+        "ic": -0.0562,
+        "weight": 1.0,
+        "above_threshold": true
+      },
+      "Mind": {
+        "ic": -0.0181,
+        "weight": 0.0,
+        "above_threshold": false
+      }
+    }
+  },
+  "label_balance": {
+    "bear": {
+      "total": 2897,
+      "positive": 1463,
+      "negative": 1434,
+      "pos_pct": 50.5
+    },
+    "bull": {
+      "total": 2897,
+      "positive": 1403,
+      "negative": 1494,
+      "pos_pct": 48.4
+    },
+    "chop": {
+      "total": 2984,
+      "positive": 1529,
+      "negative": 1455,
+      "pos_pct": 51.2
+    }
+  },
+  "sell_win_balance": {
+    "total": 8778,
+    "wins": 4456,
+    "losses": 4322,
+    "win_rate": 50.8
+  },
+  "regime_detection": {
+    "method": "feat_mind quantiles",
+    "bear": "feat_mind < -0.0187",
+    "chop": "between p33 and p67",
+    "bull": "feat_mind > 0.0170"
+  }
+}

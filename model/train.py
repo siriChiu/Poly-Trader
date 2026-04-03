@@ -87,6 +87,9 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
             lag_feature_cols.append(lag_col)
 
     all_cols = FEATURE_COLS + lag_feature_cols
+    # Coerce all feature columns to numeric — handles NULL/None/object dtype
+    for col in all_cols:
+        merged[col] = pd.to_numeric(merged[col], errors='coerce')
     merged[all_cols] = merged[all_cols].fillna(0.0)
 
     if len(merged) < min_samples:
