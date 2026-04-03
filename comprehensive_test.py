@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime
 import py_compile
 
-PROJECT_ROOT = Path(__file__).parent.parent.resolve()  # tests/ -> project root
+PROJECT_ROOT = Path(__file__).parent.resolve()  # script is at project root
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
@@ -50,8 +50,14 @@ def test_file_structure():
 def test_syntax():
     section("2. Python 語法檢查")
     errors = 0
+    # Exclusion list — don't scan external/vendor/history directories
+    EXCLUDE_DIRS = {
+        "__pycache__", ".venv", "venv", "node_modules",
+        ".vscode-server", ".antigravity-server", ".codex",
+        ".local", "logs", "backups",
+    }
     for py_file in PROJECT_ROOT.rglob("*.py"):
-        if "__pycache__" in str(py_file) or ".venv" in str(py_file):
+        if any(part in EXCLUDE_DIRS for part in py_file.parts):
             continue
         try:
             py_compile.compile(str(py_file), doraise=True)
