@@ -30,6 +30,14 @@ FEATURE_COLS = [
 LAG_STEPS = [12, 48, 288]
 BASE_FEATURE_COLS = FEATURE_COLS
 
+REGIME_THRESHOLD_BIAS = {
+    'trend': -0.03,
+    'chop': 0.04,
+    'panic': -0.01,
+    'event': 0.02,
+    'normal': 0.0,
+}
+
 
 def _feature_row(r):
     return {
@@ -109,9 +117,15 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
     logger.info(f"動態 IC 計算完成: {ic_map}")
     logger.info(f"NEG_IC 反轉特徵: {NEG_IC_FEATS}")
 
-    X = merged[FEATURE_COLS + lag_feature_cols]
+    # New feature exploration: a small cross-feature set that often captures regime friction.
+    merged["feat_mind_x_pulse"] = merged["feat_mind"] * merged["feat_pulse"]
+    merged["feat_eye_x_ear"] = merged["feat_eye"] * merged["feat_ear"]
+    merged["feat_aura_x_tide"] = merged["feat_aura"] * merged["feat_tide"]
+    merged["feat_regime_flag"] = merged["regime_label"].map({"trend": 1.0, "chop": -1.0, "panic": -0.5, "event": 0.5, "normal": 0.0}).fillna(0.0)
+
+    X = merged[FEATURE_COLS + lag_feature_cols + ["feat_mind_x_pulse", "feat_eye_x_ear", "feat_aura_x_tide", "feat_regime_flag"]]
     y = merged["label_sell_win"].astype(int)
-    logger.info(f"載入訓練資料: {len(X)} 筆, {len(FEATURE_COLS)} base features + {len(lag_feature_cols)} lags")
+    logger.info(f"載入訓練資料: {len(X)} 筆, {len(FEATURE_COLS)} base features + {len(lag_feature_cols)} lags + 4 cross-features")
     return X, y
 
 
@@ -206,6 +220,7 @@ def run_training(session: Session) -> bool:
         'feature_names': X.columns.tolist(),
         'neg_ic_feats': neg_ic,
         'calibration': calibrator,
+        'regime_threshold_bias': REGIME_THRESHOLD_BIAS,
     }
     save_model(payload)
     imp = dict(zip(X.columns.tolist(), model.feature_importances_.tolist()))

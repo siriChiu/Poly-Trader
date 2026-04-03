@@ -29,6 +29,13 @@ FEATURE_COLS = BASE_FEATURE_COLS
 # Confidence thresholds for trade filtering
 CONFIDENCE_HIGH = 0.7   # Only BUY when prob > 0.7
 CONFIDENCE_LOW = 0.3    # Only SELL/HOLD when prob < 0.3
+REGIME_THRESHOLD_BIAS = {
+    'trend': -0.03,
+    'chop': 0.04,
+    'panic': -0.01,
+    'event': 0.02,
+    'normal': 0.0,
+}
 
 
 class XGBoostPredictor:
@@ -38,6 +45,7 @@ class XGBoostPredictor:
         self._imputer = None
         self._neg_ic_feats = None
         self._calibration = {"kind": "none"}
+        self._regime_threshold_bias = REGIME_THRESHOLD_BIAS.copy()
 
         if isinstance(model, dict):
             self._clf = model.get("clf")
@@ -45,6 +53,7 @@ class XGBoostPredictor:
             self._neg_ic_feats = set(model.get("neg_ic_feats", []))
             self._calibration = model.get("calibration", {"kind": "none"})
             self._feature_names = model.get("feature_names")
+            self._regime_threshold_bias = model.get("regime_threshold_bias", REGIME_THRESHOLD_BIAS.copy())
         else:
             self._clf = model
         self.model = model
@@ -123,16 +132,24 @@ class XGBoostPredictor:
             raw = float(proba[0])
         return self._apply_calibration(raw)
 
+    def _regime_bias(self, regime_label: str | None) -> float:
+        if not regime_label:
+            return 0.0
+        return float(self._regime_threshold_bias.get(str(regime_label), 0.0))
+
     def predict_signal(self, features: Dict) -> dict:
         """返回完整3-class信號：down/neutral/up 及各機率。"""
         proba = self._get_proba(features)
+        regime = features.get("regime_label") if isinstance(features, dict) else None
+        bias = self._regime_bias(regime)
         if len(proba) == 3:
             labels = ["down", "neutral", "up"]
             pred_idx = int(proba.argmax())
             return {"signal": labels[pred_idx], "proba": dict(zip(labels, [float(p) for p in proba]))}
         # fallback binary
         p_up = float(proba[1]) if len(proba) > 1 else float(proba[0])
-        return {"signal": "up" if p_up > 0.5 else "down", "proba": {"down": 1-p_up, "up": p_up}}
+        adj = float(np.clip(p_up + bias, 0.0, 1.0))
+        return {"signal": "up" if adj > 0.5 else "down", "proba": {"down": 1-adj, "up": adj}, "regime_bias": bias}
 
 
 class DummyPredictor:

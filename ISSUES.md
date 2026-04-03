@@ -141,7 +141,7 @@
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
 | #H116 | 📈 價格 × 多感官走勢為空，疑似時間對齊 / 資料窗不足 / 回填缺口 | nearest-match 對齊 + empty-state + 補齊歷史窗 | ✅ 已修復 |
-| #H117 | 綜合推薦分數仍不精確，疑似模型校準 / 選型不穩 | 做 confidence calibration、regime-aware model selection、驗證不是感官本身造成偏差 | ✅ 已修復 |
+| #H117 | 綜合推薦分數仍不精確，疑似模型校準 / 選型不穩 | 做 confidence calibration、regime-aware model selection、驗證不是感官本身造成偏差 | ✅ 已修復（regime-aware 進行中） |
 | #H118 | 🔬 回測引擎近期失效，需重新驗證交易曲線與指標輸出 | 重新跑 backtesting/engine.py、metrics.py、optimizer.py 的端到端驗證 | 🔄 部分完成（optimizer 待補） |
 
 ## 📋 近期補充說明
@@ -150,5 +150,5 @@
 - `backtesting/engine.py` 與 `backtesting/metrics.py` 已補資料不足防呆，避免回測在空窗時直接炸掉。
 - `tests/backfill_90d.py` 已通過，證實回填 / 標籤寫入可正常落庫（2160 rows）。
 - `server.senses` 與 `database.models` 已補上新舊感官欄位相容，但若圖表仍空，優先檢查「時間對齊」與「資料窗是否有重疊樣本」。
-- 綜合推薦分數已加入 calibration payload 與後處理；若仍感覺不穩，下一層應檢查 regime 切換與樣本分佈。
+- 綜合推薦分數已加入 calibration payload 與後處理；同時開始加入 regime-aware selection 與交叉特徵。
 - 回測引擎仍需補跑 `optimizer.py` 的端到端驗證，確認 buy/sell/abstain 與 `sell_win_rate` 輸出一致。
