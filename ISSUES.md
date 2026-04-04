@@ -4,7 +4,7 @@
 
 ---
 
-*最後更新：2026-04-04 09:01 GMT+8*
+*最後更新：2026-04-04 01:30 GMT+8 (心跳 #146)*
 ---
 
 ## 🔴 最高優先級 (P0)
@@ -14,19 +14,18 @@
 | #H122 | 🔴 7/8 感官 IC 低於 0.05（全量） | **已確認**：僅 Ear IC=-0.051 達標。Bear 4/8, Bull 0/8, Chop 1/8 | 🔴 未突破 |
 | #H125 | 🔴 全量 IC 仍低於 0.05 | 衰減模式：N=1000 最佳(4/8)，N=5000 降至 0/8 | 🔴 持續確認 |
 | #H140 | 🔴 **CV 天花板 50-52%** | 當前 8 感官 + lag + 交叉特徵組合，CV 無法突破 52%。**唯一出路**：高 IC 新數據源 | 🔴 持續確認 |
-| #H130 | 🔴 模型過擬合：gap ~21pp | 全局 gap=21.6pp。Per-regime 模型 gap 僅 2-4pp（大幅改善）| 🟡 改善中 |
-| #H137 | 🔴 全局模型 CV 停滯 50.5% | **根本原因**：單特徵 IC ≤0.077。要達 90% 需 IC >0.4 集體。需**新數據源/新特徵**而非調參 | 🔴 CV 天花板 |
+| #H137 | 🔴 全局模型 CV 停滯 50.4% | **根本原因**：單特徵 IC ≤0.077。要達 90% 需 IC >0.4 集體。需**新數據源/新特徵**而非調參 | 🔴 CV 天花板 |
 
 ## 🟡 高優先級 (P1)
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #H87 | 🟡 CV≈50-52% 距目標 90% 差距 38-40pp | Per-regime 決策樹：Bear CV 55.6%, Bull 59.0%, Chop 52.6%（vs 全局 51.3%）✅ | 🟡 改善中 |
+| #H87 | 🟡 CV≈50-52% 距目標 90% 差距 38-40pp | Per-regime 決策樹：Bear CV 55.6%, Bull 59.0%, Chop 52.6%（vs 全局 50.4%）✅ | 🟡 改善中 |
+| #H130 | 🟡 模型過擬合：gap ~21pp | 全局 gap=21.6pp。Per-regime 模型 gap 僅 2-4pp（大幅改善）| 🟡 改善中 |
 | #H31 | 🟡 polymarket_prob 歷史仍全 NULL（0 筆非空） | Ear/Polymarket 信號完全缺失；Ear 用 Binance long-short 替代 | 🟡 P1 |
 | #H126 | 🟡 高共線性：Tongue↔Body r=0.78, Aura↔Mind r=0.85 | 違反 8 獨立感官假設 | 🟡 P1 |
 | #H127 | 🟡 funding_rate/fng 幾乎全 NULL（10/8770） | 回填歷史數據 | 🟡 P1 |
-| #H301 | 🟡 Bull 僅 1/8（Ear IC=-0.035）| Bull 需新數據源（ETF flows, on-chain）| 🟡 P1 |
-| #H141 | 🟡 features_norm `regime_label` 回歸風險 | 需 recompute_features 後自動重算 regime labels | 🟡 已修正（防回歸） |
+| #H301 | 🟡 Bull 僅 0/8（全無 IC 達標）| Bull 需新數據源（ETF flows, on-chain）| 🔴 P0+ |
 
 ## 🟢 低優先級
 
@@ -49,7 +48,7 @@
 | **#H129-fix** | deep_ic_analysis.py 語法錯誤 | 修正括號 ✅ | 2026-04-04 06:00 |
 | **#H901-fix** | collect_data.py import 路徑錯誤 | 改為 database.models ✅ | 2026-04-04 05:50 |
 | **#H132-fix** | ic_signs.json NaN + ConstantInputWarning | NaN→0.0 + constant filter + NaN guard | 2026-04-04 06:30 |
-| **#H134-fix** | run_train.py 硬編碼外部工作區路徑 | 改用 Path(__file__).parent.parent ✅ | 2026-04-03 22:39 |
+| **#H134-fix** | train.py 硬編碼外部工作區路徑 | 改用 Path(__file__).parent.parent ✅ | 2026-03-22 |
 | **#H135-fix** | model_metrics 表不存在 | 建立 model_metrics 表 ✅ | 2026-04-04 04:39 |
 | **#H136-fix** | python3 指向無 pip 的 hermes venv | 改用 /usr/bin/python3.12 並安裝包 ✅ | 2026-04-03 22:39 |
 | **#H133-fix** | 8 constant features 佔據 33% feature space | 移除 whisper/tone/chorus/hype/oracle/shock/tide/storm ✅ | 2026-04-04 06:50 |
@@ -64,20 +63,21 @@
 
 ---
 
-## 📊 當前系統健康 (2026-04-04 09:01 GMT+8)
+## 📊 當前系統健康 (2026-04-04 01:30 GMT+8, 心跳 #146)
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
 | Raw market data | 8,770 筆 | ✅ |
 | Features | 8,770 筆 | ✅ |
-| Labels | 8,770 筆 (50.1% pos) | ✅ 平衡 |
+| Labels | 8,770 筆 (50.8% sell_win) | ✅ 平衡 |
 | Trades | 0 筆 | ⚠️ 模擬中 |
-| BTC 當前 | $66,888 | — |
+| BTC 當前 | $66,863 | — |
 | FNG | 11 (Extreme Fear) | — |
-| Funding Rate | 0.000034 | — |
-| Taker Buy/Sell | 1.4124 | ⬆️ 多頭偏多 |
-| Open Interest | 90,383 BTC | — |
+| Funding Rate | 0.000035 | — |
+| Taker Buy/Sell | 1.7248 | ⬆️ 多頭偏多（LSR proxy） |
+| Open Interest | 90,418 BTC | — |
+| LSR | 1.72 | ⬆️ |
 
 ### 感官 IC 掃描（regime_aware_ic.py, N=8778）
 | 窗口/Regime | 達標感官數 | 具備 IC |
@@ -90,11 +90,11 @@
 ### Per-Regime 模型
 | Regime | Best CV | Gap | 改善 vs 全局 |
 |--------|---------|-----|-----------|
-| Bear | **55.6%** | 2.7pp | +4.3pp ✅ |
-| Bull | **59.0%** | 2.2pp | +7.7pp ✅ |
-| Chop | **52.6%** | 3.7pp | +1.3pp |
+| Bear | **55.6%** | 2.7pp | +5.2pp ✅ |
+| Bull | **59.0%** | 2.2pp | +8.6pp ✅ |
+| Chop | **52.6%** | 3.7pp | +2.2pp ✅ |
+| Global XGB | 50.36% | 21.6pp | baseline |
 | Global DT | 51.3% | — | baseline |
-| XGBoost | 50.4% | — | baseline |
 
 ### 模型狀態
 | 項目 | 數值 | 狀態 |
@@ -107,6 +107,15 @@
 | Per-Regime Models | ✅ regime_models.pkl + predictor.py routing | ✅ 已整合 |
 | 測試 | 6/6 PASS | ✅ |
 
+### 動態窗口 IC 衰減
+| 窗口 | 達標 | 最高 IC |
+|------|------|---------|
+| N=500 | 1/8 | Pulse=+0.057 |
+| N=1000 | **4/8** | Pulse=+0.126, Aura=-0.104, Mind=-0.105 |
+| N=2000 | 2/8 | Pulse=+0.078 |
+| N=3000 | 1/8 | Aura=-0.069 |
+| N=5000 | 0/8 | — |
+
 ---
 
 ## 📋 下一步行動
@@ -118,7 +127,6 @@
 | P1 | Bull regime 新數據源：BTC ETF flows、whale wallet tracking | #H301 |
 | P1 | 回填 funding_rate/FNG 歷史數據 | #H127 |
 | P1 | Aura/Mind 正交化（r=0.85）| #H126 |
-| P1 | LSR API endpoint 需修復（Binance 404）| 新增 |
 | P2 | IC 動態加權：依近期 IC 調整 sample_weight | #IC4 |
 | P3 | 建立每次心跳 IC 歷史趨勢追蹤 | #H97 |
 
