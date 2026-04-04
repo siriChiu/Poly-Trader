@@ -85,9 +85,12 @@ if feat_table:
     
     # Try to find binary label columns
     for c in df.columns:
-            vals = df[c].dropna().unique()
-            if len(vals) <= 5 and c not in feat_cols:
-                print(f"  Label col '{c}': values={list(vals)[:10]}")
+        if c in feat_cols:
+            continue
+        vals = df[c].dropna().values
+        vals_unique = sorted(set(vals))
+        if len(vals_unique) <= 5:
+            print(f"  Label col '{c}': values={list(vals_unique)[:10]}")
 
     # Try various label column names
     for candidate in ['sell_win', 'label_sell_win', 'sell', 'target', 'label', 'future_return_pct', 'label_class']:
