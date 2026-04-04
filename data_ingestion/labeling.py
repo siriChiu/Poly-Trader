@@ -93,7 +93,7 @@ def generate_future_return_labels(
             "future_return_pct": ret_pct,
             "future_max_drawdown": None,
             "future_max_runup": None,
-            "regime_label": None,
+            "regime_label": None,  # Populated by backfill_vix_dxy.py from features
         })
 
     df = pd.DataFrame(labels)

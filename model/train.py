@@ -302,3 +302,131 @@ def run_training(session: Session) -> bool:
         logger.warning(f"無法保存 model_metrics: {e}")
 
     return True
+
+
+def train_regime_models(session: Session) -> bool:
+    """Train one XGBoost model per market regime (bear/bull/chop/neutral).
+    Addresses P0 #H122 / #H301: global model CV ~52% because different regimes
+    have different signal patterns. Regime-aware training should lift per-regime CV.
+    """
+    logger.info("開始訓練 Regime-Specific XGBoost 模型...")
+    loaded = load_training_data(session, min_samples=50)
+    if loaded is None:
+        logger.warning("訓練資料不足，跳過 regime-specific 訓練")
+        return False
+
+    # Re-load with regime info
+    feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
+    label_rows = (
+        session.query(Labels)
+        .filter(Labels.label_sell_win.isnot(None), Labels.future_return_pct.isnot(None))
+        .order_by(Labels.timestamp)
+        .all()
+    )
+
+    feat_df = pd.DataFrame([_feature_row(r) for r in feat_rows])
+    label_df = pd.DataFrame([{
+        "timestamp": r.timestamp,
+        "label_sell_win": int(r.label_sell_win),
+        "label_up": int(r.label_up) if r.label_up is not None else None,
+    } for r in label_rows])
+
+    feat_df["timestamp"] = pd.to_datetime(feat_df["timestamp"])
+    label_df["timestamp"] = pd.to_datetime(label_df["timestamp"])
+
+    merged = pd.merge_asof(
+        feat_df.sort_values("timestamp"),
+        label_df.sort_values("timestamp"),
+        on="timestamp",
+        direction="nearest",
+        tolerance=pd.Timedelta("10min"),
+    )
+    merged = merged.dropna(subset=["label_sell_win"]).copy()
+
+    # Build feature columns (same as global)
+    for col in BASE_FEATURE_COLS:
+        for lag in LAG_STEPS:
+            lag_col = f"{col}_lag{lag}"
+            merged[lag_col] = merged[col].shift(lag)
+
+    all_feat_cols = FEATURE_COLS + [f"{c}_lag{l}" for c in BASE_FEATURE_COLS for l in LAG_STEPS]
+    CROSS_FEATURES_LOCAL = [
+        "feat_vix_x_eye", "feat_vix_x_pulse", "feat_vix_x_mind",
+        "feat_mind_x_pulse", "feat_eye_x_ear", "feat_nose_x_aura",
+        "feat_eye_x_body", "feat_ear_x_nose", "feat_mind_x_aura",
+        "feat_mean_rev_proxy",
+    ]
+    for col in all_feat_cols:
+        merged[col] = pd.to_numeric(merged[col], errors='coerce')
+    merged[all_feat_cols] = merged[all_feat_cols].fillna(0.0)
+    # Cross features
+    merged["feat_vix_x_eye"] = merged["feat_vix"] * merged["feat_eye"]
+    merged["feat_vix_x_pulse"] = merged["feat_vix"] * merged["feat_pulse"]
+    merged["feat_vix_x_mind"] = merged["feat_vix"] * merged["feat_mind"]
+    merged["feat_mind_x_pulse"] = merged["feat_mind"] * merged["feat_pulse"]
+    merged["feat_eye_x_ear"] = merged["feat_eye"] * merged["feat_ear"]
+    merged["feat_nose_x_aura"] = merged["feat_nose"] * merged["feat_aura"]
+    merged["feat_eye_x_body"] = merged["feat_eye"] * merged["feat_body"]
+    merged["feat_ear_x_nose"] = merged["feat_ear"] * merged["feat_nose"]
+    merged["feat_mind_x_aura"] = merged["feat_mind"] * merged["feat_aura"]
+    merged["feat_mean_rev_proxy"] = merged["feat_mind"] - merged["feat_aura"]
+
+    X_cols = all_feat_cols + CROSS_FEATURES_LOCAL
+
+    regime_models = {}
+    params = {
+        "n_estimators": 200, "max_depth": 3, "learning_rate": 0.05,
+        "subsample": 0.8, "colsample_bytree": 0.8,
+        "reg_alpha": 2.0, "reg_lambda": 6.0, "min_child_weight": 10, "gamma": 0.2,
+        "objective": "binary:logistic", "eval_metric": "logloss", "random_state": 42,
+    }
+
+    for regime in ['bear', 'bull', 'chop']:
+        regime_mask = merged['regime_label'] == regime
+        regime_data = merged[regime_mask].copy()
+        n = len(regime_data)
+        if n < 200:
+            logger.warning(f"Regime {regime}: only {n} samples, skipping")
+            continue
+
+        X_r = regime_data[X_cols].fillna(0.0)
+        y_r = regime_data["label_sell_win"].astype(int)
+
+        sample_weight = compute_sample_weight("balanced", y_r)
+        model_r = xgb.XGBClassifier(**params)
+        model_r.fit(X_r, y_r, sample_weight=sample_weight)
+
+        train_acc = float((model_r.predict(X_r) == y_r).mean())
+
+        # TimeSeriesSplit CV
+        try:
+            from sklearn.model_selection import TimeSeriesSplit
+            tscv = TimeSeriesSplit(n_splits=3)
+            cv_scores = []
+            for _tr, _te in tscv.split(X_r):
+                y_tr = y_r.iloc[_tr]
+                if len(y_tr.unique()) < 2:
+                    continue
+                m = xgb.XGBClassifier(**{k: v for k, v in model_r.get_params().items()})
+                m.fit(X_r.iloc[_tr], y_tr, sample_weight=compute_sample_weight("balanced", y_tr))
+                cv_scores.append(float((m.predict(X_r.iloc[_te]) == y_r.iloc[_te]).mean()))
+            cv_acc = float(np.mean(cv_scores)) if cv_scores else float('nan')
+        except Exception as e:
+            cv_acc = float('nan')
+            logger.warning(f"Regime {regime} CV failed: {e}")
+
+        reg_payload = {
+            'clf': model_r, 'feature_names': X_cols,
+            'neg_ic_feats': [], 'calibration': {'kind': 'none'},
+            'regime_threshold_bias': REGIME_THRESHOLD_BIAS,
+        }
+        regime_models[regime] = reg_payload
+        logger.info(f"Regime {regime} model: Train={train_acc:.4f}, CV={cv_acc:.4f}, n={n}")
+
+    if regime_models:
+        os.makedirs("model", exist_ok=True)
+        with open("model/regime_models.pkl", "wb") as f:
+            pickle.dump(regime_models, f)
+        logger.info(f"Regime-specified models saved: {list(regime_models.keys())}")
+        return True
+    return False

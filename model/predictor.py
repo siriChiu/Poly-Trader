@@ -181,8 +181,36 @@ def _determine_regime(features: Dict) -> str:
         return 'chop'
 
 
+class RegimeAwarePredictor:
+    """Wrapper that routes inference to the correct regime-specific model."""
+
+    def __init__(self, global_predictor, regime_models: Dict):
+        self._global = global_predictor
+        self._regime_models = regime_models  # dict of regime_name -> model_data dict
+        # Build XGBoostPredictor wrappers for each regime
+        self._regime_predictors = {}
+        for regime_name, model_data in regime_models.items():
+            self._regime_predictors[regime_name] = XGBoostPredictor(model_data)
+
+    def predict_proba(self, features: Dict) -> float:
+        """Route to regime-specific model if available, else global."""
+        regime = features.get('regime_label')
+        if regime and regime in self._regime_predictors:
+            return self._regime_predictors[regime].predict_proba(features)
+        return self._global.predict_proba(features)
+
+    def predict_signal(self, features: Dict) -> dict:
+        """Route to regime-specific model if available, else global."""
+        regime = features.get('regime_label')
+        if regime and regime in self._regime_predictors:
+            return self._regime_predictors[regime].predict_signal(features)
+        return self._global.predict_signal(features)
+
+
 def load_predictor():
-    """Load global model and per-regime models if available."""
+    """Load global model and per-regime models if available.
+    Returns a RegimeAwarePredictor (or fallback) plus raw regime_models dict.
+    """
     models = {}
 
     # Load global model
@@ -205,11 +233,17 @@ def load_predictor():
             if isinstance(regime_models, dict):
                 for regime_name, model_data in regime_models.items():
                     models[regime_name] = model_data
-            logger.info(f"Per-regime models loaded: {list(models.keys())}")
+                logger.info(f"Per-regime models loaded: {list(models.keys())}")
         except Exception as e:
             logger.warning(f"Per-regime models load failed: {e}")
 
-    return XGBoostPredictor(global_model) if global_model else DummyPredictor(), models
+    global_predictor = XGBoostPredictor(global_model) if global_model else DummyPredictor()
+    if models:
+        predictor = RegimeAwarePredictor(global_predictor, models)
+        logger.info(f"RegimeAwarePredictor active with {len(models)} regime models")
+    else:
+        predictor = global_predictor
+    return predictor, models
 
 
 def load_latest_features(session: Session) -> Optional[Dict]:

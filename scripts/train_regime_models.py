@@ -1,183 +1,150 @@
-#!/usr/bin/env python3
-"""
-P0 Fix #H145 (Phase 2): Train and save per-regime DecisionTree models.
-These models consistently outperform the global XGBoost model:
-  Bear: CV 55.6% vs Global 51.3%  (+4.3pp)
-  Bull: CV 59.0% vs Global 51.3%  (+7.7pp)
-  Chop: CV 52.6% vs Global 51.3%  (+1.3pp)
+"""Train regime-specific models (P0 #H122 #H301)"""
+import sys, os
+sys.path.insert(0, '/home/kazuha/Poly-Trader')
+os.chdir('/home/kazuha/Poly-Trader')
 
-This script trains and saves models for integration into the prediction pipeline.
-"""
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
-import sqlite3
 import numpy as np
+import pandas as pd
+import xgboost as xgb
 import pickle
 import json
-from sklearn.tree import DecisionTreeClassifier
+from scipy import stats
 from sklearn.model_selection import TimeSeriesSplit
-from collections import defaultdict
-from datetime import datetime
-from sklearn.preprocessing import StandardScaler
+from sklearn.utils.class_weight import compute_sample_weight
+from pathlib import Path
 
-MODEL_DIR = PROJECT_ROOT / "model"
-MODEL_PATH = MODEL_DIR / "regime_models.pkl"
+DB = Path('poly_trader.db')
+import sqlite3
+db = sqlite3.connect(str(DB))
 
-conn = sqlite3.connect(str(PROJECT_ROOT / "poly_trader.db"))
+features = pd.read_sql("SELECT * FROM features_normalized", db)
+labels = pd.read_sql("SELECT timestamp, symbol, label_sell_win, label_up FROM labels", db)
+db.close()
 
-# Get all data with regime labels
-rows = conn.execute('''
-    SELECT f.regime_label, f.feat_eye, f.feat_ear, f.feat_nose, f.feat_tongue,
-           f.feat_body, f.feat_pulse, f.feat_aura, f.feat_mind, 
-           l.label_sell_win
-    FROM features_normalized f
-    JOIN labels l ON f.timestamp = l.timestamp
-    WHERE l.label_sell_win IS NOT NULL AND f.regime_label IN ('bear', 'bull', 'chop')
-    ORDER BY f.timestamp
-''').fetchall()
+merged = pd.merge(features, labels, on=['timestamp', 'symbol'], how='inner')
 
-print(f"Total samples: {len(rows)}")
+BASE_COLS = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue", "feat_body", "feat_pulse", "feat_aura", "feat_mind", "feat_vix", "feat_dxy"]
+LAG_STEPS = [12, 48, 288]
 
-# Group by regime
-regime_data = defaultdict(list)
-for r in rows:
-    regime_data[r[0]].append(r)
+for col in BASE_COLS:
+    for lag in LAG_STEPS:
+        merged[f"{col}_lag{lag}"] = merged[col].shift(lag)
 
-BASE_FEATURE_NAMES = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue",
-                      "feat_body", "feat_pulse", "feat_aura", "feat_mind"]
-FEATURE_IDX = list(range(1, 9))
+LAG_COLS = [f"{c}_lag{l}" for c in BASE_COLS for l in LAG_STEPS]
+CROSS = ["feat_vix_x_eye", "feat_vix_x_pulse", "feat_vix_x_mind",
+         "feat_mind_x_pulse", "feat_eye_x_ear", "feat_nose_x_aura",
+         "feat_eye_x_body", "feat_ear_x_nose", "feat_mind_x_aura",
+         "feat_mean_rev_proxy"]
 
-regime_models = {}
+merged["feat_vix_x_eye"] = merged["feat_vix"] * merged["feat_eye"]
+merged["feat_vix_x_pulse"] = merged["feat_vix"] * merged["feat_pulse"]
+merged["feat_vix_x_mind"] = merged["feat_vix"] * merged["feat_mind"]
+merged["feat_mind_x_pulse"] = merged["feat_mind"] * merged["feat_pulse"]
+merged["feat_eye_x_ear"] = merged["feat_eye"] * merged["feat_ear"]
+merged["feat_nose_x_aura"] = merged["feat_nose"] * merged["feat_aura"]
+merged["feat_eye_x_body"] = merged["feat_eye"] * merged["feat_body"]
+merged["feat_ear_x_nose"] = merged["feat_ear"] * merged["feat_nose"]
+merged["feat_mind_x_aura"] = merged["feat_mind"] * merged["feat_aura"]
+merged["feat_mean_rev_proxy"] = merged["feat_mind"] - merged["feat_aura"]
 
-for regime_name in ['bear', 'bull', 'chop']:
-    regime_rows = regime_data[regime_name]
-    if len(regime_rows) < 100:
-        print(f"{regime_name}: too few samples ({len(regime_rows)})")
-        continue
-    
-    X = np.array([[float(r[i]) for i in FEATURE_IDX] for r in regime_rows])
-    X = np.nan_to_num(X, nan=0.0)
-    y = np.array([r[9] for r in regime_rows]).astype(int)
-    
-    print(f"\n{'='*60}")
-    print(f"{regime_name.upper()} regime (n={len(X)}, pos_rate={y.mean():.3f})")
-    print(f"{'='*60}")
-    
-    best_cv = 0
-    best_model_data = None
-    for depth in [2, 3, 4, 5]:
-        for min_leaf in [10, 20, 50, 100]:
-            tscv = TimeSeriesSplit(n_splits=5)
-            scores = []
-            for tr_idx, te_idx in tscv.split(X):
-                if len(np.unique(y[tr_idx])) < 2:
-                    continue
-                clf = DecisionTreeClassifier(max_depth=depth, min_samples_leaf=min_leaf, random_state=42)
-                clf.fit(X[tr_idx], y[tr_idx])
-                scores.append((clf.predict(X[te_idx]) == y[te_idx]).mean())
-            
-            if scores:
-                cv_mean = np.mean(scores)
-                if cv_mean > best_cv:
-                    best_cv = cv_mean
-                    final_clf = DecisionTreeClassifier(max_depth=depth, min_samples_leaf=min_leaf, random_state=42)
-                    final_clf.fit(X, y)
-                    best_model_data = {
-                        'model': final_clf,
-                        'params': {'max_depth': depth, 'min_samples_leaf': min_leaf},
-                        'train_acc': final_clf.score(X, y),
-                        'cv': cv_mean,
-                        'feature_names': BASE_FEATURE_NAMES,
-                        'pos_rate': float(y.mean()),
-                    }
-    
-    if best_model_data:
-        regime_models[regime_name] = best_model_data
-        gap = (best_model_data['train_acc'] - best_model_data['cv']) * 100
-        p = best_model_data['params']
-        print(f"  depth={p['max_depth']}, min_leaf={p['min_samples_leaf']}")
-        print(f"  Train: {best_model_data['train_acc']:.3f}, CV: {best_model_data['cv']:.3f}")
-        print(f"  Gap: {gap:.1f}pp")
+ALL_COLS = BASE_COLS + LAG_COLS + CROSS
+for col in ALL_COLS:
+    merged[col] = pd.to_numeric(merged[col], errors='coerce').fillna(0.0)
 
-# Also compute global decision tree for comparison
-global_X = np.array([[float(r[i]) for i in FEATURE_IDX] for r in rows])
-global_X = np.nan_to_num(global_X, nan=0.0)
-global_y = np.array([r[9] for r in rows]).astype(int)
+y = merged["label_sell_win"].astype(int)
 
-global_best_cv = 0
-global_model_info = {}
-for depth in [2, 3, 4, 5]:
-    for min_leaf in [10, 20, 50, 100]:
-        tscv = TimeSeriesSplit(n_splits=5)
-        scores = []
-        for tr_idx, te_idx in tscv.split(global_X):
-            if len(np.unique(global_y[tr_idx])) < 2:
-                continue
-            clf = DecisionTreeClassifier(max_depth=depth, min_samples_leaf=min_leaf, random_state=42)
-            clf.fit(global_X[tr_idx], global_y[tr_idx])
-            scores.append((clf.predict(global_X[te_idx]) == global_y[te_idx]).mean())
-        if scores:
-            cv = np.mean(scores)
-            if cv > global_best_cv:
-                final_global = DecisionTreeClassifier(max_depth=depth, min_samples_leaf=min_leaf, random_state=42)
-                final_global.fit(global_X, global_y)
-                global_best_cv = cv
-                global_model_info = {
-                    'model': final_global,
-                    'train_acc': final_global.score(global_X, global_y),
-                    'cv': cv,
-                    'params': {'max_depth': depth, 'min_samples_leaf': min_leaf},
-                }
+# IC sign flip for neg correlations
+neg_ic_feats = []
+for col in ALL_COLS:
+    feat_arr = merged[col].values.astype(float)
+    label_arr = y.values.astype(float)
+    mask = ~(np.isnan(feat_arr) | np.isnan(label_arr))
+    if mask.sum() > 30:
+        f_masked = feat_arr[mask]
+        if np.ptp(f_masked) > 0:
+            corr, _ = stats.spearmanr(f_masked, label_arr[mask])
+            if corr is not None and np.isfinite(corr) and corr < 0:
+                neg_ic_feats.append(col)
+                merged[col] = -merged[col]
 
-# Get current XGBoost metrics
-current_xgboost_cv = None
-metrics_path = MODEL_DIR / "last_metrics.json"
-try:
-    # Try model directory first
-    with open(metrics_path) as f:
-        m = json.load(f)
-        current_xgboost_cv = m.get('cv', {}).get('accuracy', m.get('cv_accuracy', m.get('cv_mean')))
-except Exception:
-    pass
+print(f"NEG_IC features flipped: {len(neg_ic_feats)}")
 
-# Try other possible locations
-for alt_path in [PROJECT_ROOT / "data" / "last_metrics.json", PROJECT_ROOT / "output" / "last_metrics.json"]:
-    if current_xgboost_cv is None and alt_path.exists():
-        try:
-            with open(alt_path) as f:
-                m = json.load(f)
-                current_xgboost_cv = m.get('cv', {}).get('accuracy', m.get('cv_accuracy', m.get('cv_mean')))
-        except:
-            pass
-
-# Save regime models
-save_data = {
-    'timestamp': datetime.utcnow().isoformat(),
-    'type': 'regime_ensemble',
-    'regime_models': regime_models,
-    'global_decision_tree': global_model_info,
-    'global_dt_cv': global_best_cv,
-    'current_xgboost_cv': current_xgboost_cv,
+params = {
+    "n_estimators": 200, "max_depth": 3, "learning_rate": 0.05,
+    "subsample": 0.8, "colsample_bytree": 0.8,
+    "reg_alpha": 2.0, "reg_lambda": 6.0, "min_child_weight": 10, "gamma": 0.2,
+    "objective": "binary:logistic", "eval_metric": "logloss", "random_state": 42,
 }
 
-with open(MODEL_PATH, "wb") as f:
-    pickle.dump(save_data, f, protocol=pickle.HIGHEST_PROTOCOL)
+# Global model
+print("\n=== Global Model ===")
+X = merged[ALL_COLS].fillna(0.0)
+sw = compute_sample_weight("balanced", y)
+gm = xgb.XGBClassifier(**params)
+gm.fit(X, y, sample_weight=sw)
+train_acc = float((gm.predict(X) == y).mean())
+tscv = TimeSeriesSplit(n_splits=5)
+cvs = []
+for tr, te in tscv.split(X):
+    yt = y.iloc[tr]
+    if len(yt.unique()) < 2:
+        continue
+    m = xgb.XGBClassifier(**{k: v for k, v in gm.get_params().items()})
+    m.fit(X.iloc[tr], yt, sample_weight=compute_sample_weight("balanced", yt))
+    cvs.append(float((m.predict(X.iloc[te]) == y.iloc[te]).mean()))
+cv_acc = float(np.mean(cvs))
+print(f"  Train={train_acc:.4f}, CV={cv_acc:.4f}")
 
-print(f"\n{'='*60}")
-print(f"Model saved to: {MODEL_PATH}")
-print(f"Global DT CV: {global_best_cv:.3f}")
-if current_xgboost_cv:
-    print(f"XGBoost CV: {current_xgboost_cv:.3f}")
-print(f"{'='*60}")
+# Save global model
+global_payload = {
+    'clf': gm, 'feature_names': ALL_COLS,
+    'neg_ic_feats': neg_ic_feats, 'calibration': {'kind': 'none'},
+    'regime_threshold_bias': {},
+}
+os.makedirs("model", exist_ok=True)
+with open("model/xgb_model.pkl", "wb") as f:
+    pickle.dump(global_payload, f)
+with open("model/ic_signs.json", "w") as f:
+    json.dump({"neg_ic_feats": neg_ic_feats}, f)
+print("  Global model saved: model/xgb_model.pkl")
 
-print("\n=== REGIME MODEL SUMMARY ===")
-for name, data in regime_models.items():
-    gap = (data['train_acc'] - data['cv']) * 100
-    improvement = (data['cv'] - global_best_cv) * 100
-    print(f"  {name:6s}: CV={data['cv']:.3f} (gap={gap:.1f}pp, vs global=+{improvement:.1f}pp)")
+# Regime-specific models
+print("\n=== Regime-Specific Models ===")
+regime_models = {}
+for regime in ['bear', 'bull', 'chop']:
+    mask = merged['regime_label'] == regime
+    regime_data = merged[mask].copy()
+    n = len(regime_data)
+    if n < 200:
+        print(f"  {regime}: only {n} samples, skipping")
+        continue
+    X_r = regime_data[ALL_COLS].fillna(0.0)
+    y_r = regime_data["label_sell_win"].astype(int)
+    sw = compute_sample_weight("balanced", y_r)
+    model_r = xgb.XGBClassifier(**params)
+    model_r.fit(X_r, y_r, sample_weight=sw)
+    train_acc_r = float((model_r.predict(X_r) == y_r).mean())
+    # CV
+    tscv_r = TimeSeriesSplit(n_splits=3)
+    cvs_r = []
+    for tr, te in tscv_r.split(X_r):
+        yt = y_r.iloc[tr]
+        if len(yt.unique()) < 2:
+            continue
+        m = xgb.XGBClassifier(**{k: v for k, v in model_r.get_params().items()})
+        m.fit(X_r.iloc[tr], yt, sample_weight=compute_sample_weight("balanced", yt))
+        cvs_r.append(float((m.predict(X_r.iloc[te]) == y_r.iloc[te]).mean()))
+    cv_acc_r = float(np.mean(cvs_r)) if cvs_r else float('nan')
+    
+    reg_payload = {
+        'clf': model_r, 'feature_names': ALL_COLS,
+        'neg_ic_feats': neg_ic_feats, 'calibration': {'kind': 'none'},
+        'regime_threshold_bias': {},
+    }
+    regime_models[regime] = reg_payload
+    print(f"  {regime} (n={n}): Train={train_acc_r:.4f}, CV={cv_acc_r:.4f}")
 
-conn.close()
+with open("model/regime_models.pkl", "wb") as f:
+    pickle.dump(regime_models, f)
+print(f"  Regime models saved: {list(regime_models.keys())}")
+print("\nTraining complete.")
