@@ -147,17 +147,21 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     if len(close) >= 25:
         c24 = float(close.iloc[-25])
         if c24 > 0:
-            features["feat_ear_zscore"] = float(close.iloc[-1] / c24 - 1)
+            # #H371 fix: DB column is feat_ear, not feat_ear_zscore
+            features["feat_ear"] = float(close.iloc[-1] / c24 - 1)
         else:
-            features["feat_ear_zscore"] = 0.0
+            features["feat_ear"] = 0.0
     elif len(close) >= 13:
         c12 = float(close.iloc[-13])
         if c12 > 0:
-            features["feat_ear_zscore"] = float(close.iloc[-1] / c12 - 1)
+            features["feat_ear"] = float(close.iloc[-1] / c12 - 1)
         else:
-            features["feat_ear_zscore"] = 0.0
+            features["feat_ear"] = 0.0
     else:
-        features["feat_ear_zscore"] = 0.0
+        features["feat_ear"] = 0.0
+
+    # Also add alias for backward compatibility
+    features["feat_ear_zscore"] = features["feat_ear"]
 
     # 3. Nose: rsi14_norm — RSI(14) 正規化至 [0,1]
     #    IC=-0.049 (p=0.001, N=4453): 替換 ret_1 (IC≈0, p=0.66, 不顯著) #H101
@@ -369,18 +373,16 @@ def recompute_all_features(session: Session, symbol: str = "BTCUSDT") -> int:
             .first()
         )
         if existing:
-            # Update existing
             features = compute_features_from_raw(window)
             if features:
-                existing.feat_eye_dist = features.get("feat_eye_dist")
-                existing.feat_ear_zscore = features.get("feat_ear_zscore")
-                existing.feat_nose_sigmoid = features.get("feat_nose_sigmoid")
-                existing.feat_tongue_pct = features.get("feat_tongue_pct")
-                existing.feat_body_roc = features.get("feat_body_roc")
+                existing.feat_eye = features.get("feat_eye_dist", features.get("feat_eye"))
+                existing.feat_ear = features.get("feat_ear_zscore", features.get("feat_ear"))
+                existing.feat_nose = features.get("feat_nose_sigmoid", features.get("feat_nose"))
+                existing.feat_tongue = features.get("feat_tongue_pct", features.get("feat_tongue"))
+                existing.feat_body = features.get("feat_body_roc", features.get("feat_body"))
                 existing.feat_pulse = features.get("feat_pulse")
                 existing.feat_aura = features.get("feat_aura")
                 existing.feat_mind = features.get("feat_mind")
-                # Also update technical indicators (was missing — P0 #H330)
                 existing.feat_rsi14 = features.get("feat_rsi14")
                 existing.feat_macd_hist = features.get("feat_macd_hist")
                 existing.feat_atr_pct = features.get("feat_atr_pct")
