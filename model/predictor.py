@@ -21,14 +21,11 @@ BASE_FEATURE_COLS = [
     "feat_aura", "feat_mind",
 ]
 
-# Aux 8 senses: disabled (all constant=0.0, unique=1, IC=0.0000) — #H310
+# Aux 8 senses: permanently removed from DB — #H380 (HB #206 cleanup)
 # feat_whisper, feat_tone, feat_chorus, feat_hype, feat_oracle,
-# feat_shock, feat_tide, feat_storm
-# TODO(#H310): Implement actual computation for these senses before re-enabling.
-DISABLED_AUX_FEATURES = [
-    "feat_whisper", "feat_tone", "feat_chorus", "feat_hype",
-    "feat_oracle", "feat_shock", "feat_tide", "feat_storm",
-]
+# feat_shock, feat_tide, feat_storm were all constant=0.0, IC=0.0000
+# DB columns dropped. Feature counts: 15 alive (8 sensors + VIX + DXY + 6 technicals)
+DISABLED_AUX_FEATURES = []
 LAG_STEPS = [12, 48, 288]
 LAG_FEATURE_COLS = [f"{col}_lag{lag}" for col in BASE_FEATURE_COLS for lag in LAG_STEPS]
 # FEATURE_COLS: 8 base only (legacy compat). Full feature list = BASE + LAG when model supports it.
@@ -325,14 +322,7 @@ def load_latest_features(session: Session) -> Optional[Dict]:
         "feat_pulse": getattr(latest, "feat_pulse", None),
         "feat_aura": getattr(latest, "feat_aura", None),
         "feat_mind": getattr(latest, "feat_mind", None),
-        "feat_whisper": getattr(latest, "feat_whisper", None),
-        "feat_tone": getattr(latest, "feat_tone", None),
-        "feat_chorus": getattr(latest, "feat_chorus", None),
-        "feat_hype": getattr(latest, "feat_hype", None),
-        "feat_oracle": getattr(latest, "feat_oracle", None),
-        "feat_shock": getattr(latest, "feat_shock", None),
-        "feat_tide": getattr(latest, "feat_tide", None),
-        "feat_storm": getattr(latest, "feat_storm", None),
+        # #H380: dead aux features removed from DB (HB #206 cleanup)
         # P0 #H149-fix1: Include VIX and DXY at inference time (model was trained with them)
         "feat_vix": getattr(latest, "feat_vix", None),
         "feat_dxy": getattr(latest, "feat_dxy", None),
