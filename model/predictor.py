@@ -46,6 +46,52 @@ REGIME_THRESHOLD_BIAS = {
 }
 
 
+def _time_weighted_ic(session, tau=200):
+    """Compute time-weighted IC for the 8 core senses.
+    Returns dict of {col_name: ic_value} with exponential decay weights.
+    Recent samples get higher weight via exp(-(N-1-i)/tau).
+    """
+    import numpy as np
+    from scipy import stats as _stats
+    from database.models import FeaturesNormalized, Labels
+
+    sense_cols = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue",
+                   "feat_body", "feat_pulse", "feat_aura", "feat_mind"]
+
+    # Load time-ordered features + labels
+    feat_rows = session.query(FeaturesNormalized.timestamp, *sense_cols).order_by(FeaturesNormalized.timestamp).all()
+    label_rows = session.query(Labels.timestamp, Labels.label_sell_win).filter(
+        Labels.label_sell_win.isnot(None)).order_by(Labels.timestamp).all()
+
+    feat_by_ts = {r[0]: {sense_cols[i]: r[1+i] for i in range(len(sense_cols))} for r in feat_rows}
+    labels_by_ts = {r[0]: int(r[1]) for r in label_rows}
+    common_ts = sorted(set(feat_by_ts.keys()) & set(labels_by_ts.keys()))
+    N = len(common_ts)
+    if N < 10:
+        return {col: 0.0 for col in sense_cols}
+
+    # Exponential decay weights
+    weights = np.exp(-(N - 1 - np.arange(N, dtype=float)) / tau)
+
+    ics = {}
+    for col in sense_cols:
+        vals = np.array([feat_by_ts[ts].get(col) for ts in common_ts], dtype=float)
+        sw = np.array([float(labels_by_ts[ts]) for ts in common_ts])
+        mask = ~np.isnan(vals)
+        if mask.sum() < 10:
+            ics[col] = 0.0
+            continue
+        vc = vals[mask]; sc = sw[mask]; wc = weights[mask]
+        wm_v = np.average(vc, weights=wc)
+        wm_s = np.average(sc, weights=wc)
+        cov = np.average((vc - wm_v) * (sc - wm_s), weights=wc)
+        var_v = np.average((vc - wm_v)**2, weights=wc)
+        var_s = np.average((sc - wm_s)**2, weights=wc)
+        w_ic = cov / (np.sqrt(var_v * var_s) + 1e-15)
+        ics[col] = round(float(w_ic), 4)
+    return ics
+
+
 class XGBoostPredictor:
     def __init__(self, model):
         # model can be a dict (new format) or XGBClassifier (legacy)
@@ -322,6 +368,88 @@ def load_latest_features(session: Session) -> Optional[Dict]:
     features["feat_mean_rev_proxy"] = mind - (features.get("feat_aura", 0))
 
     return features
+
+
+def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -> Optional[Dict]:
+    """Predict using time-weighted IC fusion instead of static model.
+    Uses exp decay IC (tau) to weight each sense, then fuses via weighted average.
+    Falls back to model-based prediction if fusion fails.
+    """
+    import numpy as np
+    from database.models import FeaturesNormalized, Labels
+    from datetime import datetime
+
+    features = load_latest_features(session)
+    if not features:
+        return None
+
+    tw_ics = _time_weighted_ic(session, tau=tau)
+
+    # Use time-weighted IC as weights (absolute value = importance)
+    sense_cols = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue",
+                   "feat_body", "feat_pulse", "feat_aura", "feat_mind"]
+    raw_ics = [tw_ics.get(col, 0.0) for col in sense_cols]
+
+    # Weight each sense by its recent IC strength
+    feat_vals = []
+    weights = []
+    for col, ic in zip(sense_cols, raw_ics):
+        val = features.get(col)
+        if val is not None:
+            # Flip sign for negative IC senses (align all to sell-win direction)
+            aligned = (-val) if ic < 0 else val
+            feat_vals.append(aligned)
+            weights.append(abs(ic) if abs(ic) >= 0.01 else 0.01)  # min floor to avoid zero
+
+    feat_arr = np.array(feat_vals, dtype=float)
+    weight_arr = np.array(weights, dtype=float)
+
+    if weight_arr.sum() == 0:
+        # Fallback to model
+        if predictor is None:
+            predictor, _ = load_predictor()
+        confidence = predictor.predict_proba(features)
+    else:
+        # IC-weighted average of aligned senses → logistic transform
+        score = np.average(feat_arr, weights=weight_arr)
+        confidence = float(1 / (1 + np.exp(-score)))
+        # Blend with model prediction (70% fusion, 30% model)
+        if predictor is None:
+            predictor, _ = load_predictor()
+        model_conf = predictor.predict_proba(features)
+        confidence = 0.7 * confidence + 0.3 * model_conf
+
+    # Apply regime bias
+    regime = features.get("regime_label")
+    bias = REGIME_THRESHOLD_BIAS.get(regime, 0.0) if regime else 0.0
+    adjusted = float(np.clip(confidence + bias, 0.0, 1.0))
+
+    # Signal determination
+    if adjusted > CONFIDENCE_HIGH:
+        signal = "SELL"
+        confidence_level = "HIGH"
+    elif adjusted < CONFIDENCE_LOW:
+        signal = "BUY"
+        confidence_level = "HIGH"
+    elif 0.45 < adjusted < 0.55:
+        signal = "HOLD"
+        confidence_level = "LOW"
+    else:
+        signal = "HOLD"
+        confidence_level = "MEDIUM"
+
+    result = {
+        "timestamp": datetime.now().isoformat() + "Z",
+        "features": features,
+        "confidence": adjusted,
+        "signal": signal,
+        "confidence_level": confidence_level,
+        "should_trade": confidence_level == "HIGH",
+        "model_type": "ic_fusion_time_weighted",
+        "ic_values": tw_ics,
+        "tau": tau,
+    }
+    return result
 
 
 def predict(session: Session, predictor=None, regime_models=None) -> Optional[Dict]:
