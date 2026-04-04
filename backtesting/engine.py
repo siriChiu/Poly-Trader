@@ -120,6 +120,10 @@ class BacktestEngine:
                 return PYRAMID_TIERS[len(self.positions)]
         return None
 
+    def _short_pnl(self, entry: float, current: float, qty: float) -> float:
+        """PnL for a SHORT position: profit when price drops."""
+        return (entry - current) * qty
+
     def _sell_win(self, sell_pnl: float) -> int:
         return 1 if sell_pnl > 0 else 0
 
@@ -150,7 +154,8 @@ class BacktestEngine:
                 elif pnl_pct >= self.take_profit_pct: sell, reason = True, "TAKE_PROFIT"
                 elif confidence < 0.4 and pnl_pct > 0.01: sell, reason = True, "SIGNAL_EXIT"
                 if sell:
-                    gross_pnl = sum((price - p["entry_price"]) * p["qty"] for p in self.positions)
+                    # SHORT positions: profit when price drops (entry > current)
+                    gross_pnl = sum(self._short_pnl(p["entry_price"], price, p["qty"]) for p in self.positions)
                     notional = sum(price * p["qty"] for p in self.positions)
                     cost = self._apply_cost(notional)
                     net_pnl = gross_pnl - cost
@@ -184,7 +189,8 @@ class BacktestEngine:
                     })
 
             if self.positions:
-                unreal = sum((price - p["entry_price"]) * p["qty"] for p in self.positions)
+                # SHORT unrealized: profit when current price < entry
+                unreal = sum(self._short_pnl(p["entry_price"], price, p["qty"]) for p in self.positions)
                 real = sum(t.get("pnl", 0) for t in self.trade_log if t.get("pnl") is not None)
                 equity = self.initial_capital + real + unreal
             else:
@@ -193,7 +199,8 @@ class BacktestEngine:
 
         if self.positions:
             lp = price_series.iloc[-1]
-            gross_pnl = sum((lp - p["entry_price"]) * p["qty"] for p in self.positions)
+            # SHORT: profit when last price < entry
+            gross_pnl = sum(self._short_pnl(p["entry_price"], lp, p["qty"]) for p in self.positions)
             notional = sum(lp * p["qty"] for p in self.positions)
             cost = self._apply_cost(notional)
             net_pnl = gross_pnl - cost

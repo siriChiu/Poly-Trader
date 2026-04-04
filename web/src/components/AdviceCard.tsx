@@ -12,20 +12,25 @@ interface Props {
   onTrade?: (side: string) => void;
 }
 
+// Core strategy: SELL/SHORT profit
+// High score = strong sell signal (confidence price will drop)
 const ACTION_CONFIG: Record<string, { text: string; color: string; bg: string; icon: string }> = {
-  strong_buy: { text: "🟢 強烈建議買入", color: "text-green-400", bg: "from-green-900/40 to-slate-900", icon: "🔥" },
-  buy: { text: "🟢 建議買入", color: "text-green-400", bg: "from-green-900/30 to-slate-900", icon: "🟢" },
-  hold: { text: "⚪ 建議觀望", color: "text-slate-300", bg: "from-slate-800/50 to-slate-900", icon: "⚪" },
-  reduce: { text: "🟠 建議減倉", color: "text-orange-400", bg: "from-orange-900/30 to-slate-900", icon: "🔻" },
-  sell: { text: "🔴 觀望或做空", color: "text-red-400", bg: "from-red-900/30 to-slate-900", icon: "🔴" },
+  strong_sell: { text: "🔴 強烈建議做空 — 高勝率做空", color: "text-red-400", bg: "from-red-900/40 to-slate-900", icon: "🔴" },
+  sell: { text: "🟠 建議做空 — 下跌趨勢確認", color: "text-orange-400", bg: "from-orange-900/30 to-slate-900", icon: "🟠" },
+  hold: { text: "⚪ 建議觀望 — 方向不明", color: "text-slate-300", bg: "from-slate-800/50 to-slate-900", icon: "⚪" },
+  hold_long: { text: "🟡 偏多格局 — 避免做空", color: "text-yellow-400", bg: "from-yellow-900/30 to-slate-900", icon: "🟡" },
+  strong_buy: { text: "🟢 多頭格局 — 禁止做空", color: "text-green-400", bg: "from-green-900/30 to-slate-900", icon: "🟢" },
+  buy: { text: "🟡 偏多格局", color: "text-yellow-400", bg: "from-yellow-900/30 to-slate-900", icon: "🟡" },
+  reduce: { text: "🟠 下跌動能不足", color: "text-orange-400", bg: "from-orange-900/30 to-slate-900", icon: "🔻" },
 };
 
 function getScoreLevel(score: number): string {
-  if (score >= 80) return "text-green-400";
-  if (score >= 60) return "text-yellow-400";
+  // High score = strong sell signal = red
+  if (score >= 80) return "text-red-400";
+  if (score >= 60) return "text-orange-400";
   if (score >= 40) return "text-slate-300";
-  if (score >= 20) return "text-orange-400";
-  return "text-red-400";
+  if (score >= 20) return "text-yellow-400";
+  return "text-green-400";
 }
 
 export default function AdviceCard({ score = 50, summary = "分析中...", descriptions = [], action = "hold", timestamp, onTrade }: Props) {

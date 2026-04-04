@@ -26,9 +26,9 @@ LAG_FEATURE_COLS = [f"{col}_lag{lag}" for col in BASE_FEATURE_COLS for lag in LA
 # FEATURE_COLS: 8 base only (legacy compat). Full feature list = BASE + LAG when model supports it.
 FEATURE_COLS = BASE_FEATURE_COLS
 
-# Confidence thresholds for trade filtering
-CONFIDENCE_HIGH = 0.7   # Only BUY when prob > 0.7
-CONFIDENCE_LOW = 0.3    # Only SELL/HOLD when prob < 0.3
+# Confidence thresholds for trade filtering — model predicts sell-win probability
+CONFIDENCE_HIGH = 0.7   # SELL (short) — high confidence price will drop (sell-win)
+CONFIDENCE_LOW = 0.3    # BUY/HOLD — low confidence, price likely rising
 REGIME_THRESHOLD_BIAS = {
     'trend': -0.03,
     'chop': 0.04,
@@ -314,12 +314,14 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
     else:
         confidence = predictor.predict_proba(features)
 
-    # Confidence-based signal
+    # Confidence-based signal — model predicts sell-win (short profit)
+    # High confidence = price will DROP = SELL/short is profitable
+    # Low confidence = price will RISE = don't short, hold or take long
     if confidence > CONFIDENCE_HIGH:
-        signal = "BUY"
+        signal = "SELL"
         confidence_level = "HIGH"
     elif confidence < CONFIDENCE_LOW:
-        signal = "SELL"
+        signal = "BUY"
         confidence_level = "HIGH"
     elif 0.45 < confidence < 0.55:
         signal = "HOLD"

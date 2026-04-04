@@ -17,15 +17,18 @@ export default function ConfidenceIndicator({
 }: Props) {
   const pct = Math.round(confidence * 100);
   
+  // Confidence bar: high confidence = strong sell signal (red), low = don't short (green)
+  const barColor = pct > 65 ? "bg-red-500" : pct > 55 ? "bg-yellow-500" : pct > 45 ? "bg-blue-500" : "bg-green-500";
+  
   const levelConfig: Record<string, { color: string; bg: string; label: string; emoji: string }> = {
-    HIGH:   { color: "text-green-400",   bg: "bg-green-900/30 border-green-700/50",   label: "高信心",  emoji: "🎯" },
+    HIGH:   { color: signal === "SELL" ? "text-red-400" : "text-green-400",   bg: signal === "SELL" ? "bg-red-900/30 border-red-700/50" : "bg-green-900/30 border-green-700/50",   label: signal === "SELL" ? "高信心做空" : "低信心做多",  emoji: "🎯" },
     MEDIUM: { color: "text-yellow-400",  bg: "bg-yellow-900/30 border-yellow-700/50",  label: "中信心",  emoji: "🤔" },
     LOW:    { color: "text-red-400",     bg: "bg-red-900/30 border-red-700/50",        label: "低信心",  emoji: "⚠️" },
   };
   
   const signalConfig: Record<string, { color: string; label: string }> = {
-    BUY:  { color: "text-green-400",  label: "買入" },
-    SELL: { color: "text-red-400",    label: "賣出" },
+    BUY:  { color: "text-green-400",  label: "做多" },
+    SELL: { color: "text-red-400",    label: "做空" },
     HOLD: { color: "text-slate-400",  label: "觀望" },
   };
 
@@ -53,17 +56,15 @@ export default function ConfidenceIndicator({
       <div className="flex items-center gap-2 text-sm">
         <span className={lv.color}>{lv.label}</span>
         <span className="text-slate-600">|</span>
-        <span className="text-slate-500">
-          {confidenceLevel === "HIGH" ? ">0.65 或 <0.35" : confidenceLevel === "MEDIUM" ? "0.45~0.65" : "0.45~0.55"}
+          <span className="text-slate-500">
+          {confidenceLevel === "HIGH" ? (signal === "SELL" ? ">0.7 高信心做空" : "<0.3 低信心做多") : confidenceLevel === "MEDIUM" ? "0.45~0.65" : "0.45~0.55"}
         </span>
       </div>
       
       {/* 信心條 */}
       <div className="mt-3 h-2 bg-slate-800 rounded-full overflow-hidden">
         <div 
-          className={`h-full rounded-full transition-all ${
-            pct > 65 ? "bg-green-500" : pct > 55 ? "bg-yellow-500" : "bg-red-500"
-          }`}
+          className={`h-full rounded-full transition-all ${barColor}`}
           style={{ width: `${pct}%` }}
         />
       </div>

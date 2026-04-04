@@ -75,10 +75,11 @@ def generate_future_return_labels(
         if pd.isna(current_price) or current_price == 0:
             continue
         ret_pct = (future_price - current_price) / current_price
-        if ret_pct > threshold_pct:
+        # Core definition: sell-win means SHORT is profitable = price goes DOWN (negative return)
+        if ret_pct < -threshold_pct:
             label = 1
             sell_win = 1
-        elif ret_pct < -threshold_pct:
+        elif ret_pct > threshold_pct:
             label = -1
             sell_win = 0
         else:

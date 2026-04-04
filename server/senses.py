@@ -237,6 +237,17 @@ class SensesEngine:
         return True
 
     def calculate_recommendation_score(self, scores: Optional[Dict[str, float]] = None) -> int:
+        """Calculate sell-confidence score 0-100.
+        Higher score = stronger signal that price will DROP (sell-win = short profit).
+        
+        Each sense feature is normalized 0-1 where 1 means 'extreme' value.
+        Since sell-win = price drops, we want features that indicate downward pressure.
+        
+        Score interpretation:
+          75-100: Strong SELL signal — high confidence price will drop, short it
+          50-74:  Moderate bearish — partial SELL alignment
+          25-49:  Mixed/universal — direction unclear, hold
+          0-24:   Bullish signal — price likely rising, avoid shorting """
         if scores is None:
             scores = self.calculate_all_scores()
         # ORID 09:49 — Tongue IC 極低且 FNG 近零變異，暫降權重；Eye IC 反向但有資訊量
@@ -287,11 +298,17 @@ class SensesEngine:
         return "數據不足 ❓"
 
     def _overall_advice(self, score: int) -> Dict[str, str]:
-        if score > 80: return {"text": "🟢 強烈建議買入 — 多數感官一致看多", "action": "strong_buy"}
-        if score > 60: return {"text": "🟡 建議輕倉買入 — 部分感官支持，注意風險", "action": "buy"}
-        if score > 40: return {"text": "⚪ 建議觀望 — 感官分歧，方向不明", "action": "hold"}
-        if score > 20: return {"text": "🟠 建議減倉 — 部分感官偏空", "action": "reduce"}
-        return {"text": "🔴 建議觀望或做空 — 多數感官偏空", "action": "sell"}
+        """All advice centered around SELL/SHORT — the core trading strategy.
+        Higher score = stronger sell-short signal (price expected to drop).
+        
+        Since the system is built for sell-win (short profit), we recommend:
+          HIGH score → SELL (short)  — high confidence sell-win
+          LOW score  → HOLD/BUY     — don't short into a rally"""
+        if score > 80: return {"text": "🔴 強烈建議做空 — 多數感官確認下跌趨勢，高勝率短空", "action": "strong_sell"}
+        if score > 60: return {"text": "🟠 建議做空 — 部分感官支持下跌，注意止損", "action": "sell"}
+        if score > 40: return {"text": "⚪ 建議觀望 — 感官分歧，方向不明，不宜開倉", "action": "hold"}
+        if score > 20: return {"text": "🟡 偏多格局 — 下跌動能不足，避免做空", "action": "hold_long"}
+        return {"text": "🟢 多頭格局 — 價格可能上升，禁止做空", "action": "hold"}
 
 
 _engine: Optional[SensesEngine] = None

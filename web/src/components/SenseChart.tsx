@@ -116,14 +116,15 @@ function calcScore(point: Partial<MergedPoint>): number | null {
   return Math.round(avg * 100);
 }
 
-/** Simple buy/sell signal: score crosses thresholds */
+/** Sell/Short signals: score crosses thresholds (high score = strong sell signal) */
 function detectSignals(data: MergedPoint[]) {
   for (let i = 1; i < data.length; i++) {
     const prev = data[i - 1].score;
     const curr = data[i].score;
     if (prev === null || curr === null) continue;
-    if (prev < 60 && curr >= 60) data[i].buySignal = data[i].price;
-    if (prev > 40 && curr <= 40) data[i].sellSignal = data[i].price;
+    // Core: high score = sell-win (short profit)
+    if (prev < 60 && curr >= 60) data[i].sellSignal = data[i].price;  // SELL signal strengthening
+    if (prev > 40 && curr <= 40) data[i].buySignal = data[i].price;   // SELL signal weakening = HOLD/DON'T SHORT
   }
 }
 
