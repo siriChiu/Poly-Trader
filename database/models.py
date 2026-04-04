@@ -79,6 +79,12 @@ class FeaturesNormalized(Base):
     feature_version = Column(String, nullable=True)
     feat_vix = Column(Float, nullable=True)
     feat_dxy = Column(Float, nullable=True)
+    # P0 #H161: Technical indicators — 5 IC-validated features
+    feat_rsi14 = Column(Float, nullable=True)
+    feat_macd_hist = Column(Float, nullable=True)
+    feat_atr_pct = Column(Float, nullable=True)
+    feat_vwap_dev = Column(Float, nullable=True)
+    feat_bb_pct_b = Column(Float, nullable=True)
 
     # --- Backward-compatible aliases for legacy callers/tests ---
     @property
@@ -177,6 +183,11 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
         ("feature_version", "TEXT"),
         ("feat_vix", "REAL"),
         ("feat_dxy", "REAL"),
+        ("feat_rsi14", "REAL"),
+        ("feat_macd_hist", "REAL"),
+        ("feat_atr_pct", "REAL"),
+        ("feat_vwap_dev", "REAL"),
+        ("feat_bb_pct_b", "REAL"),
     ),
     "trade_history": (
         ("gross_pnl", "REAL"),

@@ -136,10 +136,7 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
         label_row = Labels(
             timestamp=row["timestamp"],
             symbol=symbol,
-            horizon_hours=horizon_hours,
-            future_return_pct=float(fut_ret) if fut_ret is not None else None,
-            label=int(row["label"]),
-            label_sell_win=int(row.get("label_sell_win", 0)),
+            horizon_minutes=horizon_hours * 60,
             label_up=int(row.get("label_up", row["label"])),
         )
         session.add(label_row)

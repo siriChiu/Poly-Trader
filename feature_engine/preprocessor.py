@@ -14,6 +14,62 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 
+def _compute_technical_indicators_from_df(df: pd.DataFrame) -> Dict[str, float]:
+    """Compute IC-validated technical indicators from OHLCV data.
+    
+    Uses feature_engine.technical_indicators module — 5 indicators with IC > 0.05.
+    All computed from close_price (volume is sparse, estimate from close if missing).
+    """
+    close = df["close_price"].dropna().astype(float) if "close_price" in df.columns else pd.Series(dtype=float)
+    
+    # Ensure volume proxy has same length as close series
+    # Raw volume data is sparse (153/8913 non-null) → use price-change proxy
+    if "volume" in df.columns and df["volume"].notna().sum() > len(close) * 0.5:
+        vol = df["volume"].dropna().astype(float)
+        # Resample/interpolate to match close length if needed
+        if len(vol) != len(close):
+            vol = vol.reindex(close.index).interpolate(method="linear").ffill().bfill()
+    else:
+        # Estimate volume proxy from absolute price changes
+        vol = close.diff().abs().fillna(1.0)
+
+    if len(close) < 64:  # Minimum for NW envelope
+        return {}
+
+    from feature_engine.technical_indicators import (
+        rsi, macd, bollinger_bands, atr, vwap
+    )
+
+    closes = close.values
+    high_est = closes * 1.005  # Estimate highs from close
+    low_est = closes * 0.995   # Estimate lows from close
+    vols = vol.values[-len(closes):]  # now guaranteed same length
+    
+    result = {}
+    
+    # RSI 14 (normalize to 0-1)
+    rsi_vals = rsi(closes, period=14)
+    result["feat_rsi14"] = float(rsi_vals[-1]) / 100.0
+    
+    # MACD Histogram (normalize by price)
+    macd_line, sig_line, hist = macd(closes)
+    result["feat_macd_hist"] = float(hist[-1] / closes[-1]) if closes[-1] != 0 else 0
+    
+    # Bollinger Bands %B (already 0-1 range)
+    _, _, _, bb_pct_b = bollinger_bands(closes)
+    result["feat_bb_pct_b"] = float(bb_pct_b[-1])
+    
+    # ATR as % of price
+    atr_val = atr(high_est, low_est, closes, period=14)
+    result["feat_atr_pct"] = float(atr_val[-1] / closes[-1]) if closes[-1] != 0 else 0
+    
+    # VWAP deviation (normalize by price)
+    vwap_vals = vwap(high_est, low_est, closes, vols)
+    result["feat_vwap_dev"] = float((closes[-1] - vwap_vals[-1]) / closes[-1]) if closes[-1] != 0 else 0
+    
+    return result
+
+
 def load_latest_raw_data(
     session: Session, symbol: str, limit: int = 0
 ) -> pd.DataFrame:
@@ -202,6 +258,16 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_mind"] = 0.0
 
+    # ─── P0 #H161: Technical Indicators (5 IC-validated) ───
+    # MACD-Hist IC=+0.1485, RSI IC=+0.0992, VWAP IC=+0.0969,
+    # ATR IC=+0.0835, BB% IC=+0.0595 — all far exceed legacy senses
+    ti = _compute_technical_indicators_from_df(df)
+    features["feat_rsi14"] = ti.get("feat_rsi14", 0.5)
+    features["feat_macd_hist"] = ti.get("feat_macd_hist", 0.0)
+    features["feat_atr_pct"] = ti.get("feat_atr_pct", 0.0)
+    features["feat_vwap_dev"] = ti.get("feat_vwap_dev", 0.0)
+    features["feat_bb_pct_b"] = ti.get("feat_bb_pct_b", 0.5)
+
     logger.info(
         f"Features v3: eye={features['feat_eye_dist']:.6f} "
         f"ear={features['feat_ear_zscore']:.6f} "
@@ -210,7 +276,10 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
         f"body={features['feat_body_roc']:.4f} "
         f"pulse={features['feat_pulse']:.6f} "
         f"aura={features['feat_aura']:.6f} "
-        f"mind={features['feat_mind']:.4f}"
+        f"mind={features['feat_mind']:.4f} "
+        f"| TI: rsi={features['feat_rsi14']:.4f} macd={features['feat_macd_hist']:.6f} "
+        f"atr={features['feat_atr_pct']:.6f} vwap={features['feat_vwap_dev']:.6f} "
+        f"bb={features['feat_bb_pct_b']:.4f}"
     )
     return features
 
@@ -240,6 +309,12 @@ def save_features_to_db(
             feat_pulse=features.get("feat_pulse"),
             feat_aura=features.get("feat_aura"),
             feat_mind=features.get("feat_mind"),
+            # P0 #H161: Technical indicators
+            feat_rsi14=features.get("feat_rsi14"),
+            feat_macd_hist=features.get("feat_macd_hist"),
+            feat_atr_pct=features.get("feat_atr_pct"),
+            feat_vwap_dev=features.get("feat_vwap_dev"),
+            feat_bb_pct_b=features.get("feat_bb_pct_b"),
         )
         session.add(record)
         session.commit()
