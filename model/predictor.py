@@ -161,18 +161,6 @@ class DummyPredictor:
         return float(1 / (1 + np.exp(-score)))
 
 
-def load_predictor():
-    if os.path.exists(MODEL_PATH):
-        try:
-            import pickle
-            with open(MODEL_PATH, "rb") as f:
-                model = pickle.load(f)
-            return XGBoostPredictor(model)
-        except Exception as e:
-            logger.warning(f"模型載入失敗: {e}")
-    return DummyPredictor()
-
-
 def _determine_regime(features: Dict) -> str:
     """Determine regime from latest feature values using simple heuristics.
     Mirrors the regime classification in scripts/fix_regimes_h141.py:
