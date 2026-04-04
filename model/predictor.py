@@ -301,18 +301,35 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
     if predictor is None:
         predictor, regime_models = load_predictor()
 
-    # Per-regime model routing (H145-fix)
+    # Per-regime model routing (H145-fix + #H122 chop-abstain ensemble)
     used_model = "global"
     if regime_models and isinstance(features, dict):
         regime = _determine_regime(features)
         if regime in regime_models:
+            # Chop regime: if confidence ≈ 50% (random), force abstain
+            chop_abort = 0.50
             regime_predictor = XGBoostPredictor(regime_models[regime])
-            confidence = regime_predictor.predict_proba(features)
-            used_model = f"regime_{regime}"
+            reg_conf = regime_predictor.predict_proba(features)
+            if regime == "chop" and abs(reg_conf - chop_abort) < 0.05:
+                return {
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "features": features,
+                    "confidence": 0.5,
+                    "signal": "ABSTAIN",
+                    "confidence_level": "ABSTAIN",
+                    "should_trade": False,
+                    "model_type": "regime_ensemble",
+                    "used_model": "regime_chop_abstain",
+                }
+            # Ensemble: weight regime model 60%, global 40%
+            global_conf = predictor.predict_proba(features)
+            confidence = 0.6 * reg_conf + 0.4 * global_conf
+            used_model = f"regime_{regime}_ensemble"
         else:
             confidence = predictor.predict_proba(features)
     else:
         confidence = predictor.predict_proba(features)
+        used_model = "global"
 
     # Confidence-based signal — model predicts sell-win (short profit)
     # High confidence = price will DROP = SELL/short is profitable
