@@ -21,6 +21,7 @@ from data_ingestion.nose_futures import get_nose_feature
 from data_ingestion.eye_binance import get_eye_feature
 from data_ingestion.ear_polymarket import get_ear_feature
 from data_ingestion.binance_derivatives import get_derivatives_features
+from data_ingestion.macro_data import fetch_vix_dxy_latest
 from database.models import RawMarketData, RawEvent
 from utils.logger import setup_logger
 
@@ -60,6 +61,9 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
     tongue_sentiment = tongue.get("feat_tongue_sentiment")
     volatility = tongue.get("volatility")
 
+    # Fetch VIX/DXY macro data
+    macro = fetch_vix_dxy_latest()
+
     record = RawMarketData(
         timestamp=datetime.utcnow(),
         symbol=symbol,
@@ -75,6 +79,8 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
         volatility=volatility,
         oi_roc=oi_roc,
         body_label=body_label,
+        vix_value=macro.get("vix_value"),
+        dxy_value=macro.get("dxy_value"),
     )
     record._derivatives = derivatives
 
