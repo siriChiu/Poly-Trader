@@ -4,7 +4,7 @@
 
 ---
 
-*最後更新：2026-04-04 08:37 GMT+8*
+*最後更新：2026-04-04 08:53 GMT+8*
 ---
 
 ## 🔴 最高優先級 (P0)
@@ -13,7 +13,7 @@
 |----|------|------|------|
 | #H122 | 🔴 7/8 感官 IC 低於 0.05（全量） | **已確認**：僅 Ear IC=-0.051 達標。Bear 4/8, Bull 0/8, Chop 1/8 | 🔴 未突破 |
 | #H125 | 🔴 全量 IC 仍低於 0.05 | 衰減模式：N=1000 最佳(4/8)，N=5000 降至 0/8 | 🔴 持續確認 |
-| #H130 | 🔴 模型過擬合：gap ~21pp | 全局 gap=21.5pp。Per-regime 模型 gap 僅 2-4pp（大幅改善）| 🟡 改善中 |
+| #H130 | 🔴 模型過擬合：gap ~21pp | 全局 gap=21.6pp。Per-regime 模型 gap 僅 2-4pp（大幅改善）| 🟡 改善中 |
 | #H137 | 🔴 全局模型 CV 停滯 50.5% | **根本原因**：單特徵 IC ≤0.077。要達 90% 需 IC >0.4 集體。需**新數據源/新特徵**而非調參 | 🔴 CV 天花板 |
 | #H140 | 🔴 **CV 天花板 50-52%** | 當前 8 感官 + lag + 交叉特徵組合，CV 無法突破 52%。**唯一出路**：高 IC 新數據源 | 🔴 持續確認 |
 | #H141 | 🔴 **Regime 分配錯誤**：features_norm `regime_label` 全 neutral | **H145 fix**: 重新运行 fix_regimes_h141.py。Bear 2897, Bull 2897, Chop 2904, Neutral 72 ✅ | 🟡 已修正（防回歸） |
@@ -59,11 +59,12 @@
 | **#H142-fix** | hb105 regime 分配錯誤（全 neutral） | ✅ 確認 regime_aware_ic.py 正確分類 | 2026-04-04 07:44 |
 | **#H143-fix1** | train.py 缺少高-IC 交叉特徵 | 新增 feat_eye_x_body, feat_ear_x_nose, feat_mind_x_aura, feat_mean_rev_proxy ✅ | 2026-04-04 08:14 |
 | **#H143-fix2** | FeaturesNormalized regime_label 全 neutral | ✅ 重新修正 DB（防 recompute_features 回歸） | 2026-04-04 08:37 |
-| **#H145-eval** | Per-regime 模型比全局模型更好 | Bear CV 55.6%, Bull 59.0%, Chop 52.6% vs 全局 51.3% | 🟡 驗證中 |
+| **#H145-eval** | Per-regime 模型比全局模型更好 | Bear CV 55.6%, Bull 59.0%, Chop 52.6% vs 全局 51.3% | ✅ 已驗證 |
+| **#H145-fix1** | 建立 regime_models.pkl | ✅ 訓練並保存 per-regime DT 模型（8698 samples）| 2026-04-04 08:53 |
 
 ---
 
-## 📊 當前系統健康 (2026-04-04 08:37 GMT+8)
+## 📊 當前系統健康 (2026-04-04 08:53 GMT+8)
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
@@ -72,9 +73,9 @@
 | Features | 8,770 筆 | ✅ |
 | Labels | 8,770 筆 (50.1% pos) | ✅ 平衡 |
 | Trades | 0 筆 | ⚠️ 模擬中 |
-| BTC 當前 | $66,812 | ⬇️ 下跌中 |
-| FNG | 9（極度恐慌）| ⚠️ 持續極端 |
-| Funding Rate | 0.000028 | — |
+| BTC 當前 | $66,898 | — |
+| Funding Rate | 0.000033 | — |
+| LSR | 1.726 | ⬆️ 多頭偏多 |
 
 ### 感官 IC 掃描（regime_aware_ic.py, N=8778）
 | 窗口/Regime | 達標感官數 | 具備 IC |
@@ -84,27 +85,24 @@
 | Bull (2897) | **0/8** ❌ | (none) |
 | Chop (2984) | **1/8** | Aura(-0.056) |
 
-### Per-Regime 模型（決策樹評估，h=4）
+### Per-Regime 模型（決策樹，h=4）
 | Regime | Best CV | Gap | 改善 vs 全局 |
 |--------|---------|-----|-----------|
 | Bear | **55.6%** | 2.7pp | +4.3pp ✅ |
 | Bull | **59.0%** | 2.2pp | +7.7pp ✅ |
 | Chop | **52.6%** | 3.7pp | +1.3pp |
-| Global | 51.3% | — | baseline |
-
-### 替代高-IC 特徵（vs sell_win）
-- ret_20h: IC=-0.061 ✅
-- ret_24h: IC=-0.056 ✅
-- eye_dist: IC=+0.049 ✅
+| Global DT | 51.3% | — | baseline |
+| XGBoost | 50.4% | — | baseline |
 
 ### 模型狀態
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| 全局 Train | 71.94% | 🟡 overfit |
-| 全局 CV | 50.36% (±1.46%) | ❌ 硬天花板 |
-| 全局 Gap | 21.6pp | 🟡 改善中（vs 33.7pp）|
+| 全局 Train (XGB) | 71.94% | 🟡 overfit |
+| 全局 CV (XGB) | 50.36% (±1.46%) | ❌ 硬天花板 |
+| 全局 Gap | 21.6pp | 🟡 改善中 |
 | Feature Count | 40 (8 base + 24 lags + 8 cross) | — |
 | Model | XGBoost, depth=3, reg_alpha=2.0 | ✅ |
+| Per-Regime Models | ✅ regime_models.pkl saved | ✅ 新 |
 | 測試 | 6/6 PASS | ✅ |
 
 ---
@@ -113,9 +111,9 @@
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
-| P0 | **Per-REGIME 訓練集成**：用已驗證的 regime 模型替換全局單一模型 | #H145 |
+| P0 | **Per-regime 預測集成**：更新 predictor.py 使用 regime_models.pkl 路由 | #H145 |
 | P0 | **高 IC 新數據源**：VIX、DXY、ETF flows、on-chain（唯一突破 52% CV 的路徑）| #H140 |
-| P0 | **反回歸機制**：recompute_features.py 後自動重算 regime labels | #H141 |
+| P0 | **防回歸機制**：recompute_features.py 後自動重算 regime labels | #H141 |
 | P1 | Bull regime 新數據源：BTC ETF flows、whale wallet tracking | #H301 |
 | P1 | 回填 funding_rate/FNG 歷史數據 | #H127 |
 | P1 | Aura/Mind 正交化（r=0.85）| #H126 |
@@ -126,7 +124,8 @@
 
 ## 📋 近期修改記錄
 
-- **#H145**: 心跳 — per-regime 模型評估（Bear CV 55.6%, Bull 59.0%, Chop 52.6% vs 全局 51.3%）
+- **#H145-fix1**: 心跳 — 訓練並保存 per-regime 模型 (regime_models.pkl)
+- **#H145-eval**: 心跳 — per-regime 模型評估（Bear CV 55.6%, Bull 59.0%, Chop 52.6% vs 全局 51.3%）
 - **#H141-fix**: 重新修正 DB regime_label（Bear 2897, Bull 2897, Chop 2904, Neutral 72）
 - **#H143**: train.py 新增 4 個交叉特徵 (eye_x_body, ear_x_nose, mind_x_aura, mean_rev_proxy)
 - **#H140**: 心跳 — IC 掃描確認 CV 天花板 50-52%（新數據源是唯一出路）
