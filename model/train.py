@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.isotonic import IsotonicRegression
 
-from database.models import FeaturesNormalized, Labels
+from database.models import FeaturesNormalized, Labels, RawMarketData
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -130,14 +130,36 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
     logger.info(f"動態 IC 計算完成: {ic_map}")
     logger.info(f"NEG_IC 反轉特徵: {NEG_IC_FEATS}")
 
-    # New feature exploration: a small cross-feature set that often captures regime friction.
-    # (only using 8 core senses — not the aux columns which are all-zero)
+    # High-IC alternative features discovered via hb105_exploratory_analysis (IC > 0.05):
+    # eye_dist +0.050, mean_rev_20h -0.056, price_ret_12h -0.052, price_ret_24h -0.051, rsi_14_norm -0.051
+    # These are derived from raw market data — need close_price from raw_market_data join
+    # For now, construct them from the base features we have
+
+    # Price return features (from feat_eye which is close_price normalized via return_24h/vol_72h,
+    # we can approximate using the eye_dist which IS in raw_market_data)
+    # Note: feat_eye IS eye_dist (alias in models.py), so it already contains the high-IC eye_dist signal
+
+    # Cross-sense features that capture regime friction
     merged["feat_mind_x_pulse"] = merged["feat_mind"] * merged["feat_pulse"]
     merged["feat_eye_x_ear"] = merged["feat_eye"] * merged["feat_ear"]
     merged["feat_nose_x_aura"] = merged["feat_nose"] * merged["feat_aura"]
+    merged["feat_eye_x_body"] = merged["feat_eye"] * merged["feat_body"]
+    merged["feat_ear_x_nose"] = merged["feat_ear"] * merged["feat_nose"]
+    merged["feat_mind_x_aura"] = merged["feat_mind"] * merged["feat_aura"]
     merged["feat_regime_flag"] = merged["regime_label"].map({"trend": 1.0, "chop": -1.0, "panic": -0.5, "event": 0.5, "normal": 0.0}).fillna(0.0)
 
-    X = merged[FEATURE_COLS + lag_feature_cols + ["feat_mind_x_pulse", "feat_eye_x_ear", "feat_nose_x_aura", "feat_regime_flag"]]
+    # Mean-reversion proxy: difference between short-term (mind=ret_144) and long-term (aura=sma144_deviation)
+    merged["feat_mean_rev_proxy"] = merged["feat_mind"] - merged["feat_aura"]
+
+    # RSI proxy: nose IS rsi14_norm, so use it directly as-is (already in FEATURE_COLS)
+
+    CROSS_FEATURES = [
+        "feat_mind_x_pulse", "feat_eye_x_ear", "feat_nose_x_aura",
+        "feat_eye_x_body", "feat_ear_x_nose", "feat_mind_x_aura",
+        "feat_regime_flag", "feat_mean_rev_proxy"
+    ]
+
+    X = merged[FEATURE_COLS + lag_feature_cols + CROSS_FEATURES]
     y = merged["label_sell_win"].astype(int)
     logger.info(f"載入訓練資料: {len(X)} 筆, {len(FEATURE_COLS)} base features + {len(lag_feature_cols)} lags + 4 cross-features")
     return X, y

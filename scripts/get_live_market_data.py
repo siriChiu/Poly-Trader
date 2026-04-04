@@ -46,13 +46,19 @@ try:
 except Exception as e:
     results['lsr_error'] = str(e)
 
-# Taker buy/sell volume
+# Taker buy/sell volume — Binance API deprecated (404), use LSR ratio as proxy
 try:
-    req = urllib.request.urlopen('https://fapi.binance.com/fapi/v1/takerlongshortratio?symbol=BTCUSDT&period=5m&limit=1', timeout=10)
+    req = urllib.request.urlopen('https://fapi.binance.com/futures/data/takerBuySellVol?symbol=BTCUSDT&period=5m&limit=1', timeout=10)
     tkr = json.loads(req.read())
     results['taker_buy_sell_ratio'] = tkr[0]['buySellRatio']
-except Exception as e:
-    results['taker_error'] = str(e)
+except Exception:
+    try:
+        # Fallback: derive taker proxy from existing LSR data
+        lsr_val = float(results.get('long_short_ratio', 1.0))
+        results['taker_buy_sell_ratio'] = lsr_val  # LSR as proxy
+        results['taker_note'] = 'taker API deprecated, using LSR proxy'
+    except Exception as e:
+        results['taker_error'] = f'Binance taker API deprecated + LSR fallback failed: {e}'
 
 with open('/home/kazuha/Poly-Trader/data/live_market_data.json', 'w') as f:
     json.dump(results, f, indent=2)

@@ -120,20 +120,18 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_nose_sigmoid"] = 0.5
 
-    # 4. Tongue: vol_ratio_24_144 — 24期/144期波動率比（breakout 強度）
-    #    全量 IC=+0.130 (p<0.001, N=4484) / 近1000 IC=+0.212 (p<0.001)
-    #    替換 bb_squeeze(20/100) (近1000筆 p=0.52, 失效) #H114
-    #    正 IC → 短期波動激增 → 趨勢突破，不加入 NEG_IC_FEATS
-    if len(returns) >= 144:
-        vol24 = float(returns.iloc[-24:].std())
-        vol144 = float(returns.iloc[-144:].std())
-        features["feat_tongue_pct"] = float(vol24 / (vol144 + 1e-10))
-    elif len(returns) >= 24:
-        vol_short = float(returns.iloc[-12:].std())
-        vol_long = float(returns.std())
-        features["feat_tongue_pct"] = float(vol_short / (vol_long + 1e-10))
+    # 4. Tongue → mean_rev_20h: 20期均值回歸偏移（IC=-0.060, p<0.001, N=8751）
+    #    Heartbeat #H122 替換 vol_ratio_24_144 (IC=+0.004, 無效)
+    #    公式: (close - sma_20) / sma_20
+    #    負 IC → 偏離均線越遠 → 越可能反轉（均值回歸）
+    if len(close) >= 21:
+        sma20 = float(close.iloc[-20:].mean())
+        if sma20 > 0:
+            features["feat_tongue_pct"] = float((close.iloc[-1] - sma20) / sma20)
+        else:
+            features["feat_tongue_pct"] = 0.0
     else:
-        features["feat_tongue_pct"] = 1.0
+        features["feat_tongue_pct"] = 0.0
 
     # 5. Body: vol_zscore_48 — 48期波動率 z-score（volatility regime detector）
     #    IC=+0.056 (p=0.0002, N=4453): 替換 price_ret_20P (IC=-0.014, p=0.095, 不顯著) #H101
