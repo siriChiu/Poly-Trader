@@ -93,7 +93,7 @@ def generate_future_return_labels(
             "future_return_pct": ret_pct,
             "future_max_drawdown": None,
             "future_max_runup": None,
-            "regime_label": None,  # Populated by backfill_vix_dxy.py from features
+            "regime_label": None,  # Will be backfilled from features_normalized.regime_label
         })
 
     df = pd.DataFrame(labels)
@@ -105,10 +105,15 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
     """
     將標籤寫入 labels 表（upsert：相同 timestamp+symbol+horizon_hours 則更新）。
     修復：原本此函數為 no-op，導致 labels 表不更新。(fix #H61 2026-04-02)
+    P0 fix: 自動填入 regime_label（從 features_normalized），不再產生 NULL。(fix #H381)
     """
     if labels_df.empty:
         logger.warning("save_labels_to_db: 空 DataFrame，跳過寫入")
         return
+
+    # 建立 timestamp → regime_label 映射（從 features_normalized）
+    feature_rows = session.query(FeaturesNormalized.timestamp, FeaturesNormalized.regime_label).all()
+    regime_map = {str(r.timestamp): r.regime_label for r in feature_rows if r.regime_label is not None}
 
     # 取得現有行（包含 NULL 的需要更新，已有值的跳過）
     existing_rows = {
@@ -122,22 +127,34 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
     for _, row in labels_df.iterrows():
         ts_str = str(row["timestamp"])
         fut_ret = row.get("future_return_pct")
+        # 從此 timestamp 對應的 feature 中取得 regime
+        regime_val = regime_map.get(ts_str)
+
         if ts_str in existing_rows:
             existing = existing_rows[ts_str]
+            needs_update = False
             if existing.future_return_pct is None and fut_ret is not None:
                 # 更新 NULL label：現在有未來數據了
                 existing.future_return_pct = float(fut_ret)
                 existing.label = int(row["label"])
                 existing.label_sell_win = int(row.get("label_sell_win", 0))
                 existing.label_up = int(row.get("label_up", row["label"]))
+                needs_update = True
+            # P0 fix: 如果現有 label 的 regime_label 是 NULL，從 features 填充
+            if existing.regime_label is None and regime_val is not None:
+                existing.regime_label = regime_val
+                needs_update = True
+            if needs_update:
                 update_count += 1
             # 已有值，跳過
             continue
+        # 新標籤
         label_row = Labels(
             timestamp=row["timestamp"],
             symbol=symbol,
             horizon_minutes=horizon_hours * 60,
             label_up=int(row.get("label_up", row["label"])),
+            regime_label=regime_val,  # P0 fix: 自動填入 regime
         )
         session.add(label_row)
         new_count += 1
