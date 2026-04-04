@@ -107,13 +107,17 @@ function formatPrice(v: number): string {
   return `$${v.toFixed(0)}`;
 }
 
-/** Combine 5 sense scores into a recommendation score 0–100 */
+/** Combine multi-sense scores into a recommendation score 0–100 */
 function calcScore(point: Partial<MergedPoint>): number | null {
   const vals = Object.keys(SENSE_CONFIG).map((k) => point[SENSE_CONFIG[k].key]);
   const valid = vals.filter((v): v is number => v !== null && v !== undefined);
   if (valid.length === 0) return null;
   const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
-  return Math.round(avg * 100);
+  // Sigmoid amplification to break the "always 45-55" problem
+  const raw = avg * 100;
+  const x = (raw - 50) / 15;
+  const amplified = 50 + 50 * (1 / (1 + Math.exp(-1.5 * x)) - 0.5) * 2;
+  return Math.round(Math.max(0, Math.min(100, amplified)));
 }
 
 /** Sell/Short signals: score crosses thresholds (high score = strong sell signal) */

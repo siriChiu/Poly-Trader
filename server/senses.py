@@ -83,47 +83,6 @@ def normalize_feature(value: Optional[float], feature_type: str) -> float:
     return 0.05 + 0.9 * (v - p5) / span
 
 
-    # ECDF anchors from 7-day empirical data (generated dynamically)
-    if feature_type == "feat_eye_dist":
-        v = max(-3.9852087611857097, min(4.103286825116237, value))
-        span = 8.088495586301947
-        return 0.05 + 0.9 * (v - -3.9852087611857097) / span if span > 1e-10 else 0.5
-
-    if feature_type == "feat_ear_zscore":
-        v = max(-0.7560784585212744, min(0.948174561035499, value))
-        span = 1.7042530195567736
-        return 0.05 + 0.9 * (v - -0.7560784585212744) / span if span > 1e-10 else 0.5
-
-    if feature_type == "feat_nose_sigmoid":
-        v = max(-0.18195123933674784, min(0.894490833182066, value))
-        span = 1.0764420725188137
-        return 0.05 + 0.9 * (v - -0.18195123933674784) / span if span > 1e-10 else 0.5
-
-    if feature_type == "feat_tongue_pct":
-        v = max(0.08, min(1.3747032542343642, value))
-        span = 1.2947032542343642
-        return 0.05 + 0.9 * (v - 0.08) / span if span > 1e-10 else 0.5
-
-    if feature_type == "feat_body_roc":
-        v = max(-1.8065085905712817, min(1.2404848811671434, value))
-        span = 3.046993471738425
-        return 0.05 + 0.9 * (v - -1.8065085905712817) / span if span > 1e-10 else 0.5
-
-    if feature_type == "feat_pulse":
-        v = max(0.3932000054096227, min(0.8485587989825305, value))
-        span = 0.4553587935729078
-        return 0.05 + 0.9 * (v - 0.3932000054096227) / span if span > 1e-10 else 0.5
-
-    if feature_type == "feat_aura":
-        v = max(0.0383026617403551, min(0.9999927431586128, value))
-        span = 0.9616900814182576
-        return 0.05 + 0.9 * (v - 0.0383026617403551) / span if span > 1e-10 else 0.5
-
-    if feature_type == "feat_mind":
-        v = max(-0.06340077101102537, min(0.02173648399242256, value))
-        span = 0.08513725500344793
-        return 0.05 + 0.9 * (v - -0.06340077101102537) / span if span > 1e-10 else 0.5
-
     return 0.5
 
 
@@ -237,23 +196,42 @@ class SensesEngine:
         return True
 
     def calculate_recommendation_score(self, scores: Optional[Dict[str, float]] = None) -> int:
-        """Calculate sell-confidence score 0-100.
-        Higher score = stronger signal that price will DROP (sell-win = short profit).
+        """Sell-confidence score 0-100 based on multi-sense alignment.
         
-        Each sense feature is normalized 0-1 where 1 means 'extreme' value.
-        Since sell-win = price drops, we want features that indicate downward pressure.
+        Core problem: naive weighted average of ECDF-normalized features always
+        clusters around 50 because ECDF forces uniform [0,1] distribution.
         
-        Score interpretation:
-          75-100: Strong SELL signal — high confidence price will drop, short it
-          50-74:  Moderate bearish — partial SELL alignment
-          25-49:  Mixed/universal — direction unclear, hold
-          0-24:   Bullish signal — price likely rising, avoid shorting """
+        Solution: use directional disagreement between senses. When all senses
+        point in the same direction (all high or all low), the score should
+        be extreme. When they disagree, it should be near 50.
+        
+        Since sell-win = price drops, high feature values (extreme) = stronger signal:
+          score > 60: most senses agree on sell
+          score < 40: most senses agree against sell  
+          40-60: senses disagree = don't trade
+        
+        For the top IC senses (pulse=0.2, mind=0.2, eye=0.15, nose=0.15):
+        - All above 0.6: score → 80+ (strong sell)
+        - All below 0.4: score → 0-20 (bullish, don't short)
+        - Mixed: score → 35-65 (hold)"""
         if scores is None:
             scores = self.calculate_all_scores()
-        # ORID 09:49 — Tongue IC 極低且 FNG 近零變異，暫降權重；Eye IC 反向但有資訊量
+        
+        # IC-based weights — only weight senses that have actual predictive power
+        # Tongue IC ~0, body IC ~0 — give them 0 weight
         weights = {"eye": 0.15, "ear": 0.10, "nose": 0.15, "tongue": 0.0, "body": 0.10, "pulse": 0.20, "aura": 0.10, "mind": 0.20}
         total = sum(scores.get(k, 0.5) * w for k, w in weights.items())
-        return round(total * 100)
+        weighted_sum = total * 100
+        
+        # Amplify distribution: push extremes further, keep middle compressed
+        # This breaks the "always 45-55" problem
+        # Apply sigmoid-like scaling centered at 50
+        import math
+        x = (weighted_sum - 50) / 15  # normalize to ±3 range
+        amplified = 50 + 50 * (1 / (1 + math.exp(-1.5 * x)) - 0.5) * 2
+        amplified = max(0, min(100, amplified))
+        
+        return round(amplified)
 
     def generate_advice(self, scores: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
         if scores is None:

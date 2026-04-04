@@ -95,29 +95,29 @@ class WsManager:
             await asyncio.sleep(60)
 
     def _features_to_scores(self, features: Dict) -> Dict[str, float]:
-        """特徵轉 0~1 分數"""
-        def norm(val, key):
-            if val is None:
-                return 0.5
-            if key == "feat_eye":
-                return max(0, min(1, val * 10 + 0.5))
-            elif key == "feat_ear":
-                return max(0, min(1, 0.5 + val / 6))
-            elif key == "feat_nose":
-                return max(0, min(1, (val + 1) / 2))
-            elif key == "feat_tongue":
-                return max(0, min(1, (val + 1) / 2)) if abs(val) <= 1 else max(0, min(1, val))
-            elif key == "feat_body":
-                return max(0, min(1, (val + 1) / 2))
-            return 0.5
+        """特徵轉 0~1 分數 — 使用與 senses.py 一致的 ECDF 歸一化"""
+        from server.senses import normalize_feature
 
-        return {
-            "eye": norm(features.get("feat_eye"), "feat_eye"),
-            "ear": norm(features.get("feat_ear"), "feat_ear"),
-            "nose": norm(features.get("feat_nose"), "feat_nose"),
-            "tongue": norm(features.get("feat_tongue"), "feat_tongue"),
-            "body": norm(features.get("feat_body"), "feat_body"),
+        # Map predictor feature names to ECDF keys
+        feat_map = {
+            "feat_eye": "feat_eye_dist",
+            "feat_ear": "feat_ear_zscore",
+            "feat_nose": "feat_nose_sigmoid",
+            "feat_tongue": "feat_tongue_pct",
+            "feat_body": "feat_body_roc",
         }
+
+        all_senses = {
+            "eye": normalize_feature(features.get("feat_eye"), feat_map.get("feat_eye", "")),
+            "ear": normalize_feature(features.get("feat_ear"), feat_map.get("feat_ear", "")),
+            "nose": normalize_feature(features.get("feat_nose"), feat_map.get("feat_nose", "")),
+            "tongue": normalize_feature(features.get("feat_tongue"), feat_map.get("feat_tongue", "")),
+            "body": normalize_feature(features.get("feat_body"), feat_map.get("feat_body", "")),
+            "pulse": normalize_feature(features.get("feat_pulse"), "feat_pulse"),
+            "aura": normalize_feature(features.get("feat_aura"), "feat_aura"),
+            "mind": normalize_feature(features.get("feat_mind"), "feat_mind"),
+        }
+        return all_senses
 
 
 # 全局實例
