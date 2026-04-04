@@ -98,9 +98,11 @@ def trading_cycle(session, config: dict, symbol: str, confidence_threshold: floa
     logger.info("=== 交易循環結束 ===\n")
 
 
-def _job_wrapper(SessionLocal, cfg):
+def _job_wrapper(db_url, cfg):
     """P0 #H353 fix: create a fresh session per job to avoid stale session bugs."""
-    session = SessionLocal()
+    engine = create_engine(db_url, echo=False, future=True)
+    Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    session = Session()
     try:
         trading_cycle(
             session,
@@ -118,14 +120,14 @@ def main():
     cfg = load_config()
     db_url = cfg["database"]["url"]
 
-    # 初始化 DB
-    SessionLocal = init_db(db_url)
+    # 初始化 DB（creates tables and returns a session, but we pass URL to scheduler)
+    _ = init_db(db_url)
 
     # 排程器：每 5 分鐘執行（提高數據收集頻率）
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         func=_job_wrapper,
-        args=[SessionLocal, cfg],
+        args=[db_url, cfg],
         trigger="interval",
         minutes=5,
         id="trading_cycle_job",
