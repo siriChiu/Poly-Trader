@@ -1,0 +1,92 @@
+"""
+Poly-Trader Heartbeat Analysis #198
+Timestamp: 2026-04-05 01:53 GMT+8
+
+=== DATA COLLECTION ===
+Raw: 8,958 (no growth since #197! was 8,958)
+Features: 8,921 (no growth since #197! was 8,921)
+Labels: 8,770 (+4 from #197: 8,766)
+
+Wait, #197 said raw=8958, feat=8921, labels=8766
+Now: raw=8958, feat=8921, labels=8770
+So labels grew by 4, raw/features unchanged.
+
+BTC: $67,385
+FNG: 15 (Fear from live_market_data)
+VIX: 19.45
+DXY: 99.18
+Funding: 0.0000168 (from live_market_data.json)
+LSR: 0.400
+GSR: 0.900
+Taker Buy Ratio: -0.097
+OI: $23.6B
+
+=== IC ANALYSIS (N=8,778) ===
+PASSED (|IC| >= 0.05): 3/15
+1. feat_rsi14: IC=-0.0538, std=0.120 [PASS] ← stable from #197 (-0.054)
+2. feat_bb_pct_b: IC=-0.0526, std=0.334 [PASS] ← improved from #197 (-0.057)
+3. feat_ear: IC=-0.0517, std=0.022 [PASS] ← improved from #197 (-0.047)! NEW PASS
+
+FAILED (but non-zero):
+4. feat_nose: IC=-0.0483, std=0.166 [FAIL] ← was -0.050, near threshold
+5. feat_macd_hist: IC=-0.0465, std=0.0016 [FAIL] ← dropped from #197 (-0.051)!
+6. feat_body: IC=-0.0451, std=0.332 [FAIL]
+7. feat_aura: IC=-0.0396, std=0.0289 [FAIL]
+8. feat_vix: IC=-0.0339, std=5.039 [FAIL] ← DROPPED significantly from #197 (-0.072)! 53% weaker!
+9. feat_atr_pct: IC=+0.0313, std=0.0009 [FAIL]
+10. feat_mind: IC=-0.0293, std=0.0499 [FAIL]
+
+CONSTANT/DEAD (8):
+feat_whisper, feat_tone, feat_chorus, feat_hype, feat_oracle, feat_shock, feat_tide, feat_storm
+
+=== CRITICAL OBSERVATIONS ===
+1. VIX IC dropped from -0.072 to -0.034 — that's a 53% DECREASE in predictive power
+2. MACD dropped from -0.051 (PASS) to -0.0465 (FAIL) — lost passing status!
+3. Ear improved from -0.047 (FAIL) to -0.052 (PASS) — only one to improve enough
+4. Nose nearly passed at -0.048 (was -0.050 — slightly weaker)
+5. Total passing features: 3 vs 4 in #197 = DECLINE
+
+=== REGIME IC ===
+Bear: 8/23 passed (ATR, Eye, Nose, Pulse, VIX, RSI14, MACD, Aura)
+Bull: 1/23 passed (Ear only! was 5/23 in #197 — MASSIVE DROP)  
+Chop: 3/23 passed (VIX, Pulse, BB%p, RSI14)
+
+=== SELL WIN ===
+Global: 50.8% (~same as #197)
+Recent (50): 40.0% (unchanged at 40%)
+Recent (100): 45.0% (same as #197)
+Recent (500): 47.2% (same trend)
+
+Bear: 41.7% (REVERSE — still bad)
+Bull: 60.5% (best regime)
+Chop: 50.3% (random)
+Neutral: 42.5% (n=80 small sample)
+
+=== SCHEDULER STATUS ===
+No Python collector process running (PID check: none)
+Raw count unchanged at 8,958 since last heartbeat
+Features unchanged at 8,921
+Labels grew slightly to 8,770 (+4) — might be from a partial run
+
+=== ISSUES SUMMARY ===
+P0:
+- #H304: IC still terrible. 3/15 passing. VIX dropping fast.
+- #H137: CV ~52%, 90% target is 38pp away
+- #H342: sell_win(50)=40% still bad
+- #H375: Feature/raw pipeline — raw 8958, feat 8921, labels 8770
+- NEW: VIX degradation -53% in one heartbeat
+- NEW: Bull regime IC collapsed from 5/23 to 1/23
+
+P1:
+- #H87: 38pp gap to 90%
+- #H126: Collinearity
+- #H199: TI features not helping
+- #H321: Tongue zero effectiveness still
+- #H351: Bear regime reverse prediction
+- #H371: Ear std too low (but now passing IC)
+
+P2:
+- #H110-135: Various feature improvements
+- #H372: Derivative metrics
+
+"""

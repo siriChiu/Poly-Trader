@@ -100,6 +100,9 @@ def load_latest_raw_data(
             "tongue_sentiment": getattr(r, "tongue_sentiment", None),
             "volatility": getattr(r, "volatility", None),
             "oi_roc": getattr(r, "oi_roc", None),
+            # P0 #H381: Include VIX & DXY from raw data for feature pipeline
+            "vix_value": getattr(r, "vix_value", None),
+            "dxy_value": getattr(r, "dxy_value", None),
         })
     return pd.DataFrame(data)
 
@@ -272,6 +275,18 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     features["feat_vwap_dev"] = ti.get("feat_vwap_dev", 0.0)
     features["feat_bb_pct_b"] = ti.get("feat_bb_pct_b", 0.5)
 
+    # ─── P0 #H381: VIX & DXY — #1 and #2 IC features (must be in pipeline!) ───
+    # DXY IC=-0.1107, VIX IC=-0.0796 (highest-IC macro features)
+    # Raw data has vix_value/dxy_value — must copy to feature columns
+    if "vix_value" in df.columns and df["vix_value"].notna().any():
+        features["feat_vix"] = float(df["vix_value"].dropna().iloc[-1])
+    else:
+        features["feat_vix"] = None
+    if "dxy_value" in df.columns and df["dxy_value"].notna().any():
+        features["feat_dxy"] = float(df["dxy_value"].dropna().iloc[-1])
+    else:
+        features["feat_dxy"] = None
+
     logger.info(
         f"Features v3: eye={features['feat_eye_dist']:.6f} "
         f"ear={features['feat_ear_zscore']:.6f} "
@@ -283,7 +298,8 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
         f"mind={features['feat_mind']:.4f} "
         f"| TI: rsi={features['feat_rsi14']:.4f} macd={features['feat_macd_hist']:.6f} "
         f"atr={features['feat_atr_pct']:.6f} vwap={features['feat_vwap_dev']:.6f} "
-        f"bb={features['feat_bb_pct_b']:.4f}"
+        f"bb={features['feat_bb_pct_b']:.4f} "
+        f"| Macro: vix={features.get('feat_vix')} dxy={features.get('feat_dxy')}"
     )
     return features
 
@@ -319,6 +335,9 @@ def save_features_to_db(
             feat_atr_pct=features.get("feat_atr_pct"),
             feat_vwap_dev=features.get("feat_vwap_dev"),
             feat_bb_pct_b=features.get("feat_bb_pct_b"),
+            # P0 #H381: VIX & DXY macro features (#1 and #2 IC)
+            feat_vix=features.get("feat_vix"),
+            feat_dxy=features.get("feat_dxy"),
         )
         session.add(record)
         session.commit()
@@ -388,6 +407,9 @@ def recompute_all_features(session: Session, symbol: str = "BTCUSDT") -> int:
                 existing.feat_atr_pct = features.get("feat_atr_pct")
                 existing.feat_vwap_dev = features.get("feat_vwap_dev")
                 existing.feat_bb_pct_b = features.get("feat_bb_pct_b")
+                # P0 #H381: VIX & DXY macro features
+                existing.feat_vix = features.get("feat_vix")
+                existing.feat_dxy = features.get("feat_dxy")
                 count += 1
         else:
             features = compute_features_from_raw(window)

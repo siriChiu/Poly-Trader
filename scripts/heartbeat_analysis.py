@@ -1,175 +1,331 @@
 #!/usr/bin/env python3
-"""Heartbeat data collection script - Step 1 & 2"""
-import sqlite3
-import sys
-import os
+"""Heartbeat #202 - Full IC analysis and 3-feature LR CV."""
+import sqlite3, json, os
+import numpy as np
+from datetime import datetime
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+db_path = os.path.join('/home/kazuha/Poly-Trader', 'poly_trader.db')
+conn = sqlite3.connect(db_path)
+cur = conn.cursor()
 
-db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'poly_trader.db')
+# ── Data Counts ──
+cur.execute('SELECT COUNT(*) FROM raw_market_data')
+raw_count = cur.fetchone()[0]
+cur.execute('SELECT timestamp, close_price FROM raw_market_data ORDER BY rowid DESC LIMIT 1')
+raw_latest = cur.fetchone()
 
-if not os.path.exists(db_path):
-    print(f"ERROR: Database not found at {db_path}")
-    sys.exit(1)
+cur.execute('SELECT COUNT(*) FROM features_normalized')
+feat_count = cur.fetchone()[0]
+cur.execute('SELECT MAX(timestamp) FROM features_normalized')
+feat_latest = cur.fetchone()[0]
 
-db = sqlite3.connect(db_path)
-db.row_factory = sqlite3.Row
-
-# Raw counts
-raw = db.execute("SELECT COUNT(*) as c FROM raw_market_data").fetchone()["c"]
-feat = db.execute("SELECT COUNT(*) as c FROM feature_store").fetchone()["c"]
-labels = db.execute("SELECT COUNT(*) as c FROM label_store").fetchone()["c"]
-
-print(f"COUNTS|Raw:{raw}|Features:{feat}|Labels:{labels}")
-
-# Latest BTC price with previous for change calculation
-rows = db.execute("SELECT price, timestamp FROM raw_market_data ORDER BY rowid DESC LIMIT 2").fetchall()
-if len(rows) >= 2:
-    current_price = rows[0]["price"]
-    prev_price = rows[1]["price"]
-    change_pct = (current_price - prev_price) / prev_price * 100
-    print(f"BTC|${current_price:.0f}|Change:+{change_pct:.2f}%" if change_pct >= 0 else f"BTC|${current_price:.0f}|Change:{change_pct:.2f}%")
-    print(f"BTC_TS|{rows[0]['timestamp']}")
-elif len(rows) == 1:
-    print(f"BTC|${rows[0]['price']:.0f}|Change:N/A")
+cur.execute('SELECT COUNT(*) FROM labels')
+label_count = cur.fetchone()[0]
+cur.execute('SELECT MAX(timestamp) FROM labels')
+label_latest = cur.fetchone()[0]
 
 # sell_win stats
-sw = db.execute("SELECT AVG(sell_win) as sw FROM label_store WHERE sell_win IS NOT NULL").fetchone()
-print(f"SOLD_WIN_GLOBAL|{sw['sw']:.4f}")
+cur.execute('SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM labels WHERE label_sell_win IS NOT NULL')
+global_sell_win = cur.fetchone()[0]
 
-for n in [500, 100, 50]:
-    recent = db.execute(f"SELECT AVG(sell_win) as sw FROM (SELECT sell_win FROM label_store WHERE sell_win IS NOT NULL ORDER BY rowid DESC LIMIT {n})").fetchone()
-    print(f"SELL_WIN_{n}|{recent['sw']:.4f}")
+cur.execute('SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM (SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY rowid DESC LIMIT 50)')
+recent_50 = cur.fetchone()[0]
 
-# Fear & Greed
-fng = db.execute("SELECT value FROM fear_greed_index ORDER BY timestamp DESC LIMIT 1").fetchone()
-if fng:
-    print(f"FNG|{fng['value']}")
+cur.execute('SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM (SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY rowid DESC LIMIT 100)')
+recent_100 = cur.fetchone()[0]
 
-# Funding rate
-fr = db.execute("SELECT value FROM funding_rate ORDER BY timestamp DESC LIMIT 1").fetchone()
-if fr:
-    print(f"FUNDING_RATE|{fr['value']}")
+cur.execute('SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM (SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY rowid DESC LIMIT 500)')
+recent_500 = cur.fetchone()[0]
 
-# Derivatives
-derivs = db.execute("SELECT * FROM derivatives ORDER BY timestamp DESC LIMIT 1").fetchone()
-if derivs:
-    print(f"LSR|{derivs['lsr']}")
-    print(f"TAKER|{derivs['taker']}")
-    print(f"OI|{derivs['open_interest']}")
-    print(f"GSR|{derivs.get('gsr', 'N/A')}")
+# Regime sell_win
+cur.execute('''SELECT regime_label, AVG(CAST(label_sell_win AS FLOAT)), COUNT(*) 
+               FROM labels WHERE label_sell_win IS NOT NULL AND regime_label IS NOT NULL GROUP BY regime_label''')
+regime_stats = cur.fetchall()
 
-# VIX
-vix = db.execute("SELECT value FROM vix_index ORDER BY timestamp DESC LIMIT 1").fetchone()
-if vix:
-    print(f"VIX|{vix['value']:.2f}")
+# VIX/DXY from raw market data
+cur.execute('SELECT vix_value, dxy_value, fear_greed_index FROM raw_market_data WHERE vix_value IS NOT NULL ORDER BY rowid DESC LIMIT 1')
+vix_dxy = cur.fetchone()
 
-# DXY
-dxy = db.execute("SELECT value FROM dxy_index ORDER BY timestamp DESC LIMIT 1").fetchone()
-if dxy:
-    print(f"DXY|{dxy['value']:.2f}")
+# Label horizon
+cur.execute('SELECT DISTINCT horizon_minutes FROM labels ORDER BY horizon_minutes LIMIT 5')
+horizons = cur.fetchall()
 
-# IC Analysis - calculate IC for all features against sell_win
-# IC = Spearman correlation of feature with sell_win
-from scipy.stats import spearmanr
-import numpy as np
+print(f"=== Data Snapshot [2026-04-05 03:25 UTC] ===")
+print(f"Raw: {raw_count} (latest: {raw_latest[0]}, close: ${raw_latest[1]})")
+print(f"Features: {feat_count} (latest: {feat_latest})")
+print(f"Labels: {label_count} (latest: {label_latest})")
+print(f"Label horizon(s): {horizons}")
+print(f"Global sell_win: {global_sell_win:.4f}" if global_sell_win else "Global sell_win: N/A")
+print(f"Recent sell_win: 50={recent_50:.4f}, 100={recent_100:.4f}, 500={recent_500:.4f}")
+print(f"Regimes: {[(r, f'{w:.4f}', c) for r, w, c in regime_stats]}")
+print(f"VIX={vix_dxy[0]}, DXY={vix_dxy[1]}, FNG={vix_dxy[2]}" if vix_dxy else "VIX/DXY/FNG: N/A")
 
-feature_cols = db.execute("PRAGMA table_info(feature_store)").fetchall()
-col_names = [r["name"] for r in feature_cols]
-exclude_cols = ["rowid"]  # exclude non-feature columns
+# ── Feature IC Analysis (join features + labels on timestamp+symbol) ──
+# Feature col names in features_normalized
+cur.execute("PRAGMA table_info(features_normalized)")
+all_feat_cols = [r[1] for r in cur.fetchall()]
+feat_sensor_cols = [c for c in all_feat_cols if c.startswith('feat_') and c not in ('feature_version',)]
 
-# Map of feature -> sensory name
-sense_map = {
-    "feat_eye": "Eye", "feat_nose": "Nose", "feat_ear": "Ear",
-    "feat_ear_zscore": "Ear", "feat_mind": "Mind", "feat_tongue": "Tongue",
-    "feat_body": "Body", "feat_pulse": "Pulse", "feat_aura": "Aura",
-    "feat_rsi_14": "RSI14", "feat_macd_hist": "MACD_hist",
-    "feat_bb_pct": "BB%p", "feat_atr_pct": "ATR_pct",
-    "feat_vwap_dev": "VWAP_dev",
-    "feat_vol_ratio": "VolRatio", "feat_volume_zscore": "VolZ",
-    "feat_momentum_4h": "Mom4h", "feat_momentum_24h": "Mom24h",
-}
+print(f"\nFeature sensor columns: {feat_sensor_cols}")
 
-# Also check for placeholder features
-placeholders = ["whisper", "tone", "chorus", "hype", "oracle", "shock", "tide", "storm"]
+# Join: match features to labels by timestamp AND symbol
+query_cols = ['f.timestamp', 'f.regime_label'] + [f'f.{c}' for c in feat_sensor_cols] + ['l.label_sell_win']
+join_query = f'''
+    SELECT {', '.join(query_cols)}
+    FROM features_normalized f
+    INNER JOIN labels l ON f.timestamp = l.timestamp 
+        AND (f.symbol = l.symbol OR f.symbol = l.symbol OR 1=1)
+    WHERE l.label_sell_win IS NOT NULL
+    ORDER BY f.timestamp
+'''
 
-# Get all feature values
-all_data = db.execute("SELECT * FROM feature_store").fetchall()
+# Try inner join with most specific first
+try:
+    cur.execute(f'''
+        SELECT f.timestamp, f.symbol, f.regime_label, {', '.join(f'f.{c}' for c in feat_sensor_cols)}, l.label_sell_win
+        FROM features_normalized f
+        INNER JOIN labels l ON f.timestamp = l.timestamp AND f.symbol = l.symbol
+        WHERE l.label_sell_win IS NOT NULL
+        ORDER BY f.timestamp
+    ''')
+    rows = cur.fetchall()
+    print(f"Strict join (ts+symbol): {len(rows)} rows")
+except:
+    rows = []
 
-if not all_data:
-    print("ERROR: No feature data found")
-    db.close()
-    sys.exit(1)
-
-# Get sell_win labels
-labels_data = db.execute("SELECT sell_win FROM label_store").fetchall()
-
-# Build arrays
-col_types = {r["name"]: r["type"] for r in feature_cols}
-print(f"\n--- IC Analysis (h=4) ---")
-
-feature_ics = []
-ic_results = {}
-
-for col in col_names:
-    if col in exclude_cols or col == "sell_win":
-        continue
+if len(rows) < 100:
+    # Fallback: join on timestamp only (assume matching by position/latest)
+    # Get features and labels separately, join by matching timestamps
+    cur.execute(f'''
+        SELECT timestamp, symbol, regime_label, {', '.join(feat_sensor_cols)}
+        FROM features_normalized
+        ORDER BY timestamp
+    ''')
+    feat_rows = cur.fetchall()
     
-    # Get feature values
-    vals = [row[col] for row in all_data if row[col] is not None]
-    n_valid = len(vals)
+    cur.execute('''
+        SELECT timestamp, label_sell_win, regime_label
+        FROM labels
+        WHERE label_sell_win IS NOT NULL
+        ORDER BY timestamp
+    ''')
+    label_rows = cur.fetchall()
     
-    if n_valid < 100:
-        # Too few valid values
-        std_val = 0
-        unique_count = len(set([row[col] for row in all_data]))
-        print(f"IC|{col}|null|std:null|unique:{unique_count}|valid:{n_valid}|DEAD")
-        feature_ics.append((col, None, 0))
-        continue
+    feat_ts_set = {r[0]: i for i, r in enumerate(feat_rows)}
     
-    arr = np.array(vals, dtype=float)
-    std_val = np.std(arr)
-    unique_count = len(np.unique(arr))
+    joined_rows = []
+    for lr in label_rows:
+        ts = lr[0]
+        if ts in feat_ts_set:
+            fi = feat_ts_set[ts]
+            fr = feat_rows[fi]
+            # fr: timestamp, symbol, regime_label, features...
+            joined_rows.append((lr[0], fr[2],) + fr[3:] + (lr[1], lr[2]))
     
-    if std_val < 1e-10:
-        print(f"IC|{col}|0.0000|std:0|unique:{unique_count}|valid:{n_valid}|DEAD")
-        feature_ics.append((col, 0.0, 0))
-        continue
-    
-    # Get corresponding sell_win values
-    valid_indices = [i for i, row in enumerate(all_data) if row[col] is not None]
-    sw_vals = [labels_data[i]["sell_win"] for i in valid_indices if i < len(labels_data) and labels_data[i]["sell_win"] is not None]
-    feat_vals = [float(all_data[i][col]) for i in valid_indices if i < len(labels_data) and labels_data[i]["sell_win"] is not None]
-    
-    if len(sw_vals) < 100:
-        print(f"IC|{col}|N/A|std:{std_val:.4f}|unique:{unique_count}|label_mismatch|DEAD")
-        feature_ics.append((col, None, std_val))
-        continue
-    
-    corr, pvalue = spearmanr(feat_vals, sw_vals)
-    status = "PASS" if abs(corr) >= 0.05 else "FAIL"
-    
-    sense_name = sense_map.get(col, col)
-    print(f"IC|{col}|{corr:+.4f}|std:{std_val:.4f}|unique:{unique_count}|{status}")
-    
-    # Track by sensory name
-    if sense_name not in ic_results:
-        ic_results[sense_name] = []
-    ic_results[sense_name].append((col, corr, std_val, status))
+    rows = joined_rows
+    print(f"Timestamp-only join: {len(rows)} rows")
 
-# Also check for placeholder features
-for ph in placeholders:
-    for col in col_names:
-        if ph in col.lower():
-            vals = [row[col] for row in all_data]
-            unique_count = len(set([v for v in vals if v is not None]))
-            non_null = sum(1 for v in vals if v is not None)
-            print(f"IC|{col}|NULL|std:0|unique:{unique_count}|valid:{non_null}|PLACEHOLDER_DEAD")
-            break
+if len(rows) < 100:
+    # Last resort: positional join
+    cur.execute(f'''
+        SELECT timestamp, regime_label, {', '.join(feat_sensor_cols)}
+        FROM features_normalized
+        ORDER BY timestamp
+    ''')
+    feat_rows = cur.fetchall()
+    
+    cur.execute('''
+        SELECT timestamp, label_sell_win
+        FROM labels
+        WHERE label_sell_win IS NOT NULL
+        ORDER BY timestamp
+    ''')
+    label_rows = cur.fetchall()
+    
+    min_len = min(len(feat_rows), len(label_rows))
+    joined_rows = []
+    for i in range(min_len):
+        fr = feat_rows[i]
+        lr = label_rows[i - (len(label_rows) - min_len)]
+        row = (fr[0], fr[1]) + fr[2:] + (lr[1],)
+        joined_rows.append(row)
+    rows = joined_rows
+    print(f"Positional join: {len(rows)} rows")
 
-print("\n--- Summary ---")
-passed = [(col, corr, std) for col, corr, std in feature_ics if corr is not None and abs(corr) >= 0.05]
-failed = [(col, corr, std) for col, corr, std in feature_ics if corr is None or abs(corr) < 0.05]
-print(f"Passed IC≥0.05: {len(passed)}/{len(feature_ics)}")
+# Calculate ICs
+if rows:
+    # Map column indices: timestamp=0, regime=1, feat_cols=2..(n+1), label=n+2
+    
+    # 1. Global IC against label_sell_win
+    sell_win = np.array([r[-1] for r in rows], dtype=float)
+    valid_mask = ~np.isnan(sell_win)
+    
+    print(f"\n=== Global IC (N={valid_mask.sum()}) ===")
+    global_ics = {}
+    offset = 3  # timestamp=0, symbol=1, regime=2
+    for i, col in enumerate(feat_sensor_cols):
+        vals = np.array([r[i+offset] for r in rows], dtype=float)
+        finite_mask = np.isfinite(vals) & valid_mask
+        n = finite_mask.sum()
+        if n < 50:
+            global_ics[col] = {'ic': 0.0, 'std': 0.0, 'status': 'DEAD', 'n': int(n)}
+            continue
+        v = vals[finite_mask]
+        w = sell_win[finite_mask]
+        std_val = np.std(v)
+        unique_count = len(np.unique(v[:1000]))  # sample for speed
+        if std_val < 1e-10:
+            global_ics[col] = {'ic': 0.0, 'std': round(std_val, 6), 'status': 'DEAD', 'n': int(n)}
+            continue
+        ic = np.corrcoef(v, w)[0, 1]
+        status = 'PASS' if abs(ic) >= 0.05 else 'FAIL'
+        global_ics[col] = {'ic': round(float(ic), 4), 'std': round(float(std_val), 4), 'status': status, 'n': int(n)}
+        marker = '✅' if status == 'PASS' else '⚠️' if abs(ic) >= 0.04 else ''
+        print(f"  {col:20s}: IC={ic:+.4f}  std={std_val:.4f}  {status}  {marker}")
+    
+    pass_count = sum(1 for v in global_ics.values() if v['status'] == 'PASS')
+    active = sum(1 for v in global_ics.values() if v['status'] != 'DEAD')
+    print(f"\nGlobal: {pass_count}/{active} features PASS (threshold: |IC| >= 0.05)")
+    
+    # 2. Regime IC
+    print(f"\n=== Regime IC ===")
+    regime_ics = {}
+    for regime in ['BULLISH', 'BEARISH', 'CHOPPY', 'NEUTRAL', 'bull', 'bear', 'chop', 'neutral']:
+        subset = [r for r in rows if r[1] and str(r[1]).upper() == regime.upper()]
+        if len(subset) < 30:
+            continue
+        subset_sell = np.array([r[-1] for r in subset], dtype=float)
+        subset_fin = ~np.isnan(subset_sell)
+        
+        rics = {}
+        passed = 0
+        for i, col in enumerate(feat_sensor_cols):
+            vals = np.array([r[i+offset] for r in subset], dtype=float)
+            finite = np.isfinite(vals) & subset_fin
+            if finite.sum() < 30:
+                continue
+            v = vals[finite]
+            w = subset_sell[finite]
+            s = np.std(v)
+            if s < 1e-10:
+                continue
+            ic = np.corrcoef(v, w)[0, 1]
+            status = 'PASS' if abs(ic) >= 0.05 else 'FAIL'
+            if status == 'PASS':
+                passed += 1
+            rics[col] = {'ic': round(float(ic), 4), 'status': status}
+        
+        regime_sell_win = subset_sell[subset_fin].mean() if subset_fin.sum() > 0 else None
+        regime_ics[regime] = {'count': len(subset), 'sell_win': round(float(regime_sell_win), 4) if regime_sell_win is not None else None, 'passed': passed, 'total': len(rics), 'ics': rics}
+        print(f"  {regime}: {passed}/{len(rics)} pass, sell_win={regime_sell_win:.4f}" if regime_sell_win is not None else f"  {regime}: n/a")
+    
+    # 3. 3-feature LR Cross-Validation
+    print(f"\n=== 3-Feature LR CV ===")
+    try:
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.model_selection import TimeSeriesSplit
+        from sklearn.metrics import accuracy_score
+        
+        # Pick top 3 features by |IC|
+        sorted_feats = sorted(global_ics.items(), key=lambda x: abs(x[1]['ic']), reverse=True)
+        top3 = [f for f, v in sorted_feats[:3] if v['status'] != 'DEAD']
+        
+        # Build feature matrix
+        X = []
+        y = []
+        for r in rows:
+            label_val = r[-1]
+            if np.isnan(label_val):
+                continue
+            feat_vals = []
+            valid_row = True
+            for i, col in enumerate(feat_sensor_cols):
+                if col in top3:
+                    v = r[i+offset]
+                    if not np.isfinite(v):
+                        valid_row = False
+                        break
+                    feat_vals.append(v)
+            if valid_row and len(feat_vals) == len(top3):
+                X.append(feat_vals)
+                y.append(int(label_val))
+        
+        X = np.array(X)
+        y = np.array(y)
+        
+        # Drop DEAD features (std~0)
+        good_mask = np.std(X, axis=0) > 1e-10
+        X = X[:, good_mask]
+        top3_filtered = [f for f, g in zip(top3, good_mask) if g]
+        
+        print(f"  Features: {top3_filtered}")
+        print(f"  Shape: {X.shape}")
+        
+        cv = TimeSeriesSplit(n_splits=5)
+        cv_scores = []
+        for train_idx, test_idx in cv.split(X):
+            model = LogisticRegression(max_iter=1000, random_state=42)
+            model.fit(X[train_idx], y[train_idx])
+            pred = model.predict(X[test_idx])
+            score = accuracy_score(y[test_idx], pred)
+            cv_scores.append(score)
+        
+        # Train accuracy
+        model = LogisticRegression(max_iter=1000, random_state=42)
+        model.fit(X, y)
+        train_acc = accuracy_score(y, model.predict(X))
+        
+        print(f"  CV Accuracy: {np.mean(cv_scores):.4f} ± {np.std(cv_scores):.4f}")
+        print(f"  CV scores: {[f'{s:.4f}' for s in cv_scores]}")
+        print(f"  Train accuracy: {train_acc:.4f}")
+        print(f"  Overfit gap: {train_acc - np.mean(cv_scores):.4f}")
+        print(f"  Coefficients: {dict(zip(top3_filtered, [round(c, 4) for c in model.coef_[0]]))}")
+        
+        lr_result = {
+            'features': top3_filtered,
+            'cv_accuracy': round(float(np.mean(cv_scores)), 4),
+            'cv_std': round(float(np.std(cv_scores)), 4),
+            'cv_scores': [round(float(s), 4) for s in cv_scores],
+            'train_accuracy': round(float(train_acc), 4),
+            'overfit_gap': round(float(train_acc - np.mean(cv_scores)), 4),
+            'coefficients': {f: round(float(c), 4) for f, c in zip(top3_filtered, model.coef_[0])}
+        }
+    except ImportError:
+        print("  sklearn not available")
+        lr_result = None
+    except Exception as e:
+        print(f"  Error: {e}")
+        lr_result = None
+    
+    # Output structured data for ISSUES.md
+    output = {
+        'data_summary': {
+            'raw': raw_count,
+            'features': feat_count,
+            'labels': label_count,
+            'raw_latest': raw_latest[0],
+            'features_latest': feat_latest,
+            'labels_latest': label_latest,
+            'btc_close': raw_latest[1] if raw_latest else None,
+            'vix': vix_dxy[0] if vix_dxy else None,
+            'dxy': vix_dxy[1] if vix_dxy else None,
+            'fng': vix_dxy[2] if vix_dxy else None,
+        },
+        'sell_win': {
+            'global': round(float(global_sell_win), 4) if global_sell_win else None,
+            'recent_50': round(float(recent_50), 4) if recent_50 else None,
+            'recent_100': round(float(recent_100), 4) if recent_100 else None,
+            'recent_500': round(float(recent_500), 4) if recent_500 else None,
+            'regimes': {r: {'win_rate': round(float(w), 4), 'count': c} for r, w, c in regime_stats}
+        },
+        'global_ics': global_ics,
+        'regime_ics': regime_ics,
+        'three_feature_lr': lr_result,
+    }
+    
+    out_path = '/home/kazuha/Poly-Trader/data/ic_heartbeat_202.json'
+    with open(out_path, 'w') as f:
+        json.dump(output, f, indent=2)
+    print(f"\n=== Results saved to {out_path} ===")
 
-db.close()
+conn.close()

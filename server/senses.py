@@ -90,6 +90,11 @@ def normalize_feature(value: Optional[float], feature_type: str) -> float:
 _ECDF_PARAMS = {'feat_eye': {'p5': -3.9852087611857097, 'p50': 0.0, 'p95': 4.103286825116237}, 'feat_ear': {'p5': -0.7560784585212744, 'p50': 0.0007297078224168807, 'p95': 0.948174561035499}, 'feat_nose': {'p5': -0.18195123933674784, 'p50': 0.4311567507828382, 'p95': 0.894490833182066}, 'feat_tongue': {'p5': 0.08, 'p50': 0.6472830310833947, 'p95': 1.3747032542343642}, 'feat_body': {'p5': -1.8065085905712817, 'p50': 0.0, 'p95': 1.2404848811671434}, 'feat_pulse': {'p5': 0.3932000054096227, 'p50': 0.6932674967732069, 'p95': 0.8485587989825305}, 'feat_aura': {'p5': 0.0383026617403551, 'p50': 0.8856753937808264, 'p95': 0.9999927431586128}, 'feat_mind': {'p5': -0.06340077101102537, 'p50': -0.00011024791738978301, 'p95': 0.02173648399242256}}
 
 
+# Streak-based trade suppression — #H379: 156 consecutive sell_win=0
+# When consecutive losses exceed threshold, FORCE suppression of sell signals
+MAX_LOSS_STREAK = 20  # After 20 consecutive losses, enter suppression mode
+EXTREME_STREAK = 50   # After 50, only strongest signals allowed
+
 class SensesEngine:
     def __init__(self):
         self.config: Dict[str, Any] = self._load_config()
@@ -195,6 +200,29 @@ class SensesEngine:
         self.save_config()
         return True
 
+    def get_streak_info(self) -> dict:
+        """Count consecutive recent sell_win=0. Returns streak length and suppression level."""
+        # Fallback: check DB if available, otherwise skip suppression
+        if self._db is None:
+            return {"streak": 0, "suppression": "none", "max_score": 100}
+        from database.models import Labels
+        rows = self._db.query(Labels.label_sell_win).filter(
+            Labels.label_sell_win.isnot(None)
+        ).order_by(Labels.id.desc()).limit(200).all()
+        
+        streak = 0
+        for r in rows:
+            if r[0] == 0:
+                streak += 1
+            else:
+                break
+        
+        if streak >= EXTREME_STREAK:
+            return {"streak": streak, "suppression": "extreme", "max_score": 50}
+        elif streak >= MAX_LOSS_STREAK:
+            return {"streak": streak, "suppression": "active", "max_score": 70}
+        return {"streak": streak, "suppression": "none", "max_score": 100}
+
     def calculate_recommendation_score(self, scores: Optional[Dict[str, float]] = None) -> int:
         """Sell-confidence score 0-100 based on multi-sense alignment.
         
@@ -213,9 +241,14 @@ class SensesEngine:
         For the top IC senses (pulse=0.2, mind=0.2, eye=0.15, nose=0.15):
         - All above 0.6: score → 80+ (strong sell)
         - All below 0.4: score → 0-20 (bullish, don't short)
-        - Mixed: score → 35-65 (hold)"""
+        - Mixed: score → 35-65 (hold)
+        
+        #H379: Streak-based suppression — force score capping during long loss runs."""
         if scores is None:
             scores = self.calculate_all_scores()
+        
+        # Original scoring logic
+        # IC-based weights — only weight senses that have actual predictive power
         
         # IC-based weights — only weight senses that have actual predictive power
         # Tongue IC ~0, body IC ~0 — give them 0 weight
@@ -230,6 +263,13 @@ class SensesEngine:
         x = (weighted_sum - 50) / 15  # normalize to ±3 range
         amplified = 50 + 50 * (1 / (1 + math.exp(-1.5 * x)) - 0.5) * 2
         amplified = max(0, min(100, amplified))
+        
+        # P0 #H379: Apply streak suppression
+        streak_info = self.get_streak_info()
+        if streak_info["suppression"] != "none":
+            max_score = streak_info["max_score"]
+            if amplified > max_score:
+                amplified = max_score
         
         return round(amplified)
 
