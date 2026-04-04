@@ -49,6 +49,8 @@ class RawMarketData(Base):
     volatility = Column(Float, nullable=True)
     oi_roc = Column(Float, nullable=True)
     body_label = Column(String, nullable=True)
+    vix_value = Column(Float, nullable=True)
+    dxy_value = Column(Float, nullable=True)
 
 
 class FeaturesNormalized(Base):
@@ -75,6 +77,8 @@ class FeaturesNormalized(Base):
     feat_storm = Column(Float)
     regime_label = Column(String, nullable=True)
     feature_version = Column(String, nullable=True)
+    feat_vix = Column(Float, nullable=True)
+    feat_dxy = Column(Float, nullable=True)
 
     # --- Backward-compatible aliases for legacy callers/tests ---
     @property
@@ -171,6 +175,8 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
         ("feat_storm", "REAL"),
         ("regime_label", "TEXT"),
         ("feature_version", "TEXT"),
+        ("feat_vix", "REAL"),
+        ("feat_dxy", "REAL"),
     ),
     "trade_history": (
         ("gross_pnl", "REAL"),
@@ -186,6 +192,10 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
         ("label_sell_win", "INTEGER"),
         ("label_up", "INTEGER"),
         ("regime_label", "TEXT"),
+    ),
+    "raw_market_data": (
+        ("vix_value", "REAL"),
+        ("dxy_value", "REAL"),
     ),
     "raw_events": (
         ("source", "TEXT"),

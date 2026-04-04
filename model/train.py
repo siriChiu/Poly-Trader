@@ -21,12 +21,12 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 MODEL_PATH = "model/xgb_model.pkl"
-# 8 core senses + 8 auxiliary (all zero/constant in DB v6 — removed from training to eliminate 33% noise)
-# The 8 auxiliary cols (whisper/tone/chorus/hype/oracle/shock/tide/storm) are kept in DB schema
-# for future feature engineering but excluded from FEATURE_COLS until they carry signal
+# 8 core senses + VIX + DXY = 10 active features
+# 8 auxiliary (whisper/tone/chorus/hype/oracle/shock/tide/storm) are zero/constant — keep out of training
 FEATURE_COLS = [
     "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
     "feat_body", "feat_pulse", "feat_aura", "feat_mind",
+    "feat_vix", "feat_dxy",
 ]
 LAG_STEPS = [12, 48, 288]
 BASE_FEATURE_COLS = FEATURE_COLS
@@ -139,6 +139,14 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
     # we can approximate using the eye_dist which IS in raw_market_data)
     # Note: feat_eye IS eye_dist (alias in models.py), so it already contains the high-IC eye_dist signal
 
+    # VIX interaction features — VIX is the highest-IC macro signal
+    # VIX×Eye: fear × return/vol ratio (captures risk-off sentiment amplification)
+    merged["feat_vix_x_eye"] = merged["feat_vix"] * merged["feat_eye"]
+    # VIX×Pulse: fear × volume spike (panics come with volume)
+    merged["feat_vix_x_pulse"] = merged["feat_vix"] * merged["feat_pulse"]
+    # VIX×Mind: fear × short-term return (inverse relationship in fear regimes)
+    merged["feat_vix_x_mind"] = merged["feat_vix"] * merged["feat_mind"]
+
     # Cross-sense features that capture regime friction
     merged["feat_mind_x_pulse"] = merged["feat_mind"] * merged["feat_pulse"]
     merged["feat_eye_x_ear"] = merged["feat_eye"] * merged["feat_ear"]
@@ -154,6 +162,7 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
     # RSI proxy: nose IS rsi14_norm, so use it directly as-is (already in FEATURE_COLS)
 
     CROSS_FEATURES = [
+        "feat_vix_x_eye", "feat_vix_x_pulse", "feat_vix_x_mind",
         "feat_mind_x_pulse", "feat_eye_x_ear", "feat_nose_x_aura",
         "feat_eye_x_body", "feat_ear_x_nose", "feat_mind_x_aura",
         "feat_regime_flag", "feat_mean_rev_proxy"
