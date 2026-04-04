@@ -4,40 +4,41 @@
 
 ---
 
-*最後更新：2026-04-04 11:05 GMT+8 (心跳 #150)*
+*最後更新：2026-04-04 11:38 GMT+8 (心跳 #151)*
 ---
 
-## 📊 當前系統健康 (2026-04-04 11:05 GMT+8, 心跳 #150)
+## 📊 當前系統健康 (2026-04-04 11:38 GMT+8, 心跳 #151)
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw market data | 8,775 筆 | ✅ |
-| Features | 8,775 筆 (22 cols + regime) | ✅ |
+| Raw market data | 8,812 筆 | ✅ |
+| Features | 8,815 筆 (22 cols + regime) | ✅ |
 | Labels | 8,770 筆 (50.8% sell_win) | ✅ 平衡 |
 | Trades | 0 筆 | ⚠️ 模擬中 |
-| BTC 當前 | $66,899 | — |
+| BTC 當前 | $66,837 | — |
 | FNG | 11 (Extreme Fear) | — |
-| Funding Rate | 0.000033 (+) | — |
-| VIX/DXY | 8,764/8,766 有值 | ✅ 大部分填充 |
+| Funding Rate | 0.0000379 (+) | — |
+| VIX/DXY | 8,809/8,811 有值 | ✅ 99.9% 已填充 |
+| Regime 填充 | Bear 2,927 / Bull 2,912 / Chop 2,904 / Neutral 72 | ✅ 全填充 |
 
 ### 🔴 最高優先級 (P0)
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
 | #H149-fix1 | 🔴 **訓練/推論特徵不匹配（已修復）** | `load_latest_features()` 缺少 feat_vix、feat_dxy、以及所有 cross-features。#149 全部修復。 | ✅ 已合併 |
-| #H122 | 🔴 感官 IC 在 Bull/Chop 幾乎全滅 | Bear 4/8 達標，Bull 0/8，Chop 1/8 | 🔴 未突破 |
+| #H122 | 🔴 感官 IC 在 Bull/Chop 幾乎全滅 | Bear 4/8 達標，Bull 2/8，Chop 0/8 | 🔴 持續（Chop 全滅需關注） |
 | #H137 | 🔴 全局模型 CV ~51.5% | VIX 進 train.py 後 CV 仍是 51.5%（最新 #23）。需要 regime-specific 訓練 | 🔴 持續 |
+| #H150-1 | 🔴 **實時收集 pipeline 缺失 macro 數據** | 最新 45 筆特徵無 regime/VIX/DXY — 已修復（#160） | ✅ 已修復 |
 
 ### 🟡 高優先級 (P1)
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
 | #H87 | 🟡 CV≈51% 距目標 90% 差距 ~39pp | 核心問題：單一模型無法應對不同 regime | 🔴 主要障礙 |
-| #H301 | 🟡 Bull 僅 0/8 達標 | 需新資料源、新特徵工程 | 🔴 持續 |
-| #H150-1 | 🟡 最新 72 筆特徵無 regime/VIX/DXY | 實時收集 pipeline 缺失 macro 數據計算 | 🟡 P1 新發現 |
-| #H150-2 | 🟡 Venv 已損壞，pip 全局安裝 | `venv/bin/activate` 不存在，測試因缺依賴失敗 | 🟡 環境問題 |
-| #H127 | 🟡 VIX 歷史僅 ~6 個月 | 擴展至 1 年+（Yahoo Finance）| 🟡 P1 |
+| #H301 | 🟡 Chop regime 0/8 達標 | 需新資料源、新特徵工程 | 🔴 Chop 全滅 |
+| #H150-2 | 🟡 Venv 已損壞，pip 全局安裝 | 使用 python3.12 + --break-system-packages 已能運行 | 🟡 環境可用 |
+| #H127 | 🟡 VIX 歷史僅 ~6 個月 | 擴展至 1 年+（已達 251 筆/1y） | 🟡 已改善 |
 | #H126 | 🟡 共線性：Tongue↔Body, Aura↔Mind 高相關 | 違反獨立感官假設 | 🟡 P1 |
 
 ### 🟢 低優先級
@@ -49,95 +50,92 @@
 
 ---
 
-## 感官 IC 掃描（心跳 #150, 2026-04-04 11:05）
+## 感官 IC 掃描（心跳 #151, 2026-04-04 11:38）
 
 ### 全量 IC (N=8,778, against label_up)
 | 感官 | IC | 狀態 |
 |------|------|------|
-| **Ear** | **-0.0514** | ⭐ 唯一達標 |
-| Nose | -0.0494 | 極近閾值 |
-| Body | -0.0481 | 邊緣 |
-| Aura | -0.0384 | ❌ |
-| Mind | -0.0253 | ❌ |
-| Eye | +0.0212 | ❌ |
-| Pulse | +0.0106 | ❌ |
-| Tongue | +0.0042 | ❌ |
+| **Nose** | **-0.0520** | ⭐ 達標 |
+| **Ear** | **-0.0518** | ⭐ 達標 |
+| Body | -0.0495 | 邊緣 |
+| Aura | -0.0398 | ❌ |
+| Mind | -0.0218 | ❌ |
+| Eye | +0.0183 | ❌ |
+| Pulse | +0.0056 | ❌ |
+| Tongue | +0.0003 | ❌ |
 
 ### VIX/DXY IC
-| 指標 | 全量 IC | Bear | Bull | Chop |
-|------|---------|------|------|------|
-| VIX | +0.0047 | +0.0202 | +0.0089 | -0.0073 |
-| DXY | +0.0113 | — | — | — |
+| 指標 | Bear | Bull | Chop | Neutral |
+|------|------|------|------|---------|
+| VIX | **-0.0517 ✅** | **-0.0870 ✅** | -0.0152 ❌ | -0.0755 ✅ |
+| DXY | -0.0234 ❌ | -0.0360 ❌ | -0.0041 ❌ | -0.1069 ✅ |
 
 ### Regime-Aware IC
-| 感官 | Bear IC | Bull IC | Chop IC |
-|------|---------|---------|---------|
-| **Ear** | **-0.0747 ✅** | -0.0353 | -0.0312 |
-| **Nose** | **-0.0746 ✅** | -0.0373 | -0.0267 |
-| **Body** | **-0.0685 ✅** | -0.0352 | -0.0316 |
-| **Aura** | **-0.0534 ✅** | -0.0103 | **-0.0562 ✅** |
-| Eye | +0.0322 | -0.0269 | +0.0383 |
-| Pulse | +0.0165 | +0.0001 | +0.0150 |
-| Mind | -0.0271 | -0.0224 | -0.0181 |
-| Tongue | +0.0023 | -0.0137 | +0.0238 |
+| 感官 | Bear IC | Bull IC | Chop IC | Neutral IC |
+|------|---------|---------|---------|------------|
+| **Eye** | **+0.0673 ✅** | -0.0198 ❌ | +0.0025 ❌ | -0.0217 ❌ |
+| **Ear** | -0.0434 ❌ | **-0.0652 ✅** | -0.0347 ❌ | **-0.0548 ✅** |
+| **Nose** | **-0.0666 ✅** | -0.0486 ❌ | -0.0375 ❌ | **-0.1135 ✅** |
+| Tongue | +0.0176 ❌ | +0.0077 ❌ | -0.0333 ❌ | +0.1178 ✅ |
+| **Body** | -0.0455 ❌ | **-0.0510 ✅** | -0.0381 ❌ | -0.2264 ✅ |
+| Pulse | +0.0475 ❌ | +0.0204 ❌ | -0.0432 ❌ | +0.0603 ✅ |
+| **Aura** | **-0.0691 ✅** | -0.0136 ❌ | -0.0176 ❌ | -0.2297 ✅ |
+| **Mind** | **-0.0557 ✅** | -0.0077 ❌ | +0.0038 ❌ | -0.0722 ✅ |
 
 ### 達標感官數（IC ≥ 0.05）
 | Regime | 達標數 | 感官 |
 |--------|--------|------|
-| Bear | **4/8** | Ear, Nose, Body, Aura |
-| Bull | **0/8** | 無 |
-| Chop | **1/8** | Aura |
+| Bear | **4/8** | Eye, Nose, Aura, Mind |
+| Bull | **2/8** | Ear, Body |
+| Chop | **0/8** | 無（全滅） |
+| Neutral | **7/8** | Ear, Nose, Tongue, Body, Pulse, Aura, Mind |
+
+**重要發現**：VIX 在 Bear 和 Bull 都是負 IC 且達標（-0.052, -0.087），是可靠的 macro 信號。DXY 僅在 neutral 時達標。Chop 是所有感官的墓地（0/8）。
 
 ### 動態窗口 IC 衰減
 | N | 達標數 | 備註 |
 |---|--------|------|
-| 200 | 5/8 | 最佳！Pulse +0.15, Tongue +0.10, Mind -0.16 |
-| 400 | 3/8 | Eye +0.04, Pulse +0.09, Aura -0.10 |
-| 1000 | 4/8 | Eye +0.07, Pulse +0.11, Aura -0.11, Mind -0.09 |
-| 1200 | 4/8 | Eye +0.05, Pulse +0.09, Aura -0.12, Mind -0.11 |
-| 2000 | 3/8 | Pulse +0.07, Aura -0.07, Mind -0.05 |
-| 3000 | 1/8 | Aura |
-| 5000 | 0/8 | 全部低于閾值 |
+| 200 | 5/7 | Pulse +0.17, Nose -0.09, Aura -0.12, Mind -0.15 |
+| 500 | 1/7 | Pulse +0.05 |
+| 1000 | 3/7 | Pulse +0.13, Aura -0.10, Mind -0.09 |
 
 ### 模型表現
 | Model | Train | CV | Gap | n_features |
 |-------|-------|----|-----|-----------|
 | Global XGB (51 feat, VIX) | 72.4% | **51.5%** | 20.9pp | 51 |
-| Global XGB (40 feat) | 71.9% | 50.4% | 21.6pp | 40 |
 | Dynamic N=200 | 87.0% | 51.5% | 35.5pp | 32 |
 
 ---
 
 ## 六帽分析摘要
 
-**白帽**（事實）：數據量穩定（8,775-8,778 筆）。Ear 仍然是唯一全量 IC 達標的感官（-0.0514）。Bear 4/8 達標、Bull 0/8、Chop 1/8 的模式與 #149 一致。**最新發現**：最新 72 筆特徵的 regime=None 且 VIX/DXY=None，說明實時收集 pipeline 缺失 macro 數據。VIX IC 全量僅 +0.0047（Bear 中為 +0.0202），預測力微弱。CV 在 51.5% 天花板。N=200 動態窗口有 5/8 達標（最佳），N=1000-1200 有 4/8 達標。
+**白帽**（事實）：數據量穩定（8,815 raw/features，8,770 labels）。Nose (-0.052) 和 Ear (-0.0518) 是唯二全量 IC 達標的核心感官。**新發現**：VIX IC 在 Bull 為 -0.087（比 Bear -0.052 更強），成為 Bull regime 中最強的 macro 信號。N=200 動態窗口 5/7 通過。**VIX/DXY/Regime 填充率達到 99.9%**。
 
-**黑帽**（風險）：(1) **最新 72 筆數據無 regime/VIX/DXY** — 系統在實時模式下可能「失明」。這是 #150 新發現。(2) 5000+ 樣本 IC 全部低於 0.05 — 長期記憶中的信號被稀釋殆盡。(3) Bull 完全盲區（0/8）。(4) Venv 損壞導致測試無法執行 — 如果部署需要 venv，這是部署阻礙。
+**黑帽**（風險）：(1) **Chop 市場完全失明（0/8）** — 2,904 筆數據沒有任何感官有預測力。在 choppy 市場系統應該停止交易。(2) VIX 在 Chop 也失效 (-0.015)。(3) DXY 僅在 neutral 時有意義。(4) 短期窗口 (N=200) 有效但 N=500 就崩潰到 1/7 — 信號極度不穩定。(5) CV 仍在 51.5%，幾乎沒有超越隨機。
 
-**綠帽**（創新）：(1) **N=200 動態窗口**有 5/8 達標（Pulse +0.152, Tongue +0.097, Mind -0.163, Aura -0.126, Nose -0.094）— 短期窗口確實捕捉到更強的局部信號。(2) N=1000 有 4/8 — 可嘗試訓練 rolling window model。(3) Bear 是唯一有可靠信號的 regime — 也許 VIX-gated trading（高 VIX 才交易）是最務實的策略。
+**綠帽**（創新）：(1) **N=200 動態窗口是最佳配置** — 5/7 通過。這暗示了 regime-specific training with short lookback 是正確方向。(2) N=200 下 Pulse +0.173 是最強單一信號（vol_spike12 在短期極有效）。(3) VIX×Eye/VIX×Mind cross-features 在 Bull regime 應有高 IC（VIX IC=-0.087）。(4) Chop 0/8 是一個明確信號：系統應該在 Chop 時 abstain。
 
-**藍帽**（行動）：P0: (1)修復實時 VIX/DXY/regime 填充 pipeline (2)訓練 N=200 動態窗口模型。P1: (1)修復/重創 venv (2)VIX 歷史擴展。
+**藍帽**（行動）：P0: (1) 訓練 regime-specific models（Bear: 4/8, Bull: 2/8, Chop: abstain）✅ regime 填充已完成。(2)實現 VIX-gated trading（VIX > 25 使用 Bear model，VIX < 15 使用 Bull model）。P1: (3) 訓練 N=200 rolling model (4) Chop regime abstain threshold。
 
-**ORID 決策**：核心發現是實時收集 pipeline 缺失 macro 數據（VIX/DXY/regime），導致最新 72 筆特徵不完整。與 #149 的修復方向一致但問題仍然存在。這確認了需要更完整的實時數據補全機制。下一步：(1)修復實時 VIX/DXY 填充 (2)嘗試 N=200 動態窗口訓練 (3)修復 venv 環境。
+**ORID 決策**：核心突破是 VIX/DXY/regime 填充完成（99.9%）。VIX 在 Bull regime IC=-0.087 比所有 core sense 都強。Chop 全滅（0/8）確認了需要 regime-aware abstain 機制。下一步：(1)訓練 regime-specific models (2)實現 VIX-gated trading (3)Chop abstain。
 
 ## 📋 本輪修改記錄
 
-- **#150-analysis**: 完整 IC 掃描 — 1/8 全量達標，Bear 4/8 最佳
-- **#150-find1**: 最新 72 筆特徵 regime=None, VIX/DXY=None — 實時 pipeline 不完整
-- **#150-find2**: Venv 環境損壞 — `venv/bin/activate` 不存在
-- **#150-find3**: N=200 動態窗口有 5/8 達標（最佳配置）
-- **模型重訓**: 最新 #23 模型 CV=51.5%（51 features）— 無顯著改善
+- **#160-fix**: 修復實時 VIX/DXY 填充 — Yahoo Finance 1y 數據 backfill raw_market_data 和 features_normalized
+- **#160-regime**: 計算並填充 45 筆 NULL regime_label → 全部分配 bear/bull/chop
+- **#160-labels**: 同步更新 labels 表的 regime_label
+- **VIX IC breakthrough**: VIX 在 Bull regime IC=-0.087（比 Bear -0.052 更強），是最強的 macro 信號
 
 ## 📋 下一步行動
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
-| P0 | **修復實時 VIX/DXY/regime 填充**：確保所有新記錄都有完整的 macro 數據 | #H150-1 |
-| P0 | **訓練 N=200 動態窗口模型**：利用 5/8 達標的最佳窗口 | #H150-action1 |
-| P1 | **修復 venv 環境**：重新創建虛擬環境 | #H150-2 |
-| P1 | **VIX 1 年歷史**: 擴展現有 6 個月 Yahoo Finance 數據 | #H127 |
-| P1 | **VIX-gated model**: VIX > 25 觸發 Bear model 交易 | #H148-action1 |
-| P1 | **Bull regime 信號強化**: 當前 Bull 0/8 達標，需新資料源 | #H301 |
+| P0 | **訓練 regime-specific models**：Bear (4/8), Bull (VIX-gated), Chop (abstain) | #H122 |
+| P0 | **VIX-gated model selector**: VIX < 15 → Bull model, VIX > 25 → Bear, otherwise abstain | #H148 |
+| P1 | **訓練 N=200 dynamic window model**：利用 5/7 通過的最優窗口 | #H150-action1 |
+| P1 | **Chop abstain threshold**: 當 regime=chop 時不交易 | #H301 |
+| P1 | **VIX 歷史擴展**: 已擴展到 1y (251 pts) | #H127 ✅ |
+| P1 | **Bull regime 信號強化**: 當前 Bull 2/8 達標 (Ear, Body)，需強化 | #H301 |
 
 ---
 
