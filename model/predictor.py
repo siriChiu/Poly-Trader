@@ -43,6 +43,12 @@ REGIME_THRESHOLD_BIAS = {
     'panic': -0.01,
     'event': 0.02,
     'normal': 0.0,
+    # P0 #H379: Bull regime sell suppression — sell signals in bull markets are inverted
+    # (sell_win in bull = 60.5% means "sell" = "buy the dip" — don't sell).
+    # Raise SELL threshold from 0.70 to 0.85+ (effectively -0.15 bias pulls conf down).
+    'bull': -0.15,
+    # Bear: slightly lower threshold — sell signals work better in bear (IC=8/23)
+    'bear': 0.02,
 }
 
 
@@ -357,9 +363,9 @@ def load_latest_features(session: Session) -> Optional[Dict]:
     features["feat_ear_x_nose"] = (features.get("feat_ear", 0) * features.get("feat_nose", 0))
     features["feat_mind_x_aura"] = mind * (features.get("feat_aura", 0))
 
-    # Regime flag
-    regime = features.get("regime_label")
-    if regime is None:
+    # Regime flag — prefer DB regime_label over heuristic (P0 #H379)
+    regime = getattr(latest, "regime_label", None)
+    if regime is None or regime == "":
         regime = _determine_regime(features)
     features["regime_label"] = regime
     features["feat_regime_flag"] = {"trend": 1.0, "chop": -1.0, "panic": -0.5, "event": 0.5, "normal": 0.0}.get(regime, 0.0)
