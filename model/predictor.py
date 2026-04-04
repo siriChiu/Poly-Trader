@@ -173,6 +173,57 @@ def load_predictor():
     return DummyPredictor()
 
 
+def _determine_regime(features: Dict) -> str:
+    """Determine regime from latest feature values using simple heuristics.
+    Mirrors the regime classification in scripts/fix_regimes_h141.py:
+    - bear: momentum < -threshold
+    - bull: momentum > threshold
+    - chop: |momentum| < threshold
+    """
+    # Use feat_mind (short-term return) and feat_body (momentum) as regime signal
+    mind = float(features.get('feat_mind', 0) or 0)
+    body = float(features.get('feat_body', 0) or 0)
+    momentum = (mind + body) / 2.0
+
+    if momentum < -0.15:
+        return 'bear'
+    elif momentum > 0.15:
+        return 'bull'
+    else:
+        return 'chop'
+
+
+def load_predictor():
+    """Load global model and per-regime models if available."""
+    models = {}
+
+    # Load global model
+    global_model = None
+    if os.path.exists(MODEL_PATH):
+        try:
+            import pickle
+            with open(MODEL_PATH, "rb") as f:
+                global_model = pickle.load(f)
+        except Exception as e:
+            logger.warning(f"Global model load failed: {e}")
+
+    # Load per-regime models
+    regime_path = MODEL_PATH.replace("xgb_model.pkl", "regime_models.pkl")
+    if os.path.exists(regime_path):
+        try:
+            import pickle
+            with open(regime_path, "rb") as f:
+                regime_models = pickle.load(f)
+            if isinstance(regime_models, dict):
+                for regime_name, model_data in regime_models.items():
+                    models[regime_name] = model_data
+            logger.info(f"Per-regime models loaded: {list(models.keys())}")
+        except Exception as e:
+            logger.warning(f"Per-regime models load failed: {e}")
+
+    return XGBoostPredictor(global_model) if global_model else DummyPredictor(), models
+
+
 def load_latest_features(session: Session) -> Optional[Dict]:
     """Load latest features including lag features (for 32-feature model support)."""
     max_lag = max(LAG_STEPS) + 1  # need 289 rows for lag288
@@ -211,14 +262,25 @@ def load_latest_features(session: Session) -> Optional[Dict]:
     return features
 
 
-def predict(session: Session, predictor=None) -> Optional[Dict]:
+def predict(session: Session, predictor=None, regime_models=None) -> Optional[Dict]:
     features = load_latest_features(session)
     if not features:
         return None
     if predictor is None:
-        predictor = load_predictor()
+        predictor, regime_models = load_predictor()
 
-    confidence = predictor.predict_proba(features)
+    # Per-regime model routing (H145-fix)
+    used_model = "global"
+    if regime_models and isinstance(features, dict):
+        regime = _determine_regime(features)
+        if regime in regime_models:
+            regime_predictor = XGBoostPredictor(regime_models[regime])
+            confidence = regime_predictor.predict_proba(features)
+            used_model = f"regime_{regime}"
+        else:
+            confidence = predictor.predict_proba(features)
+    else:
+        confidence = predictor.predict_proba(features)
 
     # Confidence-based signal
     if confidence > CONFIDENCE_HIGH:
@@ -242,6 +304,7 @@ def predict(session: Session, predictor=None) -> Optional[Dict]:
         "confidence_level": confidence_level,
         "should_trade": confidence_level == "HIGH",
         "model_type": type(predictor).__name__,
+        "used_model": used_model,
     }
     logger.info(f"Prediction: conf={confidence:.4f}, signal={signal}, level={confidence_level}")
     return result
