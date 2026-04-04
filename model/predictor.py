@@ -225,7 +225,8 @@ def load_predictor():
 
 
 def load_latest_features(session: Session) -> Optional[Dict]:
-    """Load latest features including lag features (for 32-feature model support)."""
+    """Load latest features including lag features (for 32-feature model support),
+    plus VIX, DXY, and cross-features that the model was trained with."""
     max_lag = max(LAG_STEPS) + 1  # need 289 rows for lag288
     rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp.desc()).limit(max_lag).all()
     if not rows:
@@ -250,6 +251,9 @@ def load_latest_features(session: Session) -> Optional[Dict]:
         "feat_shock": getattr(latest, "feat_shock", None),
         "feat_tide": getattr(latest, "feat_tide", None),
         "feat_storm": getattr(latest, "feat_storm", None),
+        # P0 #H149-fix1: Include VIX and DXY at inference time (model was trained with them)
+        "feat_vix": getattr(latest, "feat_vix", None),
+        "feat_dxy": getattr(latest, "feat_dxy", None),
     }
     # Compute lag features: rows are DESC, so rows[lag] is `lag` steps ago
     for col in BASE_FEATURE_COLS:
@@ -259,6 +263,34 @@ def load_latest_features(session: Session) -> Optional[Dict]:
                 features[lag_col] = getattr(rows[lag], col, None)
             else:
                 features[lag_col] = None  # Not enough history
+
+    # P0 #H149-fix2: Compute VIX cross-features at inference time to match training
+    vix = features.get("feat_vix") or 0
+    eye = features.get("feat_eye") or 0
+    pulse = features.get("feat_pulse") or 0
+    mind = features.get("feat_mind") or 0
+    features["feat_vix_x_eye"] = vix * eye
+    features["feat_vix_x_pulse"] = vix * pulse
+    features["feat_vix_x_mind"] = vix * mind
+
+    # Cross-sense features matching train.py
+    features["feat_mind_x_pulse"] = (mind * pulse)
+    features["feat_eye_x_ear"] = (eye * features.get("feat_ear", 0))
+    features["feat_nose_x_aura"] = (features.get("feat_nose", 0) * features.get("feat_aura", 0))
+    features["feat_eye_x_body"] = eye * (features.get("feat_body", 0))
+    features["feat_ear_x_nose"] = (features.get("feat_ear", 0) * features.get("feat_nose", 0))
+    features["feat_mind_x_aura"] = mind * (features.get("feat_aura", 0))
+
+    # Regime flag
+    regime = features.get("regime_label")
+    if regime is None:
+        regime = _determine_regime(features)
+    features["regime_label"] = regime
+    features["feat_regime_flag"] = {"trend": 1.0, "chop": -1.0, "panic": -0.5, "event": 0.5, "normal": 0.0}.get(regime, 0.0)
+
+    # Mean-reversion proxy
+    features["feat_mean_rev_proxy"] = mind - (features.get("feat_aura", 0))
+
     return features
 
 
