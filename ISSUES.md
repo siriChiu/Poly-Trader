@@ -4,29 +4,29 @@
 
 ---
 
-*最後更新：2026-04-04 08:14 GMT+8*
+*最後更新：2026-04-04 08:37 GMT+8*
 ---
 
 ## 🔴 最高優先級 (P0)
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #H122 | 🔴 7/8 感官 IC 低於 0.05（全量） | **已確認**：僅 Ear IC=-0.051 達標。Bear regime 有 4/8 但 Bull 0/8、Chop 1/8 | 🔴 未突破 |
-| #H125 | 🔴 全量 IC 仍低於 0.05 | 衰減模式：N↓→更多感官達標但 CV 不穩。N=1000 最佳(4/8) | 🟡 改善中 |
-| #H130 | 🔴 模型過擬合：gap ~20pp | 全局 gap=20.1pp。depth=3 正規化已改善（vs 原本 33.7pp）| 🟡 改善中 |
+| #H122 | 🔴 7/8 感官 IC 低於 0.05（全量） | **已確認**：僅 Ear IC=-0.051 達標。Bear 4/8, Bull 0/8, Chop 1/8 | 🔴 未突破 |
+| #H125 | 🔴 全量 IC 仍低於 0.05 | 衰減模式：N=1000 最佳(4/8)，N=5000 降至 0/8 | 🔴 持續確認 |
+| #H130 | 🔴 模型過擬合：gap ~21pp | 全局 gap=21.5pp。Per-regime 模型 gap 僅 2-4pp（大幅改善）| 🟡 改善中 |
 | #H137 | 🔴 全局模型 CV 停滯 50.5% | **根本原因**：單特徵 IC ≤0.077。要達 90% 需 IC >0.4 集體。需**新數據源/新特徵**而非調參 | 🔴 CV 天花板 |
 | #H140 | 🔴 **CV 天花板 50-52%** | 當前 8 感官 + lag + 交叉特徵組合，CV 無法突破 52%。**唯一出路**：高 IC 新數據源 | 🔴 持續確認 |
-| #H141 | 🔴 **Regime 分配錯誤**：Labels & FeaturesNormalized 全 neutral | FeaturesNormalized.reme_label 已修正（bear/chop/bull 分配完成）。Labels.regime_label 仍全 neutral | 🟡 部分修正 |
+| #H141 | 🔴 **Regime 分配錯誤**：features_norm `regime_label` 全 neutral | **H145 fix**: 重新运行 fix_regimes_h141.py。Bear 2897, Bull 2897, Chop 2904, Neutral 72 ✅ | 🟡 已修正（防回歸） |
 
 ## 🟡 高優先級 (P1)
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #H87 | 🟡 CV≈50-52% 距目標 90% 差距 38-40pp | 根本原因確認：(1) 單特徵 IC ≤0.077 (2) Bull/Chop 幾乎無有效感官 (3) 需要新數據源 | 🟡 需新特徵 |
+| #H87 | 🟡 CV≈50-52% 距目標 90% 差距 38-40pp | Per-regime 決策樹：Bear CV 55.6%, Bull 59.0%, Chop 52.6%（vs 全局 51.3%）✅ | 🟡 改善中 |
 | #H31 | 🟡 polymarket_prob 歷史仍全 NULL（0 筆非空） | Ear/Polymarket 信號完全缺失；Ear 用 Binance long-short 替代 | 🟡 P1 |
 | #H126 | 🟡 高共線性：Tongue↔Body r=0.78, Aura↔Mind r=0.85 | 違反 8 獨立感官假設 | 🟡 P1 |
-| #H127 | 🟡 funding_rate/fng 幾乎全 NULL | 回填歷史數據 | 🟡 P1 |
-| #H301 | 🟡 Chop 僅 1/8（Aura），Bull 0/8 | Chop 需要震盪指標（RSI/Bollinger），Bull 需新數據源（ETF flows, on-chain） | 🟡 P1 |
+| #H127 | 🟡 funding_rate/fng 幾乎全 NULL（10/8770） | 回填歷史數據 | 🟡 P1 |
+| #H301 | 🟡 Bull 僅 1/8（Ear）| Bull 需新數據源（ETF flows, on-chain）| 🟡 P1 |
 
 ## 🟢 低優先級
 
@@ -55,60 +55,56 @@
 | **#H133-fix** | 8 constant features 佔據 33% feature space | 移除 whisper/tone/chorus/hype/oracle/shock/tide/storm ✅ | 2026-04-04 06:50 |
 | **#H139-fix1** | dev_heartbeat.py PROJECT_ROOT 計算錯誤 | 改用 Path(__file__).parent ✅ | 2026-04-04 07:08 |
 | **#H139-fix2** | check_ic2.py 硬編碼 Windows 路徑 | 改用動態路徑 ✅ | 2026-04-04 07:08 |
-| **#H138-eval** | 動態窗口評估：N=200 雖有 5/8 但 CV 不穩 | 確認 N=1000 為基準（CV 50.5%±0.5%）✅ | 2026-04-04 07:23 |
-| **#H142-fix** | hb105 regime 分配錯誤（全 neutral） | ✅ 確認 regime_aware_ic.py 正確分類（bear/2897, bull/2897, chop/2984）| 2026-04-04 07:44 |
+| **#H138-eval** | 動態窗口評估：N=2000 雖有 2/8 但 CV 不穩 | 確認 N=1000 為基準（CV 50.5%±0.5%）✅ | 2026-04-04 07:23 |
+| **#H142-fix** | hb105 regime 分配錯誤（全 neutral） | ✅ 確認 regime_aware_ic.py 正確分類 | 2026-04-04 07:44 |
 | **#H143-fix1** | train.py 缺少高-IC 交叉特徵 | 新增 feat_eye_x_body, feat_ear_x_nose, feat_mind_x_aura, feat_mean_rev_proxy ✅ | 2026-04-04 08:14 |
-| **#H143-fix2** | FeaturesNormalized regime_label 全 neutral | ✅ 已重新分配：bear/chop/bull 基於 ret_rolling 三分位 | 2026-04-04 08:14 |
+| **#H143-fix2** | FeaturesNormalized regime_label 全 neutral | ✅ 重新修正 DB（防 recompute_features 回歸） | 2026-04-04 08:37 |
+| **#H145-eval** | Per-regime 模型比全局模型更好 | Bear CV 55.6%, Bull 59.0%, Chop 52.6% vs 全局 51.3% | 🟡 驗證中 |
 
 ---
 
-## 📊 當前系統健康 (2026-04-04 08:14 GMT+8)
+## 📊 當前系統健康 (2026-04-04 08:37 GMT+8)
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
 | Raw market data | 8,770 筆 | ✅ |
 | Features | 8,770 筆 | ✅ |
-| Labels | 8,770 筆 (50.8% pos) | ✅ 平衡 |
+| Labels | 8,770 筆 (50.1% pos) | ✅ 平衡 |
 | Trades | 0 筆 | ⚠️ 模擬中 |
-| BTC 當前 | $66,907 | ⬇️ 下跌中 |
-| FNG | 11（極度恐慌）| ⚠️ 持續極端 |
-| LSR | 1.73（多頭偏斜）| — |
-| OI | 90,277 | — |
-| Taker Buy/Sell | 1.41 | — |
-| Funding Rate | 0.000035 | — |
+| BTC 當前 | $66,812 | ⬇️ 下跌中 |
+| FNG | 9（極度恐慌）| ⚠️ 持續極端 |
+| Funding Rate | 0.000028 | — |
 
-### 感官 IC 掃描（最新：regime_aware_ic.py + hb105_ic_analysis.py, N=8778）
+### 感官 IC 掃描（regime_aware_ic.py, N=8778）
 | 窗口/Regime | 達標感官數 | 具備 IC |
 |------|-----------|---------|
 | 全量 (8778) | **1/8** | Ear(-0.051) |
-| Bear (2897) | **4/8** ⬆️ | Ear(-0.075), Nose(-0.075), Body(-0.069), Aura(-0.053) |
+| Bear (2897) | **4/8** | Ear(-0.075), Nose(-0.075), Body(-0.069), Aura(-0.053) |
 | Bull (2897) | **0/8** ❌ | (none) |
 | Chop (2984) | **1/8** | Aura(-0.056) |
 
-**動態窗口（all samples, non-regime）**：
-| N | 達標數 | 備註 |
-|---|--------|------|
-| 500 | 1/8 | Pulse(+0.057) — 但 CV 不穩(±9%) |
-| 1000 | **4/8** | Nose/Aura/Mind/Pulse |
-| 2000 | 2/8 | Aura/Pulse |
+### Per-Regime 模型（決策樹評估，h=4）
+| Regime | Best CV | Gap | 改善 vs 全局 |
+|--------|---------|-----|-----------|
+| Bear | **55.6%** | 2.7pp | +4.3pp ✅ |
+| Bull | **59.0%** | 2.2pp | +7.7pp ✅ |
+| Chop | **52.6%** | 3.7pp | +1.3pp |
+| Global | 51.3% | — | baseline |
 
-**替代高-IC 特徵發現**（hb105_explore_features.py）：
-- eye_dist: IC=+0.0503 ✅
-- mean_rev_20h: IC=-0.0558 ✅
-- rsi_14_norm: IC=-0.0510 ✅
-- price_ret_12h: IC=-0.0516 ✅
-- price_ret_24h: IC=-0.0511 ✅
+### 替代高-IC 特徵（vs sell_win）
+- ret_20h: IC=-0.061 ✅
+- ret_24h: IC=-0.056 ✅
+- eye_dist: IC=+0.049 ✅
 
 ### 模型狀態
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| 全局 Train | 71.10% | 🟡 overfit |
-| 全局 CV | 50.95% (±0.71%) | ❌ 硬天花板 |
-| 全局 Gap | 20.1pp | 🟡 改善中（vs 33.7pp）|
-| Feature Count | 36 (8 base + 24 lags + 4 cross) | → 40 (+4 new cross-features) |
-| Model | XGBoost, depth=3, new cross-features | ✅ |
-| 特徵重要性 | 均勻 ~2.7-3.2%（無主導）| ⚠️ 信號分散 |
+| 全局 Train | 71.94% | 🟡 overfit |
+| 全局 CV | 50.36% (±1.46%) | ❌ 硬天花板 |
+| 全局 Gap | 21.6pp | 🟡 改善中（vs 33.7pp）|
+| Feature Count | 40 (8 base + 24 lags + 8 cross) | — |
+| Model | XGBoost, depth=3, reg_alpha=2.0 | ✅ |
 | 測試 | 6/6 PASS | ✅ |
 
 ---
@@ -117,9 +113,9 @@
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
+| P0 | **Per-REGIME 訓練集成**：用已驗證的 regime 模型替換全局單一模型 | #H145 |
 | P0 | **高 IC 新數據源**：VIX、DXY、ETF flows、on-chain（唯一突破 52% CV 的路徑）| #H140 |
-| P0 | **整合 raw market data 高-IC 特徵進 pipeline**：eye_dist, mean_rev_20h, price_ret_12h, rsi_14_norm | #H143 |
-| P0 | **Regime-aware training**：用新的 regime labels 訓練 per-regime 模型 | #H141 |
+| P0 | **反回歸機制**：recompute_features.py 後自動重算 regime labels | #H141 |
 | P1 | Bull regime 新數據源：BTC ETF flows、whale wallet tracking | #H301 |
 | P1 | 回填 funding_rate/FNG 歷史數據 | #H127 |
 | P1 | Aura/Mind 正交化（r=0.85）| #H126 |
@@ -130,12 +126,11 @@
 
 ## 📋 近期修改記錄
 
-- **#143**: 心跳 — train.py 新增 4 個交叉特徵 (eye_x_body, ear_x_nose, mind_x_aura, mean_rev_proxy)
-- **#H143**: FeaturesNormalized regime_label 修正 — 從全 neutral 改為 bear/chop/bull 三分位
-- **#140**: 心跳 — IC 掃描確認 CV 天花板 50-52%（新數據源是唯一出路）
-- **#139**: 全量 IC analysis + Regime-aware IC
-- **#133-fix**: 移除 8 constant features
-- **#130-fix**: 全局 gap 降至 20.8pp（depth=3, reg_alpha=2.0）
+- **#H145**: 心跳 — per-regime 模型評估（Bear CV 55.6%, Bull 59.0%, Chop 52.6% vs 全局 51.3%）
+- **#H141-fix**: 重新修正 DB regime_label（Bear 2897, Bull 2897, Chop 2904, Neutral 72）
+- **#H143**: train.py 新增 4 個交叉特徵 (eye_x_body, ear_x_nose, mind_x_aura, mean_rev_proxy)
+- **#H140**: 心跳 — IC 掃描確認 CV 天花板 50-52%（新數據源是唯一出路）
+- **#H130-fix**: 全局 gap 降至 21.6pp（depth=3, reg_alpha=2.0）
 
 ---
 
