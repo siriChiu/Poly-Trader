@@ -4,38 +4,38 @@
 
 ---
 
-*最後更新：2026-04-04 11:56 GMT+8 (心跳 #152)*
+*最後更新：2026-04-04 12:02 GMT+8 (心跳 #153)*
 ---
 
-## 📊 當前系統健康 (2026-04-04 11:56 GMT+8, 心跳 #152)
+## 📊 當前系統健康 (2026-04-04 12:02 GMT+8, 心跳 #153)
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw market data | 8,829 筆 | ✅ |
-| Features | 8,829 筆 (22 cols + regime) | ✅ |
-| Labels | 8,770 筆 (50.8% sell_win) | ✅ 平衡 |
+| Raw market data | 8,833 筆 | ✅ |
+| Features | 8,833 筆 (22 cols + regime) | ✅ |
+| Labels | 8,774 筆 (50.8% sell_win) | ✅ 平衡 |
 | Trades | 0 筆 | ⚠️ 模擬中 |
-| BTC 當前 | $66,847 | — |
+| BTC 當前 | $66,824 | — |
 | FNG | 11 (Extreme Fear) | — |
 | Funding Rate | +0.00004 | — |
-| Regime 填充 | Bear 2,897 / Bull 2,897 / Chop 2,904 / Neutral 80 | ✅ 全填充 |
+| LSR | 1.72 (偏多) | — |
+| OI | 90,398 BTC | — |
+| Regime 填充 | Bear 2,927 / Bull 2,912 / Chop 2,904 / Neutral 72 | ✅ 全填充 |
 
 ### 🔴 最高優先級 (P0)
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
-| #H149-fix1 | 🔴 **訓練/推論特徵不匹配（已修復）** | `load_latest_features()` 缺少 feat_vix、feat_dxy、以及所有 cross-features。#149 全部修復。 | ✅ 已合併 |
-| #H122 | 🔴 感官 IC 在 Bull/Chop 幾乎全滅 | Bear 5/8 達標（改善！），Bull 2/8，Chop 0/8 | 🔴 持續（Bear 進步 2 感官） |
-| #H137 | 🔴 全局模型 CV ~52% | XGBoost CV 52.24%（最新 #23）。需要 regime-specific 訓練 | 🔴 持續 |
-| #H150-1 | 🔴 **實時收集 pipeline 缺失 macro 數據** | 最新 45 筆特徵無 regime/VIX/DXY — 已修復（#160） | ✅ 已修復 |
+| #H122 | 🔴 感官 IC 在 Bull/Chop 幾乎全滅 | Bear 5/8 穩固，Bull 2/8（unchanged），Chop **1/8**（脈衝突破零） | 🔴 持續（Chop 有突破） |
+| #H137 | 🔴 全局模型 CV ~52% | XGBoost CV 52.24%（latest #24）。需要 regime-specific 訓練 | 🔴 持續 |
+| #H301 | 🔴 **N=500 動態窗口全滅（0/8）** | N=200: 5/8，N=500: 0/8，N=1000: 4/8 — 中期窗口信號不穩 | 🔴 新 P0 |
 
 ### 🟡 高優先級 (P1)
 
 | ID | 問題 | 建議 | 狀態 |
 |----|------|------|------|
 | #H87 | 🟡 CV≈52% 距目標 90% 差距 ~38pp | 核心問題：單一模型無法應對不同 regime | 🔴 主要障礙 |
-| #H301 | 🟡 Chop regime 0/8 | 需新資料源、新特徵工程 | 🔴 Chop 全滅 |
 | #H150-2 | 🟡 Venv 已損壞，pip 全局安裝 | 使用 python3.12 + --break-system-packages 已能運行 | 🟡 環境可用 |
 | #H127 | 🟡 VIX 歷史僅 ~6 個月 | 擴展至 1 年+（已達 251 筆/1y） | 🟡 已改善 |
 | #H126 | 🟡 共線性：Tongue↔Body, Aura↔Mind 高相關 | 違反獨立感官假設 | 🟡 P1 |
@@ -49,100 +49,91 @@
 
 ---
 
-## 感官 IC 掃描（心跳 #152, 2026-04-04 11:56）
+## 感官 IC 掃描（心跳 #153, 2026-04-04 12:02）
 
-### 全量 IC (N=8,778, against label_up)
-| 感官 | IC | 狀態 |
-|------|------|------|
-| Eye | +0.0212 | ❌ |
-| **Ear** | **-0.0522** | ⭐ 達標 |
-| Nose | -0.0475 | 邊緣 |
-| Tongue | +0.0042 | ❌ |
-| Body | -0.0515 | ❌ |
-| Pulse | +0.0027 | ❌ |
-| Aura | -0.0300 | ❌ |
-| Mind | -0.0253 | ❌ |
+### 全量 IC (N=8,774, against label_up)
+| 感官 | IC | std | 狀態 |
+|------|------|------|------|
+| **Ear** | **-0.0515** | 0.0221 | ✅ 達標 |
+| Nose | -0.0494 | 0.1658 | ⚠️ 邊緣 |
+| Body | -0.0484 | 0.3325 | ⚠️ 邊緣 |
+| Eye | +0.0215 | 0.5175 | ❌ |
+| Mind | -0.0253 | 0.0499 | ❌ |
+| Aura | -0.0384 | 0.0289 | ❌ |
+| Pulse | +0.0101 | 0.2461 | ❌ |
+| Tongue | +0.0036 | 0.3689 | ❌ |
 
-### Regime-Aware IC
+### 動態窗口 IC 衰減 (against label_sell_win)
+| N | 達標數 | 通過感官 |
+|---|--------|----------|
+| 200 | **5/8** | Nose(-0.106), Tongue(+0.060), Pulse(+0.126), Aura(-0.119), Mind(-0.142) |
+| 500 | **0/8** | 全滅 — 中期窗口信號消失 |
+| 1000 | **4/8** | Eye(+0.066), Pulse(+0.104), Aura(-0.106), Mind(-0.090) |
+
+### Regime-Aware IC (against label_sell_win)
 | 感官 | Bear IC | Bull IC | Chop IC | Neutral IC |
 |------|---------|---------|---------|------------|
-| **Eye** | **+0.0626 ✅** | -0.0140 ❌ | -0.0035 ❌ | -0.0407 ❌ |
-| **Ear** | -0.0399 ❌ | **-0.0617 ✅** | -0.0258 ❌ | **-0.0592 ✅** |
-| **Nose** | **-0.0670 ✅** | -0.0426 ❌ | -0.0365 ❌ | **-0.1046 ✅** |
-| Tongue | +0.0135 ❌ | +0.0111 ❌ | -0.0340 ❌ | +0.0744 ✅ |
-| **Body** | -0.0439 ❌ | **-0.0509 ✅** | -0.0351 ❌ | **-0.0747 ✅** |
-| **Pulse** | **+0.0523 ✅** | +0.0264 ❌ | -0.0529 ❌ | +0.0115 ❌ |
-| **Aura** | **-0.0722 ✅** | -0.0090 ❌ | -0.0102 ❌ | **-0.1143 ✅** |
-| **Mind** | **-0.0618 ✅** | -0.0113 ❌ | +0.0045 ❌ | **-0.0763 ✅** |
+| **Eye** | **+0.0560 ✅** | -0.0068 ❌ | -0.0018 ❌ | +0.0302 ❌ |
+| Ear | -0.0414 ⚠️ | **-0.0647 ✅** | -0.0220 ❌ | -0.0363 ❌ |
+| **Nose** | **-0.0610 ✅** | -0.0406 ⚠️ | -0.0421 ⚠️ | **-0.0638 ✅** |
+| Tongue | +0.0216 ❌ | +0.0075 ❌ | -0.0366 ❌ | **-0.0750 ✅** |
+| Body | -0.0422 ⚠️ | -0.0484 ⚠️ | -0.0306 ❌ | **-0.0999 ✅** |
+| **Pulse** | **+0.0612 ✅** | +0.0232 ❌ | **-0.0560 ✅** | -0.0644 ✅ |
+| **Aura** | **-0.0720 ✅** | -0.0124 ❌ | -0.0116 ❌ | **-0.1630 ✅** |
+| **Mind** | **-0.0625 ✅** | -0.0180 ❌ | -0.0025 ❌ | **-0.1003 ✅** |
 
 ### 達標感官數（IC ≥ 0.05）
 | Regime | 達標數 | 感官 |
 |--------|--------|------|
 | Bear | **5/8** | Eye, Nose, Pulse, Aura, Mind |
-| Bull | **2/8** | Ear, Body |
-| Chop | **0/8** | 無（全滅） |
-| Neutral | **6/8** | Ear, Nose, Tongue, Body, Aura, Mind |
+| Bull | **1/8** | Ear |
+| Chop | **1/8** | Pulse |
+| Neutral | **4/8** | Nose, Pulse, Aura, Mind |
 
-**重要發現**：Bear regime 是唯一有 5/8 感官達標的 regime。VIX 在 neutral 最有意義（IC=-0.074）。Chop 仍然 0/8 — 全滅。
-
-### 動態窗口 IC 衰減
-| N | 達標數 | 備註 |
-|---|--------|------|
-| 200 | **5/8** | Ear, Tongue, Pulse, Aura, Mind — 最佳窗口 |
-| 500 | 2/8 | Ear, Mind — 信號退化 |
-| 1000 | 3/8 | Ear, Tongue, Pulse — 中等穩定 |
-
-### VIX/DXY IC
-| Regime | VIX IC | DXY IC |
-|--------|--------|--------|
-| Bear | -0.0003 ❌ | -0.0083 ❌ |
-| Bull | -0.0211 ❌ | -0.0475 ❌ |
-| Chop | -0.0025 ❌ | -0.0320 ❌ |
-| Neutral | **-0.0882 ✅** | **-0.0742 ✅** |
+**重要發現**：
+- **Chop 突破零** — Pulse 首次在 Chop 有預測力 (IC=-0.0560)！2904 筆中唯一有效信號。
+- **N=500 動態窗口全滅** — 這是一個新的 P0 問題。短期(N=200)和長期(N=1000)都有信號，中期完全消失——說明信號是脈衝式的（短期反應或長期趨勢），中期被噪音淹沒。
+- **Bull 退步**：從 2/8 退化到 1/8。Ear 是唯一在 Bull 穩定的信號。
+- **VIX/DXY 全局 IC**：VIX=-0.0339, DXY=-0.0184 — 未達標。
 
 ### 模型表現
 | Model | Train | CV | Gap | n_features |
 |-------|-------|----|-----|-----------|
 | Global XGB | 72.27% | **52.24%** | 20.03pp | 51 |
-| Regime DT Bear | 58.3% | 55.6% | 2.7pp | 51 |
-| Regime DT Bull | 61.2% | 59.0% | 2.2pp | 51 |
-| Regime DT Chop | 56.3% | 52.6% | 3.7pp | 51 |
 
 ---
 
 ## 六帽分析摘要
 
-**白帽**（事實）：數據量穩定（8,829 raw/features，8,770 labels）。全量 IC僅 Ear (-0.0522)、Body (-0.0515) 通過。Nose (-0.0475) 邊緣。Bear 5/8 是最佳 regime（Eye, Nose, Pulse, Aura, Mind）。N=200 動態窗口 5/8 最佳。**Regime DT models**: Bear 55.6%, Bull 59.0%, Chop 52.6%。Global XGB CV 52.24%。**Regime gap 都在 2-4pp — 過擬合可控**。
+**白帽**（事實）：數據 8,833 raw/features，8,774 labels，50.8% sell_win 平衡。全局 IC 僅 Ear 通過（-0.0515）。Regime-aware：Bear 5/8（Eye, Nose, Pulse, Aura, Mind），Bull 1/8（Ear），Chop 1/8（Pulse—首次突破），Global XGB CV 52.24%。**N=200 動態窗口 5/8**（Nose, Tongue, Pulse, Aura, Mind）— 短期最佳。但 **N=500 全滅（0/8）**，N=1000 4/8。測試 6/6 pass。
 
-**黑帽**（風險）：(1) **Chop 市場完全失明（0/8）** — 2,904 筆數據沒有任何感官有預測力。(2) Bull 只有 2/8 達標（Ear, Body），比 Bear 弱。(3) VIX/DXY macro 信號在 regime 下不穩定，僅 Neutral 有 6/8 通過。(4) 全局 CV 52.24% 約等於隨機，Gap 20pp 嚴重。(5) 動態窗口從 N=200 的 5/8 退化到 N=500 的 1/7（上一輪）2/8 — 信號不穩。
+**黑帽**（風險）：(1) **N=500 動態窗口全滅** — 這是最危險的發現：中期窗口完全沒有信號，說明系統在中等時間尺度上完全是盲區。(2) Bull 僅 1/8 — 多頭市場預測幾乎無效。(3) Global CV 52.24% ≈ 擲硬幣 — 20pp gap 表示嚴重過擬。(4) 0 筆實際交易 — 完全模擬系統，沒有實盤驗證。(5) Chop 雖然有 Pulse 突破，但只是 1/8，仍然幾乎全滅。
 
-**綠帽**（創新）：(1) **N=200 動態窗口 5/8 — 短期窗口最佳**。(2) Pulse +0.052 在 Bear 是最強單一信號。(3) Regime DT models **gap 只有 2-4pp**，說明 overfitting 問題已大幅改善（global XGB gap 20pp）。(4) Bear 5/8 表明在 Bear 市場，多感官融合預測力最強。(5) VIX-gated trading: 當 VIX > threshold 切到 Bear model，可能比全局模型好 3-7pp。(6) Chop abstain 機制：regime=chop 時不交易，避免隨機賭博。
+**綠帽**（創新）：(1) **Pulse 在 Chop 首次達標** — 體積/動量指標在橫盤市場有意義，可以探索更多 volume-based 特徵作為 Chop 解方。(2) **N=200 動態窗口 5/8 且 Mind IC=-0.142** — 短期 Mind 非常強，應該優先採用 N=200 訓練。(3) Bear 5/8 最穩定 — 系統天生適合預測下跌（符合「賣出勝率」設計）。(4) 6/6 測試全過，系統基建穩定。
 
-**藍帽**（行動）：P0: (1) ✅ **Regime-specific model ensemble 部署** — 在 predictor.py 中實現 regime 路由。(2) ✅ **Chop abstain** — 當 regime=chop 時返回 ABSTAIN。(3) ✅ 實現 60/40 ensemble (regime/global)。P1: (4) 優化 Bull sensory IC。(5) 擴展 VIX 歷史。(6) 研究 N=7 動態窗口 IC 穩定化。
+**藍帽**（行動）：P0: (1) 🆕 **調查 N=500 全滅根因** — 為什麼中窗口信號消失？是特徵平滑問題還是標籤定義問題？(2) **Chop Pulse 探索** — Pulse 在 Chop 有效，擴展 volume/momentum 特徵。(3) 訓練 regime-specific XGBoost（目前僅 DT，CV 55-59% → 目標 65%+）。P1: (4) Bull 感官強化。(5) VIX 歷史擴展。
 
 **ORID 決策**：
-- **O**: Regime-aware IC 已完成。Bear 5/8, Bull 2/8, Chop 0/8。Regime DT models 訓練完成（Bear 55.6%, Bull 59.0%, Chop 52.6%）。Chop 全滅持續。Global XGB CV 52.24%。
-- **R**: 系統在 Bear regime 有最多有效信號（5/8），但在全局模型下被稀釋到 2/8。Regime-aware 路由是突破方向。Chop 全滅是最大風險。
-- **I**: 核心瓶頸: **regime-specific models gap 只有 2-4pp vs global 20pp** — regime 路由可以顯著改善 overfitting。Chop 0/8 說明橫盤市場目前完全無法預測，需要 abstain 機制。
-- **D**: (1) ✅ 更新 ISSUES.md 記錄所有 IC 結果。(2) ✅ **實現 regime-aware ensemble predictor** — `load_predictor()` 返回 `models` dict，`predict()` 按 regime 路由。(3) ✅ **部署 60/40 regime/global ensemble**。(4) ✅ **Chop abstain**。(5) P0 任務：訓練 regime-specific XGBoost（目前僅 DT）提升 CV 更進一步。
+- **O**: Global CV 52.24%（unchanged），Bear 5/8，Bull 1/8（-1），Chop 1/8（+1，Pulse 突破），N=200: 5/8，**N=500: 0/8（新問題）**。6/6 tests pass。
+- **R**: Chop 突破 Pulse 是好消息，但 N=500 全滅令人擔憂——如果動態窗口選擇錯誤，系統會完全失效。
+- **I**: 核心瓶頸仍然是 **regime 依賴**——單一全局模型無法適配，需要 regime-specific XGBoost。N=500 全滅可能因為：(a) 特徵在 N=500 尺度上被過度平滑，(b) 標籤 4h horizon 與 N=500 窗口（~33 天）不匹配。
+- **D**: (1) ✅ 清理 predictor.py 重複函數。(2) ✅ 更新 ISSUES.md 記錄所有 IC 結果。(3) **下一步：N=500 根因分析**（新 P0 #H302）。(4) **P0 任務：訓練 regime-specific XGBoost models**（提升 CV 從 55-59% 到 65%+）。
 
 ## 📋 本輪修改記錄
 
-- **#152-ensemble**: ✅ **實現 regime-aware model ensemble predictor** — `predictor.py` 中 `load_predictor()` 返回 `regime_models` dict，`predict()` 按 regime 動態路由到對應模型（Bear/Bull/Chop/Neutral）。
-- **#152-chop-abstain**: ✅ **實現 Chop abstain 機制** — regime=chop 時直接返回 ABSTAIN，避免隨機賭博。
-- **#152-regime-gate**: ✅ **實現 60/40 ensemble 權重** — regime model 60% + global model 40%，在 Bear/Bull/Neutral 路由到各自 model，全局 model 作為 fallback。
-- **#152-ic**: ✅ 全量 IC 掃描完成。Bear 5/8, Bull 2/8, Chop 0/8。
+- **#153-cleanup**: ✅ 清理 `predictor.py` 中重複的 `load_predictor()` 函數定義（舊版已完全被新版 regime-aware 版本取代）。
+- **#153-ic**: ✅ 全量 IC 掃描完成。Global: Ear 1/8, Regime-aware: Bear 5/8, Bull 1/8, Chop 1/8 (新突破: Pulse), Neutral 4/8。
+- **#153-dynamic**: ✅ 動態窗口分析。**N=200: 5/8（最佳），N=500: 0/8（新 P0），N=1000: 4/8**。
 
 ## 📋 下一步行動
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
-| ✅ P0 | **部署 regime-aware ensemble predictor** | `predictor.py` ✅ 已合併 |
-| ✅ P0 | **實現 Chop abstain 機制** | `predictor.py` ✅ 已合併 |
-| ✅ P0 | **60/40 regime/global ensemble** | `predictor.py` ✅ 已合併 |
+| ✅ P0 | **清理 predictor.py 重複函數** | ✅ 已合併 #153 |
+| P0 | **調查 N=500 動態窗口全滅根因** | **新 #H302** |
 | P0 | **訓練 regime-specific XGBoost models**（目前僅 DT，CV 55-59% → 目標 65%+） | #H122 |
-| P0 | **Chop 新信號源** — 0/8 需新特徵 | #H301 |
-| P1 | **Bull regime 感官強化** — 2/8 需改善 | #H301 |
+| P0 | **Chop Pulse 探索** — Volume/Momentum 特徵擴展 | #H301 |
+| P1 | **Bull regime 感官強化** — 1/8 需改善 | #H301 |
 | P1 | **VIX 歷史擴展** — 從 251 筆到 1 年+ | #H127 |
 
 ---
