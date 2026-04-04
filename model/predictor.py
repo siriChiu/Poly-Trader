@@ -14,10 +14,18 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 MODEL_PATH = "model/xgb_model.pkl"
+# Core 8 senses: IC-validated, non-constant features
 BASE_FEATURE_COLS = [
     "feat_eye", "feat_ear", "feat_nose",
     "feat_tongue", "feat_body", "feat_pulse",
     "feat_aura", "feat_mind",
+]
+
+# Aux 8 senses: disabled (all constant=0.0, unique=1, IC=0.0000) — #H310
+# feat_whisper, feat_tone, feat_chorus, feat_hype, feat_oracle,
+# feat_shock, feat_tide, feat_storm
+# TODO(#H310): Implement actual computation for these senses before re-enabling.
+DISABLED_AUX_FEATURES = [
     "feat_whisper", "feat_tone", "feat_chorus", "feat_hype",
     "feat_oracle", "feat_shock", "feat_tide", "feat_storm",
 ]
