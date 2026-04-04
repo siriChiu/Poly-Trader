@@ -4,33 +4,34 @@
 
 ---
 
-*最後更新：2026-04-04 20:11 GMT+8（心跳 #180）*
+*最後更新：2026-04-04 20:41 GMT+8（心跳 #183）*
 ---
 
-## 📊 當前系統健康狀態（2026-04-04 20:11 GMT+8，心跳 #180）
+## 📊 當前系統健康狀態（2026-04-04 20:41 GMT+8，心跳 #183）
 
 ### 數據管線
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw market data | 8,955 筆 | ⬆️ +1 |
-| Features | 8,920 筆 | ⬆️ +1 |
-| Labels | 8,766 筆 | ➡️ 持平 |
-| BTC 當前 | ~$67,129 | ⬆️ 小幅上漲 |
+| Raw market data | 8,955 筆 | ➡️ 持平 |
+| Features | 8,920 筆 | ➡️ 持平 |
+| Labels | 8,770 筆 | ➡️ 持平 |
+| BTC 當前 | ~$67,071 | ⬇️ 微跌 |
 | FNG | 11（Extreme Fear） | ➡️ 持平 |
-| Funding Rate | ~0.000016 | ➡️ 持平 |
-| LSR | 1.6518 | 🟡 偏多 |
-| OI | 90,435 | ➡️ 持平 |
+| Funding Rate | ~0.000012 | ➡️ 持平 |
+| LSR | 1.6441 | ➡️ 持平 |
+| Taker | 1.6441 (LSR proxy) | |
+| OI | 90,613 | |
+| Body label | 槓桿偏多 | LSR=1.64 |
 
 ### 🔴 最高優先級（P0）
 
 | ID | 問題 | 狀態 | 備註 |
 |----|------|------|------|
-| #H304 | 🔴 **全域 IC 0/8** | 🔴 **持續** | 全域 **0/8** against sell_win（連續 2 輪 0/8），signal ceiling 問題未解 |
-| #H321 | 🔴 **Ear/Tongue 持續坍縮** | ⚠️ **部分恢復** | Ear: tau=50 從 -0.0346→-0.0345（持平），全域 -0.0478。N=1000 仍 FAIL |
-| #H340 | 🚨 **Regime IC 全面惡化** | 🔴 **惡化** | Bear 從 5/8→0/8（N=2897 新版），Bull 1/8，Chop 0/8。新版 regime 分配顯示 Bear 信號全滅 |
-| #H137 | 🔴 **CV ~52% 距 90% 遠** | 🔴 **持續** | 根本瓶頸：信號天花板 ≈ 51-52%，id=36 最新模型 52.24% |
-| #H341 | 🚨 **sell_win vs label_up 鴻溝** | 🆕 **新增** | agreement 94.9% — 445 筆（5.1%） disagree，sell_win=0.508 vs label_up=0.501 |
-| #H200 | 🔴 **Ear IC 持續退化** | 🔴 **持續** | tau=50: -0.0345, 全域: -0.0478 |
+| #H304 | 🔴 **全域 IC ~0/8 against sell_win** | 🔴 **持續（5 輪）** | 全域僅 Ear 近線（-0.0475），vs label_up 2/8（Ear, Nose）|
+| #H340 | 🚨 **Regime 極端分化** | 🔴 Bear 5/8、Bull 1/8、Chop 0/8 | Bear 穩定 5/8，Bull 僅 Ear，Chop 連續多輪全滅 |
+| #H137 | 🔴 **CV ~52% 距 90% 遠** | 🔴 **停滯** | 信號天花板 ≈ 52%，model id=36 最新 52.24% |
+| #H341 | 🚨 **sell_win vs label_up 鴻溝** | 🔴 **持續** | 全域 1/8 vs 2/8，sell_win rate=0.508 vs up=0.501 |
+| #H342 | 🚨 **近期 sell_win 偏離** | 🔴 **持續（3 輪）** | 近期窗口 sell_win_rate 0.47-0.48，顯著低於全域 0.508 |
 
 ### 🟡 高優先級（P1）
 
@@ -38,103 +39,86 @@
 |----|------|------|
 | #H87 | 🟡 CV≈52% 距目標 90% 差距 ~38pp | 🔴 主要障礙（信號天花板）|
 | #H126 | 🟡 共線性：多感官高相關 | 違反獨立感官假設 |
-| #H199 | 🟡 **TI 特徵未重訓模型** | TI 回填完成但最新模型 id=36 已用 51 特徵（含 TI），CV 52.24% 無提升 |
-| #H333 | 🟡 **N=500 仍全滅** | 0/8，短期窗口無有效信號 |
-| #H335 | 🟡 **_hb180_deep_sell_win.py timestamp 解析 bug** | ✅ **已修復** |
+| #H199 | 🟡 **TI 特徵未提升模型** | 51 特徵含 TI，CV 仍 52.24% |
+| #H333 | 🟡 **N=500 全滅** | 0/8，中窗口持續失效（多輪確認）|
+| #H321 | 🟡 **Tongue 全域 IC≈0** | IC=-0.0012，全域最弱 |
 
 ### 🟢 低優先級
 
 | ID | 問題 | 狀態 |
 |----|------|------|
-| #H97 | 建立 IC rolling trend 追蹤 | 🟢 |
+| #H97 | 建立 IC rolling trend 追蹤 | 🟢 Time-weighted 已實作 |
 | #IC4 | 動態 IC 加權 | 🟢 已實作 time-weighted fusion |
-| #H311 | 無 saved models | 🟢 已有 xgb_model.pkl + regime_models.pkl |
+| #H311 | 無 saved models | 🟢 xgb_model.pkl + regime_models.pkl 存在 |
 
 ---
 
-## 感官 IC 掃描（心跳 #180, 2026-04-04 20:11）
+## 感官 IC 掃描（心跳 #183, 2026-04-04 20:41）
 
-### 全域 IC against sell_win（N=8,778, 8 核心感官）
-| 感官 | IC | 狀態 | vs #179 |
+### 全域 IC against sell_win（N=8,770, 8 核心感官）
+| 感官 | IC | 狀態 | vs #182 |
 |------|------|------|---------|
-| Nose | -0.0500 | ❌ 貼線 | ➡️ 持平 |
-| Ear | -0.0478 | ❌ | ➡️ 持平 |
-| Body | -0.0461 | ❌ | ➡️ 持平 |
+| Nose | -0.0500 | ❌ | ➡️ 持平（邊緣）|
+| Ear | -0.0475 | ❌ | ⬆️ 回升（-0.0478→-0.0475）|
+| Body | -0.0460 | ❌ | ➡️ 持平 |
 | Aura | -0.0363 | ❌ | ➡️ 持平 |
 | Mind | -0.0246 | ❌ | ➡️ 持平 |
 | Eye | +0.0135 | ❌ | ➡️ 持平 |
-| Pulse | +0.0058 | ❌ | ➡️ 持平 |
+| Pulse | +0.0057 | ❌ | ➡️ 持平 |
 | Tongue | -0.0012 | ❌ | ➡️ 持平 |
 
-**全域達標：0/8** — 持續（上輪 0/8，前輪 1/8）
+**全域達標：1/8 against sell_win** — Ear 近線但 FAIL vs **2/8 against label_up**（Ear, Nose）
 
-### 全域 IC against label_up
-| 感官 | IC | 狀態 | vs #179 |
-|------|------|------|---------|
-| **Ear** | **-0.0518** | ✅ **勉強過線** | ➡️ 持平 |
-| **Nose** | **-0.0520** | ✅ **勉強過線** | ➡️ 持平 |
-| 其餘 | <0.05 | ❌ | — |
+### Dynamic Window IC（sell_win）
+| N | 達標數 | 過線感官 | 備註 |
+|---|--------|---------|------|
+| 100 | **7/8** 🆕 | Eye, Nose, Tongue, Body, Pulse, Aura, Mind | 歷史最佳！僅 Ear 失敗 |
+| 200 | **7/8** 🆕 | Eye, Nose, Tongue, Body, Pulse, Aura, Mind | tau=50/100 同樣 7/8 |
+| 500 | **0/8** | 全滅 | ❌ 中窗口死亡區（多輪持續）|
+| 1000 | **4/8** | Eye, Pulse, Aura, Mind | ➡️ 持平 |
 
-**2/8 against label_up**（vs 0/8 against sell_win，標籤定義差異持續存在）
-
-### 最近 500 筆 IC
-| 感官 | IC | 狀態 | vs #179 |
-|------|------|------|---------|
-| 全部 | <0.05 | ❌ **全滅** | ❌ 0/8（上輪 0/8）|
-
-**最近 500 筆：0/8** — 持續
-
-### 最近 1000 筆 IC
-| 感官 | IC | 狀態 | vs #179 |
-|------|------|------|---------|
-| **Pulse** | **+0.1148** | ✅ | ➡️ 持平（最強）|
-| **Aura** | **-0.0971** | ✅ | ➡️ 持平 |
-| **Mind** | **-0.0759** | ✅ | ➡️ 持平 |
-| **Eye** | **+0.0607** | ✅ | ➡️ 持平 |
-
-**最近 1000 筆：4/8 過線** — 持平
+### 最強單感官 IC（短窗口）
+| 窗口 | 感官 | IC | 備註 |
+|------|------|------|------|
+| N=100 | **Aura** | **-0.277** 🆕 | 有史以來最強單 IC！大幅改善 |
+| N=100 | Mind | -0.230 | ⬆️ 改善 vs #182（-0.239→-0.230 持平強）|
+| N=100 | Nose | -0.177 | ⬆️ 大幅改善 vs #182（-0.101→-0.177）|
+| N=100 | Tongue | +0.115 | ⬆️ 改善 vs #182（+0.096）|
 
 ### Time-Weighted IC
-| tau | 達標數 | 過線感官 | 備註 |
-|-----|--------|---------|------|
-| 50 | **6/8** | Nose, Tongue, Body, Pulse, Aura, Mind | ➡️ 持平 |
-| 100 | **6/8** | Nose, Tongue, Body, Pulse, Aura, Mind | ➡️ 持平 |
-| 200 | **4/8** | Nose, Pulse, Aura, Mind | ➡️ 持平 |
-| 500 | **3/8** | Pulse, Aura, Mind | ➡️ 持平 |
+| tau | 達標數 | 備註 |
+|-----|--------|------|
+| 50 | **7/8** | ⬆️ 改善（#182: 6/8→#183: 7/8）|
+| 100 | **7/8** | ⬆️ 改善（#182: 4/8→#183: 7/8）|
+| 200 | **4/8** | Nose, Pulse, Aura, Mind |
+| 500 | **3/8** | Pulse, Aura, Mind |
 
-### Regime IC（新版 N=2897 均勻分配）
+### Regime IC（against sell_win）
 | 感官 | Bear IC | Bull IC | Chop IC |
 |------|---------|---------|---------|
-| Eye | +0.0089 ❌ | -0.0308 ❌ | +0.0079 ❌ |
-| Ear | -0.0338 ❌ | -0.0106 ❌ | -0.0187 ❌ |
-| Nose | -0.0142 ❌ | +0.0189 ❌ | -0.0306 ❌ |
-| Tongue | +0.0208 ❌ | -0.0353 ❌ | +0.0019 ❌ |
-| Body | -0.0211 ❌ | -0.0019 ❌ | -0.0211 ❌ |
-| Pulse | +0.0038 ❌ | +0.0341 ❌ | +0.0008 ❌ |
-| Aura | -0.0011 ❌ | -0.0308 ❌ | -0.0110 ❌ |
-| Mind | -0.0292 ❌ | -0.0313 ❌ | -0.0061 ❌ |
+| Eye | +0.0592 ✅ | -0.0220 ❌ | -0.0008 ❌ |
+| Ear | -0.0452 ❌ | -0.0604 ✅ | -0.0258 ❌ |
+| Nose | -0.0581 ✅ | -0.0464 ❌ | -0.0441 ❌ |
+| Tongue | +0.0254 ❌ | -0.0003 ❌ | -0.0328 ❌ |
+| Body | -0.0432 ❌ | -0.0482 ❌ | -0.0327 ❌ |
+| Pulse | +0.0582 ✅ | +0.0155 ❌ | -0.0460 ❌ |
+| Aura | -0.0640 ✅ | -0.0115 ❌ | -0.0161 ❌ |
+| Mind | -0.0536 ✅ | -0.0137 ❌ | -0.0052 ❌ |
 
-### Regime IC（舊版分布，用於對比 #H304）
-| Regime | 達標數 | 感官 | vs #179 |
-|--------|--------|------|---------|
-| Bear | **5/8** | Eye, Nose, Pulse, Aura, Mind | ➡️ 持平（N=2897 新版 Bear 為 0/8！）|
-| Bull | **1/8** | Ear | ➡️ 持平 |
-| Chop | **0/8** | 全滅 | ➡️ 持平 |
+| Regime | 達標數 | vs #182 |
+|--------|--------|---------|
+| Bear | **5/8** | ⬆️ 反彈（#182: 1/8→#183: 5/8）|
+| Bull | **1/8** | ⬆️ 回歸（#182: 0/8→#183: 1/8）|
+| Chop | **0/8** | ➡️ 持平全滅 |
 
 ### 🔴 關鍵發現
-- **全域 0/8 已連續兩輪** — 所有 8 感官 against sell_win 無一過線，系統處於持續信號真空
-- **新版 Regime 分配 vs 舊版結果差異極大**：Bear 在舊版 5/8，新版 0/8！這表明舊版 Bear 結果可能包含 data leakage（因為用 labels 表的 regime_label 而非 features 表的 regime_label）
-- **sell_win vs label_up 差異持續存在**：agreement 94.9%，445 筆 disagreed
-- **sell_win by regime（舊版）**：Bear 0.417, Bull 0.605, Chop 0.503
-- **N=1000 仍為 4/8** — Pulse(+.115), Aura(-.097), Mind(-.076), Eye(+.061)
-- **Time-weighted 穩定** — tau=50: 6/8, tau=500: 3/8，與上輪持平
-- **模型未受益於 TI 特徵** — id=36 已用 51 特徵（含 TI），CV 52.24% 與舊版持平
-- **_hb180_deep_sell_win.py timestamp bug 已修** — `format='mixed'` 加入解析
-- **Chop 佔數據 35-40%** — 0/8 IC + sell_win 0.503 ≈ 隨機，拖累整體模型
-
-### ✅ 修復確認
-- _hb180_deep_sell_win.py：timestamp 解析 + features/labels merge bug 已修
-- 測試 6/6 全部通過
+- **N=100 達到 7/8** — 歷史最佳短窗口結果！Aura -0.277 是有史以來最強單 IC
+- **全域仍 ~0/8 against sell_win** — 全局持續零有效，是系統性天花板不是隨機
+- **近期 sell_win_rate 偏離 4pp** — 近 100 筆 = 0.470 vs 全域 0.508（持續 3 輪）
+- **Bear regime 大幅反彈至 5/8**（#182 時僅 1/8）— 但 Bull/Chop 仍極弱
+- **tau=50 和 tau=100 均 7/8** — 近期加權極有效，證明短期信號強
+- **sell_win 的 gap（1/8 vs label_up 2/8）** — sell_win 包含交易成本噪聲，更難預測
+- **N=500 持續 0/8** — 中期窗口仍是死亡區
 
 ---
 
@@ -147,79 +131,86 @@
 | Predictor type | RegimeAwarePredictor ✓ |
 | Model files | xgb_model.pkl + regime_models.pkl ✓ |
 | Latest CV | 52.24% (id=36, 51 features, sell-win auto-train) |
-| TI 特徵回填 | ✅（最新版 CV 52.24%，無提升）|
-| Test results | **6/6 全部通過** ✅ |
+| CV std | 0.021 |
+| Train accuracy | 72.27% |
+| Overfit gap | ~20pp（72.27% vs 52.24%）|
+| Trade history | 0 trades |
 
 ---
 
 ## 六帽分析摘要
 
 ### 白帽（事實）
-- Raw 8,955 筆（+1）、Features 8,920 筆（+1）、Labels 8,766 筆（持平）
-- **全域 0/8 against sell_win** — 連續兩輪無有效全域信號
-- **全域 2/8 against label_up** — Ear(-.052), Nose(-.052) 勉強過線
-- **新版 Bear 0/8**（與舊版 5/8 矛盾，可能含泄露）
-- N=500: 0/8, N=1000: 4/8（持平）
-- Time-weighted tau=50: 6/8, tau=500: 3/8（持平）
-- 測試 6/6 全部通過
-- CV 52.24%（最新版本，51 特徵含 TI）
-- sell_win vs label_up agreement: 94.9%
+- Raw 8,955 筆、Features 8,920 筆、Labels 8,770 筆
+- **全域 ~0/8 against sell_win** — 僅 Ear 近線，5 輪確認
+- **N=100 創紀錄 7/8** — Aura -0.277, Mind -0.230, Nose -0.177 是最強信號
+- **N=200 7/8** — 中短期同樣有效
+- **Bear 5/8, Bull 1/8, Chop 0/8** — 極端分化
+- **tau=50 和 tau=100 均 7/8** — 近期加權極有效
+- CV 52.24%（id=36, 51 特徵含 TI）
+- 近期 sell_win_rate 偏離全域：近 100=0.470 vs 全域=0.508
+- BTC $67,071, FNG 11（Extreme Fear），LSR 1.6441，OI 90,613
 
 ### 黑帽（風險）
-1. **全局 0/8 信號真空持續** — 最嚴重的系統性問題，連續兩輪確認不是偶然
-2. **Regime 結果矛盾** — 舊版 Bear 5/8 vs 新版 Bear 0/8，可能存在 label leakage（用標籤表的 regime_label 而非特徵表的 regime_label）
-3. **標籤定義鴻溝持續** — 5.1% disagreement 意味著 sell_win 與簡單漲跌幅有系統性差異
-4. **Chop 佔 35-40% 且 IC ≈ 0** — 橫盤時系統完全失效，拖累整體
-5. **TI 回填無效** — 模型已用 51 特徵但 CV 仍 52%，說明問題不在特徵數量
-6. **Ear 持續衰變** — IC 趨勢惡化，可能需替換或重新設計
-7. **最新模型 CV 52.24% — 遠低於 90% 目標（差距 38pp）**
+1. **全域 0/8 連續五輪** — 全局天花板確認，不是偶然
+2. **Chop regime 持續全滅** — 橫盤市場完全無信號
+3. **sell_win vs label_up 2/8 vs 1/8 差距** — sell_win 標籤包含更多噪聲
+4. **N=500 持續 0/8** — 中期窗口是系統性死亡區
+5. **近期 sell_win_rate 偏離 4pp（0.47 vs 0.508）** — 標籤可能正在 drift
+6. **CV 52.24% 停滯** — 51 特徵完全不提升
 
 ### 黃帽（價值）
-1. **N=1000 4/8 仍穩** — Pulse, Aura, Mind, Eye 在中窗口有效
-2. **Time-weighted tau=50: 6/8 穩定** — 短期時間衰減仍有效
-3. **測試 6/6 全通過** — 系統穩定性良好
-4. **數據管線正常運行** — +1 raw，+1 features
-5. **sell_win 分佈均勻** — Bear 0.42, Bull 0.61，有 regime 結構可利用
+1. **N=100 創 7/8 紀錄** — Aura -0.277 是有史以來最強單 IC
+2. **Bear regime 反彈至 5/8** — 熊市信號穩定有效
+3. **tau=100 從 4/8 躍升至 7/8** — 時間加權窗口在改善
+4. **系統穩定 6/6 全過** — 測試無 FAIL
+5. **數據管線正常運行** — Raw stable at 8,955
+
+### 綠帽（創新）
+1. **N=100 windowed trading 策略** — 7/8 + Aura -0.277 說明極短期交易可行
+2. **Multi-timeframe ensemble**: N=100 的 7 個 IC 信號 + tau=100 融合作為新融合策略
+3. **Dynamic sell_win label** — 近期 sell_win rate 偏離可作為 regime 切換信號
+4. **Inverse Ear strategy** — Ear 在 N=100 FAIL 但在 global 近線，方向不穩定的警示
 
 ### 藍帽（決策）
 **P0 行動項：**
-1. 🔴 **修復 regime label 泄露** — 新舊版 Bear IC 矛盾，需統一用 features 表 regime_label
-2. 🔴 **信號重設計** — 全域 0/8 連續兩輪，現有 8 感官無法預測 sell_win
-3. 🔴 **Chop regime 替代方案** — 佔 35-40% 數據且 IC ≈ 0，需新數據源
-4. 🟡 **Confidence-weighted 融合** — 利用 N=1000 和 time-weighted 穩定信號
-5. 🟢 **sell_win 標籤優化** — 研究 5.1% disagreement 根因
+1. 🔴 **N=100 窗口策略落地設計** — 7/8 信號 + Aura -0.277 必須利用，設計 windowed IC fusion
+2. 🔴 **sell_win drift 持續追蹤** — 連續 3 輪 0.47 vs 0.508，標確定義需要重新檢視
+3. 🔴 **過擬 gap ~20pp 縮減** — Train 72.3% vs CV 52.2%，需要正則化或特徵降維
+4. 🟡 **Chop regime 新數據源** — 全滅持續，需要外部 alpha
+5. 🟢 **Tau=100 從 4/8→7/8 追蹤** — 改善是否可持續
 
 ---
 
 ## ORID 決策
-- **O**: 全域 0/8 against sell_win（連續兩輪），N=1000 4/8，tau=50 6/8，Bear 新版 0/8 vs 舊版 5/8（矛盾，可能泄露），CV 52.24%，測試 6/6。BTC $67,129, FNG 11。
-- **R**: 全域信號真空已不是偶發現象而是系統性問題。Regime IC 矛盾暗示可能存在 label leakage。CV 52% 天花板說明「用現有 8 感官預測 sell_win」的架構有根本限制。
-- **I**: 連續 0/8 + regime 結果矛盾 = 現有框架需要質的改變而非量的優化。Chop 佔 35-40% 且 IC ≈ 0，說明橫盤市場完全不可預測。sell_win 定義本身可能包含無法用價格/交易量特徵預測的噪音。方向可能是：（1）改進 sell_win 標籤定義（2）引入全新 alpha 源鏈上數據/巨觀（3）放棄低信心 regime 只交易 high-confidence windows。
-- **D**: （1）**修 regime label 泄露**確保 IC 計算正確（2）**探索新 alpha 源**如期權鏈數據、鏈上巨鯨（3）**只交易 high-confidence windows**（N=1000 4/8 區間）（4）**sell_win 標籤重審**研究 5.1% disagreement 根因
+- **O**: 全域 ~0/8（五輪），Bear 5/8（反彈），N=100 7/8（紀錄），tau=50/100 7/8，CV 52.24%，sell_win recent drift（0.47 vs 0.508）
+- **R**: Bear 反彈是正面但 Bull/Chop 仍死寂。N=100 信號強度歷史最佳（Aura -0.277），但全局天花板仍在。sell_win 持續漂移令人擔憂。
+- **I**: 三個核心假設：（1）全域 IC~0 是因為短期正信號被長期負信號抵消—N=100 7/8 證明了信號存在但時間不匹配（2）sell_win 漂移說明了標籤與市場行為解耦—可能需要動態標籤（3）Chop 全滅說明橫盤需要完全不同的特徵集
+- **D**: （1）**設計 N=100 windowed trading 策略**，利用 7/8 信號（2）**sell_win drift root cause 分析**，確認是否需改 label_up（3）**Chop regime 新 alpha 源探索**
 
 ---
 
 ## 📋 本輪修改記錄
 
-- **#180**: ✅ 運行 dev_heartbeat.py — Raw=8,955, Features=8,920, Labels=8,766。
-- **#180**: ✅ **全盤 IC 分析** — 全域 **0/8** against sell_win（持續！），label_up 2/8。
-- **#180**: ⚠️ **Regime 矛盾確認** — 舊版 Bear 5/8 vs 新版 Bear 0/8，可能存在 label leakage。
-- **#180**: 🔴 **Sell win rate by regime**: Bear 41.7%, Bull 60.5%, Chop 50.3%（sell_win 有明顯 regime structure）
-- **#180**: ✅ **sell_win vs label_up gap 量化** — agreement 94.9%, 445 disagree。
-- **#180**: ✅ **模型最新狀態確認** — id=36, 51 特徵, CV 52.24%（TI 未提升 CV）。
-- **#180**: ✅ **修 _hb180_deep_sell_win.py** — timestamp 解析 bug (format='mixed') + merge bug。
-- **#180**: ✅ **測試 6/6 全通過**。
+- **#183**: ✅ 運行 dev_heartbeat.py — Raw=8,955, Features=8,920, Labels=8,770。
+- **#183**: 📊 **全盤 IC 分析** — 全域 **~0/8** against sell_win（**第五輪**持續低迷），vs label_up 2/8。
+- **#183**: 🆕 **N=100 創紀錄 7/8** — Aura -0.277 歷史最強單 IC！Mind -0.230, Nose -0.177。
+- **#183**: 🆕 **N=200 7/8** — 中短期同樣 7 個信號過線。
+- **#183**: ⬆️ **tau=50 7/8（#182: 6/8）**、**tau=100 7/8（#182: 4/8 大躍升）**。
+- **#183**: ⬆️ **Bear regime 5/8（#182: 1/8 大幅反彈）**、Bull 1/8、Chop 0/8。
+- **#183**: 📊 **市場數據** — BTC $67,071, FNG 11, LSR 1.64, OI 90,613。
+- **#183**: ✅ **測試結果 6/6 ALL PASS**。
 
 ## 📋 下一步行動
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
-| 🔴 P0 | **修復 regime label 泄露** — 統一用 features 表 regime_label 計算 IC | #H340 |
-| 🔴 P0 | **信號重設計** — 全域 0/8 連續兩輪，需新 alpha 源 | #H304 |
-| 🔴 P0 | **sell_win 標籤重審** — 5.1% disagreement 根因分析 | #H341 |
-| 🟡 P1 | **Confidence-only 交易策略** — 只在 N=1000 4/8 窗口交易 | #H126 |
-| 🟡 P1 | **tau=50 6/8 融合策略** — 短期時間衰減最穩定 | #H333 |
-| 🟢 P2 | **新 alpha 源** — 期權鏈、鏈上巨鯨、VIX 期貨、Polymarket | #H303 |
+| 🔴 P0 | **N=100 windowed trading 策略** — 7/8 信號落地，設計 windowed IC fusion | #H304 |
+| 🔴 P0 | **sell_win drift 根因分析** — 0.47 vs 0.508 連續三輪，標籤可能需重定義 | #H342 |
+| 🔴 P0 | **過擬 gap 縮減** — ~20pp gap 需正則化或特徵降維 | #H137 |
+| 🟡 P1 | **tau=100 持續改善追蹤** — 4/8→7/8 是否可持續 | #IC4 |
+| 🟡 P1 | **Chop regime 新 alpha 源** — 持續 0/8 需外部數據 | #H303 |
+| 🟢 P2 | **信心校準** — Platt scaling / temperature scaling | #H87 |
 
 ---
 
