@@ -380,6 +380,12 @@ def recompute_all_features(session: Session, symbol: str = "BTCUSDT") -> int:
                 existing.feat_pulse = features.get("feat_pulse")
                 existing.feat_aura = features.get("feat_aura")
                 existing.feat_mind = features.get("feat_mind")
+                # Also update technical indicators (was missing — P0 #H330)
+                existing.feat_rsi14 = features.get("feat_rsi14")
+                existing.feat_macd_hist = features.get("feat_macd_hist")
+                existing.feat_atr_pct = features.get("feat_atr_pct")
+                existing.feat_vwap_dev = features.get("feat_vwap_dev")
+                existing.feat_bb_pct_b = features.get("feat_bb_pct_b")
                 count += 1
         else:
             features = compute_features_from_raw(window)
