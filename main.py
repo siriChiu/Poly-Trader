@@ -98,23 +98,34 @@ def trading_cycle(session, config: dict, symbol: str, confidence_threshold: floa
     logger.info("=== 交易循環結束 ===\n")
 
 
+def _job_wrapper(SessionLocal, cfg):
+    """P0 #H353 fix: create a fresh session per job to avoid stale session bugs."""
+    session = SessionLocal()
+    try:
+        trading_cycle(
+            session,
+            cfg,
+            cfg["trading"]["symbol"],
+            cfg["trading"]["confidence_threshold"],
+        )
+    except Exception as e:
+        logger.error(f"交易循環異常: {e}")
+    finally:
+        session.close()
+
+
 def main():
     cfg = load_config()
     db_url = cfg["database"]["url"]
 
     # 初始化 DB
     SessionLocal = init_db(db_url)
-    session = SessionLocal
 
     # 排程器：每 5 分鐘執行（提高數據收集頻率）
     scheduler = BackgroundScheduler()
     scheduler.add_job(
-        func=lambda: trading_cycle(
-            session,
-            cfg,
-            cfg["trading"]["symbol"],
-            cfg["trading"]["confidence_threshold"],
-        ),
+        func=_job_wrapper,
+        args=[SessionLocal, cfg],
         trigger="interval",
         minutes=5,
         id="trading_cycle_job",
@@ -127,7 +138,7 @@ def main():
             time.sleep(60)
     except (KeyboardInterrupt, SystemExit):
         scheduler.shutdown()
-        session.close()
+        SessionLocal.close_all()
         logger.info("Poly-Trader 已停止")
 
 

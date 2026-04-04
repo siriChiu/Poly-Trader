@@ -1,228 +1,175 @@
-#!/usr/bin/env python
-"""Heartbeat Step 1 & 2: Data collection + IC analysis"""
+#!/usr/bin/env python3
+"""Heartbeat data collection script - Step 1 & 2"""
+import sqlite3
 import sys
-sys.path.insert(0, '/home/kazuha/Poly-Trader')
+import os
 
-from data.db_store import DBStore
-import numpy as np
-import pandas as pd
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-db = DBStore()
+db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'poly_trader.db')
 
-# === Step 1: Data Collection ===
-raw_count = db.db.execute('SELECT COUNT(*) FROM market_raw').fetchone()[0]
-features_count = db.db.execute('SELECT COUNT(*) FROM market_features').fetchone()[0]
-labels_count = db.db.execute('SELECT COUNT(*) FROM market_labels').fetchone()[0]
-
-label_df = db.load_labels()
-sell_win_ratio = label_df['sell_win'].mean() if 'sell_win' in label_df.columns else None
-
-features_df = db.load_features()
-btc_now = None
-if 'close' in features_df.columns:
-    btc_now = features_df['close'].iloc[-1]
-elif 'btc_close' in features_df.columns:
-    btc_now = features_df['btc_close'].iloc[-1]
-
-feat_cols = features_df.columns.tolist()
-
-# Get derivatives data if available
-derivatives = {}
-try:
-    lsrs = db.db.execute('SELECT * FROM binance_lsr ORDER BY timestamp DESC LIMIT 1').fetchone()
-    if lsrs:
-        derivatives['lsr'] = lsrs
-except:
-    pass
-
-print("=== STEP 1: DATA COLLECTION ===")
-print(f"Raw: {raw_count}")
-print(f"Features: {features_count}")
-print(f"Labels: {labels_count}")
-print(f"sell_win%: {sell_win_ratio*100:.1f}%" if sell_win_ratio else "N/A")
-print(f"BTC price: ${btc_now:,.0f}" if btc_now else "N/A")
-print(f"Feature cols ({len(feat_cols)}): {feat_cols}")
-print()
-
-# === Step 2: Sensory IC Analysis ===
-# Core 8 senses mapping to feature columns
-SENSE_MAP = {
-    'Eye': 'eye_signal',
-    'Ear': 'ear_signal',
-    'Nose': 'nose_signal',
-    'Tongue': 'tongue_signal',
-    'Body': 'body_signal',
-    'Pulse': 'pulse_signal',
-    'Aura': 'aura_signal',
-    'Mind': 'mind_signal',
-}
-
-# Combine features + labels
-merged = features_df.copy()
-if not label_df.empty:
-    # Align on index or join
-    if len(merged) == len(label_df):
-        merged = pd.concat([merged.reset_index(drop=True), label_df.reset_index(drop=True)], axis=1)
-    else:
-        min_len = min(len(merged), len(label_df))
-        merged = merged.iloc[:min_len].reset_index(drop=True)
-        label_sub = label_df.iloc[:min_len].reset_index(drop=True)
-        merged = pd.concat([merged, label_sub], axis=1)
-
-if 'sell_win' not in merged.columns:
-    print("ERROR: sell_win not in merged data")
+if not os.path.exists(db_path):
+    print(f"ERROR: Database not found at {db_path}")
     sys.exit(1)
 
-y = merged['sell_win'].astype(float)
-y_centered = y - y.mean()
+db = sqlite3.connect(db_path)
+db.row_factory = sqlite3.Row
 
-print("=== STEP 2: SENSORY IC ANALYSIS (h=4) ===")
-print()
+# Raw counts
+raw = db.execute("SELECT COUNT(*) as c FROM raw_market_data").fetchone()["c"]
+feat = db.execute("SELECT COUNT(*) as c FROM feature_store").fetchone()["c"]
+labels = db.execute("SELECT COUNT(*) as c FROM label_store").fetchone()["c"]
 
-# Full IC
-full_ics = {}
-for sense_name, col in SENSE_MAP.items():
-    if col in merged.columns:
-        x = merged[col].astype(float)
-        if x.std() > 0:
-            ic = np.corrcoef(x, y_centered)[0, 1]
-        else:
-            ic = 0.0
-        full_ics[sense_name] = ic
-    else:
-        full_ics[sense_name] = None
+print(f"COUNTS|Raw:{raw}|Features:{feat}|Labels:{labels}")
 
-print("--- Full IC (against sell_win) ---")
-passing = 0
-for sense, ic in full_ics.items():
-    status = "✅" if ic is not None and abs(ic) >= 0.05 else "❌"
-    if ic is not None and abs(ic) >= 0.05:
-        passing += 1
-    print(f"  {sense:8s}: {ic:+.4f} {status}" if ic is not None else f"  {sense:8s}: N/A")
-print(f"Passing: {passing}/8")
-print()
+# Latest BTC price with previous for change calculation
+rows = db.execute("SELECT price, timestamp FROM raw_market_data ORDER BY rowid DESC LIMIT 2").fetchall()
+if len(rows) >= 2:
+    current_price = rows[0]["price"]
+    prev_price = rows[1]["price"]
+    change_pct = (current_price - prev_price) / prev_price * 100
+    print(f"BTC|${current_price:.0f}|Change:+{change_pct:.2f}%" if change_pct >= 0 else f"BTC|${current_price:.0f}|Change:{change_pct:.2f}%")
+    print(f"BTC_TS|{rows[0]['timestamp']}")
+elif len(rows) == 1:
+    print(f"BTC|${rows[0]['price']:.0f}|Change:N/A")
 
-# Regime-aware IC (tercile split)
-sorted_merged = merged.sort_values(by='close' if 'close' in merged.columns else merged.columns[0])
-n = len(sorted_merged)
-third = n // 3
-bear_data = sorted_merged.iloc[:third]
-chop_data = sorted_merged.iloc[third:2*third]
-bull_data = sorted_merged.iloc[2*third:]
+# sell_win stats
+sw = db.execute("SELECT AVG(sell_win) as sw FROM label_store WHERE sell_win IS NOT NULL").fetchone()
+print(f"SOLD_WIN_GLOBAL|{sw['sw']:.4f}")
 
-print("--- Regime-Aware IC ---")
-print(f"{'Sense':<8s} | {'Bear IC':>8s} | {'Bull IC':>8s} | {'Chop IC':>8s}")
-bear_pass = bull_pass = chop_pass = 0
-for sense_name, col in SENSE_MAP.items():
-    if col not in merged.columns:
-        continue
-    ics = {}
-    for name, subset in [('Bear', bear_data), ('Bull', bull_data), ('Chop', chop_data)]:
-        y_sub = subset['sell_win'].astype(float)
-        y_c = y_sub - y_sub.mean()
-        x_sub = subset[col].astype(float)
-        if x_sub.std() > 0 and len(x_sub) > 2:
-            ic = np.corrcoef(x_sub, y_c)[0, 1]
-        else:
-            ic = 0.0
-        ics[name] = ic
-        if abs(ic) >= 0.05:
-            if name == 'Bear': bear_pass += 1
-            elif name == 'Bull': bull_pass += 1
-            else: chop_pass += 1
-    
-    bear_m = "✅" if abs(ics['Bear']) >= 0.05 else "❌"
-    bull_m = "✅" if abs(ics['Bull']) >= 0.05 else "❌"
-    chop_m = "✅" if abs(ics['Chop']) >= 0.05 else "❌"
-    print(f"{sense_name:<8s} | {ics['Bear']:+.4f} {bear_m} | {ics['Bull']:+.4f} {bull_m} | {ics['Chop']:+.4f} {chop_m}")
+for n in [500, 100, 50]:
+    recent = db.execute(f"SELECT AVG(sell_win) as sw FROM (SELECT sell_win FROM label_store WHERE sell_win IS NOT NULL ORDER BY rowid DESC LIMIT {n})").fetchone()
+    print(f"SELL_WIN_{n}|{recent['sw']:.4f}")
 
-print(f"\nRegime passing: Bear={bear_pass}/8, Bull={bull_pass}/8, Chop={chop_pass}/8")
-print()
+# Fear & Greed
+fng = db.execute("SELECT value FROM fear_greed_index ORDER BY timestamp DESC LIMIT 1").fetchone()
+if fng:
+    print(f"FNG|{fng['value']}")
 
-# Dynamic window IC
-print("--- Dynamic Window IC ---")
-for window in [500, 1000, 2000, 3000, 5000]:
-    recent = merged.tail(window)
-    if len(recent) < 3:
-        continue
-    y_w = recent['sell_win'].astype(float)
-    y_cw = y_w - y_w.mean()
-    passing_w = 0
-    for sense_name, col in SENSE_MAP.items():
-        if col not in recent.columns:
-            continue
-        x_w = recent[col].astype(float)
-        if x_w.std() > 0:
-            ic_w = np.corrcoef(x_w, y_cw)[0, 1]
-        else:
-            ic_w = 0.0
-        if abs(ic_w) >= 0.05:
-            passing_w += 1
-    print(f"  N={window}: {passing_w}/8 passing")
-
-print()
-
-# Model CV
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import cross_val_score
-
-sense_cols_in_data = [SENSE_MAP[s] for s in SENSE_MAP if SENSE_MAP[s] in merged.columns]
-X = merged[sense_cols_in_data].fillna(0)
-y_cv = merged['sell_win'].astype(float)
-
-if len(X) > 0 and len(y_cv) > 0:
-    lr = LogisticRegression(max_iter=1000, random_state=42)
-    cv_scores = cross_val_score(lr, X, y_cv, cv=5, scoring='accuracy')
-    print(f"=== Model CV Accuracy ===")
-    print(f"  LR:    {cv_scores.mean()*100:.1f}% ± {cv_scores.std()*100:.1f}%")
-    
-    # IC-weighted fusion
-    weights = []
-    for col in sense_cols_in_data:
-        x = merged[col].astype(float)
-        if x.std() > 0:
-            ic = abs(np.corrcoef(x, y_centered)[0, 1])
-        else:
-            ic = 0.0
-        weights.append(max(ic, 0.001))
-    weights = np.array(weights)
-    weights = weights / weights.sum()
-    
-    if len(sense_cols_in_data) > 1:
-        fused = (merged[sense_cols_in_data].fillna(0).values * weights).sum(axis=1)
-        # Simple threshold classifier
-        from sklearn.metrics import accuracy_score
-        threshold = np.median(fused)
-        preds = (fused > threshold).astype(float)
-        ic_fusion_acc = accuracy_score(y_cv, preds)
-        print(f"  IC-Fusion: {ic_fusion_acc*100:.1f}%")
-else:
-    print("Not enough data for CV")
-
-# FNG
-print()
-try:
-    from sensory.fear_greed_index import get_fng_data
-    fng_data = get_fng_data()
-    print(f"FNG: {fng_data.get('value', 'N/A')} ({fng_data.get('value_classification', 'N/A')})")
-except Exception as e:
-    print(f"FNG: Could not fetch ({e})")
+# Funding rate
+fr = db.execute("SELECT value FROM funding_rate ORDER BY timestamp DESC LIMIT 1").fetchone()
+if fr:
+    print(f"FUNDING_RATE|{fr['value']}")
 
 # Derivatives
-print()
-print("=== Derivatives ===")
-try:
-    # Try to get latest derivatives
-    for table in ['binance_lsr', 'binance_gsr', 'binance_taker', 'binance_open_interest']:
-        try:
-            row = db.db.execute(f'SELECT * FROM {table} ORDER BY timestamp DESC LIMIT 1').fetchone()
-            if row:
-                desc = db.db.execute(f'PRAGMA table_info({table})').fetchall()
-                col_names = [d[1] for d in desc]
-                print(f"  {table}: {dict(zip(col_names, row))}")
-            else:
-                print(f"  {table}: empty")
-        except:
-            print(f"  {table}: not available")
-except Exception as e:
-    print(f"  Derivatives error: {e}")
+derivs = db.execute("SELECT * FROM derivatives ORDER BY timestamp DESC LIMIT 1").fetchone()
+if derivs:
+    print(f"LSR|{derivs['lsr']}")
+    print(f"TAKER|{derivs['taker']}")
+    print(f"OI|{derivs['open_interest']}")
+    print(f"GSR|{derivs.get('gsr', 'N/A')}")
+
+# VIX
+vix = db.execute("SELECT value FROM vix_index ORDER BY timestamp DESC LIMIT 1").fetchone()
+if vix:
+    print(f"VIX|{vix['value']:.2f}")
+
+# DXY
+dxy = db.execute("SELECT value FROM dxy_index ORDER BY timestamp DESC LIMIT 1").fetchone()
+if dxy:
+    print(f"DXY|{dxy['value']:.2f}")
+
+# IC Analysis - calculate IC for all features against sell_win
+# IC = Spearman correlation of feature with sell_win
+from scipy.stats import spearmanr
+import numpy as np
+
+feature_cols = db.execute("PRAGMA table_info(feature_store)").fetchall()
+col_names = [r["name"] for r in feature_cols]
+exclude_cols = ["rowid"]  # exclude non-feature columns
+
+# Map of feature -> sensory name
+sense_map = {
+    "feat_eye": "Eye", "feat_nose": "Nose", "feat_ear": "Ear",
+    "feat_ear_zscore": "Ear", "feat_mind": "Mind", "feat_tongue": "Tongue",
+    "feat_body": "Body", "feat_pulse": "Pulse", "feat_aura": "Aura",
+    "feat_rsi_14": "RSI14", "feat_macd_hist": "MACD_hist",
+    "feat_bb_pct": "BB%p", "feat_atr_pct": "ATR_pct",
+    "feat_vwap_dev": "VWAP_dev",
+    "feat_vol_ratio": "VolRatio", "feat_volume_zscore": "VolZ",
+    "feat_momentum_4h": "Mom4h", "feat_momentum_24h": "Mom24h",
+}
+
+# Also check for placeholder features
+placeholders = ["whisper", "tone", "chorus", "hype", "oracle", "shock", "tide", "storm"]
+
+# Get all feature values
+all_data = db.execute("SELECT * FROM feature_store").fetchall()
+
+if not all_data:
+    print("ERROR: No feature data found")
+    db.close()
+    sys.exit(1)
+
+# Get sell_win labels
+labels_data = db.execute("SELECT sell_win FROM label_store").fetchall()
+
+# Build arrays
+col_types = {r["name"]: r["type"] for r in feature_cols}
+print(f"\n--- IC Analysis (h=4) ---")
+
+feature_ics = []
+ic_results = {}
+
+for col in col_names:
+    if col in exclude_cols or col == "sell_win":
+        continue
+    
+    # Get feature values
+    vals = [row[col] for row in all_data if row[col] is not None]
+    n_valid = len(vals)
+    
+    if n_valid < 100:
+        # Too few valid values
+        std_val = 0
+        unique_count = len(set([row[col] for row in all_data]))
+        print(f"IC|{col}|null|std:null|unique:{unique_count}|valid:{n_valid}|DEAD")
+        feature_ics.append((col, None, 0))
+        continue
+    
+    arr = np.array(vals, dtype=float)
+    std_val = np.std(arr)
+    unique_count = len(np.unique(arr))
+    
+    if std_val < 1e-10:
+        print(f"IC|{col}|0.0000|std:0|unique:{unique_count}|valid:{n_valid}|DEAD")
+        feature_ics.append((col, 0.0, 0))
+        continue
+    
+    # Get corresponding sell_win values
+    valid_indices = [i for i, row in enumerate(all_data) if row[col] is not None]
+    sw_vals = [labels_data[i]["sell_win"] for i in valid_indices if i < len(labels_data) and labels_data[i]["sell_win"] is not None]
+    feat_vals = [float(all_data[i][col]) for i in valid_indices if i < len(labels_data) and labels_data[i]["sell_win"] is not None]
+    
+    if len(sw_vals) < 100:
+        print(f"IC|{col}|N/A|std:{std_val:.4f}|unique:{unique_count}|label_mismatch|DEAD")
+        feature_ics.append((col, None, std_val))
+        continue
+    
+    corr, pvalue = spearmanr(feat_vals, sw_vals)
+    status = "PASS" if abs(corr) >= 0.05 else "FAIL"
+    
+    sense_name = sense_map.get(col, col)
+    print(f"IC|{col}|{corr:+.4f}|std:{std_val:.4f}|unique:{unique_count}|{status}")
+    
+    # Track by sensory name
+    if sense_name not in ic_results:
+        ic_results[sense_name] = []
+    ic_results[sense_name].append((col, corr, std_val, status))
+
+# Also check for placeholder features
+for ph in placeholders:
+    for col in col_names:
+        if ph in col.lower():
+            vals = [row[col] for row in all_data]
+            unique_count = len(set([v for v in vals if v is not None]))
+            non_null = sum(1 for v in vals if v is not None)
+            print(f"IC|{col}|NULL|std:0|unique:{unique_count}|valid:{non_null}|PLACEHOLDER_DEAD")
+            break
+
+print("\n--- Summary ---")
+passed = [(col, corr, std) for col, corr, std in feature_ics if corr is not None and abs(corr) >= 0.05]
+failed = [(col, corr, std) for col, corr, std in feature_ics if corr is None or abs(corr) < 0.05]
+print(f"Passed IC≥0.05: {len(passed)}/{len(feature_ics)}")
+
+db.close()

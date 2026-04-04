@@ -67,19 +67,14 @@ class FeaturesNormalized(Base):
     feat_pulse = Column(Float)
     feat_aura = Column(Float)
     feat_mind = Column(Float)
-    feat_whisper = Column(Float)
-    feat_tone = Column(Float)
-    feat_chorus = Column(Float)
-    feat_hype = Column(Float)
-    feat_oracle = Column(Float)
-    feat_shock = Column(Float)
-    feat_tide = Column(Float)
-    feat_storm = Column(Float)
+    # P1 #H370: Removed 8 placeholder features (whisper/tone/chorus/hype/oracle/shock/tide/storm)
+    # They were NULL/unique=1/stdev=0 across all 8770 rows — pure noise dimensions
+    # regime_label, TI features, and valid features remain
     regime_label = Column(String, nullable=True)
     feature_version = Column(String, nullable=True)
     feat_vix = Column(Float, nullable=True)
     feat_dxy = Column(Float, nullable=True)
-    # P0 #H161: Technical indicators — 5 IC-validated features
+    # P0 #H161: Technical indicators — IC-validated features
     feat_rsi14 = Column(Float, nullable=True)
     feat_macd_hist = Column(Float, nullable=True)
     feat_atr_pct = Column(Float, nullable=True)
