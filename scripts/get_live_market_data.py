@@ -60,6 +60,16 @@ except Exception:
     except Exception as e:
         results['taker_error'] = f'Binance taker API deprecated + LSR fallback failed: {e}'
 
+# Fear & Greed Index
+try:
+    req = urllib.request.urlopen('https://api.alternative.me/fng/?limit=1', timeout=10)
+    fng_data = json.loads(req.read())
+    fng_val = fng_data['data'][0]['value']
+    results['fear_greed'] = int(fng_val)
+    results['fear_greed_label'] = fng_data['data'][0]['value_classification']
+except Exception as e:
+    results['fng_error'] = str(e)
+
 with open('/home/kazuha/Poly-Trader/data/live_market_data.json', 'w') as f:
     json.dump(results, f, indent=2)
 
