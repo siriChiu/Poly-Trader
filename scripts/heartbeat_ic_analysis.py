@@ -90,15 +90,8 @@ for name in feat_labels:
 
 # ===== Regime-aware IC =====
 print(f"\n=== Regime-aware IC Analysis ===")
-n = len(timestamps)
-third = n // 3
-regime_splits = [
-    ("Bear", timestamps[:third]),
-    ("Chop", timestamps[third:2*third]),
-    ("Bull", timestamps[2*third:]),
-]
 
-# Also try with regime_label column if available
+# Use actual regime_label from DB instead of timestamp thirds
 try:
     col_info = db.execute("PRAGMA table_info(features_normalized)").fetchall()
     col_names = [c[1] for c in col_info]
@@ -113,6 +106,35 @@ if has_regime:
         print("Regime distribution from DB:", counts)
     except:
         pass
+
+# Build regime-aware splits
+if has_regime:
+    regime_splits = []
+    for regime_name in ['bear', 'bull', 'chop']:
+        try:
+            rows = db.execute("SELECT timestamp FROM features_normalized WHERE regime_label = ?", (regime_name,)).fetchall()
+            regime_ts = [r[0] for r in rows]
+            if regime_ts:
+                regime_splits.append((regime_name.capitalize(), regime_ts))
+        except Exception as e:
+            print(f"  Skip regime '{regime_name}': {e}")
+    if not regime_splits:
+        # Fallback to thirds
+        n = len(timestamps)
+        third = n // 3
+        regime_splits = [
+            ("Bear", timestamps[:third]),
+            ("Chop", timestamps[third:2*third]),
+            ("Bull", timestamps[2*third:]),
+        ]
+else:
+    n = len(timestamps)
+    third = n // 3
+    regime_splits = [
+        ("Bear", timestamps[:third]),
+        ("Chop", timestamps[third:2*third]),
+        ("Bull", timestamps[2*third:]),
+    ]
 
 for regime_name, ts_regime in regime_splits:
     ts_set = set(ts_regime)
