@@ -46,7 +46,7 @@ class BacktestEngine:
         self.pyramid_mode = pyramid_mode
         self.commission_rate = commission_rate
         self.slippage_bps = slippage_bps
-        self.predictor = load_predictor()
+        self.predictor, _ = load_predictor()
         self.positions: List[Dict] = []
         self.equity_curve = []
         self.trade_log = []
