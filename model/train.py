@@ -99,6 +99,9 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
     # Coerce all feature columns to numeric — handles NULL/None/object dtype
     for col in all_cols:
         merged[col] = pd.to_numeric(merged[col], errors='coerce')
+    # P0 audit: Count non-null BEFORE fillna
+    non_null_before = {col: int(merged[col].notna().sum()) for col in all_cols}
+    # Fill NaN with 0 for XGBoost (but preserve counts for IC audit)
     merged[all_cols] = merged[all_cols].fillna(0.0)
 
     if len(merged) < min_samples:
@@ -172,11 +175,8 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
     core_ic_summary = {c: round(ic_map.get(c, 0), 4) for c in FEATURE_COLS}
     tw_ic_summary = {c: round(tw_ic_map.get(c, 0), 4) for c in FEATURE_COLS}
 
-    # Compute null counts for all features
-    null_counts = {}
-    for col in all_feature_cols:
-        non_null = int(masked[col].notna().sum()) if col in masked.columns else 0
-        null_counts[col] = non_null
+    # Compute null counts for all features (from pre-fillna count)
+    null_counts = non_null_before.copy()
 
     # Classify each feature's IC status
     ic_status = {}
