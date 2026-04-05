@@ -13,8 +13,8 @@ except ImportError:
     print("ERROR: numpy/pandas not installed", file=sys.stderr)
     sys.exit(1)
 
-HERMES_HOME = os.path.expanduser("~/.hermes")
-DB_PATH = os.path.join(HERMES_HOME, "poly_trader", "data", "market.db")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_PATH = os.path.join(ROOT, "poly_trader.db")
 
 if not os.path.exists(DB_PATH):
     print(f"ERROR: DB not found at {DB_PATH}")
