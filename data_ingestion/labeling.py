@@ -153,8 +153,13 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
             timestamp=row["timestamp"],
             symbol=symbol,
             horizon_minutes=horizon_hours * 60,
+            future_return_pct=float(row["future_return_pct"]) if row.get("future_return_pct") is not None and row["future_return_pct"] != "" else None,
+            label=int(row["label"]),
+            label_sell_win=int(row.get("label_sell_win", 0)),
             label_up=int(row.get("label_up", row["label"])),
             regime_label=regime_val,  # P0 fix: 自動填入 regime
+            # P0 fix hb212: 新標籤必須包含 future_return_pct 和 label_sell_win
+            # 否則 IC 計算和勝率追蹤全部失效
         )
         session.add(label_row)
         new_count += 1
