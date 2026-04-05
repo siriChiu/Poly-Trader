@@ -8,7 +8,7 @@ from typing import Optional, Dict
 from datetime import datetime
 import numpy as np
 from sqlalchemy.orm import Session
-from database.models import FeaturesNormalized
+from database.models import FeaturesNormalized, Labels
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -34,6 +34,12 @@ FEATURE_COLS = BASE_FEATURE_COLS
 # Confidence thresholds for trade filtering — model predicts sell-win probability
 CONFIDENCE_HIGH = 0.7   # SELL (short) — high confidence price will drop (sell-win)
 CONFIDENCE_LOW = 0.3    # BUY/HOLD — low confidence, price likely rising
+
+# P0 #H420: Circuit breaker — halt trading after N consecutive losses
+# sell_win is at 49.90%, 156-streak ongoing — must prevent further damage
+CIRCUIT_BREAKER_STREAK = 50  # consecutive sell losses before forced abstain
+CIRCUIT_BREAKER_RECENT_WINRATE = 0.35  # if recent 100 win rate < 35%, force abstain
+CIRCUIT_BREAKER_WINDOW = 100  # samples to check for win rate floor
 REGIME_THRESHOLD_BIAS = {
     'trend': -0.03,
     'chop': 0.04,
@@ -367,6 +373,59 @@ def load_latest_features(session: Session) -> Optional[Dict]:
     return features
 
 
+def _check_circuit_breaker(session) -> Optional[Dict]:
+    """P0 #H420: Circuit breaker — check for consecutive losses and recent win rate.
+    Returns an abort dict if circuit breaker is triggered, None if safe to trade.
+    """
+    from sqlalchemy import func as _func
+    from database.models import Labels
+
+    # Check consecutive sell losses from most recent backwards
+    recent_labels = (
+        session.query(Labels.label_sell_win)
+        .filter(Labels.label_sell_win.isnot(None))
+        .order_by(Labels.timestamp.desc())
+        .all()
+    )
+
+    streak = 0
+    for row in recent_labels:
+        if not row[0]:
+            streak += 1
+        else:
+            break
+
+    if streak >= CIRCUIT_BREAKER_STREAK:
+        return {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "confidence": 0.5,
+            "signal": "CIRCUIT_BREAKER",
+            "confidence_level": "CIRCUIT_BREAKER",
+            "should_trade": False,
+            "model_type": "circuit_breaker",
+            "reason": f"Consecutive loss streak: {streak} >= {CIRCUIT_BREAKER_STREAK}",
+            "streak": streak,
+        }
+
+    # Check recent win rate floor
+    if len(recent_labels) >= CIRCUIT_BREAKER_WINDOW:
+        window_wins = sum(1 for r in recent_labels[:CIRCUIT_BREAKER_WINDOW] if r[0])
+        window_wr = window_wins / CIRCUIT_BREAKER_WINDOW
+        if window_wr < CIRCUIT_BREAKER_RECENT_WINRATE:
+            return {
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "confidence": 0.5,
+                "signal": "CIRCUIT_BREAKER",
+                "confidence_level": "CIRCUIT_BREAKER",
+                "should_trade": False,
+                "model_type": "circuit_breaker",
+                "reason": f"Recent {CIRCUIT_BREAKER_WINDOW}-sample win rate: {window_wr:.2%} < {CIRCUIT_BREAKER_RECENT_WINRATE:.0%}",
+                "win_rate": window_wr,
+            }
+
+    return None
+
+
 def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -> Optional[Dict]:
     """Predict using time-weighted IC fusion instead of static model.
     Uses exp decay IC (tau) to weight each sense, then fuses via weighted average.
@@ -450,6 +509,11 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
 
 
 def predict(session: Session, predictor=None, regime_models=None) -> Optional[Dict]:
+    # P0 #H420: Circuit breaker check before any prediction
+    cb = _check_circuit_breaker(session)
+    if cb is not None:
+        logger.warning(f"CIRCUIT BREAKER TRIGGERED: {cb['reason']}")
+        return cb
     features = load_latest_features(session)
     if not features:
         return None
