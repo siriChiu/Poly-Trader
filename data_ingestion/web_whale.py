@@ -1,61 +1,87 @@
+#!/usr/bin/env python3
 """
-感官之 Web (網) — 鏈上巨鯨/交易所淨流入流出
+感官之「Web」v1 — 鏈上巨鯨/交易所淨流向
 
-數據源：Binance 大額交易 + 公開鏈上數據
-- Binance /api/v3/trades (免費, K線)
-- Whale Alert API (可選)
+數據源：Binance 大額交易 + 公開鏈上數據 (免費, 無需 API key)
+- Binance /api/v3/trades (最近 1000 筆交易)
+- 計算大額交易分佈和方向
 
-提取：交易所 BTC 淨流入/流出、大額轉帳頻率
+邏輯：
+- 大量 BTC 流入交易所 → 準備出售 → SHORT 信號
+- 大量 BTC 流出交易所 → 長期持有 → 不建議 SHORT
+- 大戶買賣比 (Whale Buy/Sell Ratio)
 """
 import json
 import ssl
 import math
-from typing import Dict, Optional
 from datetime import datetime
+from typing import Optional, Dict
 from urllib.request import urlopen, Request
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-# 用 Binance top holder ratio 和 exchange reserve 作為代理數據
-# 免費、穩定、無需 API key
-BINANCE_LS_URL = "https://fapi.binance.com/futures/data/globalLongShortAccountRatio"
-
 
 def get_web_feature() -> Optional[Dict]:
-    """獲取交易所多空比(大帳戶) 和 大戶淨頭寸變化。"""
-    # 大戶多空比 (accounts > 2M+ notional)
+    """
+    計算巨鯨活動特徵。
+    使用 Binance 大額交易作為代理數據。
+    
+    返回：
+    - feat_web_whale_buy_sell: 大戶買賣比 (0~1, >0.5 偏賣壓)
+    - feat_web_large_trade_density: 大額交易密度
+    """
     try:
-        url = "https://fapi.binance.com/futures/data/topLongShortAccountRatio"
-        params = "symbol=BTCUSDT&period=4h&limit=24"
-        req = Request(f"{url}?{params}", headers={"User-Agent": "Mozilla/5.0"})
-        resp = urlopen(req, timeout=10)
-        data = json.loads(resp.read().decode())
-
-        ratios = [float(d["topLongShortAccountRatio"]) for d in data if "topLongShortAccountRatio" in d]
-
-        if ratios and len(ratios) >= 2:
-            recent = ratios[-1]
-            older = ratios[0]
-            change = (recent - older) / max(older, 0.01)
-
-            # feat_web: top account LS ratio change
-            # rising ratio = more long → bullish (bad for SHORT)
-            # falling ratio = reducing long → bearish (good for SHORT)
-            web_score = -math.tanh(change * 5)  # negative: more shorts = higher score = bullish for short
-            web_score = (web_score + 1) / 2  # normalize to 0-1
-        else:
-            web_score = 0.5
-            recent = 0
-            change = 0
-
-        logger.info(f"Web: top_acct_ratio={recent:.3f}, change={change:.3f}, feat_web={web_score:.3f}")
-
+        # 獲取最近 1000 筆 Binance 交易
+        url = "https://api.binance.com/api/v3/trades?symbol=BTCUSDT&limit=1000"
+        req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        resp = urlopen(req, context=ssl.create_default_context(), timeout=10)
+        trades = json.loads(resp.read().decode())
+        
+        # 計算大額交易 (>1 BTC)
+        large_trades = [t for t in trades if float(t.get("qty", 0)) > 1.0]
+        very_large = [t for t in trades if float(t.get("qty", 0)) > 5.0]
+        
+        # 估計買賣方向 (基於價格變動和成交量)
+        # 假設：成交價靠近 ask = 買方主動, 靠近 bid = 賣方主動
+        # Binance  trades 有 isBuyerMaker 欄位：True = seller was maker (buy order)
+        maker_buys = sum(1 for t in large_trades if t.get("isBuyerMaker", False))
+        maker_sells = len(large_trades) - maker_buys
+        
+        total = maker_buys + maker_sells
+        buy_ratio = maker_buys / total if total > 0 else 0.5
+        
+        # feat_web: 賣方主導 = high score = good for SHORT
+        # isBuyerMaker=True means BUYER was maker = passive buying
+        # isBuyerMaker=False means BUYER was taker = active buying (bullish)
+        # So False = active buying (bullish), True = passive selling (bearish)
+        whale_sell_pressure = maker_buys / total if total > 0 else 0.5
+        
+        # Large trade density
+        density = math.tanh(len(large_trades) / 20.0)  # 20+ large trades → 1.0
+        very_large_density = math.tanh(len(very_large) / 5.0)
+        
+        score = (whale_sell_pressure * 0.7 + very_large_density * 0.3)
+        
+        logger.info(
+            f"Web: large_trades={len(large_trades)}, "
+            f"very_large={len(very_large)}, "
+            f"buy_ratio={buy_ratio:.3f}, "
+            f"sell_pressure={whale_sell_pressure:.3f}, "
+            f"feat_web={score:.3f}"
+        )
+        
         return {
-            "feat_web_top_lsr": recent,
-            "feat_web_lsr_change": change,
-            "feat_web": web_score,
+            "feat_web_whale_sell_pressure": whale_sell_pressure,
+            "feat_web_large_density": density,
+            "feat_web_very_large_density": very_large_density,
+            "feat_web": score,
+            "whale_buy_ratio": buy_ratio,
+            "large_trades": len(large_trades),
+            "very_large_trades": len(very_large),
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }
+        
     except Exception as e:
         logger.warning(f"Web 獲取失敗: {e}")
         return None

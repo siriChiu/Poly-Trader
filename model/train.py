@@ -21,6 +21,7 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 MODEL_PATH = "model/xgb_model.pkl"
+DB_PATH = str(Path(__file__).parent.parent / "poly_trader.db")
 # 8 core senses + VIX + DXY = 10 active features
 # 8 auxiliary (whisper/tone/chorus/hype/oracle/shock/tide/storm) are zero/constant — keep out of training
 FEATURE_COLS = [
@@ -478,3 +479,50 @@ def train_regime_models(session: Session) -> bool:
         logger.info(f"Regime-specified models saved: {list(regime_models.keys())}")
         return True
     return False
+
+
+def main():
+    """Standalone training entry point: python model/train.py"""
+    import json, pickle
+    from database.models import init_db
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
+    db_path = str(Path(__file__).parent.parent / "poly_trader.db")
+    db_url = "sqlite:///" + db_path
+    print("Loading data from " + db_path)
+    session = init_db(db_url)
+    try:
+        loaded = load_training_data(session)
+        if loaded is None:
+            print("No training data. Skipping.")
+            return False
+        X, y = loaded
+        print("Training data: {} samples, {} features".format(len(X), len(X.columns)))
+        print("Positive ratio: {:.4f}".format(y.mean()))
+        print("Training global model...")
+        result = run_training(session)
+        metrics_path = str(Path(__file__).parent / "last_metrics.json")
+        if result and os.path.exists(metrics_path):
+            with open(metrics_path) as f:
+                metrics = json.load(f)
+            print("  Global -> Train={}, CV={} +/- {}".format(
+                metrics.get("train_accuracy", "?"),
+                metrics.get("cv_accuracy", "?"),
+                metrics.get("cv_std", "?")))
+        print("Training regime models...")
+        train_regime_models(session)
+        rpath = str(Path(__file__).parent / "regime_models.pkl")
+        if os.path.exists(rpath):
+            with open(rpath, "rb") as f:
+                rm = pickle.load(f)
+            for r in rm:
+                n = len(rm[r].get("feature_names", []))
+                print("  {}: {} features saved".format(r, n))
+        print("Training complete.")
+        return True
+    finally:
+        session.close()
+
+
+if __name__ == "__main__":
+    main()
