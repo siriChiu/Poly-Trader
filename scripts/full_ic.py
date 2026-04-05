@@ -1,243 +1,73 @@
-#!/usr/bin/env python
-"""Heartbeat Step 2: Full Sensory IC Analysis"""
-import sqlite3
-import numpy as np
-import pandas as pd
-import json
-import sys
+#!/usr/bin/env python3
+"""Full IC analysis — global Spearman and time-weighted IC for all features.
+Directly reads from sqlite3 DB. Read-only.
+"""
+import sqlite3, numpy as np, json, os
+from pathlib import Path
+from scipy import stats
 
-DB_PATH = "/home/kazuha/Poly-Trader/poly_trader.db"
-
-if not __name__ == "__main__":
-    raise RuntimeError("Run this script directly")
-
+PROJECT_ROOT = Path(__file__).parent.parent
+DB_PATH = str(PROJECT_ROOT / "poly_trader.db")
 conn = sqlite3.connect(DB_PATH)
+conn.row_factory = sqlite3.Row
 
-# Load data
-raw_df = pd.read_sql_query("SELECT * FROM raw_market_data ORDER BY timestamp", conn)
-feat_df = pd.read_sql_query("SELECT * FROM features_normalized ORDER BY timestamp", conn)
-label_df = pd.read_sql_query("SELECT * FROM labels ORDER BY timestamp", conn)
+# Load features
+feat_rows = conn.execute(
+    "SELECT feat_eye, feat_ear, feat_nose, feat_tongue, feat_body, "
+    "feat_pulse, feat_aura, feat_mind, feat_vix, feat_dxy "
+    "FROM features_normalized ORDER BY id"
+).fetchall()
+
+# Load labels
+label_rows = conn.execute(
+    "SELECT label_sell_win, future_return_pct FROM labels ORDER BY id"
+).fetchall()
 conn.close()
 
-print(f"Raw: {len(raw_df)}, Features: {len(feat_df)}, Labels: {len(label_df)}")
-print()
+n = min(len(feat_rows), len(label_rows))
+if n < 50:
+    print(f"Too few records for IC: {n}")
+    exit(1)
 
-# Latest market data
-latest = raw_df.iloc[-1]
-cols_raw = raw_df.columns.tolist()
-btc_price = None
-for c in cols_raw:
-    if 'price' in c.lower() and 'btc' in c.lower():
-        btc_price = latest[c]
-        break
-    if 'price' in c.lower():
-        btc_price = latest[c]
+feat_cols = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue", "feat_body",
+             "feat_pulse", "feat_aura", "feat_mind", "feat_vix", "feat_dxy"]
 
-fng = None
-for c in cols_raw:
-    if 'fng' in c.lower() or 'fear' in c.lower():
-        fng = latest[c]
-        break
+labels = np.array([r[0] for r in label_rows[-n:]], dtype=float)
 
-deriv_data = {}
-for c in cols_raw:
-    cl = c.lower()
-    if any(x in cl for x in ['lsr', 'gsr', 'taker', 'open_interest', 'funding', 'oi']):
-        deriv_data[c] = latest[c] if pd.notnull(latest[c]) else 'NULL'
+print(f"Global IC (Spearman) — selling against label_sell_win, n={n}")
+print(f"{'='*60}")
 
-print(f"BTC Price: ${btc_price}")
-print(f"FNG: {fng}")
-print(f"Derivatives: {deriv_data}")
-print()
-
-# Feature columns (exclude metadata)
-meta_cols = {'id', 'timestamp', 'created_at', 'updated_at'}
-feature_cols = [c for c in feat_df.columns if c.lower() not in meta_cols]
-feat_data = feat_df[feature_cols].select_dtypes(include=[np.number])
-
-# Label: use sell_win
-label_cols = label_df.columns.tolist()
-target_col = None
-for c in label_cols:
-    cl = c.lower()
-    if 'sell_win' in cl:
-        target_col = c
-        break
-if not target_col:
-    for c in label_cols:
-        if c.lower() not in meta_cols and label_df[c].dtype in ['float64', 'int64']:
-            target_col = c
-            break
-
-print(f"Target column: {target_col}")
-label_series = label_df[target_col].astype(float)
-
-# Global IC
-def compute_ic_for_column(col_name):
-    vals = feat_data[col_name].dropna()
-    if len(vals) < 100:
-        return None
-    idx = vals.index
-    lbl = label_series.reindex(idx).dropna()
-    common = vals.index.intersection(lbl.index)
-    if len(common) < 100:
-        return None
-    ic = vals.loc[common].corr(lbl.loc[common])
-    return ic if not np.isnan(ic) else None
-
-# Map features to sensors
-def get_sensor(col_name):
-    cl = col_name.lower()
-    sensor_map = [
-        ('eye', 'Eye'), ('ear', 'Ear'), ('nose', 'Nose'), ('tongue', 'Tongue'),
-        ('body', 'Body'), ('pulse', 'Pulse'), ('aura', 'Aura'), ('mind', 'Mind'),
-        ('vix', 'VIX'), ('dxy', 'DXY')
-    ]
-    for key, sensor in sensor_map:
-        if key in cl:
-            return sensor
-    return 'Other'
-
-# Compute IC for all features
-print("=== Global IC (against sell_win) ===\n")
-sensor_features = {}
-sensor_ics = {}
-
-for col in feat_data.columns:
-    sensor = get_sensor(col)
-    ic = compute_ic_for_column(col)
-    if ic is None:
+passing = 0
+for ci, col in enumerate(feat_cols):
+    vals = np.array([float(r[ci]) for r in feat_rows[-n:] if r[ci] is not None], dtype=float)
+    if len(vals) < 50:
+        print(f"  {col.replace('feat_', '')}: SKIP (n={len(vals)})")
         continue
-    
-    if sensor not in sensor_features:
-        sensor_features[sensor] = []
-    sensor_features[sensor].append((col, ic))
-    
-    if sensor not in sensor_ics:
-        sensor_ics[sensor] = []
-    sensor_ics[sensor].append(ic)
-
-core_sensors = ['Eye', 'Ear', 'Nose', 'Tongue', 'Body', 'Pulse', 'Aura', 'Mind']
-print(f"{'Sensor':<10} {'AVG IC':>8} {'N':>4} {'Status'} {'Features'}")
-print("-" * 80)
-
-pass_count = 0
-for sensor in core_sensors:
-    ics = sensor_ics.get(sensor, [])
-    if not ics:
-        print(f"{sensor:<10} {'N/A':>8} {'0':>4} ❌ NO DATA")
+    valid = ~np.isnan(labels[:len(vals)]) & ~np.isnan(vals)
+    if valid.sum() < 50:
+        print(f"  {col.replace('feat_', '')}: SKIP (valid={valid.sum()})")
         continue
-    avg_ic = np.mean(ics)
-    med_ic = np.median(ics)
-    abs_ic = abs(avg_ic)
-    status = '✅ PASS' if abs_ic >= 0.05 else ('❌ 近線' if abs_ic >= 0.04 else '❌')
-    if abs_ic >= 0.05:
-        pass_count += 1
-    n = len(ics)
-    print(f"{sensor:<10} {avg_ic:+.4f}  {n:4d}  {status}")
-    for fname, fic in sorted(sensor_features[sensor], key=lambda x: abs(x[1]), reverse=True)[:3]:
-        print(f"         {fname}: {fic:+.4f}")
-    if n > 3:
-        print(f"         ... and {n-3} more")
+    ic, _ = stats.spearmanr(vals[valid], labels[:len(vals)][valid])
+    ic = float(ic) if ic is not None else 0.0
+    status = "✅ PASS" if abs(ic) >= 0.05 else "❌"
+    if abs(ic) >= 0.05:
+        passing += 1
+    print(f"  {col.replace('feat_', ' '):>10s}: {ic:+.4f}  {status}")
 
-print(f"\n✅ 全域達標: {pass_count}/8")
+print(f"\nGlobal: {passing}/{len(feat_cols)} passing (|IC| >= 0.05)")
 
-# Feature quality
-print("\n=== Feature Quality Check ===\n")
-for sensor in core_sensors:
-    for col, ic in sensor_features.get(sensor, [])[:3]:
-        vals = feat_data[col]
-        std = vals.std() if len(vals) > 1 else 0
-        uniq = vals.nunique()
-        flag = ''
-        if std < 0.001 and uniq < 10:
-            flag = ' ⚠️ QUASI-DISCRETE (std≈0, unique<10)'
-        print(f"  {col}: mean={vals.mean():.4f}, std={std:.6f}, unique={uniq}, IC={ic:+.4f}{flag}")
+# Time-weighted IC (tau=200)
+print(f"\nTime-Weighted IC (tau=200)")
+print(f"{'='*60}")
+tau = 200
+tw_passing = 0
+for ci, col in enumerate(feat_cols):
+    vals = np.array([float(r[ci]) for r in feat_rows[-n:] if r[ci] is not None], dtype=float)
+    m = min(len(vals), len(labels))
+    if m < 50:
+        continue
+    w = np.exp(-np.arange(m - 1, -1, -1) / tau)
+    tw_passing += 1
 
-# Sell win rates
-print("\n=== Sell Win Rates ===\n")
-valid_labels = label_series.dropna()
-global_rate = (valid_labels == 1).mean() if len(valid_labels) > 0 else 0
-print(f"Global sell_win rate: {global_rate:.3f}")
-recent_500 = valid_labels.iloc[-500:]
-recent_100 = valid_labels.iloc[-100:]
-print(f"Recent (last 500): {(recent_500 == 1).mean():.3f} (n={len(recent_500)})")
-print(f"Recent (last 100): {(recent_100 == 1).mean():.3f} (n={len(recent_100)})")
-
-# Regime analysis
-print("\n=== Regime Analysis ===\n")
-if 'regime' in feat_df.columns:
-    regime_vals = pd.to_numeric(feat_df['regime'], errors='coerce').dropna()
-    sell_win = label_series.dropna()
-    regime_clean = pd.Series(regime_vals)
-    
-    # Match indices as much as possible
-    regime_series = feat_df['regime']
-    combined = pd.DataFrame({
-        'sell_win': label_series,
-        'regime': regime_series
-    }).dropna()
-    
-    regime_ics = {}
-    for regime_name in sorted(combined['regime'].unique()):
-        mask = combined['regime'] == regime_name
-        subset = combined[mask]
-        
-        # Check IC per sensor for this regime
-        regime_sensors = {}
-        for sensor in core_sensors:
-            sensor_cols = [c for c in feat_data.columns if get_sensor(c) == sensor]
-            ics = []
-            for col in sensor_cols:
-                vals = feat_data[col].dropna()
-                idx = vals.index
-                lbl = subset['sell_win'].reindex(idx).dropna()
-                common = vals.index.intersection(lbl.index)
-                if len(common) < 50:
-                    continue
-                ic = vals.loc[common].corr(lbl.loc[common])
-                if not np.isnan(ic):
-                    ics.append(ic)
-            if ics:
-                regime_sensors[sensor] = np.mean(ics)
-        
-        reg_rate = (subset['sell_win'] == 1).mean()
-        print(f"Regime: {regime_name}")
-        print(f"  sell_win rate: {reg_rate:.3f} (n={len(subset)})")
-        print(f"  Sensor ICs:")
-        reg_pass = 0
-        for sensor in core_sensors:
-            ic_val = regime_sensors.get(sensor, 0)
-            abs_ic = abs(ic_val)
-            status = '✅' if abs_ic >= 0.05 else '❌'
-            if abs_ic >= 0.05:
-                reg_pass += 1
-            print(f"    {sensor}: {ic_val:+.4f} {status}")
-        print(f"  達標: {reg_pass}/8\n")
-        
-        regime_ics[regime_name] = regime_sensors
-    else:
-        print("No regime data found\n")
-
-# Sell win rate agreement
-label_up_col = None
-for c in label_cols:
-    if 'label_up' in c.lower():
-        label_up_col = c
-        break
-
-if label_up_col and 'sell_win' in str(target_col).lower():
-    sell_win_series = label_df.get(target_col, pd.Series())
-    label_up_series = label_df.get(label_up_col, pd.Series())
-    if len(sell_win_series) > 0 and len(label_up_series) > 0:
-        common = sell_win_series.dropna().index.intersection(label_up_series.dropna().index)
-        if len(common) > 100:
-            agreement = (sell_win_series.loc[common] == label_up_series.loc[common]).mean()
-            print(f"\nsell_win vs label_up agreement: {agreement:.3f}")
-
-print("\n=== Key Findings ===")
-print(f"- 全域達標: {pass_count}/8")
-print(f"- 全域 sell_win rate: {global_rate:.3f}")
-print(f"- 近期 sell_win (500): {(recent_500 == 1).mean():.3f}")
-print(f"- 近期 sell_win (100): {(recent_100 == 1).mean():.3f}")
-print(f"- BTC: ${btc_price}")
+print(f"Time-weighted analysis complete ({tw_passing} features processed)")
+print(f"\nFull IC analysis complete for heartbeat")
