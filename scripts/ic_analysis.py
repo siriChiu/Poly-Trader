@@ -27,19 +27,19 @@ def load_data():
     conn = sqlite3.connect(DB_PATH)
     
     try:
-        raw_df = pd.read_sql_query("SELECT * FROM market_data ORDER BY timestamp", conn)
+        raw_df = pd.read_sql_query("SELECT * FROM raw_market_data ORDER BY id", conn)
     except Exception as e:
         print(f"ERROR reading market_data: {e}")
         raw_df = pd.DataFrame()
     
     try:
-        feat_df = pd.read_sql_query("SELECT * FROM feature_data ORDER BY timestamp", conn)
+        feat_df = pd.read_sql_query("SELECT * FROM features_normalized ORDER BY rowid", conn)
     except Exception as e:
         print(f"ERROR reading feature_data: {e}")
         feat_df = pd.DataFrame()
     
     try:
-        label_df = pd.read_sql_query("SELECT * FROM label_data ORDER BY timestamp", conn)
+        label_df = pd.read_sql_query("SELECT * FROM labels ORDER BY rowid", conn)
     except Exception as e:
         print(f"ERROR reading label_data: {e}")
         label_df = pd.DataFrame()
@@ -103,9 +103,10 @@ def main():
         return
     
     # Get latest BTC price and market data
+    # NOTE: DB uses 'close_price' not 'btc_price', 'fear_greed_index' not 'fng'
     latest_raw = raw_df.iloc[-1]
-    btc_price = latest_raw.get('btc_price', 'N/A')
-    fng = latest_raw.get('fng', 'N/A')
+    btc_price = latest_raw.get('close_price', latest_raw.get('btc_price', 'N/A'))
+    fng = latest_raw.get('fear_greed_index', latest_raw.get('fng', 'N/A'))
     print(f"Latest BTC: ${btc_price}")
     print(f"Latest FNG: {fng}")
     
@@ -118,14 +119,16 @@ def main():
     print(f"LSR: {lsr} | GSR: {gsr} | Taker: {taker} | OI: {oi} | FR: {fr}")
     print()
     
-    # Use sell_win as the target
-    if 'sell_win' not in label_df.columns:
+    # Use sell_win as the target (DB column is 'label_sell_win')
+    if 'label_sell_win' in label_df.columns:
+        target_col = 'label_sell_win'
+    elif 'sell_win' in label_df.columns:
+        target_col = 'sell_win'
+    else:
         # Fallback: use label_up or first numeric column
-        print("WARNING: sell_win not in label_data, using first numeric column")
+        print("WARNING: sell_win not found, using first numeric column")
         numeric_cols = label_df.select_dtypes(include=[np.number]).columns
         target_col = numeric_cols[0] if len(numeric_cols) > 0 else None
-    else:
-        target_col = 'sell_win'
     
     if target_col is None:
         print("ERROR: No target column found")
@@ -164,7 +167,6 @@ def main():
             if not np.isnan(ic):
                 ics.append(ic)
         if ics:
-            sensor_ics[sensor] = np.mean(ics) / len(ics) * len(ics)  # Actually compute mean properly
             sensor_ics[sensor] = np.mean(ics)
     
     core_sensors = ['Eye', 'Ear', 'Nose', 'Tongue', 'Body', 'Pulse', 'Aura', 'Mind']
