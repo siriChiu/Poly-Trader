@@ -97,6 +97,8 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
         logger.warning(f"合併後樣本不足: {len(merged)} < {min_samples}")
         return None
 
+    from scipy import stats as _stats
+
     merged = merged.copy()
     ic_map = {}
     ic_map_global = {}
