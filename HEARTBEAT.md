@@ -221,6 +221,22 @@ git add -A && git commit -m "心跳 #N: 摘要"
 
 > 每次心跳在底部追加一行，保持最近 20 條。
 
+### Heartbeat #315 — 2026-04-06 07:41-07:42
+- **DB**: Raw=**9,234** (+0, 65+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
+- **全域 IC**: **3/15**（VIX, MACD, BB%B）→ 與 #312 一致
+- **TW-IC**: **12/15**（🟢 回升，Ear+RSI14 跨過閾值）→ Tongue+0.530 Body+0.510 ATR%+0.443 DXY-0.270 Pulse-0.302 Mind-0.200 Aura-0.178 VWAP+0.140 Eye+0.137 VIX-0.125 RSI14-0.065 Ear-0.053
+- **DW N=100**: **7/8**（Nose -0.177, Aura -0.277, Mind -0.230）
+- **DW N=200**: **7/8**（🟢 回升！5→7, 僅 Nose 失敗）→ Mind -0.167, Aura -0.162, Nose -0.114
+- **Regime IC**: Bear 4/8, Bull 0/8（**69+輪持續！**）, Chop 0/8（69+輪！）
+- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
+- **市場**: BTC=$68,982 (**🟡 -0.04%**), FNG=12（極度恐懼）, FR=**0.00007032**（+0.6%）, LSR=**1.3669**（🟢 -318bps 繼續下降！）, OI=90,719（+27）
+- **平行心跳**: 5/5 PASS（**27.5s**，ProcessPoolExecutor 5 worker）
+- **Tests**: 5/5 PASS
+- **🔴 連敗 156**：65+輪持平
+- **🔴 Last 100 sell_win=0%**，Last 200=9%，Last 500=32%
+- **🟢 TW-IC 回升**：10/15 → 12/15（計數修正，Ear+RSI14 實際已過 0.05）
+- **🟢 DW N=200 回升**：5/8 → 7/8
+
 ### Heartbeat #314 — 2026-04-06 07:36-07:37
 - **DB**: Raw=**9,234** (+0, 64+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
 - **全域 IC**: **5/15**（VIX, MACD, BB%B, RSI14邊緣 + Nose/Body邊緣）→ 與 #313 完全一致
