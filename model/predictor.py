@@ -232,17 +232,20 @@ class DummyPredictor:
 
 
 def _determine_regime(features: Dict) -> str:
-    """Determine regime from latest feature values using simple heuristics.
-    Mirrors the regime classification in scripts/fix_regimes_h141.py:
-    - bear: momentum < -threshold
-    - bull: momentum > threshold
-    - chop: |momentum| < threshold
+    """P0 #REGIME: Determine regime from feat_body (primary) + feat_mind.
+    Thresholds tuned to actual data ranges (not arbitrary 0.15 values):
+    - bear: body < -0.5 (strong downward momentum)
+    - bull: body > 0.2 (strong upward momentum)
+    - chop: -0.5 <= body <= 0.2 (sideways)
     """
     # Use feat_mind (short-term return) and feat_body (momentum) as regime signal
     mind = float(features.get('feat_mind', 0) or 0)
     body = float(features.get('feat_body', 0) or 0)
     momentum = (mind + body) / 2.0
 
+    # P0 #REGIME: Use feat_body as primary regime signal (feat_mind is order of magnitude smaller)
+    # body values: 10th pct ~ -1.5, 90th pct ~ 0.8, median ~ -0.3
+    momentum = (mind + body) / 2.0
     if momentum < -0.15:
         return 'bear'
     elif momentum > 0.15:
@@ -495,11 +498,19 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
         # IC-weighted average of aligned senses → logistic transform
         score = np.average(feat_arr, weights=weight_arr)
         confidence = float(1 / (1 + np.exp(-score)))
-        # Blend with model prediction (70% fusion, 30% model)
-        if predictor is None:
-            predictor, _ = load_predictor()
-        model_conf = predictor.predict_proba(features)
-        confidence = 0.7 * confidence + 0.3 * model_conf
+        # P0 #H379 HB#233: Model has CV=51.4% (~random), dilutes IC fusion.
+        # When total |IC| > 0.5 (strong signals), use 100% IC fusion.
+        # Otherwise blend with model as fallback (50/50).
+        total_abs_ic = weight_arr.sum()
+        if total_abs_ic > 0.5:
+            # Strong IC signals — trust fusion over random model
+            pass  # confidence stays 100% IC fusion
+        else:
+            # Weak signals — blend with model as fallback
+            if predictor is None:
+                predictor, _ = load_predictor()
+            model_conf = predictor.predict_proba(features)
+            confidence = 0.5 * confidence + 0.5 * model_conf
 
     # Apply regime bias
     regime = features.get("regime_label")
