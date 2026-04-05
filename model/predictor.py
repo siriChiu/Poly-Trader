@@ -44,8 +44,8 @@ BULL_SIGNAL_INVERT = True  # flip high-confidence sell → buy in bull regime
 # P0 #H420: Circuit breaker — halt trading after N consecutive losses
 # sell_win is at 49.90%, 156-streak ongoing — must prevent further damage
 CIRCUIT_BREAKER_STREAK = 50  # consecutive sell losses before forced abstain
-CIRCUIT_BREAKER_RECENT_WINRATE = 0.35  # if recent 100 win rate < 35%, force abstain
-CIRCUIT_BREAKER_WINDOW = 100  # samples to check for win rate floor
+CIRCUIT_BREAKER_RECENT_WINRATE = 0.30  # if recent 50 win rate < 30%, force abstain (HB#234: tightened from 35% at 100-sample)
+CIRCUIT_BREAKER_WINDOW = 50  # samples to check for win rate floor (HB#234: reduced from 100 for faster response)
 REGIME_THRESHOLD_BIAS = {
     'trend': -0.03,
     'chop': 0.04,
@@ -61,10 +61,54 @@ REGIME_THRESHOLD_BIAS = {
 }
 
 
+def _global_ic(session):
+    """Compute full-history (unweighted) Spearman IC for the 8 core senses.
+    Used as a sanity check: if Global IC = 0/8, TW-IC fusion is likely
+    chasing noise rather than signal. P0 fix HB#234.
+    """
+    import numpy as np
+    from scipy import stats as _stats
+    from database.models import FeaturesNormalized, Labels
+
+    sense_col_names = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue",
+                       "feat_body", "feat_pulse", "feat_aura", "feat_mind"]
+    sense_cols = [getattr(FeaturesNormalized, c) for c in sense_col_names]
+
+    feat_rows = session.query(FeaturesNormalized.timestamp, *sense_cols).order_by(FeaturesNormalized.timestamp).all()
+    label_rows = session.query(Labels.timestamp, Labels.label_sell_win).filter(
+        Labels.label_sell_win.isnot(None)).order_by(Labels.timestamp).all()
+
+    feat_by_ts = {r[0]: {sense_col_names[i]: r[1+i] for i in range(len(sense_cols))} for r in feat_rows}
+    labels_by_ts = {r[0]: int(r[1]) for r in label_rows}
+    common_ts = sorted(set(feat_by_ts.keys()) & set(labels_by_ts.keys()))
+    if len(common_ts) < 50:
+        return {col: 0.0 for col in sense_col_names}
+
+    ics = {}
+    for col in sense_col_names:
+        vals = np.array([feat_by_ts[ts].get(col) for ts in common_ts], dtype=float)
+        sw = np.array([float(labels_by_ts[ts]) for ts in common_ts])
+        mask = (~np.isnan(vals)) & (~np.isnan(sw))
+        if mask.sum() < 50:
+            ics[col] = 0.0
+            continue
+        vc = vals[mask]; sc = sw[mask]
+        if np.std(vc) < 1e-10 or np.std(sc) < 1e-10:
+            ics[col] = 0.0
+            continue
+        r, _ = _stats.spearmanr(vc, sc)
+        ics[col] = round(float(r), 4)
+    return ics
+
+
 def _time_weighted_ic(session, tau=200):
     """Compute time-weighted IC for the 8 core senses.
     Returns dict of {col_name: ic_value} with exponential decay weights.
     Recent samples get higher weight via exp(-(N-1-i)/tau).
+
+    P0 fix HB#234: Also returns global IC for sanity check.
+    If global IC = 0/8, TW-IC fusion is operating on noise — require
+    stronger signals and fewer active senses.
     """
     import numpy as np
     from scipy import stats as _stats
@@ -443,6 +487,13 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
     P0 #H379 fix: Exclude Nose (TW-IC FAIL at -0.0279) and use |TW-IC| >= 0.05
     threshold. Senses below threshold get zero weight — they dilute the strong
     Tongue(+0.532) and Body(+0.505) signals.
+
+    P0 HB#234 fix: Global IC sanity check. When Global IC = 0/8 (no sense has
+    any full-history predictive power), TW-IC fusion may be chasing noise.
+    Raise the IC threshold to require stronger signals before trusting fusion.
+    Threshold tuned to 0.10 (HB#235): balances noise filtering with signal capture.
+    At 0.15, Eye (TW-IC=0.136) was excluded — too conservative.
+    At 0.10, 6/8 pass, total |IC| > 2.0 — strong fusion signal.
     """
     import numpy as np
     from database.models import FeaturesNormalized, Labels
@@ -458,14 +509,23 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
         return None
 
     tw_ics = _time_weighted_ic(session, tau=tau)
+    glob_ics = _global_ic(session)
 
     # Core 8 senses
     sense_cols = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue",
                    "feat_body", "feat_pulse", "feat_aura", "feat_mind"]
     raw_ics = [tw_ics.get(col, 0.0) for col in sense_cols]
 
-    # #H391: Nose TW-IC fails (|-0.028| < 0.05 threshold) — exclude from fusion
-    IC_PASS_THRESHOLD = getattr(predict_with_ic_fusion, '_ic_threshold', 0.05)
+    # P0 HB#234: Global IC sanity check
+    global_pass = sum(1 for v in glob_ics.values() if abs(v) >= 0.05)
+    if global_pass == 0:
+        # No sense has full-history predictive power — TW-IC may be noise
+        # Raise threshold to require stronger TW-IC signals
+        IC_PASS_THRESHOLD = 0.10
+        logger.warning(f"Global IC = 0/8 — raising IC threshold to {IC_PASS_THRESHOLD}")
+    else:
+        IC_PASS_THRESHOLD = getattr(predict_with_ic_fusion, '_ic_threshold', 0.05)
+        logger.info(f"Global IC {global_pass}/8 — using IC threshold {IC_PASS_THRESHOLD}")
 
     # Weight each sense by its recent IC strength, exclude below-threshold
     feat_vals = []
@@ -477,8 +537,6 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
             continue
         abs_ic = abs(ic)
         if abs_ic < IC_PASS_THRESHOLD:
-            # #H391: Below-threshold senses get zero weight
-            # Previously: min weight 0.01 let Nose dilute Tongue+Body
             continue
         # Flip sign for negative IC senses (align all to sell-win direction)
         aligned = (-val) if ic < 0 else val
