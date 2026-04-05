@@ -35,6 +35,12 @@ FEATURE_COLS = BASE_FEATURE_COLS
 CONFIDENCE_HIGH = 0.7   # SELL (short) — high confidence price will drop (sell-win)
 CONFIDENCE_LOW = 0.3    # BUY/HOLD — low confidence, price likely rising
 
+# P0 #H426: Bull regime sell signal inversion
+# Bull sell_win=59.4% — model's "sell" signals are WRONG in bull markets
+# This means we should INVERT the signal when in a bull regime
+# Inverting gives 40.6% → buy_signal wins 59.4% of the time
+BULL_SIGNAL_INVERT = True  # flip high-confidence sell → buy in bull regime
+
 # P0 #H420: Circuit breaker — halt trading after N consecutive losses
 # sell_win is at 49.90%, 156-streak ongoing — must prevent further damage
 CIRCUIT_BREAKER_STREAK = 50  # consecutive sell losses before forced abstain
@@ -479,6 +485,11 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
     regime = features.get("regime_label")
     bias = REGIME_THRESHOLD_BIAS.get(regime, 0.0) if regime else 0.0
     adjusted = float(np.clip(confidence + bias, 0.0, 1.0))
+
+    # P0 #H426: Bull regime signal inversion
+    # Bull sell_win=59.4% — selling in bull markets is wrong; invert signal
+    if BULL_SIGNAL_INVERT and regime == "bull":
+        adjusted = float(np.clip(1.0 - adjusted, 0.0, 1.0))
 
     # Signal determination
     if adjusted > CONFIDENCE_HIGH:

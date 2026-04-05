@@ -97,37 +97,82 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
         logger.warning(f"合併後樣本不足: {len(merged)} < {min_samples}")
         return None
 
-    from scipy import stats as _stats
     merged = merged.copy()
     ic_map = {}
+    ic_map_global = {}
+    tw_ic_map = {}
     NEG_IC_FEATS = []
     y_arr = merged["label_sell_win"].astype(float).values
     all_feature_cols = FEATURE_COLS + lag_feature_cols
+    N = len(y_arr)
+
+    # P0 #H425: Time-weighted IC (TW-IC) — exponential decay gives recent samples more influence.
+    # tau=200 matches production predictor (predictor.py:_time_weighted_ic).
+    # For non-core features (lags, crosses), fall back to global Spearman IC.
+    tau = 200
+    core_cols = set(FEATURE_COLS)  # 8 core senses + VIX + DXY
+    weights = np.exp(-(N - 1 - np.arange(N, dtype=float)) / tau)
+
     for col in all_feature_cols:
         feat_arr = merged[col].astype(float).values
         mask = ~(np.isnan(feat_arr) | np.isnan(y_arr))
         if mask.sum() > 30:
-            masked = feat_arr[mask]
-            # Skip constant columns to avoid ConstantInputWarning and NaN IC
-            if np.ptp(masked) == 0.0 or np.unique(masked).size <= 1:
+            masked_f = feat_arr[mask]
+            masked_y = y_arr[mask]
+            # Skip constant columns
+            if np.ptp(masked_f) == 0.0 or np.unique(masked_f).size <= 1:
                 ic_map[col] = 0.0
+                ic_map_global[col] = 0.0
+                tw_ic_map[col] = 0.0
                 continue
-            corr, _ = _stats.spearmanr(masked, y_arr[mask])
-            # Guard against NaN from edge cases in spearmanr
-            if corr is None or (isinstance(corr, float) and not np.isfinite(corr)):
-                ic_map[col] = 0.0
+
+            # Global Spearman IC (baseline for reference)
+            corr_g, _ = _stats.spearmanr(masked_f, masked_y)
+            if corr_g is None or not np.isfinite(corr_g):
+                corr_g = 0.0
+            ic_map_global[col] = float(corr_g)
+
+            if col in core_cols:
+                # Time-weighted IC for core senses
+                masked_w = weights[mask]
+                wm_f = np.average(masked_f, weights=masked_w)
+                wm_y = np.average(masked_y, weights=masked_w)
+                cov = np.average((masked_f - wm_f) * (masked_y - wm_y), weights=masked_w)
+                var_f = np.average((masked_f - wm_f)**2, weights=masked_w)
+                var_y = np.average((masked_y - wm_y)**2, weights=masked_w)
+                tw_ic = cov / (np.sqrt(var_f * var_y) + 1e-15)
+                ic_map[col] = float(tw_ic)
+                tw_ic_map[col] = float(tw_ic)
             else:
-                ic_map[col] = float(corr)
-                if corr < 0:
-                    NEG_IC_FEATS.append(col)
-                    merged[col] = -merged[col]
+                # Non-core features: use global IC
+                ic_map[col] = float(corr_g)
+                tw_ic_map[col] = 0.0  # not computed for non-core
+
+            if ic_map[col] < 0:
+                NEG_IC_FEATS.append(col)
+                merged[col] = -merged[col]
         else:
             ic_map[col] = 0.0
+            ic_map_global[col] = 0.0
+            tw_ic_map[col] = 0.0
 
+    # P0 #H425: Save BOTH global IC and TW-IC for transparency
     os.makedirs("model", exist_ok=True)
+    core_ic_summary = {c: round(ic_map.get(c, 0), 4) for c in FEATURE_COLS}
+    tw_ic_summary = {c: round(tw_ic_map.get(c, 0), 4) for c in FEATURE_COLS}
     with open("model/ic_signs.json", "w", encoding="utf-8") as f:
-        json.dump({"neg_ic_feats": NEG_IC_FEATS, "ic_map": ic_map, "target": "label_sell_win"}, f, indent=2, ensure_ascii=False)
-    logger.info(f"動態 IC 計算完成: {ic_map}")
+        json.dump({
+            "neg_ic_feats": NEG_IC_FEATS,
+            "ic_map": ic_map,            # used for feature sign flipping (TW-IC for core, global for others)
+            "ic_global": ic_map_global,  # global Spearman IC for reference
+            "ic_tw": tw_ic_map,          # time-weighted IC for core senses (tau=200)
+            "target": "label_sell_win",
+            "core_ic_summary": core_ic_summary,
+            "tw_ic_summary": tw_ic_summary,
+        }, f, indent=2, ensure_ascii=False)
+    logger.info(f"TW-IC (core): {core_ic_summary}")
+    logger.info(f"Global IC (core): {core_ic_summary}")
+    logger.info(f"動態 TW-IC/Global IC 計算完成 — core 使用 TW-IC, 其餘使用 Global IC")
     logger.info(f"NEG_IC 反轉特徵: {NEG_IC_FEATS}")
 
     # High-IC alternative features discovered via hb105_exploratory_analysis (IC > 0.05):
@@ -179,18 +224,19 @@ def train_xgboost(X: pd.DataFrame, y: pd.Series, params: Optional[dict] = None) 
     logger.info(f"Class dist: {dist}")
 
     if params is None:
-        # P0 Fix #H130: Rollback from overfitted depth=5, reg_alpha=0.5
-        # Conservative params that avoid memorization (8 core features only, no constant noise)
+        # P0 Fix #H392 #H130: Reduce Train-CV gap (was +20pp: 71% vs 51%)
+        # Stronger regularization + lower depth + subsampling to fight overfit
         params = {
-            "n_estimators": 200,
-            "max_depth": 3,
-            "learning_rate": 0.05,
-            "subsample": 0.8,
-            "colsample_bytree": 0.8,
-            "reg_alpha": 2.0,
-            "reg_lambda": 6.0,
-            "min_child_weight": 10,
-            "gamma": 0.2,
+            "n_estimators": 500,
+            "max_depth": 2,
+            "learning_rate": 0.02,
+            "subsample": 0.6,
+            "colsample_bytree": 0.6,
+            "colsample_bylevel": 0.7,
+            "reg_alpha": 5.0,
+            "reg_lambda": 10.0,
+            "min_child_weight": 20,
+            "gamma": 0.5,
             "objective": "binary:logistic",
             "eval_metric": "logloss",
             "random_state": 42,
