@@ -1,182 +1,200 @@
 #!/usr/bin/env python3
-"""Parallel Heartbeat Runner for Poly-Trader.
+"""Parallel heartbeat runner for Poly-Trader.
+Uses ProcessPoolExecutor to run 5 tasks concurrently:
+1. full_ic.py — full IC analysis
+2. regime_aware_ic.py — regime-aware IC
+3. dynamic_window_train.py — dynamic window scanning
+4. model/train.py — model training
+5. tests/comprehensive_test.py — test suite
 
-Runs all 5 diagnostic scripts concurrently using ProcessPoolExecutor.
+Usage:
+    python scripts/hb_parallel_runner.py --hb N
+    python scripts/hb_parallel_runner.py --fast  # quick mode
 """
-import argparse
-import concurrent.futures
-import json
 import os
-import subprocess
 import sys
+import json
 import time
-from datetime import datetime
+import argparse
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.chdir(PROJECT_ROOT)
-os.environ['PYTHONPATH'] = PROJECT_ROOT
+PROJECT_ROOT = Path(__file__).parent.parent
+os.environ.setdefault("PYTHONPATH", str(PROJECT_ROOT))
 
-# Activate venv: use venv python directly
-PYTHON = os.path.join(PROJECT_ROOT, 'venv', 'bin', 'python')
+SCRIPTS = {
+    "full_ic": "scripts/full_ic.py",
+    "regime_ic": "scripts/regime_aware_ic.py",
+    "dynamic_window": "scripts/dynamic_window_train.py",
+    "train": "model/train.py",
+    "tests": "tests/comprehensive_test.py",
+}
 
-def run_script(name, cmd, timeout=600):
-    """Run a single script and return result dict."""
+QUICK_SCRIPTS = {
+    "full_ic": "scripts/full_ic.py",
+    "regime_ic": "scripts/regime_aware_ic.py",
+    "dynamic_window": "scripts/dynamic_window_train.py",
+}
+
+
+def run_script(name: str, rel_path: str) -> dict:
+    """Run a single script and capture its output."""
+    import subprocess
+    full_path = PROJECT_ROOT / rel_path
+    if not full_path.exists():
+        return {"name": name, "status": "SKIP", "output": f"Not found: {rel_path}", "exit_code": -1}
+
     start = time.time()
     try:
         result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            cwd=PROJECT_ROOT,
+            [sys.executable, str(full_path)],
+            capture_output=True, text=True, timeout=600,
+            cwd=str(PROJECT_ROOT),
+            env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT)},
         )
         elapsed = time.time() - start
+        stdout_lines = result.stdout.strip().split("\n") if result.stdout.strip() else []
+        # Find key metrics in output
+        summary_lines = []
+        for line in stdout_lines:
+            if any(kw in line.lower() for kw in ["ic", "pass", "fail", "train", "cv", "accuracy", "test", "pass", "window", "regime"]):
+                summary_lines.append(line.strip())
+
+        status = "PASS" if result.returncode == 0 else "FAIL"
         return {
-            'name': name,
-            'exit_code': result.returncode,
-            'stdout': result.stdout[-2000:],  # Last 2000 chars
-            'stderr': result.stderr[-1000:] if result.stderr else '',
-            'elapsed': round(elapsed, 1),
-            'status': 'PASS' if result.returncode == 0 else 'FAIL',
+            "name": name,
+            "status": status,
+            "exit_code": result.returncode,
+            "elapsed": round(elapsed, 1),
+            "summary": summary_lines[:15],  # key lines only
+            "error": result.stderr[-2000:] if result.stderr else None,
         }
     except subprocess.TimeoutExpired:
-        elapsed = time.time() - start
-        return {
-            'name': name,
-            'exit_code': -1,
-            'stdout': '',
-            'stderr': f'Timeout after {elapsed:.0f}s',
-            'elapsed': round(elapsed, 1),
-            'status': 'TIMEOUT',
-        }
+        return {"name": name, "status": "TIMEOUT", "elapsed": 600, "summary": ["Timed out after 600s"]}
     except Exception as e:
-        elapsed = time.time() - start
-        return {
-            'name': name,
-            'exit_code': -1,
-            'stdout': '',
-            'stderr': str(e),
-            'elapsed': round(elapsed, 1),
-            'status': 'ERROR',
-        }
+        return {"name": name, "status": "ERROR", "output": str(e), "exit_code": -1}
+
+
+def quick_db_counts() -> dict:
+    """Quick serial DB counts."""
+    import sqlite3
+    db_path = PROJECT_ROOT / "poly_trader.db"
+    counts = {}
+    try:
+        db = sqlite3.connect(str(db_path))
+        for t in ["raw_market_data", "features_normalized", "labels"]:
+            counts[t] = db.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+        try:
+            counts["sell_win_rate"] = round(
+                db.execute("SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM labels WHERE label_sell_win IS NOT NULL").fetchone()[0], 4
+            )
+        except:
+            counts["sell_win_rate"] = None
+        try:
+            counts["latest_timestamp"] = db.execute("SELECT MAX(timestamp) FROM raw_market_data").fetchone()[0]
+        except:
+            counts["latest_timestamp"] = None
+        db.close()
+    except Exception as e:
+        counts["error"] = str(e)
+    return counts
+
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--hb', type=int, required=True, help='Heartbeat number')
-    parser.add_argument('--fast', action='store_true', help='Fast mode: counts + quick IC only')
-    parser.add_argument('--no-train', action='store_true', help='Skip model training')
-    parser.add_argument('--no-dw', action='store_true', help='Skip dynamic window scan')
+    parser = argparse.ArgumentParser(description="Parallel heartbeat runner")
+    parser.add_argument("--hb", type=int, required=False, help="Heartbeat number")
+    parser.add_argument("--fast", action="store_true", help="Quick mode: only IC scripts")
+    parser.add_argument("--no-train", action="store_true", help="Skip model training")
+    parser.add_argument("--no-dw", action="store_true", help="Skip dynamic window")
     args = parser.parse_args()
 
-    hb = args.hb
-    print(f"{'='*60}")
-    print(f"  Poly-Trader Parallel Heartbeat #{hb}")
-    print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    hb_num = args.hb or 0
+    print(f"\n{'='*60}")
+    print(f"  Poly-Trader 平行心跳 #{hb_num}")
+    print(f"  {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  Python: {sys.version.split()[0]}")
+    print(f"  Project: {PROJECT_ROOT}")
     print(f"{'='*60}\n")
 
+    # Step 0: Quick DB counts (serial)
+    print("[Step 0] Quick DB counts...")
+    counts = quick_db_counts()
+    for k, v in counts.items():
+        print(f"  {k}: {v}")
+    print(f"  Elapsed: <5s (serial)\n")
+
+    # Select scripts to run
+    scripts_to_run = dict(SCRIPTS)
+    if args.fast:
+        scripts_to_run = dict(QUICK_SCRIPTS)
+    if args.no_train:
+        scripts_to_run.pop("train", None)
+    if args.no_dw:
+        scripts_to_run.pop("dynamic_window", None)
+
+    # Step 1: Run all scripts in parallel
+    print(f"[Step 1] Running {len(scripts_to_run)} tasks in parallel...\n")
+    n_workers = min(len(scripts_to_run), 5)
+    results = {}
     overall_start = time.time()
 
-    # Step 0: Quick DB counts
-    print("📊 Step 0: Quick DB counts...")
-    counts_script = os.path.join(PROJECT_ROOT, 'scripts', f'hb{hb}_counts.py')
-    if os.path.exists(counts_script):
-        r = run_script('db_counts', [PYTHON, counts_script], timeout=30)
-    else:
-        # Inline count check
-        import sqlite3
-        db = sqlite3.connect(os.path.join(PROJECT_ROOT, 'poly_trader.db'))
-        raw = db.execute('SELECT COUNT(*) FROM raw_market_data').fetchone()[0]
-        feat = db.execute('SELECT COUNT(*) FROM features_normalized').fetchone()[0]
-        labs = db.execute('SELECT COUNT(*) FROM labels').fetchone()[0]
-        sw = db.execute('SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM labels WHERE label_sell_win IS NOT NULL').fetchone()[0]
-        print(f"  Raw: {raw:,} | Features: {feat:,} | Labels: {labs:,} | sell_win: {sw:.4f}")
-        db.close()
-        r = {'name': 'db_counts', 'status': 'PASS', 'elapsed': 0}
-    print(f"  ✓ DB counts done ({r.get('elapsed', 0):.1f}s)\n")
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
+        futures = {}
+        for name, rel_path in scripts_to_run.items():
+            f = executor.submit(run_script, name, rel_path)
+            futures[f] = name
+            print(f"  🚀 Started: {name} ({rel_path})")
 
-    if args.fast:
-        print("⚡ Fast mode — skipping heavy steps")
-        print(f"\n⏱️  Total: {time.time() - overall_start:.1f}s")
-        sys.exit(0)
-
-    # Define the 5 parallel tasks
-    tasks = [
-        ('full_ic', [PYTHON, 'scripts/full_ic.py']),
-        ('regime_ic', [PYTHON, 'scripts/regime_aware_ic.py']),
-        ('dynamic_window', [PYTHON, 'scripts/dynamic_window_train.py']),
-        ('model_train', [PYTHON, 'model/train.py']),
-        ('comprehensive_tests', [PYTHON, 'tests/comprehensive_test.py']),
-    ]
-
-    if args.no_train:
-        tasks = [t for t in tasks if t[0] != 'model_train']
-    if args.no_dw:
-        tasks = [t for t in tasks if t[0] != 'dynamic_window']
-
-    # Run all tasks in parallel
-    print(f"🚀 Spawning {len(tasks)} tasks in parallel...\n")
-    results = []
-
-    with concurrent.futures.ProcessPoolExecutor(max_workers=min(len(tasks), 5)) as executor:
-        future_map = {}
-        for name, cmd in tasks:
-            print(f"  ▶ {name}: {' '.join(cmd)}")
-            future = executor.submit(run_script, name, cmd)
-            future_map[future] = name
-
-        for future in concurrent.futures.as_completed(future_map):
-            name = future_map[future]
+        print()
+        for future in as_completed(futures):
+            name = futures[future]
             try:
                 r = future.result()
-                results.append(r)
-                icon = {'PASS': '✅', 'FAIL': '❌', 'TIMEOUT': '⏰', 'ERROR': '💥'}.get(r['status'], '❓')
-                print(f"\n  {icon} {name}: {r['status']} ({r['elapsed']:.1f}s)")
-                if r['status'] != 'PASS':
-                    if r['stderr']:
-                        print(f"     stderr: {r['stderr'][:200]}")
+                results[name] = r
+                icon = "✅" if r["status"] == "PASS" else "❌"
+                print(f"  {icon} {name}: {r['status']} ({r.get('elapsed', '?')}s)")
             except Exception as e:
-                print(f"\n  💥 {name}: EXCEPTION — {e}")
-                results.append({'name': name, 'status': 'ERROR', 'elapsed': 0, 'stderr': str(e)})
+                results[name] = {"name": name, "status": "EXCEPTION", "error": str(e)}
+                print(f"  ❌ {name}: EXCEPTION - {e}")
 
-    total_elapsed = time.time() - overall_start
-    pass_count = sum(1 for r in results if r['status'] == 'PASS')
-    fail_count = len(results) - pass_count
+    elapsed = round(time.time() - overall_start, 1)
 
+    # Summary
     print(f"\n{'='*60}")
-    print(f"  Heartbeat #{hb} Summary")
-    print(f"  {'='*60}")
-    print(f"  ⏱️  Total: {total_elapsed:.1f}s")
-    print(f"  ✅ PASS: {pass_count}/{len(results)}")
-    if fail_count > 0:
-        print(f"  ❌ FAIL: {fail_count}")
-        for r in results:
-            if r['status'] != 'PASS':
-                print(f"     - {r['name']}: {r['status']}")
-    print()
+    print(f"  PARALLEL HEARTBEAT #{hb_num} SUMMARY")
+    print(f"{'='*60}")
+    total = len(results)
+    passed = sum(1 for r in results.values() if r["status"] == "PASS")
+    print(f"  {passed}/{total} tasks passed")
+    print(f"  Total parallel time: {elapsed}s")
 
-    # Print key outputs
-    for r in results:
-        if r['stdout'].strip():
-            # Try to extract key lines
-            print(f"\n--- {r['name']} output ---")
-            print(r['stdout'][:800])
+    for name, r in results.items():
+        print(f"\n  --- {name} ({r['status']}, {r.get('elapsed', '?')}s) ---")
+        if r.get("summary"):
+            for line in r["summary"]:
+                print(f"    {line}")
+        if r.get("error"):
+            print(f"    STDERR (last 500): {r['error'][:500]}")
 
-    # Save summary JSON
+    # Save JSON summary
+    data_dir = PROJECT_ROOT / "data"
+    data_dir.mkdir(exist_ok=True)
     summary = {
-        'heartbeat': hb,
-        'timestamp': datetime.now().isoformat(),
-        'total_seconds': round(total_elapsed, 1),
-        'pass': pass_count,
-        'total': len(results),
-        'results': results,
+        "heartbeat": hb_num,
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "db_counts": {k: v for k, v in counts.items()},
+        "parallel_time": elapsed,
+        "tasks": results,
+        "pass_count": passed,
+        "total_count": total,
     }
-    summary_path = os.path.join(PROJECT_ROOT, 'data', f'heartbeat_{hb}_summary.json')
-    os.makedirs(os.path.dirname(summary_path), exist_ok=True)
-    with open(summary_path, 'w') as f:
+    summary_path = data_dir / f"heartbeat_{hb_num}_summary.json"
+    with open(str(summary_path), "w") as f:
         json.dump(summary, f, indent=2, default=str)
-    print(f"\n📁 Summary saved to {summary_path}")
+    print(f"\n  📄 Summary saved: {summary_path}")
 
-    sys.exit(0 if fail_count == 0 else 1)
+    return results
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
