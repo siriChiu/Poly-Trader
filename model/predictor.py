@@ -58,26 +58,27 @@ def _time_weighted_ic(session, tau=200):
     from scipy import stats as _stats
     from database.models import FeaturesNormalized, Labels
 
-    sense_cols = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue",
-                   "feat_body", "feat_pulse", "feat_aura", "feat_mind"]
+    sense_col_names = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue",
+                       "feat_body", "feat_pulse", "feat_aura", "feat_mind"]
+    sense_cols = [getattr(FeaturesNormalized, c) for c in sense_col_names]
 
     # Load time-ordered features + labels
     feat_rows = session.query(FeaturesNormalized.timestamp, *sense_cols).order_by(FeaturesNormalized.timestamp).all()
     label_rows = session.query(Labels.timestamp, Labels.label_sell_win).filter(
         Labels.label_sell_win.isnot(None)).order_by(Labels.timestamp).all()
 
-    feat_by_ts = {r[0]: {sense_cols[i]: r[1+i] for i in range(len(sense_cols))} for r in feat_rows}
+    feat_by_ts = {r[0]: {sense_col_names[i]: r[1+i] for i in range(len(sense_cols))} for r in feat_rows}
     labels_by_ts = {r[0]: int(r[1]) for r in label_rows}
     common_ts = sorted(set(feat_by_ts.keys()) & set(labels_by_ts.keys()))
     N = len(common_ts)
     if N < 10:
-        return {col: 0.0 for col in sense_cols}
+        return {col: 0.0 for col in sense_col_names}
 
     # Exponential decay weights
     weights = np.exp(-(N - 1 - np.arange(N, dtype=float)) / tau)
 
     ics = {}
-    for col in sense_cols:
+    for col in sense_col_names:
         vals = np.array([feat_by_ts[ts].get(col) for ts in common_ts], dtype=float)
         sw = np.array([float(labels_by_ts[ts]) for ts in common_ts])
         mask = ~np.isnan(vals)
