@@ -436,10 +436,19 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
     """Predict using time-weighted IC fusion instead of static model.
     Uses exp decay IC (tau) to weight each sense, then fuses via weighted average.
     Falls back to model-based prediction if fusion fails.
+
+    P0 #H379 fix: Exclude Nose (TW-IC FAIL at -0.0279) and use |TW-IC| >= 0.05
+    threshold. Senses below threshold get zero weight — they dilute the strong
+    Tongue(+0.532) and Body(+0.505) signals.
     """
     import numpy as np
     from database.models import FeaturesNormalized, Labels
     from datetime import datetime
+
+    # Circuit breaker before fusion
+    cb = _check_circuit_breaker(session)
+    if cb is not None:
+        return cb
 
     features = load_latest_features(session)
     if not features:
@@ -447,26 +456,37 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
 
     tw_ics = _time_weighted_ic(session, tau=tau)
 
-    # Use time-weighted IC as weights (absolute value = importance)
+    # Core 8 senses
     sense_cols = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue",
                    "feat_body", "feat_pulse", "feat_aura", "feat_mind"]
     raw_ics = [tw_ics.get(col, 0.0) for col in sense_cols]
 
-    # Weight each sense by its recent IC strength
+    # #H391: Nose TW-IC fails (|-0.028| < 0.05 threshold) — exclude from fusion
+    IC_PASS_THRESHOLD = getattr(predict_with_ic_fusion, '_ic_threshold', 0.05)
+
+    # Weight each sense by its recent IC strength, exclude below-threshold
     feat_vals = []
     weights = []
+    active_senses = []
     for col, ic in zip(sense_cols, raw_ics):
         val = features.get(col)
-        if val is not None:
-            # Flip sign for negative IC senses (align all to sell-win direction)
-            aligned = (-val) if ic < 0 else val
-            feat_vals.append(aligned)
-            weights.append(abs(ic) if abs(ic) >= 0.01 else 0.01)  # min floor to avoid zero
+        if val is None:
+            continue
+        abs_ic = abs(ic)
+        if abs_ic < IC_PASS_THRESHOLD:
+            # #H391: Below-threshold senses get zero weight
+            # Previously: min weight 0.01 let Nose dilute Tongue+Body
+            continue
+        # Flip sign for negative IC senses (align all to sell-win direction)
+        aligned = (-val) if ic < 0 else val
+        feat_vals.append(aligned)
+        weights.append(abs_ic)
+        active_senses.append(col)
 
     feat_arr = np.array(feat_vals, dtype=float)
     weight_arr = np.array(weights, dtype=float)
 
-    if weight_arr.sum() == 0:
+    if weight_arr.sum() == 0 or len(feat_arr) == 0:
         # Fallback to model
         if predictor is None:
             predictor, _ = load_predictor()
@@ -512,8 +532,10 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
         "signal": signal,
         "confidence_level": confidence_level,
         "should_trade": confidence_level == "HIGH",
-        "model_type": "ic_fusion_time_weighted",
+        "model_type": "ic_fusion_time_weighted_v2_nose_excluded",
         "ic_values": tw_ics,
+        "active_senses": active_senses,
+        "excluded_senses": [s for s in sense_cols if s not in active_senses],
         "tau": tau,
     }
     return result
