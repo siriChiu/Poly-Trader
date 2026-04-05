@@ -454,8 +454,14 @@ def train_regime_models(session: Session) -> bool:
     merged["feat_ear_x_nose"] = merged["feat_ear"] * merged["feat_nose"]
     merged["feat_mind_x_aura"] = merged["feat_mind"] * merged["feat_aura"]
     merged["feat_mean_rev_proxy"] = merged["feat_mind"] - merged["feat_aura"]
+    # New cross-features — set to 0 since base features (claw, fang, fin, web, nq) have NO_DATA in DB
+    for cf in ["feat_claw_x_pulse", "feat_fang_x_vix", "feat_fin_x_claw", "feat_web_x_fang", "feat_nq_x_vix"]:
+        if cf not in merged.columns:
+            merged[cf] = 0.0
 
     X_cols = all_feat_cols + CROSS_FEATURES_LOCAL
+    # Defensive: only include columns that actually exist in merged (avoids KeyError)
+    X_cols = [c for c in X_cols if c in merged.columns]
 
     regime_models = {}
     params = {

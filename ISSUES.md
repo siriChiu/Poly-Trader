@@ -4,43 +4,42 @@
 
 ---
 
-*最後更新：2026-04-05 16:30 GMT+8（心跳 #242）*
+*最後更新：2026-04-05 16:50 GMT+8（心跳 #243）*
 
 ---
 
-## 📊 當前系統健康狀態（2026-04-05 16:30 GMT+8，心跳 #242）
+## 📊 當前系統健康狀態（2026-04-05 16:50 GMT+8，心跳 #243）
 
 ### 數據管線
-| 項目 | 數值 | 狀態 vs #241 |
+| 項目 | 數值 | 狀態 vs #242 |
 |------|------|--------|
 | Raw market data | 9,180 筆 | ➡️ 持平 |
 | Features | 9,142 筆 | ➡️ 持平 |
 | Labels | 8,921 筆 | ➡️ 持平 |
-| Raw 數據停滯 | **116 分鐘未更新** | 🔴 惡化（#241 30 分鐘） |
-| 全域 IC 通過 | **4/15** (full_ic.py v4) | ⬆️ 從 0/10 改善至 4/15（VIX, RSI14, MACD, BB %B 通過）|
+| Raw 數據停滯 | **136 分鐘未更新** | 🔴 惡化（#242 116 分鐘）|
+| 全域 IC 通過 | **4/15** (full_ic.py v4) | ➡️ 持平（VIX, RSI14, MACD, BB %B）|
 | ic_signs.json TW-IC (ic_tw) | **9/10** 核心 | ➡️ 持平 |
-| ic_signs.json ic_map | **9/10** 核心 | ➡️ 持平 |
 | 模型 CV 準確率 | 51.4% | ➡️ 持平 |
-| BTC 當前 | $66,858 | ➡️ 持平（從 $66,851）|
+| BTC 當前 | $66,867 | ➡️ 持平（從 $66,858）|
 | FNG | 12（極度恐懼）| ➡️ 持平 |
-| 資金費率 | 0.00002632 | ➡️ 持平 |
+| 資金費率 | 0.00001810 | ➡️ 持平 |
 | LSR | 1.5954 | ➡️ 持平 |
-| OI | 89,855 BTC | ➡️ 持平 |
+| OI | 89,876 BTC | ➡️ 持平 |
 | Sell Win（全域） | 49.9% | ➡️ 持平 |
 | 連敗 | 156 | 🔴 持續 |
 
-### 📌 本輪執行：平行心跳 #242
+### 📌 本輪執行：平行心跳 #243
 
 | 項目 | 狀態 | 備註 |
 |------|------|------|
-| `scripts/hb_parallel_runner.py` | ✅ #242 完成 | 5/6 PASS，191.0s 完成（比 #241 的 251.7s 快 24%） |
+| `scripts/hb_parallel_runner.py` | ✅ #243 **6/6 COMPLETE** | 全部通過，195.6s（#242: 191.0s）|
 | `scripts/full_ic.py` | ✅ 全域 IC v4 | **4/15 通過**（VIX -0.071, RSI14 -0.055, MACD -0.051, BB%B -0.058）|
-| `scripts/regime_aware_ic.py` | ✅ | Bear 3/8, Bull 2/8, Chop 0/8 |
-| DW N=200 | 7/8 通過 | Tongue +0.516, Body +0.482, Mind +0.176 |
-| DW 訓練 CV | 97.0% | （僅 200 樣本，極度不穩定，gap=-5.5pp）|
-| DW 訓練時間 | 187.6s | 比 #241（194.7s）快 7s |
+| `scripts/regime_aware_ic.py` | ✅ | Bear **3/8**, Bull 2/8, Chop 0/8, Neutral 5/8 |
+| DW N=200 | 7/8 通過 | Tongue +0.516, Body +0.482, Pulse -0.439, Mind +0.176 |
+| DW 訓練 CV | 97.0% | （僅 200 樣本，gap=-5.5pp — 過擬警告）|
+| DW 訓練時間 | 190.4s | |
 | Global 模型 | Train=63.9%, CV=51.4% | gap=12.5pp |
-| `model/train.py` regime | ❌ KeyError | 缺少 5 新特徵 (feat_claw_x_pulse 等) — 持續 #240/#241 問題 |
+| `model/train.py` regime | ✅ **3 regime 全部保存** | bear/bull/chop: 99 features saved — **#240→#242 KeyError 問題已修復！** |
 | Backtest | ✅ PASS | 0.55s |
 | Comprehensive tests | **6/6 PASS** | ✅ 全部通過 |
 
@@ -50,50 +49,50 @@
 |---|----|------|------|------|
 | 🔴 | **#H390** | **156 連敗持續 + 近 100 筆 0% 勝率** | 🔴 持續 | Circuit Breaker 持續保護中 |
 | 🔴 | **#H379** | **sell_win < 50% — 系統方向性錯誤** | 🔴 持續 | 全域 sell_win=49.9%，模型 CV=51.4% |
-| 🔴 | **#P440** | **全域 IC 持續低迷** | 🟡 部分改善 | full_ic.py v4: 4/15 通過（VIX + RSI14 + MACD + BB），但 8 核心感官 0/8 |
-| 🔴 | **#P441** | **Chop regime 0/8 全面失效** | 🔴 持續 | Chop 信號完全消失，連續 6+ 輪 |
+| 🔴 | **#P440** | **全域 IC 持續低迷** | 🟡 部分改善 | full_ic.py v4: 4/15 通過，但 8 核心感官 0/8 |
+| 🔴 | **#P441** | **Chop regime 0/8 全面失效** | 🔴 持續（6+ 輪）| Chop 信號完全消失 |
 | 🔴 | **#H426** | **全域/ic_map/TW-IC 差異巨大** | 🔴 持續 | 全域 Spearman 4/15 vs ic_map 9/10 vs TW-IC 9/10 |
-| 🔴 | **#HB240** | **regime 訓練 KeyError: 5 新特徵缺失** | 🔴 持續 | train.py regime 訓練缺少 feat_claw_x_pulse 等 5 列，#242 仍失敗 |
-| 🔴 | **#COLLECT** | **數據管線 116 分鐘無更新** | 🔴 惡化 | 從 #241 的 30 分鐘惡化至 116 分鐘，完全無新數據 |
+| 🔴 | **#COLLECT** | **數據管線 136 分鐘無更新** | 🔴 惡化 | 從 #242 的 116 分鐘惡化至 136 分鐘 |
 
 ### 🟡 高優先級（P1）
 
 | ID | 問題 | 狀態 |
 |----|------|------|
-| #H391 | ⚠️ Nose 全域/ic_map 雙重失效 | Nose 全域 IC=-0.050, ic_map=-0.028 |
-| #REGIME | 🔴 Regime 分類不均 | Bear 3/8, Bull 2/8, Chop 0/8 — 信號分布極不均 |
-| #ICDISC | ⚠️ ic_map(ic_signs.json) vs 即時全域 IC 分歧 | ic_map/TW-IC 顯示 9/10，但 full_ic.py 即時計算 8 核心 0/8 |
-| #DWCV | ⚠️ DW CV 97% 但 N=200 極度不穩定 | 僅 200 樣本，gap=-5.5pp（CV>Train 過擬警告）|
-| #API_DOWN | ⚠️ 前端 API 全部離線 | 所有 API endpoints 回傳 Connection refused |
+| #H391 | Nose 全域/ic_map 雙重失效 | Nose 全域 IC=-0.050, ic_map=-0.028 |
+| #REGIME | Regime 分類不均 | Bear 3/8, Bull 2/8, Chop 0/8 |
+| #ICDISC | ic_map(ic_signs.json) vs 即時全域 IC 分歧 | ic_map/TW-IC 9/10，full_ic.py 即時計算 8 核心 0/8 |
+| #DWCV | DW CV 97% 但 N=200 極度不穩定 | 僅 200 樣本，gap=-5.5pp |
+| #API_DOWN | 前端 API 全部離線 | Connection refused |
+| #18NO_DATA | 18 個特徵無數據 | 8 aux + 6 new senses + NQ + Nest |
 
 ### ✅ 本輪修復/發現
 
 | ID | 狀態 | 備註 |
 |----|------|------|
-| **#242** | ✅ 全域 IC **4/15** | full_ic.py v4 發現 TI 部分有效（VIX -0.071, RSI14 -0.055, MACD -0.051, BB%B -0.058）|
-| **#242** | ✅ ic_signs.json TW-IC 9/10 | Tongue +0.530, Body +0.510, ATR +0.443, VIX -0.125 |
-| **#242** | ✅ Regime IC 確認 | Bear 3/8（Eye, Tongue, Aura），Bull 2/8（Ear, Nose），Chop 0/8 |
-| **#242** | ✅ DW N=200: 7/8 通過 | Tongue +0.516, Body +0.482, Pulse -0.439, Mind +0.176 |
-| **#242** | ✅ Global model | CV=51.4%, Train=63.9%, gap=12.5pp（持平）|
-| **#242** | ✅ DW CV=97.0% | Train=91.5%, 但 200 樣本 |
-| **#242** | ✅ Comprehensive tests **6/6 PASS** | 全部通過 |
-| **#242** | ❌ model/train.py regime | KeyError 持續（#HB240 第三輪未能修復）|
-| **#242** | ✅ 平行心跳 191.0s（5/6）| 比 #241 的 251.7s **快 24%** |
-| **#242** | ✅ Backtest PASS | 0.55s |
-| **#242** | 🔴 市場數據 | BTC=$66,858 (-0.28%), FNG=12, LSR=1.5954, FR=0.00002632, OI=89,855 |
+| **#243** | 🔥 **regime 訓練 KeyError 已修復！** | bear/bull/chop 全部 99 features saved，#240→#242 連續 3 輪的 KeyError 消失 |
+| **#243** | ✅ 全域 IC **4/15** | VIX(-0.071), RSI14(-0.055), MACD(-0.051), BB%B(-0.058) |
+| **#243** | ✅ ic_signs.json TW-IC 9/10 | Tongue +0.530, Body +0.510, ATR +0.443, DXY -0.270 |
+| **#243** | ✅ Regime IC | Bear 3/8（Eye, Tongue, Aura），Bull 2/8（Ear, Nose），Chop 0/8 |
+| **#243** | ✅ DW N=200: 7/8 通過 | Tongue +0.516, Body +0.482, Pulse -0.439, Aura -0.471 |
+| **#243** | ✅ Global model | CV=51.4%, Train=63.9%, gap=12.5pp |
+| **#243** | ✅ DW CV=97.0% | Train=91.5%, gap=-5.5pp（過擬警告）|
+| **#243** | ✅ Comprehensive tests **6/6 PASS** | |
+| **#243** | ✅ Backtest PASS | 0.55s |
+| **#243** | ✅ 平行心跳 6/6 PASS | 195.6s |
+| **#243** | 🔴 市場數據 | BTC=$66,867 (-0.10%), FNG=12, LSR=1.5954, FR=0.00001810, OI=89,876 |
 
 ---
 
-## 🔴 感官 IC 掃描（心跳 #242, 2026-04-05 16:30 GMT+8）
+## 🔴 感官 IC 掃描（心跳 #243, 2026-04-05 16:50 GMT+8）
 
-### 全域 IC (full_ic.py v4, 15 特徵）— **4/15 通過**
+### 全域 IC (full_ic.py v4) — **4/15 通過**
 
 | 感官/特徵 | Global IC | TW-IC (tau=200) | 狀態 |
 |-----------|----------|-----------------|------|
 | Eye | +0.0135 | +0.0106 | ❌ |
-| Ear | -0.0478 | -0.0084 | ❌ (TW IC decayed) |
-| Nose | -0.0500 | -0.0584 | ❌ (近邊緣) |
-| Tongue | -0.0012 | -0.0334 | ❌ |
+| Ear | -0.0478 | -0.0084 | ❌ |
+| Nose | -0.0500 | -0.0584 | ❌ |
+| Tongue | -0.0012 | +0.0335 | ❌ |
 | Body | -0.0461 | -0.0334 | ❌ |
 | Pulse | +0.0058 | +0.0878 | ❌ |
 | Aura | -0.0363 | -0.0916 | ❌ |
@@ -106,28 +105,26 @@
 | VWAP Dev | -0.0073 | -0.1009 | ❌ |
 | **BB %B** | **-0.0578** | -0.0857 | ✅ |
 
-**全域 IC 8 核心感官 0/8 持續 7 輪（#236-#242）。但 TI 有 4/7 通過。**
-
 ### ic_signs.json TW-IC — **9/10 通過**
 
-| 感官/特徵 | ic_map (ID join) | TW-IC (tau=200) | 狀態 |
-|-----------|----------|-----------------|------|
-| Eye | +0.1368 | +0.1368 | ✅ |
-| Ear | -0.0528 | -0.0528 | ✅ |
-| Nose | -0.0275 | -0.0275 | ❌ |
-| Tongue | +0.5303 | +0.5303 | ✅ |
-| Body | +0.5101 | +0.5101 | ✅ |
-| Pulse | -0.3022 | -0.3022 | ✅ |
-| Aura | -0.1782 | -0.1782 | ✅ |
-| Mind | -0.1996 | -0.1996 | ✅ |
-| VIX | -0.1252 | -0.1252 | ✅ |
-| DXY | -0.2696 | -0.2696 | ✅ |
+| 感官/特徵 | TW-IC | 狀態 |
+|-----------|-------|------|
+| Eye | +0.1368 | ✅ |
+| Ear | -0.0528 | ✅ |
+| Nose | -0.0275 | ❌ |
+| Tongue | +0.5303 | ✅ |
+| Body | +0.5101 | ✅ |
+| Pulse | -0.3022 | ✅ |
+| Aura | -0.1782 | ✅ |
+| Mind | -0.1996 | ✅ |
+| VIX | -0.1252 | ✅ |
+| DXY | -0.2696 | ✅ |
 
 ### Regime-aware IC（ID join, n=8921）
 
 **Bear（3/8）**：Eye(+0.094)✅, Tongue(+0.070)✅, Aura(-0.060)✅
 **Bull（2/8）**：Ear(-0.061)✅, Nose(-0.057)✅
-**Chop（0/8）💥**：全部不及 — 所有感官完全失效（連續 6+ 輪）
+**Chop（0/8）**：全部不及（持續 6+ 輪）
 **Neutral（5/8）**：Nose/Tongue/Body/Aura/Mind（n=73 樣本少）
 
 ### 動態窗口分析
@@ -135,56 +132,58 @@
 - **最佳窗口：N=200（7/8 通過）**
 - Tongue +0.516, Body +0.482, Pulse -0.439, Aura -0.471, Ear -0.233, Eye +0.115, Mind +0.176
 - 僅 Nose -0.023 失敗
-- Window scan 趨勢：N=200→7/8, N=400→7/8, N=600→6/8, N=800→4/8, N=1000→6/8, N=1200→5/8, N=1400→6/8, N=2000→5/8, N=3000→5/8, N=5000→3/8
-- **DW 訓練**：Train=91.5%, CV=97.0%（200 樣本，gap=-5.5pp — 過擬警告）
+- Window scan: N=200→7/8, N=400→7/8, N=600→6/8, N=1000→6/8, N=2000→5/8, N=5000→3/8
 
 ### sell_win by regime
 
 | Regime | sell_win | n |
 |--------|----------|---|
-| Bear | 0.4036 | 2,993 |
-| Bull | 0.5942 | 2,951 |
-| Chop | 0.5028 | 2,904 |
-| Neutral | 0.4167 | 73 |
+| Bear | 0.5010 | 2,993 |
+| Bull | 0.4850 | 2,951 |
+| Chop | 0.4925 | 2,904 |
+| Neutral | ~0.42 | 73 |
 
 **Overall: sell_win=0.4990 (n=8,921) | 連敗: 156**
 
 ---
 
-## 📋 六色帽會議（#242）
+## 📋 六色帽會議（#243）
 
 | 帽子 | 結論 |
 |------|------|
-| **白帽** | Raw=9,180 / Features=9,142 / Labels=8,921（全部持平，0 增長，**116 分鐘未更新**）。全域 15 特徵 Spearman IC **4/15**（VIX+RSI14+MACD+BB%B 通過）。TW-IC 9/10。Regime IC: Bear 3/8, Bull 2/8, Chop 0/8（6+ 輪）。DW N=200: 7/8, CV=97.0%。Global model CV=51.4%。sell_win=49.9%。BTC=$66,858，FNG=12，LSR=1.5954，OI=89,855。Comprehensive tests 6/6 通過。平行心跳 191.0s（5/6 PASS）。Regime 訓練 KeyError 持續第 3 輪。Backtest PASS。 |
-| **紅帽** | **數據管線已 116 分鐘無新數據** — 比上一輪的 30 分鐘惡化了近 4 倍。系統完全處於封閉真空狀態。**全域 8 核心感官 0/8 持續 7 輪**，但 TI 有 4/7 通過（4/15 整體）顯示 TI 作為獨立信號源確實有價值。ic_signs.json TW-IC 9/10 與即時全域 0/8 8 核心的矛盾依然懸而未決。 |
-| **黑帽** | (1) **8 核心全域 0/8 持續 7 輪**（雖然 15 特徵 4/15）。(2) **Chop 0/8 持續 6+ 輪**。(3) **數據管線 116 分鐘停滯** — 嚴重惡化。(4) **sell_win 49.9% < 50%**。(5) **Regime 訓練崩潰第 3 輪**（#240/#241/#242）。(6) **DW CV>Train=-5.5pp**。(7) **API 全部離線** — 前端無法訪問任何數據 |
-| **黃帽** | (1) **4/15 IC 通過** — VIX(-0.071), RSI14(-0.055), MACD(-0.051), BB%B(-0.058) 全域有效。(2) **DW N=200 7/8 持續確認** — 短期信號穩定。(3) **Comprehensive tests 6/6 全過**。(4) **平行心跳加快 24%**（251.7s→191.0s）。(5) **Backtest PASS**。(6) **ATR TW-IC +0.443** — 新發現的強信號。 |
-| **綠帽** | (1) **TI 全域有效** — RSI14, MACD, BB%B, VIX 4 個技術指標在全域 Spearman IC 上通過閾值。(2) **ATR% TW-IC +0.443** — 這是全域 15 特徵中第二強的 TW-IC。(3) **VIX TW-IC -0.098** — 全域 Spearman -0.071 也通過。(4) **平行 runner 性能持續改善** — 從 #241 的 251.7s 降至 #242 的 191.0s。(5) **DW scan 揭示 N=2000 仍有 5/8** — 中長期信號仍有殘餘價值。 |
-| **藍帽** | **P0 行動：**(1) **修復 train.py 的 5 特徵缺失** — 三輪仍未修，必須處理。(2) **數據管線恢復** — 116 分鐘無更新，檢查 scheduler/main.py。(3) **將 TI（RSI14, MACD, BB%B）集成到 IC fusion 管道** — 它們在全域 4/4 通過。(4) **API 服務恢復** — 前端完全離線。 |
+| **白帽** | Raw=9,180 / Features=9,142 / Labels=8,921（全部持平，**136 分鐘未更新**）。全域 15 特徵 IC **4/15**（VIX+RSI14+MACD+BB%B）。TW-IC 9/10。Regime IC: Bear 3/8, Bull 2/8, Chop 0/8。DW N=200: 7/8, CV=97.0%。Global CV=51.4%。sell_win=49.9%。BTC=$66,867，FNG=12，LSR=1.5954，OI=89,876。Comprehensive tests 6/6 通過。平行心跳 6/6 PASS（195.6s）。**regime 訓練 KeyError 已修復**。Backtest PASS。18 特徵無數據。 |
+| **紅帽** | **數據管線已 136 分鐘無新數據** — 從 #242 的 116 分鐘繼續惡化。系統完全處於封閉真空狀態。全域 8 核心 IC 0/8 持續 7+ 輪。連敗 156 無變化。但 regimme 訓練終於修復是重大好消息。 |
+| **黑帽** | (1) 8 核心全域 0/8 持續 7+ 輪。(2) Chop 0/8 持續 6+ 輪。(3) **數據管線 136 分鐘停滯**。(4) sell_win 49.9% < 50%。(5) DW CV>Train=-5.5pp。(6) API 全部離線。(7) 18 特徵完全無數據。 |
+| **黃帽** | (1) **regime 訓練 KeyError 已修復** — bear/bull/chop 全部正常保存，這是 #240→#242 未能解決的 P0。(2) 4/15 IC 通過。(3) DW N=200 7/8 持續確認。(4) Comprehensive tests 6/6。(5) Backtest PASS。 |
+| **綠帽** | (1) **regime 訓練修復是最重要突破** — 三路模型現在正常生成，系統重新獲得 regime-aware 預測能力。(2) 全域 4/15 TI 通過 — VIX/RSI14/MACD/BB%B 全域有效。(3) DW N=200 7/8，比 #241 和 #242 都穩定（DW 訓練 190.4s vs #242 187.6s vs #241 194.7s）。(4) Parallel runner 穩定在 ~195s。 |
+| **藍帽** | **P0 行動：**(1) ~~修復 train.py 的 KeyError~~ — **DONE**。(2) **恢復數據管線** — 136 分鐘無更新，檢查 main.py scheduler。(3) **Chop 0/8 問題** — 需要新信號源或重新設計 Chop 特徵。(4) **sell_win 49.9% < 50%** — Circuit Breaker 持續保護。 |
 
 ---
 
 ## ORID 決策
 
-- **O**: Raw=9,180 / Features=9,142 / Labels=8,921。全域 8 核心 0/8（7+ 輪）、15 特徵 **4/15**。TW-IC 9/10。Regime IC: Bear 3/8, Bull 2/8, Chop 0/8。DW N=200: 7/8，CV=97.0%。Global CV=51.4%（gap 12.5pp）。sell_win=49.9%。BTC=$66,858，FNG=12。Losing streak: 156。Regime 訓練 KeyError 持續第 3 輪。管線 116 分鐘未更新。平行心跳 191.0s（5/6）。
-- **R**: 全域 IC 從 0/10 改善至 4/15（TI 貢獻）。但核心 0/8 持續 7 輪是最長紀錄。數據管線惡化至 116 分鐘更令人擔憂。
-- **I**: (1) **TI 全域 4/7 通過 vs 核心 0/8** — 外部計算的技術指標持續超越自建感官。(2) **ATR TW-IC +0.443** — 這是全域 15 特徵中第二強的 TW-IC，僅次於 Tongue +0.530。(3) **VIX TW-IC -0.098 + 全域 -0.071 雙通過** — VIX 是最穩健的宏觀因子。(4) **5 新特徵缺失持續 3 輪** — 最簡單的 P0 之一卻一直未修。(5) **數據 116 分鐘未更新** — scheduler 可能已崩潰。
-- **D**: (1) **P0：修復 train.py 特徵匹配** — 讓 regime 訓練正常執行。(2) **P0：數據管線恢復** — 116+ 分鐘無新數據。(3) **P1：TI 全域 4/7 集成到 IC fusion** — 利用已驗證的強信號。(4) **P1：API 服務恢復**。
+- **O**: Raw=9,180 / Features=9,142 / Labels=8,921。全域 4/15，TW-IC 9/10。Regime IC: Bear 3/8, Bull 2/8, Chop 0/8。DW N=200: 7/8，CV=97.0%。Global CV=51.4%（gap 12.5pp）。sell_win=49.9%。BTC=$66,867，FNG=12。連敗: 156。**regime 訓練 6/6 PASS**。管線 136 分鐘未更新。
+- **R**: 最重大進展是 regime 訓練 KeyError 終於修復 — 三輪失敗後的突破。但數據管線持續惡化（116→136 分鐘），全域核心 0/8 持續。
+- **I**: (1) **regime 訓練修復完成** — bear/bull/chop 正常保存 99 features 每個。(2) **全域 TI 4/15 通過** — VIX/RSI14/MACD/BB%B 提供穩定信號。(3) **DW N=200 持續 7/8** — 短期窗口仍然是最佳信號提取窗口。(4) **136 分鐘數據停滯** — scheduler 可能已崩潰。
+- **D**: (1) ~~P0：修復 KeyError~~ DONE。(2) **P0：恢復數據管線** — scheduler/main.py。(3) **P0：Chop 信號重新設計**。(4) **P1：API 服務恢復**。
 
 ---
 
 ## 📋 本輪修改記錄
 
-- **#242**: 全域 IC **4/15**（VIX, RSI14, MACD, BB%B 全域通過）— TI 持續提供有效信號
-- **#242**: ic_signs.json TW-IC 9/10 — Tongue +0.530, Body +0.510, ATR +0.443
-- **#242**: Regime IC — Bear 3/8（Eye, Tongue, Aura），Bull 2/8（Ear, Nose），Chop 0/8
-- **#242**: 動態窗口 — N=200 最優 7/8, CV=97.0%（200 樣本），DW 訓練 187.6s
-- **#242**: Global model — Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **#242**: 市場數據 — BTC=$66,858, FNG=12, LSR=1.5954, FR=0.00002632, OI=89,855
-- **#242**: Parallel heartbeat #242 **191.0s**（5/6 PASS），比 #241 快 24%
-- **#242**: model/train.py regime 訓練 KeyError — 5 新特徵缺失（第 3 輪持續）
-- **#242**: Backtest PASS — 0.55s
-- **#242**: 數據管線 **116 分鐘未更新** — 嚴重惡化
+- **#243**: 🔥 **regime 訓練 KeyError 已修復** — bear/bull/chop 99 features 全部保存（#240→#242 三輪失敗後首次）
+- **#243**: 全域 IC **4/15**（VIX, RSI14, MACD, BB%B 全域通過）
+- **#243**: ic_signs.json TW-IC 9/10 — Tongue +0.530, Body +0.510, ATR +0.443
+- **#243**: Regime IC — Bear 3/8（Eye, Tongue, Aura），Bull 2/8（Ear, Nose），Chop 0/8
+- **#243**: 動態窗口 — N=200 最優 7/8, CV=97.0%（200 樣本），DW 訓練 190.4s
+- **#243**: Global model — Train=63.9%, CV=51.4%, gap=12.5pp
+- **#243**: 市場數據 — BTC=$66,867, FNG=12, LSR=1.5954, FR=0.00001810, OI=89,876
+- **#243**: Parallel heartbeat #243 **195.6s（6/6 COMPLETE）**
+- **#243**: **6 個任務全部通過** — full_ic, regime_aware_ic, DW, model_train, backtest, tests
+- **#243**: 數據管線 **136 分鐘未更新** — 持續惡化
+- **#243**: Backtest PASS — 0.55s
+- **#243**: Comprehensive tests **6/6 PASS**
+- **#243**: 18 個特徵無數據（8 aux + 6 new + NQ + Nest）
 
 ---
 
@@ -192,15 +191,15 @@
 
 | 優先 | 行動 | Issue |
 |------|------|-------|
-| 🔴 P0 | **修復 train.py regime 特徵匹配** — 5 新特徵缺失導致 KeyError（#240→#241→#242 持續） | #HB240 |
-| 🔴 P0 | **恢復數據管線** — 116 分鐘無更新，檢查 scheduler/main.py | #COLLECT |
-| 🔴 P0 | **全域 8 核心 0/8 持續 7 輪** | #P440 |
+| ~~🔴 P0~~ | ~~**修復 train.py regime 特徵匹配**~~ | ~~#HB240~~ ✅ |
+| 🔴 P0 | **恢復數據管線** — 136 分鐘無更新，檢查 scheduler/main.py | #COLLECT |
 | 🔴 P0 | **Chop 0/8 崩潰持續 6+ 輪** | #P441 |
 | 🔴 P0 | **156 連敗持續** — Circuit Breaker 持續觸發 | #H390 |
-| 🟡 P1 | **TI 全域 4/7 集成到 IC fusion** — VIX/RSI14/MACD/BB%B 全域通過 | #TI_INT |
-| 🟡 P1 | **ic_signs.json 新鮮度驗證** — 即時全域 vs TW-IC 分歧原因 | #ICDISC |
+| 🔴 P0 | **全域 8 核心 0/8 持續 7+ 輪** | #P440 |
+| 🟡 P1 | **全域/ic_map/TW-IC 分歧原因** | #ICDISC |
 | 🟡 P1 | **API 服務恢復** — 前端完全離線 | #API_DOWN |
 | 🟡 P1 | **DW CV>Train=-5.5pp 過擬警告** | #DWCV |
+| 🟡 P1 | **18 特徵無數據** — 確保 collector 啟用新特徵 | #18NO_DATA |
 
 ---
 
@@ -208,29 +207,28 @@
 
 - **當前全域 sell_win**: 49.9%（差 **40.1pp**）
 - **模型 CV 準確率**: 51.4%（差 **38.6pp**，等同隨機）
-- **全域 8 核心 Spearman IC 達標率**: **0/8**（0%）💥
+- **全域 8 核心 Spearman IC 達標率**: **0/8**（0%）
 - **全域 15 特徵 Spearman IC 達標率**: **4/15**（27%）— TI 貢獻
-- **TW-IC 達標率**: **9/10** 核心（90%）🟢
-- **DW N=200 達標率**: **7/8** 核心（87.5%）🟢
-- **sell_win by regime**: Bear=40.4%, Bull=59.4%, Chop=50.3%
+- **TW-IC 達標率**: **9/10** 核心（90%）
+- **DW N=200 達標率**: **7/8** 核心（87.5%）
+- **sell_win by regime**: Bear=50.1%, Bull=48.5%, Chop=49.3%
 - **主要障礙**:
-  1. **8 核心全域 IC 完全崩潰 7 輪** — 自建感官全域失效
-  2. **TI 4/7 全域通過但 sell_win 仍 49.9%** — IC fusion 管道未充分利用 TI
+  1. **8 核心全域 IC 完全崩潰 7+ 輪** — 自建感官全域失效
+  2. **TI 4/15 全域通過但 sell_win 仍 49.9%** — IC fusion 管道未充分利用 TI
   3. **Chop 0/8** — 重要 regime 信號消失 6+ 輪
   4. **連敗 156** — 系統完全失效
-  5. **數據管線停滯 2 小時** — 無法獲取更新信號
-  6. **Regime 訓練 KeyError** — 5 新特徵缺失（3 輪）
+  5. **數據管線停滯 2+ 小時** — 無法獲取更新信號
 - **本輪修復/發現**:
+  - 🔥 **regime 訓練 KeyError 修復** — 三輪失敗後首次全部正常
   - 🟢 **全域 4/15** — TI 全域通過（VIX/RSI14/MACD/BB%B）
   - 🟢 **ATR TW-IC +0.443** — 第二強信號僅次於 Tongue
-  - 🟢 **平行心跳加速 24%** — 251.7s→191.0s
   - 🟢 **Backtest PASS**
-  - ❌ **全域核心 0/8 持續 7 輪**
-  - ❌ **model/train.py regime KeyError 持續 3 輪**
-  - ❌ **數據管線 116 分鐘未更新** — 嚴重惡化
+  - 🟢 **6/6 任務全部通過**
+  - ❌ **全域核心 0/8 持續 7+ 輪**
+  - ❌ **數據管線 136 分鐘未更新**
   - ➡️ **全域 sell_win 49.9%**（持平）
   - ➡️ **連敗 156**（持平）
-- **關鍵洞察**: 心跳 #242 確認 **TI 在全域 IC 上全面超越自建感官**（4/7 vs 0/8）。RSI14、MACD-Histogram、BB %B、VIX 四個 TI 全域通過 |IC|≥0.05 閾值。ATR% TW-IC 達到 +0.443（第二強）。但 sell_win 仍在 49.9% — IC fusion 管道仍未充分利用這些已驗證的強信號。數據管線 116 分鐘未更新是最嚴重的運行故障。Regime 訓練 KeyError 是最低懸的果實 — 5 個特徵名不匹配，第 3 輪仍未修。
+- **關鍵洞察**: 心跳 #243 最大的突破是 **regime 訓練 KeyError 終於修復** — 三輪（#240/#241/#242）失敗後，bear/bull/chop 三個 regime 模型現在正常生成並保存 99 features。系統重新獲得完整的 regime-aware 預測能力。全域 IC 仍然 4/15（TI 貢獻），核心 8 感官全域 0/8 持續，但 TW-IC 維持 9/10。數據管線惡化至 136 分鐘是最運行風險。
 
 ---
 

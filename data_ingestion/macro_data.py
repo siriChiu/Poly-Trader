@@ -26,10 +26,8 @@ def _fetch_yahoo(symbol, range_d='5d', interval='1h'):
 
 
 def fetch_macro_latest():
-    result = {k1: None for k1, _, _ in SYMBOLS.values()}
-    result.update({k2: None for _, k2, _ in SYMBOLS.values()})
-
-    for symbol, vkey, tkey, histkey in SYMBOLS.values():
+    result = {}
+    for vkey, tkey, histkey in SYMBOLS.values():
         result[vkey] = None
         result[tkey] = None
         result[histkey] = []
@@ -47,7 +45,6 @@ def fetch_macro_latest():
 
 
 def compute_nq_features(hist):
-    """Compute NQ 1h return and 24h return from history."""
     if not hist or len(hist) < 2:
         return {'feat_nq_return_1h': 0.0, 'feat_nq_return_24h': 0.0}
     latest = hist[-1][1]
@@ -55,7 +52,6 @@ def compute_nq_features(hist):
     prev_24h = hist[-min(24, len(hist))][1]
     ret_1h = (latest / prev_1h - 1) if prev_1h > 0 else 0
     ret_24h = (latest / prev_24h - 1) if prev_24h > 0 else 0
-    # Flip sign: NQ down = bullish for SHORT
     return {
         'feat_nq_return_1h': -ret_1h,
         'feat_nq_return_24h': -ret_24h,
