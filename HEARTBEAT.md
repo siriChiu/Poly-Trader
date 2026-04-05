@@ -221,6 +221,21 @@ git add -A && git commit -m "心跳 #N: 摘要"
 
 > 每次心跳在底部追加一行，保持最近 20 條。
 
+### Heartbeat #314 — 2026-04-06 07:36-07:37
+- **DB**: Raw=**9,234** (+0, 64+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
+- **全域 IC**: **5/15**（VIX, MACD, BB%B, RSI14邊緣 + Nose/Body邊緣）→ 與 #313 完全一致
+- **TW-IC**: **10/15** → Tongue+0.530 Body+0.510 ATR%+0.443 DXY-0.270 Pulse-0.302 Mind-0.200 Aura-0.178 VWAP+0.140 Eye+0.137 VIX-0.125
+- **DW N=100**: **7/8**（Nose -0.177, Aura -0.277, Mind -0.230）
+- **DW N=200**: **5/8** → Mind -0.167, Aura -0.162, Nose -0.114
+- **Regime IC**: Bear 4/8, Bull 0/8（**68+輪持續！**）, Chop 0/8（68+輪！）
+- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
+- **市場**: BTC=$69,013 (**🟢🟢 +2.69%** 持續上漲), FNG=12（極度恐懼）, FR=**0.00006993**（+2.9% 微升）, LSR=**1.3987**（持平）, OI=90,692（-174）
+- **平行心跳**: 5/5 PASS（**12.7s**，超快！ProcessPoolExecutor 5 worker）
+- **Tests**: 5/5 PASS
+- **🔴 連敗 156**：64+輪持平
+- **🔴 Last 100 sell_win=0%**，Last 200=9%，Last 500=32%
+- **🟢 BTC 突破 $69K**：從 $68,803 → $69,013，極度恐懼中持續上漲
+
 ### Heartbeat #313 — 2026-04-06 07:31-07:32
 - **DB**: Raw=**9,234** (+0, 63+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
 - **全域 IC**: **5/15**（VIX, MACD, BB%B, RSI14邊緣 + Nose/Body邊緣）→ 計數法 vs #312 略異
