@@ -41,7 +41,7 @@ def trading_cycle(session, config: dict, symbol: str, confidence_threshold: floa
 
     # Step 2.5: 標籤更新（fix #H61: 每輪心跳重新生成並寫入 labels）
     try:
-        labels_df = generate_future_return_labels(session, symbol=symbol, horizon_hours=4, threshold_pct=0.005)
+        labels_df = generate_future_return_labels(session, symbol=symbol, horizon_hours=4, threshold_pct=0.020)
         if not labels_df.empty:
             save_labels_to_db(session, labels_df, symbol=symbol, horizon_hours=4)
             logger.info(f"標籤更新完成: {len(labels_df)} 筆")

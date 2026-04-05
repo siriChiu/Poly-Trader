@@ -15,9 +15,9 @@ logger = setup_logger(__name__)
 
 def generate_future_return_labels(
     session: Session,
-    symbol: str,
-    horizon_hours: int = 24,
-    threshold_pct: float = 0.005,
+    symbol: str = "BTCUSDT",
+    horizon_hours: int = 4,
+    threshold_pct: float = 0.020,
     neutral_band: float = 0.005
 ) -> pd.DataFrame:
     """

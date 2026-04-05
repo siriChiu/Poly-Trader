@@ -113,6 +113,19 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
         **claw, **fang, **fin, **web, **scales, **nest, **nq_feats,
     }
 
+    # Actually map new sensory to RawMarketData columns
+    record.claw_liq_ratio = claw.get("claw_ratio")
+    record.claw_liq_total = claw.get("claw_long_liq", 0) + claw.get("claw_short_liq", 0)
+    record.fang_pcr = fang.get("fang_raw_pcr")
+    record.fang_iv_skew = fang.get("fang_iv_skew_raw")
+    fin_val = fin.get("fin_raw_netflow", 0)
+    record.fin_etf_netflow = fin_val if fin_val else None
+    record.fin_etf_trend = None  # need trend calc separately
+    record.web_whale_pressure = web.get("web_sell_ratio")
+    record.web_large_trades_count = web.get("web_large_trades", 0)
+    record.scales_ssr = scales.get("feat_scales_ssr")
+    record.nest_pred = nest.get("nest_raw_prob")
+
     record._raw_events = [
         _raw_event("exchange", symbol, "price", eye.get("current_price"), confidence=0.9, payload_json=str(eye)),
         _raw_event("exchange", symbol, "volume", eye.get("volume"), confidence=0.9, payload_json=str(eye)),

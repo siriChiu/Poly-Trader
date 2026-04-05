@@ -299,6 +299,64 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_dxy"] = None
 
+    # ─── P0 #H232: NEW Sensory Features (6 P0/P1 + NQ) ───
+    # NQ (Nasdaq 100): negative return = bullish for SHORT
+    if "nq_value" in df.columns and df["nq_value"].notna().any():
+        nq_vals = df["nq_value"].dropna()
+        if len(nq_vals) >= 2:
+            features["feat_nq_return_1h"] = -(float(nq_vals.iloc[-1] / nq_vals.iloc[-2] - 1))
+        if len(nq_vals) >= 24:
+            features["feat_nq_return_24h"] = -(float(nq_vals.iloc[-1] / nq_vals.iloc[-min(24, len(nq_vals))] - 1))
+    if "feat_nq_return_1h" not in features:
+        features["feat_nq_return_1h"] = 0.0
+    if "feat_nq_return_24h" not in features:
+        features["feat_nq_return_24h"] = 0.0
+
+    # Claw: Liquidation ratio — more long liq = good for SHORT
+    if "claw_liq_ratio" in df.columns and df["claw_liq_ratio"].notna().any():
+        raw = float(df["claw_liq_ratio"].dropna().iloc[-1])
+        features["feat_claw"] = float((raw - 1.0) / (raw + 1.0))
+        features["feat_claw_intensity"] = float(math.tanh(raw / 3.0))
+    else:
+        features["feat_claw"] = 0.0
+        features["feat_claw_intensity"] = 0.0
+
+    # Fang: Options PCR — PCR>1 = fear
+    if "fang_pcr" in df.columns and df["fang_pcr"].notna().any():
+        pcr = float(df["fang_pcr"].dropna().iloc[-1])
+        features["feat_fang_pcr"] = float(math.tanh((pcr - 1.0) * 2.0))
+    else:
+        features["feat_fang_pcr"] = 0.0
+    if "fang_iv_skew" in df.columns and df["fang_iv_skew"].notna().any():
+        features["feat_fang_skew"] = float(df["fang_iv_skew"].dropna().iloc[-1] / 10.0)
+    else:
+        features["feat_fang_skew"] = 0.0
+
+    # Fin: ETF Flow — outflow = bearish for BTC = bullish for SHORT
+    if "fin_etf_netflow" in df.columns and df["fin_etf_netflow"].notna().any():
+        nf = float(df["fin_etf_netflow"].dropna().iloc[-1])
+        features["feat_fin_netflow"] = float(-math.tanh(nf / 500_000_000))
+    else:
+        features["feat_fin_netflow"] = 0.0
+
+    # Web: Whale sell pressure
+    if "web_whale_pressure" in df.columns and df["web_whale_pressure"].notna().any():
+        features["feat_web_whale"] = float(df["web_whale_pressure"].dropna().iloc[-1])
+    else:
+        features["feat_web_whale"] = 0.0
+
+    # Scales: Stablecoin SSR
+    if "scales_ssr" in df.columns and df["scales_ssr"].notna().any():
+        features["feat_scales_ssr"] = float(df["scales_ssr"].dropna().iloc[-1])
+    else:
+        features["feat_scales_ssr"] = 0.0
+
+    # Nest: Polymarket prediction
+    if "nest_pred" in df.columns and df["nest_pred"].notna().any():
+        features["feat_nest_pred"] = float(df["nest_pred"].dropna().iloc[-1] - 0.5)
+    else:
+        features["feat_nest_pred"] = 0.0
+
     logger.info(
         f"Features v3: eye={features['feat_eye_dist']:.6f} "
         f"ear={features['feat_ear_zscore']:.6f} "
@@ -341,15 +399,24 @@ def save_features_to_db(
             feat_pulse=features.get("feat_pulse"),
             feat_aura=features.get("feat_aura"),
             feat_mind=features.get("feat_mind"),
-            # P0 #H161: Technical indicators
             feat_rsi14=features.get("feat_rsi14"),
             feat_macd_hist=features.get("feat_macd_hist"),
             feat_atr_pct=features.get("feat_atr_pct"),
             feat_vwap_dev=features.get("feat_vwap_dev"),
             feat_bb_pct_b=features.get("feat_bb_pct_b"),
-            # P0 #H381: VIX & DXY macro features (#1 and #2 IC)
             feat_vix=features.get("feat_vix"),
             feat_dxy=features.get("feat_dxy"),
+            # P0 #H232: New sensory features
+            feat_nq_return_1h=features.get("feat_nq_return_1h"),
+            feat_nq_return_24h=features.get("feat_nq_return_24h"),
+            feat_claw=features.get("feat_claw"),
+            feat_claw_intensity=features.get("feat_claw_intensity"),
+            feat_fang_pcr=features.get("feat_fang_pcr"),
+            feat_fang_skew=features.get("feat_fang_skew"),
+            feat_fin_netflow=features.get("feat_fin_netflow"),
+            feat_web_whale=features.get("feat_web_whale"),
+            feat_scales_ssr=features.get("feat_scales_ssr"),
+            feat_nest_pred=features.get("feat_nest_pred"),
         )
         session.add(record)
         session.commit()
