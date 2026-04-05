@@ -169,16 +169,14 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
             ic_map_global[col] = 0.0
             tw_ic_map[col] = 0.0
 
-    # P0 #H425: Save BOTH global IC and TW-IC for transparency
-    # P0 #audit: Add null_count + ic_status to distinguish IC=0 from NO_DATA
+    # P0 #H425: Compute null counts + IC status, then save
     os.makedirs("model", exist_ok=True)
     core_ic_summary = {c: round(ic_map.get(c, 0), 4) for c in FEATURE_COLS}
     tw_ic_summary = {c: round(tw_ic_map.get(c, 0), 4) for c in FEATURE_COLS}
 
-    # Compute null counts for all features (from pre-fillna count)
+    # P0#2: null counts from pre-fillna
     null_counts = non_null_before.copy()
-
-    # Classify each feature's IC status
+    # P0#2: IC status classification
     ic_status = {}
     for col in all_feature_cols:
         nn = null_counts.get(col, 0)
@@ -195,11 +193,11 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
     with open("model/ic_signs.json", "w", encoding="utf-8") as f:
         json.dump({
             "neg_ic_feats": NEG_IC_FEATS,
-            "ic_map": ic_map,            # used for feature sign flipping (TW-IC for core, global for others)
-            "ic_global": ic_map_global,  # global Spearman IC for reference
-            "ic_tw": tw_ic_map,          # time-weighted IC for core senses (tau=200)
-            "null_counts": null_counts,  # P0 audit: non-null count per feature
-            "ic_status": ic_status,      # P0 audit: NO_DATA / LOW / PASS / FAIL
+            "ic_map": ic_map,
+            "ic_global": ic_map_global,
+            "ic_tw": tw_ic_map,
+            "null_counts": null_counts,
+            "ic_status": ic_status,
             "total_samples": len(merged),
             "target": "label_sell_win",
             "core_ic_summary": core_ic_summary,
