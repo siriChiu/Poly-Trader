@@ -55,7 +55,7 @@ def db_counts():
 
 
 def main():
-    hb_num = 303  # next heartbeat number
+    hb_num = 304  # next heartbeat number
     start_total = time.time()
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
 
