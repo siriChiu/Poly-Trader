@@ -221,6 +221,21 @@ git add -A && git commit -m "心跳 #N: 摘要"
 
 > 每次心跳在底部追加一行，保持最近 20 條。
 
+### Heartbeat #313 — 2026-04-06 07:31-07:32
+- **DB**: Raw=**9,234** (+0, 63+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
+- **全域 IC**: **5/15**（VIX, MACD, BB%B, RSI14邊緣 + Nose/Body邊緣）→ 計數法 vs #312 略異
+- **TW-IC**: **10/15**（🔻 12/15→10/15 微降，RSI14+Ear 降至失敗）→ Tongue+0.530 Body+0.510 ATR%+0.443 DXY-0.270 Pulse-0.302 Mind-0.200 Aura-0.178 VWAP+0.140 Eye+0.137 VIX-0.125
+- **DW N=100**: **7/8**（Nose -0.177, Aura -0.277, Mind -0.230）
+- **DW N=200**: **5/8** → Mind -0.167, Aura -0.162, Nose -0.114
+- **Regime IC**: Bear 4/8, Bull 0/8（**67+輪持續！**）, Chop 0/8（67+輪！）
+- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
+- **市場**: BTC=$68,803 (**🟢🟢 +2.53%**), FNG=12（極度恐懼）, FR=**0.00006794**（-0.2% 微降）, LSR=**1.3987**（🟢 -87bps 降至新低！）, OI=90,866（+6 BTC）
+- **🟢 LSR 降至 1.3987**: 從 #312 的 1.4085 → **1.3987**（-98bps），長倉壓力進一步減少！
+- **平行心跳**: 5/5 PASS（**11.3s**，超快！ProcessPoolExecutor 5 worker）
+- **Tests**: 5/5 PASS
+- **🔴 連敗 156**：63+輪持平
+- **🔴 Last 100 sell_win=0%**，Last 200=9%，Last 500=32%
+
 ### Heartbeat #312 — 2026-04-06 07:25-07:30
 - **DB**: Raw=**9,234** (+0, 62+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
 - **全域 IC**: 3/15（VIX, MACD, BB%B）→ 與 #311 完全一致
