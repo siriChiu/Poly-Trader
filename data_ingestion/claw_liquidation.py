@@ -1,54 +1,43 @@
-import requests
-import json
-import os
+"""
+Claw (利爪) — Liquidation Heatmap
+DataSource: CoinGlass public API (free API key)
+"""
+import json, os, ssl, math
 from datetime import datetime
+from urllib.request import urlopen, Request
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+API_KEY = os.environ.get("COINGLASS_API_KEY", "")
 
-COINGLASS_API_KEY = os.environ.get("COINGLASS_API_KEY", "")
-
-def _cg_get(path, params=None):
-    if not COINGLASS_API_KEY:
-        return None
-    headers = {"Content-Type": "application/json", "coinglassSecret": COINGLASS_API_KEY}
-    try:
-        r = requests.get(f"https://open-api-v3.coinglass.com{path}", params=params or {}, headers=headers, timeout=10)
-        if r.status_code == 200:
-            return r.json()
-    except Exception:
-        pass
-    return None
 
 def get_claw_feature(symbol="BTC"):
-    """
-    清算地圖特徵：
-    - 多頭清算密集區 = 價格磁鐵 (向下吸)
-    - 空頭清算密集區 = 上漲燃料
-    - feat_claw_liquidation_ratio: 多頭vs空頭清算比例
-    - feat_claw_total_1h: 最近1h總清算量(百萬USDT)
-    - feat_claw_long_ratio: 多頭清算佔比 (越高=越有利SHORT)
-    """
-    params = {"exchange": "Binance", "symbol": symbol, "period": "1h", "limit": 24}
-    data = _cg_get("/api/futures/liquidation/history", params)
-
-    if not data or data.get("code") != 2000 or not data.get("data", {}).get("items"):
-        return None
-
-    items = data["data"]["items"]
-    long_liq = sum(float(it.get("liquidatedLong", 0) or 0) for it in items)
-    short_liq = sum(float(it.get("liquidatedShort", 0) or 0) for it in items)
-    total = long_liq + short_liq
-
-    long_ratio = long_liq / total if total > 0 else 0.5
-    recent_1h = items[-1] if items else {}
-    liq_1h = (float(recent_1h.get("liquidatedLong", 0) or 0) +
-              float(recent_1h.get("liquidatedShort", 0) or 0)) / 1_000_000
-
-    logger.info(f"Claw: long_liq={long_liq/1e6:.1f}M, short_liq={short_liq/1e6:.1f}M, ratio={long_ratio:.3f}")
-    return {
-        "feat_claw_long_ratio": long_ratio,
-        "feat_claw_total_1h": liq_1h,
-        "raw_long_liq": long_liq,
-        "raw_short_liq": short_liq,
-    }
+    try:
+        url = "https://open-api.coinglass.com/api/v3/futures/liquidation/history"
+        url += f"?symbol={symbol}&interval=4h&limit=6"
+        headers = {}
+        if API_KEY:
+            headers["X-CG-API-KEY"] = API_KEY
+        req = Request(url, headers=headers if headers else {"User-Agent": "Mozilla/5.0"})
+        resp = urlopen(req, context=ssl.create_default_context(), timeout=10)
+        data = json.loads(resp.read().decode())
+        if data and data.get("success") and data.get("data"):
+            items = data["data"][-6:]  # last 24h
+            long_liq = sum(float(i.get("longLiquidationUsd", 0) or 0) for i in items)
+            short_liq = sum(float(i.get("shortLiquidationUsd", 0) or 0) for i in items)
+            total = long_liq + short_liq
+            ratio = long_liq / short_liq if short_liq > 0 else 1.0
+            # Higher long_liq = more shorts win = good for SHORT strategy
+            feat = (ratio - 1.0) / (ratio + 1.0)  # -1..+1, positive = more longs liquidated
+            feat_intensity = math.tanh(total / 100_000_000)  # normalize to 0..1
+            return {
+                "feat_claw": float(feat),
+                "feat_claw_intensity": float(feat_intensity),
+                "claw_long_liq": long_liq,
+                "claw_short_liq": short_liq,
+                "claw_ratio": ratio,
+            }
+    except Exception as e:
+        logger.debug(f"Claw fetch failed: {e}")
+    return {"feat_claw": 0.0, "feat_claw_intensity": 0.0,
+            "claw_long_liq": 0, "claw_short_liq": 0, "claw_ratio": 1.0}

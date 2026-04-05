@@ -22,12 +22,19 @@ logger = setup_logger(__name__)
 
 MODEL_PATH = "model/xgb_model.pkl"
 DB_PATH = str(Path(__file__).parent.parent / "poly_trader.db")
-# 8 core senses + VIX + DXY = 10 active features
-# 8 auxiliary (whisper/tone/chorus/hype/oracle/shock/tide/storm) are zero/constant — keep out of training
 FEATURE_COLS = [
+    # === 8 Core Senses ===
     "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
     "feat_body", "feat_pulse", "feat_aura", "feat_mind",
+    # === 2 Macro ===
     "feat_vix", "feat_dxy",
+    # === 5 Technical Indicators ===
+    "feat_rsi14", "feat_macd_hist", "feat_atr_pct",
+    "feat_vwap_dev", "feat_bb_pct_b",
+    # === 5 P0/P1 Sensory + NQ ===
+    "feat_claw", "feat_claw_intensity", "feat_fang_pcr",
+    "feat_fang_skew", "feat_fin_netflow",
+    "feat_nq_return_1h",
 ]
 LAG_STEPS = [12, 48, 288]
 BASE_FEATURE_COLS = FEATURE_COLS
@@ -404,6 +411,9 @@ def train_regime_models(session: Session) -> bool:
         "feat_mind_x_pulse", "feat_eye_x_ear", "feat_nose_x_aura",
         "feat_eye_x_body", "feat_ear_x_nose", "feat_mind_x_aura",
         "feat_mean_rev_proxy",
+        "feat_claw_x_pulse", "feat_fang_x_vix",
+        "feat_fin_x_claw", "feat_web_x_fang",
+        "feat_nq_x_vix",
     ]
     for col in all_feat_cols:
         merged[col] = pd.to_numeric(merged[col], errors='coerce')

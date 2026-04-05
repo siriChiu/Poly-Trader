@@ -51,6 +51,17 @@ class RawMarketData(Base):
     body_label = Column(String, nullable=True)
     vix_value = Column(Float, nullable=True)
     dxy_value = Column(Float, nullable=True)
+    nq_value = Column(Float, nullable=True)
+    claw_liq_ratio = Column(Float, nullable=True)
+    claw_liq_total = Column(Float, nullable=True)
+    fang_pcr = Column(Float, nullable=True)
+    fang_iv_skew = Column(Float, nullable=True)
+    fin_etf_netflow = Column(Float, nullable=True)
+    fin_etf_trend = Column(Float, nullable=True)
+    web_whale_pressure = Column(Float, nullable=True)
+    web_large_trades_count = Column(Integer, nullable=True)
+    scales_ssr = Column(Float, nullable=True)
+    nest_pred = Column(Float, nullable=True)
 
 
 class FeaturesNormalized(Base):
@@ -80,6 +91,16 @@ class FeaturesNormalized(Base):
     feat_atr_pct = Column(Float, nullable=True)
     feat_vwap_dev = Column(Float, nullable=True)
     feat_bb_pct_b = Column(Float, nullable=True)
+    feat_nq_return_1h = Column(Float, nullable=True)
+    feat_nq_return_24h = Column(Float, nullable=True)
+    feat_claw = Column(Float, nullable=True)
+    feat_claw_intensity = Column(Float, nullable=True)
+    feat_fang_pcr = Column(Float, nullable=True)
+    feat_fang_skew = Column(Float, nullable=True)
+    feat_fin_netflow = Column(Float, nullable=True)
+    feat_web_whale = Column(Float, nullable=True)
+    feat_scales_ssr = Column(Float, nullable=True)
+    feat_nest_pred = Column(Float, nullable=True)
 
     # --- Backward-compatible aliases for legacy callers/tests ---
     @property
@@ -183,6 +204,16 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
         ("feat_atr_pct", "REAL"),
         ("feat_vwap_dev", "REAL"),
         ("feat_bb_pct_b", "REAL"),
+        ("feat_nq_return_1h", "REAL"),
+        ("feat_nq_return_24h", "REAL"),
+        ("feat_claw", "REAL"),
+        ("feat_claw_intensity", "REAL"),
+        ("feat_fang_pcr", "REAL"),
+        ("feat_fang_skew", "REAL"),
+        ("feat_fin_netflow", "REAL"),
+        ("feat_web_whale", "REAL"),
+        ("feat_scales_ssr", "REAL"),
+        ("feat_nest_pred", "REAL"),
     ),
     "trade_history": (
         ("gross_pnl", "REAL"),
@@ -202,6 +233,17 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
     "raw_market_data": (
         ("vix_value", "REAL"),
         ("dxy_value", "REAL"),
+        ("nq_value", "REAL"),
+        ("claw_liq_ratio", "REAL"),
+        ("claw_liq_total", "REAL"),
+        ("fang_pcr", "REAL"),
+        ("fang_iv_skew", "REAL"),
+        ("fin_etf_netflow", "REAL"),
+        ("fin_etf_trend", "REAL"),
+        ("web_whale_pressure", "REAL"),
+        ("web_large_trades_count", "INTEGER"),
+        ("scales_ssr", "REAL"),
+        ("nest_pred", "REAL"),
     ),
     "raw_events": (
         ("source", "TEXT"),

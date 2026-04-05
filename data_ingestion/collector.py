@@ -21,7 +21,13 @@ from data_ingestion.nose_futures import get_nose_feature
 from data_ingestion.eye_binance import get_eye_feature
 from data_ingestion.ear_polymarket import get_ear_feature
 from data_ingestion.binance_derivatives import get_derivatives_features
-from data_ingestion.macro_data import fetch_vix_dxy_latest
+from data_ingestion.macro_data import fetch_macro_latest, compute_nq_features
+from data_ingestion.claw_liquidation import get_claw_feature
+from data_ingestion.fang_options import get_fang_feature
+from data_ingestion.fin_etf import get_fin_feature
+from data_ingestion.web_whale import get_web_feature
+from data_ingestion.scales_ssr import get_scales_feature
+from data_ingestion.nest_polymarket import get_nest_feature
 from database.models import RawMarketData, RawEvent
 from utils.logger import setup_logger
 
@@ -62,7 +68,7 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
     volatility = tongue.get("volatility")
 
     # Fetch VIX/DXY macro data
-    macro = fetch_vix_dxy_latest()
+    macro = fetch_macro_latest()
 
     record = RawMarketData(
         timestamp=datetime.utcnow(),
@@ -81,8 +87,31 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
         body_label=body_label,
         vix_value=macro.get("vix_value"),
         dxy_value=macro.get("dxy_value"),
+        nq_value=macro.get("nq_value"),
+        # P0/P1: New sensory data
+        claw_liq_ratio=None,
+        claw_liq_total=None,
+        fang_pcr=None,
+        fang_iv_skew=None,
+        fin_etf_netflow=None,
+        fin_etf_trend=None,
+        web_whale_pressure=None,
+        web_large_trades_count=None,
+        scales_ssr=None,
+        nest_pred=None,
     )
     record._derivatives = derivatives
+    # P0/P1: Store new sensory in _new_sensory for preprocessor
+    claw = get_claw_feature()
+    fang = get_fang_feature()
+    fin = get_fin_feature()
+    web = get_web_feature()
+    scales = get_scales_feature()
+    nest = get_nest_feature()
+    nq_feats = compute_nq_features(macro.get('nq_history', []))
+    record._new_sensory = {
+        **claw, **fang, **fin, **web, **scales, **nest, **nq_feats,
+    }
 
     record._raw_events = [
         _raw_event("exchange", symbol, "price", eye.get("current_price"), confidence=0.9, payload_json=str(eye)),
@@ -94,7 +123,7 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
     ]
 
     logger.info(
-        f"收集完成 v4: price={eye.get('current_price')}, LSR={derivatives.get('lsr_ratio')}, "
+        f"收集完成 v5: price={eye.get('current_price')}, LSR={derivatives.get('lsr_ratio')}, "
         f"GSR={derivatives.get('gsr_ratio')}, Taker={derivatives.get('taker_ratio')}, OI={derivatives.get('oi_value')}"
     )
     return record

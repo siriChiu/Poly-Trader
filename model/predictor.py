@@ -386,6 +386,21 @@ def load_latest_features(session: Session) -> Optional[Dict]:
         # P0 #H149-fix1: Include VIX and DXY at inference time (model was trained with them)
         "feat_vix": getattr(latest, "feat_vix", None),
         "feat_dxy": getattr(latest, "feat_dxy", None),
+        "feat_rsi14": getattr(latest, "feat_rsi14", None),
+        "feat_macd_hist": getattr(latest, "feat_macd_hist", None),
+        "feat_atr_pct": getattr(latest, "feat_atr_pct", None),
+        "feat_vwap_dev": getattr(latest, "feat_vwap_dev", None),
+        "feat_bb_pct_b": getattr(latest, "feat_bb_pct_b", None),
+        "feat_claw": getattr(latest, "feat_claw", None),
+        "feat_claw_intensity": getattr(latest, "feat_claw_intensity", None),
+        "feat_fang_pcr": getattr(latest, "feat_fang_pcr", None),
+        "feat_fang_skew": getattr(latest, "feat_fang_skew", None),
+        "feat_fin_netflow": getattr(latest, "feat_fin_netflow", None),
+        "feat_web_whale": getattr(latest, "feat_web_whale", None),
+        "feat_scales_ssr": getattr(latest, "feat_scales_ssr", None),
+        "feat_nest_pred": getattr(latest, "feat_nest_pred", None),
+        "feat_nq_return_1h": getattr(latest, "feat_nq_return_1h", None),
+        "feat_nq_return_24h": getattr(latest, "feat_nq_return_24h", None),
     }
     # Compute lag features: rows are DESC, so rows[lag] is `lag` steps ago
     for col in BASE_FEATURE_COLS:
@@ -422,6 +437,18 @@ def load_latest_features(session: Session) -> Optional[Dict]:
 
     # Mean-reversion proxy
     features["feat_mean_rev_proxy"] = mind - (features.get("feat_aura", 0))
+    # P0/P1: New cross-features at inference
+    claw = features.get("feat_claw", 0) or 0
+    fang = features.get("feat_fang_pcr", 0) or 0
+    vix = features.get("feat_vix", 0) or 0
+    fin = features.get("feat_fin_netflow", 0) or 0
+    web = features.get("feat_web_whale", 0) or 0
+    nq = features.get("feat_nq_return_1h", 0) or 0
+    features["feat_claw_x_pulse"] = claw * (features.get("feat_pulse", 0) or 0)
+    features["feat_fang_x_vix"] = fang * vix
+    features["feat_fin_x_claw"] = fin * claw
+    features["feat_web_x_fang"] = web * fang
+    features["feat_nq_x_vix"] = nq * vix
 
     return features
 

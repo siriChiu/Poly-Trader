@@ -6,6 +6,7 @@
 from typing import Optional, Dict
 from datetime import datetime
 import pandas as pd
+import math
 import numpy as np
 from sqlalchemy.orm import Session
 from database.models import RawMarketData, FeaturesNormalized
@@ -103,6 +104,17 @@ def load_latest_raw_data(
             # P0 #H381: Include VIX & DXY from raw data for feature pipeline
             "vix_value": getattr(r, "vix_value", None),
             "dxy_value": getattr(r, "dxy_value", None),
+            "nq_value": getattr(r, "nq_value", None),
+            "claw_liq_ratio": getattr(r, "claw_liq_ratio", None),
+            "claw_liq_total": getattr(r, "claw_liq_total", None),
+            "fang_pcr": getattr(r, "fang_pcr", None),
+            "fang_iv_skew": getattr(r, "fang_iv_skew", None),
+            "fin_etf_netflow": getattr(r, "fin_etf_netflow", None),
+            "fin_etf_trend": getattr(r, "fin_etf_trend", None),
+            "web_whale_pressure": getattr(r, "web_whale_pressure", None),
+            "web_large_trades_count": getattr(r, "web_large_trades_count", None),
+            "scales_ssr": getattr(r, "scales_ssr", None),
+            "nest_pred": getattr(r, "nest_pred", None),
         })
     return pd.DataFrame(data)
 
@@ -407,6 +419,16 @@ def recompute_all_features(session: Session, symbol: str = "BTCUSDT") -> int:
                 existing.feat_atr_pct = features.get("feat_atr_pct")
                 existing.feat_vwap_dev = features.get("feat_vwap_dev")
                 existing.feat_bb_pct_b = features.get("feat_bb_pct_b")
+                existing.feat_nq_return_1h = features.get("feat_nq_return_1h")
+                existing.feat_nq_return_24h = features.get("feat_nq_return_24h")
+                existing.feat_claw = features.get("feat_claw")
+                existing.feat_claw_intensity = features.get("feat_claw_intensity")
+                existing.feat_fang_pcr = features.get("feat_fang_pcr")
+                existing.feat_fang_skew = features.get("feat_fang_skew")
+                existing.feat_fin_netflow = features.get("feat_fin_netflow")
+                existing.feat_web_whale = features.get("feat_web_whale")
+                existing.feat_scales_ssr = features.get("feat_scales_ssr")
+                existing.feat_nest_pred = features.get("feat_nest_pred")
                 # P0 #H381: VIX & DXY macro features
                 existing.feat_vix = features.get("feat_vix")
                 existing.feat_dxy = features.get("feat_dxy")
