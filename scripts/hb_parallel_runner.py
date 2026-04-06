@@ -20,6 +20,10 @@ import time
 
 PROJECT_ROOT = '/home/kazuha/Poly-Trader'
 DB_PATH = os.path.join(PROJECT_ROOT, 'poly_trader.db')
+# Use the Poly-Trader venv python, NOT sys.executable (which may be Hermes venv)
+_VENV_PYTHON = os.path.join(PROJECT_ROOT, 'venv', 'bin', 'python')
+if not os.path.isfile(_VENV_PYTHON):
+    _VENV_PYTHON = sys.executable  # fallback
 
 # Core scripts that always run
 ALWAYS_TASKS = [
@@ -81,7 +85,7 @@ def run_one_script(task, hb_num):
             'elapsed_s': 0,
         }
 
-    cmd = [sys.executable, script_path, '--hb', str(hb_num)]
+    cmd = [_VENV_PYTHON, script_path, '--hb', str(hb_num)]
     env = os.environ.copy()
     env['PYTHONPATH'] = PROJECT_ROOT
     env['LC_ALL'] = 'C.UTF-8'
@@ -171,7 +175,7 @@ def run_live_market_data():
     print(" Step: Live market data")
     print("=" * 60)
     t0 = time.time()
-    cmd = [sys.executable, os.path.join(PROJECT_ROOT, 'scripts/get_live_market_data.py')]
+    cmd = [_VENV_PYTHON, os.path.join(PROJECT_ROOT, 'scripts/get_live_market_data.py')]
     env = os.environ.copy()
     env['PYTHONPATH'] = PROJECT_ROOT
     env['LC_ALL'] = 'C.UTF-8'
