@@ -118,7 +118,7 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
     # 取得現有行（包含 NULL 的需要更新，已有值的跳過）
     existing_rows = {
         str(r.timestamp): r for r in session.query(Labels)
-        .filter(Labels.symbol == symbol, Labels.horizon_hours == horizon_hours)
+        .filter(Labels.symbol == symbol, Labels.horizon_minutes == horizon_hours)
         .all()
     }
 
@@ -136,9 +136,8 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
             if existing.future_return_pct is None and fut_ret is not None:
                 # 更新 NULL label：現在有未來數據了
                 existing.future_return_pct = float(fut_ret)
-                existing.label = int(row["label"])
                 existing.label_sell_win = int(row.get("label_sell_win", 0))
-                existing.label_up = int(row.get("label_up", row["label"]))
+                existing.label_up = int(row.get("label_up", 0))
                 needs_update = True
             # P0 fix: 如果現有 label 的 regime_label 是 NULL，從 features 填充
             if existing.regime_label is None and regime_val is not None:
@@ -154,9 +153,10 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
             symbol=symbol,
             horizon_minutes=horizon_hours * 60,
             future_return_pct=float(row["future_return_pct"]) if row.get("future_return_pct") is not None and row["future_return_pct"] != "" else None,
-            label=int(row["label"]),
+            future_max_drawdown=float(row.get("future_max_drawdown") or 0),
+            future_max_runup=float(row.get("future_max_runup") or 0),
             label_sell_win=int(row.get("label_sell_win", 0)),
-            label_up=int(row.get("label_up", row["label"])),
+            label_up=int(row.get("label_up", 0)),
             regime_label=regime_val,  # P0 fix: 自動填入 regime
             # P0 fix hb212: 新標籤必須包含 future_return_pct 和 label_sell_win
             # 否則 IC 計算和勝率追蹤全部失效
