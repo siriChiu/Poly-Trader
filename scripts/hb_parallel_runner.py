@@ -1,172 +1,322 @@
 #!/usr/bin/env python3
-"""
-hb_parallel_runner.py — Poly-Trader 平行心跳執行器 (v6)
-
-Uses ProcessPoolExecutor to run all diagnostic scripts in parallel:
-1. scripts/full_ic.py —全域 IC 分析
-2. scripts/regime_aware_ic.py — 分區間 IC
-3. scripts/dynamic_window_train.py — 動態窗口掃描
-4. model/train.py — XGBoost 模型訓練
-5. tests/comprehensive_test.py — 完整測試套件
-
-Usage:
-    python scripts/hb_parallel_runner.py --hb N
-    python scripts/hb_parallel_runner.py --hb N --fast
-    python scripts/hb_parallel_runner.py --hb N --no-train --no-dw
-"""
-
+"""Heartbeat Parallel Runner v6 — runs all diagnostics concurrently and saves summary."""
 import argparse
 import concurrent.futures
 import json
 import os
 import subprocess
 import sys
-import time
-from datetime import datetime
-from pathlib import Path
+import sqlite3
+from datetime import datetime, timezone
 
-PROJECT_ROOT = Path(__file__).parent.parent
-os.chdir(PROJECT_ROOT)
+PROJECT_ROOT = '/home/kazuha/Poly-Trader'
+PYTHON = os.path.join(PROJECT_ROOT, 'venv', 'bin', 'python')
+DB_PATH = os.path.join(PROJECT_ROOT, 'poly_trader.db')
 
-PYTHON = str(PROJECT_ROOT / "venv" / "bin" / "python")
-DB_PATH = str(PROJECT_ROOT / "poly_trader.db")
+TASKS = [
+    {"name": "full_ic", "label": "🔍 Full IC",
+     "cmd": [PYTHON, "scripts/full_ic.py"]},
+    {"name": "regime_ic", "label": "🏛️ Regime IC",
+     "cmd": [PYTHON, "scripts/regime_aware_ic.py"]},
+    {"name": "dynamic_window", "label": "📏 Dynamic Window",
+     "cmd": [PYTHON, "scripts/dynamic_window_train.py"]},
+    {"name": "train", "label": "🔨 Model Train",
+     "cmd": [PYTHON, "model/train.py"]},
+    {"name": "tests", "label": "🧪 Comprehensive Tests",
+     "cmd": [PYTHON, "tests/comprehensive_test.py"]},
+]
 
 
-def quick_db_counts():
-    """Quick serial DB counts — <10s step 0."""
-    import sqlite3
+def run_task(task):
+    """Run a single task and return (name, success, stdout, stderr)."""
+    name = task["name"]
+    label = task["label"]
+    try:
+        result = subprocess.run(
+            task["cmd"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+        success = result.returncode == 0
+        return (name, success, result.stdout.strip(), result.stderr.strip())
+    except subprocess.TimeoutExpired:
+        return (name, False, "", "TIMEOUT after 600s")
+    except Exception as e:
+        return (name, False, "", str(e))
+
+
+def quick_counts():
+    """Serial DB counts (<10s)."""
     conn = sqlite3.connect(DB_PATH)
-    result = {}
+    results = {}
     for table in ['raw_market_data', 'features_normalized', 'labels']:
-        count = conn.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0]
-        result[table] = count
-    sw = conn.execute('SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM labels WHERE label_sell_win IS NOT NULL').fetchone()
-    result['sell_win'] = round(sw[0], 4) if sw[0] is not None else None
+        count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        results[table] = count
+    sw = conn.execute(
+        "SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM labels WHERE label_sell_win IS NOT NULL"
+    ).fetchone()[0]
+    results['sell_win_rate'] = round(sw, 4) if sw else 0
     conn.close()
+    return results
+
+
+def parse_ic_output(stdout):
+    """Extract key metrics from full_ic.py output."""
+    result = {"global_pass": 0, "tw_ic_pass": 0, "global_ics": {}, "tw_ics": {}}
+    if not stdout:
+        return result
+    for line in stdout.split("\n"):
+        line = line.strip()
+        # Parse global IC lines like "eye: IC=+0.0135 ❌"
+        if "IC=" in line and not line.startswith("Saved"):
+            if "TW-IC" in line:
+                parts = line.split("IC=")
+                if len(parts) >= 2:
+                    val = parts[1].split()[0].replace("+", "")
+                    result["tw_ics"][line.split(":")[0].strip()] = float(val)
+                    if abs(float(val)) >= 0.05:
+                        result["tw_ic_pass"] += 1
+            else:
+                feat = line.split(":")[0].strip()
+                if "IC=" in line:
+                    parts = line.split("IC=")
+                    if len(parts) >= 2:
+                        val = parts[1].split()[0].replace("+", "")
+                        result["global_ics"][feat] = float(val)
+                        if abs(float(val)) >= 0.05:
+                            result["global_pass"] += 1
+    # Also extract summary lines
+    for line in stdout.split("\n"):
+        if "Global IC:" in line or "全域 IC:" in line:
+            pass  # parsed above
     return result
 
 
-def run_script(name, script_path, timeout=300):
-    """Run a single script and return (name, success, stdout, stderr, elapsed)."""
-    start = time.time()
-    try:
-        result = subprocess.run(
-            [PYTHON, str(script_path)],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            cwd=str(PROJECT_ROOT),
-            env={**os.environ, 'PYTHONPATH': str(PROJECT_ROOT)},
-        )
-        elapsed = time.time() - start
-        return {
-            'name': name,
-            'success': result.returncode == 0,
-            'stderr': result.stderr[-2000:] if result.stderr else '',
-            'stdout': result.stdout[-2000:] if result.stdout else '',
-            'elapsed': round(elapsed, 1),
-        }
-    except subprocess.TimeoutExpired:
-        elapsed = time.time() - start
-        return {'name': name, 'success': False, 'stderr': f'Timeout after {timeout}s', 'stdout': '', 'elapsed': round(elapsed, 1)}
-    except Exception as e:
-        return {'name': name, 'success': False, 'stderr': str(e), 'stdout': '', 'elapsed': round(time.time() - start, 1)}
+def parse_regime_output(stdout):
+    """Extract regime IC from output."""
+    result = {"bear_pass": 0, "bull_pass": 0, "chop_pass": 0, "overall_sw": 0}
+    if not stdout:
+        return result
+    for line in stdout.split("\n"):
+        if "sell_win=" in line and "Overall" in line:
+            try:
+                result["overall_sw"] = float(line.split("sell_win=")[1].strip().split()[0])
+            except (ValueError, IndexError):
+                pass
+    # Count passes from lines containing ✅/❌ per regime
+    current_regime = None
+    for line in stdout.split("\n"):
+        for reg in ["bear", "bull", "chop"]:
+            if line.strip().lower().startswith(reg) and "n=" in line:
+                current_regime = reg
+        if "✅" in line and current_regime:
+            key = f"{current_regime}_pass"
+            result[key] = result.get(key, 0) + 1
+    return result
 
 
-def run_heartbeat(hb_num, no_train=False, no_dw=False, fast=False):
-    """Main parallel heartbeat execution."""
-    overall_start = time.time()
-    print(f"\n{'='*60}")
-    print(f"🫀 Poly-Trader Heartbeat #{hb_num}")
-    print(f"{'='*60}\n")
+def parse_dw_output(stdout):
+    """Parse dynamic window results."""
+    result = {}
+    if not stdout:
+        return result
+    for line in stdout.split("\n"):
+        if "N=" in line and "/" in line:
+            try:
+                # e.g. "N=100: 7/8 ✅"
+                if "N=" in line:
+                    n_part = line.split("N=")[1].strip()
+                    n_val = int(n_part.split(":")[0])
+                    pass_part = n_part.split(":")[1].strip().split()[0]
+                    if "/" in pass_part:
+                        passed, total = pass_part.split("/")
+                        result[f"N={n_val}"] = f"{passed.strip()}/{total.strip()}"
+            except (ValueError, IndexError):
+                pass
+    return result
 
-    # Step 0: Quick serial checks
-    print("▶ Step 0: Quick DB counts...")
-    counts = quick_db_counts()
+
+def parse_train_output(stdout):
+    """Parse model training results."""
+    result = {"train_acc": None, "cv_acc": None, "gap": None, "n_features": 0, "n_samples": 0}
+    if not stdout:
+        return result
+    for line in stdout.split("\n"):
+        if "Train accuracy" in line or "Train=" in line:
+            try:
+                if "Train=" in line:
+                    parts = line.split("Train=")[1].split(",")[0]
+                    result["train_acc"] = float(parts.replace("%", ""))
+            except (ValueError, IndexError):
+                pass
+        if "CV accuracy" in line or "CV=" in line:
+            try:
+                if "CV=" in line:
+                    parts = line.split("CV=")[1].split(",")[0]
+                    result["cv_acc"] = float(parts.replace("%", ""))
+            except (ValueError, IndexError):
+                pass
+        if "gap" in line and "gap=" in line:
+            try:
+                gap_str = line.split("gap=")[1].split("pp")[0]
+                result["gap"] = float(gap_str.strip())
+            except (ValueError, IndexError):
+                pass
+        if "features" in line:
+            try:
+                for part in line.split():
+                    if part.isdigit():
+                        result["n_features"] = max(result["n_features"], int(part))
+            except:
+                pass
+    return result
+
+
+def parse_test_output(stdout):
+    """Parse comprehensive test results."""
+    passed = stdout.count("[OK") + stdout.count("[PASS") + stdout.count("PASS")
+    failed = stdout.count("[FAIL") + stdout.count("[FAIL]")
+    total = passed + failed
+    return {"passed": passed, "failed": failed, "total": total}
+
+
+def main():
+    parser = argparse.ArgumentParser(description="HB Parallel Runner")
+    parser.add_argument("--hb", type=int, required=True, help="Heartbeat number")
+    parser.add_argument("--fast", action="store_true", help="Fast mode: counts + quick IC only")
+    parser.add_argument("--no-train", action="store_true", help="Skip model training")
+    parser.add_argument("--no-dw", action="store_true", help="Skip dynamic window scan")
+    args = parser.parse_args()
+
+    hb_num = args.hb
+    print(f"\n{'='*70}")
+    print(f"  心跳 #{hb_num} 平行執行開始")
+    print(f"  時間: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print(f"{'='*70}")
+
+    # Step 0: Quick DB counts (serial)
+    print("\n📊 Step 0: 快速數據統計...")
+    counts = quick_counts()
     for k, v in counts.items():
         print(f"  {k}: {v}")
     print()
 
-    # Define tasks
-    tasks = []
+    # Filter tasks
+    tasks = TASKS.copy()
+    if args.no_train:
+        tasks = [t for t in tasks if t["name"] != "train"]
+    if args.no_dw:
+        tasks = [t for t in tasks if t["name"] != "dynamic_window"]
 
-    # Core IC scripts (always run)
-    tasks.append(('full_ic', PROJECT_ROOT / 'scripts' / 'full_ic.py'))
-    tasks.append(('regime_aware_ic', PROJECT_ROOT / 'scripts' / 'regime_aware_ic.py'))
+    if args.fast:
+        tasks = [t for t in tasks if t["name"] in ["full_ic", "regime_ic"]]
 
-    if not fast:
-        if not no_dw:
-            tasks.append(('dynamic_window', PROJECT_ROOT / 'scripts' / 'dynamic_window_train.py'))
-        if not no_train:
-            tasks.append(('model_train', PROJECT_ROOT / 'model' / 'train.py'))
-        tasks.append(('comprehensive_test', PROJECT_ROOT / 'tests' / 'comprehensive_test.py'))
+    # Run in parallel
+    print(f"🚀 Launching {len(tasks)} tasks in parallel...")
+    start_time = datetime.now()
+    results = {}
 
-    # Parallel execution
-    print(f"▶ Step 1: Parallel execution ({len(tasks)} tasks)...\n")
-    results = []
-    with concurrent.futures.ProcessPoolExecutor(max_workers=min(len(tasks), 5)) as executor:
-        future_map = {}
-        for name, script_path in tasks:
-            print(f"  🚀 {name}: {script_path.relative_to(PROJECT_ROOT)}")
-            future = executor.submit(run_script, name, script_path)
-            future_map[future] = name
-
-        for future in concurrent.futures.as_completed(future_map):
-            name = future_map[future]
+    with concurrent.futures.ProcessPoolExecutor(max_workers=len(tasks)) as executor:
+        future_to_name = {executor.submit(run_task, t): t["name"] for t in tasks}
+        for future in concurrent.futures.as_completed(future_to_name):
+            name = future_to_name[future]
             try:
-                result = future.result()
-                results.append(result)
-                status = '✅ PASS' if result['success'] else '❌ FAIL'
-                print(f"  {status} [{result['elapsed']:.1f}s] {name}")
-                if result['stderr'] and not result['success']:
-                    print(f"    stderr: {result['stderr'][:200]}")
+                fname, success, stdout, stderr = future.result()
+                results[name] = {
+                    "success": success,
+                    "stdout": stdout,
+                    "stderr": stderr,
+                }
+                status = "✅ PASS" if success else "❌ FAIL"
+                print(f"  [{status}] {fname}")
             except Exception as e:
-                results.append({'name': name, 'success': False, 'stderr': str(e), 'elapsed': 0})
-                print(f"  ❌ ERROR {name}: {e}")
+                results[name] = {
+                    "success": False,
+                    "stdout": "",
+                    "stderr": str(e),
+                }
+                print(f"  [❌ ERROR] {name}: {e}")
 
-    total_elapsed = round(time.time() - overall_start, 1)
-    passed = sum(1 for r in results if r['success'])
-    total = len(results)
+    elapsed = (datetime.now() - start_time).total_seconds()
+    print(f"\n⏱️  Total parallel time: {elapsed:.1f}s")
 
-    # Summary
-    print(f"\n{'='*60}")
-    print(f"✅ Heartbeat #{hb_num} Complete: {passed}/{total} passed in {total_elapsed:.1f}s")
-    print(f"{'='*60}")
+    # Parse outputs
+    ic_result = parse_ic_output(results.get("full_ic", {}).get("stdout", ""))
+    regime_result = parse_regime_output(results.get("regime_ic", {}).get("stdout", ""))
+    dw_result = parse_dw_output(results.get("dynamic_window", {}).get("stdout", ""))
+    train_result = parse_train_output(results.get("train", {}).get("stdout", ""))
+    test_result = parse_test_output(results.get("tests", {}).get("stdout", ""))
 
-    # Extract key metrics from outputs for summary
+    # Print summary
+    print(f"\n{'='*70}")
+    print(f"  心跳 #{hb_num} 執行摘要")
+    print(f"{'='*70}")
+    print(f"  DB: Raw={counts.get('raw_market_data', '?')}, "
+          f"Feat={counts.get('features_normalized', '?')}, "
+          f"Labels={counts.get('labels', '?')}, "
+          f"sell_win={counts.get('sell_win_rate', '?')}")
+
+    # All tasks status
+    pass_count = sum(1 for r in results.values() if r["success"])
+    print(f"  平行任務: {pass_count}/{len(results)} PASS ({elapsed:.1f}s)")
+
+    # Test status
+    if test_result.get("total", 0) > 0:
+        print(f"  測試: {test_result['passed']}/{test_result['total']}")
+
+    # IC summary
+    if ic_result.get("global_pass", None) is not None:
+        print(f"  全域 IC: {ic_result['global_pass']}/15 (5 TI included)")
+    if ic_result.get("tw_ic_pass", 0) > 0:
+        print(f"  TW-IC: {ic_result['tw_ic_pass']}/15")
+
+    # Regime
+    if regime_result:
+        print(f"  Regime IC: Bear={regime_result.get('bear_pass', '?')}/8, "
+              f"Bull={regime_result.get('bull_pass', '?')}/8, "
+              f"Chop={regime_result.get('chop_pass', '?')}/8")
+
+    # Dynamic Window
+    if dw_result:
+        for w, v in dw_result.items():
+            print(f"  DW {w}: {v}")
+
+    # Train
+    if train_result.get("train_acc"):
+        print(f"  模型: Train={train_result['train_acc']:.2f}%, "
+              f"CV={train_result.get('cv_acc', '?')}%, "
+              f"gap={train_result.get('gap', '?')}pp")
+
+    # Save JSON summary
+    os.makedirs(os.path.join(PROJECT_ROOT, 'data'), exist_ok=True)
+    summary_path = os.path.join(PROJECT_ROOT, f'data/heartbeat_{hb_num}_summary.json')
     summary = {
-        'heartbeat': hb_num,
-        'timestamp': datetime.now().isoformat(),
-        'db_counts': counts,
-        'total_elapsed': total_elapsed,
-        'results': results,
-        'passed': passed,
-        'total': total,
+        "heart beat": hb_num,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "counts": counts,
+        "tasks": {n: {"success": r["success"]} for n, r in results.items()},
+        "parallel_time_sec": round(elapsed, 1),
+        "ic": ic_result,
+        "regime": regime_result,
+        "dynamic_window": dw_result,
+        "train": train_result,
+        "tests": test_result,
     }
+    with open(summary_path, 'w') as f:
+        json.dump(summary, f, indent=2, default=str)
+    print(f"\n💾 摘要已存至 {summary_path}")
+    print(f"{'='*70}\n")
 
-    # Save summary JSON
-    summary_dir = PROJECT_ROOT / 'data'
-    summary_dir.mkdir(exist_ok=True)
-    summary_path = summary_dir / f'heartbeat_{hb_num}_summary.json'
-    try:
-        with open(summary_path, 'w') as f:
-            json.dump(summary, f, indent=2, default=str)
-        print(f"\n📄 Summary saved: {summary_path}")
-    except Exception as e:
-        print(f"\n⚠️ Could not save summary: {e}")
-
-    return summary
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Poly-Trader Parallel Heartbeat")
-    parser.add_argument('--hb', type=int, required=True, help="Heartbeat number")
-    parser.add_argument('--fast', action='store_true', help="Fast mode: only IC scripts")
-    parser.add_argument('--no-train', action='store_true', help="Skip model training")
-    parser.add_argument('--no-dw', action='store_true', help="Skip dynamic window")
-    args = parser.parse_args()
-
-    run_heartbeat(args.hb, no_train=args.no_train, no_dw=args.no_dw, fast=args.fast)
+    # Print raw outputs for parsing
+    for name, r in results.items():
+        if r.get("stdout"):
+            print(f"\n--- {name} stdout (first 2000 chars) ---")
+            print(r["stdout"][:2000])
+        if r.get("stderr"):
+            print(f"\n--- {name} stderr ---")
+            print(r["stderr"][:500])
 
 
 if __name__ == '__main__':
