@@ -1,229 +1,247 @@
 #!/usr/bin/env python3
-"""Heartbeat parallel runner — v1. Runs all diagnostic scripts concurrently."""
-import json, os, sys, time, sqlite3, subprocess, argparse, textwrap
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from datetime import datetime
+"""hb_parallel_runner.py — Parallel heartbeat runner.
+Runs full_ic.py, regime_aware_ic.py, dynamic_window_train.py,
+model/train.py, and tests/comprehensive_test.py in parallel via
+ProcessPoolExecutor. Saves results to data/heartbeat_<N>_summary.json.
+"""
+import json
+import os
+import time
+import sqlite3
+import subprocess
+import concurrent.futures
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
-PROJECT_ROOT = '/home/kazuha/Poly-Trader'
-DB_PATH = f'{PROJECT_ROOT}/poly_trader.db'
-PYTHON = f'{PROJECT_ROOT}/venv/bin/python'
+PROJECT_ROOT = Path("/home/kazuha/Poly-Trader")
+DB_PATH = PROJECT_ROOT / "poly_trader.db"
+PYTHON = str(PROJECT_ROOT / "venv" / "bin" / "python")
+ENV = {**os.environ, "PYTHONPATH": str(PROJECT_ROOT)}
 
-SCRIPTS = [
-    {'name': 'full_ic',              'script': 'scripts/full_ic.py'},
-    {'name': 'regime_aware_ic',      'script': 'scripts/regime_aware_ic.py'},
-    {'name': 'dynamic_window_train', 'script': 'scripts/dynamic_window_train.py'},
-    {'name': 'model_train',          'script': 'model/train.py'},
-    {'name': 'comprehensive_test',   'script': 'tests/comprehensive_test.py'},
-]
 
-def db_counts():
-    """Quick DB counts — runs serially first (<10s)."""
-    conn = sqlite3.connect(DB_PATH)
+def quick_db_counts():
+    """Fast DB counts (<10s)."""
     counts = {}
-    for t in ['raw_market_data', 'features_normalized', 'labels']:
-        try:
-            c = conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
-            counts[t] = c
-        except Exception as e:
-            counts[t] = f"ERROR: {e}"
-    # sell_win rate
     try:
-        row = conn.execute(
-            'SELECT AVG(CAST(label_sell_win AS FLOAT)), COUNT(*) FROM labels WHERE label_sell_win IS NOT NULL'
+        conn = sqlite3.connect(str(DB_PATH))
+        for table in ["raw_market_data", "features_normalized", "labels"]:
+            cnt = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            latest = conn.execute(f"SELECT MAX(timestamp) FROM {table}").fetchone()[0]
+            counts[table] = {"count": cnt, "latest": latest}
+        # sell_win stats
+        sell_win = conn.execute(
+            "SELECT AVG(CAST(label_sell_win AS FLOAT)), COUNT(*) FROM labels WHERE label_sell_win IS NOT NULL"
         ).fetchone()
-        counts['sell_win_rate'] = round(row[0], 4) if row[0] else None
-        counts['sell_win_total'] = row[1]
-    except Exception:
-        counts['sell_win_rate'] = None
-
-    # Recent sell_win (last 500)
-    try:
-        rows = conn.execute(
-            'SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC LIMIT 500'
-        ).fetchall()
-        if rows:
-            vals = [r[0] for r in rows]
-            counts['sell_win_recent_500'] = round(sum(vals) / len(vals), 4)
-            # Consecutive loss streak
-            streak = 0
-            max_streak = 0
-            for r in rows[::-1]:
-                if r[0] == 0:
-                    streak += 1
-                    max_streak = max(max_streak, streak)
-                else:
-                    streak = 0
-            counts['sell_loss_streak'] = max_streak
-    except Exception:
-        pass
-
-    # Timestamps freshness
-    try:
-        raw_ts = conn.execute('SELECT MAX(timestamp) FROM raw_market_data').fetchone()[0]
-        feat_ts = conn.execute('SELECT MAX(timestamp) FROM features_normalized').fetchone()[0]
-        label_ts = conn.execute('SELECT MAX(timestamp) FROM labels').fetchone()[0]
-        counts['raw_max_ts'] = raw_ts
-        counts['feat_max_ts'] = feat_ts
-        counts['label_max_ts'] = label_ts
-    except Exception:
-        pass
-
-    conn.close()
+        counts["sell_win"] = {
+            "avg": round(sell_win[0], 4) if sell_win[0] else None,
+            "total": sell_win[1],
+        }
+        conn.close()
+    except Exception as e:
+        counts["error"] = str(e)
     return counts
 
 
-def run_script(entry):
-    """Run a single script, capture stdout/stderr."""
-    name = entry['name']
-    script = entry['script']
-    script_path = os.path.join(PROJECT_ROOT, script)
-
-    if not os.path.exists(script_path):
-        return {'name': name, 'status': 'MISSING', 'stdout': '', 'stderr': f'{script_path} not found'}
-
+def run_script(script_path, label, timeout=300):
+    """Run a single script and capture output."""
+    abs_path = str(PROJECT_ROOT / script_path)
     start = time.time()
     try:
         result = subprocess.run(
-            [PYTHON, script_path],
-            capture_output=True, text=True,
-            cwd=PROJECT_ROOT,
-            env={**os.environ, 'PYTHONPATH': PROJECT_ROOT},
-            timeout=600,
+            [PYTHON, abs_path],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=ENV,
+            cwd=str(PROJECT_ROOT),
         )
         elapsed = round(time.time() - start, 1)
+        # Extract last 50 lines of stdout for summary
+        stdout_lines = result.stdout.strip().split("\n") if result.stdout.strip() else []
+        summary_lines = stdout_lines[-50:] if len(stdout_lines) > 50 else stdout_lines
+        rc = getattr(result, "returncode", getattr(result, "exit_code", -1))
         return {
-            'name': name,
-            'status': 'PASS' if result.returncode == 0 else 'FAIL',
-            'returncode': result.returncode,
-            'stdout': result.stdout[-4000:],  # last 4000 chars
-            'stderr': result.stderr[-2000:] if result.stderr else '',
-            'elapsed': elapsed,
+            "script": script_path,
+            "label": label,
+            "exit_code": rc,
+            "status": "PASS" if rc == 0 else "FAIL",
+            "elapsed_s": elapsed,
+            "stdout_summary": "\n".join(summary_lines),
+            "stderr": result.stderr.strip()[-2000:] if result.stderr else "",
         }
     except subprocess.TimeoutExpired:
-        return {'name': name, 'status': 'TIMEOUT', 'stdout': '', 'stderr': 'Script timed out after 600s', 'elapsed': 600}
+        elapsed = round(time.time() - start, 1)
+        return {
+            "script": script_path,
+            "label": label,
+            "exit_code": -1,
+            "status": "TIMEOUT",
+            "elapsed_s": elapsed,
+            "stdout_summary": "",
+            "stderr": f"Timed out after {timeout}s",
+        }
     except Exception as e:
-        return {'name': name, 'status': 'ERROR', 'stdout': '', 'stderr': str(e), 'elapsed': round(time.time() - start, 1)}
+        elapsed = round(time.time() - start, 1)
+        return {
+            "script": script_path,
+            "label": label,
+            "exit_code": -1,
+            "status": "ERROR",
+            "elapsed_s": elapsed,
+            "stdout_summary": "",
+            "stderr": str(e),
+        }
 
 
-def save_metrics(counts, results, hb_num, total_elapsed):
-    """Save metrics to data/hb_metrics.csv."""
-    import csv
-    metrics_path = os.path.join(PROJECT_ROOT, 'data', 'hb_metrics.csv')
-    os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
+def parse_full_ic_output(text):
+    """Extract IC pass count from full_ic.py output."""
+    for line in reversed(text.split("\n")):
+        line = line.strip()
+        if "pass" in line.lower() and "/" in line:
+            return line
+    return ""
 
-    fields = ['hb', 'timestamp', 'raw', 'features', 'labels', 'sell_win',
-              'losing_streak', 'total_elapsed']
-    for s in SCRIPTS:
-        fields.append(f"{s['name']}_status")
-        fields.append(f"{s['name']}_elapsed")
 
-    row = {
-        'hb': hb_num,
-        'timestamp': datetime.utcnow().isoformat(),
-        'raw': counts.get('raw_market_data', 0),
-        'features': counts.get('features_normalized', 0),
-        'labels': counts.get('labels', 0),
-        'sell_win': counts.get('sell_win_rate', ''),
-        'losing_streak': counts.get('sell_loss_streak', ''),
-        'total_elapsed': total_elapsed,
-    }
-    for r in results:
-        row[f"{r['name']}_status"] = r['status']
-        row[f"{r['name']}_elapsed"] = r.get('elapsed', 0)
-
-    file_exists = os.path.exists(metrics_path)
-    with open(metrics_path, 'a', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(row)
+def parse_model_train_output(text):
+    """Extract model metrics from train.py output."""
+    metrics = {}
+    for line in text.split("\n"):
+        line = line.strip()
+        for keyword in ["train", "cv", "gap", "accuracy", "feature", "sample"]:
+            if keyword.lower() in line.lower() and ("=" in line or ":" in line):
+                # Save relevant lines
+                pass
+    # Return last 20 lines as summary
+    return "\n".join(text.strip().split("\n")[-20:]) if text.strip() else ""
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Parallel heartbeat runner')
-    parser.add_argument('--hb', type=int, required=True, help='Heartbeat number')
-    parser.add_argument('--fast', action='store_true', help='Fast mode: counts + quick IC only')
-    parser.add_argument('--no-train', action='store_true', help='Skip model training')
-    parser.add_argument('--no-dw', action='store_true', help='Skip dynamic window')
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--hb", type=int, required=True, help="Heartbeat number")
+    parser.add_argument("--fast", action="store_true", help="Fast mode: counts + IC only")
+    parser.add_argument("--no-train", action="store_true", help="Skip model training")
+    parser.add_argument("--no-dw", action="store_true", help="Skip dynamic window scan")
     args = parser.parse_args()
 
     hb_num = args.hb
-    print(f"\n{'='*70}")
-    print(f"  心跳 #{hb_num} — Parallel Heartbeat Runner v1")
-    print(f"  {datetime.utcnow().isoformat()} UTC")
-    print(f"{'='*70}\n")
+    print(f"\n{'='*60}")
+    print(f"  ⚡ Poly-Trader 心跳 #{hb_num} — 平行執行器")
+    print(f"  {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    print(f"{'='*60}\n")
 
-    # Step 0: Quick DB counts (serial)
-    print("── Step 0: Database counts ──")
-    counts = db_counts()
-    for k, v in counts.items():
-        print(f"  {k}: {v}")
-    print()
+    total_start = time.time()
 
-    # Filter scripts based on flags
-    scripts_to_run = list(SCRIPTS)
-    if args.no_train:
-        scripts_to_run = [s for s in scripts_to_run if s['name'] != 'model_train']
-    if args.no_dw:
-        scripts_to_run = [s for s in scripts_to_run if s['name'] != 'dynamic_window_train']
+    # Step 1: Quick DB counts (serial)
+    print("[Step 0] Quick DB counts...")
+    counts = quick_db_counts()
+    for table, info in counts.items():
+        if isinstance(info, dict) and "count" in info:
+            print(f"  {table}: {info['count']} (latest: {info['latest']})")
+        elif table == "sell_win":
+            print(f"  sell_win_rate: {info['avg']} ({info['total']} labels)")
+
     if args.fast:
-        scripts_to_run = [s for s in scripts_to_run if s['name'] in ('full_ic', 'regime_aware_ic')]
+        # Fast mode: just run IC scripts
+        scripts = [
+            ("scripts/full_ic.py", "Full IC"),
+            ("scripts/regime_aware_ic.py", "Regime IC"),
+        ]
+    else:
+        # Full mode: all 5 scripts
+        scripts = [
+            ("scripts/full_ic.py", "Full IC"),
+            ("scripts/regime_aware_ic.py", "Regime IC"),
+        ]
+        if not args.no_dw:
+            scripts.append(("scripts/dynamic_window_train.py", "Dynamic Window"))
+        if not args.no_train:
+            scripts.append(("model/train.py", "Model Training"))
+        scripts.append(("tests/comprehensive_test.py", "Tests"))
 
-    # Step 1: Run all scripts in parallel
-    print(f"── Step 1: Running {len(scripts_to_run)} scripts in parallel ──")
-    for s in scripts_to_run:
-        print(f"  🔨 {s['name']}: {s['script']}")
-    print()
+    print(f"\n[Step 1] Spawning {len(scripts)} tasks in parallel...")
 
-    start_all = time.time()
+    # Step 2: Parallel execution
     results = []
+    with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
+        future_to_script = {
+            executor.submit(run_script, script_path, label): (script_path, label)
+            for script_path, label in scripts
+        }
+        for future in concurrent.futures.as_completed(future_to_script):
+            script_path, label = future_to_script[future]
+            try:
+                result = future.result()
+                results.append(result)
+                status_icon = {"PASS": "🟢", "FAIL": "🔴", "TIMEOUT": "⏱️", "ERROR": "❌"}.get(
+                    result["status"], "❓"
+                )
+                print(f"  {status_icon} {label}: {result['status']} ({result['elapsed_s']}s)")
+            except Exception as e:
+                print(f"  ❌ {label}: Exception — {e}")
+                results.append(
+                    {
+                        "script": script_path,
+                        "label": label,
+                        "status": "ERROR",
+                        "elapsed_s": 0,
+                        "stderr": str(e),
+                    }
+                )
 
-    with ProcessPoolExecutor(max_workers=min(len(scripts_to_run), 5)) as executor:
-        futures = {executor.submit(run_script, s): s['name'] for s in scripts_to_run}
-        for future in as_completed(futures):
-            r = future.result()
-            status_emoji = '✅' if r['status'] == 'PASS' else '❌'
-            print(f"  {status_emoji} {r['name']}: {r['status']} ({r.get('elapsed', '?')}s)")
-            results.append(r)
+    elapsed_total = round(time.time() - total_start, 1)
 
-    total_elapsed = round(time.time() - start_all, 1)
-    print(f"\n  ⏱️ Total parallel time: {total_elapsed}s")
+    # Step 3: Print summaries
+    print(f"\n{'='*60}")
+    print(f"  📊 結果摘要 (心跳 #{hb_num}, {elapsed_total}s)")
+    print(f"{'='*60}\n")
 
-    # Save metrics
-    try:
-        save_metrics(counts, results, hb_num, total_elapsed)
-    except Exception as e:
-        print(f"  ⚠️ Failed to save metrics: {e}")
-
-    # Save summary JSON
-    summary = {
-        'hb': hb_num,
-        'timestamp': datetime.utcnow().isoformat(),
-        'db_counts': counts,
-        'results': results,
-        'total_elapsed': total_elapsed,
-    }
-    os.makedirs(os.path.join(PROJECT_ROOT, 'data'), exist_ok=True)
-    summary_path = os.path.join(PROJECT_ROOT, 'data', f'heartbeat_{hb_num}_summary.json')
-    with open(summary_path, 'w') as f:
-        json.dump(summary, f, indent=2, default=str)
-    print(f"  📄 Summary saved to data/heartbeat_{hb_num}_summary.json")
-
-    # Print summary table
-    print(f"\n{'━'*70}")
-    print(f"  心跳 #{hb_num} Summary")
-    print(f"{'━'*70}")
-    print(f"  Raw: {counts.get('raw_market_data', '?')}")
-    print(f"  Features: {counts.get('features_normalized', '?')}")
-    print(f"  Labels: {counts.get('labels', '?')}")
-    print(f"  sell_win: {counts.get('sell_win_rate', '?')}")
-    print(f"  Loss streak: {counts.get('sell_loss_streak', '?')}")
-    print()
     for r in results:
-        print(f"  {r['name']:25s}: {r['status']:8s} ({r.get('elapsed', '?')}s)")
-    print(f"  ⏱️ Wall time: {total_elapsed}s")
-    print(f"{'━'*70}\n")
+        status_icon = {"PASS": "🟢", "FAIL": "🔴", "TIMEOUT": "⏱️", "ERROR": "❌"}.get(
+            r["status"], "❓"
+        )
+        print(f"  {status_icon} {r['label']}: {r['status']} ({r.get('elapsed_s', '?')}s)")
+        if r.get("stdout_summary"):
+            for line in r["stdout_summary"].split("\n")[-10:]:
+                if line.strip():
+                    print(f"    {line}")
+        if r.get("stderr"):
+            print(f"    ⚠️ stderr: {r['stderr'][:200]}")
+        print()
+
+    pass_count = sum(1 for r in results if r["status"] == "PASS")
+    total_count = len(results)
+    print(f"  總結: {pass_count}/{total_count} PASS ({elapsed_total}s)")
+
+    # Step 4: Save summary JSON
+    summary = {
+        "heartbeat": hb_num,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "total_elapsed_s": elapsed_total,
+        "db_counts": counts,
+        "results": {
+            r["label"]: {
+                "status": r["status"],
+                "elapsed_s": r.get("elapsed_s", 0),
+                "stderr": r.get("stderr", "")[:500],
+            }
+            for r in results
+        },
+        "pass_count": pass_count,
+        "total_count": total_count,
+    }
+
+    out_dir = PROJECT_ROOT / "data"
+    out_dir.mkdir(exist_ok=True)
+    out_path = out_dir / f"heartbeat_{hb_num}_summary.json"
+    with open(out_path, "w") as f:
+        json.dump(summary, f, indent=2)
+
+    print(f"\n  💾 已保存: {out_path}")
+
+    # Return results for further processing
+    return summary, results
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
