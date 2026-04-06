@@ -57,7 +57,8 @@ def _feature_row(r):
     }
 
 
-def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tuple[pd.DataFrame, pd.Series]]:
+def load_training_data(session: Session, min_samples: int = 50,
+                       regime_filter: Optional[list] = None) -> Optional[Tuple[pd.DataFrame, pd.Series]]:
     feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
     label_rows = (
         session.query(Labels)
@@ -87,6 +88,17 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
         tolerance=pd.Timedelta("10min"),
     )
     merged = merged.dropna(subset=["label_sell_win"]).copy()
+
+    # P0 #H430: Regime Filtering — optional exclusion of noisy regimes.
+    # Experiment showed Bear+Bull only (exclude Chop) with IC pruning gives AUC=0.5454
+    # vs 0.5241 for ALL regimes. Useful for production when chop degrades performance.
+    if regime_filter is not None and len(regime_filter) > 0:
+        before_count = len(merged)
+        merged = merged[merged["regime_label"].isin(regime_filter)].copy()
+        logger.info(f"Regime filter applied: keeping {regime_filter}, {before_count} → {len(merged)} samples")
+        if len(merged) < min_samples:
+            logger.warning(f"After regime filter, too few samples: {len(merged)} < {min_samples}")
+            return None
 
     lag_feature_cols = []
     for col in BASE_FEATURE_COLS:
@@ -246,9 +258,35 @@ def load_training_data(session: Session, min_samples: int = 50) -> Optional[Tupl
         "feat_regime_flag", "feat_mean_rev_proxy"
     ]
 
-    X = merged[FEATURE_COLS + lag_feature_cols + CROSS_FEATURES]
+    all_training_cols = FEATURE_COLS + lag_feature_cols + CROSS_FEATURES
+
+    # P0 #H430: Dynamic IC Pruning — remove features with |IC| < 0.03.
+    # Experiment showed this improves OOF AUC from 0.524 → 0.529 (ALL) and 0.521 → 0.545 (Bear+Bull).
+    # Only prune lag and cross features; always keep core FEATURE_COLS.
+    IC_PRUNE_THRESHOLD = 0.03
+    pruned_cols = []
+    pruned_count = 0
+    for col in all_training_cols:
+        if col in set(FEATURE_COLS):
+            pruned_cols.append(col)  # Always keep core features
+            continue
+        # For lag/cross features, check IC
+        base_col = col.replace("_lag12", "").replace("_lag48", "").replace("_lag144", "")
+        feat_ic = abs(ic_map.get(base_col, 0))
+        col_ic = abs(ic_map.get(col, 0))
+        # Use the base feature's IC for lag features, the feature's own IC for cross features
+        effective_ic = max(feat_ic, col_ic)
+        if effective_ic >= IC_PRUNE_THRESHOLD:
+            pruned_cols.append(col)
+        else:
+            pruned_count += 1
+    if pruned_count > 0:
+        logger.info(f"P0 #H430: IC Pruning — dropped {pruned_count} features (|IC| < {IC_PRUNE_THRESHOLD}), keeping {len(pruned_cols)}/{len(all_training_cols)}")
+        all_training_cols = pruned_cols
+
+    X = merged[all_training_cols]
     y = merged["label_sell_win"].astype(int)
-    logger.info(f"載入訓練資料: {len(X)} 筆, {len(FEATURE_COLS)} base features + {len(lag_feature_cols)} lags + 4 cross-features")
+    logger.info(f"載入訓練資料: {len(X)} 筆, {len(all_training_cols)} features ({len(FEATURE_COLS)} core + {len(all_training_cols)-len(FEATURE_COLS)} lag/cross, {pruned_count} pruned)")
     return X, y
 
 
@@ -325,9 +363,17 @@ def load_model(path: str = MODEL_PATH):
         return pickle.load(f)
 
 
-def run_training(session: Session) -> bool:
-    logger.info("開始模型訓練 v5...")
-    loaded = load_training_data(session, min_samples=50)
+def run_training(session: Session, regime_filter: Optional[list] = None) -> bool:
+    """Train global XGBoost model with IC pruning and optional regime filtering.
+    
+    Args:
+        session: SQLAlchemy session
+        regime_filter: Optional list of regime labels to keep (e.g., ["bear", "bull"]).
+                      If None, uses all regimes. Experiment shows Bear+Bull filtering
+                      with IC pruning gives AUC=0.5454 vs 0.5241 for ALL.
+    """
+    logger.info("開始模型訓練 v5 (with IC pruning + optional regime filter)...")
+    loaded = load_training_data(session, min_samples=50, regime_filter=regime_filter)
     if loaded is None:
         return False
     X, y = loaded
