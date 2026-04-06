@@ -32,12 +32,14 @@ def run_task(task):
     name = task["name"]
     label = task["label"]
     try:
+        env = {**os.environ, "PYTHONPATH": PROJECT_ROOT}
         result = subprocess.run(
             task["cmd"],
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
             timeout=600,
+            env=env,
         )
         success = result.returncode == 0
         return (name, success, result.stdout.strip(), result.stderr.strip())
