@@ -1,7 +1,7 @@
 /**
  * CandlestickChart — TradingView-style K 線圖 + MA + RSI + MACD
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   createChart,
   IChartApi,
@@ -33,17 +33,25 @@ interface Props {
 export default function CandlestickChart({ symbol = "BTCUSDT", interval = "1h", days = 7 }: Props) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastPrice, setLastPrice] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!chartContainerRef.current) return;
-
+  // Create chart function — called only when container has valid dimensions
+  const initChart = useCallback(() => {
     const container = chartContainerRef.current;
+    if (!container) return false;
+
+    const rect = container.getBoundingClientRect();
+    const width = Math.floor(rect.width);
+    const height = Math.floor(rect.height);
+
+    if (width <= 0 || height <= 0) return false;
+
     const chart = createChart(container, {
-      width: container.clientWidth,
-      height: 500,
+      width,
+      height,
       layout: {
         background: { color: "#0f172a" },
         textColor: "#94a3b8",
@@ -116,8 +124,51 @@ export default function CandlestickChart({ symbol = "BTCUSDT", interval = "1h", 
 
     chartRef.current = chart;
 
-    // Fetch data
-    const fetchData = async () => {
+    // Expose series refs on chart for data population
+    (chart as any)._candleSeries = candleSeries;
+    (chart as any)._volumeSeries = volumeSeries;
+    (chart as any)._ma20Series = ma20Series;
+    (chart as any)._ma60Series = ma60Series;
+    (chart as any)._rsiSeries = rsiSeries;
+    (chart as any)._macdLineSeries = macdLineSeries;
+    (chart as any)._macdSignalSeries = macdSignalSeries;
+    (chart as any)._macdHistSeries = macdHistSeries;
+
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    const container = chartContainerRef.current;
+
+    // Setup ResizeObserver to create chart when dimensions are valid
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+
+      const w = Math.floor(entry.contentRect.width);
+      const h = Math.floor(entry.contentRect.height);
+
+      if (w > 0 && h > 0 && !chartRef.current) {
+        // Create chart on first valid dimensions
+        const ok = initChart();
+        if (ok) {
+          // Now that chart exists, fetch data
+          fetchAndSetData();
+        }
+      } else if (chartRef.current) {
+        // Just resize existing chart
+        chartRef.current.applyOptions({ width: w, height: h });
+      }
+    });
+
+    resizeObserver.observe(container);
+    resizeObserverRef.current = resizeObserver;
+
+    let cancelled = false;
+
+    const fetchAndSetData = async () => {
       try {
         setLoading(true);
         const BASE = "";
@@ -128,15 +179,14 @@ export default function CandlestickChart({ symbol = "BTCUSDT", interval = "1h", 
 
         // Guard against empty or missing candles
         if (!data.candles || data.candles.length === 0) {
-          setLoading(false);
+          if (!cancelled) setLoading(false);
           return;
         }
 
-        // Guard against missing indicators and ensure arrays exist
+        // Guard against missing indicators
         const indicators = data.indicators || {};
 
         // Helper: safe mapping from indicator array to chart data
-        // If array is undefined, empty, or shorter than candles, pad with nulls
         const safeMap = (arr: (number | null)[] | undefined, _key: string): LineData<Time>[] => {
           if (!arr || arr.length === 0) return [];
           return data.candles
@@ -151,78 +201,84 @@ export default function CandlestickChart({ symbol = "BTCUSDT", interval = "1h", 
         const candleData: CandlestickData<Time>[] = data.candles.map(c => ({
           time: c.time as Time, open: c.open, high: c.high, low: c.low, close: c.close,
         }));
-        candleSeries.setData(candleData);
-        if (candleData.length > 0) setLastPrice(candleData[candleData.length - 1].close);
+        const candleSeries = (chartRef.current as any)?._candleSeries as ISeriesApi<"Candlestick"> | undefined;
+        if (candleSeries) candleSeries.setData(candleData);
+        if (candleData.length > 0 && !cancelled) setLastPrice(candleData[candleData.length - 1].close);
 
         // Set volume
-        const volumeData: HistogramData<Time>[] = data.candles.map(c => ({
-          time: c.time as Time, value: c.volume,
-          color: c.close >= c.open ? "#26a69a40" : "#ef535040",
-        }));
-        volumeSeries.setData(volumeData);
+        const volumeSeries = (chartRef.current as any)?._volumeSeries as ISeriesApi<"Histogram"> | undefined;
+        if (volumeSeries) {
+          const volumeData: HistogramData<Time>[] = data.candles.map(c => ({
+            time: c.time as Time, value: c.volume,
+            color: c.close >= c.open ? "#26a69a40" : "#ef535040",
+          }));
+          volumeSeries.setData(volumeData);
+        }
 
         // Set MA20
-        {
-          const ma20Data = safeMap(indicators.ma20, "ma20");
-          ma20Series.setData(ma20Data);
-        }
+        const ma20Series = (chartRef.current as any)?._ma20Series as ISeriesApi<"Line"> | undefined;
+        if (ma20Series) ma20Series.setData(safeMap(indicators.ma20, "ma20"));
 
         // Set MA60
-        {
-          const ma60Data = safeMap(indicators.ma60, "ma60");
-          ma60Series.setData(ma60Data);
-        }
+        const ma60Series = (chartRef.current as any)?._ma60Series as ISeriesApi<"Line"> | undefined;
+        if (ma60Series) ma60Series.setData(safeMap(indicators.ma60, "ma60"));
 
         // Set RSI
-        {
-          const rsiData = safeMap(indicators.rsi, "rsi");
-          rsiSeries.setData(rsiData);
-        }
+        const rsiSeries = (chartRef.current as any)?._rsiSeries as ISeriesApi<"Line"> | undefined;
+        if (rsiSeries) rsiSeries.setData(safeMap(indicators.rsi, "rsi"));
 
         // Set MACD
-        {
-          const macdData = indicators.macd;
-          const safeHistMap = (arr: (number | null)[] | undefined): HistogramData<Time>[] => {
-            if (!arr) {
-              return data.candles.map(c => ({
-                time: c.time as Time, value: 0,
-                color: "#26a69a80",
-              }));
-            }
-            return data.candles.map((c, i) => ({
-              time: c.time as Time,
-              value: i < arr.length ? (arr[i] ?? 0) : 0,
-              color: (i < arr.length ? (arr[i] ?? 0) : 0) >= 0 ? "#26a69a80" : "#ef535080",
-            }));
-          };
+        const macdLineSeries = (chartRef.current as any)?._macdLineSeries as ISeriesApi<"Line"> | undefined;
+        const macdSignalSeries = (chartRef.current as any)?._macdSignalSeries as ISeriesApi<"Line"> | undefined;
+        const macdHistSeries = (chartRef.current as any)?._macdHistSeries as ISeriesApi<"Histogram"> | undefined;
 
-          macdLineSeries.setData(safeMap(macdData?.macd, "macd"));
-          macdSignalSeries.setData(safeMap(macdData?.signal, "signal"));
-          macdHistSeries.setData(safeHistMap(macdData?.histogram));
+        const macdData = indicators.macd;
+
+        if (macdLineSeries) macdLineSeries.setData(safeMap(macdData?.macd, "macd"));
+        if (macdSignalSeries) macdSignalSeries.setData(safeMap(macdData?.signal, "signal"));
+
+        if (macdHistSeries) {
+          const histArr = macdData?.histogram;
+          if (!histArr || histArr.length === 0) {
+            // Empty histogram — no data to show
+            macdHistSeries.setData([]);
+          } else {
+            const histData: HistogramData<Time>[] = data.candles.map((c, i) => {
+              const val = i < histArr.length ? (histArr[i] ?? 0) : 0;
+              return {
+                time: c.time as Time,
+                value: val,
+                color: val >= 0 ? "#26a69a80" : "#ef535080",
+              };
+            });
+            macdHistSeries.setData(histData);
+          }
         }
 
-        chart.timeScale().fitContent();
-        setLoading(false);
+        if (!cancelled) {
+          chartRef.current?.timeScale().fitContent();
+          setLoading(false);
+        }
       } catch (e: any) {
-        setError(e.message || "Failed to load chart data");
-        setLoading(false);
+        if (!cancelled) {
+          setError(e.message || "Failed to load chart data");
+          setLoading(false);
+        }
       }
     };
 
-    fetchData();
-
-    // Resize
-    const resizeObserver = new ResizeObserver((entries) => {
-      const { width } = entries[0].contentRect;
-      chart.applyOptions({ width });
-    });
-    resizeObserver.observe(container);
+    // Expose fetchAndSetData for ResizeObserver to call
+    (resizeObserver as any)._fetchData = fetchAndSetData;
 
     return () => {
+      cancelled = true;
       resizeObserver.disconnect();
-      chart.remove();
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+      }
     };
-  }, [symbol, interval, days]);
+  }, [symbol, interval, days, initChart]);
 
   return (
     <div className="relative rounded-xl overflow-hidden border border-slate-700/50">
@@ -242,8 +298,8 @@ export default function CandlestickChart({ symbol = "BTCUSDT", interval = "1h", 
         </div>
       </div>
 
-      {/* Chart */}
-      <div ref={chartContainerRef} className="w-full" style={{ height: 500 }} />
+      {/* Chart — explicit style to ensure dimensions */}
+      <div ref={chartContainerRef} style={{ width: "100%", height: "500px" }} />
 
       {/* Loading / Error */}
       {loading && (
