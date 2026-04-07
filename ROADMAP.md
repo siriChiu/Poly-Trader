@@ -73,14 +73,30 @@
 ---
 
 
-### Phase 12.5: 模型校準與圖表對齊修補
-**目標**：把「感官有效」與「模型不準」分開處理，讓儀表板與回測先恢復可信。
+### Phase 14: 策略實驗室（Strategy Lab）
+**目標**：讓使用者自己設計策略、比較參數、找到最有效的配置
 
-- [x] 價格 × 多感官走勢改成 nearest-match 對齊
-- [x] 資料不足時顯示 empty-state / 缺口說明
-- [x] 綜合推薦分數做 confidence calibration
-- [x] 增加 regime-aware model selection / weighting
-- [ ] 重新驗證 backtesting/engine.py 與 metrics.py 端到端輸出（optimizer 待補）
+- [x] 4H 結構線距離特徵回填（bias50, bias20, swing_low, ma_order）100% 覆蓋
+- [x] 規則引擎：金字塔 + 止損/止盈 + 4H 過濾 + 感官條件
+- [x] API `/api/strategies/*` — run / save / leaderboard / get / delete
+- [x] Web 策略實驗室面板：參數調整 + 三鍵預設值 + Leaderboard 排行
+- [ ] ML 模型模式：XGBoost / RandomForest / LightGBM 信心分數入場
+- [ ] 混合模式：4H 過濾 + ML 入場
+- [ ] 市場分類回測：牛市 vs 熊市 分開顯示結果
+- [ ] 策略匯入/匯出：JSON 格式，可分享
+- [ ] 自動最佳化：Optuna / 網格搜尋
+
+---
+
+## 已完成
+
+- Phase 1-5: 核心多感官框架
+- Phase 6: 回測引擎
+- Phase 7: 儀表板 + 多感官有效性分析
+- **Phase 14 (MVP): 策略實驗室 — 可互動參數調整 + 回測 + Leaderboard**
+
+- [x] ECDF 錨點重新計算（全量資料）
+- [x] WebSocket 支援全部 22 特徵
 
 ### Phase 13: 儀表板與報告
 **目標**：讓策略狀態一眼可讀

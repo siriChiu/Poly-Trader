@@ -153,7 +153,7 @@ export default function StrategyLab() {
             ))}
           </div>
 
-          <!-- Entry -->
+          {/* Entry */}
           <div className="space-y-2">
             <h4 className="text-xs font-semibold text-blue-400">進場條件</h4>
             <div className="grid grid-cols-2 gap-2">
@@ -182,7 +182,7 @@ export default function StrategyLab() {
             </div>
           </div>
 
-          <!-- Layers -->
+          {/* Layers */}
           <div className="space-y-2">
             <h4 className="text-xs font-semibold text-yellow-400">金字塔比例 (%)</h4>
             <div className="grid grid-cols-3 gap-2">
@@ -204,7 +204,7 @@ export default function StrategyLab() {
             </div>
           </div>
 
-          <!-- Exit -->
+          {/* Exit */}
           <div className="space-y-2">
             <h4 className="text-xs font-semibold text-red-400">出場條件</h4>
             <div className="grid grid-cols-3 gap-2">
@@ -256,8 +256,6 @@ export default function StrategyLab() {
                   { label: "Profit Factor", value: runResult.profit_factor.toFixed(2), color: runResult.profit_factor > 1 ? 'text-green-400' : 'text-red-400' },
                   { label: "最大回撤", value: `${(runResult.max_drawdown * 100).toFixed(1)}%`, color: 'text-red-400' },
                   { label: "總損益", value: `USDT ${runResult.total_pnl > 0 ? '+' : ''}${runResult.total_pnl.toFixed(0)}`, color: runResult.total_pnl > 0 ? 'text-green-400' : 'text-red-400' },
-                  { label: "平均贏", value: `+${runResult.avg_win.toFixed(0)}`, color: 'text-green-400' },
-                  { label: "平均輸", value: `${runResult.avg_loss.toFixed(0)}`, color: 'text-red-400' },
                 ].map((m) => (
                   <div key={m.label} className="bg-slate-800/50 rounded-lg p-3">
                     <div className="text-xs text-slate-500">{m.label}</div>
