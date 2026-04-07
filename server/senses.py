@@ -1,6 +1,7 @@
 """
-多感官配置管理器 (Senses Engine) v2
-- 定義每個感官的子模組
+多感官配置管理器 (Senses Engine) v3
+- 8 Core Senses (ECDF normalized)
+- 22+ 完整特徵 (含 4H, Macro, Technical)
 - 從 DB 讀取真實特徵值計算分數
 - 生成自然語言建議
 """
@@ -11,13 +12,13 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
-from database.models import FeaturesNormalized, RawMarketData
+from database.models import FeaturesNormalized
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-# 特徵 → 感官映射
-FEATURE_TO_SENSE = {
+# ─── 8 Core 特徵映射 ───
+CORE_FEATURE_MAP = {
     "feat_eye_dist": "eye",
     "feat_ear_zscore": "ear",
     "feat_nose_sigmoid": "nose",
@@ -27,6 +28,155 @@ FEATURE_TO_SENSE = {
     "feat_aura": "aura",
     "feat_mind": "mind",
 }
+
+# ECDF p5/p95 錨點 (7-day empirical, updated regularly)
+ECDF_ANCHORS = {
+    'feat_eye_dist':    (-4.50,  +4.12),
+    'feat_ear_zscore':  (-0.75,  +0.94),
+    'feat_nose_sigmoid':  (-0.18,  +0.89),
+    'feat_tongue_pct':  (+0.08,  +1.38),
+    'feat_body_roc':    (-1.80,  +1.23),
+    'feat_pulse':       (+0.39,  +0.85),
+    'feat_aura':        (+0.04,  +1.00),
+    'feat_mind':        (-0.06,  +0.02),
+}
+
+# ─── 4H 特徵範圍 (用 95th percentile 經驗值) ───
+FOURH_RANGES = {
+    # (min, max) for min-max normalization → 0..1
+    '4h_bias50':       (-5,  +10),
+    '4h_bias':          (-5,  +10),
+    '4h_rsi14':         (30,  70),
+    '4h_macd_hist':    (-2000, +2000),
+    '4h_bb_pct_b':      (0, 1),
+    '4h_dist_swing_low': (-50, +30),
+    '4h_ma_order':      (-1, 1),
+}
+
+
+def ecdf_normalize(value: float, p5: float, p95: float) -> float:
+    """線性 ECDF: p5→0.05, p95→0.95"""
+    v = max(p5, min(p95, value))
+    span = p95 - p5
+    if span < 1e-10:
+        return 0.5
+    return 0.05 + 0.9 * (v - p5) / span
+
+
+def minmax_normalize(value: float, lo: float, hi: float) -> float:
+    """Min-max 正規化到 0..1"""
+    span = hi - lo
+    if span < 1e-10:
+        return 0.5
+    return min(max((value - lo) / span, 0), 1)
+
+
+def sigmoid_clip(value: float, scale: float = 1.0) -> float:
+    """Sigmoid + clip 到 0..1"""
+    if scale == 0:
+        return 0.5
+    return 1.0 / (1.0 + math.exp(-value / scale))
+
+
+def normalize_all_features(row) -> Dict[str, float]:
+    """Normalize a FeaturesNormalized row → dict of frontend keys with 0..1 scores."""
+    scores = {}
+
+    # ─── Core 8: ECDF ───
+    core_db_cols = {
+        'feat_eye': 'feat_eye_dist',
+        'feat_ear': 'feat_ear_zscore',
+        'feat_nose': 'feat_nose_sigmoid',
+        'feat_tongue': 'feat_tongue_pct',
+        'feat_body': 'feat_body_roc',
+        'feat_pulse': 'feat_pulse',
+        'feat_aura': 'feat_aura',
+        'feat_mind': 'feat_mind',
+    }
+    for name, db_col in core_db_cols.items():
+        raw = getattr(row, db_col, None) if db_col != db_col else getattr(row, 'feat_eye' if name == 'eye' else 'feat_' + name, None)
+        if raw is not None and db_col in ECDF_ANCHORS:
+            p5, p95 = ECDF_ANCHORS[db_col]
+            scores[name] = round(ecdf_normalize(raw, p5, p95), 4)
+        else:
+            scores[name] = 0.5
+
+    # ─── Macro: VIX, DXY ───
+    for name in ['vix', 'dxy']:
+        raw = getattr(row, f'feat_{name}', None)
+        if raw is not None:
+            if name == 'vix':
+                scores[name] = round(minmax_normalize(raw, 10, 50), 4)
+            elif name == 'dxy':
+                scores[name] = round(minmax_normalize(raw, 95, 110), 4)
+        else:
+            scores[name] = 0.5
+
+    # ─── Technical Indicators ───
+    # RSI14 (already 0..1 in DB)
+    raw = getattr(row, 'feat_rsi14', None)
+    scores['rsi14'] = round(raw, 4) if raw is not None else 0.5
+
+    # MACD Hist (use sigmoid with scale)
+    raw = getattr(row, 'feat_macd_hist', None)
+    scores['macd_hist'] = round(sigmoid_clip(raw, 0.01), 4) if raw is not None else 0.5
+
+    # ATR %
+    raw = getattr(row, 'feat_atr_pct', None)
+    scores['atr_pct'] = round(minmax_normalize(raw or 0, 0.005, 0.03), 4)
+
+    # VWAP Dev
+    raw = getattr(row, 'feat_vwap_dev', None)
+    scores['vwap_dev'] = round(sigmoid_clip(raw or 0, 0.2), 4)
+
+    # BB %B (already 0..1)
+    raw = getattr(row, 'feat_bb_pct_b', None)
+    scores['bb_pct_b'] = round(raw, 4) if raw is not None else 0.5
+
+    # ─── 4H Features ───
+    # bias50: -5% to +10%
+    raw = getattr(row, 'feat_4h_bias50', None)
+    scores['4h_bias50'] = round(minmax_normalize(raw or 0, -5, 10), 4)
+
+    # bias20
+    raw = getattr(row, 'feat_4h_bias20', None)
+    scores['4h_bias20'] = round(minmax_normalize(raw or 0, -5, 10), 4)
+
+    # rsi14 (4H)
+    raw = getattr(row, 'feat_4h_rsi14', None)
+    scores['4h_rsi14'] = round(minmax_normalize(raw or 50, 30, 70), 4)
+
+    # macd_hist (4H)
+    raw = getattr(row, 'feat_4h_macd_hist', None)
+    scores['4h_macd_hist'] = round(sigmoid_clip(raw or 0, 500), 4)
+
+    # bb_pct_b (4H)
+    raw = getattr(row, 'feat_4h_bb_pct_b', None)
+    scores['4h_bb_pct_b'] = round(raw, 4) if raw is not None else 0.5
+
+    # ma_order: -1 to +1
+    raw = getattr(row, 'feat_4h_ma_order', None)
+    scores['4h_ma_order'] = round((raw + 1) / 2, 4) if raw is not None else 0.5
+
+    # dist_swing_low
+    raw = getattr(row, 'feat_4h_dist_swing_low', None)
+    scores['4h_dist_sl'] = round(minmax_normalize(raw or 0, -50, 30), 4)
+
+    # P0/P1 features (many are 0/null, give 0.5 if not available)
+    for name in ['nq_return_1h', 'nq_return_24h', 'claw', 'claw_intensity',
+                 'fang_pcr', 'fang_skew', 'fin_netflow', 'web_whale',
+                 'scales_ssr', 'nest_pred', 'whisper', 'tone', 'chorus',
+                 'hype', 'oracle', 'shock', 'tide', 'storm']:
+        raw = getattr(row, f'feat_{name}', None)
+        if raw is not None and abs(raw) > 1e-10:
+            scores[name] = round(sigmoid_clip(raw, max(abs(raw) * 2, 1.0)), 4)
+        else:
+            scores[name] = 0.5
+
+    return scores
+
+
+# ─── Legacy senses engine (for backward compat) ───
 
 SENSE_NAMES = {
     "eye": "視覺 Eye",
@@ -45,55 +195,18 @@ SENSE_EMOJIS = {
 }
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "eye":   {"name": "視覺 Eye",   "emoji": "👁️", "description": "72h Funding Rate 均值",        "modules": {"main": {"name": "72h Funding 均值",     "source": "Binance Futures",  "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "ear":   {"name": "聽覺 Ear",   "emoji": "👂", "description": "48h 價格動量",                "modules": {"main": {"name": "48h 價格動量",       "source": "Binance K線",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "nose":  {"name": "嗅覺 Nose",  "emoji": "👃", "description": "48h 收益率自相關",            "modules": {"main": {"name": "48h 自相關",         "source": "K線衍生",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "tongue":{"name": "味覺 Tongue","emoji": "👅", "description": "24h 波動率",                  "modules": {"main": {"name": "24h 波動率",         "source": "K線衍生",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "body":  {"name": "觸覺 Body",  "emoji": "💪", "description": "24h 價格區間位置",            "modules": {"main": {"name": "24h 區間位置",       "source": "K線衍生",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "pulse": {"name": "脈動 Pulse", "emoji": "💓", "description": "Funding Rate 趨勢",           "modules": {"main": {"name": "Funding 趨勢",       "source": "Binance Futures",  "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "aura":  {"name": "磁場 Aura",  "emoji": "🌀", "description": "波動率×自相關交互",            "modules": {"main": {"name": "波動率×自相關",     "source": "複合特徵",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "mind":  {"name": "認知 Mind",  "emoji": "🧠", "description": "24h Funding Z-score",         "modules": {"main": {"name": "24h Funding Z",     "source": "Binance Futures",  "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "eye":   {"name": "視覺 Eye",   "emoji": "👁️", "description": "24H return / 72H vol ratio",        "modules": {"main": {"name": "72h Vol Ratio",     "source": "Binance",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "ear":   {"name": "聽覺 Ear",   "emoji": "👂", "description": "24H momentum",                "modules": {"main": {"name": "Momentum",       "source": "K線",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "nose":  {"name": "嗅覺 Nose",  "emoji": "👃", "description": "RSI momentum",            "modules": {"main": {"name": "RSI",         "source": "衍生",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "tongue":{"name": "味覺 Tongue","emoji": "👅", "description": "Mean-reversion deviation",                  "modules": {"main": {"name": "Mean-revert",         "source": "衍生",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "body":  {"name": "觸覺 Body",  "emoji": "💪", "description": "Volatility z-score",            "modules": {"main": {"name": "Vol Z-score",       "source": "衍生",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "pulse": {"name": "脈動 Pulse", "emoji": "💓", "description": "Volume spike",           "modules": {"main": {"name": "Vol Spike",       "source": "K線",  "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "aura":  {"name": "磁場 Aura",  "emoji": "🌈", "description": "MA deviation",            "modules": {"main": {"name": "MA Dev",     "source": "複合",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "mind":  {"name": "認知 Mind",  "emoji": "🧠", "description": "Medium-term momentum",         "modules": {"main": {"name": "144-return",     "source": "Binance",  "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
 }
 
 CONFIG_PATH = Path(__file__).parent.parent / "data" / "senses_config.json"
 
-
-def normalize_feature(value: Optional[float], feature_type: str) -> float:
-    """ECDF percentile normalization: p5->0.05, p95->0.95, linear in between.
-    Anchors computed from 7-day rolling empirical distribution."""
-    if value is None:
-        return 0.5
-
-    # ECDF anchors (updated from 7-day data)
-    anchors = {
-        'feat_eye_dist':     (-4.4964,  4.1189),
-        'feat_ear_zscore':   (-0.7493,  0.9404),
-        'feat_nose_sigmoid': (-0.1820,  0.8945),
-        'feat_tongue_pct':   ( 0.0800,  1.3787),
-        'feat_body_roc':     (-1.7996,  1.2317),
-        'feat_pulse':        ( 0.3932,  0.8486),
-        'feat_aura':         ( 0.0383,  1.0000),
-        'feat_mind':         (-0.0634,  0.0217),
-    }
-    p5, p95 = anchors.get(feature_type, (-1.0, 1.0))
-    v = max(p5, min(p95, value))
-    span = p95 - p5
-    if span < 1e-10:
-        return 0.5
-    return 0.05 + 0.9 * (v - p5) / span
-
-
-    return 0.5
-
-
-# ECDF params for reference (7d empirical)
-_ECDF_PARAMS = {'feat_eye': {'p5': -3.9852087611857097, 'p50': 0.0, 'p95': 4.103286825116237}, 'feat_ear': {'p5': -0.7560784585212744, 'p50': 0.0007297078224168807, 'p95': 0.948174561035499}, 'feat_nose': {'p5': -0.18195123933674784, 'p50': 0.4311567507828382, 'p95': 0.894490833182066}, 'feat_tongue': {'p5': 0.08, 'p50': 0.6472830310833947, 'p95': 1.3747032542343642}, 'feat_body': {'p5': -1.8065085905712817, 'p50': 0.0, 'p95': 1.2404848811671434}, 'feat_pulse': {'p5': 0.3932000054096227, 'p50': 0.6932674967732069, 'p95': 0.8485587989825305}, 'feat_aura': {'p5': 0.0383026617403551, 'p50': 0.8856753937808264, 'p95': 0.9999927431586128}, 'feat_mind': {'p5': -0.06340077101102537, 'p50': -0.00011024791738978301, 'p95': 0.02173648399242256}}
-
-
-# Streak-based trade suppression — #H379: 156 consecutive sell_win=0
-# When consecutive losses exceed threshold, FORCE suppression of sell signals
-MAX_LOSS_STREAK = 20  # After 20 consecutive losses, enter suppression mode
-EXTREME_STREAK = 50   # After 50, only strongest signals allowed
 
 class SensesEngine:
     def __init__(self):
@@ -101,7 +214,6 @@ class SensesEngine:
         self._db = None
 
     def set_db(self, db):
-        """注入 DB session"""
         self._db = db
 
     def _load_config(self) -> Dict[str, Any]:
@@ -118,10 +230,10 @@ class SensesEngine:
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
 
-    def _get_latest_features(self) -> Optional[Dict[str, Optional[float]]]:
-        """從 DB 讀取最新特徵"""
+    def get_latest_scores(self) -> Dict[str, float]:
+        """Get normalized scores for ALL features. Used by API /senses."""
         if self._db is None:
-            return None
+            return {k: 0.5 for k in ['eye','ear','nose','tongue','body','pulse','aura','mind']}
         try:
             row = (
                 self._db.query(FeaturesNormalized)
@@ -129,57 +241,15 @@ class SensesEngine:
                 .first()
             )
             if row is None:
-                return None
-            return {
-                "feat_eye_dist": row.feat_eye_dist,
-                "feat_ear_zscore": row.feat_ear_zscore,
-                "feat_nose_sigmoid": row.feat_nose_sigmoid,
-                "feat_tongue_pct": row.feat_tongue_pct,
-                "feat_body_roc": row.feat_body_roc,
-                "feat_pulse": row.feat_pulse,
-                "feat_aura": row.feat_aura,
-                "feat_mind": row.feat_mind,
-                "timestamp": row.timestamp,
-            }
+                return {k: 0.5 for k in ['eye','ear','nose','tongue','body','pulse','aura','mind']}
+            return normalize_all_features(row)
         except Exception as e:
-            logger.error(f"讀取特徵失敗: {e}")
-            return None
-
-    def calculate_sense_score(self, sense_key: str, features: Optional[Dict] = None) -> float:
-        """計算單個感官分數（從真實特徵值）"""
-        sense = self.config.get(sense_key, {})
-
-        # 找到對應的特徵值
-        feat_key = {
-            "eye": "feat_eye_dist",
-            "ear": "feat_ear_zscore",
-            "nose": "feat_nose_sigmoid",
-            "tongue": "feat_tongue_pct",
-            "body": "feat_body_roc",
-            "pulse": "feat_pulse",
-            "aura": "feat_aura",
-            "mind": "feat_mind",
-        }.get(sense_key)
-
-        raw_value = features.get(feat_key) if features and feat_key else None
-        normalized = normalize_feature(raw_value, feat_key or "")
-
-        # 更新子模組值（所有子模組共享同一個正規化值）
-        modules = sense.get("modules", {})
-        for mod_key, mod in modules.items():
-            if mod.get("enabled", False):
-                mod["value"] = round(normalized, 4)
-
-        sense["score"] = round(normalized, 4)
-        return sense["score"]
+            logger.error(f"Feature fetch failed: {e}")
+            return {k: 0.5 for k in ['eye','ear','nose','tongue','body','pulse','aura','mind']}
 
     def calculate_all_scores(self) -> Dict[str, float]:
-        """計算所有多感官分數（從 DB 真實數據）"""
-        features = self._get_latest_features()
-        scores = {}
-        for sense_key in self.config:
-            scores[sense_key] = self.calculate_sense_score(sense_key, features)
-        return scores
+        """Calculate all scores — core 8 + all extra features."""
+        return self.get_latest_scores()
 
     def get_config(self) -> Dict[str, Any]:
         return self.config
@@ -200,83 +270,19 @@ class SensesEngine:
         self.save_config()
         return True
 
-    def get_streak_info(self) -> dict:
-        """Count consecutive recent sell_win=0. Returns streak length and suppression level."""
-        # Fallback: check DB if available, otherwise skip suppression
-        if self._db is None:
-            return {"streak": 0, "suppression": "none", "max_score": 100}
-        from database.models import Labels
-        rows = self._db.query(Labels.label_sell_win).filter(
-            Labels.label_sell_win.isnot(None)
-        ).order_by(Labels.id.desc()).limit(200).all()
-        
-        streak = 0
-        for r in rows:
-            if r[0] == 0:
-                streak += 1
-            else:
-                break
-        
-        if streak >= EXTREME_STREAK:
-            return {"streak": streak, "suppression": "extreme", "max_score": 50}
-        elif streak >= MAX_LOSS_STREAK:
-            return {"streak": streak, "suppression": "active", "max_score": 70}
-        return {"streak": streak, "suppression": "none", "max_score": 100}
-
     def calculate_recommendation_score(self, scores: Optional[Dict[str, float]] = None) -> int:
-        """Sell-confidence score 0-100 based on multi-sense alignment.
-        
-        Core problem: naive weighted average of ECDF-normalized features always
-        clusters around 50 because ECDF forces uniform [0,1] distribution.
-        
-        Solution: use directional disagreement between senses. When all senses
-        point in the same direction (all high or all low), the score should
-        be extreme. When they disagree, it should be near 50.
-        
-        Since sell-win = price drops, high feature values (extreme) = stronger signal:
-          score > 60: most senses agree on sell
-          score < 40: most senses agree against sell  
-          40-60: senses disagree = don't trade
-        
-        For the top IC senses (pulse=0.2, mind=0.2, eye=0.15, nose=0.15):
-        - All above 0.6: score → 80+ (strong sell)
-        - All below 0.4: score → 0-20 (bullish, don't short)
-        - Mixed: score → 35-65 (hold)
-        
-        #H379: Streak-based suppression — force score capping during long loss runs."""
         if scores is None:
             scores = self.calculate_all_scores()
-        
-        # Original scoring logic
-        # IC-based weights — only weight senses that have actual predictive power
-        
-        # IC-based weights — only weight senses that have actual predictive power
-        # Tongue IC ~0, body IC ~0 — give them 0 weight
+        # IC-based weights
         weights = {"eye": 0.15, "ear": 0.10, "nose": 0.15, "tongue": 0.0, "body": 0.10, "pulse": 0.20, "aura": 0.10, "mind": 0.20}
         total = sum(scores.get(k, 0.5) * w for k, w in weights.items())
-        weighted_sum = total * 100
-        
-        # Amplify distribution: push extremes further, keep middle compressed
-        # This breaks the "always 45-55" problem
-        # Apply sigmoid-like scaling centered at 50
-        import math
-        x = (weighted_sum - 50) / 15  # normalize to ±3 range
+        x = (total * 100 - 50) / 15
         amplified = 50 + 50 * (1 / (1 + math.exp(-1.5 * x)) - 0.5) * 2
-        amplified = max(0, min(100, amplified))
-        
-        # P0 #H379: Apply streak suppression
-        streak_info = self.get_streak_info()
-        if streak_info["suppression"] != "none":
-            max_score = streak_info["max_score"]
-            if amplified > max_score:
-                amplified = max_score
-        
-        return round(amplified)
+        return round(max(0, min(100, amplified)))
 
     def generate_advice(self, scores: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
         if scores is None:
             scores = self.calculate_all_scores()
-
         rec_score = self.calculate_recommendation_score(scores)
         descriptions = [
             self._desc("eye", scores.get("eye", 0.5)),
@@ -288,13 +294,11 @@ class SensesEngine:
         overall = self._overall_advice(rec_score)
         sorted_senses = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         names = {"eye": "技術面", "ear": "市場共識", "nose": "衍生品", "tongue": "情緒", "body": "鏈上資金", "pulse": "脈動", "aura": "磁場", "mind": "認知"}
-
         summary = (
-            f"{names[sorted_senses[0][0]]}最強（{sorted_senses[0][1]:.0%}），"
-            f"{names[sorted_senses[-1][0]]}最弱（{sorted_senses[-1][1]:.0%}）。"
+            f"{names.get(sorted_senses[0][0], sorted_senses[0][0])}最強（{sorted_senses[0][1]:.0%}），"
+            f"{names.get(sorted_senses[-1][0], sorted_senses[-1][0])}最弱（{sorted_senses[-1][1]:.0%}）。"
             f"綜合建議：{overall['text']}"
         )
-
         return {
             "score": rec_score, "overall": overall,
             "descriptions": descriptions, "summary": summary,
@@ -316,17 +320,11 @@ class SensesEngine:
         return "數據不足 ❓"
 
     def _overall_advice(self, score: int) -> Dict[str, str]:
-        """All advice centered around SELL/SHORT — the core trading strategy.
-        Higher score = stronger sell-short signal (price expected to drop).
-        
-        Since the system is built for sell-win (short profit), we recommend:
-          HIGH score → SELL (short)  — high confidence sell-win
-          LOW score  → HOLD/BUY     — don't short into a rally"""
-        if score > 80: return {"text": "🔴 強烈建議做空 — 多數感官確認下跌趨勢，高勝率短空", "action": "strong_sell"}
-        if score > 60: return {"text": "🟠 建議做空 — 部分感官支持下跌，注意止損", "action": "sell"}
-        if score > 40: return {"text": "⚪ 建議觀望 — 感官分歧，方向不明，不宜開倉", "action": "hold"}
-        if score > 20: return {"text": "🟡 偏多格局 — 下跌動能不足，避免做空", "action": "hold_long"}
-        return {"text": "🟢 多頭格局 — 價格可能上升，禁止做空", "action": "hold"}
+        if score > 80: return {"text": "🔴 強烈建議做空 — 多數感官確認下跌趨勢", "action": "strong_sell"}
+        if score > 60: return {"text": "🟠 建議做空 — 部分感官支持下跌", "action": "sell"}
+        if score > 40: return {"text": "⚪ 建議觀望 — 感官分歧，方向不明", "action": "hold"}
+        if score > 20: return {"text": "🟡 偏多格局 — 下跌動能不足", "action": "hold_long"}
+        return {"text": "🟢 多頭格局 — 價格可能上升", "action": "hold"}
 
 
 _engine: Optional[SensesEngine] = None
