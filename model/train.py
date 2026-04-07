@@ -60,14 +60,24 @@ def _feature_row(r):
 
 
 def load_training_data(session: Session, min_samples: int = 50,
-                       regime_filter: Optional[list] = None) -> Optional[Tuple[pd.DataFrame, pd.Series]]:
+                       regime_filter: Optional[list] = None,
+                       horizon_minutes: int = 720) -> Optional[Tuple[pd.DataFrame, pd.Series]]:
+    """Load training data from DB, filtered by horizon_minutes.
+
+    Args:
+        session: SQLAlchemy session
+        min_samples: minimum samples after merge
+        regime_filter: optional list of regime labels to keep
+        horizon_minutes: label horizon to use (default 720=12h). Pass None for all horizons.
+    """
     feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
-    label_rows = (
-        session.query(Labels)
-        .filter(Labels.label_sell_win.isnot(None), Labels.future_return_pct.isnot(None))
-        .order_by(Labels.timestamp)
-        .all()
+    label_query = session.query(Labels).filter(
+        Labels.label_sell_win.isnot(None),
+        Labels.future_return_pct.isnot(None),
     )
+    if horizon_minutes is not None:
+        label_query = label_query.filter(Labels.horizon_minutes == horizon_minutes)
+    label_rows = label_query.order_by(Labels.timestamp).all()
 
     if not feat_rows or not label_rows:
         return None
@@ -405,29 +415,53 @@ def run_training(session: Session, regime_filter: Optional[list] = None) -> bool
     logger.info(f"特徵重要性: {imp}")
 
     try:
-        from sklearn.model_selection import TimeSeriesSplit
         from datetime import datetime
         import sqlite3
         train_acc = float((model.predict(X) == y).mean())
-        tscv = TimeSeriesSplit(n_splits=5)
-        valid_scores = []
-        for _tr, _te in tscv.split(X):
-            y_tr = y.iloc[_tr]
+
+        # Rolling/expanding window CV — more realistic for financial time series.
+        # Uses multiple train/test windows that mimic walk-forward validation:
+        # - Train on 60% of data, test on next 10%, sliding forward in steps.
+        # - Reports both mean and worst-fold accuracy to detect overfitting.
+        cv_scores = []
+        n = len(X)
+        train_frac = 0.6
+        test_frac = 0.1
+        step_frac = 0.08  # slide the window by 8% of data each time
+
+        train_base = int(n * train_frac)
+        test_size = max(int(n * test_frac), 20)
+        step = max(int(n * step_frac), 10)
+
+        start = train_base
+        while start + test_size <= n:
+            train_idx = list(range(0, start))
+            test_idx = list(range(start, start + test_size))
+            y_tr = y.iloc[train_idx]
             if len(y_tr.unique()) < 2:
+                start += step
                 continue
             _m = xgb.XGBClassifier(**{k: v for k, v in model.get_params().items()})
-            _m.fit(X.iloc[_tr], y_tr, sample_weight=compute_sample_weight("balanced", y_tr))
-            valid_scores.append(float((_m.predict(X.iloc[_te]) == y.iloc[_te]).mean()))
-        cv_acc = float(np.mean(valid_scores)) if valid_scores else float('nan')
-        cv_std = float(np.std(valid_scores)) if valid_scores else float('nan')
+            _m.fit(X.iloc[train_idx], y_tr, sample_weight=compute_sample_weight("balanced", y_tr))
+            fold_acc = float((_m.predict(X.iloc[test_idx]) == y.iloc[test_idx]).mean())
+            cv_scores.append(fold_acc)
+            start += step
+
+        cv_acc = float(np.mean(cv_scores)) if cv_scores else float('nan')
+        cv_std = float(np.std(cv_scores)) if cv_scores else float('nan')
+        cv_worst = float(np.min(cv_scores)) if cv_scores else float('nan')
+        cv_best = float(np.max(cv_scores)) if cv_scores else float('nan')
+        n_folds = len(cv_scores)
+
         db = sqlite3.connect('poly_trader.db')
         cur = db.cursor()
         cur.execute("""
             INSERT INTO model_metrics (timestamp, train_accuracy, cv_accuracy, cv_std, n_features, notes)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (datetime.utcnow().isoformat(), train_acc, cv_acc, cv_std, X.shape[1], 'sell-win auto-train'))
+        """, (datetime.utcnow().isoformat(), train_acc, cv_acc, cv_std, X.shape[1],
+              f'rolling_cv n={n_folds} worst={cv_worst:.4f} best={cv_best:.4f}'))
         db.commit(); db.close()
-        logger.info(f"模型指標: Train={train_acc:.3f}, CV={cv_acc:.3f}±{cv_std:.3f}")
+        logger.info(f"模型指標: Train={train_acc:.3f}, Rolling-CV={cv_acc:.3f}±{cv_std:.3f}, worst={cv_worst:.3f}")
     except Exception as e:
         logger.warning(f"無法保存 model_metrics: {e}")
 
@@ -445,11 +479,12 @@ def train_regime_models(session: Session) -> bool:
         logger.warning("訓練資料不足，跳過 regime-specific 訓練")
         return False
 
-    # Re-load with regime info
+    # Re-load with regime info (also filter by horizon_minutes=720)
     feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
     label_rows = (
         session.query(Labels)
-        .filter(Labels.label_sell_win.isnot(None), Labels.future_return_pct.isnot(None))
+        .filter(Labels.label_sell_win.isnot(None), Labels.future_return_pct.isnot(None),
+                Labels.horizon_minutes == 720)
         .order_by(Labels.timestamp)
         .all()
     )

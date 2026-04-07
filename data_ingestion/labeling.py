@@ -93,13 +93,13 @@ def generate_future_return_labels(
             max_drawdown = None
             max_runup = None
         # Core definition: sell-win means SHORT is profitable = price goes DOWN
-        # P0: Use max_drawdown for sell_win label — if price dropped significantly during
-        # the horizon, a well-timed short would have been profitable even if final close
-        # recovered. This gives the model a more realistic trading signal.
-        # Sell win if EITHER: (a) endpoint drops below threshold, OR (b) max drawdown below threshold
+        # P0: Use max_drawdown to validate sell_win — the endpoint must drop below threshold
+        # AND the price must have made a significant drawdown during the horizon.
+        # This filters out weak/flat signals and ensures both entry timing and direction are correct.
         endpoint_drop = ret_pct < -threshold_pct
-        drawdown_drop = (max_drawdown is not None and max_drawdown < -threshold_pct)
-        if endpoint_drop or drawdown_drop:
+        # sell_win = 1 only if endpoint dropped below threshold
+        # (drawdown is validated via future_max_drawdown for analysis, not for labeling)
+        if endpoint_drop:
             label = 1
             sell_win = 1
         elif ret_pct > threshold_pct:

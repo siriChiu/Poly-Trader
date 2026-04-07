@@ -76,7 +76,7 @@ def _global_ic(session):
 
     feat_rows = session.query(FeaturesNormalized.timestamp, *sense_cols).order_by(FeaturesNormalized.timestamp).all()
     label_rows = session.query(Labels.timestamp, Labels.label_sell_win).filter(
-        Labels.label_sell_win.isnot(None)).order_by(Labels.timestamp).all()
+        Labels.label_sell_win.isnot(None), Labels.horizon_minutes == 720).order_by(Labels.timestamp).all()
 
     feat_by_ts = {r[0]: {sense_col_names[i]: r[1+i] for i in range(len(sense_cols))} for r in feat_rows}
     labels_by_ts = {r[0]: int(r[1]) for r in label_rows}
@@ -121,7 +121,7 @@ def _time_weighted_ic(session, tau=200):
     # Load time-ordered features + labels
     feat_rows = session.query(FeaturesNormalized.timestamp, *sense_cols).order_by(FeaturesNormalized.timestamp).all()
     label_rows = session.query(Labels.timestamp, Labels.label_sell_win).filter(
-        Labels.label_sell_win.isnot(None)).order_by(Labels.timestamp).all()
+        Labels.label_sell_win.isnot(None), Labels.horizon_minutes == 720).order_by(Labels.timestamp).all()
 
     feat_by_ts = {r[0]: {sense_col_names[i]: r[1+i] for i in range(len(sense_cols))} for r in feat_rows}
     labels_by_ts = {r[0]: int(r[1]) for r in label_rows}
