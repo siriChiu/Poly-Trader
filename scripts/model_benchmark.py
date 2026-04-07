@@ -303,25 +303,29 @@ def run_benchmark(models: list, task: str, feature_set: str,
             fold_f1s.append(fold_f1)
 
             # 特徵重要度
+            imp = None
             try:
                 imp = m.feature_importances_
+            except AttributeError:
+                try:
+                    coef = m.coef_
+                    # Ridge/Logistic: coef_ can be 1D or 2D
+                    if coef.ndim == 2:
+                        imp = np.abs(coef[0])
+                    else:
+                        imp = np.abs(coef)
+                except (AttributeError, IndexError, AttributeError):
+                    pass
+            
+            if imp is not None and len(imp) >= len(feature_cols):
+                imp = imp[:len(feature_cols)]  # safety trim
                 importances_per_fold.append(imp)
                 for fi, col in enumerate(feature_cols):
                     if col not in fold_feature_imp:
                         fold_feature_imp[col] = []
-                    fold_feature_imp[col].append(imp[fi])
-            except AttributeError:
-                try:
-                    imp = np.abs(m.coef_[0])
-                    importances_per_fold.append(imp)
-                    for fi, col in enumerate(feature_cols):
-                        if col not in fold_feature_imp:
-                            fold_feature_imp[col] = []
-                        fold_feature_imp[col].append(imp[fi])
-                except AttributeError:
-                    pass
+                    fold_feature_imp[col].append(float(imp[fi]))
 
-            top3_idx = np.argsort(imp)[-3:][::-1] if 'imp' in dir() else []
+            top3_idx = np.argsort(imp)[-3:][::-1] if imp is not None and len(imp) >= 3 else []
             top3 = [feature_cols[i] for i in top3_idx] if len(top3_idx) >= 3 else []
             print(f"    Fold {fold_i + 1}: acc={acc:.4f}  auc={fold_aucs[-1]:.4f}  f1={fold_f1:.4f}  top3={top3}")
 
