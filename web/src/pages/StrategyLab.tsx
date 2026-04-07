@@ -57,8 +57,10 @@ export default function StrategyLab() {
   const loadLeaderboard = async () => {
     try {
       const res = await fetchApi("/api/strategies/leaderboard");
-      const data = res as { strategies: StrategyEntry[] };
-      setStrategies(data?.strategies || []);
+      const data = res as any;
+      // Handle multiple possible response formats: { strategies: [...] }, { data: { strategies: [...] } }, or direct array
+      const list = data?.strategies ?? data?.data?.strategies ?? (Array.isArray(data) ? data : []);
+      setStrategies(list || []);
     } catch (err: any) {
       console.error("Leaderboard error:", err);
     }
@@ -96,8 +98,32 @@ export default function StrategyLab() {
       const data = res as any;
       if (data?.error) {
         setError(data.error);
-      } else if (data?.results) {
-        setRunResult(data.results);
+      } else {
+        // Handle multiple possible response field names: results, result, run_result
+        const result = data?.results ?? data?.result ?? data?.run_result ?? null;
+        setRunResult(result);
+
+        // Optimistically add the strategy to the leaderboard
+        const newEntry: StrategyEntry = {
+          name,
+          created_at: new Date().toISOString(),
+          definition: { type: "rule_based", params: body.params },
+          last_results: result,
+          run_count: 1,
+        };
+        setStrategies(prev => {
+          const existing = prev.find(s => s.name === name);
+          if (existing) {
+            return prev.map(s => s.name === name ? {
+              ...s,
+              definition: { type: "rule_based", params: body.params },
+              last_results: result,
+              run_count: existing.run_count + 1,
+            } : s);
+          }
+          return [newEntry, ...prev];
+        });
+
         await loadLeaderboard();
       }
     } catch (err: any) {

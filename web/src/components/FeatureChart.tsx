@@ -264,13 +264,9 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [merged, setMerged] = useState<MergedPoint[]>([]);
-  const [visibility, setVisibility] = useState<Record<string, boolean>>({
-    eye: true,
-    ear: true,
-    nose: true,
-    tongue: true,
-    body: true,
-  });
+  const [visibility, setVisibility] = useState<Record<string, boolean>>(
+    Object.fromEntries(Object.keys(FEATURE_CONFIG).map((k) => [k, true]))
+  );
 
   const [_autoHighlight, setAutoHighlight] = useState(false);
 
@@ -279,9 +275,7 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
     if (selectedFeature && containerRef.current) {
       containerRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
       // Set auto-highlight but allow user to toggle features back
-      setVisibility({
-        eye: true, ear: true, nose: true, tongue: true, body: true,
-      });
+      setVisibility(Object.fromEntries(Object.keys(FEATURE_CONFIG).map((k) => [k, true])));
       setAutoHighlight(true);
     }
   }, [selectedFeature]);
