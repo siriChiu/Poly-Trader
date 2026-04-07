@@ -31,6 +31,10 @@ FEATURE_COLS = [
     # === 5 Technical Indicators ===
     "feat_rsi14", "feat_macd_hist", "feat_atr_pct",
     "feat_vwap_dev", "feat_bb_pct_b",
+    # === 4H Timeframe Features (低雜訊大方向) ===
+    "feat_4h_bias50", "feat_4h_bias20",
+    "feat_4h_rsi14", "feat_4h_macd_hist", "feat_4h_bb_pct_b",
+    "feat_4h_ma_order", "feat_4h_dist_swing_low",
     # === P0/P1 Sensory + NQ ===
     # P0: Disabled — only 20 samples, no training signal (ic_status=LOW/NO_DATA)
     # "feat_claw", "feat_claw_intensity", "feat_fang_pcr",
