@@ -3,11 +3,13 @@ import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Senses from './pages/Senses'
 import Backtest from './pages/Backtest'
+import StrategyLab from './pages/StrategyLab'
 
 const NAV_ITEMS = [
   { to: '/', label: '📊 儀表板', end: true },
   { to: '/senses', label: '🎛️ 感官管理' },
   { to: '/backtest', label: '🔬 回測' },
+  { to: '/lab', label: '🧪 策略實驗室' },
 ]
 
 export default function App() {
@@ -51,6 +53,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/senses" element={<Senses />} />
             <Route path="/backtest" element={<Backtest />} />
+            <Route path="/lab" element={<StrategyLab />} />
           </Routes>
         </main>
       </div>

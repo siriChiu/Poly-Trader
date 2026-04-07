@@ -436,3 +436,140 @@ async def get_confidence_prediction():
     if result is None:
         return {"error": "prediction failed", "confidence": 0.5, "signal": "HOLD", "confidence_level": "LOW", "should_trade": False}
     return result
+
+
+# ═══════════════════════════════════════════════
+# Strategy Lab API
+# ═══════════════════════════════════════════════
+
+@router.get("/api/strategies/leaderboard")
+async def api_strategy_leaderboard():
+    """回傳所有已儲存策略的 Leaderboard（依 ROI 排序）。"""
+    from backtesting.strategy_lab import load_all_strategies
+    strategies = load_all_strategies()
+    return {"strategies": strategies, "count": len(strategies)}
+
+
+@router.get("/api/strategies/{name}")
+async def api_get_strategy(name: str):
+    """取得單一策略定義。"""
+    from backtesting.strategy_lab import load_strategy
+    s = load_strategy(name)
+    if s is None:
+        raise HTTPException(status_code=404, detail=f"Strategy '{name}' not found")
+    return s
+
+
+@router.delete("/api/strategies/{name}")
+async def api_delete_strategy(name: str):
+    """刪除策略。"""
+    from backtesting.strategy_lab import delete_strategy
+    ok = delete_strategy(name)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"Strategy '{name}' not found")
+    return {"ok": True, "deleted": name}
+
+
+@router.post("/api/strategies/run")
+async def api_run_strategy(body: Dict[str, Any]):
+    """
+    執行回測。
+    Body:
+      name: 策略名稱
+      type: "rule_based" | "hybrid"
+      params: 策略參數
+    """
+    import sqlite3
+    import numpy as np
+    from backtesting.strategy_lab import run_rule_backtest, run_hybrid_backtest, save_strategy
+
+    DB_PATH = '/home/kazuha/Poly-Trader/poly_trader.db'
+    name = body.get("name", "unnamed_strategy")
+    stype = body.get("type", "rule_based")
+    params = body.get("params", {})
+    initial = body.get("initial_capital", 10000.0)
+
+    # 從 DB 載入完整資料
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute("""
+        SELECT f.timestamp, r.close_price,
+               f.feat_4h_bias50, f.feat_4h_dist_swing_low,
+               f.feat_nose, f.feat_pulse, f.feat_ear
+        FROM features_normalized f
+        JOIN raw_market_data r ON r.timestamp = f.timestamp AND r.symbol = f.symbol
+        WHERE f.feat_4h_bias50 IS NOT NULL AND r.close_price IS NOT NULL
+        ORDER BY f.timestamp
+    """).fetchall()
+    conn.close()
+
+    if not rows:
+        return {"error": "No data available for backtest"}
+
+    timestamps = [str(r[0]) for r in rows]
+    prices = [float(r[1]) for r in rows]
+    bias50 = [float(r[2]) if r[2] is not None else 0 for r in rows]
+    dist_sl = [float(r[3]) if r[3] is not None else 100 for r in rows]
+    nose = [float(r[4]) if r[4] is not None else 0.5 for r in rows]
+    pulse = [float(r[5]) if r[5] is not None else 0.5 for r in rows]
+    ear = [float(r[6]) if r[6] is not None else 0 for r in rows]
+
+    if stype == "rule_based":
+        result = run_rule_backtest(
+            prices, timestamps, bias50, bias50,  # bias200 ≈ bias50 fallback
+            nose, pulse, ear, params, initial,
+        )
+    elif stype == "hybrid":
+        # For hybrid, use (1 - bias50/20) as pseudo-confidence: lower bias50 = higher confidence to buy
+        conf = [(1.0 - b50 / 20.0) for b50 in bias50]
+        conf = [max(0.0, min(1.0, c)) for c in conf]
+        result = run_hybrid_backtest(
+            prices, timestamps, bias50, bias50,
+            nose, pulse, ear, conf, params, initial,
+        )
+    else:
+        return {"error": f"Unknown strategy type: {stype}"}
+
+    # 儲存結果
+    strat_def = {"type": stype, "params": params}
+    results_dict = {
+        "roi": round(result.roi, 4),
+        "win_rate": round(result.win_rate, 4),
+        "total_trades": result.total_trades,
+        "wins": result.wins,
+        "losses": result.losses,
+        "max_drawdown": round(result.max_drawdown, 4),
+        "profit_factor": round(result.profit_factor, 4),
+        "total_pnl": round(result.total_pnl, 2),
+        "avg_win": round(result.avg_win, 2),
+        "avg_loss": round(result.avg_loss, 2),
+        "max_consecutive_losses": result.max_consecutive_losses,
+        "run_at": datetime.utcnow().isoformat() + "Z",
+    }
+    save_strategy(name, strat_def, results_dict)
+
+    # 不傳回全部 equity_curve（太長），只傳回摘要
+    result.equity_curve = result.equity_curve[-100:] if result.equity_curve else []
+
+    return {
+        "strategy": name,
+        "type": stype,
+        "params": params,
+        "results": results_dict,
+        "equity_curve": result.equity_curve,
+        "trades": result.trades[-50:],  # last 50 trades
+    }
+
+
+@router.post("/api/strategies/save")
+async def api_save_strategy(body: Dict[str, Any]):
+    """
+    儲存策略定義（不跑回測）。
+    Body: {name, type, params}
+    """
+    from backtesting.strategy_lab import save_strategy
+    name = body.get("name", "unnamed")
+    stype = body.get("type", "rule_based")
+    params = body.get("params", {})
+    path = save_strategy(name, {"type": stype, "params": params})
+    return {"ok": True, "name": name, "path": path}
+
