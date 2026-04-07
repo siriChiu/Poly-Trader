@@ -405,7 +405,7 @@ def run_training(session: Session, regime_filter: Optional[list] = None) -> bool
     loaded = load_training_data(session, min_samples=50, regime_filter=regime_filter)
     if loaded is None:
         return False
-    X, y = loaded
+    X, y, y_return = loaded
     model = train_xgboost(X, y)
     calibrator = fit_probability_calibrator(model, X, y)
 
@@ -525,6 +525,15 @@ def train_regime_models(session: Session) -> bool:
         tolerance=pd.Timedelta("10min"),
     )
     merged = merged.dropna(subset=["label_sell_win"]).copy()
+
+    # Handle merge suffix for regime_label (both sides may have it)
+    if "regime_label" not in merged.columns:
+        if "regime_label_y" in merged.columns:
+            merged["regime_label"] = merged["regime_label_y"]
+        elif "regime_label_x" in merged.columns:
+            merged["regime_label"] = merged["regime_label_x"]
+        else:
+            merged["regime_label"] = "neutral"
 
     # Build feature columns (same as global)
     for col in BASE_FEATURE_COLS:

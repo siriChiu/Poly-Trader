@@ -18,6 +18,8 @@ TASKS = [
      "cmd": [PYTHON, "scripts/full_ic.py"]},
     {"name": "regime_ic", "label": "🏛️ Regime IC",
      "cmd": [PYTHON, "scripts/regime_aware_ic.py"]},
+    {"name": "4h_signal", "label": "🔮 4H Signal",
+     "cmd": [PYTHON, "scripts/heartbeat_4h.py"]},
     {"name": "dynamic_window", "label": "📏 Dynamic Window",
      "cmd": [PYTHON, "scripts/dynamic_window_train.py"]},
     {"name": "train", "label": "🔨 Model Train",
@@ -140,6 +142,15 @@ def parse_dw_output(stdout):
     return result
 
 
+def parse_4h_signal():
+    """Parse 4H signal result from heartbeat_4h_result.json."""
+    result_path = os.path.join(PROJECT_ROOT, 'scripts', 'heartbeat_4h_result.json')
+    if not os.path.exists(result_path):
+        return None
+    with open(result_path) as f:
+        return json.load(f)
+
+
 def parse_train_output(stdout):
     """Parse model training results."""
     result = {"train_acc": None, "cv_acc": None, "gap": None, "n_features": 0, "n_samples": 0}
@@ -247,6 +258,7 @@ def main():
     # Parse outputs
     ic_result = parse_ic_output(results.get("full_ic", {}).get("stdout", ""))
     regime_result = parse_regime_output(results.get("regime_ic", {}).get("stdout", ""))
+    signal_4h = parse_4h_signal()
     dw_result = parse_dw_output(results.get("dynamic_window", {}).get("stdout", ""))
     train_result = parse_train_output(results.get("train", {}).get("stdout", ""))
     test_result = parse_test_output(results.get("tests", {}).get("stdout", ""))
@@ -263,6 +275,22 @@ def main():
     # All tasks status
     pass_count = sum(1 for r in results.values() if r["success"])
     print(f"  平行任務: {pass_count}/{len(results)} PASS ({elapsed:.1f}s)")
+
+    # 4H Signal (new)
+    if signal_4h:
+        sig = signal_4h.get("signal", "N/A")
+        conf = signal_4h.get("confidence_level", "")
+        pos = signal_4h.get("position_size_pct", 0)
+        price = signal_4h.get("current_price", 0)
+        reg = signal_4h.get("regime", "")
+        print(f"  🔮 4H Signal: {sig} ({conf}) | Regime={reg} | Pos={pos:.1%} | Price=${price:,.0f}")
+        sl = signal_4h.get("stop_loss", {})
+        tp = signal_4h.get("take_profit", {})
+        if sl and tp:
+            print(f"     🛡️ SL=${sl.get('price',0):,.0f} 🎯 TP=${tp.get('price',0):,.0f} "
+                  f"RR=1:{signal_4h.get('rr_ratio',0)}")
+        if "reason" in signal_4h:
+            print(f"     {signal_4h['reason']}")
 
     # Test status
     if test_result.get("total", 0) > 0:
@@ -302,6 +330,7 @@ def main():
         "parallel_time_sec": round(elapsed, 1),
         "ic": ic_result,
         "regime": regime_result,
+        "signal_4h": signal_4h,
         "dynamic_window": dw_result,
         "train": train_result,
         "tests": test_result,
