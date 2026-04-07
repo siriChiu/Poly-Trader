@@ -189,10 +189,10 @@ export default function Dashboard() {
         {/* Left: Pentagon Radar */}
         <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-5 flex flex-col items-center">
           <div className="flex items-center justify-between w-full mb-3">
-            <h2 className="text-sm font-semibold text-slate-400">🎯 多感官雷達圖</h2>
+            <h2 className="text-sm font-semibold text-slate-400">🎯 多特徵雷達圖</h2>
             <span className="text-xs text-slate-500 cursor-pointer hover:text-slate-300"
               onClick={() => setSelectedSense(null)}>
-              點擊感官看走勢
+              點擊特徵看走勢
             </span>
           </div>
           {isDataStale ? (

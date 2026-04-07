@@ -1,6 +1,6 @@
 /**
- * Senses — 感官管理頁面
- * 每個感官一個卡片，可調整子模組權重、啟用/停用
+ * Senses — 特徵管理頁面
+ * 每個特徵一個卡片，可調整子模組權重、啟用/停用
  */
 import { useState, useEffect, useCallback } from "react";
 import SenseModule from "../components/SenseModule";
@@ -98,7 +98,7 @@ export default function Senses() {
   if (!config) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-slate-400 animate-pulse">載入感官配置...</div>
+        <div className="text-slate-400 animate-pulse">載入特徵配置...</div>
       </div>
     );
   }
@@ -106,7 +106,7 @@ export default function Senses() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-slate-100">🎛️ 感官管理</h2>
+        <h2 className="text-xl font-bold text-slate-100">🎛️ 特徵管理</h2>
         <div className="flex items-center gap-3 text-sm">
           {saving && <span className="text-blue-400 animate-pulse">儲存中...</span>}
           {lastUpdate && (

@@ -2,7 +2,7 @@
 """Heartbeat Parallel Runner v7 — runs all diagnostics concurrently and saves summary.
 Usage: python scripts/hb_parallel_runner.py --hb N [--fast] [--no-train] [--no-dw]
 """
-import argparse, concurrent.futures, json, os, subprocess, sqlite3, sys
+import argparse, concurrent.futures, json, os, subprocess, sqlite3
 from datetime import datetime, timezone
 
 PROJECT_ROOT = '/home/kazuha/Poly-Trader'
@@ -49,7 +49,6 @@ def save_summary(hb_num, counts, results, elapsed):
     passed = sum(1 for r in results.values() if r["success"])
     total = len(results)
     
-    # Extract key metrics from outputs
     summary = {
         "heartbeat": hb_num,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -65,7 +64,6 @@ def save_summary(hb_num, counts, results, elapsed):
             "stderr_preview": r["stderr"][:1000] if r.get("stderr") else "",
         }
     
-    # Save JSON
     summary_path = os.path.join(PROJECT_ROOT, 'data', f'heartbeat_{hb_num}_summary.json')
     os.makedirs(os.path.dirname(summary_path), exist_ok=True)
     with open(summary_path, 'w') as f:
@@ -81,7 +79,6 @@ def main():
     parser.add_argument("--no-dw", action="store_true")
     args = parser.parse_args()
 
-    # Step 0: Quick DB counts (serial, <10s)
     counts = quick_counts()
     print(f"📊 DB Counts: Raw={counts['raw_market_data']}, Features={counts['features_normalized']}, Labels={counts['labels']}, sell_win={counts['sell_win_rate']}")
     
@@ -105,23 +102,19 @@ def main():
     passed = sum(1 for r in results.values() if r["success"])
     print(f"\n  {passed}/{len(results)} PASS ({elapsed:.1f}s)")
     
-    # Print key outputs
     for name, r in results.items():
         if r.get("stdout"): 
             lines = r['stdout'].split('\n')
-            # Show first 50 lines or last 30 lines (whichever is more informative)
             display = '\n'.join(lines[:50])
             if len(lines) > 50:
                 display += '\n...\n' + '\n'.join(lines[-30:])
             print(f"\n--- {name} ---\n{display}")
         if r.get("stderr"): 
             stderr_lines = r['stderr'].strip().split('\n')
-            # Show error lines but skip common noise
             errors = [l for l in stderr_lines if l.strip() and not l.startswith('Deprecation') and not l.startswith('FutureWarning')]
             if errors:
                 print(f"\n--- {name} stderr ---\n" + '\n'.join(errors[:20]))
 
-    # Save summary
     summary = save_summary(args.hb, counts, results, elapsed)
     print(f"\n📄 Summary saved: data/heartbeat_{args.hb}_summary.json")
 

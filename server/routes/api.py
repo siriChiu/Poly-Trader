@@ -1,5 +1,5 @@
 """
-REST API 路由 v4.0 — 多感官策略 + 策略實驗室 + 模型排行榜
+REST API 路由 v4.0 — 多特徵策略 + 策略實驗室 + 模型排行榜
 """
 import ccxt
 import math
@@ -10,7 +10,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 
 from server.dependencies import get_db, get_config, is_automation_enabled, set_automation_enabled
-from server.senses import get_engine
+from server.features_engine import get_engine
 from database.models import TradeHistory, RawMarketData, FeaturesNormalized
 from utils.logger import setup_logger
 
@@ -114,36 +114,73 @@ async def api_status():
     }
 
 
-@router.get("/senses")
-async def api_senses():
+@router.get("/features/status")
+async def api_features_status():
+    """返回全部 22 特徵的即時狀態"""
     engine = get_engine()
     scores = engine.calculate_all_scores()
     full_data = engine.get_latest_full_data()
     advice = engine.generate_advice(scores)
     return {
-        "senses": engine.get_senses_status(),
+        "features": engine.get_features_status(),
         "scores": scores,
         "raw": full_data.get("raw", {}),
         "recommendation": advice,
     }
 
 
-@router.get("/senses/config")
-async def api_senses_cfg():
+@router.get("/features/config")
+async def api_features_cfg():
     return get_engine().get_config()
 
 
-@router.put("/senses/config")
-async def api_put_senses(update: SenseConfigUpdate):
+@router.put("/features/config")
+async def api_put_features(update: SenseConfigUpdate):
     engine = get_engine()
     updates = {}
     if update.enabled is not None:
         updates["enabled"] = update.enabled
     if update.weight is not None:
         updates["weight"] = update.weight
-    ok = engine.update_sense_config(update.sense, update.module, updates)
+    ok = engine.update_feature_config(update.sense, update.module, updates)
     if not ok:
-        raise HTTPException(status_code=400, detail="無效感官或模組")
+        raise HTTPException(status_code=400, detail="無效特徵或模組")
+    return {"config": engine.get_config(), "scores": engine.calculate_all_scores()}
+
+
+@router.get("/senses")
+async def api_senses():
+    """返回最新特徵（多特徵）分數 — 前端雷達圖 + 價格 × 特徵 overlay 用"""
+    engine = get_engine()
+    scores = engine.calculate_all_scores()
+    full_data = engine.get_latest_full_data()
+    raw = full_data.get("raw", {})
+    return {
+        "senses": scores,  # 前端欄位名稱 (向後相容)
+        "scores": scores,
+        "raw": raw,
+        "recommendation": engine.generate_advice(scores),
+    }
+
+
+@router.get("/senses/config")
+async def api_senses_cfg():
+    """返回特徵配置（舊路由，向後相容）"""
+    return get_engine().get_config()
+
+
+@router.put("/senses/config")
+async def api_put_senses_cfg(update: SenseConfigUpdate):
+    """更新特徵配置（舊路由，向後相容）"""
+    engine = get_engine()
+    updates = {}
+    if update.enabled is not None:
+        updates["enabled"] = update.enabled
+    if update.weight is not None:
+        updates["weight"] = update.weight
+    ok = engine.update_feature_config(update.sense, update.module, updates)
+    if not ok:
+        raise HTTPException(status_code=400, detail="無效特徵或模組")
     return {"config": engine.get_config(), "scores": engine.calculate_all_scores()}
 
 

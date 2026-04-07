@@ -1,5 +1,5 @@
 /**
- * SenseModule — 感官子模組卡片
+ * SenseModule — 特徵子模組卡片
  */
 import React from "react";
 

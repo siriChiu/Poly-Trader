@@ -45,7 +45,7 @@ export default function Validation() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-dark-400">
-        載入感官驗證中...
+        載入特徵驗證中...
       </div>
     )
   }
@@ -80,7 +80,7 @@ export default function Validation() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-dark-100">感官有效性分析</h2>
+        <h2 className="text-xl font-bold text-dark-100">特徵有效性分析</h2>
         <div className="flex items-center gap-2">
           <span className={`badge ${
             data.status === 'ok' ? 'bg-buy/20 text-buy' :
@@ -194,7 +194,7 @@ export default function Validation() {
           </ul>
           {data.needs_hat_meeting && (
             <div className="mt-4 p-3 bg-sell/10 border border-sell/30 rounded-lg text-sm text-sell">
-              🎩 觸發六帽會議：部分感官預測力不足，需要重新評估或汰換
+              🎩 觸發六帽會議：部分特徵預測力不足，需要重新評估或汰換
             </div>
           )}
         </div>

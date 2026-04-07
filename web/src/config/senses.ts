@@ -1,5 +1,5 @@
 /**
- * 完整感官配置 — 20+ 特徵對應 Poly-Trader 的所有 IC-validated features
+ * 完整特徵配置 — 20+ 特徵對應 Poly-Trader 的所有 IC-validated features
  * 包含：8 Core Senses + 2 Macro + 5 Technical + 6 P0/P1 Sensory + 4H 指標
  */
 

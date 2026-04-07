@@ -19,20 +19,20 @@
 ### 1. 資料層
 統一所有來源進入 raw event store，保留原始事件與來源資訊，支援回放與補歷史。
 
-### 2. 感官層
-將 raw 資料轉換為可量化感官特徵，並提供 IC、穩定性與版本控制。
+### 2. 特徵層
+將 raw 資料轉換為可量化特徵特徵，並提供 IC、穩定性與版本控制。
 
 ### 3. 標籤層
 根據未來報酬建立多 horizon 標籤，並新增 sell-win 標籤作為主 KPI。
 
 ### 4. 模型層
-使用感官特徵做交易決策與賣出判斷，允許 abstain 與 regime-aware weights。
+使用特徵特徵做交易決策與賣出判斷，允許 abstain 與 regime-aware weights。
 
 ### 5. 回測層
-驗證不同感官組合、不同市場狀態與不同賣出閾值下的表現。
+驗證不同特徵組合、不同市場狀態與不同賣出閾值下的表現。
 
 ### 6. 可視化層
-顯示每個感官的 IC、勝率、風險貢獻、賣出勝率、回測摘要與會議整理。
+顯示每個特徵的 IC、勝率、風險貢獻、賣出勝率、回測摘要與會議整理。
 
 ---
 
@@ -62,17 +62,17 @@ Poly-Trader/
 │   ├── sense_effectiveness.py   ← IC / 分位數勝率 / regime analysis
 │   └── regime.py                ← 市場狀態分類（建議新增）
 ├── dashboard/
-│   └── app.py                   ← 儀表板（總覽 / 回測 / 感官 / 會議）
+│   └── app.py                   ← 儀表板（總覽 / 回測 / 特徵 / 會議）
 ├── server/
-│   └── senses.py                ← 感官引擎
+│   └── senses.py                ← 特徵引擎
 └── tests/
 ```
 
 ---
 
-## 感官架構 v4（建議）
+## 特徵架構 v4（建議）
 
-| # | 感官 | 特徵主軸 | 資料源 | 用途 |
+| # | 特徵 | 特徵主軸 | 資料源 | 用途 |
 |---|------|----------|--------|------|
 | 1 | Eye | 趨勢 / 方向 | K 線 / 報酬 | 判斷主方向 |
 | 2 | Ear | 波動 / 節奏 | K 線 / ATR | 判斷躁動 |
@@ -117,7 +117,7 @@ Poly-Trader/
 | id | INTEGER PK | 自增 ID |
 | timestamp | DATETIME | 時間戳 |
 | symbol | STRING | 交易對 |
-| feat_eye ~ feat_storm | FLOAT | 感官特徵 |
+| feat_eye ~ feat_storm | FLOAT | 特徵特徵 |
 | regime_label | STRING | trend / chop / panic / event |
 | feature_version | STRING | 特徵版本 |
 
@@ -207,8 +207,8 @@ Poly-Trader/
 
 | 端點 | 方法 | 說明 |
 |------|------|------|
-| `/api/senses` | GET | 所有感官分數 + 建議 |
-| `/api/senses/config` | GET/PUT | 感官配置 |
+| `/api/senses` | GET | 所有特徵分數 + 建議 |
+| `/api/senses/config` | GET/PUT | 特徵配置 |
 | `/api/recommendation` | GET | 交易建議 |
 | `/api/predict/confidence` | GET | 信心分層預測 |
 | `/api/backtest` | GET | 回測結果 |
@@ -232,17 +232,17 @@ Poly-Trader/
 
 ## 決策層補充
 
-在感官層與回測層之間，新增兩個關鍵控制點：
+在特徵層與回測層之間，新增兩個關鍵控制點：
 
 ### 7. 時間對齊層
-- 負責價格、感官、標籤的 timestamp 對齊。
+- 負責價格、特徵、標籤的 timestamp 對齊。
 - 支援 nearest-match 與資料窗覆蓋檢查。
 - 若樣本重疊不足，回傳明確 empty-state，而不是靜默空圖。
 
 ### 8. 模型校準層
 - 負責 confidence calibration、regime-aware model selection、abstain 門檻。
-- 用來區分「感官有效」與「模型輸出不準」。
-- 不可直接把感官分數當成最終推薦分數，需保留校準與版本資訊。
+- 用來區分「特徵有效」與「模型輸出不準」。
+- 不可直接把特徵分數當成最終推薦分數，需保留校準與版本資訊。
 
 ---
 
@@ -252,5 +252,5 @@ Poly-Trader/
 |------|------|------|
 | `/api/predict/confidence` | GET | 綜合信心預測與校準後信號 |
 | `/api/backtest` | GET | 回測結果與 sell_win_rate |
-| `/api/senses` | GET | 感官分數 + 建議 |
+| `/api/senses` | GET | 特徵分數 + 建議 |
 

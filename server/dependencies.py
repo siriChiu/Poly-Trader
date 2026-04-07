@@ -56,11 +56,10 @@ def init_dependencies():
     _db_session = init_db(db_url)
 
     # 注入 DB 到 SensesEngine
-    from server.senses import get_engine
+    from server.features_engine import get_engine
     engine = get_engine()
     engine.set_db(_db_session)
-
-    logger.info("Dependencies initialized (DB + SensesEngine)")
+    logger.info("Dependencies initialized (FeaturesEngine)")
 
 
 def get_db() -> SASession:

@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Poly-Trader API",
-    description="多感官量化交易系統 API",
+    description="多特徵量化交易系統 API",
     version="2.0.0",
     lifespan=lifespan,
 )

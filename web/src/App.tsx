@@ -7,7 +7,7 @@ import StrategyLab from './pages/StrategyLab'
 
 const NAV_ITEMS = [
   { to: '/', label: '📊 儀表板', end: true },
-  { to: '/senses', label: '🎛️ 感官管理' },
+  { to: '/senses', label: '🎛️ 特徵管理' },
   { to: '/backtest', label: '🔬 回測' },
   { to: '/lab', label: '🧪 策略實驗室' },
 ]

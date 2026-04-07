@@ -40,7 +40,7 @@
 - **OI**: 91,084 (⬆️ +2 vs #577 91,082)
 
 ## ✅ Tests & Execution
-- **Tests**: 6/6 PASS (檔案結構、語法9978文件、模組8/8引入、感官引擎、TypeScript、數據品質)
+- **Tests**: 6/6 PASS (檔案結構、語法9978文件、模組8/8引入、特徵引擎、TypeScript、數據品質)
 - **平行心跳**: 5/5 PASS (32.2s) — full_ic, regime_ic, dynamic_window, train, tests 全部通過
 
 ## 🔍 關鍵觀察

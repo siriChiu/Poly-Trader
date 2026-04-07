@@ -50,7 +50,7 @@ def run_rule_backtest(
     params: Dict,
     initial_capital: float = 10000.0,
 ) -> BacktestResult:
-    """純規則回測：bias50 + 感官條件 + 金字塔 + SL/TP。"""
+    """純規則回測：bias50 + 特徵條件 + 金字塔 + SL/TP。"""
     # ── 解包參數 ──
     entry = params.get("entry", {})
     bias50_max   = entry.get("bias50_max", -3.0)     # bias50 上限才進場

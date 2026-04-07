@@ -3,10 +3,10 @@
 Sensory ETF Manager — 動態權重 + 淘汰機制
 
 就像 ETF 追蹤指數一樣，這個模組自動：
-1. 計算每個感官的時間加權 IC (TW-IC)
+1. 計算每個特徵的時間加權 IC (TW-IC)
 2. 根據 IC 分級分配 ETF 權重
-3. 淘汰連續失敗的感官
-4. 追蹤新增感官的表現
+3. 淘汰連續失敗的特徵
+4. 追蹤新增特徵的表現
 
 分級標準：
 - A+ (|TW-IC| >= 0.15): 3x weight — 高價值核心信號
@@ -17,8 +17,8 @@ Sensory ETF Manager — 動態權重 + 淘汰機制
 
 淘汰規則：
 - 連續 3 個心跳 D 級 → disabled=True
-- 新增感官從 probation 狀態開始，需要 2 個心跳證明
-- 已淘汰的感官每 50 個心跳重新評估一次 IC
+- 新增特徵從 probation 狀態開始，需要 2 個心跳證明
+- 已淘汰的特徵每 50 個心跳重新評估一次 IC
 """
 import json
 import math
@@ -42,7 +42,7 @@ TAU = 200  # TW-IC decay constant (same as predictor.py)
 
 
 class SensoryETF:
-    """Sensory ETF — 管理 20 個感官的動態權重與淘汰。"""
+    """Sensory ETF — 管理 20 個特徵的動態權重與淘汰。"""
 
     def __init__(self):
         self.registry = self._load(ETF_REGISTRY_FILE, {"senses": {}, "hb_number": 0})
@@ -82,7 +82,7 @@ class SensoryETF:
     def get_weight(tier: str) -> float:
         return TIER_WEIGHTS.get(tier, 0.0)
 
-    # ---- 感官註冊 ----
+    # ---- 特徵註冊 ----
     def register(self, name: str, source: str = "", description: str = "",
                  ic_sign_important: bool = False, is_probation: bool = False):
         if name in self.registry["senses"]:

@@ -1,6 +1,6 @@
-"""
-WebSocket 路由：即時推送多感官數據、交易信號
-"""
+
+# WebSocket 路由：即時推送多特徵數據、交易信號
+
 
 import asyncio
 import json
@@ -55,7 +55,7 @@ class WsManager:
             return {}
 
     async def data_push_loop(self):
-        """後台任務：定期收集多感官數據並廣播"""
+        """後台任務：定期收集多特徵數據並廣播"""
         while True:
             try:
                 if self.clients:
@@ -95,11 +95,11 @@ class WsManager:
             await asyncio.sleep(60)
 
     def _features_to_scores(self, features: Dict) -> Dict[str, float]:
-        """特徵轉 0~1 分數 — 使用與 senses.py 一致的 ECDF 歸一化"""
-        from server.senses import normalize_feature
+        """特徵轉 0~1 分數 — 使用與 features_engine.py 一致的 ECDF 歸一化"""
+        from server.features_engine import normalize_feature
 
         # Correct mapping: DB column names match the feature keys now
-        all_senses = {
+        all_feats = {
             "eye": normalize_feature(features.get("feat_eye"), "feat_eye"),
             "ear": normalize_feature(features.get("feat_ear"), "feat_ear"),
             "nose": normalize_feature(features.get("feat_nose"), "feat_nose"),
@@ -123,7 +123,7 @@ class WsManager:
             "4h_ma_order": normalize_feature(features.get("feat_4h_ma_order"), "feat_4h_ma_order"),
             "4h_dist_sl": normalize_feature(features.get("feat_4h_dist_swing_low"), "feat_4h_dist_swing_low"),
         }
-        return all_senses
+        return all_feats
 
 
 # 全局實例
