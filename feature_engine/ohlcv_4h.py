@@ -407,13 +407,15 @@ def backtest_4h_strategy(candles: dict, strategy_signals: list) -> dict:
 def generate_sell_signals_from_4h(candles: dict) -> list:
     """根據 4H 指標生成 SELL 信號。
     
-    做空條件（符合越多越好，至少 3 項）：
-    1. 價格在 MA20 附近或以內 1%（接近短期阻力）
-    2. MACD histogram < 0（空頭動能）
-    3. RSI14 在 40-70 之間（不超賣也不超買）
-    4. 布林 %B 在 0.5-0.9（在上半部但沒破頂）
-    5. 價格在 MA50 以上（有下跌空間）
-    6. 距離最近 swing high < 1%（接近阻力位）
+    做多條件 — 這是做空(SELL/SHORT)策略，找「反彈到阻力位做空」的時機：
+    核心邏輯: 趨勢下跌中, 價格反彈到 MA20/MA50 受阻 → 做空
+    
+    做空條件（符合越多越好，但至少 3 項）：
+    1. MA20 < MA50 (中期空頭排列) 或 價格 < MA50
+    2. MACD histogram < 0
+    3. RSI14 < 50 (非多頭)
+    4. 布林 %B < 0.5
+    5. 乖離率 bias50 < 0 (價格在 MA50 以下)
     """
     indicators = compute_4h_indicators(candles)
     n = len(candles["closes"])
@@ -428,34 +430,37 @@ def generate_sell_signals_from_4h(candles: dict) -> list:
         bias50 = indicators.get("4h_bias50", [0] * n)
         bias20 = indicators.get("4h_bias20", [0] * n)
         bb_pct = indicators.get("4h_bb_pct_b", [0.5] * n)
-        dist_swing_high = indicators.get("4h_dist_swing_high", indicators.get("4h_dist_swing_low", [0] * n))
-        ma20 = indicators.get("4h_ma20", closes_i)
-        ma50 = indicators.get("4h_ma50", closes_i)
+        swing_low = indicators.get("4h_swing_low", [0] * n)
         
-        # Count conditions
+        # Count conditions — all bearish
         score = 0
         
-        # 1. MACD histogram < 0 (bearish momentum)
+        # 1. MA20 < MA50 (downtrend alignment) — 最重要的訊號
+        ma20_arr = indicators.get("4h_ma20", np.zeros(n))
+        ma50_arr = indicators.get("4h_ma50", np.zeros(n))
+        if i >= 50 and ma20_arr[i] > 0 and ma50_arr[i] > 0:
+            if ma20_arr[i] < ma50_arr[i]:
+                score += 2  # Downtrend = strong signal for short
+            elif closes_i < ma50_arr[i]:
+                score += 1
+        
+        # 2. MACD histogram < 0 (bearish momentum)
         if macd_hist[i] < 0:
             score += 1
         
-        # 2. RSI between 40-70 (not oversold, not overbought)
-        if 40 <= rsi[i] <= 70:
+        # 3. RSI < 50 (not bullish)
+        if rsi[i] < 50:
             score += 1
         
-        # 3. Price above MA50 but bias50 < 3% (room to fall)
-        if bias50[i] > 0 and bias50[i] < 3:
+        # 4. Bollinger %B < 0.5 (lower half)
+        if bb_pct[i] < 0.5:
             score += 1
         
-        # 4. Bollinger %B in upper half (0.5-0.9)
-        if 0.5 <= bb_pct[i] <= 0.9:
+        # 5. Bias50 < 0 (price below MA50)
+        if bias50[i] < 0:
             score += 1
         
-        # 5. Price close to MA20 (within 1%)
-        if abs(bias20[i]) < 1.5:
-            score += 1
-        
-        # Need at least 3 out of 5 conditions
+        # Need at least 3 out of ~6 conditions
         if score >= 3:
             signals.append((i, "SELL"))
     

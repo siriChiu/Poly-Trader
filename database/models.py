@@ -102,6 +102,15 @@ class FeaturesNormalized(Base):
     feat_scales_ssr = Column(Float, nullable=True)
     feat_nest_pred = Column(Float, nullable=True)
 
+    # --- 4H timeframe features (support line + bias strategy) ---
+    feat_4h_bias50 = Column(Float, nullable=True)       # 4H 乖離率 (價格 vs MA50, %)
+    feat_4h_bias20 = Column(Float, nullable=True)       # 4H 乖離率 (價格 vs MA20, %)
+    feat_4h_rsi14 = Column(Float, nullable=True)        # 4H RSI 14
+    feat_4h_macd_hist = Column(Float, nullable=True)    # 4H MACD histogram
+    feat_4h_bb_pct_b = Column(Float, nullable=True)     # 4H Bollinger %B
+    feat_4h_ma_order = Column(Float, nullable=True)     # 4H MA alignment (+1=多頭/-1=空頭)
+    feat_4h_dist_swing_low = Column(Float, nullable=True)  # 4H 距最近 swing low 距離 (%)
+
     # --- Backward-compatible aliases for legacy callers/tests ---
     @property
     def feat_eye_dist(self):
@@ -214,6 +223,14 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
         ("feat_web_whale", "REAL"),
         ("feat_scales_ssr", "REAL"),
         ("feat_nest_pred", "REAL"),
+        # 4H timeframe features
+        ("feat_4h_bias50", "REAL"),
+        ("feat_4h_bias20", "REAL"),
+        ("feat_4h_rsi14", "REAL"),
+        ("feat_4h_macd_hist", "REAL"),
+        ("feat_4h_bb_pct_b", "REAL"),
+        ("feat_4h_ma_order", "REAL"),
+        ("feat_4h_dist_swing_low", "REAL"),
     ),
     "trade_history": (
         ("gross_pnl", "REAL"),
