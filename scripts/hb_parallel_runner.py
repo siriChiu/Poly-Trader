@@ -20,6 +20,8 @@ TASKS = [
      "cmd": [PYTHON, "scripts/regime_aware_ic.py"]},
     {"name": "4h_signal", "label": "🔮 4H Signal",
      "cmd": [PYTHON, "scripts/heartbeat_4h.py"]},
+    {"name": "combined_strategy", "label": "🚀 4H+感官 組合策略",
+     "cmd": [PYTHON, "scripts/combined_4h_sensory.py"]},
     {"name": "dynamic_window", "label": "📏 Dynamic Window",
      "cmd": [PYTHON, "scripts/dynamic_window_train.py"]},
     {"name": "train", "label": "🔨 Model Train",
@@ -151,6 +153,15 @@ def parse_4h_signal():
         return json.load(f)
 
 
+def parse_combined_strategy():
+    """Parse combined 4H+sensory strategy result."""
+    result_path = os.path.join(PROJECT_ROOT, 'scripts', 'combined_signal.json')
+    if not os.path.exists(result_path):
+        return None
+    with open(result_path) as f:
+        return json.load(f)
+
+
 def parse_train_output(stdout):
     """Parse model training results."""
     result = {"train_acc": None, "cv_acc": None, "gap": None, "n_features": 0, "n_samples": 0}
@@ -224,7 +235,7 @@ def main():
         tasks = [t for t in tasks if t["name"] != "dynamic_window"]
 
     if args.fast:
-        tasks = [t for t in tasks if t["name"] in ["full_ic", "regime_ic"]]
+        tasks = [t for t in tasks if t["name"] in ["full_ic", "regime_ic", "combined_strategy"]]
 
     # Run in parallel
     print(f"🚀 Launching {len(tasks)} tasks in parallel...")
@@ -276,7 +287,7 @@ def main():
     pass_count = sum(1 for r in results.values() if r["success"])
     print(f"  平行任務: {pass_count}/{len(results)} PASS ({elapsed:.1f}s)")
 
-    # 4H Signal (new)
+    # 4H Signal
     if signal_4h:
         sig = signal_4h.get("signal", "N/A")
         conf = signal_4h.get("confidence_level", "")
@@ -291,6 +302,20 @@ def main():
                   f"RR=1:{signal_4h.get('rr_ratio',0)}")
         if "reason" in signal_4h:
             print(f"     {signal_4h['reason']}")
+
+    # Combined 4H + Sensory Strategy
+    combined = parse_combined_strategy()
+    if combined:
+        csig = combined.get("signal", "N/A")
+        strn = combined.get("strength", 0)
+        urg = combined.get("urgency", "NONE")
+        cprice = combined.get("price", 0)
+        cmsg = combined.get("message", "")
+        d4h = combined.get("4h", {})
+        print(f"  🚀 組合策略: {csig} (強度={strn:.0%}, 緊急={urg}) | Price=${cprice:,.0f}")
+        print(f"     4H: {d4h.get('direction', 'N/A')} | bias50={d4h.get('bias50','?')}% | MACD={d4h.get('macd_hist','?')}")
+        if cmsg:
+            print(f"     {cmsg}")
 
     # Test status
     if test_result.get("total", 0) > 0:
@@ -331,6 +356,7 @@ def main():
         "ic": ic_result,
         "regime": regime_result,
         "signal_4h": signal_4h,
+        "combined_strategy": combined,
         "dynamic_window": dw_result,
         "train": train_result,
         "tests": test_result,
