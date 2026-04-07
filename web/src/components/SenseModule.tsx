@@ -55,11 +55,14 @@ export default function SenseModule({
             <div className="text-xs text-slate-500">{source}</div>
           </div>
         </div>
-        <div className="text-right">
-          {value !== null ? (
-            <span className="text-sm font-mono" style={{ color }}>
-              {(value * 100).toFixed(1)}
-            </span>
+        <div className="text-right text-sm font-mono" style={{ color }}>
+          {value === null ? (
+            <span className="text-xs text-slate-600">—</span>
+          ) : Number.isFinite(value) ? (
+            Math.abs(value) > 10000 ? (value/1000).toFixed(1)+"k" :
+            Math.abs(value) >= 100 ? value.toFixed(0) :
+            Math.abs(value) >= 1 ? value.toFixed(2) :
+            (value * 100).toFixed(1)
           ) : (
             <span className="text-xs text-slate-600">—</span>
           )}
