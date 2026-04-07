@@ -91,18 +91,13 @@ def generate_future_return_labels(
                 max_runup = None
         else:
             max_drawdown = None
-            max_runup = None
-        # Core definition: sell-win means SHORT is profitable = price goes DOWN
-        # P0: Use max_drawdown to validate sell_win — the endpoint must drop below threshold
-        # AND the price must have made a significant drawdown during the horizon.
-        # This filters out weak/flat signals and ensures both entry timing and direction are correct.
-        endpoint_drop = ret_pct < -threshold_pct
-        # sell_win = 1 only if endpoint dropped below threshold
-        # (drawdown is validated via future_max_drawdown for analysis, not for labeling)
-        if endpoint_drop:
+        # P0 Fix #SELL_WIN: Spot LONG strategy — sell_win means price goes UP.
+        # Previously was SHORT definition (price drops = win), giving ~40% sell_win.
+        # Now: sell_win=1 when ret_pct > threshold_pct (LONG profitable).
+        if ret_pct > threshold_pct:
             label = 1
             sell_win = 1
-        elif ret_pct > threshold_pct:
+        elif ret_pct < -threshold_pct:
             label = -1
             sell_win = 0
         else:
@@ -124,21 +119,22 @@ def generate_future_return_labels(
     logger.info(f"標籤生成完成：共 {len(df)} 筆，分佈={dist}")
     return df
 
-def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "BTCUSDT", horizon_hours: int = 1):
+def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "BTCUSDT", horizon_hours: int = 1, force_update_all: bool = False):
     """
     將標籤寫入 labels 表（upsert：相同 timestamp+symbol+horizon_hours 則更新）。
     修復：原本此函數為 no-op，導致 labels 表不更新。(fix #H61 2026-04-02)
-    P0 fix: 自動填入 regime_label（從 features_normalized），不再產生 NULL。(fix #H381)
+    P0 fix: 自動填入 regime_label(從 features_normalized)，不再產生 NULL。(fix #H381)
+    P0 force_update_all: 更新所有現有標籤（用於 sell_win 定義修正後全面重建）。(fix #SELL_WIN_40)
     """
     if labels_df.empty:
         logger.warning("save_labels_to_db: 空 DataFrame，跳過寫入")
         return
 
-    # 建立 timestamp → regime_label 映射（從 features_normalized）
+    # 建立 timestamp → regime_label 映射(從 features_normalized)
     feature_rows = session.query(FeaturesNormalized.timestamp, FeaturesNormalized.regime_label).all()
     regime_map = {str(r.timestamp): r.regime_label for r in feature_rows if r.regime_label is not None}
 
-    # 取得現有行（包含 NULL 的需要更新，已有值的跳過）
+    # 取得現有行
     existing_rows = {
         str(r.timestamp): r for r in session.query(Labels)
         .filter(Labels.symbol == symbol, Labels.horizon_minutes == horizon_hours)
@@ -156,7 +152,15 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
         if ts_str in existing_rows:
             existing = existing_rows[ts_str]
             needs_update = False
-            if existing.future_return_pct is None and fut_ret is not None:
+            if force_update_all:
+                # P0 #SELL_WIN_40: 強制更新所有標籤
+                existing.label_sell_win = int(row.get("label_sell_win", 0))
+                existing.label_up = int(row.get("label_up", 0))
+                existing.future_return_pct = float(fut_ret) if fut_ret is not None else existing.future_return_pct
+                existing.future_max_drawdown = float(row.get("future_max_drawdown") or 0)
+                existing.future_max_runup = float(row.get("future_max_runup") or 0)
+                needs_update = True
+            elif existing.future_return_pct is None and fut_ret is not None:
                 # 更新 NULL label：現在有未來數據了
                 existing.future_return_pct = float(fut_ret)
                 existing.label_sell_win = int(row.get("label_sell_win", 0))
@@ -188,7 +192,10 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
         new_count += 1
 
     session.commit()
-    logger.info(f"save_labels_to_db: 新增 {new_count} 筆，更新 {update_count} 筆 NULL labels（共 {len(labels_df)} 筆輸入）")
+    if force_update_all:
+        logger.info(f"save_labels_to_db: 新增 {new_count} 筆，強制更新 {update_count} 筆（共 {len(labels_df)} 筆輸入）")
+    else:
+        logger.info(f"save_labels_to_db: 新增 {new_count} 筆，更新 {update_count} 筆 NULL labels（共 {len(labels_df)} 筆輸入）")
 
 if __name__ == "__main__":
     print("Labeling module loaded. Use generate_future_return_labels()")

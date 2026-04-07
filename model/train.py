@@ -44,6 +44,12 @@ FEATURE_COLS = [
 ]
 LAG_STEPS = [12, 48, 288]
 BASE_FEATURE_COLS = FEATURE_COLS
+CROSS_FEATURES = [
+    "feat_vix_x_eye", "feat_vix_x_pulse", "feat_vix_x_mind",
+    "feat_mind_x_pulse", "feat_eye_x_ear", "feat_nose_x_aura",
+    "feat_eye_x_body", "feat_ear_x_nose", "feat_mind_x_aura",
+    "feat_regime_flag", "feat_mean_rev_proxy",
+]
 
 REGIME_THRESHOLD_BIAS = {
     'trend': -0.03,
@@ -503,18 +509,17 @@ def run_training(session: Session, regime_filter: Optional[list] = None) -> bool
     return True
 
 
-def train_regime_models(session: Session) -> bool:
-    """Train one XGBoost model per market regime (bear/bull/chop/neutral).
-    Addresses P0 #H122 / #H301: global model CV ~52% because different regimes
-    have different signal patterns. Regime-aware training should lift per-regime CV.
+def train_regime_models(session: Session) -> dict:
+    """Train one XGBoost model per market regime with per-regime params and walk-forward CV.
+    Addresses P0 #CV_CEILING and #BULL_CHOP_DEAD: global model CV stuck ~51% because
+    one model tries to fit conflicting signal patterns across regimes.
+    Each regime gets optimized hyperparameters and a walk-forward CV score.
+    Returns dict: {regime: {cv_accuracy, train_accuracy, n_samples, params}}
     """
-    logger.info("開始訓練 Regime-Specific XGBoost 模型...")
-    loaded = load_training_data(session, min_samples=50)
-    if loaded is None:
-        logger.warning("訓練資料不足，跳過 regime-specific 訓練")
-        return False
+    from sklearn.model_selection import TimeSeriesSplit
+    from itertools import product
+    logger.info("開始訓練 Regime-Specific XGBoost 模型 (per-regime params + walk-forward CV)...")
 
-    # Re-load with regime info (also filter by horizon_minutes=720)
     feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
     label_rows = (
         session.query(Labels)
@@ -523,12 +528,14 @@ def train_regime_models(session: Session) -> bool:
         .order_by(Labels.timestamp)
         .all()
     )
+    if not feat_rows or not label_rows:
+        logger.warning("訓練資料不足，跳過 regime-specific 訓練")
+        return {}
 
     feat_df = pd.DataFrame([_feature_row(r) for r in feat_rows])
     label_df = pd.DataFrame([{
         "timestamp": r.timestamp,
         "label_sell_win": int(r.label_sell_win),
-        "label_up": int(r.label_up) if r.label_up is not None else None,
         "future_return_pct": float(r.future_return_pct) if r.future_return_pct is not None else None,
         "future_max_drawdown": float(r.future_max_drawdown) if r.future_max_drawdown is not None else None,
         "future_max_runup": float(r.future_max_runup) if r.future_max_runup is not None else None,
@@ -545,9 +552,9 @@ def train_regime_models(session: Session) -> bool:
         direction="nearest",
         tolerance=pd.Timedelta("10min"),
     )
-    merged = merged.dropna(subset=["label_sell_win"]).copy()
+    merged = merged.dropna(subset=["label_sell_win"]).copy().sort_values("timestamp").reset_index(drop=True)
 
-    # Handle merge suffix for regime_label (both sides may have it)
+    # Handle merge suffix for regime_label
     if "regime_label" not in merged.columns:
         if "regime_label_y" in merged.columns:
             merged["regime_label"] = merged["regime_label_y"]
@@ -556,25 +563,21 @@ def train_regime_models(session: Session) -> bool:
         else:
             merged["regime_label"] = "neutral"
 
-    # Build feature columns (same as global)
+    # Build feature columns
     for col in BASE_FEATURE_COLS:
         for lag in LAG_STEPS:
             lag_col = f"{col}_lag{lag}"
             merged[lag_col] = merged[col].shift(lag)
 
     all_feat_cols = FEATURE_COLS + [f"{c}_lag{l}" for c in BASE_FEATURE_COLS for l in LAG_STEPS]
-    CROSS_FEATURES_LOCAL = [
-        "feat_vix_x_eye", "feat_vix_x_pulse", "feat_vix_x_mind",
-        "feat_mind_x_pulse", "feat_eye_x_ear", "feat_nose_x_aura",
-        "feat_eye_x_body", "feat_ear_x_nose", "feat_mind_x_aura",
-        "feat_mean_rev_proxy",
-        # P0: Disabled — base features (claw, fang, fin, nq) have <500 samples
-        # "feat_claw_x_pulse", "feat_fang_x_vix",
-        # "feat_fin_x_claw", "feat_web_x_fang", "feat_nq_x_vix",
-    ]
     for col in all_feat_cols:
         merged[col] = pd.to_numeric(merged[col], errors='coerce')
+    # 4H features: ffill
+    FILL4H = [c for c in FEATURE_COLS if c.startswith('feat_4h_')]
+    for col in FILL4H:
+        merged[col] = merged[col].ffill().fillna(merged[col].median())
     merged[all_feat_cols] = merged[all_feat_cols].fillna(0.0)
+
     # Cross features
     merged["feat_vix_x_eye"] = merged["feat_vix"] * merged["feat_eye"]
     merged["feat_vix_x_pulse"] = merged["feat_vix"] * merged["feat_pulse"]
@@ -586,21 +589,49 @@ def train_regime_models(session: Session) -> bool:
     merged["feat_ear_x_nose"] = merged["feat_ear"] * merged["feat_nose"]
     merged["feat_mind_x_aura"] = merged["feat_mind"] * merged["feat_aura"]
     merged["feat_mean_rev_proxy"] = merged["feat_mind"] - merged["feat_aura"]
-    # P0: Disabled cross-features removed — base features have <500 samples
 
-    X_cols = all_feat_cols + CROSS_FEATURES_LOCAL
-    # Defensive: only include columns that actually exist in merged (avoids KeyError)
-    X_cols = [c for c in X_cols if c in merged.columns]
+    X_cols = [c for c in all_feat_cols + CROSS_FEATURES if c in merged.columns]
 
-    regime_models = {}
-    params = {
-        "n_estimators": 200, "max_depth": 3, "learning_rate": 0.05,
-        "subsample": 0.8, "colsample_bytree": 0.8,
-        "reg_alpha": 2.0, "reg_lambda": 6.0, "min_child_weight": 10, "gamma": 0.2,
-        "objective": "binary:logistic", "eval_metric": "logloss", "random_state": 42,
+    # === Per-regime param grids (tuned for sample size and signal characteristics) ===
+    regime_param_grids = {
+        'bear': {
+            # Bear: aggressive regularization (fewer samples, noisy signals)
+            'max_depth': [2],
+            'learning_rate': [0.02, 0.03],
+            'reg_lambda': [15, 20],
+            'min_child_weight': [30, 40],
+        },
+        'bull': {
+            # Bull: moderate params (trend signals are clearer but still noisy)
+            'max_depth': [3],
+            'learning_rate': [0.03, 0.05],
+            'reg_lambda': [8, 12],
+            'min_child_weight': [15, 20],
+        },
+        'chop': {
+            # Chop: very aggressive regularization (choppy = high noise, low signal)
+            'max_depth': [2],
+            'learning_rate': [0.01, 0.02],
+            'reg_lambda': [25, 30],
+            'min_child_weight': [50, 60],
+        },
     }
 
-    for regime in ['bear', 'bull', 'chop']:
+    base_params = {
+        "n_estimators": 300,
+        "subsample": 0.7,
+        "colsample_bytree": 0.6,
+        "reg_alpha": 5.0,
+        "gamma": 0.3,
+        "objective": "binary:logistic",
+        "eval_metric": "logloss",
+        "random_state": 42,
+    }
+
+    regime_models = {}
+    regime_stats = {}
+
+    for regime, param_grid in regime_param_grids.items():
         regime_mask = merged['regime_label'] == regime
         regime_data = merged[regime_mask].copy()
         n = len(regime_data)
@@ -611,44 +642,88 @@ def train_regime_models(session: Session) -> bool:
         X_r = regime_data[X_cols].fillna(0.0)
         y_r = regime_data["label_sell_win"].astype(int)
 
+        param_lists = list(product(
+            param_grid.get('max_depth', [base_params.get('max_depth', 3)]),
+            param_grid.get('learning_rate', [base_params.get('learning_rate', 0.03)]),
+            param_grid.get('reg_lambda', [base_params.get('reg_lambda', 10)]),
+            param_grid.get('min_child_weight', [base_params.get('min_child_weight', 20)])
+        ))
+
+        best_cv = -1
+        best_params = None
+        best_cv_scores = []
+
+        # Walk-forward CV with expanding window
+        n_val = max(int(n * 0.15), 50)
+        n_train_min = max(int(n * 0.4), 100)
+        step = max(int(n * 0.08), 20)
+
+        logger.info(f"Regime {regime}: testing {len(param_lists)} param combos, n={n}")
+
+        for md, lr, rl, mcw in param_lists:
+            test_params = {**base_params,
+                          "max_depth": md, "learning_rate": lr,
+                          "reg_lambda": rl, "min_child_weight": mcw}
+
+            cv_scores = []
+            start = n_train_min
+            while start + n_val <= n:
+                y_tr = y_r.iloc[:start]
+                y_te = y_r.iloc[start:start+n_val]
+                if len(y_tr.unique()) < 2:
+                    start += step
+                    continue
+                X_tr = X_r.iloc[:start]
+                X_te = X_r.iloc[start:start+n_val]
+                sw = compute_sample_weight("balanced", y_tr)
+                m = xgb.XGBClassifier(**test_params)
+                m.fit(X_tr, y_tr, sample_weight=sw)
+                acc = float((m.predict(X_te) == y_te).mean())
+                cv_scores.append(acc)
+                start += step
+
+            if cv_scores:
+                mean_cv = float(np.mean(cv_scores))
+                if mean_cv > best_cv:
+                    best_cv = mean_cv
+                    best_params = test_params
+                    best_cv_scores = cv_scores
+
+        # Train final model on all data with best params
         sample_weight = compute_sample_weight("balanced", y_r)
-        model_r = xgb.XGBClassifier(**params)
+        model_r = xgb.XGBClassifier(**best_params)
         model_r.fit(X_r, y_r, sample_weight=sample_weight)
 
         train_acc = float((model_r.predict(X_r) == y_r).mean())
+        pos_ratio = float(y_r.mean())
 
-        # TimeSeriesSplit CV
-        try:
-            from sklearn.model_selection import TimeSeriesSplit
-            tscv = TimeSeriesSplit(n_splits=3)
-            cv_scores = []
-            for _tr, _te in tscv.split(X_r):
-                y_tr = y_r.iloc[_tr]
-                if len(y_tr.unique()) < 2:
-                    continue
-                m = xgb.XGBClassifier(**{k: v for k, v in model_r.get_params().items()})
-                m.fit(X_r.iloc[_tr], y_tr, sample_weight=compute_sample_weight("balanced", y_tr))
-                cv_scores.append(float((m.predict(X_r.iloc[_te]) == y_r.iloc[_te]).mean()))
-            cv_acc = float(np.mean(cv_scores)) if cv_scores else float('nan')
-        except Exception as e:
-            cv_acc = float('nan')
-            logger.warning(f"Regime {regime} CV failed: {e}")
-
-        reg_payload = {
+        regime_models[regime] = {
             'clf': model_r, 'feature_names': X_cols,
             'neg_ic_feats': [], 'calibration': {'kind': 'none'},
             'regime_threshold_bias': REGIME_THRESHOLD_BIAS,
+            'best_params': best_params,
         }
-        regime_models[regime] = reg_payload
-        logger.info(f"Regime {regime} model: Train={train_acc:.4f}, CV={cv_acc:.4f}, n={n}")
+        regime_stats[regime] = {
+            'cv_accuracy': round(best_cv, 4),
+            'train_accuracy': round(train_acc, 4),
+            'n_samples': n,
+            'pos_ratio': round(pos_ratio, 4),
+            'cv_folds': len(best_cv_scores),
+        }
+        logger.info(f"  {regime}: Train={train_acc:.3f}, WF-CV={best_cv:.3f}, n={n}, pos={pos_ratio:.3f}, params={best_params}")
 
     if regime_models:
         os.makedirs("model", exist_ok=True)
         with open("model/regime_models.pkl", "wb") as f:
             pickle.dump(regime_models, f)
-        logger.info(f"Regime-specified models saved: {list(regime_models.keys())}")
-        return True
-    return False
+        # Save stats
+        stats_path = "model/regime_stats.json"
+        with open(stats_path, "w") as f:
+            json.dump(regime_stats, f, indent=2)
+        logger.info(f"Regime models saved: {list(regime_stats.keys())}")
+        for r, s in regime_stats.items():
+            logger.info(f"  {r}: {s}")
+    return regime_stats
 
 
 def main():
@@ -680,7 +755,7 @@ def main():
                 metrics.get("cv_accuracy", "?"),
                 metrics.get("cv_std", "?")))
         print("Training regime models...")
-        train_regime_models(session)
+        regime_stats = train_regime_models(session)
         rpath = str(Path(__file__).parent / "regime_models.pkl")
         if os.path.exists(rpath):
             with open(rpath, "rb") as f:
@@ -688,6 +763,10 @@ def main():
             for r in rm:
                 n = len(rm[r].get("feature_names", []))
                 print("  {}: {} features saved".format(r, n))
+        if regime_stats:
+            for r, s in regime_stats.items():
+                print("  {}: CV={} Train={} n={}".format(
+                    r, s.get("cv_accuracy", "?"), s.get("train_accuracy", "?"), s.get("n_samples", "?")))
         print("Training complete.")
         return True
     finally:
