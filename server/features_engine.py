@@ -252,19 +252,43 @@ class FeaturesEngine:
             )
             if row is None:
                 return config
-            # Merge live values
-            from server.features_engine import FEATURE_MAP, get_raw_and_scores
-            raw_result = get_raw_and_scores(row)
-            raw_all = raw_result.get('raw_all', {})
-            scores = raw_result.get('scores', {})
+            # If 4H features are null in the latest row, find one with data
+            has_4h = getattr(row, 'feat_4h_bias50', None) is not None
+            if not has_4h:
+                row_with_4h = (
+                    self._db.query(FeaturesNormalized)
+                    .filter(FeaturesNormalized.feat_4h_bias50.isnot(None))
+                    .order_by(FeaturesNormalized.timestamp.desc())
+                    .first()
+                )
+                if row_with_4h:
+                    # Merge: scores from latest row, raw values from row with 4H
+                    latest_raw = get_raw_and_scores(row)
+                    full_raw = get_raw_and_scores(row_with_4h)
+                    # Use scores from latest, raw_all from 4H row for 4H keys
+                    merged_raw = {**latest_raw.get('raw_all', {}), **{k:v for k,v in full_raw.get('raw_all', {}).items() if v is not None and latest_raw.get('raw_all',{}).get(k) is None}}
+                    scores = latest_raw.get('scores', {})
+                    # Override 4H scores from the 4H row
+                    for k, v in full_raw.get('scores', {}).items():
+                        if k.startswith('4h_'):
+                            scores[k] = v
+                else:
+                    raw_result = get_raw_and_scores(row)
+                    merged_raw = raw_result.get('raw_all', {})
+                    scores = raw_result.get('scores', {})
+            else:
+                raw_result = get_raw_and_scores(row)
+                merged_raw = raw_result.get('raw_all', {})
+                scores = raw_result.get('scores', {})
+
             for fe_key, entry in config.items():
                 # Update score
                 if fe_key in scores:
                     entry['score'] = scores[fe_key]
                 # Update module value with raw DB value
-                if fe_key in raw_all and 'modules' in entry:
+                if fe_key in merged_raw and 'modules' in entry:
                     for mod_key, mod in entry['modules'].items():
-                        mod['value'] = raw_all[fe_key]
+                        mod['value'] = merged_raw[fe_key]
         except Exception as e:
             logger.error(f"get_config live merge failed: {e}")
         return config
