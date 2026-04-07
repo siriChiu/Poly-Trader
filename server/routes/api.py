@@ -218,22 +218,55 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
         import traceback; traceback.print_exc()
         return {"error": str(e), "total_trades": 0, "equity_curve": [], "trades": []}
 
+ALL_FEATURE_KEYS = [
+    # 8 Core
+    "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
+    "feat_body", "feat_pulse", "feat_aura", "feat_mind",
+    # 2 Macro
+    "feat_vix", "feat_dxy",
+    # 5 Technical
+    "feat_rsi14", "feat_macd_hist", "feat_atr_pct", "feat_vwap_dev", "feat_bb_pct_b",
+    # 7 4H
+    "feat_4h_bias50", "feat_4h_bias20", "feat_4h_rsi14", "feat_4h_macd_hist",
+    "feat_4h_bb_pct_b", "feat_4h_ma_order", "feat_4h_dist_swing_low",
+]
+
+def _normalize_for_api(val, key):
+    """Normalize feature to 0~1 range for API (same ranges used by senses)."""
+    import math
+    if val is None:
+        return None
+    val = float(val)
+    # 4H features have different scales
+    if key.startswith("feat_4h_bias"):
+        return 1.0 / (1.0 + math.exp(-val))  # sigmoid for bias (%)
+    if key == "feat_4h_ma_order":
+        return (val + 1) / 2  # -1~1 → 0~1
+    if key == "feat_4h_dist_swing_low":
+        return 1.0 / (1.0 + math.exp(val - 2))  # lower dist = higher prob near support
+    if key == "feat_4h_rsi14":
+        return val / 100.0  # 0~100 → 0~1
+    if key == "feat_4h_macd_hist":
+        return 1.0 / (1.0 + math.exp(-val / 100))  # sigmoid with scale
+    if key == "feat_4h_bb_pct_b":
+        return val  # already 0~1
+    # Core senses: assume -1~1 or similar, use sigmoid as safe normalization
+    return 1.0 / (1.0 + math.exp(-val))
+
+
 @router.get("/features")
 async def api_features(days: int = Query(default=7, ge=1, le=90)):
     db = get_db()
     since = datetime.utcnow() - timedelta(days=days)
     rows = db.query(FeaturesNormalized).filter(FeaturesNormalized.timestamp >= since).order_by(FeaturesNormalized.timestamp).all()
-    from server.senses import normalize_feature
-    return [{"timestamp": r.timestamp.isoformat() if r.timestamp else None,
-        "feat_eye_dist": normalize_feature(r.feat_eye_dist, "feat_eye_dist"),
-        "feat_ear_zscore": normalize_feature(r.feat_ear_zscore, "feat_ear_zscore"),
-        "feat_nose_sigmoid": normalize_feature(r.feat_nose_sigmoid, "feat_nose_sigmoid"),
-        "feat_tongue_pct": normalize_feature(r.feat_tongue_pct, "feat_tongue_pct"),
-        "feat_body_roc": normalize_feature(r.feat_body_roc, "feat_body_roc"),
-        "feat_pulse": normalize_feature(getattr(r, "feat_pulse", None), "feat_pulse"),
-        "feat_aura": normalize_feature(getattr(r, "feat_aura", None), "feat_aura"),
-        "feat_mind": normalize_feature(getattr(r, "feat_mind", None), "feat_mind"),
-    } for r in rows]
+    result = []
+    for r in rows:
+        obj = {"timestamp": r.timestamp.isoformat() if r.timestamp else None}
+        for key in ALL_FEATURE_KEYS:
+            raw_val = getattr(r, key, None) if hasattr(r, key) else None
+            obj[key] = _normalize_for_api(raw_val, key)
+        result.append(obj)
+    return result
 
 
 @router.get("/model/stats")
@@ -241,11 +274,14 @@ async def api_model_stats():
     """返回模型準確率、IC 值等統計資訊，供 Web 顯示"""
     import os, pickle, numpy as np
     from model.train import FEATURE_COLS
+    from model.predictor import BASE_FEATURE_COLS as PREDICTOR_FEATURES
     from model.predictor import MODEL_PATH
     from database.models import Labels, FeaturesNormalized
     from sqlalchemy import text
 
     db = get_db()
+    # Use full feature list from predictor (includes 4H)
+    all_features = PREDICTOR_FEATURES
     stats = {
         "model_loaded": False,
         "sample_count": 0,
@@ -253,7 +289,10 @@ async def api_model_stats():
         "cv_accuracy": None,
         "feature_importance": {},
         "ic_values": {},
-        "model_params": {}
+        "model_params": {},
+        "feature_count": len(all_features),
+        # P0: Expose 4H signal directly
+        "signal_4h": _get_4h_signal(),
     }
 
     # 樣本數和標籤分布
