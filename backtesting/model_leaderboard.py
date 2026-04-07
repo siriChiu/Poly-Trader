@@ -60,8 +60,8 @@ class ModelLeaderboard:
     """模型排行榜"""
 
     SUPPORTED_MODELS = [
-        'xgboost', 'random_forest', 'logistic_regression',
-        'mlp', 'svm', 'rule_baseline'
+        'rule_baseline', 'logistic_regression', 'xgboost',
+        'lightgbm', 'random_forest', 'mlp', 'svm', 'ensemble'
     ]
 
     def __init__(self, data_df: pd.DataFrame):
@@ -159,16 +159,57 @@ class ModelLeaderboard:
             m.fit(X_s, y_train)
             m.scaler = scaler
             return m
+        elif model_name == 'lightgbm':
+            try:
+                import lightgbm as lgb
+                m = lgb.LGBMClassifier(
+                    n_estimators=200, max_depth=6, learning_rate=0.05,
+                    num_leaves=31, reg_alpha=0.1, reg_lambda=1.0,
+                    random_state=42, verbose=-1
+                )
+                m.fit(X_train, y_train)
+                return m
+            except ImportError:
+                return None
+        elif model_name == 'ensemble':
+            """Average voting from XGBoost + RF + LR"""
+            from xgboost import XGBClassifier
+            from sklearn.ensemble import RandomForestClassifier
+            from sklearn.linear_model import LogisticRegression
+            from sklearn.preprocessing import StandardScaler
+            scaler = StandardScaler()
+            X_s = scaler.fit_transform(X_train)
+            m1 = XGBClassifier(
+                n_estimators=200, max_depth=4, learning_rate=0.05,
+                colsample_bytree=0.6, subsample=0.7, random_state=42,
+                eval_metric='logloss', verbosity=0)
+            m1.fit(X_train, y_train)
+            m2 = RandomForestClassifier(
+                n_estimators=200, max_depth=8, min_samples_leaf=30,
+                class_weight='balanced', random_state=42, n_jobs=-1)
+            m2.fit(X_train, y_train)
+            m3 = LogisticRegression(C=0.1, max_iter=2000, random_state=42)
+            m3.fit(X_s, y_train)
+            m1.scaler = scaler  # attach scaler for predict
+            m2.scaler = scaler
+            return (m1, m2, m3)  # tuple as "model"
         return None
 
     def _get_confidence(self, model, X_test, model_name):
         """取得信心分數"""
         try:
-            if model_name in ['logistic_regression', 'mlp', 'svm']:
+            if model_name == 'ensemble':
+                m1, m2, m3 = model
+                X_s = m1.scaler.transform(X_test)
+                p1 = m1.predict_proba(X_test)[:, 0]
+                p2 = m2.predict_proba(X_test)[:, 0]
+                p3 = m3.predict_proba(X_s)[:, 0]
+                return (p1 + p2 + p3) / 3.0
+            elif model_name in ['logistic_regression', 'mlp', 'svm']:
                 X_s = model.scaler.transform(X_test)
-                return model.predict_proba(X_s)[:, 0]  # P(class=0) = P(buy wins)
+                return model.predict_proba(X_s)[:, 0]
             else:
-                return model.predict_proba(X_test)[:, 0]  # P(class=0) = P(buy wins)
+                return model.predict_proba(X_test)[:, 0]
         except:
             return np.full(len(X_test), 0.5)
 
