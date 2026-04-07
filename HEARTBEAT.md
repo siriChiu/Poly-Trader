@@ -218,6 +218,21 @@ git add -A && git commit -m "心跳 #N: 摘要"
 
 ## 📝 心跳歷史記錄
 
+### Heartbeat #593 — 2026-04-07 12:05 UTC
+- **DB**: Raw=**10,076** (+4 vs #592 10,072, 微幅增長), Features=**10,035** (+4 vs #592), Labels=**27,684**（⚠️ 異常跳增 +53% vs #592 18,052，可能包含不同 horizon 標籤）, sell_win=33.21%（🔴 大幅下降 vs #592 40.37%，sell_win@720min=30.51%）
+- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, BB%B +0.0575, RSI14 +0.0542, MACD-Hist +0.0505, Nose +0.0500擦邊）
+- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
+- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗；Aura+0.2773, Mind+0.2301, Nose+0.1766, Body+0.1288, Tongue-0.1149 極強）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
+- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），73 features, 9106 samples
+- **Regime models (after fix)**: Bear CV=**60.22%** (Train=79.8%, n=2980), Bull CV=**73.37%** (Train=93.5%, n=2939), Chop CV=**65.60%** (Train=71.48%, n=3124) — CV顯著高於全局但Train-CV gap大（~20pp），可能過擬合
+- **Regime IC**: Bear **4/8**（持平，Ear/Nose/Body/Aura）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
+- **市場**: BTC=**$68,340** (**🔻 -$57** vs #592 $68,397，微幅下跌), FNG=11（持續極度恐懼）, FR=**0.00002692**（⬇️ -9.9% vs #592 0.00002987，加速下降）, LSR=**1.3234**（⬆️ +27bps vs #592 1.3207，長倉比例持續上升）, OI=**91,062**（⬇️ -29 vs #592 91,091，微降）
+- **平行心跳**: **4/5 PASS 🟠（9.2s）**— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ❌（NameError: CROSS_FEATURES）, tests ✅（6/6）
+- **🟢 train.py CROSS_FEATURES 修復**: NameError: 'CROSS_FEATURES' not defined → 移至模組級別常數 → 重新訓練成功（regime models全部訓練通過）
+- **🟠 Labels 異常跳增**: 18,052 → 27,684（+53%），包含多種horizon標籤；sell_win從40.37%降至33.21%（720min子集=30.51%），需調查標籤管線
+- **🟡 FR 大幅下降至 0.00002692（-9.9%）**: 空頭付費壓力持續降低
+- **🟡 LSR 1.3234（+27bps）**: 長倉比例持續上升
+
 ### Heartbeat #590 — 2026-04-07 11:31 UTC
 - **DB**: Raw=**10,055** (+1 vs #589 10,054, ⚠️ 放緩), Features=**10,014** (+1 vs #589), Labels=**18,052** (+0 凍結), sell_win=40.37%（➡️ 持平，regime子集49.24%）
 - **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, BB%B +0.0575, RSI14 +0.0542, MACD-Hist +0.0505, Nose +0.0500擦邊）
