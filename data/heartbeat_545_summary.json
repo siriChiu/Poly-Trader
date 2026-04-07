@@ -1,0 +1,140 @@
+{
+  "heart beat": 545,
+  "timestamp": "2026-04-07T03:31:18.760737+00:00",
+  "counts": {
+    "raw_market_data": 9742,
+    "features_normalized": 9702,
+    "labels": 18052,
+    "sell_win_rate": 0.4037
+  },
+  "tasks": {
+    "dynamic_window": {
+      "success": true
+    },
+    "regime_ic": {
+      "success": true
+    },
+    "full_ic": {
+      "success": true
+    },
+    "4h_signal": {
+      "success": true
+    },
+    "tests": {
+      "success": true
+    },
+    "train": {
+      "success": true
+    }
+  },
+  "parallel_time_sec": 10.8,
+  "ic": {
+    "global_pass": 5,
+    "tw_ic_pass": 10,
+    "global_ics": {
+      "feat_eye": -0.0135,
+      "feat_ear": 0.0475,
+      "feat_nose": 0.05,
+      "feat_tongue": 0.0012,
+      "feat_body": 0.046,
+      "feat_pulse": -0.0057,
+      "feat_aura": 0.0363,
+      "feat_mind": 0.0246,
+      "feat_vix": 0.0714,
+      "feat_dxy": 0.0136,
+      "feat_rsi14": 0.0542,
+      "feat_macd_hist": 0.0505,
+      "feat_atr_pct": -0.022,
+      "feat_vwap_dev": 0.0073,
+      "feat_bb_pct_b": 0.0575
+    },
+    "tw_ics": {
+      "feat_eye": 0.0212,
+      "feat_ear": -0.0023,
+      "feat_nose": 0.0587,
+      "feat_tongue": -0.0405,
+      "feat_body": 0.0363,
+      "feat_pulse": -0.0871,
+      "feat_aura": 0.0799,
+      "feat_mind": 0.075,
+      "feat_vix": 0.0876,
+      "feat_dxy": 0.0402,
+      "feat_rsi14": 0.0746,
+      "feat_macd_hist": 0.0554,
+      "feat_atr_pct": -0.128,
+      "feat_vwap_dev": 0.1293,
+      "feat_bb_pct_b": 0.0826
+    }
+  },
+  "regime": {
+    "bear_pass": 4,
+    "bull_pass": 0,
+    "chop_pass": 0,
+    "overall_sw": 0.4924
+  },
+  "signal_4h": {
+    "timestamp": 1775520000000,
+    "datetime": "2026-04-07T08:00:00",
+    "current_price": 68763.31,
+    "regime": "BEAR",
+    "regime_setup": "Aggressive (bear)",
+    "bias50": 1.74,
+    "bias200": -0.94,
+    "rsi_14": 57.3,
+    "macd_hist": 148.6,
+    "bb_pct_b": 0.68,
+    "setup_condition_met": false,
+    "model_predicted_sell": true,
+    "predicted_return_24h": -0.00092,
+    "signal": "HOLD",
+    "confidence_level": "LOW",
+    "position_size_pct": 0.15,
+    "leverage_x": 1.5,
+    "stop_loss": {
+      "type": "percentage",
+      "pct": 0.025,
+      "price": 70482.39,
+      "usd_loss_per_unit": 1719.08
+    },
+    "take_profit": {
+      "type": "percentage",
+      "pct": 0.05,
+      "price": 65325.14,
+      "usd_profit_per_unit": 3438.17
+    },
+    "rr_ratio": 2.0,
+    "reason": "Setup=\u274c | Model=\u2705 Sell (pred=-0.0009)",
+    "features": {
+      "4h_bias50": 1.7369,
+      "4h_bias20": 1.1383,
+      "4h_bias200": -0.9428,
+      "4h_rsi14": 57.2742,
+      "4h_macd_hist": 148.6059,
+      "4h_bb_pct_b": 0.677,
+      "4h_dist_bb_lower": 4.305,
+      "4h_dist_swing_low": 3.1291,
+      "4h_ma_order": 1.0
+    }
+  },
+  "dynamic_window": {
+    "N=100": "7/8",
+    "N=200": "7/8",
+    "N=400": "3/8",
+    "N=600": "0/8",
+    "N=1000": "4/8",
+    "N=2000": "2/8",
+    "N=5000": "0/8"
+  },
+  "train": {
+    "train_acc": 0.6392284400583156,
+    "cv_acc": null,
+    "gap": null,
+    "n_features": 9106,
+    "n_samples": 0
+  },
+  "tests": {
+    "passed": 32,
+    "failed": 0,
+    "total": 32
+  }
+}
