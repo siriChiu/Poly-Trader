@@ -188,20 +188,73 @@ def normalize_all_features(row) -> Dict[str, float]:
 
 # ─── Legacy senses engine (for backward compat) ───
 
+# 特徵 → 感官映射 (expanded to 22+ features)
+# 特徵 → 感官映射 (expanded to 22+ features)
+FEATURE_TO_SENSE = {
+    # 8 Core
+    "feat_eye": "eye",
+    "feat_ear": "ear",
+    "feat_nose": "nose",
+    "feat_tongue": "tongue",
+    "feat_body": "body",
+    "feat_pulse": "pulse",
+    "feat_aura": "aura",
+    "feat_mind": "mind",
+    # 2 Macro
+    "feat_vix": "vix",
+    "feat_dxy": "dxy",
+    # 5 Technical
+    "feat_rsi14": "rsi14",
+    "feat_macd_hist": "macd_hist",
+    "feat_atr_pct": "atr_pct",
+    "feat_vwap_dev": "vwap_dev",
+    "feat_bb_pct_b": "bb_pct_b",
+    # 4H Distance
+    "feat_4h_bias50": "4h_bias50",
+    "feat_4h_bias20": "4h_bias20",
+    "feat_4h_rsi14": "4h_rsi14",
+    "feat_4h_macd_hist": "4h_macd_hist",
+    "feat_4h_bb_pct_b": "4h_bb_pct_b",
+    "feat_4h_ma_order": "4h_ma_order",
+    "feat_4h_dist_swing_low": "4h_dist_sl",
+}
+
 SENSE_NAMES = {
-    "eye": "視覺 Eye",
-    "ear": "聽覺 Ear",
-    "nose": "嗅覺 Nose",
-    "tongue": "味覺 Tongue",
-    "body": "觸覺 Body",
-    "pulse": "脈動 Pulse",
-    "aura": "磁場 Aura",
-    "mind": "認知 Mind",
+    # 8 Core
+    "eye": "👁️ 視覺 Eye",
+    "ear": "👂 聽覺 Ear",
+    "nose": "👃 嗅覺 Nose",
+    "tongue": "👅 味覺 Tongue",
+    "body": "💪 觸覺 Body",
+    "pulse": "💓 脈動 Pulse",
+    "aura": "🌈 磁場 Aura",
+    "mind": "🧠 認知 Mind",
+    # Macro
+    "vix": "📉 VIX 恐慌指數",
+    "dxy": "💵 DXY 美元指數",
+    # Technical
+    "rsi14": "📊 RSI 14",
+    "macd_hist": "📈 MACD Histogram",
+    "atr_pct": "📏 ATR % 波動率",
+    "vwap_dev": "⚖️ VWAP 偏離",
+    "bb_pct_b": "🔵 布林 %B",
+    # 4H Distance
+    "4h_bias50": "📐 4H 偏離 MA50",
+    "4h_bias20": "📐 4H 偏離 MA20",
+    "4h_rsi14": "📈 4H RSI",
+    "4h_macd_hist": "📊 4H MACD",
+    "4h_bb_pct_b": "🔵 4H 布林 %B",
+    "4h_ma_order": "🔄 4H MA 排列",
+    "4h_dist_sl": "📍 4H 支撐距離",
 }
 
 SENSE_EMOJIS = {
     "eye": "👁️", "ear": "👂", "nose": "👃", "tongue": "👅", "body": "💪",
-    "pulse": "💓", "aura": "🌀", "mind": "🧠",
+    "pulse": "💓", "aura": "🌈", "mind": "🧠",
+    "vix": "📉", "dxy": "💵",
+    "rsi14": "📊", "macd_hist": "📈", "atr_pct": "📏", "vwap_dev": "⚖️", "bb_pct_b": "🔵",
+    "4h_bias50": "📐", "4h_bias20": "📐", "4h_rsi14": "📈", "4h_macd_hist": "📊",
+    "4h_bb_pct_b": "🔵", "4h_ma_order": "🔄", "4h_dist_sl": "📍",
 }
 
 DEFAULT_CONFIG: Dict[str, Any] = {

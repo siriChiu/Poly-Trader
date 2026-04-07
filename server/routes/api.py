@@ -218,53 +218,123 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
         import traceback; traceback.print_exc()
         return {"error": str(e), "total_trades": 0, "equity_curve": [], "trades": []}
 
-ALL_FEATURE_KEYS = [
+# ─── Feature Key Map ───
+# DB column → clean API key that frontend expects
+FEATURE_KEY_MAP = {
     # 8 Core
-    "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
-    "feat_body", "feat_pulse", "feat_aura", "feat_mind",
-    # 2 Macro
-    "feat_vix", "feat_dxy",
-    # 5 Technical
-    "feat_rsi14", "feat_macd_hist", "feat_atr_pct", "feat_vwap_dev", "feat_bb_pct_b",
-    # 7 4H
-    "feat_4h_bias50", "feat_4h_bias20", "feat_4h_rsi14", "feat_4h_macd_hist",
-    "feat_4h_bb_pct_b", "feat_4h_ma_order", "feat_4h_dist_swing_low",
-]
+    'feat_eye': 'eye',
+    'feat_ear': 'ear',
+    'feat_nose': 'nose',
+    'feat_tongue': 'tongue',
+    'feat_body': 'body',
+    'feat_pulse': 'pulse',
+    'feat_aura': 'aura',
+    'feat_mind': 'mind',
+    # Macro
+    'feat_vix': 'vix',
+    'feat_dxy': 'dxy',
+    # Technical
+    'feat_rsi14': 'rsi14',
+    'feat_macd_hist': 'macd_hist',
+    'feat_atr_pct': 'atr_pct',
+    'feat_vwap_dev': 'vwap_dev',
+    'feat_bb_pct_b': 'bb_pct_b',
+    # P0/P1 (sparse)
+    'feat_nq_return_1h': 'nq_return_1h',
+    'feat_nq_return_24h': 'nq_return_24h',
+    'feat_claw': 'claw',
+    'feat_claw_intensity': 'claw_intensity',
+    'feat_fang_pcr': 'fang_pcr',
+    'feat_fang_skew': 'fang_skew',
+    'feat_fin_netflow': 'fin_netflow',
+    'feat_web_whale': 'web_whale',
+    'feat_scales_ssr': 'scales_ssr',
+    'feat_nest_pred': 'nest_pred',
+    # 4H Distance Features
+    'feat_4h_bias50': '4h_bias50',
+    'feat_4h_bias20': '4h_bias20',
+    'feat_4h_rsi14': '4h_rsi14',
+    'feat_4h_macd_hist': '4h_macd_hist',
+    'feat_4h_bb_pct_b': '4h_bb_pct_b',
+    'feat_4h_ma_order': '4h_ma_order',
+    'feat_4h_dist_swing_low': '4h_dist_sl',
+    'feat_4h_dist_swing_high': '4h_dist_sh',
+}
 
-def _normalize_for_api(val, key):
-    """Normalize feature to 0~1 range for API (same ranges used by senses)."""
-    import math
-    if val is None:
+# Reverse map: clean key → DB column
+REVERSE_KEY_MAP = {v: k for k, v in FEATURE_KEY_MAP.items()}
+
+# ─── ECDF Normalization ───
+# Pre-computed p5/p95 anchors from full DB data. Updated by backfill script.
+_ECDF_ANCHORS = {
+    # 8 Core: from actual DB distributions
+    'feat_eye': (-4.5, 4.5),
+    'feat_ear': (-0.0005, 0.0005),
+    'feat_nose': (0.15, 0.80),
+    'feat_tongue': (-0.001, 0.001),
+    'feat_body': (-1.8, 1.3),
+    'feat_pulse': (0.0, 0.99),
+    'feat_aura': (-0.003, 0.003),
+    'feat_mind': (-0.006, 0.004),
+    # Macro
+    'feat_vix': (12.0, 35.0),
+    'feat_dxy': (95.0, 110.0),
+    # Technical
+    'feat_rsi14': (0.1, 0.85),
+    'feat_macd_hist': (-0.0005, 0.0005),
+    'feat_atr_pct': (0.005, 0.03),
+    'feat_vwap_dev': (-0.5, 0.5),
+    'feat_bb_pct_b': (0.0, 1.0),
+    # 4H Distance Features [%]
+    'feat_4h_bias50': (-15.0, 10.0),
+    'feat_4h_bias20': (-10.0, 10.0),
+    'feat_4h_rsi14': (10.0, 90.0),
+    'feat_4h_macd_hist': (-1500.0, 1500.0),
+    'feat_4h_bb_pct_b': (-0.5, 1.5),
+    'feat_4h_ma_order': (-1.5, 1.5),
+    'feat_4h_dist_swing_low': (-25.0, 20.0),
+}
+
+
+def normalize_for_api(raw_val: float | None, db_key: str) -> float | None:
+    """Normalize feature using ECDF anchors (not sigmoid!).
+    Returns 0.0~1.0 where 0.05 = p5, 0.95 = p95.
+    This preserves actual signal differences instead of compressing to ~0.5.
+    """
+    if raw_val is None:
         return None
-    val = float(val)
-    # 4H features have different scales
-    if key.startswith("feat_4h_bias"):
-        return 1.0 / (1.0 + math.exp(-val))  # sigmoid for bias (%)
-    if key == "feat_4h_ma_order":
-        return (val + 1) / 2  # -1~1 → 0~1
-    if key == "feat_4h_dist_swing_low":
-        return 1.0 / (1.0 + math.exp(val - 2))  # lower dist = higher prob near support
-    if key == "feat_4h_rsi14":
-        return val / 100.0  # 0~100 → 0~1
-    if key == "feat_4h_macd_hist":
-        return 1.0 / (1.0 + math.exp(-val / 100))  # sigmoid with scale
-    if key == "feat_4h_bb_pct_b":
-        return val  # already 0~1
-    # Core senses: assume -1~1 or similar, use sigmoid as safe normalization
-    return 1.0 / (1.0 + math.exp(-val))
+
+    anchors = _ECDF_ANCHORS.get(db_key)
+    if not anchors:
+        # Fallback: clamp to [-1, 1] and map to 0~1
+        return max(0.0, min(1.0, (raw_val + 1) / 2))
+
+    p5, p95 = anchors
+    span = p95 - p5
+    if span < 1e-10:
+        return 0.5
+
+    clamped = max(p5, min(p95, raw_val))
+    return round(0.05 + 0.90 * (clamped - p5) / span, 4)
 
 
 @router.get("/features")
 async def api_features(days: int = Query(default=7, ge=1, le=90)):
+    """返回全部 22+ 特徵的時間序列資料（正確 key mapping + ECDF 正規化）"""
     db = get_db()
     since = datetime.utcnow() - timedelta(days=days)
-    rows = db.query(FeaturesNormalized).filter(FeaturesNormalized.timestamp >= since).order_by(FeaturesNormalized.timestamp).all()
+    rows = (
+        db.query(FeaturesNormalized)
+        .filter(FeaturesNormalized.timestamp >= since)
+        .order_by(FeaturesNormalized.timestamp)
+        .all()
+    )
     result = []
     for r in rows:
         obj = {"timestamp": r.timestamp.isoformat() if r.timestamp else None}
-        for key in ALL_FEATURE_KEYS:
-            raw_val = getattr(r, key, None) if hasattr(r, key) else None
-            obj[key] = _normalize_for_api(raw_val, key)
+        for db_key, clean_key in FEATURE_KEY_MAP.items():
+            raw_val = getattr(r, db_key, None)
+            obj[clean_key] = normalize_for_api(raw_val, db_key)
         result.append(obj)
     return result
 
