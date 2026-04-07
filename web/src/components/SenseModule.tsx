@@ -1,7 +1,7 @@
 /**
  * SenseModule — 特徵子模組卡片
  */
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 interface Props {
   moduleName: string;
@@ -26,6 +26,28 @@ export default function SenseModule({
   onWeightChange,
   color = "#3b82f6",
 }: Props) {
+  const [localWeight, setLocalWeight] = useState(weight);
+  const isDragging = useRef(false);
+
+  // Sync local state when parent weight changes (e.g. from API or parent re-render)
+  useEffect(() => {
+    if (!isDragging.current) {
+      setLocalWeight(weight);
+    }
+  }, [weight]);
+
+  const handleDragStart = () => {
+    isDragging.current = true;
+  };
+
+  const handleDragEnd = () => {
+    isDragging.current = false;
+    // Only commit to parent when dragging ends
+    if (localWeight !== weight) {
+      onWeightChange(localWeight);
+    }
+  };
+
   return (
     <div
       className={`rounded-lg border p-3 transition-all ${
@@ -80,13 +102,17 @@ export default function SenseModule({
           min={0}
           max={1}
           step={0.05}
-          value={weight}
-          onChange={(e) => onWeightChange(parseFloat(e.target.value))}
+          value={localWeight}
+          onChange={(e) => setLocalWeight(parseFloat(e.target.value))}
+          onMouseDown={handleDragStart}
+          onMouseUp={handleDragEnd}
+          onTouchStart={handleDragStart}
+          onTouchEnd={handleDragEnd}
           disabled={!enabled}
           className="flex-1 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-30"
         />
         <span className="text-xs font-mono text-slate-400 w-10 text-right">
-          {(weight * 100).toFixed(0)}%
+          {(localWeight * 100).toFixed(0)}%
         </span>
       </div>
     </div>
