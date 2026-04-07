@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from "react";
 import SenseModule from "../components/SenseModule";
 import RadarChart from "../components/RadarChart";
 import { useApi, fetchApi } from "../hooks/useApi";
+import { ALL_SENSES, getSenseConfig } from "../config/senses";
 
 interface ModelStats {
   sample_count: number;
@@ -32,16 +33,10 @@ interface SenseData {
 
 type SensesConfig = Record<string, SenseData>;
 
-const SENSE_COLORS: Record<string, string> = {
-  eye: "#3b82f6",
-  ear: "#8b5cf6",
-  nose: "#f59e0b",
-  tongue: "#ec4899",
-  body: "#14b8a6",
-  pulse: "#ef4444",
-  aura: "#a855f7",
-  mind: "#06b6d4",
-};
+// Use dynamic colors from ALL_SENSES config
+const SENSE_COLORS = Object.fromEntries(
+  Object.entries(ALL_SENSES).map(([k, v]) => [k, v.color])
+);
 
 export default function Senses() {
   const { data: config, refresh } = useApi<SensesConfig>("/api/senses/config");

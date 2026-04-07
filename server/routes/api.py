@@ -280,21 +280,19 @@ async def api_model_stats():
     except Exception as e:
         logger.error(f"Stats model error: {e}")
 
-    # IC 計算 (Pearson correlation for each feature vs label)
+    # IC 計算 — load from ic_signs.json (already computed by train.py)
     try:
-        rows = db.execute(text("""
-            SELECT f.feat_eye_dist, f.feat_ear_zscore, f.feat_nose_sigmoid, f.feat_tongue_pct, f.feat_body_roc, l.label
-            FROM features_normalized f INNER JOIN labels l ON f.id = l.id
-            WHERE f.feat_eye_dist IS NOT NULL AND l.label IS NOT NULL
-        """)).fetchall()
-        if len(rows) > 30:
-            data = np.array(rows)
-            labels_arr = data[:, -1]
-            for i, name in enumerate(["eye", "ear", "nose", "tongue", "body"]):
-                feats = data[:, i]
-                if np.std(feats) > 0 and np.std(labels_arr) > 0:
-                    ic = float(np.corrcoef(feats, labels_arr)[0, 1])
-                    stats["ic_values"][name] = round(ic, 4)
+        ic_path = os.path.join(os.path.dirname(MODEL_PATH), "ic_signs.json")
+        if os.path.exists(ic_path):
+            with open(ic_path) as f:
+                ic_data = json.load(f)
+            # Merge ic_global and ic_tw into ic_values
+            for src_key in ["ic_global", "ic_map", "core_ic_summary", "tw_ic_summary"]:
+                if src_key in ic_data:
+                    for feat, val in ic_data[src_key].items():
+                        # Normalize key: feat_eye -> eye, 4h_bias50 -> bias50
+                        clean = feat.replace("feat_", "").replace("4h_", "4h_")
+                        stats["ic_values"][clean] = round(float(val), 4)
     except Exception as e:
         logger.error(f"Stats IC error: {e}")
 

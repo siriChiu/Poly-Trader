@@ -9,6 +9,7 @@ import CandlestickChart from "../components/CandlestickChart";
 import BacktestSummary from "../components/BacktestSummary";
 import { useApi, fetchApi } from "../hooks/useApi";
 import ConfidenceIndicator from "../components/ConfidenceIndicator";
+import { ALL_SENSES, getSenseConfig } from "../config/senses";
 
 interface SensesResponse {
   senses: Record<string, any>;
@@ -56,9 +57,14 @@ export default function Dashboard() {
   const [interval, setInterval] = useState("1h");
   const [days, setDays] = useState(7);
   const [selectedSense, setSelectedSense] = useState<string | null>(null);
-  const [liveScores, setLiveScores] = useState<Record<string, number>>({
-    eye: 0.5, ear: 0.5, nose: 0.5, tongue: 0.5, body: 0.5,
-  });
+  // Build initial scores from ALL known features (8 core + 2 macro + 5 TI + 6 P0/P1 + 10 4H)
+  const defaultScores: Record<string, number> = {};
+  const allFeatures = [...Object.keys(ALL_SENSES)];
+  for (const key of allFeatures) {
+    defaultScores[key] = 0.5;
+  }
+
+  const [liveScores, setLiveScores] = useState<Record<string, number>>(defaultScores);
   const [liveAdvice, setLiveAdvice] = useState<any>(null);
   const [lastUpdate, setLastUpdate] = useState<string>();
   const [wsConnected, setWsConnected] = useState(false);
@@ -154,16 +160,21 @@ export default function Dashboard() {
           {lastUpdate && (
             <span className="text-slate-500">更新: {lastUpdate}</span>
           )}
-          {/* 模型準確率 */}
-          {modelStats && (
+          {/* 模型準確率 — show top IC features dynamically */}
+          {modelStats?.ic_values && Object.keys(modelStats.ic_values).length > 0 && (
             <span className="flex items-center gap-1 text-slate-400">
               📊 樣本:{modelStats.sample_count}
-              {modelStats.ic_values?.eye !== undefined && (
-                <span className="text-xs opacity-70">
-                  | Eye IC:{modelStats.ic_values.eye > 0 ? '+' : ''}{modelStats.ic_values.eye?.toFixed(3)}
-                  | Ear IC:{modelStats.ic_values.ear > 0 ? '+' : ''}{modelStats.ic_values.ear?.toFixed(3)}
-                </span>
-              )}
+              {(() => {
+                const topIcs = Object.entries(modelStats.ic_values)
+                  .filter(([k, v]) => typeof v === "number")
+                  .sort((a, b) => Math.abs(b[1] as number) - Math.abs(a[1] as number))
+                  .slice(0, 3);
+                return topIcs.map(([name, val]) => (
+                  <span key={name} className="text-xs opacity-70">
+                    | {name.replace("4h_", "4H ")} IC: {(val as number) > 0 ? '+' : ''}{(val as number).toFixed(3)}
+                  </span>
+                ));
+              })()}
             </span>
           )}
         </div>
@@ -226,7 +237,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Row 1.5: Confidence Indicator */}
+      {/* Row 1.5: Confidence Indicator + 4H Signal */}
       {confidenceData && !confidenceData.error && (
         <ConfidenceIndicator
           confidence={confidenceData.confidence}
@@ -235,6 +246,46 @@ export default function Dashboard() {
           shouldTrade={confidenceData.should_trade}
           timestamp={confidenceData.timestamp}
         />
+      )}
+
+      {/* 4H Signal Panel */}
+      {confidenceData && (
+        <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-slate-300">🔮 4H Signal Analysis</h2>
+            <span className="text-xs text-slate-500">
+              {confidenceData.timestamp ? new Date(confidenceData.timestamp).toLocaleTimeString("zh-TW") : ""}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div>
+              <span className="text-slate-500">Signal</span>
+              <div className={`text-lg font-bold ${
+                confidenceData.signal === "SELL" ? "text-red-400" :
+                confidenceData.signal === "BUY" ? "text-green-400" : "text-slate-400"
+              }`}>{confidenceData.signal || "HOLD"}</div>
+            </div>
+            <div>
+              <span className="text-slate-500">Confidence</span>
+              <div className="text-lg font-mono font-bold text-slate-200">
+                {((confidenceData.confidence ?? 0.5) * 100).toFixed(0)}%
+              </div>
+            </div>
+            <div>
+              <span className="text-slate-500">Level</span>
+              <div className={`text-sm font-semibold ${
+                confidenceData.confidence_level === "HIGH" ? "text-green-400" :
+                confidenceData.confidence_level === "MEDIUM" ? "text-yellow-400" : "text-slate-500"
+              }`}>{confidenceData.confidence_level || "LOW"}</div>
+            </div>
+            <div>
+              <span className="text-slate-500">Trade?</span>
+              <div className={`text-sm font-semibold ${confidenceData.should_trade ? "text-green-400" : "text-red-400"}`}>
+                {confidenceData.should_trade ? "✅ Yes" : "❌ No"}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Row 2: Sense History Chart */}
