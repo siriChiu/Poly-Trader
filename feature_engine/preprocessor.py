@@ -345,6 +345,36 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_dxy"] = None
 
+    # ─── FUSION: 4H × 1min sensory cross-features ───
+    # v6: 讓模型學習 4H 趨勢框架 + 1min 極端觸發的最佳組合
+    # 取代人工 if/else 規則
+    if all(features.get(f"feat_4h_{k}") is not None for k in ["bias50", "bias20", "dist_swing_low"]):
+        try:
+            from feature_engine.fusion_features import compute_fusion_features
+            fusion = compute_fusion_features(
+                feat_4h_bias50=features.get("feat_4h_bias50"),
+                feat_4h_bias20=features.get("feat_4h_bias20"),
+                feat_4h_dist_swing_low=features.get("feat_4h_dist_swing_low"),
+                feat_4h_bb_pct_b=features.get("feat_4h_bb_pct_b"),
+                feat_4h_ma_order=features.get("feat_4h_ma_order"),
+                feat_4h_rsi14=features.get("feat_4h_rsi14"),
+                feat_4h_macd_hist=features.get("feat_4h_macd_hist"),
+                feat_nose=features.get("feat_nose"),
+                feat_tongue=features.get("feat_tongue"),
+                feat_mind=features.get("feat_mind"),
+                feat_pulse=features.get("feat_pulse"),
+                feat_eye=features.get("feat_eye"),
+                feat_ear=features.get("feat_ear"),
+                feat_body=features.get("feat_body"),
+                feat_aura=features.get("feat_aura"),
+            )
+            features.update(fusion)
+            logger.info(f"Fusion features computed: {len(fusion)} new features")
+        except Exception as e:
+            logger.warning(f"Fusion feature computation failed: {e}")
+    else:
+        logger.warning("4H features not ready, skipping fusion")
+
     # ─── P0 #H232: NEW Sensory Features (6 P0/P1 + NQ) ───
     # NQ (Nasdaq 100): negative return = bullish for SHORT
     if "nq_value" in df.columns and df["nq_value"].notna().any():
