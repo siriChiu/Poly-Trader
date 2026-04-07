@@ -6,8 +6,8 @@ with open(path, 'r', encoding='utf-8') as f:
 # Find the tabs declaration and add a new tab
 old_tabs = 'tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(['
 new_tabs = 'tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(['
-old_tab_names = '"🔍 特徵分析", "🤖 模型預測", "📜 交易歷史", "📈 策略回測", "🔧 參數優化", "🔬 多感官有效性"'
-new_tab_names = '"🔍 特徵分析", "🤖 模型預測", "📜 交易歷史", "📈 策略回測", "🔧 參數優化", "🔬 多感官有效性", "🔄 Walk-Forward 驗證"'
+old_tab_names = '"🔍 特徵分析", "🤖 模型預測", "📜 交易歷史", "📈 策略回測", "🔧 參數優化", "🔬 多特徵有效性"'
+new_tab_names = '"🔍 特徵分析", "🤖 模型預測", "📜 交易歷史", "📈 策略回測", "🔧 參數優化", "🔬 多特徵有效性", "🔄 Walk-Forward 驗證"'
 
 content = content.replace(old_tabs, new_tabs)
 content = content.replace(old_tab_names, new_tab_names)

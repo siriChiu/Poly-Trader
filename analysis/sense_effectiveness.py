@@ -1,5 +1,5 @@
 """
-多感官有效性分析：量化每个感官特征与未来收益率的关系
+多特徵有效性分析：量化每个特徵特征与未来收益率的关系
 """
 
 import pandas as pd
@@ -21,7 +21,7 @@ def compute_information_coefficient(
     use_recent_n: int = None
 ) -> Dict[str, float]:
     """
-    计算每个多感官特征与未来收益率的相关性（IC）。
+    计算每个多特徵特征与未来收益率的相关性（IC）。
     返回：{ 'eye': IC, 'ear': IC, 'nose': IC, 'tongue': IC, 'body': IC }
     """
     import numpy as np

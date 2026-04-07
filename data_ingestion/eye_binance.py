@@ -1,5 +1,5 @@
 """
-感官之「眼」：視覺邊界與流動性模組
+特徵之「眼」：視覺邊界與流動性模組
 - Binance API: Klines + Order Book 找出流動性痛點 (Price Resistance / Support)
 """
 

@@ -1,8 +1,8 @@
 """
-4H + 即時感官 組合策略即時分析
+4H + 即時特徵 組合策略即時分析
 ===============================
 從 Binance 抓 4H OHLCV → 算乖離率/MACD
-從 DB 讀最新即時感官特徵
+從 DB 讀最新即時特徵
 → 輸出完整買賣信號
 """
 import numpy as np
@@ -20,8 +20,8 @@ from feature_engine.ohlcv_4h import compute_4h_indicators
 from strategies.combined_4h_spot import combined_strategy
 
 
-def get_latest_sensory_from_db() -> dict:
-    """從 DB 讀最新一行 sensory 特徵"""
+def get_latest_feature_from_db() -> dict:
+    """從 DB 讀最新一行 feature 特徵"""
     from database.models import init_db, FeaturesNormalized
     session = init_db('sqlite:///./poly_trader.db')
     row = session.query(FeaturesNormalized).order_by(
@@ -45,9 +45,9 @@ def get_latest_sensory_from_db() -> dict:
 
 
 def analyze():
-    """完整分析：4H + 即時感官 → 策略信號"""
+    """完整分析：4H + 即時特徵 → 策略信號"""
     print("=" * 70)
-    print("🔮 Poly-Trader 4H + 即時感官 組合策略")
+    print("🔮 Poly-Trader 4H + 即時特徵 組合策略")
     print("=" * 70)
     
     # ── Step 1: 4H 資料 ──
@@ -88,21 +88,21 @@ def analyze():
     print(f"  RSI 4H:   {rsi_4h:.1f}")
     print(f"  BB %B:    {bb_pct:.2f}")
     
-    # ── Step 3: 即時感官 ──
-    print("\n[3/3] 讀取即時感官特徵...")
-    sensory = get_latest_sensory_from_db()
+    # ── Step 3: 即時特徵 ──
+    print("\n[3/3] 讀取即時特徵...")
+    feature = get_latest_feature_from_db()
     
-    if sensory:
-        print(f"  nose (RSI):      {sensory.get('nose', 0):.2f}")
-        print(f"  tongue (回歸):   {sensory.get('tongue', 0):.3f}")
-        print(f"  pulse (動量):    {sensory.get('pulse', 0):.2f}")
-        print(f"  eye (趨勢):       {sensory.get('eye', 0):.3f}")
-        print(f"  body (波動):      {sensory.get('body', 0):.3f}")
-        print(f"  ear (動能):       {sensory.get('ear', 0):.3f}")
-        print(f"  mind (短迴):      {sensory.get('mind', 0):.3f}")
+    if feature:
+        print(f"  nose (RSI):      {feature.get('nose', 0):.2f}")
+        print(f"  tongue (回歸):   {feature.get('tongue', 0):.3f}")
+        print(f"  pulse (動量):    {feature.get('pulse', 0):.2f}")
+        print(f"  eye (趨勢):       {feature.get('eye', 0):.3f}")
+        print(f"  body (波動):      {feature.get('body', 0):.3f}")
+        print(f"  ear (動能):       {feature.get('ear', 0):.3f}")
+        print(f"  mind (短迴):      {feature.get('mind', 0):.3f}")
     else:
-        print("  ⚠️ 無法從 DB 讀取感官資料，使用預設值")
-        sensory = {
+        print("  ⚠️ 無法從 DB 讀取特徵資料，使用預設值")
+        feature = {
             "nose": 0.5, "tongue": 0, "pulse": 0.5,
             "eye": 0, "body": 0, "ear": 0, "mind": 0,
         }
@@ -116,7 +116,7 @@ def analyze():
         bias50=bias50,
         macd_hist=macd_hist,
         bias200=bias200,
-        sensory=sensory,
+        feature=feature,
         current_price=current_price,
         base_capital=10000.0,
     )
@@ -144,14 +144,14 @@ def analyze():
     print(f"     乖離率: {bias50:+.2f}%")
     print(f"     MACD:   {macd_hist:+.1f}")
     
-    # 感官確認
-    sensory_detail = result["details"].get("sensory", {})
-    if sensory_detail:
-        print(f"\n  🎛️ 感官確認:")
-        for cond, met in sensory_detail.get("details", {}).items():
+    # 特徵確認
+    feature_detail = result["details"].get("feature", {})
+    if feature_detail:
+        print(f"\n  🎛️ 特徵確認:")
+        for cond, met in feature_detail.get("details", {}).items():
             icon = "✅" if met else "❌"
             print(f"     {icon} {cond}")
-        print(f"     → {sensory_detail.get('reason', '')}")
+        print(f"     → {feature_detail.get('reason', '')}")
     
     # 金字塔
     pyramid = result["details"].get("pyramid", {})
@@ -189,7 +189,7 @@ def analyze():
             "bias200": round(bias200, 2),
             "macd_hist": round(macd_hist, 1),
         },
-        "sensory_result": sensory_detail,
+        "feature_result": feature_detail,
         "pyramid": pyramid,
         "exit_check": exit_check,
     }

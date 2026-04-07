@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sensory ETF Manager — 動態權重 + 淘汰機制
+Feature ETF Manager — 動態權重 + 淘汰機制
 
 就像 ETF 追蹤指數一樣，這個模組自動：
 1. 計算每個特徵的時間加權 IC (TW-IC)
@@ -30,8 +30,8 @@ from typing import Dict, List, Optional
 import numpy as np
 
 DATA_DIR = Path(__file__).parent.parent / "data"
-ETF_REGISTRY_FILE = DATA_DIR / "sensory_etf_registry.json"
-IC_HISTORY_FILE = DATA_DIR / "sensory_etf_ic_history.json"
+ETF_REGISTRY_FILE = DATA_DIR / "feature_etf_registry.json"
+IC_HISTORY_FILE = DATA_DIR / "feature_etf_ic_history.json"
 
 IC_TIER_THRESHOLDS = {"A+": 0.15, "A_": 0.10, "B_": 0.05, "C_": 0.02}
 TIER_WEIGHTS = {"A+": 3.0, "A_": 2.0, "B_": 1.0, "C_": 0.5, "D_": 0.0}
@@ -41,8 +41,8 @@ RE_EVAL_HB_GAP = 50
 TAU = 200  # TW-IC decay constant (same as predictor.py)
 
 
-class SensoryETF:
-    """Sensory ETF — 管理 20 個特徵的動態權重與淘汰。"""
+class FeatureETF:
+    """Feature ETF — 管理 20 個特徵的動態權重與淘汰。"""
 
     def __init__(self):
         self.registry = self._load(ETF_REGISTRY_FILE, {"senses": {}, "hb_number": 0})
@@ -169,7 +169,7 @@ class SensoryETF:
         if hb_number is not None:
             self.registry["hb_number"] = hb_number
         self.save()
-        lines = [f"\n  ┌──────── Sensory ETF #{self.registry.get('hb_number', '?')} ────────┐"]
+        lines = [f"\n  ┌──────── Feature ETF #{self.registry.get('hb_number', '?')} ────────┐"]
         lines.append(f"  │ {'Sense':<20} {'Src':<10} {'IC':>7} {'Tier':<4} {'Wt':>3} {'St'}  │")
         lines.append(f"  ├{'─'*20}┼{'─'*10}┼{'─'*7}┼{'─'*4}┼{'─'*3}┼{'─'*2}┤")
         for r in self.summary_table():

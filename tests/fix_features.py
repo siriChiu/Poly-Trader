@@ -75,7 +75,7 @@ print(f"\nAfter fix:")
 print(f"Tongue: {len(tongue_all)} values, {len(set(round(v,3) for v in tongue_all))} unique, std={np.std(tongue_all):.4f}")
 print(f"Body: {len(body_all)} values, {len(set(round(v,3) for v in body_all))} unique, std={np.std(body_all):.4f}")
 
-# 重跑感官驗證
+# 重跑特徵驗證
 from analysis.sense_validator import validate_senses, format_validation_report
 result = validate_senses(session, "BTCUSDT")
 print(f"\n{format_validation_report(result)}")

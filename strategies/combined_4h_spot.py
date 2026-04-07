@@ -1,12 +1,12 @@
 """
-組合策略: 4H 大方向 + 即時感官確認
+組合策略: 4H 大方向 + 即時特徵確認
 =====================================
 
 邏輯:
 1. 4H 決定方向 (bias50, MACD)
-2. 即時感官決定入場時機 (nose, pulse, tongue, eye, body)
+2. 即時特徵決定入場時機 (nose, pulse, tongue, eye, body)
 3. 金字塔加碼 (20/30/50)
-4. 動態出場 (4H 回到平衡 / 感官超賣超買)
+4. 動態出場 (4H 回到平衡 / 特徵超賣超買)
 """
 import numpy as np
 from typing import Dict, Optional, List
@@ -41,13 +41,13 @@ def check_4h_direction(bias50: float, macd_hist: float, bias200: float = 0) -> s
 
 
 # ───────────────────────────────────────
-# 即時感官入場確認
+# 即時特徵入場確認
 # ───────────────────────────────────────
-def check_sensory_entry(sensory: Dict[str, float], direction: str) -> Dict:
+def check_feature_entry(feature: Dict[str, float], direction: str) -> Dict:
     """
-    檢查即時 sensory 特徵，判斷是否為精確入場點位
+    檢查即時 feature 特徵，判斷是否為精確入場點位
     
-    sensory: {
+    feature: {
         "nose": RSI normalized (0-1),
         "tongue": mean-reversion deviation,
         "pulse": volume spike z-score,
@@ -59,13 +59,13 @@ def check_sensory_entry(sensory: Dict[str, float], direction: str) -> Dict:
     
     direction: "BULL" (買) or "BEAR" (賣)
     """
-    nose = sensory.get("nose", 0.5)       # RSI (0-1, <0.3=超賣, >0.7=超買)
-    tongue = sensory.get("tongue", 0)     # mean-reversion
-    pulse = sensory.get("pulse", 0.5)     # volume spike (>0.7=放量)
-    eye = sensory.get("eye", 0)           # trend strength
-    body = sensory.get("body", 0)         # volatility
-    ear = sensory.get("ear", 0)           # momentum
-    mind = sensory.get("mind", 0)         # short-term return
+    nose = feature.get("nose", 0.5)       # RSI (0-1, <0.3=超賣, >0.7=超買)
+    tongue = feature.get("tongue", 0)     # mean-reversion
+    pulse = feature.get("pulse", 0.5)     # volume spike (>0.7=放量)
+    eye = feature.get("eye", 0)           # trend strength
+    body = feature.get("body", 0)         # volatility
+    ear = feature.get("ear", 0)           # momentum
+    mind = feature.get("mind", 0)         # short-term return
     
     if direction == "BULL":
         # 買入條件: 超賣 + 放量確認
@@ -187,7 +187,7 @@ def calculate_pyramid_entry(entry_price: float, current_price: float,
 # ───────────────────────────────────────
 def check_exit_conditions(
     current_price: float, entry_price: float,
-    bias50: float, sensory: Dict[str, float],
+    bias50: float, feature: Dict[str, float],
     take_profit_pct: float = 0.05,  # 5% 止盈
     stop_loss_pct: float = -0.08,   # 8% 止損
 ) -> Dict:
@@ -219,14 +219,14 @@ def check_exit_conditions(
             "urgency": "MEDIUM",
         }
     
-    # 3. 感官顯示超買
-    nose = sensory.get("nose", 0.5)
-    tongue = sensory.get("tongue", 0)
+    # 3. 特徵顯示超買
+    nose = feature.get("nose", 0.5)
+    tongue = feature.get("tongue", 0)
     
     if nose > 0.75 and tongue > 0.03:
         return {
             "action": "SELL",
-            "reason": f"感官超買 (RSI={nose:.2f}, 乖離={tongue:.3f})",
+            "reason": f"特徵超買 (RSI={nose:.2f}, 乖離={tongue:.3f})",
             "urgency": "HIGH",
         }
     
@@ -242,13 +242,13 @@ def check_exit_conditions(
 # ───────────────────────────────────────
 def combined_strategy(
     bias50: float, macd_hist: float, bias200: float,
-    sensory: Dict[str, float],
+    feature: Dict[str, float],
     current_price: float,
     position: Optional[Dict] = None,  # 當前持倉狀態
     base_capital: float = 10000.0,
 ) -> Dict:
     """
-    整合 4H + 即時感官的完整策略
+    整合 4H + 即時特徵的完整策略
     
     返回:
     {
@@ -280,7 +280,7 @@ def combined_strategy(
             current_price=current_price,
             entry_price=position["entry_price"],
             bias50=bias50,
-            sensory=sensory,
+            feature=feature,
         )
         result["details"]["position"] = position
         result["details"]["exit_check"] = exit_result
@@ -291,15 +291,15 @@ def combined_strategy(
             result["message"] = f"出場: {exit_result['reason']}"
             return result
     
-    # ── Step 3: 4H 方向 → 感官入場確認 ──
+    # ── Step 3: 4H 方向 → 特徵入場確認 ──
     if direction_4h in ["BULL", "BEAR"]:
-        sensory_result = check_sensory_entry(sensory, direction_4h)
-        result["details"]["sensory"] = sensory_result
-        result["details"]["sensory_reason"] = sensory_result.get("reason", "")
+        feature_result = check_feature_entry(feature, direction_4h)
+        result["details"]["feature"] = feature_result
+        result["details"]["feature_reason"] = feature_result.get("reason", "")
         
-        if sensory_result["action"] in ["BUY", "SELL"]:
-            result["signal"] = sensory_result["action"]
-            result["strength"] = sensory_result["strength"]
+        if feature_result["action"] in ["BUY", "SELL"]:
+            result["signal"] = feature_result["action"]
+            result["strength"] = feature_result["strength"]
             
             # 金字塔計算
             if position:
@@ -316,21 +316,21 @@ def combined_strategy(
                     result["message"] = (
                         f"{direction_4h} 信號 | "
                         f"金字塔 {pyramid['message']} | "
-                        f"感官確認: {sensory_result['reason']}"
+                        f"特徵確認: {feature_result['reason']}"
                     )
                 else:
                     result["message"] = (
                         f"{direction_4h} 信號 | {pyramid['message']} | "
-                        f"感官確認: {sensory_result['reason']}"
+                        f"特徵確認: {feature_result['reason']}"
                     )
             else:
                 # 新進場
-                result["urgency"] = "HIGH" if sensory_result["strength"] >= 0.75 else "MEDIUM"
+                result["urgency"] = "HIGH" if feature_result["strength"] >= 0.75 else "MEDIUM"
                 pyramid = calculate_pyramid_entry(current_price, current_price, base_capital, 0)
                 result["details"]["pyramid"] = pyramid
                 result["message"] = (
                     f"{direction_4h} 信號 | {pyramid['message']} | "
-                    f"感官確認: {sensory_result['reason']}"
+                    f"特徵確認: {feature_result['reason']}"
                 )
     
     else:

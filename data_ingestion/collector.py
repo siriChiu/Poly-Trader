@@ -1,5 +1,5 @@
 """
-多感官數據整合收集器 v4
+多特徵數據整合收集器 v4
 - 支援 raw_events 紀錄
 - 支援 market / social / prediction / macro 擴充
 - 保留舊 raw_market_data 寫入路徑
@@ -50,7 +50,7 @@ def _raw_event(source: str, entity: str, subtype: str, value, confidence=0.5, qu
 
 
 def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
-    logger.info("開始多感官數據收集 v4...")
+    logger.info("開始多特徵數據收集 v4...")
 
     body = get_body_feature() or {}
     tongue = get_tongue_feature() or {}
@@ -88,7 +88,7 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
         vix_value=macro.get("vix_value"),
         dxy_value=macro.get("dxy_value"),
         nq_value=macro.get("nq_value"),
-        # P0/P1: New sensory data
+        # P0/P1: New feature data
         claw_liq_ratio=None,
         claw_liq_total=None,
         fang_pcr=None,
@@ -101,7 +101,7 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
         nest_pred=None,
     )
     record._derivatives = derivatives
-    # P0/P1: Store new sensory in _new_sensory for preprocessor
+    # P0/P1: Store new feature in _new_feature for preprocessor
     claw = get_claw_feature()
     fang = get_fang_feature()
     fin = get_fin_feature()
@@ -109,11 +109,11 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
     scales = get_scales_feature()
     nest = get_nest_feature()
     nq_feats = compute_nq_features(macro.get('nq_history', []))
-    record._new_sensory = {
+    record._new_feature = {
         **claw, **fang, **fin, **web, **scales, **nest, **nq_feats,
     }
 
-    # Actually map new sensory to RawMarketData columns
+    # Actually map new feature to RawMarketData columns
     record.claw_liq_ratio = claw.get("claw_ratio")
     record.claw_liq_total = claw.get("claw_long_liq", 0) + claw.get("claw_short_liq", 0)
     record.fang_pcr = fang.get("fang_raw_pcr")

@@ -132,7 +132,7 @@ def get_sense_history(hours=24):
 
 @st.cache_data(ttl=30)
 def get_price_sense_overlay(days=7):
-    """Nearest-match 對齊價格與多感官，提供同圖走勢。"""
+    """Nearest-match 對齊價格與多特徵，提供同圖走勢。"""
     price_df = get_price_history(days=days)
     sense_df = get_sense_history(hours=days * 24)
     cols = ["timestamp", "close_price", "eye", "ear", "nose", "tongue", "body", "pulse", "aura", "mind"]
@@ -204,7 +204,7 @@ st.markdown("---")
 
 # ── TABS ──────────────────────────────────────────────
 tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8 = st.tabs([
-    "📡 信號儀表板","🔬 五感分析","📈 策略回測","🔧 參數優化","🔄 Walk-Forward","📜 交易歷史","🧬 感官有效性","🧪 Web CLI"
+    "📡 信號儀表板","🔬 五感分析","📈 策略回測","🔧 參數優化","🔄 Walk-Forward","📜 交易歷史","🧬 特徵有效性","🧪 Web CLI"
 ])
 
 # ── TAB1: 信號儀表板
@@ -223,7 +223,7 @@ with tab1:
         else:
             st.info("無價格數據")
     with col_sense:
-        st.subheader("八感官即時")
+        st.subheader("八特徵即時")
         sd = get_sense_history(hours=1)
         if not sd.empty:
             latest = sd.iloc[-1]
@@ -243,9 +243,9 @@ with tab1:
                         <div style="width:{b}%;background:{c};height:5px;border-radius:3px"></div></div>
                 </div>""",unsafe_allow_html=True)
         else:
-            st.warning("目前沒有可畫的感官資料；通常是資料窗還沒累積，或新的欄位尚未補齊。")
+            st.warning("目前沒有可畫的特徵資料；通常是資料窗還沒累積，或新的欄位尚未補齊。")
 
-    st.subheader("價格 × 多感官走勢")
+    st.subheader("價格 × 多特徵走勢")
     ov = get_price_sense_overlay(days=7)
     if not ov.empty and ov[[c for c in ["eye","ear","nose","tongue","body","pulse","aura","mind"] if c in ov.columns]].notna().any().any():
         fig_ov = go.Figure()
@@ -263,10 +263,10 @@ with tab1:
                 sr = max(smax - smin, 1e-9)
                 scaled = pmin + ((series - smin) / sr) * pr
                 fig_ov.add_trace(go.Scatter(x=ov["timestamp"], y=scaled, mode="lines", name=key, line=dict(width=1.2, color=SENSE_COLORS.get(key, "#aaa")), opacity=0.75))
-        fig_ov.update_layout(title="價格 × 多感官走勢（nearest-match 對齊）", plot_bgcolor="#0d0d0d", paper_bgcolor="#0d0d0d", font_color="#e0e0e0", height=420, xaxis=dict(gridcolor="#2a2a2a"), yaxis=dict(gridcolor="#2a2a2a"), hovermode="x unified", legend=dict(bgcolor="#161616", bordercolor="#2a2a2a", borderwidth=1))
+        fig_ov.update_layout(title="價格 × 多特徵走勢（nearest-match 對齊）", plot_bgcolor="#0d0d0d", paper_bgcolor="#0d0d0d", font_color="#e0e0e0", height=420, xaxis=dict(gridcolor="#2a2a2a"), yaxis=dict(gridcolor="#2a2a2a"), hovermode="x unified", legend=dict(bgcolor="#161616", bordercolor="#2a2a2a", borderwidth=1))
         st.plotly_chart(fig_ov, use_container_width=True)
     else:
-        st.info("價格 × 多感官走勢暫時沒有可對齊的資料：請先累積更多同時間窗樣本，或檢查新舊特徵是否都有寫入。")
+        st.info("價格 × 多特徵走勢暫時沒有可對齊的資料：請先累積更多同時間窗樣本，或檢查新舊特徵是否都有寫入。")
 
 # ── TAB2: 五感分析
 with tab2:
@@ -287,7 +287,7 @@ with tab2:
         fig_c.update_layout(paper_bgcolor="#0d0d0d",font_color="#e0e0e0",height=350,title="相關性矩陣")
         st.plotly_chart(fig_c,use_container_width=True)
     else:
-        st.warning("目前沒有可畫的感官資料；通常是資料窗還沒累積，或新的欄位尚未補齊。")
+        st.warning("目前沒有可畫的特徵資料；通常是資料窗還沒累積，或新的欄位尚未補齊。")
 
 # ── TAB3: 策略回測
 with tab3:
@@ -451,7 +451,7 @@ with tab6:
     else:
         st.info("無交易記錄")
 
-# ── TAB7: 感官有效性
+# ── TAB7: 特徵有效性
 with tab7:
     try:
         from sqlalchemy.orm import sessionmaker as SM7
@@ -465,7 +465,7 @@ with tab7:
             fi = go.Figure(go.Bar(x=ic_df["Feature"],y=ic_df["IC"],marker_color=ic_df["color"]))
             fi.add_hline(y=0.05,line_dash="dash",line_color="#888",annotation_text="0.05")
             fi.add_hline(y=-0.05,line_dash="dash",line_color="#888")
-            fi.update_layout(title="IC 感官有效性",plot_bgcolor="#0d0d0d",paper_bgcolor="#0d0d0d",font_color="#e0e0e0",height=300,xaxis=dict(gridcolor="#2a2a2a"),yaxis=dict(gridcolor="#2a2a2a"))
+            fi.update_layout(title="IC 特徵有效性",plot_bgcolor="#0d0d0d",paper_bgcolor="#0d0d0d",font_color="#e0e0e0",height=300,xaxis=dict(gridcolor="#2a2a2a"),yaxis=dict(gridcolor="#2a2a2a"))
             st.plotly_chart(fi,use_container_width=True)
         qdf = compute_win_rate_by_feature_quantile(_s7,cfg["trading"]["symbol"],horizon_hours=24,n_quantiles=5)
         if not qdf.empty:
@@ -514,12 +514,12 @@ with tab8:
         except Exception as e:
             st.error(f"Web 回測失敗: {e}")
 
-    if st.button("刷新感官與模型統計", use_container_width=True):
+    if st.button("刷新特徵與模型統計", use_container_width=True):
         import requests
         try:
             senses = requests.get(f"{API_BASE}/senses", timeout=30).json()
             stats = requests.get(f"{API_BASE}/model/stats", timeout=30).json()
-            st.write("### Sensory Scores")
+            st.write("### Feature Scores")
             st.json(senses)
             st.write("### Model Stats")
             st.json(stats)

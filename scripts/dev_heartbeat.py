@@ -12,7 +12,7 @@ from typing import List
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
-# 必需目錄（動態檢查，不硬編碼特定感官檔案）
+# 必需目錄（動態檢查，不硬編碼特定特徵檔案）
 REQUIRED_DIRS = [
     "data_ingestion",
     "feature_engine",
@@ -26,7 +26,7 @@ REQUIRED_DIRS = [
     "tests",
 ]
 
-# 核心檔案（只要求關鍵入口點，不檢查每個感官模組）
+# 核心檔案（只要求關鍵入口點，不檢查每個特徵模組）
 CORE_FILES = [
     # Config
     "config.py",
@@ -50,7 +50,7 @@ CORE_FILES = [
     "scripts/dev_heartbeat.py",
 ]
 
-# 感官模組目錄（只檢查目錄存在，不硬編碼檔案名）
+# 特徵模組目錄（只檢查目錄存在，不硬編碼檔案名）
 SENSE_MODULES_DIR = "data_ingestion"
 
 
@@ -84,7 +84,7 @@ def check_syntax(file_list: List[str]) -> List[str]:
 
 
 def check_sense_modules() -> dict:
-    """動態檢查 data_ingestion 目錄下的感官模組"""
+    """動態檢查 data_ingestion 目錄下的特徵模組"""
     sense_dir = PROJECT_ROOT / SENSE_MODULES_DIR
     if not sense_dir.is_dir():
         return {"status": "ERROR", "modules": [], "count": 0}
@@ -129,9 +129,9 @@ def main():
     else:
         print(f"[OK] 所有 {len(CORE_FILES)} 個核心檔案存在")
 
-    # 感官模組（動態）
+    # 特徵模組（動態）
     senses = check_sense_modules()
-    print(f"[OK] 感官模組: {senses['count']} 個 ({', '.join(senses['modules'][:5])}{'...' if senses['count']>5 else ''})")
+    print(f"[OK] 特徵模組: {senses['count']} 個 ({', '.join(senses['modules'][:5])}{'...' if senses['count']>5 else ''})")
 
     # 資料庫
     db = check_db()

@@ -1,6 +1,6 @@
 """
-感官有效性驗證器
-定期檢查每個感官的 IC（信息係數），標記無效感官並觸發六帽會議。
+特徵有效性驗證器
+定期檢查每個特徵的 IC（信息係數），標記無效特徵並觸發六帽會議。
 """
 
 import os
@@ -127,7 +127,7 @@ def validate_senses(
     session: Session, symbol: str = "BTCUSDT"
 ) -> Dict:
     """
-    完整的感官有效性驗證。
+    完整的特徵有效性驗證。
     Returns: {
         "status": "ok" | "warning" | "critical",
         "issues": [list of issue strings],
@@ -197,7 +197,7 @@ def validate_senses(
 def format_validation_report(result: Dict) -> str:
     """格式化驗證報告為可讀文本。"""
     lines = [
-        f"=== 感官有效性驗證報告 ({result['timestamp']}) ===",
+        f"=== 特徵有效性驗證報告 ({result['timestamp']}) ===",
         f"樣本數: {result['sample_count']}",
         f"整體狀態: {result['status'].upper()}",
         "",

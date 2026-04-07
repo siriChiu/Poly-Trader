@@ -201,7 +201,19 @@ class FeaturesEngine:
             )
             if row is None:
                 return {'scores': {}, 'raw': {}, 'raw_all': {}}
-            return get_raw_and_scores(row)
+            # If latest row has null 4H values, find one that has data
+            # (happens after restart before 4H warmup completes)
+            raw_result = get_raw_and_scores(row)
+            if raw_result['raw'] and all(v is None for v in raw_result['raw'].values()):
+                row_with_4h = (
+                    self._db.query(FeaturesNormalized)
+                    .filter(FeaturesNormalized.feat_4h_bias50.isnot(None))
+                    .order_by(FeaturesNormalized.timestamp.desc())
+                    .first()
+                )
+                if row_with_4h:
+                    return get_raw_and_scores(row_with_4h)
+            return raw_result
         except Exception as e:
             logger.error(f"Full data fetch failed: {e}")
             return {'scores': {}, 'raw': {}, 'raw_all': {}}

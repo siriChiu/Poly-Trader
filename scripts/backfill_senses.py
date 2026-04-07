@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 r"""
-回填多感官歷史走勢 v1
+回填多特徵歷史走勢 v1
 
 功能：
 1. 用 rolling window 正確重算所有歷史特徵（避免 use future data）
-2. 計算每個 timestamp 的 8 感官分數（0~1 正規化）
+2. 計算每個 timestamp 的 8 特徵分數（0~1 正規化）
 3. 寫入 DB
 
 用法：
@@ -182,7 +182,7 @@ def compute_features_rolling(window: pd.DataFrame) -> dict:
 
 
 def score_all_senses(features: dict) -> dict:
-    """將 8 個 raw 特徵轉為 0~1 感官分數。"""
+    """將 8 個 raw 特徵轉為 0~1 特徵分數。"""
     mapping = {
         "eye": "feat_eye_dist",
         "ear": "feat_ear_zscore",
@@ -203,7 +203,7 @@ def main():
     from server.dependencies import get_db
 
     print(f"\n{'='*60}")
-    print(f"  多感官歷史回填 [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
+    print(f"  多特徵歷史回填 [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
     print(f"{'='*60}\n")
 
     session = get_db()
@@ -304,7 +304,7 @@ def main():
     print(f"  失敗: {failed} 筆")
     print(f"  特徵總計: {final_count} 筆")
     if latest_sense_scores:
-        print("\n  最新感官分數:")
+        print("\n  最新特徵分數:")
         emoji_map = {"eye": "[Eye]", "ear": "[Ear]", "nose": "[Nose]", "tongue": "[Tongue]",
                      "body": "[Body]", "pulse": "[Pulse]", "aura": "[Aura]", "mind": "[Mind]"}
         for s in sense_keys:

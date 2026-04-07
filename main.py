@@ -27,7 +27,7 @@ def trading_cycle(session, config: dict, symbol: str, confidence_threshold: floa
     """
     logger.info(f"=== 開始交易循環 [{datetime.utcnow().isoformat()}] ===")
 
-    # Step 1: 數據採集（多感官收集並寫入 raw_market_data）
+    # Step 1: 數據採集（多特徵收集並寫入 raw_market_data）
     collected = run_collection_and_save(session, symbol)
     if not collected:
         logger.warning("本輪數據採集失敗，跳過後續步驟")

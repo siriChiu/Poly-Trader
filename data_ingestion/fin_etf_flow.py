@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-感官之「Fin (Fins)」v1 — ETF 資金流向模組
+特徵之「Fin (Fins)」v1 — ETF 資金流向模組
 
 數據源：CoinGlass ETF Flow API (免費)
 - /api/bitcoin/etf/flow-history

@@ -89,7 +89,7 @@ def test_imports():
 # ═══════════════════════════════════════
 
 def test_senses_engine_real_data():
-    section("8. 感官引擎真實數據測試")
+    section("8. 特徵引擎真實數據測試")
     try:
         from config import load_config
         from database.models import init_db
@@ -101,14 +101,14 @@ def test_senses_engine_real_data():
         engine.set_db(session)
 
         scores = engine.calculate_all_scores()
-        print(f"  感官分數: {scores}")
+        print(f"  特徵分數: {scores}")
 
         # 檢查分數不是全 0.5（假數據）
         all_default = all(abs(v - 0.5) < 0.001 for v in scores.values())
         if all_default:
-            print("[FAIL] 所有感官分數都是 0.5（假數據！）")
+            print("[FAIL] 所有特徵分數都是 0.5（假數據！）")
             return False
-        print("[OK] 感官分數有真實變異")
+        print("[OK] 特徵分數有真實變異")
 
         # 檢查分數在合理範圍
         for key, val in scores.items():
@@ -136,7 +136,7 @@ def test_senses_engine_real_data():
         session.close()
         return True
     except Exception as e:
-        print(f"[FAIL] 感官引擎測試錯誤: {e}")
+        print(f"[FAIL] 特徵引擎測試錯誤: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -241,7 +241,7 @@ def main():
     results.append(("模組導入", test_imports()))
     # test_database_init skipped - uses old test
     # test_pipeline_simulation skipped - uses old test
-    results.append(("感官引擎真實數據", test_senses_engine_real_data()))
+    results.append(("特徵引擎真實數據", test_senses_engine_real_data()))
     results.append(("前端 TypeScript", test_frontend_build()))
     results.append(("數據品質", test_data_quality()))
 

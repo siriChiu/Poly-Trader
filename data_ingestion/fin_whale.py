@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-感官之「 Fin 」v1 — 鏈上巨鯨模組
+特徵之「 Fin 」v1 — 鏈上巨鯨模組
 
 數據源：Whale Alert API (免費) + Binance 大額交易
 - wss://leviathan.whale-alert.io/ws (實時鯨魚警報)

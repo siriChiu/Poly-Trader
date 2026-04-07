@@ -41,7 +41,7 @@
 | 🟡 P1 | 加入 auto_propose_fixes 自動修復提案 | ✅ 已寫入 | 完成 |
 | 🟡 P1 | 加入 backtest 到平行 runner | ✅ 已寫入 | 完成 |
 | 🟢 P2 | 加入 hb_metrics.csv 趨勢追蹤 | ✅ 已寫入 | 完成 |
-| 🟢 P2 | SensoryETF 自動更新 | 待執行 | 待執行 |
+| 🟢 P2 | FeatureETF 自動更新 | 待執行 | 待執行 |
 | 🟢 P2 | issues.json 結構化 tracker | ✅ 已寫入 | 完成 |
 
 ---

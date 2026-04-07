@@ -4,7 +4,7 @@
 核心理念:
   4H 乖離率(MA50)定位市場高低 → 知道現在貴還是便宜
   金字塔 20→30→50 分批入場 → 越跌越買但不一次 All-in
-  感官過濾(nose RSI)抓時機     → 不在超買時進場
+  特徵過濾(nose RSI)抓時機     → 不在超買時進場
   -5% 止損 + bias50>+4% 止盈  → 虧損可控，獲利會跑
 
 Web Dashboard Integration:
@@ -45,7 +45,7 @@ STRATEGY = {
     "take_profit_roi": 0.08,   # 單筆 ROI >8% 止盈
     "stop_loss": -0.05,         # 跌 5% 止損
 
-    # 感官過濾
+    # 特徵過濾
     "nose_max": 0.40,          # RSI 不高於此值才進場
 }
 
@@ -199,8 +199,8 @@ def get_current_4h_values(structure, current_price):
 # ══════════════════════════════════════════════
 # 策略引擎
 # ══════════════════════════════════════════════
-def load_sensory_features():
-    """Load latest sensory features from DB."""
+def load_feature_features():
+    """Load latest feature features from DB."""
     conn = sqlite3.connect(DB_PATH)
     row = conn.execute("""
         SELECT feat_nose, feat_ear, feat_pulse, feat_aura, feat_eye
@@ -246,14 +246,14 @@ def load_portfolio_state():
 def evaluate_signal(
     structure_4h,
     current_price,
-    sensory,
+    feature,
     portfolio,
 ):
     """Evaluate current trading signal based on all inputs."""
     v4h = get_current_4h_values(structure_4h, current_price)
     b50 = v4h["bias50"]
     dsl = v4h["dist_swing_low"]
-    n_val = sensory["nose"] if sensory else 0.5
+    n_val = feature["nose"] if feature else 0.5
 
     position = portfolio.get("position", 0)
     layers = portfolio.get("layers", [])
@@ -344,7 +344,7 @@ def evaluate_signal(
                 "reason": f"牛市常規買入 (bias50={b50:+.1f}%, nose={n_val:.2f})",
                 "amount_usd": buy_amt,
                 "coins": coins,
-                "condition": f"RSI={n_val:.2f} < {nose_max} (感官確認)",
+                "condition": f"RSI={n_val:.2f} < {nose_max} (特徵確認)",
             }
         else:
             details = {
@@ -419,14 +419,14 @@ def main():
     print(f"  RSI14={v4h['rsi14']:.1f}  MACD-H={v4h['macd_hist']:.0f}")
     print(f"  SwingL=${v4h['swing_low']:,.0f}  dist={v4h['dist_swing_low']:+.1f}%")
 
-    # 3. Get sensory + portfolio
-    print("\n[3/4] Loading sensory + portfolio...")
-    sensory = load_sensory_features()
+    # 3. Get feature + portfolio
+    print("\n[3/4] Loading feature + portfolio...")
+    feature = load_feature_features()
     portfolio = load_portfolio_state()
-    if sensory:
-        print(f"  nose={sensory['nose']:.2f} ear={sensory['ear']:.3f} pulse={sensory['pulse']:.2f}")
+    if feature:
+        print(f"  nose={feature['nose']:.2f} ear={feature['ear']:.3f} pulse={feature['pulse']:.2f}")
     else:
-        print("  ⚠️ Sensory data not available")
+        print("  ⚠️ Feature data not available")
     print(f"  Position: {portfolio['position']:.6f} BTC ({portfolio['total_invested']:,.0f} USDT)")
     print(f"  Layers: {len(portfolio['layers'])}")
     print(f"  Cash: ${portfolio['cash']:,.0f}")
@@ -434,7 +434,7 @@ def main():
     # 4. Evaluate
     print("\n[4/4] Evaluating signal...")
     signal, action, urgency, v4h_info, details = evaluate_signal(
-        structure_4h, current_price, sensory, portfolio
+        structure_4h, current_price, feature, portfolio
     )
 
     # Print result
@@ -457,7 +457,7 @@ def main():
         "urgency": urgency,
         "price": current_price,
         "4h": v4h_info,
-        "sensory": sensory,
+        "feature": feature,
         "portfolio": {
             "position": portfolio["position"],
             "layers": portfolio["layers"],
