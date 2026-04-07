@@ -78,6 +78,16 @@ def sigmoid_clip(value: float, scale: float = 1.0) -> float:
     return 1.0 / (1.0 + math.exp(-value / scale))
 
 
+def normalize_feature(value, col_name: str) -> float:
+    """Normalize a single feature value to 0..1 using ECDF anchors. Returns 0.5 if value is None."""
+    if value is None:
+        return 0.5
+    if col_name in ECDF_ANCHORS:
+        p5, p95 = ECDF_ANCHORS[col_name]
+        return ecdf_normalize(value, p5, p95)
+    return 0.5
+
+
 def normalize_all_features(row) -> Dict[str, float]:
     """Normalize a FeaturesNormalized row → dict of frontend keys with 0..1 scores."""
     scores = {}
