@@ -16,7 +16,7 @@ interface KlineResponse {
   symbol: string;
   interval: string;
   candles: { time: number; open: number; high: number; low: number; close: number; volume: number }[];
-  indicators: {
+  indicators?: {
     ma20?: (number | null)[];
     ma60?: (number | null)[];
     rsi?: (number | null)[];
@@ -126,6 +126,27 @@ export default function CandlestickChart({ symbol = "BTCUSDT", interval = "1h", 
         if (!resp.ok) throw new Error(`${resp.status}`);
         const data: KlineResponse = await resp.json();
 
+        // Guard against empty or missing candles
+        if (!data.candles || data.candles.length === 0) {
+          setLoading(false);
+          return;
+        }
+
+        // Guard against missing indicators and ensure arrays exist
+        const indicators = data.indicators || {};
+
+        // Helper: safe mapping from indicator array to chart data
+        // If array is undefined, empty, or shorter than candles, pad with nulls
+        const safeMap = (arr: (number | null)[] | undefined, _key: string): LineData<Time>[] => {
+          if (!arr || arr.length === 0) return [];
+          return data.candles
+            .map((c, i) => ({
+              time: c.time as Time,
+              value: i < arr.length ? arr[i] : null,
+            }))
+            .filter((d): d is LineData<Time> => d.value !== null && d.value !== undefined);
+        };
+
         // Set candle data
         const candleData: CandlestickData<Time>[] = data.candles.map(c => ({
           time: c.time as Time, open: c.open, high: c.high, low: c.low, close: c.close,
@@ -141,47 +162,43 @@ export default function CandlestickChart({ symbol = "BTCUSDT", interval = "1h", 
         volumeSeries.setData(volumeData);
 
         // Set MA20
-        if (data.indicators.ma20) {
-          const ma20Data: LineData<Time>[] = data.candles
-            .map((c, i) => ({ time: c.time as Time, value: data.indicators.ma20![i] }))
-            .filter((d): d is LineData<Time> => d.value !== null && d.value !== undefined);
+        {
+          const ma20Data = safeMap(indicators.ma20, "ma20");
           ma20Series.setData(ma20Data);
         }
 
         // Set MA60
-        if (data.indicators.ma60) {
-          const ma60Data: LineData<Time>[] = data.candles
-            .map((c, i) => ({ time: c.time as Time, value: data.indicators.ma60![i] }))
-            .filter((d): d is LineData<Time> => d.value !== null && d.value !== undefined);
+        {
+          const ma60Data = safeMap(indicators.ma60, "ma60");
           ma60Series.setData(ma60Data);
         }
 
         // Set RSI
-        if (data.indicators.rsi) {
-          const rsiData: LineData<Time>[] = data.candles
-            .map((c, i) => ({ time: c.time as Time, value: data.indicators.rsi![i] }))
-            .filter((d): d is LineData<Time> => d.value !== null && d.value !== undefined);
+        {
+          const rsiData = safeMap(indicators.rsi, "rsi");
           rsiSeries.setData(rsiData);
         }
 
         // Set MACD
-        if (data.indicators.macd) {
-          const { macd, signal, histogram } = data.indicators.macd;
-          const toLineData = (arr: (number | null)[]): LineData<Time>[] =>
-            data.candles
-              .map((c, i) => ({ time: c.time as Time, value: arr[i] }))
-              .filter((d): d is LineData<Time> => d.value !== null && d.value !== undefined);
-
-          macdLineSeries.setData(toLineData(macd));
-          macdSignalSeries.setData(toLineData(signal));
-
-          const histData: HistogramData<Time>[] = data.candles
-            .map((c, i) => ({
+        {
+          const macdData = indicators.macd;
+          const safeHistMap = (arr: (number | null)[] | undefined): HistogramData<Time>[] => {
+            if (!arr) {
+              return data.candles.map(c => ({
+                time: c.time as Time, value: 0,
+                color: "#26a69a80",
+              }));
+            }
+            return data.candles.map((c, i) => ({
               time: c.time as Time,
-              value: histogram[i] ?? 0,
-              color: (histogram[i] ?? 0) >= 0 ? "#26a69a80" : "#ef535080",
+              value: i < arr.length ? (arr[i] ?? 0) : 0,
+              color: (i < arr.length ? (arr[i] ?? 0) : 0) >= 0 ? "#26a69a80" : "#ef535080",
             }));
-          macdHistSeries.setData(histData);
+          };
+
+          macdLineSeries.setData(safeMap(macdData?.macd, "macd"));
+          macdSignalSeries.setData(safeMap(macdData?.signal, "signal"));
+          macdHistSeries.setData(safeHistMap(macdData?.histogram));
         }
 
         chart.timeScale().fitContent();

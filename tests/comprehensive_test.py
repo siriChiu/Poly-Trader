@@ -35,7 +35,7 @@ def test_file_structure():
         "feature_engine/preprocessor.py",
         "model/predictor.py", "model/train.py",
         "execution/risk_control.py", "execution/order_manager.py",
-        "server/main.py", "server/routes/api.py", "server/senses.py",
+        "server/main.py", "server/routes/api.py", "server/features_engine.py",
         "web/package.json", "web/src/pages/Dashboard.tsx",
     ]
     missing = [f for f in required if not (PROJECT_ROOT / f).exists()]
@@ -71,7 +71,7 @@ def test_imports():
         "database.models", "utils.logger", "config",
         "data_ingestion.collector", "feature_engine.preprocessor",
         "model.predictor", "execution.risk_control",
-        "server.senses",
+        "server.features_engine",
     ]
     all_ok = True
     for mod in modules:
@@ -93,11 +93,11 @@ def test_senses_engine_real_data():
     try:
         from config import load_config
         from database.models import init_db
-        from server.senses import SensesEngine, normalize_feature
+        from server.features_engine import FeaturesEngine, normalize_feature
 
         cfg = load_config()
         session = init_db(cfg["database"]["url"])
-        engine = SensesEngine()
+        engine = FeaturesEngine()
         engine.set_db(session)
 
         scores = engine.calculate_all_scores()
