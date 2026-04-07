@@ -1,5 +1,5 @@
 """
-多感官配置管理器 (Senses Engine) v4
+多特徵配置管理器 (Features Engine) v4
 - 從 DB 讀取真实特徵值
 - 使用 ECDF (full dataset) 正規化 → 分數有差異
 - 包含 4H 結構線資訊 (原始值 + 正規化)
@@ -89,19 +89,19 @@ FEATURE_MAP = {
     'feat_4h_dist_swing_low': '4h_dist_sl',
 }
 
-# ─── Legacy sense engine config ───
+# ─── Feature engine config (descriptions for UI display) ───
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "eye":   {"name": "視覺 Eye",   "emoji": "👁️", "description": "24H return / 72H vol ratio (trend strength)",        "modules": {"main": {"name": "72h Vol Ratio",     "source": "Binance",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "ear":   {"name": "聽覺 Ear",   "emoji": "👂", "description": "24H momentum",                          "modules": {"main": {"name": "Momentum",       "source": "K線",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "nose":  {"name": "嗅覺 Nose",  "emoji": "👃", "description": "RSI momentum",                    "modules": {"main": {"name": "RSI",         "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "tongue":{"name": "味覺 Tongue","emoji": "👅", "description": "Mean-reversion deviation",                  "modules": {"main": {"name": "Mean-revert",     "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "body":  {"name": "觸覺 Body",  "emoji": "💪", "description": "Volatility z-score",                         "modules": {"main": {"name": "Vol Z-score",     "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "pulse": {"name": "脈動 Pulse", "emoji": "💓", "description": "Volume spike",                   "modules": {"main": {"name": "Vol Spike",     "source": "K線",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "aura":  {"name": "磁場 Aura",  "emoji": "🌈", "description": "MA deviation",                        "modules": {"main": {"name": "MA Dev",     "source": "複合",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "mind":  {"name": "認知 Mind",  "emoji": "🧠", "description": "Medium-term momentum",                    "modules": {"main": {"name": "144-return",     "source": "Binance", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "eye":   {"name": "Eye",   "emoji": "📊", "description": "24H return / 72H vol ratio (trend strength)",        "modules": {"main": {"name": "72h Vol Ratio",     "source": "Binance",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "ear":   {"name": "Ear",   "emoji": "📈", "description": "24H momentum",                          "modules": {"main": {"name": "Momentum",       "source": "K線",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "nose":  {"name": "Nose",  "emoji": "📐", "description": "RSI momentum",                    "modules": {"main": {"name": "RSI",         "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "tongue":{"name": "Tongue","emoji": "🔄", "description": "Mean-reversion deviation",                  "modules": {"main": {"name": "Mean-revert",     "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "body":  {"name": "Body",  "emoji": "📏", "description": "Volatility z-score",                         "modules": {"main": {"name": "Vol Z-score",     "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "pulse": {"name": "Pulse", "emoji": "💹", "description": "Volume spike",                   "modules": {"main": {"name": "Vol Spike",     "source": "K線",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "aura":  {"name": "Aura",  "emoji": "🔮", "description": "MA deviation",                        "modules": {"main": {"name": "MA Dev",     "source": "複合",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "mind":  {"name": "Mind",  "emoji": "🧮", "description": "Medium-term momentum",                    "modules": {"main": {"name": "144-return",     "source": "Binance", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
 }
 
-CONFIG_PATH = Path(__file__).parent.parent / "data" / "senses_config.json"
+CONFIG_PATH = Path(__file__).parent.parent / "data" / "features_config.json"
 
 
 def ecdf_normalize(value: float, p_lo: float, p_hi: float) -> float:
@@ -148,8 +148,8 @@ def get_raw_and_scores(row) -> Dict[str, Any]:
     }
 
 
-# ─── SensesEngine ───
-class SensesEngine:
+# ─── FeaturesEngine ───
+class FeaturesEngine:
     def __init__(self):
         self.config: Dict[str, Any] = self._load_config()
         self._db = None
@@ -206,21 +206,21 @@ class SensesEngine:
             logger.error(f"Full data fetch failed: {e}")
             return {'scores': {}, 'raw': {}, 'raw_all': {}}
 
-    def calculate_all_scores(self) -> Dict[str, float]:
+    def calculate_all_scores(self):
         return self.get_latest_scores()
 
     def get_config(self) -> Dict[str, Any]:
         return self.config
 
-    def get_senses_status(self) -> Dict[str, Any]:
+    def get_features_status(self) -> Dict[str, Any]:
         return self.config
 
-    def update_sense_config(self, sense_key: str, module_key: str, updates: Dict[str, Any]) -> bool:
-        if sense_key not in self.config:
+    def update_feature_config(self, feature_key: str, module_key: str, updates: Dict[str, Any]) -> bool:
+        if feature_key not in self.config:
             return False
-        if module_key not in self.config[sense_key]["modules"]:
+        if module_key not in self.config[feature_key]["modules"]:
             return False
-        module = self.config[sense_key]["modules"][module_key]
+        module = self.config[feature_key]["modules"][module_key]
         if "enabled" in updates:
             module["enabled"] = updates["enabled"]
         if "weight" in updates:
@@ -250,11 +250,11 @@ class SensesEngine:
             self._desc("body", scores.get("body", 0.5)),
         ]
         overall = self._overall_advice(rec_score)
-        sorted_senses = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        names = {"eye": "技術面", "ear": "市場共識", "nose": "衍生品", "tongue": "情緒", "body": "鏈上資金", "pulse": "脈動", "aura": "磁場", "mind": "認知"}
+        sorted_feats = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        names = {"eye": "Eye", "ear": "Ear", "nose": "Nose", "tongue": "Tongue", "body": "Body", "pulse": "Pulse", "aura": "Aura", "mind": "Mind"}
         summary = (
-            f"{names.get(sorted_senses[0][0], sorted_senses[0][0])}最強（{sorted_senses[0][1]:.0%}），"
-            f"{names.get(sorted_senses[-1][0], sorted_senses[-1][0])}最弱（{sorted_senses[-1][1]:.0%}）。"
+            f"{names.get(sorted_feats[0][0], sorted_feats[0][0])}最強（{sorted_feats[0][1]:.0%}），"
+            f"{names.get(sorted_feats[-1][0], sorted_feats[-1][0])}最弱（{sorted_feats[-1][1]:.0%}）。"
             f"綜合建議：{overall['text']}"
         )
         return {
@@ -264,31 +264,31 @@ class SensesEngine:
             "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
-    def _desc(self, sense: str, score: float) -> str:
+    def _desc(self, feature: str, score: float) -> str:
         templates = {
-            "eye": [(0.7, "技術面顯示強勢突破 📈"), (0.3, "技術面處於整理區間 📊"), (0, "技術面觸及支撐位 📉")],
-            "ear": [(0.6, "市場共識偏多 🟢"), (0.4, "市場觀望情緒濃厚 ⚪"), (0, "市場共識偏空 🔴")],
-            "nose": [(0.6, "衍生品市場槓桿偏多 🔼"), (0.4, "衍生品市場平穩 ➡️"), (0, "衍生品市場槓桿偏空 🔽")],
-            "tongue": [(0.6, "市場情緒樂觀 😊"), (0.4, "市場情緒中性 😐"), (0, "市場情緒極度恐懼 😱")],
-            "body": [(0.6, "鏈上資金持續流入 💰"), (0.4, "鏈上資金平穩 ⚖️"), (0, "鏈上資金外流壓力大 📤")],
+            "eye": [(0.7, "趨勢強勁 📈"), (0.3, "趨勢整理區間 📊"), (0, "趨勢走弱 📉")],
+            "ear": [(0.6, "動能偏多 🟢"), (0.4, "觀望情緒濃厚 ⚪"), (0, "動能偏空 🔴")],
+            "nose": [(0.6, "RSI 偏強 🔼"), (0.4, "RSI 平穩 ➡️"), (0, "RSI 偏弱 🔽")],
+            "tongue": [(0.6, "回調壓力低 😊"), (0.4, "回調壓力中性 😐"), (0, "回調壓力高 😱")],
+            "body": [(0.6, "波動率低 📏"), (0.4, "波動率中等 ⚖️"), (0, "波動率高 📤")],
         }
-        for threshold, text in templates.get(sense, []):
+        for threshold, text in templates.get(feature, []):
             if score > threshold:
                 return text
         return "數據不足 ❓"
 
     def _overall_advice(self, score: int) -> Dict[str, str]:
-        if score > 80: return {"text": "🔴 強烈建議做空 — 多數感官確認下跌趨勢", "action": "strong_sell"}
-        if score > 60: return {"text": "🟠 建議做空 — 部分感官支持下跌", "action": "sell"}
-        if score > 40: return {"text": "⚪ 建議觀望 — 感官分歧，方向不明", "action": "hold"}
+        if score > 80: return {"text": "🔴 強空訊號 — 多數特徵確認下跌", "action": "strong_sell"}
+        if score > 60: return {"text": "🟠 偏空 — 部分特徵支持下跌", "action": "sell"}
+        if score > 40: return {"text": "⚪ 觀望 — 特徵分歧，方向不明", "action": "hold"}
         if score > 20: return {"text": "🟡 偏多格局 — 下跌動能不足", "action": "hold_long"}
         return {"text": "🟢 多頭格局 — 價格可能上升", "action": "hold"}
 
 
-_engine: Optional[SensesEngine] = None
+_engine: Optional[FeaturesEngine] = None
 
-def get_engine() -> SensesEngine:
+def get_engine() -> FeaturesEngine:
     global _engine
     if _engine is None:
-        _engine = SensesEngine()
+        _engine = FeaturesEngine()
     return _engine

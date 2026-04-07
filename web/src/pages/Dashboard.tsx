@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import RadarChart from "../components/RadarChart";
 import AdviceCard from "../components/AdviceCard";
-import SenseChart from "../components/SenseChart";
+import FeatureChart from "../components/FeatureChart";
 import CandlestickChart from "../components/CandlestickChart";
 import BacktestSummary from "../components/BacktestSummary";
 import { useApi, fetchApi } from "../hooks/useApi";
@@ -335,7 +335,7 @@ export default function Dashboard() {
       })()}
 
       {/* Row 2: Sense History Chart */}
-      <SenseChart selectedSense={selectedSense} days={days} onClear={() => setSelectedSense(null)} />
+      <FeatureChart selectedFeature={selectedSense} days={days} onClear={() => setSelectedSense(null)} />
 
       {/* Row 3: K 線圖 */}
       <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
