@@ -16,8 +16,8 @@ logger = setup_logger(__name__)
 def generate_future_return_labels(
     session: Session,
     symbol: str = "BTCUSDT",
-    horizon_hours: int = 4,
-    threshold_pct: float = 0.020,
+    horizon_hours: int = 12,
+    threshold_pct: float = 0.005,
     neutral_band: float = 0.005
 ) -> pd.DataFrame:
     """
@@ -75,8 +75,31 @@ def generate_future_return_labels(
         if pd.isna(current_price) or current_price == 0:
             continue
         ret_pct = (future_price - current_price) / current_price
-        # Core definition: sell-win means SHORT is profitable = price goes DOWN (negative return)
-        if ret_pct < -threshold_pct:
+        # P0: Compute future max drawdown (lowest price within horizon) for realistic short P&L
+        mask_horizon = (prices_df.index >= ts) & (prices_df.index <= future_ts + FUTURE_TOLERANCE)
+        horizon_prices = prices_df[mask_horizon].copy()
+        if not horizon_prices.empty:
+            max_price_during = horizon_prices["close_price"].max()
+            min_price_during = horizon_prices["close_price"].min()
+            if current_price > 0 and max_price_during > 0:
+                # Max drawdown from entry (how much price dropped = short profit potential)
+                max_drawdown = (min_price_during - current_price) / current_price
+                # Max runup (how much price rallied against short = risk)
+                max_runup = (max_price_during - current_price) / current_price
+            else:
+                max_drawdown = None
+                max_runup = None
+        else:
+            max_drawdown = None
+            max_runup = None
+        # Core definition: sell-win means SHORT is profitable = price goes DOWN
+        # P0: Use max_drawdown for sell_win label — if price dropped significantly during
+        # the horizon, a well-timed short would have been profitable even if final close
+        # recovered. This gives the model a more realistic trading signal.
+        # Sell win if EITHER: (a) endpoint drops below threshold, OR (b) max drawdown below threshold
+        endpoint_drop = ret_pct < -threshold_pct
+        drawdown_drop = (max_drawdown is not None and max_drawdown < -threshold_pct)
+        if endpoint_drop or drawdown_drop:
             label = 1
             sell_win = 1
         elif ret_pct > threshold_pct:
@@ -91,8 +114,8 @@ def generate_future_return_labels(
             "label_sell_win": sell_win,
             "label_up": label,
             "future_return_pct": ret_pct,
-            "future_max_drawdown": None,
-            "future_max_runup": None,
+            "future_max_drawdown": max_drawdown,
+            "future_max_runup": max_runup,
             "regime_label": None,  # Will be backfilled from features_normalized.regime_label
         })
 

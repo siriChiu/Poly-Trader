@@ -31,10 +31,12 @@ FEATURE_COLS = [
     # === 5 Technical Indicators ===
     "feat_rsi14", "feat_macd_hist", "feat_atr_pct",
     "feat_vwap_dev", "feat_bb_pct_b",
-    # === 5 P0/P1 Sensory + NQ ===
-    "feat_claw", "feat_claw_intensity", "feat_fang_pcr",
-    "feat_fang_skew", "feat_fin_netflow",
-    "feat_nq_return_1h",
+    # === P0/P1 Sensory + NQ ===
+    # P0: Disabled — only 20 samples, no training signal (ic_status=LOW/NO_DATA)
+    # "feat_claw", "feat_claw_intensity", "feat_fang_pcr",
+    # "feat_fang_skew", "feat_fin_netflow", "feat_nq_return_1h",
+    # === Re-enabled with sufficient data threshold ===
+    # Re-add once these features have > 500 samples in the DB
 ]
 LAG_STEPS = [12, 48, 288]
 BASE_FEATURE_COLS = FEATURE_COLS
@@ -255,7 +257,10 @@ def load_training_data(session: Session, min_samples: int = 50,
         "feat_vix_x_eye", "feat_vix_x_pulse", "feat_vix_x_mind",
         "feat_mind_x_pulse", "feat_eye_x_ear", "feat_nose_x_aura",
         "feat_eye_x_body", "feat_ear_x_nose", "feat_mind_x_aura",
-        "feat_regime_flag", "feat_mean_rev_proxy"
+        "feat_regime_flag", "feat_mean_rev_proxy",
+        # P0: Disabled — base features have <500 samples
+        # "feat_claw_x_pulse", "feat_fang_x_vix",
+        # "feat_fin_x_claw", "feat_web_x_fang", "feat_nq_x_vix",
     ]
 
     all_training_cols = FEATURE_COLS + lag_feature_cols + CROSS_FEATURES
@@ -411,7 +416,7 @@ def run_training(session: Session, regime_filter: Optional[list] = None) -> bool
             if len(y_tr.unique()) < 2:
                 continue
             _m = xgb.XGBClassifier(**{k: v for k, v in model.get_params().items()})
-            _m.fit(X.iloc[_tr], y_tr)
+            _m.fit(X.iloc[_tr], y_tr, sample_weight=compute_sample_weight("balanced", y_tr))
             valid_scores.append(float((_m.predict(X.iloc[_te]) == y.iloc[_te]).mean()))
         cv_acc = float(np.mean(valid_scores)) if valid_scores else float('nan')
         cv_std = float(np.std(valid_scores)) if valid_scores else float('nan')
@@ -480,9 +485,9 @@ def train_regime_models(session: Session) -> bool:
         "feat_mind_x_pulse", "feat_eye_x_ear", "feat_nose_x_aura",
         "feat_eye_x_body", "feat_ear_x_nose", "feat_mind_x_aura",
         "feat_mean_rev_proxy",
-        "feat_claw_x_pulse", "feat_fang_x_vix",
-        "feat_fin_x_claw", "feat_web_x_fang",
-        "feat_nq_x_vix",
+        # P0: Disabled — base features (claw, fang, fin, nq) have <500 samples
+        # "feat_claw_x_pulse", "feat_fang_x_vix",
+        # "feat_fin_x_claw", "feat_web_x_fang", "feat_nq_x_vix",
     ]
     for col in all_feat_cols:
         merged[col] = pd.to_numeric(merged[col], errors='coerce')
@@ -498,10 +503,7 @@ def train_regime_models(session: Session) -> bool:
     merged["feat_ear_x_nose"] = merged["feat_ear"] * merged["feat_nose"]
     merged["feat_mind_x_aura"] = merged["feat_mind"] * merged["feat_aura"]
     merged["feat_mean_rev_proxy"] = merged["feat_mind"] - merged["feat_aura"]
-    # New cross-features — set to 0 since base features (claw, fang, fin, web, nq) have NO_DATA in DB
-    for cf in ["feat_claw_x_pulse", "feat_fang_x_vix", "feat_fin_x_claw", "feat_web_x_fang", "feat_nq_x_vix"]:
-        if cf not in merged.columns:
-            merged[cf] = 0.0
+    # P0: Disabled cross-features removed — base features have <500 samples
 
     X_cols = all_feat_cols + CROSS_FEATURES_LOCAL
     # Defensive: only include columns that actually exist in merged (avoids KeyError)

@@ -437,18 +437,19 @@ def load_latest_features(session: Session) -> Optional[Dict]:
 
     # Mean-reversion proxy
     features["feat_mean_rev_proxy"] = mind - (features.get("feat_aura", 0))
-    # P0/P1: New cross-features at inference
-    claw = features.get("feat_claw", 0) or 0
-    fang = features.get("feat_fang_pcr", 0) or 0
-    vix = features.get("feat_vix", 0) or 0
-    fin = features.get("feat_fin_netflow", 0) or 0
-    web = features.get("feat_web_whale", 0) or 0
-    nq = features.get("feat_nq_return_1h", 0) or 0
-    features["feat_claw_x_pulse"] = claw * (features.get("feat_pulse", 0) or 0)
-    features["feat_fang_x_vix"] = fang * vix
-    features["feat_fin_x_claw"] = fin * claw
-    features["feat_web_x_fang"] = web * fang
-    features["feat_nq_x_vix"] = nq * vix
+    # P0: Disabled cross-features — base features (claw, fang, fin, nq) have <500 samples
+    # Re-enable when these features have sufficient data
+    # vix = features.get("feat_vix", 0) or 0
+    # claw = features.get("feat_claw", 0) or 0
+    # nq = features.get("feat_nq_return_1h", 0) or 0
+    # fang = features.get("feat_fang_pcr", 0) or 0
+    # fin = features.get("feat_fin_netflow", 0) or 0
+    # web = features.get("feat_web_whale", 0) or 0
+    # features["feat_claw_x_pulse"] = claw * (features.get("feat_pulse", 0) or 0)
+    # features["feat_fang_x_vix"] = fang * vix
+    # features["feat_fin_x_claw"] = fin * claw
+    # features["feat_web_x_fang"] = web * fang
+    # features["feat_nq_x_vix"] = nq * vix
 
     return features
 
