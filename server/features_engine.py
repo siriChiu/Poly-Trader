@@ -240,7 +240,34 @@ class FeaturesEngine:
         return self.get_latest_scores()
 
     def get_config(self) -> Dict[str, Any]:
-        return self.config
+        """Return config with live DB values merged in."""
+        config = json.loads(json.dumps(self.config))  # deep copy
+        if self._db is None:
+            return config
+        try:
+            row = (
+                self._db.query(FeaturesNormalized)
+                .order_by(FeaturesNormalized.timestamp.desc())
+                .first()
+            )
+            if row is None:
+                return config
+            # Merge live values
+            from server.features_engine import FEATURE_MAP, get_raw_and_scores
+            raw_result = get_raw_and_scores(row)
+            raw_all = raw_result.get('raw_all', {})
+            scores = raw_result.get('scores', {})
+            for fe_key, entry in config.items():
+                # Update score
+                if fe_key in scores:
+                    entry['score'] = scores[fe_key]
+                # Update module value with raw DB value
+                if fe_key in raw_all and 'modules' in entry:
+                    for mod_key, mod in entry['modules'].items():
+                        mod['value'] = raw_all[fe_key]
+        except Exception as e:
+            logger.error(f"get_config live merge failed: {e}")
+        return config
 
     def get_features_status(self) -> Dict[str, Any]:
         return self.config

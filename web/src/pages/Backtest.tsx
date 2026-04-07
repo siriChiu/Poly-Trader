@@ -156,7 +156,7 @@ export default function Backtest() {
                           {trade.amount}
                         </td>
                         <td className="py-2 pr-4 font-mono text-slate-400">
-                          {(trade.confidence * 100).toFixed(0)}%
+                          {trade.confidence != null && !isNaN(trade.confidence) ? `${(trade.confidence * 100).toFixed(0)}%` : "—"}
                         </td>
                         <td className={`py-2 font-mono font-bold ${trade.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
                           {trade.pnl >= 0 ? "+" : ""}{trade.pnl.toFixed(2)}
