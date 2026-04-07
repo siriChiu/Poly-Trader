@@ -87,6 +87,10 @@ def load_training_data(session: Session, min_samples: int = 50,
         "timestamp": r.timestamp,
         "label_sell_win": int(r.label_sell_win),
         "label_up": int(r.label_up) if r.label_up is not None else None,
+        "future_return_pct": float(r.future_return_pct) if r.future_return_pct is not None else None,
+        "future_max_drawdown": float(r.future_max_drawdown) if r.future_max_drawdown is not None else None,
+        "future_max_runup": float(r.future_max_runup) if r.future_max_runup is not None else None,
+        "regime_label": r.regime_label if r.regime_label else "neutral",
     } for r in label_rows])
 
     feat_df["timestamp"] = pd.to_datetime(feat_df["timestamp"])
@@ -256,6 +260,14 @@ def load_training_data(session: Session, min_samples: int = 50,
     merged["feat_eye_x_body"] = merged["feat_eye"] * merged["feat_body"]
     merged["feat_ear_x_nose"] = merged["feat_ear"] * merged["feat_nose"]
     merged["feat_mind_x_aura"] = merged["feat_mind"] * merged["feat_aura"]
+    # Handle suffix from merge_asof (both sides have regime_label → regime_label_x / regime_label_y)
+    if "regime_label" not in merged.columns:
+        if "regime_label_y" in merged.columns:
+            merged["regime_label"] = merged["regime_label_y"]
+        elif "regime_label_x" in merged.columns:
+            merged["regime_label"] = merged["regime_label_x"]
+        else:
+            merged["regime_label"] = "neutral"
     merged["feat_regime_flag"] = merged["regime_label"].map({"trend": 1.0, "chop": -1.0, "panic": -0.5, "event": 0.5, "normal": 0.0}).fillna(0.0)
 
     # Mean-reversion proxy: difference between short-term (mind=ret_144) and long-term (aura=sma144_deviation)
@@ -496,6 +508,10 @@ def train_regime_models(session: Session) -> bool:
         "timestamp": r.timestamp,
         "label_sell_win": int(r.label_sell_win),
         "label_up": int(r.label_up) if r.label_up is not None else None,
+        "future_return_pct": float(r.future_return_pct) if r.future_return_pct is not None else None,
+        "future_max_drawdown": float(r.future_max_drawdown) if r.future_max_drawdown is not None else None,
+        "future_max_runup": float(r.future_max_runup) if r.future_max_runup is not None else None,
+        "regime_label": r.regime_label if r.regime_label else "neutral",
     } for r in label_rows])
 
     feat_df["timestamp"] = pd.to_datetime(feat_df["timestamp"])
@@ -618,9 +634,9 @@ def main():
     try:
         loaded = load_training_data(session)
         if loaded is None:
-            print("No training data. Skipping.")
-            return False
-        X, y = loaded
+            logger.error("載入訓練資料失敗")
+            return
+        X, y, y_return = loaded
         print("Training data: {} samples, {} features".format(len(X), len(X.columns)))
         print("Positive ratio: {:.4f}".format(y.mean()))
         print("Training global model...")

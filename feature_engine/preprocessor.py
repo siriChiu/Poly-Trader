@@ -18,8 +18,8 @@ logger = setup_logger(__name__)
 def _compute_technical_indicators_from_df(df: pd.DataFrame) -> Dict[str, float]:
     """Compute IC-validated technical indicators from OHLCV data.
     
-    Uses feature_engine.technical_indicators module — 5 indicators with IC > 0.05.
-    All computed from close_price (volume is sparse, estimate from close if missing).
+    P0: Now also fetches 4H data from Binance for 4H timeframe features.
+    The 1min-based indicators are still computed for backward compatibility.
     """
     close = df["close_price"].dropna().astype(float) if "close_price" in df.columns else pd.Series(dtype=float)
     
@@ -67,6 +67,52 @@ def _compute_technical_indicators_from_df(df: pd.DataFrame) -> Dict[str, float]:
     # VWAP deviation (normalize by price)
     vwap_vals = vwap(high_est, low_est, closes, vols)
     result["feat_vwap_dev"] = float((closes[-1] - vwap_vals[-1]) / closes[-1]) if closes[-1] != 0 else 0
+    
+    # ─── P0: 4H Timeframe Features ───
+    # Fetch 4H data from Binance and compute 4H support-line bias features
+    try:
+        import ccxt
+        exchange = ccxt.binance({"enableRateLimit": True, "verbose": False})
+        ohlcv_4h = exchange.fetch_ohlcv("BTC/USDT", "4h", limit=300)
+        if ohlcv_4h and len(ohlcv_4h) >= 200:
+            candles_4h = {
+                "timestamps": np.array([o[0] for o in ohlcv_4h]),
+                "opens": np.array([o[1] for o in ohlcv_4h]),
+                "highs": np.array([o[2] for o in ohlcv_4h]),
+                "lows": np.array([o[3] for o in ohlcv_4h]),
+                "closes": np.array([o[4] for o in ohlcv_4h]),
+                "volumes": np.array([o[5] for o in ohlcv_4h]),
+            }
+            from feature_engine.ohlcv_4h import compute_4h_indicators
+            ind_4h = compute_4h_indicators(candles_4h)
+            n_4h = len(candles_4h["closes"])
+            
+            def gv_4h(name, default=0):
+                arr = ind_4h.get(name, [default] * n_4h)
+                if n_4h > 0:
+                    v = arr[-1]
+                    return float(v) if isinstance(v, (int, float)) and np.isfinite(v) else float(default)
+                return float(default)
+            
+            result["feat_4h_bias50"] = gv_4h("4h_bias50", 0)
+            result["feat_4h_bias20"] = gv_4h("4h_bias20", 0)
+            result["feat_4h_rsi14"] = gv_4h("4h_rsi14", 50)
+            result["feat_4h_macd_hist"] = gv_4h("4h_macd_hist", 0)
+            result["feat_4h_bb_pct_b"] = gv_4h("4h_bb_pct_b", 0.5)
+            result["feat_4h_ma_order"] = gv_4h("4h_ma_order", 0)
+            result["feat_4h_dist_swing_low"] = gv_4h("4h_dist_swing_low", 0)
+        else:
+            logger.warning("4H OHLCV data insufficient (< 200 candles)")
+    except Exception as e:
+        logger.warning(f"4H feature computation failed: {e}")
+        # Set defaults
+        result["feat_4h_bias50"] = None
+        result["feat_4h_bias20"] = None
+        result["feat_4h_rsi14"] = 50
+        result["feat_4h_macd_hist"] = 0
+        result["feat_4h_bb_pct_b"] = 0.5
+        result["feat_4h_ma_order"] = 0
+        result["feat_4h_dist_swing_low"] = 0
     
     return result
 
@@ -386,7 +432,16 @@ def save_features_to_db(
             .first()
         )
         if existing:
-            logger.info(f"特徵已存在 (timestamp={ts}, id={existing.id})，跳過")
+            existing.feat_4h_bias50 = features.get("feat_4h_bias50")
+            existing.feat_4h_bias20 = features.get("feat_4h_bias20")
+            existing.feat_4h_rsi14 = features.get("feat_4h_rsi14")
+            existing.feat_4h_macd_hist = features.get("feat_4h_macd_hist")
+            existing.feat_4h_bb_pct_b = features.get("feat_4h_bb_pct_b")
+            existing.feat_4h_ma_order = features.get("feat_4h_ma_order")
+            existing.feat_4h_dist_swing_low = features.get("feat_4h_dist_swing_low")
+            existing.feature_version = 'v4_4h_integration'
+            session.commit()
+            logger.info(f"4H 特徵已更新 (id={existing.id}), bias50={existing.feat_4h_bias50}, rsi={existing.feat_4h_rsi14}")
             return existing
 
         record = FeaturesNormalized(
@@ -417,6 +472,14 @@ def save_features_to_db(
             feat_web_whale=features.get("feat_web_whale"),
             feat_scales_ssr=features.get("feat_scales_ssr"),
             feat_nest_pred=features.get("feat_nest_pred"),
+            # P0: 4H timeframe features
+            feat_4h_bias50=features.get("feat_4h_bias50"),
+            feat_4h_bias20=features.get("feat_4h_bias20"),
+            feat_4h_rsi14=features.get("feat_4h_rsi14"),
+            feat_4h_macd_hist=features.get("feat_4h_macd_hist"),
+            feat_4h_bb_pct_b=features.get("feat_4h_bb_pct_b"),
+            feat_4h_ma_order=features.get("feat_4h_ma_order"),
+            feat_4h_dist_swing_low=features.get("feat_4h_dist_swing_low"),
         )
         session.add(record)
         session.commit()
