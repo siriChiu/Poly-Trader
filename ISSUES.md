@@ -14,7 +14,7 @@
 | TW-IC | **13/22** | ⚠️ 持平 |
 | 模型數 | **8** | ✅ |
 | TS Build | ✅ PASS | ✅ |
-| Tests | **3/6** | ❌ server/senses.py 缺失 |
+| Tests | **6/6** | ✅ 已修復（senses→features_engine）|
 
 ## 📈 心跳 #579 IC 摘要
 
@@ -86,7 +86,7 @@
 | #BULL_CHOP_DEAD | Bull 0/8, Chop 0/8（200+輪持續）| 🔴 持續 |
 | #SELL_WIN_40 | sell_win=40.37% 遠低于50% | 🔴 持續 |
 | #CV_CEILING | CV 51.39% 天花板（6+月無法突破）| 🔴 持續 |
-| #SENSORY_MISSING | server/senses.py 缺失，測試需更新 | 🔴 持續 |
+| #SENSORY_MISSING | server/senses.py 更名 → tests 更新 | ✅ 已修復 |
 
 ## P1
 
@@ -101,11 +101,11 @@
 - 🟢 **TW-IC 13/22**（持平，3個4H特徵貢獻：4h_bias50, 4h_rsi14, 4h_dist_swing_low）
 - 🟢 **全域 IC 5/22**（持平：VIX, BB%B, RSI14, MACD-Hist, Nose擦邊）
 - 🟢 **DW N=100 7/8 + N=200 7/8 持平**：耳（Ear）在兩個窗口都失敗，其餘7個全過；N=100短期信號極強（Aura+0.277, Mind+0.230, Nose+0.177）
-- 🟢 **平行心跳 4/5 PASS（20.8s）**：full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ❌
+- 🟢 **平行心跳 4/5 PASS（20.8s）**：full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ✅（6/6 已修復！）
 - 🟡 **FR 0.00004728（-1.0%）**：持續下滑，多頭付費意願下降
 - 🟡 **LSR 1.2277（-0.3%）**：微降
 - 🟡 **BTC $68,929（-$16）**：微降，仍在$69K下方盤整
 - 🟡 **OI 91,521（-46）**：微降
-- 🔴 **Tests 3/6 FAIL**：server/senses.py 缺失導致檔案結構/模組導入/特徵引擎三項失敗
+- 🟢 **Tests 6/6 PASS**：已修復 server/senses.py → server/features_engine.py 引用（#S572_IMPORT 解決！P0 減少一個）
 - 🔴 **Bull/Chop 持續 0/8**（200+輪）：系統性問題，需要新數據源
 - 🔴 **sell_win=40.37%**：持續遠低于50%目標
