@@ -19,6 +19,10 @@ BASE_FEATURE_COLS = [
     "feat_eye", "feat_ear", "feat_nose",
     "feat_tongue", "feat_body", "feat_pulse",
     "feat_aura", "feat_mind",
+    # 4H Timeframe Features (低雜訊大方向)
+    "feat_4h_bias50", "feat_4h_bias20",
+    "feat_4h_rsi14", "feat_4h_macd_hist", "feat_4h_bb_pct_b",
+    "feat_4h_ma_order", "feat_4h_dist_swing_low",
 ]
 
 # Aux 8 senses: permanently removed from DB — #H380 (HB #206 cleanup)

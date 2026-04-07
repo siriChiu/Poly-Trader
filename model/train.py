@@ -131,10 +131,27 @@ def load_training_data(session: Session, min_samples: int = 50,
     # Coerce all feature columns to numeric — handles NULL/None/object dtype
     for col in all_cols:
         merged[col] = pd.to_numeric(merged[col], errors='coerce')
-    # P0 audit: Count non-null BEFORE fillna
+
+    # P0: 4H features are sparse (~10% rows) — forward-fill instead of zero-fill
+    # 4H indicators change slowly; last valid value is still valid
+    FILL4H_COLS = [c for c in FEATURE_COLS if c.startswith('feat_4h_')]
+    for col in FILL4H_COLS:
+        merged[col] = merged[col].ffill()  # forward-fill
+        # Remaining NaN at the start → fill with median (not 0, preserves distribution)
+        median_val = merged[col].median()
+        if pd.isna(median_val):
+            median_val = 0.0
+        merged[col] = merged[col].fillna(median_val)
+
+    # P0 audit: Count non-null AFTER ffill, BEFORE general fillna
     non_null_before = {col: int(merged[col].notna().sum()) for col in all_cols}
-    # Fill NaN with 0 for XGBoost (but preserve counts for IC audit)
-    merged[all_cols] = merged[all_cols].fillna(0.0)
+
+    # Fill remaining NaN with 0 for XGBoost (only non-4H cols; 4H already ffill'd)
+    for col in all_cols:
+        if col not in FILL4H_COLS:
+            remaining_na = merged[col].isna().sum()
+            if remaining_na > 0:
+                merged[col] = merged[col].fillna(0.0)
 
     if len(merged) < min_samples:
         logger.warning(f"合併後樣本不足: {len(merged)} < {min_samples}")
