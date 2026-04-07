@@ -425,7 +425,7 @@ async def api_run_backtest(days: int = Query(default=30)):
     return await api_backtest(days=days)
 
 
-@router.get("/api/predict/confidence")
+@router.get("/predict/confidence")
 async def get_confidence_prediction():
     """返回模型信心分層預測"""
     from model.predictor import predict, load_predictor
@@ -491,7 +491,7 @@ def _load_strategy_data():
     return rows
 
 
-@router.get("/api/strategies/leaderboard")
+@router.get("/strategies/leaderboard")
 async def api_strategy_leaderboard():
     """回傳所有已儲存策略的 Leaderboard（依 ROI 排序）"""
     from backtesting.strategy_lab import load_all_strategies
@@ -499,7 +499,7 @@ async def api_strategy_leaderboard():
     return {"strategies": strategies, "count": len(strategies)}
 
 
-@router.get("/api/strategies/{name}")
+@router.get("/strategies/{name}")
 async def api_get_strategy(name: str):
     """取得單一策略定義"""
     from backtesting.strategy_lab import load_strategy
@@ -509,7 +509,7 @@ async def api_get_strategy(name: str):
     return s
 
 
-@router.delete("/api/strategies/{name}")
+@router.delete("/strategies/{name}")
 async def api_delete_strategy(name: str):
     """刪除策略"""
     from backtesting.strategy_lab import delete_strategy
@@ -519,7 +519,7 @@ async def api_delete_strategy(name: str):
     return {"ok": True, "deleted": name}
 
 
-@router.post("/api/strategies/run")
+@router.post("/strategies/run")
 async def api_run_strategy(body: Dict[str, Any]):
     """
     執行策略回測
@@ -582,7 +582,7 @@ async def api_run_strategy(body: Dict[str, Any]):
     }
 
 
-@router.post("/api/strategies/save")
+@router.post("/strategies/save")
 async def api_save_strategy(body: Dict[str, Any]):
     """儲存策略定義（不跑回測）"""
     from backtesting.strategy_lab import save_strategy
@@ -601,7 +601,7 @@ async def api_save_strategy(body: Dict[str, Any]):
 # 全部在固定金字塔框架 + Walk-Forward 驗證下比較
 # ═══════════════════════════════════════════════
 
-@router.get("/api/models/leaderboard")
+@router.get("/models/leaderboard")
 async def api_model_leaderboard():
     """回傳所有 ML 模型的 Walk-Forward Leaderboard
     

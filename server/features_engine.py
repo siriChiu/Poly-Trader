@@ -91,6 +91,7 @@ FEATURE_MAP = {
 
 # ─── Feature engine config (descriptions for UI display) ───
 DEFAULT_CONFIG: Dict[str, Any] = {
+    # 8 Core
     "eye":   {"name": "Eye",   "emoji": "📊", "description": "24H return / 72H vol ratio (trend strength)",        "modules": {"main": {"name": "72h Vol Ratio",     "source": "Binance",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
     "ear":   {"name": "Ear",   "emoji": "📈", "description": "24H momentum",                          "modules": {"main": {"name": "Momentum",       "source": "K線",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
     "nose":  {"name": "Nose",  "emoji": "📐", "description": "RSI momentum",                    "modules": {"main": {"name": "RSI",         "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
@@ -99,6 +100,23 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "pulse": {"name": "Pulse", "emoji": "💹", "description": "Volume spike",                   "modules": {"main": {"name": "Vol Spike",     "source": "K線",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
     "aura":  {"name": "Aura",  "emoji": "🔮", "description": "MA deviation",                        "modules": {"main": {"name": "MA Dev",     "source": "複合",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
     "mind":  {"name": "Mind",  "emoji": "🧮", "description": "Medium-term momentum",                    "modules": {"main": {"name": "144-return",     "source": "Binance", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    # 2 Macro
+    "vix":   {"name": "VIX",   "emoji": "📉", "description": "VIX fear gauge",                         "modules": {"main": {"name": "VIX Index",    "source": "Macro",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "dxy":   {"name": "DXY",   "emoji": "💵", "description": "Dollar Index (macro strength)",            "modules": {"main": {"name": "DXY",          "source": "Macro",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    # 5 Technical
+    "rsi14":  {"name": "RSI 14",    "emoji": "📊", "description": "RSI momentum oscillator",              "modules": {"main": {"name": "RSI(14)",    "source": "Technical", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "macd_hist":{"name": "MACD H",  "emoji": "📈", "description": "MACD Histogram (trend momentum)",       "modules": {"main": {"name": "MACD Hist",   "source": "Technical", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "atr_pct":{"name": "ATR %",    "emoji": "📏", "description": "Average True Range % (volatility)",      "modules": {"main": {"name": "ATR Pct",     "source": "Technical", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "vwap_dev":{"name": "VWAP Dev", "emoji": "⚖️", "description": "VWAP deviation (fair value)",            "modules": {"main": {"name": "VWAP Dev",    "source": "Technical", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "bb_pct_b":{"name": "BB %B",    "emoji": "🔵", "description": "Bollinger Band %B",                    "modules": {"main": {"name": "BB %B",       "source": "Technical", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    # 7 4H Structure
+    "4h_bias50":     {"name": "4H Bias50",    "emoji": "📐", "description": "4H Price vs MA50 deviation (%)",   "modules": {"main": {"name": "Bias50",      "source": "4H Structure", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "4h_bias20":     {"name": "4H Bias20",    "emoji": "📐", "description": "4H Price vs MA20 deviation (%)",   "modules": {"main": {"name": "Bias20",      "source": "4H Structure", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "4h_rsi14":      {"name": "4H RSI 14",    "emoji": "📈", "description": "4H RSI momentum",                  "modules": {"main": {"name": "RSI(14)",     "source": "4H Structure", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "4h_macd_hist":  {"name": "4H MACD H",    "emoji": "📊", "description": "4H MACD Histogram",               "modules": {"main": {"name": "MACD Hist",   "source": "4H Structure", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "4h_bb_pct_b":   {"name": "4H BB %B",     "emoji": "🔵", "description": "4H Bollinger Band %B",              "modules": {"main": {"name": "BB %B",       "source": "4H Structure", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "4h_ma_order":   {"name": "4H MA Order",  "emoji": "🔄", "description": "4H MA alignment (+1 bull / -1 bear)","modules": {"main": {"name": "MA Order",    "source": "4H Structure", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "4h_dist_sl":    {"name": "4H Swing",     "emoji": "📍", "description": "Distance to 4H swing low (support)","modules": {"main": {"name": "Swing Low",   "source": "4H Structure", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
 }
 
 CONFIG_PATH = Path(__file__).parent.parent / "data" / "features_config.json"
