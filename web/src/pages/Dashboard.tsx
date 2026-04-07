@@ -14,6 +14,7 @@ import { ALL_SENSES, getSenseConfig } from "../config/senses";
 interface SensesResponse {
   senses: Record<string, any>;
   scores: Record<string, number>;
+  raw?: Record<string, number>;
   recommendation: {
     score: number;
     summary: string;
@@ -237,7 +238,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Row 1.5: Confidence Indicator + 4H Signal */}
+      {/* Row 1.5: Confidence Indicator */}
       {confidenceData && !confidenceData.error && (
         <ConfidenceIndicator
           confidence={confidenceData.confidence}
@@ -248,45 +249,90 @@ export default function Dashboard() {
         />
       )}
 
-      {/* 4H Signal Panel */}
-      {confidenceData && (
-        <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold text-slate-300">🔮 4H Signal Analysis</h2>
-            <span className="text-xs text-slate-500">
-              {confidenceData.timestamp ? new Date(confidenceData.timestamp).toLocaleTimeString("zh-TW") : ""}
-            </span>
+      {/* ─── 4H Structure Panel ─── */}
+      {sensesData?.raw && Object.keys(sensesData.raw).length > 0 && (() => {
+        const raw = sensesData.raw as Record<string, number>;
+        const bias50 = raw['4h_bias50'] ?? null;
+        const bias20 = raw['4h_bias20'] ?? null;
+        const rsi14 = raw['4h_rsi14'] ?? null;
+        const macd = raw['4h_macd_hist'] ?? null;
+        const swingDist = raw['4h_dist_sl'] ?? null;
+        const maOrder = raw['4h_ma_order'] ?? 0;
+
+        // 牛市/熊市判斷
+        const regime = bias50 !== null ? (bias50 >= 0 ? 'bull' : 'bear') : 'unknown';
+        const regimeLabel = regime === 'bull' ? '🟢 牛市格局' : '🔴 熊市格局';
+        const regimeColor = regime === 'bull' ? 'text-green-400' : 'text-red-400';
+
+        // 判斷: 靠近支撐? 靠近壓力?
+        let zone = '觀望';
+        let zoneColor = 'text-slate-400';
+        if (bias50 !== null) {
+          if (bias50 <= -5) { zone = '極端超賣'; zoneColor = 'text-green-400'; }
+          else if (bias50 <= -3) { zone = '超賣區'; zoneColor = 'text-green-400'; }
+          else if (bias50 <= -1) { zone = '回調區'; zoneColor = 'text-yellow-400'; }
+          else if (bias50 >= 5) { zone = '極端超買'; zoneColor = 'text-red-400'; }
+          else if (bias50 >= 3) { zone = '超買區'; zoneColor = 'text-red-400'; }
+          else if (bias50 >= 0) { zone = '正常偏強'; zoneColor = 'text-slate-300'; }
+          else { zone = '正常偏弱'; zoneColor = 'text-slate-300'; }
+        }
+
+        // Pyramiding suggestion
+        let action = '';
+        if (regime === 'bull' && bias50! <= -3) action = '🔥 接近支撐! 可考慮金字塔加碼 (Layer 3)';
+        else if (regime === 'bull' && bias50! <= -1) action = '⚡ 小幅回調，可考慮金字塔進場 (Layer 2)';
+        else if (regime === 'bull' && bias50! >= 5) action = '⚠️ 超買! 考慮止盈';
+        else if (regime === 'bull') action = '✅ 牛市格局，尋找買入時機';
+        else action = '觀望中 — 等待回測 MA50';
+
+        return (
+        <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-slate-300">📐 4H 結構線儀表板</h2>
+            <span className={`text-xs font-bold ${regimeColor} px-2 py-0.5 rounded bg-slate-800`}>{regimeLabel}</span>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-            <div>
-              <span className="text-slate-500">Signal</span>
-              <div className={`text-lg font-bold ${
-                confidenceData.signal === "SELL" ? "text-red-400" :
-                confidenceData.signal === "BUY" ? "text-green-400" : "text-slate-400"
-              }`}>{confidenceData.signal || "HOLD"}</div>
-            </div>
-            <div>
-              <span className="text-slate-500">Confidence</span>
-              <div className="text-lg font-mono font-bold text-slate-200">
-                {((confidenceData.confidence ?? 0.5) * 100).toFixed(0)}%
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+            <div className="bg-slate-800/50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 mb-1">偏離 MA50</div>
+              <div className={`text-xl font-bold ${bias50! <= -3 ? 'text-green-400' : bias50! >= 3 ? 'text-red-400' : 'text-slate-200'}`}>
+                {bias50 !== null ? `${bias50 > 0 ? '+' : ''}${bias50.toFixed(2)}%` : '—'}
               </div>
             </div>
-            <div>
-              <span className="text-slate-500">Level</span>
-              <div className={`text-sm font-semibold ${
-                confidenceData.confidence_level === "HIGH" ? "text-green-400" :
-                confidenceData.confidence_level === "MEDIUM" ? "text-yellow-400" : "text-slate-500"
-              }`}>{confidenceData.confidence_level || "LOW"}</div>
-            </div>
-            <div>
-              <span className="text-slate-500">Trade?</span>
-              <div className={`text-sm font-semibold ${confidenceData.should_trade ? "text-green-400" : "text-red-400"}`}>
-                {confidenceData.should_trade ? "✅ Yes" : "❌ No"}
+            <div className="bg-slate-800/50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 mb-1">距離支撐線</div>
+              <div className={`text-xl font-bold ${swingDist! < 3 && swingDist! >= 0 ? 'text-green-400' : 'text-slate-200'}`}>
+                {swingDist !== null ? `${swingDist > 0 ? '+' : ''}${swingDist.toFixed(2)}%` : '—'}
               </div>
             </div>
+            <div className="bg-slate-800/50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 mb-1">4H RSI</div>
+              <div className={`text-xl font-bold ${rsi14! < 30 ? 'text-green-400' : rsi14! > 70 ? 'text-red-400' : 'text-slate-200'}`}>
+                {rsi14 !== null ? rsi14.toFixed(1) : '—'}
+              </div>
+            </div>
+            <div className="bg-slate-800/50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 mb-1">位置</div>
+              <div className={`text-xl font-bold ${zoneColor}`}>{zone}</div>
+            </div>
+          </div>
+
+          {/* Secondary metrics */}
+          <div className="grid grid-cols-3 gap-3 text-xs text-slate-400 mb-3">
+            <div>偏離 MA20: <span className="text-slate-200">{bias20 !== null ? `${bias20 > 0 ? '+' : ''}${bias20.toFixed(2)}%` : '—'}</span></div>
+            <div>MACD-H: <span className={macd! > 0 ? 'text-green-400' : 'text-red-400'}>{macd !== null ? macd.toFixed(1) : '—'}</span></div>
+            <div>MA排列: <span className={maOrder > 0 ? 'text-green-400' : maOrder < 0 ? 'text-red-400' : 'text-slate-400'}>
+              {maOrder > 0.5 ? '📈 多頭' : maOrder < -0.5 ? '📉 空頭' : '📊 盤整'}
+            </span></div>
+          </div>
+
+          {/* Actionable suggestion */}
+          <div className="bg-slate-800/30 rounded-lg px-4 py-2 text-sm text-slate-300 border border-slate-700/30">
+            {action}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Row 2: Sense History Chart */}
       <SenseChart selectedSense={selectedSense} days={days} onClear={() => setSelectedSense(null)} />

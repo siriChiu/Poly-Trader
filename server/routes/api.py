@@ -66,7 +66,14 @@ async def api_status():
 async def api_senses():
     engine = get_engine()
     scores = engine.calculate_all_scores()
-    return {"senses": engine.get_senses_status(), "scores": scores, "recommendation": engine.generate_advice(scores)}
+    full_data = engine.get_latest_full_data()
+    advice = engine.generate_advice(scores)
+    return {
+        "senses": engine.get_senses_status(),
+        "scores": scores,
+        "raw": full_data.get("raw", {}),         # 4H raw values for dashboard
+        "recommendation": advice,
+    }
 
 @router.get("/senses/config")
 async def api_senses_cfg():

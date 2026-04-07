@@ -98,24 +98,30 @@ class WsManager:
         """特徵轉 0~1 分數 — 使用與 senses.py 一致的 ECDF 歸一化"""
         from server.senses import normalize_feature
 
-        # Map predictor feature names to ECDF keys
-        feat_map = {
-            "feat_eye": "feat_eye_dist",
-            "feat_ear": "feat_ear_zscore",
-            "feat_nose": "feat_nose_sigmoid",
-            "feat_tongue": "feat_tongue_pct",
-            "feat_body": "feat_body_roc",
-        }
-
+        # Correct mapping: DB column names match the feature keys now
         all_senses = {
-            "eye": normalize_feature(features.get("feat_eye"), feat_map.get("feat_eye", "")),
-            "ear": normalize_feature(features.get("feat_ear"), feat_map.get("feat_ear", "")),
-            "nose": normalize_feature(features.get("feat_nose"), feat_map.get("feat_nose", "")),
-            "tongue": normalize_feature(features.get("feat_tongue"), feat_map.get("feat_tongue", "")),
-            "body": normalize_feature(features.get("feat_body"), feat_map.get("feat_body", "")),
+            "eye": normalize_feature(features.get("feat_eye"), "feat_eye"),
+            "ear": normalize_feature(features.get("feat_ear"), "feat_ear"),
+            "nose": normalize_feature(features.get("feat_nose"), "feat_nose"),
+            "tongue": normalize_feature(features.get("feat_tongue"), "feat_tongue"),
+            "body": normalize_feature(features.get("feat_body"), "feat_body"),
             "pulse": normalize_feature(features.get("feat_pulse"), "feat_pulse"),
             "aura": normalize_feature(features.get("feat_aura"), "feat_aura"),
             "mind": normalize_feature(features.get("feat_mind"), "feat_mind"),
+            "vix": normalize_feature(features.get("feat_vix"), "feat_vix"),
+            "dxy": normalize_feature(features.get("feat_dxy"), "feat_dxy"),
+            "rsi14": normalize_feature(features.get("feat_rsi14"), "feat_rsi14"),
+            "macd_hist": normalize_feature(features.get("feat_macd_hist"), "feat_macd_hist"),
+            "atr_pct": normalize_feature(features.get("feat_atr_pct"), "feat_atr_pct"),
+            "vwap_dev": normalize_feature(features.get("feat_vwap_dev"), "feat_vwap_dev"),
+            "bb_pct_b": normalize_feature(features.get("feat_bb_pct_b"), "feat_bb_pct_b"),
+            "4h_bias50": normalize_feature(features.get("feat_4h_bias50"), "feat_4h_bias50"),
+            "4h_bias20": normalize_feature(features.get("feat_4h_bias20"), "feat_4h_bias20"),
+            "4h_rsi14": normalize_feature(features.get("feat_4h_rsi14"), "feat_4h_rsi14"),
+            "4h_macd_hist": normalize_feature(features.get("feat_4h_macd_hist"), "feat_4h_macd_hist"),
+            "4h_bb_pct_b": normalize_feature(features.get("feat_4h_bb_pct_b"), "feat_4h_bb_pct_b"),
+            "4h_ma_order": normalize_feature(features.get("feat_4h_ma_order"), "feat_4h_ma_order"),
+            "4h_dist_sl": normalize_feature(features.get("feat_4h_dist_swing_low"), "feat_4h_dist_swing_low"),
         }
         return all_senses
 

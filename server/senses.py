@@ -1,15 +1,15 @@
 """
-多感官配置管理器 (Senses Engine) v3
-- 8 Core Senses (ECDF normalized)
-- 22+ 完整特徵 (含 4H, Macro, Technical)
-- 從 DB 讀取真實特徵值計算分數
+多感官配置管理器 (Senses Engine) v4
+- 從 DB 讀取真实特徵值
+- 使用 ECDF (full dataset) 正規化 → 分數有差異
+- 包含 4H 結構線資訊 (原始值 + 正規化)
 - 生成自然語言建議
 """
 
 import json
 import math
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime
 
 from database.models import FeaturesNormalized
@@ -17,260 +17,138 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-# ─── 8 Core 特徵映射 ───
-CORE_FEATURE_MAP = {
-    "feat_eye_dist": "eye",
-    "feat_ear_zscore": "ear",
-    "feat_nose_sigmoid": "nose",
-    "feat_tongue_pct": "tongue",
-    "feat_body_roc": "body",
-    "feat_pulse": "pulse",
-    "feat_aura": "aura",
-    "feat_mind": "mind",
-}
+# ─── ECDF Anchors (computed from full dataset) ───
+# Key: DB column name → [p_lo, p_hi]
+# These are loaded from data/ecdf_anchors.json or fall back to hardcoded
+_ANCHORS_PATH = Path(__file__).parent.parent / "data" / "ecdf_anchors.json"
 
-# ECDF p5/p95 錨點 (7-day empirical, updated regularly)
-ECDF_ANCHORS = {
-    'feat_eye_dist':    (-4.50,  +4.12),
-    'feat_ear_zscore':  (-0.75,  +0.94),
-    'feat_nose_sigmoid':  (-0.18,  +0.89),
-    'feat_tongue_pct':  (+0.08,  +1.38),
-    'feat_body_roc':    (-1.80,  +1.23),
-    'feat_pulse':       (+0.39,  +0.85),
-    'feat_aura':        (+0.04,  +1.00),
-    'feat_mind':        (-0.06,  +0.02),
-}
-
-# ─── 4H 特徵範圍 (用 95th percentile 經驗值) ───
-FOURH_RANGES = {
-    # (min, max) for min-max normalization → 0..1
-    '4h_bias50':       (-5,  +10),
-    '4h_bias':          (-5,  +10),
-    '4h_rsi14':         (30,  70),
-    '4h_macd_hist':    (-2000, +2000),
-    '4h_bb_pct_b':      (0, 1),
-    '4h_dist_swing_low': (-50, +30),
-    '4h_ma_order':      (-1, 1),
-}
-
-
-def ecdf_normalize(value: float, p5: float, p95: float) -> float:
-    """線性 ECDF: p5→0.05, p95→0.95"""
-    v = max(p5, min(p95, value))
-    span = p95 - p5
-    if span < 1e-10:
-        return 0.5
-    return 0.05 + 0.9 * (v - p5) / span
-
-
-def minmax_normalize(value: float, lo: float, hi: float) -> float:
-    """Min-max 正規化到 0..1"""
-    span = hi - lo
-    if span < 1e-10:
-        return 0.5
-    return min(max((value - lo) / span, 0), 1)
-
-
-def sigmoid_clip(value: float, scale: float = 1.0) -> float:
-    """Sigmoid + clip 到 0..1"""
-    if scale == 0:
-        return 0.5
-    return 1.0 / (1.0 + math.exp(-value / scale))
-
-
-def normalize_feature(value, col_name: str) -> float:
-    """Normalize a single feature value to 0..1 using ECDF anchors. Returns 0.5 if value is None."""
-    if value is None:
-        return 0.5
-    if col_name in ECDF_ANCHORS:
-        p5, p95 = ECDF_ANCHORS[col_name]
-        return ecdf_normalize(value, p5, p95)
-    return 0.5
-
-
-def normalize_all_features(row) -> Dict[str, float]:
-    """Normalize a FeaturesNormalized row → dict of frontend keys with 0..1 scores."""
-    scores = {}
-
-    # ─── Core 8: ECDF ───
-    core_db_cols = {
-        'feat_eye': 'feat_eye_dist',
-        'feat_ear': 'feat_ear_zscore',
-        'feat_nose': 'feat_nose_sigmoid',
-        'feat_tongue': 'feat_tongue_pct',
-        'feat_body': 'feat_body_roc',
-        'feat_pulse': 'feat_pulse',
-        'feat_aura': 'feat_aura',
-        'feat_mind': 'feat_mind',
+def _load_anchors() -> Dict[str, tuple]:
+    """Load ECDF anchors from JSON file, fallback to hardcoded."""
+    if _ANCHORS_PATH.exists():
+        try:
+            with open(_ANCHORS_PATH) as f:
+                data = json.load(f)
+            return {k: (float(v[0]), float(v[1])) for k, v in data.items()}
+        except Exception:
+            pass
+    # Fallback: hardcoded from manual computation
+    return {
+        'feat_eye': (0.2373, 1.5581),
+        'feat_ear': (-0.0242, 0.0229),
+        'feat_nose': (0.5009, 0.7781),
+        'feat_tongue': (-0.0001, 1.5967),
+        'feat_body': (0.0, 0.9617),
+        'feat_pulse': (0.1543, 0.8137),
+        'feat_aura': (-0.0470, 0.0444),
+        'feat_mind': (-0.0840, 0.0796),
+        'feat_vix': (-2.0261, 24.1700),
+        'feat_dxy': (-2.1528, 100.0530),
+        'feat_rsi14': (0.2945, 0.7055),
+        'feat_macd_hist': (-0.0024, 0.0023),
+        'feat_atr_pct': (0.0100, 0.0121),
+        'feat_vwap_dev': (-0.4683, 0.1441),
+        'feat_bb_pct_b': (-0.0340, 1.0292),
+        'feat_4h_bias50': (-5.5811, 4.5196),
+        'feat_4h_bias20': (-3.5934, 3.1118),
+        'feat_4h_rsi14': (30.7433, 71.5026),
+        'feat_4h_macd_hist': (-1153.6229, 1211.7948),
+        'feat_4h_bb_pct_b': (-0.2520, 1.1975),
+        'feat_4h_ma_order': (-1.0, 1.0),
+        'feat_4h_dist_swing_low': (-2.4801, 100.0),
     }
-    for name, db_col in core_db_cols.items():
-        raw = getattr(row, db_col, None) if db_col != db_col else getattr(row, 'feat_eye' if name == 'eye' else 'feat_' + name, None)
-        if raw is not None and db_col in ECDF_ANCHORS:
-            p5, p95 = ECDF_ANCHORS[db_col]
-            scores[name] = round(ecdf_normalize(raw, p5, p95), 4)
-        else:
-            scores[name] = 0.5
 
-    # ─── Macro: VIX, DXY ───
-    for name in ['vix', 'dxy']:
-        raw = getattr(row, f'feat_{name}', None)
-        if raw is not None:
-            if name == 'vix':
-                scores[name] = round(minmax_normalize(raw, 10, 50), 4)
-            elif name == 'dxy':
-                scores[name] = round(minmax_normalize(raw, 95, 110), 4)
-        else:
-            scores[name] = 0.5
+ECDF_ANCHORS = _load_anchors()
 
-    # ─── Technical Indicators ───
-    # RSI14 (already 0..1 in DB)
-    raw = getattr(row, 'feat_rsi14', None)
-    scores['rsi14'] = round(raw, 4) if raw is not None else 0.5
-
-    # MACD Hist (use sigmoid with scale)
-    raw = getattr(row, 'feat_macd_hist', None)
-    scores['macd_hist'] = round(sigmoid_clip(raw, 0.01), 4) if raw is not None else 0.5
-
-    # ATR %
-    raw = getattr(row, 'feat_atr_pct', None)
-    scores['atr_pct'] = round(minmax_normalize(raw or 0, 0.005, 0.03), 4)
-
-    # VWAP Dev
-    raw = getattr(row, 'feat_vwap_dev', None)
-    scores['vwap_dev'] = round(sigmoid_clip(raw or 0, 0.2), 4)
-
-    # BB %B (already 0..1)
-    raw = getattr(row, 'feat_bb_pct_b', None)
-    scores['bb_pct_b'] = round(raw, 4) if raw is not None else 0.5
-
-    # ─── 4H Features ───
-    # bias50: -5% to +10%
-    raw = getattr(row, 'feat_4h_bias50', None)
-    scores['4h_bias50'] = round(minmax_normalize(raw or 0, -5, 10), 4)
-
-    # bias20
-    raw = getattr(row, 'feat_4h_bias20', None)
-    scores['4h_bias20'] = round(minmax_normalize(raw or 0, -5, 10), 4)
-
-    # rsi14 (4H)
-    raw = getattr(row, 'feat_4h_rsi14', None)
-    scores['4h_rsi14'] = round(minmax_normalize(raw or 50, 30, 70), 4)
-
-    # macd_hist (4H)
-    raw = getattr(row, 'feat_4h_macd_hist', None)
-    scores['4h_macd_hist'] = round(sigmoid_clip(raw or 0, 500), 4)
-
-    # bb_pct_b (4H)
-    raw = getattr(row, 'feat_4h_bb_pct_b', None)
-    scores['4h_bb_pct_b'] = round(raw, 4) if raw is not None else 0.5
-
-    # ma_order: -1 to +1
-    raw = getattr(row, 'feat_4h_ma_order', None)
-    scores['4h_ma_order'] = round((raw + 1) / 2, 4) if raw is not None else 0.5
-
-    # dist_swing_low
-    raw = getattr(row, 'feat_4h_dist_swing_low', None)
-    scores['4h_dist_sl'] = round(minmax_normalize(raw or 0, -50, 30), 4)
-
-    # P0/P1 features (many are 0/null, give 0.5 if not available)
-    for name in ['nq_return_1h', 'nq_return_24h', 'claw', 'claw_intensity',
-                 'fang_pcr', 'fang_skew', 'fin_netflow', 'web_whale',
-                 'scales_ssr', 'nest_pred', 'whisper', 'tone', 'chorus',
-                 'hype', 'oracle', 'shock', 'tide', 'storm']:
-        raw = getattr(row, f'feat_{name}', None)
-        if raw is not None and abs(raw) > 1e-10:
-            scores[name] = round(sigmoid_clip(raw, max(abs(raw) * 2, 1.0)), 4)
-        else:
-            scores[name] = 0.5
-
-    return scores
-
-
-# ─── Legacy senses engine (for backward compat) ───
-
-# 特徵 → 感官映射 (expanded to 22+ features)
-# 特徵 → 感官映射 (expanded to 22+ features)
-FEATURE_TO_SENSE = {
+# ─── DB column → frontend key mapping (correct names!) ───
+FEATURE_MAP = {
     # 8 Core
-    "feat_eye": "eye",
-    "feat_ear": "ear",
-    "feat_nose": "nose",
-    "feat_tongue": "tongue",
-    "feat_body": "body",
-    "feat_pulse": "pulse",
-    "feat_aura": "aura",
-    "feat_mind": "mind",
+    'feat_eye':       'eye',
+    'feat_ear':       'ear',
+    'feat_nose':      'nose',
+    'feat_tongue':    'tongue',
+    'feat_body':      'body',
+    'feat_pulse':     'pulse',
+    'feat_aura':      'aura',
+    'feat_mind':      'mind',
     # 2 Macro
-    "feat_vix": "vix",
-    "feat_dxy": "dxy",
+    'feat_vix':       'vix',
+    'feat_dxy':       'dxy',
     # 5 Technical
-    "feat_rsi14": "rsi14",
-    "feat_macd_hist": "macd_hist",
-    "feat_atr_pct": "atr_pct",
-    "feat_vwap_dev": "vwap_dev",
-    "feat_bb_pct_b": "bb_pct_b",
+    'feat_rsi14':     'rsi14',
+    'feat_macd_hist': 'macd_hist',
+    'feat_atr_pct':   'atr_pct',
+    'feat_vwap_dev':  'vwap_dev',
+    'feat_bb_pct_b':  'bb_pct_b',
     # 4H Distance
-    "feat_4h_bias50": "4h_bias50",
-    "feat_4h_bias20": "4h_bias20",
-    "feat_4h_rsi14": "4h_rsi14",
-    "feat_4h_macd_hist": "4h_macd_hist",
-    "feat_4h_bb_pct_b": "4h_bb_pct_b",
-    "feat_4h_ma_order": "4h_ma_order",
-    "feat_4h_dist_swing_low": "4h_dist_sl",
+    'feat_4h_bias50':        '4h_bias50',
+    'feat_4h_bias20':        '4h_bias20',
+    'feat_4h_rsi14':         '4h_rsi14',
+    'feat_4h_macd_hist':     '4h_macd_hist',
+    'feat_4h_bb_pct_b':      '4h_bb_pct_b',
+    'feat_4h_ma_order':      '4h_ma_order',
+    'feat_4h_dist_swing_low': '4h_dist_sl',
 }
 
-SENSE_NAMES = {
-    # 8 Core
-    "eye": "👁️ 視覺 Eye",
-    "ear": "👂 聽覺 Ear",
-    "nose": "👃 嗅覺 Nose",
-    "tongue": "👅 味覺 Tongue",
-    "body": "💪 觸覺 Body",
-    "pulse": "💓 脈動 Pulse",
-    "aura": "🌈 磁場 Aura",
-    "mind": "🧠 認知 Mind",
-    # Macro
-    "vix": "📉 VIX 恐慌指數",
-    "dxy": "💵 DXY 美元指數",
-    # Technical
-    "rsi14": "📊 RSI 14",
-    "macd_hist": "📈 MACD Histogram",
-    "atr_pct": "📏 ATR % 波動率",
-    "vwap_dev": "⚖️ VWAP 偏離",
-    "bb_pct_b": "🔵 布林 %B",
-    # 4H Distance
-    "4h_bias50": "📐 4H 偏離 MA50",
-    "4h_bias20": "📐 4H 偏離 MA20",
-    "4h_rsi14": "📈 4H RSI",
-    "4h_macd_hist": "📊 4H MACD",
-    "4h_bb_pct_b": "🔵 4H 布林 %B",
-    "4h_ma_order": "🔄 4H MA 排列",
-    "4h_dist_sl": "📍 4H 支撐距離",
-}
-
-SENSE_EMOJIS = {
-    "eye": "👁️", "ear": "👂", "nose": "👃", "tongue": "👅", "body": "💪",
-    "pulse": "💓", "aura": "🌈", "mind": "🧠",
-    "vix": "📉", "dxy": "💵",
-    "rsi14": "📊", "macd_hist": "📈", "atr_pct": "📏", "vwap_dev": "⚖️", "bb_pct_b": "🔵",
-    "4h_bias50": "📐", "4h_bias20": "📐", "4h_rsi14": "📈", "4h_macd_hist": "📊",
-    "4h_bb_pct_b": "🔵", "4h_ma_order": "🔄", "4h_dist_sl": "📍",
-}
-
+# ─── Legacy sense engine config ───
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "eye":   {"name": "視覺 Eye",   "emoji": "👁️", "description": "24H return / 72H vol ratio",        "modules": {"main": {"name": "72h Vol Ratio",     "source": "Binance",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "ear":   {"name": "聽覺 Ear",   "emoji": "👂", "description": "24H momentum",                "modules": {"main": {"name": "Momentum",       "source": "K線",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "nose":  {"name": "嗅覺 Nose",  "emoji": "👃", "description": "RSI momentum",            "modules": {"main": {"name": "RSI",         "source": "衍生",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "tongue":{"name": "味覺 Tongue","emoji": "👅", "description": "Mean-reversion deviation",                  "modules": {"main": {"name": "Mean-revert",         "source": "衍生",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "body":  {"name": "觸覺 Body",  "emoji": "💪", "description": "Volatility z-score",            "modules": {"main": {"name": "Vol Z-score",       "source": "衍生",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "pulse": {"name": "脈動 Pulse", "emoji": "💓", "description": "Volume spike",           "modules": {"main": {"name": "Vol Spike",       "source": "K線",  "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "aura":  {"name": "磁場 Aura",  "emoji": "🌈", "description": "MA deviation",            "modules": {"main": {"name": "MA Dev",     "source": "複合",          "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "mind":  {"name": "認知 Mind",  "emoji": "🧠", "description": "Medium-term momentum",         "modules": {"main": {"name": "144-return",     "source": "Binance",  "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "eye":   {"name": "視覺 Eye",   "emoji": "👁️", "description": "24H return / 72H vol ratio (trend strength)",        "modules": {"main": {"name": "72h Vol Ratio",     "source": "Binance",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "ear":   {"name": "聽覺 Ear",   "emoji": "👂", "description": "24H momentum",                          "modules": {"main": {"name": "Momentum",       "source": "K線",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "nose":  {"name": "嗅覺 Nose",  "emoji": "👃", "description": "RSI momentum",                    "modules": {"main": {"name": "RSI",         "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "tongue":{"name": "味覺 Tongue","emoji": "👅", "description": "Mean-reversion deviation",                  "modules": {"main": {"name": "Mean-revert",     "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "body":  {"name": "觸覺 Body",  "emoji": "💪", "description": "Volatility z-score",                         "modules": {"main": {"name": "Vol Z-score",     "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "pulse": {"name": "脈動 Pulse", "emoji": "💓", "description": "Volume spike",                   "modules": {"main": {"name": "Vol Spike",     "source": "K線",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "aura":  {"name": "磁場 Aura",  "emoji": "🌈", "description": "MA deviation",                        "modules": {"main": {"name": "MA Dev",     "source": "複合",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "mind":  {"name": "認知 Mind",  "emoji": "🧠", "description": "Medium-term momentum",                    "modules": {"main": {"name": "144-return",     "source": "Binance", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
 }
 
 CONFIG_PATH = Path(__file__).parent.parent / "data" / "senses_config.json"
 
 
+def ecdf_normalize(value: float, p_lo: float, p_hi: float) -> float:
+    """ECDF: p_lo → 0.05, p_hi → 0.95, linear clip outside."""
+    v = max(p_lo, min(p_hi, value))
+    span = p_hi - p_lo
+    if span < 1e-10:
+        return 0.5
+    return 0.05 + 0.9 * (v - p_lo) / span
+
+
+def normalize_feature(raw_value: Optional[float], db_col: str) -> float:
+    """Normalize a single feature to 0..1 using ECDF. Returns 0.5 if None."""
+    if raw_value is None:
+        return 0.5
+    if db_col in ECDF_ANCHORS:
+        p_lo, p_hi = ECDF_ANCHORS[db_col]
+        return ecdf_normalize(raw_value, p_lo, p_hi)
+    return 0.5
+
+
+def get_raw_and_scores(row) -> Dict[str, Any]:
+    """Get both raw 4H values AND normalized scores for all 22 features.
+    
+    Returns:
+        dict with:
+          - scores: {key: 0..1 float} for ALL features
+          - raw: {key: raw float} for 4H features (for dashboard)
+          - raw_all: {key: raw float} for ALL features (for charts)
+    """
+    scores = {}
+    raw_values = {}
+
+    # ─── Core + Macro + Technical: ECDF normalize ──
+    for db_col, fe_key in FEATURE_MAP.items():
+        val = getattr(row, db_col, None) if hasattr(row, db_col) else None
+        scores[fe_key] = normalize_feature(val, db_col)
+        raw_values[fe_key] = val  # store raw for API
+
+    return {
+        'scores': scores,
+        'raw': {k: v for k, v in raw_values.items() if k.startswith('4h_')},
+        'raw_all': {k: v for k, v in raw_values.items()},
+    }
+
+
+# ─── SensesEngine ───
 class SensesEngine:
     def __init__(self):
         self.config: Dict[str, Any] = self._load_config()
@@ -294,9 +172,9 @@ class SensesEngine:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
 
     def get_latest_scores(self) -> Dict[str, float]:
-        """Get normalized scores for ALL features. Used by API /senses."""
+        """Get normalized scores for ALL 22 features from DB latest row."""
         if self._db is None:
-            return {k: 0.5 for k in ['eye','ear','nose','tongue','body','pulse','aura','mind']}
+            return {k: 0.5 for k in FEATURE_MAP.values()}
         try:
             row = (
                 self._db.query(FeaturesNormalized)
@@ -304,14 +182,31 @@ class SensesEngine:
                 .first()
             )
             if row is None:
-                return {k: 0.5 for k in ['eye','ear','nose','tongue','body','pulse','aura','mind']}
-            return normalize_all_features(row)
+                return {k: 0.5 for k in FEATURE_MAP.values()}
+            result = get_raw_and_scores(row)
+            return result['scores']
         except Exception as e:
             logger.error(f"Feature fetch failed: {e}")
-            return {k: 0.5 for k in ['eye','ear','nose','tongue','body','pulse','aura','mind']}
+            return {k: 0.5 for k in FEATURE_MAP.values()}
+
+    def get_latest_full_data(self) -> Dict[str, Any]:
+        """Get scores + raw 4H values for the API."""
+        if self._db is None:
+            return {'scores': {}, 'raw': {}, 'raw_all': {}}
+        try:
+            row = (
+                self._db.query(FeaturesNormalized)
+                .order_by(FeaturesNormalized.timestamp.desc())
+                .first()
+            )
+            if row is None:
+                return {'scores': {}, 'raw': {}, 'raw_all': {}}
+            return get_raw_and_scores(row)
+        except Exception as e:
+            logger.error(f"Full data fetch failed: {e}")
+            return {'scores': {}, 'raw': {}, 'raw_all': {}}
 
     def calculate_all_scores(self) -> Dict[str, float]:
-        """Calculate all scores — core 8 + all extra features."""
         return self.get_latest_scores()
 
     def get_config(self) -> Dict[str, Any]:
