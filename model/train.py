@@ -301,8 +301,10 @@ def load_training_data(session: Session, min_samples: int = 50,
 
     X = merged[all_training_cols]
     y = merged["label_sell_win"].astype(int)
+    y_return = merged["future_return_pct"].astype(float)
     logger.info(f"載入訓練資料: {len(X)} 筆, {len(all_training_cols)} features ({len(FEATURE_COLS)} core + {len(all_training_cols)-len(FEATURE_COLS)} lag/cross, {pruned_count} pruned)")
-    return X, y
+    logger.info(f"分類目標 sell_win ratio: {y.mean():.3f}, 回歸目標 future_return_pct mean={y_return.mean():.5f} std={y_return.std():.5f}")
+    return X, y, y_return
 
 
 def train_xgboost(X: pd.DataFrame, y: pd.Series, params: Optional[dict] = None) -> xgb.XGBClassifier:
