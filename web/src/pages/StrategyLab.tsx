@@ -21,6 +21,28 @@ interface StrategyEntry {
   run_count: number;
 }
 
+interface ModelLeaderboardEntry {
+  model_name: string;
+  avg_roi: number;
+  avg_win_rate: number;
+  avg_trades: number;
+  avg_max_dd: number;
+  std_roi: number;
+  profit_factor: number;
+  train_acc: number;
+  test_acc: number;
+  train_test_gap: number;
+  composite: number;
+  folds: Array<{
+    fold: number;
+    roi: number;
+    win_rate: number;
+    trades: number;
+    max_dd: number;
+    profit_factor: number;
+  }>;
+}
+
 const DEFAULT_PARAMS = {
   entry: {
     bias50_max: 1.0,
@@ -37,6 +59,7 @@ const DEFAULT_PARAMS = {
 
 export default function StrategyLab() {
   const [strategies, setStrategies] = useState<StrategyEntry[]>([]);
+  const [modelLeaderboard, setModelLeaderboard] = useState<ModelLeaderboardEntry[]>([]);
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<StrategyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +89,22 @@ export default function StrategyLab() {
     }
   };
 
-  useEffect(() => { loadLeaderboard(); }, []);
+  const loadModelLeaderboard = async () => {
+    try {
+      const res = await fetchApi("/api/models/leaderboard");
+      const data = res as any;
+      const list = data?.leaderboard ?? [];
+      setModelLeaderboard(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error("Model leaderboard error:", err);
+      setModelLeaderboard([]);
+    }
+  };
+
+  useEffect(() => {
+    loadLeaderboard();
+    loadModelLeaderboard();
+  }, []);
 
   const handleRun = async () => {
     setRunning(true);
@@ -368,6 +406,55 @@ export default function StrategyLab() {
             </div>
             <p className="text-xs text-slate-600 mt-2">
               ⚠️ 歷史回測 ≠ 未來表現。所有結果均基於 2025-04 到 2026-04 的 1m 資料。
+            </p>
+          </div>
+
+          <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-300">🤖 模型排行榜</h3>
+              <button onClick={loadModelLeaderboard} className="text-xs text-blue-400 hover:text-blue-300">🔄 刷新</button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-slate-500 border-b border-slate-700/50">
+                    <th className="text-left py-2 px-2">#</th>
+                    <th className="text-left py-2 px-2">模型</th>
+                    <th className="text-right py-2 px-2">ROI</th>
+                    <th className="text-right py-2 px-2">勝率</th>
+                    <th className="text-right py-2 px-2">PF</th>
+                    <th className="text-right py-2 px-2">Train</th>
+                    <th className="text-right py-2 px-2">Test</th>
+                    <th className="text-right py-2 px-2">Gap</th>
+                    <th className="text-right py-2 px-2">Fold</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {modelLeaderboard.map((m, i) => (
+                    <tr key={m.model_name} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                      <td className="py-2 px-2 text-slate-500">{i + 1}</td>
+                      <td className="py-2 px-2 text-slate-200 font-medium">{m.model_name}</td>
+                      <td className={`py-2 px-2 text-right font-bold ${m.avg_roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {m.avg_roi >= 0 ? '+' : ''}{(m.avg_roi * 100).toFixed(1)}%
+                      </td>
+                      <td className="py-2 px-2 text-right text-slate-300">{(m.avg_win_rate * 100).toFixed(1)}%</td>
+                      <td className={`py-2 px-2 text-right ${m.profit_factor >= 1 ? 'text-green-400' : 'text-red-400'}`}>{m.profit_factor.toFixed(2)}</td>
+                      <td className="py-2 px-2 text-right text-slate-400">{(m.train_acc * 100).toFixed(1)}%</td>
+                      <td className="py-2 px-2 text-right text-slate-300">{(m.test_acc * 100).toFixed(1)}%</td>
+                      <td className={`py-2 px-2 text-right ${m.train_test_gap <= 0.1 ? 'text-green-400' : 'text-yellow-400'}`}>{(m.train_test_gap * 100).toFixed(1)}pp</td>
+                      <td className="py-2 px-2 text-right text-slate-500">{m.folds?.length ?? 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {modelLeaderboard.length === 0 && (
+                <div className="text-center text-slate-500 py-8 text-sm">
+                  尚無可用模型排行榜資料。請先確認 `/api/models/leaderboard` 可正常產生資料。
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-slate-600 mt-2">
+              使用 Walk-Forward 驗證，比較 ROI、勝率與過擬合差距（Train-Test gap）。
             </p>
           </div>
         </div>

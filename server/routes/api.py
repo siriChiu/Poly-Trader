@@ -481,6 +481,72 @@ async def get_confidence_prediction():
 DB_PATH = '/home/kazuha/Poly-Trader/poly_trader.db'
 
 
+def load_model_leaderboard_frame(db_path: str = DB_PATH):
+    """Load leaderboard training frame using timestamp-nearest alignment.
+
+    Exact SQL joins are too brittle for this project because historical rows can
+    differ slightly in timestamp precision and symbol normalization. Training code
+    already relies on nearest-timestamp merges; reuse the same idea here so the
+    leaderboard reflects the real available data instead of collapsing to zero rows.
+    """
+    import sqlite3
+    import pandas as pd
+
+    conn = sqlite3.connect(db_path)
+    try:
+        features_df = pd.read_sql(
+            """
+            SELECT timestamp,
+                   feat_eye, feat_ear, feat_nose, feat_tongue,
+                   feat_body, feat_pulse, feat_aura, feat_mind,
+                   feat_vix, feat_dxy,
+                   feat_rsi14, feat_macd_hist, feat_atr_pct,
+                   feat_vwap_dev, feat_bb_pct_b,
+                   feat_4h_bias50, feat_4h_bias20, feat_4h_rsi14,
+                   feat_4h_macd_hist, feat_4h_bb_pct_b,
+                   feat_4h_ma_order, feat_4h_dist_swing_low
+            FROM features_normalized
+            WHERE feat_4h_bias50 IS NOT NULL
+            ORDER BY timestamp
+            """,
+            conn,
+        )
+        raw_df = pd.read_sql(
+            "SELECT timestamp, close_price FROM raw_market_data WHERE close_price IS NOT NULL ORDER BY timestamp",
+            conn,
+        )
+        labels_df = pd.read_sql(
+            "SELECT timestamp, label_spot_long_win FROM labels WHERE horizon_minutes = 1440 AND label_spot_long_win IS NOT NULL ORDER BY timestamp",
+            conn,
+        )
+    finally:
+        conn.close()
+
+    if features_df.empty or raw_df.empty or labels_df.empty:
+        return pd.DataFrame()
+
+    for df in (features_df, raw_df, labels_df):
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed")
+        df.sort_values("timestamp", inplace=True)
+
+    merged = pd.merge_asof(
+        features_df,
+        raw_df,
+        on="timestamp",
+        direction="nearest",
+        tolerance=pd.Timedelta("10min"),
+    )
+    merged = pd.merge_asof(
+        merged,
+        labels_df,
+        on="timestamp",
+        direction="nearest",
+        tolerance=pd.Timedelta("10min"),
+    )
+    merged = merged.dropna(subset=["close_price", "label_spot_long_win"]).reset_index(drop=True)
+    return merged
+
+
 def _get_4h_signal():
     """返回目前 4H 狀態摘要"""
     import sqlite3
@@ -639,31 +705,11 @@ async def api_model_leaderboard():
     包含：XGBoost, LightGBM, RandomForest, LogisticRegression,
           MLP (Neural Net), SVM (RBF), Ensemble, Rule Baseline
     """
-    import sqlite3
-    import pandas as pd
-    import numpy as np
     from backtesting.model_leaderboard import ModelLeaderboard
 
-    conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql("""
-        SELECT f.timestamp, r.close_price, l.label_spot_long_win,
-               f.feat_eye, f.feat_ear, f.feat_nose, f.feat_tongue,
-               f.feat_body, f.feat_pulse, f.feat_aura, f.feat_mind,
-               f.feat_vix, f.feat_dxy,
-               f.feat_rsi14, f.feat_macd_hist, f.feat_atr_pct,
-               f.feat_vwap_dev, f.feat_bb_pct_b,
-               f.feat_4h_bias50, f.feat_4h_bias20, f.feat_4h_rsi14,
-               f.feat_4h_macd_hist, f.feat_4h_bb_pct_b,
-               f.feat_4h_ma_order, f.feat_4h_dist_swing_low
-        FROM features_normalized f
-        JOIN raw_market_data r ON r.timestamp = f.timestamp AND r.symbol = f.symbol
-        LEFT JOIN labels l ON l.timestamp = f.timestamp AND l.symbol = f.symbol
-        WHERE f.feat_4h_bias50 IS NOT NULL
-          AND r.close_price IS NOT NULL
-          AND l.label_spot_long_win IS NOT NULL
-        ORDER BY f.timestamp
-    """, conn)
-    conn.close()
+    df = load_model_leaderboard_frame(DB_PATH)
+    if df.empty:
+        return {"leaderboard": [], "count": 0, "warning": "No aligned 24h label rows found"}
 
     df = df.fillna(0)
     df['label_spot_long_win'] = df['label_spot_long_win'].fillna(0).astype(int)

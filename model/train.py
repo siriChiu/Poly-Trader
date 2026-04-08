@@ -69,6 +69,47 @@ def _feature_row(r):
     }
 
 
+def _align_sparse_4h_features(feat_df: pd.DataFrame, tolerance: str = "6h") -> pd.DataFrame:
+    """Align sparse 4H snapshots onto dense 1m feature rows via asof merge.
+
+    This replaces training-time forward-fill. 4H features remain independently
+    computed rows in the DB; we simply attach the latest available 4H snapshot to
+    each dense row using timestamp alignment with an explicit tolerance.
+    """
+    if feat_df.empty:
+        return feat_df
+
+    df = feat_df.copy()
+    df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed")
+    df = df.sort_values("timestamp").reset_index(drop=True)
+
+    cols_4h = [c for c in FEATURE_COLS if c.startswith("feat_4h_") and c in df.columns]
+    regime_col = ["regime_label"] if "regime_label" in df.columns else []
+    sparse_cols = ["timestamp", *regime_col, *cols_4h]
+    sparse_4h = df[sparse_cols].dropna(subset=cols_4h, how="all").copy()
+
+    if sparse_4h.empty:
+        return df
+
+    base_cols = [c for c in df.columns if c not in ["regime_label", *cols_4h]]
+    base_df = df[base_cols].copy()
+    sparse_4h = sparse_4h.sort_values("timestamp").rename(columns={"regime_label": "regime_label_4h"})
+
+    aligned = pd.merge_asof(
+        base_df.sort_values("timestamp"),
+        sparse_4h,
+        on="timestamp",
+        direction="backward",
+        tolerance=pd.Timedelta(tolerance),
+    )
+
+    if "regime_label_4h" in aligned.columns:
+        aligned["regime_label"] = aligned.pop("regime_label_4h")
+    elif "regime_label" not in aligned.columns:
+        aligned["regime_label"] = None
+    return aligned
+
+
 def load_training_data(session: Session, min_samples: int = 50,
                        regime_filter: Optional[list] = None,
                        horizon_minutes: int = 1440) -> Optional[Tuple[pd.DataFrame, pd.Series]]:
@@ -93,6 +134,7 @@ def load_training_data(session: Session, min_samples: int = 50,
         return None
 
     feat_df = pd.DataFrame([_feature_row(r) for r in feat_rows])
+    feat_df = _align_sparse_4h_features(feat_df)
     label_df = pd.DataFrame([{
         "timestamp": r.timestamp,
         "label_spot_long_win": int(r.label_spot_long_win) if r.label_spot_long_win is not None else int(r.label_up or 0),
@@ -139,12 +181,10 @@ def load_training_data(session: Session, min_samples: int = 50,
     for col in all_cols:
         merged[col] = pd.to_numeric(merged[col], errors='coerce')
 
-    # P0: 4H features are sparse (~10% rows) — forward-fill instead of zero-fill
-    # 4H indicators change slowly; last valid value is still valid
+    # 4H features are aligned independently via _align_sparse_4h_features().
+    # Only fill any leading gaps that still remain after the timestamp alignment.
     FILL4H_COLS = [c for c in FEATURE_COLS if c.startswith('feat_4h_')]
     for col in FILL4H_COLS:
-        merged[col] = merged[col].ffill()  # forward-fill
-        # Remaining NaN at the start → fill with median (not 0, preserves distribution)
         median_val = merged[col].median()
         if pd.isna(median_val):
             median_val = 0.0
@@ -534,6 +574,7 @@ def train_regime_models(session: Session) -> dict:
         return {}
 
     feat_df = pd.DataFrame([_feature_row(r) for r in feat_rows])
+    feat_df = _align_sparse_4h_features(feat_df)
     label_df = pd.DataFrame([{
         "timestamp": r.timestamp,
         "label_spot_long_win": int(r.label_spot_long_win) if r.label_spot_long_win is not None else int(r.label_up or 0),
@@ -574,10 +615,13 @@ def train_regime_models(session: Session) -> dict:
     all_feat_cols = FEATURE_COLS + [f"{c}_lag{l}" for c in BASE_FEATURE_COLS for l in LAG_STEPS]
     for col in all_feat_cols:
         merged[col] = pd.to_numeric(merged[col], errors='coerce')
-    # 4H features: ffill
+    # 4H features are aligned independently via _align_sparse_4h_features().
     FILL4H = [c for c in FEATURE_COLS if c.startswith('feat_4h_')]
     for col in FILL4H:
-        merged[col] = merged[col].ffill().fillna(merged[col].median())
+        median_val = merged[col].median()
+        if pd.isna(median_val):
+            median_val = 0.0
+        merged[col] = merged[col].fillna(median_val)
     merged[all_feat_cols] = merged[all_feat_cols].fillna(0.0)
 
     # Cross features

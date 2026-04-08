@@ -40,7 +40,7 @@
 
 ## 下一步（Phase 15）
 
-- [ ] Web Model Leaderboard 視覺化（柱狀圖 + Fold 比較）
+- [x] Web Model Leaderboard 視覺化（表格版已上線；後續可再補柱狀圖 + Fold 比較）
 - [ ] 市場分類回測（牛市 vs 熊市分開顯示）
 - [ ] 策略匯入/匯出（JSON 分享）
 - [ ] 自動最佳化（Optuna / 網格搜尋）
@@ -54,3 +54,6 @@
 - [x] 補上 `/api/trade` dry-run endpoint，確保 Web 操作不再 404
 - [x] Backtest 初始資金輸入正式串接後端
 - [x] Strategy Lab leaderboard `run_count` 首次執行顯示修正
+- [x] `/api/models/leaderboard` 修復（asof 對齊 + walk-forward split 型別修正）
+- [x] Strategy Lab 新增模型排行榜視覺表格
+- [x] 訓練流程改為 sparse 4H snapshot asof 對齊，移除 training-time ffill 依賴

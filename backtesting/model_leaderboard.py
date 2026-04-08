@@ -79,7 +79,7 @@ class ModelLeaderboard:
         ts = self.data['timestamp']
         data_start = ts.min()
         data_end = ts.max()
-        total_months = (data_end.year - data_start.year) * 12 + (data_end.month - data_start.month)
+        total_months = int((data_end.year - data_start.year) * 12 + (data_end.month - data_start.month))
 
         splits = []
         step = WALK_FORWARD_STEP_MONTHS
