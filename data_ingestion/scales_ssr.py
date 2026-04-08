@@ -31,4 +31,4 @@ def get_scales_feature():
         }
     except Exception as e:
         logger.debug(f"Scales fetch failed: {e}")
-    return {"feat_scales_ssr": 0.0, "scales_total_stablecap_m": 0}
+    return {"feat_scales_ssr": None, "scales_total_stablecap_m": None}

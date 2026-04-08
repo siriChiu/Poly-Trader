@@ -56,4 +56,4 @@ def get_nest_feature():
             }
     except Exception as e:
         logger.debug(f"Nest fetch failed: {e}")
-    return {"feat_nest_pred": 0.0, "nest_raw_prob": 0.5}
+    return {"feat_nest_pred": None, "nest_raw_prob": None}

@@ -49,6 +49,10 @@
 - [x] P0/P1 修復驅動：每次心跳至少產出 1 個可驗證 patch，不允許只產出失敗報告
 - [ ] 心跳 gate 自動化：把「patch / verify / doc sync / next gate」檢查做成腳本或模板驗證
 - [ ] blocker 升級機制落地：同一 issue 連續 2~3 輪無進展時，自動升級 source-level investigation / alternative plan
+- [x] source-level sparse feature hygiene：Fin / Fang / Web / Scales / Nest fetch failure 改為 `None`，不再把來源失敗寫成假中性 0
+- [x] regime label persistence：新 features row 在 preprocessor save 時即寫入 `regime_label`，`hb_collect.py` 在 `null_count=0` 時直接 early-exit
+- [x] FeatureChart data-quality 標示：圖例與警示卡顯示 `coverage% / distinct / reasons`，低 coverage 特徵自動隱藏且原因可見
+- [ ] Dynamic Window recent-window 穩定化：修掉 N=100 NaN / ConstantInputWarning，恢復 recent-window 診斷可信度
 
 ### Phase 15 已落地（Web 對齊修補）
 

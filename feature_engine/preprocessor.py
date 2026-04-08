@@ -96,11 +96,14 @@ def _compute_technical_indicators_from_df(df: pd.DataFrame) -> Dict[str, float]:
             
             result["feat_4h_bias50"] = gv_4h("4h_bias50", 0)
             result["feat_4h_bias20"] = gv_4h("4h_bias20", 0)
+            result["feat_4h_bias200"] = gv_4h("4h_bias200", 0)
             result["feat_4h_rsi14"] = gv_4h("4h_rsi14", 50)
             result["feat_4h_macd_hist"] = gv_4h("4h_macd_hist", 0)
             result["feat_4h_bb_pct_b"] = gv_4h("4h_bb_pct_b", 0.5)
+            result["feat_4h_dist_bb_lower"] = gv_4h("4h_dist_bb_lower", 0)
             result["feat_4h_ma_order"] = gv_4h("4h_ma_order", 0)
             result["feat_4h_dist_swing_low"] = gv_4h("4h_dist_swing_low", 0)
+            result["feat_4h_vol_ratio"] = gv_4h("4h_vol_ratio", 1)
         else:
             logger.warning("4H OHLCV data insufficient (< 200 candles)")
     except Exception as e:
@@ -108,11 +111,14 @@ def _compute_technical_indicators_from_df(df: pd.DataFrame) -> Dict[str, float]:
         # Set defaults
         result["feat_4h_bias50"] = None
         result["feat_4h_bias20"] = None
+        result["feat_4h_bias200"] = None
         result["feat_4h_rsi14"] = 50
         result["feat_4h_macd_hist"] = 0
         result["feat_4h_bb_pct_b"] = 0.5
+        result["feat_4h_dist_bb_lower"] = 0
         result["feat_4h_ma_order"] = 0
         result["feat_4h_dist_swing_low"] = 0
+        result["feat_4h_vol_ratio"] = 1
     
     return result
 
@@ -403,36 +409,36 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
         pcr = float(df["fang_pcr"].dropna().iloc[-1])
         features["feat_fang_pcr"] = float(math.tanh((pcr - 1.0) * 2.0))
     else:
-        features["feat_fang_pcr"] = 0.0
+        features["feat_fang_pcr"] = None
     if "fang_iv_skew" in df.columns and df["fang_iv_skew"].notna().any():
         features["feat_fang_skew"] = float(df["fang_iv_skew"].dropna().iloc[-1] / 10.0)
     else:
-        features["feat_fang_skew"] = 0.0
+        features["feat_fang_skew"] = None
 
     # Fin: ETF Flow — outflow = bearish for BTC = bullish for SHORT
     if "fin_etf_netflow" in df.columns and df["fin_etf_netflow"].notna().any():
         nf = float(df["fin_etf_netflow"].dropna().iloc[-1])
         features["feat_fin_netflow"] = float(-math.tanh(nf / 500_000_000))
     else:
-        features["feat_fin_netflow"] = 0.0
+        features["feat_fin_netflow"] = None
 
     # Web: Whale sell pressure
     if "web_whale_pressure" in df.columns and df["web_whale_pressure"].notna().any():
         features["feat_web_whale"] = float(df["web_whale_pressure"].dropna().iloc[-1])
     else:
-        features["feat_web_whale"] = 0.0
+        features["feat_web_whale"] = None
 
     # Scales: Stablecoin SSR
     if "scales_ssr" in df.columns and df["scales_ssr"].notna().any():
         features["feat_scales_ssr"] = float(df["scales_ssr"].dropna().iloc[-1])
     else:
-        features["feat_scales_ssr"] = 0.0
+        features["feat_scales_ssr"] = None
 
     # Nest: Polymarket prediction
     if "nest_pred" in df.columns and df["nest_pred"].notna().any():
         features["feat_nest_pred"] = float(df["nest_pred"].dropna().iloc[-1] - 0.5)
     else:
-        features["feat_nest_pred"] = 0.0
+        features["feat_nest_pred"] = None
 
     logger.info(
         f"Features v3: eye={features['feat_eye_dist']:.6f} "
@@ -449,6 +455,42 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
         f"| Macro: vix={features.get('feat_vix')} dxy={features.get('feat_dxy')}"
     )
     return features
+
+
+def _derive_regime_label(features: Dict) -> str:
+    """Derive a lightweight regime label at feature-save time.
+
+    New feature rows should not default to NULL regime labels because that forces
+    hb_collect.py to re-backfill the whole table on every heartbeat.
+    """
+    ma_order = features.get("feat_4h_ma_order")
+    bias50 = features.get("feat_4h_bias50")
+    body = features.get("feat_body")
+    mind = features.get("feat_mind")
+
+    if ma_order is not None:
+        if ma_order >= 0.5:
+            return "bull"
+        if ma_order <= -0.5:
+            return "bear"
+
+    if bias50 is not None:
+        if bias50 >= 2.0:
+            return "bull"
+        if bias50 <= -2.0:
+            return "bear"
+        return "chop"
+
+    momentum = [v for v in (body, mind) if v is not None]
+    if momentum:
+        avg = sum(float(v) for v in momentum) / len(momentum)
+        if avg >= 0.05:
+            return "bull"
+        if avg <= -0.05:
+            return "bear"
+        return "chop"
+
+    return "neutral"
 
 
 def save_features_to_db(
@@ -494,11 +536,15 @@ def save_features_to_db(
             existing.feat_nest_pred = features.get("feat_nest_pred")
             existing.feat_4h_bias50 = features.get("feat_4h_bias50")
             existing.feat_4h_bias20 = features.get("feat_4h_bias20")
+            existing.feat_4h_bias200 = features.get("feat_4h_bias200")
             existing.feat_4h_rsi14 = features.get("feat_4h_rsi14")
             existing.feat_4h_macd_hist = features.get("feat_4h_macd_hist")
             existing.feat_4h_bb_pct_b = features.get("feat_4h_bb_pct_b")
+            existing.feat_4h_dist_bb_lower = features.get("feat_4h_dist_bb_lower")
             existing.feat_4h_ma_order = features.get("feat_4h_ma_order")
             existing.feat_4h_dist_swing_low = features.get("feat_4h_dist_swing_low")
+            existing.feat_4h_vol_ratio = features.get("feat_4h_vol_ratio")
+            existing.regime_label = features.get("regime_label") or _derive_regime_label(features)
             existing.feature_version = 'v4_4h_integration'
             session.commit()
             logger.info(f"4H 特徵已更新 (id={existing.id}), bias50={existing.feat_4h_bias50}, rsi={existing.feat_4h_rsi14}")
@@ -536,11 +582,15 @@ def save_features_to_db(
             # P0: 4H timeframe features
             feat_4h_bias50=features.get("feat_4h_bias50"),
             feat_4h_bias20=features.get("feat_4h_bias20"),
+            feat_4h_bias200=features.get("feat_4h_bias200"),
             feat_4h_rsi14=features.get("feat_4h_rsi14"),
             feat_4h_macd_hist=features.get("feat_4h_macd_hist"),
             feat_4h_bb_pct_b=features.get("feat_4h_bb_pct_b"),
+            feat_4h_dist_bb_lower=features.get("feat_4h_dist_bb_lower"),
             feat_4h_ma_order=features.get("feat_4h_ma_order"),
             feat_4h_dist_swing_low=features.get("feat_4h_dist_swing_low"),
+            feat_4h_vol_ratio=features.get("feat_4h_vol_ratio"),
+            regime_label=features.get("regime_label") or _derive_regime_label(features),
         )
         session.add(record)
         session.commit()

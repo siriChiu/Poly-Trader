@@ -40,6 +40,33 @@ def test_save_features_to_db_persists_symbol_and_upgrades_legacy_null_symbol(tmp
         session.close()
 
 
+def test_save_features_to_db_derives_regime_label_for_new_rows(tmp_path: Path):
+    session = init_db(_sqlite_url(tmp_path / "p0_regime.db"))
+    try:
+        ts = datetime(2026, 1, 2, 0, 0, 0)
+        save_features_to_db(
+            session,
+            {
+                "timestamp": ts,
+                "symbol": "BTCUSDT",
+                "feat_eye": 0.1,
+                "feat_ear": 0.2,
+                "feat_nose": 0.3,
+                "feat_tongue": 0.4,
+                "feat_body": 0.5,
+                "feat_pulse": 0.6,
+                "feat_aura": 0.7,
+                "feat_mind": 0.8,
+                "feat_4h_bias50": 3.0,
+            },
+        )
+
+        row = session.query(FeaturesNormalized).filter_by(timestamp=ts, symbol="BTCUSDT").one()
+        assert row.regime_label == "bull"
+    finally:
+        session.close()
+
+
 def test_generate_future_return_labels_uses_path_aware_long_win(tmp_path: Path):
     session = init_db(_sqlite_url(tmp_path / "p1_labels.db"))
     try:

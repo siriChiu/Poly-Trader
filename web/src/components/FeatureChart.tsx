@@ -61,6 +61,12 @@ interface FeatureCoverageMeta {
   reasons: string[];
 }
 
+function formatCoverageReason(meta?: FeatureCoverageMeta | null): string {
+  if (!meta) return "";
+  const reasonText = meta.reasons?.join(", ") || "chart hidden";
+  return `${reasonText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}`;
+}
+
 interface MergedPoint {
   time: number;
   label: string;
@@ -92,6 +98,10 @@ const GROUP_AVERAGE_CONFIG: Record<FeatureGroupKey, { key: keyof MergedPoint; la
   macro: { key: "avg_macro", label: "宏觀風險平均", color: "#34d399" },
   structure4h: { key: "avg_structure4h", label: "4H 結構平均", color: "#fb7185" },
 };
+
+function lineTypeForFeature(key: string): "monotone" | "stepAfter" {
+  return key === "4h_ma_order" ? "stepAfter" : "monotone";
+}
 
 const TIMEFRAMES = [
   { label: "1D", days: 1 },
@@ -194,7 +204,7 @@ function CustomLegend({
               const active = visibility[key] ?? true;
               const meta = coverage[key];
               const disabled = meta ? !meta.chart_usable : false;
-              const reason = meta?.reasons?.join(", ") ?? "";
+              const reason = formatCoverageReason(meta);
               return (
                 <button
                   key={key}
@@ -212,7 +222,11 @@ function CustomLegend({
                 >
                   <span className="w-3 h-0.5 inline-block" style={{ backgroundColor: !disabled && active ? cfg.color : "#475569" }} />
                   {cfg.label}
-                  {disabled && <span className="text-[10px] text-slate-500">coverage不足</span>}
+                  {disabled && (
+                    <span className="text-[10px] text-slate-500">
+                      {meta ? `${meta.coverage_pct.toFixed(0)}% / d${meta.distinct}` : "coverage不足"}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -325,6 +339,11 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
     structure4h: false,
   });
   const [featureCoverage, setFeatureCoverage] = useState<Record<string, FeatureCoverageMeta>>({});
+
+  const hiddenCoverageItems = useMemo(
+    () => Object.entries(featureCoverage).filter(([, meta]) => !meta.chart_usable),
+    [featureCoverage]
+  );
 
   const [_autoHighlight, setAutoHighlight] = useState(false);
 
@@ -528,9 +547,18 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
         onToggleGroup={toggleGroupVisibility}
         onToggleAverage={toggleAverageVisibility}
       />
-      {Object.values(featureCoverage).some((meta) => !meta.chart_usable) && (
-        <div className="text-[11px] text-slate-500 px-1">
-          已自動隱藏 coverage 不足或幾乎沒有變化的特徵，避免圖上出現長時間貼邊或失真的雜訊線。
+      {hiddenCoverageItems.length > 0 && (
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-slate-300 space-y-1">
+          <div className="text-amber-300 font-medium">
+            已自動隱藏 {hiddenCoverageItems.length} 個 coverage / 資料品質不足特徵，避免圖上出現失真雜訊線。
+          </div>
+          <div className="text-slate-400">
+            {hiddenCoverageItems
+              .slice(0, 5)
+              .map(([key, meta]) => `${FEATURE_CONFIG[key]?.label ?? key}(${meta.coverage_pct.toFixed(1)}%, d${meta.distinct})`)
+              .join(" · ")}
+            {hiddenCoverageItems.length > 5 ? " …" : ""}
+          </div>
         </div>
       )}
 
@@ -613,7 +641,7 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
                 <Line
                   key={key}
                   yAxisId="sense"
-                  type="monotone"
+                  type={lineTypeForFeature(key)}
                   dataKey={cfg.key}
                   stroke={cfg.color}
                   strokeWidth={normalizeSelectedFeature(selectedFeature) === key ? 3 : 1.5}

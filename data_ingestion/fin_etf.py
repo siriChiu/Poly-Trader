@@ -51,4 +51,4 @@ def get_fin_feature():
                 }
     except Exception as e:
         logger.debug(f"Fin fetch failed: {e}")
-    return {"feat_fin_netflow": 0.0, "fin_raw_netflow": 0.0}
+    return {"feat_fin_netflow": None, "fin_raw_netflow": None}

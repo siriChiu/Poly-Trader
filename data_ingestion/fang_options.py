@@ -34,5 +34,5 @@ def get_fang_feature():
         }
     except Exception as e:
         logger.debug(f"Fang fetch failed: {e}")
-    return {"feat_fang_pcr": 0.0, "feat_fang_skew": 0.0,
-            "fang_raw_pcr": 1.0, "fang_iv_skew_raw": 0.0}
+    return {"feat_fang_pcr": None, "feat_fang_skew": None,
+            "fang_raw_pcr": None, "fang_iv_skew_raw": None}

@@ -23,7 +23,7 @@
 將 raw 資料轉換為可量化特徵特徵，並提供 IC、穩定性與版本控制。
 
 ### 3. 標籤層
-根據未來報酬建立多 horizon 標籤，並以 `label_spot_long_win` 作為主 KPI；`sell_win` 僅保留 legacy 相容欄位。
+根據未來報酬建立多 horizon 標籤，並以 `simulated_pyramid_win` 作為 canonical 主 KPI；`label_spot_long_win` 僅保留 path-aware 比較診斷；`sell_win` 僅保留 legacy 相容欄位。
 
 ### 4. 模型層
 使用特徵做交易決策與現貨 long 加碼判斷，允許 abstain 與 regime-aware weights。

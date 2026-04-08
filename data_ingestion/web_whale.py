@@ -43,5 +43,5 @@ def get_web_feature():
         }
     except Exception as e:
         logger.debug(f"Web fetch failed: {e}")
-    return {"feat_web_whale": 0.0, "feat_web_density": 0.0,
-            "web_large_trades": 0, "web_sell_ratio": 0.5}
+    return {"feat_web_whale": None, "feat_web_density": None,
+            "web_large_trades": None, "web_sell_ratio": None}

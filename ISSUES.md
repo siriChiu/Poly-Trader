@@ -1,19 +1,39 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-09 00:25 UTC — Heartbeat governance redesign（strict project driver + closed-loop enforcement）*
+*最後更新：2026-04-09 01:10 UTC — Heartbeat #611（source sparse-feature null hygiene + regime persistence + FeatureChart data-quality sync）*
 
 ## 📊 系統健康狀態 v4.38
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **10,248** | ✅ +9 vs #609 10,239（持續增長但增速放緩） |
-| Features | **10,207** | ✅ +9 vs #609 10,198 |
-| Labels | **27,684** | 🔴 凍結（與 #609 相同） |
-|| spot_long_win | **33.21%** | 🔴 持平（legacy sell_win，vs #609 33.21%） |
-| 全域 IC | **5/22** | ➡️ 持平 |
-| TW-IC | **13/22** | ➡️ 持平 |
+| Raw | **19,721** | 🟢 +9,473 vs #610；hb_collect 連跑 2 次後仍可持續增長 |
+| Features | **11,107** | 🟢 +900 vs #610；新 row 已直接帶 regime_label |
+| Labels | **48,133** | 🟢 +20,449 vs #610；label pipeline 不再凍結 |
+|| simulated_pyramid_win | **55.12%** | 🟢 canonical target（quick_counts 口徑） |
+|| spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
+| 全域 IC | **13/22** | 🟢 大幅改善 |
+| TW-IC | **17/22** | 🟢 大幅改善 |
 | 模型數 | **8** | ✅ |
 | Tests | **6/6** | ✅ 全過 |
+
+## 📈 心跳 #611 摘要
+
+### 本輪已驗證 patch
+1. **Sparse source null hygiene**：Fin / Fang / Web / Scales / Nest 在 fetch failure 時不再回傳假中性 0，而是保留 `None`，collector / preprocessor 也同步保留缺值，避免把「來源失敗」偽裝成可訓練信號。
+2. **regime_label source-level persistence**：`feature_engine/preprocessor.py` 現在在 `save_features_to_db()` 時直接推導並寫入 `regime_label`，`hb_collect.py` 也在 `null_count=0` 時立即 early-exit，不再每輪重掃整張 features table。
+3. **FeatureChart data-quality sync**：前端圖例與警示卡現在直接顯示 `coverage% / distinct` 與隱藏原因，低 coverage 特徵不再只是模糊顯示「coverage不足」。
+
+### 本輪 runtime facts（Heartbeat #611）
+- `hb_collect.py` 第一次執行：Raw **19718→19719**、Features **11104→11105**、Labels **48127→48132**，並修補歷史 `null_regime=103`。
+- `hb_collect.py` 第二次執行：Step 3 直接回報 **`All features already have regime labels (total=11107)`**，證明新 row 已在 source-level 帶 regime，不再依賴全表 backfill。
+- `hb_parallel_runner.py --hb 611`：**5/5 PASS (127.7s)**，summary 已寫入 `data/heartbeat_611_summary.json`。
+- `feature_coverage_report.py`：Fin / Fang / Web / Scales / Nest coverage 仍只有 **18.8%~19.1%**，仍屬 P0/P1 來源 coverage 問題，但現在缺值語義已乾淨，不再新增假 0 污染。
+- Full IC：**13/22 PASS**；TW-IC：**17/22 PASS**。
+- Dynamic window：**N=200 = 8/8 PASS**，但 **N=100 = 0/8 + NaN**（新的 blocker，需要下一輪釐清 recent window merge / constant-input 問題）。
+- Train：**Train 69.11%, CV 59.48% ± 11.82pp**；Bear CV **61.29%**, Bull CV **77.88%**, Chop CV **59.68%**。
+
+### 新 blocker 升級
+- **#DW_N100_NAN**：`scripts/dynamic_window_train.py` 在 N=100 出現 `ConstantInputWarning`，8/8 全部 NaN，這代表最近窗口的 merge / target slice / constant-feature handling 仍有 bug。此問題已從「觀察」升級為下一輪 P0 investigation gate。
 
 ## 📈 心跳 #610 IC 摘要
 
@@ -138,21 +158,24 @@
 
 | ID | 問題 | 狀態 |
 |----|------|------|
-| #LABELS_FROZEN | Labels 完全凍結於 27,684（跳增後零增長） | 🟡 已部分修復（已重建 24h labels=9,760，最新 label 時間回到 raw 後約 23h 內） |
-| #SPOT_LONG_WIN_33 | spot_long_win=33.21% 遠低於目標（需≥90%） | 🔴 持續（path-aware 本身 positive ratio 僅 26.83%；已確認不適合作為主 target） |
-| #BULL_CHOP_DEAD | Bull 0/8, Chop 0/8（200+輪持續零信號）| 🔴 持續 |
-| #CV_CEILING | CV 51.39% 天花板（6+月無法突破）| 🟡 已部分修復（simulated_pyramid_win 實測 CV=58.12%，比 path-aware 45.99% 明顯改善，但 regime 問題仍未解） |
+| #LABELS_FROZEN | Labels 曾長期凍結於 27,684 | ✅ 已修復（Heartbeat #611 後升至 **48,133**，`hb_collect.py` 可持續新增 labels） |
+| #SPOT_LONG_WIN_33 | spot_long_win=33.21% 遠低於目標（需≥90%） | 🔴 持續（legacy 比較指標；主 target 已切到 simulated_pyramid_win） |
+| #BULL_CHOP_DEAD | Bull 0/8, Chop 0/8（200+輪持續零信號）| 🟡 重新評估中（#611 的 Mind-tertile regime IC 顯示 Bull 7/8、Chop 4/8，但方法差異仍待確認） |
+| #CV_CEILING | CV 51.39% 天花板（6+月無法突破）| 🟡 已部分修復（#611 global CV 升至 **59.48%**，但仍需確認是否穩定、是否受 regime / window bug 影響） |
 | #CANONICAL_KEY_DRIFT | features/labels/analysis 對齊仍受 timestamp-only 舊語義污染，symbol NULL 舊資料混入 | 🟡 已部分修復（新特徵保存改為 timestamp+symbol，標籤優先使用 canonical symbol rows，已執行歷史去重） |
 | #FEATURE_SYMBOL_NULL | `features_normalized.symbol` 歷史上可為 NULL，造成 mixed-generation dataset | ✅ 已修復（歷史 NULL symbol 已回填為 0 筆） |
+| #DW_N100_NAN | `dynamic_window_train.py` 在 N=100 產生 8/8 NaN，recent-window 診斷失真 | 🔴 新增 blocker（Heartbeat #611 runtime 已重現） |
 
 ## P1
 
 | ID | 問題 | 狀態 |
 |----|------|------|
-| #DW_DEADZONE | N=600 和 N=5000 持續 0/8 死區 | ⚠️ 持續 |
+| #DW_DEADZONE | N=600 和 N=5000 持續 0/8 死區 | 🟡 已部分修復（#611 runtime：N=600 升至 7/8、N=5000 升至 4/8，但 N=100 新增 NaN blocker） |
 | #EAR_LOW_VAR | feat_ear std=0.0029, unique=13（準離散特徵）| ⚠️ 持續 |
 | #TONGUE_LOW_VAR | feat_tongue std=0.0016, unique=9（準離散特徵）| ⚠️ 持續 |
-| #LABELS_JUMP | Labels 從 18,052 跳增至 27,684（+53%）原因未明 | ⚠️ 持續 |
+| #LABELS_JUMP | Labels 從 18,052 跳增至 27,684（+53%）原因未明 | ✅ 已定位（hb_collect pipeline 重建 labels；後續以 24h/canonical horizon 管理，不再視為隨機跳增） |
+| #LOW_COVERAGE_SOURCES | Fin / Fang / Web / Scales / Nest coverage 僅 ~19%，且過去會用假 0 偽裝可用資料 | 🟡 已部分修復（#611 已改成 fetch failure → `None`，避免新增假中性值；下一步是真正補歷史 coverage） |
+| #FEATURECHART_QUALITY_SIGNAL | FeatureChart 對低 coverage 特徵只顯示模糊 badge，使用者無法判斷是 coverage 還是 distinct 問題 | ✅ 已修復（圖例/警示卡已顯示 `coverage% / distinct / reasons`） |
 | #FINAL_CLOSE_LABEL_NOISE | final-close-only TP threshold 會把「曾 hit TP 但收盤回落」的可交易 setup 誤標為失敗 | ✅ 已修復（spot_long_win 已改為 path-aware label，並已重建實際 labels） |
 | #LABEL_PATH_MISMATCH | 標籤語義與現貨金字塔執行路徑不一致，只看 horizon 結束點 | 🟡 已部分修復（path-aware + simulated pyramid labels 均已上線，且已接入模型排行榜 target comparison；下一步要把 simulated target 升為預設訓練主線） |
 
