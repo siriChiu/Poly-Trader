@@ -4,6 +4,7 @@ REST API 路由 v4.0 — 多特徵策略 + 策略實驗室 + 模型排行榜
 import ccxt
 import math
 import json
+import sqlite3
 import threading
 import time
 from pathlib import Path
@@ -20,6 +21,7 @@ from feature_engine.feature_history_policy import (
     SOURCE_SNAPSHOT_SUBTYPES,
     assess_feature_quality,
     attach_forward_archive_meta,
+    compute_raw_snapshot_stats,
 )
 from utils.logger import setup_logger
 
@@ -115,17 +117,21 @@ def normalize_for_api(raw_val, db_key):
 
 
 
-def _compute_raw_snapshot_counts(db) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
+def _compute_raw_snapshot_stats(db) -> Dict[str, Dict[str, Any]]:
     try:
-        for subtype_group in SOURCE_SNAPSHOT_SUBTYPES.values():
-            for subtype in subtype_group:
-                if subtype in counts:
-                    continue
-                counts[subtype] = db.query(RawEvent).filter(RawEvent.subtype == subtype).count()
+        bind = db.get_bind()
+        if bind is None:
+            return {}
+        db_path = bind.url.database
+        if not db_path:
+            return {}
+        conn = sqlite3.connect(db_path)
+        try:
+            return compute_raw_snapshot_stats(conn)
+        finally:
+            conn.close()
     except Exception:
         return {}
-    return counts
 
 
 def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
@@ -136,7 +142,8 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
         .order_by(FeaturesNormalized.timestamp)
         .all()
     )
-    snapshot_counts = _compute_raw_snapshot_counts(db)
+    snapshot_stats = _compute_raw_snapshot_stats(db)
+    snapshot_counts = {subtype: row.get("count", 0) for subtype, row in snapshot_stats.items()}
     total_rows = len(rows)
     feature_stats: Dict[str, Any] = {}
     for db_key, clean_key in FEATURE_KEY_MAP.items():
@@ -147,7 +154,7 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
         min_val = min(non_null_values) if non_null_values else None
         max_val = max(non_null_values) if non_null_values else None
         quality = assess_feature_quality(clean_key, coverage_pct, distinct, len(non_null_values), min_val, max_val)
-        quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts)
+        quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts, snapshot_stats)
         feature_stats[clean_key] = {
             "db_key": db_key,
             "non_null": len(non_null_values),

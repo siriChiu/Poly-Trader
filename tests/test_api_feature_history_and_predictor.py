@@ -100,7 +100,15 @@ def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
         SimpleNamespace(timestamp=object(), feat_eye=0.3, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-1.0, feat_4h_ma_order=1.0),
     ]
     monkeypatch.setattr(api_module, "get_db", lambda: _FakeSession(rows))
-    monkeypatch.setattr(api_module, "_compute_raw_snapshot_counts", lambda db: {"claw_snapshot": 3})
+    monkeypatch.setattr(api_module, "_compute_raw_snapshot_stats", lambda db: {
+        "claw_snapshot": {
+            "count": 3,
+            "latest_ts": "2026-04-09T03:00:00+00:00",
+            "oldest_ts": "2026-04-09T01:00:00+00:00",
+            "span_hours": 2.0,
+            "latest_age_minutes": 120.0,
+        }
+    })
 
     result = asyncio.run(api_module.api_features_coverage(days=90))
 
@@ -110,9 +118,15 @@ def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
     assert result["features"]["claw"]["backfill_status"] == "blocked"
     assert result["features"]["claw"]["history_class"] == "archive_required"
     assert result["features"]["claw"]["raw_snapshot_events"] == 3
-    assert result["features"]["claw"]["forward_archive_ready"] is True
+    assert result["features"]["claw"]["forward_archive_started"] is True
+    assert result["features"]["claw"]["forward_archive_ready"] is False
+    assert result["features"]["claw"]["forward_archive_stale"] is True
+    assert result["features"]["claw"]["forward_archive_status"] == "stale"
+    assert result["features"]["claw"]["forward_archive_ready_min_events"] == 10
     assert "CoinGlass" in result["features"]["claw"]["backfill_blocker"]
-    assert "Forward raw snapshot collection has started" in result["features"]["claw"]["backfill_blocker"]
+    assert result["features"]["claw"]["raw_snapshot_latest_age_min"] == 120.0
+    assert result["features"]["claw"]["raw_snapshot_span_hours"] == 2.0
+    assert "Forward raw snapshot archive is stale (3/10 stored event(s)" in result["features"]["claw"]["backfill_blocker"]
     assert result["features"]["4h_bias50"]["chart_usable"] is False
     assert result["features"]["4h_bias50"]["quality_flag"] == "low_distinct"
     assert result["features"]["4h_bias50"]["backfill_status"] == "n/a"

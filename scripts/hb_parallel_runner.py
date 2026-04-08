@@ -36,6 +36,7 @@ TASKS = [
     {"name": "train", "label": "🔨 Model Train", "cmd": [PYTHON, "model/train.py"]},
     {"name": "tests", "label": "🧪 Comprehensive Tests", "cmd": [PYTHON, "tests/comprehensive_test.py"]},
 ]
+COLLECT_CMD = [PYTHON, "scripts/hb_collect.py"]
 
 
 def parse_args(argv=None):
@@ -44,6 +45,7 @@ def parse_args(argv=None):
     parser.add_argument("--fast", action="store_true", help="Quick diagnostic mode for cron. If --hb is omitted, uses the label 'fast'.")
     parser.add_argument("--no-train", action="store_true")
     parser.add_argument("--no-dw", action="store_true")
+    parser.add_argument("--no-collect", action="store_true", help="Skip heartbeat data collection before diagnostics.")
     args = parser.parse_args(argv)
     if not args.fast and not args.hb:
         parser.error("--hb is required unless --fast is used")
@@ -85,6 +87,55 @@ def quick_counts():
     return results
 
 
+def run_collect_step(skip: bool = False) -> Dict[str, Any]:
+    if skip:
+        return {
+            "attempted": False,
+            "success": True,
+            "stdout": "",
+            "stderr": "",
+            "returncode": 0,
+            "command": COLLECT_CMD,
+        }
+
+    env = {**os.environ, "PYTHONPATH": PROJECT_ROOT}
+    try:
+        result = subprocess.run(
+            COLLECT_CMD,
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            env=env,
+        )
+        return {
+            "attempted": True,
+            "success": result.returncode == 0,
+            "stdout": result.stdout.strip(),
+            "stderr": result.stderr.strip(),
+            "returncode": result.returncode,
+            "command": COLLECT_CMD,
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "attempted": True,
+            "success": False,
+            "stdout": "",
+            "stderr": "TIMEOUT after 600s",
+            "returncode": -1,
+            "command": COLLECT_CMD,
+        }
+    except Exception as exc:
+        return {
+            "attempted": True,
+            "success": False,
+            "stdout": "",
+            "stderr": str(exc),
+            "returncode": -1,
+            "command": COLLECT_CMD,
+        }
+
+
 def collect_source_blockers() -> Dict[str, Any]:
     coverage_payload = compute_sqlite_feature_coverage(DB_PATH)
     blocker_summary = build_source_blocker_summary(coverage_payload)
@@ -94,7 +145,7 @@ def collect_source_blockers() -> Dict[str, Any]:
     return blocker_summary
 
 
-def save_summary(run_label, counts, source_blockers, results, elapsed, fast_mode):
+def save_summary(run_label, counts, source_blockers, collect_result, results, elapsed, fast_mode):
     passed = sum(1 for r in results.values() if r["success"])
     total = len(results)
 
@@ -102,6 +153,13 @@ def save_summary(run_label, counts, source_blockers, results, elapsed, fast_mode
         "heartbeat": run_label,
         "mode": "fast" if fast_mode else "full",
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "collect_result": {
+            "attempted": collect_result.get("attempted", False),
+            "success": collect_result.get("success", False),
+            "returncode": collect_result.get("returncode", 0),
+            "stdout_preview": collect_result.get("stdout", "")[:2000],
+            "stderr_preview": collect_result.get("stderr", "")[:1000],
+        },
         "db_counts": counts,
         "source_blockers": source_blockers,
         "parallel_results": {},
@@ -133,7 +191,13 @@ def print_source_blockers(source_blockers: Dict[str, Any]) -> None:
     for row in blocked[:5]:
         archive_note = ""
         if row.get("raw_snapshot_events"):
-            archive_note = f" | forward_archive={row['raw_snapshot_events']}"
+            archive_note = (
+                f" | forward_archive={row['raw_snapshot_events']}/"
+                f"{row.get('forward_archive_ready_min_events', 10)}"
+                f" ({row.get('forward_archive_status', 'missing')})"
+            )
+            if row.get("raw_snapshot_latest_age_min") is not None:
+                archive_note += f" age={row['raw_snapshot_latest_age_min']:.1f}m"
         print(
             f"   - {row['key']}: {row['history_class']} | "
             f"coverage={row.get('coverage_pct', 0)}%{archive_note} | {row['recommended_action']}"
@@ -145,6 +209,21 @@ def print_source_blockers(source_blockers: Dict[str, Any]) -> None:
 def main(argv=None):
     args = parse_args(argv)
     run_label = resolve_run_label(args)
+
+    collect_result = run_collect_step(skip=args.no_collect)
+    if collect_result.get("attempted"):
+        print(
+            f"🛰️ Pre-heartbeat collect: {'PASS' if collect_result['success'] else 'FAIL'} "
+            f"(rc={collect_result['returncode']})"
+        )
+        if collect_result.get("stdout"):
+            lines = collect_result["stdout"].split("\n")
+            preview = "\n".join(lines[:40])
+            if len(lines) > 40:
+                preview += "\n...\n" + "\n".join(lines[-20:])
+            print(f"\n--- hb_collect ---\n{preview}")
+        if collect_result.get("stderr"):
+            print(f"\n--- hb_collect stderr ---\n{collect_result['stderr']}")
 
     counts = quick_counts()
     source_blockers = collect_source_blockers()
@@ -193,7 +272,7 @@ def main(argv=None):
             if errors:
                 print(f"\n--- {name} stderr ---\n" + '\n'.join(errors[:20]))
 
-    _, summary_path = save_summary(run_label, counts, source_blockers, results, elapsed, args.fast)
+    _, summary_path = save_summary(run_label, counts, source_blockers, collect_result, results, elapsed, args.fast)
     print(f"\n📄 Summary saved: {os.path.relpath(summary_path, PROJECT_ROOT)}")
 
 

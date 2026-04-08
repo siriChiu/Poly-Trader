@@ -59,6 +59,8 @@
 - [x] source-history blocker surfacing：coverage report / API / FeatureChart 已同步顯示 `history_class / backfill_status / backfill_blocker / recommended_action`，把 low-coverage sparse sources 明確升級成 source-level blocker，而不是前端顯示問題
 - [x] shared source-history policy：`feature_engine/feature_history_policy.py` 成為 coverage/report/API 的單一 policy 實作，避免 blocker metadata 漂移造成 heartbeat 與 UI 對同一個 sparse source 給出不同結論
 - [x] forward raw snapshot archive kickoff：`data_ingestion/collector.py` 現在每輪都會把 Claw / Fang / Fin / Web / Scales / Nest / Macro 寫入 `raw_events` (`*_snapshot`)，coverage/report/runtime 也同步顯示 `raw_snapshot_events`，正式開始累積 sparse sources 的 forward archive
+- [x] fast heartbeat pre-collect：`hb_parallel_runner.py --fast` 現在會先跑 `hb_collect.py`，確保 cron fast heartbeat 先推進 raw/features/labels，再做 IC / blocker 診斷，避免心跳空轉
+- [x] forward archive freshness gating：coverage report / API / FeatureChart / heartbeat summary 現在會顯示 sparse-source archive 的 `latest_age_min / span_hours / stale status`，archive 超過 60 分鐘未更新時直接升級為 collect blocker
 - [x] hb_parallel_runner fast-mode unblock：`python scripts/hb_parallel_runner.py --fast` 不再要求 `--hb`，並會把 source blockers 一起寫入 heartbeat summary，適合 cron 快速閉環檢查
 - [x] hb_collect label horizon hygiene：修正 4h label job 誤寫成 14,400m 的單位 bug，並清除 accidental 14,400m labels
 - [x] Canonical-window IC guardrails：full/regime/dynamic-window 腳本固定使用 `horizon_minutes=1440`，對 `constant_target` / `constant_feature` 顯式標註，避免 NaN 假 blocker

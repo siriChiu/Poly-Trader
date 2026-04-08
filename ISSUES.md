@@ -1,20 +1,42 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-09 03:31 UTC — Heartbeat #618（forward raw snapshot archive kickoff + claw null hygiene）*
+*最後更新：2026-04-09 04:08 UTC — Heartbeat #619（fast heartbeat pre-collect + forward archive freshness gating）*
 
 ## 📊 系統健康狀態 v4.43
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **19,779** | 🟢 `hb_collect.py` 本輪再增 +1 |
-| Features | **11,165** | 🟢 新 row 持續直接帶 `regime_label` |
-| Labels | **38,602** | 🟢 canonical horizons 本輪再增 +72 |
+| Raw | **19,780** | 🟢 `hb_parallel_runner.py --fast` 本輪先自動 collect，Raw +1 |
+| Features | **11,166** | 🟢 fast heartbeat 本輪直接推進 Features +1 |
+| Labels | **38,660** | 🟢 canonical horizons 本輪再增 +58 |
 || simulated_pyramid_win (1440m) | **61.37%** | 🟢 canonical 24h 分析口徑（`regime_aware_ic.py`, n=9,763） |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
 | 全域 IC | **15/22** | 🟢 維持 |
 | TW-IC | **17/22** | 🟢 維持高檔 |
 | 模型數 | **8** | ✅ |
 | Tests | **6/6** | ✅ 全過 |
+
+## 📈 心跳 #619 摘要
+
+### 本輪已驗證 patch
+1. **Fast heartbeat 不再空轉**：`scripts/hb_parallel_runner.py` 新增 pre-heartbeat `hb_collect.py` 步驟（可用 `--no-collect` 關閉），cron/fast mode 不再只是讀取舊 counts，而會先真正推進 **raw → features → labels**。
+2. **Forward archive freshness / span metadata surfaced**：`feature_history_policy.py`、`/api/features/coverage`、`feature_coverage_report.py`、`FeatureChart.tsx`、`hb_parallel_runner.py` 現在除了 `raw_snapshot_events` 之外，還會帶出 `latest_ts / oldest_ts / span_hours / latest_age_min / stale status`；sparse-source blocker 不再只知道「有幾筆 archive」，也知道 archive 是否停滯。
+3. **Stale-archive blocker escalation**：source blocker 的 `recommended_action` 會在 snapshot archive 超過 **60 分鐘** 未更新時升級成「立即重跑/重啟 heartbeat collection」，避免下一輪又把 archive-building 誤判成在前進。
+
+### 本輪 runtime facts（Heartbeat #619）
+- `python scripts/hb_parallel_runner.py --fast --hb 619` 現在會先執行 collect：**Raw 19779→19780 / Features 11165→11166 / Labels 38602→38660**，證明 fast heartbeat 已從「只診斷」修成「先推進再診斷」。
+- Forward archive 由前輪 **1/10** 推進到 **2/10**（Claw / Fang / Fin / Web / Scales / Nest 全部同步增加），且 summary / coverage report 可直接看到 `age≈0.2m, span≈0.88h`，證明 archive 在本輪確實有新事件，不是沿用舊狀態假裝前進。
+- `feature_coverage_report.py` 已新增 **Freshness** 欄；`FeatureChart` / coverage API 也會顯示 `archive x/10 + stale/building + last age/span`，前端與 heartbeat 對 sparse-source 狀態的解讀再次對齊。
+- Canonical diagnostics 維持：**Global IC 15/22 PASS**、**TW-IC 17/22 PASS**；regime-aware IC 仍為 **Bear 6/8 / Bull 8/8 / Chop 8/8 / Neutral 1/8**（`simulated_pyramid_win`, n=9,763）。
+- 驗證：`PYTHONPATH=. pytest tests/test_feature_history_policy.py tests/test_hb_parallel_runner.py tests/test_api_feature_history_and_predictor.py tests/test_collector_snapshot_archives.py -q` → **10 passed**；`python scripts/feature_coverage_report.py` ✅；`npm run build` ✅；`python scripts/hb_parallel_runner.py --fast --hb 619` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#HEARTBEAT_EMPTY_PROGRESS（已修一層）**：fast heartbeat 之前只會跑 IC 診斷，無法保證 raw/features/labels 或 snapshot archive 有任何新增；現在 runner 先 collect，再診斷，空轉流程缺口已補上。
+- **#LOW_COVERAGE_SOURCES**：source-level blocker 仍未解，但判斷標準更嚴格：
+  1. **building**：archive 數量 < 10，但 `latest_age_min <= 60`，表示 forward archive 正在累積；
+  2. **stale**：archive 已開始但 `latest_age_min > 60`，下一輪必須先恢復 collect，而不是再討論顯示層；
+  3. **missing**：沒有任何 snapshot event，屬 source-archive 尚未接通。
+- **剩餘根因沒有被掩蓋**：本輪修的是 heartbeat/workflow 與 blocker freshness 可見性，不是歷史 coverage 本身。Claw/Fin 仍需要 historical export；Fang/Web/Scales/Nest 仍需要更多 forward archive 或專門回補來源。
 
 ## 📈 心跳 #618 摘要
 

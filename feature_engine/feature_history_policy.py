@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
 from typing import Any, Dict, Iterable, List, Sequence
@@ -34,6 +35,13 @@ SOURCE_SNAPSHOT_SUBTYPES = {
     'scales_ssr': ('scales_snapshot',),
     'nest_pred': ('nest_snapshot',),
 }
+
+# A single snapshot means forward archiving has started, but it is not enough to
+# call the archive "ready" for chart/debug workflows. We use 10 events because
+# the FeatureChart distinct-count gate also treats <10 as too sparse to be
+# meaningful, so heartbeat/runtime/UI all share the same maturity threshold.
+FORWARD_ARCHIVE_READY_MIN_EVENTS = 10
+FORWARD_ARCHIVE_STALE_MINUTES = 60
 
 SOURCE_HISTORY_POLICIES = {
     'claw': {
@@ -158,40 +166,138 @@ def assess_feature_quality(clean_key: str, coverage_pct: float, distinct: int, n
     }
 
 
-def compute_raw_snapshot_counts(conn: sqlite3.Connection) -> Dict[str, int]:
+def _parse_sqlite_timestamp(value: Any) -> datetime | None:
+    if value in (None, ''):
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        text = str(value).strip()
+        if not text:
+            return None
+        if text.endswith('Z'):
+            text = text[:-1] + '+00:00'
+        try:
+            dt = datetime.fromisoformat(text)
+        except ValueError:
+            for fmt in ('%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S'):
+                try:
+                    dt = datetime.strptime(text, fmt)
+                    break
+                except ValueError:
+                    continue
+            else:
+                return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def compute_raw_snapshot_stats(conn: sqlite3.Connection) -> Dict[str, Dict[str, Any]]:
     table_exists = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='raw_events'"
     ).fetchone()
     if not table_exists:
         return {}
     rows = conn.execute(
-        'SELECT subtype, COUNT(*) FROM raw_events GROUP BY subtype'
+        'SELECT subtype, COUNT(*), MIN(timestamp), MAX(timestamp) FROM raw_events GROUP BY subtype'
     ).fetchall()
-    return {str(subtype): int(count) for subtype, count in rows}
+    stats: Dict[str, Dict[str, Any]] = {}
+    now = datetime.now(timezone.utc)
+    for subtype, count, min_ts, max_ts in rows:
+        oldest_dt = _parse_sqlite_timestamp(min_ts)
+        latest_dt = _parse_sqlite_timestamp(max_ts)
+        span_hours = None
+        if oldest_dt and latest_dt:
+            span_hours = round(max(0.0, (latest_dt - oldest_dt).total_seconds() / 3600.0), 2)
+        age_minutes = None
+        if latest_dt:
+            age_minutes = round(max(0.0, (now - latest_dt).total_seconds() / 60.0), 1)
+        stats[str(subtype)] = {
+            'count': int(count),
+            'oldest_ts': oldest_dt.isoformat() if oldest_dt else None,
+            'latest_ts': latest_dt.isoformat() if latest_dt else None,
+            'span_hours': span_hours,
+            'latest_age_minutes': age_minutes,
+        }
+    return stats
 
 
-def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapshot_counts: Dict[str, int] | None = None) -> Dict[str, Any]:
+def compute_raw_snapshot_counts(conn: sqlite3.Connection) -> Dict[str, int]:
+    return {
+        subtype: row.get('count', 0)
+        for subtype, row in compute_raw_snapshot_stats(conn).items()
+    }
+
+
+def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapshot_counts: Dict[str, int] | None = None, snapshot_stats: Dict[str, Dict[str, Any]] | None = None) -> Dict[str, Any]:
     snapshot_counts = snapshot_counts or {}
+    snapshot_stats = snapshot_stats or {}
     subtypes = list(SOURCE_SNAPSHOT_SUBTYPES.get(clean_key, ()))
     raw_snapshot_events = sum(snapshot_counts.get(subtype, 0) for subtype in subtypes)
+    relevant_stats = [snapshot_stats.get(subtype, {}) for subtype in subtypes if snapshot_stats.get(subtype)]
+    latest_ages = [row.get('latest_age_minutes') for row in relevant_stats if row.get('latest_age_minutes') is not None]
+    spans = [row.get('span_hours') for row in relevant_stats if row.get('span_hours') is not None]
+    latest_ts_values = [row.get('latest_ts') for row in relevant_stats if row.get('latest_ts')]
+    oldest_ts_values = [row.get('oldest_ts') for row in relevant_stats if row.get('oldest_ts')]
+    latest_age_minutes = min(latest_ages) if latest_ages else None
+    max_span_hours = max(spans) if spans else None
+    latest_snapshot_ts = max(latest_ts_values) if latest_ts_values else None
+    oldest_snapshot_ts = min(oldest_ts_values) if oldest_ts_values else None
+    archive_started = raw_snapshot_events > 0
+    archive_ready = raw_snapshot_events >= FORWARD_ARCHIVE_READY_MIN_EVENTS
+    archive_stale = archive_started and latest_age_minutes is not None and latest_age_minutes > FORWARD_ARCHIVE_STALE_MINUTES
+    progress_pct = 0.0
+    if FORWARD_ARCHIVE_READY_MIN_EVENTS > 0:
+        progress_pct = min(100.0, raw_snapshot_events / FORWARD_ARCHIVE_READY_MIN_EVENTS * 100.0)
+    if archive_ready:
+        archive_status = 'stale' if archive_stale else 'ready'
+    elif archive_started:
+        archive_status = 'stale' if archive_stale else 'building'
+    else:
+        archive_status = 'missing'
+
     enriched = dict(quality)
     enriched['raw_snapshot_subtypes'] = subtypes
     enriched['raw_snapshot_events'] = raw_snapshot_events
-    enriched['forward_archive_ready'] = raw_snapshot_events > 0
+    enriched['raw_snapshot_latest_ts'] = latest_snapshot_ts
+    enriched['raw_snapshot_oldest_ts'] = oldest_snapshot_ts
+    enriched['raw_snapshot_span_hours'] = max_span_hours
+    enriched['raw_snapshot_latest_age_min'] = latest_age_minutes
+    enriched['forward_archive_started'] = archive_started
+    enriched['forward_archive_ready'] = archive_ready
+    enriched['forward_archive_stale'] = archive_stale
+    enriched['forward_archive_status'] = archive_status
+    enriched['forward_archive_ready_min_events'] = FORWARD_ARCHIVE_READY_MIN_EVENTS
+    enriched['forward_archive_stale_after_min'] = FORWARD_ARCHIVE_STALE_MINUTES
+    enriched['forward_archive_progress_pct'] = round(progress_pct, 1)
 
     if clean_key in SOURCE_FEATURE_KEYS and raw_snapshot_events > 0:
         blocker = enriched.get('backfill_blocker')
         blocker_note = (
-            f' Forward raw snapshot collection has started ({raw_snapshot_events} stored event(s) '
+            f' Forward raw snapshot archive is {archive_status} '
+            f'({raw_snapshot_events}/{FORWARD_ARCHIVE_READY_MIN_EVENTS} stored event(s) '
             f'across {", ".join(subtypes)}), but historical rows before the archive cutoff are still missing.'
         )
+        if archive_stale and latest_age_minutes is not None:
+            blocker_note += (
+                f' Latest archive event is {latest_age_minutes:.1f} minutes old, so forward collection is not progressing right now.'
+            )
         if blocker and blocker_note.strip() not in blocker:
             enriched['backfill_blocker'] = blocker + blocker_note
-        action = enriched.get('recommended_action') or ''
-        enriched['recommended_action'] = (
-            'Keep heartbeat collection running to accumulate forward raw snapshots; '
-            'add historical export/API archive if you need to backfill rows before the archive cutoff.'
-        ) if action else 'Keep heartbeat collection running to accumulate forward raw snapshots.'
+        if archive_stale and latest_age_minutes is not None:
+            enriched['recommended_action'] = (
+                f'Restart or re-run heartbeat collection immediately; latest snapshot archive event is '
+                f'{latest_age_minutes:.1f} minutes old (stale threshold {FORWARD_ARCHIVE_STALE_MINUTES}m). '
+                f'After collection resumes, keep running until at least {FORWARD_ARCHIVE_READY_MIN_EVENTS} '
+                'forward raw snapshots accumulate; add historical export/API archive if you need rows before the cutoff.'
+            )
+        else:
+            enriched['recommended_action'] = (
+                f'Keep heartbeat collection running until at least '
+                f'{FORWARD_ARCHIVE_READY_MIN_EVENTS} forward raw snapshots accumulate; '
+                'add historical export/API archive if you need to backfill rows before the archive cutoff.'
+            )
 
     return enriched
 
@@ -199,7 +305,8 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
 def compute_sqlite_feature_coverage(db_path: str | Path) -> Dict[str, Any]:
     conn = sqlite3.connect(str(db_path))
     cur = conn.cursor()
-    snapshot_counts = compute_raw_snapshot_counts(conn)
+    snapshot_stats = compute_raw_snapshot_stats(conn)
+    snapshot_counts = {subtype: row.get('count', 0) for subtype, row in snapshot_stats.items()}
     total_rows = cur.execute('SELECT COUNT(*) FROM features_normalized').fetchone()[0]
     stats = []
     for db_key, clean_key in FEATURE_KEY_MAP.items():
@@ -215,7 +322,7 @@ def compute_sqlite_feature_coverage(db_path: str | Path) -> Dict[str, Any]:
             min_v,
             max_v,
         )
-        quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts)
+        quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts, snapshot_stats)
         stats.append({
             'db_key': db_key,
             'key': clean_key,
@@ -259,7 +366,17 @@ def build_source_blocker_summary(feature_rows: Sequence[Dict[str, Any]] | Dict[s
                 'backfill_blocker': row.get('backfill_blocker'),
                 'recommended_action': row.get('recommended_action'),
                 'raw_snapshot_events': row.get('raw_snapshot_events', 0),
+                'raw_snapshot_latest_ts': row.get('raw_snapshot_latest_ts'),
+                'raw_snapshot_oldest_ts': row.get('raw_snapshot_oldest_ts'),
+                'raw_snapshot_span_hours': row.get('raw_snapshot_span_hours'),
+                'raw_snapshot_latest_age_min': row.get('raw_snapshot_latest_age_min'),
+                'forward_archive_started': row.get('forward_archive_started', False),
                 'forward_archive_ready': row.get('forward_archive_ready', False),
+                'forward_archive_stale': row.get('forward_archive_stale', False),
+                'forward_archive_status': row.get('forward_archive_status', 'missing'),
+                'forward_archive_ready_min_events': row.get('forward_archive_ready_min_events', FORWARD_ARCHIVE_READY_MIN_EVENTS),
+                'forward_archive_stale_after_min': row.get('forward_archive_stale_after_min', FORWARD_ARCHIVE_STALE_MINUTES),
+                'forward_archive_progress_pct': row.get('forward_archive_progress_pct', 0.0),
             }
             for row in blocked
         ],

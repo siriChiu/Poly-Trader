@@ -13,6 +13,7 @@ def test_parse_args_allows_fast_without_hb():
     args = hb_parallel_runner.parse_args(["--fast"])
 
     assert args.fast is True
+    assert args.no_collect is False
     assert hb_parallel_runner.resolve_run_label(args) == "fast"
 
 
@@ -29,6 +30,7 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
 
     counts = {"raw_market_data": 1, "features_normalized": 2, "labels": 3, "simulated_pyramid_win_rate": 0.5}
+    collect_result = {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""}
     blockers = {
         "blocked_count": 1,
         "counts_by_history_class": {"snapshot_only": 1},
@@ -40,6 +42,7 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
         "fast",
         counts,
         blockers,
+        collect_result,
         results,
         elapsed=1.2,
         fast_mode=True,
@@ -47,8 +50,10 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
 
     assert summary["heartbeat"] == "fast"
     assert summary["mode"] == "fast"
+    assert summary["collect_result"]["success"] is True
     assert summary["source_blockers"]["blocked_count"] == 1
     assert summary_path.endswith("heartbeat_fast_summary.json")
 
     saved = json.loads(Path(summary_path).read_text())
+    assert saved["collect_result"]["attempted"] is True
     assert saved["source_blockers"]["blocked_features"][0]["key"] == "nest_pred"

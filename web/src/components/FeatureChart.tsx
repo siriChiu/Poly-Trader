@@ -67,6 +67,18 @@ interface FeatureCoverageMeta {
   backfill_status?: string;
   backfill_blocker?: string | null;
   recommended_action?: string | null;
+  raw_snapshot_events?: number;
+  raw_snapshot_latest_ts?: string | null;
+  raw_snapshot_oldest_ts?: string | null;
+  raw_snapshot_span_hours?: number | null;
+  raw_snapshot_latest_age_min?: number | null;
+  forward_archive_started?: boolean;
+  forward_archive_ready?: boolean;
+  forward_archive_stale?: boolean;
+  forward_archive_status?: string;
+  forward_archive_ready_min_events?: number;
+  forward_archive_stale_after_min?: number;
+  forward_archive_progress_pct?: number;
 }
 
 function formatCoverageReason(meta?: FeatureCoverageMeta | null): string {
@@ -74,13 +86,23 @@ function formatCoverageReason(meta?: FeatureCoverageMeta | null): string {
   const qualityText = meta.quality_label && meta.quality_label !== "ok"
     ? meta.quality_label
     : (meta.reasons?.join(", ") || "chart hidden");
+  const archiveText = meta.raw_snapshot_events
+    ? ` · archive ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10} ${meta.forward_archive_status ?? "building"}`
+    : "";
+  const freshnessText = meta.raw_snapshot_events && meta.raw_snapshot_latest_age_min !== undefined && meta.raw_snapshot_latest_age_min !== null
+    ? ` · last ${meta.raw_snapshot_latest_age_min.toFixed(1)}m · span ${meta.raw_snapshot_span_hours ?? 0}h`
+    : "";
   const blockerText = meta.backfill_blocker ? ` · blocker: ${meta.backfill_blocker}` : "";
-  return `${qualityText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}${blockerText}`;
+  return `${qualityText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}${archiveText}${freshnessText}${blockerText}`;
 }
 
 function summarizeCoverageChip(meta?: FeatureCoverageMeta | null): string {
   if (!meta) return "coverage不足";
   if (meta.quality_flag === "source_history_gap" && meta.history_class) {
+    if (meta.raw_snapshot_events) {
+      const staleBadge = meta.forward_archive_stale ? " · stale" : "";
+      return `${meta.coverage_pct.toFixed(0)}% · ${meta.history_class} · ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10}${staleBadge}`;
+    }
     return `${meta.coverage_pct.toFixed(0)}% · ${meta.history_class}`;
   }
   if (meta.quality_flag === "source_fallback_zero") {
@@ -583,7 +605,10 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
                   ? meta.quality_label
                   : `coverage ${meta.coverage_pct.toFixed(1)}%`;
                 const policy = meta.history_class ? ` / ${meta.history_class}` : "";
-                return `${label}(${reason}${policy})`;
+                const archive = meta.raw_snapshot_events
+                  ? ` / archive ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10} ${meta.forward_archive_status ?? "building"}${meta.raw_snapshot_latest_age_min != null ? ` / last ${meta.raw_snapshot_latest_age_min.toFixed(1)}m` : ""}`
+                  : "";
+                return `${label}(${reason}${policy}${archive})`;
               })
               .join(" · ")}
             {hiddenCoverageItems.length > 5 ? " …" : ""}

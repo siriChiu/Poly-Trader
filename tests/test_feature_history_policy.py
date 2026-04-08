@@ -36,9 +36,9 @@ def test_compute_sqlite_feature_coverage_and_blocker_summary(tmp_path: Path):
         "feat_4h_dist_bb_lower REAL", "feat_4h_ma_order REAL", "feat_4h_dist_swing_low REAL", "feat_4h_vol_ratio REAL",
     ]
     conn.execute(f"CREATE TABLE features_normalized ({', '.join(columns + feature_columns)})")
-    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT)")
-    conn.execute("INSERT INTO raw_events (subtype) VALUES ('web_snapshot')")
-    conn.execute("INSERT INTO raw_events (subtype) VALUES ('web_snapshot')")
+    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT)")
+    conn.execute("INSERT INTO raw_events (subtype, timestamp) VALUES ('web_snapshot', '2024-04-09 00:00:00')")
+    conn.execute("INSERT INTO raw_events (subtype, timestamp) VALUES ('web_snapshot', '2024-04-09 01:00:00')")
     for i in range(10):
         conn.execute(
             """
@@ -65,9 +65,15 @@ def test_compute_sqlite_feature_coverage_and_blocker_summary(tmp_path: Path):
     assert by_key["web_whale"]["chart_usable"] is False
     assert by_key["web_whale"]["history_class"] == "short_window_public_api"
     assert by_key["web_whale"]["raw_snapshot_events"] == 2
-    assert by_key["web_whale"]["forward_archive_ready"] is True
+    assert by_key["web_whale"]["forward_archive_started"] is True
+    assert by_key["web_whale"]["forward_archive_ready"] is False
+    assert by_key["web_whale"]["forward_archive_stale"] is True
+    assert by_key["web_whale"]["forward_archive_status"] == "stale"
+    assert by_key["web_whale"]["forward_archive_ready_min_events"] == 10
     assert by_key["web_whale"]["raw_snapshot_subtypes"] == ["web_snapshot"]
-    assert "Forward raw snapshot collection has started" in by_key["web_whale"]["backfill_blocker"]
+    assert by_key["web_whale"]["raw_snapshot_span_hours"] == 1.0
+    assert by_key["web_whale"]["raw_snapshot_latest_age_min"] is not None
+    assert "Forward raw snapshot archive is stale (2/10 stored event(s)" in by_key["web_whale"]["backfill_blocker"]
 
     summary = build_source_blocker_summary(payload)
     assert summary["blocked_count"] >= 1
