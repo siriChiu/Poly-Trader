@@ -6,14 +6,14 @@
 
 | Feature | Coverage | Distinct | Chart usable | Quality | Notes |
 |---|---:|---:|---|---|---|
-| fin_netflow | 20.92% | 1 | ❌ | source_fallback_zero | source_fallback_zero, coverage<60%, distinct<10 |
-| claw | 21.52% | 1 | ❌ | source_fallback_zero | source_fallback_zero, coverage<60%, distinct<10 |
-| claw_intensity | 21.52% | 2 | ❌ | source_history_gap | source_history_gap, coverage<60%, distinct<10 |
-| nest_pred | 21.78% | 1 | ❌ | source_fallback_zero | source_fallback_zero, coverage<60%, distinct<10 |
-| web_whale | 21.78% | 52 | ❌ | source_history_gap | source_history_gap, coverage<60% |
-| fang_skew | 21.78% | 409 | ❌ | source_history_gap | source_history_gap, coverage<60% |
-| scales_ssr | 21.78% | 1310 | ❌ | source_history_gap | source_history_gap, coverage<60% |
-| fang_pcr | 21.78% | 1607 | ❌ | source_history_gap | source_history_gap, coverage<60% |
+| claw | 0.00% | 0 | ❌ | source_history_gap | source_history_gap, coverage<60%, distinct<10 |
+| claw_intensity | 0.00% | 0 | ❌ | source_history_gap | source_history_gap, coverage<60%, distinct<10 |
+| fin_netflow | 0.00% | 0 | ❌ | source_history_gap | source_history_gap, coverage<60%, distinct<10 |
+| nest_pred | 0.00% | 0 | ❌ | source_history_gap | source_history_gap, coverage<60%, distinct<10 |
+| scales_ssr | 15.69% | 1222 | ❌ | source_history_gap | source_history_gap, coverage<60% |
+| web_whale | 15.79% | 52 | ❌ | source_history_gap | source_history_gap, coverage<60% |
+| fang_skew | 15.79% | 356 | ❌ | source_history_gap | source_history_gap, coverage<60% |
+| fang_pcr | 15.79% | 1488 | ❌ | source_history_gap | source_history_gap, coverage<60% |
 | pulse | 25.81% | 2321 | ❌ | low_coverage | coverage<60% |
 | mind | 25.81% | 2756 | ❌ | low_coverage | coverage<60% |
 | aura | 25.81% | 2800 | ❌ | low_coverage | coverage<60% |

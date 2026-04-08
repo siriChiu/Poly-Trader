@@ -736,17 +736,19 @@ def load_model_leaderboard_frame(db_path: str = DB_PATH):
             conn,
         )
         label_cols = {row[1] for row in conn.execute("PRAGMA table_info(labels)").fetchall()}
+        primary_target = "simulated_pyramid_win" if "simulated_pyramid_win" in label_cols else "label_spot_long_win"
+        required_label_cols = [col for col in ("label_spot_long_win", primary_target) if col in label_cols]
         optional_label_cols = [
             "label_spot_long_tp_hit",
             "label_spot_long_quality",
-            "simulated_pyramid_win",
             "simulated_pyramid_pnl",
             "simulated_pyramid_quality",
         ]
         selected_optional = [col for col in optional_label_cols if col in label_cols]
-        labels_select = ", ".join(["timestamp", "label_spot_long_win", *selected_optional])
+        labels_select = ", ".join(dict.fromkeys(["timestamp", *required_label_cols, *selected_optional]))
+        label_not_null_clause = " OR ".join(f"{col} IS NOT NULL" for col in required_label_cols)
         labels_df = pd.read_sql(
-            f"SELECT {labels_select} FROM labels WHERE horizon_minutes = 1440 AND label_spot_long_win IS NOT NULL ORDER BY timestamp",
+            f"SELECT {labels_select} FROM labels WHERE horizon_minutes = 1440 AND ({label_not_null_clause}) ORDER BY timestamp",
             conn,
         )
     finally:
@@ -773,7 +775,7 @@ def load_model_leaderboard_frame(db_path: str = DB_PATH):
         direction="nearest",
         tolerance=pd.Timedelta("10min"),
     )
-    merged = merged.dropna(subset=["close_price", "label_spot_long_win"]).reset_index(drop=True)
+    merged = merged.dropna(subset=["close_price", primary_target]).reset_index(drop=True)
     return merged
 
 
