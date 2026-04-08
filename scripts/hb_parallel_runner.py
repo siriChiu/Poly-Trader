@@ -208,9 +208,14 @@ def print_source_blockers(source_blockers: Dict[str, Any]) -> None:
                     f" | archive_window={aw_cov}%"
                     f" ({row.get('archive_window_non_null', 0)}/{row.get('archive_window_rows', 0)})"
                 )
+        status_note = ""
+        if row.get("raw_snapshot_latest_status") and row.get("raw_snapshot_latest_status") != "ok":
+            status_note = f" | latest_status={row['raw_snapshot_latest_status']}"
+            if row.get("raw_snapshot_latest_message"):
+                status_note += f" ({row['raw_snapshot_latest_message']})"
         print(
             f"   - {row['key']}: {row['history_class']} | "
-            f"coverage={row.get('coverage_pct', 0)}%{archive_note}{archive_window_note} | {row['recommended_action']}"
+            f"coverage={row.get('coverage_pct', 0)}%{archive_note}{archive_window_note}{status_note} | {row['recommended_action']}"
         )
     if len(blocked) > 5:
         print(f"   - ... {len(blocked) - 5} more blocked sparse features")

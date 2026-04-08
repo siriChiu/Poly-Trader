@@ -36,9 +36,9 @@ def test_compute_sqlite_feature_coverage_and_blocker_summary(tmp_path: Path):
         "feat_4h_dist_bb_lower REAL", "feat_4h_ma_order REAL", "feat_4h_dist_swing_low REAL", "feat_4h_vol_ratio REAL",
     ]
     conn.execute(f"CREATE TABLE features_normalized ({', '.join(columns + feature_columns)})")
-    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT)")
-    conn.execute("INSERT INTO raw_events (subtype, timestamp) VALUES ('web_snapshot', '2024-04-09 00:00:00')")
-    conn.execute("INSERT INTO raw_events (subtype, timestamp) VALUES ('web_snapshot', '2024-04-09 01:00:00')")
+    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT, payload_json TEXT)")
+    conn.execute("INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('web_snapshot', '2024-04-09 00:00:00', '{\"status\": \"ok\"}')")
+    conn.execute("INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('web_snapshot', '2024-04-09 01:00:00', '{\"status\": \"ok\"}')")
     for i in range(10):
         conn.execute(
             """
@@ -73,6 +73,7 @@ def test_compute_sqlite_feature_coverage_and_blocker_summary(tmp_path: Path):
     assert by_key["web_whale"]["raw_snapshot_subtypes"] == ["web_snapshot"]
     assert by_key["web_whale"]["raw_snapshot_span_hours"] == 1.0
     assert by_key["web_whale"]["raw_snapshot_latest_age_min"] is not None
+    assert by_key["web_whale"]["raw_snapshot_latest_status"] == "ok"
     assert by_key["web_whale"]["archive_window_started"] is True
     assert by_key["web_whale"]["archive_window_rows"] == 10
     assert by_key["web_whale"]["archive_window_non_null"] == 2
@@ -88,12 +89,12 @@ def test_ready_forward_archive_changes_recommended_action_without_hiding_blocker
     db_path = tmp_path / "poly_trader.db"
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE features_normalized (id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, feat_web_whale REAL)")
-    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT)")
+    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT, payload_json TEXT)")
 
     for i in range(12):
         hour = i % 10
         conn.execute(
-            "INSERT INTO raw_events (subtype, timestamp) VALUES ('web_snapshot', ?)",
+            "INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('web_snapshot', ?, '{\"status\": \"ok\"}')",
             (f"2026-04-09 {hour:02d}:00:00",),
         )
         conn.execute(
@@ -112,3 +113,31 @@ def test_ready_forward_archive_changes_recommended_action_without_hiding_blocker
     assert web["backfill_status"] == "blocked"
     assert web["archive_window_coverage_pct"] == 100.0
     assert "ready for recent-window diagnostics" in web["recommended_action"]
+
+
+def test_source_blocker_surfaces_auth_missing_snapshot_status(tmp_path: Path):
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE features_normalized (id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, feat_claw REAL)")
+    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT, payload_json TEXT)")
+    conn.execute(
+        "INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES (?, ?, ?)",
+        (
+            "claw_snapshot",
+            "2026-04-09 01:00:00",
+            '{"status": "auth_missing", "message": "COINGLASS_API_KEY missing"}',
+        ),
+    )
+    conn.execute(
+        "INSERT INTO features_normalized (timestamp, symbol, feat_claw) VALUES (?, 'BTCUSDT', NULL)",
+        ("2026-04-09T01:00:00",),
+    )
+    conn.commit()
+    conn.close()
+
+    payload = compute_sqlite_feature_coverage(db_path)
+    claw = next(row for row in payload["features"] if row["key"] == "claw")
+
+    assert claw["raw_snapshot_latest_status"] == "auth_missing"
+    assert "Latest snapshot status=auth_missing" in claw["backfill_blocker"]
+    assert "Configure COINGLASS_API_KEY" in claw["recommended_action"]

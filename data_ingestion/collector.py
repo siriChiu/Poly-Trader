@@ -65,18 +65,24 @@ def _raw_event(source: str, entity: str, subtype: str, value, confidence=0.5, qu
 
 def _snapshot_event(source: str, entity: str, subtype: str, snapshot: Dict, *, value_key: str | None = None, confidence: float = 0.6):
     value = snapshot.get(value_key) if value_key else None
-    has_signal = any(v is not None for v in snapshot.values())
+    meta = snapshot.get("_meta") or {}
+    signal_values = [v for k, v in snapshot.items() if not str(k).startswith("_")]
+    has_signal = any(v is not None for v in signal_values)
+    status = meta.get("status") or ("ok" if has_signal else "missing")
+    payload = {
+        "status": status,
+        "snapshot": {k: v for k, v in snapshot.items() if not str(k).startswith("_")},
+    }
+    if meta.get("message"):
+        payload["message"] = meta["message"]
     return _raw_event(
         source,
         entity,
         subtype,
         value,
         confidence=confidence,
-        quality_score=1.0 if has_signal else 0.0,
-        payload_json={
-            "status": "ok" if has_signal else "missing",
-            "snapshot": snapshot,
-        },
+        quality_score=1.0 if status == "ok" and has_signal else 0.0,
+        payload_json=payload,
     )
 
 

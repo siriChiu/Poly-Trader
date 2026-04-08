@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import json
 import sqlite3
 from typing import Any, Dict, Iterable, List, Sequence
 
@@ -239,6 +240,18 @@ def _compute_archive_window_coverage(
     }
 
 
+def _safe_parse_payload_json(payload_json: Any) -> Dict[str, Any]:
+    if not payload_json:
+        return {}
+    if isinstance(payload_json, dict):
+        return payload_json
+    try:
+        parsed = json.loads(payload_json)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def compute_raw_snapshot_stats(conn: sqlite3.Connection) -> Dict[str, Dict[str, Any]]:
     table_exists = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='raw_events'"
@@ -259,12 +272,19 @@ def compute_raw_snapshot_stats(conn: sqlite3.Connection) -> Dict[str, Dict[str, 
         age_minutes = None
         if latest_dt:
             age_minutes = round(max(0.0, (now - latest_dt).total_seconds() / 60.0), 1)
+        latest_payload_row = conn.execute(
+            'SELECT payload_json FROM raw_events WHERE subtype = ? ORDER BY timestamp DESC, id DESC LIMIT 1',
+            (subtype,),
+        ).fetchone()
+        latest_payload = _safe_parse_payload_json(latest_payload_row[0] if latest_payload_row else None)
         stats[str(subtype)] = {
             'count': int(count),
             'oldest_ts': oldest_dt.isoformat() if oldest_dt else None,
             'latest_ts': latest_dt.isoformat() if latest_dt else None,
             'span_hours': span_hours,
             'latest_age_minutes': age_minutes,
+            'latest_status': latest_payload.get('status'),
+            'latest_message': latest_payload.get('message'),
         }
     return stats
 
@@ -286,6 +306,8 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
     spans = [row.get('span_hours') for row in relevant_stats if row.get('span_hours') is not None]
     latest_ts_values = [row.get('latest_ts') for row in relevant_stats if row.get('latest_ts')]
     oldest_ts_values = [row.get('oldest_ts') for row in relevant_stats if row.get('oldest_ts')]
+    latest_statuses = [row.get('latest_status') for row in relevant_stats if row.get('latest_status')]
+    latest_messages = [row.get('latest_message') for row in relevant_stats if row.get('latest_message')]
     latest_age_minutes = min(latest_ages) if latest_ages else None
     max_span_hours = max(spans) if spans else None
     latest_snapshot_ts = max(latest_ts_values) if latest_ts_values else None
@@ -310,6 +332,8 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
     enriched['raw_snapshot_oldest_ts'] = oldest_snapshot_ts
     enriched['raw_snapshot_span_hours'] = max_span_hours
     enriched['raw_snapshot_latest_age_min'] = latest_age_minutes
+    enriched['raw_snapshot_latest_status'] = latest_statuses[0] if latest_statuses else None
+    enriched['raw_snapshot_latest_message'] = latest_messages[0] if latest_messages else None
     enriched['forward_archive_started'] = archive_started
     enriched['forward_archive_ready'] = archive_ready
     enriched['forward_archive_stale'] = archive_stale
@@ -320,18 +344,38 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
 
     if clean_key in SOURCE_FEATURE_KEYS and raw_snapshot_events > 0:
         blocker = enriched.get('backfill_blocker')
+        latest_status = enriched.get('raw_snapshot_latest_status')
+        latest_message = enriched.get('raw_snapshot_latest_message')
         blocker_note = (
             f' Forward raw snapshot archive is {archive_status} '
             f'({raw_snapshot_events}/{FORWARD_ARCHIVE_READY_MIN_EVENTS} stored event(s) '
             f'across {", ".join(subtypes)}), but historical rows before the archive cutoff are still missing.'
         )
+        if latest_status and latest_status != 'ok':
+            blocker_note += f' Latest snapshot status={latest_status}.'
+            if latest_message:
+                blocker_note += f' Detail: {latest_message}'
         if archive_stale and latest_age_minutes is not None:
             blocker_note += (
                 f' Latest archive event is {latest_age_minutes:.1f} minutes old, so forward collection is not progressing right now.'
             )
         if blocker and blocker_note.strip() not in blocker:
             enriched['backfill_blocker'] = blocker + blocker_note
-        if archive_stale and latest_age_minutes is not None:
+        if latest_status == 'auth_missing':
+            enriched['recommended_action'] = (
+                'Configure COINGLASS_API_KEY for the CoinGlass-backed source first; forward archive events are being logged, '
+                'but they currently contain auth_missing snapshots so feature coverage cannot improve until credentials work. '
+                'After auth is fixed, keep running heartbeat collection until at least '
+                f'{FORWARD_ARCHIVE_READY_MIN_EVENTS} successful forward snapshots accumulate, then evaluate whether historical export/backfill is still needed.'
+            )
+        elif latest_status and latest_status not in ('ok', 'missing'):
+            detail = f' ({latest_message})' if latest_message else ''
+            enriched['recommended_action'] = (
+                f'Fix the current source fetch failure before treating this as a pure history gap: latest snapshot status={latest_status}{detail}. '
+                f'Once snapshots succeed, keep collecting until at least {FORWARD_ARCHIVE_READY_MIN_EVENTS} forward raw snapshots accumulate, '
+                'then decide whether a dedicated historical export/archive loader is still required.'
+            )
+        elif archive_stale and latest_age_minutes is not None:
             enriched['recommended_action'] = (
                 f'Restart or re-run heartbeat collection immediately; latest snapshot archive event is '
                 f'{latest_age_minutes:.1f} minutes old (stale threshold {FORWARD_ARCHIVE_STALE_MINUTES}m). '
@@ -440,6 +484,8 @@ def build_source_blocker_summary(feature_rows: Sequence[Dict[str, Any]] | Dict[s
                 'raw_snapshot_oldest_ts': row.get('raw_snapshot_oldest_ts'),
                 'raw_snapshot_span_hours': row.get('raw_snapshot_span_hours'),
                 'raw_snapshot_latest_age_min': row.get('raw_snapshot_latest_age_min'),
+                'raw_snapshot_latest_status': row.get('raw_snapshot_latest_status'),
+                'raw_snapshot_latest_message': row.get('raw_snapshot_latest_message'),
                 'forward_archive_started': row.get('forward_archive_started', False),
                 'forward_archive_ready': row.get('forward_archive_ready', False),
                 'forward_archive_stale': row.get('forward_archive_stale', False),
