@@ -154,9 +154,10 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
         coverage_pct = (len(non_null_values) / total_rows * 100.0) if total_rows else 0.0
         min_val = min(non_null_values) if non_null_values else None
         max_val = max(non_null_values) if non_null_values else None
-        quality = assess_feature_quality(clean_key, coverage_pct, distinct, len(non_null_values), min_val, max_val)
-        quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts, snapshot_stats)
         archive_window = _compute_archive_window_coverage(clean_key, timestamp_values, values, snapshot_stats)
+        quality = assess_feature_quality(clean_key, coverage_pct, distinct, len(non_null_values), min_val, max_val)
+        quality.update(archive_window)
+        quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts, snapshot_stats)
         feature_stats[clean_key] = {
             "db_key": db_key,
             "non_null": len(non_null_values),
@@ -165,7 +166,6 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
             "min": min_val,
             "max": max_val,
             **quality,
-            **archive_window,
         }
     return {
         "days": days,
@@ -613,8 +613,8 @@ def _summarize_target_candidates(df, overfit_gap_threshold: float, hard_train_ac
     summaries = []
     candidate_models = ["rule_baseline", "logistic_regression", "xgboost", "catboost"]
     target_specs = [
-        ("label_spot_long_win", "Path-aware TP/DD"),
         ("simulated_pyramid_win", "Simulated Pyramid"),
+        ("label_spot_long_win", "Path-aware TP/DD"),
     ]
     for target_col, label in target_specs:
         if target_col not in df.columns:
@@ -628,14 +628,22 @@ def _summarize_target_candidates(df, overfit_gap_threshold: float, hard_train_ac
         serialized = _serialize_model_scores(results, overfit_gap_threshold, hard_train_acc_cap)
         non_overfit = [row for row in serialized if not row["is_overfit"]]
         best = non_overfit[0] if non_overfit else (serialized[0] if serialized else None)
+        is_canonical = target_col == "simulated_pyramid_win"
         summaries.append({
             "target_col": target_col,
             "label": label,
+            "is_canonical": is_canonical,
+            "usage_note": (
+                "主訓練 / 主排行榜 target"
+                if is_canonical
+                else "僅供 path-aware 比較診斷，不作主 target"
+            ),
             "samples": int(len(target_df)),
             "positive_ratio": float(round(target_df[target_col].mean(), 4)),
             "best_model": best,
             "models_evaluated": len(serialized),
         })
+    summaries.sort(key=lambda row: (not row.get("is_canonical", False), row["target_col"]))
     return summaries
 
 

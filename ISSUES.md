@@ -1,20 +1,45 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-09 05:11 UTC — Heartbeat #622（source auth blocker quality escalation + FeatureChart/report sync）*
+*最後更新：2026-04-09 05:32 UTC — Heartbeat #624（archive-window triage refinement + canonical target emphasis）*
 
-## 📊 系統健康狀態 v4.45
+## 📊 系統健康狀態 v4.46
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **19,785** | 🟢 `hb_parallel_runner.py --fast --hb 622` 本輪先自動 collect，Raw +1 |
-| Features | **11,171** | 🟢 fast heartbeat 本輪直接推進 Features +1 |
-| Labels | **38,717** | 🟢 canonical horizons 本輪再增 +2 |
+| Raw | **19,787** | 🟢 `hb_parallel_runner.py --fast --hb 624` 本輪先自動 collect，Raw +1 |
+| Features | **11,173** | 🟢 fast heartbeat 本輪直接推進 Features +1 |
+| Labels | **38,717** | 🟡 本輪持平（24h canonical label 尚未形成新 horizon） |
 || simulated_pyramid_win (1440m) | **61.37%** | 🟢 canonical 24h 分析口徑（`regime_aware_ic.py`, n=9,763） |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
 | 全域 IC | **15/22** | 🟢 維持 |
 | TW-IC | **17/22** | 🟢 維持高檔 |
 | 模型數 | **8** | ✅ |
-| Verification | **10 pytest + web build + coverage report** | ✅ 本輪已重驗證 |
+| Verification | **15 pytest + web build + fast heartbeat runtime** | ✅ 本輪已重驗證 |
+
+## 📈 心跳 #624 摘要
+
+### 本輪已驗證 patch
+1. **Sparse-source recent-window triage refined before archive-ready 10/10**：`feature_engine/feature_history_policy.py` 現在會在 `archive_window_coverage_pct` 還沒到 10 筆成熟門檻前，就先分出兩條 lane：
+   - **recent-window 已 100% 健康**（例如 Scales / Web / Fang）→ 明確指示「不要再重查 live fetch」，直接持續累積 archive span，下一步是 historical export / archive loader。
+   - **recent-window 只部分有值**（例如 Nest）→ 明確升級為 **active source/path quality gap**，提醒下一輪優先查 parser/source mapping，而不是把它誤判成單純歷史 coverage 缺口。
+2. **Coverage API runtime 與 heartbeat summary 共用同一 recent-window判斷**：`server/routes/api.py` 改成先計算 `archive_window_*` 再套用 `attach_forward_archive_meta()`，避免 API / runner 之前看不到 recent-window 狀態、只能給 generic 建議的流程缺口。
+3. **Strategy Lab canonical target 去污染**：`server/routes/api.py::_summarize_target_candidates()` 改為 **`simulated_pyramid_win` 優先排序且顯示 canonical 標記**；`web/src/pages/StrategyLab.tsx` 現在把 simulated target 顯示為 `canonical`，`label_spot_long_win` 顯示為 `legacy compare`，避免主排行榜區塊把 path-aware 比較 target 與 canonical target 放在同一層語義。
+
+### 本輪 runtime facts（Heartbeat #624）
+- `python scripts/hb_parallel_runner.py --fast --hb 624`：**Raw 19786→19787 / Features 11172→11173 / Labels 38717→38717**；heartbeat 仍持續 collect，但本輪尚未跨出新的 24h label horizon，因此 labels 持平。
+- Canonical diagnostics 維持：**Global IC 15/22 PASS**、**TW-IC 17/22 PASS**；regime-aware IC 維持 **Bear 6/8 / Bull 8/8 / Chop 8/8 / Neutral 1/8**（`simulated_pyramid_win`, n=9,763）。
+- Source blocker lane 現在更清楚：
+  - **CoinGlass auth blocker（Claw / Fin）**：仍是 `auth_missing`，屬 credential blocker，不是 coverage 命名問題。
+  - **Nest**：forward archive **9/10**、archive-window **50.0% (4/8)**，已被明確標成 **active source/path quality gap**，下一輪要查 parser / source mapping，不要只等歷史累積。
+  - **Scales / Web / Fang**：recent-window 已健康（例如 Scales **100.0% (8/8)**），現在 heartbeat 會直接提示「不要重開 live fetch 除錯」，下一步只剩 archive maturity 與 historical export。
+- 驗證：`PYTHONPATH=. pytest tests/test_feature_history_policy.py tests/test_model_leaderboard.py -q` → **15 passed**；`cd web && npm run build` ✅；`python scripts/hb_parallel_runner.py --fast --hb 624` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#LOW_COVERAGE_SOURCES**：本輪再切得更細，避免下一輪 heartbeat 在錯的 gate 空轉：
+  1. **Auth / fetch blocker lane**：Claw / Fin 先修 `COINGLASS_API_KEY`，否則 coverage 不會改善。
+  2. **Active source/path lane**：Nest recent-window 只有 50%，代表 forward archive 雖活著，但 feature path 仍半斷；下一輪應直接查 parser/source mapping。
+  3. **Historical-gap lane**：Scales / Web / Fang recent-window 已健康，不要再把時間花在 live fetch root-cause；應排 historical export / archive loader。
+- **#LABEL_HORIZON_GROWTH_GATE（新 gate，非新 bug）**：本輪 Labels 持平不是 pipeline 壞掉，而是 fast collect 新增的是最新 raw/features，尚未形成新的 1440m future window。下一輪若連續多輪 raw/features 增長但 labels 仍完全不動，才升級回 pipeline blocker。
 
 ## 📈 心跳 #622 摘要
 

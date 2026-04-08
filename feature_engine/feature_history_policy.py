@@ -366,6 +366,8 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
         blocker = enriched.get('backfill_blocker')
         latest_status = enriched.get('raw_snapshot_latest_status')
         latest_message = enriched.get('raw_snapshot_latest_message')
+        archive_window_cov = enriched.get('archive_window_coverage_pct')
+        archive_window_started = bool(enriched.get('archive_window_started'))
         blocker_note = (
             f' Forward raw snapshot archive is {archive_status} '
             f'({raw_snapshot_events}/{FORWARD_ARCHIVE_READY_MIN_EVENTS} stored event(s) '
@@ -401,6 +403,19 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
                 f'{latest_age_minutes:.1f} minutes old (stale threshold {FORWARD_ARCHIVE_STALE_MINUTES}m). '
                 f'After collection resumes, keep running until at least {FORWARD_ARCHIVE_READY_MIN_EVENTS} '
                 'forward raw snapshots accumulate; add historical export/API archive if you need rows before the cutoff.'
+            )
+        elif archive_window_started and archive_window_cov is not None and archive_window_cov >= 100.0 and not archive_ready:
+            enriched['recommended_action'] = (
+                'Forward recent-window coverage is already healthy, so do not reopen live-fetch debugging for this source. '
+                f'Keep heartbeat collection running until at least {FORWARD_ARCHIVE_READY_MIN_EVENTS} forward raw snapshots accumulate '
+                'to mature the archive span, then plan a dedicated historical export/archive loader for rows before the cutoff.'
+            )
+        elif archive_window_started and archive_window_cov is not None and archive_window_cov > 0.0 and not archive_ready:
+            enriched['recommended_action'] = (
+                f'Forward archive is partially producing recent values ({archive_window_cov:.1f}% recent-window coverage), '
+                'so treat this as an active source/path quality gap instead of a pure historical gap. '
+                'Keep heartbeat collection running, but inspect parser/source mapping until recent-window coverage reaches 100%; '
+                f'after that, continue accumulating toward {FORWARD_ARCHIVE_READY_MIN_EVENTS} forward snapshots before deciding on historical export.'
             )
         elif archive_ready:
             enriched['recommended_action'] = (
@@ -446,6 +461,7 @@ def compute_sqlite_feature_coverage(db_path: str | Path) -> Dict[str, Any]:
             feature_values = [None] * len(ordered_timestamps)
             non_null, distinct, min_v, max_v = 0, 0, None, None
         coverage_pct = (non_null / total_rows * 100.0) if total_rows else 0.0
+        archive_window = _compute_archive_window_coverage(clean_key, timestamp_values, feature_values, snapshot_stats)
         quality = assess_feature_quality(
             clean_key,
             coverage_pct,
@@ -454,8 +470,8 @@ def compute_sqlite_feature_coverage(db_path: str | Path) -> Dict[str, Any]:
             min_v,
             max_v,
         )
+        quality.update(archive_window)
         quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts, snapshot_stats)
-        archive_window = _compute_archive_window_coverage(clean_key, timestamp_values, feature_values, snapshot_stats)
         stats.append({
             'db_key': db_key,
             'key': clean_key,
@@ -465,7 +481,6 @@ def compute_sqlite_feature_coverage(db_path: str | Path) -> Dict[str, Any]:
             'min': min_v,
             'max': max_v,
             **quality,
-            **archive_window,
         })
     conn.close()
     stats.sort(key=lambda row: (row['chart_usable'], row['coverage_pct'], row['distinct']))

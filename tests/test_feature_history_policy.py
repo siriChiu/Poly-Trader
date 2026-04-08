@@ -144,3 +144,59 @@ def test_source_blocker_surfaces_auth_missing_snapshot_status(tmp_path: Path):
     assert claw["reasons"][0] == "source_auth_blocked"
     assert "Latest snapshot status=auth_missing" in claw["backfill_blocker"]
     assert "Configure COINGLASS_API_KEY" in claw["recommended_action"]
+
+
+def test_partial_archive_window_recommends_fixing_active_source_path_gap(tmp_path: Path):
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE features_normalized (id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, feat_nest_pred REAL)")
+    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT, payload_json TEXT)")
+
+    for i in range(7):
+        conn.execute(
+            "INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('nest_snapshot', ?, '{\"status\": \"ok\"}')",
+            (f"2026-04-09 {i:02d}:00:00",),
+        )
+        conn.execute(
+            "INSERT INTO features_normalized (timestamp, symbol, feat_nest_pred) VALUES (?, 'BTCUSDT', ?)",
+            (f"2026-04-09T{i:02d}:00:00", 0.55 if i < 3 else None),
+        )
+
+    conn.commit()
+    conn.close()
+
+    payload = compute_sqlite_feature_coverage(db_path)
+    nest = next(row for row in payload["features"] if row["key"] == "nest_pred")
+
+    assert nest["archive_window_coverage_pct"] == 42.86
+    assert nest["forward_archive_ready"] is False
+    assert "partially producing recent values" in nest["recommended_action"]
+    assert "active source/path quality gap" in nest["recommended_action"]
+
+
+def test_recent_window_healthy_before_ready_deprioritizes_live_fetch_debugging(tmp_path: Path):
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE features_normalized (id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, feat_scales_ssr REAL)")
+    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT, payload_json TEXT)")
+
+    for i in range(7):
+        conn.execute(
+            "INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('scales_snapshot', ?, '{\"status\": \"ok\"}')",
+            (f"2026-04-09 {i:02d}:00:00",),
+        )
+        conn.execute(
+            "INSERT INTO features_normalized (timestamp, symbol, feat_scales_ssr) VALUES (?, 'BTCUSDT', ?)",
+            (f"2026-04-09T{i:02d}:00:00", float(i)),
+        )
+
+    conn.commit()
+    conn.close()
+
+    payload = compute_sqlite_feature_coverage(db_path)
+    scales = next(row for row in payload["features"] if row["key"] == "scales_ssr")
+
+    assert scales["archive_window_coverage_pct"] == 100.0
+    assert scales["forward_archive_ready"] is False
+    assert "already healthy" in scales["recommended_action"]
+    assert "do not reopen live-fetch debugging" in scales["recommended_action"]

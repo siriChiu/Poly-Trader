@@ -79,10 +79,12 @@ interface ModelLeaderboardEntry {
 interface TargetComparisonEntry {
   target_col: string;
   label: string;
+  is_canonical?: boolean;
+  usage_note?: string;
   samples: number;
   positive_ratio: number;
   models_evaluated: number;
-  best_model?: ModelLeaderboardEntry | null;
+  best_model: ModelLeaderboardEntry | null;
 }
 
 interface ModelLeaderboardMeta {
@@ -732,8 +734,16 @@ export default function StrategyLab() {
                   <div key={entry.target_col} className="rounded-lg border border-slate-700/50 bg-slate-950/40 p-3 text-slate-300">
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <div className="font-semibold text-slate-200">{entry.label}</div>
+                        <div className="flex items-center gap-2 font-semibold text-slate-200">
+                          <span>{entry.label}</span>
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] ${entry.is_canonical ? 'border-emerald-600/40 bg-emerald-900/20 text-emerald-300' : 'border-amber-600/40 bg-amber-900/20 text-amber-300'}`}>
+                            {entry.is_canonical ? 'canonical' : 'legacy compare'}
+                          </span>
+                        </div>
                         <div className="text-[11px] text-slate-500">樣本 {entry.samples} · 正例 {formatPct(entry.positive_ratio, 1)}</div>
+                        {entry.usage_note && (
+                          <div className={`mt-1 text-[11px] ${entry.is_canonical ? 'text-emerald-300/90' : 'text-amber-300/90'}`}>{entry.usage_note}</div>
+                        )}
                       </div>
                       <span className="rounded-full border border-slate-700/50 px-2 py-0.5 text-[10px] text-slate-400">{entry.models_evaluated} models</span>
                     </div>

@@ -64,10 +64,12 @@
 - [x] archive-window coverage gating：coverage report / API / FeatureChart / heartbeat runner 現在額外顯示 `archive_window_coverage_pct`（自 snapshot archive 起點以來的 recent-window coverage），可區分「forward archive 已健康、只剩歷史缺口」與「forward archive 仍有 source/path 缺值」兩種 blocker
 - [x] sparse-source latest snapshot status surfacing：CoinGlass / Nest 等 snapshot payload 現在會保留 `status/message`（如 `auth_missing` / `fetch_error`），heartbeat 與 coverage policy 會直接把「目前 live fetch 壞掉」和「只是歷史 coverage 缺口」分開，不再讓 blocker 判斷空轉
 - [x] source auth/fetch blocker quality escalation：coverage policy / markdown report / FeatureChart 現在會把 `auth_missing` / 非 `ok` snapshot failure 升級為 `source_auth_blocked` / `source_fetch_error`，讓前端與報表直接顯示 credential / fetch blocker，而不是退化成 generic coverage 低
+- [x] sparse-source pre-ready archive-window triage：在 forward archive 尚未滿 10 筆前，就先區分 **recent-window 已健康** vs **recent-window 僅部分有值**。Web / Fang / Scales 不再被誤導去重查 live fetch；Nest 這類 partial recent coverage 會被明確升級成 source/path quality gap。
 - [x] Nest Gamma parser hardening：`nest_polymarket.py` 已支援 Gamma API 的 stringified `outcomes` / `outcomePrices` 欄位並擴大 market 搜尋範圍，forward archive 不再因 parser bug 長期維持 0% coverage
 - [x] hb_parallel_runner fast-mode unblock：`python scripts/hb_parallel_runner.py --fast` 不再要求 `--hb`，並會把 source blockers 一起寫入 heartbeat summary，適合 cron 快速閉環檢查
 - [x] hb_collect label horizon hygiene：修正 4h label job 誤寫成 14,400m 的單位 bug，並清除 accidental 14,400m labels
 - [x] Canonical-window IC guardrails：full/regime/dynamic-window 腳本固定使用 `horizon_minutes=1440`，對 `constant_target` / `constant_feature` 顯式標註，避免 NaN 假 blocker
+- [x] Strategy Lab canonical target emphasis：model leaderboard target comparison 現在把 `simulated_pyramid_win` 排在第一位並標成 `canonical`，`label_spot_long_win` 明確降級為 `legacy compare` 診斷卡，避免主 target 再被舊語義稀釋
 - [ ] Sparse-source historical backfill：在 decontaminate 完成後，為 Web / Fang / Scales / Claw / Fin / Nest 補真正歷史 coverage，而不是再引入 fallback/carry-forward
 - [ ] Dynamic Window recent-window 穩定化：N=100/200/400 已確認不是 merge bug，而是 canonical 24h labels 在最近窗口全部為 1；下一步需設計 distribution-aware window / alternate evaluation rule
 

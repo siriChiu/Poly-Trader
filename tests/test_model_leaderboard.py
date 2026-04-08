@@ -344,6 +344,11 @@ def test_summarize_target_candidates_prefers_non_overfit_best_model(monkeypatch)
     assert len(summary) == 2
     path_aware = next(item for item in summary if item["target_col"] == "label_spot_long_win")
     simulated = next(item for item in summary if item["target_col"] == "simulated_pyramid_win")
+    assert summary[0]["target_col"] == "simulated_pyramid_win"
+    assert simulated["is_canonical"] is True
+    assert simulated["usage_note"] == "主訓練 / 主排行榜 target"
+    assert path_aware["is_canonical"] is False
+    assert "僅供 path-aware 比較診斷" in path_aware["usage_note"]
     assert path_aware["best_model"]["model_name"] == "logistic_regression"
     assert simulated["best_model"]["model_name"] == "xgboost"
 
