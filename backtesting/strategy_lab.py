@@ -343,7 +343,7 @@ def save_strategy(name: str, strategy_def: Dict, results: Optional[Dict] = None)
         "updated_at": datetime.now().isoformat(),
         "definition": strategy_def,
         "last_results": results,
-        "run_count": 0,
+        "run_count": 1 if results is not None else 0,
     }
     if path.exists():
         try:

@@ -47,3 +47,10 @@
 - [ ] 心跳閉環標準化：`strategy-decision-guide.md` + 六帽 + ORID + issue/roadmap/architecture 同步更新
 - [ ] canonical target 統一：`label_spot_long_win` 為主，`sell_win` 僅作 legacy 相容
 - [ ] P0/P1 修復驅動：每次心跳至少產出 1 個可驗證 patch，而不是只產出失敗報告
+
+### Phase 15 已落地（Web 對齊修補）
+
+- [x] Dashboard 建議語義改為 **spot long / hold / reduce**，移除做空導向
+- [x] 補上 `/api/trade` dry-run endpoint，確保 Web 操作不再 404
+- [x] Backtest 初始資金輸入正式串接後端
+- [x] Strategy Lab leaderboard `run_count` 首次執行顯示修正

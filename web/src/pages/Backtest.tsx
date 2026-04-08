@@ -38,7 +38,7 @@ export default function Backtest() {
     setHasRun(true);
     try {
       const data = await fetchApi<BacktestResult>(
-        `/api/backtest?days=${days}`
+        `/api/backtest?days=${days}&initial_capital=${capital}`
       );
       setResult(data);
     } catch (e: any) {
@@ -46,7 +46,7 @@ export default function Backtest() {
     } finally {
       setLoading(false);
     }
-  }, [days]);
+  }, [days, capital]);
 
   return (
     <div className="space-y-6">

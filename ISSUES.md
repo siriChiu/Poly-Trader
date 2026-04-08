@@ -121,6 +121,15 @@
 | #TONGUE_LOW_VAR | feat_tongue std=0.0016, unique=9（準離散特徵）| ⚠️ 持續 |
 | #LABELS_JUMP | Labels 從 18,052 跳增至 27,684（+53%）原因未明 | ⚠️ 持續 |
 
+## ✅ 已修復（Web / UX）
+
+| ID | 問題 | 修復 |
+|----|------|------|
+| #WEB_SHORT_BIAS | Dashboard / AdviceCard 將高分錯誤解讀為做空訊號，與現貨金字塔策略衝突 | ✅ 已改為 spot-long / 減碼語義，移除前端做空引導 |
+| #WEB_TRADE_404 | Dashboard 交易按鈕呼叫 `/api/trade`，但後端缺少 endpoint | ✅ 已新增 dry-run trade endpoint，買入/減碼操作可正常回應 |
+| #BACKTEST_CAPITAL_IGNORED | 回測頁面的初始資金輸入未傳入後端 | ✅ 已串接 `initial_capital` 參數 |
+| #STRATEGY_RUNCOUNT_ZERO | Strategy Lab 首次執行顯示 `(x0)` | ✅ 已修正首次執行 run_count=1 |
+
 ## ✅ 本次摘要
 - 🟡 **Raw 10,248（+9 vs #609 10,239）**：持續增長但增速進一步放緩（+29→+10→+9）
 - 🟡 **Features 10,207（+9 vs #609 10,198）**：跟隨 Raw 增長

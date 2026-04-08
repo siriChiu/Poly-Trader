@@ -242,7 +242,7 @@ async def api_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
 
 
 @router.get("/backtest")
-async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
+async def api_backtest(days: int = Query(default=30, ge=1, le=365), initial_capital: float = Query(default=10000.0, ge=100.0, le=10000000.0)):
     try:
         symbol = "BTCUSDT"
         interval = "4h" if days <= 7 else "1d"
@@ -260,7 +260,7 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
         feat_map = {}
         for f in features:
             feat_map[int(f.timestamp.timestamp())] = f
-        initial = 10000.0
+        initial = float(initial_capital)
         equity = initial
         position = 0.0
         entry_price = 0.0
@@ -338,6 +338,37 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365)):
         import traceback
         traceback.print_exc()
         return {"error": str(e), "total_trades": 0, "equity_curve": [], "trades": []}
+
+
+@router.post("/trade")
+async def api_trade(req: TradeRequest):
+    """Dry-run trade endpoint for the web UI.
+
+    The web app is spot-first, so allow buy / reduce / sell(close-only) but do not imply shorting.
+    """
+    side = (req.side or "").lower().strip()
+    if side not in {"buy", "reduce", "sell"}:
+        raise HTTPException(status_code=400, detail="side must be one of: buy, reduce, sell")
+
+    cfg = get_config()
+    dry_run = cfg.get("trading", {}).get("dry_run", True)
+    action_text = {
+        "buy": "spot buy",
+        "reduce": "position reduce",
+        "sell": "position close",
+    }[side]
+    return {
+        "success": True,
+        "dry_run": dry_run,
+        "message": f"{action_text} accepted",
+        "order": {
+            "side": side,
+            "symbol": req.symbol,
+            "qty": req.qty,
+            "mode": "dry_run" if dry_run else "live",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+        },
+    }
 
 
 @router.get("/features")

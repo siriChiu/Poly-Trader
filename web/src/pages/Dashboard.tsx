@@ -136,9 +136,10 @@ export default function Dashboard() {
       });
       // 顯示成功提示
       const data = resp as any;
+      const label = side === "buy" ? "買入" : side === "reduce" ? "減碼" : side.toUpperCase();
       alert(data?.success || data?.order
-        ? `${side.toUpperCase()} 訂單已提交（Dry Run）`
-        : `${side.toUpperCase()} 已發送`);
+        ? `${label} 指令已提交（Dry Run）`
+        : `${label} 已發送`);
     } catch (e: any) {
       alert(`下單失敗: ${e.message}`);
     }

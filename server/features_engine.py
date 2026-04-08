@@ -355,11 +355,17 @@ class FeaturesEngine:
         return "數據不足 ❓"
 
     def _overall_advice(self, score: int) -> Dict[str, str]:
-        if score > 80: return {"text": "🔴 強空訊號 — 多數特徵確認下跌", "action": "strong_sell"}
-        if score > 60: return {"text": "🟠 偏空 — 部分特徵支持下跌", "action": "sell"}
-        if score > 40: return {"text": "⚪ 觀望 — 特徵分歧，方向不明", "action": "hold"}
-        if score > 20: return {"text": "🟡 偏多格局 — 下跌動能不足", "action": "hold_long"}
-        return {"text": "🟢 多頭格局 — 價格可能上升", "action": "hold"}
+        # Canonical target is spot-long-win: high score means better long entry quality,
+        # not short/做空 confidence. Keep advice aligned with pyramid spot strategy.
+        if score > 80:
+            return {"text": "🟢 強多訊號 — 可考慮金字塔進場", "action": "strong_buy"}
+        if score > 60:
+            return {"text": "🟡 偏多格局 — 可等待確認後買入", "action": "buy"}
+        if score > 40:
+            return {"text": "⚪ 觀望 — 特徵分歧，方向不明", "action": "hold"}
+        if score > 20:
+            return {"text": "🟠 偏弱格局 — 避免追價，保守減碼", "action": "reduce"}
+        return {"text": "🔴 弱勢格局 — 暫停新增部位", "action": "hold_long"}
 
 
 _engine: Optional[FeaturesEngine] = None

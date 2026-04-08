@@ -12,25 +12,22 @@ interface Props {
   onTrade?: (side: string) => void;
 }
 
-// Core strategy: SELL/SHORT profit
-// High score = strong sell signal (confidence price will drop)
+// Core strategy: SPOT LONG + pyramid entries.
+// High score = stronger long-entry quality.
 const ACTION_CONFIG: Record<string, { text: string; color: string; bg: string; icon: string }> = {
-  strong_sell: { text: "🔴 強烈建議做空 — 高勝率做空", color: "text-red-400", bg: "from-red-900/40 to-slate-900", icon: "🔴" },
-  sell: { text: "🟠 建議做空 — 下跌趨勢確認", color: "text-orange-400", bg: "from-orange-900/30 to-slate-900", icon: "🟠" },
+  strong_buy: { text: "🟢 強烈建議買入 — 可考慮金字塔進場", color: "text-green-400", bg: "from-green-900/40 to-slate-900", icon: "🟢" },
+  buy: { text: "🟡 偏多格局 — 等待確認後買入", color: "text-yellow-400", bg: "from-yellow-900/30 to-slate-900", icon: "🟡" },
   hold: { text: "⚪ 建議觀望 — 方向不明", color: "text-slate-300", bg: "from-slate-800/50 to-slate-900", icon: "⚪" },
-  hold_long: { text: "🟡 偏多格局 — 避免做空", color: "text-yellow-400", bg: "from-yellow-900/30 to-slate-900", icon: "🟡" },
-  strong_buy: { text: "🟢 多頭格局 — 禁止做空", color: "text-green-400", bg: "from-green-900/30 to-slate-900", icon: "🟢" },
-  buy: { text: "🟡 偏多格局", color: "text-yellow-400", bg: "from-yellow-900/30 to-slate-900", icon: "🟡" },
-  reduce: { text: "🟠 下跌動能不足", color: "text-orange-400", bg: "from-orange-900/30 to-slate-900", icon: "🔻" },
+  hold_long: { text: "🔴 弱勢格局 — 暫停新增部位", color: "text-red-400", bg: "from-red-900/30 to-slate-900", icon: "🔴" },
+  reduce: { text: "🟠 偏弱格局 — 保守減碼", color: "text-orange-400", bg: "from-orange-900/30 to-slate-900", icon: "🔻" },
 };
 
 function getScoreLevel(score: number): string {
-  // High score = strong sell signal = red
-  if (score >= 80) return "text-red-400";
-  if (score >= 60) return "text-orange-400";
+  if (score >= 80) return "text-green-400";
+  if (score >= 60) return "text-yellow-400";
   if (score >= 40) return "text-slate-300";
-  if (score >= 20) return "text-yellow-400";
-  return "text-green-400";
+  if (score >= 20) return "text-orange-400";
+  return "text-red-400";
 }
 
 export default function AdviceCard({ score = 50, summary = "分析中...", descriptions = [], action = "hold", timestamp, onTrade }: Props) {
@@ -43,7 +40,8 @@ export default function AdviceCard({ score = 50, summary = "分析中...", descr
 
   const handleTrade = (side: string) => {
     if (confirmTrade === side) {
-      setTradeStatus(`✅ ${side === "buy" ? "買入" : "賣出"}訂單已提交 (Dry Run)`);
+      const label = side === "buy" ? "買入" : side === "reduce" ? "減碼" : "觀望";
+      setTradeStatus(`✅ ${label}指令已提交 (Dry Run)`);
       onTrade?.(side);
       setConfirmTrade(null);
       setTimeout(() => setTradeStatus(null), 5000);
@@ -83,8 +81,8 @@ export default function AdviceCard({ score = 50, summary = "分析中...", descr
           {confirmTrade === "buy" ? "✓ 確認買入" : "🟢 買入"}
         </button>
         <button onClick={() => setConfirmTrade(null)} className="flex-1 py-2.5 rounded-lg font-bold text-sm bg-slate-700/60 text-slate-400 hover:bg-slate-700 border border-slate-600/30 transition-all">⚪ 觀望</button>
-        <button onClick={() => handleTrade("sell")} className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${confirmTrade === "sell" ? "bg-red-500 text-white animate-pulse" : "bg-red-600/40 text-red-400 hover:bg-red-600/60 border border-red-600/30"}`}>
-          {confirmTrade === "sell" ? "✓ 確認賣出" : "🔴 賣出"}
+        <button onClick={() => handleTrade("reduce")} className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${confirmTrade === "reduce" ? "bg-orange-500 text-white animate-pulse" : "bg-orange-600/40 text-orange-400 hover:bg-orange-600/60 border border-orange-600/30"}`}>
+          {confirmTrade === "reduce" ? "✓ 確認減碼" : "🟠 減碼"}
         </button>
       </div>
     </div>
