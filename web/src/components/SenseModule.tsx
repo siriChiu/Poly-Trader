@@ -61,14 +61,21 @@ export default function SenseModule({
         <div className="flex items-center gap-2">
           {/* Toggle */}
           <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            aria-label={`${moduleName} ${enabled ? "已啟用" : "已停用"}`}
+            title={`${moduleName} ${enabled ? "已啟用" : "已停用"}`}
             onClick={() => onToggle(!enabled)}
-            className={`relative w-10 h-5 rounded-full transition-colors ${
-              enabled ? "bg-blue-600" : "bg-slate-600"
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400/60 ${
+              enabled ? "border-blue-400/50 bg-blue-600" : "border-slate-500/60 bg-slate-700"
             }`}
           >
+            <span className="sr-only">{moduleName}</span>
             <span
-              className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                enabled ? "translate-x-5" : "translate-x-0.5"
+              aria-hidden="true"
+              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                enabled ? "translate-x-5" : "translate-x-1"
               }`}
             />
           </button>

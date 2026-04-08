@@ -14,6 +14,7 @@ except ImportError:
     HAS_SCIPY = False
 
 DB_PATH = '/home/kazuha/Poly-Trader/poly_trader.db'
+TARGET_COL = 'simulated_pyramid_win'
 
 CORE_FEATURES = [
     'feat_eye', 'feat_ear', 'feat_nose', 'feat_tongue',
@@ -30,17 +31,17 @@ def main():
     feat_names = [d[0] for d in feat_df.description]
     feat_rows = feat_df.fetchall()
     
-    label_query = """SELECT timestamp, symbol, label_spot_long_win, regime_label
-                     FROM labels WHERE label_spot_long_win IS NOT NULL"""
+    label_query = f"""SELECT timestamp, symbol, {TARGET_COL}, regime_label
+                     FROM labels WHERE {TARGET_COL} IS NOT NULL"""
     label_rows = conn.execute(label_query).fetchall()
-    label_map = {(r[0], r[1]): {'label_spot_long_win': r[2], 'regime_label': r[3]} for r in label_rows}
+    label_map = {(r[0], r[1]): {TARGET_COL: r[2], 'regime_label': r[3]} for r in label_rows}
     
     matched = []
     for row in feat_rows:
         row_dict = dict(zip(feat_names, row))
         key = (row_dict['timestamp'], row_dict['symbol'])
         if key in label_map:
-            row_dict['label_spot_long_win'] = label_map[key]['label_spot_long_win']
+            row_dict[TARGET_COL] = label_map[key][TARGET_COL]
             row_dict['label_regime'] = label_map[key]['regime_label']
             matched.append(row_dict)
     
@@ -90,7 +91,7 @@ def main():
         ics = {}
         for col in CORE_FEATURES:
             vals = [r[col] for r in subset if r[col] is not None]
-            labs = [r['label_spot_long_win'] for r in subset if r[col] is not None]
+            labs = [r[TARGET_COL] for r in subset if r[col] is not None]
             if len(vals) < 20:
                 ics[col] = 0.0
                 continue
@@ -110,21 +111,21 @@ def main():
             print(f"  {short:8s}: IC={ic:+.4f} {status}")
         print(f"  → {passed}/{len(CORE_FEATURES)} passing")
     
-    # Sell win by regime
-    print(f"\n=== Sell Win Rate by Regime ===")
+    # Target hit rate by regime
+    print(f"\n=== {TARGET_COL} Rate by Regime ===")
     for regime in regimes:
         subset = [r for r in matched if r['regime'] == regime]
         if len(subset) > 0:
-            win_count = sum(1 for r in subset if r['label_spot_long_win'] == 1)
+            win_count = sum(1 for r in subset if r[TARGET_COL] == 1)
             rate = win_count / len(subset)
-            print(f"  {regime:8s}: sell_win={rate:.4f} (n={len(subset)})")
+            print(f"  {regime:8s}: {TARGET_COL}={rate:.4f} (n={len(subset)})")
     
-    # Overall sell_win
-    all_wins = sum(1 for r in matched if r['label_spot_long_win'] == 1)
+    # Overall target hit rate
+    all_wins = sum(1 for r in matched if r[TARGET_COL] == 1)
     overall = all_wins / len(matched)
-    print(f"\nOverall: sell_win={overall:.4f} (n={len(matched)})")
+    print(f"\nOverall: {TARGET_COL}={overall:.4f} (n={len(matched)})")
     
-    result['overall_sell_win'] = round(overall, 4)
+    result[f'overall_{TARGET_COL}'] = round(overall, 4)
     result['overall_n'] = len(matched)
     
     os.makedirs('/home/kazuha/Poly-Trader/data', exist_ok=True)

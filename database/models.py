@@ -182,6 +182,11 @@ class Labels(Base):
     future_max_runup = Column(Float)
     # Canonical target for the spot long pyramiding strategy.
     label_spot_long_win = Column(Integer)
+    label_spot_long_tp_hit = Column(Integer, nullable=True)
+    label_spot_long_quality = Column(Float, nullable=True)
+    simulated_pyramid_win = Column(Integer, nullable=True)
+    simulated_pyramid_pnl = Column(Float, nullable=True)
+    simulated_pyramid_quality = Column(Float, nullable=True)
     # Legacy compatibility fields — kept for older scripts and reports.
     label_sell_win = Column(Integer)
     label_up = Column(Integer)
@@ -247,6 +252,11 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
         ("future_max_drawdown", "REAL"),
         ("future_max_runup", "REAL"),
         ("label_spot_long_win", "INTEGER"),
+        ("label_spot_long_tp_hit", "INTEGER"),
+        ("label_spot_long_quality", "REAL"),
+        ("simulated_pyramid_win", "INTEGER"),
+        ("simulated_pyramid_pnl", "REAL"),
+        ("simulated_pyramid_quality", "REAL"),
         ("label_sell_win", "INTEGER"),
         ("label_up", "INTEGER"),
         ("regime_label", "TEXT"),

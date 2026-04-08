@@ -43,9 +43,16 @@
 
 ## 🔄 心跳
 
-心跳詳細流程定義在 [HEARTBEAT.md](HEARTBEAT.md)。每次心跳必須完整執行 Step 0~8。
+心跳詳細流程定義在 [HEARTBEAT.md](HEARTBEAT.md)。每次心跳必須完整執行閉環 Step 0~8。
 
-**核心節奏**：閱讀本文件 → 數據收集 → IC 分析 → 六帽+迪士尼+ORID 會議 → 修正測試 → 回報摘要
+**核心節奏**：閱讀本文件 → 閱讀 HEARTBEAT / ISSUES / ROADMAP → 收集事實 → `strategy-decision-guide.md` 收斂方案 → 六帽 + ORID → 修復 patch → 驗證 → 文件同步 → 宣告下一輪 gate
+
+### 心跳身份
+每次讀取 `HEARTBEAT.md` 時，你不是報告產生器，而是 **嚴厲的專案推行者**：
+- 不可只回報「仍未達標」
+- 不可只更新數字不修問題
+- 不可跳過 `ISSUES.md` / `ROADMAP.md` / `ARCHITECTURE.md` 的同步
+- 沒有 patch、verify、next gate 的心跳視為失敗
 
 ---
 

@@ -4,6 +4,9 @@ REST API 路由 v4.0 — 多特徵策略 + 策略實驗室 + 模型排行榜
 import ccxt
 import math
 import json
+import threading
+import time
+from pathlib import Path
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -57,19 +60,40 @@ def _calc_max_dd(eq):
 
 # ─── Feature Key Map ───
 FEATURE_KEY_MAP = {
-    'feat_eye': 'eye', 'feat_ear': 'ear', 'feat_nose': 'nose',
-    'feat_tongue': 'tongue', 'feat_body': 'body', 'feat_pulse': 'pulse',
-    'feat_aura': 'aura', 'feat_mind': 'mind',
-    'feat_vix': 'vix', 'feat_dxy': 'dxy',
-    'feat_rsi14': 'rsi14', 'feat_macd_hist': 'macd_hist',
-    'feat_atr_pct': 'atr_pct', 'feat_vwap_dev': 'vwap_dev',
+    'feat_eye': 'eye',
+    'feat_ear': 'ear',
+    'feat_nose': 'nose',
+    'feat_tongue': 'tongue',
+    'feat_body': 'body',
+    'feat_pulse': 'pulse',
+    'feat_aura': 'aura',
+    'feat_mind': 'mind',
+    'feat_vix': 'vix',
+    'feat_dxy': 'dxy',
+    'feat_rsi14': 'rsi14',
+    'feat_macd_hist': 'macd_hist',
+    'feat_atr_pct': 'atr_pct',
+    'feat_vwap_dev': 'vwap_dev',
     'feat_bb_pct_b': 'bb_pct_b',
-    'feat_4h_bias50': '4h_bias50', 'feat_4h_bias20': '4h_bias20',
-    'feat_4h_rsi14': '4h_rsi14', 'feat_4h_macd_hist': '4h_macd_hist',
-    'feat_4h_bb_pct_b': '4h_bb_pct_b', 'feat_4h_ma_order': '4h_ma_order',
+    'feat_nq_return_1h': 'nq_return_1h',
+    'feat_nq_return_24h': 'nq_return_24h',
+    'feat_claw': 'claw',
+    'feat_claw_intensity': 'claw_intensity',
+    'feat_fang_pcr': 'fang_pcr',
+    'feat_fang_skew': 'fang_skew',
+    'feat_fin_netflow': 'fin_netflow',
+    'feat_web_whale': 'web_whale',
+    'feat_scales_ssr': 'scales_ssr',
+    'feat_nest_pred': 'nest_pred',
+    'feat_4h_bias50': '4h_bias50',
+    'feat_4h_bias20': '4h_bias20',
+    'feat_4h_rsi14': '4h_rsi14',
+    'feat_4h_macd_hist': '4h_macd_hist',
+    'feat_4h_bb_pct_b': '4h_bb_pct_b',
+    'feat_4h_ma_order': '4h_ma_order',
     'feat_4h_dist_swing_low': '4h_dist_sl',
-    'feat_4h_dist_swing_high': '4h_dist_sh',
 }
+
 
 _ECDF_ANCHORS = {
     'feat_eye': (-4.5, 4.5), 'feat_ear': (-0.0005, 0.0005),
@@ -80,6 +104,11 @@ _ECDF_ANCHORS = {
     'feat_rsi14': (0.1, 0.85), 'feat_macd_hist': (-0.0005, 0.0005),
     'feat_atr_pct': (0.005, 0.03), 'feat_vwap_dev': (-0.5, 0.5),
     'feat_bb_pct_b': (0.0, 1.0),
+    'feat_nq_return_1h': (-0.03, 0.03), 'feat_nq_return_24h': (-0.08, 0.08),
+    'feat_claw': (0.0, 1.0), 'feat_claw_intensity': (0.0, 1.5),
+    'feat_fang_pcr': (0.5, 1.5), 'feat_fang_skew': (-0.5, 0.5),
+    'feat_fin_netflow': (-1.0, 1.0), 'feat_web_whale': (-1.0, 1.0),
+    'feat_scales_ssr': (0.5, 1.5), 'feat_nest_pred': (-1.0, 1.0),
     'feat_4h_bias50': (-15.0, 10.0), 'feat_4h_bias20': (-10.0, 10.0),
     'feat_4h_rsi14': (10.0, 90.0), 'feat_4h_macd_hist': (-1500.0, 1500.0),
     'feat_4h_bb_pct_b': (-0.5, 1.5), 'feat_4h_ma_order': (-1.5, 1.5),
@@ -108,6 +137,46 @@ def normalize_for_api(raw_val, db_key):
         v = min(soft_hi, raw_val)
         return round(0.90 + 0.08 * (v - p95) / max(soft_hi - p95, 1e-10), 4)
     return round(0.10 + 0.80 * (raw_val - p5) / span, 4)
+
+
+def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
+    since = datetime.utcnow() - timedelta(days=days)
+    rows = (
+        db.query(FeaturesNormalized)
+        .filter(FeaturesNormalized.timestamp >= since)
+        .order_by(FeaturesNormalized.timestamp)
+        .all()
+    )
+    total_rows = len(rows)
+    feature_stats: Dict[str, Any] = {}
+    for db_key, clean_key in FEATURE_KEY_MAP.items():
+        values = [getattr(r, db_key, None) for r in rows]
+        non_null_values = [v for v in values if v is not None]
+        distinct = len({round(float(v), 10) for v in non_null_values}) if non_null_values else 0
+        coverage_pct = (len(non_null_values) / total_rows * 100.0) if total_rows else 0.0
+        is_4h = clean_key.startswith("4h_")
+        min_coverage = 5.0 if is_4h else 60.0
+        chart_usable = coverage_pct >= min_coverage and distinct >= 10
+        reasons = []
+        if coverage_pct < min_coverage:
+            reasons.append(f"coverage<{min_coverage:.0f}%")
+        if distinct < 10:
+            reasons.append("distinct<10")
+        feature_stats[clean_key] = {
+            "db_key": db_key,
+            "non_null": len(non_null_values),
+            "coverage_pct": round(coverage_pct, 2),
+            "distinct": distinct,
+            "min": min(non_null_values) if non_null_values else None,
+            "max": max(non_null_values) if non_null_values else None,
+            "chart_usable": chart_usable,
+            "reasons": reasons,
+        }
+    return {
+        "days": days,
+        "rows": total_rows,
+        "features": feature_stats,
+    }
 
 
 # ─── API Endpoints ───
@@ -400,6 +469,13 @@ async def api_features(days: int = Query(default=7, ge=1, le=90)):
     return result
 
 
+@router.get("/features/coverage")
+async def api_features_coverage(days: int = Query(default=90, ge=1, le=365)):
+    """Coverage/distinctness audit for feature history chart rendering."""
+    db = get_db()
+    return _compute_feature_coverage(db, days=days)
+
+
 @router.get("/model/stats")
 async def api_model_stats():
     """返回模型準確率、IC 值等統計資訊，供 Web 顯示"""
@@ -487,6 +563,85 @@ async def get_confidence_prediction():
 # ═══════════════════════════════════════════════
 
 DB_PATH = '/home/kazuha/Poly-Trader/poly_trader.db'
+MODEL_LB_CACHE_PATH = Path('/tmp/polytrader_model_leaderboard_cache.json')
+MODEL_LB_CACHE_TTL_SEC = 60 * 15
+MODEL_LB_STALE_SEC = 60 * 60 * 6
+_MODEL_LB_LOCK = threading.Lock()
+_MODEL_LB_CACHE: Dict[str, Any] = {
+    "payload": None,
+    "updated_at": 0.0,
+    "refreshing": False,
+    "error": None,
+}
+
+
+def _serialize_model_scores(results, overfit_gap_threshold: float, hard_train_acc_cap: float) -> List[Dict[str, Any]]:
+    leaderboard = []
+    for r in results:
+        fold_data = []
+        for f in r.folds:
+            fold_data.append({
+                "fold": int(f.fold),
+                "train_start": str(f.train_start),
+                "train_end": str(f.train_end),
+                "test_start": str(f.test_start),
+                "test_end": str(f.test_end),
+                "roi": float(round(f.roi, 4)),
+                "win_rate": float(round(f.win_rate, 4)),
+                "trades": int(f.total_trades),
+                "max_dd": float(round(f.max_drawdown, 4)),
+                "profit_factor": float(round(f.profit_factor, 4)),
+            })
+        is_overfit = bool(r.train_test_gap > overfit_gap_threshold or r.train_accuracy > hard_train_acc_cap)
+        leaderboard.append({
+            "model_name": str(r.model_name),
+            "avg_roi": float(round(r.avg_roi, 4)),
+            "avg_win_rate": float(round(r.avg_win_rate, 4)),
+            "avg_trades": int(r.avg_trades),
+            "avg_max_dd": float(round(r.avg_max_drawdown, 4)),
+            "std_roi": float(round(r.std_roi, 4)),
+            "profit_factor": float(round(r.avg_profit_factor, 4)),
+            "train_acc": float(round(r.train_accuracy, 4)),
+            "test_acc": float(round(r.test_accuracy, 4)),
+            "train_test_gap": float(round(r.train_test_gap, 4)),
+            "composite": float(round(r.composite_score, 4)),
+            "is_overfit": bool(is_overfit),
+            "overfit_reason": "train_test_gap" if r.train_test_gap > overfit_gap_threshold else ("train_accuracy_cap" if r.train_accuracy > hard_train_acc_cap else None),
+            "folds": fold_data,
+        })
+    return leaderboard
+
+
+def _summarize_target_candidates(df, overfit_gap_threshold: float, hard_train_acc_cap: float) -> List[Dict[str, Any]]:
+    from backtesting.model_leaderboard import ModelLeaderboard
+
+    summaries = []
+    candidate_models = ["rule_baseline", "logistic_regression", "xgboost", "catboost"]
+    target_specs = [
+        ("label_spot_long_win", "Path-aware TP/DD"),
+        ("simulated_pyramid_win", "Simulated Pyramid"),
+    ]
+    for target_col, label in target_specs:
+        if target_col not in df.columns:
+            continue
+        target_df = df.dropna(subset=[target_col]).copy()
+        if target_df.empty:
+            continue
+        target_df[target_col] = target_df[target_col].fillna(0).astype(int)
+        lb = ModelLeaderboard(target_df, target_col=target_col)
+        results = lb.run_all_models(candidate_models)
+        serialized = _serialize_model_scores(results, overfit_gap_threshold, hard_train_acc_cap)
+        non_overfit = [row for row in serialized if not row["is_overfit"]]
+        best = non_overfit[0] if non_overfit else (serialized[0] if serialized else None)
+        summaries.append({
+            "target_col": target_col,
+            "label": label,
+            "samples": int(len(target_df)),
+            "positive_ratio": float(round(target_df[target_col].mean(), 4)),
+            "best_model": best,
+            "models_evaluated": len(serialized),
+        })
+    return summaries
 
 
 def load_model_leaderboard_frame(db_path: str = DB_PATH):
@@ -523,8 +678,18 @@ def load_model_leaderboard_frame(db_path: str = DB_PATH):
             "SELECT timestamp, close_price FROM raw_market_data WHERE close_price IS NOT NULL ORDER BY timestamp",
             conn,
         )
+        label_cols = {row[1] for row in conn.execute("PRAGMA table_info(labels)").fetchall()}
+        optional_label_cols = [
+            "label_spot_long_tp_hit",
+            "label_spot_long_quality",
+            "simulated_pyramid_win",
+            "simulated_pyramid_pnl",
+            "simulated_pyramid_quality",
+        ]
+        selected_optional = [col for col in optional_label_cols if col in label_cols]
+        labels_select = ", ".join(["timestamp", "label_spot_long_win", *selected_optional])
         labels_df = pd.read_sql(
-            "SELECT timestamp, label_spot_long_win FROM labels WHERE horizon_minutes = 1440 AND label_spot_long_win IS NOT NULL ORDER BY timestamp",
+            f"SELECT {labels_select} FROM labels WHERE horizon_minutes = 1440 AND label_spot_long_win IS NOT NULL ORDER BY timestamp",
             conn,
         )
     finally:
@@ -597,6 +762,73 @@ def _load_strategy_data():
     return rows
 
 
+def _summarize_trades(trades: List[Dict[str, Any]], initial_capital: float) -> Dict[str, Any]:
+    total_pnl = float(sum(float(t.get("pnl", 0.0) or 0.0) for t in trades))
+    wins = sum(1 for t in trades if float(t.get("pnl", 0.0) or 0.0) > 0)
+    losses = max(len(trades) - wins, 0)
+    gross_profit = sum(float(t.get("pnl", 0.0) or 0.0) for t in trades if float(t.get("pnl", 0.0) or 0.0) > 0)
+    gross_loss = abs(sum(float(t.get("pnl", 0.0) or 0.0) for t in trades if float(t.get("pnl", 0.0) or 0.0) <= 0))
+    return {
+        "roi": round(total_pnl / initial_capital, 4) if initial_capital else None,
+        "win_rate": round(wins / len(trades), 4) if trades else None,
+        "total_pnl": round(total_pnl, 2),
+        "profit_factor": round(gross_profit / max(gross_loss, 0.01), 4) if trades else None,
+        "total_trades": len(trades),
+        "wins": wins,
+        "losses": losses,
+    }
+
+
+def _compute_backtest_benchmarks(
+    prices: List[float],
+    timestamps: List[str],
+    bias50: List[float],
+    nose: List[float],
+    pulse: List[float],
+    ear: List[float],
+    regimes: List[str],
+    initial_capital: float,
+    params: Dict[str, Any],
+) -> Dict[str, Any]:
+    from backtesting.strategy_lab import run_rule_backtest
+
+    buy_hold_roi = 0.0
+    if prices and prices[0]:
+        buy_hold_roi = (prices[-1] - prices[0]) / prices[0]
+
+    blind_params = json.loads(json.dumps(params or {}))
+    blind_entry = blind_params.setdefault("entry", {})
+    blind_entry["bias50_max"] = 999.0
+    blind_entry["nose_max"] = 1.0
+    blind_entry["pulse_min"] = 0.0
+    blind_entry["regime_bias200_min"] = -999.0
+
+    blind_result = run_rule_backtest(
+        prices,
+        timestamps,
+        bias50,
+        bias50,
+        nose,
+        pulse,
+        ear,
+        blind_params,
+        initial_capital,
+        regimes=regimes,
+    )
+    blind_summary = _summarize_trades(blind_result.trades, initial_capital)
+
+    return {
+        "buy_hold": {
+            "label": "買入持有",
+            "roi": round(buy_hold_roi, 4),
+        },
+        "blind_pyramid": {
+            "label": "盲金字塔",
+            **blind_summary,
+        },
+    }
+
+
 def _compute_regime_breakdown(trades: List[Dict[str, Any]], initial_capital: float) -> List[Dict[str, Any]]:
     grouped: Dict[str, Dict[str, Any]] = {}
     for trade in trades:
@@ -639,11 +871,195 @@ def _compute_regime_breakdown(trades: List[Dict[str, Any]], initial_capital: flo
     return ordered
 
 
+def _compute_strategy_risk(last_results: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not isinstance(last_results, dict):
+        return {
+            "stability_score": None,
+            "stability_label": "—",
+            "overfit_risk": "unknown",
+            "trade_sufficiency": "unknown",
+            "risk_reasons": ["尚未有回測結果"],
+        }
+
+    total_trades = int(last_results.get("total_trades") or 0)
+    max_dd = float(last_results.get("max_drawdown") or 0.0)
+    max_loss_streak = int(last_results.get("max_consecutive_losses") or 0)
+    roi = float(last_results.get("roi") or 0.0)
+    win_rate = float(last_results.get("win_rate") or 0.0)
+
+    if total_trades >= 40:
+        trade_sufficiency = "high"
+    elif total_trades >= 20:
+        trade_sufficiency = "medium"
+    else:
+        trade_sufficiency = "low"
+
+    stability_score = max(
+        0,
+        min(
+            100,
+            round(100 - max_dd * 120 - max_loss_streak * 8 - max(0, 20 - total_trades) * 1.5),
+        ),
+    )
+    if stability_score >= 75:
+        stability_label = "穩定"
+    elif stability_score >= 50:
+        stability_label = "中等"
+    else:
+        stability_label = "脆弱"
+
+    risk_points = 0
+    reasons: List[str] = []
+    if total_trades < 12:
+        risk_points += 2
+        reasons.append("交易數過少")
+    elif total_trades < 25:
+        risk_points += 1
+        reasons.append("交易數偏少")
+
+    if max_dd > 0.35:
+        risk_points += 2
+        reasons.append("最大回撤過大")
+    elif max_dd > 0.22:
+        risk_points += 1
+        reasons.append("最大回撤偏高")
+
+    if max_loss_streak >= 5:
+        risk_points += 2
+        reasons.append("連敗過長")
+    elif max_loss_streak >= 3:
+        risk_points += 1
+        reasons.append("連敗偏多")
+
+    if total_trades < 20 and (roi > 0.20 or win_rate > 0.70):
+        risk_points += 2
+        reasons.append("樣本少但表現過於漂亮")
+    elif total_trades < 35 and (roi > 0.12 or win_rate > 0.65):
+        risk_points += 1
+        reasons.append("樣本不足下績效偏亮眼")
+
+    if risk_points >= 4:
+        overfit_risk = "high"
+    elif risk_points >= 2:
+        overfit_risk = "medium"
+    else:
+        overfit_risk = "low"
+
+    return {
+        "stability_score": stability_score,
+        "stability_label": stability_label,
+        "overfit_risk": overfit_risk,
+        "trade_sufficiency": trade_sufficiency,
+        "risk_reasons": reasons or ["樣本與風險指標正常"],
+    }
+
+
+def _decorate_strategy_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+    enriched = dict(entry)
+    risk = _compute_strategy_risk(entry.get("last_results"))
+    enriched.update(risk)
+    return enriched
+
+
+def _load_model_leaderboard_cache_file() -> None:
+    if not MODEL_LB_CACHE_PATH.exists():
+        return
+    try:
+        cached = json.loads(MODEL_LB_CACHE_PATH.read_text(encoding='utf-8'))
+        with _MODEL_LB_LOCK:
+            if cached.get("payload"):
+                _MODEL_LB_CACHE["payload"] = cached["payload"]
+                _MODEL_LB_CACHE["updated_at"] = float(cached.get("updated_at") or 0.0)
+                _MODEL_LB_CACHE["error"] = cached.get("error")
+    except Exception as exc:
+        logger.warning(f"Failed to load model leaderboard cache: {exc}")
+
+
+def _write_model_leaderboard_cache_file(payload: Dict[str, Any], updated_at: float, error: Optional[str] = None) -> None:
+    try:
+        MODEL_LB_CACHE_PATH.write_text(
+            json.dumps({"payload": payload, "updated_at": updated_at, "error": error}, ensure_ascii=False),
+            encoding='utf-8',
+        )
+    except Exception as exc:
+        logger.warning(f"Failed to write model leaderboard cache: {exc}")
+
+
+def _build_model_leaderboard_payload() -> Dict[str, Any]:
+    from backtesting.model_leaderboard import ModelLeaderboard
+
+    df = load_model_leaderboard_frame(DB_PATH)
+    if df.empty:
+        return {"leaderboard": [], "count": 0, "warning": "No aligned 24h label rows found"}
+
+    default_target_col = "simulated_pyramid_win" if "simulated_pyramid_win" in df.columns else "label_spot_long_win"
+    df = df.fillna(0)
+    if default_target_col in df.columns:
+        df[default_target_col] = df[default_target_col].fillna(0).astype(int)
+
+    lb = ModelLeaderboard(df, target_col=default_target_col)
+    results = lb.run_all_models([
+        "rule_baseline", "logistic_regression", "xgboost",
+        "lightgbm", "catboost", "random_forest", "mlp", "svm"
+    ])
+
+    OVERFIT_GAP_THRESHOLD = 0.12
+    HARD_TRAIN_ACC_CAP = 0.90
+
+    leaderboard = _serialize_model_scores(results, OVERFIT_GAP_THRESHOLD, HARD_TRAIN_ACC_CAP)
+    target_comparison = _summarize_target_candidates(df, OVERFIT_GAP_THRESHOLD, HARD_TRAIN_ACC_CAP)
+
+    return {
+        "leaderboard": leaderboard,
+        "count": len(leaderboard),
+        "overfit_gap_threshold": OVERFIT_GAP_THRESHOLD,
+        "hard_train_acc_cap": HARD_TRAIN_ACC_CAP,
+        "target_col": default_target_col,
+        "target_label": "Simulated Pyramid" if default_target_col == "simulated_pyramid_win" else "Path-aware TP/DD",
+        "target_comparison": target_comparison,
+    }
+
+
+def _refresh_model_leaderboard_cache() -> None:
+    with _MODEL_LB_LOCK:
+        if _MODEL_LB_CACHE.get("refreshing"):
+            return
+        _MODEL_LB_CACHE["refreshing"] = True
+        _MODEL_LB_CACHE["error"] = None
+    try:
+        payload = _build_model_leaderboard_payload()
+        updated_at = time.time()
+        with _MODEL_LB_LOCK:
+            _MODEL_LB_CACHE["payload"] = payload
+            _MODEL_LB_CACHE["updated_at"] = updated_at
+            _MODEL_LB_CACHE["error"] = None
+            _MODEL_LB_CACHE["refreshing"] = False
+        _write_model_leaderboard_cache_file(payload, updated_at)
+    except Exception as exc:
+        with _MODEL_LB_LOCK:
+            _MODEL_LB_CACHE["error"] = str(exc)
+            _MODEL_LB_CACHE["refreshing"] = False
+        _write_model_leaderboard_cache_file(_MODEL_LB_CACHE.get("payload") or {}, _MODEL_LB_CACHE.get("updated_at") or 0.0, str(exc))
+        logger.exception("Model leaderboard refresh failed")
+
+
+def _ensure_model_leaderboard_refresh(force: bool = False) -> None:
+    with _MODEL_LB_LOCK:
+        payload = _MODEL_LB_CACHE.get("payload")
+        updated_at = float(_MODEL_LB_CACHE.get("updated_at") or 0.0)
+        refreshing = bool(_MODEL_LB_CACHE.get("refreshing"))
+    if refreshing:
+        return
+    age = time.time() - updated_at if updated_at else float('inf')
+    if force or payload is None or age > MODEL_LB_CACHE_TTL_SEC:
+        threading.Thread(target=_refresh_model_leaderboard_cache, daemon=True).start()
+
+
 @router.get("/strategies/leaderboard")
 async def api_strategy_leaderboard():
     """回傳所有已儲存策略的 Leaderboard（依 ROI 排序）"""
     from backtesting.strategy_lab import load_all_strategies
-    strategies = load_all_strategies()
+    strategies = [_decorate_strategy_entry(s) for s in load_all_strategies()]
     return {"strategies": strategies, "count": len(strategies)}
 
 
@@ -707,6 +1123,10 @@ async def api_run_strategy(body: Dict[str, Any]):
     else:
         return {"error": f"Unknown strategy type: {stype}"}
 
+    benchmarks = _compute_backtest_benchmarks(
+        prices, timestamps, bias50, nose, pulse, ear, regimes, initial, params
+    )
+
     strat_def = {"type": stype, "params": params}
     results_dict = {
         "roi": round(result.roi, 4),
@@ -720,6 +1140,7 @@ async def api_run_strategy(body: Dict[str, Any]):
         "avg_loss": round(result.avg_loss, 2),
         "max_consecutive_losses": result.max_consecutive_losses,
         "regime_breakdown": _compute_regime_breakdown(result.trades, initial),
+        "benchmarks": benchmarks,
         "run_at": datetime.utcnow().isoformat() + "Z",
     }
     save_strategy(name, strat_def, results_dict)
@@ -752,56 +1173,50 @@ async def api_save_strategy(body: Dict[str, Any]):
 # ═══════════════════════════════════════════════
 
 @router.get("/models/leaderboard")
-async def api_model_leaderboard():
-    """回傳所有 ML 模型的 Walk-Forward Leaderboard
-    
-    包含：XGBoost, LightGBM, CatBoost, RandomForest,
-          LogisticRegression, MLP (Neural Net), SVM (RBF), Ensemble, Rule Baseline
+async def api_model_leaderboard(refresh: bool = Query(default=False)):
+    """回傳所有 ML 模型的 Walk-Forward Leaderboard。
+
+    採用 stale-while-revalidate：
+    - 有 cache 時先回 cache，避免頁面初開等待 10~20 秒
+    - cache 過期時背景重算
+    - 使用者按刷新可觸發背景 refresh
     """
-    from backtesting.model_leaderboard import ModelLeaderboard
+    _load_model_leaderboard_cache_file()
+    _ensure_model_leaderboard_refresh(force=refresh)
 
-    df = load_model_leaderboard_frame(DB_PATH)
-    if df.empty:
-        return {"leaderboard": [], "count": 0, "warning": "No aligned 24h label rows found"}
+    with _MODEL_LB_LOCK:
+        payload = _MODEL_LB_CACHE.get("payload")
+        updated_at = float(_MODEL_LB_CACHE.get("updated_at") or 0.0)
+        refreshing = bool(_MODEL_LB_CACHE.get("refreshing"))
+        error = _MODEL_LB_CACHE.get("error")
 
-    df = df.fillna(0)
-    df['label_spot_long_win'] = df['label_spot_long_win'].fillna(0).astype(int)
+    now = time.time()
+    age_sec = now - updated_at if updated_at else None
+    stale = age_sec is None or age_sec > MODEL_LB_CACHE_TTL_SEC
+    expired = age_sec is None or age_sec > MODEL_LB_STALE_SEC
 
-    lb = ModelLeaderboard(df)
-    results = lb.run_all_models([
-        "rule_baseline", "logistic_regression", "xgboost",
-        "lightgbm", "catboost", "random_forest", "mlp", "svm"
-    ])
+    if payload and not expired:
+        return {
+            **payload,
+            "cached": True,
+            "refreshing": refreshing,
+            "stale": bool(stale),
+            "updated_at": datetime.utcfromtimestamp(updated_at).isoformat() + "Z" if updated_at else None,
+            "cache_age_sec": int(age_sec) if age_sec is not None else None,
+            "error": error,
+        }
 
-    leaderboard = []
-    for r in results:
-        fold_data = []
-        for f in r.folds:
-            fold_data.append({
-                "fold": f.fold,
-                "train_start": f.train_start,
-                "train_end": f.train_end,
-                "test_start": f.test_start,
-                "test_end": f.test_end,
-                "roi": round(f.roi, 4),
-                "win_rate": round(f.win_rate, 4),
-                "trades": f.total_trades,
-                "max_dd": round(f.max_drawdown, 4),
-                "profit_factor": round(f.profit_factor, 4),
-            })
-        leaderboard.append({
-            "model_name": r.model_name,
-            "avg_roi": round(r.avg_roi, 4),
-            "avg_win_rate": round(r.avg_win_rate, 4),
-            "avg_trades": int(r.avg_trades),
-            "avg_max_dd": round(r.avg_max_drawdown, 4),
-            "std_roi": round(r.std_roi, 4),
-            "profit_factor": round(r.avg_profit_factor, 4),
-            "train_acc": round(r.train_accuracy, 4),
-            "test_acc": round(r.test_accuracy, 4),
-            "train_test_gap": round(r.train_test_gap, 4),
-            "composite": round(r.composite_score, 4),
-            "folds": fold_data,
-        })
+    if not refreshing:
+        _ensure_model_leaderboard_refresh(force=True)
 
-    return {"leaderboard": leaderboard, "count": len(leaderboard)}
+    return {
+        "leaderboard": payload.get("leaderboard", []) if isinstance(payload, dict) else [],
+        "count": payload.get("count", 0) if isinstance(payload, dict) else 0,
+        "cached": bool(payload),
+        "refreshing": True,
+        "stale": True,
+        "updated_at": datetime.utcfromtimestamp(updated_at).isoformat() + "Z" if updated_at else None,
+        "cache_age_sec": int(age_sec) if age_sec is not None else None,
+        "warning": "Model leaderboard warming in background",
+        "error": error,
+    }

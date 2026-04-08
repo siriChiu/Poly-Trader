@@ -50,6 +50,17 @@ interface KlineResponse {
   candles: KlineCandle[];
 }
 
+interface FeatureCoverageMeta {
+  db_key: string;
+  non_null: number;
+  coverage_pct: number;
+  distinct: number;
+  min?: number | null;
+  max?: number | null;
+  chart_usable: boolean;
+  reasons: string[];
+}
+
 interface MergedPoint {
   time: number;
   label: string;
@@ -128,12 +139,14 @@ function detectSignals(data: MergedPoint[]) {
 function CustomLegend({
   visibility,
   averageVisibility,
+  coverage,
   onToggle,
   onToggleGroup,
   onToggleAverage,
 }: {
   visibility: Record<string, boolean>;
   averageVisibility: Record<FeatureGroupKey, boolean>;
+  coverage: Record<string, FeatureCoverageMeta>;
   onToggle: (key: string) => void;
   onToggleGroup: (group: FeatureGroupKey) => void;
   onToggleAverage: (group: FeatureGroupKey) => void;
@@ -179,17 +192,27 @@ function CustomLegend({
           <div className="flex flex-wrap items-center gap-2">
             {items.map(([key, cfg]) => {
               const active = visibility[key] ?? true;
+              const meta = coverage[key];
+              const disabled = meta ? !meta.chart_usable : false;
+              const reason = meta?.reasons?.join(", ") ?? "";
               return (
                 <button
                   key={key}
-                  onClick={() => onToggle(key)}
+                  onClick={() => !disabled && onToggle(key)}
+                  disabled={disabled}
+                  title={disabled ? `已隱藏：${reason}` : undefined}
                   className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all ${
-                    active ? "bg-slate-700/80 text-white" : "bg-slate-800/40 text-slate-500 line-through"
+                    disabled
+                      ? "bg-slate-900/40 text-slate-600 border border-slate-800/60 cursor-not-allowed"
+                      : active
+                        ? "bg-slate-700/80 text-white"
+                        : "bg-slate-800/40 text-slate-500 line-through"
                   }`}
-                  style={active ? { borderColor: cfg.color, borderWidth: 1 } : undefined}
+                  style={!disabled && active ? { borderColor: cfg.color, borderWidth: 1 } : undefined}
                 >
-                  <span className="w-3 h-0.5 inline-block" style={{ backgroundColor: active ? cfg.color : "#475569" }} />
+                  <span className="w-3 h-0.5 inline-block" style={{ backgroundColor: !disabled && active ? cfg.color : "#475569" }} />
                   {cfg.label}
+                  {disabled && <span className="text-[10px] text-slate-500">coverage不足</span>}
                 </button>
               );
             })}
@@ -301,6 +324,7 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
     macro: false,
     structure4h: false,
   });
+  const [featureCoverage, setFeatureCoverage] = useState<Record<string, FeatureCoverageMeta>>({});
 
   const [_autoHighlight, setAutoHighlight] = useState(false);
 
@@ -332,12 +356,16 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
         const interval = days <= 1 ? "15m" : days <= 7 ? "1h" : "4h";
         const limit = days <= 1 ? 96 : days <= 7 ? 168 : 180;
 
-        const [features, klines] = await Promise.all([
+        const [features, coverageResp, klines] = await Promise.all([
           fetchApi<FeatureRow[]>(`/api/features?days=${days}`),
+          fetchApi<{ features: Record<string, FeatureCoverageMeta> }>(`/api/features/coverage?days=${Math.max(days, 30)}`),
           fetchApi<KlineResponse>(`/api/chart/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`),
         ]);
 
         if (cancelled) return;
+
+        const coverage = coverageResp?.features ?? {};
+        setFeatureCoverage(coverage);
 
         const sortedFeatures = [...features]
           .map((row) => ({ ...row, _ts: new Date(String(row.timestamp)).getTime() }))
@@ -360,6 +388,10 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
 
           const dynamicValues = Object.fromEntries(
             FEATURE_ORDER.map((featureKey) => {
+              const coverageMeta = coverage[featureKey];
+              if (coverageMeta && !coverageMeta.chart_usable) {
+                return [featureKey, null];
+              }
               const raw = feat?.[featureKey];
               return [featureKey, typeof raw === "number" ? raw : raw == null ? null : Number(raw)];
             })
@@ -405,21 +437,35 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
     load();
   }, [days]);
 
+  useEffect(() => {
+    const disabledKeys = Object.entries(featureCoverage)
+      .filter(([, meta]) => !meta.chart_usable)
+      .map(([key]) => key);
+    if (!disabledKeys.length) return;
+    setVisibility((prev) => {
+      const next = { ...prev };
+      for (const key of disabledKeys) next[key] = false;
+      return next;
+    });
+  }, [featureCoverage]);
+
   const toggleVisibility = useCallback((key: string) => {
+    if (featureCoverage[key] && !featureCoverage[key].chart_usable) return;
     setVisibility((prev) => ({ ...prev, [key]: !prev[key] }));
-  }, []);
+  }, [featureCoverage]);
 
   const toggleGroupVisibility = useCallback((group: FeatureGroupKey) => {
     const keys = Object.entries(FEATURE_CONFIG)
       .filter(([, cfg]) => cfg.category === group)
-      .map(([key]) => key);
+      .map(([key]) => key)
+      .filter((key) => !featureCoverage[key] || featureCoverage[key].chart_usable);
     setVisibility((prev) => {
       const shouldEnable = keys.some((key) => !prev[key]);
       const next = { ...prev };
       for (const key of keys) next[key] = shouldEnable;
       return next;
     });
-  }, []);
+  }, [featureCoverage]);
 
   const toggleAverageVisibility = useCallback((group: FeatureGroupKey) => {
     setAverageVisibility((prev) => ({ ...prev, [group]: !prev[group] }));
@@ -477,10 +523,16 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
       <CustomLegend
         visibility={visibility}
         averageVisibility={averageVisibility}
+        coverage={featureCoverage}
         onToggle={toggleVisibility}
         onToggleGroup={toggleGroupVisibility}
         onToggleAverage={toggleAverageVisibility}
       />
+      {Object.values(featureCoverage).some((meta) => !meta.chart_usable) && (
+        <div className="text-[11px] text-slate-500 px-1">
+          已自動隱藏 coverage 不足或幾乎沒有變化的特徵，避免圖上出現長時間貼邊或失真的雜訊線。
+        </div>
+      )}
 
       {/* Loading / Error */}
       {loading && (

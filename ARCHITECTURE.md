@@ -246,8 +246,10 @@ Poly-Trader/
 
 ### 9. 文件治理與心跳閉環
 - 每次心跳後，必須同步更新 `HEARTBEAT.md`、`ISSUES.md`、`ROADMAP.md`，必要時修正 `ARCHITECTURE.md`。
+- `HEARTBEAT.md` 現在是嚴格的 project-driver 憲章：流程固定為 `facts → strategy decision → 六帽/ORID → patch → verify → docs sync → next gate`。
 - 使用六帽 + ORID 先把問題分層，再把 P0/P1 變成可執行 patch。
 - 若本輪只得到「未達標」而沒有修復，視為流程不完整，不算閉環。
+- 若一次心跳缺少 `patch + verify + 文件同步 + 下一輪 gate` 任一項，整輪視為失敗。
 
 ---
 

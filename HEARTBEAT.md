@@ -1,1763 +1,443 @@
-# HEARTBEAT.md — Poly-Trader 心跳任務（5 分鐘循環）
+# HEARTBEAT.md — Poly-Trader 閉環心跳憲章
 
-> 角色定義見 [AI_AGENT_ROLE.md](AI_AGENT_ROLE.md)，系統架構見 [ARCHITECTURE.md](ARCHITECTURE.md)。
-
-## 🧬 核心使命：負熵驅動
-
-Poly-Trader 不是靜態系統，而是持續引入外部能量、排出系統混亂、讓預測與回測能力持續進化的活系統。
-
-**負熵三律：**
-1. 封閉系統必然衰亡 → 必須定期引入新數據源、新視角、新方法
-2. 每個特徵都必須被實證淘汰或升級 → IC（訊息係數）是唯一裁判
-3. 所有決策都要能追溯「它做了什麼功」→ 只問結果，不問意圖
-
-**終極目標：現貨 long 金字塔勝率 ≧ 90%**
-（定義：`spot_long_win_rate = profitable_longs / total_longs`；`label_spot_long_win` 為 canonical target，`sell_win_rate` 僅保留舊報表相容欄位）
+> 角色定義見 [AI_AGENT_ROLE.md](AI_AGENT_ROLE.md)，策略取捨流程見 [strategy-decision-guide.md](strategy-decision-guide.md)，問題追蹤見 [ISSUES.md](ISSUES.md)，架構基線見 [ARCHITECTURE.md](ARCHITECTURE.md)，路線圖見 [ROADMAP.md](ROADMAP.md)。
 
 ---
 
-## 📊 特徵系統：Feature ETF（20 個特徵）
+## 0. 心跳的唯一目的
 
-所有特徵像 ETF 一樣由 **時間加權 IC (TW-IC)** 動態賦權，連續 D 級自動淘汰。
+心跳不是產報告，也不是重跑指標。
 
-### Tier 分級標準
-| 等級 | \|TW-IC\| | 權重 | 含義 |
-|------|-----------|------|------|
-| A+   | ≥ 0.15    | 3x   | 高價值核心信號 |
-| A    | ≥ 0.10    | 2x   | 強信號 |
-| B    | ≥ 0.05    | 1x   | 基線信號 (閾值) |
-| C    | ≥ 0.02    | 0.5x | 邊緣信號 |
-| D    | < 0.02    | 0x   | 淘汰/靜音 |
+**心跳的唯一目的：讓專案往目標前進，並且留下可驗證的前進證據。**
 
-淘汰規則：連續 3 次心跳 D 級 → `disabled=True`
+若一次心跳結束後只有：
+- 新數字
+- 新感想
+- 新報告
 
-### 現有 20 個特徵
+但沒有：
+- 新 patch
+- 新決策
+- 新驗證
+- 新 owner / 下一步
 
-| #  | 名稱 | 數據源 | 免費 | IC 預估 | 對現貨 long 的意義 |
-|----|------|--------|------|---------|------------|
-| 1  | 👁️ Eye (視覺) | return_24h / vol_72h | ✅ | 0.02-0.04 | 24h 回報/72h 波動 = 趨勢強度 |
-| 2  | 👂 Ear (聽覺) | 24h 價格動量 | ✅ | -0.05 | 過熱反轉信號 |
-| 3  | 👃 Nose (嗅覺) | RSI(14) | ✅ | -0.05 | 超買信號 → 看跌 |
-| 4  | 👅 Tongue (味覺) | 20h 均值回歸偏移 | ✅ | -0.06 | 偏離均線 → 回落概率 |
-| 5  | 💪 Body (觸覺) | 48h 波動率 z-score | ✅ | 0.05-0.06 | 高波動 = 延續信號 |
-| 6  | 💓 Pulse (脈動) | 12h 成交量 z-score | ✅ | -0.08 | 量增反轉 |
-| 7  | 🌀 Aura (磁場) | 價格 vs SMA144 偏離 | ✅ | -0.04 | 極端偏離 → 反轉 |
-| 8  | 🧠 Mind (認知) | 144h 價格回報 | ✅ | -0.07 | 長期動量反轉 |
-| 9  | 📈 VIX (恐慌指數) | Yahoo Finance | ✅ | -0.08 | VIX 高 = 市場恐懼 = long 勝率低（反向風險信號） |
-| 10 | 💵 DXY (美元指數) | Yahoo Finance | ✅ | -0.11 | 美元強 = 風險資產弱 = long 壓力上升 |
-| 11 | 📊 RSI-14 | 技術指標 | ✅ | 0.10 | 超買確認 |
-| 12 | 📊 MACD-Hist | 技術指標 | ✅ | 0.15 | 動量反轉 |
-| 13 | 📊 ATR% | 技術指標 | ✅ | 0.08 | 波動率通道 |
-| 14 | 📊 VWAP Dev | 技術指標 | ✅ | 0.10 | 公平價值偏離 |
-| 15 | 📊 BB %B | 技術指標 | ✅ | 0.06 | 波動率極端 |
-| 16 | 🦞 Claw (清算) | CoinGlass API | 需 key | 0.10-0.20 | 多頭清算 = long 勝率跳升（風險反轉） |
-| 17 | 🦷 Fang (期權 PCR) | Deribit API | ✅ | 0.08-0.15 | PCR 高 = 機構買保護 |
-| 18 | 🐟 Fin (ETF 流向) | CoinGlass ETF | 需 key | 0.05-0.12 | 淨流出 = long 壓力上升 |
-| 19 | 🕸️ Web (巨鯨) | Binance 大額交易 | ✅ | 0.05-0.10 | 大額賣壓 = 出貨前兆 |
-| 20 | 🐚 Scales (穩定幣 SSR) | CoinGecko | ✅ | 0.05-0.12 | SSR 高 = 買盤枯竭 |
-
-> **注意**: Nest (Polymarket) 和 NQ (納斯達克) 也已導入代碼，但需要數據累積後才能計算 IC。
-
-### Cross-features (交叉特徵)
-- `feat_vix_x_eye`, `feat_vix_x_pulse`, `feat_vix_x_mind` — 恐慌與技術面的交互
-- `feat_mind_x_pulse`, `feat_eye_x_ear`, `feat_nose_x_aura` — 特徵交互
-- `feat_eye_x_body`, `feat_ear_x_nose`, `feat_mind_x_aura` — 多維度確認
-- `feat_mean_rev_proxy` = mind - aura — 均值回歸代理
-- `feat_claw_x_pulse` — 清算 x 成交量 = 強制出清確認
-- `feat_fang_x_vix` — 期權恐懼 x VIX = 宏觀恐懼確認
-- `feat_fin_x_claw` — ETF 流出 x 清算 = 結構性賣壓
-- `feat_web_x_fang` — 巨鯨賣壓 x 期權 PCR = 機構出貨確認
-- `feat_nq_x_vix` — 納斯達克 x VIX = 科技股恐慌確認
+則這次心跳 **視為失敗**。
 
 ---
 
-## ⚡ 平行執行器
+## 1. 角色：嚴厲的專案推行者
 
-**`scripts/hb_parallel_runner.py`** — 多進程並行執行所有耗時腳本
+每次讀取本文件時，AI 必須扮演：
 
-```bash
-# 完整心跳 (並行, ~3-6 分鐘)
-cd /home/kazuha/Poly-Trader
-source venv/bin/activate
-python scripts/hb_parallel_runner.py --hb N
+> **嚴厲的專案推行者（strict project driver）**
 
-# 快速模式 (counts + global IC + regime IC, ~30s)
-python scripts/hb_parallel_runner.py --hb N --fast
+### 行為準則
+1. **禁止空轉**：不可只重跑 heartbeat 然後回報「仍未達標」。
+2. **禁止跳步**：不可跳過 issue 收斂、patch、驗證、回寫文件。
+3. **禁止模糊責任**：每個決策都要指定 owner、輸出物、驗證條件。
+4. **禁止假進度**：沒有 code/doc/data/test 變更，不算進度。
+5. **禁止遺留開口**：若新增問題、決策或 workaround，必須立即回寫至文件閉環。
+6. **優先 P0/P1**：只要 P0/P1 未清空，不能把心跳主要時間花在美化報告。
+7. **先修後報**：能修的先修，不能修的才升級為 blocker。
 
-# 跳過重型步驟
-python scripts/hb_parallel_runner.py --hb N --no-train --no-dw
+### 心跳完成的最低標準
+一次合格心跳至少要滿足以下 4 項中的 3 項，且第 4 項必須存在：
+- [ ] 完成至少 1 個 P0/P1 patch
+- [ ] 完成至少 1 個驗證（test/backfill/report/build/run）
+- [ ] 更新至少 1 個核心文件（ISSUES/ROADMAP/ARCHITECTURE/HEARTBEAT）
+- [x] 產出下一輪明確行動與驗證門檻
+
+若做不到，需在報告中明確標記：`HEARTBEAT FAILED: NO FORWARD PROGRESS`。
+
+---
+
+## 2. 北極星與 canonical 定義
+
+### 北極星目標
+- **現貨 long 金字塔策略可穩定提升勝率與風險調整後報酬**
+- 長期硬目標：**spot-long 系統勝率 ≥ 90%**
+
+### Canonical target
+- **主 target：`simulated_pyramid_win`**
+- 輔助 target：
+  - `simulated_pyramid_pnl`
+  - `simulated_pyramid_quality`
+  - `label_spot_long_win`（path-aware，僅作比較/診斷，不再作主訓練 target）
+- `sell_win` / `sell_win_rate` 僅允許作 legacy 相容欄位，不得再作主要決策依據。
+
+### Canonical progress definition
+只有以下項目才算「推進」：
+1. 修掉一個 root cause
+2. 補齊一段缺失資料
+3. 提升一個主指標且通過驗證
+4. 降低一個已知風險（過擬合、低 coverage、語義漂移）
+5. 把觀察正式轉成 issue → patch → verify → doc sync
+
+---
+
+## 3. 閉環開發總流程（不可跳過）
+
+每次心跳都必須完成以下閉環：
+
+```text
+Read context
+  ↓
+Collect facts
+  ↓
+Frame decision
+  ↓
+Six Hats + ORID
+  ↓
+Choose 1~3 top fixes
+  ↓
+Patch code/data/docs
+  ↓
+Verify with tests/reports/build/runtime
+  ↓
+Update ISSUES/ROADMAP/ARCHITECTURE/HEARTBEAT
+  ↓
+Declare next gate
 ```
 
-並行執行 4 個任務:
-1. 🔍 `full_ic.py` — 全域 IC 分析
-2. 🏛️ `regime_aware_ic.py` — 分區間 IC
-3. 📏 `dynamic_window_train.py` — 動態窗口掃描
-4. 🔨 `model/train.py` — XGBoost 模型訓練
-5. 🧪 `tests/comprehensive_test.py` — 完整測試套件
-
-**預期加速**: 串行 ~1200-1800s → 並行 ~180-300s (3-5x)
+### 閉環守則
+- **沒有 patch，不算閉環**
+- **沒有 verify，不算閉環**
+- **沒有文件同步，不算閉環**
+- **沒有下一輪 gate，不算閉環**
 
 ---
 
-## 🔄 心跳完整流程
+## 4. 每次心跳的強制輸出物
 
-每次心跳嚴格執行 **Step 0 〜 Step 8**，不可跳過。
+每次心跳結束，必須產出以下 8 類輸出：
 
-### Step 0：閱讀 context（每次必讀）
-- `AI_AGENT_ROLE.md` — 當前角色、紀律、邊界
-- `ISSUES.md` — P0 / P1 / P2 問題清單
-- `poly-trader-heartbeat` skill — 完整技術文檔
+1. **本輪事實摘要**
+   - Raw / Features / Labels / Coverage / IC / CV / ROI / Win rate
+2. **策略決策紀錄**
+   - 先跑 `strategy-decision-guide.md`，記錄方案、代價、前提
+3. **六帽會議摘要**
+   - 白/紅/黑/黃/綠/藍
+4. **ORID 決策**
+   - O / R / I / D
+5. **Patch 清單**
+   - 改了哪些檔、解了哪個 issue
+6. **驗證證據**
+   - pytest / build / report / script / browser / DB query
+7. **文件同步**
+   - ISSUES / ROADMAP / ARCHITECTURE / HEARTBEAT 是否更新
+8. **下一輪 gate**
+   - 下一輪只追哪 1~3 個最重要目標，如何判定成功
 
-### Step 1：快速數據統計
-- 運行 `python scripts/dev_heartbeat.py` 或平行 runner Step 0
-- 記錄 Raw / Features / Labels 數量
-- 檢查數據增長（如果 raw/features/labels 沒增加 → 資料收集有問題）
+若缺任一項，必須在報告中列出 `MISSING OUTPUTS`。
 
-### Step 2：IC 分析（並行執行）
-```bash
-python scripts/hb_parallel_runner.py --hb N
+---
+
+## 5. Step-by-step 心跳作業程序
+
+## Step 0 — 讀取 context（必做）
+每次心跳開始先讀：
+- `AI_AGENT_ROLE.md`
+- `HEARTBEAT.md`
+- `ISSUES.md`
+- `ROADMAP.md`
+- `ARCHITECTURE.md`（必要時）
+- `strategy-decision-guide.md`（本輪若有取捨）
+
+### Step 0 gate
+讀完後必須回答三件事：
+1. 現在最大的 P0/P1 是什麼？
+2. 本輪要推進哪 1~3 件事？
+3. 哪些事本輪明確不做？
+
+若答不出來，不得進入下一步。
+
+---
+
+## Step 1 — 蒐集事實，不准先下結論
+最少要收集：
+- Raw / Features / Labels row counts
+- 最新 timestamp 對齊狀態
+- feature coverage report
+- target 分布（至少 simulated vs path-aware）
+- global / regime IC
+- train / CV / gap
+- Strategy Lab / leaderboard / predictor 主 target 狀態
+
+### Step 1 gate
+需要把事實分成三類：
+- **已改善**
+- **惡化**
+- **卡住不動**
+
+不允許只貼數字，不作分類。
+
+---
+
+## Step 2 — 先用 strategy-decision-guide 做方案收斂
+只要本輪有這些情境，先跑 `strategy-decision-guide.md`：
+- 要不要修某 issue
+- 先修哪個 issue
+- 採哪種資料源/標籤/模型方案
+- 要不要接受 workaround
+
+### Step 2 輸出
+至少要有：
+- 候選方案列表
+- 各方案代價 / 前提 / 風險
+- 為何選這個，不選其他
+
+若沒有做這一步，就不准宣稱「已決定方向」。
+
+---
+
+## Step 3 — 六帽會議 + ORID（把觀察轉成決策）
+
+### 六帽最低要求
+- **白帽**：只列事實，不下判斷
+- **紅帽**：明講哪裡令人不安、疲乏、懷疑
+- **黑帽**：點名會導致再次失敗的缺口
+- **黃帽**：提煉可以複用的優勢
+- **綠帽**：提出至少 1 個可落地 patch
+- **藍帽**：把本輪範圍收斂到 1~3 件最高優先級行動
+
+### ORID 最低要求
+- **O**：客觀事實
+- **R**：感受與風險
+- **I**：根因，不可只寫表象
+- **D**：具體決策，必須包含 owner / artifact / verify
+
+### Step 3 gate
+ORID 的 D 若沒有以下格式，視為不合格：
+- `Owner:`
+- `Action:`
+- `Artifact:`
+- `Verify:`
+- `If fail:`
+
+---
+
+## Step 4 — 只選 1~3 個 top fixes，禁止貪多
+本輪 fix 候選，必須從下列類型中選：
+- P0 root-cause 修復
+- P1 label / coverage / ingestion / predictor 對齊
+- source-level 修復
+- 可驗證的前端/回測關鍵錯誤
+
+### 選擇規則
+優先順序：
+1. 會污染所有後續分析的問題
+2. 會導致假結論的資料/標籤問題
+3. 會阻擋訓練/回測/顯示的關鍵路徑
+4. 純展示/美化
+
+### Step 4 gate
+每個 fix 都要寫成：
+- `Issue:`
+- `Hypothesis:`
+- `Patch plan:`
+- `Success metric:`
+
+---
+
+## Step 5 — 執行 patch（沒有 patch 不准結束）
+patch 可以是：
+- code 修復
+- backfill script
+- schema/migration
+- API 對齊
+- frontend 顯示策略修正
+- 文件治理修正
+
+### patch 紀律
+- 一個 patch 必須明確對應至少一個 issue
+- patch 完成後要留下可重跑的驗證方式
+- workaround 必須標註 expiry condition（何時移除）
+
+---
+
+## Step 6 — 驗證（禁止只說「應該可以」）
+至少驗證下列之一，最好多項：
+- pytest
+- build
+- py_compile
+- DB coverage report
+- target comparison
+- browser / API runtime check
+- backfill report
+- heartbeat summary
+
+### 驗證門檻
+- 驗證要對應到 patch
+- 驗證要有結果，不可只寫命令
+- 驗證失敗不能隱藏，必須回寫 ISSUES 或 blocker
+
+---
+
+## Step 7 — 文件同步（閉環核心）
+至少同步：
+- `ISSUES.md`
+- `ROADMAP.md`
+- 必要時 `ARCHITECTURE.md`
+- 若流程本身有缺陷，更新 `HEARTBEAT.md`
+
+### 文件同步規則
+#### ISSUES.md
+必須更新：
+- 問題狀態（未修 / 部分修復 / 已修復 / blocker）
+- 本輪 patch 與證據
+- 下一輪 gate
+
+#### ROADMAP.md
+必須更新：
+- 新增的閉環機制
+- 已落地項目
+- 尚未完成的 phase/next step
+
+#### ARCHITECTURE.md
+若本輪改動了：
+- 資料流
+- canonical target
+- source quality gating
+- feature visibility policy
+
+則必須同步。
+
+### Step 7 gate
+若本輪改了系統但沒改文件，整輪視為未完成。
+
+---
+
+## Step 8 — 宣告下一輪 gate（不可留開口）
+心跳結尾必須明確宣告：
+- 下一輪只追哪些 issue
+- 成功條件是什麼
+- 若失敗，下一輪要如何升級處理
+
+### 範本
+- `Next focus:`
+- `Success gate:`
+- `Fallback if fail:`
+- `Documents to update next round:`
+
+---
+
+## 6. 進度判定規則
+
+### 算「有前進」
+- 修掉至少 1 個 root cause
+- 讓 coverage / labels / target 對齊真正改善
+- 讓主流程更靠近 canonical target
+- 把文件從鬆散紀錄升級為可執行閉環
+
+### 不算前進
+- 只跑 heartbeat
+- 只更新數字
+- 只寫長篇分析
+- 只新增 TODO 沒 patch
+- 只做 side quest，沒碰 P0/P1
+
+### 算退步
+- 重引入舊語義（如主流程又用 `label_spot_long_win` / `sell_win`）
+- 讓資料 coverage 或 target 對齊惡化
+- 讓文件與系統狀態不一致
+
+---
+
+## 7. 嚴格升級規則
+
+### 連續 2 輪同一問題無修復
+必須升級成：
+- blocker
+- source-level investigation
+- 或替代方案比較
+
+### 連續 3 輪只有報告沒有 patch
+必須在 ISSUES 新增：
+- `#HEARTBEAT_EMPTY_PROGRESS`
+
+### 連續 3 輪 patch 無效
+必須：
+1. 停止沿用同一路徑
+2. 用 `strategy-decision-guide.md` 重開方案比較
+3. 強制做一次六帽 + ORID 深度收斂
+
+---
+
+## 8. Feature / source 可視化治理規則
+
+心跳必須把 feature 分成三種，不得混畫：
+1. **可連續畫線**：coverage 足、變異足
+2. **稀疏事件型**：只能階梯線 / marker / point
+3. **不可信/常數型**：預設隱藏，只顯示 quality badge
+
+### 規則
+- 不可把 low coverage 特徵硬畫成連續折線
+- 不可把常數特徵誤當有效訊號展示
+- source 若不可靠，應先標記而非美化
+
+---
+
+## 9. 心跳執行模板
+
+每次心跳報告建議按此順序輸出：
+
+```md
+# Heartbeat #N
+
+## 1. Top goals this round
+- ...
+
+## 2. Facts
+- ...
+
+## 3. Decision framing
+- ...
+
+## 4. Six Hats
+- White:
+- Red:
+- Black:
+- Yellow:
+- Green:
+- Blue:
+
+## 5. ORID
+- O:
+- R:
+- I:
+- D:
+  - Owner:
+  - Action:
+  - Artifact:
+  - Verify:
+  - If fail:
+
+## 6. Patches shipped
+- ...
+
+## 7. Verification
+- ...
+
+## 8. Document sync
+- ISSUES:
+- ROADMAP:
+- ARCHITECTURE:
+- HEARTBEAT:
+
+## 9. Next gate
+- Next focus:
+- Success gate:
+- Fallback if fail:
 ```
-- 全域 IC：|IC| < 0.05 → 特徵需要替換
-- Regime-aware IC：Bear / Bull / Chop 分開看
-- Dynamic Window：N=100, 500, 1000, 2000, 5000 掃描
-- Check: spot_long_win_rate（legacy: sell_win_rate）— 如果 < 0.50 → EMERGENCY
-
-### Step 3：模型訓練
-- XGBoost global + per-regime models
-- 記錄 Train / CV accuracy、gap
-- Gap > 20pp → 過擬合，需要更正則化
-- CV < 52% → 信號瓶頸，需要新數據源
-
-### Step 4：Feature ETF 更新
-```python
-# IC 計算完後更新 ETF
-from feature_engine.feature_etf import get_etf
-etf = get_etf()
-etf.update_ic("feat_claw", ic_v...)
-etf.save(hb=N)
-print(etf.table(hb=N))
-```
-- 檢查哪些特徵升級/降級/被淘汰
-- 確保新特徵在 probation 狀態下收集足夠數據
-
-### Step 5：前端同步
-- WebSocket 推送所有 20 個特徵到 `server/routes/ws.py`
-- Web 雷達圖更新 `SENSE_INFO` 包含新增特徵
-- API end points 返回完整 20 維數據
-
-### Step 6：回測模型驗證
-- 運行 `backtesting/engine.py` 或 `backtesting/engine_v2_backup.py`
-- 檢查 `spot_long_win_rate`（legacy: `sell_win_rate`）、profit factor、Sharpe
-- 回測 vs 在線指標一致性檢查
-
-### Step 6.5：六帽會議 + ORID 收斂
-- **先套用 `strategy-decision-guide.md`**：只要本輪涉及「要不要修、先修哪個、採哪個方案」的取捨，先輸出策略後果表 + 前提驗證，再進入六帽與 ORID
-- **白帽**：只列實測數據；確認 Raw / Features / Labels / IC / 回測數字是否真有變化
-- **紅帽**：記錄當輪直覺與風險感受；如果「一直失敗但沒改進」，必須標紅
-- **黑帽**：列出文件與流程缺口；找出會造成下一輪重複失敗的設計
-- **黃帽**：找出可復用的成功點；把 4H、regime、tests PASS 固化為門檻
-- **綠帽**：提出至少一個可執行修復；失敗必須導向具體 patch，而非只寫觀察
-- **藍帽**：收斂出下一輪只做 1~3 個最高優先級修復
-- **ORID**：O 只記錄事實 / R 記錄感受 / I 提煉根因 / D 決定下一步並指定 owner
-
-### Step 7：ISSUES 更新
-- 全寫 `ISSUES.md`（不是 append，是 overwrite）
-- 同步更新 `ROADMAP.md` 與 `ARCHITECTURE.md`，讓問題、路線、架構三者一致
-- P0/P1/P2 優先級排序，並把「本輪已修 / 未修 / 下一輪必修」寫清楚
-- 若 P0/P1 未解除，下一輪心跳不得只重跑報告，必須先修復再分析
-
-### Step 8：Commit + 報告
-```bash
-cd /home/kazuha/Poly-Trader
-git add -A && git commit -m "心跳 #N: 摘要"
-```
-更新 HEARTBEAT.md 底部的心跳歷史記錄。
-
-## 🧢 六帽會議：本輪文件 review
-
-### 白帽（事實）
-- HEARTBEAT、ISSUES、ROADMAP、ARCHITECTURE 都已有骨架，但目標語義仍混用 short / long 與舊欄位名。
-- 成績數字很多，但缺少「失敗後必做什麼修復」的硬性連結。
-
-### 紅帽（感受）
-- 連續多輪只報「達不到」會讓迭代疲乏，文件需要強迫自己往修復走，而不是只做觀察。
-
-### 黑帽（風險）
-- `sell_win` 與 `label_spot_long_win` 的語義殘留會讓後續流程繼續錯位。
-- 只有結果、沒有責任人與下一步，會導致每次心跳都像重新開始。
-
-### 黃帽（價值）
-- 4H 特徵、regime models、parallel runner、tests PASS 已證明系統有可利用的結構優勢。
-- 只要把這些優勢寫成固定門檻，就能把「偶然好看」變成「穩定可重現」。
-
-### 綠帽（改善）
-- 每輪心跳自動產出：六帽摘要、ORID、P0/P1 修復清單、下一輪驗證條件。
-- 文件應增加「若無修復，不可只更新數字」的約束。
-
-### 藍帽（收斂）
-- 本輪的文件治理主軸：**先對齊 canonical target，再用六帽+ORID 把失敗轉成可執行修復**。
-- 下一輪優先順序：P0 修復 → P1 修復 → 回歸驗證 → 再更新文件。
 
 ---
 
-## 🌐 前端畫面同步規範
+## 10. 最終原則
 
-### API endpoints
-| 端點 | 用途 | 數據 |
-|------|------|------|
-| `/api/senses` | 最新特徵分數 | 20 個特徵的 score (0-100) |
-| `/api/market` | 市場快照 | BTC, FNG, LSR, OI, VIX, DXY, NQ |
-| `/api/ic` | IC 分析結果 | 全域+各區間 IC, 分級 |
-| `/api/prediction` | 模型預測 | confidence, regime, model used |
-| `/api/backtest` | 回測結果 | spot_long_win_rate（legacy: sell_win_rate）, PnL, Sharpe |
-| `/api/etf` | Feature ETF 狀態 | 20 特徵的 tier, weight, disabled |
-| `ws://.../ws` | 實時推送 | 所有特徵 + 預測結果 |
+**心跳不是日記，而是推進器。**
 
-### 雷達圖更新 (RadarChart.tsx)
-- `SENSE_KEYS` 從 8 個擴展到 20 個
-- `SENSE_INFO` 包含 emoji, label, color, source, IC, tier
-- 使用 Feature ETF 的 weight 來影響點的大小
-- 禁用 (disabled) 特徵用灰色顯示
+每次讀到這份文件時，都要默念：
 
-### 圖表需求
-1. **價格 × 多特徵 overlay** — 主圖 BTC 價格, 副圖 20 特徵 score
-2. **IC 條形圖** — 橫條顯示 20 特徵的 IC, 顏色按 tier (A+=綠, A=黃, D=紅)
-3. **勝率熱圖** — regime × time window
-4. **ETF 權重圓環** — circle chart 顯示各特徵的 ETF weight
-5. **回測曲線** — equity curve + drawdown
-
----
-
-## 🧪 回測模型整合
-
-### 回測引擎
-- `backtesting/engine.py` — 主回測引擎 (spot-long 策略)
-- `backtesting/metrics.py` — 勝率, 利潤因子, 夏普, 最大回撤
-- `backtesting/walkforward.py` — 滾動回測驗證
-
-### 回測關鍵指標
-|| 指標 | 目標 | 當前 |
-||------|------|------|
-|| spot_long_win_rate | ≥ 90% | ~50% |
-|| profit_factor | > 1.5 | 未知 |
-|| sharpe_ratio | > 1.0 | 未知 |
-|| max_drawdown | < 20% | 未知 |
-|| train_cv_gap | < 10pp | ~20pp |
-
-### 回測必須驗證
-1. 賣出勝率 ≠ 模型準確率 — 只看 profitable LONG positions
-2. 滑點 + 手續費納入計算
-3. 回測 vs 在線預測結果一致性
-4. 每個 regime 分開驗證 (bear/bull/chop)
-
----
-
-##  心跳歷史記錄
-
-### Heartbeat #609 — 2026-04-08 07:30 UTC
-- **DB**: Raw=**10,239**
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, BB%B +0.0575, RSI14 +0.0542, MACD-Hist +0.0505, Nose +0.0500擦邊）
-- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
-- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗；Aura+0.2773, Mind+0.2301, Nose+0.1766, Body+0.1288, Tongue-0.1149 極強）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），73 features, 9106 samples
-- **Regime models**: Bear CV=**60.22%** (Train=79.8%, n=2980), Bull CV=**73.37%** (Train=93.5%, n=2939), Chop CV=**65.60%** (Train=71.48%, n=3124) — CV顯著高於全局但Train-CV gap大（~20pp）
-- **Regime IC**: Bear **4/8**（持平，Ear/Nose/Body/Aura）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$67,769** (**⬇️ -$208** vs #608 $67,977，持續下跌！), FNG=11（持續極度恐懼）, FR=**0.00006073**（⬆️ +1.9% vs #608 0.00005960，空頭壓力再創新高！）, LSR=**1.3502**（⬆️ +105bps vs #608 1.3397，長倉比例持續攀升）, OI=**89,311**（⬇️ -198 vs #608 89,509，持倉量繼續縮減）
-- **平行心跳**: **5/5 PASS 🟢（67.0s）**— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ✅（6/6）— 全面通過！
-- **Tests**: 6/6 PASS：全面通過（9983 Python files syntax OK）
-- **🟡 Raw 增長降至 +10**: 從 #608 的 +29 下降，但仍保持正面增長
-- **🔴 BTC 持續下跌至 $67,769（-$208）**: 24h changes -2.58%，持續破位
-- **🔴 FR 再創高至 0.00006073（+1.9%）**: 空頭付費壓力從 #608 的 0.00005960 進一步攀升至 0.00006073
-- **🟡 LSR 升至 1.3502（+105bps）**: 長倉比例持續攀升，多頭持續抄底
-- **🟡 OI 89,311（-198）**: 持倉量加速縮減，資金流出
-
-### Heartbeat #608 — 2026-04-08 07:00 UTC
-- **DB**: Raw=**10,229** (+29 vs #607 10,200, 🟢 增長加速！), Features=**10,188** (+29 vs #607), Labels=**27,684**（🔴 凍結持平，零增長已超 100+ 輪）, sell_win=33.21%（🔴 持平 vs #607 33.21%）
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, BB%B +0.0575, RSI14 +0.0542, MACD-Hist +0.0505, Nose +0.0500擦邊）
-- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
-- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗；Aura+0.2773, Mind+0.2301, Nose+0.1766, Body+0.1288, Tongue-0.1149 極強）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），73 features, 9106 samples
-- **Regime models**: Bear CV=**60.22%** (Train=79.8%, n=2980), Bull CV=**73.37%** (Train=93.5%, n=2939), Chop CV=**65.60%** (Train=71.48%, n=3124) — CV顯著高於全局但Train-CV gap大（~20pp）
-- **Regime IC**: Bear **4/8**（持平，Ear/Nose/Body/Aura）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$67,977** (**⬆️ +$116** vs #607 $67,861，微幅反彈但24h仍在跌), FNG=11（持續極度恐懼）, FR=**0.00005960**（⬆️ +14.2% vs #607 0.00005219，空頭壓力大幅攀升！）, LSR=**1.3397**（⬆️ +152bps vs #607 1.3245，長倉比例明顯回升）, OI=**89,509**（⬇️ -156 vs #607 89,665，持倉量繼續縮減）
-- **平行心跳**: **5/5 PASS 🟢（71.1s）**— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ✅（6/6）— 全面通過！
-- **Tests**: 6/6 PASS：全面通過（9983 Python files syntax OK）
-- **🟢 Raw 增長显著加速至 +29**: 從 #607 的 +9 大幅提升，數據收集器活躍度明顯回升
-- **🔴 FR 飆升至 0.00005960（+14.2%）**: 空頭付費壓力大幅攀升，從 #607 的 0.00005219 跳升至新高！
-- **🟡 LSR 升至 1.3397（+152bps）**: 長倉比例明顯回升，多頭試圖抄底
-- **🟡 BTC 微幅反彈至 $67,977（+$116）**: 24h changes -2.34%，仍處下跌趨勢
-
-### Heartbeat #605 — 2026-04-07 23:00 UTC
-- **DB**: Raw=**10,175** (+13 vs #604 10,162, 持續增長但增速微降), Features=**10,134** (+13 vs #604), Labels=**27,684**（🔴 凍結持平，自#593跳增後零增長）, sell_win=33.21%（🔴 持平 vs #604 33.21%）
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, BB%B +0.0575, RSI14 +0.0542, MACD-Hist +0.0505, Nose +0.0500擦邊）
-- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
-- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗；Aura+0.2773, Mind+0.2301, Nose+0.1766, Body+0.1288, Tongue-0.1149 極強）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），73 features, 9106 samples
-- **Regime models**: Bear CV=**60.22%** (Train=79.8%, n=2980), Bull CV=**73.37%** (Train=93.5%, n=2939), Chop CV=**65.60%** (Train=71.48%, n=3124) — CV顯著高於全局但Train-CV gap大（~20pp）
-- **Regime IC**: Bear **4/8**（持平，Ear/Nose/Body/Aura）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,326** (**⬇️ -$95** vs #604 $68,421，持續下跌逼近$68K), FNG=11（持續極度恐懼）, FR=**0.00004255**（⬆️ +5.3% vs #604 0.00004039，空頭壓力持續上升！）, LSR=**1.3036**（⬇️ -174bps vs #604 1.3267，長倉比例下降）, OI=**90,248**（⬆️ +49 vs #604 90,199，持倉量微幅回升）
-- **平行心跳**: **5/5 PASS 🟢（40.9s）**— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ✅（6/6）— 全面通過！
-- **Tests**: 6/6 PASS：全面通過（9981 Python files syntax OK）
-- **🟡 Raw 增長 +13**: 從 #604 的 +18 微降，但仍保持正面增長
-- **🟡 FR 升至 0.00004255（+5.3%）**: 空頭付費壓力持續上升，從 #604 的 0.00004039 再次跳升
-- **🟡 LSR 降至 1.3036（-174bps）**: 長倉比例明顯下降，多頭優勢縮小
-- **🟡 BTC 持續下跌至 $68,326（-$95）**: 24h changes -1.52%，逼近 $68K 關口
-- **🟡 OI 90,248（+49）**: 持倉量微幅回升，資金略微回流
-
-### Heartbeat #604 — 2026-04-07 22:37 UTC
-- **DB**: Raw=**10,162** (+18 vs #603 10,144, 增長加速), Features=**10,121** (+18 vs #603), Labels=**27,684**（🔴 凍結持平，自#593跳增後零增長）, sell_win=33.21%（🔴 持平 vs #603 33.21%）
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, BB%B +0.0575, RSI14 +0.0542, MACD-Hist +0.0505, Nose +0.0500擦邊）
-- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
-- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗；Aura+0.2773, Mind+0.2301, Nose+0.1766, Body+0.1288, Tongue-0.1149 極強）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），73 features, 9106 samples
-- **Regime models**: Bear CV=**60.22%** (Train=79.8%, n=2980), Bull CV=**73.37%** (Train=93.5%, n=2939), Chop CV=**65.60%** (Train=71.48%, n=3124) — CV顯著高於全局但Train-CV gap大（~20pp）
-- **Regime IC**: Bear **4/8**（持平，Ear/Nose/Body/Aura）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,421** (**🔻 -$143** vs #603 $68,564，持續下跌), FNG=11（持續極度恐懼）, FR=**0.00004039**（⬆️ +11.6% vs #603 0.00003619，明顯回升！）, LSR=**1.3267**（⬇️ -7bps vs #603 1.3343，微降）, OI=**90,199**（⬇️ -67 vs #603 90,266，持倉量持續下降）
-- **平行心跳**: **5/5 PASS 🟢（49.4s）**— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ✅（6/6）— 全面通過！
-- **Tests**: 6/6 PASS：全面通過（9981 Python files syntax OK）
-- **🟢 Raw 增長加速至 +18**: 從 #603 的 +4 大幅提升，數據收集器活躍度明顯回升
-- **🟡 FR 大幅升至 0.00004039（+11.6%）**: 空頭付費壓力明顯回升，從 #603 的 0.00003619 跳升
-- **🟡 LSR 微降至 1.3267（-7bps）**: 長倉比例微降
-- **🟡 BTC 持續下跌至 $68,421（-$143）**: 24h changes -1.24%，維持在 $68K 關口附近
-- **🟡 OI 90,199（-67）**: 持倉量持續下降，資金撤出
-
-### Heartbeat #595 — 2026-04-07 12:17 UTC
-- **DB**: Raw=**10,092** (+6 vs #594 10,086, 持續增長), Features=**10,051** (+6 vs #594), Labels=**27,684**（⚠️ 凍結持平，自#593跳增後零增長）, sell_win=33.21%（🔴 持平 vs #594 33.21%）
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, BB%B +0.0575, RSI14 +0.0542, MACD-Hist +0.0505, Nose +0.0500擦邊）
-- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
-- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗；Aura+0.2773, Mind+0.2301, Nose+0.1766, Body+0.1288, Tongue-0.1149 極強）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），73 features, 9106 samples
-- **Regime models**: Bear CV=**60.22%** (Train=79.8%, n=2980), Bull CV=**73.37%** (Train=93.5%, n=2939), Chop CV=**65.60%** (Train=71.48%, n=3124) — CV顯著高於全局但Train-CV gap大（~20pp）
-- **Regime IC**: Bear **4/8**（持平，Ear/Nose/Body/Aura）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,245** (**🔻 -$132** vs #594 $68,377，持續下跌逼近$68K), FNG=11（持續極度恐懼）, FR=**0.00003036**（⬆️ +4.4% vs #594 0.00002915，反升！）, LSR=**1.3229**（⬇️ -16bps vs #594 1.3245）, OI=**91,018**（⬆️ +7 vs #594 91,011）
-- **平行心跳**: **5/5 PASS 🟢（40.0s）**— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ✅（6/6）— 全面通過！
-- **Tests**: 6/6 PASS：全面通過（9981 Python files syntax OK）
-- **🟡 Raw 增長降至 +6**: 從 #594 的 +10 下降，但仍有持續活動
-- **🟢 FR 反升至 0.00003036（+4.4%）**: 從 #594 微降趨勢反轉，空頭付費壓力回升
-- **🟡 LSR 微降至 1.3229（-16bps）**: 長倉比例略微下降
-- **🟡 BTC 持續下跌至 $68,245（-$132）**: 逼近 $68K 關口
-
-### Heartbeat #598 — 2026-04-07 20:50 UTC
-- **DB**: Raw=**10,115** (+5 vs #597 10,110, 持續增長), Features=**10,074** (+5 vs #597), Labels=**27,684**（⚠️ 凍結持平，自#593跳增後零增長）, sell_win=33.21%（🔴 持平 vs #597 33.21%）
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, BB%B +0.0575, RSI14 +0.0542, MACD-Hist +0.0505, Nose +0.0500擦邊）
-- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
-- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗；Aura+0.2773, Mind+0.2301, Nose+0.1766, Body+0.1288, Tongue-0.1149 極強）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），73 features, 9106 samples
-- **Regime models**: Bear CV=**60.22%** (Train=79.8%, n=2980), Bull CV=**73.37%** (Train=93.5%, n=2939), Chop CV=**65.60%** (Train=71.48%, n=3124) — CV顯著高於全局但Train-CV gap大（~20pp）
-- **Regime IC**: Bear **4/8**（持平，Ear/Nose/Body/Aura）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,387** (**⬆️ +$28** vs #597 $68,359，微幅反彈), FNG=11（持續極度恐懼）, FR=**0.00002992**（⬆️ +4.6% vs #597 0.00002861，空頭壓力微升）, LSR=**1.3326**（⬆️ +21bps vs #597 1.3305）, OI=**91,037**（⬆️ +48 vs #597 90,989）
-- **平行心跳**: **5/5 PASS 🟢（39.9s）**— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ✅（6/6）— 全面通過！
-- **Tests**: 6/6 PASS：全面通過（9981 Python files syntax OK）
-- **🟢 Raw 持續增長（+5）**: 從 #597 的 +10,110 → 10,115，保持微弱但持續的活動
-- **🟡 FR 微升至 0.00002992（+4.6%）**: 從 #597 下降趨勢反轉，空頭付費壓力微升
-- **🟡 LSR 微升至 1.3326（+21bps）**: 長倉比例繼續上升，多頭優勢擴大
-- **🟡 BTC 微幅反彈至 $68,387（+$28）**: 24h 變化 -1.62%，維持在 $68K 關口附近
-
-### Heartbeat #593 — 2026-04-07 12:05 UTC
-- **DB**: Raw=**10,076** (+4 vs #592 10,072, 微幅增長), Features=**10,035** (+4 vs #592), Labels=**27,684**（⚠️ 異常跳增 +53% vs #592 18,052，可能包含不同 horizon 標籤）, sell_win=33.21%（🔴 大幅下降 vs #592 40.37%，sell_win@720min=30.51%）
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, BB%B +0.0575, RSI14 +0.0542, MACD-Hist +0.0505, Nose +0.0500擦邊）
-- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
-- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗；Aura+0.2773, Mind+0.2301, Nose+0.1766, Body+0.1288, Tongue-0.1149 極強）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），73 features, 9106 samples
-- **Regime models (after fix)**: Bear CV=**60.22%** (Train=79.8%, n=2980), Bull CV=**73.37%** (Train=93.5%, n=2939), Chop CV=**65.60%** (Train=71.48%, n=3124) — CV顯著高於全局但Train-CV gap大（~20pp），可能過擬合
-- **Regime IC**: Bear **4/8**（持平，Ear/Nose/Body/Aura）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,340** (**🔻 -$57** vs #592 $68,397，微幅下跌), FNG=11（持續極度恐懼）, FR=**0.00002692**（⬇️ -9.9% vs #592 0.00002987，加速下降）, LSR=**1.3234**（⬆️ +27bps vs #592 1.3207，長倉比例持續上升）, OI=**91,062**（⬇️ -29 vs #592 91,091，微降）
-- **平行心跳**: **4/5 PASS 🟠（9.2s）**— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ❌（NameError: CROSS_FEATURES）, tests ✅（6/6）
-- **🟢 train.py CROSS_FEATURES 修復**: NameError: 'CROSS_FEATURES' not defined → 移至模組級別常數 → 重新訓練成功（regime models全部訓練通過）
-- **🟠 Labels 異常跳增**: 18,052 → 27,684（+53%），包含多種horizon標籤；sell_win從40.37%降至33.21%（720min子集=30.51%），需調查標籤管線
-- **🟡 FR 大幅下降至 0.00002692（-9.9%）**: 空頭付費壓力持續降低
-- **🟡 LSR 1.3234（+27bps）**: 長倉比例持續上升
-
-### Heartbeat #590 — 2026-04-07 11:31 UTC
-- **DB**: Raw=**10,055** (+1 vs #589 10,054, ⚠️ 放緩), Features=**10,014** (+1 vs #589), Labels=**18,052** (+0 凍結), sell_win=40.37%（➡️ 持平，regime子集49.24%）
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, BB%B +0.0575, RSI14 +0.0542, MACD-Hist +0.0505, Nose +0.0500擦邊）
-- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
-- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗；Aura+0.2773, Mind+0.2301, Nose+0.1766, Body+0.1288, Tongue-0.1149 極強）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），73 features, 9106 samples
-- **Regime IC**: Bear **4/8**（持平，Nose/Body/Aura/Ear）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,371** (**⬆️ +$39** vs #589 $68,332，持續微幅反彈), FNG=11（持續極度恐懼）, FR=**0.00002852**（⬇️ -5.1% vs #589 0.00003005，持續下降）, LSR=**1.3116**（⬆️ +101bps vs #589 1.3015，長倉比例繼續上升）, OI=**91,228**（⬆️ +30 vs #589 91,198，微升）
-- **平行心跳**: **5/5 PASS** 🟢（**31.3s**）— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ✅（6/6）— 全面通過！
-- **Tests**: 6/6 PASS：全面通過！
-- **🟠 Raw 增長放緩至 +1**: 從 #589 的 +8 驟降，數據收集器活躍度明顯下降
-- **🟡 FR 持續下降至 0.00002852（-5.1%）**: 空頭付費壓力持續減輕
-- **🟡 LSR 1.3116（+101bps）**: 長倉比例持續攀升，多頭優勢持續擴大
-
-### Heartbeat #589 — 2026-04-07 11:21 UTC
-- **DB**: Raw=**10,046** (+8 vs #588 10,038, 微幅加速), Features=**10,005** (+8 vs #588), Labels=**18,052** (+0 凍結), sell_win=40.37%（➡️ 持平，regime子集49.24%）
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, BB%B +0.0575, RSI14 +0.0542, MACD-Hist +0.0505, Nose +0.0500擦邊）
-- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
-- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗；Aura+0.2773, Mind+0.2301, Nose+0.1766, Body+0.1288, Tongue-0.1149 極強）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），73 features, 9106 samples
-- **Regime IC**: Bear **4/8**（持平，Ear/Nose/Body/Aura）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,332** (**⬆️ +$49** vs #588 $68,283，持續微幅反彈), FNG=11（持續極度恐懼）, FR=**0.00003005**（⬇️ -8.7% vs #588 0.00003292，加速下降）, LSR=**1.3015**（⬆️ +184bps vs #588 1.2831，長倉比例繼續上升）, OI=**91,198**（⬆️ +29 vs #588 91,169，微升止穩）
-- **平行心跳**: **5/5 PASS** 🟢（**9.1s**）— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ✅（6/6）— 全面通過！
-- **Tests**: 6/6 PASS：全面通過！
-- **🟢 Raw 增長加速至 +8**: 從 #588 的 +4 提升，數據收集器活躍度微幅改善
-- **🟡 FR 大幅下降至 0.00003005（-8.7%）**: 空頭付費壓力持續減輕
-- **🟡 LSR 1.3015（+184bps）**: 長倉比例持續攀升，多頭優勢擴大
-
-### Heartbeat #586 — 2026-04-07 11:00 UTC
-- **DB**: Raw=**10,025** (+4⚠️ 微量增長), Features=**9,984** (+4), Labels=**18,052** (+0, 持平凍結), sell_win=40.37%（➡️ 持平，regime子集49.24%）
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACD-Hist +0.0505, BB%B +0.0575, Nose +0.0500擦邊）
-- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
-- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗；Aura+0.2773, Mind+0.2301, Nose+0.1766 極強）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），73 features, 9106 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,240** (**🔻 -$126** vs #574 $69,181，持續下跌逼近$68K), FNG=11（持續極度恐懼）, FR=**0.00003590**（⬇️ -32.7% vs #574 0.00005332，大幅下降但仍正值）, LSR=**1.2507**（⬆️ +15bps vs #574 1.2492，微升！）, OI=**91,656**（⬆️ +153 vs #574 91,503，微升）
-- **平行心跳**: **5/5 PASS** 🟢（**10.7s**）— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ✅（6/6）— 全面通過！
-- **Tests**: 6/6 PASS：全面通過！
-- **🟢 Raw 微量增長 (+4)**: 數據收集器有微弱活動，但 Labels 完全凍結（+0），標籤生成管線仍失效
-- **🟡 BTC 持續下跌至 $68,240**: -$126 vs #574，逼近 $68K 關口
-- **🟡 FR 大幅下降至 0.00003590（-32.7%）**: 空頭付費壓力大幅減輕，但仍處正值
-- **🟡 LSR 微升至 1.2507（+15bps）**: 長倉比例偏高，多倉仍占優勢
-
-### Heartbeat #588 — 2026-04-07 11:12 UTC
-- **DB**: Raw=**10,038** (+4 vs #587 10,034), Features=**9,997** (+4 vs #587), Labels=**18,052** (+0 凍結), sell_win=40.37%（➡️ 持平，regime子集49.24%）
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, BB%B +0.0575, RSI14 +0.0542, MACD-Hist +0.0505, Nose +0.0500擦邊）
-- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
-- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗；Aura+0.2773, Mind+0.2301, Nose+0.1766 極強）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp，73 features, 9106 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,283** (**⬆️ +$58** vs #587 $68,225，微幅反彈), FNG=11（持續極度恐懼）, FR=**0.00003292**（⬇️ -4.1% vs #587 0.00003434，繼續下降）, LSR=**1.2831**（⬆️ +247bps vs #587 1.2584，長倉比例偏高）, OI=**91,169**（⬇️ -94 vs #587，持續下降，資金撤出）
-- **平行心跳**: **5/5 PASS** 🟢（**11.4s**）— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ✅ — 全面通過！
-- **Tests**: 6/6 PASS：全面通過！
-
-### Heartbeat #574 — 2026-04-07 09:55 UTC
-- **DB**: Raw=**9,967** (+4⚠️ 微量增長), Features=**9,926** (+4), Labels=**18,052** (+0, 持平凍結), sell_win=40.37%（➡️ 持平，regime子集49.24%）
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACD-Hist +0.0505, BB%B +0.0575, Nose +0.0500擦邊）
-- **TW-IC**: **13/22**（➡️ 持平 → VWAP+0.1293, ATR%-0.1280, VIX+0.0876, BB%B+0.0826, AURA+0.0799, Mind+0.0750, RSI14+0.0746, 4h_bias50+0.0715, Nose+0.0587, MACD+0.0554, 4h_rsi14+0.0622, 4h_dist_sl+0.0620, Pulse-0.0871）
-- **DW**: N=100 **7/8**🟢（持平！耳唯一失敗）| N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），73 features, 9106 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,181** (**↔️ +$6** vs #573 $69,175，微升), FNG=11（持續極度恐懼）, FR=**0.00005332**（⬇️ -1.8% vs #573 0.00005428，微降但仍處正值高位）, LSR=**1.2492**（↔️ -1.3% vs #573 1.2512，微降！）, OI=**91,503**（⬆️ +30 vs #573 91,473，微升）
-- **平行心跳**: **4/5 PASS** 🟢（**20.0s**）— full_ic ✅, regime_ic ✅, dynamic_window ✅, train ✅, tests ❌
-- **Tests**: 3/6 FAIL: 檔案結構 ❌, 模組導入 ❌, 特徵引擎 ❌（server/senses.py 重命名為 features_engine.py 的後遺症）
-- **🟢 Raw 微量增長 (+4)**: 數據收集器有微弱活動，但 Labels 完全凍結（+0），標籤生成管線仍失效
-- **🟡 LSR 微降至 1.2492**: 長倉比例持續下降，需關注多頭信心趨勢
-- **⚠️ FR 微降至 0.00005332**: 空頭付費壓力微降，但仍處正值高位
-
-### Heartbeat #565 — 2026-04-07 05:40 UTC
-- **DB**: Raw=**9,764** (+0⚠️ 持平停滯), Features=**9,724** (+0), Labels=**18,052** (+0, 持平), sell_win=40.37%（➡️ 持平，regime子集49.24%）
-- **全域 IC**: **5/22**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575, Nose +0.0500）
-- **TW-IC**: **10/22**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），71 features, 9106 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（持續！）, Chop **0/8**🔴（持續！）
-- **市場**: BTC=**$68,679** (**⬇️ -$19** vs #564 $68,698，微跌), FNG=11（持續極度恐懼）, FR=**0.00002042**（⬇️ **-5.6%** vs #564 0.00002164，持續下滑！）, LSR=**1.2119**（⬇️ -20bps vs #564 1.2139，微降）, OI=**91,407**（⬆️ +14 vs #564 91,393）
-- **平行心跳**: **5/5 PASS** 🟢（**10.5s**）— 全面通過！
-- **Tests**: 6/6 PASS（32/32）
-- **⬇️ FR 持續下滑至 0.00002042（-5.6%！）**: 多頭付費意願持續減弱
-- **⬇️ LSR 降至 1.2119（微降）**: 長倉比例微降
-- **Raw +0 持平**: 數據管線持續停滯，無增長
-
-### Heartbeat #553 — 2026-04-07 15:45 UTC
-- **DB**: Raw=**9,764** (+0⚠️ 持平停滯), Features=**9,724** (+0), Labels=**18,052** (+0, 持平), sell_win=40.37%（➡️ 持平，regime子集49.24%）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575, Nose +0.0500擦邊）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），48 features, 9106 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,669** (**⬆️ +$11** vs #552 $68,658，微升), FNG=11（持續極度恐懼）, FR=**0.00002031**（⬆️ **+3.1%** vs #552 0.00001970，**回升！**）, LSR=**1.2012**（⬇️ -39bps vs #552 1.2051，微降）, OI=**91,241**（⬆️ +95 vs #552 91,146）
-- **平行心跳**: **6/6 PASS** 🟢（**12.2s**）— 全面通過！
-- **Tests**: 6/6 PASS（32/32）
-- **⬆️ FR 回升至 0.00002031（+3.1%！）**: 多頭付費需求微幅回升
-- **⬇️ LSR 降至 1.2012（-39bps）**: 長倉比例微降
-- **Raw +0 持平**: 數據管線持續停滯
-
-### Heartbeat #547 — 2026-04-07 12:45 UTC — 2026-04-07 12:45 UTC
-- **DB**: Raw=**9,751** (+5微量), Features=**9,711** (+5), Labels=**18,052** (+0, 持平), sell_win=40.37%（➡️ 持平，regime子集49.24%）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575, Nose +0.0500擦邊）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），48 features, 9106 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,773** (**⬆️ +$23** vs #546 $68,750，微幅反彈), FNG=11（持續極度恐懼）, FR=**0.00001900**（⬆️ **+6.3%** vs #546 0.00001787，**持續回升！**）, LSR=**1.2119**（➡️ 持平 vs #546 1.2119），OI=**91,188**（⬇️ -10 vs #546 91,198）
-- **平行心跳**: **6/6 PASS** 🟢（**12.2s**）— 全面通過！
-- **Tests**: 6/6 PASS（32/32）
-- **🟢 FR 持續回升至 0.00001900（+6.3%！）**: 多頭付費需求**加速恢復**
-- **➡️ LSR 維持 1.2119（持平）**: 長倉比例穩定在高位
-
-### Heartbeat #542 — 2026-04-07 11:05 UTC
-- **DB**: Raw=**9,719** (+9微量), Features=**9,679** (+9), Labels=**18,052** (+0, 持平), sell_win=40.37%（➡️ 持平，regime子集49.24%）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575, Nose +0.0500擦邊）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 9106 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,671** (**⬆️ +$50** vs #541 $68,621，持續回升), FNG=11（持續極度恐懼）, FR=**0.00001199**（⬆️ **+25.3%** vs #541 0.00000957，**大幅回升！**）, LSR=**1.2080**（⬆️ +97bps vs #541 1.1983，**大幅回升！**）, OI=**91,290**（⬆️ +15 vs #541 91,275）
-- **平行心跳**: **6/6 PASS** 🟢（**29.6s**）— 全面通過！
-- **Tests**: 6/6 PASS（32/32）
-- **🟢 FR 大幅回升至 0.00001199（+25.3%！）**: 多頭付費需求**加速恢復**
-- **⬆️ LSR 大幅回升至 1.2080（+97bps）**: 長倉比例持續大幅回升
-
-### Heartbeat #519 — 2026-04-07 08:05 UTC
-- **DB**: Raw=**9,528** (+9微量, 實質凍結~90h+), Features=**9,488** (+9), Labels=**8,967** (+0, 凍結~90h+), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575, Nose +0.0500擦邊）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$68,834** (**⬆️ +$7** vs #518 $68,827, $68.8K盤整), FNG=13（持續極度恐懼）, FR=**-0.00000346**（⬆️ 改善55.6% vs #518 -0.00000780，**連續五輪改善信號！**）, LSR=**1.1313**（⬆️ +32bps vs #518 1.1281，持續回升！）, OI=**91,601**（⬆️ +64 vs #518 91,537，微幅回升）
-- **平行心跳**: **5/5 PASS** 🟢（**13.0s**）— 全部通過！
-- **Tests**: 6/6 PASS（32/32）
-- **🟢 FR 大幅改善至 -0.00000346（55.6%）**: **連續五輪改善**（#515 -0.00001599→#516 -0.00001305→#517 -0.00001030→#518 -0.00000780→**#519 -0.00000346**），**逼近零值！**空頭付費壓力幾乎完全解除
-- **⬆️ LSR 回升至 1.1313（+32bps）**: 長倉比例從1.1281進一步回升至1.1313，多頭持續回歸信號
-
-### Heartbeat #505 — 2026-04-07 07:00 UTC
-- **DB**: Raw=**9,452** (+4微量, 實質凍結~90h+), Features=**9,412** (+4), Labels=**8,967** (+0, 凍結~88h+), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575, Nose +0.0500擦邊）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,269** (**⬇️ -$116** vs #504 $69,385, 持續下跌逼近$69.2K), FNG=13（持續極度恐懼）, FR=**-0.00002430**（⬇️ 惡化0.9% vs #504 -0.00002409，**改善信號中斷！**）, LSR=**1.0231**（⬆️ +41bps vs #504 1.0190，微幅回升但仍<1.03！）, OI=**94,891**（⬇️ -71 vs #504 94,962，微降）
-- **平行心跳**: **5/5 PASS** 🟢（**10.9s**）— 全部通過！
-- **Tests**: 6/6 PASS（32/32）
-- **⬇️ FR 惡化至 -0.00002430（0.9%）**: #504的+1.1%改善信號徹底逆轉，空頭付費壓力回升
-- **⬆️ LSR 微幅回升至 1.0231（+41bps）**: 從歷史低位1.0190微幅反彈，但仍處極低水平
-
-### Heartbeat #504 — 2026-04-07 06:35 UTC
-- **DB**: Raw=**9,416** (+1微量, 實質凍結~63h+), Features=**9,376** (+1), Labels=**8,967** (+0, 凍結~88h+), sell_win=50.36%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575, Nose +0.0500擦邊）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,501** (**⬇️ -$14** vs #498 $69,515, $69.5K盤整), FNG=13（持續極度恐懼）, FR=**-0.00002765**（⬇️ 惡化2.8% vs #498 -0.00002690，改善信號中斷！）, LSR=**1.0198**（⬆️ +8bps vs #498 1.0190，微幅回升但仍<1.02！）, OI=**94,882**（⬇️ -3 vs #498 94,885，微降）
-- **平行心跳**: **5/5 PASS** 🟢（**12.2s**）— 全部通過！
-- **Tests**: 6/6 PASS（32/32）
-- **⬇️ FR 惡化至 -0.00002765（2.8%）**: 空頭付費壓力回升，#498改善信號中斷
-- **⚠️ LSR 1.0198（仍<1.02）**: 微幅回升但仍處歷史極低水平，市場完全空頭主導
-
-### Heartbeat #491 — 2026-04-07 05:25 UTC
-- **DB**: Raw=**9,369** (+6微量, 實質凍結~59h+), Features=**9,329** (+6), Labels=**8,967** (+0, 凍結~84h+), sell_win=50.36%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575, Nose +0.0500擦邊）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,743** (**⬇️ -$74** vs #490 $69,817, 持續下跌逼近$69.5K), FNG=13（持續極度恐懼）, FR=**-0.00003406**（⬆️ +1.4% 改善 vs #490 -0.00003453，微幅回升但仍負值）, LSR=**1.0214**（⬇️ -8bps vs #490 1.0222，持續新低逼近1.02！）, OI=**94,961**（⬇️ -95 vs #490 95,056）
-- **平行心跳**: **5/5 PASS** 🟢（**12.6s**）— 全部通過！
-- **Tests**: 6/6 PASS（32/32）
-- **🟢 FR 微幅改善至 -0.00003406（+1.4%）**: 空頭付費壓力微降，但仍處極度負值
-- **⬇️ LSR 1.0214（-8bps持續新低，逼近1.02！）**: 市場完全由空頭主導
-
-### Heartbeat #457 — 2026-04-07 09:20 UTC
-- **DB**: Raw=**9,356** (+8微量, 實質凍結~25h+), Features=**9,316** (+8), Labels=**8,967** (+0, 凍結~51h+), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,852** (**⬇️ -$51** vs #488 $69,903, 維持$69.8K), FNG=13（持續極度恐懼）, FR=**-0.00003367**（⬇️ 負值惡化4.7% vs #488 -0.00003215，**連續兩輪惡化**）, LSR=**1.0235**（⬇️ -8bps vs #488 1.0243，持續下降逼近1.02！）, OI=**95,073**（⬇️ -5 vs #488 95,078）
-- **平行心跳**: **5/5 PASS** 🟢（**10.9s**）— 全部通過！
-- **Tests**: 6/6 PASS
-- **⬇️ FR 持續惡化至 -0.00003367（4.7%）**: 連續兩輪惡化（#483→487連續改善信號已徹底中斷）
-- **⬇️ LSR 1.0235（-8bps）**: 心跳記錄第二低，逼近1.02危險水平！
-
-### Heartbeat #485 — 2026-04-06 20:22 UTC
-- **DB**: Raw=**9,319** (+6微量, 實質凍結~21h+), Features=**9,279** (+6), Labels=**8,967** (+0, 凍結~44h+), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,837** (**⬆️ +$113** vs #484 $69,724, 逼近$70K), FNG=13（持續極度恐懼）, FR=**-0.00003069**（⬆️ 改善6.5% vs #484 -0.00003281，首次連續改善信號）, LSR=**1.0272**（⬆️ +9bps vs #484 1.0263，微幅回升）, OI=**95,001**（⬆️ +15 vs #484 94,986）
-- **平行心跳**: **5/5 PASS** 🟢（**12.0s**）— 全部通過！
-- **Tests**: 6/6 PASS
-- **🟢 FR 改善至 -0.00003069（+6.5%）**: 空頭付費壓力下降，自#483起首次出現連續兩輪改善信號
-- **⬆️ LSR 回升至 1.0272（+9bps）**: 長倉比例微幅回升，仍逼近1.02危險水平
-
-### Heartbeat #484 — 2026-04-07 04:25 UTC
-- **DB**: Raw=**9,286** (+7微量, 實質凍結~21h+), Features=**9,246** (+7), Labels=**8,967** (+0, 凍結~44h+), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,702** (**⬇️ -$54** vs #480 $69,756, 逼近$69.5K), FNG=13（持續極度恐懼）, FR=**-0.00003150**（⬇️ 負值惡化4.0% vs #480 -0.00003028，加速惡化！）, LSR=**1.0280**（⬇️ -16bps vs #480 1.0296，逼近1.02）, OI=**94,869**（⬇️ -24 vs #480 94,893）
-- **平行心跳**: **5/5 PASS** 🟢（**12.6s**）— 全部通過！
-- **Tests**: 6/6 PASS
-- **⚠️ FR 惡化加速至 -0.00003150（4.0%）**: 空頭付費壓力加速上升（#479→480 惡化1.3% → #480→481 惡化4.0%）
-- **⬇️ LSR 降至 1.0280（-16bps）**: 逼近 1.02 危險水平
-
-
-### Heartbeat #480 — 2026-04-07 04:05 UTC
-- **DB**: Raw=**9,279** (+6微量, 實質凍結~20h+), Features=**9,239** (+6), Labels=**8,967** (+0, 凍結~43h+), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,756** (**⬇️ -$29** vs #479 $69,785, 維持$70K下方), FNG=13（持續極度恐懼）, FR=**-0.00003028**（⬇️ 負值惡化1.3% vs #479 -0.00002989，持續惡化）, LSR=**1.0296**（➡️ 持平）, OI=**94,893**（⬇️ -3 vs #479 94,896）
-- **平行心跳**: **5/5 PASS** 🟢（**13.1s**）— 全部通過！
-- **Tests**: 6/6 PASS
-- **⬇️ FR 負值惡化至 -0.00003028（+1.3%）**: 空頭付費壓力持續上升
-
-### Heartbeat #476 — 2026-04-07 03:30
-- **DB**: Raw=**9,269** (+1微量, 實質凍結~19h+), Features=**9,229** (+1), Labels=**8,967** (+0, 凍結~43h+), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,868** (**⬆️ +$165** vs #475 $69,703, 逼近$70K), FNG=13（持續極度恐懼）, FR=**-0.00002754**（⬆️ 改善5.3% vs #475 -0.00002908，負值收斂）, LSR=**1.0325**（⬆️ +8bps vs #475 1.0317，微幅回升）, OI=**94,908**（⬇️ -37 vs #475 94,945）
-- **平行心跳**: **5/5 PASS** 🟢（**12.6s**）— train.py PYTHONPATH 修復成功！
-- **Tests**: 6/6 PASS
-- **🟢 train.py PYTHONPATH 修復**: hb_parallel_runner.py 的 subprocess.run() 未設置 PYTHONPATH → 加上 `env={**os.environ, "PYTHONPATH": PROJECT_ROOT}` → 從 #475 的 4/5 恢復到 5/5
-- **🟢 FR 連續三輪改善**: -0.00003017→-0.00002908→**-0.00002754**（空頭付費壓力持續下降）
-- **⬆️ LSR 回升至 1.0325（+8bps）**: 長倉比例微幅回升，仍在危險水平
-
-### Heartbeat #469 — 2026-04-07 02:38
-- **DB**: Raw=**9,260** (+2微量, 實質凍結~18h), Features=**9,220** (+2), Labels=**8,967** (+0, 凍結~42h), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,813** (**⬆️ +$3** vs #468 $69,810, 仍維持$70K下方), FNG=13（持續極度恐懼）, FR=**-0.00002466**（⬇️ 負值惡化9.3% vs #468 -0.00002256）, LSR=**1.0442**（⬇️ -41bps vs #468 1.0483，持續下降）, OI=**95,154**（⬆️ +66 vs #468 95,088）
-- **平行心跳**: 5/5 PASS（**11.2s**）
-- **Tests**: 6/6 PASS
-- **🔴 FR 負值持續惡化至 -0.00002466**: 空頭付費壓力連6輪惡化（-0.00001040→-0.00001312→-0.00001960→-0.00002185→-0.00002621→-0.00002256→**-0.00002466**）
-- **⬇️ LSR 降至 1.0442（-41bps）**: 長倉比例持續壓縮
-
-### Heartbeat #457 — 2026-04-07 09:20
-- **DB**: Raw=**9,244** (+2微量, 實質凍結~37h+), Features=**9,204** (+2), Labels=**8,967** (+0, 凍結~60h+), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,303** (**⬇️ -$262** vs #456 $69,565, 逼近$69K), FNG=13（極度恐懼）, FR=**-0.00002719**（⬇️ 負值惡化3.7% vs #456 -0.00002621，持續上升）, LSR=**1.0263**（⬆️ +28bps vs #456 1.0235，微幅回升但仍貼近1.0）, OI=**95,261**（⬆️ +340 vs #456 94,921，顯著上升！空頭主導新倉）
-- **平行心跳**: 5/5 PASS（**12.6s**）
-- **Tests**: 6/6 PASS
-- **⬇️ BTC 持續下跌至 $69,303**: -$262 vs #456，逼近 $69K 關口
-- **💥 FR 負值持續至 -0.00002719**: 空頭付費壓力連5輪惡化（-0.00001040→-0.00001312→-0.00001960→-0.00002185→-0.00002621→**-0.00002719**）
-- **⬆️ OI 大幅上升至 95,261（+340）**: 持倉量大幅上升但 FR 負值，新倉以空頭為主
-
-### Heartbeat #456 — 2026-04-07 09:10
-- **DB**: Raw=**9,242** (+2微量, 實質凍結~32h+), Features=**9,202** (+2), Labels=**8,967** (+0, 凍結~55h+), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,565** (**⬇️ -$267** vs #455 $69,832), FNG=13（極度恐懼）, FR=**-0.00002621**（⬇️ 負值惡化20.0% vs #455 -0.00002185）, LSR=**1.0235**（⬇️ -111bps vs #455 1.0346，持續壓縮）, OI=**94,921**（⬆️ +34 vs #455 94,887）
-- **平行心跳**: 5/5 PASS（**11.1s**）
-- **Tests**: 6/6 PASS
-- **🔴 數據管線實質凍結**：Raw ~32h+ 前/Labels ~55h+ 前
-- **💥 FR 負值惡化至 -0.00002621（惡化20.0%）**: 空頭付費壓力加速上升
-
-### Heartbeat #455 — 2026-04-07 09:01
-- **DB**: Raw=**9,240** (+0, 全凍結), Features=**9,200** (+0), Labels=**8,967** (+0), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,832** (**⬇️ -$196** vs #454 $70,028, 回落$70K下方), FNG=13（極度恐懼）, FR=**-0.00002185**（⬇️ 負值惡化11.5% vs #454 -0.00001960，持續上升！）, LSR=**1.0346**（➡️ 持平）, OI=**94,887**（⬆️ +100 vs #454 94,787，回升）
-- **平行心跳**: 5/5 PASS（**19.5s**）
-- **Tests**: 6/6 PASS
-- **🔴 數據管線完全凍結**：Raw ~27h+ 前/Labels ~37.5h+ 前（+0，完全停滯）
-- **💥 FR 負值持續惡化至 -0.00002185**: 空頭付費壓力連續4輪惡化（-0.00001040→-0.00001312→-0.00001960→**-0.00002185**）
-- **⬆️ OI 回升至 94,887（+100）**: 持倉量回升，但 BTC 仍在下跌
-
-### Heartbeat #453 — 2026-04-07 08:48
-- **DB**: Raw=**9,238** (+1微量), Features=**9,198** (+1), Labels=**8,967** (+0), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平 → Nose+0.0587, Pulse-0.0871, AURA+0.0799, Mind+0.0750, VIX+0.0876, RSI14+0.0746, MACD+0.0554, ATR%-0.1280, VWAP+0.1293, BB%B+0.0826）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$70,145** (**⬆️ +$110** vs #452 $70,035, 持續$70K上方), FNG=13（極度恐懼）, FR=**-0.00001312**（⬇️ -26.2% vs #452 -0.00001040，負值加深！）, LSR=**1.0292**（⬇️ -33bps vs #452 1.0325，逼近1.02！）, OI=**94,836**（⬆️ +313 vs #452 94,523，回升）
-- **平行心跳**: 5/5 PASS（**11.5s**）
-- **Tests**: 6/6 PASS
-- **🔴 數據管線持續凍結**：Raw ~25.5h 前/Labels ~36.5h 前（Raw+1微量）
-- **💥 FR 負值加深至 -0.00001312（-26.2%！）**: 空頭付費壓力繼續上升（-0.00001040→**-0.00001312**），連續3輪惡化
-- **⬇️ LSR 降至 1.0292（-33bps）**: 逼近1.02極限水平，長倉壓縮持續加劇
-
-### Heartbeat #451 — 2026-04-07 08:32
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0764, RSI14 +0.0556, MACDHist +0.0510, BB%B +0.0554, ATR% -0.0549）
-- **TW-IC**: **17/21**（➡️ 持平 → Tongue-0.569, ATR%-0.484, DXY+0.280, Body-0.279, Mind+0.253, Pulse+0.250, AURA+0.231, VIX+0.183, RSI14+0.169, ClawIntensity+0.148, FangPCR-0.148, VWAP-0.143, Ear+0.102, Nose+0.094, Eye+0.086, BB%B+0.074, FangSkew+0.051）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（持續死區）| N=1000 4/8
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,921** (**⬇️ -$67** vs #450 $69,988), FNG=13（極度恐懼）, FR=**-0.00001026**（⬇️ -133.7% vs #450 -0.00000439，急遽惡化！）, LSR=**1.0429**（⬇️ -79bps vs #450 1.0513，持續下降！）, OI=**94,405**（⬆️ +16 vs #450 94,389，微升）
-- **平行心跳**: 5/5 PASS（**9.8s**）
-- **Tests**: 6/6 PASS
-- **🔴 數據凍結持續**：Raw ~18.8h 前/Labels ~30.2h 前（凍結擴大中）
-- **💥 FR 急遽惡化至 -0.00001026（-133.7%！）**: 空頭付費壓力急遽上升（0.00000949→0.00000783→0.00000615→0.00000573→0.00000380→-0.00000059→-0.00000439→**-0.00001026**），從接近零轉為負值且在四輪心跳內擴大超10倍
-- **⬇️ LSR 持續降至 1.0429（-79bps）**: 長倉比例繼續壓縮，逼近 1.04 心理關口
-
-### Heartbeat #448 — 2026-04-07 01:01
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0764, RSI14 +0.0556, MACDHist +0.0510, BB%B +0.0554, ATR% -0.0549）
-- **TW-IC**: **17/15**（➡️ 持平 → Tongue-0.569, ATR%-0.484, DXY+0.280, Body-0.279, Mind+0.253, Pulse+0.250, AURA+0.231, VIX+0.183, RSI14+0.169, ClawIntensity+0.148, FangPCR-0.148, VWAP-0.143, Ear+0.102, Nose+0.094, Eye+0.086, BB%B+0.074, FangSkew+0.051）
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,946** (**⬆️ +$45** vs #447 $69,901), FNG=13（極度恐懼）, FR=**0.00000380**（⬇️ -33.7% vs #447 0.00000573，崩盤創新低！）, LSR=**1.0734**（➡️ 持平）, OI=**94,118**（⬆️ +217 vs #447 93,900，微升）
-- **平行心跳**: 5/5 PASS（**12.5s**）
-- **Tests**: 6/6 PASS
-- **🔴 數據凍結持續**：Raw ~18.1h 前/Labels ~34.6h 前
-- **💥 FR 崩盤至 0.00000380（-33.7%！）**: 連續五輪創歷史新低（0.00000949→0.00000783→0.00000615→0.00000573→0.00000380），資金費率急遽萎縮，多頭資金需求幾乎完全消失
-
-### Heartbeat #444 — 2026-04-06 23:36
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose+0.059 Pulse+0.087 AURA+0.080 Mind+0.075 VIX+0.088 RSI14+0.075 MACD+0.055 BB%B+0.083 ATR%+0.128 VWAP+0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,747** (**⬆️ +$85** vs #443 $69,743), FNG=13（極度恐懼）, FR=**0.00000949**（⬇️ -20.5% vs #443 0.00001193，崩盤！創歷史新低！）, LSR=**1.0747**（⬇️ -69bps vs #443 1.0816，下降）, OI=**93,653**（⬆️ +27 vs #443 93,626）
-- **平行心跳**: 5/5 PASS（**12.9s**）
-- **Tests**: 6/6 PASS
-- **🔴 數據凍結持續**：Raw ~17.9h 前/Labels ~29.3h 前
-- **💥 FR 崩盤至 0.00000949（-20.5%！）**: 資金費率暴跌接近零，多頭需求幾乎完全消失，創心跳記錄歷史新低
-- **⬇️ LSR 降至 1.0747（-69bps）**: 長倉比例下降，配合 FR 崩盤顯示多頭信心瓦解
-
-### Heartbeat #439 — 2026-04-06 22:51
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose+0.059 Pulse+0.087 AURA+0.080 Mind+0.075 VIX+0.088 RSI14+0.075 MACD+0.055 BB%B+0.083 ATR%+0.128 VWAP+0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,331** (**⬇️ -$152** vs #438 $69,483), FNG=13（極度恐懼）, FR=**0.00001570**（⬇️ -10.9% vs #438 0.00001762，大幅下降！）, LSR=**1.0894**（⬇️ -48bps vs #438 1.0942，下降）, OI=**93,805**（⬇️ -64 vs #438 93,869）
-- **平行心跳**: 5/5 PASS（**10.6s**）
-- **Tests**: 6/6 PASS
-- **🔴 數據凍結持續**：Raw ~9.1h 前/Labels ~20.5h 前
-- **⬇️ BTC 降至 $69,331（-$152）**: 從 $69,483 下降，$69.3K 區間整理
-- **⬇️ FR 大幅下降至 0.00001570（-10.9%）**: 資金費率急劇下降，多頭需求急劇萎縮
-
-### Heartbeat #432 — 2026-04-06 21:52
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose+0.059 Pulse+0.087 AURA+0.080 Mind+0.075 VIX+0.088 RSI14+0.075 MACD+0.055 BB%B+0.083 ATR%+0.128 VWAP+0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=**$69,341** (**⬆️ +$34** vs #431 $69,307), FNG=13（極度恐懼）, FR=**0.00002407**（⬇️ -1.8% vs #431 0.00002451，持續下降！）, LSR=**1.0833**（⬆️ +4bps vs #431 1.0829，微升）, OI=**94,537**（⬆️ +56 vs #431）
-- **平行心跳**: 5/5 PASS（**10.5s**）
-- **Tests**: 6/6 PASS
-- **🔴 數據凍結持續**：Raw ~12.1h 前/Labels ~23.5h 前
-- **⬆️ BTC 微升至 $69,341（+$34）**: $69K 區間橫盤
-- **⬇️ FR 持續降至 0.00002407（-1.8%）**: 資金費率急縮，多頭需求持續萎縮
-
-### Heartbeat #429 — 2026-04-06 21:32
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose+0.059 Pulse+0.087 AURA+0.080 Mind+0.075 VIX+0.088 RSI14+0.075 MACD+0.055 BB%B+0.083 ATR%+0.128 VWAP+0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,473 (**⬆️ +$108**), FNG=13（極度恐懼）, FR=**0.00002834**（⬆️ +2.0% vs #428 0.00002778，停止下降微幅回升！）, LSR=**1.0833**（⬆️ +65bps vs #428 1.0768，显著反彈！）, OI=**94,641**（⬇️ -103 vs #428 94,744）
-- **平行心跳**: 5/5 PASS（**9.7s**）
-- **Tests**: 6/6 PASS
-- **🔴 數據凍結持續**：Raw ~9.8h 前/Labels ~20.9h 前
-- **🟢 BTC 止跌回升至 $69,473（+$108）**: 止住連跌趨勢
-- **🟢 LSR 显著反彈至 1.0833（+65bps）**: 長倉比例大幅回升
-- **🟢 FR 停止下降回升至 0.00002834**: 資金費率穩定化
-
-### Heartbeat #424 — 2026-04-06 21:04
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose+0.059 Pulse+0.087 AURA+0.080 Mind+0.075 VIX+0.088 RSI14+0.075 MACD+0.055 BB%B+0.083 ATR%+0.128 VWAP+0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,378 (**⬇️ -$19**), FNG=13（極度恐懼）, FR=**0.00002861**（⬆️ +0.2% vs #423 0.00002855，微幅回升！）, LSR=**1.0725**（➡️ 持平）, OI=**94,773**（⬇️ -36 vs #423 94,809）
-- **平行心跳**: 5/5 PASS（**9.4s**）
-- **Tests**: 6/6 PASS
-- **🔴 數據凍結持續**：Raw ~7.6h 前/Labels ~19.0h 前
-- **⬆️ FR 微幅回升至 0.00002861（+0.2%）**: 資金費率停止急降趨勢，微幅穩定
-- **⬇️ OI 降至 94,773**: -36 vs #423，持倉量繼續微降
-
-### Heartbeat #423 — 2026-04-06 20:52
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose+0.059 Pulse+0.087 AURA+0.080 Mind+0.075 VIX+0.088 RSI14+0.075 MACD+0.055 BB%B+0.083 ATR%+0.128 VWAP+0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,397 (**⬇️ -$80**), FNG=13（極度恐懼）, FR=**0.00002855**（⬇️ -5.4% vs #422 0.00003018，急降！）, LSR=**1.0725**（⬆️ +47bps vs #422 1.0678，反彈！）, OI=94,809（⬇️ -31）
-- **平行心跳**: 5/5 PASS（**12.8s**）
-- **Tests**: 6/6 PASS
-- **🔴 數據凍結持續**：Raw ~7.1h 前/Labels ~18.6h 前
-- **⬇️ BTC 跌至 $69,397**: -$80 vs #422，持續 $70K 下方震盪
-- **⬇️ FR 急降至 0.00002855（-5.4%）**: 資金費率大幅萎縮，多頭需求急降，創近期新低！
-- **⬆️ LSR 反彈至 1.0725（+47bps）**: 長倉比例回升，多空力量重新平衡
-
-### Heartbeat #414 — 2026-04-06 19:46
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose+0.059 Pulse+0.087 AURA+0.080 Mind+0.075 VIX+0.088 RSI14+0.075 MACD+0.055 BB%B+0.083 ATR%+0.128 VWAP+0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,647 (**⬇️ -$35**), FNG=13（極度恐懼）, FR=**0.00004228**（⬇️ -11.4% vs #413 0.00004773，大幅下降！）, LSR=**1.0636**（⬆️ +9bps vs #413 1.0627，微幅反彈）, OI=94,762（➡️ 持平）
-- **平行心跳**: 5/5 PASS（**10.0s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 13**: 持平，Raw ~6.1h 前/Labels ~17.4h 前，數據管線完全凍結
-- **⬇️ BTC 小幅回調至 $69,647**: -$35 vs #413，仍維持在 $70K 下方
-- **⬇️ FR 大幅下降至 0.00004228（-11.4%）**: 資金費率急劇萎縮，多頭需求大幅下降
-
-### Heartbeat #413 — 2026-04-06 19:36
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=50.35%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX +0.0714, RSI14 +0.0542, MACDHist +0.0505, BB%B +0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose+0.059 Pulse+0.087 AURA+0.080 Mind+0.075 VIX+0.088 RSI14+0.075 MACD+0.055 BB%B+0.083 ATR%+0.128 VWAP+0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），58 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,682 (**⬆️ +$50**), FNG=13（極度恐懼）, FR=**0.00004773**（⬇️ -1.4% vs #412 0.00004841，持續下降）, LSR=**1.0627**（⬆️ +4bps vs #412 1.0623，微幅穩定）, OI=94,762（⬇️ -100，持續下降）
-- **平行心跳**: 5/5 PASS（**10.7s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 13**: 持平，Raw ~6.0h 前/Labels ~17.3h 前，數據管線完全凍結
-- **⬆️ BTC 微升至 $69,682**: +$50 vs #412，仍維持在 $70K 下方
-- **⬇️ OI 持續下降至 94,762**: -100 vs #412，持倉量萎縮 = 市場參與度下降
-- **⬇️ FR 降至 0.00004773**: 持續下降，多頭需求進一步萎縮
-
-### Heartbeat #406 — 2026-04-06 18:49
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），95 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,888 (**⬆️ +$72**), FNG=13（極度恐懼）, FR=**0.00005869**（⬆️ +1.0% vs #405 0.00005813）, LSR=**1.0807**（➡️ 持平）, OI=94,608（⬇️ -281，顯著下降！）
-- **平行心跳**: 5/5 PASS（**13.3s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~12.9h 前/Labels ~24.3h 前，數據管線完全凍結
-- **⬆️ BTC 回升至 $69,888**: +$72 vs #405，逼近 $70K 門檻
-- **⬇️ OI 顯著下降至 94,608**: -281 vs #405 94,889，持倉量持續萎縮
-
-### Heartbeat #404 — 2026-04-06 18:26
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），95 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,817 (**⬆️ +$34**), FNG=13（極度恐懼）, FR=**0.00005900**（⬇️ -2.6% vs #403 0.00006062）, LSR=**1.0816**（⬆️ +9bps vs #403 1.0807，止跌回升！）, OI=94,893（⬇️ -20）
-- **平行心跳**: 5/5 PASS（**15.0s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~12.8h 前/Labels ~24.1h 前，數據管線完全凍結
-- **🟢 LSR 止跌回升至 1.0816**: 從 #403 的 1.0807 → **1.0816**（+9bps），止跌回升，但仍低於 #402 的 1.0816
-- **⬆️ BTC 微升至 $69,817**: +$34 vs #403，接近 $70K
-
-### Heartbeat #402 — 2026-04-06 18:12
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），95 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,829 (**⬆️ +$86**), FNG=13（極度恐懼）, FR=**0.00006170**（⬆️ +0.7% vs #401 0.00006128）, LSR=**1.0816**（⬆️ +78bps vs #401 1.0738，止跌反彈！）, OI=94,880（⬇️ -38）
-- **平行心跳**: 5/5 PASS（**14.7s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~12.5h 前/Labels ~23.9h 前，數據管線完全凍結
-- **🟢 LSR 回升至 1.0816**: 從 #401 的 1.0738 → **1.0816**（+78bps），止跌反彈！長倉壓力部分回升
-- **⬆️ BTC 反彈至 $69,829**: +$86 vs #401，接近 $70K
-
-### Heartbeat #401 — 2026-04-06 18:03
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），95 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,743 (**⬇️ -$69**), FNG=13（極度恐懼）, FR=**0.00006128**（⬇️ -1.1% vs #400 0.00006198）, LSR=**1.0738**（⬇️ -39bps vs #400 1.0777，持續下降！）, OI=94,918（⬆️ +256）
-- **平行心跳**: 5/5 PASS（**11.7s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~12.3h 前/Labels ~23.7h 前，數據管線完全凍結
-- **🔴 LSR 持續下降至 1.0738**: 從 #400 1.0777 → **1.0738**（-39bps），長倉壓力極度壓縮
-- **⬇️ BTC 小幅回調至 $69,743**: -$69 vs #400
-
-### Heartbeat #400 — 2026-04-06 17:52
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），95 features, 8969 samples
-- **Regime IC**: Bear **5/8**（⬆️ Eye+0.0237 邊緣加入！）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,812 (**⬆️ +$32**), FNG=13（極度恐懼）, FR=**0.00006198**（⬇️ -0.5% vs #399 0.00006230）, LSR=**1.0777**（⬇️ -356bps vs #399 1.0816，持續下降！）, OI=94,662（⬆️ +59）
-- **平行心跳**: 5/5 PASS（**13.8s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~12h 前/Labels ~23.5h 前，數據管線完全凍結
-- **🔴 LSR 持續下降至 1.0777**: 從 #399 1.0816 → **1.0777**（-39bps），長倉壓力繼續壓縮
-- **🟡 Bear 改善至 5/8**: Eye+0.0237 邊緣通過，從 4/8 改善
-
-### Heartbeat #398 — 2026-04-06 17:31
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），95 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,938 (**⬆️ +$26**), FNG=13（極度恐懼）, FR=**0.00006451**（⬇️ -0.7% vs #397 0.00006495）, LSR=**1.1004**（⬆️ +79bps vs #397 1.0925，持續反彈！）, OI=94,647（⬇️ -52）
-- **平行心跳**: 5/5 PASS（**15.5s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~12h 前/Labels ~23.5h 前，數據管線完全凍結
-- **🟢 LSR 持續反彈至 1.1004**: 從 #397 的 1.0925 → **1.1004**（+79bps），長倉壓力繼續回升，扭轉下降趨勢
-- **⬆️ BTC 持續上漲至 $69,938**: 接近 $70K，但數據管線仍凍結
-
-### Heartbeat #394 — 2026-04-06 16:56
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），95 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,200 (**⬇️ -$48**), FNG=13（極度恐懼）, FR=**0.00005917**（⬇️ -2.2% vs #393 0.00006051）, LSR=**1.0602**（⬇️ -63bps vs #393 1.0665，大幅下降！）, OI=94,707（⬆️ +58）
-- **平行心跳**: 5/5 PASS（**15.8s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~11.2h 前/Labels ~22.6h 前，數據管線完全凍結
-- **🟢 LSR 大幅下降至 1.0602 新低！**: 從 #393 的 1.0665 → **1.0602**（-63bps！），長倉壓力極度壓縮，刷新歷史低位
-- **⬇️ BTC 小幅下跌至 $69,200**: -$48 vs #393
-
-### Heartbeat #393 — 2026-04-06 16:41
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），95 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,248 (**⬆️ +$20**), FNG=13（極度恐懼）, FR=**0.00006051**（⬇️ -1.5% vs #392 0.00006143）, LSR=**1.0665**（⬇️ -18bps vs #392 1.0683，下降！）, OI=94,649（⬆️ +110）
-- **平行心跳**: 5/5 PASS（**12.0s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~11h 前/Labels ~22.3h 前，數據管線完全凍結
-- **⬇️ LSR 降至 1.0665（-18bps）**: 長倉壓力持續壓縮，FR 同步小幅下降
-- **⬆️ BTC 小幅上漲至 $69,248**: +$20 vs #392，OI 增加 110
-
-### Heartbeat #392 — 2026-04-06 16:36
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），95 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,228 (**⬆️ +$28**), FNG=13（極度恐懼）, FR=**0.00006143**（⬇️ -0.4% vs #391 0.00006166）, LSR=**1.0683**（➡️ 持平）, OI=94,539（⬆️ +33）
-- **平行心跳**: 5/5 PASS（**11.8s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 206**: +1 輪持續惡化，Raw ~11h 前/Labels ~22.3h 前，數據管線完全凍結
-- **⬆️ BTC 小幅上漲至 $69,228**: +$28 vs #391，FNG 仍 13 極度恐懼
-
-### Heartbeat #391 — 2026-04-06 16:31
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），95 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,200 (**⬆️ +$10**), FNG=13（極度恐懼）, FR=**0.00006166**（⬇️ -0.6% vs #390 0.00006202）, LSR=**1.0683**（➡️ 持平）, OI=94,506（⬆️ +54）
-- **平行心跳**: 5/5 PASS（**12.8s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 205**: +1 輪持續惡化，Raw ~10.8h 前/Labels ~22.2h 前，數據管線完全凍結
-- **➡️ LSR 持平 1.0683**: 停止下降趨勢，橫盤
-- **⬇️ FR 降至 0.00006166**: -0.6% vs #390，資金費率微降
-
-### Heartbeat #390 — 2026-04-06 16:26
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），95 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,190 (**⬆️ +$40**), FNG=13（極度恐懼）, FR=**0.00006202**（⬆️ +3.0% vs #389 0.00006019）, LSR=**1.0683**（⬇️ -21bps vs #389 1.0704）, OI=94,452（⬆️ +156）
-- **平行心跳**: 5/5 PASS（**12.5s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 204**: +1 輪持續惡化，Raw ~10.7h 前/Labels ~22.1h 前，數據管線完全凍結
-- **🟢 LSR 降至 1.0683（新低！）**: 從 #389 的 1.0704 → **1.0683**（-21bps），持續新低
-- **⬆️ BTC 小幅上漲至 $69,190**: 微升 +$40
-
-### Heartbeat #389 — 2026-04-06 16:17
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），51 features, 8969 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,150 (**⬆️ +$10**), FNG=13（極度恐懼）, FR=**0.00006019**（⬆️ +3.0% vs #388 0.00005843）, LSR=**1.0704**（⬇️ -4bps vs #388 1.0708）, OI=94,296（-19）
-- **平行心跳**: 5/5 PASS（**14.2s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 203**: +1 輪持續惡化，Raw ~10.5h 前/Labels ~21.9h 前，數據管線完全凍結
-- **🟢 LSR 續降至 1.0704**: 從 #388 的 1.0708 → **1.0704**（-4bps），持續新低！長倉壓力持續壓縮
-- **⬆️ FR 升至 0.00006019**: +3.0% vs #388，資金費率上升反映多頭成本增加
-
-### Heartbeat #387 — 2026-04-06 16:06
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（200+輪持續！）, Chop **0/8**🔴（200+輪持續！）
-- **市場**: BTC=$69,134 (**⬆️ +$1**), FNG=13（極度恐懼）, FR=**0.00005713**（⬆️ +1.3% vs #386 0.00005638）, LSR=**1.0721**（⬇️ -13bps vs #386 1.0734）, OI=94,318（+149）
-- **平行心跳**: 5/5 PASS（**13.3s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~10.4h 前/Labels ~21.7h 前，數據管線完全凍結
-- **🟢 LSR 降至 1.0721**: 從 #386 的 1.0734 → **1.0721**（-13bps），持續新低！長倉壓力持續壓縮
-
-### Heartbeat #385 — 2026-04-06 16:00
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.54pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（196+輪持續！）, Chop **0/8**🔴（196+輪持續！）
-- **市場**: BTC=$69,148 (**⬆️ +$171**), FNG=13（極度恐懼）, FR=**0.00005578**（⬆️ +4.8% vs #384 0.00005321）, LSR=**1.0743**（➡️ 持平）, OI=94,159（+343）
-- **平行心跳**: 5/5 PASS（**14.9s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~10.2h 前/Labels ~21.6h 前，數據管線完全凍結
-- **⬆️ BTC 上漲至 $69,148**: 從 #384 $68,977 → **$69,148**（+$171），OI 增加 343
-
-### Heartbeat #384 — 2026-04-06 15:51
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.54pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（195+輪持續！）, Chop **0/8**🔴（195+輪持續！）
-- **市場**: BTC=$68,977 (**⬇️ -$33**), FNG=13（極度恐懼）, FR=**0.00005321**（⬆️ +1.6% vs #383 0.00005235）, LSR=**1.0743**（⬇️ -30bps vs #383 1.0773，**持續下降！**）, OI=93,816（+206）
-- **平行心跳**: 5/5 PASS（**14.4s**）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~10.1h 前/Labels ~21.5h 前，數據管線完全凍結
-- **🟢 LSR 降至 1.0743**: 從 #383 的 1.0773 → **1.0743**（-30bps），再創新低！長倉壓力持續壓縮
-
-### Heartbeat #383 — 2026-04-06 15:42
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.54pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（195+輪持續！）, Chop **0/8**🔴（195+輪持續！）
-- **市場**: BTC=$69,010 (**⬇️ -$26**), FNG=13（極度恐懼）, FR=**0.00005235**（⬇️ -1.3% vs #382 0.00005303）, LSR=**1.0773**（⬇️ -26bps vs #382 1.0799，下降！）, OI=93,610（+347）
-- **平行心跳**: 5/5 PASS（**11.8s**，極速！）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~10.0h 前/Labels ~21.3h 前，數據管線完全凍結
-- **🟢 LSR 降至 1.0773**: 從 #382 的 1.0799 → **1.0773**（-26bps），近期新低！長倉壓力持續壓縮
-
-### Heartbeat #382 — 2026-04-06 15:32
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.54pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（192+輪持續！）, Chop **0/8**🔴（192+輪持續！）
-- **市場**: BTC=$69,036 (**⬇️ -$16**), FNG=13（極度恐懼）, FR=**0.00005303**（⬆️ +3.3% vs #381 0.00005134）, LSR=**1.0799**（⬆️ +5bps, 微升）, OI=93,263（+59）
-- **平行心跳**: 5/5 PASS（**11.7s**，極速！）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~9.8h 前/Labels ~21.2h 前，數據管線完全凍結
-- **🟡 LSR 微升至 1.0799**: 從 #381 的 1.0794 → **1.0799**（+5bps），微幅橫盤
-
-### Heartbeat #381 — 2026-04-06 15:26
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！Eye -0.0501 邊緣）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.54pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（192+輪持續！）, Chop **0/8**🔴（192+輪持續！）
-- **市場**: BTC=$69,052 (**⬆️ +$90**), FNG=13（極度恐懼）, FR=**0.00005134**（⬆️ +3.3% vs #380 0.00004969）, LSR=**1.0794**（⬆️ +8bps, 微升）, OI=93,204（+9）
-- **平行心跳**: 5/5 PASS（**11.9s**，極速！）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 202**: 持平，Raw ~9.7h 前/Labels ~21h 前，數據管線完全凍結
-- **🟡 LSR 微升至 1.0794**: 從 #380 的 1.0786 → **1.0794**（+8bps），橫盤持續
-
-### Heartbeat #380 — 2026-04-06 15:22
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！Eye -0.0501 邊緣）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.54pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（192+輪持續！）, Chop **0/8**🔴（192+輪持續！）
-- **市場**: BTC=$68,962 (**⬆️ +$74**), FNG=13（極度恐懼）, FR=**0.00004969**（⬆️ +1.0% vs #379 0.00004920）, LSR=**1.0786**（➡️ 持平，停止下降）, OI=93,195（+15）
-- **平行心跳**: 5/5 PASS（**14.4s**，極速！）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 214+**: 持平，Raw ~9.5h 前/Labels ~21h 前，數據管線完全凍結
-- **🟡 LSR 持平 1.0786**: 從 #379 的 1.0786 → **1.0786**（0bps），停止下降趨勢，橫盤
-
-### Heartbeat #378 — 2026-04-06 15:06
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.54pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（184+輪持續！）, Chop **0/8**🔴（184+輪持續！）
-- **市場**: BTC=$68,859 (**⬇️ -$96**), FNG=13（極度恐懼）, FR=**0.00004606**（⬇️ -3.0% vs #377 0.00004749）, LSR=**1.0816**（⬇️ -61bps vs #377 1.0877，**繼續下降！**）, OI=93,193（+5）
-- **平行心跳**: 5/5 PASS（**12.2s**，極速！）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 210+**: +4輪持續，Raw ~9h 前/Labels ~19h 前，數據管線完全凍結
-- **🟡 LSR 降至 1.0816**: 從 #377 的 1.0877 → **1.0816**（-61bps），長空壓力續降
-
-### Heartbeat #377 — 2026-04-06 15:01
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.54pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（180+輪持續！）, Chop **0/8**🔴（180+輪持續！）
-- **市場**: BTC=$68,955 (**⬇️ -$46**), FNG=13（極度恐懼）, FR=**0.00004749**（⬆️ +3.9% vs #376 0.00004572）, LSR=**1.0877**（持平）, OI=93,188（+63）
-- **平行心跳**: 5/5 PASS（**14.2s**，極速！）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 206+**: +4輪持續，Raw ~9h 前/Labels ~19h 前，數據管線完全凍結
-- **🟡 LSR 盤整于 1.0877**: 停止反彈趨勢，持平橫盤
-
-### Heartbeat #376 — 2026-04-06 14:54
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（持平！）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.54pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴, Chop **0/8**🔴
-- **市場**: BTC=$69,001 (**⬆️ +$79**), FNG=13（極度恐懼）, FR=**0.00004572**（⬆️ +5.3% vs 0.00004341）, LSR=**1.0877**（⬆️ +70bps，連續反弹！）, OI=93,125（持平）
-- **平行心跳**: 5/5 PASS（**15.6s**，極速！）
-- **Tests**: 6/6 PASS
-- **🟡 LSR 反彈至 1.0877**: 從 #374 的 1.0786 → #375 的 1.0807 → **1.0877**（+91bps 累計），長倉壓力持續回升，底部可能已觸及
-
-
-
-> 每次心跳在底部追加一行，保持最近 20 條。
-
-### Heartbeat #374 — 2026-04-06 14:36
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（Eye -0.0501 邊緣）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴, Chop **0/8**🔴
-- **市場**: BTC=$68,842 (**⬇️ +$9**), FNG=13（極度恐懼）, FR=**0.00003888**（⬆️ +4.9% vs 0.00003848）, LSR=**1.0786**（⬇️ -13bps 再創新低！）, OI=93,156（⬇️ -6）
-- **平行心跳**: 5/5 PASS（**14.1s**，極速！）
-- **Tests**: 6/6 PASS
-- **🟢🟢🟢 LSR 降至 1.0786**: 從 #373 的 1.0799 → **1.0786**（-13bps），連續多輪刷新歷史低位！長倉壓力極度壓縮
-
-### Heartbeat #373 — 2026-04-06 14:31
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（Eye -0.0501 邊緣）| N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴, Chop **0/8**🔴
-- **市場**: BTC=$68,833 (**⬇️ -$387**), FNG=13（極度恐懼）, FR=**0.00003848**（⬇️ -12.6%, vs 0.00004404）, LSR=**1.0799**（⬇️ -47bps 再創新低！）, OI=93,161（⬇️ -316）
-- **平行心跳**: 5/5 PASS（**14.9s**，極速！）
-- **Tests**: 6/6 PASS
-- **🟢🟢🟢 LSR 降至 1.0799**: 從 #372 的 1.0846 → **1.0799**（-47bps！），長倉壓力極度壓縮，再次刷新歷史低位
-
-### Heartbeat #372 — 2026-04-06 14:21
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢 | N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴, Chop **0/8**🔴
-- **市場**: BTC=$69,220 (**⬆️ +$123**), FNG=13（極度恐懼）, FR=**0.00004404**（⬆️ +0.8%, vs 0.00004316）, LSR=**1.0846**（⬇️ -9bps 再創新低！）, OI=93,478（+177）
-- **平行心跳**: 5/5 PASS（**14.3s**，極速！）
-- **Tests**: 6/6 PASS
-- **🟢 LSR 降至 1.0846**: 從 1.0855 → 1.0846（-9bps），連續多輪刷新歷史低位！長倉壓力極度壓縮
-
-### Heartbeat #371 — 2026-04-06 14:06
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢 | N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴, Chop **0/8**🔴
-- **市場**: BTC=$69,097 (**⬇️ -$57**), FNG=13（極度恐懼）, FR=**0.00004316**（⬇️ -2.7%, vs 0.00004436）, LSR=**1.0855**（⬇️ -26bps 再創新低！）, OI=93,301（-9）
-- **平行心跳**: 5/5 PASS（**13.9s**，極速！）
-- **Tests**: 6/6 PASS
-
-### Heartbeat #368 — 2026-04-06 13:52
-- **DB**: Raw=**9,237** (+0), Features=**9,197** (+0), Labels=**8,967** (+0), sell_win=49.65%（➡️ 持平）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢 | N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.92%, CV=51.39%, gap=12.53pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴, Chop **0/8**🔴
-- **市場**: BTC=$69,139 (**⬇️ -$59**), FNG=13（極度恐懼）, FR=**0.00004411**（⬇️ -4.1%, vs 0.00004600）, LSR=**1.0899**（⬇️ -13bps 新低！）, OI=93,309（+9）
-- **平行心跳**: 5/5 PASS（**16.6s**，極速！）
-- **Tests**: 6/6 PASS
-### Heartbeat #367 — 2026-04-06 13:46
-- **DB**: Raw=**9,237** (+2), Features=**9,197** (+2), Labels=**8,967** (+46 🟢首次Labels增長！), sell_win=49.65%（⬇️微降）
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.087 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢 | N=400 3/8 | N=600 0/8（死區）| N=1000 4/8 | N=2000 2/8 | N=5000 0/8（死區）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴, Chop **0/8**🔴
-- **市場**: BTC=$69,198 (**⬇️ -$2**), FNG=13（極度恐懼）, FR=**0.00004600**（⬇️ -0.7%, vs 0.00004632）, LSR=**1.0912**（持平）, OI=93,300（-16）
-- **平行心跳**: 5/5 PASS（**13.8s**，極速！）
-- **Tests**: 6/6 PASS
-- **🟢🟢🟢 Labels +46！**: 數據管線恢復！從 8,921 → 8,967，凍結約 40 輪後首次 Labels 增長
-- **⬇️ sell_win 降至 49.65%**: 新增 Labels 拉低全域勝率（49.9% → 49.65%）
-
-### Heartbeat #366 — 2026-04-06 13:42
-- **DB**: Raw=**9,235** (+1, 首次增長！), Features=**9,195** (+1), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.088 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢 | N=400 3/8 | N=600 0/8（死區）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**, Bull **0/8**🔴（133+輪持續！）, Chop **0/8**🔴（133+輪持續！）
-- **市場**: BTC=$69,200, FNG=13（極度恐懼）, FR=**0.00004632**（⬇️ -2.2%）, LSR=**1.0912**（⬆️ 微升）, OI=93,316
-- **平行心跳**: 5/5 PASS（**11.6s**）
-- **Tests**: 6/6 PASS
-
-### Heartbeat #363 — 2026-04-06 13:21
-- **DB**: Raw=**9,234** (+0, ~132輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575，Nose -0.0500 邊緣）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.088 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢（持平！）| N=200 **7/8**🟢（持平！）| N=400 **3/8**| N=600 **0/8（死區）| N=1000 **4/8**| N=2000 **2/8**| N=5000 **0/8**（死區）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（~132輪持續！）, Chop **0/8**🔴（~132輪持續！）
-- **市場**: BTC=$69,148 (**⬆️ +$7**), FNG=13（極度恐懼）, FR=**0.00004931**（⬇️ 微降 -2.0%, vs 0.00005033）, LSR=**1.0903**（🟢🟢🟢 持平歷史低位），OI=93,232（+33）
-- **平行心跳**: 5/5 PASS（**12.2s**，極速！ProcessPoolExecutor 5 worker）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 156**：~132輪持平，數據完全凍結
-- **🟢🟢🟢 LSR 穩定 1.0903**: 連續多輪維持歷史極低位！長倉壓力極度壓縮
-- **🟢 FR 降至 0.00004931**: 持續下降（-2.0% vs #362），空頭進一步解鎖
-
-### Heartbeat #360 — 2026-04-06 13:05
-- **DB**: Raw=**9,234** (+0, ~124輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575，Nose -0.0500 邊緣）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.088 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢（持平！）| N=200 **7/8**🟢（持平！）| N=400 **3/8**| N=600 **0/8（死區）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（~124輪持續！）, Chop **0/8**🔴（~124輪持續！）
-- **市場**: BTC=$69,101 (**⬇️ -$14**), FNG=13（極度恐懼）, FR=**0.00005085**（⬇️ 微降 -2.2%, vs 0.00005197）, LSR=**1.0903**（🟢🟢🟢 續降至新低！-26bps vs 1.0929）, OI=93,173（+19）
-- **平行心跳**: 5/5 PASS（**13.5s**，極速！ProcessPoolExecutor 5 worker）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 156**：~124輪持平，數據完全凍結
-- **🟢🟢🟢 LSR 降至 1.0903**: 從 #359 的 1.0929 → **1.0903**（-26bps），連續多輪刷新歷史低位！長倉壓力極度壓縮
-
-### Heartbeat #349 — 2026-04-06 12:00
-- **DB**: Raw=**9,234** (+0, ~99輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **5/15**（➡️ 持平。VIX -0.0714, RSI14 -0.0542, MACDHist -0.0505, BB%B -0.0575）
-- **TW-IC**: **10/15**（➡️ 持平）→ Nose-0.059 Pulse+0.088 AURA-0.080 Mind-0.075 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 ATR%+0.128 VWAP-0.129
-- **DW**: N=100 **7/8**🟢（持平！）| N=200 **7/8**🟢（持平！）| N=400 **3/8**| N=600 **0/8（死區）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（~99輪持續！）, Chop **0/8**🔴（~99輪持續！）
-- **市場**: BTC=$69,056 (**⬇️ -$40**), FNG=13（極度恐懼）, FR=**0.00005697**（⬇️ 微降）, LSR=**1.1133**（🟢🟢🟢 再創歷史新低！-62bps）, OI=92,660（+12）
-- **平行心跳**: 5/5 PASS（**13.9s**，極速！ProcessPoolExecutor 5 worker）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 156**：~99輪持平，數據完全凍結
-- **🟢🟢🟢 LSR 降至 1.1133**: 從 #348 的 1.1195 → **1.1133**（-62bps），繼續刷新歷史低位！
-
-### Heartbeat #332 — 2026-04-06 09:56
-- **DB**: Raw=**9,234** (+0, 83+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **5/15** → ➡️ 持平
-- **TW-IC**: **10/15** → Tongue+0.530 Body+0.510 ATR%+0.443 DXY-0.270 Pulse-0.302 Mind-0.200 VIX-0.125 VWAP+0.140 Eye+0.137 Ear-0.053
-- **DW**: N=100 **7/8**🟢 | N=200 **7/8**🟢（回升！vs #331 5/8）| N=400 **3/8** | N=600 **0/8**（死區）| N=1000 **4/8** | N=2000 **2/8** | N=5000 **0/8**（死區）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **4/8**（持平）, Bull **0/8**🔴（83+輪持續）, Chop **0/8**🔴（83+輪持續）
-- **市場**: BTC=$68,794 (**⬇️ -0.04%**), FNG=13（極度恐懼）, FR=**0.00005772**（🟢 微降）, LSR=**1.1701**（🟢🟢🟢 再創歷史新低！vs 1.1734, -33bps）, OI=91,650（+15）
-- **平行心跳**: 5/5 PASS（**10.7s**，極速！ProcessPoolExecutor 5 worker）
-- **Tests**: 6/6 PASS
-- **🔴 連敗 156**：83+輪持平，數據完全凍結
-- **🟢 DW N=200 大回升**：從 5/8 → 7/8！Eye+0.115 Ear-0.233 Tongue+0.516 Body+0.482 Pulse-0.438 Aura-0.471 Mind+0.176
-
-### Heartbeat #331 — 2026-04-06 09:51
-- **DB**: Raw=**9,234** (+0, 75+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **5/15**（VIX -0.0702, BB%B -0.0526, Ear -0.0517, RSI14 -0.0538）→ 🟢 回升（vs #325 3/15）
-- **TW-IC**: **10/15** → Nose-0.058 Pulse+0.088 Aura-0.092 Mind-0.080 Tongue+0.530 Body+0.510 ATR%+0.443 DXY-0.270 VWAP+0.140 Eye+0.137
-- **DW**: N=100 **6/8**（持平）| N=200 **5/8**（下降 vs #325 7/8）| N=400 **3/8**（持平）| N=600 **2/8**（🟢 從0回升！）| N=1000 **4/8** | N=2000 **3/8**（🟢）| N=5000 **0/8**
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear **5/8**🟢（vs #325 4/8回升！Aura -0.072, Mind -0.063, Pulse +0.061, Nose -0.061, Eye +0.056）, Bull **1/8**（持平）, Chop **1/8**🟢（從0回升！Pulse -0.056）
-- **市場**: BTC=$68,943 (**⬇️ -0.31%**), FNG=13（極度恐懼）, FR=**0.00006107**（⬇️ 微降）, LSR=**1.2262**（🟢🟢🟢 再創歷史新低！vs 1.2326, -64bps）, OI=91,358（-137）
-- **平行心跳**: 5/5 PASS（**12.9s**，極速！ProcessPoolExecutor 5 worker）
-- **Tests**: 5/5 PASS
-- **🔴 連敗 156**：75+輪持平，數據完全凍結
-- **🟢 Regime IC 改善**: Bear 4/8→5/8, Chop 0/8→1/8（兩個「0/8」區域同時改善！）
-- **🟢🟢🟢 LSR 降至 1.2262**: 多輪持續創歷史新低！長倉壓力極度壓縮
-
-### Heartbeat #319 — 2026-04-06 08:11
-- **DB**: Raw=**9,234** (+0, 69+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **5/15**（VIX -0.0719, MACD -0.0503, BB%B -0.0537, RSI14邊緣, Ear邊緣）→ ➡️ 持平
-- **TW-IC**: **10/15** → Tongue+0.530 ATR%+0.443 Eye+0.137 VWAP+0.140 Mind-0.200 DXY-0.270 Pulse-0.302 Aura-0.178 VIX-0.125 RSI14-0.065
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear 4/8, Bull 0/8（70+輪持續！）, Chop 0/8（70+輪！）
-- **市場**: BTC=$69,322 (**🟢 +2.94% 持續上漲**), FNG=13（極度恐懼）, FR=**0.00006966**（🔴 -3.8% 微降）, LSR=**1.3207**（🔴 回彈至 1.3207 vs 1.3068，+139bps！首次反彈）, OI=90,963（-175）
-- **平行心跳**: 5/5 PASS（**11.3s**，極速！ProcessPoolExecutor 5 worker）
-- **Tests**: 5/5 PASS
-- **🔴 連敗 156**：69+輪持平（數據完全凍結）
-- **🔴 LSR 回彈至 1.3207**: 從 #318 的 1.3068 → **1.3207**（+139bps），長倉壓力首次回升！下降趨勢可能結束
-- **🔴 FR 微降至 0.00006966**: 從 0.00007239 下降（-3.8%），空頭解鎖放緩
-### Heartbeat #318 — 2026-04-06 08:07-08:08
-- **DB**: Raw=**9,234** (+0, 68+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **5/15**（VIX -0.0714, MACD -0.0505, BB%B -0.0575, RSI14 -0.0542, Nose -0.0500）→ ➡️ 持平 vs #317
-- **TW-IC**: **10/15** → Tongue+0.041 ATR%+0.128 Pulse+0.087 DXY-0.040 VIX-0.088 RSI14-0.075 MACD-0.055 BB%B-0.083 VWAP-0.129 Aura-0.080
-- **DW**: N=100 **7/8**, N=200 **7/8**, N=400 **7/8**（持平）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear 4/8, Bull 0/8（70+輪持續！）, Chop 0/8（70+輪！）
-- **市場**: BTC=$69,301 (**🟢 +3.29% 持續上漲**), FNG=13（極度恐懼）, FR=**0.00007239**（🟢 微升）, LSR=**1.3068**（🟢🟢🟢 再降至歷史新低！-64bps vs #317）, OI=91,138（+166）
-- **平行心跳**: 5/5 PASS（**12.1s**，極速！ProcessPoolExecutor 5 worker）
-- **Tests**: 5/5 PASS
-- **🔴 連敗 156**：68+輪持平（數據完全凍結）
-- **🟢 LSR 降至 1.3068**: 從 #317 的 1.3132 → **1.3068**（-64bps），持續創歷史新低！長倉壓力極低
-### Heartbeat #317 — 2026-04-06 07:57-07:58
-- **DB**: Raw=**9,234** (+0, 67+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **5/15**（VIX -0.0714, MACD -0.0505, BB%B -0.0575, RSI14 -0.0542, Nose -0.0500）→ ➡️ 持平 vs #316，Nose 跨過閾值！
-- **TW-IC**: **10/15** → ATR%+0.128 Pulse+0.087 DXY-0.075 ATR%+0.128 VWAP-0.129 Nose-0.094 Tongue+0.041 BB%B-0.083 MACD-0.055 RSI14-0.075 VIX-0.088
-- **DW**: N=100 **7/8**（持平）, N=200 **7/8**（持平）, N=400 **7/8**（持平）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear 4/8, Bull 0/8（70+輪持續！）, Chop 0/8（70+輪！）
-- **市場**: BTC=$68,980 (**🟢 +2.55% 持續上漲**), FNG=12（極度恐懼）, FR=**0.00007109**（🟢 +1.1% 微升）, LSR=**1.3132**（🟢🟢 繼續降至歷史新低！-392bps vs #316）, OI=90,973（+235）
-- **平行心跳**: 5/5 PASS（**12.9s**，極速！ProcessPoolExecutor 5 worker）
-- **Tests**: 5/5 PASS
-- **🔴 連敗 156**：67+輪持平（數據完全凍結）
-- **🟢 LSR 降至 1.3132**: 從 #316 的 1.3524 → **1.3132**（-392bps），長倉壓力大幅下降！接近歷史最低水平
-- **🟢 Nose 跨過全域 IC 閾值**：-0.0500 剛好過關
-### Heartbeat #316 — 2026-04-06 07:51-07:52
-- **DB**: Raw=**9,234** (+0, 66+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **5/15**（VIX, MACD, BB%B, RSI14邊緣, Ear邊緣）→ **🟢 從 3/15 回升！比 #315 多2個**
-- **TW-IC**: **10/15**（Tongue+0.530 Body+0.510 ATR%+0.443 DXY-0.270 Pulse-0.302 Mind-0.200 Aura-0.178 VWAP+0.140 Eye+0.137 VIX-0.125）
-- **DW**: 腳本完成但結果同前（N=100 仍 7/8, N=200 7/8）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **Regime IC**: Bear 4/8, Bull 0/8（70+輪持續！）, Chop 0/8（70+輪！）
-- **市場**: BTC=$68,946 (**🟢 +2.60% 持續上漲**), FNG=12（極度恐懼）, FR=**0.00007032**（持平）, LSR=**1.3524**（🟢 繼續降至新低！）, OI=90,738（+19）
-- **平行心跳**: 5/5 PASS（**12.2s**，極速！ProcessPoolExecutor 5 worker）
-- **Tests**: 5/5 PASS
-- **🔴 連敗 156**：66+輪持平（全域 IC 微回升但數據仍凍結）
-- **🟢 全域 IC 回升**：3/15→5/15（VIX/MACD/BB%B + RSI14/Ear 邊緣跨過）
-- **🟢 LSR 降至 1.3524**: 從 #315 的 1.3669 → **1.3524**（-145bps），長倉壓力持續下降！
-### Heartbeat #315 — 2026-04-06 07:41-07:42
-- **DB**: Raw=**9,234** (+0, 65+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **3/15**（VIX, MACD, BB%B）→ 與 #312 一致
-- **TW-IC**: **12/15**（🟢 回升，Ear+RSI14 跨過閾值）→ Tongue+0.530 Body+0.510 ATR%+0.443 DXY-0.270 Pulse-0.302 Mind-0.200 Aura-0.178 VWAP+0.140 Eye+0.137 VIX-0.125 RSI14-0.065 Ear-0.053
-- **DW N=100**: **7/8**（Nose -0.177, Aura -0.277, Mind -0.230）
-- **DW N=200**: **7/8**（🟢 回升！5→7, 僅 Nose 失敗）→ Mind -0.167, Aura -0.162, Nose -0.114
-- **Regime IC**: Bear 4/8, Bull 0/8（**69+輪持續！**）, Chop 0/8（69+輪！）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **市場**: BTC=$68,982 (**🟡 -0.04%**), FNG=12（極度恐懼）, FR=**0.00007032**（+0.6%）, LSR=**1.3669**（🟢 -318bps 繼續下降！）, OI=90,719（+27）
-- **平行心跳**: 5/5 PASS（**27.5s**，ProcessPoolExecutor 5 worker）
-- **Tests**: 5/5 PASS
-- **🔴 連敗 156**：65+輪持平
-- **🔴 Last 100 sell_win=0%**，Last 200=9%，Last 500=32%
-- **🟢 TW-IC 回升**：10/15 → 12/15（計數修正，Ear+RSI14 實際已過 0.05）
-- **🟢 DW N=200 回升**：5/8 → 7/8
-
-### Heartbeat #314 — 2026-04-06 07:36-07:37
-- **DB**: Raw=**9,234** (+0, 64+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **5/15**（VIX, MACD, BB%B, RSI14邊緣 + Nose/Body邊緣）→ 與 #313 完全一致
-- **TW-IC**: **10/15** → Tongue+0.530 Body+0.510 ATR%+0.443 DXY-0.270 Pulse-0.302 Mind-0.200 Aura-0.178 VWAP+0.140 Eye+0.137 VIX-0.125
-- **DW N=100**: **7/8**（Nose -0.177, Aura -0.277, Mind -0.230）
-- **DW N=200**: **5/8** → Mind -0.167, Aura -0.162, Nose -0.114
-- **Regime IC**: Bear 4/8, Bull 0/8（**68+輪持續！**）, Chop 0/8（68+輪！）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **市場**: BTC=$69,013 (**🟢🟢 +2.69%** 持續上漲), FNG=12（極度恐懼）, FR=**0.00006993**（+2.9% 微升）, LSR=**1.3987**（持平）, OI=90,692（-174）
-- **平行心跳**: 5/5 PASS（**12.7s**，超快！ProcessPoolExecutor 5 worker）
-- **Tests**: 5/5 PASS
-- **🔴 連敗 156**：64+輪持平
-- **🔴 Last 100 sell_win=0%**，Last 200=9%，Last 500=32%
-- **🟢 BTC 突破 $69K**：從 $68,803 → $69,013，極度恐懼中持續上漲
-
-### Heartbeat #313 — 2026-04-06 07:31-07:32
-- **DB**: Raw=**9,234** (+0, 63+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: **5/15**（VIX, MACD, BB%B, RSI14邊緣 + Nose/Body邊緣）→ 計數法 vs #312 略異
-- **TW-IC**: **10/15**（🔻 12/15→10/15 微降，RSI14+Ear 降至失敗）→ Tongue+0.530 Body+0.510 ATR%+0.443 DXY-0.270 Pulse-0.302 Mind-0.200 Aura-0.178 VWAP+0.140 Eye+0.137 VIX-0.125
-- **DW N=100**: **7/8**（Nose -0.177, Aura -0.277, Mind -0.230）
-- **DW N=200**: **5/8** → Mind -0.167, Aura -0.162, Nose -0.114
-- **Regime IC**: Bear 4/8, Bull 0/8（**67+輪持續！**）, Chop 0/8（67+輪！）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **市場**: BTC=$68,803 (**🟢🟢 +2.53%**), FNG=12（極度恐懼）, FR=**0.00006794**（-0.2% 微降）, LSR=**1.3987**（🟢 -87bps 降至新低！）, OI=90,866（+6 BTC）
-- **🟢 LSR 降至 1.3987**: 從 #312 的 1.4085 → **1.3987**（-98bps），長倉壓力進一步減少！
-- **平行心跳**: 5/5 PASS（**11.3s**，超快！ProcessPoolExecutor 5 worker）
-- **Tests**: 5/5 PASS
-- **🔴 連敗 156**：63+輪持平
-- **🔴 Last 100 sell_win=0%**，Last 200=9%，Last 500=32%
-
-### Heartbeat #312 — 2026-04-06 07:25-07:30
-- **DB**: Raw=**9,234** (+0, 62+輪持平), Features=**9,194** (+0), Labels=8,921, sell_win=49.9%
-- **全域 IC**: 3/15（VIX, MACD, BB%B）→ 與 #311 完全一致
-- **TW-IC**: **12/15** → Tongue+0.530 Body+0.510 ATR%+0.443 DXY-0.270 Pulse-0.302 Mind-0.200 Aura-0.178 VWAP+0.140 Eye+0.137 VIX-0.125 RSI14-0.065 Ear-0.053
-- **DW N=100**: **7/8**（Nose -0.177, Aura -0.277, Mind -0.230, Tongue+0.115）
-- **DW N=200**: **5/8** → Mind -0.167, Aura -0.162, Nose -0.114（**微降 vs #311 的 6/8**）
-- **Regime IC**: Bear 4/8, Bull 0/8（持續）, Chop 0/8（**67+輪**）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平），51 features, 8917 samples
-- **市場**: BTC=$68,757 (**🟢🟢 +2.30%**), FNG=12（極度恐懼）, FR=**+0.00006961**（-0.2% 微降），LSR=**1.4085**（**🟢 -252bps**），OI=90,828（+119 BTC）
-- **平行心跳**: 5/5 PASS（**13.7s**，極速）
-- **Tests**: 5/5 PASS
-- **🔴 連敗 156**：62+輪持平
-- **🔴 Last 100 sell_win=0%**，Last 200=9%，Last 500=32%
-- **🟢 LSR 降至 1.4085**: 長倉壓力持續回落（vs #311 的 1.4337）
-
-### Heartbeat #294 — 2026-04-06 02:55-02:59
-- **DB**: Raw=**9,207** (+2), Features=**9,166** (+1), Labels=8,921, sell_win=49.9%（**四十六輪持平**）
-- **全域 IC**: 4/15（VIX, MACD, BB%B, RSI14邊緣）→ 與 #250-#294 **完全一致（四十六輪冰封）**
-- **全域 8 核心**: **0/8** → 與 #250-#294 完全一致
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0% → 完全一致
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**51+ 輪**），Neutral 5/8
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp，95 features，8917 samples（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 **40+ 輪**穩定
-- **市場**: BTC=$67,372 (-0.07%), FNG=12（極度恐懼）, FR=**+0.00003679**（**🟢 首次微降 -2.8%** 從 +0.00003783 → +0.00003679，**三十九輪後首次反向！**），LSR=**1.5740**（-20bps 微降），OI=90,140 BTC（-3，微降）
-- **🟢 FR 首次微降 -2.8%**: 三十九輪高位後首次反向，空頭擁擠初現鬆動！
-- **🟢 LSR -20bps**: 長倉壓力繼續減少
-- **完整平行心跳**: 5/5 PASS（188.0s），3.1 分鐘
-- **Tests**: 7/7 PASS（含 model.predictor）
-- **🔴 連敗**: 156 持續（四十六輪持平）
-- **🔴 Last 500 sell_win=32%** — 近期急劇惡化（持平）
-
-### Heartbeat #293 — 2026-04-06 02:45-02:49
-- **DB**: Raw=**9,205** (+1) / Features=**9,165** (+1) / Labels=8,921（持平，45+ 輪）, sell_win=49.9%
-- **全域 IC**: Global **4/15 TI**（持平，45+ 輪）
-- **TW-IC**: **12/15 合格**（持平，Nose/MACD/BB%B 持續失敗）
-- **DW N=200**: 7/8 通過 → Ear **-0.233** (持續強勢!), 僅 Nose -0.023 失敗
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**50+ 輪**），Neutral 5/8（持平）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp，95 features，8917 samples（持平）
-- **Regime model**: 3 regime 全部訓練保存（bear/bull/chop）
-- **市場**: BTC=$67,419 (+0.07%), FNG=12（極度恐懼）, FR=**+0.00003783**（+0.9% 微升，上升趨勢放緩），LSR=**1.5760**（持平），OI=90,143 BTC（+9，微升）
-- **平行心跳**: 5/5 PASS（**188.6s = 3.1 分鐘**，比 #292 快 7.3s）
-- **Tests**: 7/7 PASS（含 model.predictor）
-- **Raw +1, Features +1**: 微弱增長持續
-- **🔴 連敗 156**：45+ 輪持平，Last 500 sell_win = **32%**（急劇惡化）
-- **🟢 Chop 0/8 50+ 輪**: 里程碑式持續 — 系統在震盪市完全失明
-
-### Heartbeat #292 — 2026-04-06 02:36-02:40
-- **DB**: Raw=9,204 (+1) / Features=9,164 (+1) / Labels=8,921, sell_win=49.9%
-- **全域 IC**: Global 4/15 TI（🟢 從 3/15 回升！）
-- **DW N=200**: 7/8 通過 → Ear -0.233 持續強勢
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（49+ 輪）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp
-- **市場**: BTC=$67,370, FNG=12, FR=+0.00003748, LSR=1.5760, OI=90,134
-- **平行心跳**: 5/5 PASS（195.9s），Tests 7/7 PASS
-- **全域 IC 回升**：3/15 → 4/15
-- **🔴 數據管線持續停滯**: ~18.3 小時（apscheduler 仍需重啟）
-- **🔴 連敗**: 156 持續（三十三輪持平）
-- **🔴 Last 500 sell_win=32%** — 近期急劇惡化（持平）
-
-### Heartbeat #282 — 2026-04-06 00:45-00:49
-- **DB**: Raw=9,180, Features=9,142, Labels=8,921, sell_win=49.9%（**三十三輪持平**）
-- **全域 IC**: 4/15（VIX, RSI14, MACD, BB%B）→ 與 #250-#282 **完全一致（三十三輪冰封）**
-- **TW-IC**: **10/15 合格** — Nose(-0.058), Pulse(+0.088), Aura(-0.092), Mind(-0.080), VIX(-0.098), RSI14(-0.073), ATR%(+0.076), VWAP(-0.101), BB%B(-0.086)
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 完全一致
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**41+ 輪**），Neutral 5/8
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 **38 輪**穩定
-- **市場**: BTC=$67,302 (-0.05%), FNG=12（極度恐懼）, FR=**+0.00002996**（**🟢 +1.4% 上升** 從 +0.00002954 → +0.00002996，三十八輪持續回升！），LSR=**1.5867**（微降），OI=90,011（+4 BTC，穩定）
-- **🟢 FR 持續 +0.00002996**: +1.4% — 三十八輪持續回升，空頭解鎖持續
-- **平行心跳**: 3/3 PASS（fast mode），8.0s
-- **Tests**: 7/7 PASS（含 model.predictor）
-- **🔴🔴🔴 數據管線持續死亡**: ~18.3 小時零增長（apscheduler 仍死）
-- **🔴 連敗**: 156 持續（三十三輪持平）
-- **🔴 Last 500 sell_win=32%** — 近期急劇惡化（持平）
-
-### Heartbeat #280 — 2026-04-06 00:36-00:40
-- **DB**: Raw=9,180, Features=9,142, Labels=8,921, sell_win=49.9%（**三十一輪持平**）
-- **全域 IC**: 4/15（VIX, RSI14, MACD, BB%B）→ 與 #250-#280 **完全一致（三十一輪冰封）**
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 完全一致
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**39+ 輪**），Neutral 5/8
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 **38 輪**穩定
-- **市場**: BTC=$67,336 (-0.004%), FNG=12（極度恐懼）, FR=**+0.00002954**（**🟢🟢🟢 +3.5% 上升** 從 +0.00002854 → +0.00002954，三十六輪持續回升！），LSR=**1.5873**（微升），OI=90,007（+51 BTC，持續重建）
-- **🟢🟢🟢 FR 跳升至 +0.00002954**: +3.5% — 三十六輪持續回升，空頭解鎖持續
-- **平行心跳**: 5/5 PASS，198.8s
-- **Tests**: 7/7 PASS（含 model.predictor）
-- **🔴🔴🔴 數據管線持續死亡**: ~18.2 小時零增長（apscheduler 仍死）
-- **🔴 連敗**: 156 持續（三十一輪持平）
-- **🔴 Last 500 sell_win=32%** — 近期急劇惡化（持平）
-
-### Heartbeat #278 — 2026-04-06 00:14-00:18
-- **DB**: Raw=9,180, Features=9,142, Labels=8,921, sell_win=49.9%（**二十九輪持平**）
-- **全域 IC**: 4/15（VIX, RSI14, MACD, BB%B）→ 與 #250-#278 **完全一致（二十九輪冰封）**
-- **TW-IC**: **11/15 合格**（tau=200）→ Tongue(+0.530), Body(+0.510), ATR%(+0.443), DXY(-0.270), Mind(-0.200), Pulse(-0.302), Aura(-0.178), VIX(-0.125), VWAP(+0.140), Eye(+0.137), Ear(-0.053)
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**37+ 輪**），Neutral 5/8
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 **36 輪**穩定
-- **市場**: BTC=$67,327 (+0.004%), FNG=12（極度恐懼）, FR=**+0.00002436**（**🟢🟢🟢 +20% 跳升！** 從 +0.00002029 → +0.00002436，三十四輪持續回升加速！），LSR=**1.5820**（持續下降），OI=89,842（+76 BTC，小幅重建）
-- **🟢🟢🟢 FR 跳升 +20%**: +0.00002436 — 三十四輪持續回升，空頭解鎖持續加速
-- **🟢 LSR 降至 1.5820**: 從 1.5833 → 1.5820（-13bps，長倉壓力繼續減少）
-- **平行心跳**: 5/5 PASS，198.5s
-- **Tests**: 7/7 PASS（含 model.predictor）
-- **🔴🔴🔴 數據管線持續死亡**: ~17.75 小時零增長（apscheduler 仍死）
-- **🔴 連敗**: 156 持續（二十九輪持平）
-- **🔴 Last 500 sell_win=32%** — 近期急劇惡化（持平）
-
-### Heartbeat #276 — 2026-04-06 00:10-00:15
-- **DB**: Raw=9,180, Features=9,142, Labels=8,921, sell_win=49.9%（**二十七輪持平**）
-- **全域 IC**: 4/15（VIX, RSI14, MACD, BB%B）→ 與 #250-#276 **完全一致（二十七輪冰封）**
-- **TW-IC**: **11/15 合格**（tau=200）→ Tongue(+0.530), Body(+0.510), ATR%(+0.443), DXY(-0.270), Mind(-0.200), Pulse(-0.302), Aura(-0.178), VIX(-0.125), VWAP(+0.140), Eye(+0.137), Ear(-0.053)
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**35+ 輪**），Neutral 5/8
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 **34 輪**穩定
-- **市場**: BTC=$67,364 (-0.2%), FNG=12（極度恐懼）, FR=**+0.00002046**（穩定正值），LSR=**1.5920**（大幅下降，從 1.6288 → -368bps！），OI=89,755（+143 BTC，小幅重建）
-- **🟢🟢 LSR 大幅下降**: 從 1.6288 → **1.5920**（-368bps），長倉壓力大幅減少
-- **平行心跳**: 5/5 PASS，196.8s
-- **Tests**: 7/7 PASS（含 model.predictor）
-- **🔴🔴🔴 數據管線持續死亡**: ~17.75 小時零增長（apscheduler 仍死）
-- **🟢 FR 穩定正值**: +0.00002046 — 三十二輪持續
-- **🔴 連敗**: 156 持續（二十七輪持平）
-- **🔴 Last 500 sell_win=32%** — 近期急劇惡化（持平）
-
-### Heartbeat #275 — 2026-04-06 00:00-00:04
-- **DB**: Raw=9,180, Features=9,142, Labels=8,921, sell_win=49.9%（**二十六輪持平**）
-- **全域 IC**: 4/15（VIX -0.0719, RSI14 -0.0499, MACD -0.0503, BB%B -0.0537）→ 與 #250-#274 **完全一致（二十六輪冰封）**
-- **TW-IC**: **11/15 合格**（tau=200）→ Tongue(+0.530), Body(+0.510), ATR%(+0.443), DXY(-0.270), Mind(-0.200), Pulse(-0.302), Aura(-0.178), VIX(-0.125), VWAP(-0.140), Eye(+0.137), Ear(-0.053)
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**34+ 輪**），Neutral 5/8
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 與 #274 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 **33 輪**穩定
-- **市場**: BTC=$67,503 (+0.82%), FNG=12（極度恐懼）, FR=**+0.00002036**（**🟢🟢🟢 大幅跳升！+44% 本輪，三十一輪持續回升！從最深 -0.00002550 → +0.00002036，空頭完全解鎖持續加速！**），LSR=1.6288（長倉壓力微增），OI=89,612（-278 BTC，大幅減倉）
-- **🟢🟢 BTC 大漲 $67,503** — 突破 $67.5K！市場反彈信號
-- **平行心跳**: 5/5 PASS，192.4s
-- **Tests**: 6/6 PASS
-- **🔴🔴🔴 數據管線持續死亡**: ~17.75 小時零增長（apscheduler 仍死）
-- **🟢🟢 FR 大幅跳升**: +0.00002036 — 三十一輪持續回升，+44% 本輪
-- **🔴 連敗**: 156 持續（二十六輪持平）
-- **🔴 Last 500 sell_win=32%** — 近期急劇惡化
-
-### Heartbeat #273 — 2026-04-05 23:10-23:14
-- **DB**: Raw=9,180, Features=9,142, Labels=8,921, sell_win=49.9%（**二十四輪持平**）
-- **全域 IC**: 4/15（VIX -0.0713, RSI14 -0.0545, MACD -0.0506, BB%B -0.0578）→ 與 #250-#273 **完全一致（二十四輪冰封）**
-- **TW-IC**: 4/15 通過 → 維持高通過率
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**32+ 輪**），Neutral 5/8
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 與 #272 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 **31 輪**穩定
-- **市場**: BTC=$66,937 (-0.63%), FNG=12（極度恐懼）, FR=**+0.00001222**（**🚨二十九輪持續回升→持續強化！從最深 -0.00002550 → +0.00001222，空頭擁擠完全解鎖，長倉進一步撤退！**），LSR=1.6212（長倉壓力略減），OI=90,018（-122 BTC，微減倉）
-- **平行心跳**: 5/5 PASS，195.2s
-- **Tests**: 6/6 PASS
-- **🔴🔴🔴 數據管線持續死亡**: ~16.75 小時零增長（apscheduler 仍死）
-- **🚨🚨🚨 FR 持續回升**: +0.00001222 — 二十九輪持續回升後繼續強化，LSR/OI 雙降佐證
-- **🔴 連敗**: 156 持續（二十四輪持平）
-
-### Heartbeat #272 — 2026-04-05 23:00-23:04
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=49.9%（**十九輪持平**）
-- **全域 IC**: 4/15（VIX -0.0713, RSI14 -0.0545, MACD -0.0506, BB%B -0.0578）→ 與 #250-#268 **完全一致（十九輪冰封）**
-- **TW-IC**: 13/15 通過 → 維持高通過率
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**27+ 輪**），Neutral 5/8
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 與 #267 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 **26 輪**穩定
-- **市場**: BTC=$66,841 (-0.51%), FNG=12（極度恐懼）, FR=**+0.00000182**（**🚨二十五輪持續回升→首次翻正！從最深 -0.00002550 → +0.00000182，空頭擁擠完全解鎖，多空反轉！長倉開始付費！**）
-- **平行心跳**: 5/5 PASS，200.9s
-- **Tests**: 6/6 PASS
-- **🔴🔴🔴 數據管線持續死亡**: ~19 輪零增長（apscheduler 仍死）
-- **🚨🚨🚨 FR 首次翻正**: +0.00000182 — 二十五輪持續回升後從負轉正，空頭完全解鎖，市場轉多信號！
-- **🔴 連敗**: 156 持續（十九輪持平）
-
-### Heartbeat #266 — 2026-04-05 21:52-21:56
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=49.9%（**十七輪持平，hb_parallel_runner.py 新生成**）
-- **全域 IC**: 4/15（VIX -0.0713, RSI14 -0.0545, MACD -0.0506, BB%B -0.0578）→ 與 #250-#266 **完全一致（十七輪冰封）**
-- **TW-IC**: 13/15 通過 → 維持高通過率
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**25+ 輪**），Neutral 5/8
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 與 #265 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 **24 輪**穩定
-- **市場**: BTC=$66,854 (-0.51%), FNG=12（極度恐懼）, FR=**-0.00000705**（**二十三輪持續回升！** 從最深 -0.00002550 → -0.00000705，**+72.4% total**，空頭擁擠大幅解鎖，已達四分之三恢復！）
-- **平行心跳**: 5/5 PASS，190.3s（hb_parallel_runner.py 首秀成功）
-- **Tests**: 6/6 PASS
-- **🔴🔴🔴 數據管線持續死亡**: ~15.5 小時零增長（apscheduler 仍死）
-- **🟢🟢🟢 FR 二十三輪持續回升**: -0.00000705，+72.4% — 空頭解鎖持續，接近翻正
-- **🔴 連敗**: 156 持續（十七輪持平）
-- **🟢 hb_parallel_runner.py**: 新建平行執行器，ProcessPoolExecutor 跑 5 任務
-
-### Heartbeat #264 — 2026-04-05 21:26-21:30
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=49.9%（**十五輪持平**）
-- **全域 IC**: 4/15（RSI14 -0.0545, MACD -0.0506, BB%B -0.0578）→ 與 #250-#264 **完全一致（十五輪冰封）**
-- **TW-IC**: 13/15 通過 → Nose/MACD 僅有失敗
-- **Regime IC**: Bear 4/8, Bull 0/8, Chop 3/8（**24+ 輪**）
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 與 #264 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 **22 輪**穩定
-- **市場**: BTC=$66,750 (-0.57%), FNG=12（極度恐懼）, FR=**-0.00000863**（**二十一輪持續回升！** 從最深 -0.00002550 → -0.00000863，**+66.2% total**，空頭擁擠大幅解鎖，接近零軸！）
-- **平行心跳**: 5/5 PASS，193.9s（比 #263 慢 3.7s）
-- **Tests**: 6/6 PASS
-- **🔴🔴🔴 數據管線持續死亡**: ~19+ 小時零增長（apscheduler 仍死）
-- **🟢🟢🟢 FR 二十一輪持續回升**: -0.00000863，+66.2% — 空頭解鎖持續，接近翻正可能 1-2 輪內
-- **🔴 連敗**: 156 持續（十五輪持平）
-- **🟢 LSR 1.6082 ↑**: 多頭倉位持續增加
-
-
-### Heartbeat #262 — 2026-04-05 20:36-20:40
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=49.9%（**十三輪持平**）
-- **全域 IC**: 4/15（VIX -0.0713, RSI14 -0.0545, MACD -0.0506, BB%B -0.0578）→ 與 #250-#262 **完全一致（十三輪冰封）**
-- **TW-IC**: 4/15 通過 → 與 #262 持平
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**23+ 輪**）
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 與 #262 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 **20 輪**穩定
-- **市場**: BTC=$66,789 (-0.51%), FNG=12（極度恐懼）, FR=**-0.00001654**（**十九輪持續回升！** 從最深 -0.00002550 → -0.00001654，**+35.1% total**，空頭擁擠大幅解鎖）
-- **平行心跳**: 5/5 PASS，195.3s（比 #261 慢 4.7s）
-- **Tests**: 6/6 PASS
-- **🟢🟢🟢 數據管線恢復**: ~369 分鐘未更新（**#261:~831→#262:~369**，-55.8%，apscheduler 已重新運行！）
-- **🟢 FR 十九輪持續回升**: -0.00001654，+35.1% — 空頭解鎖持續，接近翻正
-- **🔴 連敗**: 156 持續（十三輪持平）
-
-### Heartbeat #261 — 2026-04-05 20:20-20:24
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=49.9%（**十二輪持平**）
-- **全域 IC**: 4/15（VIX -0.0713, RSI14 -0.0545, MACD -0.0506, BB%B -0.0578）→ 與 #250-#261 **完全一致（十二輪冰封）**
-- **TW-IC**: 4/15 通過 → 與 #261 持平
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**22+ 輪**）
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 與 #261 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 **19 輪**穩定
-- **市場**: BTC=$66,903 (-0.28%), FNG=12（極度恐懼）, FR=**-0.00001802**（**十八輪加速回升！** 從最深 -0.00002550 → -0.00001802，**+29.3% total，+14.1% 本輪**，空頭擁擠大幅解鎖）
-- **平行心跳**: 5/5 PASS，190.6s（比 #260 慢 1.4s）
-- **Tests**: 6/6 PASS
-- **🔴🔴🔴 數據管線持續死亡**: ~831 分鐘未更新（**#260:~824→#261:~831**，+7 min，apscheduler 仍死）
-- **🟢🟢 FR 加速回升**: 十八輪持續回升（-0.00001802，+29.3%）— 空頭解鎖加速，接近翻正
-- **🔴 連敗**: 156 持續（十二輪持平）
-
-### Heartbeat #259 — 2026-04-05 20:00-20:04
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=49.9%（十一輪持平）
-- **全域 IC**: 4/15（VIX -0.0713, RSI14 -0.0545, MACD -0.0506, BB%B -0.0578）→ 與 #250-#259 **完全一致（十一輪冰封）**
-- **TW-IC**: 4/15 通過 → 與 #259 持平
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**21+ 輪**）
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 與 #259 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 17 輪穩定
-- **市場**: BTC=$66,963 (+0.04%), FNG=12（極度恐懼）, FR=**-0.00002227**（**十八輪持續回升**，從最深 -0.00002550 → -0.00002227，**+12.7%**）
-- **平行心跳**: 5/5 PASS，189.1s（比 #258 快 8.4s）
-- **Tests**: 6/6 PASS
-- **🔴🔴🔴 數據管線持續死亡**: ~814 分鐘未更新（**#258:~798→#259:~814**，+16 min，apscheduler 仍死）
-- **🟢 FR 持續回升**: 十八輪上升（-0.00002227）— 空頭解鎖持續
-- **🔴 連敗**: 156 持續（十一輪持平）
-
-### Heartbeat #260 — 2026-04-05 20:12-20:16
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=49.9%（十一輪持平）
-- **全域 IC**: 4/15（VIX -0.0713, RSI14 -0.0545, MACD -0.0506, BB%B -0.0578）→ 與 #250-#260 **完全一致（十一輪冰封）**
-- **TW-IC**: 4/15 通過 → 與 #260 持平
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**21+ 輪**）
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 與 #260 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 18 輪穩定
-- **市場**: BTC=$66,900 (-0.09%), FNG=12（極度恐懼）, FR=**-0.00002100**（**十六輪持續回升**，從最深 -0.00002550 → -0.00002100，**+17.6%**）
-- **平行心跳**: 5/5 PASS，189.2s（比 #259 持平）
-- **Tests**: 6/6 PASS
-- **🔴🔴🔴 數據管線持續死亡**: ~824 分鐘未更新（**#259:~814→#260:~824**，+10 min，apscheduler 仍死）
-- **🟢 FR 持續回升**: 十六輪上升（-0.00002100）— 空頭解鎖持續
-- **🔴 連敗**: 156 持續（十二輪持平）
-
-### Heartbeat #258 — 2026-04-05 19:50-19:54
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=49.9%（**九輪持平**）
-- **全域 IC**: 4/15（VIX -0.0713, RSI14 -0.0545, MACD -0.0506, BB%B -0.0578）→ 與 #250-#258 **完全一致（九輪冰封）**
-- **TW-IC**: 4/10 核心 → 與 #258 持平
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**19+ 輪**）
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 與 #258 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 16 輪穩定
-- **市場**: BTC=$66,976 (+0.01%), FNG=12（極度恐懼）, FR=**-0.00002401**（**十四輪首次回升！** 從最深 -0.00002550 → -0.00002401，**+5.8% 反向**，十三連加深中斷！）
-- **平行心跳**: 5/5 PASS，197.5s（比 #257 快 1.4s）
-- **Tests**: 6/6 PASS
-- **🔴🔴🔴 數據管線持續死亡**: ~798 分鐘未更新（**#257:~794→#258:~798**，+4 min，apscheduler 仍死）
-- **🟢 FR 首次回升**: 十三連最深後首次反向（-0.00002401）— 可能空頭見頂
-- **🔴 連敗**: 156 持續（九輪持平）
-
-### Heartbeat #255 — 2026-04-05 19:20-19:24
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=49.9%（**六輪持平**）
-- **全域 IC**: 4/15（VIX -0.0713, RSI14 -0.0545, MACD -0.0506, BB%B -0.0578）→ 與 #250-#254 **完全一致（六輪冰封）**
-- **TW-IC**: 4/10 核心 → 與 #254 持平
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**17+ 輪**）
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 與 #254 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 13 輪穩定
-- **市場**: BTC=$67,052 (-0.13%), FNG=12（極度恐懼）, FR=**-0.00002389**（十一創最深！繼續加深，**十一連加深**）
-- **平行心跳**: 5/5 PASS，197.8s（比 #254 慢 3.8s）
-- **Tests**: 6/6 PASS
-- **🔴🔴🔴 數據管線持續死亡**: 769 分鐘未更新（**#254:764→#255:769**，+5 min，apscheduler 仍死）
-- **🔴 連敗**: 156 持續（六輪持平）
-
-### Heartbeat #254 — 2026-04-05 19:11-19:15
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=49.9%（**五輪持平**）
-- **全域 IC**: 4/15（VIX -0.071, RSI14 -0.055, MACD -0.051, BB%B -0.058）→ 與 #250-#253 **完全一致（五輪冰封）**
-- **TW-IC**: 4/10 核心 → 與 #253 持平
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（**16+ 輪**）
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）→ 與 #253 完全一致
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp（持平）
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 12 輪穩定
-- **市場**: BTC=$67,062 (+0.04%), FNG=12（極度恐懼）, FR=**-0.00002379**（十創最深！10.8% 加深，**十連加速**）
-- **平行心跳**: 5/5 PASS，194.0s（比 #253 慢 4.3s）
-- **Tests**: 6/6 PASS
-- **🔴🔴🔴 數據管線崩潰**: 764 分鐘未更新（**斷崖崩潰：#253:271→#254:764**，+493 min = 12.7h，apscheduler 已死）
-- **🔴 連敗**: 156 持續（五輪持平）
-
-### Heartbeat #250 — 2026-04-05 18:16-18:20
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=49.9%（持平）
-- **全域 IC**: 4/15（VIX -0.071, RSI14 -0.055, MACD -0.051, BB%B -0.058）→ 與 #249 完全一致
-- **TW-IC**: 7/8 核心（Tongue +0.530, Body +0.510, ATR +0.443, VIX -0.125, DXY -0.270）
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（持續 **12+ 輪** — 新記錄）
-- **DW N=200**: 7/8 通過（Nose -0.023 唯一失敗），CV=97.0%（200 樣本，過擬警告）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp
-- **Regime model**: 3 regime 全部保存（bear/bull/chop），連續 8 輪穩定
-- **市場**: BTC=$66,955 (-0.08%), FNG=12（極度恐懼）, FR=**-0.00001448**（刷新歷史最深！1.8x 加深）
-- **平行心跳**: 5/5 PASS，191.0s（比 #249 快 4.1s）
-- **Tests**: 6/6 PASS
-- **🔴 數據管線**: 706 分鐘未更新（**急劇惡化：#249:206→#250:706**，+500 分鐘 = 12h 斷崖跳升）
-- **🔴 連敗**: 156 持續
-
-### Heartbeat #246 — 2026-04-05 17:25-17:30
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=49.9%（持平）
-- **全域 IC**: 4/15（VIX -0.071, RSI14 -0.055, MACD -0.051, BB%B -0.058）→ 與 #245 完全一致
-- **TW-IC**: 9/10 核心（Tongue +0.530, Body +0.510, ATR +0.443）
-- **Regime IC**: Bear 3/8, Bull 2/8, Chop 0/8（持續 8+ 輪）
-- **DW N=200**: 7/8 通過，CV=97.0%（200 樣本，過擬警告）
-- **Global model**: Train=63.9%, CV=51.4%, gap=12.5pp
-- **市場**: BTC=$66,994 (+0.14%), FNG=12（極度恐懼）, FR=0.00000210（-67%）
-- **平行心跳**: 6/6 PASS, 200.9s
-- **Tests**: 6/6 PASS, Backtest PASS
-- **🔴 數據管線**: 175 分鐘未更新（持續惡化：#244=160→#245=160→#246=175）
-- **🔴 連敗**: 156 持續
-
-### Heartbeat #245 — 2026-04-05 17:15-17:20
-- **DB**: Raw=9180, Features=9142, Labels=8921（持平）
-- **全域 IC**: 4/15, TW-IC 9/10, DW N=200: 7/8
-- **CV**: 51.4%（持平）
-- **連敗**: 156
-- **數據管線**: 160 分鐘未更新
-
-### Heartbeat #223 — 2026-04-05 10:23-10:45
-- **DB**: Raw=9180, Features=9142, Labels=8921, sell_win=50.8%
-- **TW-IC**: Tongue +0.53, Body +0.51, Pulse -0.30, Mind -0.20 → 7/8 核心通過
-- **CV**: 52.3% (gap 12.5pp) — 正則化增強後改善
-- **P1 新增**: NQ (納斯達克) 納入 macro_data.py
-- **P1 新增**: 10 個新特徵加入代碼 (Claw, Fang, Fin, Web, Scales, Nest + TI)
-- **Feature count**: 10 → 20 (含交叉特徵 14 個)
-- **前端**: 需要更新 RadarChart 到 20 鍵
-- **Cron issue**: 串行心跳超時 (22min > 10min limit) → 改用 hb_parallel_runner.py
-
----
-
-## 紀律
-
-1. **每次都讀** AI_AGENT_ROLE.md → 不可跳過
-2. **全流程執行** Step 0-8 → 不做半套
-3. **D 必須轉化為行動** → 不寫在文件裡就不算做了
-4. **不問用戶，發現問題直接修** → 你是閉迴路 AI
-5. **每次修改都 commit** → git 歷史要清
-6. **負熵思維** → 每次心跳都要問：「今天比昨天更有序嗎？」
-7. **Feature ETF** → 用 IC 說話，不憑感覺
-8. **平行執行** → 串行超時就用 parallel runner
-
----
-
-## 通往 90% 勝率的策略路線
-
-> 每一輪心跳都必須對照這份路線圖，檢查進度與偏離。
-
-### Phase A：資料品質（地基）
-- [ ] 確保 raw → features → labels 三層管線無 future leakage
-- [ ] 每個 feature 都有 IC 實證，IC < 0.05 的特徵必須替換
-- [ ] 歷史資料能回放、能重算、版本化
-- [ ] 標籤定義與交易行為完全對齊（sell_win 是核心標籤）
-
-### Phase B：模型校準（核心引擎）
-- [ ] Feature ETF 動態權重 fusion 取代固定權重
-- [ ] 信心校準（Platt / isotonic / temperature scaling）
-- [ ] 市場狀態感知模型選擇（不同 regime 用不同模型）
-- [ ] 放棄交易機制：低信心不交易
-
-### Phase C：回測可驗證（檢驗）
-- [ ] 回測結果可重跑、可比對、可追溯
-- [ ] 賣出勝率、利潤因子、夏普比率全部在 dashboard 顯示
-- [ ] 回測與上線指標完全一致，不偷換
-
-### Phase D：儀表板可用（可視化）
-- [ ] 雷達圖顯示 20 個特徵
-- [ ] IC 條形圖、ETF 權重圓環
-- [ ] 價格 × 多特徵 overlay 圖清晰可辨
-- [ ] 空圖要顯示具體原因，不是留白
-- [ ] 3 秒內看懂，暗色主題，中文界面
-
-### Phase E：負熵永動機（持續進化）
-- [x] 20 個特徵代碼已寫入 (Heartbeat #223)
-- [ ] 等新數據累積 24-48h 後驗算 IC
-- [ ] 根據 IC 淘汰 C/D 級特徵
-- [ ] 繼續引入新數據源：Twitter/X、新聞、巨觀日曆
+> 我不是來描述專案卡住；我是來讓它不再卡住。  
+> 我不是來追加觀察；我是來完成閉環。  
+> 我不是來當記錄員；我是來當嚴厲的專案推行者。

@@ -64,15 +64,18 @@ class ModelLeaderboard:
         'lightgbm', 'catboost', 'random_forest', 'mlp', 'svm', 'ensemble'
     ]
 
-    def __init__(self, data_df: pd.DataFrame):
+    def __init__(self, data_df: pd.DataFrame, target_col: str = 'simulated_pyramid_win'):
         """
         Args:
-            data_df: 必須包含 timestamp, close_price, label_spot_long_win,
+            data_df: 必須包含 timestamp, close_price, target label,
                       feat_4h_bias50, feat_4h_rsi14 等欄位
+            target_col: Which label column to optimize. Supports
+                        label_spot_long_win and simulated_pyramid_win.
         """
         self.data = data_df.copy()
         self.data['timestamp'] = pd.to_datetime(self.data['timestamp'])
         self.data = self.data.sort_values('timestamp').reset_index(drop=True)
+        self.target_col = target_col
 
     def _get_walk_forward_splits(self) -> List[Tuple[str, str, str, str]]:
         """產生 Walk-Forward 折疊列表: (train_start, train_end, test_start, test_end)"""
@@ -114,9 +117,11 @@ class ModelLeaderboard:
         if model_name == 'xgboost':
             from xgboost import XGBClassifier
             m = XGBClassifier(
-                n_estimators=200, max_depth=4, learning_rate=0.05,
-                colsample_bytree=0.6, subsample=0.7,
-                scale_pos_weight=1.0, reg_alpha=0.1, reg_lambda=1.0,
+                n_estimators=120, max_depth=3, learning_rate=0.035,
+                min_child_weight=10, gamma=0.2,
+                colsample_bytree=0.55, subsample=0.6,
+                scale_pos_weight=1.0, reg_alpha=0.8, reg_lambda=3.0,
+                max_delta_step=1,
                 random_state=42, eval_metric='logloss', verbosity=0
             )
             m.fit(X_train, y_train)
@@ -163,8 +168,10 @@ class ModelLeaderboard:
             try:
                 import lightgbm as lgb
                 m = lgb.LGBMClassifier(
-                    n_estimators=200, max_depth=6, learning_rate=0.05,
-                    num_leaves=31, reg_alpha=0.1, reg_lambda=1.0,
+                    n_estimators=140, max_depth=4, learning_rate=0.04,
+                    num_leaves=15, min_child_samples=40,
+                    subsample=0.65, colsample_bytree=0.6,
+                    reg_alpha=0.8, reg_lambda=3.0,
                     random_state=42, verbose=-1
                 )
                 m.fit(X_train, y_train)
@@ -175,8 +182,10 @@ class ModelLeaderboard:
             try:
                 from catboost import CatBoostClassifier
                 m = CatBoostClassifier(
-                    iterations=300, depth=4, learning_rate=0.05,
-                    l2_leaf_reg=5.0, loss_function='Logloss',
+                    iterations=180, depth=3, learning_rate=0.035,
+                    min_data_in_leaf=40, random_strength=1.5,
+                    bootstrap_type='Bernoulli', subsample=0.65,
+                    l2_leaf_reg=8.0, loss_function='Logloss',
                     random_seed=42, verbose=False
                 )
                 m.fit(X_train, y_train)
@@ -232,11 +241,14 @@ class ModelLeaderboard:
         # 加入價格
         feature_cols_full = feature_cols + ['close_price']
 
+        if self.target_col not in train_df.columns or self.target_col not in test_df.columns:
+            return None
+
         X_train = train_df[feature_cols].fillna(0).values
-        y_train = train_df['label_spot_long_win'].fillna(0).astype(int).values  # 1 = spot-long target achieved
+        y_train = train_df[self.target_col].fillna(0).astype(int).values
 
         X_test = test_df[feature_cols].fillna(0).values
-        y_test = test_df['label_spot_long_win'].fillna(0).astype(int).values
+        y_test = test_df[self.target_col].fillna(0).astype(int).values
 
         if model_name == 'rule_baseline':
             # 用 bias50 反轉作為信心：bias50 越低，越該買
@@ -331,6 +343,7 @@ class ModelLeaderboard:
             avg_win_rate=np.mean(wrs),
             avg_trades=np.mean([f.total_trades for f in folds]),
             avg_max_drawdown=np.mean([f.max_drawdown for f in folds]),
+            avg_profit_factor=np.mean([f.profit_factor for f in folds]),
             std_roi=np.std(rois),
             train_accuracy=np.mean(all_train_accs) if all_train_accs else 0,
             test_accuracy=np.mean(all_test_accs) if all_test_accs else 0,

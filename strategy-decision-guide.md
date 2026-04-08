@@ -197,13 +197,13 @@ mia 追問或複雜度高？
 | 策略 | 好處 | 風險／代價 | 治標/治本 | 適用條件 | 建議 |
 |---|---|---|---|---|---|
 | 繼續用 `label_spot_long_win` / 漲跌方向做訓練 | 不用立刻改很多程式 | 目標函數錯位，模型會學成「短線方向」或「做空勝率」，無法代表現貨 long pyramid 是否成功 | 治標 | 只做研究回顧、不要實盤一致性 | ❌ 不建議 |
-| 改成 `label_spot_long_win` 作為 canonical target，並同步 training / prediction / leaderboard | 讓標籤、模型、回測與實際交易目標完全對齊 | 需要回填 labels、重訓模型、重算 leaderboard 與 IC | 治本 | 目標是現貨 long pyramid，重視 ROI / drawdown / 勝率一致性 | ✅ 推薦 |
+| 改成 `simulated_pyramid_win` 作為 canonical target，並同步 training / prediction / leaderboard | 讓標籤、模型、回測與實際交易目標完全對齊；path-aware `label_spot_long_win` 保留做比較診斷 | 需要回填 labels、重訓模型、重算 leaderboard 與 IC | 治本 | 目標是現貨 long pyramid，重視 ROI / drawdown / 勝率一致性 | ✅ 推薦 |
 
 ### 第二階：效益前提驗證
 
 | 前提條件 | 原本假設 | 現況 | 影響 |
 |---|---|---|---|
-| 標籤定義反映真實交易目標 | `label_spot_long_win` 就足夠 | ❌ 不成立；它描述的是舊世界的方向/做空語義 | 必須改成 `label_spot_long_win` |
+| 標籤定義反映真實交易目標 | `label_spot_long_win` 就足夠 | ❌ 不成立；它仍偏向 path-aware binary，無法完整表達金字塔交易結果 | 必須升級到 `simulated_pyramid_win`，並保留 `label_spot_long_win` 做比較 |
 | 模型訓練與推論使用同一個 target | 目前 pipeline 已一致 | ❌ 不成立；training / predictor / leaderboard 曾各自引用舊 target | 需要全鏈路對齊 |
 | 回測分數能代表實盤效果 | accuracy / IC 上升即可 | ❌ 不成立；指標提升不等於 pyramid ROI 提升 | 要以 spot-long win / 回撤作為主評估 |
 
@@ -219,11 +219,11 @@ mia 追問或複雜度高？
 
 ### 已驗證的修正結果
 
-- 已將 24h 標籤回填為 `label_spot_long_win` 的 canonical 定義。
-- 已重新訓練模型，最新 `model_metrics` 顯示：`Train=0.7806`, `Rolling-CV=0.5452±0.0783`, `n_features=72`。
+- 已將 24h path-aware 標籤回填為 `label_spot_long_win`，並新增第一版 `simulated_pyramid_win / pnl / quality`。
+- target comparison 已顯示 `simulated_pyramid_win` 比 path-aware target 更穩，且 CV 顯著更高。
 - 這代表系統的主要瓶頸已不是單純的模型能力，而是**目標對齊**與**評估指標對齊**。
 
-**修正方向**：統一以 `label_spot_long_win` 為 canonical target，並把 `future_max_drawdown`、`future_return_pct` 一併納入資料與評估，才能讓整個 label / training / prediction / leaderboard 真正對齊你的現貨 pyramid 策略。
+**修正方向**：統一以 `simulated_pyramid_win` 為 canonical target，並保留 `label_spot_long_win` 作 path-aware 比較；同時把 drawdown、pnl、quality 一併納入資料與評估，才能讓整個 label / training / prediction / leaderboard 真正對齊你的現貨 pyramid 策略。
 
 **最後更新**: 2026-04-08
 **適用對象**: 所有使用 Claude Code 的團隊成員

@@ -13,6 +13,7 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+DEFAULT_TARGET_COL = "simulated_pyramid_win"
 MODEL_PATH = "model/xgb_model.pkl"
 # Core 8 senses: IC-validated, non-constant features
 BASE_FEATURE_COLS = [
@@ -76,8 +77,9 @@ def _global_ic(session):
     sense_cols = [getattr(FeaturesNormalized, c) for c in sense_col_names]
 
     feat_rows = session.query(FeaturesNormalized.timestamp, *sense_cols).order_by(FeaturesNormalized.timestamp).all()
-    label_rows = session.query(Labels.timestamp, Labels.label_spot_long_win).filter(
-        Labels.label_spot_long_win.isnot(None), Labels.horizon_minutes == 1440).order_by(Labels.timestamp).all()
+    label_target = getattr(Labels, DEFAULT_TARGET_COL, Labels.label_spot_long_win)
+    label_rows = session.query(Labels.timestamp, label_target).filter(
+        label_target.isnot(None), Labels.horizon_minutes == 1440).order_by(Labels.timestamp).all()
 
     feat_by_ts = {r[0]: {sense_col_names[i]: r[1+i] for i in range(len(sense_cols))} for r in feat_rows}
     labels_by_ts = {r[0]: int(r[1]) for r in label_rows}
@@ -121,8 +123,9 @@ def _time_weighted_ic(session, tau=200):
 
     # Load time-ordered features + labels
     feat_rows = session.query(FeaturesNormalized.timestamp, *sense_cols).order_by(FeaturesNormalized.timestamp).all()
-    label_rows = session.query(Labels.timestamp, Labels.label_spot_long_win).filter(
-        Labels.label_spot_long_win.isnot(None), Labels.horizon_minutes == 1440).order_by(Labels.timestamp).all()
+    label_target = getattr(Labels, DEFAULT_TARGET_COL, Labels.label_spot_long_win)
+    label_rows = session.query(Labels.timestamp, label_target).filter(
+        label_target.isnot(None), Labels.horizon_minutes == 1440).order_by(Labels.timestamp).all()
 
     feat_by_ts = {r[0]: {sense_col_names[i]: r[1+i] for i in range(len(sense_cols))} for r in feat_rows}
     labels_by_ts = {r[0]: int(r[1]) for r in label_rows}
@@ -162,6 +165,7 @@ class XGBoostPredictor:
         self._calibration = {"kind": "none"}
         self._regime_threshold_bias = REGIME_THRESHOLD_BIAS.copy()
 
+        self._target_col = DEFAULT_TARGET_COL
         if isinstance(model, dict):
             self._clf = model.get("clf")
             self._imputer = model.get("imputer")
@@ -169,6 +173,7 @@ class XGBoostPredictor:
             self._calibration = model.get("calibration", {"kind": "none"})
             self._feature_names = model.get("feature_names")
             self._regime_threshold_bias = model.get("regime_threshold_bias", REGIME_THRESHOLD_BIAS.copy())
+            self._target_col = model.get("target_col", DEFAULT_TARGET_COL)
         else:
             self._clf = model
         self.model = model
@@ -463,9 +468,10 @@ def _check_circuit_breaker(session) -> Optional[Dict]:
     from database.models import Labels
 
     # Check consecutive recent target failures from most recent backwards
+    label_target = getattr(Labels, DEFAULT_TARGET_COL, Labels.label_spot_long_win)
     recent_labels = (
-        session.query(Labels.label_spot_long_win)
-        .filter(Labels.label_spot_long_win.isnot(None))
+        session.query(label_target)
+        .filter(label_target.isnot(None))
         .order_by(Labels.timestamp.desc())
         .all()
     )
@@ -633,6 +639,7 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
         "confidence_level": confidence_level,
         "should_trade": signal == "BUY",
         "model_type": "ic_fusion_time_weighted_v2_nose_excluded",
+        "target_col": DEFAULT_TARGET_COL,
         "ic_values": tw_ics,
         "active_senses": active_senses,
         "excluded_senses": [s for s in sense_cols if s not in active_senses],
@@ -707,6 +714,7 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
         "should_trade": signal == "BUY",
         "model_type": type(predictor).__name__,
         "used_model": used_model,
+        "target_col": getattr(getattr(predictor, '_global', predictor), '_target_col', DEFAULT_TARGET_COL),
     }
     logger.info(f"Prediction: conf={confidence:.4f}, signal={signal}, level={confidence_level}")
     return result

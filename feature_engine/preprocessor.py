@@ -181,6 +181,7 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
 
     features = {
         "timestamp": latest.get("timestamp", datetime.utcnow()),
+        "symbol": latest.get("symbol", "BTCUSDT"),
     }
 
     # 1. Eye (v4b): return_24h / vol_72h — 24期回報除以72期波動率
@@ -456,12 +457,41 @@ def save_features_to_db(
     """保存特徵（含去重檢查）。"""
     try:
         ts = features["timestamp"]
+        symbol = features.get("symbol", "BTCUSDT")
         existing = (
             session.query(FeaturesNormalized)
             .filter(FeaturesNormalized.timestamp == ts)
+            .filter((FeaturesNormalized.symbol == symbol) | (FeaturesNormalized.symbol.is_(None)))
+            .order_by(FeaturesNormalized.symbol.is_(None))
             .first()
         )
         if existing:
+            existing.symbol = symbol
+            existing.feat_eye = features.get("feat_eye", features.get("feat_eye_dist"))
+            existing.feat_ear = features.get("feat_ear", features.get("feat_ear_zscore"))
+            existing.feat_nose = features.get("feat_nose", features.get("feat_nose_sigmoid"))
+            existing.feat_tongue = features.get("feat_tongue", features.get("feat_tongue_pct"))
+            existing.feat_body = features.get("feat_body", features.get("feat_body_roc"))
+            existing.feat_pulse = features.get("feat_pulse")
+            existing.feat_aura = features.get("feat_aura")
+            existing.feat_mind = features.get("feat_mind")
+            existing.feat_rsi14 = features.get("feat_rsi14")
+            existing.feat_macd_hist = features.get("feat_macd_hist")
+            existing.feat_atr_pct = features.get("feat_atr_pct")
+            existing.feat_vwap_dev = features.get("feat_vwap_dev")
+            existing.feat_bb_pct_b = features.get("feat_bb_pct_b")
+            existing.feat_vix = features.get("feat_vix")
+            existing.feat_dxy = features.get("feat_dxy")
+            existing.feat_nq_return_1h = features.get("feat_nq_return_1h")
+            existing.feat_nq_return_24h = features.get("feat_nq_return_24h")
+            existing.feat_claw = features.get("feat_claw")
+            existing.feat_claw_intensity = features.get("feat_claw_intensity")
+            existing.feat_fang_pcr = features.get("feat_fang_pcr")
+            existing.feat_fang_skew = features.get("feat_fang_skew")
+            existing.feat_fin_netflow = features.get("feat_fin_netflow")
+            existing.feat_web_whale = features.get("feat_web_whale")
+            existing.feat_scales_ssr = features.get("feat_scales_ssr")
+            existing.feat_nest_pred = features.get("feat_nest_pred")
             existing.feat_4h_bias50 = features.get("feat_4h_bias50")
             existing.feat_4h_bias20 = features.get("feat_4h_bias20")
             existing.feat_4h_rsi14 = features.get("feat_4h_rsi14")
@@ -476,6 +506,7 @@ def save_features_to_db(
 
         record = FeaturesNormalized(
             timestamp=ts,
+            symbol=symbol,
             feat_eye_dist=features.get("feat_eye_dist"),
             feat_ear_zscore=features.get("feat_ear_zscore"),
             feat_nose_sigmoid=features.get("feat_nose_sigmoid"),
@@ -561,11 +592,14 @@ def recompute_all_features(session: Session, symbol: str = "BTCUSDT") -> int:
         existing = (
             session.query(FeaturesNormalized)
             .filter(FeaturesNormalized.timestamp == ts)
+            .filter((FeaturesNormalized.symbol == symbol) | (FeaturesNormalized.symbol.is_(None)))
+            .order_by(FeaturesNormalized.symbol.is_(None))
             .first()
         )
         if existing:
             features = compute_features_from_raw(window)
             if features:
+                existing.symbol = symbol
                 existing.feat_eye = features.get("feat_eye_dist", features.get("feat_eye"))
                 existing.feat_ear = features.get("feat_ear_zscore", features.get("feat_ear"))
                 existing.feat_nose = features.get("feat_nose_sigmoid", features.get("feat_nose"))
@@ -598,6 +632,7 @@ def recompute_all_features(session: Session, symbol: str = "BTCUSDT") -> int:
             if features:
                 record = FeaturesNormalized(
                     timestamp=ts,
+                    symbol=symbol,
                     **{k: v for k, v in features.items() if k.startswith("feat_")}
                 )
                 session.add(record)

@@ -12,6 +12,15 @@ interface RegimeBreakdownEntry {
   total_pnl?: number | null;
 }
 
+interface BenchmarkEntry {
+  label: string;
+  roi?: number | null;
+  win_rate?: number | null;
+  total_pnl?: number | null;
+  total_trades?: number | null;
+  profit_factor?: number | null;
+}
+
 interface StrategyResult {
   roi: number;
   win_rate: number;
@@ -21,7 +30,12 @@ interface StrategyResult {
   max_drawdown: number;
   profit_factor: number;
   total_pnl: number;
+  max_consecutive_losses?: number;
   regime_breakdown?: RegimeBreakdownEntry[];
+  benchmarks?: {
+    buy_hold?: BenchmarkEntry;
+    blind_pyramid?: BenchmarkEntry;
+  };
   run_at?: string;
 }
 
@@ -31,6 +45,11 @@ interface StrategyEntry {
   definition: { type: string; params: Record<string, any> };
   last_results?: StrategyResult;
   run_count: number;
+  stability_score?: number | null;
+  stability_label?: string;
+  overfit_risk?: "low" | "medium" | "high" | "unknown";
+  trade_sufficiency?: "high" | "medium" | "low" | "unknown";
+  risk_reasons?: string[];
 }
 
 interface ModelLeaderboardEntry {
@@ -45,6 +64,8 @@ interface ModelLeaderboardEntry {
   test_acc: number;
   train_test_gap: number;
   composite: number;
+  is_overfit?: boolean;
+  overfit_reason?: string | null;
   folds: Array<{
     fold: number;
     roi: number;
@@ -53,6 +74,27 @@ interface ModelLeaderboardEntry {
     max_dd: number;
     profit_factor: number;
   }>;
+}
+
+interface TargetComparisonEntry {
+  target_col: string;
+  label: string;
+  samples: number;
+  positive_ratio: number;
+  models_evaluated: number;
+  best_model?: ModelLeaderboardEntry | null;
+}
+
+interface ModelLeaderboardMeta {
+  refreshing?: boolean;
+  cached?: boolean;
+  stale?: boolean;
+  updated_at?: string | null;
+  cache_age_sec?: number | null;
+  warning?: string | null;
+  error?: string | null;
+  target_col?: string | null;
+  target_label?: string | null;
 }
 
 const DEFAULT_PARAMS = {
@@ -95,11 +137,34 @@ const regimeLabelMap: Record<string, string> = {
   unknown: "未知",
 };
 
+const strategyRiskTone: Record<string, string> = {
+  low: "text-emerald-300 bg-emerald-900/20 border-emerald-700/30",
+  medium: "text-yellow-300 bg-yellow-900/20 border-yellow-700/30",
+  high: "text-red-300 bg-red-900/20 border-red-700/30",
+  unknown: "text-slate-300 bg-slate-800/50 border-slate-700/40",
+};
+
+const strategyRiskLabel: Record<string, string> = {
+  low: "低",
+  medium: "中",
+  high: "高",
+  unknown: "—",
+};
+
+const sufficiencyLabel: Record<string, string> = {
+  high: "充足",
+  medium: "普通",
+  low: "不足",
+  unknown: "—",
+};
+
 const OVERFIT_GAP_THRESHOLD = 0.12;
 
 export default function StrategyLab() {
   const [strategies, setStrategies] = useState<StrategyEntry[]>([]);
   const [modelLeaderboard, setModelLeaderboard] = useState<ModelLeaderboardEntry[]>([]);
+  const [targetComparison, setTargetComparison] = useState<TargetComparisonEntry[]>([]);
+  const [modelMeta, setModelMeta] = useState<ModelLeaderboardMeta>({});
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<StrategyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -129,15 +194,30 @@ export default function StrategyLab() {
     }
   };
 
-  const loadModelLeaderboard = async () => {
+  const loadModelLeaderboard = async (forceRefresh = false) => {
     try {
-      const res = await fetchApi("/api/models/leaderboard");
+      const res = await fetchApi(`/api/models/leaderboard${forceRefresh ? "?refresh=true" : ""}`);
       const data = res as any;
       const list = data?.leaderboard ?? [];
+      const comparison = data?.target_comparison ?? [];
       setModelLeaderboard(Array.isArray(list) ? list : []);
+      setTargetComparison(Array.isArray(comparison) ? comparison : []);
+      setModelMeta({
+        refreshing: !!data?.refreshing,
+        cached: !!data?.cached,
+        stale: !!data?.stale,
+        updated_at: data?.updated_at ?? null,
+        cache_age_sec: data?.cache_age_sec ?? null,
+        warning: data?.warning ?? null,
+        error: data?.error ?? null,
+        target_col: data?.target_col ?? null,
+        target_label: data?.target_label ?? null,
+      });
     } catch (err) {
       console.error("Model leaderboard error:", err);
       setModelLeaderboard([]);
+      setTargetComparison([]);
+      setModelMeta({ error: "模型排行榜載入失敗" });
     }
   };
 
@@ -146,14 +226,43 @@ export default function StrategyLab() {
     loadModelLeaderboard();
   }, []);
 
+  useEffect(() => {
+    if (!modelMeta.refreshing) return;
+    const timer = window.setTimeout(() => {
+      loadModelLeaderboard(false);
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [modelMeta.refreshing]);
+
   const recommendedModels = useMemo(
-    () => modelLeaderboard.filter((m) => m.train_test_gap <= OVERFIT_GAP_THRESHOLD),
+    () => modelLeaderboard.filter((m) => !m.is_overfit && m.train_test_gap <= OVERFIT_GAP_THRESHOLD),
     [modelLeaderboard]
   );
 
   const eliminatedModels = useMemo(
-    () => modelLeaderboard.filter((m) => m.train_test_gap > OVERFIT_GAP_THRESHOLD),
+    () => modelLeaderboard.filter((m) => m.is_overfit || m.train_test_gap > OVERFIT_GAP_THRESHOLD),
     [modelLeaderboard]
+  );
+
+  const bestStrategyWinRate = useMemo(
+    () => [...strategies]
+      .filter((s) => isFiniteNumber(s.last_results?.win_rate))
+      .sort((a, b) => (b.last_results?.win_rate ?? -1) - (a.last_results?.win_rate ?? -1))[0],
+    [strategies]
+  );
+
+  const bestStrategyRoi = useMemo(
+    () => [...strategies]
+      .filter((s) => isFiniteNumber(s.last_results?.roi))
+      .sort((a, b) => (b.last_results?.roi ?? -999) - (a.last_results?.roi ?? -999))[0],
+    [strategies]
+  );
+
+  const bestModelWinRate = useMemo(
+    () => [...recommendedModels]
+      .filter((m) => isFiniteNumber(m.avg_win_rate))
+      .sort((a, b) => b.avg_win_rate - a.avg_win_rate)[0],
+    [recommendedModels]
   );
 
   const handleRun = async () => {
@@ -237,6 +346,12 @@ export default function StrategyLab() {
     setStopLoss(p2.stopLoss); setTpBias(p2.tpBias); setTpRoi(p2.tpRoi);
     setLayer1(p2.l1); setLayer2(p2.l2); setLayer3(p2.l3);
   };
+
+  const benchmarkCards = [
+    runResult?.benchmarks?.buy_hold,
+    runResult?.benchmarks?.blind_pyramid,
+    runResult ? { label: "你的策略", roi: runResult.roi, win_rate: runResult.win_rate, total_pnl: runResult.total_pnl, profit_factor: runResult.profit_factor } : null,
+  ].filter(Boolean) as BenchmarkEntry[];
 
   return (
     <div className="space-y-4">
@@ -401,24 +516,64 @@ export default function StrategyLab() {
             </div>
           )}
 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
+              <div className="text-xs text-slate-500">目前最高策略勝率</div>
+              <div className="mt-2 text-2xl font-bold text-emerald-300">
+                {bestStrategyWinRate ? formatPct(bestStrategyWinRate.last_results?.win_rate, 1) : '—'}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">
+                {bestStrategyWinRate ? `${bestStrategyWinRate.name} · ${formatPct(bestStrategyWinRate.last_results?.roi, 1, true)} ROI` : '先執行並儲存至少一個策略'}
+              </div>
+            </div>
+            <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
+              <div className="text-xs text-slate-500">目前最佳策略 ROI</div>
+              <div className="mt-2 text-2xl font-bold text-blue-300">
+                {bestStrategyRoi ? formatPct(bestStrategyRoi.last_results?.roi, 1, true) : '—'}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">
+                {bestStrategyRoi ? `${bestStrategyRoi.name} · ${formatPct(bestStrategyRoi.last_results?.win_rate, 1)} 勝率` : '尚無策略排行資料'}
+              </div>
+            </div>
+            <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
+              <div className="text-xs text-slate-500">保留模型最高勝率</div>
+              <div className="mt-2 text-2xl font-bold text-violet-300">
+                {bestModelWinRate ? formatPct(bestModelWinRate.avg_win_rate, 1) : '—'}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">
+                {bestModelWinRate ? `${bestModelWinRate.model_name} · Gap ${formatDecimal(bestModelWinRate.train_test_gap * 100, 1)}pp` : '避免展示已淘汰過擬合模型'}
+              </div>
+            </div>
+          </div>
+
           {/* Benchmark comparison */}
           <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
-            <h3 className="text-sm font-semibold text-slate-300 mb-3">📈 基準對比</h3>
-            <div className="grid grid-cols-3 gap-3 text-center text-xs">
-              <div className="bg-slate-800/30 rounded p-2">
-                <div className="text-slate-500">買入持有</div>
-                <div className="text-lg font-bold text-red-400">-18.9%</div>
-              </div>
-              <div className="bg-slate-800/30 rounded p-2">
-                <div className="text-slate-500">盲金字塔</div>
-                <div className="text-lg font-bold text-yellow-400">-29.4%</div>
-              </div>
-              <div className="bg-slate-800/30 rounded p-2">
-                <div className="text-slate-500">你的策略</div>
-                <div className={`text-lg font-bold ${runResult ? (runResult.roi > 0 ? 'text-green-400' : 'text-red-400') : 'text-slate-500'}`}>
-                  {runResult ? formatPct(runResult.roi, 1, true) : '—'}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-300">📈 基準對比</h3>
+              <span className="text-xs text-slate-500">改為和當前回測同一批資料動態計算，不再顯示過時固定數值</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              {benchmarkCards.map((card) => {
+                const roi = card.roi;
+                return (
+                  <div key={card.label} className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/40">
+                    <div className="text-slate-400">{card.label}</div>
+                    <div className={`mt-2 text-2xl font-bold ${isFiniteNumber(roi) ? (roi >= 0 ? 'text-green-400' : 'text-red-400') : 'text-slate-500'}`}>
+                      {formatPct(roi, 1, true)}
+                    </div>
+                    <div className="mt-2 space-y-1 text-[11px] text-slate-500">
+                      <div>勝率：{formatPct(card.win_rate, 1)}</div>
+                      <div>交易：{isFiniteNumber(card.total_trades) ? card.total_trades : '—'}</div>
+                      <div>PF：{formatDecimal(card.profit_factor)}</div>
+                    </div>
+                  </div>
+                );
+              })}
+              {!runResult && (
+                <div className="md:col-span-3 rounded-lg border border-dashed border-slate-700/60 p-4 text-center text-slate-500">
+                  執行一次回測後，這裡會顯示與同批資料同步計算的買入持有 / 盲金字塔 / 你的策略對比。
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -480,17 +635,24 @@ export default function StrategyLab() {
                     <th className="text-right py-2 px-2">交易</th>
                     <th className="text-right py-2 px-2">PF</th>
                     <th className="text-right py-2 px-2">最大回撤</th>
+                    <th className="text-right py-2 px-2">連敗</th>
+                    <th className="text-right py-2 px-2">穩定度</th>
+                    <th className="text-right py-2 px-2">過擬合風險</th>
+                    <th className="text-right py-2 px-2">樣本充足性</th>
                   </tr>
                 </thead>
                 <tbody>
                   {strategies.map((s, i) => {
                     const r = s.last_results;
                     return (
-                      <tr key={s.name} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                      <tr key={s.name} className="border-b border-slate-800/50 hover:bg-slate-800/30 align-top">
                         <td className="py-2 px-2 text-slate-500">{i + 1}</td>
                         <td className="py-2 px-2 text-slate-200 font-medium">
                           {s.name}
                           <span className="ml-1 text-xs text-slate-500">(x{s.run_count})</span>
+                          {s.risk_reasons && s.risk_reasons.length > 0 && (
+                            <div className="mt-1 text-[10px] leading-4 text-slate-500">{s.risk_reasons.join(' · ')}</div>
+                          )}
                         </td>
                         <td className={`py-2 px-2 text-right font-bold ${r && isFiniteNumber(r.roi) && r.roi > 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {r ? formatPct(r.roi, 1, true) : '—'}
@@ -505,6 +667,17 @@ export default function StrategyLab() {
                         <td className="py-2 px-2 text-right text-red-400">
                           {r ? formatPct(r.max_drawdown) : '—'}
                         </td>
+                        <td className="py-2 px-2 text-right text-slate-300">{r?.max_consecutive_losses ?? '—'}</td>
+                        <td className="py-2 px-2 text-right">
+                          <div className="text-slate-200">{isFiniteNumber(s.stability_score) ? `${s.stability_score}` : '—'}</div>
+                          <div className="text-[10px] text-slate-500">{s.stability_label ?? '—'}</div>
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${strategyRiskTone[s.overfit_risk ?? 'unknown']}`}>
+                            {strategyRiskLabel[s.overfit_risk ?? 'unknown']}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 text-right text-slate-300">{sufficiencyLabel[s.trade_sufficiency ?? 'unknown']}</td>
                       </tr>
                     );
                   })}
@@ -523,8 +696,16 @@ export default function StrategyLab() {
 
           <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-300">🤖 模型排行榜</h3>
-              <button onClick={loadModelLeaderboard} className="text-xs text-blue-400 hover:text-blue-300">🔄 刷新</button>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-300">🤖 模型排行榜</h3>
+                <div className="mt-1 text-[11px] text-slate-500">
+                  {modelMeta.refreshing ? '背景重算中，先顯示快取結果…' : modelMeta.updated_at ? `上次更新 ${new Date(modelMeta.updated_at).toLocaleString('zh-TW')}` : '尚未建立快取，首次載入會先背景計算'}
+                </div>
+                {modelMeta.target_label && (
+                  <div className="mt-1 text-[11px] text-emerald-300">主評估 target：{modelMeta.target_label}</div>
+                )}
+              </div>
+              <button onClick={() => loadModelLeaderboard(true)} className="text-xs text-blue-400 hover:text-blue-300">{modelMeta.refreshing ? '⏳ 背景更新中' : '🔄 刷新'}</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
               <div className="rounded-lg border border-emerald-700/30 bg-emerald-900/10 p-3 text-xs text-slate-300">
@@ -541,8 +722,35 @@ export default function StrategyLab() {
             <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
               <span className="px-2 py-1 rounded bg-emerald-900/20 text-emerald-300 border border-emerald-700/30">保留模型 {recommendedModels.length}</span>
               <span className="px-2 py-1 rounded bg-red-900/20 text-red-300 border border-red-700/30">淘汰過擬合 {eliminatedModels.length}</span>
-              <span className="text-slate-500">Gap &gt; {(OVERFIT_GAP_THRESHOLD * 100).toFixed(0)}pp 視為過擬合</span>
+              <span className="text-slate-500">Gap &gt; {(OVERFIT_GAP_THRESHOLD * 100).toFixed(0)}pp 或 Train &gt; 90% 直接淘汰</span>
+              {modelMeta.cached && <span className="px-2 py-1 rounded bg-slate-800/60 text-slate-300 border border-slate-700/40">快取回應</span>}
+              {modelMeta.stale && <span className="px-2 py-1 rounded bg-yellow-900/20 text-yellow-300 border border-yellow-700/30">舊資料，背景更新中</span>}
             </div>
+            {targetComparison.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 text-xs">
+                {targetComparison.map((entry) => (
+                  <div key={entry.target_col} className="rounded-lg border border-slate-700/50 bg-slate-950/40 p-3 text-slate-300">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <div className="font-semibold text-slate-200">{entry.label}</div>
+                        <div className="text-[11px] text-slate-500">樣本 {entry.samples} · 正例 {formatPct(entry.positive_ratio, 1)}</div>
+                      </div>
+                      <span className="rounded-full border border-slate-700/50 px-2 py-0.5 text-[10px] text-slate-400">{entry.models_evaluated} models</span>
+                    </div>
+                    <div className="mt-2 text-[11px] text-slate-400">
+                      {entry.best_model ? (
+                        <>
+                          最佳非過擬合：<span className="text-emerald-300">{entry.best_model.model_name}</span>
+                          <span className="ml-1">ROI {formatPct(entry.best_model.avg_roi, 1, true)} · 勝率 {formatPct(entry.best_model.avg_win_rate, 1)} · Gap {formatDecimal(entry.best_model.train_test_gap * 100, 1)}pp</span>
+                        </>
+                      ) : (
+                        '尚無可用比較結果'
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -582,7 +790,7 @@ export default function StrategyLab() {
                   {eliminatedModels.map((m, i) => (
                     <tr key={`elim-${m.model_name}`} className="border-b border-slate-800/50 opacity-60 hover:bg-slate-800/20">
                       <td className="py-2 px-2 text-slate-500">{recommendedModels.length + i + 1}</td>
-                      <td className="py-2 px-2 text-slate-300 font-medium">{m.model_name} <span className="text-red-400">(淘汰)</span></td>
+                      <td className="py-2 px-2 text-slate-300 font-medium">{m.model_name} <span className="text-red-400">(淘汰)</span><div className="text-[10px] text-slate-500">{m.overfit_reason === 'train_accuracy_cap' ? 'Train 準確率過高' : 'Train/Test gap 過大'}</div></td>
                       <td className={`py-2 px-2 text-right font-bold ${m.avg_roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>{m.avg_roi >= 0 ? '+' : ''}{(m.avg_roi * 100).toFixed(1)}%</td>
                       <td className="py-2 px-2 text-right text-slate-300">{(m.avg_win_rate * 100).toFixed(1)}%</td>
                       <td className={`py-2 px-2 text-right ${m.profit_factor >= 1 ? 'text-green-400' : 'text-red-400'}`}>{m.profit_factor.toFixed(2)}</td>
@@ -596,7 +804,9 @@ export default function StrategyLab() {
               </table>
               {modelLeaderboard.length === 0 && (
                 <div className="text-center text-slate-500 py-8 text-sm">
-                  尚無可用模型排行榜資料。請先確認 `/api/models/leaderboard` 可正常產生資料。
+                  {modelMeta.refreshing
+                    ? '模型排行榜正在背景計算，頁面會自動重整。'
+                    : '尚無可用模型排行榜資料。請先確認 `/api/models/leaderboard` 可正常產生資料。'}
                 </div>
               )}
             </div>

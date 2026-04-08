@@ -44,9 +44,11 @@
 - [x] 市場分類回測（依進場 regime 顯示 Bull / Bear / Chop ROI、勝率、PF）
 - [ ] 策略匯入/匯出（JSON 分享）
 - [ ] 自動最佳化（Optuna / 網格搜尋）
-- [ ] 心跳閉環標準化：`strategy-decision-guide.md` + 六帽 + ORID + issue/roadmap/architecture 同步更新
-- [ ] canonical target 統一：`label_spot_long_win` 為主，`sell_win` 僅作 legacy 相容
-- [ ] P0/P1 修復驅動：每次心跳至少產出 1 個可驗證 patch，而不是只產出失敗報告
+- [x] 心跳閉環標準化：`strategy-decision-guide.md` + 六帽 + ORID + issue/roadmap/architecture 同步更新，並由 `HEARTBEAT.md` 明確定義為強制流程
+- [x] canonical target 統一：`simulated_pyramid_win` 為主；`label_spot_long_win` 僅作 path-aware 比較；`sell_win` 僅作 legacy 相容
+- [x] P0/P1 修復驅動：每次心跳至少產出 1 個可驗證 patch，不允許只產出失敗報告
+- [ ] 心跳 gate 自動化：把「patch / verify / doc sync / next gate」檢查做成腳本或模板驗證
+- [ ] blocker 升級機制落地：同一 issue 連續 2~3 輪無進展時，自動升級 source-level investigation / alternative plan
 
 ### Phase 15 已落地（Web 對齊修補）
 

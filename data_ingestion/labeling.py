@@ -6,7 +6,7 @@
 import pandas as pd
 from datetime import timedelta
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Iterable
 
 from database.models import RawMarketData, FeaturesNormalized, Labels
 from utils.logger import setup_logger
@@ -17,6 +17,57 @@ logger = setup_logger(__name__)
 DEFAULT_LABEL_HORIZON_HOURS = 24
 DEFAULT_LONG_TP_PCT = 0.02
 DEFAULT_LONG_MAX_DD_PCT = 0.05
+DEFAULT_PYRAMID_LAYERS = (0.20, 0.30, 0.50)
+DEFAULT_PYRAMID_LAYER2_DROP = -0.02
+DEFAULT_PYRAMID_LAYER3_DROP = -0.05
+
+
+def _simulate_pyramid_outcome(
+    horizon_prices: Iterable[float],
+    entry_price: float,
+    take_profit_pct: float = DEFAULT_LONG_TP_PCT,
+    stop_loss_pct: float = DEFAULT_LONG_MAX_DD_PCT,
+) -> tuple[int, float, float]:
+    prices = [float(p) for p in horizon_prices if p is not None]
+    if not prices or entry_price <= 0:
+        return 0, 0.0, -1.0
+
+    invested = 0.0
+    units = 0.0
+    deployed = []
+
+    def add_layer(weight: float, price: float) -> None:
+        nonlocal invested, units
+        if weight <= 0:
+            return
+        invested += weight
+        units += weight / max(price, 1e-9)
+        deployed.append((weight, price))
+
+    add_layer(DEFAULT_PYRAMID_LAYERS[0], entry_price)
+    layer2_trigger = entry_price * (1 + DEFAULT_PYRAMID_LAYER2_DROP)
+    layer3_trigger = entry_price * (1 + DEFAULT_PYRAMID_LAYER3_DROP)
+
+    for price in prices:
+        if len(deployed) == 1 and price <= layer2_trigger:
+            add_layer(DEFAULT_PYRAMID_LAYERS[1], price)
+        if len(deployed) == 2 and price <= layer3_trigger:
+            add_layer(DEFAULT_PYRAMID_LAYERS[2], price)
+
+        avg_price = invested / max(units, 1e-9)
+        pnl_pct = (price - avg_price) / avg_price
+        if pnl_pct >= take_profit_pct:
+            quality = pnl_pct / max(stop_loss_pct, 1e-9)
+            return 1, pnl_pct, quality
+        if pnl_pct <= -stop_loss_pct:
+            quality = pnl_pct / max(stop_loss_pct, 1e-9)
+            return 0, pnl_pct, quality
+
+    final_price = prices[-1]
+    avg_price = invested / max(units, 1e-9)
+    pnl_pct = (final_price - avg_price) / avg_price
+    quality = pnl_pct / max(stop_loss_pct, 1e-9)
+    return int(pnl_pct > 0), pnl_pct, quality
 
 
 def generate_future_return_labels(
@@ -37,14 +88,26 @@ def generate_future_return_labels(
     Returns:
         DataFrame 包含: timestamp (特徵時間), label (0/1), future_return_pct
     """
-    # 取所有特徵時間
-    query = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp)
+    # P0: canonical feature rows must align on (timestamp, symbol).
+    # Prefer exact-symbol rows, but fall back to legacy NULL-symbol rows only when no
+    # canonical row exists for the timestamp.
+    query = (
+        session.query(FeaturesNormalized)
+        .filter((FeaturesNormalized.symbol == symbol) | (FeaturesNormalized.symbol.is_(None)))
+        .order_by(FeaturesNormalized.timestamp, FeaturesNormalized.symbol.is_(None))
+    )
     rows = query.all()
     if not rows:
         logger.error("無特徵數據")
         return pd.DataFrame()
 
-    feature_times = [r.timestamp for r in rows]
+    feature_times = []
+    seen_feature_ts = set()
+    for r in rows:
+        if r.timestamp in seen_feature_ts:
+            continue
+        seen_feature_ts.add(r.timestamp)
+        feature_times.append(r.timestamp)
     # 取 RawMarketData 的價格時間序列
     raw_query = session.query(RawMarketData).filter(
         RawMarketData.symbol == symbol
@@ -104,13 +167,25 @@ def generate_future_return_labels(
             max_drawdown = None
             max_runup = None
 
-        # Canonical target: spot-long pyramid win.
-        # Win when the setup reaches the profit target and never breaches the
-        # permitted drawdown budget.
-        long_win = int(
-            ret_pct >= threshold_pct and
-            (max_drawdown is None or max_drawdown >= -neutral_band)
+        # P1: use a path-aware label instead of final-close-only thresholding.
+        # A spot-long pyramid setup should count as a win if price reaches the
+        # profit target at any point within the horizon while staying within the
+        # allowed drawdown budget.
+        tp_hit = int(max_runup is not None and max_runup >= threshold_pct)
+        dd_ok = int(max_drawdown is None or max_drawdown >= -neutral_band)
+        long_win = int(tp_hit == 1 and dd_ok == 1)
+        # Continuous quality score for later ranking/regression experiments.
+        runup_component = (max_runup or 0.0) / max(threshold_pct, 1e-9)
+        dd_component = abs(min(max_drawdown or 0.0, 0.0)) / max(neutral_band, 1e-9)
+        quality_score = runup_component - 0.7 * dd_component + 0.3 * ret_pct / max(threshold_pct, 1e-9)
+
+        simulated_win, simulated_pnl, simulated_quality = _simulate_pyramid_outcome(
+            horizon_prices["close_price"].tolist() if not horizon_prices.empty else [],
+            current_price,
+            take_profit_pct=threshold_pct,
+            stop_loss_pct=neutral_band,
         )
+
         tri_label = long_win
         label_sell_win = 1 - long_win
         label_up = long_win
@@ -118,6 +193,11 @@ def generate_future_return_labels(
             "timestamp": ts,
             "label": tri_label,
             "label_spot_long_win": long_win,
+            "label_spot_long_tp_hit": tp_hit,
+            "label_spot_long_quality": quality_score,
+            "simulated_pyramid_win": simulated_win,
+            "simulated_pyramid_pnl": simulated_pnl,
+            "simulated_pyramid_quality": simulated_quality,
             "label_sell_win": label_sell_win,
             "label_up": label_up,
             "future_return_pct": ret_pct,
@@ -143,8 +223,19 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
         return
 
     # 建立 timestamp → regime_label 映射(從 features_normalized)
-    feature_rows = session.query(FeaturesNormalized.timestamp, FeaturesNormalized.regime_label).all()
-    regime_map = {str(r.timestamp): r.regime_label for r in feature_rows if r.regime_label is not None}
+    feature_rows = (
+        session.query(FeaturesNormalized.timestamp, FeaturesNormalized.regime_label, FeaturesNormalized.symbol)
+        .filter((FeaturesNormalized.symbol == symbol) | (FeaturesNormalized.symbol.is_(None)))
+        .order_by(FeaturesNormalized.timestamp, FeaturesNormalized.symbol.is_(None))
+        .all()
+    )
+    regime_map = {}
+    for r in feature_rows:
+        ts_key = str(r.timestamp)
+        if ts_key in regime_map:
+            continue
+        if r.regime_label is not None:
+            regime_map[ts_key] = r.regime_label
 
     # 取得現有行
     existing_rows = {
@@ -167,6 +258,11 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
             if force_update_all:
                 # P0 #SELL_WIN_40: 強制更新所有標籤
                 existing.label_spot_long_win = int(row.get("label_spot_long_win", row.get("label_up", 0)))
+                existing.label_spot_long_tp_hit = int(row.get("label_spot_long_tp_hit", existing.label_spot_long_win))
+                existing.label_spot_long_quality = float(row.get("label_spot_long_quality") or 0.0)
+                existing.simulated_pyramid_win = int(row.get("simulated_pyramid_win", 0))
+                existing.simulated_pyramid_pnl = float(row.get("simulated_pyramid_pnl") or 0.0)
+                existing.simulated_pyramid_quality = float(row.get("simulated_pyramid_quality") or 0.0)
                 existing.label_sell_win = int(row.get("label_sell_win", 1 - existing.label_spot_long_win))
                 existing.label_up = int(row.get("label_up", existing.label_spot_long_win))
                 existing.future_return_pct = float(fut_ret) if fut_ret is not None else existing.future_return_pct
@@ -177,6 +273,11 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
                 # 更新 NULL label：現在有未來數據了
                 existing.future_return_pct = float(fut_ret)
                 existing.label_spot_long_win = int(row.get("label_spot_long_win", row.get("label_up", 0)))
+                existing.label_spot_long_tp_hit = int(row.get("label_spot_long_tp_hit", existing.label_spot_long_win))
+                existing.label_spot_long_quality = float(row.get("label_spot_long_quality") or 0.0)
+                existing.simulated_pyramid_win = int(row.get("simulated_pyramid_win", 0))
+                existing.simulated_pyramid_pnl = float(row.get("simulated_pyramid_pnl") or 0.0)
+                existing.simulated_pyramid_quality = float(row.get("simulated_pyramid_quality") or 0.0)
                 existing.label_sell_win = int(row.get("label_sell_win", 1 - existing.label_spot_long_win))
                 existing.label_up = int(row.get("label_up", existing.label_spot_long_win))
                 needs_update = True
@@ -198,6 +299,11 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
             future_max_drawdown=float(row.get("future_max_drawdown") or 0),
             future_max_runup=float(row.get("future_max_runup") or 0),
             label_spot_long_win=spot_long_win,
+            label_spot_long_tp_hit=int(row.get("label_spot_long_tp_hit", spot_long_win)),
+            label_spot_long_quality=float(row.get("label_spot_long_quality") or 0.0),
+            simulated_pyramid_win=int(row.get("simulated_pyramid_win", 0)),
+            simulated_pyramid_pnl=float(row.get("simulated_pyramid_pnl") or 0.0),
+            simulated_pyramid_quality=float(row.get("simulated_pyramid_quality") or 0.0),
             label_sell_win=int(row.get("label_sell_win", 1 - spot_long_win)),
             label_up=int(row.get("label_up", spot_long_win)),
             regime_label=regime_val,  # P0 fix: 自動填入 regime

@@ -20,6 +20,7 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+DEFAULT_TARGET_COL = "simulated_pyramid_win"
 MODEL_PATH = "model/xgb_model.pkl"
 DB_PATH = str(Path(__file__).parent.parent / "poly_trader.db")
 FEATURE_COLS = [
@@ -112,7 +113,8 @@ def _align_sparse_4h_features(feat_df: pd.DataFrame, tolerance: str = "6h") -> p
 
 def load_training_data(session: Session, min_samples: int = 50,
                        regime_filter: Optional[list] = None,
-                       horizon_minutes: int = 1440) -> Optional[Tuple[pd.DataFrame, pd.Series]]:
+                       horizon_minutes: int = 1440,
+                       target_col: str = DEFAULT_TARGET_COL) -> Optional[Tuple[pd.DataFrame, pd.Series]]:
     """Load training data from DB, filtered by horizon_minutes.
 
     Args:
@@ -122,8 +124,13 @@ def load_training_data(session: Session, min_samples: int = 50,
         horizon_minutes: label horizon to use (default 1440=24h). Pass None for all horizons.
     """
     feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
+    target_attr = getattr(Labels, target_col, None)
+    if target_attr is None:
+        logger.warning(f"Labels model lacks target column: {target_col}")
+        return None
+
     label_query = session.query(Labels).filter(
-        Labels.label_spot_long_win.isnot(None),
+        target_attr.isnot(None),
         Labels.future_return_pct.isnot(None),
     )
     if horizon_minutes is not None:
@@ -138,6 +145,11 @@ def load_training_data(session: Session, min_samples: int = 50,
     label_df = pd.DataFrame([{
         "timestamp": r.timestamp,
         "label_spot_long_win": int(r.label_spot_long_win) if r.label_spot_long_win is not None else int(r.label_up or 0),
+        "label_spot_long_tp_hit": int(r.label_spot_long_tp_hit) if getattr(r, 'label_spot_long_tp_hit', None) is not None else None,
+        "label_spot_long_quality": float(r.label_spot_long_quality) if getattr(r, 'label_spot_long_quality', None) is not None else None,
+        "simulated_pyramid_win": int(r.simulated_pyramid_win) if getattr(r, 'simulated_pyramid_win', None) is not None else None,
+        "simulated_pyramid_pnl": float(r.simulated_pyramid_pnl) if getattr(r, 'simulated_pyramid_pnl', None) is not None else None,
+        "simulated_pyramid_quality": float(r.simulated_pyramid_quality) if getattr(r, 'simulated_pyramid_quality', None) is not None else None,
         "label_sell_win": int(r.label_sell_win) if r.label_sell_win is not None else None,
         "label_up": int(r.label_up) if r.label_up is not None else None,
         "future_return_pct": float(r.future_return_pct) if r.future_return_pct is not None else None,
@@ -156,7 +168,10 @@ def load_training_data(session: Session, min_samples: int = 50,
         direction="nearest",
         tolerance=pd.Timedelta("10min"),
     )
-    merged = merged.dropna(subset=["label_spot_long_win"]).copy()
+    if target_col not in merged.columns:
+        logger.warning(f"目標欄位不存在: {target_col}")
+        return None
+    merged = merged.dropna(subset=[target_col]).copy()
 
     # P0 #H430: Regime Filtering — optional exclusion of noisy regimes.
     # Experiment showed Bear+Bull only (exclude Chop) with IC pruning gives AUC=0.5454
@@ -211,7 +226,7 @@ def load_training_data(session: Session, min_samples: int = 50,
     ic_map_global = {}
     tw_ic_map = {}
     NEG_IC_FEATS = []
-    y_arr = merged["label_spot_long_win"].astype(float).values
+    y_arr = merged[target_col].astype(float).values
     all_feature_cols = FEATURE_COLS + lag_feature_cols
     N = len(y_arr)
 
@@ -295,7 +310,7 @@ def load_training_data(session: Session, min_samples: int = 50,
             "null_counts": null_counts,
             "ic_status": ic_status,
             "total_samples": len(merged),
-            "target": "label_spot_long_win",
+            "target": target_col,
             "core_ic_summary": core_ic_summary,
             "tw_ic_summary": tw_ic_summary,
         }, f, indent=2, ensure_ascii=False)
@@ -380,10 +395,10 @@ def load_training_data(session: Session, min_samples: int = 50,
         all_training_cols = pruned_cols
 
     X = merged[all_training_cols]
-    y = merged["label_spot_long_win"].astype(int)
+    y = merged[target_col].astype(int)
     y_return = merged["future_return_pct"].astype(float)
     logger.info(f"載入訓練資料: {len(X)} 筆, {len(all_training_cols)} features ({len(FEATURE_COLS)} core + {len(all_training_cols)-len(FEATURE_COLS)} lag/cross, {pruned_count} pruned)")
-    logger.info(f"分類目標 spot_long_win ratio: {y.mean():.3f}, 回歸目標 future_return_pct mean={y_return.mean():.5f} std={y_return.std():.5f}")
+    logger.info(f"分類目標 {target_col} ratio: {y.mean():.3f}, 回歸目標 future_return_pct mean={y_return.mean():.5f} std={y_return.std():.5f}")
     return X, y, y_return
 
 
@@ -460,7 +475,7 @@ def load_model(path: str = MODEL_PATH):
         return pickle.load(f)
 
 
-def run_training(session: Session, regime_filter: Optional[list] = None) -> bool:
+def run_training(session: Session, regime_filter: Optional[list] = None, target_col: str = DEFAULT_TARGET_COL) -> bool:
     """Train global XGBoost model with IC pruning and optional regime filtering.
     
     Args:
@@ -468,9 +483,11 @@ def run_training(session: Session, regime_filter: Optional[list] = None) -> bool
         regime_filter: Optional list of regime labels to keep (e.g., ["bear", "bull"]).
                       If None, uses all regimes. Experiment shows Bear+Bull filtering
                       with IC pruning gives AUC=0.5454 vs 0.5241 for ALL.
+        target_col: Label column to optimize. Supports label_spot_long_win and
+                    simulated_pyramid_win for target-comparison experiments.
     """
-    logger.info("開始模型訓練 v5 (with IC pruning + optional regime filter)...")
-    loaded = load_training_data(session, min_samples=50, regime_filter=regime_filter)
+    logger.info(f"開始模型訓練 v5 (with IC pruning + optional regime filter, target={target_col})...")
+    loaded = load_training_data(session, min_samples=50, regime_filter=regime_filter, target_col=target_col)
     if loaded is None:
         return False
     X, y, y_return = loaded
@@ -491,6 +508,7 @@ def run_training(session: Session, regime_filter: Optional[list] = None) -> bool
         'neg_ic_feats': neg_ic,
         'calibration': calibrator,
         'regime_threshold_bias': REGIME_THRESHOLD_BIAS,
+        'target_col': target_col,
     }
     save_model(payload)
     imp = dict(zip(X.columns.tolist(), model.feature_importances_.tolist()))
@@ -535,14 +553,29 @@ def run_training(session: Session, regime_filter: Optional[list] = None) -> bool
         cv_best = float(np.max(cv_scores)) if cv_scores else float('nan')
         n_folds = len(cv_scores)
 
+        trained_at = datetime.utcnow().isoformat()
         db = sqlite3.connect('poly_trader.db')
         cur = db.cursor()
         cur.execute("""
             INSERT INTO model_metrics (timestamp, train_accuracy, cv_accuracy, cv_std, n_features, notes)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (datetime.utcnow().isoformat(), train_acc, cv_acc, cv_std, X.shape[1],
-              f'rolling_cv n={n_folds} worst={cv_worst:.4f} best={cv_best:.4f}'))
+        """, (trained_at, train_acc, cv_acc, cv_std, X.shape[1],
+              f'target={target_col} rolling_cv n={n_folds} worst={cv_worst:.4f} best={cv_best:.4f}'))
         db.commit(); db.close()
+        metrics_payload = {
+            'target_col': target_col,
+            'train_accuracy': train_acc,
+            'cv_accuracy': cv_acc,
+            'cv_std': cv_std,
+            'cv_worst': cv_worst,
+            'cv_best': cv_best,
+            'n_samples': int(len(X)),
+            'n_features': int(X.shape[1]),
+            'positive_ratio': float(y.mean()),
+            'trained_at': trained_at,
+        }
+        Path('model').mkdir(parents=True, exist_ok=True)
+        Path('model/last_metrics.json').write_text(json.dumps(metrics_payload, indent=2, ensure_ascii=False), encoding='utf-8')
         logger.info(f"模型指標: Train={train_acc:.3f}, Rolling-CV={cv_acc:.3f}±{cv_std:.3f}, worst={cv_worst:.3f}")
     except Exception as e:
         logger.warning(f"無法保存 model_metrics: {e}")
@@ -550,7 +583,7 @@ def run_training(session: Session, regime_filter: Optional[list] = None) -> bool
     return True
 
 
-def train_regime_models(session: Session) -> dict:
+def train_regime_models(session: Session, target_col: str = DEFAULT_TARGET_COL) -> dict:
     """Train one XGBoost model per market regime with per-regime params and walk-forward CV.
     Addresses P0 #CV_CEILING and #BULL_CHOP_DEAD: global model CV stuck ~51% because
     one model tries to fit conflicting signal patterns across regimes.
@@ -562,9 +595,14 @@ def train_regime_models(session: Session) -> dict:
     logger.info("開始訓練 Regime-Specific XGBoost 模型 (per-regime params + walk-forward CV)...")
 
     feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
+    target_attr = getattr(Labels, target_col, None)
+    if target_attr is None:
+        logger.warning(f"Regime training target column missing: {target_col}")
+        return {}
+
     label_rows = (
         session.query(Labels)
-        .filter(Labels.label_spot_long_win.isnot(None), Labels.future_return_pct.isnot(None),
+        .filter(target_attr.isnot(None), Labels.future_return_pct.isnot(None),
                 Labels.horizon_minutes == 1440)
         .order_by(Labels.timestamp)
         .all()
@@ -578,6 +616,7 @@ def train_regime_models(session: Session) -> dict:
     label_df = pd.DataFrame([{
         "timestamp": r.timestamp,
         "label_spot_long_win": int(r.label_spot_long_win) if r.label_spot_long_win is not None else int(r.label_up or 0),
+        "simulated_pyramid_win": int(r.simulated_pyramid_win) if getattr(r, 'simulated_pyramid_win', None) is not None else None,
         "label_sell_win": int(r.label_sell_win) if r.label_sell_win is not None else None,
         "future_return_pct": float(r.future_return_pct) if r.future_return_pct is not None else None,
         "future_max_drawdown": float(r.future_max_drawdown) if r.future_max_drawdown is not None else None,
@@ -595,7 +634,10 @@ def train_regime_models(session: Session) -> dict:
         direction="nearest",
         tolerance=pd.Timedelta("10min"),
     )
-    merged = merged.dropna(subset=["label_spot_long_win"]).copy().sort_values("timestamp").reset_index(drop=True)
+    if target_col not in merged.columns:
+        logger.warning(f"Regime training merged frame missing target: {target_col}")
+        return {}
+    merged = merged.dropna(subset=[target_col]).copy().sort_values("timestamp").reset_index(drop=True)
 
     # Handle merge suffix for regime_label
     if "regime_label" not in merged.columns:
@@ -686,7 +728,7 @@ def train_regime_models(session: Session) -> dict:
             continue
 
         X_r = regime_data[X_cols].fillna(0.0)
-        y_r = regime_data["label_spot_long_win"].astype(int)
+        y_r = regime_data[target_col].astype(int)
 
         param_lists = list(product(
             param_grid.get('max_depth', [base_params.get('max_depth', 3)]),
@@ -748,6 +790,7 @@ def train_regime_models(session: Session) -> dict:
             'neg_ic_feats': [], 'calibration': {'kind': 'none'},
             'regime_threshold_bias': REGIME_THRESHOLD_BIAS,
             'best_params': best_params,
+            'target_col': target_col,
         }
         regime_stats[regime] = {
             'cv_accuracy': round(best_cv, 4),

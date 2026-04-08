@@ -50,6 +50,7 @@ export default function Senses() {
   const [previewScores, setPreviewScores] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>("");
+  const [activeGroup, setActiveGroup] = useState<FeatureGroupKey>("microstructure");
 
   useEffect(() => {
     if (config) {
@@ -114,6 +115,25 @@ export default function Senses() {
     return Math.round(values.reduce((a, b) => a + b, 0) / values.length * 100);
   }, [previewScores]);
 
+  const groupSummaries = useMemo(() => {
+    return GROUP_ORDER.map((groupKey) => {
+      const items = groupedFeatures.find(([key]) => key === groupKey)?.[1] ?? [];
+      const avg = items.length
+        ? Math.round(
+            (items.reduce((sum, [senseKey]) => sum + (previewScores[senseKey] ?? 0.5), 0) / items.length) * 100
+          )
+        : 0;
+      return {
+        groupKey,
+        items,
+        count: items.length,
+        avg,
+      };
+    });
+  }, [groupedFeatures, previewScores]);
+
+  const activeItems = groupSummaries.find((group) => group.groupKey === activeGroup)?.items ?? [];
+
   if (!config) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -163,24 +183,57 @@ export default function Senses() {
         </div>
 
         <div className="xl:col-span-8 space-y-5">
-          {groupedFeatures.map(([groupKey, items]) => (
-            <section key={groupKey} className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-semibold text-slate-200">{FEATURE_GROUPS[groupKey].label}</h3>
-                  <p className="text-xs text-slate-500">{FEATURE_GROUPS[groupKey].description}</p>
-                </div>
-                <span className="text-xs text-slate-500">{items.length} 個特徵</span>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            {groupSummaries.map(({ groupKey, count, avg }) => {
+              const active = activeGroup === groupKey;
+              return (
+                <button
+                  key={groupKey}
+                  type="button"
+                  onClick={() => setActiveGroup(groupKey)}
+                  className={`rounded-xl border p-4 text-left transition ${
+                    active
+                      ? "border-blue-500/60 bg-blue-500/10 shadow-[0_0_0_1px_rgba(59,130,246,0.25)]"
+                      : "border-slate-700/50 bg-slate-900/50 hover:border-slate-600"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-100">{FEATURE_GROUPS[groupKey].label}</div>
+                      <div className="mt-1 text-xs leading-5 text-slate-500">{FEATURE_GROUPS[groupKey].description}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-2xl font-mono font-bold text-slate-100">{avg}</div>
+                      <div className="text-[11px] text-slate-500">平均分數</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500">
+                    <span>{count} 個特徵</span>
+                    <span>{active ? "目前檢視中" : "點擊切換"}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
-              {items.map(([senseKey, sense]) => {
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-slate-200">{FEATURE_GROUPS[activeGroup].label}</h3>
+                <p className="text-xs text-slate-500">{FEATURE_GROUPS[activeGroup].description}</p>
+              </div>
+              <span className="text-xs text-slate-500">{activeItems.length} 個特徵 · 卡片已改為雙欄，避免頁面過長</span>
+            </div>
+
+            <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
+              {activeItems.map(([senseKey, sense]) => {
                 const meta = getSenseConfig(senseKey);
                 const liveScore = previewScores[senseKey] ?? sense.score ?? 0.5;
                 const icValue = modelStats?.ic_values?.[senseKey];
                 return (
                   <div key={senseKey} className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4">
                     <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between mb-3">
-                      <div className="space-y-2">
+                      <div className="space-y-2 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-base font-bold text-slate-100">{meta.name}</span>
                           <span className="px-2 py-0.5 rounded-full text-[11px] bg-slate-800 text-slate-400 border border-slate-700/60">
@@ -207,7 +260,7 @@ export default function Senses() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2">
                       {Object.entries(sense.modules).map(([modKey, mod]) => (
                         <SenseModule
                           key={modKey}
@@ -226,8 +279,8 @@ export default function Senses() {
                   </div>
                 );
               })}
-            </section>
-          ))}
+            </div>
+          </section>
         </div>
       </div>
     </div>

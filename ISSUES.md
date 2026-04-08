@@ -1,6 +1,6 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-08 08:30 UTC — Heartbeat #610*
+*最後更新：2026-04-09 00:25 UTC — Heartbeat governance redesign（strict project driver + closed-loop enforcement）*
 
 ## 📊 系統健康狀態 v4.38
 
@@ -83,6 +83,14 @@
 - LSR: **1.3618**（⬆️ +116bps vs #609 1.3502，長倉比例持續攀升）
 - OI: **89,482**（⬆️ +171 vs #609 89,311，持倉量止跌回暖）
 
+## 🔒 Heartbeat 閉環治理（新規則）
+
+- `HEARTBEAT.md` 已重寫為 **嚴厲的專案推行者憲章**：每輪心跳都必須完成 `facts → strategy decision → 六帽/ORID → patch → verify → docs sync → next gate`。
+- 主 target 已正式定為 `simulated_pyramid_win`；`label_spot_long_win` 僅保留 path-aware 比較；`sell_win` 僅作 legacy 相容。
+- 若一次心跳沒有 **patch + verify + 文件同步 + 下一輪 gate**，則該輪視為失敗，不算進度。
+- 若同一 issue 連續 2 輪無修復，下一輪必須升級為 blocker 或 source-level investigation。
+- 若連續 3 輪只有報告沒有 patch，需新增/啟動 `#HEARTBEAT_EMPTY_PROGRESS` 並停止空轉。
+
 ## 🧢 文件與流程六帽 review
 
 ### 白帽
@@ -103,14 +111,39 @@
 ### 藍帽
 - 本文件應作為問題中樞：先定義問題，再推動修復，再同步回寫路線圖與架構。
 
+## 🧢 六色帽會議決議（研究結論 → 修復主線）
+
+### P0 — 資料乾淨度治理
+1. 統一 canonical key：
+   - raw/features → `(timestamp, symbol)`
+   - labels → `(timestamp, symbol, horizon_minutes)`
+2. 停止讓 legacy `NULL symbol` rows 與 canonical rows 混雜污染新資料。
+3. 訓練/標籤流程不得再靠 timestamp-only 假設對齊。
+4. 缺值與歷史世代差異要顯式隔離，而不是默默混成「中性值」。
+
+### P1 — label 穩定度重建
+1. 由 final-close threshold 改為 **path-aware label**。
+2. `spot_long_win` 定義應對齊現貨金字塔語義：
+   - 只要 horizon 內 **曾 hit TP**
+   - 且 **未破 DD 預算**
+   - 即視為可交易成功 setup。
+3. 後續繼續推進 simulated pyramid outcome label / continuous trade-quality label。
+4. 已新增第一版 simulated pyramid labels：`simulated_pyramid_win / pnl / quality`，且已接入 training / leaderboard target comparison。
+5. 2026-04-08 target comparison 實測：
+   - `label_spot_long_win` → Train **77.18%**, CV **45.99% ± 9.64%**, positive ratio **26.83%**
+   - `simulated_pyramid_win` → Train **61.74%**, CV **58.12% ± 4.12%**, positive ratio **61.51%**
+   - 結論：**simulated pyramid target 明顯比 path-aware binary 更穩、更不易過擬合**。
+
 ## P0
 
 | ID | 問題 | 狀態 |
 |----|------|------|
-| #LABELS_FROZEN | Labels 完全凍結於 27,684（跳增後零增長） | 🔴 持續 |
-|| #SPOT_LONG_WIN_33 | spot_long_win=33.21% 遠低於目標（需≥90%） | 🔴 持續 |
+| #LABELS_FROZEN | Labels 完全凍結於 27,684（跳增後零增長） | 🟡 已部分修復（已重建 24h labels=9,760，最新 label 時間回到 raw 後約 23h 內） |
+| #SPOT_LONG_WIN_33 | spot_long_win=33.21% 遠低於目標（需≥90%） | 🔴 持續（path-aware 本身 positive ratio 僅 26.83%；已確認不適合作為主 target） |
 | #BULL_CHOP_DEAD | Bull 0/8, Chop 0/8（200+輪持續零信號）| 🔴 持續 |
-| #CV_CEILING | CV 51.39% 天花板（6+月無法突破）| 🔴 持續 |
+| #CV_CEILING | CV 51.39% 天花板（6+月無法突破）| 🟡 已部分修復（simulated_pyramid_win 實測 CV=58.12%，比 path-aware 45.99% 明顯改善，但 regime 問題仍未解） |
+| #CANONICAL_KEY_DRIFT | features/labels/analysis 對齊仍受 timestamp-only 舊語義污染，symbol NULL 舊資料混入 | 🟡 已部分修復（新特徵保存改為 timestamp+symbol，標籤優先使用 canonical symbol rows，已執行歷史去重） |
+| #FEATURE_SYMBOL_NULL | `features_normalized.symbol` 歷史上可為 NULL，造成 mixed-generation dataset | ✅ 已修復（歷史 NULL symbol 已回填為 0 筆） |
 
 ## P1
 
@@ -120,6 +153,8 @@
 | #EAR_LOW_VAR | feat_ear std=0.0029, unique=13（準離散特徵）| ⚠️ 持續 |
 | #TONGUE_LOW_VAR | feat_tongue std=0.0016, unique=9（準離散特徵）| ⚠️ 持續 |
 | #LABELS_JUMP | Labels 從 18,052 跳增至 27,684（+53%）原因未明 | ⚠️ 持續 |
+| #FINAL_CLOSE_LABEL_NOISE | final-close-only TP threshold 會把「曾 hit TP 但收盤回落」的可交易 setup 誤標為失敗 | ✅ 已修復（spot_long_win 已改為 path-aware label，並已重建實際 labels） |
+| #LABEL_PATH_MISMATCH | 標籤語義與現貨金字塔執行路徑不一致，只看 horizon 結束點 | 🟡 已部分修復（path-aware + simulated pyramid labels 均已上線，且已接入模型排行榜 target comparison；下一步要把 simulated target 升為預設訓練主線） |
 
 ## ✅ 已修復（Web / UX）
 

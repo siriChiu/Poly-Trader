@@ -40,8 +40,8 @@ def quick_counts():
     results = {}
     for t in ['raw_market_data', 'features_normalized', 'labels']:
         results[t] = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-    sw = conn.execute("SELECT AVG(CAST(label_spot_long_win AS FLOAT)) FROM labels WHERE label_spot_long_win IS NOT NULL").fetchone()[0]
-    results['sell_win_rate'] = round(sw, 4) if sw else 0
+    target_rate = conn.execute("SELECT AVG(CAST(simulated_pyramid_win AS FLOAT)) FROM labels WHERE simulated_pyramid_win IS NOT NULL").fetchone()[0]
+    results['simulated_pyramid_win_rate'] = round(target_rate, 4) if target_rate else 0
     conn.close()
     return results
 
@@ -81,7 +81,7 @@ def main():
     args = parser.parse_args()
 
     counts = quick_counts()
-    print(f"📊 DB Counts: Raw={counts['raw_market_data']}, Features={counts['features_normalized']}, Labels={counts['labels']}, sell_win={counts['sell_win_rate']}")
+    print(f"📊 DB Counts: Raw={counts['raw_market_data']}, Features={counts['features_normalized']}, Labels={counts['labels']}, simulated_win={counts['simulated_pyramid_win_rate']}")
     
     tasks = TASKS.copy()
     if args.no_train: tasks = [t for t in tasks if t["name"] != "train"]
