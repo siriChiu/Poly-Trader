@@ -223,8 +223,9 @@ def generate_labels(session, horizon_hours=4):
         print("❌ Label generation produced empty results")
         return 0
     
-    # Labeling.py uses horizon_minutes internally in the Labels model
-    save_labels_to_db(session, labels_df, SYMBOL, horizon_hours * 60)
+    # save_labels_to_db expects horizon_hours and converts to horizon_minutes internally.
+    # Passing horizon_hours * 60 here created bogus 14400-minute labels from a 4-hour job.
+    save_labels_to_db(session, labels_df, SYMBOL, horizon_hours)
     count = session.query(Labels).count()
     print(f"✅ Label pipeline complete (total={count})")
     return len(labels_df)

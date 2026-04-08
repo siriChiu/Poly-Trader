@@ -1,39 +1,38 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-09 01:10 UTC — Heartbeat #611（source sparse-feature null hygiene + regime persistence + FeatureChart data-quality sync）*
+*最後更新：2026-04-09 01:38 UTC — Heartbeat #612（hb_collect label horizon repair + accidental 14400m label cleanup + canonical-window IC hardening）*
 
-## 📊 系統健康狀態 v4.38
+## 📊 系統健康狀態 v4.39
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **19,721** | 🟢 +9,473 vs #610；hb_collect 連跑 2 次後仍可持續增長 |
-| Features | **11,107** | 🟢 +900 vs #610；新 row 已直接帶 regime_label |
-| Labels | **48,133** | 🟢 +20,449 vs #610；label pipeline 不再凍結 |
-|| simulated_pyramid_win | **55.12%** | 🟢 canonical target（quick_counts 口徑） |
+| Raw | **19,757** | 🟢 `hb_collect.py` 本輪再增 +1 |
+| Features | **11,143** | 🟢 新 row 持續直接帶 `regime_label` |
+| Labels | **38,522** | 🟡 已清掉錯誤 14,400m horizon rows；24h/12h/4h labels 保留 |
+|| simulated_pyramid_win (1440m) | **61.37%** | 🟢 canonical 24h 分析口徑（`regime_aware_ic.py`, n=9,763） |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
-| 全域 IC | **13/22** | 🟢 大幅改善 |
-| TW-IC | **17/22** | 🟢 大幅改善 |
+| 全域 IC | **15/22** | 🟢 再提升 |
+| TW-IC | **17/22** | 🟢 維持高檔 |
 | 模型數 | **8** | ✅ |
 | Tests | **6/6** | ✅ 全過 |
 
-## 📈 心跳 #611 摘要
+## 📈 心跳 #612 摘要
 
 ### 本輪已驗證 patch
-1. **Sparse source null hygiene**：Fin / Fang / Web / Scales / Nest 在 fetch failure 時不再回傳假中性 0，而是保留 `None`，collector / preprocessor 也同步保留缺值，避免把「來源失敗」偽裝成可訓練信號。
-2. **regime_label source-level persistence**：`feature_engine/preprocessor.py` 現在在 `save_features_to_db()` 時直接推導並寫入 `regime_label`，`hb_collect.py` 也在 `null_count=0` 時立即 early-exit，不再每輪重掃整張 features table。
-3. **FeatureChart data-quality sync**：前端圖例與警示卡現在直接顯示 `coverage% / distinct` 與隱藏原因，低 coverage 特徵不再只是模糊顯示「coverage不足」。
+1. **hb_collect label horizon unit fix**：`scripts/hb_collect.py` 不再把 `horizon_hours * 60` 傳給 `save_labels_to_db()`，修掉 4h 收集流程誤寫成 **14,400 分鐘** label 的 root cause。
+2. **Data cleanup for polluted labels table**：新增 `scripts/fix_hb612_label_horizon_bug.py`，已實際刪除 **10,723** 筆 accidental `horizon_minutes=14400` rows，避免 heartbeat / IC 腳本再被錯誤 horizon 污染。
+3. **Canonical-window IC hardening**：`scripts/dynamic_window_train.py`、`scripts/full_ic.py`、`scripts/regime_aware_ic.py` 現在都只讀 **`horizon_minutes=1440`** 的 canonical labels，且對 `constant_target` / `constant_feature` 做顯式診斷，不再產生 NaN 假錯誤。
 
-### 本輪 runtime facts（Heartbeat #611）
-- `hb_collect.py` 第一次執行：Raw **19718→19719**、Features **11104→11105**、Labels **48127→48132**，並修補歷史 `null_regime=103`。
-- `hb_collect.py` 第二次執行：Step 3 直接回報 **`All features already have regime labels (total=11107)`**，證明新 row 已在 source-level 帶 regime，不再依賴全表 backfill。
-- `hb_parallel_runner.py --hb 611`：**5/5 PASS (127.7s)**，summary 已寫入 `data/heartbeat_611_summary.json`。
-- `feature_coverage_report.py`：Fin / Fang / Web / Scales / Nest coverage 仍只有 **18.8%~19.1%**，仍屬 P0/P1 來源 coverage 問題，但現在缺值語義已乾淨，不再新增假 0 污染。
-- Full IC：**13/22 PASS**；TW-IC：**17/22 PASS**。
-- Dynamic window：**N=200 = 8/8 PASS**，但 **N=100 = 0/8 + NaN**（新的 blocker，需要下一輪釐清 recent window merge / constant-input 問題）。
-- Train：**Train 69.11%, CV 59.48% ± 11.82pp**；Bear CV **61.29%**, Bull CV **77.88%**, Chop CV **59.68%**。
+### 本輪 runtime facts（Heartbeat #612）
+- `fix_hb612_label_horizon_bug.py`：**10,723 → 0** 筆 14,400m labels；duplicate `(timestamp,symbol)` 組數 **10,172 → 9,418**；目前 horizon 分佈只剩 **240 / 720 / 1440**。
+- `hb_collect.py`：Raw **19756→19757**、Features **11142→11143**、Labels **37410→38522**；證明修完後 4h label pipeline 仍可新增資料，但不再寫出 14,400m 污染列。
+- `hb_parallel_runner.py --hb 612`：**5/5 PASS (67.0s)**，summary 已寫入 `data/heartbeat_612_summary.json`。
+- Full IC：**15/22 PASS**；TW-IC：**17/22 PASS**。
+- Dynamic window（canonical 1440m）：**N=100/200/400 全部 constant_target_window**，**N=600=6/8 PASS**, **N=1000=7/8 PASS**, **N=2000=6/8 PASS**, **N=5000=5/8 PASS**。
+- Train：**Train 69.45%, CV 60.09% ± 9.37pp**；Bear CV **58.61%**, Bull CV **77.06%**, Chop CV **61.60%**。
 
-### 新 blocker 升級
-- **#DW_N100_NAN**：`scripts/dynamic_window_train.py` 在 N=100 出現 `ConstantInputWarning`，8/8 全部 NaN，這代表最近窗口的 merge / target slice / constant-feature handling 仍有 bug。此問題已從「觀察」升級為下一輪 P0 investigation gate。
+### 新 blocker / 狀態更正
+- **#DW_N100_NAN**：已確認**不是 merge bug**。根因是 canonical 24h label 在最近 100/200/400 筆窗口內全部為 **1**，屬於 **constant target saturation**；本輪已修掉 NaN / warning 假錯誤，但 recent-window 指標仍暫時不可用，需升級為 label-distribution / evaluation-window 問題，而不是 join bug。
 
 ## 📈 心跳 #610 IC 摘要
 
@@ -162,15 +161,16 @@
 | #SPOT_LONG_WIN_33 | spot_long_win=33.21% 遠低於目標（需≥90%） | 🔴 持續（legacy 比較指標；主 target 已切到 simulated_pyramid_win） |
 | #BULL_CHOP_DEAD | Bull 0/8, Chop 0/8（200+輪持續零信號）| 🟡 重新評估中（#611 的 Mind-tertile regime IC 顯示 Bull 7/8、Chop 4/8，但方法差異仍待確認） |
 | #CV_CEILING | CV 51.39% 天花板（6+月無法突破）| 🟡 已部分修復（#611 global CV 升至 **59.48%**，但仍需確認是否穩定、是否受 regime / window bug 影響） |
-| #CANONICAL_KEY_DRIFT | features/labels/analysis 對齊仍受 timestamp-only 舊語義污染，symbol NULL 舊資料混入 | 🟡 已部分修復（新特徵保存改為 timestamp+symbol，標籤優先使用 canonical symbol rows，已執行歷史去重） |
+| #CANONICAL_KEY_DRIFT | features/labels/analysis 對齊仍受 timestamp-only 舊語義污染，symbol NULL 舊資料混入 | 🟡 已部分修復（新特徵保存改為 timestamp+symbol，標籤優先使用 canonical symbol rows，analysis 腳本已強制 `horizon_minutes=1440`） |
 | #FEATURE_SYMBOL_NULL | `features_normalized.symbol` 歷史上可為 NULL，造成 mixed-generation dataset | ✅ 已修復（歷史 NULL symbol 已回填為 0 筆） |
-| #DW_N100_NAN | `dynamic_window_train.py` 在 N=100 產生 8/8 NaN，recent-window 診斷失真 | 🔴 新增 blocker（Heartbeat #611 runtime 已重現） |
+| #LABEL_HORIZON_UNIT_BUG | `hb_collect.py` 曾把 4h label job 寫成 14,400m，污染 labels 與 heartbeat 分析 | ✅ 已修復（Heartbeat #612 已修正呼叫參數並刪除 **10,723** 筆 14,400m rows） |
+| #DW_N100_NAN | `dynamic_window_train.py` 在 N=100 產生 8/8 NaN，recent-window 診斷失真 | 🟡 已部分修復（NaN / warning 已消失；根因改判為 recent 24h target 全為 1 的 constant-target saturation，需要另做窗口/標籤分布治理） |
 
 ## P1
 
 | ID | 問題 | 狀態 |
 |----|------|------|
-| #DW_DEADZONE | N=600 和 N=5000 持續 0/8 死區 | 🟡 已部分修復（#611 runtime：N=600 升至 7/8、N=5000 升至 4/8，但 N=100 新增 NaN blocker） |
+| #DW_DEADZONE | N=600 和 N=5000 持續 0/8 死區 | 🟡 已部分修復（#612 canonical 24h runtime：N=600=6/8、N=1000=7/8、N=5000=5/8；真正的 recent-window 問題改為 N=100/200/400 constant-target saturation） |
 | #EAR_LOW_VAR | feat_ear std=0.0029, unique=13（準離散特徵）| ⚠️ 持續 |
 | #TONGUE_LOW_VAR | feat_tongue std=0.0016, unique=9（準離散特徵）| ⚠️ 持續 |
 | #LABELS_JUMP | Labels 從 18,052 跳增至 27,684（+53%）原因未明 | ✅ 已定位（hb_collect pipeline 重建 labels；後續以 24h/canonical horizon 管理，不再視為隨機跳增） |

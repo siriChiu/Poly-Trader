@@ -16,6 +16,25 @@ except ImportError:
 
 DB_PATH = '/home/kazuha/Poly-Trader/poly_trader.db'
 TARGET_COL = 'simulated_pyramid_win'
+CANONICAL_HORIZON_MINUTES = 1440
+
+def _safe_spearman(vals, labs):
+    vals = np.array(vals, dtype=float)
+    labs = np.array(labs, dtype=float)
+    if vals.size < 2 or labs.size < 2:
+        return 0.0, 'too_few_samples'
+    if np.unique(vals).size <= 1:
+        return 0.0, 'constant_feature'
+    if np.unique(labs).size <= 1:
+        return 0.0, 'constant_target'
+    if HAS_SCIPY:
+        ic, _ = stats.spearmanr(vals, labs)
+    else:
+        ic = np.corrcoef(vals, labs)[0, 1]
+    if ic is None or not np.isfinite(ic):
+        return 0.0, 'non_finite_ic'
+    return float(ic), 'ok'
+
 
 def main():
     conn = sqlite3.connect(DB_PATH)
@@ -39,9 +58,11 @@ def main():
     feat_names = [d[0] for d in feat_df.description]
     feat_rows = feat_df.fetchall()
     
-    # Load labels
+    # Load canonical 24h labels only.
     label_query = f"""SELECT timestamp, symbol, {TARGET_COL}, regime_label
-                     FROM labels WHERE {TARGET_COL} IS NOT NULL"""
+                     FROM labels
+                     WHERE {TARGET_COL} IS NOT NULL
+                       AND horizon_minutes = {CANONICAL_HORIZON_MINUTES}"""
     label_rows = conn.execute(label_query).fetchall()
     label_map = {(r[0], r[1]): r[2] for r in label_rows}
     
@@ -72,12 +93,10 @@ def main():
             print(f"  {col:20s}: SKIP (n={len(vals)})")
             global_ics[col] = 0.0
             continue
-        if HAS_SCIPY:
-            ic, _ = stats.spearmanr(vals, labs)
-        else:
-            ic = np.corrcoef(vals, labs)[0, 1]
-        status = "✅ PASS" if abs(ic) >= 0.05 else "❌ FAIL"
-        print(f"  {col:20s}: IC={ic:+.4f} {status}")
+        ic, reason = _safe_spearman(vals, labs)
+        status = "✅ PASS" if abs(ic) >= 0.05 else ("⚠️ SKIP" if reason != 'ok' else "❌ FAIL")
+        suffix = "" if reason == 'ok' else f" ({reason})"
+        print(f"  {col:20s}: IC={ic:+.4f} {status}{suffix}")
         global_ics[col] = round(float(ic), 4)
     
     global_pass = sum(1 for v in global_ics.values() if abs(v) >= 0.05)
@@ -96,39 +115,50 @@ def main():
         
         vals = [p[0] for p in valid_pairs]
         labs = [p[1] for p in valid_pairs]
-        
-        # Exponential decay weights (recent = higher weight)
-        w = np.array([np.exp(-(len(vals) - 1 - i) / tau) for i in range(len(vals))])
-        
-        # Weighted Spearman approximation via weighted Pearson
-        vals = np.array(vals, dtype=float)
-        labs = np.array(labs, dtype=float)
-        
-        if HAS_SCIPY:
-            # Use Pearson on rank-transformed data as approximation
-            vals_rank = stats.rankdata(vals)
-            labs_rank = stats.rankdata(labs)
-            
-            # Weighted mean
-            w_sum = w.sum()
-            vals_wmean = np.sum(w * vals_rank) / w_sum
-            labs_wmean = np.sum(w * labs_rank) / w_sum
-            
-            # Weighted covariance
-            cov = np.sum(w * (vals_rank - vals_wmean) * (labs_rank - labs_wmean))
-            std_v = np.sqrt(np.sum(w * (vals_rank - vals_wmean) ** 2))
-            std_l = np.sqrt(np.sum(w * (labs_rank - labs_wmean) ** 2))
-            
-            if std_v * std_l > 0:
-                ic = float(cov / (std_v * std_l))
-            else:
-                ic = 0.0
+        if len(set(vals)) <= 1:
+            ic = 0.0
+            reason = 'constant_feature'
+        elif len(set(labs)) <= 1:
+            ic = 0.0
+            reason = 'constant_target'
         else:
-            ic = float(np.corrcoef(vals, labs)[0, 1])
+            # Exponential decay weights (recent = higher weight)
+            w = np.array([np.exp(-(len(vals) - 1 - i) / tau) for i in range(len(vals))])
+
+            # Weighted Spearman approximation via weighted Pearson
+            vals = np.array(vals, dtype=float)
+            labs = np.array(labs, dtype=float)
+            if HAS_SCIPY:
+                # Use Pearson on rank-transformed data as approximation
+                vals_rank = stats.rankdata(vals)
+                labs_rank = stats.rankdata(labs)
+
+                # Weighted mean
+                w_sum = w.sum()
+                vals_wmean = np.sum(w * vals_rank) / w_sum
+                labs_wmean = np.sum(w * labs_rank) / w_sum
+
+                # Weighted covariance
+                cov = np.sum(w * (vals_rank - vals_wmean) * (labs_rank - labs_wmean))
+                std_v = np.sqrt(np.sum(w * (vals_rank - vals_wmean) ** 2))
+                std_l = np.sqrt(np.sum(w * (labs_rank - labs_wmean) ** 2))
+
+                if std_v * std_l > 0:
+                    ic = float(cov / (std_v * std_l))
+                    reason = 'ok'
+                else:
+                    ic = 0.0
+                    reason = 'zero_weighted_std'
+            else:
+                ic = float(np.corrcoef(vals, labs)[0, 1])
+                reason = 'ok' if np.isfinite(ic) else 'non_finite_ic'
+                if not np.isfinite(ic):
+                    ic = 0.0
         
         tw_ics[col] = round(float(ic), 4)
-        status = "✅ PASS" if abs(ic) >= 0.05 else "❌ FAIL"
-        print(f"  {col:20s}: TW-IC={ic:+.4f} {status}")
+        status = "✅ PASS" if abs(ic) >= 0.05 else ("⚠️ SKIP" if reason != 'ok' else "❌ FAIL")
+        suffix = "" if reason == 'ok' else f" ({reason})"
+        print(f"  {col:20s}: TW-IC={ic:+.4f} {status}{suffix}")
     
     tw_pass = sum(1 for v in tw_ics.values() if abs(v) >= 0.05)
     print(f"\nTW-IC: {tw_pass}/{len(feat_cols)} passing")

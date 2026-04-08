@@ -15,11 +15,30 @@ except ImportError:
 
 DB_PATH = '/home/kazuha/Poly-Trader/poly_trader.db'
 TARGET_COL = 'simulated_pyramid_win'
+CANONICAL_HORIZON_MINUTES = 1440
 
 CORE_FEATURES = [
     'feat_eye', 'feat_ear', 'feat_nose', 'feat_tongue',
     'feat_body', 'feat_pulse', 'feat_aura', 'feat_mind',
 ]
+
+def _safe_spearman(vals, labs):
+    vals = np.array(vals, dtype=float)
+    labs = np.array(labs, dtype=float)
+    if vals.size < 2 or labs.size < 2:
+        return 0.0, 'too_few_samples'
+    if np.unique(vals).size <= 1:
+        return 0.0, 'constant_feature'
+    if np.unique(labs).size <= 1:
+        return 0.0, 'constant_target'
+    if HAS_SCIPY:
+        ic, _ = stats.spearmanr(vals, labs)
+    else:
+        ic = np.corrcoef(vals, labs)[0, 1]
+    if ic is None or not np.isfinite(ic):
+        return 0.0, 'non_finite_ic'
+    return float(ic), 'ok'
+
 
 def main():
     conn = sqlite3.connect(DB_PATH)
@@ -32,7 +51,9 @@ def main():
     feat_rows = feat_df.fetchall()
     
     label_query = f"""SELECT timestamp, symbol, {TARGET_COL}, regime_label
-                     FROM labels WHERE {TARGET_COL} IS NOT NULL"""
+                     FROM labels
+                     WHERE {TARGET_COL} IS NOT NULL
+                       AND horizon_minutes = {CANONICAL_HORIZON_MINUTES}"""
     label_rows = conn.execute(label_query).fetchall()
     label_map = {(r[0], r[1]): {TARGET_COL: r[2], 'regime_label': r[3]} for r in label_rows}
     
@@ -89,26 +110,28 @@ def main():
         
         print(f"\n{regime.upper()} (n={len(subset)})")
         ics = {}
+        diagnostics = {}
         for col in CORE_FEATURES:
-            vals = [r[col] for r in subset if r[col] is not None]
-            labs = [r[TARGET_COL] for r in subset if r[col] is not None]
+            vals = [r[col] for r in subset if r[col] is not None and r[TARGET_COL] is not None]
+            labs = [r[TARGET_COL] for r in subset if r[col] is not None and r[TARGET_COL] is not None]
             if len(vals) < 20:
                 ics[col] = 0.0
+                diagnostics[col] = 'too_few_samples'
                 continue
-            if HAS_SCIPY:
-                ic, _ = stats.spearmanr(vals, labs)
-            else:
-                ic = np.corrcoef(vals, labs)[0, 1]
+            ic, reason = _safe_spearman(vals, labs)
             ics[col] = round(float(ic), 4)
+            diagnostics[col] = reason
         
         passed = sum(1 for v in ics.values() if abs(v) >= 0.05)
-        result[regime] = {'n': len(subset), 'ics': ics, 'passed': passed}
+        result[regime] = {'n': len(subset), 'ics': ics, 'passed': passed, 'diagnostics': diagnostics}
         
         for col in CORE_FEATURES:
             short = col.replace('feat_', '')
             ic = ics.get(col, 0)
-            status = "✅" if abs(ic) >= 0.05 else "❌"
-            print(f"  {short:8s}: IC={ic:+.4f} {status}")
+            reason = diagnostics.get(col, 'ok')
+            status = "✅" if abs(ic) >= 0.05 else ("⚠️" if reason != 'ok' else "❌")
+            suffix = "" if reason == 'ok' else f" ({reason})"
+            print(f"  {short:8s}: IC={ic:+.4f} {status}{suffix}")
         print(f"  → {passed}/{len(CORE_FEATURES)} passing")
     
     # Target hit rate by regime

@@ -15,6 +15,7 @@ except ImportError:
 
 DB_PATH = '/home/kazuha/Poly-Trader/poly_trader.db'
 TARGET_COL = 'simulated_pyramid_win'
+CANONICAL_HORIZON_MINUTES = 1440
 
 CORE_FEATURES = [
     'feat_eye', 'feat_ear', 'feat_nose', 'feat_tongue',
@@ -22,20 +23,47 @@ CORE_FEATURES = [
 ]
 
 def analyze_window(data_window):
-    """Return dict of ic per feature for a given window."""
+    """Return ICs plus diagnostics for a given window."""
     ics = {}
+    diagnostics = {}
+    label_values = [r[TARGET_COL] for r in data_window if r[TARGET_COL] is not None]
+    constant_target = len(set(label_values)) <= 1
+    target_counts = {str(v): label_values.count(v) for v in sorted(set(label_values))}
     for col in CORE_FEATURES:
-        vals = [r[col] for r in data_window if r[col] is not None]
-        labs = [r[TARGET_COL] for r in data_window if r[col] is not None]
+        vals = [r[col] for r in data_window if r[col] is not None and r[TARGET_COL] is not None]
+        labs = [r[TARGET_COL] for r in data_window if r[col] is not None and r[TARGET_COL] is not None]
+        diag = {"n": len(vals), "reason": "ok"}
         if len(vals) < 20:
             ics[col] = 0.0
+            diag["reason"] = "too_few_samples"
+            diagnostics[col] = diag
+            continue
+        if len(set(vals)) <= 1:
+            ics[col] = 0.0
+            diag["reason"] = "constant_feature"
+            diagnostics[col] = diag
+            continue
+        if len(set(labs)) <= 1:
+            ics[col] = 0.0
+            diag["reason"] = "constant_target"
+            diagnostics[col] = diag
             continue
         if HAS_SCIPY:
             ic, _ = stats.spearmanr(vals, labs)
         else:
             ic = np.corrcoef(vals, labs)[0, 1]
-        ics[col] = round(float(ic), 4)
-    return ics
+        if ic is None or not np.isfinite(ic):
+            ics[col] = 0.0
+            diag["reason"] = "non_finite_ic"
+        else:
+            ics[col] = round(float(ic), 4)
+        diagnostics[col] = diag
+    return {
+        "ics": ics,
+        "constant_target": constant_target,
+        "target_counts": target_counts,
+        "diagnostics": diagnostics,
+    }
 
 def main():
     conn = sqlite3.connect(DB_PATH)
@@ -46,7 +74,10 @@ def main():
     feat_names = [d[0] for d in feat_df.description]
     feat_rows = feat_df.fetchall()
     
-    label_query = f"""SELECT timestamp, symbol, {TARGET_COL} FROM labels WHERE {TARGET_COL} IS NOT NULL"""
+    label_query = f"""SELECT timestamp, symbol, {TARGET_COL}
+                     FROM labels
+                     WHERE {TARGET_COL} IS NOT NULL
+                       AND horizon_minutes = {CANONICAL_HORIZON_MINUTES}"""
     label_rows = conn.execute(label_query).fetchall()
     label_map = {(r[0], r[1]): r[2] for r in label_rows}
     
@@ -75,18 +106,24 @@ def main():
     for N in windows:
         if N > total_n:
             continue
-        window = matched[-N:]  # Last N samples (most recent)
-        ics = analyze_window(window)
+        window = matched[-N:]  # Last N samples (most recent canonical labels)
+        analysis = analyze_window(window)
+        ics = analysis['ics']
         passed = sum(1 for v in ics.values() if abs(v) >= 0.05)
-        results[N] = ics
+        results[N] = analysis
         
-        best_feats = {k: v for k, v in ics.items() if abs(v) >= 0.05}
-        print(f"\nN={N:>5d}: {passed}/{len(CORE_FEATURES)} passed")
+        target_counts = ', '.join(f"{k}:{v}" for k, v in analysis['target_counts'].items()) or 'none'
+        headline = f"\nN={N:>5d}: {passed}/{len(CORE_FEATURES)} passed | target_counts={target_counts}"
+        if analysis['constant_target']:
+            headline += " | constant_target_window"
+        print(headline)
         for feat in CORE_FEATURES:
             short = feat.replace('feat_', '')
             ic = ics.get(feat, 0)
-            status = "✅" if abs(ic) >= 0.05 else "❌"
-            print(f"  {short:8s}: IC={ic:+.4f} {status}")
+            reason = analysis['diagnostics'].get(feat, {}).get('reason', 'ok')
+            status = "✅" if abs(ic) >= 0.05 else ("⚠️" if reason != 'ok' else "❌")
+            suffix = "" if reason == 'ok' else f" ({reason})"
+            print(f"  {short:8s}: IC={ic:+.4f} {status}{suffix}")
         
         if passed > best_pass:
             best_pass = passed
