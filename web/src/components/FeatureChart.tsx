@@ -22,7 +22,7 @@ import {
   AreaChart,
 } from "recharts";
 import { fetchApi } from "../hooks/useApi";
-import { getSenseConfig } from "../config/senses";
+import { ALL_SENSES, FEATURE_GROUPS, getSenseConfig, type FeatureGroupKey } from "../config/senses";
 
 // ─── Types ───
 
@@ -34,14 +34,7 @@ interface Props {
 
 interface FeatureRow {
   timestamp: string;
-  eye: number | null;
-  ear: number | null;
-  nose: number | null;
-  tongue: number | null;
-  body: number | null;
-  pulse: number | null;
-  aura: number | null;
-  mind: number | null;
+  [key: string]: string | number | null | undefined;
 }
 
 interface KlineCandle {
@@ -61,31 +54,26 @@ interface MergedPoint {
   time: number;
   label: string;
   price: number;
-  eye: number | null;
-  ear: number | null;
-  nose: number | null;
-  tongue: number | null;
-  body: number | null;
-  pulse: number | null;
-  aura: number | null;
-  mind: number | null;
   score: number | null;
   buySignal: number | null;
   sellSignal: number | null;
+  [key: string]: string | number | null | undefined;
 }
 
 // ─── Constants ───
 
-const FEATURE_CONFIG: Record<string, { label: string; color: string; key: keyof MergedPoint }> = {
-  eye:    { label: getSenseConfig("eye").name, color: getSenseConfig("eye").color, key: "eye" },
-  ear:    { label: getSenseConfig("ear").name, color: getSenseConfig("ear").color, key: "ear" },
-  nose:   { label: getSenseConfig("nose").name, color: getSenseConfig("nose").color, key: "nose" },
-  tongue: { label: getSenseConfig("tongue").name, color: getSenseConfig("tongue").color, key: "tongue" },
-  body:   { label: getSenseConfig("body").name, color: getSenseConfig("body").color, key: "body" },
-  pulse:  { label: getSenseConfig("pulse").name, color: getSenseConfig("pulse").color, key: "pulse" },
-  aura:   { label: getSenseConfig("aura").name, color: getSenseConfig("aura").color, key: "aura" },
-  mind:   { label: getSenseConfig("mind").name, color: getSenseConfig("mind").color, key: "mind" },
-};
+const FEATURE_ORDER = Object.keys(ALL_SENSES).filter((key) => {
+  const meta = getSenseConfig(key);
+  return ["microstructure", "technical", "macro", "structure4h"].includes(meta.category);
+});
+
+const FEATURE_CONFIG: Record<string, { label: string; color: string; key: keyof MergedPoint; category: FeatureGroupKey }> =
+  Object.fromEntries(
+    FEATURE_ORDER.map((key) => {
+      const meta = getSenseConfig(key);
+      return [key, { label: meta.name, color: meta.color, key: key as keyof MergedPoint, category: meta.category }];
+    })
+  );
 
 const TIMEFRAMES = [
   { label: "1D", days: 1 },
@@ -108,17 +96,13 @@ function formatPrice(v: number): string {
   return `$${v.toFixed(0)}`;
 }
 
-/** Combine multi-feature scores into a recommendation score 0–100 */
+/** Combine visible feature scores into a recommendation score 0–100 */
 function calcScore(point: Partial<MergedPoint>): number | null {
-  const vals = Object.keys(FEATURE_CONFIG).map((k) => point[FEATURE_CONFIG[k].key]);
+  const vals = FEATURE_ORDER.map((k) => point[FEATURE_CONFIG[k].key]);
   const valid = vals.filter((v): v is number => v !== null && v !== undefined);
   if (valid.length === 0) return null;
   const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
-  // Sigmoid amplification to break the "always 45-55" problem
-  const raw = avg * 100;
-  const x = (raw - 50) / 15;
-  const amplified = 50 + 50 * (1 / (1 + Math.exp(-1.5 * x)) - 0.5) * 2;
-  return Math.round(Math.max(0, Math.min(100, amplified)));
+  return Math.round(Math.max(0, Math.min(100, avg * 100)));
 }
 
 /** Sell/Short signals: score crosses thresholds (high score = strong sell signal) */
@@ -138,47 +122,62 @@ function detectSignals(data: MergedPoint[]) {
 function CustomLegend({
   visibility,
   onToggle,
+  onToggleGroup,
 }: {
   visibility: Record<string, boolean>;
   onToggle: (key: string) => void;
+  onToggleGroup: (group: FeatureGroupKey) => void;
 }) {
+  const groupedEntries = Object.entries(FEATURE_CONFIG).reduce((acc, [key, cfg]) => {
+    (acc[cfg.category] ||= []).push([key, cfg] as [string, typeof cfg]);
+    return acc;
+  }, {} as Record<FeatureGroupKey, Array<[string, (typeof FEATURE_CONFIG)[string]]>>);
+
   return (
-    <div className="flex flex-wrap items-center gap-2 px-2">
-      {/* Price always on */}
-      <span className="flex items-center gap-1 text-xs text-slate-300 bg-slate-800/60 px-2 py-1 rounded-md">
-        <span className="w-3 h-0.5 bg-slate-300 inline-block" />
-        價格
-      </span>
+    <div className="space-y-3 px-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex items-center gap-1 text-xs text-slate-300 bg-slate-800/60 px-2 py-1 rounded-md">
+          <span className="w-3 h-0.5 bg-slate-300 inline-block" />
+          價格
+        </span>
+        <span className="flex items-center gap-1 text-xs text-green-400 bg-slate-800/60 px-2 py-1 rounded-md">▲ 買</span>
+        <span className="flex items-center gap-1 text-xs text-red-400 bg-slate-800/60 px-2 py-1 rounded-md">▼ 賣</span>
+      </div>
 
-      {Object.entries(FEATURE_CONFIG).map(([key, cfg]) => {
-        const active = visibility[key] ?? true;
-        return (
-          <button
-            key={key}
-            onClick={() => onToggle(key)}
-            className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all ${
-              active
-                ? "bg-slate-700/80 text-white"
-                : "bg-slate-800/40 text-slate-500 line-through"
-            }`}
-            style={active ? { borderColor: cfg.color, borderWidth: 1 } : undefined}
-          >
-            <span
-              className="w-3 h-0.5 inline-block"
-              style={{ backgroundColor: active ? cfg.color : "#475569" }}
-            />
-            {cfg.label}
-          </button>
-        );
-      })}
-
-      {/* Signal markers legend */}
-      <span className="flex items-center gap-1 text-xs text-green-400 bg-slate-800/60 px-2 py-1 rounded-md">
-        ▲ 買
-      </span>
-      <span className="flex items-center gap-1 text-xs text-red-400 bg-slate-800/60 px-2 py-1 rounded-md">
-        ▼ 賣
-      </span>
+      {Object.entries(groupedEntries).map(([groupKey, items]) => (
+        <div key={groupKey} className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div>
+              <div className="text-xs font-semibold text-slate-300">{FEATURE_GROUPS[groupKey as FeatureGroupKey].label}</div>
+              <div className="text-[11px] text-slate-500">{FEATURE_GROUPS[groupKey as FeatureGroupKey].description}</div>
+            </div>
+            <button
+              onClick={() => onToggleGroup(groupKey as FeatureGroupKey)}
+              className="text-[11px] text-blue-400 hover:text-blue-300"
+            >
+              切換整組
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {items.map(([key, cfg]) => {
+              const active = visibility[key] ?? true;
+              return (
+                <button
+                  key={key}
+                  onClick={() => onToggle(key)}
+                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all ${
+                    active ? "bg-slate-700/80 text-white" : "bg-slate-800/40 text-slate-500 line-through"
+                  }`}
+                  style={active ? { borderColor: cfg.color, borderWidth: 1 } : undefined}
+                >
+                  <span className="w-3 h-0.5 inline-block" style={{ backgroundColor: active ? cfg.color : "#475569" }} />
+                  {cfg.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -271,15 +270,22 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
 
   const [_autoHighlight, setAutoHighlight] = useState(false);
 
+  const normalizeSelectedFeature = useCallback((feature?: string | null) => {
+    if (!feature) return null;
+    if (feature in FEATURE_CONFIG) return feature;
+    const stripped = feature.replace("feat_", "");
+    return stripped in FEATURE_CONFIG ? stripped : null;
+  }, []);
+
   // Auto-scroll into view when selectedFeature changes
   useEffect(() => {
-    if (selectedFeature && containerRef.current) {
+    const normalized = normalizeSelectedFeature(selectedFeature);
+    if (normalized && containerRef.current) {
       containerRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-      // Set auto-highlight but allow user to toggle features back
-      setVisibility(Object.fromEntries(Object.keys(FEATURE_CONFIG).map((k) => [k, true])));
+      setVisibility(Object.fromEntries(Object.keys(FEATURE_CONFIG).map((k) => [k, k === normalized])));
       setAutoHighlight(true);
     }
-  }, [selectedFeature]);
+  }, [selectedFeature, normalizeSelectedFeature]);
 
   // Fetch & merge data
   useEffect(() => {
@@ -313,31 +319,31 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
           const hourBucket = Math.floor(d.getHours() / (interval === "15m" ? 1 : interval === "4h" ? 4 : 1)) * (interval === "15m" ? 1 : interval === "4h" ? 4 : 1);
           const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${hourBucket}`;
 
-          // Find closest feature by timestamp
-          let feat: FeatureRow | undefined;
+          let feat: FeatureRow | undefined = featMap.get(key);
           let minDiff = Infinity;
-          for (const f of features) {
-            const diff = Math.abs(new Date(f.timestamp).getTime() - c.time * 1000);
-            if (diff < minDiff) {
-              minDiff = diff;
-              feat = f;
+          if (!feat) {
+            for (const f of features) {
+              const diff = Math.abs(new Date(String(f.timestamp)).getTime() - c.time * 1000);
+              if (diff < minDiff) {
+                minDiff = diff;
+                feat = f;
+              }
             }
+            if (minDiff > 2 * 3600 * 1000) feat = undefined;
           }
-          // Only use if within 2 hours
-          if (minDiff > 2 * 3600 * 1000) feat = undefined;
+
+          const dynamicValues = Object.fromEntries(
+            FEATURE_ORDER.map((featureKey) => {
+              const raw = feat?.[featureKey];
+              return [featureKey, typeof raw === "number" ? raw : raw == null ? null : Number(raw)];
+            })
+          );
 
           return {
             time: c.time,
             label: formatTime(c.time),
             price: c.close,
-            eye: feat?.eye ?? null,
-            ear: feat?.ear ?? null,
-            nose: feat?.nose ?? null,
-            tongue: feat?.tongue ?? null,
-            body: feat?.body ?? null,
-            pulse: feat?.pulse ?? null,
-            aura: feat?.aura ?? null,
-            mind: feat?.mind ?? null,
+            ...dynamicValues,
             score: null,
             buySignal: null,
             sellSignal: null,
@@ -369,6 +375,18 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
     setVisibility((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
+  const toggleGroupVisibility = useCallback((group: FeatureGroupKey) => {
+    const keys = Object.entries(FEATURE_CONFIG)
+      .filter(([, cfg]) => cfg.category === group)
+      .map(([key]) => key);
+    setVisibility((prev) => {
+      const shouldEnable = keys.some((key) => !prev[key]);
+      const next = { ...prev };
+      for (const key of keys) next[key] = shouldEnable;
+      return next;
+    });
+  }, []);
+
   // Price domain
   const priceDomain = useMemo(() => {
     if (!merged.length) return [0, 100000] as [number, number];
@@ -388,14 +406,14 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h2 className="text-sm font-semibold text-slate-400">
           📈 價格 × 多特徵走勢
-          {selectedFeature && (
+          {normalizeSelectedFeature(selectedFeature) && (
             <span className="ml-2 text-xs px-2 py-0.5 rounded-full"
               style={{
-                backgroundColor: FEATURE_CONFIG[selectedFeature]?.color + "22",
-                color: FEATURE_CONFIG[selectedFeature]?.color,
+                backgroundColor: FEATURE_CONFIG[normalizeSelectedFeature(selectedFeature)!]?.color + "22",
+                color: FEATURE_CONFIG[normalizeSelectedFeature(selectedFeature)!]?.color,
               }}
             >
-              聚焦：{FEATURE_CONFIG[selectedFeature]?.label}
+              聚焦：{FEATURE_CONFIG[normalizeSelectedFeature(selectedFeature)!]?.label}
             </span>
           )}
         </h2>
@@ -418,7 +436,7 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
       </div>
 
       {/* Legend Toggles */}
-      <CustomLegend visibility={visibility} onToggle={toggleVisibility} />
+      <CustomLegend visibility={visibility} onToggle={toggleVisibility} onToggleGroup={toggleGroupVisibility} />
 
       {/* Loading / Error */}
       {loading && (
@@ -502,9 +520,9 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
                   type="monotone"
                   dataKey={cfg.key}
                   stroke={cfg.color}
-                  strokeWidth={selectedFeature === key ? 3 : 1.5}
+                  strokeWidth={normalizeSelectedFeature(selectedFeature) === key ? 3 : 1.5}
                   dot={false}
-                  activeDot={{ r: selectedFeature === key ? 5 : 3, fill: cfg.color }}
+                  activeDot={{ r: normalizeSelectedFeature(selectedFeature) === key ? 5 : 3, fill: cfg.color }}
                   hide={!visibility[key]}
                   animationDuration={600}
                   connectNulls={false}

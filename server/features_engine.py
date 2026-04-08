@@ -334,12 +334,13 @@ class FeaturesEngine:
         if scores is None:
             scores = self.calculate_all_scores()
         rec_score = self.calculate_recommendation_score(scores)
+        focus_features = [
+            "4h_bias50", "4h_dist_sl", "4h_rsi14", "pulse", "nose", "vix", "dxy", "mind"
+        ]
         descriptions = [
-            self._desc("eye", scores.get("eye", 0.5)),
-            self._desc("ear", scores.get("ear", 0.5)),
-            self._desc("nose", scores.get("nose", 0.5)),
-            self._desc("tongue", scores.get("tongue", 0.5)),
-            self._desc("body", scores.get("body", 0.5)),
+            self._desc(feature, scores.get(feature, 0.5))
+            for feature in focus_features
+            if feature in scores
         ]
         overall = self._overall_advice(rec_score)
         sorted_feats = sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -348,7 +349,9 @@ class FeaturesEngine:
             "body": "波動狀態", "pulse": "量能脈衝", "aura": "均線偏離", "mind": "中期動量",
             "vix": "VIX 風險", "dxy": "美元強弱", "rsi14": "RSI14", "macd_hist": "MACD",
             "atr_pct": "ATR 波幅", "vwap_dev": "VWAP 偏離", "bb_pct_b": "布林帶位置",
-            "4h_bias50": "4H MA50 偏離", "4h_dist_sl": "4H 支撐距離", "4h_rsi14": "4H RSI",
+            "4h_bias50": "4H MA50 偏離", "4h_bias20": "4H MA20 偏離", "4h_dist_sl": "4H 支撐距離",
+            "4h_rsi14": "4H RSI", "4h_macd_hist": "4H MACD", "4h_bb_pct_b": "4H 布林帶位置",
+            "4h_ma_order": "4H 均線排列",
         }
         summary = (
             f"{names.get(sorted_feats[0][0], sorted_feats[0][0])}最強（{sorted_feats[0][1]:.0%}），"
@@ -364,16 +367,51 @@ class FeaturesEngine:
 
     def _desc(self, feature: str, score: float) -> str:
         templates = {
-            "eye": [(0.7, "趨勢強勁 📈"), (0.3, "趨勢整理區間 📊"), (0, "趨勢走弱 📉")],
-            "ear": [(0.6, "動能偏多 🟢"), (0.4, "觀望情緒濃厚 ⚪"), (0, "動能偏空 🔴")],
-            "nose": [(0.6, "RSI 偏強 🔼"), (0.4, "RSI 平穩 ➡️"), (0, "RSI 偏弱 🔽")],
-            "tongue": [(0.6, "回調壓力低 😊"), (0.4, "回調壓力中性 😐"), (0, "回調壓力高 😱")],
-            "body": [(0.6, "波動率低 📏"), (0.4, "波動率中等 ⚖️"), (0, "波動率高 📤")],
+            "4h_bias50": [
+                (0.75, "4H MA50 回檔夠深，進場甜蜜點逐漸浮現"),
+                (0.45, "4H 位置中性，仍需等待更好價格或確認"),
+                (0.0, "4H 價格仍偏高，追價風險大於優勢"),
+            ],
+            "4h_dist_sl": [
+                (0.75, "距離 4H 支撐很近，適合觀察分批承接機會"),
+                (0.45, "離支撐尚有距離，先留意結構是否守穩"),
+                (0.0, "距離關鍵支撐太遠，安全邊際不足"),
+            ],
+            "4h_rsi14": [
+                (0.7, "4H 動能維持健康，回檔後仍有延續空間"),
+                (0.4, "4H 動能中性，暫時偏向等待市場表態"),
+                (0.0, "4H 動能轉弱，應避免過早擴大部位"),
+            ],
+            "pulse": [
+                (0.7, "量能正在放大，價格變化更可能有真實資金支持"),
+                (0.4, "量能普通，訊號可信度屬一般水準"),
+                (0.0, "量能偏弱，容易出現無量反彈或假突破"),
+            ],
+            "nose": [
+                (0.7, "短線 RSI 偏熱，靠近追價區，應等更好風險報酬"),
+                (0.4, "RSI 位於中性帶，適合搭配其他結構訊號一起判讀"),
+                (0.0, "RSI 已回到偏冷區，抄底條件開始改善"),
+            ],
+            "vix": [
+                (0.7, "外部風險偏好偏差，全球避險情緒仍在壓抑加密資產"),
+                (0.4, "宏觀風險中性，短線仍以幣圈自身節奏為主"),
+                (0.0, "外部風險壓力較低，較有利風險資產反彈"),
+            ],
+            "dxy": [
+                (0.7, "美元偏強，流動性壓力較高，現貨操作宜更保守"),
+                (0.4, "美元環境中性，暫時不構成主要阻力"),
+                (0.0, "美元回落，通常較有利加密資產估值修復"),
+            ],
+            "mind": [
+                (0.7, "中期動量維持正向，代表不是只有短線反彈"),
+                (0.4, "中期動量中性，還看不出明確趨勢優勢"),
+                (0.0, "中期動量偏弱，反彈持續性需保守看待"),
+            ],
         }
         for threshold, text in templates.get(feature, []):
-            if score > threshold:
+            if score >= threshold:
                 return text
-        return "數據不足 ❓"
+        return "目前訊號資訊不足，先維持觀察。"
 
     def _overall_advice(self, score: int) -> Dict[str, str]:
         # Canonical target is spot-long-win: high score means better long entry quality,
