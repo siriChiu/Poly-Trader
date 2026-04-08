@@ -57,11 +57,14 @@ def test_api_features_exposes_extended_feature_history_keys(monkeypatch):
         feat_nest_pred=1.0,
         feat_4h_bias50=-2.0,
         feat_4h_bias20=-1.0,
+        feat_4h_bias200=4.0,
         feat_4h_rsi14=45.0,
         feat_4h_macd_hist=100.0,
         feat_4h_bb_pct_b=0.4,
+        feat_4h_dist_bb_lower=2.5,
         feat_4h_ma_order=1.0,
         feat_4h_dist_swing_low=3.0,
+        feat_4h_vol_ratio=1.8,
     )
     monkeypatch.setattr(api_module, "get_db", lambda: _FakeSession([row]))
 
@@ -81,7 +84,10 @@ def test_api_features_exposes_extended_feature_history_keys(monkeypatch):
         "nq_return_1h",
         "nq_return_24h",
         "4h_bias50",
+        "4h_bias200",
+        "4h_dist_bb_lower",
         "4h_dist_sl",
+        "4h_vol_ratio",
     ]:
         assert key in payload
         assert payload[key] is not None
@@ -89,17 +95,20 @@ def test_api_features_exposes_extended_feature_history_keys(monkeypatch):
 
 def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
     rows = [
-        SimpleNamespace(timestamp=object(), feat_eye=0.1, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-2.0),
-        SimpleNamespace(timestamp=object(), feat_eye=0.2, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-1.5),
-        SimpleNamespace(timestamp=object(), feat_eye=0.3, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-1.0),
+        SimpleNamespace(timestamp=object(), feat_eye=0.1, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-2.0, feat_4h_ma_order=-1.0),
+        SimpleNamespace(timestamp=object(), feat_eye=0.2, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-1.5, feat_4h_ma_order=0.0),
+        SimpleNamespace(timestamp=object(), feat_eye=0.3, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-1.0, feat_4h_ma_order=1.0),
     ]
     monkeypatch.setattr(api_module, "get_db", lambda: _FakeSession(rows))
 
     result = asyncio.run(api_module.api_features_coverage(days=90))
 
     assert result["features"]["claw"]["chart_usable"] is False
+    assert result["features"]["claw"]["quality_flag"] == "source_fallback_zero"
     assert "distinct<10" in result["features"]["claw"]["reasons"]
     assert result["features"]["4h_bias50"]["chart_usable"] is False
+    assert result["features"]["4h_bias50"]["quality_flag"] == "low_distinct"
+    assert result["features"]["4h_ma_order"]["chart_usable"] is True
 
 
 def test_circuit_breaker_uses_simulated_target_column():

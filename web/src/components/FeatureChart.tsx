@@ -59,12 +59,18 @@ interface FeatureCoverageMeta {
   max?: number | null;
   chart_usable: boolean;
   reasons: string[];
+  quality_flag?: string;
+  quality_label?: string;
+  expected_min_coverage?: number;
+  expected_min_distinct?: number;
 }
 
 function formatCoverageReason(meta?: FeatureCoverageMeta | null): string {
   if (!meta) return "";
-  const reasonText = meta.reasons?.join(", ") || "chart hidden";
-  return `${reasonText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}`;
+  const qualityText = meta.quality_label && meta.quality_label !== "ok"
+    ? meta.quality_label
+    : (meta.reasons?.join(", ") || "chart hidden");
+  return `${qualityText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}`;
 }
 
 interface MergedPoint {

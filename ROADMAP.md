@@ -50,10 +50,13 @@
 - [ ] 心跳 gate 自動化：把「patch / verify / doc sync / next gate」檢查做成腳本或模板驗證
 - [ ] blocker 升級機制落地：同一 issue 連續 2~3 輪無進展時，自動升級 source-level investigation / alternative plan
 - [x] source-level sparse feature hygiene：Fin / Fang / Web / Scales / Nest fetch failure 改為 `None`，不再把來源失敗寫成假中性 0
+- [x] sparse source latest-row contract：Claw / Fang / Fin / Web / Scales / Nest 只允許使用 latest raw row；若最新來源缺值則保留 `None`，禁止把舊 sparse 值偷帶到新 features row
 - [x] regime label persistence：新 features row 在 preprocessor save 時即寫入 `regime_label`，`hb_collect.py` 在 `null_count=0` 時直接 early-exit
 - [x] FeatureChart data-quality 標示：圖例與警示卡顯示 `coverage% / distinct / reasons`，低 coverage 特徵自動隱藏且原因可見
+- [x] FeatureChart source-quality 標示：coverage API / report / UI 已可區分 `source_fallback_zero` vs `source_history_gap`
 - [x] hb_collect label horizon hygiene：修正 4h label job 誤寫成 14,400m 的單位 bug，並清除 accidental 14,400m labels
 - [x] Canonical-window IC guardrails：full/regime/dynamic-window 腳本固定使用 `horizon_minutes=1440`，對 `constant_target` / `constant_feature` 顯式標註，避免 NaN 假 blocker
+- [ ] Sparse-source historical cleanup：清除 Fin / Claw / Nest 舊的假 0 污染 rows，並為 Web / Fang / Scales 補歷史 coverage/backfill
 - [ ] Dynamic Window recent-window 穩定化：N=100/200/400 已確認不是 merge bug，而是 canonical 24h labels 在最近窗口全部為 1；下一步需設計 distribution-aware window / alternate evaluation rule
 
 ### Phase 15 已落地（Web 對齊修補）

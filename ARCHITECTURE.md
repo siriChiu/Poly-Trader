@@ -22,6 +22,8 @@
 ### 2. 特徵層
 將 raw 資料轉換為可量化特徵特徵，並提供 IC、穩定性與版本控制。
 
+**Sparse-source contract（Heartbeat #614）**：對 Claw / Fang / Fin / Web / Scales / Nest 這類低頻/稀疏來源，特徵計算只允許讀取 **latest raw row**；若最新來源缺值，feature 必須保持 `NULL/None`。禁止用舊的非空值 forward-carry 到新 row，也禁止把 fetch failure 寫成 `0.0` 假中性值。
+
 ### 3. 標籤層
 根據未來報酬建立多 horizon 標籤，並以 `simulated_pyramid_win` 作為 canonical 主 KPI；`label_spot_long_win` 僅保留 path-aware 比較診斷；`sell_win` 僅保留 legacy 相容欄位。
 

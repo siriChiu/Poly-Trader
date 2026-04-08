@@ -1,40 +1,43 @@
 # Feature Coverage Report
 
-- Total rows: **10890**
-- Chart-usable: **15**
-- Hidden by default: **17**
+- Total rows: **11164**
+- Chart-usable: **24**
+- Hidden by default: **11**
 
-| Feature | Coverage | Distinct | Chart usable | Notes |
-|---|---:|---:|---|---|
-| 4h_ma_order | 10.02% | 3 | ❌ | distinct<10 |
-| claw | 15.40% | 1 | ❌ | coverage<60%, distinct<10 |
-| claw_intensity | 15.40% | 1 | ❌ | coverage<60%, distinct<10 |
-| fin_netflow | 15.40% | 1 | ❌ | coverage<60%, distinct<10 |
-| nest_pred | 15.67% | 1 | ❌ | coverage<60%, distinct<10 |
-| web_whale | 15.67% | 6 | ❌ | coverage<60%, distinct<10 |
-| fang_skew | 15.67% | 397 | ❌ | coverage<60% |
-| scales_ssr | 15.67% | 1222 | ❌ | coverage<60% |
-| fang_pcr | 15.67% | 1469 | ❌ | coverage<60% |
-| rsi14 | 19.78% | 2077 | ❌ | coverage<60% |
-| vwap_dev | 19.78% | 2101 | ❌ | coverage<60% |
-| mind | 19.78% | 2124 | ❌ | coverage<60% |
-| aura | 19.78% | 2130 | ❌ | coverage<60% |
-| bb_pct_b | 19.78% | 2135 | ❌ | coverage<60% |
-| pulse | 19.78% | 2144 | ❌ | coverage<60% |
-| macd_hist | 19.78% | 2153 | ❌ | coverage<60% |
-| atr_pct | 19.78% | 2153 | ❌ | coverage<60% |
-| 4h_macd_hist | 10.02% | 42 | ✅ | ok |
-| 4h_rsi14 | 10.02% | 46 | ✅ | ok |
-| 4h_dist_sl | 10.02% | 118 | ✅ | ok |
-| 4h_bias50 | 10.02% | 132 | ✅ | ok |
-| 4h_bias20 | 10.02% | 132 | ✅ | ok |
-| 4h_bb_pct_b | 10.02% | 132 | ✅ | ok |
-| ear | 99.51% | 10807 | ✅ | ok |
-| tongue | 99.68% | 2200 | ✅ | ok |
-| nq_return_24h | 99.69% | 8117 | ✅ | ok |
-| body | 99.78% | 2145 | ✅ | ok |
-| eye | 99.79% | 10835 | ✅ | ok |
-| vix | 99.80% | 1398 | ✅ | ok |
-| nq_return_1h | 99.90% | 1601 | ✅ | ok |
-| nose | 99.97% | 3041 | ✅ | ok |
-| dxy | 99.98% | 3221 | ✅ | ok |
+| Feature | Coverage | Distinct | Chart usable | Quality | Notes |
+|---|---:|---:|---|---|---|
+| fin_netflow | 20.92% | 1 | ❌ | source_fallback_zero | source_fallback_zero, coverage<60%, distinct<10 |
+| claw | 21.52% | 1 | ❌ | source_fallback_zero | source_fallback_zero, coverage<60%, distinct<10 |
+| claw_intensity | 21.52% | 2 | ❌ | source_history_gap | source_history_gap, coverage<60%, distinct<10 |
+| nest_pred | 21.78% | 1 | ❌ | source_fallback_zero | source_fallback_zero, coverage<60%, distinct<10 |
+| web_whale | 21.78% | 52 | ❌ | source_history_gap | source_history_gap, coverage<60% |
+| fang_skew | 21.78% | 409 | ❌ | source_history_gap | source_history_gap, coverage<60% |
+| scales_ssr | 21.78% | 1310 | ❌ | source_history_gap | source_history_gap, coverage<60% |
+| fang_pcr | 21.78% | 1607 | ❌ | source_history_gap | source_history_gap, coverage<60% |
+| pulse | 25.81% | 2321 | ❌ | low_coverage | coverage<60% |
+| mind | 25.81% | 2756 | ❌ | low_coverage | coverage<60% |
+| aura | 25.81% | 2800 | ❌ | low_coverage | coverage<60% |
+| 4h_vol_ratio | 97.37% | 2221 | ✅ | ok | ok |
+| 4h_bias200 | 97.37% | 10759 | ✅ | ok | ok |
+| 4h_dist_bb_lower | 97.37% | 10759 | ✅ | ok | ok |
+| 4h_ma_order | 97.38% | 3 | ✅ | ok | ok |
+| 4h_rsi14 | 97.38% | 2221 | ✅ | ok | ok |
+| 4h_macd_hist | 97.38% | 2222 | ✅ | ok | ok |
+| 4h_dist_sl | 97.38% | 10739 | ✅ | ok | ok |
+| 4h_bias50 | 97.38% | 10760 | ✅ | ok | ok |
+| 4h_bias20 | 97.38% | 10760 | ✅ | ok | ok |
+| 4h_bb_pct_b | 97.38% | 10760 | ✅ | ok | ok |
+| nq_return_24h | 99.70% | 8299 | ✅ | ok | ok |
+| vix | 99.89% | 1418 | ✅ | ok | ok |
+| nq_return_1h | 99.91% | 1772 | ✅ | ok | ok |
+| dxy | 99.98% | 3224 | ✅ | ok | ok |
+| body | 100.00% | 2832 | ✅ | ok | ok |
+| tongue | 100.00% | 2916 | ✅ | ok | ok |
+| nose | 100.00% | 3619 | ✅ | ok | ok |
+| vwap_dev | 100.00% | 10987 | ✅ | ok | ok |
+| rsi14 | 100.00% | 10992 | ✅ | ok | ok |
+| ear | 100.00% | 11039 | ✅ | ok | ok |
+| bb_pct_b | 100.00% | 11051 | ✅ | ok | ok |
+| macd_hist | 100.00% | 11069 | ✅ | ok | ok |
+| atr_pct | 100.00% | 11070 | ✅ | ok | ok |
+| eye | 100.00% | 11118 | ✅ | ok | ok |

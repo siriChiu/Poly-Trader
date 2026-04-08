@@ -20,21 +20,63 @@ FEATURE_KEY_MAP = {
     'feat_claw': 'claw', 'feat_claw_intensity': 'claw_intensity',
     'feat_fang_pcr': 'fang_pcr', 'feat_fang_skew': 'fang_skew', 'feat_fin_netflow': 'fin_netflow',
     'feat_web_whale': 'web_whale', 'feat_scales_ssr': 'scales_ssr', 'feat_nest_pred': 'nest_pred',
-    'feat_4h_bias50': '4h_bias50', 'feat_4h_bias20': '4h_bias20', 'feat_4h_rsi14': '4h_rsi14',
-    'feat_4h_macd_hist': '4h_macd_hist', 'feat_4h_bb_pct_b': '4h_bb_pct_b',
-    'feat_4h_ma_order': '4h_ma_order', 'feat_4h_dist_swing_low': '4h_dist_sl',
+    'feat_4h_bias50': '4h_bias50', 'feat_4h_bias20': '4h_bias20', 'feat_4h_bias200': '4h_bias200',
+    'feat_4h_rsi14': '4h_rsi14', 'feat_4h_macd_hist': '4h_macd_hist', 'feat_4h_bb_pct_b': '4h_bb_pct_b',
+    'feat_4h_dist_bb_lower': '4h_dist_bb_lower', 'feat_4h_ma_order': '4h_ma_order',
+    'feat_4h_dist_swing_low': '4h_dist_sl', 'feat_4h_vol_ratio': '4h_vol_ratio',
+}
+
+SOURCE_FEATURE_KEYS = {
+    'claw', 'claw_intensity', 'fang_pcr', 'fang_skew', 'fin_netflow',
+    'web_whale', 'scales_ssr', 'nest_pred',
 }
 
 
-def assess(clean_key: str, coverage_pct: float, distinct: int) -> tuple[bool, list[str]]:
+def _is_zero_like(value) -> bool:
+    return value is not None and abs(float(value)) < 1e-12
+
+
+def assess(clean_key: str, coverage_pct: float, distinct: int, non_null: int, min_v, max_v) -> tuple[bool, list[str], str, str]:
     is_4h = clean_key.startswith('4h_')
     min_coverage = 5.0 if is_4h else 60.0
+    min_distinct = 2 if clean_key == '4h_ma_order' else 10
     reasons = []
+
+    zero_only_series = non_null > 0 and distinct <= 1 and _is_zero_like(min_v) and _is_zero_like(max_v)
+    source_issue = clean_key in SOURCE_FEATURE_KEYS
+
+    if zero_only_series and source_issue:
+        reasons.append('source_fallback_zero')
+    elif coverage_pct < min_coverage and source_issue:
+        reasons.append('source_history_gap')
+    elif distinct < min_distinct and source_issue:
+        reasons.append('source_constant_series')
+
     if coverage_pct < min_coverage:
         reasons.append(f'coverage<{min_coverage:.0f}%')
-    if distinct < 10:
-        reasons.append('distinct<10')
-    return (coverage_pct >= min_coverage and distinct >= 10), reasons
+    if distinct < min_distinct:
+        reasons.append(f'distinct<{min_distinct}')
+
+    if zero_only_series and source_issue:
+        quality_flag = 'source_fallback_zero'
+        quality_label = 'source fallback wrote zero-like values'
+    elif coverage_pct < min_coverage and source_issue:
+        quality_flag = 'source_history_gap'
+        quality_label = 'source-level history coverage gap'
+    elif distinct < min_distinct and source_issue:
+        quality_flag = 'source_constant_series'
+        quality_label = 'source values are effectively constant'
+    elif coverage_pct < min_coverage:
+        quality_flag = 'low_coverage'
+        quality_label = 'coverage below chart threshold'
+    elif distinct < min_distinct:
+        quality_flag = 'low_distinct'
+        quality_label = 'distinct count below chart threshold'
+    else:
+        quality_flag = 'ok'
+        quality_label = 'ok'
+
+    return (coverage_pct >= min_coverage and distinct >= min_distinct), reasons, quality_flag, quality_label
 
 
 def main() -> int:
@@ -47,7 +89,7 @@ def main() -> int:
             f'SELECT COUNT({db_key}), COUNT(DISTINCT {db_key}), MIN({db_key}), MAX({db_key}) FROM features_normalized'
         ).fetchone()
         coverage_pct = (non_null / total_rows * 100.0) if total_rows else 0.0
-        usable, reasons = assess(clean_key, coverage_pct, distinct or 0)
+        usable, reasons, quality_flag, quality_label = assess(clean_key, coverage_pct, distinct or 0, non_null, min_v, max_v)
         stats.append({
             'db_key': db_key,
             'key': clean_key,
@@ -58,6 +100,8 @@ def main() -> int:
             'max': max_v,
             'chart_usable': usable,
             'reasons': reasons,
+            'quality_flag': quality_flag,
+            'quality_label': quality_label,
         })
     conn.close()
 
@@ -78,12 +122,14 @@ def main() -> int:
         f'- Chart-usable: **{payload["usable_count"]}**',
         f'- Hidden by default: **{payload["hidden_count"]}**',
         '',
-        '| Feature | Coverage | Distinct | Chart usable | Notes |',
-        '|---|---:|---:|---|---|',
+        '| Feature | Coverage | Distinct | Chart usable | Quality | Notes |',
+        '|---|---:|---:|---|---|---|',
     ]
     for row in stats:
         notes = ', '.join(row['reasons']) if row['reasons'] else 'ok'
-        lines.append(f"| {row['key']} | {row['coverage_pct']:.2f}% | {row['distinct']} | {'✅' if row['chart_usable'] else '❌'} | {notes} |")
+        lines.append(
+            f"| {row['key']} | {row['coverage_pct']:.2f}% | {row['distinct']} | {'✅' if row['chart_usable'] else '❌'} | {row['quality_flag']} | {notes} |"
+        )
     OUT_MD.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
     print(json.dumps(payload, ensure_ascii=False, indent=2))

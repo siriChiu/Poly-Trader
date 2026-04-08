@@ -39,5 +39,10 @@ def get_claw_feature(symbol="BTC"):
             }
     except Exception as e:
         logger.debug(f"Claw fetch failed: {e}")
-    return {"feat_claw": 0.0, "feat_claw_intensity": 0.0,
-            "claw_long_liq": 0, "claw_short_liq": 0, "claw_ratio": 1.0}
+    return {
+        "feat_claw": None,
+        "feat_claw_intensity": None,
+        "claw_long_liq": None,
+        "claw_short_liq": None,
+        "claw_ratio": None,
+    }

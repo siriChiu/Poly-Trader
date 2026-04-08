@@ -395,48 +395,64 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     if "feat_nq_return_24h" not in features:
         features["feat_nq_return_24h"] = 0.0
 
-    # Claw: Liquidation ratio — more long liq = good for SHORT
-    if "claw_liq_ratio" in df.columns and df["claw_liq_ratio"].notna().any():
-        raw = float(df["claw_liq_ratio"].dropna().iloc[-1])
+    latest_row = df.iloc[-1] if len(df) > 0 else None
+
+    def _latest_value(column: str):
+        if latest_row is None or column not in df.columns:
+            return None
+        value = latest_row.get(column)
+        if pd.isna(value):
+            return None
+        return float(value)
+
+    # Claw: Liquidation ratio — more long liq = good for SHORT.
+    # Missing source data must stay None; writing 0.0 here pollutes coverage and
+    # makes source outages look like a real neutral signal.
+    raw = _latest_value("claw_liq_ratio")
+    if raw is not None:
         features["feat_claw"] = float((raw - 1.0) / (raw + 1.0))
         features["feat_claw_intensity"] = float(math.tanh(raw / 3.0))
     else:
-        features["feat_claw"] = 0.0
-        features["feat_claw_intensity"] = 0.0
+        features["feat_claw"] = None
+        features["feat_claw_intensity"] = None
 
     # Fang: Options PCR — PCR>1 = fear
-    if "fang_pcr" in df.columns and df["fang_pcr"].notna().any():
-        pcr = float(df["fang_pcr"].dropna().iloc[-1])
+    pcr = _latest_value("fang_pcr")
+    if pcr is not None:
         features["feat_fang_pcr"] = float(math.tanh((pcr - 1.0) * 2.0))
     else:
         features["feat_fang_pcr"] = None
-    if "fang_iv_skew" in df.columns and df["fang_iv_skew"].notna().any():
-        features["feat_fang_skew"] = float(df["fang_iv_skew"].dropna().iloc[-1] / 10.0)
+    fang_skew = _latest_value("fang_iv_skew")
+    if fang_skew is not None:
+        features["feat_fang_skew"] = float(fang_skew / 10.0)
     else:
         features["feat_fang_skew"] = None
 
     # Fin: ETF Flow — outflow = bearish for BTC = bullish for SHORT
-    if "fin_etf_netflow" in df.columns and df["fin_etf_netflow"].notna().any():
-        nf = float(df["fin_etf_netflow"].dropna().iloc[-1])
+    nf = _latest_value("fin_etf_netflow")
+    if nf is not None:
         features["feat_fin_netflow"] = float(-math.tanh(nf / 500_000_000))
     else:
         features["feat_fin_netflow"] = None
 
     # Web: Whale sell pressure
-    if "web_whale_pressure" in df.columns and df["web_whale_pressure"].notna().any():
-        features["feat_web_whale"] = float(df["web_whale_pressure"].dropna().iloc[-1])
+    web_pressure = _latest_value("web_whale_pressure")
+    if web_pressure is not None:
+        features["feat_web_whale"] = float(web_pressure)
     else:
         features["feat_web_whale"] = None
 
     # Scales: Stablecoin SSR
-    if "scales_ssr" in df.columns and df["scales_ssr"].notna().any():
-        features["feat_scales_ssr"] = float(df["scales_ssr"].dropna().iloc[-1])
+    scales_ssr = _latest_value("scales_ssr")
+    if scales_ssr is not None:
+        features["feat_scales_ssr"] = float(scales_ssr)
     else:
         features["feat_scales_ssr"] = None
 
     # Nest: Polymarket prediction
-    if "nest_pred" in df.columns and df["nest_pred"].notna().any():
-        features["feat_nest_pred"] = float(df["nest_pred"].dropna().iloc[-1] - 0.5)
+    nest_pred = _latest_value("nest_pred")
+    if nest_pred is not None:
+        features["feat_nest_pred"] = float(nest_pred - 0.5)
     else:
         features["feat_nest_pred"] = None
 

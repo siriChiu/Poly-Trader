@@ -87,11 +87,19 @@ FEATURE_KEY_MAP = {
     'feat_nest_pred': 'nest_pred',
     'feat_4h_bias50': '4h_bias50',
     'feat_4h_bias20': '4h_bias20',
+    'feat_4h_bias200': '4h_bias200',
     'feat_4h_rsi14': '4h_rsi14',
     'feat_4h_macd_hist': '4h_macd_hist',
     'feat_4h_bb_pct_b': '4h_bb_pct_b',
+    'feat_4h_dist_bb_lower': '4h_dist_bb_lower',
     'feat_4h_ma_order': '4h_ma_order',
     'feat_4h_dist_swing_low': '4h_dist_sl',
+    'feat_4h_vol_ratio': '4h_vol_ratio',
+}
+
+SOURCE_FEATURE_KEYS = {
+    'claw', 'claw_intensity', 'fang_pcr', 'fang_skew', 'fin_netflow',
+    'web_whale', 'scales_ssr', 'nest_pred',
 }
 
 
@@ -110,9 +118,11 @@ _ECDF_ANCHORS = {
     'feat_fin_netflow': (-1.0, 1.0), 'feat_web_whale': (-1.0, 1.0),
     'feat_scales_ssr': (0.5, 1.5), 'feat_nest_pred': (-1.0, 1.0),
     'feat_4h_bias50': (-15.0, 10.0), 'feat_4h_bias20': (-10.0, 10.0),
+    'feat_4h_bias200': (-20.0, 20.0),
     'feat_4h_rsi14': (10.0, 90.0), 'feat_4h_macd_hist': (-1500.0, 1500.0),
-    'feat_4h_bb_pct_b': (-0.5, 1.5), 'feat_4h_ma_order': (-1.5, 1.5),
-    'feat_4h_dist_swing_low': (-25.0, 20.0),
+    'feat_4h_bb_pct_b': (-0.5, 1.5), 'feat_4h_dist_bb_lower': (-10.0, 20.0),
+    'feat_4h_ma_order': (-1.5, 1.5), 'feat_4h_dist_swing_low': (-25.0, 20.0),
+    'feat_4h_vol_ratio': (0.3, 3.0),
 }
 
 
@@ -139,6 +149,59 @@ def normalize_for_api(raw_val, db_key):
     return round(0.10 + 0.80 * (raw_val - p5) / span, 4)
 
 
+def _is_zero_like(value: Optional[float]) -> bool:
+    return value is not None and abs(float(value)) < 1e-12
+
+
+def _assess_feature_quality(clean_key: str, coverage_pct: float, distinct: int, non_null: int, min_val, max_val) -> Dict[str, Any]:
+    is_4h = clean_key.startswith("4h_")
+    min_coverage = 5.0 if is_4h else 60.0
+    min_distinct = 2 if clean_key == "4h_ma_order" else 10
+    reasons: List[str] = []
+    source_issue = clean_key in SOURCE_FEATURE_KEYS
+    zero_only_series = non_null > 0 and distinct <= 1 and _is_zero_like(min_val) and _is_zero_like(max_val)
+
+    if zero_only_series and source_issue:
+        reasons.append("source_fallback_zero")
+    elif coverage_pct < min_coverage and source_issue:
+        reasons.append("source_history_gap")
+    elif distinct < min_distinct and source_issue:
+        reasons.append("source_constant_series")
+
+    if coverage_pct < min_coverage:
+        reasons.append(f"coverage<{min_coverage:.0f}%")
+    if distinct < min_distinct:
+        reasons.append(f"distinct<{min_distinct}")
+
+    if zero_only_series and source_issue:
+        quality_flag = "source_fallback_zero"
+        quality_label = "source fallback wrote zero-like values"
+    elif coverage_pct < min_coverage and source_issue:
+        quality_flag = "source_history_gap"
+        quality_label = "source-level history coverage gap"
+    elif distinct < min_distinct and source_issue:
+        quality_flag = "source_constant_series"
+        quality_label = "source values are effectively constant"
+    elif coverage_pct < min_coverage:
+        quality_flag = "low_coverage"
+        quality_label = "coverage below chart threshold"
+    elif distinct < min_distinct:
+        quality_flag = "low_distinct"
+        quality_label = "distinct count below chart threshold"
+    else:
+        quality_flag = "ok"
+        quality_label = "ok"
+
+    return {
+        "chart_usable": coverage_pct >= min_coverage and distinct >= min_distinct,
+        "reasons": reasons,
+        "quality_flag": quality_flag,
+        "quality_label": quality_label,
+        "expected_min_coverage": min_coverage,
+        "expected_min_distinct": min_distinct,
+    }
+
+
 def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
     since = datetime.utcnow() - timedelta(days=days)
     rows = (
@@ -154,23 +217,17 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
         non_null_values = [v for v in values if v is not None]
         distinct = len({round(float(v), 10) for v in non_null_values}) if non_null_values else 0
         coverage_pct = (len(non_null_values) / total_rows * 100.0) if total_rows else 0.0
-        is_4h = clean_key.startswith("4h_")
-        min_coverage = 5.0 if is_4h else 60.0
-        chart_usable = coverage_pct >= min_coverage and distinct >= 10
-        reasons = []
-        if coverage_pct < min_coverage:
-            reasons.append(f"coverage<{min_coverage:.0f}%")
-        if distinct < 10:
-            reasons.append("distinct<10")
+        min_val = min(non_null_values) if non_null_values else None
+        max_val = max(non_null_values) if non_null_values else None
+        quality = _assess_feature_quality(clean_key, coverage_pct, distinct, len(non_null_values), min_val, max_val)
         feature_stats[clean_key] = {
             "db_key": db_key,
             "non_null": len(non_null_values),
             "coverage_pct": round(coverage_pct, 2),
             "distinct": distinct,
-            "min": min(non_null_values) if non_null_values else None,
-            "max": max(non_null_values) if non_null_values else None,
-            "chart_usable": chart_usable,
-            "reasons": reasons,
+            "min": min_val,
+            "max": max_val,
+            **quality,
         }
     return {
         "days": days,

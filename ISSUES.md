@@ -1,20 +1,42 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-09 01:38 UTC — Heartbeat #612（hb_collect label horizon repair + accidental 14400m label cleanup + canonical-window IC hardening）*
+*最後更新：2026-04-08 17:55 UTC — Heartbeat #614（sparse-source no-carry-forward fix + source-quality coverage flags + claw zero-fallback stop）*
 
-## 📊 系統健康狀態 v4.39
+## 📊 系統健康狀態 v4.40
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **19,757** | 🟢 `hb_collect.py` 本輪再增 +1 |
-| Features | **11,143** | 🟢 新 row 持續直接帶 `regime_label` |
-| Labels | **38,522** | 🟡 已清掉錯誤 14,400m horizon rows；24h/12h/4h labels 保留 |
+| Raw | **19,778** | 🟢 `hb_collect.py` 本輪再增 +1 |
+| Features | **11,164** | 🟢 新 row 持續直接帶 `regime_label` |
+| Labels | **38,530** | 🟡 canonical horizons 持續增長（240/720/1440） |
 || simulated_pyramid_win (1440m) | **61.37%** | 🟢 canonical 24h 分析口徑（`regime_aware_ic.py`, n=9,763） |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
-| 全域 IC | **15/22** | 🟢 再提升 |
+| 全域 IC | **15/22** | 🟢 維持 |
 | TW-IC | **17/22** | 🟢 維持高檔 |
 | 模型數 | **8** | ✅ |
 | Tests | **6/6** | ✅ 全過 |
+
+## 📈 心跳 #614 摘要
+
+### 本輪已驗證 patch
+1. **Sparse source no-carry-forward fix**：`feature_engine/preprocessor.py` 對 Claw / Fang / Fin / Web / Scales / Nest 改為只讀 **latest raw row**，若最新來源缺值就維持 `None`，不再用 `dropna().iloc[-1]` 把舊資料偷偷帶到新 row。
+2. **Claw fallback zero stop**：`data_ingestion/claw_liquidation.py` 與 preprocessor 共同改成 **fetch fail → `None`**，不再把來源失敗寫成 `0.0 / ratio=1.0` 假中性值。
+3. **Source-quality coverage surfacing**：`scripts/feature_coverage_report.py`、`/api/features/coverage`、`FeatureChart` 新增 `quality_flag / quality_label`，可明確區分 `source_fallback_zero` 與 `source_history_gap`，不再只顯示模糊 coverage/distinct badge。
+
+### 本輪 runtime facts（Heartbeat #614）
+- `hb_collect.py` 連續兩次在 **Raw fallback** 情境下仍可完成 pipeline：最新累計 **Raw 19778 / Features 11164 / Labels 38530**。
+- **關鍵驗證**：第二次 fallback collect 後，`features_normalized` **+1 row**，但 `feat_claw` non-null **維持 2403 不再增加**，證明 sparse source 舊值不再被 forward-carry 到新 row。
+- `feature_coverage_report.py` 現在把 **fin_netflow / claw / nest_pred** 標為 `source_fallback_zero`，把 **web_whale / fang_* / scales_ssr** 標為 `source_history_gap`，已可直接區分「假 0 污染」與「歷史 coverage 不足」。
+- `hb_parallel_runner.py --hb 614 --no-train`：**4/4 PASS (3.9s)**，summary 已寫入 `data/heartbeat_614_summary.json`。
+- Full IC：**15/22 PASS**；TW-IC：**17/22 PASS**。
+- Dynamic window（canonical 1440m）：**N=100/200/400 仍為 constant_target_window**，**N=600=6/8 PASS**, **N=1000=7/8 PASS**, **N=2000=6/8 PASS**, **N=5000=5/8 PASS**。
+- Frontend build：`npm run build` ✅ 通過；API coverage pytest：`3 passed`。
+
+### 新 blocker / 狀態更正
+- **#LOW_COVERAGE_SOURCES**：現已拆成兩種根因：
+  - `source_fallback_zero`：Fin / Claw / Nest 的歷史 row 仍有假 0 污染；本輪已**停止新增污染**，但舊資料尚未 cleanup。
+  - `source_history_gap`：Web / Fang / Scales 主要是歷史 coverage 不足，不是前端顯示問題。
+- **根因升級**：先前的 source coverage 問題不只是「coverage 低」，還包含 **sparse source 被 preprocessor 舊值偷帶** 的流程缺口；此 root cause 已修復，但歷史資料仍需另輪回填/清洗。
 
 ## 📈 心跳 #612 摘要
 
@@ -174,8 +196,8 @@
 | #EAR_LOW_VAR | feat_ear std=0.0029, unique=13（準離散特徵）| ⚠️ 持續 |
 | #TONGUE_LOW_VAR | feat_tongue std=0.0016, unique=9（準離散特徵）| ⚠️ 持續 |
 | #LABELS_JUMP | Labels 從 18,052 跳增至 27,684（+53%）原因未明 | ✅ 已定位（hb_collect pipeline 重建 labels；後續以 24h/canonical horizon 管理，不再視為隨機跳增） |
-| #LOW_COVERAGE_SOURCES | Fin / Fang / Web / Scales / Nest coverage 僅 ~19%，且過去會用假 0 偽裝可用資料 | 🟡 已部分修復（#611 已改成 fetch failure → `None`，避免新增假中性值；下一步是真正補歷史 coverage） |
-| #FEATURECHART_QUALITY_SIGNAL | FeatureChart 對低 coverage 特徵只顯示模糊 badge，使用者無法判斷是 coverage 還是 distinct 問題 | ✅ 已修復（圖例/警示卡已顯示 `coverage% / distinct / reasons`） |
+| #LOW_COVERAGE_SOURCES | Fin / Fang / Web / Scales / Nest / Claw coverage 僅 ~21%，且歷史上混有假 0 與 stale carry-forward | 🟡 已部分修復（#614 已修掉 sparse-source latest-row 偷帶與 Claw fallback=0；coverage report/API 現可分辨 `source_fallback_zero` vs `source_history_gap`；下一步是 cleanup 舊污染 rows + 真正補歷史 coverage） |
+| #FEATURECHART_QUALITY_SIGNAL | FeatureChart 對低 coverage 特徵只顯示模糊 badge，使用者無法判斷是 coverage、distinct 還是 source fallback 問題 | ✅ 已修復（#614 已顯示 `quality_flag / quality_label`，可區分 source fallback zero 與 history gap） |
 | #FINAL_CLOSE_LABEL_NOISE | final-close-only TP threshold 會把「曾 hit TP 但收盤回落」的可交易 setup 誤標為失敗 | ✅ 已修復（spot_long_win 已改為 path-aware label，並已重建實際 labels） |
 | #LABEL_PATH_MISMATCH | 標籤語義與現貨金字塔執行路徑不一致，只看 horizon 結束點 | 🟡 已部分修復（path-aware + simulated pyramid labels 均已上線，且已接入模型排行榜 target comparison；下一步要把 simulated target 升為預設訓練主線） |
 
