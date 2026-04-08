@@ -42,7 +42,7 @@ if trade_count > 0:
         print(f"Sell win rate: {wins}/{total} = {wins/total*100:.1f}%")
 
 # Check recent labels
-recent_labels = db.execute("SELECT timestamp, label_sell_win FROM labels ORDER BY id DESC LIMIT 20").fetchall()
+recent_labels = db.execute("SELECT timestamp, label_spot_long_win FROM labels ORDER BY id DESC LIMIT 20").fetchall()
 if recent_labels:
     n_pos = sum(1 for r in recent_labels if r[1] == 1)
     print(f"\nRecent 20 labels: {n_pos} pos / {20-n_pos} neg")

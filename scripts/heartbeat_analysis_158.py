@@ -39,7 +39,7 @@ c.execute('SELECT volume, oi_roc FROM raw_market_data ORDER BY timestamp DESC LI
 oi_row = c.fetchone()
 oi = oi_row[1] if oi_row else None
 
-c.execute('SELECT AVG(label_sell_win) FROM labels WHERE label_sell_win IS NOT NULL')
+c.execute('SELECT AVG(label_spot_long_win) FROM labels WHERE label_spot_long_win IS NOT NULL')
 swr = c.fetchone()[0]
 sell_win_rate = swr
 
@@ -53,7 +53,7 @@ print(f"Funding Rate: {funding_rate}")
 print(f"OI ROC: {oi}")
 
 # === Full Feature IC Analysis ===
-print("\n=== Feature IC Analysis (full dataset, vs label_sell_win) ===")
+print("\n=== Feature IC Analysis (full dataset, vs label_spot_long_win) ===")
 
 # Load features - skip id, timestamp, symbol
 feat_cols = ['feat_eye', 'feat_ear', 'feat_nose', 'feat_tongue', 'feat_body', 'feat_pulse',
@@ -67,7 +67,7 @@ n_total = len(all_feat_rows)
 print(f"Total feature rows: {n_total}")
 
 # Load labels
-c.execute("SELECT rowid, label_sell_win FROM labels ORDER BY timestamp")
+c.execute("SELECT rowid, label_spot_long_win FROM labels ORDER BY timestamp")
 all_labels = c.fetchall()
 label_by_row = {row[0]: row[1] for row in all_labels}
 
@@ -161,7 +161,7 @@ for row in all_feat_rows:
                 pass
 
 # Load labels aligned with features
-c.execute("SELECT label_sell_win FROM labels ORDER BY timestamp")
+c.execute("SELECT label_spot_long_win FROM labels ORDER BY timestamp")
 all_label_values = [r[0] for r in c.fetchall() if r[0] is not None]
 
 for regime in ['Bear', 'Bull', 'Chop', 'Neutral']:

@@ -67,7 +67,7 @@ class ModelLeaderboard:
     def __init__(self, data_df: pd.DataFrame):
         """
         Args:
-            data_df: 必須包含 timestamp, close_price, label_sell_win,
+            data_df: 必須包含 timestamp, close_price, label_spot_long_win,
                       feat_4h_bias50, feat_4h_rsi14 等欄位
         """
         self.data = data_df.copy()
@@ -201,15 +201,15 @@ class ModelLeaderboard:
             if model_name == 'ensemble':
                 m1, m2, m3 = model
                 X_s = m1.scaler.transform(X_test)
-                p1 = m1.predict_proba(X_test)[:, 0]
-                p2 = m2.predict_proba(X_test)[:, 0]
-                p3 = m3.predict_proba(X_s)[:, 0]
+                p1 = m1.predict_proba(X_test)[:, 1]
+                p2 = m2.predict_proba(X_test)[:, 1]
+                p3 = m3.predict_proba(X_s)[:, 1]
                 return (p1 + p2 + p3) / 3.0
             elif model_name in ['logistic_regression', 'mlp', 'svm']:
                 X_s = model.scaler.transform(X_test)
-                return model.predict_proba(X_s)[:, 0]
+                return model.predict_proba(X_s)[:, 1]
             else:
-                return model.predict_proba(X_test)[:, 0]
+                return model.predict_proba(X_test)[:, 1]
         except:
             return np.full(len(X_test), 0.5)
 
@@ -221,10 +221,10 @@ class ModelLeaderboard:
         feature_cols_full = feature_cols + ['close_price']
 
         X_train = train_df[feature_cols].fillna(0).values
-        y_train = train_df['label_sell_win'].fillna(1).astype(int).values  # 1 = sell wins, 0 = sell loses = buy wins
+        y_train = train_df['label_spot_long_win'].fillna(0).astype(int).values  # 1 = spot-long target achieved
 
         X_test = test_df[feature_cols].fillna(0).values
-        y_test = test_df['label_sell_win'].fillna(1).astype(int).values
+        y_test = test_df['label_spot_long_win'].fillna(0).astype(int).values
 
         if model_name == 'rule_baseline':
             # 用 bias50 反轉作為信心：bias50 越低，越該買

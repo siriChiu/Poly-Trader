@@ -3,7 +3,7 @@ import sqlite3, numpy as np
 conn = sqlite3.connect('/home/kazuha/Poly-Trader/poly_trader.db')
 
 # Last 200 labels - verify the 156 streak
-rows = conn.execute('SELECT id, timestamp, label_sell_win, regime_label, future_return_pct FROM labels ORDER BY id DESC LIMIT 200').fetchall()
+rows = conn.execute('SELECT id, timestamp, label_spot_long_win, regime_label, future_return_pct FROM labels ORDER BY id DESC LIMIT 200').fetchall()
 
 # Count zeros from end
 consec_0 = 0

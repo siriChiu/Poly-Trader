@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-P0 Fix: Re-label with corrected LONG-based sell_win, retrain with fusion features.
+P0 Fix: Re-label with the canonical spot-long pyramiding target, retrain with fusion features.
 
-1. Re-label ALL 18,052 entries with correct LONG definition (price up = win)
+1. Re-label ALL entries with the correct definition (spot-long win)
 2. Save with force_update_all=True
 3. Retrain global + regime models
 """
@@ -21,33 +21,33 @@ engine = create_engine(f'sqlite:///{db_path}')
 Session = sessionmaker(bind=engine)
 session = Session()
 
-# === Part 1: Re-label with LONG-based sell_win ===
-print("=== Part 1: Generating labels with corrected LONG-based sell_win ===")
+# === Part 1: Re-label with spot-long canonical target ===
+print("=== Part 1: Generating labels with corrected spot-long target ===")
 count_before = session.query(Labels).count()
 print(f"  Labels in DB before relabeling: {count_before}")
 
-labels_df = generate_future_return_labels(session, symbol="BTCUSDT", horizon_hours=4, threshold_pct=0.005)
+labels_df = generate_future_return_labels(session, symbol="BTCUSDT", horizon_hours=24, threshold_pct=0.02)
 
 if labels_df.empty:
     print("ERROR: No labels generated!")
     sys.exit(1)
 
-sell_win_pct = labels_df['label_sell_win'].mean()
+sell_win_pct = labels_df['label_spot_long_win'].mean()
 print(f"  Generated {len(labels_df)} labels")
 print(f"  sell_win ratio: {sell_win_pct:.2%}")
 
 # Distribution by regime
 if len(labels_df) > 0 and 'regime_label' in labels_df.columns:
     print(f"\n  Sell-win by regime:")
-    print(f"  {pd.crosstab(labels_df['regime_label'], labels_df['label_sell_win'])}")
+    print(f"  {pd.crosstab(labels_df['regime_label'], labels_df['label_spot_long_win'])}")
 
 # === Part 2: Save ALL labels with force_update_all ===
 print(f"\n=== Part 2: Force-updating ALL {len(labels_df)} labels in DB ===")
-save_labels_to_db(session, labels_df, symbol="BTCUSDT", horizon_hours=4, force_update_all=True)
+save_labels_to_db(session, labels_df, symbol="BTCUSDT", horizon_hours=24, force_update_all=True)
 
 # Verify
 count_after = session.query(Labels).count()
-sell_win_check = session.query(Labels).filter(Labels.label_sell_win == 1).count()
+sell_win_check = session.query(Labels).filter(Labels.label_spot_long_win == 1).count()
 print(f"  Labels in DB: {count_after}")
 print(f"  sell_win=1: {sell_win_check} ({sell_win_check/max(count_after,1)*100:.1f}%)")
 

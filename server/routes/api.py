@@ -615,7 +615,7 @@ async def api_model_leaderboard():
 
     conn = sqlite3.connect(DB_PATH)
     df = pd.read_sql("""
-        SELECT f.timestamp, r.close_price, l.label_sell_win,
+        SELECT f.timestamp, r.close_price, l.label_spot_long_win,
                f.feat_eye, f.feat_ear, f.feat_nose, f.feat_tongue,
                f.feat_body, f.feat_pulse, f.feat_aura, f.feat_mind,
                f.feat_vix, f.feat_dxy,
@@ -627,13 +627,15 @@ async def api_model_leaderboard():
         FROM features_normalized f
         JOIN raw_market_data r ON r.timestamp = f.timestamp AND r.symbol = f.symbol
         LEFT JOIN labels l ON l.timestamp = f.timestamp AND l.symbol = f.symbol
-        WHERE f.feat_4h_bias50 IS NOT NULL AND r.close_price IS NOT NULL
+        WHERE f.feat_4h_bias50 IS NOT NULL
+          AND r.close_price IS NOT NULL
+          AND l.label_spot_long_win IS NOT NULL
         ORDER BY f.timestamp
     """, conn)
     conn.close()
 
     df = df.fillna(0)
-    df['label_sell_win'] = df['label_sell_win'].fillna(1).astype(int)
+    df['label_spot_long_win'] = df['label_spot_long_win'].fillna(0).astype(int)
 
     lb = ModelLeaderboard(df)
     results = lb.run_all_models([

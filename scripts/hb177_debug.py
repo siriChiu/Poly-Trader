@@ -28,4 +28,4 @@ print(labels['timestamp'].tail(5))
 
 # Try joining
 merged = pd.merge(df, labels, on='timestamp', how='left', suffixes=('_feat', '_label'))
-print(f"\nAfter merge: {len(merged)} records, {merged['label_up'].notna().sum()} with label_up, {merged['label_sell_win'].notna().sum() if 'label_sell_win' in merged.columns else 0} with label_sell_win")
+print(f"\nAfter merge: {len(merged)} records, {merged['label_up'].notna().sum()} with label_up, {merged['label_spot_long_win'].notna().sum() if 'label_spot_long_win' in merged.columns else 0} with label_spot_long_win")

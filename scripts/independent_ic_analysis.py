@@ -93,7 +93,7 @@ if feat_table:
             print(f"  Label col '{c}': values={list(vals_unique)[:10]}")
 
     # Try various label column names
-    for candidate in ['sell_win', 'label_sell_win', 'sell', 'target', 'label', 'future_return_pct', 'label_class']:
+    for candidate in ['sell_win', 'label_spot_long_win', 'sell', 'target', 'label', 'future_return_pct', 'label_class']:
         if candidate in df.columns:
             y_col = candidate
             y = df[candidate].astype(float)

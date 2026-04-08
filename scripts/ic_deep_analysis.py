@@ -14,12 +14,12 @@ feats_map = {
     'Body': 4, 'Pulse': 5, 'Aura': 6, 'Mind': 7
 }
 
-for label_type, label_idx in [('label_up', 8), ('label_sell_win', 9)]:
+for label_type, label_idx in [('label_up', 8), ('label_spot_long_win', 9)]:
     print(f"\n=== IC Analysis: {label_type}, by N window ===")
     for n_limit in [1000, 2500, 5000, 8770]:
         cur.execute(f'''SELECT f.feat_eye, f.feat_ear, f.feat_nose, f.feat_tongue, 
                        f.feat_body, f.feat_pulse, f.feat_aura, f.feat_mind,
-                       l.label_up, l.label_sell_win
+                       l.label_up, l.label_spot_long_win
                 FROM features_normalized f
                 JOIN labels l ON l.timestamp = f.timestamp
                 ORDER BY f.timestamp DESC LIMIT {n_limit}''')

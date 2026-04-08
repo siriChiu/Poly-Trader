@@ -37,14 +37,14 @@ if btc_col and btc_col != 'close_price':
 
 query = f'''
     SELECT f.*, l.horizon_minutes, l.future_return_pct, l.future_max_drawdown,
-           l.future_max_runup, l.label_sell_win, l.label_up, l.regime_label as label_regime
+           l.future_max_runup, l.label_spot_long_win, l.label_up, l.regime_label as label_regime
     FROM features_normalized f
     INNER JOIN labels l ON f.id = l.id
 '''
 df = pd.read_sql_query(query, db)
 print(f"Merged: {len(df)} rows, {len(df.columns)} cols")
 
-y = df['label_sell_win'].astype(float)
+y = df['label_spot_long_win'].astype(float)
 print(f"sell_win pos rate: {y.mean()*100:.1f}%")
 
 # BTC from live data
@@ -103,7 +103,7 @@ ics_regime = {}
 for sense, col in SENSE_MAP.items():
     regs = {}
     for nm, sub in [('Bear', bear), ('Bull', bull), ('Chop', chop)]:
-        ys = sub['label_sell_win'].astype(float)
+        ys = sub['label_spot_long_win'].astype(float)
         yc = ys - ys.mean()
         xs = sub[col].astype(float)
         ic = float(np.corrcoef(xs, yc)[0, 1]) if xs.std() > 0 and len(xs) > 2 else 0.0
@@ -125,7 +125,7 @@ dyn_ics = {}
 for w in [500, 1000, 2000, 3000, 5000]:
     rec = df.tail(w)
     if len(rec) < 3: continue
-    yw = rec['label_sell_win'].astype(float)
+    yw = rec['label_spot_long_win'].astype(float)
     ycw = yw - yw.mean()
     pw = 0
     ics_w = {}
@@ -140,7 +140,7 @@ for w in [500, 1000, 2000, 3000, 5000]:
 # Model CV
 sense_cols = list(SENSE_MAP.values())
 X = df[sense_cols].fillna(0)
-y_bin = df['label_sell_win'].astype(int)
+y_bin = df['label_spot_long_win'].astype(int)
 
 lr = LogisticRegression(max_iter=1000, random_state=42)
 cv_acc = cross_val_score(lr, X, y_bin, cv=5, scoring='accuracy')

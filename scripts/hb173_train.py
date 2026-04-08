@@ -21,7 +21,7 @@ session = Session()
 # Load data
 rows = session.query(FeaturesNormalized, Labels).join(
     Labels, FeaturesNormalized.timestamp == Labels.timestamp
-).filter(Labels.label_sell_win.isnot(None)).all()
+).filter(Labels.label_spot_long_win.isnot(None)).all()
 
 print(f"Loaded {len(rows)} joined records")
 
@@ -39,7 +39,7 @@ for f, l in rows:
         val = getattr(f, c, None)
         row[c] = val if val is not None else 0.0
     feature_data.append(row)
-    labels.append(int(l.label_sell_win))
+    labels.append(int(l.label_spot_long_win))
     regimes.append(getattr(l, 'regime_label', 'Unknown') or 'Unknown')
 
 X = pd.DataFrame(feature_data)

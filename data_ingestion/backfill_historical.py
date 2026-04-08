@@ -31,6 +31,10 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+# Canonical target settings for the spot-long pyramiding strategy.
+LONG_TP_PCT = 0.02
+LONG_MAX_DD_PCT = 0.05
+
 # ──────────────────────────────────────────────
 # 1. Binance Klines (Eye - 歷史價格 + 訂單簿近似)
 # ──────────────────────────────────────────────
@@ -223,7 +227,7 @@ def build_historical_dataset(
     從所有來源拉取歷史數據，合併並計算特徵 + 標籤。
     Returns DataFrame with columns:
         timestamp, close, feat_eye_dist, feat_ear_zscore,
-        feat_nose_sigmoid, feat_tongue_pct, feat_body_roc, label, future_return
+        feat_nose_sigmoid, feat_tongue_pct, feat_body_roc, label_up, label_sell_win, future_return
     """
     logger.info(f"開始拉取 {days} 天歷史數據...")
 
@@ -300,19 +304,53 @@ def build_historical_dataset(
     df["feat_ear_zscore"] = (df["price_momentum"] - df["mom_mean"]) / df["mom_std"].replace(0, np.nan)
 
     # 標籤：未來 N 小時的價格變化方向
-    df["future_close"] = df["close"].astype(float).shift(-label_horizon_hours)
-    df["future_return"] = (df["future_close"] - df["close"].astype(float)) / df["close"].astype(float)
-    df["label"] = (df["future_return"] > 0).astype(int)
+    # Canonical target: spot-long pyramiding win.
+    closes = df["close"].astype(float).tolist()
+    future_return_list = []
+    future_drawdown_list = []
+    future_runup_list = []
+    spot_long_win_list = []
+
+    for i in range(len(closes)):
+        future_end = i + label_horizon_hours
+        if future_end >= len(closes):
+            break
+        current_price = closes[i]
+        future_slice = closes[i + 1: future_end + 1]
+        if current_price <= 0 or not future_slice:
+            break
+        future_close = future_slice[-1]
+        future_return = (future_close - current_price) / current_price
+        future_min = min(future_slice)
+        future_max = max(future_slice)
+        future_drawdown = (future_min - current_price) / current_price
+        future_runup = (future_max - current_price) / current_price
+        spot_long_win = int(
+            future_return >= LONG_TP_PCT and future_drawdown >= -LONG_MAX_DD_PCT
+        )
+        future_return_list.append(future_return)
+        future_drawdown_list.append(future_drawdown)
+        future_runup_list.append(future_runup)
+        spot_long_win_list.append(spot_long_win)
+
+    df = df.iloc[:len(spot_long_win_list)].copy()
+    df["future_return"] = future_return_list
+    df["future_max_drawdown"] = future_drawdown_list
+    df["future_max_runup"] = future_runup_list
+    df["label_spot_long_win"] = spot_long_win_list
+    df["label_up"] = df["label_spot_long_win"]
+    df["label_sell_win"] = 1 - df["label_spot_long_win"]
 
     # 清理
     df = df.reset_index()
     result_cols = [
         "timestamp", "close", "feat_eye_dist", "feat_ear_zscore",
         "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc",
-        "label", "future_return",
+        "label_spot_long_win", "label_up", "label_sell_win",
+        "future_return", "future_max_drawdown", "future_max_runup",
     ]
     result = df[[c for c in result_cols if c in df.columns]].copy()
-    result.dropna(subset=["close", "label"], inplace=True)
+    result.dropna(subset=["close", "label_spot_long_win", "label_up", "label_sell_win"], inplace=True)
 
     logger.info(f"歷史數據集構建完成: {len(result)} 筆")
     return result
@@ -322,6 +360,7 @@ def save_historical_to_db(
     session: Session,
     df: pd.DataFrame,
     symbol: str = "BTCUSDT",
+    horizon_hours: int = 24,
 ) -> Dict[str, int]:
     """
     將歷史數據集寫入 DB：RawMarketData + FeaturesNormalized + Labels。
@@ -356,14 +395,17 @@ def save_historical_to_db(
         counts["features"] += 1
 
         # Labels
-        if pd.notna(row.get("label")):
+        if pd.notna(row.get("label_spot_long_win")) and pd.notna(row.get("label_up")) and pd.notna(row.get("label_sell_win")):
             label = Labels(
                 timestamp=ts,
                 symbol=symbol,
-                horizon_minutes=24*60,
+                horizon_minutes=horizon_hours * 60,
                 future_return_pct=row.get("future_return"),
-                label_up=int(row["label"]),
-                label_sell_win=int(row["label"] == 1),
+                future_max_drawdown=row.get("future_max_drawdown"),
+                future_max_runup=row.get("future_max_runup"),
+                label_spot_long_win=int(row["label_spot_long_win"]),
+                label_up=int(row["label_up"]),
+                label_sell_win=int(row["label_sell_win"]),
             )
             session.add(label)
             counts["labels"] += 1
@@ -399,10 +441,11 @@ def run_backfill(
         logger.error("無歷史數據可寫入")
         return {"error": "no data"}
 
-    counts = save_historical_to_db(session, df, symbol)
+    counts = save_historical_to_db(session, df, symbol, horizon_hours=horizon_hours)
 
     # 統計
-    label_dist = df["label"].value_counts().to_dict() if "label" in df.columns else {}
+    label_up_dist = df["label_up"].value_counts().to_dict() if "label_up" in df.columns else {}
+    label_sell_win_dist = df["label_sell_win"].value_counts().to_dict() if "label_sell_win" in df.columns else {}
     non_null = {}
     for col in ["feat_eye_dist", "feat_ear_zscore", "feat_nose_sigmoid", "feat_tongue_pct", "feat_body_roc"]:
         if col in df.columns:
@@ -411,7 +454,10 @@ def run_backfill(
     result = {
         "total_rows": len(df),
         "db_counts": counts,
-        "label_distribution": label_dist,
+        "label_distribution": {
+            "label_up": label_up_dist,
+            "label_sell_win": label_sell_win_dist,
+        },
         "non_null_features": non_null,
         "date_range": f"{df['timestamp'].min()} ~ {df['timestamp'].max()}",
     }

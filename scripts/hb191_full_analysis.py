@@ -24,17 +24,17 @@ print(f'  {[c[0] for c in cols2]}')
 print(f'  {latest}')
 
 # Sell win rate
-r = db.execute('SELECT COUNT(*), AVG(label_sell_win) FROM labels WHERE label_sell_win IS NOT NULL').fetchone()
+r = db.execute('SELECT COUNT(*), AVG(label_spot_long_win) FROM labels WHERE label_spot_long_win IS NOT NULL').fetchone()
 print(f'\nTotal labels (non-null sell_win): {r[0]}, sell_win rate: {r[1]:.4f}')
 
 # Recent sell_win (last 500)
-r2 = db.execute('SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC LIMIT 500').fetchall()
+r2 = db.execute('SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id DESC LIMIT 500').fetchall()
 if r2:
     recent_win = sum(x[0] for x in r2) / len(r2)
     print(f'Recent sell_win (last 500): {recent_win:.4f}')
 
 # Recent sell_win (last 100)
-r3 = db.execute('SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC LIMIT 100').fetchall()
+r3 = db.execute('SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id DESC LIMIT 100').fetchall()
 if r3:
     recent100 = sum(x[0] for x in r3) / len(r3)
     print(f'Recent sell_win (last 100): {recent100:.4f}')
@@ -65,7 +65,7 @@ ti_feats = ['feat_rsi14', 'feat_macd_hist', 'feat_atr_pct', 'feat_vwap_dev', 'fe
 all_feats = senses + ti_feats
 
 feat_rows = db.execute(f'SELECT timestamp, regime_label, {", ".join(all_feats)} FROM features_normalized ORDER BY timestamp').fetchall()
-label_rows = db.execute('SELECT timestamp, label_sell_win FROM labels WHERE label_sell_win IS NOT NULL').fetchall()
+label_rows = db.execute('SELECT timestamp, label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL').fetchall()
 label_map = {r[0]: r[1] for r in label_rows}
 
 # Build data

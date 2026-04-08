@@ -18,7 +18,7 @@ for c in merged.columns:
         break
 print(f"Regime column: {regime_col}")
 
-sw = merged['label_sell_win'].astype(int).values
+sw = merged['label_spot_long_win'].astype(int).values
 rl = merged[regime_col] if regime_col else None
 
 print(f"Global sell_win: {sw.mean():.3f}")

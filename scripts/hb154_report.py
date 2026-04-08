@@ -24,11 +24,11 @@ body_label = db.execute("SELECT body_label FROM raw_market_data ORDER BY rowid D
 
 # Load features and labels
 features = pd.read_sql("SELECT * FROM features_normalized", db)
-labels = pd.read_sql("SELECT id, timestamp, symbol, label_sell_win, label_up, future_return_pct FROM labels", db)
+labels = pd.read_sql("SELECT id, timestamp, symbol, label_spot_long_win, label_up, future_return_pct FROM labels", db)
 merged = pd.merge(features, labels, on=['timestamp', 'symbol'], how='inner')
 db.close()
 
-sell_win_rate = merged['label_sell_win'].mean()
+sell_win_rate = merged['label_spot_long_win'].mean()
 
 # Sensory mapping
 sensory_map = {}
@@ -37,10 +37,10 @@ for sense in ['eye', 'ear', 'nose', 'tongue', 'body', 'pulse', 'aura', 'mind']:
     if col in merged.columns:
         sensory_map[sense.capitalize()] = col
 
-# Global IC (against label_sell_win)
+# Global IC (against label_spot_long_win)
 global_ics = {}
 for sense, col in sensory_map.items():
-    ic = merged[col].corr(merged['label_sell_win'])
+    ic = merged[col].corr(merged['label_spot_long_win'])
     global_ics[sense] = round(float(ic), 4)
 
 # Regime-Aware IC
@@ -55,7 +55,7 @@ for regime in ['bear', 'bull', 'chop', 'neutral']:
     passed = 0
     for sense, col in sensory_map.items():
         sub = merged[mask]
-        ic = float(sub[col].corr(sub['label_sell_win']))
+        ic = float(sub[col].corr(sub['label_spot_long_win']))
         ics[sense] = round(ic, 4)
         if abs(ic) >= 0.05:
             passed += 1
@@ -67,7 +67,7 @@ for window in [200, 500, 1000]:
     tail = merged.tail(window)
     passed_list = []
     for sense, col in sensory_map.items():
-        ic = float(tail[col].corr(tail['label_sell_win']))
+        ic = float(tail[col].corr(tail['label_spot_long_win']))
         if abs(ic) >= 0.05:
             passed_list.append(f"{sense}({ic:+.3f})")
     dynamic_ics[f"N={window}"] = f"{len(passed_list)}/8: {', '.join(passed_list) if passed_list else 'ALL FAIL'}"

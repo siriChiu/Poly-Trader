@@ -50,7 +50,7 @@ def load_training_data(session: Session):
     feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
     label_rows = (
         session.query(Labels)
-        .filter(Labels.label_sell_win.isnot(None), Labels.future_return_pct.isnot(None))
+        .filter(Labels.label_spot_long_win.isnot(None), Labels.future_return_pct.isnot(None))
         .order_by(Labels.timestamp)
         .all()
     )
@@ -64,7 +64,7 @@ def load_training_data(session: Session):
     } for r in feat_rows])
     label_df = pd.DataFrame([{
         "timestamp": r.timestamp,
-        "label_sell_win": int(r.label_sell_win),
+        "label_spot_long_win": int(r.label_spot_long_win),
     } for r in label_rows])
 
     feat_df["timestamp"] = pd.to_datetime(feat_df["timestamp"])
@@ -77,7 +77,7 @@ def load_training_data(session: Session):
         direction="nearest",
         tolerance=pd.Timedelta("10min"),
     )
-    merged = merged.dropna(subset=["label_sell_win"]).copy()
+    merged = merged.dropna(subset=["label_spot_long_win"]).copy()
 
     # Lag features
     lag_feature_cols = []
@@ -109,7 +109,7 @@ def load_training_data(session: Session):
 
     X_cols = all_feat_cols + CROSS_FEATURES
     X = merged[X_cols].copy()
-    y = merged["label_sell_win"].astype(int)
+    y = merged["label_spot_long_win"].astype(int)
     timestamps = merged["timestamp"].copy()
     return X, y, timestamps
 
@@ -180,7 +180,7 @@ def train_with_time_weights(session: Session, tau: float = 200):
     # Save time-weighted IC signs
     os.makedirs("model", exist_ok=True)
     with open("model/ic_signs.json", "w", encoding="utf-8") as f:
-        json.dump({"neg_ic_feats": NEG_IC_FEATS, "ic_map": ic_map, "target": "label_sell_win"}, f, indent=2, ensure_ascii=False)
+        json.dump({"neg_ic_feats": NEG_IC_FEATS, "ic_map": ic_map, "target": "label_spot_long_win"}, f, indent=2, ensure_ascii=False)
     log.info(f"Saved ic_signs.json (time-weighted, tau={tau})")
 
     # --- Time-weighted training ---

@@ -18,7 +18,7 @@ import sqlite3
 db = sqlite3.connect(str(DB))
 
 features = pd.read_sql("SELECT * FROM features_normalized", db)
-labels = pd.read_sql("SELECT timestamp, symbol, label_sell_win, label_up FROM labels", db)
+labels = pd.read_sql("SELECT timestamp, symbol, label_spot_long_win, label_up FROM labels", db)
 db.close()
 
 merged = pd.merge(features, labels, on=['timestamp', 'symbol'], how='inner')
@@ -51,7 +51,7 @@ ALL_COLS = BASE_COLS + LAG_COLS + CROSS
 for col in ALL_COLS:
     merged[col] = pd.to_numeric(merged[col], errors='coerce').fillna(0.0)
 
-y = merged["label_sell_win"].astype(int)
+y = merged["label_spot_long_win"].astype(int)
 
 # IC sign flip for neg correlations
 neg_ic_feats = []
@@ -119,7 +119,7 @@ for regime in ['bear', 'bull', 'chop']:
         print(f"  {regime}: only {n} samples, skipping")
         continue
     X_r = regime_data[ALL_COLS].fillna(0.0)
-    y_r = regime_data["label_sell_win"].astype(int)
+    y_r = regime_data["label_spot_long_win"].astype(int)
     sw = compute_sample_weight("balanced", y_r)
     model_r = xgb.XGBClassifier(**params)
     model_r.fit(X_r, y_r, sample_weight=sw)

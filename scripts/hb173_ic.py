@@ -30,7 +30,7 @@ btc_price = btc[0] if btc else 'N/A'
 print(f'Latest BTC: ${btc_price}')
 
 # Check label distribution
-c.execute('SELECT AVG(label_sell_win), COUNT(*) FROM labels WHERE label_sell_win IS NOT NULL')
+c.execute('SELECT AVG(label_spot_long_win), COUNT(*) FROM labels WHERE label_spot_long_win IS NOT NULL')
 row = c.fetchone()
 print(f'Label sell_win rate: {row[0]:.4f}  (N={row[1]})')
 
@@ -42,10 +42,10 @@ senses = ['eye', 'ear', 'nose', 'tongue', 'body', 'pulse', 'aura', 'mind']
 c.execute(f'''
     SELECT f.timestamp, 
            f.eye, f.ear, f.nose, f.tongue, f.body, f.pulse, f.aura, f.mind,
-           l.label_sell_win
+           l.label_spot_long_win
     FROM features f
     INNER JOIN labels l ON f.timestamp = l.timestamp
-    WHERE l.label_sell_win IS NOT NULL
+    WHERE l.label_spot_long_win IS NOT NULL
     ORDER BY f.timestamp
 ''')
 
@@ -89,10 +89,10 @@ try:
     for regime in set(regimes):
         c.execute(f'''
             SELECT f.eye, f.ear, f.nose, f.tongue, f.body, f.pulse, f.aura, f.mind,
-                   l.label_sell_win
+                   l.label_spot_long_win
             FROM features f
             INNER JOIN labels l ON f.timestamp = l.timestamp
-            WHERE l.label_sell_win IS NOT NULL AND l.regime = ?
+            WHERE l.label_spot_long_win IS NOT NULL AND l.regime = ?
         ''', (regime,))
         regime_rows = c.fetchall()
         print(f"  Regime: {regime} (N={len(regime_rows)})")

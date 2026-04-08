@@ -25,10 +25,10 @@ if 'regime_label' in labels.columns:
     print(f"Labels regime_label value_counts:\n{labels['regime_label'].value_counts()}")
 
 # Use actual label columns
-print(f"\nlabel_sell_win distribution: {labels['label_sell_win'].value_counts().to_dict()}")
+print(f"\nlabel_spot_long_win distribution: {labels['label_spot_long_win'].value_counts().to_dict()}")
 print(f"label_up distribution: {labels['label_up'].value_counts().to_dict()}")
 print(f"sell_win rate (computed as future_return_pct<0): {(labels['future_return_pct'] < 0).mean():.4f}")
-print(f"label_sell_win rate: {labels['label_sell_win'].mean():.4f}")
+print(f"label_spot_long_win rate: {labels['label_spot_long_win'].mean():.4f}")
 print(f"label_up rate: {labels['label_up'].mean():.4f}")
 
 # Merge for analysis
@@ -44,23 +44,23 @@ for sense in ['eye', 'ear', 'nose', 'tongue', 'body', 'pulse', 'aura', 'mind']:
     else:
         sensory_map[sense.capitalize()] = None
 
-# --- Global IC against label_sell_win ---
-print("\n=== Global IC (full, against label_sell_win) ===")
+# --- Global IC against label_spot_long_win ---
+print("\n=== Global IC (full, against label_spot_long_win) ===")
 global_ics = {}
 for sense, col in sensory_map.items():
     if col is None:
         continue
-    ic = merged[col].corr(merged['label_sell_win'])
+    ic = merged[col].corr(merged['label_spot_long_win'])
     std = merged[col].std()
     status = "✅" if abs(ic) >= 0.05 else "❌"
     global_ics[sense] = (ic, std)
     print(f"  {sense}: IC={ic:+.4f} {status}  std={std:.4f}")
 
-# Note flip: #153 had negative ICs (against label_up), now positive (against label_sell_win)
+# Note flip: #153 had negative ICs (against label_up), now positive (against label_spot_long_win)
 # IC magnitude should be the same, just sign flips
 
 # --- Regime-Aware IC ---
-print(f"\n=== Regime-Aware IC (against label_sell_win) ===")
+print(f"\n=== Regime-Aware IC (against label_spot_long_win) ===")
 regime_cols_present = [c for c in ['regime_label', 'regime'] if c in features.columns]
 regime_col = regime_cols_present[0] if regime_cols_present else None
 
@@ -76,7 +76,7 @@ for regime in ['Bear', 'Bull', 'Chop', 'Neutral']:
         if col is None:
             continue
         sub = merged[mask]
-        ic = sub[col].corr(sub['label_sell_win'])
+        ic = sub[col].corr(sub['label_spot_long_win'])
         if abs(ic) >= 0.05:
             pass_count += 1
         status = "✅" if abs(ic) >= 0.05 else "❌"

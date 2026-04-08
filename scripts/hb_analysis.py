@@ -49,11 +49,11 @@ def main():
     print(f"Columns: {feature_cols}")
     
     # Labels
-    cur.execute('SELECT COUNT(*), SUM(CASE WHEN label_up=1 THEN 1 ELSE 0 END), SUM(CASE WHEN label_up=0 THEN 1 ELSE 0 END), SUM(CASE WHEN label_sell_win=1 THEN 1 ELSE 0 END), SUM(CASE WHEN label_sell_win=0 THEN 1 ELSE 0 END) FROM labels')
+    cur.execute('SELECT COUNT(*), SUM(CASE WHEN label_up=1 THEN 1 ELSE 0 END), SUM(CASE WHEN label_up=0 THEN 1 ELSE 0 END), SUM(CASE WHEN label_spot_long_win=1 THEN 1 ELSE 0 END), SUM(CASE WHEN label_spot_long_win=0 THEN 1 ELSE 0 END) FROM labels')
     lrow = cur.fetchone()
     print(f"\n=== Labels ===")
     print(f"Total: {lrow[0]} | label_up=1: {lrow[1]} | label_up=0: {lrow[2]}")
-    print(f"label_sell_win=1: {lrow[3]} | label_sell_win=0: {lrow[4]}")
+    print(f"label_spot_long_win=1: {lrow[3]} | label_spot_long_win=0: {lrow[4]}")
     
     # Sensory IC calculation  
     print(f"\n=== Sensory IC Calculation (recent window) ===")
@@ -62,7 +62,7 @@ def main():
     query = """
         SELECT f.timestamp, f.feat_eye, f.feat_ear, f.feat_nose, 
                f.feat_tongue, f.feat_body, f.feat_pulse, f.feat_aura, f.feat_mind,
-               l.label_up, l.label_sell_win
+               l.label_up, l.label_spot_long_win
         FROM features_normalized f
         JOIN labels l ON l.timestamp = f.timestamp
         ORDER BY f.timestamp DESC
@@ -82,7 +82,7 @@ def main():
             rows = []
             for fr in feat_rows:
                 fts = fr[0]
-                cur.execute('SELECT label_up, label_sell_win FROM labels ORDER BY ABS(julianday(timestamp) - julianday(?)) LIMIT 1', (fts,))
+                cur.execute('SELECT label_up, label_spot_long_win FROM labels ORDER BY ABS(julianday(timestamp) - julianday(?)) LIMIT 1', (fts,))
                 lr = cur.fetchone()
                 if lr:
                     rows.append(fr + lr)

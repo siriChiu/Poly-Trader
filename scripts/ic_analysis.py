@@ -119,9 +119,9 @@ def main():
     print(f"LSR: {lsr} | GSR: {gsr} | Taker: {taker} | OI: {oi} | FR: {fr}")
     print()
     
-    # Use sell_win as the target (DB column is 'label_sell_win')
-    if 'label_sell_win' in label_df.columns:
-        target_col = 'label_sell_win'
+    # Use sell_win as the target (DB column is 'label_spot_long_win')
+    if 'label_spot_long_win' in label_df.columns:
+        target_col = 'label_spot_long_win'
     elif 'sell_win' in label_df.columns:
         target_col = 'sell_win'
     else:

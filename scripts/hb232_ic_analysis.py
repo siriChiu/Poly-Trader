@@ -29,7 +29,7 @@ print(f"Regime distribution: {regime_counts}")
 
 # Step 2: Get labels
 label_data = {}
-for row in db.execute("SELECT id, timestamp, symbol, label_sell_win, future_return_pct FROM labels ORDER BY id"):
+for row in db.execute("SELECT id, timestamp, symbol, label_spot_long_win, future_return_pct FROM labels ORDER BY id"):
     key = (row[1], row[2])  # timestamp, symbol
     label_data[key] = row
 
@@ -46,7 +46,7 @@ for frow in feat_data:
             'eye': frow[3], 'ear': frow[4], 'nose': frow[5], 'tongue': frow[6],
             'body': frow[7], 'pulse': frow[8], 'aura': frow[9], 'mind': frow[10],
             'regime': frow[11],
-            'label_sell_win': lbl[3], 'future_return_pct': lbl[4]
+            'label_spot_long_win': lbl[3], 'future_return_pct': lbl[4]
         })
 
 n = len(joined)
@@ -95,7 +95,7 @@ def tw_ic(x, y, tau=200):
 
 # Extract arrays
 sense_arrays = {s: [r[s] for r in joined] for s in SENSES}
-labels_sw = [r['label_sell_win'] for r in joined]
+labels_sw = [r['label_spot_long_win'] for r in joined]
 regimes = [r['regime'] for r in joined]
 
 # Valid labels only for global
@@ -154,13 +154,13 @@ for regime in ['bear', 'bull', 'chop', 'neutral']:
         print(f"\n  {regime}: N={len(indices)} (too few)")
         continue
     
-    reg_labels = [joined[i]['label_sell_win'] for i in indices if joined[i]['label_sell_win'] is not None]
+    reg_labels = [joined[i]['label_spot_long_win'] for i in indices if joined[i]['label_spot_long_win'] is not None]
     reg_sw = sum(reg_labels) / len(reg_labels) if reg_labels else 0
     
     print(f"\n  {regime} (N_recent={len(indices)}, sell_win={reg_sw:.1%}):")
     for s in SENSES:
         reg_sense = [sense_arrays[s][i] for i in indices]
-        ic, cnt = pearson(reg_sense, [joined[i]['label_sell_win'] for i in indices])
+        ic, cnt = pearson(reg_sense, [joined[i]['label_spot_long_win'] for i in indices])
         if ic is not None:
             ic_val = round(ic, 4)
             status = "PASS" if abs(ic_val) >= 0.05 else "FAIL"

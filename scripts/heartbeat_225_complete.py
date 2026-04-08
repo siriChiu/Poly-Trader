@@ -40,7 +40,7 @@ print(f"DXY: {dxy:.2f}" if dxy is not None else "DXY: N/A")
 print(f"FR: {fr:.6f}" if fr is not None else "FR: N/A")
 
 # Sell win rate
-sell_col = 'label_sell_win'
+sell_col = 'label_spot_long_win'
 sell = labels[sell_col].astype(float).dropna()
 n_sell = len(sell)
 sell_win_rate = sell.mean()

@@ -34,9 +34,9 @@ def tw_ic(ts, vals, labels, tau=200):
 cols = ['feat_eye', 'feat_ear', 'feat_nose', 'feat_tongue', 'feat_body', 'feat_pulse', 'feat_aura', 'feat_mind']
 sense_names = ['Eye', 'Ear', 'Nose', 'Tongue', 'Body', 'Pulse', 'Aura', 'Mind']
 
-rows = db.execute(f'''SELECT f.timestamp, {', '.join(cols)}, l.label_sell_win
+rows = db.execute(f'''SELECT f.timestamp, {', '.join(cols)}, l.label_spot_long_win
     FROM features_normalized f JOIN labels l ON l.timestamp = f.timestamp
-    WHERE l.label_sell_win IS NOT NULL ORDER BY f.timestamp''').fetchall()
+    WHERE l.label_spot_long_win IS NOT NULL ORDER BY f.timestamp''').fetchall()
 
 timestamps = [r[0] for r in rows]
 tw_results = {}
@@ -83,9 +83,9 @@ for wsize in [100, 200, 400, 600, 1000]:
 print("\n=== Regime-aware IC ===")
 regime_results = {}
 for regime in ['bear', 'bull', 'chop']:
-    r2 = db.execute(f'''SELECT {', '.join(cols)}, l.label_sell_win
+    r2 = db.execute(f'''SELECT {', '.join(cols)}, l.label_spot_long_win
         FROM features_normalized f JOIN labels l ON l.timestamp = f.timestamp
-        WHERE l.regime_label = '{regime}' AND l.label_sell_win IS NOT NULL''').fetchall()
+        WHERE l.regime_label = '{regime}' AND l.label_spot_long_win IS NOT NULL''').fetchall()
     n_pass = 0
     key_feats = []
     for idx, name in enumerate(sense_names):
@@ -103,9 +103,9 @@ for regime in ['bear', 'bull', 'chop']:
 # Regime sell win rates
 print("\n=== Regime Sell Win Rates ===")
 r2 = db.execute('''SELECT regime_label, COUNT(*) as n,
-    SUM(CASE WHEN label_sell_win=1 THEN 1 ELSE 0 END),
-    SUM(CASE WHEN label_sell_win=0 THEN 1 ELSE 0 END)
-    FROM labels WHERE regime_label IS NOT NULL AND label_sell_win IS NOT NULL
+    SUM(CASE WHEN label_spot_long_win=1 THEN 1 ELSE 0 END),
+    SUM(CASE WHEN label_spot_long_win=0 THEN 1 ELSE 0 END)
+    FROM labels WHERE regime_label IS NOT NULL AND label_spot_long_win IS NOT NULL
     GROUP BY regime_label''').fetchall()
 for reg, n, p, neg2 in r2:
     rate = p/n if n > 0 else 0
@@ -117,7 +117,7 @@ extra_results = {}
 for name, col in [('VIX', 'feat_vix'), ('DXY', 'feat_dxy'), ('RSI14', 'feat_rsi14'),
                   ('MACD_hist', 'feat_macd_hist'), ('ATR_pct', 'feat_atr_pct'),
                   ('VWAP_dev', 'feat_vwap_dev'), ('BB_pct_b', 'feat_bb_pct_b')]:
-    rows2 = db.execute(f'SELECT {col}, l.label_sell_win FROM features_normalized f JOIN labels l ON l.timestamp = f.timestamp WHERE l.label_sell_win IS NOT NULL').fetchall()
+    rows2 = db.execute(f'SELECT {col}, l.label_spot_long_win FROM features_normalized f JOIN labels l ON l.timestamp = f.timestamp WHERE l.label_spot_long_win IS NOT NULL').fetchall()
     vals = [float(r[0]) for r in rows2 if r[0] is not None]
     lbls = [float(r[1]) for r in rows2 if r[0] is not None]
     v, l = np.array(vals), np.array(lbls)
@@ -131,11 +131,11 @@ print("\n=== Summary ===")
 raw_count = db.execute("SELECT COUNT(*) FROM raw_market_data").fetchone()[0]
 feat_count = db.execute("SELECT COUNT(*) FROM features_normalized").fetchone()[0]
 label_count = db.execute("SELECT COUNT(*) FROM labels").fetchone()[0]
-pos = db.execute("SELECT COUNT(*) FROM labels WHERE label_sell_win=1").fetchone()[0]
-neg = db.execute("SELECT COUNT(*) FROM labels WHERE label_sell_win=0").fetchone()[0]
+pos = db.execute("SELECT COUNT(*) FROM labels WHERE label_spot_long_win=1").fetchone()[0]
+neg = db.execute("SELECT COUNT(*) FROM labels WHERE label_spot_long_win=0").fetchone()[0]
 raw_ts = set(r[0] for r in db.execute("SELECT timestamp FROM raw_market_data").fetchall())
 feat_ts = set(r[0] for r in db.execute("SELECT timestamp FROM features_normalized").fetchall())
-label_ts = set(r[0] for r in db.execute("SELECT timestamp FROM labels WHERE label_sell_win IS NOT NULL").fetchall())
+label_ts = set(r[0] for r in db.execute("SELECT timestamp FROM labels WHERE label_spot_long_win IS NOT NULL").fetchall())
 
 latest = db.execute("SELECT close_price, fear_greed_index, vix_value, dxy_value, funding_rate FROM raw_market_data ORDER BY id DESC LIMIT 1").fetchone()
 print(f'Raw: {raw_count} | Features: {feat_count} | Labels: {label_count}')

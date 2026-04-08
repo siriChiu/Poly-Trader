@@ -43,7 +43,7 @@
 
 ## 🔄 心跳
 
-心跳詳細流程定義在 [HEARTBEAT.md](HEARTBEAT.md)。每次心跳必須完整執行 Step 0~6。
+心跳詳細流程定義在 [HEARTBEAT.md](HEARTBEAT.md)。每次心跳必須完整執行 Step 0~8。
 
 **核心節奏**：閱讀本文件 → 數據收集 → IC 分析 → 六帽+迪士尼+ORID 會議 → 修正測試 → 回報摘要
 

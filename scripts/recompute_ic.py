@@ -23,10 +23,10 @@ print(f"Label ts fmt:   {[r[0] for r in l_ts]}")
 query = """
 SELECT f.feat_eye, f.feat_ear, f.feat_nose, f.feat_tongue, 
        f.feat_body, f.feat_pulse, f.feat_aura, f.feat_mind,
-       l.label_up, l.label_sell_win, l.future_return_pct, l.future_max_drawdown, l.future_max_runup
+       l.label_up, l.label_spot_long_win, l.future_return_pct, l.future_max_drawdown, l.future_max_runup
 FROM features_normalized f
 INNER JOIN labels l ON l.timestamp = f.timestamp AND l.symbol = f.symbol
-WHERE l.horizon_minutes = 240
+WHERE l.horizon_minutes = 1440
 ORDER BY f.timestamp DESC
 """
 
@@ -41,7 +41,7 @@ if len(rows) < 100:
     feat_rows = cur.fetchall()
     
     # Get all labels
-    cur.execute("SELECT timestamp, label_up, label_sell_win, future_return_pct, horizon_minutes FROM labels WHERE horizon_minutes = 240")
+    cur.execute("SELECT timestamp, label_up, label_spot_long_win, future_return_pct, horizon_minutes FROM labels WHERE horizon_minutes = 240")
     labels = cur.fetchall()
     label_map = {r[0]: r[1:] for r in labels}  # timestamp -> (label_up, sell_win, ret)
     
@@ -65,9 +65,9 @@ n_limit = min(5000, len(rows))
 rows = rows[:n_limit]
 print(f"Using {len(rows)} rows for IC analysis")
 
-# Label columns (after 8 features + label_up + label_sell_win + ret + dd + ru)
+# Label columns (after 8 features + label_up + label_spot_long_win + ret + dd + ru)
 # Row indices: 0=eye, 1=ear, 2=nose, 3=tongue, 4=body, 5=pulse, 6=aura, 7=mind
-#             8=label_up, 9=label_sell_win, 10=future_ret, 11=max_dd, 12=max_ru
+#             8=label_up, 9=label_spot_long_win, 10=future_ret, 11=max_dd, 12=max_ru
 
 sense_names = ['Eye', 'Ear', 'Nose', 'Tongue', 'Body', 'Pulse', 'Aura', 'Mind']
 ic_results = {}

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Check label_sell_win actual distribution and verify labeling pipeline."""
+"""Check label_spot_long_win actual distribution and verify labeling pipeline."""
 import sqlite3
 conn = sqlite3.connect('/home/kazuha/Poly-Trader/poly_trader.db')
 conn.row_factory = sqlite3.Row
 
-# Distribution of label_sell_win
-rows = conn.execute("SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL").fetchall()
+# Distribution of label_spot_long_win
+rows = conn.execute("SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL").fetchall()
 vals = [r[0] for r in rows]
 
 # Check if binary
@@ -31,7 +31,7 @@ print(f"Values > 0.01: {above_01} / {len(vals)}")
 
 # Check if it's actually returns
 print(f"\nSample values:")
-samples = conn.execute("SELECT id, label_sell_win, future_return_pct, label_up FROM labels ORDER BY RANDOM() LIMIT 5").fetchall()
+samples = conn.execute("SELECT id, label_spot_long_win, future_return_pct, label_up FROM labels ORDER BY RANDOM() LIMIT 5").fetchall()
 for s in samples:
     print(f"  id={s[0]} sell_win={s[1]:.8f} frp={s[2]} label_up={s[3]}")
 

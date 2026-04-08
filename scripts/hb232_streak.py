@@ -7,7 +7,7 @@ ROOT = Path(__file__).parent.parent
 db = sqlite3.connect(str(ROOT / "poly_trader.db"))
 
 # Detailed streak analysis
-labels = db.execute("SELECT id, timestamp, label_sell_win, future_return_pct, regime_label FROM labels ORDER BY id").fetchall()
+labels = db.execute("SELECT id, timestamp, label_spot_long_win, future_return_pct, regime_label FROM labels ORDER BY id").fetchall()
 print(f"Total labels: {len(labels)}")
 
 # Full streak analysis from the most recent end

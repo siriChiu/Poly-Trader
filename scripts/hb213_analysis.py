@@ -90,8 +90,8 @@ if 'feature_data' in tables and 'label_data' in tables:
                 join_col = c
                 break
 
-    has_sell_win = 'sell_win' in label_cols or 'label_sell_win' in label_cols
-    sell_win_col = 'sell_win' if 'sell_win' in label_cols else 'label_sell_win'
+    has_sell_win = 'sell_win' in label_cols or 'label_spot_long_win' in label_cols
+    sell_win_col = 'sell_win' if 'sell_win' in label_cols else 'label_spot_long_win'
     
     if has_sell_win:
         merged = pd.read_sql_query(

@@ -19,12 +19,12 @@ print(f"Fetched {len(df)} records")
 df['ts_key'] = pd.to_datetime(df['timestamp'], format='mixed').dt.floor('s')
 
 # Get labels
-labels_df = pd.read_sql("SELECT timestamp, label_up, label_sell_win FROM labels", engine)
+labels_df = pd.read_sql("SELECT timestamp, label_up, label_spot_long_win FROM labels", engine)
 labels_df['ts_key'] = pd.to_datetime(labels_df['timestamp'], format='mixed').dt.floor('s')
 
 # Merge
-merged = df.merge(labels_df[['ts_key', 'label_up', 'label_sell_win']], on='ts_key', how='left', suffixes=('_feat', '_label'))
-print(f"Merge: {len(merged)} total, {merged['label_up'].notna().sum()} with label_up, {merged['label_sell_win'].notna().sum()} with label_sell_win")
+merged = df.merge(labels_df[['ts_key', 'label_up', 'label_spot_long_win']], on='ts_key', how='left', suffixes=('_feat', '_label'))
+print(f"Merge: {len(merged)} total, {merged['label_up'].notna().sum()} with label_up, {merged['label_spot_long_win'].notna().sum()} with label_spot_long_win")
 
 # Count non-null matches to understand overlap
 matched = merged.dropna(subset=['label_up'])
@@ -52,16 +52,16 @@ if len(matched) > 0:
             status = 'PASS' if abs(ic) >= 0.05 else 'FAIL'
             print(f'  {sense_name:8s}: IC={ic:+.4f} (n={len(valid)}) {status}')
     
-    # Recent 100 vs label_sell_win if available
-    if merged['label_sell_win'].notna().sum() > 50:
-        sorted_sw = merged.dropna(subset=['label_sell_win']).sort_values('timestamp', ascending=False).reset_index(drop=True)
+    # Recent 100 vs label_spot_long_win if available
+    if merged['label_spot_long_win'].notna().sum() > 50:
+        sorted_sw = merged.dropna(subset=['label_spot_long_win']).sort_values('timestamp', ascending=False).reset_index(drop=True)
         recent100_sw = sorted_sw.head(100)
-        print("\n=== Recent 100 IC (vs label_sell_win) ===")
+        print("\n=== Recent 100 IC (vs label_spot_long_win) ===")
         for feat_col, sense_name in senses.items():
-            valid = recent100_sw[[feat_col, 'label_sell_win']].dropna()
+            valid = recent100_sw[[feat_col, 'label_spot_long_win']].dropna()
             if len(valid) >= 10:
-                ic = valid[feat_col].corr(valid['label_sell_win'])
+                ic = valid[feat_col].corr(valid['label_spot_long_win'])
                 status = 'PASS' if abs(ic) >= 0.05 else 'FAIL'
                 print(f'  {sense_name:8s}: IC={ic:+.4f} (n={len(valid)}) {status}')
     else:
-        print("\n(No label_sell_win matches found)")
+        print("\n(No label_spot_long_win matches found)")

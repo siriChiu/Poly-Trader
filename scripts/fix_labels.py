@@ -72,11 +72,11 @@ for i in range(len(df)):
     if future_ret is None:
         label_up = 0  # Unknown
     
-    # label_sell_win: 1 if max_runup > abs(max_drawdown), else 0
+    # label_spot_long_win: 1 if max_runup > abs(max_drawdown), else 0
     if max_dd is not None and max_ru is not None:
-        label_sell_win = 1 if max_ru > abs(max_dd) else 0
+        label_spot_long_win = 1 if max_ru > abs(max_dd) else 0
     else:
-        label_sell_win = 0
+        label_spot_long_win = 0
     
     results.append({
         'timestamp': ts.strftime('%Y-%m-%d %H:%M:%S'),
@@ -85,7 +85,7 @@ for i in range(len(df)):
         'future_max_drawdown': max_dd,
         'future_max_runup': max_ru,
         'label_up': label_up,
-        'label_sell_win': label_sell_win,
+        'label_spot_long_win': label_spot_long_win,
         'regime_label': 'neutral'
     })
 
@@ -100,7 +100,7 @@ print(f"Future returns: avg={np.mean(ret_vals):.4f}, std={np.std(ret_vals):.4f}"
 print(f"Max drawdowns: avg={np.mean(dd_vals):.4f}, max={max(dd_vals):.4f}")
 print(f"Max runups: avg={np.mean(ru_vals):.4f}, max={max(ru_vals):.4f}")
 print(f"label_up: {sum(r['label_up'] for r in results)} / {len(results)}")
-print(f"label_sell_win: {sum(r['label_sell_win'] for r in results)} / {len(results)}")
+print(f"label_spot_long_win: {sum(r['label_spot_long_win'] for r in results)} / {len(results)}")
 
 # Update DB
 cur = conn.cursor()
@@ -109,10 +109,10 @@ cur.execute('DELETE FROM labels')
 for r in results:
     cur.execute('''INSERT INTO labels 
         (timestamp, symbol, horizon_minutes, future_return_pct, future_max_drawdown, 
-         future_max_runup, label_sell_win, label_up, regime_label)
+         future_max_runup, label_spot_long_win, label_up, regime_label)
         VALUES (?, 'BTCUSDT', ?, ?, ?, ?, ?, ?, ?)''',
         (r['timestamp'], r['horizon_minutes'], r['future_return_pct'],
-         r['future_max_drawdown'], r['future_max_runup'], r['label_sell_win'],
+         r['future_max_drawdown'], r['future_max_runup'], r['label_spot_long_win'],
          r['label_up'], r['regime_label']))
 
 conn.commit()

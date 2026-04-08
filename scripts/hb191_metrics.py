@@ -30,17 +30,17 @@ if r3:
     print(f'Current time: {datetime.utcnow()}')
 
 # Sell win overall and recent
-r4 = db.execute('SELECT AVG(label_sell_win) FROM labels WHERE label_sell_win IS NOT NULL').fetchone()
+r4 = db.execute('SELECT AVG(label_spot_long_win) FROM labels WHERE label_spot_long_win IS NOT NULL').fetchone()
 print(f'\nGlobal sell_win rate: {r4[0]:.4f}')
 
-r5 = db.execute('SELECT AVG(label_sell_win) FROM (SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC LIMIT 500)').fetchone()
+r5 = db.execute('SELECT AVG(label_spot_long_win) FROM (SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id DESC LIMIT 500)').fetchone()
 print(f'Recent sell_win (500): {r5[0]:.4f}')
 
-r6 = db.execute('SELECT AVG(label_sell_win) FROM (SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC LIMIT 100)').fetchone()
+r6 = db.execute('SELECT AVG(label_spot_long_win) FROM (SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id DESC LIMIT 100)').fetchone()
 print(f'Recent sell_win (100): {r6[0]:.4f}')
 
 # Count
-r7 = db.execute('SELECT COUNT(*) FROM labels WHERE label_sell_win IS NOT NULL').fetchone()
+r7 = db.execute('SELECT COUNT(*) FROM labels WHERE label_spot_long_win IS NOT NULL').fetchone()
 print(f'Total labels: {r7[0]}')
 r8 = db.execute('SELECT COUNT(*) FROM features_normalized').fetchone()
 print(f'Total features: {r8[0]}')

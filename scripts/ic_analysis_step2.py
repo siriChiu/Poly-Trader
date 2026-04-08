@@ -13,10 +13,10 @@ SELECT
     f.feat_eye, f.feat_ear, f.feat_nose, f.feat_tongue, f.feat_body,
     f.feat_pulse, f.feat_aura, f.feat_mind,
     f.regime_label,
-    l.label_sell_win
+    l.label_spot_long_win
 FROM features_normalized f
 INNER JOIN labels l ON f.timestamp = l.timestamp AND f.symbol = l.symbol
-WHERE l.label_sell_win IS NOT NULL
+WHERE l.label_spot_long_win IS NOT NULL
 ORDER BY f.timestamp
 """
 
@@ -60,7 +60,7 @@ for i in range(8):
     })
 
 print(f"\n{'='*70}")
-print(f"全域 IC Analysis (N={n}, h=4h, vs label_sell_win)")
+print(f"全域 IC Analysis (N={n}, h=4h, vs label_spot_long_win)")
 print(f"{'='*70}")
 
 for s in sorted(senses, key=lambda x: abs(x['ic']), reverse=True):
@@ -82,10 +82,10 @@ SELECT
     f.feat_eye, f.feat_ear, f.feat_nose, f.feat_tongue, f.feat_body,
     f.feat_pulse, f.feat_aura, f.feat_mind,
     f.regime_label,
-    l.label_sell_win
+    l.label_spot_long_win
 FROM features_normalized f
 INNER JOIN labels l ON f.timestamp = l.timestamp AND f.symbol = l.symbol
-WHERE l.label_sell_win IS NOT NULL
+WHERE l.label_spot_long_win IS NOT NULL
 ORDER BY f.timestamp
 """
 rows2 = conn2.execute(regime_query).fetchall()

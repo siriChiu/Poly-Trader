@@ -11,7 +11,7 @@ for t in tables:
     print(f'{t}: {count}')
 
 # sell_win rate
-row = conn.execute('SELECT AVG(CAST(label_sell_win AS FLOAT)), COUNT(*) FROM labels WHERE label_sell_win IS NOT NULL').fetchone()
+row = conn.execute('SELECT AVG(CAST(label_spot_long_win AS FLOAT)), COUNT(*) FROM labels WHERE label_spot_long_win IS NOT NULL').fetchone()
 if row[0] is not None:
     print(f'sell_win: {row[0]:.4f} (n={row[1]})')
 

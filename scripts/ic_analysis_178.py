@@ -21,9 +21,9 @@ feats = db.execute(feats_query).fetchall()
 
 # Get labels
 if has_regime:
-    labels_query = "SELECT timestamp, label_sell_win, label_up, future_return_pct, regime FROM labels ORDER BY timestamp"
+    labels_query = "SELECT timestamp, label_spot_long_win, label_up, future_return_pct, regime FROM labels ORDER BY timestamp"
 else:
-    labels_query = "SELECT timestamp, label_sell_win, label_up, future_return_pct FROM labels ORDER BY timestamp"
+    labels_query = "SELECT timestamp, label_spot_long_win, label_up, future_return_pct FROM labels ORDER BY timestamp"
 labels_raw = db.execute(labels_query).fetchall()
 
 # Build label map
@@ -64,7 +64,7 @@ def calc_ic(sense_name, feat_name, timestamps, label_key="sell_win"):
 
 # ===== FULL IC (against sell_win) =====
 print(f"\n{'='*70}")
-print(f"FULL IC — Spearman vs label_sell_win (h=4)")
+print(f"FULL IC — Spearman vs label_spot_long_win (h=4)")
 print(f"{'='*70}")
 for sn, fn in zip(sense_names, feat_cols):
     ic, n = calc_ic(sn, fn, common, "sell_win")

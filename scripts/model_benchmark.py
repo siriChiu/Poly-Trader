@@ -170,12 +170,12 @@ def load_data(feature_set: str = 'all', horizon: int = 720, regime: str = None):
     all_feat_str = ','.join(feature_cols)
 
     sql = f"""
-        SELECT {all_feat_str}, l.label_sell_win,
+        SELECT {all_feat_str}, l.label_spot_long_win,
                l.future_return_pct, l.future_max_drawdown,
                f.regime_label
         FROM features_normalized f
         JOIN labels l ON l.timestamp = f.timestamp AND l.symbol = f.symbol
-        WHERE l.label_sell_win IS NOT NULL AND l.horizon_minutes = ?
+        WHERE l.label_spot_long_win IS NOT NULL AND l.horizon_minutes = ?
         ORDER BY f.timestamp
     """
 
@@ -213,7 +213,7 @@ def load_data(feature_set: str = 'all', horizon: int = 720, regime: str = None):
         print(f"  ⚠️  刪除無效特徵 ({len(dropped)}): {', '.join(dropped)}")
 
     X = df[valid_cols].fillna(0).values.astype(np.float32)
-    y = df['label_sell_win'].values.astype(int)
+    y = df['label_spot_long_win'].values.astype(int)
 
     print(f"  資料: {len(X)} 筆 | 特徵: {len(valid_cols)} | 勝率: {y.mean():.1%}")
     print(f"  時間: {df.index[0]} ~ {df.index[-1]}")

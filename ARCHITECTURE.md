@@ -23,16 +23,16 @@
 將 raw 資料轉換為可量化特徵特徵，並提供 IC、穩定性與版本控制。
 
 ### 3. 標籤層
-根據未來報酬建立多 horizon 標籤，並新增 sell-win 標籤作為主 KPI。
+根據未來報酬建立多 horizon 標籤，並以 `label_spot_long_win` 作為主 KPI；`sell_win` 僅保留 legacy 相容欄位。
 
 ### 4. 模型層
-使用特徵特徵做交易決策與賣出判斷，允許 abstain 與 regime-aware weights。
+使用特徵做交易決策與現貨 long 加碼判斷，允許 abstain 與 regime-aware weights。
 
 ### 5. 回測層
-驗證不同特徵組合、不同市場狀態與不同賣出閾值下的表現。
+驗證不同特徵組合、不同市場狀態與不同入場／加碼／出場閾值下的表現。
 
 ### 6. 可視化層
-顯示每個特徵的 IC、勝率、風險貢獻、賣出勝率、回測摘要與會議整理。
+顯示每個特徵的 IC、勝率、風險貢獻、spot-long 勝率、回測摘要與會議整理。
 
 ---
 
@@ -52,10 +52,10 @@ Poly-Trader/
 ├── database/
 │   └── models.py                ← ORM：raw_events / features / labels
 ├── model/
-│   ├── predictor.py             ← 預測器（sell-win aware）
+│   ├── predictor.py             ← 預測器（spot-long aware）
 │   └── train.py                 ← 訓練腳本
 ├── backtesting/
-│   ├── engine.py                ← 回測引擎（sell_win_rate / regime aware）
+│   ├── engine.py                ← 回測引擎（spot_long_win_rate / regime aware）
 │   ├── metrics.py               ← 績效指標
 │   └── optimizer.py             ← 參數優化
 ├── analysis/
@@ -131,7 +131,7 @@ Poly-Trader/
 | future_return_pct | FLOAT | 未來收益率 |
 | future_max_drawdown | FLOAT | 未來最大回撤 |
 | future_max_runup | FLOAT | 未來最大漲幅 |
-| label_sell_win | INTEGER | 賣出後是否獲利 |
+|| label_spot_long_win | INTEGER | 現貨 long 是否獲利 |
 | label_up | INTEGER | 漲跌分類 |
 | regime_label | STRING | 市場狀態 |
 
@@ -178,13 +178,13 @@ Poly-Trader/
 - expectancy
 - trade count
 
-### 賣出勝率
-- sell_win_rate = profitable_sells / total_sells
-- average sell profit
-- average sell loss
-- sell precision
-- sell recall
-- forward sell win rate
+### 現貨 long 勝率
+- spot_long_win_rate = profitable_longs / total_longs
+- average long profit
+- average long loss
+- long precision
+- long recall
+- forward long win rate
 
 ### 模型品質
 - coverage
@@ -244,6 +244,11 @@ Poly-Trader/
 - 用來區分「特徵有效」與「模型輸出不準」。
 - 不可直接把特徵分數當成最終推薦分數，需保留校準與版本資訊。
 
+### 9. 文件治理與心跳閉環
+- 每次心跳後，必須同步更新 `HEARTBEAT.md`、`ISSUES.md`、`ROADMAP.md`，必要時修正 `ARCHITECTURE.md`。
+- 使用六帽 + ORID 先把問題分層，再把 P0/P1 變成可執行 patch。
+- 若本輪只得到「未達標」而沒有修復，視為流程不完整，不算閉環。
+
 ---
 
 ## API 端點補充
@@ -251,6 +256,6 @@ Poly-Trader/
 | 端點 | 方法 | 說明 |
 |------|------|------|
 | `/api/predict/confidence` | GET | 綜合信心預測與校準後信號 |
-| `/api/backtest` | GET | 回測結果與 sell_win_rate |
+| `/api/backtest` | GET | 回測結果與 spot_long_win_rate（legacy sell_win_rate） |
 | `/api/senses` | GET | 特徵分數 + 建議 |
 

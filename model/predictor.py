@@ -35,33 +35,30 @@ LAG_FEATURE_COLS = [f"{col}_lag{lag}" for col in BASE_FEATURE_COLS for lag in LA
 # FEATURE_COLS: 8 base only (legacy compat). Full feature list = BASE + LAG when model supports it.
 FEATURE_COLS = BASE_FEATURE_COLS
 
-# Confidence thresholds for trade filtering — model predicts sell-win probability
-CONFIDENCE_HIGH = 0.7   # SELL (short) — high confidence price will drop (sell-win)
-CONFIDENCE_LOW = 0.3    # BUY/HOLD — low confidence, price likely rising
+# Confidence thresholds for trade filtering — model predicts long-win probability
+CONFIDENCE_HIGH = 0.7   # BUY — high confidence price will rise enough for spot-long pyramiding
+CONFIDENCE_LOW = 0.3    # HOLD — low confidence, avoid entering
 
-# P0 #H426: Bull regime sell signal inversion
-# Bull sell_win=59.4% — model's "sell" signals are WRONG in bull markets
-# This means we should INVERT the signal when in a bull regime
-# Inverting gives 40.6% → buy_signal wins 59.4% of the time
-BULL_SIGNAL_INVERT = True  # flip high-confidence sell → buy in bull regime
+# P0 #H426: Bull regime signal inversion
+# Legacy short-selling logic needed inversion in bull markets.
+# For the spot-long target we keep raw confidence (no inversion).
+BULL_SIGNAL_INVERT = False  # spot-long target does not need bull-time inversion
 
 # P0 #H420: Circuit breaker — halt trading after N consecutive losses
-# sell_win is at 49.90%, 156-streak ongoing — must prevent further damage
-CIRCUIT_BREAKER_STREAK = 50  # consecutive sell losses before forced abstain
+# spot-long win rate is at 49.90%, 156-streak ongoing — must prevent further damage
+CIRCUIT_BREAKER_STREAK = 50  # consecutive long-entry losses before forced abstain
 CIRCUIT_BREAKER_RECENT_WINRATE = 0.30  # if recent 50 win rate < 30%, force abstain (HB#234: tightened from 35% at 100-sample)
 CIRCUIT_BREAKER_WINDOW = 50  # samples to check for win rate floor (HB#234: reduced from 100 for faster response)
 REGIME_THRESHOLD_BIAS = {
-    'trend': -0.03,
-    'chop': 0.04,
-    'panic': -0.01,
-    'event': 0.02,
+    'trend': 0.03,
+    'chop': -0.04,
+    'panic': -0.08,
+    'event': -0.02,
     'normal': 0.0,
-    # P0 #H379: Bull regime sell suppression — sell signals in bull markets are inverted
-    # (sell_win in bull = 60.5% means "sell" = "buy the dip" — don't sell).
-    # Raise SELL threshold from 0.70 to 0.85+ (effectively -0.15 bias pulls conf down).
-    'bull': -0.15,
-    # Bear: slightly lower threshold — sell signals work better in bear (IC=8/23)
-    'bear': 0.02,
+    # Bull regime should boost long-win confidence, not suppress it.
+    'bull': 0.10,
+    # Bear regimes should be more conservative for spot-long entries.
+    'bear': -0.05,
 }
 
 
@@ -79,8 +76,8 @@ def _global_ic(session):
     sense_cols = [getattr(FeaturesNormalized, c) for c in sense_col_names]
 
     feat_rows = session.query(FeaturesNormalized.timestamp, *sense_cols).order_by(FeaturesNormalized.timestamp).all()
-    label_rows = session.query(Labels.timestamp, Labels.label_sell_win).filter(
-        Labels.label_sell_win.isnot(None), Labels.horizon_minutes == 720).order_by(Labels.timestamp).all()
+    label_rows = session.query(Labels.timestamp, Labels.label_spot_long_win).filter(
+        Labels.label_spot_long_win.isnot(None), Labels.horizon_minutes == 1440).order_by(Labels.timestamp).all()
 
     feat_by_ts = {r[0]: {sense_col_names[i]: r[1+i] for i in range(len(sense_cols))} for r in feat_rows}
     labels_by_ts = {r[0]: int(r[1]) for r in label_rows}
@@ -124,8 +121,8 @@ def _time_weighted_ic(session, tau=200):
 
     # Load time-ordered features + labels
     feat_rows = session.query(FeaturesNormalized.timestamp, *sense_cols).order_by(FeaturesNormalized.timestamp).all()
-    label_rows = session.query(Labels.timestamp, Labels.label_sell_win).filter(
-        Labels.label_sell_win.isnot(None), Labels.horizon_minutes == 720).order_by(Labels.timestamp).all()
+    label_rows = session.query(Labels.timestamp, Labels.label_spot_long_win).filter(
+        Labels.label_spot_long_win.isnot(None), Labels.horizon_minutes == 1440).order_by(Labels.timestamp).all()
 
     feat_by_ts = {r[0]: {sense_col_names[i]: r[1+i] for i in range(len(sense_cols))} for r in feat_rows}
     labels_by_ts = {r[0]: int(r[1]) for r in label_rows}
@@ -465,10 +462,10 @@ def _check_circuit_breaker(session) -> Optional[Dict]:
     from sqlalchemy import func as _func
     from database.models import Labels
 
-    # Check consecutive sell losses from most recent backwards
+    # Check consecutive recent target failures from most recent backwards
     recent_labels = (
-        session.query(Labels.label_sell_win)
-        .filter(Labels.label_sell_win.isnot(None))
+        session.query(Labels.label_spot_long_win)
+        .filter(Labels.label_spot_long_win.isnot(None))
         .order_by(Labels.timestamp.desc())
         .all()
     )
@@ -570,7 +567,8 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
         abs_ic = abs(ic)
         if abs_ic < IC_PASS_THRESHOLD:
             continue
-        # Flip sign for negative IC senses (align all to sell-win direction)
+        # Flip sign for negative IC senses so all aligned signals point toward
+        # a profitable spot-long pyramid.
         aligned = (-val) if ic < 0 else val
         feat_vals.append(aligned)
         weights.append(abs_ic)
@@ -608,17 +606,18 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
     adjusted = float(np.clip(confidence + bias, 0.0, 1.0))
 
     # P0 #H426: Bull regime signal inversion
-    # Bull sell_win=59.4% — selling in bull markets is wrong; invert signal
+    # Bull markets should not emit SELL for a spot-long strategy.
     if BULL_SIGNAL_INVERT and regime == "bull":
         adjusted = float(np.clip(1.0 - adjusted, 0.0, 1.0))
 
-    # Signal determination
+    # Signal determination for spot-long pyramiding:
+    # high confidence => BUY, otherwise HOLD/abstain.
     if adjusted > CONFIDENCE_HIGH:
-        signal = "SELL"
-        confidence_level = "HIGH"
-    elif adjusted < CONFIDENCE_LOW:
         signal = "BUY"
         confidence_level = "HIGH"
+    elif adjusted < CONFIDENCE_LOW:
+        signal = "HOLD"
+        confidence_level = "LOW"
     elif 0.45 < adjusted < 0.55:
         signal = "HOLD"
         confidence_level = "LOW"
@@ -632,7 +631,7 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
         "confidence": adjusted,
         "signal": signal,
         "confidence_level": confidence_level,
-        "should_trade": confidence_level == "HIGH",
+        "should_trade": signal == "BUY",
         "model_type": "ic_fusion_time_weighted_v2_nose_excluded",
         "ic_values": tw_ics,
         "active_senses": active_senses,
@@ -684,15 +683,14 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
         confidence = predictor.predict_proba(features)
         used_model = "global"
 
-    # Confidence-based signal — model predicts sell-win (short profit)
-    # High confidence = price will DROP = SELL/short is profitable
-    # Low confidence = price will RISE = don't short, hold or take long
+    # Confidence-based signal — model predicts long-win probability.
+    # High confidence = setup is favorable for spot-long pyramiding.
     if confidence > CONFIDENCE_HIGH:
-        signal = "SELL"
-        confidence_level = "HIGH"
-    elif confidence < CONFIDENCE_LOW:
         signal = "BUY"
         confidence_level = "HIGH"
+    elif confidence < CONFIDENCE_LOW:
+        signal = "HOLD"
+        confidence_level = "LOW"
     elif 0.45 < confidence < 0.55:
         signal = "HOLD"
         confidence_level = "LOW"
@@ -706,7 +704,7 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
         "confidence": confidence,
         "signal": signal,
         "confidence_level": confidence_level,
-        "should_trade": confidence_level == "HIGH",
+        "should_trade": signal == "BUY",
         "model_type": type(predictor).__name__,
         "used_model": used_model,
     }

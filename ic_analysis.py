@@ -8,7 +8,7 @@ db = sqlite3.connect("/home/kazuha/Poly-Trader/poly_trader.db")
 
 features = db.execute('SELECT * FROM features_normalized').fetchall()
 feat_cols = [desc[0] for desc in db.execute('SELECT * FROM features_normalized LIMIT 1').description]
-labels = db.execute('SELECT timestamp, future_return_pct, label_sell_win, regime_label FROM labels WHERE future_return_pct IS NOT NULL').fetchall()
+labels = db.execute('SELECT timestamp, future_return_pct, label_spot_long_win, regime_label FROM labels WHERE future_return_pct IS NOT NULL').fetchall()
 db.close()
 
 label_map = {row[0]: (row[1], row[2], row[3]) for row in labels}

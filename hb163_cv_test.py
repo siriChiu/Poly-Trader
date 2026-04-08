@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Heartbeat #163: CV Test against label_sell_win using features_normalized"""
+"""Heartbeat #163: CV Test against label_spot_long_win using features_normalized"""
 import sqlite3, numpy as np
 conn = sqlite3.connect('/home/kazuha/Poly-Trader/poly_trader.db')
 cursor = conn.cursor()
@@ -12,7 +12,7 @@ cursor.execute(f"SELECT timestamp, {col_str} FROM features_normalized ORDER BY t
 feat_rows = cursor.fetchall()
 
 # Get labels as dict keyed by timestamp
-cursor.execute("SELECT timestamp, label_sell_win FROM labels ORDER BY timestamp")
+cursor.execute("SELECT timestamp, label_spot_long_win FROM labels ORDER BY timestamp")
 label_rows = cursor.fetchall()
 label_map = {r[0]: r[1] for r in label_rows if r[0] is not None and r[1] is not None}
 conn.close()

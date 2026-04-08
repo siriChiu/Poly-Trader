@@ -14,9 +14,9 @@ feat_rows = db.execute("""
     FROM features_normalized ORDER BY timestamp
 """).fetchall()
 
-# Get labels - use label_sell_win as primary label
+# Get labels - use label_spot_long_win as primary label
 label_rows = db.execute("""
-    SELECT timestamp, label_sell_win, label_up, future_return_pct
+    SELECT timestamp, label_spot_long_win, label_up, future_return_pct
     FROM labels ORDER BY timestamp
 """).fetchall()
 
@@ -33,7 +33,7 @@ print(f"Common timestamps: {len(common)}")
 # Build arrays
 feat_map = {r[0]: {c: r[1+feat_cols.index(c)] for c in feat_cols} for r in feat_rows}
 
-# IC against label_sell_win
+# IC against label_spot_long_win
 print(f"\n{'='*65}")
 print(f"IC Analysis — Spearman rank correlation (h=4)")
 print(f"{'='*65}")

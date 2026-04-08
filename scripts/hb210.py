@@ -34,7 +34,7 @@ else:
 
 print(f"BTC now: {btc_now}")
 
-y_col = 'label_sell_win'
+y_col = 'label_spot_long_win'
 y = merged[y_col].astype(float)
 print(f"Label pos rate: {y.mean()*100:.1f}%")
 
@@ -62,9 +62,9 @@ for name, col in ALL_FEATURES.items():
     if col in merged.columns:
         x = merged[col].astype(float)
         # Drop rows where x or y is NaN before computing correlation
-        valid = merged[col].notna() & merged['label_sell_win'].notna()
+        valid = merged[col].notna() & merged['label_spot_long_win'].notna()
         x_valid = merged.loc[valid, col].astype(float)
-        y_valid = merged.loc[valid, 'label_sell_win'].astype(float)
+        y_valid = merged.loc[valid, 'label_spot_long_win'].astype(float)
         y_centered_valid = y_valid - y_valid.mean()
         std_x = x.std()
         unique_n = x.nunique()

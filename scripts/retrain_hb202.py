@@ -15,10 +15,10 @@ SELECT
     f.feat_pulse, f.feat_aura, f.feat_mind,
     f.feat_vix, f.feat_dxy, f.feat_rsi14, f.feat_macd_hist, 
     f.feat_atr_pct, f.feat_vwap_dev, f.feat_bb_pct_b,
-    l.label_sell_win, l.regime_label
+    l.label_spot_long_win, l.regime_label
 FROM features_normalized f
 JOIN labels l ON f.timestamp = l.timestamp AND f.symbol = l.symbol
-WHERE l.label_sell_win IS NOT NULL
+WHERE l.label_spot_long_win IS NOT NULL
 ORDER BY l.timestamp
 '''
 

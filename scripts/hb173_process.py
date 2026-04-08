@@ -27,9 +27,9 @@ except Exception as e:
 
 # Step 2: Update labels
 try:
-    labels_df = generate_future_return_labels(session, symbol="BTCUSDT", horizon_hours=4, threshold_pct=0.005)
+    labels_df = generate_future_return_labels(session, symbol="BTCUSDT", horizon_hours=24, threshold_pct=0.02)
     if labels_df is not None and not labels_df.empty:
-        save_labels_to_db(session, labels_df, symbol="BTCUSDT", horizon_hours=4)
+        save_labels_to_db(session, labels_df, symbol="BTCUSDT", horizon_hours=24)
         print(f"Labels updated: {len(labels_df)} rows")
     else:
         print("No new labels generated")

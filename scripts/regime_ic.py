@@ -15,7 +15,7 @@ conn.close()
 # Ensure both DFs use aligned indices
 feat_df = feat_df.sort_values('timestamp').reset_index(drop=True)
 # label_df may have different length - align by position
-label_sell_win = pd.to_numeric(label_df['label_sell_win'], errors='coerce')
+label_spot_long_win = pd.to_numeric(label_df['label_spot_long_win'], errors='coerce')
 
 # Regime IC analysis
 regime_vals = feat_df['regime_label']
@@ -34,7 +34,7 @@ for reg in regimes:
     
     # Get labels for these indices (aligned by position)
     n_feat = len(feat_df)
-    n_labels = len(label_sell_win)
+    n_labels = len(label_spot_long_win)
     
     print(f"\n--- Regime: {reg} (n={len(reg_df)}, feat_indices: {reg_indices[:3]}...{reg_indices[-3:]}) ---")
     
@@ -50,7 +50,7 @@ for reg in regimes:
         # Align with labels by index position
         valid_indices = []
         for i in reg_indices:
-            if i < n_labels and not pd.isna(label_sell_win.iloc[i]) and not pd.isna(sensor_vals[i]):
+            if i < n_labels and not pd.isna(label_spot_long_win.iloc[i]) and not pd.isna(sensor_vals[i]):
                 valid_indices.append(i)
         
         if len(valid_indices) < 50:
@@ -58,7 +58,7 @@ for reg in regimes:
             continue
         
         s_vals = feat_df.loc[valid_indices, col].values.astype(float)
-        l_vals = label_sell_win.iloc[valid_indices].values.astype(float)
+        l_vals = label_spot_long_win.iloc[valid_indices].values.astype(float)
         
         ic = np.corrcoef(s_vals, l_vals)[0, 1]
         abs_ic = abs(ic) if not np.isnan(ic) else 0
@@ -69,8 +69,8 @@ for reg in regimes:
     
     # Sell win rate in this regime
     for i in reg_indices:
-        if i < n_labels and not pd.isna(label_sell_win.iloc[i]):
-            sell_wins.append(label_sell_win.iloc[i])
+        if i < n_labels and not pd.isna(label_spot_long_win.iloc[i]):
+            sell_wins.append(label_spot_long_win.iloc[i])
     
     if sell_wins:
         sell_win_rate = np.mean(sell_wins)
@@ -91,7 +91,7 @@ for reg in regimes:
     
     valid = []
     for i in reg_indices:
-        if i < n_labels and not pd.isna(label_sell_win.iloc[i]) and not pd.isna(feat_df.loc[i, 'feat_vix']):
+        if i < n_labels and not pd.isna(label_spot_long_win.iloc[i]) and not pd.isna(feat_df.loc[i, 'feat_vix']):
             valid.append(i)
     
     if len(valid) < 50:
@@ -99,7 +99,7 @@ for reg in regimes:
         continue
     
     vix_vals = feat_df.loc[valid, 'feat_vix'].values.astype(float)
-    l_vals = label_sell_win.iloc[valid].values.astype(float)
+    l_vals = label_spot_long_win.iloc[valid].values.astype(float)
     ic = np.corrcoef(vix_vals, l_vals)[0, 1]
     abs_ic = abs(ic) if not np.isnan(ic) else 0
     status = '✅' if abs_ic >= 0.05 else '❌'
@@ -112,7 +112,7 @@ for reg in regimes:
     
     valid = []
     for i in reg_indices:
-        if i < n_labels and not pd.isna(label_sell_win.iloc[i]) and not pd.isna(feat_df.loc[i, 'feat_dxy']):
+        if i < n_labels and not pd.isna(label_spot_long_win.iloc[i]) and not pd.isna(feat_df.loc[i, 'feat_dxy']):
             valid.append(i)
     
     if len(valid) < 50:
@@ -120,7 +120,7 @@ for reg in regimes:
         continue
     
     dxy_vals = feat_df.loc[valid, 'feat_dxy'].values.astype(float)
-    l_vals = label_sell_win.iloc[valid].values.astype(float)
+    l_vals = label_spot_long_win.iloc[valid].values.astype(float)
     ic = np.corrcoef(dxy_vals, l_vals)[0, 1]
     abs_ic = abs(ic) if not np.isnan(ic) else 0
     status = '✅' if abs_ic >= 0.05 else '❌'
@@ -131,7 +131,7 @@ print("\n=== Global VIX/DXY IC ===\n")
 vix_valid = []
 dxy_valid = []
 for i in range(min(n_feat, n_labels)):
-    if not pd.isna(label_sell_win.iloc[i]):
+    if not pd.isna(label_spot_long_win.iloc[i]):
         if not pd.isna(feat_df.loc[i, 'feat_vix']):
             vix_valid.append(i)
         if not pd.isna(feat_df.loc[i, 'feat_dxy']):
@@ -139,13 +139,13 @@ for i in range(min(n_feat, n_labels)):
 
 if len(vix_valid) >= 50:
     vix_vals = feat_df.loc[vix_valid, 'feat_vix'].values.astype(float)
-    l_vals = label_sell_win.iloc[vix_valid].values.astype(float)
+    l_vals = label_spot_long_win.iloc[vix_valid].values.astype(float)
     ic = np.corrcoef(vix_vals, l_vals)[0, 1]
     print(f"  VIX (Global): {ic:+.4f}")
 
 if len(dxy_valid) >= 50:
     dxy_vals = feat_df.loc[dxy_valid, 'feat_dxy'].values.astype(float)
-    l_vals = label_sell_win.iloc[dxy_valid].values.astype(float)
+    l_vals = label_spot_long_win.iloc[dxy_valid].values.astype(float)
     ic = np.corrcoef(dxy_vals, l_vals)[0, 1]
     print(f"  DXY (Global): {ic:+.4f}")
 

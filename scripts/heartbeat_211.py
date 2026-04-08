@@ -37,25 +37,25 @@ print(f"BTC=${btc_price:.0f} FNG={fng_val} ({fng_class}) Funding={funding_rate:.
 print(f"OI ROC={oi_roc:.4%} Polymarket={polymarket:.3f} Body={body_label_raw}")
 
 # Sell_win stats
-sell_win_row = conn.execute('SELECT AVG(label_sell_win) as avg_sw, COUNT(*) as cnt FROM labels WHERE label_sell_win IS NOT NULL').fetchone()
+sell_win_row = conn.execute('SELECT AVG(label_spot_long_win) as avg_sw, COUNT(*) as cnt FROM labels WHERE label_spot_long_win IS NOT NULL').fetchone()
 global_sw = sell_win_row['avg_sw']
 
-recent = conn.execute('SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC LIMIT 50').fetchall()
-recent_vals = [r['label_sell_win'] for r in recent if r['label_sell_win'] is not None]
+recent = conn.execute('SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id DESC LIMIT 50').fetchall()
+recent_vals = [r['label_spot_long_win'] for r in recent if r['label_spot_long_win'] is not None]
 recent_sw = sum(recent_vals) / len(recent_vals) if recent_vals else 0
 
-recent100 = conn.execute('SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC LIMIT 100').fetchall()
-recent100_vals = [r['label_sell_win'] for r in recent100 if r['label_sell_win'] is not None]
+recent100 = conn.execute('SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id DESC LIMIT 100').fetchall()
+recent100_vals = [r['label_spot_long_win'] for r in recent100 if r['label_spot_long_win'] is not None]
 recent100_sw = sum(recent100_vals) / len(recent100_vals) if recent100_vals else 0
 
-recent500 = conn.execute('SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC LIMIT 500').fetchall()
-recent500_vals = [r['label_sell_win'] for r in recent500 if r['label_sell_win'] is not None]
+recent500 = conn.execute('SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id DESC LIMIT 500').fetchall()
+recent500_vals = [r['label_spot_long_win'] for r in recent500 if r['label_spot_long_win'] is not None]
 recent500_sw = sum(recent500_vals) / len(recent500_vals) if recent500_vals else 0
 
 # Consecutive zeros
-all_sw = conn.execute('SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC').fetchall()
+all_sw = conn.execute('SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id DESC').fetchall()
 consec_zeros = 0
-for v in [r['label_sell_win'] for r in all_sw]:
+for v in [r['label_spot_long_win'] for r in all_sw]:
     if v == 0: consec_zeros += 1
     else: break
 
@@ -63,7 +63,7 @@ for v in [r['label_sell_win'] for r in all_sw]:
 null_regime_count = conn.execute('SELECT COUNT(*) as c FROM labels WHERE regime_label IS NULL').fetchone()['c']
 
 # Sell_win by regime
-regime_sw = conn.execute("SELECT regime_label, AVG(label_sell_win) as avg_sw, COUNT(*) as cnt FROM labels WHERE label_sell_win IS NOT NULL GROUP BY regime_label").fetchall()
+regime_sw = conn.execute("SELECT regime_label, AVG(label_spot_long_win) as avg_sw, COUNT(*) as cnt FROM labels WHERE label_spot_long_win IS NOT NULL GROUP BY regime_label").fetchall()
 regime_sw_dict = {}
 for r in regime_sw:
     regime_sw_dict[r['regime_label'] or 'NULL'] = {'avg_sw': r['avg_sw'], 'n': r['cnt']}
@@ -81,7 +81,7 @@ feat_rows = conn.execute(
 ).fetchall()
 
 label_rows = conn.execute(
-    "SELECT id, timestamp, label_sell_win, regime_label FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id"
+    "SELECT id, timestamp, label_spot_long_win, regime_label FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id"
 ).fetchall()
 
 feat_ts = {r['timestamp']: r for r in feat_rows}
@@ -89,7 +89,7 @@ label_ts = {r['timestamp']: r for r in label_rows}
 common_ts = sorted(set(feat_ts.keys()) & set(label_ts.keys()))
 
 n = len(common_ts)
-sell_win_arr = np.array([label_ts[ts]['label_sell_win'] for ts in common_ts], dtype=float)
+sell_win_arr = np.array([label_ts[ts]['label_spot_long_win'] for ts in common_ts], dtype=float)
 
 ic_results = []
 for fc in feature_cols:

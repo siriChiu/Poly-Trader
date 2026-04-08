@@ -40,7 +40,7 @@ def quick_counts():
     results = {}
     for t in ['raw_market_data', 'features_normalized', 'labels']:
         results[t] = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-    sw = conn.execute("SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM labels WHERE label_sell_win IS NOT NULL").fetchone()[0]
+    sw = conn.execute("SELECT AVG(CAST(label_spot_long_win AS FLOAT)) FROM labels WHERE label_spot_long_win IS NOT NULL").fetchone()[0]
     results['sell_win_rate'] = round(sw, 4) if sw else 0
     conn.close()
     return results

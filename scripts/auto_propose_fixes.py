@@ -30,8 +30,8 @@ CORE_FEATURES = [
 
 def check_db():
     conn = sqlite3.connect(str(ROOT / "poly_trader.db"))
-    sw = conn.execute("SELECT AVG(label_sell_win) FROM labels WHERE label_sell_win IS NOT NULL").fetchone()[0]
-    rows = conn.execute("SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC LIMIT 200").fetchall()
+    sw = conn.execute("SELECT AVG(label_spot_long_win) FROM labels WHERE label_spot_long_win IS NOT NULL").fetchone()[0]
+    rows = conn.execute("SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id DESC LIMIT 200").fetchall()
     streak = 0
     for r in rows:
         if r[0] == 0: streak += 1

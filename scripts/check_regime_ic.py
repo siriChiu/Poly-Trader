@@ -24,7 +24,7 @@ for c in ['regime_label_label', 'regime_label_feat', 'regime_label']:
         print(f"Found {c}: {merged[c].value_counts().to_dict()}")
         regime_col = c
 
-label_col = 'label_sell_win_label' if 'label_sell_win_label' in merged.columns else 'label_sell_win'
+label_col = 'label_spot_long_win_label' if 'label_spot_long_win_label' in merged.columns else 'label_spot_long_win'
 senses_map = {
     'eye': 'feat_eye', 'ear': 'feat_ear', 'nose': 'feat_nose',
     'tongue': 'feat_tongue', 'body': 'feat_body', 'pulse': 'feat_pulse',

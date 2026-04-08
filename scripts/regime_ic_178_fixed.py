@@ -10,7 +10,7 @@ db = sqlite3.connect("/home/kazuha/Poly-Trader/poly_trader.db")
 feats = db.execute("SELECT timestamp, feat_eye, feat_ear, feat_nose, feat_tongue, feat_body, feat_pulse, feat_aura, feat_mind, regime_label FROM features_normalized ORDER BY timestamp").fetchall()
 
 # Labels  
-labels_raw = db.execute("SELECT timestamp, label_sell_win, label_up, future_return_pct FROM labels ORDER BY timestamp").fetchall()
+labels_raw = db.execute("SELECT timestamp, label_spot_long_win, label_up, future_return_pct FROM labels ORDER BY timestamp").fetchall()
 
 label_map = {r[0]: {"sell_win": r[1], "up": r[2], "ret": r[3]} for r in labels_raw}
 feat_cols = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue", "feat_body", "feat_pulse", "feat_aura", "feat_mind"]

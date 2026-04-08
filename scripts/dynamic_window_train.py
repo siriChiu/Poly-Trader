@@ -25,7 +25,7 @@ def analyze_window(data_window):
     ics = {}
     for col in CORE_FEATURES:
         vals = [r[col] for r in data_window if r[col] is not None]
-        labs = [r['label_sell_win'] for r in data_window if r[col] is not None]
+        labs = [r['label_spot_long_win'] for r in data_window if r[col] is not None]
         if len(vals) < 20:
             ics[col] = 0.0
             continue
@@ -45,7 +45,7 @@ def main():
     feat_names = [d[0] for d in feat_df.description]
     feat_rows = feat_df.fetchall()
     
-    label_query = """SELECT timestamp, symbol, label_sell_win FROM labels WHERE label_sell_win IS NOT NULL"""
+    label_query = """SELECT timestamp, symbol, label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL"""
     label_rows = conn.execute(label_query).fetchall()
     label_map = {(r[0], r[1]): r[2] for r in label_rows}
     
@@ -54,7 +54,7 @@ def main():
         row_dict = dict(zip(feat_names, row))
         key = (row_dict['timestamp'], row_dict['symbol'])
         if key in label_map:
-            row_dict['label_sell_win'] = label_map[key]
+            row_dict['label_spot_long_win'] = label_map[key]
             matched.append(row_dict)
     
     if not matched:

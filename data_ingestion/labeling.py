@@ -13,15 +13,26 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+# Canonical label settings for the spot-long pyramiding strategy.
+DEFAULT_LABEL_HORIZON_HOURS = 24
+DEFAULT_LONG_TP_PCT = 0.02
+DEFAULT_LONG_MAX_DD_PCT = 0.05
+
+
 def generate_future_return_labels(
     session: Session,
     symbol: str = "BTCUSDT",
-    horizon_hours: int = 12,
-    threshold_pct: float = 0.005,
-    neutral_band: float = 0.005
+    horizon_hours: int = DEFAULT_LABEL_HORIZON_HOURS,
+    threshold_pct: float = DEFAULT_LONG_TP_PCT,
+    neutral_band: float = DEFAULT_LONG_MAX_DD_PCT
 ) -> pd.DataFrame:
     """
     從 FeaturesNormalized 的時間戳，對應到未來 horizon_hours 的收益率，並生成標籤。
+
+    Canonical target:
+      label_spot_long_win = 1 when the setup can support a profitable spot-long pyramid
+      within the horizon: price finishes above the profit target AND never breaches
+      the maximum allowed drawdown.
 
     Returns:
         DataFrame 包含: timestamp (特徵時間), label (0/1), future_return_pct
@@ -75,39 +86,40 @@ def generate_future_return_labels(
         if pd.isna(current_price) or current_price == 0:
             continue
         ret_pct = (future_price - current_price) / current_price
-        # P0: Compute future max drawdown (lowest price within horizon) for realistic short P&L
+        # P0: Compute future max drawdown/runup within the horizon.
+        # For the spot-long pyramiding target, the key condition is that the trade
+        # can survive the configured drawdown budget while still reaching profit.
         mask_horizon = (prices_df.index >= ts) & (prices_df.index <= future_ts + FUTURE_TOLERANCE)
         horizon_prices = prices_df[mask_horizon].copy()
         if not horizon_prices.empty:
             max_price_during = horizon_prices["close_price"].max()
             min_price_during = horizon_prices["close_price"].min()
             if current_price > 0 and max_price_during > 0:
-                # Max drawdown from entry (how much price dropped = short profit potential)
                 max_drawdown = (min_price_during - current_price) / current_price
-                # Max runup (how much price rallied against short = risk)
                 max_runup = (max_price_during - current_price) / current_price
             else:
                 max_drawdown = None
                 max_runup = None
         else:
             max_drawdown = None
-        # P0 Fix #SELL_WIN: Spot LONG strategy — sell_win means price goes UP.
-        # Previously was SHORT definition (price drops = win), giving ~40% sell_win.
-        # Now: sell_win=1 when ret_pct > threshold_pct (LONG profitable).
-        if ret_pct > threshold_pct:
-            label = 1
-            sell_win = 1
-        elif ret_pct < -threshold_pct:
-            label = -1
-            sell_win = 0
-        else:
-            label = 0
-            sell_win = 0
+            max_runup = None
+
+        # Canonical target: spot-long pyramid win.
+        # Win when the setup reaches the profit target and never breaches the
+        # permitted drawdown budget.
+        long_win = int(
+            ret_pct >= threshold_pct and
+            (max_drawdown is None or max_drawdown >= -neutral_band)
+        )
+        tri_label = long_win
+        label_sell_win = 1 - long_win
+        label_up = long_win
         labels.append({
             "timestamp": ts,
-            "label": label,
-            "label_sell_win": sell_win,
-            "label_up": label,
+            "label": tri_label,
+            "label_spot_long_win": long_win,
+            "label_sell_win": label_sell_win,
+            "label_up": label_up,
             "future_return_pct": ret_pct,
             "future_max_drawdown": max_drawdown,
             "future_max_runup": max_runup,
@@ -119,7 +131,7 @@ def generate_future_return_labels(
     logger.info(f"標籤生成完成：共 {len(df)} 筆，分佈={dist}")
     return df
 
-def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "BTCUSDT", horizon_hours: int = 1, force_update_all: bool = False):
+def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "BTCUSDT", horizon_hours: int = DEFAULT_LABEL_HORIZON_HOURS, force_update_all: bool = False):
     """
     將標籤寫入 labels 表（upsert：相同 timestamp+symbol+horizon_hours 則更新）。
     修復：原本此函數為 no-op，導致 labels 表不更新。(fix #H61 2026-04-02)
@@ -137,7 +149,7 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
     # 取得現有行
     existing_rows = {
         str(r.timestamp): r for r in session.query(Labels)
-        .filter(Labels.symbol == symbol, Labels.horizon_minutes == horizon_hours)
+        .filter(Labels.symbol == symbol, Labels.horizon_minutes == horizon_hours * 60)
         .all()
     }
 
@@ -154,8 +166,9 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
             needs_update = False
             if force_update_all:
                 # P0 #SELL_WIN_40: 強制更新所有標籤
-                existing.label_sell_win = int(row.get("label_sell_win", 0))
-                existing.label_up = int(row.get("label_up", 0))
+                existing.label_spot_long_win = int(row.get("label_spot_long_win", row.get("label_up", 0)))
+                existing.label_sell_win = int(row.get("label_sell_win", 1 - existing.label_spot_long_win))
+                existing.label_up = int(row.get("label_up", existing.label_spot_long_win))
                 existing.future_return_pct = float(fut_ret) if fut_ret is not None else existing.future_return_pct
                 existing.future_max_drawdown = float(row.get("future_max_drawdown") or 0)
                 existing.future_max_runup = float(row.get("future_max_runup") or 0)
@@ -163,8 +176,9 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
             elif existing.future_return_pct is None and fut_ret is not None:
                 # 更新 NULL label：現在有未來數據了
                 existing.future_return_pct = float(fut_ret)
-                existing.label_sell_win = int(row.get("label_sell_win", 0))
-                existing.label_up = int(row.get("label_up", 0))
+                existing.label_spot_long_win = int(row.get("label_spot_long_win", row.get("label_up", 0)))
+                existing.label_sell_win = int(row.get("label_sell_win", 1 - existing.label_spot_long_win))
+                existing.label_up = int(row.get("label_up", existing.label_spot_long_win))
                 needs_update = True
             # P0 fix: 如果現有 label 的 regime_label 是 NULL，從 features 填充
             if existing.regime_label is None and regime_val is not None:
@@ -175,6 +189,7 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
             # 已有值，跳過
             continue
         # 新標籤
+        spot_long_win = int(row.get("label_spot_long_win", row.get("label_up", 0)))
         label_row = Labels(
             timestamp=row["timestamp"],
             symbol=symbol,
@@ -182,11 +197,10 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
             future_return_pct=float(row["future_return_pct"]) if row.get("future_return_pct") is not None and row["future_return_pct"] != "" else None,
             future_max_drawdown=float(row.get("future_max_drawdown") or 0),
             future_max_runup=float(row.get("future_max_runup") or 0),
-            label_sell_win=int(row.get("label_sell_win", 0)),
-            label_up=int(row.get("label_up", 0)),
+            label_spot_long_win=spot_long_win,
+            label_sell_win=int(row.get("label_sell_win", 1 - spot_long_win)),
+            label_up=int(row.get("label_up", spot_long_win)),
             regime_label=regime_val,  # P0 fix: 自動填入 regime
-            # P0 fix hb212: 新標籤必須包含 future_return_pct 和 label_sell_win
-            # 否則 IC 計算和勝率追蹤全部失效
         )
         session.add(label_row)
         new_count += 1

@@ -32,19 +32,19 @@ print(f"Features: {features} | Latest: {feat_ts}")
 print(f"Labels: {labels} | Latest: {label_ts}")
 
 # sell_win stats
-cur.execute("SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM labels WHERE label_sell_win IS NOT NULL")
+cur.execute("SELECT AVG(CAST(label_spot_long_win AS FLOAT)) FROM labels WHERE label_spot_long_win IS NOT NULL")
 sell_win = cur.fetchone()[0]
 print(f"Global sell_win: {sell_win:.3f}")
 
 for n in [50, 100, 500]:
-    cur.execute(f"SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM labels WHERE label_sell_win IS NOT NULL ORDER BY rowid DESC LIMIT {n}")
+    cur.execute(f"SELECT AVG(CAST(label_spot_long_win AS FLOAT)) FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY rowid DESC LIMIT {n}")
     sw = cur.fetchone()[0]
     print(f"Recent sell_win (last {n}): {sw:.3f}")
 
 # Regime sell_win - need to join with features_normalized
 for regime in ["bear", "bull", "chop"]:
     cur.execute(
-        f"SELECT AVG(CAST(l.label_sell_win AS FLOAT)) FROM labels l JOIN features_normalized f ON l.timestamp = f.timestamp WHERE l.label_sell_win IS NOT NULL AND f.regime_label = '{regime}'"
+        f"SELECT AVG(CAST(l.label_spot_long_win AS FLOAT)) FROM labels l JOIN features_normalized f ON l.timestamp = f.timestamp WHERE l.label_spot_long_win IS NOT NULL AND f.regime_label = '{regime}'"
     )
     sw = cur.fetchone()[0]
     print(f"{regime.title()} sell_win: {sw:.3f}")

@@ -9,9 +9,9 @@ conn = sqlite3.connect(DB)
 # Recent sell_win (last N by timestamp)
 for window in [50, 100, 500]:
     r = conn.execute(f"""
-        SELECT label_sell_win
+        SELECT label_spot_long_win
         FROM labels 
-        WHERE label_sell_win IS NOT NULL
+        WHERE label_spot_long_win IS NOT NULL
         ORDER BY timestamp DESC
         LIMIT {window}
     """).fetchall()

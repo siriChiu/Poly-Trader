@@ -37,7 +37,7 @@ label_df_renamed = label_df.rename(columns={'regime_label': 'regime_label_l'})
 merged = feat_df.merge(label_df_renamed, on=['timestamp', 'symbol'], how='inner', suffixes=('_f', '_l'))
 print(f"Merged: {len(merged)} rows")
 
-y_col = 'label_sell_win'
+y_col = 'label_spot_long_win'
 y = merged[y_col].astype(float)
 print(f"sell_win rate: {y.mean():.4f} ({y.sum():.0f}/{len(y)})")
 
@@ -109,7 +109,7 @@ if fng_cols:
     for col, val in zip(fng_cols, fng_latest):
         print(f"  {col}: {val}")
 
-# === FULL IC Analysis (against label_sell_win) ===
+# === FULL IC Analysis (against label_spot_long_win) ===
 SENSE_MAP = {
     'Eye': 'feat_eye',
     'Ear': 'feat_ear',

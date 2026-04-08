@@ -9,7 +9,7 @@ db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "poly_trader.
 db = sqlite3.connect(db_path)
 
 feel_rows = db.execute("""SELECT timestamp, feat_eye, feat_ear, feat_nose, feat_tongue, feat_body, feat_pulse, feat_aura, feat_mind FROM features_normalized ORDER BY timestamp""").fetchall()
-label_rows = db.execute("""SELECT timestamp, label_sell_win, label_up FROM labels ORDER BY timestamp""").fetchall()
+label_rows = db.execute("""SELECT timestamp, label_spot_long_win, label_up FROM labels ORDER BY timestamp""").fetchall()
 
 feel_cols = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue", "feat_body", "feat_pulse", "feat_aura", "feat_mind"]
 feel_map = {r[0]: {c: r[1+feel_cols.index(c)] for c in feel_cols} for r in feel_rows}

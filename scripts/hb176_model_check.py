@@ -24,10 +24,10 @@ conn = sqlite3.connect('poly_trader.db')
 feat_cols = ['feat_eye','feat_ear','feat_nose','feat_tongue','feat_body','feat_pulse','feat_aura','feat_mind']
 cols_str = ','.join(feat_cols)
 rows = conn.execute(f"""
-    SELECT f.{cols_str}, l.label_sell_win
+    SELECT f.{cols_str}, l.label_spot_long_win
     FROM features_normalized f
     INNER JOIN labels l ON f.timestamp = l.timestamp
-    WHERE l.label_sell_win IS NOT NULL
+    WHERE l.label_spot_long_win IS NOT NULL
     ORDER BY f.timestamp
 """).fetchall()
 

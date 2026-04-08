@@ -18,8 +18,8 @@ raw_count = db.execute("SELECT COUNT(*) FROM raw_market_data").fetchone()[0]
 feat_count = db.execute("SELECT COUNT(*) FROM features_normalized").fetchone()[0]
 label_count = db.execute("SELECT COUNT(*) FROM labels").fetchone()[0]
 
-pos_count = db.execute("SELECT COUNT(*) FROM labels WHERE label_sell_win = 1").fetchone()[0] or 0
-neg_count = db.execute("SELECT COUNT(*) FROM labels WHERE label_sell_win = 0").fetchone()[0] or 0
+pos_count = db.execute("SELECT COUNT(*) FROM labels WHERE label_spot_long_win = 1").fetchone()[0] or 0
+neg_count = db.execute("SELECT COUNT(*) FROM labels WHERE label_spot_long_win = 0").fetchone()[0] or 0
 total = pos_count + neg_count
 print(f"Raw: {raw_count} | Features: {feat_count} | Labels: {label_count}")
 print(f"Labels: {pos_count} pos / {neg_count} neg ({pos_count/total*100:.1f}% pos)")
@@ -41,7 +41,7 @@ feat_rows = db.execute("SELECT timestamp, feat_eye, feat_ear, feat_nose, feat_to
 feat_labels = ['Eye', 'Ear', 'Nose', 'Tongue', 'Body', 'Pulse', 'Aura', 'Mind']
 feat_fields = ['feat_eye', 'feat_ear', 'feat_nose', 'feat_tongue', 'feat_body', 'feat_pulse', 'feat_aura', 'feat_mind']
 
-label_rows = db.execute("SELECT timestamp, label_sell_win FROM labels").fetchall()
+label_rows = db.execute("SELECT timestamp, label_spot_long_win FROM labels").fetchall()
 label_map = {row[0]: row[1] for row in label_rows if row[1] is not None}
 
 # Build feature vectors

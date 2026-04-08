@@ -46,13 +46,13 @@ if 'funding_rate' in raw.columns:
     print(f"Funding Rate: {fr:.6f}")
 
 # === Sell Win Rate ===
-# Column name is 'label_sell_win' in DB, not 'sell_win'
-target_col = 'label_sell_win'
+# Column name is 'label_spot_long_win' in DB, not 'sell_win'
+target_col = 'label_spot_long_win'
 if target_col not in labels.columns:
     alternatives = [c for c in labels.columns if 'sell' in c.lower() or 'win' in c.lower()]
     if alternatives:
         target_col = alternatives[0]
-        print(f"\nWARNING: using '{target_col}' instead of 'label_sell_win'")
+        print(f"\nWARNING: using '{target_col}' instead of 'label_spot_long_win'")
     else:
         print("ERROR: No sell_win column found!")
         sys.exit(1)

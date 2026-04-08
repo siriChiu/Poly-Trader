@@ -133,19 +133,19 @@ for feat_ts in feat_timestamps:
     
     # Check if this label exists in DB
     existing = conn.execute(
-        "SELECT id, future_return_pct, label_sell_win FROM labels WHERE timestamp=? AND symbol=? AND horizon_minutes=?",
+        "SELECT id, future_return_pct, label_spot_long_win FROM labels WHERE timestamp=? AND symbol=? AND horizon_minutes=?",
         (ts_str, SYMBOL, HORIZON_HOURS * 60)
     ).fetchone()
     
     if existing and existing[1] is None:
         conn.execute(
-            "UPDATE labels SET future_return_pct=?, label_sell_win=?, label_up=? WHERE id=?",
+            "UPDATE labels SET future_return_pct=?, label_spot_long_win=?, label_up=? WHERE id=?",
             (ret_pct, sell_win, sell_win, existing[0])
         )
         generated += 1
     elif not existing:
         conn.execute(
-            "INSERT INTO labels (timestamp, symbol, horizon_minutes, future_return_pct, label_sell_win, label_up) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO labels (timestamp, symbol, horizon_minutes, future_return_pct, label_spot_long_win, label_up) VALUES (?, ?, ?, ?, ?, ?)",
             (ts_str, SYMBOL, HORIZON_HOURS * 60, ret_pct, sell_win, sell_win)
         )
         generated += 1
@@ -153,7 +153,7 @@ for feat_ts in feat_timestamps:
 conn.commit()
 
 # Verify
-new_total = conn.execute("SELECT COUNT(*) FROM labels WHERE label_sell_win IS NOT NULL").fetchone()[0]
+new_total = conn.execute("SELECT COUNT(*) FROM labels WHERE label_spot_long_win IS NOT NULL").fetchone()[0]
 new_latest = conn.execute("SELECT MAX(timestamp) FROM labels").fetchone()[0]
 print(f"\n=== Results ===")
 print(f"Generated/updated: {generated}")

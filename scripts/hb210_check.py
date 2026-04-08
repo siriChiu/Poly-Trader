@@ -29,7 +29,7 @@ merged = feat.merge(label, on=['id','timestamp','symbol'], how='inner', suffixes
 print(f'\nMerged: {len(merged)} rows')
 vix_col = pd.to_numeric(merged['feat_vix'], errors='coerce')
 dxy_col = pd.to_numeric(merged['feat_dxy'], errors='coerce')
-y_col = merged['label_sell_win'].astype(float)
+y_col = merged['label_spot_long_win'].astype(float)
 y_centered = y_col - y_col.mean()
 
 import numpy as np
@@ -37,7 +37,7 @@ vix_valid = merged[merged['feat_vix'].notna() & merged['feat_dxy'].notna()]
 print(f'Rows with both VIX and DXY: {len(vix_valid)}')
 
 if len(vix_valid) > 0:
-    y_v = vix_valid['label_sell_win'].astype(float)
+    y_v = vix_valid['label_spot_long_win'].astype(float)
     yc = y_v - y_v.mean()
     
     vix_v = vix_valid['feat_vix'].astype(float)

@@ -71,18 +71,18 @@ def _feature_row(r):
 
 def load_training_data(session: Session, min_samples: int = 50,
                        regime_filter: Optional[list] = None,
-                       horizon_minutes: int = 720) -> Optional[Tuple[pd.DataFrame, pd.Series]]:
+                       horizon_minutes: int = 1440) -> Optional[Tuple[pd.DataFrame, pd.Series]]:
     """Load training data from DB, filtered by horizon_minutes.
 
     Args:
         session: SQLAlchemy session
         min_samples: minimum samples after merge
         regime_filter: optional list of regime labels to keep
-        horizon_minutes: label horizon to use (default 720=12h). Pass None for all horizons.
+        horizon_minutes: label horizon to use (default 1440=24h). Pass None for all horizons.
     """
     feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
     label_query = session.query(Labels).filter(
-        Labels.label_sell_win.isnot(None),
+        Labels.label_spot_long_win.isnot(None),
         Labels.future_return_pct.isnot(None),
     )
     if horizon_minutes is not None:
@@ -95,7 +95,8 @@ def load_training_data(session: Session, min_samples: int = 50,
     feat_df = pd.DataFrame([_feature_row(r) for r in feat_rows])
     label_df = pd.DataFrame([{
         "timestamp": r.timestamp,
-        "label_sell_win": int(r.label_sell_win),
+        "label_spot_long_win": int(r.label_spot_long_win) if r.label_spot_long_win is not None else int(r.label_up or 0),
+        "label_sell_win": int(r.label_sell_win) if r.label_sell_win is not None else None,
         "label_up": int(r.label_up) if r.label_up is not None else None,
         "future_return_pct": float(r.future_return_pct) if r.future_return_pct is not None else None,
         "future_max_drawdown": float(r.future_max_drawdown) if r.future_max_drawdown is not None else None,
@@ -113,7 +114,7 @@ def load_training_data(session: Session, min_samples: int = 50,
         direction="nearest",
         tolerance=pd.Timedelta("10min"),
     )
-    merged = merged.dropna(subset=["label_sell_win"]).copy()
+    merged = merged.dropna(subset=["label_spot_long_win"]).copy()
 
     # P0 #H430: Regime Filtering — optional exclusion of noisy regimes.
     # Experiment showed Bear+Bull only (exclude Chop) with IC pruning gives AUC=0.5454
@@ -170,7 +171,7 @@ def load_training_data(session: Session, min_samples: int = 50,
     ic_map_global = {}
     tw_ic_map = {}
     NEG_IC_FEATS = []
-    y_arr = merged["label_sell_win"].astype(float).values
+    y_arr = merged["label_spot_long_win"].astype(float).values
     all_feature_cols = FEATURE_COLS + lag_feature_cols
     N = len(y_arr)
 
@@ -254,7 +255,7 @@ def load_training_data(session: Session, min_samples: int = 50,
             "null_counts": null_counts,
             "ic_status": ic_status,
             "total_samples": len(merged),
-            "target": "label_sell_win",
+            "target": "label_spot_long_win",
             "core_ic_summary": core_ic_summary,
             "tw_ic_summary": tw_ic_summary,
         }, f, indent=2, ensure_ascii=False)
@@ -339,10 +340,10 @@ def load_training_data(session: Session, min_samples: int = 50,
         all_training_cols = pruned_cols
 
     X = merged[all_training_cols]
-    y = merged["label_sell_win"].astype(int)
+    y = merged["label_spot_long_win"].astype(int)
     y_return = merged["future_return_pct"].astype(float)
     logger.info(f"載入訓練資料: {len(X)} 筆, {len(all_training_cols)} features ({len(FEATURE_COLS)} core + {len(all_training_cols)-len(FEATURE_COLS)} lag/cross, {pruned_count} pruned)")
-    logger.info(f"分類目標 sell_win ratio: {y.mean():.3f}, 回歸目標 future_return_pct mean={y_return.mean():.5f} std={y_return.std():.5f}")
+    logger.info(f"分類目標 spot_long_win ratio: {y.mean():.3f}, 回歸目標 future_return_pct mean={y_return.mean():.5f} std={y_return.std():.5f}")
     return X, y, y_return
 
 
@@ -523,8 +524,8 @@ def train_regime_models(session: Session) -> dict:
     feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
     label_rows = (
         session.query(Labels)
-        .filter(Labels.label_sell_win.isnot(None), Labels.future_return_pct.isnot(None),
-                Labels.horizon_minutes == 720)
+        .filter(Labels.label_spot_long_win.isnot(None), Labels.future_return_pct.isnot(None),
+                Labels.horizon_minutes == 1440)
         .order_by(Labels.timestamp)
         .all()
     )
@@ -535,7 +536,8 @@ def train_regime_models(session: Session) -> dict:
     feat_df = pd.DataFrame([_feature_row(r) for r in feat_rows])
     label_df = pd.DataFrame([{
         "timestamp": r.timestamp,
-        "label_sell_win": int(r.label_sell_win),
+        "label_spot_long_win": int(r.label_spot_long_win) if r.label_spot_long_win is not None else int(r.label_up or 0),
+        "label_sell_win": int(r.label_sell_win) if r.label_sell_win is not None else None,
         "future_return_pct": float(r.future_return_pct) if r.future_return_pct is not None else None,
         "future_max_drawdown": float(r.future_max_drawdown) if r.future_max_drawdown is not None else None,
         "future_max_runup": float(r.future_max_runup) if r.future_max_runup is not None else None,
@@ -552,7 +554,7 @@ def train_regime_models(session: Session) -> dict:
         direction="nearest",
         tolerance=pd.Timedelta("10min"),
     )
-    merged = merged.dropna(subset=["label_sell_win"]).copy().sort_values("timestamp").reset_index(drop=True)
+    merged = merged.dropna(subset=["label_spot_long_win"]).copy().sort_values("timestamp").reset_index(drop=True)
 
     # Handle merge suffix for regime_label
     if "regime_label" not in merged.columns:
@@ -640,7 +642,7 @@ def train_regime_models(session: Session) -> dict:
             continue
 
         X_r = regime_data[X_cols].fillna(0.0)
-        y_r = regime_data["label_sell_win"].astype(int)
+        y_r = regime_data["label_spot_long_win"].astype(int)
 
         param_lists = list(product(
             param_grid.get('max_depth', [base_params.get('max_depth', 3)]),

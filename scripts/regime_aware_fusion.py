@@ -28,7 +28,7 @@ engine = create_engine(f'sqlite:///{DB_PATH}')
 
 # Load data
 features_df = pd.read_sql('SELECT * FROM features_normalized', engine)
-labels_df = pd.read_sql('SELECT timestamp, label_up, label_sell_win FROM labels', engine)
+labels_df = pd.read_sql('SELECT timestamp, label_up, label_spot_long_win FROM labels', engine)
 
 features_df['ts_key'] = pd.to_datetime(features_df['timestamp'], format='mixed').dt.floor('s')
 labels_df['ts_key'] = pd.to_datetime(labels_df['timestamp'], format='mixed').dt.floor('s')
@@ -106,13 +106,13 @@ for regime_name, regime_data in data.groupby('regime'):
 
 # === Sell-win label balance ===
 sellwin_balance = None
-if 'label_sell_win' in data.columns:
-    sw = data.dropna(subset=['label_sell_win'])
+if 'label_spot_long_win' in data.columns:
+    sw = data.dropna(subset=['label_spot_long_win'])
     sellwin_balance = {
         'total': len(sw),
-        'wins': int(sw['label_sell_win'].sum()),
-        'losses': int(len(sw) - sw['label_sell_win'].sum()),
-        'win_rate': round(float(sw['label_sell_win'].sum() / len(sw) * 100), 1),
+        'wins': int(sw['label_spot_long_win'].sum()),
+        'losses': int(len(sw) - sw['label_spot_long_win'].sum()),
+        'win_rate': round(float(sw['label_spot_long_win'].sum() / len(sw) * 100), 1),
     }
 
 result = {

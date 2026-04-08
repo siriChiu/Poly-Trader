@@ -39,8 +39,8 @@ def main():
     feat_rows = feat_df.fetchall()
     
     # Load labels
-    label_query = """SELECT timestamp, symbol, label_sell_win, regime_label 
-                     FROM labels WHERE label_sell_win IS NOT NULL"""
+    label_query = """SELECT timestamp, symbol, label_spot_long_win, regime_label
+                     FROM labels WHERE label_spot_long_win IS NOT NULL"""
     label_rows = conn.execute(label_query).fetchall()
     label_map = {(r[0], r[1]): r[2] for r in label_rows}
     
@@ -50,7 +50,7 @@ def main():
         row_dict = dict(zip(feat_names, row))
         key = (row_dict['timestamp'], row_dict['symbol'])
         if key in label_map:
-            row_dict['label_sell_win'] = label_map[key]
+            row_dict['label_spot_long_win'] = label_map[key]
             matched.append(row_dict)
     
     if not matched:
@@ -65,8 +65,8 @@ def main():
     print(f"\n=== Global IC (Spearman, n={n}) ===")
     global_ics = {}
     for col in feat_cols:
-        vals = [r[col] for r in matched if r[col] is not None and r['label_sell_win'] is not None]
-        labs = [r['label_sell_win'] for r in matched if r[col] is not None and r['label_sell_win'] is not None]
+        vals = [r[col] for r in matched if r[col] is not None and r['label_spot_long_win'] is not None]
+        labs = [r['label_spot_long_win'] for r in matched if r[col] is not None and r['label_spot_long_win'] is not None]
         if len(vals) < 50:
             print(f"  {col:20s}: SKIP (n={len(vals)})")
             global_ics[col] = 0.0
@@ -87,8 +87,8 @@ def main():
     tw_ics = {}
     tau = 200
     for col in feat_cols:
-        valid_pairs = [(r[col], r['label_sell_win']) for r in matched 
-                       if r[col] is not None and r['label_sell_win'] is not None]
+        valid_pairs = [(r[col], r['label_spot_long_win']) for r in matched
+                       if r[col] is not None and r['label_spot_long_win'] is not None]
         if len(valid_pairs) < 50:
             tw_ics[col] = 0.0
             continue

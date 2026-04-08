@@ -14,7 +14,7 @@ raw_mkt = db.query(RawMarketData).count()
 feat = db.query(FeaturesNormalized).count()
 # Labels: sell_win based
 labels_total = db.query(Labels).count()
-sell_win_sum = db.query(Labels.label_sell_win).filter(Labels.label_sell_win != None).all()
+sell_win_sum = db.query(Labels.label_spot_long_win).filter(Labels.label_spot_long_win != None).all()
 sell_win_pos = sum(1 for r in sell_win_sum if r[0] == 1)
 sell_win_any = len(sell_win_sum)
 # Trade history

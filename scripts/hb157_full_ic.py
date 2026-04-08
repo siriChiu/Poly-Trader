@@ -26,7 +26,7 @@ select_cols = 'timestamp, ' + ', '.join(all_feature_cols)
 feat_rows = db.execute(f'SELECT {select_cols} FROM features_normalized ORDER BY timestamp').fetchall()
 
 # Labels
-labels_rows = db.execute('SELECT timestamp, label_sell_win FROM labels WHERE label_sell_win IS NOT NULL').fetchall()
+labels_rows = db.execute('SELECT timestamp, label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL').fetchall()
 label_map = {r[0]: r[1] for r in labels_rows}
 
 # Build feature dict

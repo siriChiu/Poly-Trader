@@ -42,17 +42,17 @@ else:
     fng_class = 'N/A'
 
 # sell_win stats
-sell_win_row = conn.execute('SELECT AVG(label_sell_win), COUNT(*) FROM labels WHERE label_sell_win IS NOT NULL').fetchone()
+sell_win_row = conn.execute('SELECT AVG(label_spot_long_win), COUNT(*) FROM labels WHERE label_spot_long_win IS NOT NULL').fetchone()
 global_sw = sell_win_row[0]
 sw_count = sell_win_row[1]
 
 # Recent sell_win (last 50)
-recent = conn.execute('SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC LIMIT 50').fetchall()
+recent = conn.execute('SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id DESC LIMIT 50').fetchall()
 recent_vals = [r[0] for r in recent if r[0] is not None]
 recent_sw = sum(recent_vals) / len(recent_vals) if recent_vals else 0
 
 # Consecutive sell_win=0
-all_sw = conn.execute('SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC').fetchall()
+all_sw = conn.execute('SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id DESC').fetchall()
 all_sw_vals = [r[0] for r in all_sw]
 consec_zeros = 0
 for v in all_sw_vals:
@@ -70,7 +70,7 @@ regime_dist = conn.execute('SELECT regime_label, COUNT(*) FROM labels GROUP BY r
 print(f"Regime distribution: {[(r[0] or 'NULL', r[1]) for r in regime_dist]}")
 
 # Sell_win by regime
-regime_sw = conn.execute("SELECT regime_label, AVG(label_sell_win), COUNT(*) FROM labels WHERE label_sell_win IS NOT NULL GROUP BY regime_label").fetchall()
+regime_sw = conn.execute("SELECT regime_label, AVG(label_spot_long_win), COUNT(*) FROM labels WHERE label_spot_long_win IS NOT NULL GROUP BY regime_label").fetchall()
 for r in regime_sw:
     rl = r[0] or 'NULL'
     print(f"  {rl}: avg sell_win={r[1]:.3f}, n={r[2]}")
@@ -91,7 +91,7 @@ feat_rows = conn.execute(f"SELECT id, timestamp, {', '.join(feature_cols)} FROM 
 n_feat = len(feat_rows)
 
 # Get labels
-label_rows = conn.execute("SELECT id, timestamp, label_sell_win, regime_label FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id").fetchall()
+label_rows = conn.execute("SELECT id, timestamp, label_spot_long_win, regime_label FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id").fetchall()
 n_label = len(label_rows)
 
 print(f"Features rows: {n_feat}, Labels rows: {n_label}")

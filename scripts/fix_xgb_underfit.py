@@ -28,7 +28,7 @@ def get_data():
     y = []
     for f_row, l_row in zip(features_df, labels_df):
         feat_data = json.loads(f_row.features_json) if isinstance(f_row.features_json, str) else f_row.features_json
-        label = getattr(l_row, 'label_sell_win', None)
+        label = getattr(l_row, 'label_spot_long_win', None)
         if label is None:
             continue
         feat_values = list(feat_data.values()) if isinstance(feat_data, dict) else feat_data

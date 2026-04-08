@@ -24,9 +24,9 @@ def run_ic_fusion():
     # Load features and labels
     import pandas as pd
     feats = pd.read_sql_query('SELECT * FROM features_normalized', conn)
-    labels = pd.read_sql_query('SELECT * FROM labels WHERE label_sell_win IS NOT NULL', conn)
+    labels = pd.read_sql_query('SELECT * FROM labels WHERE label_spot_long_win IS NOT NULL', conn)
     
-    merged = feats.merge(labels[['timestamp', 'label_sell_win', 'regime_label']], 
+    merged = feats.merge(labels[['timestamp', 'label_spot_long_win', 'regime_label']],
                         on='timestamp', how='inner')
     
     senses = ['eye', 'ear', 'nose', 'tongue', 'body', 'pulse', 'aura', 'mind']
@@ -35,9 +35,9 @@ def run_ic_fusion():
     # Calculate IC for each sense
     ics = {}
     for s, col in sense_cols.items():
-        valid = merged[[col, 'label_sell_win']].dropna()
+        valid = merged[[col, 'label_spot_long_win']].dropna()
         if len(valid) > 10:
-            corr, _ = spearmanr(valid[col], valid['label_sell_win'])
+            corr, _ = spearmanr(valid[col], valid['label_spot_long_win'])
             ics[s] = float(corr)
     
     print("=== IC-Weighted Signal Fusion ===")
@@ -56,9 +56,9 @@ def run_ic_fusion():
     for rname, rdf in regimes.items():
         r_ics = {}
         for s, col in sense_cols.items():
-            valid = rdf[[col, 'label_sell_win']].dropna()
+            valid = rdf[[col, 'label_spot_long_win']].dropna()
             if len(valid) > 100:
-                corr, _ = spearmanr(valid[col], valid['label_sell_win'])
+                corr, _ = spearmanr(valid[col], valid['label_spot_long_win'])
                 r_ics[s] = float(corr)
         regime_ics[rname] = r_ics
         print(f"{rname.upper()} IC: {r_ics}")
@@ -66,7 +66,7 @@ def run_ic_fusion():
     # IC-weighted signal fusion
     # For each sample: weighted_vote = sum(|IC_s| * sign(IC_s) * feature_s)
     valid = merged.dropna(subset=[f'feat_{s}' for s in senses]).copy()
-    y = valid['label_sell_win'].values
+    y = valid['label_spot_long_win'].values
     
     # Test fusion approach 1: global IC-weighted sum
     ic_weights = np.array([ics[s] for s in senses])
@@ -144,7 +144,7 @@ def run_ic_fusion():
     print("\n=== Regime-Specific IC Fusion CV ===")
     for rname, rdf in regimes.items():
         valid_r = rdf.dropna(subset=[f'feat_{s}' for s in senses]).copy()
-        y_r = valid_r['label_sell_win'].values
+        y_r = valid_r['label_spot_long_win'].values
         X_r = valid_r[[f'feat_{s}' for s in senses]].values
         
         if len(X_r) < 200:

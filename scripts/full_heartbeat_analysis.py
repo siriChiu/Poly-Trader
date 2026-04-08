@@ -72,9 +72,9 @@ else:
 print(f"Merged: {len(merged)} rows")
 
 # Check the join quality
-if 'label_sell_win' in merged.columns:
-    print(f"sell_win rate: {merged['label_sell_win'].mean():.1%}")
-    print(f"sell_win value counts: {dict(merged['label_sell_win'].value_counts())}")
+if 'label_spot_long_win' in merged.columns:
+    print(f"sell_win rate: {merged['label_spot_long_win'].mean():.1%}")
+    print(f"sell_win value counts: {dict(merged['label_spot_long_win'].value_counts())}")
 
 # Regime-aware IC
 regime_col = next((c for c in ['regime_label', 'regime'] if c in merged.columns), None)
@@ -87,8 +87,8 @@ senses_map = {
 }
 
 global_ics = {}
-if 'label_sell_win' in merged.columns:
-    label = merged['label_sell_win'].astype(float)
+if 'label_spot_long_win' in merged.columns:
+    label = merged['label_spot_long_win'].astype(float)
     
     print("\n=== Global IC ===")
     for sname, col_name in senses_map.items():
@@ -136,7 +136,7 @@ if 'label_sell_win' in merged.columns:
             if col_name not in subset.columns:
                 continue
             col = subset[col_name].astype(float)
-            l_sub = subset['label_sell_win'].astype(float)
+            l_sub = subset['label_spot_long_win'].astype(float)
             mask = col.notna() & l_sub.notna()
             if mask.sum() > 10:
                 ic = col[mask].corr(l_sub[mask])

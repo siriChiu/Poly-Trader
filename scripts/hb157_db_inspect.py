@@ -18,12 +18,12 @@ for c in cols:
 # Label distribution per regime
 result = db.execute('''
     SELECT f.regime_label, 
-           COUNT(l.label_sell_win) as total,
-           SUM(l.label_sell_win) as wins,
-           AVG(l.label_sell_win) as win_rate
+           COUNT(l.label_spot_long_win) as total,
+           SUM(l.label_spot_long_win) as wins,
+           AVG(l.label_spot_long_win) as win_rate
     FROM features_normalized f
     JOIN labels l ON f.timestamp = l.timestamp
-    WHERE f.regime_label IS NOT NULL AND l.label_sell_win IS NOT NULL
+    WHERE f.regime_label IS NOT NULL AND l.label_spot_long_win IS NOT NULL
     GROUP BY f.regime_label
 ''').fetchall()
 print('\nLabel distribution per regime:')

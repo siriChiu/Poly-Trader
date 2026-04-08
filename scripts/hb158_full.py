@@ -18,7 +18,7 @@ select_cols = ', '.join(['timestamp'] + all_cols + ['regime_label'])
 feat_rows = db.execute(f"SELECT {select_cols} FROM features_normalized ORDER BY timestamp").fetchall()
 
 # Get labels
-label_rows = db.execute("SELECT timestamp, label_sell_win FROM labels ORDER BY timestamp").fetchall()
+label_rows = db.execute("SELECT timestamp, label_spot_long_win FROM labels ORDER BY timestamp").fetchall()
 label_dict = {row[0]: row[1] for row in label_rows}
 
 # Match
@@ -131,7 +131,7 @@ c.execute("SELECT COUNT(*) FROM labels")
 label_count = c.fetchone()[0]
 c.execute("SELECT COUNT(*) FROM raw_market_data")
 raw_count = c.fetchone()[0]
-c.execute("SELECT AVG(label_sell_win) FROM labels WHERE label_sell_win IS NOT NULL")
+c.execute("SELECT AVG(label_spot_long_win) FROM labels WHERE label_spot_long_win IS NOT NULL")
 swr = c.fetchone()[0]
 
 print(f"\n=== Pipeline Summary ===")

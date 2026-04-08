@@ -6,7 +6,7 @@ from scipy import stats
 db = sqlite3.connect("poly_trader.db")
 
 feats = db.execute("SELECT timestamp, feat_eye, feat_ear, feat_nose, feat_tongue, feat_body, feat_pulse, feat_aura, feat_mind FROM features_normalized ORDER BY timestamp").fetchall()
-labels_raw = db.execute("SELECT timestamp, label_sell_win, label_up, future_return_pct, regime_label FROM labels ORDER BY timestamp").fetchall()
+labels_raw = db.execute("SELECT timestamp, label_spot_long_win, label_up, future_return_pct, regime_label FROM labels ORDER BY timestamp").fetchall()
 
 label_map = {r[0]: {"sell_win": r[1], "up": r[2], "ret": r[3], "regime": r[4]} for r in labels_raw}
 feat_cols = ["feat_eye", "feat_ear", "feat_nose", "feat_tongue", "feat_body", "feat_pulse", "feat_aura", "feat_mind"]

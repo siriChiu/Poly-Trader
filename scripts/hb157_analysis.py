@@ -9,7 +9,7 @@ db = sqlite3.connect('poly_trader.db')
 
 # Fetch features and labels
 feat_rows = db.execute('SELECT timestamp, feat_eye, feat_ear, feat_nose, feat_tongue, feat_body, feat_pulse, feat_aura, feat_mind FROM features_normalized ORDER BY timestamp').fetchall()
-labels_rows = db.execute('SELECT timestamp, label_sell_win FROM labels WHERE label_sell_win IS NOT NULL').fetchall()
+labels_rows = db.execute('SELECT timestamp, label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL').fetchall()
 label_map = {r[0]: r[1] for r in labels_rows}
 
 feat_names = ['Eye', 'Ear', 'Nose', 'Tongue', 'Body', 'Pulse', 'Aura', 'Mind']

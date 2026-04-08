@@ -25,13 +25,13 @@ for c, v in zip(fcols, f):
 
 # Check labels latest
 lcols = [d[0] for d in conn.execute('SELECT * FROM labels LIMIT 1').description]
-l = conn.execute('SELECT * FROM labels WHERE label_sell_win IS NOT NULL ORDER BY id DESC LIMIT 1').fetchone()
+l = conn.execute('SELECT * FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY id DESC LIMIT 1').fetchone()
 print("\nLatest labels (with sell_win):")
 for c, v in zip(lcols, l):
     print(f"  {c}: {v}")
 
 # Count sell_win stats
-stats = conn.execute("SELECT COUNT(*) as total, SUM(label_sell_win) as wins, AVG(label_sell_win) as win_rate FROM labels WHERE label_sell_win IS NOT NULL").fetchone()
+stats = conn.execute("SELECT COUNT(*) as total, SUM(label_spot_long_win) as wins, AVG(label_spot_long_win) as win_rate FROM labels WHERE label_spot_long_win IS NOT NULL").fetchone()
 print(f"\nLabel stats: total={stats[0]}, wins={stats[1]}, win_rate={stats[2]:.2%}")
 
 conn.close()

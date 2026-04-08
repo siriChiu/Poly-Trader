@@ -8,7 +8,7 @@ cfg = load_config()
 session = init_db(cfg["database"]["url"])
 
 total_labels = session.query(Labels).count()
-pos_labels = session.query(Labels).filter(Labels.label_sell_win == 1).count()
+pos_labels = session.query(Labels).filter(Labels.label_spot_long_win == 1).count()
 total_feats = session.query(FeaturesNormalized).count()
 
 print(f"Total labels: {total_labels}")
@@ -21,7 +21,7 @@ feats = session.query(FeaturesNormalized).limit(3).all()
 
 print("\nSample labels:")
 for l in labels:
-    print(f"  ts={l.timestamp}, sell_win={l.label_sell_win}")
+    print(f"  ts={l.timestamp}, sell_win={l.label_spot_long_win}")
 
 print("\nSample features:")
 for f in feats:

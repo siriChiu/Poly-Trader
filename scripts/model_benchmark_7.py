@@ -140,8 +140,8 @@ def load_data():
     df = pd.read_sql_query(feat_query, conn)
     
     # Load labels
-    label_query = """SELECT timestamp, label_sell_win, future_return_pct, regime_label 
-                     FROM labels WHERE label_sell_win IS NOT NULL"""
+    label_query = """SELECT timestamp, label_spot_long_win, future_return_pct, regime_label
+                     FROM labels WHERE label_spot_long_win IS NOT NULL"""
     labels = pd.read_sql_query(label_query, conn)
     
     conn.close()
@@ -152,14 +152,14 @@ def load_data():
     # Merge features with labels
     merged = pd.merge_asof(
         df.sort_values("timestamp"),
-        labels[["timestamp", "label_sell_win", "future_return_pct", "regime_label"]].sort_values("timestamp"),
+        labels[["timestamp", "label_spot_long_win", "future_return_pct", "regime_label"]].sort_values("timestamp"),
         on="timestamp",
         direction="nearest",
         tolerance=pd.Timedelta("10min"),
     )
     
     # Keep only matched pairs
-    merged = merged.dropna(subset=["label_sell_win"]).copy()
+    merged = merged.dropna(subset=["label_spot_long_win"]).copy()
     
     if len(merged) < 100:
         print(f"❌ Not enough matched samples: {len(merged)}")
@@ -201,7 +201,7 @@ def load_data():
             merged[col] = -merged[col]
     
     X = merged[all_cols].copy()
-    y = merged["label_sell_win"].astype(int).values
+    y = merged["label_spot_long_win"].astype(int).values
     
     meta = merged[["timestamp", "regime_label_x", "regime_label_y", "future_return_pct"]].copy()
     

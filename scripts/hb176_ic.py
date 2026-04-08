@@ -38,10 +38,10 @@ joined = conn.execute("""
     SELECT f.feat_eye, f.feat_ear, f.feat_nose, f.feat_tongue,
            f.feat_body, f.feat_pulse, f.feat_aura, f.feat_mind,
            COALESCE(f.regime_label, 'Unknown') as regime,
-           l.label_sell_win
+           l.label_spot_long_win
     FROM features_normalized f 
     INNER JOIN labels l ON f.timestamp = l.timestamp 
-    WHERE l.label_sell_win IS NOT NULL 
+    WHERE l.label_spot_long_win IS NOT NULL
     ORDER BY f.timestamp
 """).fetchall()
 

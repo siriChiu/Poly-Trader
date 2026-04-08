@@ -25,21 +25,21 @@ cur.execute('SELECT MAX(timestamp) FROM labels')
 label_latest = cur.fetchone()[0]
 
 # sell_win stats
-cur.execute('SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM labels WHERE label_sell_win IS NOT NULL')
+cur.execute('SELECT AVG(CAST(label_spot_long_win AS FLOAT)) FROM labels WHERE label_spot_long_win IS NOT NULL')
 global_sell_win = cur.fetchone()[0]
 
-cur.execute('SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM (SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY rowid DESC LIMIT 50)')
+cur.execute('SELECT AVG(CAST(label_spot_long_win AS FLOAT)) FROM (SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY rowid DESC LIMIT 50)')
 recent_50 = cur.fetchone()[0]
 
-cur.execute('SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM (SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY rowid DESC LIMIT 100)')
+cur.execute('SELECT AVG(CAST(label_spot_long_win AS FLOAT)) FROM (SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY rowid DESC LIMIT 100)')
 recent_100 = cur.fetchone()[0]
 
-cur.execute('SELECT AVG(CAST(label_sell_win AS FLOAT)) FROM (SELECT label_sell_win FROM labels WHERE label_sell_win IS NOT NULL ORDER BY rowid DESC LIMIT 500)')
+cur.execute('SELECT AVG(CAST(label_spot_long_win AS FLOAT)) FROM (SELECT label_spot_long_win FROM labels WHERE label_spot_long_win IS NOT NULL ORDER BY rowid DESC LIMIT 500)')
 recent_500 = cur.fetchone()[0]
 
 # Regime sell_win
-cur.execute('''SELECT regime_label, AVG(CAST(label_sell_win AS FLOAT)), COUNT(*) 
-               FROM labels WHERE label_sell_win IS NOT NULL AND regime_label IS NOT NULL GROUP BY regime_label''')
+cur.execute('''SELECT regime_label, AVG(CAST(label_spot_long_win AS FLOAT)), COUNT(*)
+               FROM labels WHERE label_spot_long_win IS NOT NULL AND regime_label IS NOT NULL GROUP BY regime_label''')
 regime_stats = cur.fetchall()
 
 # VIX/DXY from raw market data
@@ -69,23 +69,23 @@ feat_sensor_cols = [c for c in all_feat_cols if c.startswith('feat_') and c not 
 print(f"\nFeature sensor columns: {feat_sensor_cols}")
 
 # Join: match features to labels by timestamp AND symbol
-query_cols = ['f.timestamp', 'f.regime_label'] + [f'f.{c}' for c in feat_sensor_cols] + ['l.label_sell_win']
+query_cols = ['f.timestamp', 'f.regime_label'] + [f'f.{c}' for c in feat_sensor_cols] + ['l.label_spot_long_win']
 join_query = f'''
     SELECT {', '.join(query_cols)}
     FROM features_normalized f
     INNER JOIN labels l ON f.timestamp = l.timestamp 
         AND (f.symbol = l.symbol OR f.symbol = l.symbol OR 1=1)
-    WHERE l.label_sell_win IS NOT NULL
+    WHERE l.label_spot_long_win IS NOT NULL
     ORDER BY f.timestamp
 '''
 
 # Try inner join with most specific first
 try:
     cur.execute(f'''
-        SELECT f.timestamp, f.symbol, f.regime_label, {', '.join(f'f.{c}' for c in feat_sensor_cols)}, l.label_sell_win
+        SELECT f.timestamp, f.symbol, f.regime_label, {', '.join(f'f.{c}' for c in feat_sensor_cols)}, l.label_spot_long_win
         FROM features_normalized f
         INNER JOIN labels l ON f.timestamp = l.timestamp AND f.symbol = l.symbol
-        WHERE l.label_sell_win IS NOT NULL
+        WHERE l.label_spot_long_win IS NOT NULL
         ORDER BY f.timestamp
     ''')
     rows = cur.fetchall()
@@ -104,9 +104,9 @@ if len(rows) < 100:
     feat_rows = cur.fetchall()
     
     cur.execute('''
-        SELECT timestamp, label_sell_win, regime_label
+        SELECT timestamp, label_spot_long_win, regime_label
         FROM labels
-        WHERE label_sell_win IS NOT NULL
+        WHERE label_spot_long_win IS NOT NULL
         ORDER BY timestamp
     ''')
     label_rows = cur.fetchall()
@@ -135,9 +135,9 @@ if len(rows) < 100:
     feat_rows = cur.fetchall()
     
     cur.execute('''
-        SELECT timestamp, label_sell_win
+        SELECT timestamp, label_spot_long_win
         FROM labels
-        WHERE label_sell_win IS NOT NULL
+        WHERE label_spot_long_win IS NOT NULL
         ORDER BY timestamp
     ''')
     label_rows = cur.fetchall()
@@ -156,7 +156,7 @@ if len(rows) < 100:
 if rows:
     # Map column indices: timestamp=0, regime=1, feat_cols=2..(n+1), label=n+2
     
-    # 1. Global IC against label_sell_win
+    # 1. Global IC against label_spot_long_win
     sell_win = np.array([r[-1] for r in rows], dtype=float)
     valid_mask = ~np.isnan(sell_win)
     

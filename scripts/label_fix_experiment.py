@@ -52,7 +52,7 @@ def load_data(include_regimes=None, drop_low_ic=0.0):
     df = pd.read_sql_query(query, conn)
     
     labels = pd.read_sql_query(
-        "SELECT timestamp, label_sell_win, future_return_pct FROM labels WHERE label_sell_win IS NOT NULL",
+        "SELECT timestamp, label_spot_long_win, future_return_pct FROM labels WHERE label_spot_long_win IS NOT NULL",
         conn
     )
     conn.close()
@@ -74,7 +74,7 @@ def load_data(include_regimes=None, drop_low_ic=0.0):
         direction="nearest",
         tolerance=pd.Timedelta("10min"),
     )
-    merged = merged.dropna(subset=["label_sell_win"]).copy()
+    merged = merged.dropna(subset=["label_spot_long_win"]).copy()
     
     if len(merged) < 100:
         return None, None, None
@@ -103,7 +103,7 @@ def load_data(include_regimes=None, drop_low_ic=0.0):
     merged[all_cols] = merged[all_cols].fillna(0.0)
     
     # Compute IC for each feature
-    y_arr = merged["label_sell_win"].astype(float).values
+    y_arr = merged["label_spot_long_win"].astype(float).values
     ic_values = {}
     for col in all_cols:
         f_arr = merged[col].astype(float).values
@@ -133,7 +133,7 @@ def load_data(include_regimes=None, drop_low_ic=0.0):
             merged[col] = -merged[col]
     
     X = merged[all_cols].copy()
-    y = merged["label_sell_win"].astype(int).values
+    y = merged["label_spot_long_win"].astype(int).values
     
     print(f"  📊 {regimes_text}: {len(X)} samples, {X.shape[1]} features, y={y.mean():.4f}")
     if drop_low_ic > 0:

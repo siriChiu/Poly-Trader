@@ -23,10 +23,10 @@ cur = conn.cursor()
 rows = cur.execute('''
     SELECT f.regime_label, f.feat_eye, f.feat_ear, f.feat_nose, f.feat_tongue,
            f.feat_body, f.feat_pulse, f.feat_aura, f.feat_mind, 
-           l.label_sell_win
+           l.label_spot_long_win
     FROM features_normalized f
     JOIN labels l ON f.timestamp = l.timestamp
-    WHERE l.label_sell_win IS NOT NULL AND f.regime_label != 'neutral'
+    WHERE l.label_spot_long_win IS NOT NULL AND f.regime_label != 'neutral'
     ORDER BY f.timestamp
 ''').fetchall()
 

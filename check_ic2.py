@@ -19,13 +19,13 @@ senses = {
 
 for sense, col in senses.items():
     rows = conn.execute(
-        f"SELECT f.{col}, l.label_sell_win FROM features_normalized f "
+        f"SELECT f.{col}, l.label_spot_long_win FROM features_normalized f "
         f"JOIN labels l ON f.timestamp = l.timestamp "
-        f"WHERE l.label_sell_win IS NOT NULL ORDER BY f.timestamp DESC LIMIT 2000"
+        f"WHERE l.label_spot_long_win IS NOT NULL ORDER BY f.timestamp DESC LIMIT 2000"
     ).fetchall()
     if not rows:
         rows = conn.execute(
-            f"SELECT f.{col}, l.label_sell_win FROM features_normalized f "
+            f"SELECT f.{col}, l.label_spot_long_win FROM features_normalized f "
             f"JOIN labels l ON f.timestamp = l.timestamp "
             f"ORDER BY f.timestamp DESC LIMIT 2000"
         ).fetchall()

@@ -6,7 +6,7 @@ cur = conn.cursor()
 
 # Check the distribution of returns for 2026-04-04 labels
 cur.execute("""
-    SELECT future_return_pct, label_sell_win, timestamp
+    SELECT future_return_pct, label_spot_long_win, timestamp
     FROM labels
     WHERE timestamp >= '2026-04-04' AND timestamp < '2026-04-05'
     ORDER BY timestamp
@@ -23,7 +23,7 @@ cur.execute("""
         MIN(future_return_pct) as min_ret,
         MAX(future_return_pct) as max_ret,
         AVG(future_return_pct) as avg_ret,
-        AVG(CAST(label_sell_win AS FLOAT)) as avg_sell_win
+        AVG(CAST(label_spot_long_win AS FLOAT)) as avg_sell_win
     FROM labels
     WHERE timestamp >= '2026-04-04' AND timestamp < '2026-04-05'
 """)
@@ -42,7 +42,7 @@ cur.execute("""
         MIN(future_return_pct) as min_ret,
         MAX(future_return_pct) as max_ret,
         AVG(future_return_pct) as avg_ret,
-        AVG(CAST(label_sell_win AS FLOAT)) as avg_sell_win
+        AVG(CAST(label_spot_long_win AS FLOAT)) as avg_sell_win
     FROM labels
     WHERE timestamp >= '2026-04-01' AND timestamp < '2026-04-04'
 """)
@@ -56,7 +56,7 @@ print(f"  Avg sell_win: {r[4]:.3f}")
 
 # Check if these new labels have proper regime assignments
 cur.execute("""
-    SELECT f.regime_label, AVG(CAST(l.label_sell_win AS FLOAT)), COUNT(*)
+    SELECT f.regime_label, AVG(CAST(l.label_spot_long_win AS FLOAT)), COUNT(*)
     FROM labels l
     LEFT JOIN features_normalized f ON l.timestamp = f.timestamp
     WHERE l.timestamp >= '2026-04-04' AND l.timestamp < '2026-04-05'

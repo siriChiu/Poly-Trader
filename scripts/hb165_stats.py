@@ -13,7 +13,7 @@ session = init_db(cfg['database']['url'])
 # Data counts
 raw_count = session.query(func.count()).select_from(FeaturesNormalized).scalar()
 labels_count = session.query(func.count()).select_from(Labels).scalar()
-sell_wins = session.query(func.sum(Labels.label_sell_win)).filter(Labels.label_sell_win.isnot(None)).scalar()
+sell_wins = session.query(func.sum(Labels.label_spot_long_win)).filter(Labels.label_spot_long_win.isnot(None)).scalar()
 
 # BTC price
 btc_rows = session.query(MarketData).filter(MarketData.symbol=='BTCUSDT').order_by(MarketData.timestamp.desc()).limit(1).all()

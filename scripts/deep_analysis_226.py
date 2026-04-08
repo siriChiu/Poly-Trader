@@ -21,7 +21,7 @@ for table in ['raw_data', 'features', 'labels']:
     print(f"{table}: {cur.fetchone()[0]} rows")
 
 # 2. Sell win rates
-cur.execute('SELECT label_sell_win FROM labels ORDER BY rowid')
+cur.execute('SELECT label_spot_long_win FROM labels ORDER BY rowid')
 all_labels = [int(r[0]) for r in cur.fetchall()]
 n = len(all_labels)
 global_wr = sum(all_labels) / n if n else 0
@@ -67,14 +67,14 @@ cur.execute(f'SELECT {",".join(sensor_cols)} FROM features ORDER BY rowid')
 feat_data = cur.fetchall()
 
 # Get labels
-cur.execute('SELECT label_sell_win FROM labels ORDER BY rowid')
+cur.execute('SELECT label_spot_long_win FROM labels ORDER BY rowid')
 label_data = [r[0] for r in cur.fetchall()]
 
 # Align lengths
 min_len = min(len(feat_data), len(label_data))
 print(f"Aligned length: {min_len}")
 
-print(f"\n=== Global IC (Pearson, against label_sell_win) ===")
+print(f"\n=== Global IC (Pearson, against label_spot_long_win) ===")
 ics = {}
 for ci, scol in enumerate(sensor_cols):
     vals = np.array([float(r[ci]) if r[ci] is not None else np.nan for r in feat_data[:min_len]])
@@ -118,7 +118,7 @@ try:
                 tcols = [c[1] for c in cur.fetchall()]
                 if 'regime' in tcols or 'label_regime' in tcols:
                     rc = 'regime' if 'regime' in tcols else 'label_regime'
-                    cur.execute(f'SELECT {rc}, label_sell_win FROM {table_name}')
+                    cur.execute(f'SELECT {rc}, label_spot_long_win FROM {table_name}')
                     rows = cur.fetchall()
                     print(f"\n=== Regime Sell Win Rates ({table_name}) ===")
                     from collections import defaultdict

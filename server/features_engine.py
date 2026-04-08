@@ -312,12 +312,8 @@ class FeaturesEngine:
     def calculate_recommendation_score(self, scores: Optional[Dict[str, float]] = None) -> int:
         if scores is None:
             scores = self.calculate_all_scores()
-        # IC-based weights
-        weights = {"eye": 0.15, "ear": 0.10, "nose": 0.15, "tongue": 0.0, "body": 0.10, "pulse": 0.20, "aura": 0.10, "mind": 0.20}
-        total = sum(scores.get(k, 0.5) * w for k, w in weights.items())
-        x = (total * 100 - 50) / 15
-        amplified = 50 + 50 * (1 / (1 + math.exp(-1.5 * x)) - 0.5) * 2
-        return round(max(0, min(100, amplified)))
+        # Model-based: XGBoost learns optimal 4H×sensory fusion weights
+        return calculate_model_score(scores)
 
     def generate_advice(self, scores: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
         if scores is None:
@@ -367,6 +363,139 @@ class FeaturesEngine:
 
 
 _engine: Optional[FeaturesEngine] = None
+
+def calculate_model_score(raw_scores: Dict[str, float]) -> int:
+    """
+    用 XGBoost 模型計算推薦分數 (取代硬編碼 IC 權重)。
+    結合 4H 框架 + 感官極端 + 融合特徵 → 模型自己學最佳組合。
+    """
+    try:
+        import pickle, json, math, os
+        model_path = Path(__file__).parent.parent / "model/xgb_model.pkl"
+        if not model_path.exists():
+            # Fallback: weighted formula
+            weights = {"4h_bias50": 0.20, "4h_dist_sl": 0.15, "nose": 0.10,
+                       "pulse": 0.10, "mind": 0.10, "aura": 0.05, "ema": 0.10,
+                       "eye": 0.05, "ear": 0.05, "rsi14": 0.05, "macd_hist": 0.05}
+            total = sum(raw_scores.get(k, 0.5) * w for k, w in weights.items())
+            return round(max(0, min(100, total * 100)))
+
+        # Load model
+        with open(model_path, "rb") as f:
+            model_payload = pickle.load(f)
+
+        model = model_payload.get('clf')
+        feature_names = model_payload.get('feature_names', [])
+        if model is None or not feature_names:
+            weights = {"4h_bias50": 0.20, "4h_dist_sl": 0.15, "nose": 0.10,
+                       "pulse": 0.10, "mind": 0.10, "aura": 0.05, "ema": 0.10,
+                       "eye": 0.05, "ear": 0.05, "rsi14": 0.05, "macd_hist": 0.05}
+            total = sum(raw_scores.get(k, 0.5) * w for k, w in weights.items())
+            return round(max(0, min(100, total * 100)))
+
+        # Build feature vector - normalize to 0..1
+        # 4H features (raw values for the model)
+        feat_4h_bias50 = raw_scores.get('4h_bias50', 0)
+        feat_4h_bias20 = raw_scores.get('4h_bias20', 0)
+        feat_4h_ma_order = raw_scores.get('4h_ma_order', 0)
+        feat_4h_rsi14 = raw_scores.get('4h_rsi14', 0.5)  # already 0-1 from ECDF
+        feat_4h_macd_hist = raw_scores.get('4h_macd_hist', 0)
+        feat_4h_bb_pct_b = raw_scores.get('4h_bb_pct_b', 0.5)
+        feat_4h_dist_swing_low = raw_scores.get('4h_dist_sl', 0)
+
+        # 1min sensory
+        feat_nose = raw_scores.get('nose', 0.5)
+        feat_tongue = raw_scores.get('tongue', 0.5)
+        feat_mind = raw_scores.get('mind', 0.5)
+        feat_pulse = raw_scores.get('pulse', 0.5)
+        feat_eye = raw_scores.get('eye', 0.5)
+        feat_ear = raw_scores.get('ear', 0.5)
+        feat_body = raw_scores.get('body', 0.5)
+        feat_aura = raw_scores.get('aura', 0.5)
+
+        # Macro
+        feat_vix = raw_scores.get('vix', 0.5)
+        feat_dxy = raw_scores.get('dxy', 0.5)
+        feat_rsi14 = raw_scores.get('rsi14', 0.5)
+        feat_macd_hist = raw_scores.get('macd_hist', 0.5)
+        feat_atr_pct = raw_scores.get('atr_pct', 0.5)
+        feat_vwap_dev = raw_scores.get('vwap_dev', 0.5)
+        feat_bb_pct_b = raw_scores.get('bb_pct_b', 0.5)
+
+        # Compute fusion features on the fly
+        from feature_engine.fusion_features import compute_fusion_features
+        fusion = compute_fusion_features(
+            feat_4h_bias50=feat_4h_bias50,
+            feat_4h_bias20=feat_4h_bias20,
+            feat_4h_dist_swing_low=feat_4h_dist_swing_low,
+            feat_4h_bb_pct_b=feat_4h_bb_pct_b,
+            feat_4h_ma_order=feat_4h_ma_order,
+            feat_4h_rsi14=feat_4h_rsi14,
+            feat_4h_macd_hist=feat_4h_macd_hist,
+            feat_nose=feat_nose,
+            feat_tongue=feat_tongue,
+            feat_mind=feat_mind,
+            feat_pulse=feat_pulse,
+            feat_eye=feat_eye,
+            feat_ear=feat_ear,
+            feat_body=feat_body,
+            feat_aura=feat_aura,
+        )
+
+        # Build full feature vector
+        feature_dict = {
+            **{'feat_eye': feat_eye, 'feat_ear': feat_ear, 'feat_nose': feat_nose,
+               'feat_tongue': feat_tongue, 'feat_body': feat_body, 'feat_pulse': feat_pulse,
+               'feat_aura': feat_aura, 'feat_mind': feat_mind},
+            **{'feat_vix': feat_vix, 'feat_dxy': feat_dxy},
+            **{'feat_rsi14': feat_rsi14, 'feat_macd_hist': feat_macd_hist,
+               'feat_atr_pct': feat_atr_pct, 'feat_vwap_dev': feat_vwap_dev,
+               'feat_bb_pct_b': feat_bb_pct_b},
+            **{f'feat_4h_bias50': feat_4h_bias50, 'feat_4h_bias20': feat_4h_bias20,
+               'feat_4h_rsi14': feat_4h_rsi14 * 100, 'feat_4h_macd_hist': feat_4h_macd_hist,
+               'feat_4h_bb_pct_b': feat_4h_bb_pct_b, 'feat_4h_ma_order': feat_4h_ma_order,
+               'feat_4h_dist_swing_low': feat_4h_dist_swing_low},
+            **{k: v for k, v in fusion.items() if k.startswith('feat_')},
+        }
+
+        # Add cross features
+        feature_dict['feat_vix_x_eye'] = feature_dict['feat_vix'] * feature_dict['feat_eye']
+        feature_dict['feat_vix_x_pulse'] = feature_dict['feat_vix'] * feature_dict['feat_pulse']
+        feature_dict['feat_vix_x_mind'] = feature_dict['feat_vix'] * feature_dict['feat_mind']
+        feature_dict['feat_mind_x_pulse'] = feature_dict['feat_mind'] * feature_dict['feat_pulse']
+        feature_dict['feat_eye_x_ear'] = feature_dict['feat_eye'] * feature_dict['feat_ear']
+        feature_dict['feat_nose_x_aura'] = feature_dict['feat_nose'] * feature_dict['feat_aura']
+        feature_dict['feat_eye_x_body'] = feature_dict['feat_eye'] * feature_dict.get('feat_body', 0.5)
+        feature_dict['feat_ear_x_nose'] = feature_dict['feat_ear'] * feature_dict['feat_nose']
+        feature_dict['feat_mind_x_aura'] = feature_dict['feat_mind'] * feature_dict['feat_aura']
+        feature_dict['feat_regime_flag'] = 0.0
+        feature_dict['feat_mean_rev_proxy'] = feature_dict['feat_mind'] - feature_dict['feat_aura']
+
+        # Align to model's expected feature order
+        X_input = []
+        for fname in feature_names:
+            val = feature_dict.get(fname, 0.0)
+            X_input.append(val if val is not None else 0.0)
+
+        import numpy as np
+        X_arr = np.array([X_input])
+
+        # Get probability of positive class
+        proba = model.predict_proba(X_arr)[0]
+        prob_pos = float(proba[-1]) if len(proba) > 1 else 0.5
+
+        # Convert to 0-100 score
+        return round(max(0, min(100, prob_pos * 100)))
+
+    except Exception as e:
+        logger.warning(f"Model-based score failed ({e}), falling back to weighted formula")
+        # Fallback
+        weights = {"4h_bias50": 0.20, "4h_dist_sl": 0.15, "nose": 0.10,
+                   "pulse": 0.10, "mind": 0.10, "aura": 0.05, "eye": 0.05,
+                   "ear": 0.05, "rsi14": 0.05, "macd_hist": 0.05}
+        total = sum(raw_scores.get(k, 0.5) * w for k, w in weights.items())
+        return round(max(0, min(100, total * 100)))
+
 
 def get_engine() -> FeaturesEngine:
     global _engine

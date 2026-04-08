@@ -19,18 +19,18 @@ cur.execute('''SELECT
     AVG(horizon_minutes) as avg_horizon,
     SUM(CASE WHEN label_up=1 THEN 1 ELSE 0 END) as pos,
     SUM(CASE WHEN label_up=0 THEN 1 ELSE 0 END) as neg,
-    SUM(CASE WHEN label_sell_win=1 THEN 1 ELSE 0 END) as sellpos,
-    SUM(CASE WHEN label_sell_win=0 THEN 1 ELSE 0 END) as sellneg
+    SUM(CASE WHEN label_spot_long_win=1 THEN 1 ELSE 0 END) as sellpos,
+    SUM(CASE WHEN label_spot_long_win=0 THEN 1 ELSE 0 END) as sellneg
 FROM labels''')
 row = cur.fetchone()
 names = ['total', 'avg_ret', 'min_ret', 'max_ret', 'avg_dd', 'avg_ru', 'avg_horizon', 'pos', 'neg', 'sellpos', 'sellneg']
 for n, v in zip(names, row):
     print(f"  {n}: {v}")
 
-# Check label_up vs label_sell_win agreement
+# Check label_up vs label_spot_long_win agreement
 cur.execute('''SELECT 
-    SUM(CASE WHEN label_up=label_sell_win THEN 1 ELSE 0 END) as agree,
-    SUM(CASE WHEN label_up!=label_sell_win THEN 1 ELSE 0 END) as disagree,
+    SUM(CASE WHEN label_up=label_spot_long_win THEN 1 ELSE 0 END) as agree,
+    SUM(CASE WHEN label_up!=label_spot_long_win THEN 1 ELSE 0 END) as disagree,
     COUNT(*) as total
 FROM labels''')
 row = cur.fetchone()
@@ -38,8 +38,8 @@ print(f"\nLabel agreement: agree={row[0]}, disagree={row[1]}, total={row[2]}")
 
 # If disagree > 0, show samples
 if row[1] > 0:
-    cur.execute('''SELECT timestamp, future_return_pct, future_max_drawdown, future_max_runup, label_up, label_sell_win
-    FROM labels WHERE label_up != label_sell_win LIMIT 10''')
+    cur.execute('''SELECT timestamp, future_return_pct, future_max_drawdown, future_max_runup, label_up, label_spot_long_win
+    FROM labels WHERE label_up != label_spot_long_win LIMIT 10''')
     for r in cur.fetchall():
         print(f"  {r[0]}: ret={r[1]:.4f}, dd={r[2]:.4f}, ru={r[3]:.4f}, up={r[4]}, sell_win={r[5]}")
 

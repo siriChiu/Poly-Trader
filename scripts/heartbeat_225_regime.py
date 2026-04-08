@@ -15,7 +15,7 @@ if 'regime_label' in feat.columns and 'body_label' in feat.columns:
 # Align feat and labels - they have same rowid order
 min_len = min(len(feat), len(labels_df))
 feat_regime = feat['regime_label'].iloc[:min_len].dropna().values
-label_sell = labels_df['label_sell_win'].iloc[:min_len].values
+label_sell = labels_df['label_spot_long_win'].iloc[:min_len].values
 
 combined = pd.DataFrame({'sell_win': label_sell[:len(feat_regime)], 'regime': feat_regime})
 combined_valid = combined.dropna()

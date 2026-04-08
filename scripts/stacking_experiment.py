@@ -45,7 +45,7 @@ def load_data():
     col_str = ", ".join([f"f.{c}" for c in FEATURE_COLS] + ["f.timestamp", "f.symbol"])
     df = pd.read_sql_query(f"SELECT {col_str} FROM features_normalized f ORDER BY f.timestamp", conn)
     labels = pd.read_sql_query(
-        "SELECT timestamp, label_sell_win, future_return_pct FROM labels WHERE label_sell_win IS NOT NULL",
+        "SELECT timestamp, label_spot_long_win, future_return_pct FROM labels WHERE label_spot_long_win IS NOT NULL",
         conn
     )
     conn.close()
@@ -60,7 +60,7 @@ def load_data():
         direction="nearest",
         tolerance=pd.Timedelta("10min"),
     )
-    merged = merged.dropna(subset=["label_sell_win"]).copy()
+    merged = merged.dropna(subset=["label_spot_long_win"]).copy()
     
     if len(merged) < 100:
         return None, None
@@ -94,7 +94,7 @@ def load_data():
             merged[col] = -merged[col]
     
     X = merged[all_cols].copy()
-    y = merged["label_sell_win"].astype(int).values
+    y = merged["label_spot_long_win"].astype(int).values
     
     print(f"📊 Data: {X.shape[0]} samples, {X.shape[1]} features")
     print(f"   sell_win rate: {y.mean():.4f}")

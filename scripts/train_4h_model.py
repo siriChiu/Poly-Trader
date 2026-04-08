@@ -76,7 +76,7 @@ for i in range(min_idx, n - horizon):
     
     X_list.append(features)
     y_return_list.append(ret)
-    # label_sell_win: 1 if price drops (short profitable)
+    # label_spot_long_win: 1 if price drops (short profitable)
     y_label_list.append(1 if ret < -0.001 else 0)  # 0.1% threshold
 
 X = __import__('pandas').DataFrame(X_list)

@@ -37,7 +37,7 @@ print(f'Features count: {c.fetchone()[0]}')
 
 # Label info
 if 'labels' in tables:
-    c.execute('SELECT AVG(label_sell_win), COUNT(*) FROM labels WHERE label_sell_win IS NOT NULL')
+    c.execute('SELECT AVG(label_spot_long_win), COUNT(*) FROM labels WHERE label_spot_long_win IS NOT NULL')
     row = c.fetchone()
     print(f'Label sell_win rate: {row[0]:.4f}  (N={row[1] if row[1] else 0})')
 
@@ -92,18 +92,18 @@ if 'labels' in tables:
 sense_cols = list(sense_col_map.values())
 if has_regime:
     query = f'''
-        SELECT f.timestamp, {", ".join(sense_cols)}, l.label_sell_win, l.regime
+        SELECT f.timestamp, {", ".join(sense_cols)}, l.label_spot_long_win, l.regime
         FROM {feat_table} f
         INNER JOIN labels l ON f.timestamp = l.timestamp
-        WHERE l.label_sell_win IS NOT NULL
+        WHERE l.label_spot_long_win IS NOT NULL
         ORDER BY f.timestamp
     '''
 else:
     query = f'''
-        SELECT f.timestamp, {", ".join(sense_cols)}, l.label_sell_win
+        SELECT f.timestamp, {", ".join(sense_cols)}, l.label_spot_long_win
         FROM {feat_table} f
         INNER JOIN labels l ON f.timestamp = l.timestamp
-        WHERE l.label_sell_win IS NOT NULL
+        WHERE l.label_spot_long_win IS NOT NULL
         ORDER BY f.timestamp
     '''
 

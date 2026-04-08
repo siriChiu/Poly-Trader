@@ -28,12 +28,12 @@ label_cols = db.execute("PRAGMA table_info(labels)").fetchall()
 print(f"\nlabels ({len(label_cols)} cols): {[c[1] for c in label_cols]}")
 
 # Sell win
-sw = db.execute("SELECT COUNT(*), AVG(label_sell_win) FROM labels").fetchone()
+sw = db.execute("SELECT COUNT(*), AVG(label_spot_long_win) FROM labels").fetchone()
 print(f"Labels: count={sw[0]}, sell_win_avg={sw[1]:.4f}")
 
 # Consecutive losses
 try:
-    recent = db.execute("SELECT label_sell_win FROM labels ORDER BY rowid DESC LIMIT 200").fetchall()
+    recent = db.execute("SELECT label_spot_long_win FROM labels ORDER BY rowid DESC LIMIT 200").fetchall()
     streak = 0
     for r in recent:
         if r[0] == 0:

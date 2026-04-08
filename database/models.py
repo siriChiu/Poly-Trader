@@ -180,6 +180,9 @@ class Labels(Base):
     future_return_pct = Column(Float)
     future_max_drawdown = Column(Float)
     future_max_runup = Column(Float)
+    # Canonical target for the spot long pyramiding strategy.
+    label_spot_long_win = Column(Integer)
+    # Legacy compatibility fields — kept for older scripts and reports.
     label_sell_win = Column(Integer)
     label_up = Column(Integer)
     regime_label = Column(String, nullable=True)
@@ -243,6 +246,7 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
         ("horizon_minutes", "INTEGER"),
         ("future_max_drawdown", "REAL"),
         ("future_max_runup", "REAL"),
+        ("label_spot_long_win", "INTEGER"),
         ("label_sell_win", "INTEGER"),
         ("label_up", "INTEGER"),
         ("regime_label", "TEXT"),
