@@ -106,8 +106,12 @@ def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
     assert result["features"]["claw"]["chart_usable"] is False
     assert result["features"]["claw"]["quality_flag"] == "source_fallback_zero"
     assert "distinct<10" in result["features"]["claw"]["reasons"]
+    assert result["features"]["claw"]["backfill_status"] == "blocked"
+    assert result["features"]["claw"]["history_class"] == "archive_required"
+    assert "CoinGlass" in result["features"]["claw"]["backfill_blocker"]
     assert result["features"]["4h_bias50"]["chart_usable"] is False
     assert result["features"]["4h_bias50"]["quality_flag"] == "low_distinct"
+    assert result["features"]["4h_bias50"]["backfill_status"] == "n/a"
     assert result["features"]["4h_ma_order"]["chart_usable"] is True
 
 

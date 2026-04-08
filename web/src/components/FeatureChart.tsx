@@ -63,6 +63,10 @@ interface FeatureCoverageMeta {
   quality_label?: string;
   expected_min_coverage?: number;
   expected_min_distinct?: number;
+  history_class?: string;
+  backfill_status?: string;
+  backfill_blocker?: string | null;
+  recommended_action?: string | null;
 }
 
 function formatCoverageReason(meta?: FeatureCoverageMeta | null): string {
@@ -70,7 +74,19 @@ function formatCoverageReason(meta?: FeatureCoverageMeta | null): string {
   const qualityText = meta.quality_label && meta.quality_label !== "ok"
     ? meta.quality_label
     : (meta.reasons?.join(", ") || "chart hidden");
-  return `${qualityText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}`;
+  const blockerText = meta.backfill_blocker ? ` · blocker: ${meta.backfill_blocker}` : "";
+  return `${qualityText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}${blockerText}`;
+}
+
+function summarizeCoverageChip(meta?: FeatureCoverageMeta | null): string {
+  if (!meta) return "coverage不足";
+  if (meta.quality_flag === "source_history_gap" && meta.history_class) {
+    return `${meta.coverage_pct.toFixed(0)}% · ${meta.history_class}`;
+  }
+  if (meta.quality_flag === "source_fallback_zero") {
+    return "fallback污染";
+  }
+  return `${meta.coverage_pct.toFixed(0)}% / d${meta.distinct}`;
 }
 
 interface MergedPoint {
@@ -230,7 +246,7 @@ function CustomLegend({
                   {cfg.label}
                   {disabled && (
                     <span className="text-[10px] text-slate-500">
-                      {meta ? `${meta.coverage_pct.toFixed(0)}% / d${meta.distinct}` : "coverage不足"}
+                      {summarizeCoverageChip(meta)}
                     </span>
                   )}
                 </button>
@@ -561,7 +577,14 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
           <div className="text-slate-400">
             {hiddenCoverageItems
               .slice(0, 5)
-              .map(([key, meta]) => `${FEATURE_CONFIG[key]?.label ?? key}(${meta.coverage_pct.toFixed(1)}%, d${meta.distinct})`)
+              .map(([key, meta]) => {
+                const label = FEATURE_CONFIG[key]?.label ?? key;
+                const reason = meta.quality_label && meta.quality_label !== "ok"
+                  ? meta.quality_label
+                  : `coverage ${meta.coverage_pct.toFixed(1)}%`;
+                const policy = meta.history_class ? ` / ${meta.history_class}` : "";
+                return `${label}(${reason}${policy})`;
+              })
               .join(" · ")}
             {hiddenCoverageItems.length > 5 ? " …" : ""}
           </div>

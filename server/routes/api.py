@@ -102,6 +102,57 @@ SOURCE_FEATURE_KEYS = {
     'web_whale', 'scales_ssr', 'nest_pred',
 }
 
+SOURCE_HISTORY_POLICIES = {
+    'claw': {
+        'history_class': 'archive_required',
+        'backfill_status': 'blocked',
+        'backfill_blocker': 'CoinGlass liquidation integration only saves recent live windows; no historical liquidation archive is wired into raw_market_data.',
+        'recommended_action': 'Keep forward collection running or add CoinGlass historical export/API archive before attempting backfill.',
+    },
+    'claw_intensity': {
+        'history_class': 'archive_required',
+        'backfill_status': 'blocked',
+        'backfill_blocker': 'Claw intensity is derived from CoinGlass liquidation history, but the project only stores live windows and has no historical archive loader.',
+        'recommended_action': 'Backfill claw raw history first, then recompute feature rows from raw.',
+    },
+    'fang_pcr': {
+        'history_class': 'snapshot_only',
+        'backfill_status': 'blocked',
+        'backfill_blocker': 'Deribit options summary integration is a latest snapshot fetch; historical option-chain snapshots were never archived.',
+        'recommended_action': 'Add periodic raw snapshot collection or a dedicated historical options source before expecting chart coverage.',
+    },
+    'fang_skew': {
+        'history_class': 'snapshot_only',
+        'backfill_status': 'blocked',
+        'backfill_blocker': 'Fang skew depends on latest Deribit option-book snapshot; there is no historical snapshot archive in the current pipeline.',
+        'recommended_action': 'Add periodic raw snapshot collection or a dedicated historical options source before backfilling.',
+    },
+    'fin_netflow': {
+        'history_class': 'archive_required',
+        'backfill_status': 'blocked',
+        'backfill_blocker': 'ETF flow collector only reads the current CoinGlass flow payload; no historical day-by-day ETF archive has been persisted.',
+        'recommended_action': 'Wire a historical ETF flow export/API path into raw_market_data, then recompute feature history.',
+    },
+    'web_whale': {
+        'history_class': 'short_window_public_api',
+        'backfill_status': 'blocked',
+        'backfill_blocker': 'Binance aggTrades endpoint only exposes a short recent trade window in the current implementation; no historical whale snapshot archive exists.',
+        'recommended_action': 'Accumulate snapshots forward or add a historical large-trade data source; do not synthesize history with carry-forward.',
+    },
+    'scales_ssr': {
+        'history_class': 'snapshot_only',
+        'backfill_status': 'blocked',
+        'backfill_blocker': 'Scales SSR currently uses a live CoinGecko stablecoin market-cap snapshot, not a stored historical time series.',
+        'recommended_action': 'Add a historical stablecoin market-cap source or collect periodic raw snapshots going forward.',
+    },
+    'nest_pred': {
+        'history_class': 'snapshot_only',
+        'backfill_status': 'blocked',
+        'backfill_blocker': 'Polymarket integration searches current active markets only; past market probabilities were not archived into raw_market_data.',
+        'recommended_action': 'Persist market snapshots each heartbeat or add historical Polymarket event replay before backfilling.',
+    },
+}
+
 
 _ECDF_ANCHORS = {
     'feat_eye': (-4.5, 4.5), 'feat_ear': (-0.0005, 0.0005),
@@ -153,6 +204,22 @@ def _is_zero_like(value: Optional[float]) -> bool:
     return value is not None and abs(float(value)) < 1e-12
 
 
+def _source_history_meta(clean_key: str) -> Dict[str, Any]:
+    if clean_key not in SOURCE_FEATURE_KEYS:
+        return {
+            "history_class": "native_timeseries",
+            "backfill_status": "n/a",
+            "backfill_blocker": None,
+            "recommended_action": None,
+        }
+    return SOURCE_HISTORY_POLICIES.get(clean_key, {
+        "history_class": "unknown_source_policy",
+        "backfill_status": "investigate",
+        "backfill_blocker": "Sparse source policy missing from SOURCE_HISTORY_POLICIES.",
+        "recommended_action": "Document the source history contract before treating this coverage gap as a frontend bug.",
+    })
+
+
 def _assess_feature_quality(clean_key: str, coverage_pct: float, distinct: int, non_null: int, min_val, max_val) -> Dict[str, Any]:
     is_4h = clean_key.startswith("4h_")
     min_coverage = 5.0 if is_4h else 60.0
@@ -199,6 +266,7 @@ def _assess_feature_quality(clean_key: str, coverage_pct: float, distinct: int, 
         "quality_label": quality_label,
         "expected_min_coverage": min_coverage,
         "expected_min_distinct": min_distinct,
+        **_source_history_meta(clean_key),
     }
 
 

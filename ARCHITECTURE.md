@@ -26,6 +26,8 @@
 
 **Historical decontamination（Heartbeat #615）**：舊資料若出現「當前 raw row 已缺值，但 features row 仍殘留 sparse-source 值」或 sentinel fallback（如 Claw `ratio=1,total=0`、Nest `0.5`、Fin `0/0`），必須透過 `scripts/cleanup_sparse_source_history.py` 清回 `NULL`，避免 FeatureChart / coverage / 重算流程讀到假歷史訊號。
 
+**Source-history blocker contract（Heartbeat #616）**：對 sparse sources，coverage/report/API/UI 不只回報 `coverage/distinct/quality_flag`，還必須同步回傳 `history_class / backfill_status / backfill_blocker / recommended_action`。若缺口根因是 `archive_required` / `snapshot_only` / `short_window_public_api`，前端應把它視為 source-level blocker，而不是可用前端美化或 carry-forward 修好的歷史線問題。
+
 ### 3. 標籤層
 根據未來報酬建立多 horizon 標籤，並以 `simulated_pyramid_win` 作為 canonical 主 KPI；`label_spot_long_win` 僅保留 path-aware 比較診斷；`sell_win` 僅保留 legacy 相容欄位。
 
