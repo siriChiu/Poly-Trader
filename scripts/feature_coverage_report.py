@@ -45,6 +45,11 @@ def main() -> int:
                 f"{row.get('forward_archive_status', 'missing')}"
                 f" ({'/'.join(row['raw_snapshot_subtypes'])})"
             )
+            latest_status = row.get('raw_snapshot_latest_status')
+            if latest_status and latest_status != 'ok':
+                archive_note += f" · status={latest_status}"
+                if row.get('raw_snapshot_latest_message'):
+                    archive_note += f" ({row['raw_snapshot_latest_message']})"
         freshness = 'n/a'
         if row.get('raw_snapshot_events'):
             freshness = (

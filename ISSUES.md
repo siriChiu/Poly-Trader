@@ -1,20 +1,43 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-09 04:52 UTC — Heartbeat #621（CoinGlass auth-aware blocker surfacing + Nest forward-path fix）*
+*最後更新：2026-04-09 05:11 UTC — Heartbeat #622（source auth blocker quality escalation + FeatureChart/report sync）*
 
-## 📊 系統健康狀態 v4.44
+## 📊 系統健康狀態 v4.45
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **19,784** | 🟢 `hb_parallel_runner.py --fast` 本輪先自動 collect，Raw +1 |
-| Features | **11,170** | 🟢 fast heartbeat 本輪直接推進 Features +1 |
-| Labels | **38,715** | 🟢 canonical horizons 本輪再增 +6 |
+| Raw | **19,785** | 🟢 `hb_parallel_runner.py --fast --hb 622` 本輪先自動 collect，Raw +1 |
+| Features | **11,171** | 🟢 fast heartbeat 本輪直接推進 Features +1 |
+| Labels | **38,717** | 🟢 canonical horizons 本輪再增 +2 |
 || simulated_pyramid_win (1440m) | **61.37%** | 🟢 canonical 24h 分析口徑（`regime_aware_ic.py`, n=9,763） |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
 | 全域 IC | **15/22** | 🟢 維持 |
 | TW-IC | **17/22** | 🟢 維持高檔 |
 | 模型數 | **8** | ✅ |
-| Tests | **6/6** | ✅ 全過 |
+| Verification | **10 pytest + web build + coverage report** | ✅ 本輪已重驗證 |
+
+## 📈 心跳 #622 摘要
+
+### 本輪已驗證 patch
+1. **Source auth blocker 升級為第一級 quality flag**：`feature_engine/feature_history_policy.py` 現在會在 sparse source 最新 snapshot 為 `auth_missing` 或其他非 `ok` 失敗時，直接把 coverage quality 升級成 `source_auth_blocked` / `source_fetch_error`，不再只顯示籠統的 `source_history_gap`。這讓 CoinGlass 類 blocker 會在 API / report / UI 被當成「當前 live fetch 壞掉」而不是「歷史 coverage 低」。 
+2. **FeatureChart hidden chip / tooltip / hidden summary 與 runtime blocker 對齊**：`web/src/components/FeatureChart.tsx` 現在會直接顯示 `auth缺失` / `fetch失敗`、最新 snapshot status/message，以及 archive 進度；前端不再把 Claw / Fin 這類 auth blocker 顯示成單純 coverage 不足。
+3. **Coverage report markdown 同步 latest status**：`scripts/feature_coverage_report.py` 產生的 md/json 報表現在會把 `status=auth_missing (+ message)` 寫進 Forward archive 欄，ISSUES / report / FeatureChart 對同一 blocker 的敘事正式一致。
+
+### 本輪 runtime facts（Heartbeat #622）
+- `python scripts/hb_parallel_runner.py --fast --hb 622`：**Raw 19784→19785 / Features 11170→11171 / Labels 38715→38717**，fast heartbeat 仍先 collect 再診斷，閉環未退化。
+- Canonical diagnostics 維持：**Global IC 15/22 PASS**、**TW-IC 17/22 PASS**；regime-aware IC 維持 **Bear 6/8 / Bull 8/8 / Chop 8/8 / Neutral 1/8**（`simulated_pyramid_win`, n=9,763）。
+- `feature_coverage_report.py` 重新生成後，**Claw / Claw intensity / Fin** 已正式從 generic `source_history_gap` 升級為 **`source_auth_blocked`**；最新 report 直接寫出 `status=auth_missing` 與 CoinGlass credential message，Nest 維持 **33.33% (2/6)** archive-window coverage、Web/Fang/Scales 維持 **100%** recent-window coverage。
+- 這代表 source blocker 目前可分成三層：
+  - **當前 fetch 被 credential 擋住**：Claw / Claw intensity / Fin（CoinGlass）
+  - **forward path 已恢復但 archive 尚未成熟**：Nest
+  - **forward archive 健康、只剩歷史缺口**：Web / Fang / Scales
+- 驗證：`PYTHONPATH=. pytest tests/test_feature_history_policy.py tests/test_api_feature_history_and_predictor.py tests/test_hb_parallel_runner.py -q` → **10 passed**；`python scripts/feature_coverage_report.py` ✅；`cd web && npm run build` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#LOW_COVERAGE_SOURCES**：本輪把 blocker 再收斂成「coverage 問題」與「當前 live fetch 問題」兩條線，避免下一輪又在錯的 gate 空轉：
+  1. **CoinGlass auth blocker is now explicit in quality/UI/report** — 這不是歷史缺口，也不是前端 badge 問題；在 `COINGLASS_API_KEY` 缺失前，Claw / Fin coverage 不可能改善。
+  2. **Nest 已不是 source-dead** — 現在應看 archive-window 是否從 2/6 繼續往上，而不是回頭懷疑 parser/collector。
+  3. **Web / Fang / Scales 下一輪不要再做 live fetch root-cause 排查** — forward archive 已 100%，應直接規劃 historical export / archive loader。
 
 ## 📈 心跳 #621 摘要
 

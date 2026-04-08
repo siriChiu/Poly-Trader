@@ -107,13 +107,17 @@ def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
             "oldest_ts": "2026-04-09T01:00:00+00:00",
             "span_hours": 2.0,
             "latest_age_minutes": 120.0,
+            "latest_status": "auth_missing",
+            "latest_message": "COINGLASS_API_KEY missing",
         }
     })
 
     result = asyncio.run(api_module.api_features_coverage(days=90))
 
     assert result["features"]["claw"]["chart_usable"] is False
-    assert result["features"]["claw"]["quality_flag"] == "source_fallback_zero"
+    assert result["features"]["claw"]["quality_flag"] == "source_auth_blocked"
+    assert result["features"]["claw"]["quality_label"] == "source auth missing; latest snapshots are failing"
+    assert result["features"]["claw"]["reasons"][0] == "source_auth_blocked"
     assert "distinct<10" in result["features"]["claw"]["reasons"]
     assert result["features"]["claw"]["backfill_status"] == "blocked"
     assert result["features"]["claw"]["history_class"] == "archive_required"

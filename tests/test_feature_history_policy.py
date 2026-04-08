@@ -139,5 +139,8 @@ def test_source_blocker_surfaces_auth_missing_snapshot_status(tmp_path: Path):
     claw = next(row for row in payload["features"] if row["key"] == "claw")
 
     assert claw["raw_snapshot_latest_status"] == "auth_missing"
+    assert claw["quality_flag"] == "source_auth_blocked"
+    assert claw["quality_label"] == "source auth missing; latest snapshots are failing"
+    assert claw["reasons"][0] == "source_auth_blocked"
     assert "Latest snapshot status=auth_missing" in claw["backfill_blocker"]
     assert "Configure COINGLASS_API_KEY" in claw["recommended_action"]

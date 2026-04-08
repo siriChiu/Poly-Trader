@@ -72,6 +72,8 @@ interface FeatureCoverageMeta {
   raw_snapshot_oldest_ts?: string | null;
   raw_snapshot_span_hours?: number | null;
   raw_snapshot_latest_age_min?: number | null;
+  raw_snapshot_latest_status?: string | null;
+  raw_snapshot_latest_message?: string | null;
   forward_archive_started?: boolean;
   forward_archive_ready?: boolean;
   forward_archive_stale?: boolean;
@@ -100,19 +102,31 @@ function formatCoverageReason(meta?: FeatureCoverageMeta | null): string {
   const archiveWindowText = meta.archive_window_started
     ? ` · archive-window ${meta.archive_window_coverage_pct?.toFixed(1) ?? "0.0"}% (${meta.archive_window_non_null ?? 0}/${meta.archive_window_rows ?? 0})`
     : "";
+  const statusText = meta.raw_snapshot_latest_status && meta.raw_snapshot_latest_status !== "ok"
+    ? ` · latest ${meta.raw_snapshot_latest_status}${meta.raw_snapshot_latest_message ? ` (${meta.raw_snapshot_latest_message})` : ""}`
+    : "";
   const blockerText = meta.backfill_blocker ? ` · blocker: ${meta.backfill_blocker}` : "";
-  return `${qualityText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}${archiveText}${freshnessText}${archiveWindowText}${blockerText}`;
+  return `${qualityText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}${archiveText}${freshnessText}${archiveWindowText}${statusText}${blockerText}`;
 }
 
 function summarizeCoverageChip(meta?: FeatureCoverageMeta | null): string {
   if (!meta) return "coverage不足";
+  if (meta.quality_flag === "source_auth_blocked") {
+    return `auth缺失 · ${meta.raw_snapshot_events ?? 0}/${meta.forward_archive_ready_min_events ?? 10}`;
+  }
+  if (meta.quality_flag === "source_fetch_error") {
+    return `fetch失敗 · ${meta.raw_snapshot_latest_status ?? "error"}`;
+  }
   if (meta.quality_flag === "source_history_gap" && meta.history_class) {
     if (meta.raw_snapshot_events) {
       const staleBadge = meta.forward_archive_stale ? " · stale" : "";
+      const statusBadge = meta.raw_snapshot_latest_status && meta.raw_snapshot_latest_status !== "ok"
+        ? ` · ${meta.raw_snapshot_latest_status}`
+        : "";
       const archiveWindow = meta.archive_window_started
         ? ` · 最近窗${meta.archive_window_coverage_pct?.toFixed(0) ?? "0"}%`
         : "";
-      return `${meta.coverage_pct.toFixed(0)}% · ${meta.history_class} · ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10}${staleBadge}${archiveWindow}`;
+      return `${meta.coverage_pct.toFixed(0)}% · ${meta.history_class} · ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10}${staleBadge}${statusBadge}${archiveWindow}`;
     }
     return `${meta.coverage_pct.toFixed(0)}% · ${meta.history_class}`;
   }
@@ -619,7 +633,10 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
                 const archive = meta.raw_snapshot_events
                   ? ` / archive ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10} ${meta.forward_archive_status ?? "building"}${meta.raw_snapshot_latest_age_min != null ? ` / last ${meta.raw_snapshot_latest_age_min.toFixed(1)}m` : ""}`
                   : "";
-                return `${label}(${reason}${policy}${archive})`;
+                const latestStatus = meta.raw_snapshot_latest_status && meta.raw_snapshot_latest_status !== "ok"
+                  ? ` / status ${meta.raw_snapshot_latest_status}${meta.raw_snapshot_latest_message ? `: ${meta.raw_snapshot_latest_message}` : ""}`
+                  : "";
+                return `${label}(${reason}${policy}${archive}${latestStatus})`;
               })
               .join(" · ")}
             {hiddenCoverageItems.length > 5 ? " …" : ""}

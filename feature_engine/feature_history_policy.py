@@ -342,6 +342,26 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
     enriched['forward_archive_stale_after_min'] = FORWARD_ARCHIVE_STALE_MINUTES
     enriched['forward_archive_progress_pct'] = round(progress_pct, 1)
 
+    if clean_key in SOURCE_FEATURE_KEYS:
+        latest_status = enriched.get('raw_snapshot_latest_status')
+        latest_message = enriched.get('raw_snapshot_latest_message')
+        if latest_status == 'auth_missing':
+            enriched['quality_flag'] = 'source_auth_blocked'
+            enriched['quality_label'] = 'source auth missing; latest snapshots are failing'
+            reasons = list(enriched.get('reasons', []))
+            if 'source_auth_blocked' not in reasons:
+                reasons.insert(0, 'source_auth_blocked')
+            enriched['reasons'] = reasons
+        elif latest_status and latest_status not in ('ok', 'missing'):
+            enriched['quality_flag'] = 'source_fetch_error'
+            detail = f': {latest_message}' if latest_message else ''
+            enriched['quality_label'] = f'source fetch failing ({latest_status}){detail}'
+            reasons = list(enriched.get('reasons', []))
+            fetch_reason = f'source_fetch_error:{latest_status}'
+            if fetch_reason not in reasons:
+                reasons.insert(0, fetch_reason)
+            enriched['reasons'] = reasons
+
     if clean_key in SOURCE_FEATURE_KEYS and raw_snapshot_events > 0:
         blocker = enriched.get('backfill_blocker')
         latest_status = enriched.get('raw_snapshot_latest_status')
