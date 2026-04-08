@@ -32,15 +32,18 @@ def main() -> int:
         f'- Chart-usable: **{payload["usable_count"]}**',
         f'- Hidden by default: **{payload["hidden_count"]}**',
         '',
-        '| Feature | Coverage | Distinct | Chart usable | Quality | History policy | Next action |',
-        '|---|---:|---:|---|---|---|---|',
+        '| Feature | Coverage | Distinct | Chart usable | Quality | History policy | Forward archive | Next action |',
+        '|---|---:|---:|---|---|---|---|---|',
     ]
     for row in stats:
         notes = ', '.join(row['reasons']) if row['reasons'] else 'ok'
         history_policy = row.get('history_class', 'native_timeseries')
+        archive_note = 'n/a'
+        if row.get('raw_snapshot_subtypes'):
+            archive_note = f"{row.get('raw_snapshot_events', 0)} ({'/'.join(row['raw_snapshot_subtypes'])})"
         next_action = row.get('recommended_action') or notes
         lines.append(
-            f"| {row['key']} | {row['coverage_pct']:.2f}% | {row['distinct']} | {'✅' if row['chart_usable'] else '❌'} | {row['quality_flag']} | {history_policy} | {next_action} |"
+            f"| {row['key']} | {row['coverage_pct']:.2f}% | {row['distinct']} | {'✅' if row['chart_usable'] else '❌'} | {row['quality_flag']} | {history_policy} | {archive_note} | {next_action} |"
         )
     OUT_MD.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 

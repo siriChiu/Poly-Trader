@@ -1,20 +1,42 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-09 03:18 UTC — Heartbeat #617（shared source-history policy + hb fast-mode unblock）*
+*最後更新：2026-04-09 03:31 UTC — Heartbeat #618（forward raw snapshot archive kickoff + claw null hygiene）*
 
-## 📊 系統健康狀態 v4.42
+## 📊 系統健康狀態 v4.43
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **19,778** | 🟢 `hb_collect.py` 本輪再增 +1 |
-| Features | **11,164** | 🟢 新 row 持續直接帶 `regime_label` |
-| Labels | **38,530** | 🟡 canonical horizons 持續增長（240/720/1440） |
+| Raw | **19,779** | 🟢 `hb_collect.py` 本輪再增 +1 |
+| Features | **11,165** | 🟢 新 row 持續直接帶 `regime_label` |
+| Labels | **38,602** | 🟢 canonical horizons 本輪再增 +72 |
 || simulated_pyramid_win (1440m) | **61.37%** | 🟢 canonical 24h 分析口徑（`regime_aware_ic.py`, n=9,763） |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
 | 全域 IC | **15/22** | 🟢 維持 |
 | TW-IC | **17/22** | 🟢 維持高檔 |
 | 模型數 | **8** | ✅ |
 | Tests | **6/6** | ✅ 全過 |
+
+## 📈 心跳 #618 摘要
+
+### 本輪已驗證 patch
+1. **Forward raw snapshot archive kickoff**：`data_ingestion/collector.py` 現在會把 **Claw / Fang / Fin / Web / Scales / Nest / Macro** 寫入 `raw_events` (`*_snapshot`)；source-level blocker 不再只是文件上的待辦，而是正式開始累積可回補的 forward archive。
+2. **Structured JSON archive payloads**：collector 舊有 `raw_events.payload_json` 原本寫 `str(dict)`；本輪統一改成合法 JSON，並把 snapshot event 包成 `{status, snapshot}`，後續 heartbeat / report / API 不必再靠 `ast.literal_eval` 猜格式。
+3. **Claw missing-data hygiene**：`claw_liq_total` 過去在來源缺值時會被寫成 `0`，繼續污染 source-history 判讀；本輪改成「只有有值才加總，否則保持 `None`」，避免把 source outage 假裝成真實零值。
+4. **Coverage/report/runtime sync archive progress**：`feature_history_policy.py`、`/api/features/coverage`、`feature_coverage_report.py`、`hb_parallel_runner.py` 現在會帶出 `raw_snapshot_events / forward_archive_ready`，讓 heartbeat 與 FeatureChart 系列輸出可明確看到「歷史仍缺，但 forward archive 已經開始收集」。
+
+### 本輪 runtime facts（Heartbeat #618）
+- `python scripts/hb_collect.py`：**Raw 19778→19779 / Features 11164→11165 / Labels 38530→38602**，證明主 pipeline 持續可寫。
+- `python scripts/hb618_facts.py` 顯示新的 raw snapshot subtype 已落地：`claw_snapshot=1`, `fang_snapshot=1`, `fin_snapshot=1`, `web_snapshot=1`, `scales_snapshot=1`, `nest_snapshot=1`, `macro_snapshot=1`；修補了先前 **0 個 source snapshot archive event** 的流程缺口。
+- `python scripts/hb_parallel_runner.py --fast --hb 618`：**2/2 PASS (0.9s)**；source blockers 仍是 **8 個**，但前 5 個現在都能直接看到 `forward_archive=1`，表示 blocker 已從「完全沒 archive」升級成「歷史仍缺，但 forward collection 正在累積」。
+- Canonical diagnostics 維持：**Global IC 15/22 PASS**、**TW-IC 17/22 PASS**；regime-aware IC 仍為 **Bear 6/8 / Bull 8/8 / Chop 8/8 / Neutral 1/8**（`simulated_pyramid_win`）。
+- `feature_coverage_report.py` 現在會把 sparse source 的 **Forward archive** 欄位寫進 md/json；coverage 本身尚未立即變高，因為這輪只是開始累積 forward history，不是回填舊歷史。
+- 驗證：`PYTHONPATH=. pytest tests/test_collector_snapshot_archives.py tests/test_sparse_source_fallbacks.py tests/test_feature_history_policy.py tests/test_hb_parallel_runner.py tests/test_api_feature_history_and_predictor.py -q` → **11 passed**；`python scripts/hb_collect.py` ✅；`python scripts/feature_coverage_report.py` ✅；`python scripts/hb_parallel_runner.py --fast --hb 618` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#LOW_COVERAGE_SOURCES**：本輪不再只是說「下一輪要做 raw snapshot/archive ingestion」；forward snapshot archive 已正式接上 `raw_events`。剩餘 blocker 已收斂成：
+  1. **歷史缺口仍在**：Claw / Fin 需要真正 historical export；Fang / Scales / Nest 仍只有從本輪開始累積的 snapshot archive；Web 仍受短窗口 public API 限制。
+  2. **這輪解的是流程缺口，不是立即補齊 coverage**：coverage 指標不會因一輪 snapshot 立刻從 0%/15% 變成可用，但之後每輪 heartbeat 不再是空轉。
+  3. **下一輪不能退回只修顯示層**：要嘛持續累積 forward archive，要嘛開始做 archive/backfill loader；不能再把 sparse-source 問題當成單純 FeatureChart badge 問題。
 
 ## 📈 心跳 #617 摘要
 
@@ -270,7 +292,7 @@
 | #EAR_LOW_VAR | feat_ear std=0.0029, unique=13（準離散特徵）| ⚠️ 持續 |
 | #TONGUE_LOW_VAR | feat_tongue std=0.0016, unique=9（準離散特徵）| ⚠️ 持續 |
 | #LABELS_JUMP | Labels 從 18,052 跳增至 27,684（+53%）原因未明 | ✅ 已定位（hb_collect pipeline 重建 labels；後續以 24h/canonical horizon 管理，不再視為隨機跳增） |
-| #LOW_COVERAGE_SOURCES | Fin / Fang / Web / Scales / Nest / Claw coverage 低，且歷史上混有假 0 與 stale carry-forward | 🟡 已部分修復並升級 blocker（#615 已清除假值污染；#616 再把剩餘缺口明確分類成 `archive_required / snapshot_only / short_window_public_api`。下一步必須做 source-level raw snapshot/archive ingestion，不能再把它當前端圖表問題） |
+| #LOW_COVERAGE_SOURCES | Fin / Fang / Web / Scales / Nest / Claw coverage 低，且歷史上混有假 0 與 stale carry-forward | 🟡 已部分修復並進入 forward-archive 階段（#615 已清除假值污染；#616 完成 blocker 分類；#618 已把 `*_snapshot` 正式寫入 `raw_events` 並在 coverage/report/runtime 顯示 `raw_snapshot_events`。下一步是持續累積 forward archive，並補 historical export/backfill loader） |
 | #FEATURECHART_QUALITY_SIGNAL | FeatureChart 對低 coverage 特徵只顯示模糊 badge，使用者無法判斷是 coverage、distinct 還是 source fallback / source-history blocker 問題 | ✅ 已修復（#614 已顯示 `quality_flag / quality_label`；#616 再把 `history_class / backfill_status / backfill_blocker / recommended_action` 帶到 coverage API 與 hidden legend，前端現在能直接區分 frontend 隱藏與 source-level blocker） |
 | #FINAL_CLOSE_LABEL_NOISE | final-close-only TP threshold 會把「曾 hit TP 但收盤回落」的可交易 setup 誤標為失敗 | ✅ 已修復（spot_long_win 已改為 path-aware label，並已重建實際 labels） |
 | #LABEL_PATH_MISMATCH | 標籤語義與現貨金字塔執行路徑不一致，只看 horizon 結束點 | 🟡 已部分修復（path-aware + simulated pyramid labels 均已上線，#615 再修 model leaderboard loader，不再用 `label_spot_long_win` gate 掉 canonical simulated rows；下一步是把剩餘 legacy 報表/欄位命名完全去污） |

@@ -100,6 +100,7 @@ def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
         SimpleNamespace(timestamp=object(), feat_eye=0.3, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-1.0, feat_4h_ma_order=1.0),
     ]
     monkeypatch.setattr(api_module, "get_db", lambda: _FakeSession(rows))
+    monkeypatch.setattr(api_module, "_compute_raw_snapshot_counts", lambda db: {"claw_snapshot": 3})
 
     result = asyncio.run(api_module.api_features_coverage(days=90))
 
@@ -108,7 +109,10 @@ def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
     assert "distinct<10" in result["features"]["claw"]["reasons"]
     assert result["features"]["claw"]["backfill_status"] == "blocked"
     assert result["features"]["claw"]["history_class"] == "archive_required"
+    assert result["features"]["claw"]["raw_snapshot_events"] == 3
+    assert result["features"]["claw"]["forward_archive_ready"] is True
     assert "CoinGlass" in result["features"]["claw"]["backfill_blocker"]
+    assert "Forward raw snapshot collection has started" in result["features"]["claw"]["backfill_blocker"]
     assert result["features"]["4h_bias50"]["chart_usable"] is False
     assert result["features"]["4h_bias50"]["quality_flag"] == "low_distinct"
     assert result["features"]["4h_bias50"]["backfill_status"] == "n/a"

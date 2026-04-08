@@ -24,6 +24,17 @@ SOURCE_FEATURE_KEYS = {
     'web_whale', 'scales_ssr', 'nest_pred',
 }
 
+SOURCE_SNAPSHOT_SUBTYPES = {
+    'claw': ('claw_snapshot',),
+    'claw_intensity': ('claw_snapshot',),
+    'fang_pcr': ('fang_snapshot',),
+    'fang_skew': ('fang_snapshot',),
+    'fin_netflow': ('fin_snapshot',),
+    'web_whale': ('web_snapshot',),
+    'scales_ssr': ('scales_snapshot',),
+    'nest_pred': ('nest_snapshot',),
+}
+
 SOURCE_HISTORY_POLICIES = {
     'claw': {
         'history_class': 'archive_required',
@@ -147,9 +158,48 @@ def assess_feature_quality(clean_key: str, coverage_pct: float, distinct: int, n
     }
 
 
+def compute_raw_snapshot_counts(conn: sqlite3.Connection) -> Dict[str, int]:
+    table_exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='raw_events'"
+    ).fetchone()
+    if not table_exists:
+        return {}
+    rows = conn.execute(
+        'SELECT subtype, COUNT(*) FROM raw_events GROUP BY subtype'
+    ).fetchall()
+    return {str(subtype): int(count) for subtype, count in rows}
+
+
+def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapshot_counts: Dict[str, int] | None = None) -> Dict[str, Any]:
+    snapshot_counts = snapshot_counts or {}
+    subtypes = list(SOURCE_SNAPSHOT_SUBTYPES.get(clean_key, ()))
+    raw_snapshot_events = sum(snapshot_counts.get(subtype, 0) for subtype in subtypes)
+    enriched = dict(quality)
+    enriched['raw_snapshot_subtypes'] = subtypes
+    enriched['raw_snapshot_events'] = raw_snapshot_events
+    enriched['forward_archive_ready'] = raw_snapshot_events > 0
+
+    if clean_key in SOURCE_FEATURE_KEYS and raw_snapshot_events > 0:
+        blocker = enriched.get('backfill_blocker')
+        blocker_note = (
+            f' Forward raw snapshot collection has started ({raw_snapshot_events} stored event(s) '
+            f'across {", ".join(subtypes)}), but historical rows before the archive cutoff are still missing.'
+        )
+        if blocker and blocker_note.strip() not in blocker:
+            enriched['backfill_blocker'] = blocker + blocker_note
+        action = enriched.get('recommended_action') or ''
+        enriched['recommended_action'] = (
+            'Keep heartbeat collection running to accumulate forward raw snapshots; '
+            'add historical export/API archive if you need to backfill rows before the archive cutoff.'
+        ) if action else 'Keep heartbeat collection running to accumulate forward raw snapshots.'
+
+    return enriched
+
+
 def compute_sqlite_feature_coverage(db_path: str | Path) -> Dict[str, Any]:
     conn = sqlite3.connect(str(db_path))
     cur = conn.cursor()
+    snapshot_counts = compute_raw_snapshot_counts(conn)
     total_rows = cur.execute('SELECT COUNT(*) FROM features_normalized').fetchone()[0]
     stats = []
     for db_key, clean_key in FEATURE_KEY_MAP.items():
@@ -165,6 +215,7 @@ def compute_sqlite_feature_coverage(db_path: str | Path) -> Dict[str, Any]:
             min_v,
             max_v,
         )
+        quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts)
         stats.append({
             'db_key': db_key,
             'key': clean_key,
@@ -207,6 +258,8 @@ def build_source_blocker_summary(feature_rows: Sequence[Dict[str, Any]] | Dict[s
                 'quality_flag': row.get('quality_flag'),
                 'backfill_blocker': row.get('backfill_blocker'),
                 'recommended_action': row.get('recommended_action'),
+                'raw_snapshot_events': row.get('raw_snapshot_events', 0),
+                'forward_archive_ready': row.get('forward_archive_ready', False),
             }
             for row in blocked
         ],

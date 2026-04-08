@@ -14,8 +14,13 @@ from datetime import datetime, timedelta
 
 from server.dependencies import get_db, get_config, is_automation_enabled, set_automation_enabled
 from server.features_engine import get_engine
-from database.models import TradeHistory, RawMarketData, FeaturesNormalized
-from feature_engine.feature_history_policy import FEATURE_KEY_MAP, assess_feature_quality
+from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized
+from feature_engine.feature_history_policy import (
+    FEATURE_KEY_MAP,
+    SOURCE_SNAPSHOT_SUBTYPES,
+    assess_feature_quality,
+    attach_forward_archive_meta,
+)
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -110,6 +115,19 @@ def normalize_for_api(raw_val, db_key):
 
 
 
+def _compute_raw_snapshot_counts(db) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    try:
+        for subtype_group in SOURCE_SNAPSHOT_SUBTYPES.values():
+            for subtype in subtype_group:
+                if subtype in counts:
+                    continue
+                counts[subtype] = db.query(RawEvent).filter(RawEvent.subtype == subtype).count()
+    except Exception:
+        return {}
+    return counts
+
+
 def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
     since = datetime.utcnow() - timedelta(days=days)
     rows = (
@@ -118,6 +136,7 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
         .order_by(FeaturesNormalized.timestamp)
         .all()
     )
+    snapshot_counts = _compute_raw_snapshot_counts(db)
     total_rows = len(rows)
     feature_stats: Dict[str, Any] = {}
     for db_key, clean_key in FEATURE_KEY_MAP.items():
@@ -128,6 +147,7 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
         min_val = min(non_null_values) if non_null_values else None
         max_val = max(non_null_values) if non_null_values else None
         quality = assess_feature_quality(clean_key, coverage_pct, distinct, len(non_null_values), min_val, max_val)
+        quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts)
         feature_stats[clean_key] = {
             "db_key": db_key,
             "non_null": len(non_null_values),

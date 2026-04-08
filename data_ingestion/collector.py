@@ -5,6 +5,7 @@
 - 保留舊 raw_market_data 寫入路徑
 """
 
+import json
 import sys
 from pathlib import Path
 _PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -34,6 +35,19 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 
+def _json_payload(payload) -> str | None:
+    if payload is None:
+        return None
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _sum_optional(*values):
+    numeric = [float(v) for v in values if v is not None]
+    if not numeric:
+        return None
+    return float(sum(numeric))
+
+
 def _raw_event(source: str, entity: str, subtype: str, value, confidence=0.5, quality_score=0.5, payload_json=None, language=None, region=None):
     return RawEvent(
         timestamp=datetime.utcnow(),
@@ -43,9 +57,26 @@ def _raw_event(source: str, entity: str, subtype: str, value, confidence=0.5, qu
         value=value,
         confidence=confidence,
         quality_score=quality_score,
-        payload_json=payload_json,
+        payload_json=_json_payload(payload_json),
         language=language,
         region=region,
+    )
+
+
+def _snapshot_event(source: str, entity: str, subtype: str, snapshot: Dict, *, value_key: str | None = None, confidence: float = 0.6):
+    value = snapshot.get(value_key) if value_key else None
+    has_signal = any(v is not None for v in snapshot.values())
+    return _raw_event(
+        source,
+        entity,
+        subtype,
+        value,
+        confidence=confidence,
+        quality_score=1.0 if has_signal else 0.0,
+        payload_json={
+            "status": "ok" if has_signal else "missing",
+            "snapshot": snapshot,
+        },
     )
 
 
@@ -115,7 +146,7 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
 
     # Actually map new feature to RawMarketData columns
     record.claw_liq_ratio = claw.get("claw_ratio")
-    record.claw_liq_total = claw.get("claw_long_liq", 0) + claw.get("claw_short_liq", 0)
+    record.claw_liq_total = _sum_optional(claw.get("claw_long_liq"), claw.get("claw_short_liq"))
     record.fang_pcr = fang.get("fang_raw_pcr")
     record.fang_iv_skew = fang.get("fang_iv_skew_raw")
     fin_val = fin.get("fin_raw_netflow")
@@ -127,12 +158,23 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
     record.nest_pred = nest.get("nest_raw_prob")
 
     record._raw_events = [
-        _raw_event("exchange", symbol, "price", eye.get("current_price"), confidence=0.9, payload_json=str(eye)),
-        _raw_event("exchange", symbol, "volume", eye.get("volume"), confidence=0.9, payload_json=str(eye)),
-        _raw_event("exchange", symbol, "funding", nose.get("funding_rate_raw"), confidence=0.9, payload_json=str(nose)),
-        _raw_event("prediction", symbol, "polymarket_prob", ear_prob_val, confidence=0.8, payload_json=str(ear)),
-        _raw_event("sentiment", symbol, "fear_greed", tongue.get("fear_greed_index"), confidence=0.7, payload_json=str(tongue)),
-        _raw_event("derivatives", symbol, "oi_roc", oi_roc, confidence=0.8, payload_json=str(derivatives)),
+        _raw_event("exchange", symbol, "price", eye.get("current_price"), confidence=0.9, payload_json=eye),
+        _raw_event("exchange", symbol, "volume", eye.get("volume"), confidence=0.9, payload_json=eye),
+        _raw_event("exchange", symbol, "funding", nose.get("funding_rate_raw"), confidence=0.9, payload_json=nose),
+        _raw_event("prediction", symbol, "polymarket_prob", ear_prob_val, confidence=0.8, payload_json=ear),
+        _raw_event("sentiment", symbol, "fear_greed", tongue.get("fear_greed_index"), confidence=0.7, payload_json=tongue),
+        _raw_event("derivatives", symbol, "oi_roc", oi_roc, confidence=0.8, payload_json=derivatives),
+        _snapshot_event("liquidation", symbol, "claw_snapshot", claw, value_key="claw_ratio", confidence=0.7),
+        _snapshot_event("options", symbol, "fang_snapshot", fang, value_key="fang_raw_pcr", confidence=0.7),
+        _snapshot_event("etf_flow", symbol, "fin_snapshot", fin, value_key="fin_raw_netflow", confidence=0.7),
+        _snapshot_event("whale", symbol, "web_snapshot", web, value_key="web_sell_ratio", confidence=0.6),
+        _snapshot_event("stablecoin", symbol, "scales_snapshot", scales, value_key="scales_total_stablecap_m", confidence=0.6),
+        _snapshot_event("prediction", symbol, "nest_snapshot", nest, value_key="nest_raw_prob", confidence=0.7),
+        _snapshot_event("macro", symbol, "macro_snapshot", {
+            "vix_value": macro.get("vix_value"),
+            "dxy_value": macro.get("dxy_value"),
+            "nq_value": macro.get("nq_value"),
+        }, value_key="vix_value", confidence=0.7),
     ]
 
     logger.info(

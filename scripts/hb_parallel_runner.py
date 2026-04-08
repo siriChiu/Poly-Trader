@@ -131,9 +131,12 @@ def print_source_blockers(source_blockers: Dict[str, Any]) -> None:
         f"{source_blockers.get('counts_by_history_class', {})}"
     )
     for row in blocked[:5]:
+        archive_note = ""
+        if row.get("raw_snapshot_events"):
+            archive_note = f" | forward_archive={row['raw_snapshot_events']}"
         print(
             f"   - {row['key']}: {row['history_class']} | "
-            f"coverage={row.get('coverage_pct', 0)}% | {row['recommended_action']}"
+            f"coverage={row.get('coverage_pct', 0)}%{archive_note} | {row['recommended_action']}"
         )
     if len(blocked) > 5:
         print(f"   - ... {len(blocked) - 5} more blocked sparse features")
