@@ -88,7 +88,7 @@ _ECDF_ANCHORS = {
 
 
 def normalize_for_api(raw_val, db_key):
-    """ECDF 正規化: p5→0.05, p95→0.95"""
+    """Soft ECDF normalization for feature history API."""
     if raw_val is None:
         return None
     anchors = _ECDF_ANCHORS.get(db_key)
@@ -98,8 +98,16 @@ def normalize_for_api(raw_val, db_key):
     span = p95 - p5
     if span < 1e-10:
         return 0.5
-    clamped = max(p5, min(p95, raw_val))
-    return round(0.05 + 0.90 * (clamped - p5) / span, 4)
+    soft_margin = span * 0.5
+    soft_lo = p5 - soft_margin
+    soft_hi = p95 + soft_margin
+    if raw_val <= p5:
+        v = max(soft_lo, raw_val)
+        return round(0.02 + 0.08 * (v - soft_lo) / max(p5 - soft_lo, 1e-10), 4)
+    if raw_val >= p95:
+        v = min(soft_hi, raw_val)
+        return round(0.90 + 0.08 * (v - p95) / max(soft_hi - p95, 1e-10), 4)
+    return round(0.10 + 0.80 * (raw_val - p5) / span, 4)
 
 
 # ─── API Endpoints ───
@@ -738,8 +746,8 @@ async def api_save_strategy(body: Dict[str, Any]):
 # ═══════════════════════════════════════════════
 # Model Leaderboard API
 # ═══════════════════════════════════════════════
-# 8 個模型：Rule Baseline, LogisticRegression, XGBoost, LightGBM,
-#           RandomForest, MLP, SVM, Ensemble
+# 9 個模型：Rule Baseline, LogisticRegression, XGBoost, LightGBM,
+#           CatBoost, RandomForest, MLP, SVM, Ensemble
 # 全部在固定金字塔框架 + Walk-Forward 驗證下比較
 # ═══════════════════════════════════════════════
 
@@ -747,8 +755,8 @@ async def api_save_strategy(body: Dict[str, Any]):
 async def api_model_leaderboard():
     """回傳所有 ML 模型的 Walk-Forward Leaderboard
     
-    包含：XGBoost, LightGBM, RandomForest, LogisticRegression,
-          MLP (Neural Net), SVM (RBF), Ensemble, Rule Baseline
+    包含：XGBoost, LightGBM, CatBoost, RandomForest,
+          LogisticRegression, MLP (Neural Net), SVM (RBF), Ensemble, Rule Baseline
     """
     from backtesting.model_leaderboard import ModelLeaderboard
 
@@ -762,7 +770,7 @@ async def api_model_leaderboard():
     lb = ModelLeaderboard(df)
     results = lb.run_all_models([
         "rule_baseline", "logistic_regression", "xgboost",
-        "lightgbm", "random_forest", "mlp", "svm"
+        "lightgbm", "catboost", "random_forest", "mlp", "svm"
     ])
 
     leaderboard = []

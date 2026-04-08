@@ -1,12 +1,11 @@
 /**
  * Senses — 特徵管理頁面
- * 每個特徵一個卡片，可調整子模組權重、啟用/停用
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import SenseModule from "../components/SenseModule";
 import RadarChart from "../components/RadarChart";
 import { useApi, fetchApi } from "../hooks/useApi";
-import { ALL_SENSES, getSenseConfig } from "../config/senses";
+import { ALL_SENSES, FEATURE_GROUPS, getSenseConfig, type FeatureGroupKey } from "../config/senses";
 
 interface ModelStats {
   sample_count: number;
@@ -25,7 +24,7 @@ interface SenseModuleData {
 
 interface SenseData {
   name: string;
-  emoji: string;
+  emoji?: string;
   description: string;
   modules: Record<string, SenseModuleData>;
   score: number;
@@ -33,10 +32,17 @@ interface SenseData {
 
 type SensesConfig = Record<string, SenseData>;
 
-// Use dynamic colors from ALL_SENSES config
 const SENSE_COLORS = Object.fromEntries(
   Object.entries(ALL_SENSES).map(([k, v]) => [k, v.color])
 );
+
+const GROUP_ORDER: FeatureGroupKey[] = ["microstructure", "technical", "macro", "structure4h"];
+
+const formatScore = (score?: number | null) =>
+  typeof score === "number" && Number.isFinite(score) ? `${(score * 100).toFixed(0)}` : "—";
+
+const formatIc = (value?: number) =>
+  typeof value === "number" && Number.isFinite(value) ? `${value > 0 ? "+" : ""}${value.toFixed(3)}` : "—";
 
 export default function Senses() {
   const { data: config, refresh } = useApi<SensesConfig>("/api/senses/config");
@@ -45,7 +51,6 @@ export default function Senses() {
   const [saving, setSaving] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>("");
 
-  // Initialize preview scores
   useEffect(() => {
     if (config) {
       const scores: Record<string, number> = {};
@@ -64,9 +69,7 @@ export default function Senses() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sense: senseKey, module: moduleKey, enabled }),
       });
-      if (resp.scores) {
-        setPreviewScores(resp.scores);
-      }
+      if (resp.scores) setPreviewScores(resp.scores);
       setLastUpdate(new Date().toLocaleTimeString("zh-TW"));
       refresh();
     } catch (e) {
@@ -76,24 +79,40 @@ export default function Senses() {
   }, [refresh]);
 
   const handleWeightChange = useCallback(async (senseKey: string, moduleKey: string, weight: number) => {
-    // Optimistic update
-    setPreviewScores((prev) => ({ ...prev }));
-
     try {
       const resp = await fetchApi<any>("/api/senses/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sense: senseKey, module: moduleKey, weight }),
       });
-      if (resp.scores) {
-        setPreviewScores(resp.scores);
-      }
+      if (resp.scores) setPreviewScores(resp.scores);
       setLastUpdate(new Date().toLocaleTimeString("zh-TW"));
       refresh();
     } catch (e) {
       console.error("Weight change failed:", e);
     }
   }, [refresh]);
+
+  const groupedFeatures = useMemo(() => {
+    if (!config) return [] as Array<[FeatureGroupKey, Array<[string, SenseData]>]>;
+    const groupMap = new Map<FeatureGroupKey, Array<[string, SenseData]>>();
+    for (const groupKey of GROUP_ORDER) groupMap.set(groupKey, []);
+    for (const [senseKey, sense] of Object.entries(config)) {
+      const meta = getSenseConfig(senseKey);
+      const bucket = groupMap.get(meta.category) ?? [];
+      bucket.push([senseKey, sense]);
+      groupMap.set(meta.category, bucket);
+    }
+    return GROUP_ORDER
+      .map((groupKey) => [groupKey, (groupMap.get(groupKey) ?? []).sort((a, b) => getSenseConfig(a[0]).name.localeCompare(getSenseConfig(b[0]).name, "zh-Hant"))] as [FeatureGroupKey, Array<[string, SenseData]>])
+      .filter(([, items]) => items.length > 0);
+  }, [config]);
+
+  const averageScore = useMemo(() => {
+    const values = Object.values(previewScores);
+    if (values.length === 0) return 0;
+    return Math.round(values.reduce((a, b) => a + b, 0) / values.length * 100);
+  }, [previewScores]);
 
   if (!config) {
     return (
@@ -105,82 +124,109 @@ export default function Senses() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-slate-100">🎛️ 特徵管理</h2>
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-100">🎛️ 特徵管理</h2>
+          <p className="text-sm text-slate-500">把特徵改成「市場面向」來看：短線微結構、技術指標、宏觀風險、4H 結構。</p>
+        </div>
         <div className="flex items-center gap-3 text-sm">
           {saving && <span className="text-blue-400 animate-pulse">儲存中...</span>}
-          {lastUpdate && (
-            <span className="text-slate-500">上次更新: {lastUpdate}</span>
-          )}
+          {lastUpdate && <span className="text-slate-500">上次更新: {lastUpdate}</span>}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Radar preview */}
-        <div className="lg:col-span-1 bg-slate-900/50 rounded-xl border border-slate-700/50 p-4 flex flex-col items-center justify-center">
-          <h3 className="text-sm font-semibold text-slate-400 mb-3 self-start">即時預覽</h3>
-          <RadarChart scores={previewScores} size={260} />
-          <div className="mt-3 text-center">
-            <div className="text-3xl font-mono font-bold text-slate-200">
-              {Math.round(Object.values(previewScores).reduce((a, b) => a + b, 0) / Math.max(Object.keys(previewScores).length, 1) * 100)}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div className="xl:col-span-4 space-y-4">
+          <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-5 flex flex-col items-center">
+            <div className="flex items-center justify-between w-full mb-3">
+              <h3 className="text-sm font-semibold text-slate-300">即時雷達預覽</h3>
+              <span className="text-xs text-slate-500">標籤已改為市場語義短名</span>
             </div>
-            <div className="text-xs text-slate-500">綜合分數</div>
+            <RadarChart scores={previewScores} size={420} />
+            <div className="mt-3 text-center">
+              <div className="text-4xl font-mono font-bold text-slate-100">{averageScore}</div>
+              <div className="text-xs text-slate-500">綜合分數</div>
+            </div>
+          </div>
+
+          <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-5">
+            <h3 className="text-sm font-semibold text-slate-300 mb-3">特徵面向說明</h3>
+            <div className="space-y-3">
+              {GROUP_ORDER.map((groupKey) => (
+                <div key={groupKey} className="rounded-lg border border-slate-700/50 bg-slate-800/40 p-3">
+                  <div className="text-sm font-semibold text-slate-200">{FEATURE_GROUPS[groupKey].label}</div>
+                  <div className="text-xs text-slate-500 mt-1">{FEATURE_GROUPS[groupKey].description}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Right: Sense cards */}
-        <div className="lg:col-span-2 space-y-4">
-          {Object.entries(config).map(([senseKey, sense]) => (
-            <div
-              key={senseKey}
-              className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4"
-            >
-              {/* Sense header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{sense.emoji}</span>
-                  <div>
-                    <span className="text-base font-bold text-slate-200">{sense.name}</span>
-                    <span className="text-xs text-slate-500 ml-2">{sense.description}</span>
-                  </div>
+        <div className="xl:col-span-8 space-y-5">
+          {groupedFeatures.map(([groupKey, items]) => (
+            <section key={groupKey} className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-200">{FEATURE_GROUPS[groupKey].label}</h3>
+                  <p className="text-xs text-slate-500">{FEATURE_GROUPS[groupKey].description}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="text-2xl font-mono font-bold"
-                    style={{ color: SENSE_COLORS[senseKey] }}
-                  >
-                    {((previewScores[senseKey] ?? sense.score ?? 0.5) * 100).toFixed(0)}
-                  </div>
-                  {modelStats?.ic_values?.[senseKey] !== undefined && (
-                    <span className={"text-xs px-1.5 py-0.5 rounded font-mono " + (
-                      Math.abs(modelStats.ic_values[senseKey]) > 0.2 ? "bg-green-900/40 text-green-400" :
-                      Math.abs(modelStats.ic_values[senseKey]) > 0.05 ? "bg-yellow-900/40 text-yellow-400" :
-                      "bg-red-900/40 text-red-400"
-                    )}>
-                      IC {modelStats.ic_values[senseKey] > 0 ? "+" : ""}{modelStats.ic_values[senseKey].toFixed(3)}
-                    </span>
-                  )}
-                </div>
+                <span className="text-xs text-slate-500">{items.length} 個特徵</span>
               </div>
 
-              {/* Modules */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {Object.entries(sense.modules).map(([modKey, mod]) => (
-                  <SenseModule
-                    key={modKey}
-                    moduleName={mod.name}
-                    source={mod.source}
-                    description={mod.description}
-                    value={mod.value}
-                    weight={mod.weight}
-                    enabled={mod.enabled}
-                    color={SENSE_COLORS[senseKey]}
-                    onToggle={(enabled) => handleToggle(senseKey, modKey, enabled)}
-                    onWeightChange={(weight) => handleWeightChange(senseKey, modKey, weight)}
-                  />
-                ))}
-              </div>
-            </div>
+              {items.map(([senseKey, sense]) => {
+                const meta = getSenseConfig(senseKey);
+                const liveScore = previewScores[senseKey] ?? sense.score ?? 0.5;
+                const icValue = modelStats?.ic_values?.[senseKey];
+                return (
+                  <div key={senseKey} className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4">
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between mb-3">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-base font-bold text-slate-100">{meta.name}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[11px] bg-slate-800 text-slate-400 border border-slate-700/60">
+                            {FEATURE_GROUPS[meta.category].label}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-400">{meta.description}</p>
+                        <p className="text-xs leading-6 text-slate-500">{meta.meaning}</p>
+                      </div>
+
+                      <div className="min-w-[170px] rounded-lg border border-slate-700/50 bg-slate-800/40 px-4 py-3">
+                        <div className="flex items-end justify-between gap-2">
+                          <div>
+                            <div className="text-xs text-slate-500">即時分數</div>
+                            <div className="text-3xl font-mono font-bold" style={{ color: meta.color }}>{formatScore(liveScore)}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-slate-500">IC</div>
+                            <div className={`text-sm font-mono ${typeof icValue === "number" && Math.abs(icValue) > 0.05 ? "text-green-400" : "text-slate-400"}`}>
+                              {formatIc(icValue)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {Object.entries(sense.modules).map(([modKey, mod]) => (
+                        <SenseModule
+                          key={modKey}
+                          moduleName={mod.name}
+                          source={mod.source}
+                          description={mod.description}
+                          value={mod.value}
+                          weight={mod.weight}
+                          enabled={mod.enabled}
+                          color={SENSE_COLORS[senseKey]}
+                          onToggle={(enabled) => handleToggle(senseKey, modKey, enabled)}
+                          onWeightChange={(weight) => handleWeightChange(senseKey, modKey, weight)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </section>
           ))}
         </div>
       </div>

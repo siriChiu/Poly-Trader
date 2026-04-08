@@ -100,3 +100,7 @@ def test_load_model_leaderboard_frame_falls_back_to_timestamp_join(leaderboard_d
     assert not df.empty
     assert df.loc[0, "label_spot_long_win"] == 1
     assert df.loc[0, "close_price"] == 50000.0
+
+
+def test_supported_models_includes_catboost():
+    assert "catboost" in ModelLeaderboard.SUPPORTED_MODELS

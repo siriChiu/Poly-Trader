@@ -61,7 +61,7 @@ class ModelLeaderboard:
 
     SUPPORTED_MODELS = [
         'rule_baseline', 'logistic_regression', 'xgboost',
-        'lightgbm', 'random_forest', 'mlp', 'svm', 'ensemble'
+        'lightgbm', 'catboost', 'random_forest', 'mlp', 'svm', 'ensemble'
     ]
 
     def __init__(self, data_df: pd.DataFrame):
@@ -166,6 +166,18 @@ class ModelLeaderboard:
                     n_estimators=200, max_depth=6, learning_rate=0.05,
                     num_leaves=31, reg_alpha=0.1, reg_lambda=1.0,
                     random_state=42, verbose=-1
+                )
+                m.fit(X_train, y_train)
+                return m
+            except ImportError:
+                return None
+        elif model_name == 'catboost':
+            try:
+                from catboost import CatBoostClassifier
+                m = CatBoostClassifier(
+                    iterations=300, depth=4, learning_rate=0.05,
+                    l2_leaf_reg=5.0, loss_function='Logloss',
+                    random_seed=42, verbose=False
                 )
                 m.fit(X_train, y_train)
                 return m

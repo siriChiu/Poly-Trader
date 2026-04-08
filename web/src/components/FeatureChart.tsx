@@ -22,6 +22,7 @@ import {
   AreaChart,
 } from "recharts";
 import { fetchApi } from "../hooks/useApi";
+import { getSenseConfig } from "../config/senses";
 
 // ─── Types ───
 
@@ -76,14 +77,14 @@ interface MergedPoint {
 // ─── Constants ───
 
 const FEATURE_CONFIG: Record<string, { label: string; color: string; key: keyof MergedPoint }> = {
-  eye:    { label: "👁️ 眼", color: "#3b82f6", key: "eye" },
-  ear:    { label: "👂 耳", color: "#8b5cf6", key: "ear" },
-  nose:   { label: "👃 鼻", color: "#f59e0b", key: "nose" },
-  tongue: { label: "👅 舌", color: "#ec4899", key: "tongue" },
-  body:   { label: "💪 身", color: "#14b8a6", key: "body" },
-  pulse:  { label: "💓 脈", color: "#ef4444", key: "pulse" },
-  aura:   { label: "🌀 磁", color: "#a855f7", key: "aura" },
-  mind:   { label: "🧠 知", color: "#06b6d4", key: "mind" },
+  eye:    { label: getSenseConfig("eye").name, color: getSenseConfig("eye").color, key: "eye" },
+  ear:    { label: getSenseConfig("ear").name, color: getSenseConfig("ear").color, key: "ear" },
+  nose:   { label: getSenseConfig("nose").name, color: getSenseConfig("nose").color, key: "nose" },
+  tongue: { label: getSenseConfig("tongue").name, color: getSenseConfig("tongue").color, key: "tongue" },
+  body:   { label: getSenseConfig("body").name, color: getSenseConfig("body").color, key: "body" },
+  pulse:  { label: getSenseConfig("pulse").name, color: getSenseConfig("pulse").color, key: "pulse" },
+  aura:   { label: getSenseConfig("aura").name, color: getSenseConfig("aura").color, key: "aura" },
+  mind:   { label: getSenseConfig("mind").name, color: getSenseConfig("mind").color, key: "mind" },
 };
 
 const TIMEFRAMES = [

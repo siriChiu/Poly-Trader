@@ -186,11 +186,14 @@ export default function Dashboard() {
       </div>
 
       {/* Row 1: Radar + Advice */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Left: Pentagon Radar */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-4">
+        {/* Left: Radar */}
         <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-5 flex flex-col items-center">
           <div className="flex items-center justify-between w-full mb-3">
-            <h2 className="text-sm font-semibold text-slate-400">🎯 多特徵雷達圖</h2>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-300">🎯 多特徵雷達圖</h2>
+              <div className="text-xs text-slate-500 mt-1">已改用市場語義短標籤，避免舊感官命名與文字重疊。</div>
+            </div>
             <span className="text-xs text-slate-500 cursor-pointer hover:text-slate-300"
               onClick={() => setSelectedSense(null)}>
               點擊特徵看走勢
@@ -205,7 +208,7 @@ export default function Dashboard() {
               </button>
             </div>
           ) : (
-            <RadarChart scores={scores} size={280} onSenseClick={setSelectedSense} />
+            <RadarChart scores={scores} size={380} onSenseClick={setSelectedSense} />
           )}
         </div>
 

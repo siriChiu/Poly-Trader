@@ -123,12 +123,27 @@ CONFIG_PATH = Path(__file__).parent.parent / "data" / "features_config.json"
 
 
 def ecdf_normalize(value: float, p_lo: float, p_hi: float) -> float:
-    """ECDF: p_lo → 0.05, p_hi → 0.95, linear clip outside."""
-    v = max(p_lo, min(p_hi, value))
+    """Soft ECDF normalization.
+
+    Instead of hard-clipping everything below/above p5/p95 to 0.05/0.95,
+    extend the usable range so extreme values still retain some separation.
+    This reduces the common "always 5 / 95" saturation problem in the UI.
+    """
     span = p_hi - p_lo
     if span < 1e-10:
         return 0.5
-    return 0.05 + 0.9 * (v - p_lo) / span
+
+    soft_margin = span * 0.5
+    soft_lo = p_lo - soft_margin
+    soft_hi = p_hi + soft_margin
+
+    if value <= p_lo:
+        v = max(soft_lo, value)
+        return 0.02 + 0.08 * (v - soft_lo) / max(p_lo - soft_lo, 1e-10)
+    if value >= p_hi:
+        v = min(soft_hi, value)
+        return 0.90 + 0.08 * (v - p_hi) / max(soft_hi - p_hi, 1e-10)
+    return 0.10 + 0.80 * (value - p_lo) / span
 
 
 def normalize_feature(raw_value: Optional[float], db_col: str) -> float:
@@ -328,7 +343,13 @@ class FeaturesEngine:
         ]
         overall = self._overall_advice(rec_score)
         sorted_feats = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        names = {"eye": "Eye", "ear": "Ear", "nose": "Nose", "tongue": "Tongue", "body": "Body", "pulse": "Pulse", "aura": "Aura", "mind": "Mind"}
+        names = {
+            "eye": "趨勢強度", "ear": "短線動能", "nose": "RSI 極值", "tongue": "均值回歸偏離",
+            "body": "波動狀態", "pulse": "量能脈衝", "aura": "均線偏離", "mind": "中期動量",
+            "vix": "VIX 風險", "dxy": "美元強弱", "rsi14": "RSI14", "macd_hist": "MACD",
+            "atr_pct": "ATR 波幅", "vwap_dev": "VWAP 偏離", "bb_pct_b": "布林帶位置",
+            "4h_bias50": "4H MA50 偏離", "4h_dist_sl": "4H 支撐距離", "4h_rsi14": "4H RSI",
+        }
         summary = (
             f"{names.get(sorted_feats[0][0], sorted_feats[0][0])}最強（{sorted_feats[0][1]:.0%}），"
             f"{names.get(sorted_feats[-1][0], sorted_feats[-1][0])}最弱（{sorted_feats[-1][1]:.0%}）。"
