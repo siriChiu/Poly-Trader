@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { fetchApi } from "../hooks/useApi";
 
 interface RegimeBreakdownEntry {
@@ -95,6 +95,8 @@ const regimeLabelMap: Record<string, string> = {
   unknown: "未知",
 };
 
+const OVERFIT_GAP_THRESHOLD = 0.12;
+
 export default function StrategyLab() {
   const [strategies, setStrategies] = useState<StrategyEntry[]>([]);
   const [modelLeaderboard, setModelLeaderboard] = useState<ModelLeaderboardEntry[]>([]);
@@ -143,6 +145,16 @@ export default function StrategyLab() {
     loadLeaderboard();
     loadModelLeaderboard();
   }, []);
+
+  const recommendedModels = useMemo(
+    () => modelLeaderboard.filter((m) => m.train_test_gap <= OVERFIT_GAP_THRESHOLD),
+    [modelLeaderboard]
+  );
+
+  const eliminatedModels = useMemo(
+    () => modelLeaderboard.filter((m) => m.train_test_gap > OVERFIT_GAP_THRESHOLD),
+    [modelLeaderboard]
+  );
 
   const handleRun = async () => {
     setRunning(true);
@@ -215,6 +227,7 @@ export default function StrategyLab() {
     },
     { label: "🛡️ 保守型", params: { bias50Max: -2.0, noseMax: 0.30, layer2Bias: -4.0, layer3Bias: -6.0, stopLoss: -3, tpBias: 5.0, tpRoi: 10, l1: 20, l2: 20, l3: 20 } },
     { label: "🚀 激進型", params: { bias50Max: 2.0, noseMax: 0.50, layer2Bias: -1.0, layer3Bias: -2.0, stopLoss: -8, tpBias: 3.0, tpRoi: 5, l1: 30, l2: 30, l3: 40 } },
+    { label: "🌀 Fib 23/38/39", params: { bias50Max: -1.0, noseMax: 0.35, layer2Bias: -2.8, layer3Bias: -5.0, stopLoss: -5, tpBias: 4.5, tpRoi: 8, l1: 23, l2: 38, l3: 39 } },
   ];
 
   const applyPreset = (p: any) => {
@@ -263,11 +276,15 @@ export default function StrategyLab() {
                 <label className="text-xs text-slate-500">Bias50 上限 (%)</label>
                 <input type="number" step="0.5" value={bias50Max} onChange={e => setBias50Max(parseFloat(e.target.value))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200" />
+                <input type="range" min={-8} max={4} step={0.5} value={bias50Max} onChange={e => setBias50Max(parseFloat(e.target.value))}
+                  className="w-full mt-2 accent-blue-500" />
               </div>
               <div>
                 <label className="text-xs text-slate-500">Nose (RSI) 上限</label>
                 <input type="number" step="0.05" value={noseMax} onChange={e => setNoseMax(parseFloat(e.target.value))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200" />
+                <input type="range" min={0.1} max={0.9} step={0.05} value={noseMax} onChange={e => setNoseMax(parseFloat(e.target.value))}
+                  className="w-full mt-2 accent-blue-500" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -275,11 +292,15 @@ export default function StrategyLab() {
                 <label className="text-xs text-slate-500">Layer 2 Bias (%)</label>
                 <input type="number" step="0.5" value={layer2Bias} onChange={e => setLayer2Bias(parseFloat(e.target.value))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200" />
+                <input type="range" min={-10} max={0} step={0.5} value={layer2Bias} onChange={e => setLayer2Bias(parseFloat(e.target.value))}
+                  className="w-full mt-2 accent-blue-500" />
               </div>
               <div>
                 <label className="text-xs text-slate-500">Layer 3 Bias (%)</label>
                 <input type="number" step="0.5" value={layer3Bias} onChange={e => setLayer3Bias(parseFloat(e.target.value))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200" />
+                <input type="range" min={-14} max={-1} step={0.5} value={layer3Bias} onChange={e => setLayer3Bias(parseFloat(e.target.value))}
+                  className="w-full mt-2 accent-blue-500" />
               </div>
             </div>
           </div>
@@ -292,16 +313,22 @@ export default function StrategyLab() {
                 <label className="text-xs text-slate-500">L1</label>
                 <input type="number" value={layer1} onChange={e => setLayer1(parseInt(e.target.value))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200" />
+                <input type="range" min={0} max={100} step={1} value={layer1} onChange={e => setLayer1(parseInt(e.target.value))}
+                  className="w-full mt-2 accent-yellow-500" />
               </div>
               <div>
                 <label className="text-xs text-slate-500">L2</label>
                 <input type="number" value={layer2} onChange={e => setLayer2(parseInt(e.target.value))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200" />
+                <input type="range" min={0} max={100} step={1} value={layer2} onChange={e => setLayer2(parseInt(e.target.value))}
+                  className="w-full mt-2 accent-yellow-500" />
               </div>
               <div>
                 <label className="text-xs text-slate-500">L3</label>
                 <input type="number" value={layer3} onChange={e => setLayer3(parseInt(e.target.value))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200" />
+                <input type="range" min={0} max={100} step={1} value={layer3} onChange={e => setLayer3(parseInt(e.target.value))}
+                  className="w-full mt-2 accent-yellow-500" />
               </div>
             </div>
           </div>
@@ -314,16 +341,22 @@ export default function StrategyLab() {
                 <label className="text-xs text-slate-500">止損 (%)</label>
                 <input type="number" step="1" value={stopLoss} onChange={e => setStopLoss(parseInt(e.target.value))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200" />
+                <input type="range" min={-15} max={-1} step={1} value={stopLoss} onChange={e => setStopLoss(parseInt(e.target.value))}
+                  className="w-full mt-2 accent-red-500" />
               </div>
               <div>
                 <label className="text-xs text-slate-500">TP Bias (%)</label>
                 <input type="number" step="0.5" value={tpBias} onChange={e => setTpBias(parseFloat(e.target.value))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200" />
+                <input type="range" min={1} max={10} step={0.5} value={tpBias} onChange={e => setTpBias(parseFloat(e.target.value))}
+                  className="w-full mt-2 accent-red-500" />
               </div>
               <div>
                 <label className="text-xs text-slate-500">TP ROI (%)</label>
                 <input type="number" step="1" value={tpRoi} onChange={e => setTpRoi(parseInt(e.target.value))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200" />
+                <input type="range" min={1} max={20} step={1} value={tpRoi} onChange={e => setTpRoi(parseInt(e.target.value))}
+                  className="w-full mt-2 accent-red-500" />
               </div>
             </div>
           </div>
@@ -493,6 +526,23 @@ export default function StrategyLab() {
               <h3 className="text-sm font-semibold text-slate-300">🤖 模型排行榜</h3>
               <button onClick={loadModelLeaderboard} className="text-xs text-blue-400 hover:text-blue-300">🔄 刷新</button>
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              <div className="rounded-lg border border-emerald-700/30 bg-emerald-900/10 p-3 text-xs text-slate-300">
+                <div className="font-semibold text-emerald-300 mb-1">實務優先 Hybrid #1</div>
+                <div>XGBoost / CatBoost → 規則式金字塔執行</div>
+                <div className="text-slate-500 mt-1">先用樹模型做訊號排序，再由支撐 / 分批 / SLTP 規則執行，最常見也最容易落地。</div>
+              </div>
+              <div className="rounded-lg border border-violet-700/30 bg-violet-900/10 p-3 text-xs text-slate-300">
+                <div className="font-semibold text-violet-300 mb-1">研究路線 Hybrid #2</div>
+                <div>XGBoost / CatBoost → PPO</div>
+                <div className="text-slate-500 mt-1">先保留為下一階段：用樹模型當 state / reward 輔助，再讓 PPO 學會加減碼節奏。</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+              <span className="px-2 py-1 rounded bg-emerald-900/20 text-emerald-300 border border-emerald-700/30">保留模型 {recommendedModels.length}</span>
+              <span className="px-2 py-1 rounded bg-red-900/20 text-red-300 border border-red-700/30">淘汰過擬合 {eliminatedModels.length}</span>
+              <span className="text-slate-500">Gap &gt; {(OVERFIT_GAP_THRESHOLD * 100).toFixed(0)}pp 視為過擬合</span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -509,7 +559,7 @@ export default function StrategyLab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {modelLeaderboard.map((m, i) => (
+                  {recommendedModels.map((m, i) => (
                     <tr key={m.model_name} className="border-b border-slate-800/50 hover:bg-slate-800/30">
                       <td className="py-2 px-2 text-slate-500">{i + 1}</td>
                       <td className="py-2 px-2 text-slate-200 font-medium">{m.model_name}</td>
@@ -521,6 +571,24 @@ export default function StrategyLab() {
                       <td className="py-2 px-2 text-right text-slate-400">{(m.train_acc * 100).toFixed(1)}%</td>
                       <td className="py-2 px-2 text-right text-slate-300">{(m.test_acc * 100).toFixed(1)}%</td>
                       <td className={`py-2 px-2 text-right ${m.train_test_gap <= 0.1 ? 'text-green-400' : 'text-yellow-400'}`}>{(m.train_test_gap * 100).toFixed(1)}pp</td>
+                      <td className="py-2 px-2 text-right text-slate-500">{m.folds?.length ?? 0}</td>
+                    </tr>
+                  ))}
+                  {eliminatedModels.length > 0 && (
+                    <tr>
+                      <td colSpan={9} className="py-3 text-[11px] uppercase tracking-wide text-red-300">淘汰過擬合模型</td>
+                    </tr>
+                  )}
+                  {eliminatedModels.map((m, i) => (
+                    <tr key={`elim-${m.model_name}`} className="border-b border-slate-800/50 opacity-60 hover:bg-slate-800/20">
+                      <td className="py-2 px-2 text-slate-500">{recommendedModels.length + i + 1}</td>
+                      <td className="py-2 px-2 text-slate-300 font-medium">{m.model_name} <span className="text-red-400">(淘汰)</span></td>
+                      <td className={`py-2 px-2 text-right font-bold ${m.avg_roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>{m.avg_roi >= 0 ? '+' : ''}{(m.avg_roi * 100).toFixed(1)}%</td>
+                      <td className="py-2 px-2 text-right text-slate-300">{(m.avg_win_rate * 100).toFixed(1)}%</td>
+                      <td className={`py-2 px-2 text-right ${m.profit_factor >= 1 ? 'text-green-400' : 'text-red-400'}`}>{m.profit_factor.toFixed(2)}</td>
+                      <td className="py-2 px-2 text-right text-slate-400">{(m.train_acc * 100).toFixed(1)}%</td>
+                      <td className="py-2 px-2 text-right text-slate-300">{(m.test_acc * 100).toFixed(1)}%</td>
+                      <td className="py-2 px-2 text-right text-red-400">{(m.train_test_gap * 100).toFixed(1)}pp</td>
                       <td className="py-2 px-2 text-right text-slate-500">{m.folds?.length ?? 0}</td>
                     </tr>
                   ))}

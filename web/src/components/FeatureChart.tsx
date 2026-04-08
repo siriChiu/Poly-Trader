@@ -55,8 +55,8 @@ interface MergedPoint {
   label: string;
   price: number;
   score: number | null;
-  buySignal: number | null;
-  sellSignal: number | null;
+  entrySignal: number | null;
+  reduceSignal: number | null;
   [key: string]: string | number | null | undefined;
 }
 
@@ -74,6 +74,13 @@ const FEATURE_CONFIG: Record<string, { label: string; color: string; key: keyof 
       return [key, { label: meta.name, color: meta.color, key: key as keyof MergedPoint, category: meta.category }];
     })
   );
+
+const GROUP_AVERAGE_CONFIG: Record<FeatureGroupKey, { key: keyof MergedPoint; label: string; color: string }> = {
+  microstructure: { key: "avg_microstructure", label: "市場微結構平均", color: "#38bdf8" },
+  technical: { key: "avg_technical", label: "技術指標平均", color: "#facc15" },
+  macro: { key: "avg_macro", label: "宏觀風險平均", color: "#34d399" },
+  structure4h: { key: "avg_structure4h", label: "4H 結構平均", color: "#fb7185" },
+};
 
 const TIMEFRAMES = [
   { label: "1D", days: 1 },
@@ -105,15 +112,14 @@ function calcScore(point: Partial<MergedPoint>): number | null {
   return Math.round(Math.max(0, Math.min(100, avg * 100)));
 }
 
-/** Sell/Short signals: score crosses thresholds (high score = strong sell signal) */
+/** Spot-long semantics: rising composite score -> entry zone, falling score -> reduce zone. */
 function detectSignals(data: MergedPoint[]) {
   for (let i = 1; i < data.length; i++) {
     const prev = data[i - 1].score;
     const curr = data[i].score;
     if (prev === null || curr === null) continue;
-    // Core: high score = sell-win (short profit)
-    if (prev < 60 && curr >= 60) data[i].sellSignal = data[i].price;  // SELL signal strengthening
-    if (prev > 40 && curr <= 40) data[i].buySignal = data[i].price;   // SELL signal weakening = HOLD/DON'T SHORT
+    if (prev < 60 && curr >= 60) data[i].entrySignal = data[i].price;
+    if (prev > 40 && curr <= 40) data[i].reduceSignal = data[i].price;
   }
 }
 
@@ -121,12 +127,16 @@ function detectSignals(data: MergedPoint[]) {
 
 function CustomLegend({
   visibility,
+  averageVisibility,
   onToggle,
   onToggleGroup,
+  onToggleAverage,
 }: {
   visibility: Record<string, boolean>;
+  averageVisibility: Record<FeatureGroupKey, boolean>;
   onToggle: (key: string) => void;
   onToggleGroup: (group: FeatureGroupKey) => void;
+  onToggleAverage: (group: FeatureGroupKey) => void;
 }) {
   const groupedEntries = Object.entries(FEATURE_CONFIG).reduce((acc, [key, cfg]) => {
     (acc[cfg.category] ||= []).push([key, cfg] as [string, typeof cfg]);
@@ -140,8 +150,8 @@ function CustomLegend({
           <span className="w-3 h-0.5 bg-slate-300 inline-block" />
           價格
         </span>
-        <span className="flex items-center gap-1 text-xs text-green-400 bg-slate-800/60 px-2 py-1 rounded-md">▲ 買</span>
-        <span className="flex items-center gap-1 text-xs text-red-400 bg-slate-800/60 px-2 py-1 rounded-md">▼ 賣</span>
+        <span className="flex items-center gap-1 text-xs text-green-400 bg-slate-800/60 px-2 py-1 rounded-md">▲ 進場</span>
+        <span className="flex items-center gap-1 text-xs text-orange-400 bg-slate-800/60 px-2 py-1 rounded-md">▼ 減碼</span>
       </div>
 
       {Object.entries(groupedEntries).map(([groupKey, items]) => (
@@ -151,12 +161,20 @@ function CustomLegend({
               <div className="text-xs font-semibold text-slate-300">{FEATURE_GROUPS[groupKey as FeatureGroupKey].label}</div>
               <div className="text-[11px] text-slate-500">{FEATURE_GROUPS[groupKey as FeatureGroupKey].description}</div>
             </div>
-            <button
-              onClick={() => onToggleGroup(groupKey as FeatureGroupKey)}
-              className="text-[11px] text-blue-400 hover:text-blue-300"
-            >
-              切換整組
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => onToggleAverage(groupKey as FeatureGroupKey)}
+                className={`text-[11px] ${averageVisibility[groupKey as FeatureGroupKey] ? 'text-emerald-300' : 'text-emerald-500'} hover:text-emerald-300`}
+              >
+                {averageVisibility[groupKey as FeatureGroupKey] ? '隱藏平均線' : '只看平均線'}
+              </button>
+              <button
+                onClick={() => onToggleGroup(groupKey as FeatureGroupKey)}
+                className="text-[11px] text-blue-400 hover:text-blue-300"
+              >
+                切換整組
+              </button>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {items.map(([key, cfg]) => {
@@ -214,13 +232,13 @@ function CustomTooltip({ active, payload, label }: any) {
   );
 }
 
-// ─── Buy/Sell Custom Dot ───
+// ─── Entry/Reduce Custom Dot ───
 
 function SignalDot(props: any) {
   const { cx, cy, payload } = props;
   if (!cx || !cy) return null;
 
-  if (payload.buySignal != null) {
+  if (payload.entrySignal != null) {
     return (
       <g>
         <polygon
@@ -232,12 +250,12 @@ function SignalDot(props: any) {
       </g>
     );
   }
-  if (payload.sellSignal != null) {
+  if (payload.reduceSignal != null) {
     return (
       <g>
         <polygon
           points={`${cx},${cy + 8} ${cx - 6},${cy - 4} ${cx + 6},${cy - 4}`}
-          fill="#ef4444"
+          fill="#f97316"
           stroke="#0f172a"
           strokeWidth={1}
         />
@@ -256,6 +274,16 @@ function scoreColor(score: number): string {
   return "#ef4444";
 }
 
+function calcGroupAverage(point: Partial<MergedPoint>, group: FeatureGroupKey): number | null {
+  const keys = Object.entries(FEATURE_CONFIG)
+    .filter(([, cfg]) => cfg.category === group)
+    .map(([key]) => key);
+  const vals = keys.map((k) => point[FEATURE_CONFIG[k].key]);
+  const valid = vals.filter((v): v is number => v !== null && v !== undefined);
+  if (!valid.length) return null;
+  return valid.reduce((a, b) => a + b, 0) / valid.length;
+}
+
 // ─── Main Component ───
 
 export default function FeatureChart({ selectedFeature, onClear, days: initialDays = 7 }: Props) {
@@ -267,6 +295,12 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
   const [visibility, setVisibility] = useState<Record<string, boolean>>(
     Object.fromEntries(Object.keys(FEATURE_CONFIG).map((k) => [k, true]))
   );
+  const [averageVisibility, setAverageVisibility] = useState<Record<FeatureGroupKey, boolean>>({
+    microstructure: false,
+    technical: false,
+    macro: false,
+    structure4h: false,
+  });
 
   const [_autoHighlight, setAutoHighlight] = useState(false);
 
@@ -305,31 +339,23 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
 
         if (cancelled) return;
 
-        // Build feature lookup by hour key
-        const featMap = new Map<string, FeatureRow>();
-        for (const f of features) {
-          const d = new Date(f.timestamp);
-          // Round to the interval boundary
-          const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${Math.floor(d.getHours() / (interval === "15m" ? 1 : interval === "4h" ? 4 : 1)) * (interval === "15m" ? 1 : interval === "4h" ? 4 : 1)}`;
-          featMap.set(key, f);
-        }
+        const sortedFeatures = [...features]
+          .map((row) => ({ ...row, _ts: new Date(String(row.timestamp)).getTime() }))
+          .sort((a, b) => (a._ts as number) - (b._ts as number));
+        let featureIndex = 0;
 
         const points: MergedPoint[] = klines.candles.map((c) => {
-          const d = new Date(c.time * 1000);
-          const hourBucket = Math.floor(d.getHours() / (interval === "15m" ? 1 : interval === "4h" ? 4 : 1)) * (interval === "15m" ? 1 : interval === "4h" ? 4 : 1);
-          const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${hourBucket}`;
+          const candleTs = c.time * 1000;
+          while (
+            featureIndex + 1 < sortedFeatures.length &&
+            (sortedFeatures[featureIndex + 1]._ts as number) <= candleTs
+          ) {
+            featureIndex += 1;
+          }
 
-          let feat: FeatureRow | undefined = featMap.get(key);
-          let minDiff = Infinity;
-          if (!feat) {
-            for (const f of features) {
-              const diff = Math.abs(new Date(String(f.timestamp)).getTime() - c.time * 1000);
-              if (diff < minDiff) {
-                minDiff = diff;
-                feat = f;
-              }
-            }
-            if (minDiff > 2 * 3600 * 1000) feat = undefined;
+          let feat: FeatureRow | undefined = sortedFeatures[featureIndex];
+          if (!feat || Math.abs(((feat as any)._ts as number) - candleTs) > 48 * 3600 * 1000) {
+            feat = undefined;
           }
 
           const dynamicValues = Object.fromEntries(
@@ -339,14 +365,22 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
             })
           );
 
+          const averageValues = Object.fromEntries(
+            (Object.keys(GROUP_AVERAGE_CONFIG) as FeatureGroupKey[]).map((groupKey) => [
+              GROUP_AVERAGE_CONFIG[groupKey].key,
+              calcGroupAverage(dynamicValues as Partial<MergedPoint>, groupKey),
+            ])
+          );
+
           return {
             time: c.time,
             label: formatTime(c.time),
             price: c.close,
             ...dynamicValues,
+            ...averageValues,
             score: null,
-            buySignal: null,
-            sellSignal: null,
+            entrySignal: null,
+            reduceSignal: null,
           };
         });
 
@@ -385,6 +419,10 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
       for (const key of keys) next[key] = shouldEnable;
       return next;
     });
+  }, []);
+
+  const toggleAverageVisibility = useCallback((group: FeatureGroupKey) => {
+    setAverageVisibility((prev) => ({ ...prev, [group]: !prev[group] }));
   }, []);
 
   // Price domain
@@ -436,7 +474,13 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
       </div>
 
       {/* Legend Toggles */}
-      <CustomLegend visibility={visibility} onToggle={toggleVisibility} onToggleGroup={toggleGroupVisibility} />
+      <CustomLegend
+        visibility={visibility}
+        averageVisibility={averageVisibility}
+        onToggle={toggleVisibility}
+        onToggleGroup={toggleGroupVisibility}
+        onToggleAverage={toggleAverageVisibility}
+      />
 
       {/* Loading / Error */}
       {loading && (
@@ -530,18 +574,38 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
                 />
               ))}
 
-              {/* Buy signals */}
+              {(Object.keys(GROUP_AVERAGE_CONFIG) as FeatureGroupKey[]).map((groupKey) => {
+                const avgCfg = GROUP_AVERAGE_CONFIG[groupKey];
+                return (
+                  <Line
+                    key={String(avgCfg.key)}
+                    yAxisId="sense"
+                    type="monotone"
+                    dataKey={avgCfg.key}
+                    stroke={avgCfg.color}
+                    strokeWidth={averageVisibility[groupKey] ? 3 : 0}
+                    strokeDasharray="6 4"
+                    dot={false}
+                    hide={!averageVisibility[groupKey]}
+                    animationDuration={400}
+                    connectNulls={true}
+                    name={avgCfg.label}
+                  />
+                );
+              })}
+
+              {/* Entry signals */}
               <Scatter
                 yAxisId="price"
-                dataKey="buySignal"
+                dataKey="entrySignal"
                 shape={<SignalDot />}
                 isAnimationActive={false}
               />
 
-              {/* Sell signals */}
+              {/* Reduce signals */}
               <Scatter
                 yAxisId="price"
-                dataKey="sellSignal"
+                dataKey="reduceSignal"
                 shape={<SignalDot />}
                 isAnimationActive={false}
               />
