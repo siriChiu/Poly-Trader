@@ -95,9 +95,9 @@ def test_api_features_exposes_extended_feature_history_keys(monkeypatch):
 
 def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
     rows = [
-        SimpleNamespace(timestamp=object(), feat_eye=0.1, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-2.0, feat_4h_ma_order=-1.0),
-        SimpleNamespace(timestamp=object(), feat_eye=0.2, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-1.5, feat_4h_ma_order=0.0),
-        SimpleNamespace(timestamp=object(), feat_eye=0.3, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-1.0, feat_4h_ma_order=1.0),
+        SimpleNamespace(timestamp="2026-04-09T01:00:00+00:00", feat_eye=0.1, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-2.0, feat_4h_ma_order=-1.0),
+        SimpleNamespace(timestamp="2026-04-09T02:00:00+00:00", feat_eye=0.2, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-1.5, feat_4h_ma_order=0.0),
+        SimpleNamespace(timestamp="2026-04-09T03:00:00+00:00", feat_eye=0.3, feat_claw=0.0, feat_claw_intensity=0.3, feat_4h_bias50=-1.0, feat_4h_ma_order=1.0),
     ]
     monkeypatch.setattr(api_module, "get_db", lambda: _FakeSession(rows))
     monkeypatch.setattr(api_module, "_compute_raw_snapshot_stats", lambda db: {
@@ -126,6 +126,10 @@ def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
     assert "CoinGlass" in result["features"]["claw"]["backfill_blocker"]
     assert result["features"]["claw"]["raw_snapshot_latest_age_min"] == 120.0
     assert result["features"]["claw"]["raw_snapshot_span_hours"] == 2.0
+    assert result["features"]["claw"]["archive_window_started"] is True
+    assert result["features"]["claw"]["archive_window_rows"] == 3
+    assert result["features"]["claw"]["archive_window_non_null"] == 3
+    assert result["features"]["claw"]["archive_window_coverage_pct"] == 100.0
     assert "Forward raw snapshot archive is stale (3/10 stored event(s)" in result["features"]["claw"]["backfill_blocker"]
     assert result["features"]["4h_bias50"]["chart_usable"] is False
     assert result["features"]["4h_bias50"]["quality_flag"] == "low_distinct"

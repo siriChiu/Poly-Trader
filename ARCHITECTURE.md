@@ -30,6 +30,8 @@
 
 **Shared policy contract（Heartbeat #617）**：source-history policy 不可再在 report/API/heartbeat runner 各自複製一份。`feature_engine/feature_history_policy.py` 現在是單一真相來源（single source of truth），`scripts/feature_coverage_report.py`、`/api/features/coverage`、`hb_parallel_runner.py` 都必須共用它，避免 blocker metadata drift 導致 UI 與 heartbeat 對同一 sparse source 給出不同治理結論。
 
+**Archive-window coverage contract（Heartbeat #620）**：對 sparse sources，除了整體 `coverage_pct` 與 `raw_snapshot_events`，還必須同步輸出 `archive_window_rows / archive_window_non_null / archive_window_coverage_pct`（自第一筆 snapshot archive 起點以來的 recent-window coverage）。這是區分「forward archive 已健康、僅剩歷史缺口」與「forward archive 本身仍沒產出 feature 值」的必要欄位；FeatureChart、coverage report、heartbeat runner 都必須顯示它，避免把歷史稀釋後的總 coverage 誤判成當前 collector 失效。
+
 **Fast heartbeat contract（Heartbeat #617）**：`python scripts/hb_parallel_runner.py --fast` 必須可直接在 cron 執行，不依賴額外 `--hb` 參數；fast summary 仍需包含 DB counts、canonical IC 腳本結果與 `source_blockers` 摘要，確保快檢查模式不是「只剩數字」的半閉環。
 
 ### 3. 標籤層

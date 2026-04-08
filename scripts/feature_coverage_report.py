@@ -32,8 +32,8 @@ def main() -> int:
         f'- Chart-usable: **{payload["usable_count"]}**',
         f'- Hidden by default: **{payload["hidden_count"]}**',
         '',
-        '| Feature | Coverage | Distinct | Chart usable | Quality | History policy | Forward archive | Freshness | Next action |',
-        '|---|---:|---:|---|---|---|---|---|---|',
+        '| Feature | Coverage | Archive-window coverage | Distinct | Chart usable | Quality | History policy | Forward archive | Freshness | Next action |',
+        '|---|---:|---:|---:|---|---|---|---|---|---|',
     ]
     for row in stats:
         notes = ', '.join(row['reasons']) if row['reasons'] else 'ok'
@@ -52,8 +52,18 @@ def main() -> int:
                 f" / span={row.get('raw_snapshot_span_hours', 'n/a')}h"
             )
         next_action = row.get('recommended_action') or notes
+        archive_window = 'n/a'
+        if row.get('archive_window_started'):
+            coverage = row.get('archive_window_coverage_pct')
+            if coverage is None:
+                archive_window = f"0/{row.get('archive_window_rows', 0)}"
+            else:
+                archive_window = (
+                    f"{coverage:.2f}% "
+                    f"({row.get('archive_window_non_null', 0)}/{row.get('archive_window_rows', 0)})"
+                )
         lines.append(
-            f"| {row['key']} | {row['coverage_pct']:.2f}% | {row['distinct']} | {'✅' if row['chart_usable'] else '❌'} | {row['quality_flag']} | {history_policy} | {archive_note} | {freshness} | {next_action} |"
+            f"| {row['key']} | {row['coverage_pct']:.2f}% | {archive_window} | {row['distinct']} | {'✅' if row['chart_usable'] else '❌'} | {row['quality_flag']} | {history_policy} | {archive_note} | {freshness} | {next_action} |"
         )
     OUT_MD.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 

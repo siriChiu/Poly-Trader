@@ -79,6 +79,11 @@ interface FeatureCoverageMeta {
   forward_archive_ready_min_events?: number;
   forward_archive_stale_after_min?: number;
   forward_archive_progress_pct?: number;
+  archive_window_started?: boolean;
+  archive_window_start_ts?: string | null;
+  archive_window_rows?: number;
+  archive_window_non_null?: number;
+  archive_window_coverage_pct?: number | null;
 }
 
 function formatCoverageReason(meta?: FeatureCoverageMeta | null): string {
@@ -92,8 +97,11 @@ function formatCoverageReason(meta?: FeatureCoverageMeta | null): string {
   const freshnessText = meta.raw_snapshot_events && meta.raw_snapshot_latest_age_min !== undefined && meta.raw_snapshot_latest_age_min !== null
     ? ` · last ${meta.raw_snapshot_latest_age_min.toFixed(1)}m · span ${meta.raw_snapshot_span_hours ?? 0}h`
     : "";
+  const archiveWindowText = meta.archive_window_started
+    ? ` · archive-window ${meta.archive_window_coverage_pct?.toFixed(1) ?? "0.0"}% (${meta.archive_window_non_null ?? 0}/${meta.archive_window_rows ?? 0})`
+    : "";
   const blockerText = meta.backfill_blocker ? ` · blocker: ${meta.backfill_blocker}` : "";
-  return `${qualityText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}${archiveText}${freshnessText}${blockerText}`;
+  return `${qualityText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}${archiveText}${freshnessText}${archiveWindowText}${blockerText}`;
 }
 
 function summarizeCoverageChip(meta?: FeatureCoverageMeta | null): string {
@@ -101,7 +109,10 @@ function summarizeCoverageChip(meta?: FeatureCoverageMeta | null): string {
   if (meta.quality_flag === "source_history_gap" && meta.history_class) {
     if (meta.raw_snapshot_events) {
       const staleBadge = meta.forward_archive_stale ? " · stale" : "";
-      return `${meta.coverage_pct.toFixed(0)}% · ${meta.history_class} · ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10}${staleBadge}`;
+      const archiveWindow = meta.archive_window_started
+        ? ` · 最近窗${meta.archive_window_coverage_pct?.toFixed(0) ?? "0"}%`
+        : "";
+      return `${meta.coverage_pct.toFixed(0)}% · ${meta.history_class} · ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10}${staleBadge}${archiveWindow}`;
     }
     return `${meta.coverage_pct.toFixed(0)}% · ${meta.history_class}`;
   }

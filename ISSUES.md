@@ -1,8 +1,8 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-09 04:08 UTC — Heartbeat #619（fast heartbeat pre-collect + forward archive freshness gating）*
+*最後更新：2026-04-09 04:30 UTC — Heartbeat #620（archive-window coverage gating for sparse sources）*
 
-## 📊 系統健康狀態 v4.43
+## 📊 系統健康狀態 v4.44
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
@@ -15,6 +15,27 @@
 | TW-IC | **17/22** | 🟢 維持高檔 |
 | 模型數 | **8** | ✅ |
 | Tests | **6/6** | ✅ 全過 |
+
+## 📈 心跳 #620 摘要
+
+### 本輪已驗證 patch
+1. **Sparse-source archive-window coverage surfaced end-to-end**：`feature_engine/feature_history_policy.py`、`/api/features/coverage`、`feature_coverage_report.py`、`FeatureChart.tsx`、`hb_parallel_runner.py` 現在除了總 coverage 與 archive progress，還會顯示 **archive-window coverage**（自 raw snapshot archive 起點以來的 non-null / rows），避免 forward archive 已健康時仍被總 coverage 長尾稀釋成「看起來完全沒進展」。
+2. **Ready-state action no longer loops on the wrong gate**：當 sparse-source forward archive 達到 `10/10` 後，`recommended_action` 會從「繼續累積到 10 筆」切換為「archive 已可用於 recent-window 診斷，但歷史 coverage 仍需專門 export/archive loader」，修掉下一輪 heartbeat 容易空轉在舊 gate 的流程缺口。
+3. **Coverage tooling hardened for partial schemas/tests**：`compute_sqlite_feature_coverage()` 現在會先讀 `PRAGMA table_info`，缺欄 schema 不再直接炸掉；heartbeat/coverage 測試可以用最小 schema 驗證 sparse-source policy，不必複製整個 production schema。
+
+### 本輪 runtime facts（Heartbeat #620）
+- `python scripts/hb_parallel_runner.py --fast --hb 620`：**Raw 19781→19782 / Features 11167→11168 / Labels 38675→38689**，fast heartbeat 仍先 collect 再診斷，閉環未退化。
+- Sparse-source forward archive 目前來到 **4/10**；runner 現在能直接看見「總 coverage vs archive-window coverage」分離後的真相：
+  - **web_whale / fang_pcr / fang_skew / scales_ssr**：總 coverage 仍約 **15.7%**，但 **archive-window coverage = 100% (3/3)**，代表 forward archive 之後的新窗口其實有值，問題主要是歷史缺口，不是現行 collector 又壞了。
+  - **claw / claw_intensity / fin_netflow / nest_pred**：archive-window coverage 仍 **0%**，表示不只是歷史缺口，連 forward archive 新窗口也還沒產出可用 feature 值，屬當前更高優先 source gap。
+- Canonical diagnostics 維持：**Global IC 15/22 PASS**、**TW-IC 17/22 PASS**；regime-aware IC 仍為 **Bear 6/8 / Bull 8/8 / Chop 8/8 / Neutral 1/8**（`simulated_pyramid_win`, n=9,763）。
+- 驗證：`pytest tests/test_feature_history_policy.py tests/test_api_feature_history_and_predictor.py tests/test_hb_parallel_runner.py -q` → **9 passed**；`python scripts/feature_coverage_report.py` ✅；`python scripts/hb_parallel_runner.py --fast --hb 620` ✅；`cd web && npm run build` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#LOW_COVERAGE_SOURCES**：本輪把 blocker 再拆成兩層，避免下一輪繼續空轉：
+  1. **historical-gap dominant, forward healthy**：Web / Fang / Scales 的 archive-window coverage 已 100%，下一輪不應再優先懷疑 current collector；真正 blocker 是 historical export / long-span archive loader。
+  2. **forward gap still active**：Claw / Fin / Nest（以及 Claw intensity）在 archive-window 內仍是 0%，代表 forward snapshot 雖開始累積，但 feature path 仍未產出可用值；這批才是下一輪 source-level root-cause 修復主戰場。
+- **#HEARTBEAT_EMPTY_PROGRESS 防呆再補一層**：先前 heartbeat 只知道 archive 有幾筆，仍可能把「4/10 但新窗口其實全是 NULL」誤當作前進；現在 archive-window coverage 會直接把這種假進度打掉。
 
 ## 📈 心跳 #619 摘要
 
@@ -314,7 +335,7 @@
 | #EAR_LOW_VAR | feat_ear std=0.0029, unique=13（準離散特徵）| ⚠️ 持續 |
 | #TONGUE_LOW_VAR | feat_tongue std=0.0016, unique=9（準離散特徵）| ⚠️ 持續 |
 | #LABELS_JUMP | Labels 從 18,052 跳增至 27,684（+53%）原因未明 | ✅ 已定位（hb_collect pipeline 重建 labels；後續以 24h/canonical horizon 管理，不再視為隨機跳增） |
-| #LOW_COVERAGE_SOURCES | Fin / Fang / Web / Scales / Nest / Claw coverage 低，且歷史上混有假 0 與 stale carry-forward | 🟡 已部分修復並進入 forward-archive 階段（#615 已清除假值污染；#616 完成 blocker 分類；#618 已把 `*_snapshot` 正式寫入 `raw_events` 並在 coverage/report/runtime 顯示 `raw_snapshot_events`。下一步是持續累積 forward archive，並補 historical export/backfill loader） |
+| #LOW_COVERAGE_SOURCES | Fin / Fang / Web / Scales / Nest / Claw coverage 低，且歷史上混有假 0 與 stale carry-forward | 🟡 已部分修復並進入 **archive-window gating** 階段（#615 清除假值污染；#618 啟動 `*_snapshot` forward archive；#620 新增 `archive_window_coverage_pct`，已確認 Web/Fang/Scales 在 recent window 為 100%，但 Claw/Fin/Nest 仍為 0%。下一步要分流：Web/Fang/Scales 走 historical export/backfill loader；Claw/Fin/Nest 先修 forward feature path/root cause） |
 | #FEATURECHART_QUALITY_SIGNAL | FeatureChart 對低 coverage 特徵只顯示模糊 badge，使用者無法判斷是 coverage、distinct 還是 source fallback / source-history blocker 問題 | ✅ 已修復（#614 已顯示 `quality_flag / quality_label`；#616 再把 `history_class / backfill_status / backfill_blocker / recommended_action` 帶到 coverage API 與 hidden legend，前端現在能直接區分 frontend 隱藏與 source-level blocker） |
 | #FINAL_CLOSE_LABEL_NOISE | final-close-only TP threshold 會把「曾 hit TP 但收盤回落」的可交易 setup 誤標為失敗 | ✅ 已修復（spot_long_win 已改為 path-aware label，並已重建實際 labels） |
 | #LABEL_PATH_MISMATCH | 標籤語義與現貨金字塔執行路徑不一致，只看 horizon 結束點 | 🟡 已部分修復（path-aware + simulated pyramid labels 均已上線，#615 再修 model leaderboard loader，不再用 `label_spot_long_win` gate 掉 canonical simulated rows；下一步是把剩餘 legacy 報表/欄位命名完全去污） |

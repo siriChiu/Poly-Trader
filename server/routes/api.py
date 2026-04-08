@@ -18,10 +18,10 @@ from server.features_engine import get_engine
 from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized
 from feature_engine.feature_history_policy import (
     FEATURE_KEY_MAP,
-    SOURCE_SNAPSHOT_SUBTYPES,
     assess_feature_quality,
     attach_forward_archive_meta,
     compute_raw_snapshot_stats,
+    _compute_archive_window_coverage,
 )
 from utils.logger import setup_logger
 
@@ -146,6 +146,7 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
     snapshot_counts = {subtype: row.get("count", 0) for subtype, row in snapshot_stats.items()}
     total_rows = len(rows)
     feature_stats: Dict[str, Any] = {}
+    timestamp_values = [getattr(r, "timestamp", None) for r in rows]
     for db_key, clean_key in FEATURE_KEY_MAP.items():
         values = [getattr(r, db_key, None) for r in rows]
         non_null_values = [v for v in values if v is not None]
@@ -155,6 +156,7 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
         max_val = max(non_null_values) if non_null_values else None
         quality = assess_feature_quality(clean_key, coverage_pct, distinct, len(non_null_values), min_val, max_val)
         quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts, snapshot_stats)
+        archive_window = _compute_archive_window_coverage(clean_key, timestamp_values, values, snapshot_stats)
         feature_stats[clean_key] = {
             "db_key": db_key,
             "non_null": len(non_null_values),
@@ -163,6 +165,7 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
             "min": min_val,
             "max": max_val,
             **quality,
+            **archive_window,
         }
     return {
         "days": days,

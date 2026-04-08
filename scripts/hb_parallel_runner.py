@@ -198,9 +198,19 @@ def print_source_blockers(source_blockers: Dict[str, Any]) -> None:
             )
             if row.get("raw_snapshot_latest_age_min") is not None:
                 archive_note += f" age={row['raw_snapshot_latest_age_min']:.1f}m"
+        archive_window_note = ""
+        if row.get("archive_window_started"):
+            aw_cov = row.get("archive_window_coverage_pct")
+            if aw_cov is None:
+                archive_window_note = f" | archive_window=0/{row.get('archive_window_rows', 0)}"
+            else:
+                archive_window_note = (
+                    f" | archive_window={aw_cov}%"
+                    f" ({row.get('archive_window_non_null', 0)}/{row.get('archive_window_rows', 0)})"
+                )
         print(
             f"   - {row['key']}: {row['history_class']} | "
-            f"coverage={row.get('coverage_pct', 0)}%{archive_note} | {row['recommended_action']}"
+            f"coverage={row.get('coverage_pct', 0)}%{archive_note}{archive_window_note} | {row['recommended_action']}"
         )
     if len(blocked) > 5:
         print(f"   - ... {len(blocked) - 5} more blocked sparse features")

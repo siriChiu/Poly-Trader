@@ -193,6 +193,52 @@ def _parse_sqlite_timestamp(value: Any) -> datetime | None:
     return dt.astimezone(timezone.utc)
 
 
+def _compute_archive_window_coverage(
+    clean_key: str,
+    timestamp_values: Sequence[Any],
+    feature_values: Sequence[Any],
+    snapshot_stats: Dict[str, Dict[str, Any]] | None = None,
+) -> Dict[str, Any]:
+    snapshot_stats = snapshot_stats or {}
+    subtypes = SOURCE_SNAPSHOT_SUBTYPES.get(clean_key, ())
+    oldest_points = [
+        _parse_sqlite_timestamp(snapshot_stats.get(subtype, {}).get('oldest_ts'))
+        for subtype in subtypes
+        if snapshot_stats.get(subtype, {}).get('oldest_ts')
+    ]
+    archive_start_dt = min((dt for dt in oldest_points if dt is not None), default=None)
+    if archive_start_dt is None:
+        return {
+            'archive_window_started': False,
+            'archive_window_start_ts': None,
+            'archive_window_rows': 0,
+            'archive_window_non_null': 0,
+            'archive_window_coverage_pct': None,
+        }
+
+    rows_since_start = 0
+    non_null_since_start = 0
+    for ts_value, feature_value in zip(timestamp_values, feature_values):
+        ts = _parse_sqlite_timestamp(ts_value)
+        if ts is None or ts < archive_start_dt:
+            continue
+        rows_since_start += 1
+        if feature_value is not None:
+            non_null_since_start += 1
+
+    coverage_pct = None
+    if rows_since_start > 0:
+        coverage_pct = round(non_null_since_start / rows_since_start * 100.0, 2)
+
+    return {
+        'archive_window_started': True,
+        'archive_window_start_ts': archive_start_dt.isoformat(),
+        'archive_window_rows': rows_since_start,
+        'archive_window_non_null': non_null_since_start,
+        'archive_window_coverage_pct': coverage_pct,
+    }
+
+
 def compute_raw_snapshot_stats(conn: sqlite3.Connection) -> Dict[str, Dict[str, Any]]:
     table_exists = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='raw_events'"
@@ -292,6 +338,12 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
                 f'After collection resumes, keep running until at least {FORWARD_ARCHIVE_READY_MIN_EVENTS} '
                 'forward raw snapshots accumulate; add historical export/API archive if you need rows before the cutoff.'
             )
+        elif archive_ready:
+            enriched['recommended_action'] = (
+                'Forward raw snapshot archive is ready for recent-window diagnostics; '
+                'keep collection running to extend the archive span, but historical rows before the cutoff '
+                'still require a dedicated export/archive loader before coverage can exceed the legacy gap.'
+            )
         else:
             enriched['recommended_action'] = (
                 f'Keep heartbeat collection running until at least '
@@ -308,11 +360,27 @@ def compute_sqlite_feature_coverage(db_path: str | Path) -> Dict[str, Any]:
     snapshot_stats = compute_raw_snapshot_stats(conn)
     snapshot_counts = {subtype: row.get('count', 0) for subtype, row in snapshot_stats.items()}
     total_rows = cur.execute('SELECT COUNT(*) FROM features_normalized').fetchone()[0]
+    available_columns = {
+        row[1] for row in cur.execute("PRAGMA table_info(features_normalized)").fetchall()
+    }
+    ordered_timestamps = [
+        row[0] for row in cur.execute('SELECT timestamp FROM features_normalized ORDER BY timestamp').fetchall()
+    ]
     stats = []
     for db_key, clean_key in FEATURE_KEY_MAP.items():
-        non_null, distinct, min_v, max_v = cur.execute(
-            f'SELECT COUNT({db_key}), COUNT(DISTINCT {db_key}), MIN({db_key}), MAX({db_key}) FROM features_normalized'
-        ).fetchone()
+        if db_key in available_columns:
+            timestamp_and_values = cur.execute(
+                f'SELECT timestamp, {db_key} FROM features_normalized ORDER BY timestamp'
+            ).fetchall()
+            timestamp_values = [row[0] for row in timestamp_and_values]
+            feature_values = [row[1] for row in timestamp_and_values]
+            non_null, distinct, min_v, max_v = cur.execute(
+                f'SELECT COUNT({db_key}), COUNT(DISTINCT {db_key}), MIN({db_key}), MAX({db_key}) FROM features_normalized'
+            ).fetchone()
+        else:
+            timestamp_values = ordered_timestamps
+            feature_values = [None] * len(ordered_timestamps)
+            non_null, distinct, min_v, max_v = 0, 0, None, None
         coverage_pct = (non_null / total_rows * 100.0) if total_rows else 0.0
         quality = assess_feature_quality(
             clean_key,
@@ -323,6 +391,7 @@ def compute_sqlite_feature_coverage(db_path: str | Path) -> Dict[str, Any]:
             max_v,
         )
         quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts, snapshot_stats)
+        archive_window = _compute_archive_window_coverage(clean_key, timestamp_values, feature_values, snapshot_stats)
         stats.append({
             'db_key': db_key,
             'key': clean_key,
@@ -332,6 +401,7 @@ def compute_sqlite_feature_coverage(db_path: str | Path) -> Dict[str, Any]:
             'min': min_v,
             'max': max_v,
             **quality,
+            **archive_window,
         })
     conn.close()
     stats.sort(key=lambda row: (row['chart_usable'], row['coverage_pct'], row['distinct']))
@@ -377,6 +447,11 @@ def build_source_blocker_summary(feature_rows: Sequence[Dict[str, Any]] | Dict[s
                 'forward_archive_ready_min_events': row.get('forward_archive_ready_min_events', FORWARD_ARCHIVE_READY_MIN_EVENTS),
                 'forward_archive_stale_after_min': row.get('forward_archive_stale_after_min', FORWARD_ARCHIVE_STALE_MINUTES),
                 'forward_archive_progress_pct': row.get('forward_archive_progress_pct', 0.0),
+                'archive_window_started': row.get('archive_window_started', False),
+                'archive_window_start_ts': row.get('archive_window_start_ts'),
+                'archive_window_rows': row.get('archive_window_rows', 0),
+                'archive_window_non_null': row.get('archive_window_non_null', 0),
+                'archive_window_coverage_pct': row.get('archive_window_coverage_pct'),
             }
             for row in blocked
         ],

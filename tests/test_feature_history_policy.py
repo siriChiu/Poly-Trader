@@ -73,8 +73,42 @@ def test_compute_sqlite_feature_coverage_and_blocker_summary(tmp_path: Path):
     assert by_key["web_whale"]["raw_snapshot_subtypes"] == ["web_snapshot"]
     assert by_key["web_whale"]["raw_snapshot_span_hours"] == 1.0
     assert by_key["web_whale"]["raw_snapshot_latest_age_min"] is not None
+    assert by_key["web_whale"]["archive_window_started"] is True
+    assert by_key["web_whale"]["archive_window_rows"] == 10
+    assert by_key["web_whale"]["archive_window_non_null"] == 2
+    assert by_key["web_whale"]["archive_window_coverage_pct"] == 20.0
     assert "Forward raw snapshot archive is stale (2/10 stored event(s)" in by_key["web_whale"]["backfill_blocker"]
 
     summary = build_source_blocker_summary(payload)
     assert summary["blocked_count"] >= 1
     assert any(row["key"] == "web_whale" for row in summary["blocked_features"])
+
+
+def test_ready_forward_archive_changes_recommended_action_without_hiding_blocker(tmp_path: Path):
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE features_normalized (id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, feat_web_whale REAL)")
+    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT)")
+
+    for i in range(12):
+        hour = i % 10
+        conn.execute(
+            "INSERT INTO raw_events (subtype, timestamp) VALUES ('web_snapshot', ?)",
+            (f"2026-04-09 {hour:02d}:00:00",),
+        )
+        conn.execute(
+            "INSERT INTO features_normalized (timestamp, symbol, feat_web_whale) VALUES (?, 'BTCUSDT', ?)",
+            (f"2026-04-09T{hour:02d}:00:00", float(i) / 10.0),
+        )
+
+    conn.commit()
+    conn.close()
+
+    payload = compute_sqlite_feature_coverage(db_path)
+    web = next(row for row in payload["features"] if row["key"] == "web_whale")
+
+    assert web["forward_archive_ready"] is True
+    assert web["forward_archive_status"] == "ready"
+    assert web["backfill_status"] == "blocked"
+    assert web["archive_window_coverage_pct"] == 100.0
+    assert "ready for recent-window diagnostics" in web["recommended_action"]
