@@ -1,6 +1,6 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-08 18:35 UTC — Heartbeat #616（source-history blocker surfacing + FeatureChart quality rationale）*
+*最後更新：2026-04-09 03:18 UTC — Heartbeat #617（shared source-history policy + hb fast-mode unblock）*
 
 ## 📊 系統健康狀態 v4.42
 
@@ -15,6 +15,28 @@
 | TW-IC | **17/22** | 🟢 維持高檔 |
 | 模型數 | **8** | ✅ |
 | Tests | **6/6** | ✅ 全過 |
+
+## 📈 心跳 #617 摘要
+
+### 本輪已驗證 patch
+1. **Shared source-history policy module**：新增 `feature_engine/feature_history_policy.py`，把 `FEATURE_KEY_MAP`、source blocker policy、quality assessment、SQLite coverage aggregation 收斂成單一實作；`scripts/feature_coverage_report.py` 與 `/api/features/coverage` 現在共用同一套邏輯，避免 blocker metadata 漂移後再次誤導 FeatureChart 或 heartbeat 判斷。
+2. **hb_parallel_runner fast mode 真正可用**：`scripts/hb_parallel_runner.py` 現在支援 `python scripts/hb_parallel_runner.py --fast` **不必再強制帶 `--hb`**；若有 `--hb 617` 仍可落地成 `data/heartbeat_617_summary.json`，補上 cron 與 skill 文件之間的實際流程缺口。
+3. **Source blocker 自動升級進 heartbeat summary**：parallel runner 會在執行前直接輸出並寫入 `source_blockers` 摘要（8 個 blocked sparse features、依 `archive_required / snapshot_only / short_window_public_api` 分類），避免 heartbeat 再只產報告卻沒把 source-level blocker 顯式升級。
+
+### 本輪 runtime facts（Heartbeat #617）
+- `python scripts/hb_parallel_runner.py --fast --hb 617`：**2/2 PASS (0.8s)**，summary 已寫入 `data/heartbeat_617_summary.json`；`python scripts/hb_parallel_runner.py --fast` 無 `--hb` 也可直接執行。
+- DB counts 維持：**Raw 19,778 / Features 11,164 / Labels 38,530**；canonical `simulated_pyramid_win` rate **0.6008**。
+- `feature_coverage_report.py` 與 runner 共享同一 policy 後，source blocker 摘要穩定為 **8 blocked features**：
+  - `archive_required`：**3**（Claw / Claw intensity / Fin）
+  - `snapshot_only`：**4**（Fang PCR / Fang skew / Scales / Nest）
+  - `short_window_public_api`：**1**（Web）
+- Canonical diagnostics（fast mode）維持：**Global IC 15/22 PASS**、**TW-IC 17/22 PASS**；regime-aware IC：**Bear 6/8**, **Bull 8/8**, **Chop 8/8**, **Neutral 1/8**（`simulated_pyramid_win` 口徑，n=9,763）。
+- 驗證：`pytest tests/test_feature_history_policy.py tests/test_hb_parallel_runner.py tests/test_api_feature_history_and_predictor.py -q` → **8 passed**；`python scripts/feature_coverage_report.py` ✅；`python scripts/hb_parallel_runner.py --fast --hb 617` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#LOW_COVERAGE_SOURCES**：本輪正式從「文件裡有 blocker metadata」再升級到「heartbeat runtime 也會主動 surface blocker」；這代表下一輪如果 coverage 還低，不能再假裝是前端 badge / chart policy 問題。
+- **heartbeat 空轉缺口已修補**：先前 skill / HEARTBEAT 文件推薦的 `--fast` 命令在實作上會直接因 `--hb required` 失敗，屬於真正的 cron 流程缺口；本輪已修掉。今後 fast heartbeat 可穩定產出 counts + IC + source blockers，而不是卡在參數解析。
+- **剩餘未解 blocker 沒有被「修掉」**：Claw / Fin / Fang / Web / Scales / Nest 的歷史 coverage 仍然缺，根因依舊是 source-level archive / snapshot 不存在。這不是前端、不是 carry-forward、也不是 coverage report drift；下一輪要真的前進，必須開始做 raw snapshot/archive ingestion，而不是再追加顯示層修補。
 
 ## 📈 心跳 #616 摘要
 

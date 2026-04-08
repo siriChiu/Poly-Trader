@@ -28,6 +28,10 @@
 
 **Source-history blocker contract（Heartbeat #616）**：對 sparse sources，coverage/report/API/UI 不只回報 `coverage/distinct/quality_flag`，還必須同步回傳 `history_class / backfill_status / backfill_blocker / recommended_action`。若缺口根因是 `archive_required` / `snapshot_only` / `short_window_public_api`，前端應把它視為 source-level blocker，而不是可用前端美化或 carry-forward 修好的歷史線問題。
 
+**Shared policy contract（Heartbeat #617）**：source-history policy 不可再在 report/API/heartbeat runner 各自複製一份。`feature_engine/feature_history_policy.py` 現在是單一真相來源（single source of truth），`scripts/feature_coverage_report.py`、`/api/features/coverage`、`hb_parallel_runner.py` 都必須共用它，避免 blocker metadata drift 導致 UI 與 heartbeat 對同一 sparse source 給出不同治理結論。
+
+**Fast heartbeat contract（Heartbeat #617）**：`python scripts/hb_parallel_runner.py --fast` 必須可直接在 cron 執行，不依賴額外 `--hb` 參數；fast summary 仍需包含 DB counts、canonical IC 腳本結果與 `source_blockers` 摘要，確保快檢查模式不是「只剩數字」的半閉環。
+
 ### 3. 標籤層
 根據未來報酬建立多 horizon 標籤，並以 `simulated_pyramid_win` 作為 canonical 主 KPI；`label_spot_long_win` 僅保留 path-aware 比較診斷；`sell_win` 僅保留 legacy 相容欄位。
 
