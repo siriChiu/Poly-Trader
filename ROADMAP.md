@@ -41,7 +41,7 @@
 ## 下一步（Phase 15）
 
 - [x] Web Model Leaderboard 視覺化（表格版已上線；後續可再補柱狀圖 + Fold 比較）
-- [ ] 市場分類回測（牛市 vs 熊市分開顯示）
+- [x] 市場分類回測（依進場 regime 顯示 Bull / Bear / Chop ROI、勝率、PF）
 - [ ] 策略匯入/匯出（JSON 分享）
 - [ ] 自動最佳化（Optuna / 網格搜尋）
 - [ ] 心跳閉環標準化：`strategy-decision-guide.md` + 六帽 + ORID + issue/roadmap/architecture 同步更新
@@ -57,3 +57,4 @@
 - [x] `/api/models/leaderboard` 修復（asof 對齊 + walk-forward split 型別修正）
 - [x] Strategy Lab 新增模型排行榜視覺表格
 - [x] 訓練流程改為 sparse 4H snapshot asof 對齊，移除 training-time ffill 依賴
+- [x] Strategy persistence schema sanitize（NaN/缺欄位修復 + internal strategy 過濾 + save 不再誤增 run_count）

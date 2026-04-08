@@ -578,7 +578,8 @@ def _load_strategy_data():
     rows = conn.execute("""
         SELECT f.timestamp, r.close_price,
                f.feat_4h_bias50, f.feat_4h_dist_swing_low,
-               f.feat_nose, f.feat_pulse, f.feat_ear
+               f.feat_nose, f.feat_pulse, f.feat_ear,
+               COALESCE(f.regime_label, 'unknown') AS regime_label
         FROM features_normalized f
         JOIN raw_market_data r ON r.timestamp = f.timestamp AND r.symbol = f.symbol
         WHERE f.feat_4h_bias50 IS NOT NULL AND r.close_price IS NOT NULL
@@ -586,6 +587,48 @@ def _load_strategy_data():
     """).fetchall()
     conn.close()
     return rows
+
+
+def _compute_regime_breakdown(trades: List[Dict[str, Any]], initial_capital: float) -> List[Dict[str, Any]]:
+    grouped: Dict[str, Dict[str, Any]] = {}
+    for trade in trades:
+        regime = (trade.get("entry_regime") or "unknown").lower()
+        bucket = grouped.setdefault(regime, {
+            "regime": regime,
+            "trades": 0,
+            "wins": 0,
+            "losses": 0,
+            "total_pnl": 0.0,
+            "gross_profit": 0.0,
+            "gross_loss": 0.0,
+        })
+        pnl = float(trade.get("pnl", 0.0) or 0.0)
+        bucket["trades"] += 1
+        bucket["total_pnl"] += pnl
+        if pnl > 0:
+            bucket["wins"] += 1
+            bucket["gross_profit"] += pnl
+        else:
+            bucket["losses"] += 1
+            bucket["gross_loss"] += abs(pnl)
+
+    ordered = []
+    for regime in ("bull", "bear", "chop", "unknown"):
+        bucket = grouped.get(regime)
+        if not bucket:
+            continue
+        trades_count = bucket["trades"]
+        ordered.append({
+            "regime": regime,
+            "trades": trades_count,
+            "wins": bucket["wins"],
+            "losses": bucket["losses"],
+            "win_rate": round(bucket["wins"] / trades_count, 4) if trades_count else None,
+            "total_pnl": round(bucket["total_pnl"], 2),
+            "roi": round(bucket["total_pnl"] / initial_capital, 4) if initial_capital else None,
+            "profit_factor": round(bucket["gross_profit"] / max(bucket["gross_loss"], 0.01), 4),
+        })
+    return ordered
 
 
 @router.get("/strategies/leaderboard")
@@ -642,16 +685,17 @@ async def api_run_strategy(body: Dict[str, Any]):
     nose = [float(r[4]) if r[4] is not None else 0.5 for r in rows]
     pulse = [float(r[5]) if r[5] is not None else 0.5 for r in rows]
     ear = [float(r[6]) if r[6] is not None else 0 for r in rows]
+    regimes = [str(r[7]).lower() if r[7] else "unknown" for r in rows]
 
     if stype == "rule_based":
         result = run_rule_backtest(
             prices, timestamps, bias50, bias50,
-            nose, pulse, ear, params, initial)
+            nose, pulse, ear, params, initial, regimes=regimes)
     elif stype == "hybrid":
         conf = [max(0.0, min(1.0, 1.0 - b / 20.0)) for b in bias50]
         result = run_hybrid_backtest(
             prices, timestamps, bias50, bias50,
-            nose, pulse, ear, conf, params, initial)
+            nose, pulse, ear, conf, params, initial, regimes=regimes)
     else:
         return {"error": f"Unknown strategy type: {stype}"}
 
@@ -667,6 +711,7 @@ async def api_run_strategy(body: Dict[str, Any]):
         "avg_win": round(result.avg_win, 2),
         "avg_loss": round(result.avg_loss, 2),
         "max_consecutive_losses": result.max_consecutive_losses,
+        "regime_breakdown": _compute_regime_breakdown(result.trades, initial),
         "run_at": datetime.utcnow().isoformat() + "Z",
     }
     save_strategy(name, strat_def, results_dict)

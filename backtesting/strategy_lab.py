@@ -19,6 +19,10 @@ from datetime import datetime
 STRATEGIES_DIR = Path(os.path.expanduser("~/.hermes/poly-trader/strategies"))
 STRATEGIES_DIR.mkdir(parents=True, exist_ok=True)
 
+STRATEGY_SCHEMA_VERSION = 2
+INTERNAL_STRATEGY_PREFIXES = ("tmp_", "debug_", "scratch_")
+INTERNAL_STRATEGY_NAMES = {"test", "unnamed", "unnamed_strategy"}
+
 
 @dataclass
 class BacktestResult:
@@ -39,6 +43,116 @@ class BacktestResult:
     equity_curve: List[Dict] = field(default_factory=list)
 
 
+def _strategy_slug(name: str) -> str:
+    return (name or "unnamed_strategy").strip().replace(" ", "_").lower()
+
+
+def _strategy_path(name: str) -> Path:
+    return STRATEGIES_DIR / f"{_strategy_slug(name)}.json"
+
+
+def _coerce_float(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(value) or math.isinf(value):
+        return None
+    return value
+
+
+def _coerce_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _is_internal_strategy(name: str, slug: Optional[str] = None) -> bool:
+    normalized = (slug or _strategy_slug(name)).lower()
+    return normalized in INTERNAL_STRATEGY_NAMES or any(normalized.startswith(prefix) for prefix in INTERNAL_STRATEGY_PREFIXES)
+
+
+def _sanitize_definition(strategy_def: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    strategy_def = strategy_def or {}
+    params = strategy_def.get("params") if isinstance(strategy_def, dict) else {}
+    if not isinstance(params, dict):
+        params = {}
+    return {
+        "type": (strategy_def.get("type") if isinstance(strategy_def, dict) else None) or "rule_based",
+        "params": params,
+    }
+
+
+RESULT_FLOAT_FIELDS = (
+    "roi", "win_rate", "max_drawdown", "profit_factor", "total_pnl",
+    "avg_win", "avg_loss",
+)
+RESULT_INT_FIELDS = ("total_trades", "wins", "losses", "max_consecutive_losses")
+
+
+def _sanitize_regime_breakdown(items: Any) -> List[Dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+    cleaned = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        cleaned.append({
+            "regime": item.get("regime") or "unknown",
+            "trades": _coerce_int(item.get("trades"), 0),
+            "wins": _coerce_int(item.get("wins"), 0),
+            "losses": _coerce_int(item.get("losses"), 0),
+            "roi": _coerce_float(item.get("roi")),
+            "win_rate": _coerce_float(item.get("win_rate")),
+            "profit_factor": _coerce_float(item.get("profit_factor")),
+            "total_pnl": _coerce_float(item.get("total_pnl")),
+        })
+    return cleaned
+
+
+def _sanitize_results(results: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not isinstance(results, dict):
+        return None
+    cleaned = {"run_at": results.get("run_at")}
+    for field in RESULT_FLOAT_FIELDS:
+        cleaned[field] = _coerce_float(results.get(field))
+    for field in RESULT_INT_FIELDS:
+        cleaned[field] = _coerce_int(results.get(field), 0)
+    cleaned["regime_breakdown"] = _sanitize_regime_breakdown(results.get("regime_breakdown"))
+    if cleaned["wins"] == 0 and cleaned["losses"] == 0 and cleaned["total_trades"]:
+        wins = round((cleaned.get("win_rate") or 0.0) * cleaned["total_trades"])
+        cleaned["wins"] = wins
+        cleaned["losses"] = max(cleaned["total_trades"] - wins, 0)
+    if cleaned["total_trades"] == 0 and cleaned["wins"] + cleaned["losses"] > 0:
+        cleaned["total_trades"] = cleaned["wins"] + cleaned["losses"]
+    return cleaned
+
+
+def _sanitize_strategy_record(data: Dict[str, Any], fallback_name: str = "") -> Optional[Dict[str, Any]]:
+    if not isinstance(data, dict):
+        return None
+    name = (data.get("name") or fallback_name or "Unnamed Strategy").strip()
+    definition = _sanitize_definition(data.get("definition"))
+    last_results = _sanitize_results(data.get("last_results"))
+    run_count = _coerce_int(data.get("run_count"), 0)
+    if last_results is not None:
+        run_count = max(run_count, 1)
+    return {
+        "schema_version": _coerce_int(data.get("schema_version"), STRATEGY_SCHEMA_VERSION),
+        "name": name,
+        "slug": _strategy_slug(name),
+        "created_at": data.get("created_at") or data.get("updated_at") or datetime.now().isoformat(),
+        "updated_at": data.get("updated_at") or data.get("created_at") or datetime.now().isoformat(),
+        "definition": definition,
+        "last_results": last_results,
+        "run_count": run_count,
+        "is_internal": bool(data.get("is_internal")) or _is_internal_strategy(name),
+    }
+
+
 def run_rule_backtest(
     prices: List[float],
     timestamps: List[str],
@@ -49,6 +163,7 @@ def run_rule_backtest(
     ear: List[float],
     params: Dict,
     initial_capital: float = 10000.0,
+    regimes: Optional[List[str]] = None,
 ) -> BacktestResult:
     """純規則回測：bias50 + 特徵條件 + 金字塔 + SL/TP。"""
     # ── 解包參數 ──
@@ -80,6 +195,7 @@ def run_rule_backtest(
         n_val = nose[i] if i < len(nose) else 0.5
         p_val = pulse[i] if i < len(pulse) else 0.5
         e_val = ear[i] if i < len(ear) else 0.0
+        regime = regimes[i] if regimes and i < len(regimes) and regimes[i] else "unknown"
 
         # 更新權益
         if position > 0:
@@ -97,6 +213,8 @@ def run_rule_backtest(
                     "entry": avg, "exit": p, "pnl": pnl,
                     "roi": pnl / initial_capital, "layers": len(entry_layers),
                     "reason": "stop_loss", "timestamp": timestamps[i] if i < len(timestamps) else "",
+                    "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
+                    "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
                 })
                 position = 0
                 entry_layers = []
@@ -117,6 +235,8 @@ def run_rule_backtest(
                     "entry": avg, "exit": p, "pnl": pnl,
                     "roi": pnl / initial_capital, "layers": len(entry_layers),
                     "reason": reason, "timestamp": timestamps[i] if i < len(timestamps) else "",
+                    "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
+                    "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
                 })
                 position = 0
                 entry_layers = []
@@ -134,7 +254,11 @@ def run_rule_backtest(
             coins = buy_amt / p
             cash -= buy_amt
             position += coins
-            entry_layers.append({"price": p, "coins": coins, "layer": 1})
+            entry_layers.append({
+                "price": p, "coins": coins, "layer": 1,
+                "timestamp": timestamps[i] if i < len(timestamps) else "",
+                "regime": regime,
+            })
 
         elif can_enter and len(entry_layers) == 1 and len(layers_pct) > 1:
             # Layer 2: 需要 bias50 更低
@@ -144,7 +268,11 @@ def run_rule_backtest(
                 coins = buy_amt / p
                 cash -= buy_amt
                 position += coins
-                entry_layers.append({"price": p, "coins": coins, "layer": 2})
+                entry_layers.append({
+                    "price": p, "coins": coins, "layer": 2,
+                    "timestamp": timestamps[i] if i < len(timestamps) else "",
+                    "regime": regime,
+                })
 
         elif can_enter and len(entry_layers) == 2 and len(layers_pct) > 2:
             # Layer 3: 需要 bias50 更低
@@ -155,7 +283,11 @@ def run_rule_backtest(
                 coins = buy_amt / p
                 cash -= buy_amt
                 position += coins
-                entry_layers.append({"price": p, "coins": coins, "layer": 3})
+                entry_layers.append({
+                    "price": p, "coins": coins, "layer": 3,
+                    "timestamp": timestamps[i] if i < len(timestamps) else "",
+                    "regime": regime,
+                })
 
         # 更新最大回撤
         if equity > peak_equity:
@@ -175,6 +307,8 @@ def run_rule_backtest(
             "entry": avg, "exit": prices[-1], "pnl": pnl,
             "roi": pnl / initial_capital, "layers": len(entry_layers),
             "reason": "end_of_data", "timestamp": timestamps[-1] if timestamps else "",
+            "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
+            "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
         })
 
     # ── 統計 ──
@@ -213,6 +347,7 @@ def run_hybrid_backtest(
     model_confidence: List[float],
     params: Dict,
     initial_capital: float = 10000.0,
+    regimes: Optional[List[str]] = None,
 ) -> BacktestResult:
     """混合模式：4H 規則過濾 + ML 信心分數入場。"""
     entry = params.get("entry", {})
@@ -240,6 +375,7 @@ def run_hybrid_backtest(
         b50 = bias50[i] if i < len(bias50) else 0
         b200 = bias200[i] if i < len(bias200) else 0
         conf = model_confidence[i] if i < len(model_confidence) else 0.5
+        regime = regimes[i] if regimes and i < len(regimes) and regimes[i] else "unknown"
 
         if position > 0 and entry_layers:
             avg = sum(l["price"] * l["coins"] for l in entry_layers) / sum(l["coins"] for l in entry_layers)
@@ -254,6 +390,8 @@ def run_hybrid_backtest(
                     "entry": avg, "exit": p, "pnl": pnl,
                     "roi": pnl / initial_capital, "layers": len(entry_layers),
                     "reason": "stop_loss", "timestamp": timestamps[i] if i < len(timestamps) else "",
+                    "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
+                    "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
                 })
                 position = 0; entry_layers = []
                 consec_loss += 1
@@ -269,6 +407,8 @@ def run_hybrid_backtest(
                     "entry": avg, "exit": p, "pnl": pnl,
                     "roi": pnl / initial_capital, "layers": len(entry_layers),
                     "reason": reason, "timestamp": timestamps[i] if i < len(timestamps) else "",
+                    "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
+                    "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
                 })
                 position = 0; entry_layers = []
                 if pnl > 0: consec_loss = 0
@@ -281,21 +421,33 @@ def run_hybrid_backtest(
             buy_amt = initial_capital * layers_pct[0]
             coins = buy_amt / p
             cash -= buy_amt; position += coins
-            entry_layers.append({"price": p, "coins": coins, "layer": 1})
+            entry_layers.append({
+                "price": p, "coins": coins, "layer": 1,
+                "timestamp": timestamps[i] if i < len(timestamps) else "",
+                "regime": regime,
+            })
         elif can_enter and len(entry_layers) == 1 and len(layers_pct) > 1:
             layer2_bias = entry.get("layer2_bias_max", bias50_max - 1.5)
             if b50 <= layer2_bias:
                 buy_amt = initial_capital * layers_pct[1]
                 coins = buy_amt / p
                 cash -= buy_amt; position += coins
-                entry_layers.append({"price": p, "coins": coins, "layer": 2})
+                entry_layers.append({
+                    "price": p, "coins": coins, "layer": 2,
+                    "timestamp": timestamps[i] if i < len(timestamps) else "",
+                    "regime": regime,
+                })
         elif can_enter and len(entry_layers) == 2 and len(layers_pct) > 2:
             layer3_bias = entry.get("layer3_bias_max", bias50_max - 3.0)
             if b50 <= layer3_bias:
                 buy_amt = initial_capital * layers_pct[2]
                 coins = buy_amt / p
                 cash -= buy_amt; position += coins
-                entry_layers.append({"price": p, "coins": coins, "layer": 3})
+                entry_layers.append({
+                    "price": p, "coins": coins, "layer": 3,
+                    "timestamp": timestamps[i] if i < len(timestamps) else "",
+                    "regime": regime,
+                })
 
         if equity > peak_equity: peak_equity = equity
         dd = (peak_equity - equity) / peak_equity if peak_equity > 0 else 0
@@ -310,6 +462,8 @@ def run_hybrid_backtest(
             "entry": avg, "exit": prices[-1], "pnl": pnl,
             "roi": pnl / initial_capital, "layers": len(entry_layers),
             "reason": "end_of_data", "timestamp": timestamps[-1] if timestamps else "",
+            "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
+            "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
         })
 
     result.total_trades = len(result.trades)
@@ -336,21 +490,32 @@ def run_hybrid_backtest(
 
 def save_strategy(name: str, strategy_def: Dict, results: Optional[Dict] = None) -> str:
     """儲存策略定義為 JSON。"""
-    path = STRATEGIES_DIR / f"{name.replace(' ', '_').lower()}.json"
-    data = {
-        "name": name,
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
-        "definition": strategy_def,
-        "last_results": results,
-        "run_count": 1 if results is not None else 0,
-    }
+    now = datetime.now().isoformat()
+    path = _strategy_path(name)
+    data = _sanitize_strategy_record(
+        {
+            "schema_version": STRATEGY_SCHEMA_VERSION,
+            "name": name,
+            "created_at": now,
+            "updated_at": now,
+            "definition": strategy_def,
+            "last_results": results,
+            "run_count": 1 if results is not None else 0,
+            "is_internal": _is_internal_strategy(name),
+        },
+        fallback_name=name,
+    )
     if path.exists():
         try:
-            with open(path) as f:
-                existing = json.load(f)
+            with open(path, encoding="utf-8") as f:
+                existing_raw = json.load(f)
+            existing = _sanitize_strategy_record(existing_raw, fallback_name=name) or {}
             data["created_at"] = existing.get("created_at", data["created_at"])
-            data["run_count"] = existing.get("run_count", 0) + 1
+            prev_runs = _coerce_int(existing.get("run_count"), 0)
+            data["run_count"] = prev_runs + 1 if results is not None else prev_runs
+            if results is None and existing.get("last_results") is not None:
+                data["last_results"] = existing.get("last_results")
+            data["is_internal"] = existing.get("is_internal", False) or data.get("is_internal", False)
         except Exception:
             pass
     with open(path, "w", encoding="utf-8") as f:
@@ -358,7 +523,7 @@ def save_strategy(name: str, strategy_def: Dict, results: Optional[Dict] = None)
     return str(path)
 
 
-def load_all_strategies() -> List[Dict]:
+def load_all_strategies(include_internal: bool = False) -> List[Dict]:
     """載入所有已儲存的策略。"""
     strategies = []
     if not STRATEGIES_DIR.exists():
@@ -366,32 +531,36 @@ def load_all_strategies() -> List[Dict]:
     for path in sorted(STRATEGIES_DIR.glob("*.json")):
         try:
             with open(path, encoding="utf-8") as f:
-                data = json.load(f)
+                raw = json.load(f)
+            data = _sanitize_strategy_record(raw, fallback_name=path.stem.replace("_", " "))
+            if not data:
+                continue
+            if data.get("is_internal") and not include_internal:
+                continue
             strategies.append(data)
         except Exception:
             continue
-    # Sort by ROI descending (if results exist)
     def sort_key(s):
-        r = s.get("last_results")
-        if r:
-            return r.get("roi", -999)
-        return -999
+        r = s.get("last_results") or {}
+        roi = _coerce_float(r.get("roi"))
+        return roi if roi is not None else -999
     strategies.sort(key=sort_key, reverse=True)
     return strategies
 
 
 def load_strategy(name: str) -> Optional[Dict]:
     """載入單一策略。"""
-    path = STRATEGIES_DIR / f"{name.replace(' ', '_').lower()}.json"
+    path = _strategy_path(name)
     if path.exists():
         with open(path, encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        return _sanitize_strategy_record(data, fallback_name=name)
     return None
 
 
 def delete_strategy(name: str) -> bool:
     """刪除策略。"""
-    path = STRATEGIES_DIR / f"{name.replace(' ', '_').lower()}.json"
+    path = _strategy_path(name)
     if path.exists():
         path.unlink()
         return True

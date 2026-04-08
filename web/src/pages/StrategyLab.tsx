@@ -1,6 +1,17 @@
 import { useState, useEffect } from "react";
 import { fetchApi } from "../hooks/useApi";
 
+interface RegimeBreakdownEntry {
+  regime: string;
+  trades: number;
+  wins: number;
+  losses: number;
+  roi?: number | null;
+  win_rate?: number | null;
+  profit_factor?: number | null;
+  total_pnl?: number | null;
+}
+
 interface StrategyResult {
   roi: number;
   win_rate: number;
@@ -10,6 +21,7 @@ interface StrategyResult {
   max_drawdown: number;
   profit_factor: number;
   total_pnl: number;
+  regime_breakdown?: RegimeBreakdownEntry[];
   run_at?: string;
 }
 
@@ -55,6 +67,32 @@ const DEFAULT_PARAMS = {
   stop_loss: -0.05,
   take_profit_bias: 4.0,
   take_profit_roi: 0.08,
+};
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const formatPct = (value: number | null | undefined, digits = 1, signed = false) => {
+  if (!isFiniteNumber(value)) return "—";
+  const prefix = signed && value > 0 ? "+" : "";
+  return `${prefix}${(value * 100).toFixed(digits)}%`;
+};
+
+const formatDecimal = (value: number | null | undefined, digits = 2) => {
+  if (!isFiniteNumber(value)) return "—";
+  return value.toFixed(digits);
+};
+
+const formatMoney = (value: number | null | undefined) => {
+  if (!isFiniteNumber(value)) return "—";
+  return `USDT ${value > 0 ? "+" : ""}${value.toFixed(0)}`;
+};
+
+const regimeLabelMap: Record<string, string> = {
+  bull: "牛市",
+  bear: "熊市",
+  chop: "盤整",
+  unknown: "未知",
 };
 
 export default function StrategyLab() {
@@ -314,12 +352,12 @@ export default function StrategyLab() {
               <h3 className="text-sm font-semibold text-slate-300 mb-3">📊 回測結果</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { label: "ROI", value: `${runResult.roi > 0 ? '+' : ''}${(runResult.roi * 100).toFixed(1)}%`, color: runResult.roi > 0 ? 'text-green-400' : 'text-red-400' },
-                  { label: "勝率", value: `${(runResult.win_rate * 100).toFixed(1)}%`, color: runResult.win_rate > 0.5 ? 'text-green-400' : 'text-yellow-400' },
+                  { label: "ROI", value: formatPct(runResult.roi, 1, true), color: runResult.roi > 0 ? 'text-green-400' : 'text-red-400' },
+                  { label: "勝率", value: formatPct(runResult.win_rate), color: runResult.win_rate > 0.5 ? 'text-green-400' : 'text-yellow-400' },
                   { label: "交易次數", value: `${runResult.total_trades}`, color: 'text-slate-200' },
-                  { label: "Profit Factor", value: runResult.profit_factor.toFixed(2), color: runResult.profit_factor > 1 ? 'text-green-400' : 'text-red-400' },
-                  { label: "最大回撤", value: `${(runResult.max_drawdown * 100).toFixed(1)}%`, color: 'text-red-400' },
-                  { label: "總損益", value: `USDT ${runResult.total_pnl > 0 ? '+' : ''}${runResult.total_pnl.toFixed(0)}`, color: runResult.total_pnl > 0 ? 'text-green-400' : 'text-red-400' },
+                  { label: "Profit Factor", value: formatDecimal(runResult.profit_factor), color: runResult.profit_factor > 1 ? 'text-green-400' : 'text-red-400' },
+                  { label: "最大回撤", value: formatPct(runResult.max_drawdown), color: 'text-red-400' },
+                  { label: "總損益", value: formatMoney(runResult.total_pnl), color: runResult.total_pnl > 0 ? 'text-green-400' : 'text-red-400' },
                 ].map((m) => (
                   <div key={m.label} className="bg-slate-800/50 rounded-lg p-3">
                     <div className="text-xs text-slate-500">{m.label}</div>
@@ -345,11 +383,52 @@ export default function StrategyLab() {
               <div className="bg-slate-800/30 rounded p-2">
                 <div className="text-slate-500">你的策略</div>
                 <div className={`text-lg font-bold ${runResult ? (runResult.roi > 0 ? 'text-green-400' : 'text-red-400') : 'text-slate-500'}`}>
-                  {runResult ? `${runResult.roi > 0 ? '+' : ''}${(runResult.roi * 100).toFixed(1)}%` : '—'}
+                  {runResult ? formatPct(runResult.roi, 1, true) : '—'}
                 </div>
               </div>
             </div>
           </div>
+
+          {runResult?.regime_breakdown && runResult.regime_breakdown.length > 0 && (
+            <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-slate-300">🧭 市場分類回測</h3>
+                <span className="text-xs text-slate-500">依進場時 regime 切分 Bull / Bear / Chop</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-slate-500 border-b border-slate-700/50">
+                      <th className="text-left py-2 px-2">Regime</th>
+                      <th className="text-right py-2 px-2">交易</th>
+                      <th className="text-right py-2 px-2">勝率</th>
+                      <th className="text-right py-2 px-2">ROI</th>
+                      <th className="text-right py-2 px-2">PF</th>
+                      <th className="text-right py-2 px-2">損益</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {runResult.regime_breakdown.map((row) => (
+                      <tr key={row.regime} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                        <td className="py-2 px-2 text-slate-200 font-medium">{regimeLabelMap[row.regime] ?? row.regime}</td>
+                        <td className="py-2 px-2 text-right text-slate-400">{row.trades}</td>
+                        <td className="py-2 px-2 text-right text-slate-300">{formatPct(row.win_rate)}</td>
+                        <td className={`py-2 px-2 text-right font-bold ${isFiniteNumber(row.roi) && row.roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {formatPct(row.roi, 1, true)}
+                        </td>
+                        <td className={`py-2 px-2 text-right ${isFiniteNumber(row.profit_factor) && row.profit_factor >= 1 ? 'text-green-400' : 'text-red-400'}`}>
+                          {formatDecimal(row.profit_factor)}
+                        </td>
+                        <td className={`py-2 px-2 text-right ${isFiniteNumber(row.total_pnl) && row.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {formatMoney(row.total_pnl)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Leaderboard */}
           <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4">
@@ -380,18 +459,18 @@ export default function StrategyLab() {
                           {s.name}
                           <span className="ml-1 text-xs text-slate-500">(x{s.run_count})</span>
                         </td>
-                        <td className={`py-2 px-2 text-right font-bold ${r && r.roi > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {r ? `${r.roi > 0 ? '+' : ''}${(r.roi * 100).toFixed(1)}%` : '—'}
+                        <td className={`py-2 px-2 text-right font-bold ${r && isFiniteNumber(r.roi) && r.roi > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {r ? formatPct(r.roi, 1, true) : '—'}
                         </td>
                         <td className="py-2 px-2 text-right text-slate-300">
-                          {r ? `${(r.win_rate * 100).toFixed(0)}%` : '—'}
+                          {r ? formatPct(r.win_rate, 0) : '—'}
                         </td>
                         <td className="py-2 px-2 text-right text-slate-400">{r?.total_trades ?? '—'}</td>
-                        <td className={`py-2 px-2 text-right ${r && r.profit_factor > 1 ? 'text-green-400' : 'text-red-400'}`}>
-                          {r?.profit_factor?.toFixed(2) ?? '—'}
+                        <td className={`py-2 px-2 text-right ${r && isFiniteNumber(r.profit_factor) && r.profit_factor > 1 ? 'text-green-400' : 'text-red-400'}`}>
+                          {formatDecimal(r?.profit_factor)}
                         </td>
                         <td className="py-2 px-2 text-right text-red-400">
-                          {r ? `${(r.max_drawdown * 100).toFixed(1)}%` : '—'}
+                          {r ? formatPct(r.max_drawdown) : '—'}
                         </td>
                       </tr>
                     );
