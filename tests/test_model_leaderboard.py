@@ -291,6 +291,10 @@ def test_evaluate_model_records_average_profit_factor(monkeypatch):
             "max_drawdown": 0.08,
             "sharpe_ratio": 0.0,
             "profit_factor": 1.42,
+            "avg_entry_quality": 0.74,
+            "avg_allowed_layers": 2.0,
+            "trade_quality_score": 0.71,
+            "regime_gate_allow_ratio": 0.83,
         })()
         return fold, None, DummyResult(), 0.72, 0.64
 
@@ -300,6 +304,169 @@ def test_evaluate_model_records_average_profit_factor(monkeypatch):
 
     assert score is not None
     assert score.avg_profit_factor == pytest.approx(1.42)
+    assert score.avg_trade_quality == pytest.approx(0.71)
+    assert score.regime_stability_score == pytest.approx(1.0)
+
+
+def test_evaluate_model_composite_rewards_low_drawdown_and_trade_quality(monkeypatch):
+    timestamps = pd.date_range("2025-01-01", periods=220, freq="D")
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "close_price": [50000 + i for i in range(len(timestamps))],
+            "label_spot_long_win": [i % 2 for i in range(len(timestamps))],
+            "feat_4h_bias50": [0.0] * len(timestamps),
+            "feat_nose": [0.4] * len(timestamps),
+            "feat_pulse": [0.6] * len(timestamps),
+            "feat_ear": [0.1] * len(timestamps),
+        }
+    )
+    leaderboard = ModelLeaderboard(df)
+    monkeypatch.setattr("backtesting.model_leaderboard.MIN_TRAIN_SAMPLES", 50)
+    monkeypatch.setattr(
+        leaderboard,
+        "_get_walk_forward_splits",
+        lambda: [("2025-01-01", "2025-05-01", "2025-05-01", "2025-07-15")],
+    )
+
+    def fake_run_single_fold(train_df, test_df, model_name):
+        if model_name == "xgboost":
+            fold = type("Fold", (), {
+                "fold": 0,
+                "train_start": "2025-01-01",
+                "train_end": "2025-05-01",
+                "test_start": "2025-05-01",
+                "test_end": "2025-06-01",
+                "train_samples": len(train_df),
+                "test_samples": len(test_df),
+                "roi": 0.18,
+                "win_rate": 0.62,
+                "total_trades": 10,
+                "max_drawdown": 0.26,
+                "sharpe_ratio": 0.0,
+                "profit_factor": 1.05,
+                "avg_entry_quality": 0.52,
+                "avg_allowed_layers": 1.0,
+                "trade_quality_score": 0.41,
+                "regime_gate_allow_ratio": 0.35,
+            })()
+            return fold, None, object(), 0.88, 0.60
+        fold = type("Fold", (), {
+            "fold": 0,
+            "train_start": "2025-01-01",
+            "train_end": "2025-05-01",
+            "test_start": "2025-05-01",
+            "test_end": "2025-06-01",
+            "train_samples": len(train_df),
+            "test_samples": len(test_df),
+            "roi": 0.11,
+            "win_rate": 0.64,
+            "total_trades": 14,
+            "max_drawdown": 0.07,
+            "sharpe_ratio": 0.0,
+            "profit_factor": 1.55,
+            "avg_entry_quality": 0.78,
+            "avg_allowed_layers": 2.3,
+            "trade_quality_score": 0.79,
+            "regime_gate_allow_ratio": 0.86,
+        })()
+        return fold, None, object(), 0.76, 0.67
+
+    monkeypatch.setattr(leaderboard, "_run_single_fold", fake_run_single_fold)
+
+    aggressive = leaderboard.evaluate_model("xgboost")
+    quality_first = leaderboard.evaluate_model("rule_baseline")
+
+    assert aggressive is not None and quality_first is not None
+    assert aggressive.avg_roi > quality_first.avg_roi
+    assert quality_first.composite_score > aggressive.composite_score
+    assert quality_first.max_drawdown_score > aggressive.max_drawdown_score
+    assert quality_first.avg_trade_quality > aggressive.avg_trade_quality
+
+
+def test_evaluate_model_tracks_unavailable_dependency_reason(monkeypatch):
+    timestamps = pd.date_range("2025-01-01", periods=220, freq="D")
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "close_price": [50000 + i for i in range(len(timestamps))],
+            "label_spot_long_win": [i % 2 for i in range(len(timestamps))],
+            "feat_4h_bias50": [0.0] * len(timestamps),
+            "feat_nose": [0.4] * len(timestamps),
+            "feat_pulse": [0.6] * len(timestamps),
+            "feat_ear": [0.1] * len(timestamps),
+        }
+    )
+    leaderboard = ModelLeaderboard(df, target_col="label_spot_long_win")
+    monkeypatch.setattr("backtesting.model_leaderboard.MIN_TRAIN_SAMPLES", 50)
+    monkeypatch.setattr(
+        leaderboard,
+        "_get_walk_forward_splits",
+        lambda: [("2025-01-01", "2025-05-01", "2025-05-01", "2025-07-15")],
+    )
+
+    def fake_train_model(X_train, y_train, model_name):
+        from backtesting.model_leaderboard import ModelUnavailableError
+        raise ModelUnavailableError(model_name, "missing_dependency", "No module named 'lightgbm'")
+
+    monkeypatch.setattr(leaderboard, "_train_model", fake_train_model)
+
+    score = leaderboard.evaluate_model("lightgbm")
+
+    assert score is None
+    assert leaderboard.last_model_statuses["lightgbm"]["status"] == "unavailable"
+    assert leaderboard.last_model_statuses["lightgbm"]["reason"] == "missing_dependency"
+
+
+def test_build_model_leaderboard_payload_includes_skipped_models(monkeypatch):
+    class FakeLeaderboard:
+        def __init__(self, data_df, target_col="simulated_pyramid_win"):
+            self.target_col = target_col
+            self.last_model_statuses = {
+                "lightgbm": {"status": "unavailable", "reason": "missing_dependency", "detail": "No module named 'lightgbm'"}
+            }
+
+        def run_all_models(self, model_names):
+            class Score:
+                model_name = "xgboost"
+                avg_roi = 0.12
+                avg_win_rate = 0.66
+                avg_trades = 11
+                avg_max_drawdown = 0.08
+                avg_profit_factor = 1.4
+                avg_entry_quality = 0.74
+                avg_allowed_layers = 2.2
+                avg_trade_quality = 0.71
+                regime_stability_score = 0.92
+                trade_count_score = 0.55
+                roi_score = 0.8
+                max_drawdown_score = 0.77
+                profit_factor_score = 0.27
+                overfit_penalty = 0.4
+                std_roi = 0.03
+                train_accuracy = 0.72
+                test_accuracy = 0.64
+                train_test_gap = 0.08
+                composite_score = 0.21
+                folds = []
+
+            return [Score()]
+
+    monkeypatch.setattr(api_module, "load_model_leaderboard_frame", lambda db_path: pd.DataFrame({
+        "timestamp": pd.date_range("2025-01-01", periods=3, freq="D"),
+        "close_price": [1.0, 2.0, 3.0],
+        "simulated_pyramid_win": [1, 0, 1],
+    }))
+    monkeypatch.setattr("backtesting.model_leaderboard.ModelLeaderboard", FakeLeaderboard)
+
+    payload = api_module._build_model_leaderboard_payload()
+
+    assert payload["leaderboard"][0]["model_name"] == "xgboost"
+    assert payload["leaderboard"][0]["avg_trade_quality"] == pytest.approx(0.71)
+    assert payload["leaderboard"][0]["regime_stability_score"] == pytest.approx(0.92)
+    assert payload["leaderboard"][0]["overfit_penalty"] == pytest.approx(0.4)
+    assert payload["skipped_models"][0]["model_name"] == "lightgbm"
+    assert payload["skipped_models"][0]["reason"] == "missing_dependency"
 
 
 def test_summarize_target_candidates_prefers_non_overfit_best_model(monkeypatch):

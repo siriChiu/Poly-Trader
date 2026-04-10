@@ -54,7 +54,8 @@
 - [~] confidence-based layer sizing：依 entry quality / confidence 決定只開第一層、允許兩層、或完整 20/30/50 金字塔，避免低品質訊號重倉進場  
   ↳ Heartbeat #637：live predictor 已回傳 `allowed_layers` 並讓 `should_trade` 受 layer allowance 約束；下一步是把 sizing 納入 leaderboard / live ranking 主排序
 - [ ] 核心信號 vs 研究信號分級：把 4H 結構 + 高 coverage technical 納入主決策；把 sparse-source / 低 coverage 特徵降級為 research overlay，不再與核心信號同權
-- [ ] leaderboard 改版：從偏 ROI 排序調整成 **勝率 / 回撤 / regime 穩定度 / PF / trade quality** 的複合評分，讓排行榜更符合高勝率低回撤目標
+- [~] leaderboard 改版：從偏 ROI 排序調整成 **勝率 / 回撤 / regime 穩定度 / PF / trade quality** 的複合評分，讓排行榜更符合高勝率低回撤目標  
+  ↳ Heartbeat #638：`backtesting/model_leaderboard.py` 與 API payload 已輸出 trade-quality / drawdown-aware component fields；下一步是把 proxy 分數升級成直接使用 canonical `win + pnl_quality + drawdown_penalty + time_underwater` target
 - [ ] Dynamic Window distribution-aware 版：窗口評估必須顯示 label distribution / regime distribution / constant-target guardrail，不再只看固定 N 導致近期窗口誤判
 - [ ] strategy archetype layer：把策略從 `rule_baseline` / `xgboost` 升級成「抄底型 / 趨勢型 / 均值回歸型 / 4H濾網型」等決策語義層
 - [ ] maturity-aware UI：FeatureChart / Strategy Lab 明確顯示 **核心可用 / 研究中 / blocked** 三層成熟度，讓使用者知道哪些訊號能當主判斷、哪些只能輔助觀察

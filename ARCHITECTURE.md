@@ -88,6 +88,17 @@
 
 這些欄位目前是 `phase16_baseline_v1`，其語義必須與 Strategy Lab 的 `_compute_regime_gate()` / `_compute_entry_quality()` / `_allowed_layers_for_signal()` 對齊。Heartbeat 不可再把 live path 描述成「只有 signal/confidence」。下一階段若升級到完整 decision-quality target，必須在這個 contract 上擴展，而不是另起一套平行語義。
 
+**Leaderboard objective contract（Heartbeat #638）**：`backtesting/model_leaderboard.py` 與 `/api/models/leaderboard` 不可再只用 ROI / overfit gap / volatility 當主排序語義。當前 composite score 與 API payload 至少要同步輸出以下 decision-aware components：
+- `avg_entry_quality`
+- `avg_allowed_layers`
+- `avg_trade_quality`
+- `regime_stability_score`
+- `max_drawdown_score`
+- `profit_factor_score`
+- `overfit_penalty`
+
+這些欄位目前仍是 **backtest-side proxy**，但它們已成為 leaderboard 對外 contract 的一部分。下一階段若把 canonical quality target（`win + pnl_quality + drawdown_penalty + time_underwater`）直接接進 ranking，必須在這組欄位上擴充或替換，而不是回退成只看 ROI 的單一排序。
+
 **Core-vs-research signal contract（2026-04-10 strategy review）**：主模型與主 UI 必須區分兩類信號：
 - **核心信號**：4H 結構 + 高 coverage technical（可直接參與主決策）
 - **研究信號**：sparse-source / 低 coverage / forward-archive 中的特徵（只可作 overlay、bonus、veto 或研究用途）

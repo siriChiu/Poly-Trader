@@ -1,22 +1,22 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-10 15:08 UTC — Heartbeat #637（live predictor decision contract baseline exported + /predict/confidence tuple bug fixed）*
+*最後更新：2026-04-10 15:39 UTC — Heartbeat #638（leaderboard composite shifted toward win/drawdown/trade-quality ranking）*
 
-## 📊 系統健康狀態 v4.56
+## 📊 系統健康狀態 v4.57
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,308** | 🟢 本輪新增 **+1**（`python scripts/hb_parallel_runner.py --fast --hb 637` collect verified） |
-| Features | **11,737** | 🟢 本輪新增 **+1**；最新 row 的 **10/10 canonical 4H features** 與 **30/30 4H lags** 仍可由 predictor probe 直接讀到 |
-| Labels | **40,697** | 🟢 本輪新增 **+1**；240m/1440m freshness 仍在 expected horizon lag 內 |
+| Raw | **20,309** | 🟢 本輪新增 **+1**（`python scripts/hb_parallel_runner.py --fast` collect verified） |
+| Features | **11,738** | 🟢 本輪新增 **+1**；最新 row 仍可推進 canonical 4H / lag feature path |
+| Labels | **40,697** | 🟡 本輪 **持平**；240m/1440m freshness 仍在 expected horizon lag 內，未出現新的 raw-gap blocker |
 || simulated_pyramid_win (DB overall) | **57.30%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5730` |
 || simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.31%** | 🟢 分析樣本 n=11,022 |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
 | 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Aura/Mind/VIX/DXY/4H features 仍是主要通過來源 |
 | TW-IC | **17/30** | 🟢 recent-weighted 診斷維持；4H features + Macro 仍明顯強於弱核心短線欄位 |
 | Regime IC | **Bear 7/8 / Bull 6/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；core regime 診斷未退化 |
-| 模型 / 決策語義 | **live predictor 現已輸出 regime_gate / entry_quality / allowed_layers baseline** | 🟢 `hb_predict_probe.py` 與 `/predict/confidence` 已對齊 Phase 16 baseline contract；但 `win + pnl_quality + drawdown_penalty + time_underwater` 的完整 decision-quality target 仍未成為 live 主輸出 |
-| Verification | **35 pytest + fast heartbeat + direct predictor probe** | ✅ 本輪已重驗證 |
+| 模型 / 決策語義 | **live predictor baseline 穩定；leaderboard 現開始輸出 trade-quality / drawdown-aware ranking fields** | 🟢 live path 仍是 `phase16_baseline_v1`；本輪把 leaderboard composite 從偏 ROI 轉向 win-rate / drawdown / PF / regime stability / trade quality |
+| Verification | **20 pytest + fast heartbeat** | ✅ 本輪已重驗證 |
 
 ## 🎯 當前戰略問題（高準確度 / 高勝率 / 低回撤）
 
@@ -41,10 +41,11 @@
 - **風險**：會出現「研究信號看起來很厲害，但其實成熟度不足」的假信心，污染準確度與決策穩定性。
 - **建議方向**：把訊號明確分成 **核心可用 / 研究中 / blocked** 三層，並在主模型與 UI 上採不同權重與展示策略。
 
-### #LEADERBOARD_OBJECTIVE_MISMATCH（持續 P1）
-- **現象**：排行榜已有 composite score，但 `backtesting/model_leaderboard.py` 目前仍以 **ROI / test accuracy gap / ROI 波動** 為主要組件，尚未完全對齊勝率、回撤、regime 穩定度與 trade quality 的實盤偏好。
-- **風險**：高 ROI 但高回撤的模型仍可能佔據前列，與使用者的真偏好（高勝率、低深套）不完全一致。
-- **建議方向**：把 leaderboard 改成 **勝率 / 最大回撤 / regime 穩定度 / PF / trade quality** 的複合排序。
+### #LEADERBOARD_OBJECTIVE_MISMATCH（部分修復，降為 P1 follow-up）
+- **現象**：Heartbeat #638 已把 `backtesting/model_leaderboard.py` 的 composite score 從偏 **ROI / test accuracy gap / ROI 波動**，改成更偏向 **勝率 / 最大回撤 / PF / regime stability / trade quality / trade count** 的複合排序，並把這些 component fields 經由 API payload 一起輸出。
+- **本輪修復**：新增 fold/model 層級的 `avg_entry_quality`、`avg_allowed_layers`、`avg_trade_quality`、`regime_stability_score`、`max_drawdown_score`、`profit_factor_score`、`overfit_penalty` 等欄位；`tests/test_model_leaderboard.py` 與 `tests/test_api.py` 共 **20 passed**，證明 API 序列化與 ranking contract 已更新。
+- **剩餘缺口**：目前 trade quality 仍是 **backtest-side proxy**，尚未直接使用 `win + pnl_quality + drawdown_penalty + time_underwater` 的完整 canonical decision-quality target，也尚未把 regime breakdown / leaderboard UI 主排序文字一起更新成同一語義。
+- **下一步方向**：把 labeling 端的 canonical quality target 明確接進 leaderboard / predictor，共用同一組 decision-quality contract，而不是讓 leaderboard 停留在 proxy 分數。
 
 ### #DYNAMIC_WINDOW_NOT_DISTRIBUTION_AWARE（持續 P1）
 - **現象**：Dynamic Window 最近窗已知不是 merge bug，而是 canonical recent labels 在某些窗口內高度偏斜甚至 constant。
@@ -53,6 +54,25 @@
 
 ### 實作計畫
 - `docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+## 📈 心跳 #638 摘要
+
+### 本輪已驗證 patch
+1. **Leaderboard composite no longer over-rewards raw ROI**：`backtesting/model_leaderboard.py` 現在把 ranking 重心改為 **勝率 / 最大回撤 / PF / trade quality / regime stability / trade count**，不再讓高 ROI 但高回撤模型天然佔優。
+2. **Trade-quality fields are now first-class leaderboard outputs**：fold 與 model score 新增 `avg_entry_quality`、`avg_allowed_layers`、`avg_trade_quality`、`regime_stability_score`、`max_drawdown_score`、`profit_factor_score`、`overfit_penalty`，`server/routes/api.py` 會一起序列化到 leaderboard payload。
+3. **Regression tests cover the new contract**：新增測試確認 ranking 會偏好低回撤 / 高品質模型，而不是單看 ROI，且 API payload 會輸出新的 quality fields。
+
+### 本輪 runtime facts（Heartbeat #638）
+- `python scripts/hb_parallel_runner.py --fast`：**Raw 20308→20309 / Features 11737→11738 / Labels 40697→40697**；summary 已落地 `data/heartbeat_fast_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-10 12:02:11.880523`、`raw_gap=1.4h`；1440m `latest_target=2026-04-09 16:00:00`、`raw_gap=1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **17/30 PASS**；Regime IC **Bear 7/8 / Bull 6/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,022）。
+- `PYTHONPATH=. pytest tests/test_model_leaderboard.py tests/test_api.py -q` → **20 passed**。這證明新的 leaderboard objective 與 API serialization contract 可回歸驗證。
+- Source blocker 狀態沒有假改善：仍是 **8 blocked sparse features**；`fin_netflow` 仍為 `auth_missing`，Claw / Claw intensity / Fin 依舊受 `COINGLASS_API_KEY` 缺失阻擋。
+
+### Blocker 升級 / 狀態更正
+- **#LEADERBOARD_OBJECTIVE_MISMATCH（本輪部分修復）**：不能再說 leaderboard 只看 ROI / gap / volatility。它現在已經會輸出 trade-quality / drawdown-aware component fields；剩餘缺口是 canonical quality target 還沒直接接入。
+- **#DECISION_QUALITY_GAP（仍是主 P0）**：本輪修的是 leaderboard ranking contract，不是 live predictor 的完整 decision-quality target。`win + pnl_quality + drawdown_penalty + time_underwater` 仍未成為 live 主輸出。
+- **#LOW_COVERAGE_SOURCES（持續真 blocker）**：Claw / Claw intensity / Fin 仍受 `COINGLASS_API_KEY` 缺失阻擋；本輪 leaderboard patch 不應被誤報成 source blocker 已解。
 
 ## 📈 心跳 #637 摘要
 

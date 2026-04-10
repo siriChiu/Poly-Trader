@@ -22,6 +22,65 @@ WALK_FORWARD_WINDOW_MONTHS = 4  # 訓練視窗
 WALK_FORWARD_STEP_MONTHS = 1    # 每次推進 1 個月
 MIN_TRAIN_SAMPLES = 500         # 最少訓練樣本
 
+
+def _clamp01(value: float) -> float:
+    return max(0.0, min(1.0, float(value)))
+
+
+def _mean(values: List[float]) -> float:
+    return float(np.mean(values)) if values else 0.0
+
+
+def _summarize_trade_quality(result) -> Dict[str, float]:
+    trades = list(getattr(result, 'trades', []) or [])
+    if not trades:
+        return {
+            'avg_entry_quality': 0.0,
+            'avg_allowed_layers': 0.0,
+            'regime_gate_allow_ratio': 0.0,
+            'trade_quality_score': 0.0,
+        }
+
+    entry_quality_values = [float(t.get('entry_quality')) for t in trades if t.get('entry_quality') is not None]
+    allowed_layers_values = [float(t.get('allowed_layers')) for t in trades if t.get('allowed_layers') is not None]
+    gates = [str(t.get('regime_gate') or 'ALLOW').upper() for t in trades]
+    allow_ratio = sum(1 for gate in gates if gate == 'ALLOW') / len(gates)
+    caution_ratio = sum(1 for gate in gates if gate == 'CAUTION') / len(gates)
+    avg_entry_quality = _mean(entry_quality_values)
+    avg_allowed_layers = _mean(allowed_layers_values)
+
+    drawdown_score = _clamp01(1.0 - float(getattr(result, 'max_drawdown', 0.0) or 0.0) / 0.35)
+    profit_factor = float(getattr(result, 'profit_factor', 0.0) or 0.0)
+    profit_factor_score = _clamp01((profit_factor - 1.0) / 1.5)
+    win_rate_score = _clamp01((float(getattr(result, 'win_rate', 0.0) or 0.0) - 0.45) / 0.20)
+    allowed_layers_score = _clamp01(avg_allowed_layers / 3.0)
+
+    trade_quality_score = round(
+        0.35 * avg_entry_quality
+        + 0.20 * win_rate_score
+        + 0.15 * drawdown_score
+        + 0.15 * profit_factor_score
+        + 0.10 * allow_ratio
+        + 0.05 * (1.0 - caution_ratio)
+        + 0.05 * allowed_layers_score,
+        4,
+    )
+    return {
+        'avg_entry_quality': round(avg_entry_quality, 4),
+        'avg_allowed_layers': round(avg_allowed_layers, 4),
+        'regime_gate_allow_ratio': round(allow_ratio, 4),
+        'trade_quality_score': trade_quality_score,
+    }
+
+
+class ModelUnavailableError(RuntimeError):
+    def __init__(self, model_name: str, reason: str, detail: str = ""):
+        super().__init__(detail or reason)
+        self.model_name = model_name
+        self.reason = reason
+        self.detail = detail or reason
+
+
 @dataclass
 class FoldResult:
     """單一折疊的結果"""
@@ -38,6 +97,10 @@ class FoldResult:
     max_drawdown: float = 0.0
     sharpe_ratio: float = 0.0
     profit_factor: float = 0.0
+    avg_entry_quality: float = 0.0
+    avg_allowed_layers: float = 0.0
+    trade_quality_score: float = 0.0
+    regime_gate_allow_ratio: float = 0.0
 
 @dataclass
 class ModelScore:
@@ -49,6 +112,15 @@ class ModelScore:
     avg_max_drawdown: float = 0.0
     avg_sharpe: float = 0.0
     avg_profit_factor: float = 0.0
+    avg_entry_quality: float = 0.0
+    avg_allowed_layers: float = 0.0
+    avg_trade_quality: float = 0.0
+    regime_stability_score: float = 0.0
+    trade_count_score: float = 0.0
+    roi_score: float = 0.0
+    max_drawdown_score: float = 0.0
+    profit_factor_score: float = 0.0
+    overfit_penalty: float = 0.0
     std_roi: float = 0.0
     train_test_gap: float = 0.0  # 訓練集與測試集的差距（過擬合指標）
     composite_score: float = 0.0  # 綜合排名分數
@@ -76,6 +148,7 @@ class ModelLeaderboard:
         self.data['timestamp'] = pd.to_datetime(self.data['timestamp'])
         self.data = self.data.sort_values('timestamp').reset_index(drop=True)
         self.target_col = target_col
+        self.last_model_statuses: Dict[str, Dict[str, Any]] = {}
 
     def _get_walk_forward_splits(self) -> List[Tuple[str, str, str, str]]:
         """產生 Walk-Forward 折疊列表: (train_start, train_end, test_start, test_end)"""
@@ -176,8 +249,8 @@ class ModelLeaderboard:
                 )
                 m.fit(X_train, y_train)
                 return m
-            except ImportError:
-                return None
+            except ImportError as exc:
+                raise ModelUnavailableError(model_name, 'missing_dependency', str(exc)) from exc
         elif model_name == 'catboost':
             try:
                 from catboost import CatBoostClassifier
@@ -190,8 +263,8 @@ class ModelLeaderboard:
                 )
                 m.fit(X_train, y_train)
                 return m
-            except ImportError:
-                return None
+            except ImportError as exc:
+                raise ModelUnavailableError(model_name, 'missing_dependency', str(exc)) from exc
         elif model_name == 'ensemble':
             """Average voting from XGBoost + RF + LR"""
             from xgboost import XGBClassifier
@@ -292,6 +365,7 @@ class ModelLeaderboard:
             nose.tolist(), pulse.tolist(), ear.tolist(), confidence.tolist(),
             params
         )
+        trade_quality = _summarize_trade_quality(result)
 
         return FoldResult(
             fold=0,
@@ -307,6 +381,10 @@ class ModelLeaderboard:
             max_drawdown=result.max_drawdown,
             sharpe_ratio=0.0,
             profit_factor=result.profit_factor,
+            avg_entry_quality=trade_quality['avg_entry_quality'],
+            avg_allowed_layers=trade_quality['avg_allowed_layers'],
+            trade_quality_score=trade_quality['trade_quality_score'],
+            regime_gate_allow_ratio=trade_quality['regime_gate_allow_ratio'],
         ), confidence, result, train_acc, test_acc
 
     def evaluate_model(self, model_name: str) -> Optional[ModelScore]:
@@ -315,35 +393,70 @@ class ModelLeaderboard:
         folds = []
         all_train_accs = []
         all_test_accs = []
+        self.last_model_statuses[model_name] = {"status": "pending", "reason": None, "detail": None}
 
-        for i, (ts, te, test_s, test_e) in enumerate(splits[:4]):  # 最多跑 4 折避免太慢
-            train_df = self.data[(self.data['timestamp'] >= ts) & (self.data['timestamp'] < te)]
-            test_df = self.data[(self.data['timestamp'] >= test_s) & (self.data['timestamp'] < test_e)]
+        try:
+            for i, (ts, te, test_s, test_e) in enumerate(splits[:4]):  # 最多跑 4 折避免太慢
+                train_df = self.data[(self.data['timestamp'] >= ts) & (self.data['timestamp'] < te)]
+                test_df = self.data[(self.data['timestamp'] >= test_s) & (self.data['timestamp'] < test_e)]
 
-            if len(train_df) < MIN_TRAIN_SAMPLES or len(test_df) < 50:
-                continue
+                if len(train_df) < MIN_TRAIN_SAMPLES or len(test_df) < 50:
+                    continue
 
-            result = self._run_single_fold(train_df, test_df, model_name)
-            if result is not None:
-                fr, _, _, train_acc, test_acc = result
-                fr.fold = i
-                folds.append(fr)
-                all_train_accs.append(train_acc)
-                all_test_accs.append(test_acc)
+                result = self._run_single_fold(train_df, test_df, model_name)
+                if result is not None:
+                    fr, _, _, train_acc, test_acc = result
+                    fr.fold = i
+                    folds.append(fr)
+                    all_train_accs.append(train_acc)
+                    all_test_accs.append(test_acc)
+        except ModelUnavailableError as exc:
+            self.last_model_statuses[model_name] = {
+                "status": "unavailable",
+                "reason": exc.reason,
+                "detail": exc.detail,
+            }
+            return None
 
         if not folds:
+            self.last_model_statuses[model_name] = {
+                "status": "insufficient_data",
+                "reason": "no_valid_folds",
+                "detail": "No folds met minimum train/test sample thresholds",
+            }
             return None
 
         # 統計
         rois = [f.roi for f in folds]
         wrs = [f.win_rate for f in folds]
+        avg_trades = np.mean([f.total_trades for f in folds])
+        avg_max_drawdown = np.mean([f.max_drawdown for f in folds])
+        avg_profit_factor = np.mean([f.profit_factor for f in folds])
+        avg_entry_quality = np.mean([f.avg_entry_quality for f in folds])
+        avg_allowed_layers = np.mean([f.avg_allowed_layers for f in folds])
+        avg_trade_quality = np.mean([f.trade_quality_score for f in folds])
+        regime_allow_ratios = [f.regime_gate_allow_ratio for f in folds]
+        regime_stability_score = _clamp01(1.0 - float(np.std(regime_allow_ratios)) / 0.25)
+        trade_count_score = _clamp01(avg_trades / 20.0)
+        roi_score = _clamp01(0.5 + float(np.mean(rois)) / 0.20)
+        max_drawdown_score = _clamp01(1.0 - avg_max_drawdown / 0.35)
+        profit_factor_score = _clamp01((avg_profit_factor - 1.0) / 1.5)
+
         scores = ModelScore(
             model_name=model_name,
             avg_roi=np.mean(rois),
             avg_win_rate=np.mean(wrs),
-            avg_trades=np.mean([f.total_trades for f in folds]),
-            avg_max_drawdown=np.mean([f.max_drawdown for f in folds]),
-            avg_profit_factor=np.mean([f.profit_factor for f in folds]),
+            avg_trades=avg_trades,
+            avg_max_drawdown=avg_max_drawdown,
+            avg_profit_factor=avg_profit_factor,
+            avg_entry_quality=avg_entry_quality,
+            avg_allowed_layers=avg_allowed_layers,
+            avg_trade_quality=avg_trade_quality,
+            regime_stability_score=regime_stability_score,
+            trade_count_score=trade_count_score,
+            roi_score=roi_score,
+            max_drawdown_score=max_drawdown_score,
+            profit_factor_score=profit_factor_score,
             std_roi=np.std(rois),
             train_accuracy=np.mean(all_train_accs) if all_train_accs else 0,
             test_accuracy=np.mean(all_test_accs) if all_test_accs else 0,
@@ -352,13 +465,26 @@ class ModelLeaderboard:
 
         # Overfitting penalty
         scores.train_test_gap = scores.train_accuracy - scores.test_accuracy
-        scores.composite_score = (
-            0.4 * scores.avg_roi +
-            0.3 * (scores.avg_win_rate - 0.5) +
-            0.2 * (1.0 - scores.train_test_gap) -
-            0.1 * scores.std_roi  # 穩定性
+        scores.overfit_penalty = _clamp01(scores.train_test_gap / 0.20)
+        scores.composite_score = round(
+            0.30 * _clamp01((scores.avg_win_rate - 0.45) / 0.20)
+            + 0.20 * scores.max_drawdown_score
+            + 0.15 * scores.profit_factor_score
+            + 0.15 * _clamp01(scores.avg_trade_quality)
+            + 0.10 * scores.regime_stability_score
+            + 0.05 * scores.roi_score
+            + 0.05 * scores.trade_count_score
+            - 0.15 * scores.overfit_penalty
+            - 0.05 * _clamp01(scores.std_roi / 0.10),
+            4,
         )
 
+        self.last_model_statuses[model_name] = {
+            "status": "ok",
+            "reason": None,
+            "detail": None,
+            "folds": len(folds),
+        }
         return scores
 
     def run_all_models(self, model_names: Optional[List[str]] = None) -> List[ModelScore]:
@@ -375,7 +501,11 @@ class ModelLeaderboard:
                 results.append(score)
                 print(f"    ✅ {name}: ROI={score.avg_roi:+.1%}, Composite={score.composite_score:.4f} ({time.time()-t0:.1f}s)")
             else:
-                print(f"    ❌ {name}: 資料不足")
+                status = self.last_model_statuses.get(name, {})
+                if status.get("reason") == "missing_dependency":
+                    print(f"    ❌ {name}: 缺少依賴 ({status.get('detail')})")
+                else:
+                    print(f"    ❌ {name}: 資料不足")
 
         # 排序：按 composite_score 降冪
         results.sort(key=lambda x: x.composite_score, reverse=True)
