@@ -77,7 +77,9 @@ _ECDF_ANCHORS = {
     'feat_vix': (12.0, 35.0), 'feat_dxy': (95.0, 110.0),
     'feat_rsi14': (0.1, 0.85), 'feat_macd_hist': (-0.0005, 0.0005),
     'feat_atr_pct': (0.005, 0.03), 'feat_vwap_dev': (-0.5, 0.5),
-    'feat_bb_pct_b': (0.0, 1.0),
+    'feat_bb_pct_b': (0.0, 1.0), 'feat_nw_width': (0.0, 0.08),
+    'feat_nw_slope': (-0.03, 0.03), 'feat_adx': (0.0, 0.8),
+    'feat_choppiness': (0.25, 0.75), 'feat_donchian_pos': (0.0, 1.0),
     'feat_nq_return_1h': (-0.03, 0.03), 'feat_nq_return_24h': (-0.08, 0.08),
     'feat_claw': (0.0, 1.0), 'feat_claw_intensity': (0.0, 1.5),
     'feat_fang_pcr': (0.5, 1.5), 'feat_fang_skew': (-0.5, 0.5),
@@ -263,10 +265,19 @@ async def api_rec():
 
 
 @router.get("/chart/klines")
-async def api_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 500):
+async def api_klines(
+    symbol: str = "BTCUSDT",
+    interval: str = "1h",
+    limit: int = 500,
+    since: Optional[int] = Query(default=None),
+    until: Optional[int] = Query(default=None),
+):
     try:
         exchange = ccxt.binance()
-        ohlcv = exchange.fetch_ohlcv(symbol, interval, limit=limit)
+        fetch_limit = max(min(limit, 1000), 50)
+        ohlcv = exchange.fetch_ohlcv(symbol, interval, since=since, limit=fetch_limit)
+        if until is not None:
+            ohlcv = [row for row in ohlcv if row[0] <= until]
         candles = [{"time": int(b[0] / 1000), "open": b[1], "high": b[2],
                      "low": b[3], "close": b[4], "volume": b[5]} for b in ohlcv]
         closes = [b[4] for b in ohlcv]
@@ -543,13 +554,24 @@ async def get_confidence_prediction():
     from config import load_config
     cfg = load_config()
     session = init_db(cfg["database"]["url"])
-    predictor = load_predictor()
-    result = predict(session, predictor)
-    session.close()
+    try:
+        predictor, regime_models = load_predictor()
+        result = predict(session, predictor, regime_models)
+    finally:
+        session.close()
     if result is None:
-        return {"error": "prediction failed", "confidence": 0.5,
-                "signal": "HOLD", "confidence_level": "LOW",
-                "should_trade": False}
+        return {
+            "error": "prediction failed",
+            "confidence": 0.5,
+            "signal": "HOLD",
+            "confidence_level": "LOW",
+            "should_trade": False,
+            "regime_gate": None,
+            "entry_quality": None,
+            "entry_quality_label": None,
+            "allowed_layers": None,
+            "decision_profile_version": "phase16_baseline_v1",
+        }
     return result
 
 
@@ -660,17 +682,23 @@ def load_model_leaderboard_frame(db_path: str = DB_PATH):
 
     conn = sqlite3.connect(db_path)
     try:
+        feature_cols = {row[1] for row in conn.execute("PRAGMA table_info(features_normalized)").fetchall()}
+        requested_feature_cols = [
+            "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
+            "feat_body", "feat_pulse", "feat_aura", "feat_mind",
+            "feat_vix", "feat_dxy",
+            "feat_rsi14", "feat_macd_hist", "feat_atr_pct",
+            "feat_vwap_dev", "feat_bb_pct_b", "feat_nw_width",
+            "feat_nw_slope", "feat_adx", "feat_choppiness", "feat_donchian_pos",
+            "feat_4h_bias50", "feat_4h_bias20", "feat_4h_rsi14",
+            "feat_4h_macd_hist", "feat_4h_bb_pct_b",
+            "feat_4h_ma_order", "feat_4h_dist_swing_low",
+        ]
+        selected_feature_cols = [col for col in requested_feature_cols if col in feature_cols]
+        features_select = ",\n                   ".join(["timestamp", *selected_feature_cols])
         features_df = pd.read_sql(
-            """
-            SELECT timestamp,
-                   feat_eye, feat_ear, feat_nose, feat_tongue,
-                   feat_body, feat_pulse, feat_aura, feat_mind,
-                   feat_vix, feat_dxy,
-                   feat_rsi14, feat_macd_hist, feat_atr_pct,
-                   feat_vwap_dev, feat_bb_pct_b,
-                   feat_4h_bias50, feat_4h_bias20, feat_4h_rsi14,
-                   feat_4h_macd_hist, feat_4h_bb_pct_b,
-                   feat_4h_ma_order, feat_4h_dist_swing_low
+            f"""
+            SELECT {features_select}
             FROM features_normalized
             WHERE feat_4h_bias50 IS NOT NULL
             ORDER BY timestamp
@@ -784,6 +812,18 @@ def _summarize_trades(trades: List[Dict[str, Any]], initial_capital: float) -> D
     }
 
 
+def _build_strategy_chart_context(timestamps: List[str]) -> Dict[str, Any]:
+    if not timestamps:
+        return {"symbol": "BTCUSDT", "interval": "4h", "start": None, "end": None, "limit": 300}
+    return {
+        "symbol": "BTCUSDT",
+        "interval": "4h",
+        "start": timestamps[0],
+        "end": timestamps[-1],
+        "limit": min(max(len(timestamps), 150), 1000),
+    }
+
+
 def _compute_backtest_benchmarks(
     prices: List[float],
     timestamps: List[str],
@@ -874,6 +914,33 @@ def _compute_regime_breakdown(trades: List[Dict[str, Any]], initial_capital: flo
             "profit_factor": round(bucket["gross_profit"] / max(bucket["gross_loss"], 0.01), 4),
         })
     return ordered
+
+
+def _compute_decision_profile(trades: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if not trades:
+        return {
+            "avg_entry_quality": None,
+            "avg_allowed_layers": None,
+            "dominant_regime_gate": None,
+            "regime_gate_summary": {"ALLOW": 0, "CAUTION": 0, "BLOCK": 0},
+        }
+
+    quality_values = [float(t.get("entry_quality")) for t in trades if t.get("entry_quality") is not None]
+    allowed_layers = [float(t.get("allowed_layers")) for t in trades if t.get("allowed_layers") is not None]
+    gate_summary = {"ALLOW": 0, "CAUTION": 0, "BLOCK": 0}
+    for trade in trades:
+        gate = str(trade.get("regime_gate") or "ALLOW").upper()
+        if gate not in gate_summary:
+            gate_summary[gate] = 0
+        gate_summary[gate] += 1
+
+    dominant_gate = max(gate_summary.items(), key=lambda item: item[1])[0] if gate_summary else None
+    return {
+        "avg_entry_quality": round(sum(quality_values) / len(quality_values), 4) if quality_values else None,
+        "avg_allowed_layers": round(sum(allowed_layers) / len(allowed_layers), 2) if allowed_layers else None,
+        "dominant_regime_gate": dominant_gate,
+        "regime_gate_summary": gate_summary,
+    }
 
 
 def _compute_strategy_risk(last_results: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -1003,16 +1070,27 @@ def _build_model_leaderboard_payload() -> Dict[str, Any]:
         df[default_target_col] = df[default_target_col].fillna(0).astype(int)
 
     lb = ModelLeaderboard(df, target_col=default_target_col)
-    results = lb.run_all_models([
+    requested_models = [
         "rule_baseline", "logistic_regression", "xgboost",
         "lightgbm", "catboost", "random_forest", "mlp", "svm"
-    ])
+    ]
+    results = lb.run_all_models(requested_models)
 
     OVERFIT_GAP_THRESHOLD = 0.12
     HARD_TRAIN_ACC_CAP = 0.90
 
     leaderboard = _serialize_model_scores(results, OVERFIT_GAP_THRESHOLD, HARD_TRAIN_ACC_CAP)
     target_comparison = _summarize_target_candidates(df, OVERFIT_GAP_THRESHOLD, HARD_TRAIN_ACC_CAP)
+    skipped_models = [
+        {"model_name": model_name, **status}
+        for model_name, status in (lb.last_model_statuses or {}).items()
+        if status.get("status") != "ok"
+    ]
+
+    metrics_path = Path(__file__).resolve().parents[2] / "model" / "last_metrics.json"
+    regime_stats_path = Path(__file__).resolve().parents[2] / "model" / "regime_stats.json"
+    global_metrics = json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else None
+    regime_metrics = json.loads(regime_stats_path.read_text(encoding="utf-8")) if regime_stats_path.exists() else None
 
     return {
         "leaderboard": leaderboard,
@@ -1022,6 +1100,9 @@ def _build_model_leaderboard_payload() -> Dict[str, Any]:
         "target_col": default_target_col,
         "target_label": "Simulated Pyramid" if default_target_col == "simulated_pyramid_win" else "Path-aware TP/DD",
         "target_comparison": target_comparison,
+        "skipped_models": skipped_models,
+        "global_metrics": global_metrics,
+        "regime_metrics": regime_metrics,
     }
 
 
@@ -1121,7 +1202,30 @@ async def api_run_strategy(body: Dict[str, Any]):
             prices, timestamps, bias50, bias50,
             nose, pulse, ear, params, initial, regimes=regimes)
     elif stype == "hybrid":
-        conf = [max(0.0, min(1.0, 1.0 - b / 20.0)) for b in bias50]
+        model_name = str(params.get("model_name") or "xgboost")
+        df = load_model_leaderboard_frame(DB_PATH)
+        if df.empty:
+            return {"error": "Hybrid 模式缺少可用訓練資料"}
+
+        feature_cols = [c for c in df.columns if c.startswith("feat_")]
+        target_col = "simulated_pyramid_win" if "simulated_pyramid_win" in df.columns else "label_spot_long_win"
+        train_df = df.dropna(subset=[target_col]).copy()
+        if train_df.empty:
+            return {"error": "Hybrid 模式缺少 target 標籤資料"}
+
+        from backtesting.model_leaderboard import ModelLeaderboard
+        lb = ModelLeaderboard(train_df, target_col=target_col)
+        model = lb._train_model(train_df[feature_cols].fillna(0).values, train_df[target_col].fillna(0).astype(int).values, model_name)
+        if model is None:
+            return {"error": f"{model_name} 目前不可用"}
+        confidence_map = {
+            str(ts): float(conf)
+            for ts, conf in zip(
+                train_df["timestamp"].dt.strftime('%Y-%m-%d %H:%M:%S').values,
+                lb._get_confidence(model, train_df[feature_cols].fillna(0).values, model_name),
+            )
+        }
+        conf = [confidence_map.get(ts, max(0.0, min(1.0, 1.0 - b / 20.0))) for ts, b in zip(timestamps, bias50)]
         result = run_hybrid_backtest(
             prices, timestamps, bias50, bias50,
             nose, pulse, ear, conf, params, initial, regimes=regimes)
@@ -1131,8 +1235,12 @@ async def api_run_strategy(body: Dict[str, Any]):
     benchmarks = _compute_backtest_benchmarks(
         prices, timestamps, bias50, nose, pulse, ear, regimes, initial, params
     )
+    chart_context = _build_strategy_chart_context(timestamps)
+    recent_equity_curve = result.equity_curve[-300:] if result.equity_curve else []
+    recent_trades = result.trades[-80:] if result.trades else []
 
     strat_def = {"type": stype, "params": params}
+    decision_profile = _compute_decision_profile(result.trades)
     results_dict = {
         "roi": round(result.roi, 4),
         "win_rate": round(result.win_rate, 4),
@@ -1146,15 +1254,19 @@ async def api_run_strategy(body: Dict[str, Any]):
         "max_consecutive_losses": result.max_consecutive_losses,
         "regime_breakdown": _compute_regime_breakdown(result.trades, initial),
         "benchmarks": benchmarks,
+        "equity_curve": recent_equity_curve,
+        "trades": recent_trades,
+        "chart_context": chart_context,
         "run_at": datetime.utcnow().isoformat() + "Z",
+        **decision_profile,
     }
     save_strategy(name, strat_def, results_dict)
-    result.equity_curve = result.equity_curve[-100:] if result.equity_curve else []
     return {
         "strategy": name, "type": stype, "params": params,
         "results": results_dict,
-        "equity_curve": result.equity_curve,
-        "trades": result.trades[-50:],
+        "equity_curve": recent_equity_curve,
+        "trades": recent_trades,
+        "chart_context": chart_context,
     }
 
 

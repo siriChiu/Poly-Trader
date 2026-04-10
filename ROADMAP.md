@@ -40,6 +40,25 @@
 
 ## 下一步（Phase 15）
 
+### Phase 16（高勝率 / 低回撤 / 高可信度）
+
+> Implementation plan：`docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+>- 核心目標：從「模型能跑、UI 可用」升級到「只做高品質交易、降低無效加碼、把 drawdown 直接內建到決策裡」。
+>
+>- 主原則：**先提升訊號品質與決策分級，再追求更多模型與更多 feature。**
+
+- [~] 兩階段決策架構：先做 **4H regime gate（ALLOW / CAUTION / BLOCK）**，再做短線 entry-quality score；避免在錯的背景裡用對的短線訊號進場  
+  ↳ Heartbeat #637：live predictor / `hb_predict_probe.py` / `/predict/confidence` 已輸出 baseline `regime_gate + entry_quality + allowed_layers` contract；下一步是把完整 decision-quality target 接到 live path
+- [ ] canonical target 升級：從單一 `simulated_pyramid_win` 擴展到 **win + pnl_quality + drawdown_penalty + time_underwater** 的複合交易品質評分
+- [~] confidence-based layer sizing：依 entry quality / confidence 決定只開第一層、允許兩層、或完整 20/30/50 金字塔，避免低品質訊號重倉進場  
+  ↳ Heartbeat #637：live predictor 已回傳 `allowed_layers` 並讓 `should_trade` 受 layer allowance 約束；下一步是把 sizing 納入 leaderboard / live ranking 主排序
+- [ ] 核心信號 vs 研究信號分級：把 4H 結構 + 高 coverage technical 納入主決策；把 sparse-source / 低 coverage 特徵降級為 research overlay，不再與核心信號同權
+- [ ] leaderboard 改版：從偏 ROI 排序調整成 **勝率 / 回撤 / regime 穩定度 / PF / trade quality** 的複合評分，讓排行榜更符合高勝率低回撤目標
+- [ ] Dynamic Window distribution-aware 版：窗口評估必須顯示 label distribution / regime distribution / constant-target guardrail，不再只看固定 N 導致近期窗口誤判
+- [ ] strategy archetype layer：把策略從 `rule_baseline` / `xgboost` 升級成「抄底型 / 趨勢型 / 均值回歸型 / 4H濾網型」等決策語義層
+- [ ] maturity-aware UI：FeatureChart / Strategy Lab 明確顯示 **核心可用 / 研究中 / blocked** 三層成熟度，讓使用者知道哪些訊號能當主判斷、哪些只能輔助觀察
+
 - [x] Web Model Leaderboard 視覺化（表格版已上線；後續可再補柱狀圖 + Fold 比較）
 - [x] 市場分類回測（依進場 regime 顯示 Bull / Bear / Chop ROI、勝率、PF）
 - [ ] 策略匯入/匯出（JSON 分享）
@@ -80,6 +99,8 @@
 - [x] Sparse-source archive-window denominator hygiene：`feature_history_policy.py` 現在以 `raw_events` 的實際 snapshot minute buckets 對齊 recent-window coverage，排除 continuity bridge / non-snapshot feature rows，避免 Web/Fang/Scales/Nest 因 1h continuity bridge 被誤判成 partial source coverage
 - [x] Canonical 4H feature parity + freshness：`model/train.py` / `model/predictor.py` / `scripts/full_ic.py` 已統一納入 `feat_4h_bias200` / `feat_4h_dist_bb_lower` / `feat_4h_vol_ratio`，predictor 也改成使用 training-style 4H asof alignment；Heartbeat #633 已用 `backfill_4h_distance.py` 將 recent 4H rows 補回最新 timestamp，避免 train / infer / diagnostics 再使用不同 4H 語義
 - [x] Predictor probe reproducibility：`scripts/hb_predict_probe.py` 成為 canonical inference verification 腳本，固定輸出 `target_col / used_model / 4H feature non-null count / 4H lag non-null count`，避免 heartbeat 驗證再依賴漂移的臨時 probe 檔名
+- [x] Predictor probe self-contained execution：Heartbeat #635 已讓 `scripts/hb_predict_probe.py` 自動注入 project root `sys.path`，`python scripts/hb_predict_probe.py` 在 repo 根目錄即可直接執行，不再要求人工補 `PYTHONPATH=.`
+- [x] Live predictor baseline decision contract：Heartbeat #637 已讓 `model/predictor.py`、`scripts/hb_predict_probe.py`、`/predict/confidence` 同步輸出 `regime_gate / entry_quality / entry_quality_label / allowed_layers`，live path 不再只剩 signal/confidence。
 - [x] Train warning / logging hygiene：`model/train.py` cross-feature 建構改為單次 concat，移除 pandas fragmentation warning；`TW-IC (core)` log 也已修正為真實 `tw_ic_summary`，heartbeat runtime 不再被假 warning / 假 log 汙染
 - [ ] Sparse-source historical backfill：在 decontaminate 完成後，為 Web / Fang / Scales / Claw / Fin / Nest 補真正歷史 coverage，而不是再引入 fallback/carry-forward
 - [ ] Dynamic Window recent-window 穩定化：N=100/200/400 已確認不是 merge bug，而是 canonical 24h labels 在最近窗口全部為 1；下一步需設計 distribution-aware window / alternate evaluation rule

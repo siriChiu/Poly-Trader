@@ -1,6 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 
+from backtesting import strategy_lab
 from server.routes import api as api_module
 from model import predictor as predictor_module
 
@@ -148,3 +149,65 @@ def test_circuit_breaker_uses_simulated_target_column():
     assert result is not None
     assert result["signal"] == "CIRCUIT_BREAKER"
     assert "Consecutive loss streak" in result["reason"]
+
+
+def test_live_decision_profile_matches_strategy_lab_baseline():
+    features = {
+        "regime_label": "bull",
+        "feat_4h_bias200": 2.2,
+        "feat_4h_bias50": -1.8,
+        "feat_nose": 0.24,
+        "feat_pulse": 0.81,
+        "feat_ear": -0.04,
+    }
+
+    profile = predictor_module._build_live_decision_profile(features)
+
+    expected_quality = strategy_lab._compute_entry_quality(-1.8, 0.24, 0.81, -0.04)
+    expected_gate = strategy_lab._compute_regime_gate(2.2, "bull", -10.0)
+    expected_layers = strategy_lab._allowed_layers_for_signal(expected_gate, expected_quality, 3)
+
+    assert profile["entry_quality"] == expected_quality
+    assert profile["regime_gate"] == expected_gate
+    assert profile["allowed_layers"] == expected_layers
+    assert profile["entry_quality_label"] == "B"
+    assert profile["decision_profile_version"] == "phase16_baseline_v1"
+
+
+def test_predict_confidence_route_unpacks_load_predictor_tuple(monkeypatch):
+    import config as config_module
+    from database import models as models_module
+
+    closed = {"value": False}
+
+    class _FakeDb:
+        def close(self):
+            closed["value"] = True
+
+    monkeypatch.setattr(config_module, "load_config", lambda: {"database": {"url": "sqlite:///fake.db"}})
+    monkeypatch.setattr(models_module, "init_db", lambda _url: _FakeDb())
+    monkeypatch.setattr(predictor_module, "load_predictor", lambda: ("global-predictor", {"bull": object()}))
+
+    def _fake_predict(session, predictor, regime_models):
+        assert predictor == "global-predictor"
+        assert "bull" in regime_models
+        return {
+            "confidence": 0.73,
+            "signal": "BUY",
+            "confidence_level": "HIGH",
+            "should_trade": True,
+            "regime_gate": "ALLOW",
+            "entry_quality": 0.74,
+            "entry_quality_label": "B",
+            "allowed_layers": 3,
+            "decision_profile_version": "phase16_baseline_v1",
+        }
+
+    monkeypatch.setattr(predictor_module, "predict", _fake_predict)
+
+    result = asyncio.run(api_module.get_confidence_prediction())
+
+    assert result["signal"] == "BUY"
+    assert result["regime_gate"] == "ALLOW"
+    assert result["allowed_layers"] == 3
+    assert closed["value"] is True

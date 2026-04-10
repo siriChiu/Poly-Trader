@@ -22,9 +22,10 @@ BASE_FEATURE_COLS = [
     "feat_body", "feat_pulse", "feat_aura", "feat_mind",
     # 2 macro
     "feat_vix", "feat_dxy",
-    # 5 technical indicators
+    # technical indicators
     "feat_rsi14", "feat_macd_hist", "feat_atr_pct",
-    "feat_vwap_dev", "feat_bb_pct_b",
+    "feat_vwap_dev", "feat_bb_pct_b", "feat_nw_width",
+    "feat_nw_slope", "feat_adx", "feat_choppiness", "feat_donchian_pos",
     # 4H timeframe features
     "feat_4h_bias50", "feat_4h_bias20", "feat_4h_bias200",
     "feat_4h_rsi14", "feat_4h_macd_hist", "feat_4h_bb_pct_b",
@@ -45,6 +46,8 @@ FEATURE_COLS = BASE_FEATURE_COLS
 # Confidence thresholds for trade filtering — model predicts long-win probability
 CONFIDENCE_HIGH = 0.7   # BUY — high confidence price will rise enough for spot-long pyramiding
 CONFIDENCE_LOW = 0.3    # HOLD — low confidence, avoid entering
+LIVE_MAX_LAYERS = 3
+LIVE_REGIME_BIAS200_MIN = -10.0
 
 # P0 #H426: Bull regime signal inversion
 # Legacy short-selling logic needed inversion in bull markets.
@@ -308,6 +311,91 @@ def _determine_regime(features: Dict) -> str:
         return 'bull'
     else:
         return 'chop'
+
+
+def _clamp01(value: float) -> float:
+    return max(0.0, min(1.0, float(value)))
+
+
+def _compute_live_regime_gate(bias200_value: float, regime: str, regime_min: float = LIVE_REGIME_BIAS200_MIN) -> str:
+    """Mirror Strategy Lab's regime gate semantics for live inference.
+
+    Keep these thresholds in sync with `backtesting.strategy_lab._compute_regime_gate`
+    so the heartbeat can verify that live predictor output speaks the same decision
+    contract as Strategy Lab / API / UI.
+    """
+    regime = (regime or "unknown").lower()
+    if bias200_value < regime_min:
+        return "BLOCK"
+    if regime == "bear" and bias200_value <= -3.0:
+        return "BLOCK"
+    if regime in {"chop", "unknown"} or bias200_value < -1.0:
+        return "CAUTION"
+    return "ALLOW"
+
+
+def _compute_live_entry_quality(bias50_value: float, nose_value: float, pulse_value: float, ear_value: float) -> float:
+    """Mirror Strategy Lab's entry-quality baseline for live inference."""
+    bias_score = _clamp01((-bias50_value + 2.4) / 5.0)
+    nose_score = _clamp01(1.0 - nose_value)
+    pulse_score = _clamp01(pulse_value)
+    ear_score = _clamp01(1.0 - abs(ear_value) * 5.0)
+    return round(0.40 * bias_score + 0.18 * nose_score + 0.27 * pulse_score + 0.15 * ear_score, 4)
+
+
+def _quality_label(entry_quality: float) -> str:
+    if entry_quality >= 0.82:
+        return "A"
+    if entry_quality >= 0.68:
+        return "B"
+    if entry_quality >= 0.55:
+        return "C"
+    return "D"
+
+
+def _allowed_layers_for_live_signal(regime_gate: str, entry_quality: float, max_layers: int = LIVE_MAX_LAYERS) -> int:
+    max_layers = max(0, int(max_layers))
+    if regime_gate == "BLOCK" or entry_quality < 0.55:
+        return 0
+    if entry_quality < 0.68:
+        return min(1, max_layers)
+    if regime_gate == "CAUTION" or entry_quality < 0.70:
+        return min(2, max_layers)
+    return min(3, max_layers)
+
+
+def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIVE_MAX_LAYERS) -> Dict:
+    if not features:
+        return {
+            "regime_label": None,
+            "regime_gate": None,
+            "entry_quality": None,
+            "entry_quality_label": None,
+            "allowed_layers": None,
+            "decision_profile_version": "phase16_baseline_v1",
+        }
+
+    def _f(name: str) -> float:
+        value = features.get(name)
+        return 0.0 if value is None else float(value)
+
+    regime = str(features.get("regime_label") or _determine_regime(features))
+    regime_gate = _compute_live_regime_gate(_f("feat_4h_bias200"), regime)
+    entry_quality = _compute_live_entry_quality(
+        _f("feat_4h_bias50"),
+        _f("feat_nose"),
+        _f("feat_pulse"),
+        _f("feat_ear"),
+    )
+    allowed_layers = _allowed_layers_for_live_signal(regime_gate, entry_quality, max_layers=max_layers)
+    return {
+        "regime_label": regime,
+        "regime_gate": regime_gate,
+        "entry_quality": entry_quality,
+        "entry_quality_label": _quality_label(entry_quality),
+        "allowed_layers": allowed_layers,
+        "decision_profile_version": "phase16_baseline_v1",
+    }
 
 
 class RegimeAwarePredictor:
@@ -676,6 +764,8 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
     if predictor is None:
         predictor, regime_models = load_predictor()
 
+    decision_profile = _build_live_decision_profile(features)
+
     # Per-regime model routing (H145-fix + #H122 chop-abstain ensemble)
     used_model = "global"
     if regime_models and isinstance(features, dict):
@@ -695,6 +785,8 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
                     "should_trade": False,
                     "model_type": "regime_ensemble",
                     "used_model": "regime_chop_abstain",
+                    "target_col": getattr(getattr(predictor, '_global', predictor), '_target_col', DEFAULT_TARGET_COL),
+                    **decision_profile,
                 }
             # Ensemble: weight regime model 60%, global 40%
             global_conf = predictor.predict_proba(features)
@@ -727,10 +819,19 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
         "confidence": confidence,
         "signal": signal,
         "confidence_level": confidence_level,
-        "should_trade": signal == "BUY",
+        "should_trade": signal == "BUY" and (decision_profile.get("allowed_layers") or 0) > 0,
         "model_type": type(predictor).__name__,
         "used_model": used_model,
         "target_col": getattr(getattr(predictor, '_global', predictor), '_target_col', DEFAULT_TARGET_COL),
+        **decision_profile,
     }
-    logger.info(f"Prediction: conf={confidence:.4f}, signal={signal}, level={confidence_level}")
+    logger.info(
+        "Prediction: conf=%.4f, signal=%s, level=%s, gate=%s, quality=%.4f, layers=%s",
+        confidence,
+        signal,
+        confidence_level,
+        result.get("regime_gate"),
+        float(result.get("entry_quality") or 0.0),
+        result.get("allowed_layers"),
+    )
     return result

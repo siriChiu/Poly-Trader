@@ -63,11 +63,42 @@
 ### 4. 模型層
 使用特徵做交易決策與現貨 long 加碼判斷，允許 abstain 與 regime-aware weights。
 
+**Decision-quality contract（2026-04-10 strategy review）**：模型層不可只回答「會不會贏」。canonical `simulated_pyramid_win` 已完成目標對齊，但下一階段必須把模型輸出升級成 **交易品質評分**，至少能區分：
+- 勝率/是否獲利
+- pnl quality（賺得是否夠乾淨）
+- drawdown penalty（中間承受的回撤）
+- time underwater（解套所需時間）
+
+這樣模型學到的就不是單純 binary 結果，而是更貼近使用者真實偏好的「高勝率、低回撤、低深套」交易。
+
+**Two-stage decision contract（2026-04-10 strategy review）**：正式決策流程應拆成兩層，而不是單段式 entry rule：
+1. **4H regime gate**：先判斷目前市場背景是否允許 spot-long 金字塔（ALLOW / CAUTION / BLOCK）
+2. **short-term entry-quality score**：只在 gate 允許時，才用短線 technical / microstructure 特徵決定進場品質與層數
+
+這個 contract 的目的，是避免在錯的高時間框架背景裡，讓看似漂亮的短線訊號繼續造成深套或高回撤。
+
+**Confidence-based sizing contract（2026-04-10 strategy review）**：模型輸出除了進/不進，還必須逐步演化成 `size / layer_count` 決策依據。低品質訊號只允許首層，強訊號才允許完整 20/30/50 金字塔；倉位本身就是回撤控制器，不可再完全與信號品質脫鉤。
+
+**Live predictor decision-profile contract（Heartbeat #637）**：`model/predictor.py::predict()`、`scripts/hb_predict_probe.py`、`/predict/confidence` 必須至少共同輸出同一套 baseline decision profile：
+- `regime_gate`（ALLOW / CAUTION / BLOCK）
+- `entry_quality`
+- `entry_quality_label`
+- `allowed_layers`
+- `decision_profile_version`
+
+這些欄位目前是 `phase16_baseline_v1`，其語義必須與 Strategy Lab 的 `_compute_regime_gate()` / `_compute_entry_quality()` / `_allowed_layers_for_signal()` 對齊。Heartbeat 不可再把 live path 描述成「只有 signal/confidence」。下一階段若升級到完整 decision-quality target，必須在這個 contract 上擴展，而不是另起一套平行語義。
+
+**Core-vs-research signal contract（2026-04-10 strategy review）**：主模型與主 UI 必須區分兩類信號：
+- **核心信號**：4H 結構 + 高 coverage technical（可直接參與主決策）
+- **研究信號**：sparse-source / 低 coverage / forward-archive 中的特徵（只可作 overlay、bonus、veto 或研究用途）
+
+若不分層，系統會把成熟度不足的 alpha source 誤混入主決策，造成假信心。
+
 **Model feature parity contract（Heartbeat #633）**：`model/train.py`、`model/predictor.py`、`scripts/full_ic.py` 必須共用同一個 canonical base feature semantics。當 DB / preprocessor 新增可訓練特徵（例如 `feat_4h_bias200`、`feat_4h_dist_bb_lower`、`feat_4h_vol_ratio`）時，不允許只更新 schema 或 coverage/UI；訓練、推論、IC diagnostics 必須同輪一起升級，否則 heartbeat 會落入「資料已存在但模型與診斷仍忽略」的假進度。
 
 **Sparse 4H inference alignment contract（Heartbeat #633）**：predictor 不可直接使用 latest dense row 上的 raw 4H 欄位，因為 4H features 在 dense rows 上可能是 sparse/NULL。`load_latest_features()` 必須套用與 training 相同的 asof alignment（目前沿用 `model.train._align_sparse_4h_features()`）來生成 base + lag 4H features；若 recent 4H rows 在 DB 已 stale，應先 backfill 4H history，而不是讓推論默默退回 0/NULL。
 
-**Predictor probe contract（Heartbeat #634）**：repo 內必須保留可直接重跑的 live inference probe（目前為 `scripts/hb_predict_probe.py`），固定輸出 `target_col / used_model / canonical 4H feature non-null count / 4H lag non-null count`。Heartbeat 不可再引用一次性臨時 probe 檔名作為唯一驗證證據。
+**Predictor probe contract（Heartbeat #634 / #635）**：repo 內必須保留可直接重跑的 live inference probe（目前為 `scripts/hb_predict_probe.py`），固定輸出 `target_col / used_model / canonical 4H feature non-null count / 4H lag non-null count`。這個 probe 必須能在 repo 根目錄直接用 `python scripts/hb_predict_probe.py` 執行，不得要求 heartbeat 額外手補 `PYTHONPATH=.`；否則文件會宣稱可重跑、實際上卻只在特定 shell 前提下可用。Heartbeat 不可再引用一次性臨時 probe 檔名作為唯一驗證證據。
 
 **Training warning/logging hygiene contract（Heartbeat #634）**：`model/train.py` 的 cross-feature engineering 不可再用大量逐欄 `frame.insert` 方式製造 pandas fragmentation warnings；training stderr 應盡量只保留真實失敗訊號。同時 recent-vs-global IC log 必須分別輸出真實 `tw_ic_summary` 與 `core_ic_summary`，避免 heartbeat 被假觀測污染。
 

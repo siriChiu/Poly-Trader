@@ -1,22 +1,98 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-10 07:44 UTC — Heartbeat #634（predictor probe restored; train warning hygiene + TW-IC logging fixed）*
+*最後更新：2026-04-10 15:08 UTC — Heartbeat #637（live predictor decision contract baseline exported + /predict/confidence tuple bug fixed）*
 
-## 📊 系統健康狀態 v4.54
+## 📊 系統健康狀態 v4.56
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,168** | 🟢 本輪新增 **+1**（`hb_parallel_runner.py --fast --hb 634` collect verified） |
-| Features | **11,597** | 🟢 本輪新增 **+1**；最新 row 的 10 個 canonical 4H features 與 30 個 4H lag values 均可由 predictor probe 讀到 |
-| Labels | **40,511** | 🟢 本輪新增 **+65**；240m/1440m freshness 仍在 expected horizon lag 內 |
-|| simulated_pyramid_win (DB overall) | **57.01%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5701` |
-|| simulated_pyramid_win (`full_ic.py` sample) | **64.28%** | 🟢 `full_ic.py` / `regime_aware_ic.py` 分析樣本 n=11,014 |
+| Raw | **20,308** | 🟢 本輪新增 **+1**（`python scripts/hb_parallel_runner.py --fast --hb 637` collect verified） |
+| Features | **11,737** | 🟢 本輪新增 **+1**；最新 row 的 **10/10 canonical 4H features** 與 **30/30 4H lags** 仍可由 predictor probe 直接讀到 |
+| Labels | **40,697** | 🟢 本輪新增 **+1**；240m/1440m freshness 仍在 expected horizon lag 內 |
+|| simulated_pyramid_win (DB overall) | **57.30%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5730` |
+|| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.31%** | 🟢 分析樣本 n=11,022 |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
-| 全域 IC | **13/25** | 🟢 canonical 25-feature diagnostics 維持 |
-| TW-IC | **17/25** | 🟢 canonical 25-feature diagnostics 維持 |
-| Regime IC | **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；core regime 診斷未退化 |
-| 模型數 | **8** | ✅ |
-| Verification | **18 pytest + fast heartbeat + warning-free retrain + predictor probe** | ✅ 本輪已重驗證 |
+| 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Aura/Mind/VIX/DXY/4H features 仍是主要通過來源 |
+| TW-IC | **17/30** | 🟢 recent-weighted 診斷維持；4H features + Macro 仍明顯強於弱核心短線欄位 |
+| Regime IC | **Bear 7/8 / Bull 6/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；core regime 診斷未退化 |
+| 模型 / 決策語義 | **live predictor 現已輸出 regime_gate / entry_quality / allowed_layers baseline** | 🟢 `hb_predict_probe.py` 與 `/predict/confidence` 已對齊 Phase 16 baseline contract；但 `win + pnl_quality + drawdown_penalty + time_underwater` 的完整 decision-quality target 仍未成為 live 主輸出 |
+| Verification | **35 pytest + fast heartbeat + direct predictor probe** | ✅ 本輪已重驗證 |
+
+## 🎯 當前戰略問題（高準確度 / 高勝率 / 低回撤）
+
+### #DECISION_QUALITY_GAP（持續 P0）
+- **現象**：目前 canonical target 已對齊，且 live predictor baseline 已開始輸出 `regime_gate` / `entry_quality` / `allowed_layers`；但 `win + pnl_quality + drawdown_penalty + time_underwater` 仍未正式成為 live predictor / API 主輸出 contract。
+- **本輪進度**：Heartbeat #637 已把 Strategy Lab 的 baseline decision contract 接到 `model/predictor.py` 與 `/predict/confidence`，不再只停留在 backtest semantics。
+- **風險**：若下一步不把 quality-target 欄位接到 live path，模型仍可能在 binary win 上可用，卻把高回撤、深套、久才解套的交易視為可接受訊號。
+- **建議方向**：把 decision-quality 欄位從 labeling / leaderboard 延伸到 predictor 與 API 主輸出，而不是只停留在 `phase16_baseline_v1` 的 gate/quality/layers baseline。
+
+### #SINGLE_STAGE_ENTRY_LOGIC（P0，本輪再推進）
+- **現象**：兩階段決策 baseline 已在 `strategy_lab.py` 落地：`_compute_regime_gate()` / `_compute_entry_quality()` / `_allowed_layers_for_signal()` 已存在，API 與 UI 也能顯示 gate/quality 摘要。
+- **本輪修復**：`model/predictor.py::predict()` 現在會正式輸出 `regime_gate` / `entry_quality` / `entry_quality_label` / `allowed_layers`；`scripts/hb_predict_probe.py` 也會把這些欄位印出，避免 heartbeat 再把 live path 誤報成只剩 signal/confidence。
+- **剩餘缺口**：目前仍是 baseline 規則鏡射，尚未把更進一步的 decision-quality target 與 leaderboard ranking 完整接上 live contract。
+
+### #LAYER_SIZING_NOT_CONFIDENCE_AWARE（P0，本輪再推進）
+- **現象**：Strategy Lab baseline 已按品質分級做 0/1/2/3 層限制；相關 API / UI / tests 已通過。
+- **本輪修復**：live predictor 現在會正式回傳 `allowed_layers`，且 `should_trade` 會受 layer allowance 約束；`/predict/confidence` 的 tuple-unpack bug 也已修掉，避免 API 路徑拿到錯誤 predictor object。
+- **剩餘缺口**：layer sizing 尚未成為 leaderboard 主排序依據，也還沒和完整 quality-target 輸出綁定。
+
+### #CORE_VS_RESEARCH_SIGNAL_MIXING（持續 P1）
+- **現象**：主幹高 coverage technical / 4H features 與 sparse-source research features 仍容易在 UI 與分析語義上混在一起。
+- **風險**：會出現「研究信號看起來很厲害，但其實成熟度不足」的假信心，污染準確度與決策穩定性。
+- **建議方向**：把訊號明確分成 **核心可用 / 研究中 / blocked** 三層，並在主模型與 UI 上採不同權重與展示策略。
+
+### #LEADERBOARD_OBJECTIVE_MISMATCH（持續 P1）
+- **現象**：排行榜已有 composite score，但 `backtesting/model_leaderboard.py` 目前仍以 **ROI / test accuracy gap / ROI 波動** 為主要組件，尚未完全對齊勝率、回撤、regime 穩定度與 trade quality 的實盤偏好。
+- **風險**：高 ROI 但高回撤的模型仍可能佔據前列，與使用者的真偏好（高勝率、低深套）不完全一致。
+- **建議方向**：把 leaderboard 改成 **勝率 / 最大回撤 / regime 穩定度 / PF / trade quality** 的複合排序。
+
+### #DYNAMIC_WINDOW_NOT_DISTRIBUTION_AWARE（持續 P1）
+- **現象**：Dynamic Window 最近窗已知不是 merge bug，而是 canonical recent labels 在某些窗口內高度偏斜甚至 constant。
+- **風險**：近期 evaluation 容易給出假 blocker 或假優勢，進一步誤導模型與特徵排序。
+- **建議方向**：把 recent-window 評估升級成 **distribution-aware / regime-aware**，顯示 label balance 與 constant-target guardrail。
+
+### 實作計畫
+- `docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+## 📈 心跳 #637 摘要
+
+### 本輪已驗證 patch
+1. **Live predictor now exports the Phase 16 baseline decision contract**：`model/predictor.py` 新增 `phase16_baseline_v1` live decision profile，`predict()` / chop-abstain path 現在都會回傳 `regime_gate`、`entry_quality`、`entry_quality_label`、`allowed_layers`，不再只有 signal/confidence。
+2. **`/predict/confidence` root-cause bug fixed**：`server/routes/api.py` 先前把 `load_predictor()` 的 `(predictor, regime_models)` tuple 當成單一 predictor 傳進 `predict()`，live API 路徑存在真實失配風險。本輪已改為正確 unpack 並把 decision-profile fallback 欄位補齊。
+3. **Heartbeat probe upgraded from parity-only to decision-contract verification**：`scripts/hb_predict_probe.py` 現在除了 target/4H parity，也會直接印出 `regime_gate` / `entry_quality` / `allowed_layers`，讓 heartbeat 能驗證 live path 已追上 Strategy Lab baseline。
+4. **Regression tests added**：新增 tests 覆蓋 `phase16_baseline_v1` 與 Strategy Lab helper parity，以及 `/predict/confidence` 的 tuple-unpack contract，避免下輪 regression。
+
+### 本輪 runtime facts（Heartbeat #637）
+- `python scripts/hb_parallel_runner.py --fast --hb 637`：**Raw 20307→20308 / Features 11736→11737 / Labels 40696→40697**；summary 已落地 `data/heartbeat_637_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-10 12:02:11.880523`、`raw_gap=1.4h`；1440m `latest_target=2026-04-09 16:00:00`、`raw_gap=1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py`：Global **13/30 PASS**、TW-IC **17/30 PASS**；`python scripts/regime_aware_ic.py`：**Bear 7/8 / Bull 6/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,022）。
+- `python scripts/hb_predict_probe.py` 現在直接輸出：`target_col=simulated_pyramid_win`、`used_model=regime_chop_abstain`、`regime_gate=CAUTION`、`entry_quality=0.8006 (B)`、`allowed_layers=2`，且 **10/10 canonical 4H features** / **30/30 4H lags** 非空。
+- `PYTHONPATH=. pytest tests/test_api_feature_history_and_predictor.py tests/test_strategy_lab.py tests/test_api.py tests/test_model_leaderboard.py -q` → **35 passed**。這證明 live predictor baseline contract 與 Strategy Lab helper semantics 已可回歸驗證。
+- Source blocker 狀態沒有假改善：仍是 **8 blocked sparse features**；`fin_netflow` 仍為 `auth_missing`，Claw / Claw intensity / Fin 依舊受 `COINGLASS_API_KEY` 缺失阻擋。
+
+### Blocker 升級 / 狀態更正
+- **#PHASE16_LIVE_CONTRACT_GAP（本輪再收斂）**：gate / quality / layer sizing baseline 已正式出現在 live predictor 與 `/predict/confidence`，所以不能再把它描述成「只有 Strategy Lab 有、live path 沒有」。剩餘真 blocker 是 **完整 decision-quality target 尚未成為 live contract**，而不是 baseline gate/quality 完全缺失。
+- **#PREDICT_CONFIDENCE_TUPLE_DRIFT（本輪已修）**：`/predict/confidence` 的 `load_predictor()` tuple 未 unpack 會讓 live API 走到錯誤 predictor object。這不是文件問題，而是主路徑 root cause；現在已修掉並加 regression test。
+- **#LOW_COVERAGE_SOURCES（持續真 blocker）**：Claw / Claw intensity / Fin 仍受 `COINGLASS_API_KEY` 缺失阻擋；本輪的 live-contract 修補不應被誤報成 sparse-source blocker 已解。
+
+## 📈 心跳 #635 摘要
+
+### 本輪已驗證 patch
+1. **Predictor probe import contract fixed at the root cause**：`scripts/hb_predict_probe.py` 現在會自動把 project root 放入 `sys.path`，因此 `python scripts/hb_predict_probe.py` 可在 repo 根目錄直接執行，不再要求人工補 `PYTHONPATH=.`。
+2. **Phase 16 baseline re-verified instead of假裝完成**：本輪沒有宣稱 decision-quality / two-stage / layer sizing 已全鏈路完成，而是用 `pytest tests/test_api.py tests/test_strategy_lab.py tests/test_model_leaderboard.py -q` + `npm run build` 明確確認目前只到 Strategy Lab / API / UI baseline，live predictor contract 仍未跟上。
+
+### 本輪 runtime facts（Heartbeat #635）
+- `python scripts/hb_parallel_runner.py --fast --hb 635`：**Raw 20302→20303 / Features 11730→11732 / Labels 40511→40560**；summary 已落地 `data/heartbeat_635_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-10 10:02:11.880523`、`raw_gap=4.5h`；1440m `latest_target=2026-04-09 15:00:00`、`raw_gap=4.5h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py`：Global **13/30 PASS**、TW-IC **17/30 PASS**；`python scripts/regime_aware_ic.py`：**Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,019）。
+- `python scripts/hb_predict_probe.py` 現在可直接成功執行：`target_col=simulated_pyramid_win`、`used_model=regime_bull_ensemble`、`signal=HOLD`、`confidence=0.595967`，且 **10/10 canonical 4H features** / **30/30 4H lags** 非空。
+- `PYTHONPATH=. pytest tests/test_api.py tests/test_strategy_lab.py tests/test_model_leaderboard.py -q` → **30 passed**；`cd web && npm run build` ✅。這證明 Phase 16 baseline（regime gate / entry quality / allowed layers / decision-profile summary / leaderboard composite 欄位）在 API 與 UI 層是可回歸驗證的，但並不代表 live predictor contract 已完全閉環。
+- Source blocker 狀態沒有假改善：仍是 **8 blocked sparse features**；`fin_netflow` 仍是 `auth_missing`，Claw / Claw intensity / Fin 依舊受 `COINGLASS_API_KEY` 缺失阻擋。
+
+### Blocker 升級 / 狀態更正
+- **#PREDICT_PROBE_IMPORT_PATH（本輪已修）**：Heartbeat #634 的 probe 雖可在 `PYTHONPATH=.` 下執行，但 direct command contract 其實未成立。現在已修成 repo 內直接可跑，heartbeat 文件與實際操作重新一致。
+- **#PHASE16_LIVE_CONTRACT_GAP（持續真 blocker）**：兩階段決策 / 分層 sizing 的 baseline 已在 backtest/API/UI 驗證，但 `hb_predict_probe.py` 仍看不到 `regime_gate` / `entry_quality` / `allowed_layers`，所以不能把 Phase 16 誤報成全鏈路完成。
+- **#LOW_COVERAGE_SOURCES（持續真 blocker）**：Claw / Claw intensity / Fin 仍受 `COINGLASS_API_KEY` 缺失阻擋；這輪的 probe/root-path 修復不應被誤報成 sparse-source blocker 已解。
 
 ## 📈 心跳 #634 摘要
 

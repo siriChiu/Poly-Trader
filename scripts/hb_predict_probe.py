@@ -8,13 +8,16 @@ summary that proves inference is aligned with the current feature stack.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from database.models import init_db
 from model.predictor import load_latest_features, load_predictor, predict
 
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_URL = f"sqlite:///{PROJECT_ROOT / 'poly_trader.db'}"
 FOUR_H_COLS = [
     "feat_4h_bias50",
@@ -58,7 +61,12 @@ def main() -> None:
             "signal": result.get("signal"),
             "confidence": round(float(result.get("confidence", 0.0)), 6),
             "should_trade": bool(result.get("should_trade", False)),
-            "regime_label": latest.get("regime_label"),
+            "regime_label": result.get("regime_label") or latest.get("regime_label"),
+            "regime_gate": result.get("regime_gate"),
+            "entry_quality": result.get("entry_quality"),
+            "entry_quality_label": result.get("entry_quality_label"),
+            "allowed_layers": result.get("allowed_layers"),
+            "decision_profile_version": result.get("decision_profile_version"),
             "non_null_4h_features": sorted(four_h_non_null.keys()),
             "non_null_4h_feature_count": len(four_h_non_null),
             "non_null_4h_lags": sorted(lag_non_null.keys()),
