@@ -89,8 +89,71 @@ def _sanitize_definition(strategy_def: Optional[Dict[str, Any]]) -> Dict[str, An
 RESULT_FLOAT_FIELDS = (
     "roi", "win_rate", "max_drawdown", "profit_factor", "total_pnl",
     "avg_win", "avg_loss",
+    "avg_expected_win_rate", "avg_expected_pyramid_pnl", "avg_expected_pyramid_quality",
+    "avg_expected_drawdown_penalty", "avg_expected_time_underwater", "avg_decision_quality_score",
 )
 RESULT_INT_FIELDS = ("total_trades", "wins", "losses", "max_consecutive_losses")
+
+MODEL_SUMMARY_MAP = {
+    "rule_baseline": "rule_baseline：不訓練 ML，直接用 4H Bias50 的深跌程度當作進場信心，適合驗證純規則框架。",
+    "logistic_regression": "logistic_regression：線性分類器，容易解讀權重，適合當穩定基線模型。",
+    "xgboost": "xgboost：非線性樹模型，能學到 4H 結構 × 1m 感官的交互作用，但也最容易過擬合。",
+    "lightgbm": "lightgbm：梯度提升樹，訓練速度快，適合大量 tabular 特徵。",
+    "catboost": "catboost：對雜訊與類別型特徵較穩定的 boosting 模型。",
+    "random_forest": "random_forest：袋裝樹模型，穩定但通常比 boosting 保守。",
+    "mlp": "mlp：多層感知器，能學非線性關係，但需要較乾淨且充足的樣本。",
+    "svm": "svm：邊界型分類器，適合中小樣本，但大樣本時較慢。",
+    "ensemble": "ensemble：混合多個模型的平均投票，用來降低單模型偏差。",
+}
+
+
+def _sanitize_json_like(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(k): _sanitize_json_like(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_json_like(v) for v in value]
+    if isinstance(value, tuple):
+        return [_sanitize_json_like(v) for v in value]
+    if isinstance(value, (str, bool)) or value is None:
+        return value
+    if isinstance(value, int):
+        return int(value)
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return float(value)
+    return value
+
+
+def _build_strategy_metadata(name: str, definition: Dict[str, Any]) -> Dict[str, Any]:
+    params = definition.get("params") if isinstance(definition, dict) else {}
+    if not isinstance(params, dict):
+        params = {}
+    entry = params.get("entry") if isinstance(params.get("entry"), dict) else {}
+    layers = params.get("layers") if isinstance(params.get("layers"), list) else []
+    model_name = str(params.get("model_name") or "rule_baseline")
+    layer_text = " / ".join(f"{round(float(layer) * 100):.0f}%" for layer in layers[:3]) if layers else "20% / 30% / 50%"
+    title = name or "Unnamed Strategy"
+
+    description_bits = []
+    if len(layers) >= 3:
+        description_bits.append(f"三層金字塔配置 {layer_text}")
+    else:
+        description_bits.append("固定倉位規則策略")
+    if _coerce_float(entry.get("bias50_max")) is not None:
+        description_bits.append(f"Bias50 ≤ {_coerce_float(entry.get('bias50_max')):.1f}% 才允許首層進場")
+    if _coerce_float(entry.get("layer3_bias_max")) is not None:
+        description_bits.append(f"第三層在 Bias50 ≤ {_coerce_float(entry.get('layer3_bias_max')):.1f}% 時加碼")
+    if _coerce_float(params.get("stop_loss")) is not None:
+        description_bits.append(f"止損 {(_coerce_float(params.get('stop_loss')) or 0.0) * 100:.0f}%")
+
+    return {
+        "title": title,
+        "description": "；".join(description_bits),
+        "strategy_type": definition.get("type") or "rule_based",
+        "model_name": model_name,
+        "model_summary": MODEL_SUMMARY_MAP.get(model_name, f"{model_name}：自訂交易模型。"),
+    }
 
 
 def _sanitize_regime_breakdown(items: Any) -> List[Dict[str, Any]]:
@@ -116,7 +179,16 @@ def _sanitize_regime_breakdown(items: Any) -> List[Dict[str, Any]]:
 def _sanitize_results(results: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     if not isinstance(results, dict):
         return None
-    cleaned = {"run_at": results.get("run_at")}
+    cleaned = {
+        "run_at": results.get("run_at"),
+        "avg_entry_quality": _coerce_float(results.get("avg_entry_quality")),
+        "avg_allowed_layers": _coerce_float(results.get("avg_allowed_layers")),
+        "dominant_regime_gate": results.get("dominant_regime_gate"),
+        "regime_gate_summary": _sanitize_json_like(results.get("regime_gate_summary") or {}),
+        "decision_quality_horizon_minutes": _coerce_int(results.get("decision_quality_horizon_minutes"), 0),
+        "decision_quality_label": results.get("decision_quality_label"),
+        "target_col": results.get("target_col"),
+    }
     for field in RESULT_FLOAT_FIELDS:
         cleaned[field] = _coerce_float(results.get(field))
     for field in RESULT_INT_FIELDS:
@@ -128,6 +200,10 @@ def _sanitize_results(results: Optional[Dict[str, Any]]) -> Optional[Dict[str, A
         cleaned["losses"] = max(cleaned["total_trades"] - wins, 0)
     if cleaned["total_trades"] == 0 and cleaned["wins"] + cleaned["losses"] > 0:
         cleaned["total_trades"] = cleaned["wins"] + cleaned["losses"]
+    cleaned["benchmarks"] = _sanitize_json_like(results.get("benchmarks") or {})
+    cleaned["equity_curve"] = _sanitize_json_like(results.get("equity_curve") or [])
+    cleaned["trades"] = _sanitize_json_like(results.get("trades") or [])
+    cleaned["chart_context"] = _sanitize_json_like(results.get("chart_context") or {})
     return cleaned
 
 
@@ -150,7 +226,52 @@ def _sanitize_strategy_record(data: Dict[str, Any], fallback_name: str = "") -> 
         "last_results": last_results,
         "run_count": run_count,
         "is_internal": bool(data.get("is_internal")) or _is_internal_strategy(name),
+        "metadata": _sanitize_json_like(data.get("metadata")) or _build_strategy_metadata(name, definition),
     }
+
+
+def _clamp01(value: float) -> float:
+    return max(0.0, min(1.0, float(value)))
+
+
+def _compute_regime_gate(bias200_value: float, regime: str, regime_min: float) -> str:
+    regime = (regime or "unknown").lower()
+    if bias200_value < regime_min:
+        return "BLOCK"
+    if regime == "bear" and bias200_value <= -3.0:
+        return "BLOCK"
+    if regime in {"chop", "unknown"} or bias200_value < -1.0:
+        return "CAUTION"
+    return "ALLOW"
+
+
+def _compute_entry_quality(bias50_value: float, nose_value: float, pulse_value: float, ear_value: float) -> float:
+    bias_score = _clamp01((-bias50_value + 2.4) / 5.0)
+    nose_score = _clamp01(1.0 - nose_value)
+    pulse_score = _clamp01(pulse_value)
+    ear_score = _clamp01(1.0 - abs(ear_value) * 5.0)
+    return round(0.40 * bias_score + 0.18 * nose_score + 0.27 * pulse_score + 0.15 * ear_score, 4)
+
+
+def _quality_label(entry_quality: float) -> str:
+    if entry_quality >= 0.82:
+        return "A"
+    if entry_quality >= 0.68:
+        return "B"
+    if entry_quality >= 0.55:
+        return "C"
+    return "D"
+
+
+def _allowed_layers_for_signal(regime_gate: str, entry_quality: float, max_layers: int) -> int:
+    max_layers = max(0, int(max_layers))
+    if regime_gate == "BLOCK" or entry_quality < 0.55:
+        return 0
+    if entry_quality < 0.68:
+        return min(1, max_layers)
+    if regime_gate == "CAUTION" or entry_quality < 0.70:
+        return min(2, max_layers)
+    return min(3, max_layers)
 
 
 def run_rule_backtest(
@@ -196,6 +317,9 @@ def run_rule_backtest(
         p_val = pulse[i] if i < len(pulse) else 0.5
         e_val = ear[i] if i < len(ear) else 0.0
         regime = regimes[i] if regimes and i < len(regimes) and regimes[i] else "unknown"
+        regime_gate = _compute_regime_gate(b200, regime, regime_min)
+        entry_quality = _compute_entry_quality(b50, n_val, p_val, e_val)
+        allowed_layers = _allowed_layers_for_signal(regime_gate, entry_quality, len(layers_pct))
 
         # 更新權益
         if position > 0:
@@ -215,6 +339,9 @@ def run_rule_backtest(
                     "reason": "stop_loss", "timestamp": timestamps[i] if i < len(timestamps) else "",
                     "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
                     "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
+                    "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
+                    "entry_quality": entry_layers[0].get("entry_quality"),
+                    "allowed_layers": entry_layers[0].get("allowed_layers"),
                 })
                 position = 0
                 entry_layers = []
@@ -237,6 +364,9 @@ def run_rule_backtest(
                     "reason": reason, "timestamp": timestamps[i] if i < len(timestamps) else "",
                     "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
                     "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
+                    "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
+                    "entry_quality": entry_layers[0].get("entry_quality"),
+                    "allowed_layers": entry_layers[0].get("allowed_layers"),
                 })
                 position = 0
                 entry_layers = []
@@ -245,11 +375,16 @@ def run_rule_backtest(
                 continue
 
         # ── 進場判定 ──
-        can_enter = (b50 <= bias50_max and n_val <= nose_max
-                     and p_val >= pulse_min and b200 >= regime_min)
+        can_enter = (
+            regime_gate != "BLOCK"
+            and allowed_layers > 0
+            and b50 <= bias50_max
+            and n_val <= nose_max
+            and p_val >= pulse_min
+            and b200 >= regime_min
+        )
 
-        if can_enter and position == 0 and len(layers_pct) > 0:
-            # Layer 1
+        if can_enter and position == 0 and len(layers_pct) > 0 and allowed_layers >= 1:
             buy_amt = initial_capital * layers_pct[0]
             coins = buy_amt / p
             cash -= buy_amt
@@ -258,10 +393,12 @@ def run_rule_backtest(
                 "price": p, "coins": coins, "layer": 1,
                 "timestamp": timestamps[i] if i < len(timestamps) else "",
                 "regime": regime,
+                "regime_gate": regime_gate,
+                "entry_quality": entry_quality,
+                "allowed_layers": allowed_layers,
             })
 
-        elif can_enter and len(entry_layers) == 1 and len(layers_pct) > 1:
-            # Layer 2: 需要 bias50 更低
+        elif can_enter and len(entry_layers) == 1 and len(layers_pct) > 1 and allowed_layers >= 2:
             layer2_bias = entry.get("layer2_bias_max", bias50_max - 1.5)
             if b50 <= layer2_bias:
                 buy_amt = initial_capital * layers_pct[1]
@@ -272,12 +409,13 @@ def run_rule_backtest(
                     "price": p, "coins": coins, "layer": 2,
                     "timestamp": timestamps[i] if i < len(timestamps) else "",
                     "regime": regime,
+                    "regime_gate": regime_gate,
+                    "entry_quality": entry_quality,
+                    "allowed_layers": allowed_layers,
                 })
 
-        elif can_enter and len(entry_layers) == 2 and len(layers_pct) > 2:
-            # Layer 3: 需要 bias50 更低
+        elif can_enter and len(entry_layers) == 2 and len(layers_pct) > 2 and allowed_layers >= 3:
             layer3_bias = entry.get("layer3_bias_max", bias50_max - 3.0)
-            dist_sl_ok = True  # 如果提供了 swing_low 條件
             if b50 <= layer3_bias:
                 buy_amt = initial_capital * layers_pct[2]
                 coins = buy_amt / p
@@ -287,6 +425,9 @@ def run_rule_backtest(
                     "price": p, "coins": coins, "layer": 3,
                     "timestamp": timestamps[i] if i < len(timestamps) else "",
                     "regime": regime,
+                    "regime_gate": regime_gate,
+                    "entry_quality": entry_quality,
+                    "allowed_layers": allowed_layers,
                 })
 
         # 更新最大回撤
@@ -309,6 +450,9 @@ def run_rule_backtest(
             "reason": "end_of_data", "timestamp": timestamps[-1] if timestamps else "",
             "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
             "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
+            "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
+            "entry_quality": entry_layers[0].get("entry_quality"),
+            "allowed_layers": entry_layers[0].get("allowed_layers"),
         })
 
     # ── 統計 ──
@@ -376,6 +520,9 @@ def run_hybrid_backtest(
         b200 = bias200[i] if i < len(bias200) else 0
         conf = model_confidence[i] if i < len(model_confidence) else 0.5
         regime = regimes[i] if regimes and i < len(regimes) and regimes[i] else "unknown"
+        regime_gate = _compute_regime_gate(b200, regime, regime_min)
+        entry_quality = round(0.6 * _clamp01(conf) + 0.4 * _compute_entry_quality(b50, nose[i] if i < len(nose) else 0.5, pulse[i] if i < len(pulse) else 0.5, ear[i] if i < len(ear) else 0.0), 4)
+        allowed_layers = _allowed_layers_for_signal(regime_gate, entry_quality, len(layers_pct))
 
         if position > 0 and entry_layers:
             avg = sum(l["price"] * l["coins"] for l in entry_layers) / sum(l["coins"] for l in entry_layers)
@@ -392,6 +539,9 @@ def run_hybrid_backtest(
                     "reason": "stop_loss", "timestamp": timestamps[i] if i < len(timestamps) else "",
                     "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
                     "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
+                    "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
+                    "entry_quality": entry_layers[0].get("entry_quality"),
+                    "allowed_layers": entry_layers[0].get("allowed_layers"),
                 })
                 position = 0; entry_layers = []
                 consec_loss += 1
@@ -409,15 +559,24 @@ def run_hybrid_backtest(
                     "reason": reason, "timestamp": timestamps[i] if i < len(timestamps) else "",
                     "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
                     "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
+                    "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
+                    "entry_quality": entry_layers[0].get("entry_quality"),
+                    "allowed_layers": entry_layers[0].get("allowed_layers"),
                 })
                 position = 0; entry_layers = []
                 if pnl > 0: consec_loss = 0
                 continue
 
-        # 進場: 4H 過濾 + ML 信心 > 閾值
-        can_enter = (b50 <= bias50_max and conf >= conf_min and b200 >= regime_min)
+        # 進場: 4H 過濾 + ML 信心 > 閾值 + quality-based layers
+        can_enter = (
+            regime_gate != "BLOCK"
+            and allowed_layers > 0
+            and b50 <= bias50_max
+            and conf >= conf_min
+            and b200 >= regime_min
+        )
 
-        if can_enter and position == 0 and len(layers_pct) > 0:
+        if can_enter and position == 0 and len(layers_pct) > 0 and allowed_layers >= 1:
             buy_amt = initial_capital * layers_pct[0]
             coins = buy_amt / p
             cash -= buy_amt; position += coins
@@ -425,8 +584,11 @@ def run_hybrid_backtest(
                 "price": p, "coins": coins, "layer": 1,
                 "timestamp": timestamps[i] if i < len(timestamps) else "",
                 "regime": regime,
+                "regime_gate": regime_gate,
+                "entry_quality": entry_quality,
+                "allowed_layers": allowed_layers,
             })
-        elif can_enter and len(entry_layers) == 1 and len(layers_pct) > 1:
+        elif can_enter and len(entry_layers) == 1 and len(layers_pct) > 1 and allowed_layers >= 2:
             layer2_bias = entry.get("layer2_bias_max", bias50_max - 1.5)
             if b50 <= layer2_bias:
                 buy_amt = initial_capital * layers_pct[1]
@@ -436,8 +598,11 @@ def run_hybrid_backtest(
                     "price": p, "coins": coins, "layer": 2,
                     "timestamp": timestamps[i] if i < len(timestamps) else "",
                     "regime": regime,
+                    "regime_gate": regime_gate,
+                    "entry_quality": entry_quality,
+                    "allowed_layers": allowed_layers,
                 })
-        elif can_enter and len(entry_layers) == 2 and len(layers_pct) > 2:
+        elif can_enter and len(entry_layers) == 2 and len(layers_pct) > 2 and allowed_layers >= 3:
             layer3_bias = entry.get("layer3_bias_max", bias50_max - 3.0)
             if b50 <= layer3_bias:
                 buy_amt = initial_capital * layers_pct[2]
@@ -447,6 +612,9 @@ def run_hybrid_backtest(
                     "price": p, "coins": coins, "layer": 3,
                     "timestamp": timestamps[i] if i < len(timestamps) else "",
                     "regime": regime,
+                    "regime_gate": regime_gate,
+                    "entry_quality": entry_quality,
+                    "allowed_layers": allowed_layers,
                 })
 
         if equity > peak_equity: peak_equity = equity
@@ -464,6 +632,9 @@ def run_hybrid_backtest(
             "reason": "end_of_data", "timestamp": timestamps[-1] if timestamps else "",
             "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
             "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
+            "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
+            "entry_quality": entry_layers[0].get("entry_quality"),
+            "allowed_layers": entry_layers[0].get("allowed_layers"),
         })
 
     result.total_trades = len(result.trades)
@@ -502,6 +673,7 @@ def save_strategy(name: str, strategy_def: Dict, results: Optional[Dict] = None)
             "last_results": results,
             "run_count": 1 if results is not None else 0,
             "is_internal": _is_internal_strategy(name),
+            "metadata": _build_strategy_metadata(name, strategy_def),
         },
         fallback_name=name,
     )
@@ -516,6 +688,8 @@ def save_strategy(name: str, strategy_def: Dict, results: Optional[Dict] = None)
             if results is None and existing.get("last_results") is not None:
                 data["last_results"] = existing.get("last_results")
             data["is_internal"] = existing.get("is_internal", False) or data.get("is_internal", False)
+            if results is None and existing.get("metadata"):
+                data["metadata"] = existing.get("metadata")
         except Exception:
             pass
     with open(path, "w", encoding="utf-8") as f:
@@ -542,8 +716,18 @@ def load_all_strategies(include_internal: bool = False) -> List[Dict]:
             continue
     def sort_key(s):
         r = s.get("last_results") or {}
+        decision_quality = _coerce_float(r.get("avg_decision_quality_score"))
+        expected_win_rate = _coerce_float(r.get("avg_expected_win_rate"))
+        drawdown_penalty = _coerce_float(r.get("avg_expected_drawdown_penalty"))
         roi = _coerce_float(r.get("roi"))
-        return roi if roi is not None else -999
+        trades = _coerce_int(r.get("total_trades"), 0)
+        return (
+            decision_quality if decision_quality is not None else -999,
+            expected_win_rate if expected_win_rate is not None else -999,
+            -(drawdown_penalty if drawdown_penalty is not None else 999),
+            roi if roi is not None else -999,
+            trades,
+        )
     strategies.sort(key=sort_key, reverse=True)
     return strategies
 

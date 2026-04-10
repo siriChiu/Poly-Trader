@@ -619,6 +619,11 @@ def _serialize_model_scores(results, overfit_gap_threshold: float, hard_train_ac
                 "trades": int(f.total_trades),
                 "max_dd": float(round(f.max_drawdown, 4)),
                 "profit_factor": float(round(f.profit_factor, 4)),
+                "avg_decision_quality_score": float(round(getattr(f, "avg_decision_quality_score", 0.0), 4)),
+                "avg_expected_win_rate": float(round(getattr(f, "avg_expected_win_rate", 0.0), 4)),
+                "avg_expected_pyramid_quality": float(round(getattr(f, "avg_expected_pyramid_quality", 0.0), 4)),
+                "avg_expected_drawdown_penalty": float(round(getattr(f, "avg_expected_drawdown_penalty", 0.0), 4)),
+                "avg_expected_time_underwater": float(round(getattr(f, "avg_expected_time_underwater", 0.0), 4)),
             })
         is_overfit = bool(r.train_test_gap > overfit_gap_threshold or r.train_accuracy > hard_train_acc_cap)
         leaderboard.append({
@@ -630,6 +635,11 @@ def _serialize_model_scores(results, overfit_gap_threshold: float, hard_train_ac
             "avg_entry_quality": float(round(getattr(r, "avg_entry_quality", 0.0), 4)),
             "avg_allowed_layers": float(round(getattr(r, "avg_allowed_layers", 0.0), 4)),
             "avg_trade_quality": float(round(getattr(r, "avg_trade_quality", 0.0), 4)),
+            "avg_decision_quality_score": float(round(getattr(r, "avg_decision_quality_score", 0.0), 4)),
+            "avg_expected_win_rate": float(round(getattr(r, "avg_expected_win_rate", 0.0), 4)),
+            "avg_expected_pyramid_quality": float(round(getattr(r, "avg_expected_pyramid_quality", 0.0), 4)),
+            "avg_expected_drawdown_penalty": float(round(getattr(r, "avg_expected_drawdown_penalty", 0.0), 4)),
+            "avg_expected_time_underwater": float(round(getattr(r, "avg_expected_time_underwater", 0.0), 4)),
             "regime_stability_score": float(round(getattr(r, "regime_stability_score", 0.0), 4)),
             "trade_count_score": float(round(getattr(r, "trade_count_score", 0.0), 4)),
             "roi_score": float(round(getattr(r, "roi_score", 0.0), 4)),
@@ -710,9 +720,9 @@ def load_model_leaderboard_frame(db_path: str = DB_PATH):
             "feat_rsi14", "feat_macd_hist", "feat_atr_pct",
             "feat_vwap_dev", "feat_bb_pct_b", "feat_nw_width",
             "feat_nw_slope", "feat_adx", "feat_choppiness", "feat_donchian_pos",
-            "feat_4h_bias50", "feat_4h_bias20", "feat_4h_rsi14",
-            "feat_4h_macd_hist", "feat_4h_bb_pct_b",
-            "feat_4h_ma_order", "feat_4h_dist_swing_low",
+            "feat_4h_bias50", "feat_4h_bias20", "feat_4h_bias200", "feat_4h_rsi14",
+            "feat_4h_macd_hist", "feat_4h_bb_pct_b", "feat_4h_dist_bb_lower",
+            "feat_4h_ma_order", "feat_4h_dist_swing_low", "feat_4h_vol_ratio",
         ]
         selected_feature_cols = [col for col in requested_feature_cols if col in feature_cols]
         features_select = ",\n                   ".join(["timestamp", *selected_feature_cols])
@@ -938,6 +948,131 @@ def _compute_regime_breakdown(trades: List[Dict[str, Any]], initial_capital: flo
     return ordered
 
 
+def _normalize_timestamp_key(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    text = text.replace("T", " ")
+    if text.endswith("Z"):
+        text = text[:-1]
+    if "+" in text:
+        text = text.split("+", 1)[0]
+    return text[:19] if len(text) >= 19 else text
+
+
+
+def _get_sqlite_db_path(db) -> Optional[str]:
+    try:
+        bind = db.get_bind()
+    except Exception:
+        return None
+    if bind is None:
+        return None
+    return bind.url.database or None
+
+
+
+def _empty_strategy_quality_profile(horizon_minutes: int = 1440) -> Dict[str, Any]:
+    return {
+        "target_col": "simulated_pyramid_win",
+        "decision_quality_horizon_minutes": horizon_minutes,
+        "avg_expected_win_rate": None,
+        "avg_expected_pyramid_pnl": None,
+        "avg_expected_pyramid_quality": None,
+        "avg_expected_drawdown_penalty": None,
+        "avg_expected_time_underwater": None,
+        "avg_decision_quality_score": None,
+        "decision_quality_label": None,
+        "decision_quality_sample_size": 0,
+    }
+
+
+
+def _compute_strategy_decision_quality_profile(
+    trades: List[Dict[str, Any]],
+    db=None,
+    horizon_minutes: int = 1440,
+) -> Dict[str, Any]:
+    profile = _empty_strategy_quality_profile(horizon_minutes=horizon_minutes)
+    if not trades:
+        return profile
+
+    db_path = _get_sqlite_db_path(db) if db is not None else None
+    if not db_path:
+        return profile
+
+    timestamp_keys = []
+    for trade in trades:
+        ts_key = _normalize_timestamp_key(trade.get("entry_timestamp") or trade.get("timestamp"))
+        if ts_key:
+            timestamp_keys.append(ts_key)
+    timestamp_keys = sorted(set(timestamp_keys))
+    if not timestamp_keys:
+        return profile
+
+    placeholders = ",".join("?" for _ in timestamp_keys)
+    query = f"""
+        SELECT substr(timestamp, 1, 19) AS ts_key,
+               simulated_pyramid_win,
+               simulated_pyramid_pnl,
+               simulated_pyramid_quality,
+               simulated_pyramid_drawdown_penalty,
+               simulated_pyramid_time_underwater
+        FROM labels
+        WHERE horizon_minutes = ?
+          AND simulated_pyramid_win IS NOT NULL
+          AND substr(timestamp, 1, 19) IN ({placeholders})
+    """
+
+    try:
+        from model import predictor as predictor_module
+
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(query, [horizon_minutes, *timestamp_keys]).fetchall()
+        finally:
+            conn.close()
+    except Exception:
+        return profile
+
+    if not rows:
+        return profile
+
+    def _avg(col: str) -> Optional[float]:
+        vals = [float(r[col]) for r in rows if r[col] is not None]
+        if not vals:
+            return None
+        return round(sum(vals) / len(vals), 4)
+
+    avg_expected_win_rate = _avg("simulated_pyramid_win")
+    avg_expected_pyramid_pnl = _avg("simulated_pyramid_pnl")
+    avg_expected_pyramid_quality = _avg("simulated_pyramid_quality")
+    avg_expected_drawdown_penalty = _avg("simulated_pyramid_drawdown_penalty")
+    avg_expected_time_underwater = _avg("simulated_pyramid_time_underwater")
+    avg_decision_quality_score = predictor_module._compute_decision_quality_score(
+        avg_expected_win_rate,
+        avg_expected_pyramid_quality,
+        avg_expected_drawdown_penalty,
+        avg_expected_time_underwater,
+    )
+
+    profile.update({
+        "avg_expected_win_rate": avg_expected_win_rate,
+        "avg_expected_pyramid_pnl": avg_expected_pyramid_pnl,
+        "avg_expected_pyramid_quality": avg_expected_pyramid_quality,
+        "avg_expected_drawdown_penalty": avg_expected_drawdown_penalty,
+        "avg_expected_time_underwater": avg_expected_time_underwater,
+        "avg_decision_quality_score": avg_decision_quality_score,
+        "decision_quality_label": predictor_module._decision_quality_label(avg_decision_quality_score),
+        "decision_quality_sample_size": len(rows),
+    })
+    return profile
+
+
+
 def _compute_decision_profile(trades: List[Dict[str, Any]]) -> Dict[str, Any]:
     if not trades:
         return {
@@ -1048,11 +1183,34 @@ def _compute_strategy_risk(last_results: Optional[Dict[str, Any]]) -> Dict[str, 
     }
 
 
-def _decorate_strategy_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+def _decorate_strategy_entry(entry: Dict[str, Any], db=None) -> Dict[str, Any]:
     enriched = dict(entry)
-    risk = _compute_strategy_risk(entry.get("last_results"))
+    last_results = dict(entry.get("last_results") or {})
+    if db is not None:
+        quality_profile = _compute_strategy_decision_quality_profile(last_results.get("trades") or [], db=db)
+        for key, value in quality_profile.items():
+            if last_results.get(key) is None:
+                last_results[key] = value
+    enriched["last_results"] = last_results or None
+    risk = _compute_strategy_risk(last_results)
     enriched.update(risk)
     return enriched
+
+
+def _strategy_leaderboard_sort_key(entry: Dict[str, Any]):
+    results = entry.get("last_results") or {}
+    decision_quality = results.get("avg_decision_quality_score")
+    expected_win_rate = results.get("avg_expected_win_rate")
+    drawdown_penalty = results.get("avg_expected_drawdown_penalty")
+    roi = results.get("roi")
+    total_trades = results.get("total_trades") or 0
+    return (
+        float(decision_quality) if decision_quality is not None else -999.0,
+        float(expected_win_rate) if expected_win_rate is not None else -999.0,
+        -(float(drawdown_penalty) if drawdown_penalty is not None else 999.0),
+        float(roi) if roi is not None else -999.0,
+        int(total_trades),
+    )
 
 
 def _load_model_leaderboard_cache_file() -> None:
@@ -1165,20 +1323,38 @@ def _ensure_model_leaderboard_refresh(force: bool = False) -> None:
 
 @router.get("/strategies/leaderboard")
 async def api_strategy_leaderboard():
-    """回傳所有已儲存策略的 Leaderboard（依 ROI 排序）"""
+    """回傳所有已儲存策略的 Leaderboard（依 canonical decision-quality semantics 排序）"""
     from backtesting.strategy_lab import load_all_strategies
-    strategies = [_decorate_strategy_entry(s) for s in load_all_strategies()]
-    return {"strategies": strategies, "count": len(strategies)}
+
+    db = get_db()
+    try:
+        strategies = [_decorate_strategy_entry(s, db=db) for s in load_all_strategies()]
+    finally:
+        db.close()
+    strategies.sort(key=_strategy_leaderboard_sort_key, reverse=True)
+    return {
+        "strategies": strategies,
+        "count": len(strategies),
+        "target_col": "simulated_pyramid_win",
+        "target_label": "Canonical Decision Quality",
+        "sort_semantics": "avg_decision_quality_score -> avg_expected_win_rate -> lower drawdown penalty -> ROI",
+    }
 
 
 @router.get("/strategies/{name}")
 async def api_get_strategy(name: str):
     """取得單一策略定義"""
     from backtesting.strategy_lab import load_strategy
+
     s = load_strategy(name)
     if s is None:
         raise HTTPException(status_code=404, detail=f"Strategy '{name}' not found")
-    return s
+
+    db = get_db()
+    try:
+        return _decorate_strategy_entry(s, db=db)
+    finally:
+        db.close()
 
 
 @router.delete("/strategies/{name}")
@@ -1263,6 +1439,7 @@ async def api_run_strategy(body: Dict[str, Any]):
 
     strat_def = {"type": stype, "params": params}
     decision_profile = _compute_decision_profile(result.trades)
+    canonical_quality_profile = _compute_strategy_decision_quality_profile(result.trades, db=db)
     results_dict = {
         "roi": round(result.roi, 4),
         "win_rate": round(result.win_rate, 4),
@@ -1281,6 +1458,7 @@ async def api_run_strategy(body: Dict[str, Any]):
         "chart_context": chart_context,
         "run_at": datetime.utcnow().isoformat() + "Z",
         **decision_profile,
+        **canonical_quality_profile,
     }
     save_strategy(name, strat_def, results_dict)
     return {
