@@ -77,6 +77,7 @@
 - [x] Recent raw continuity repair lane：`data_ingestion/collector.py` 現在會在 live collect 前以 Binance 4h closed klines 回補 recent raw gaps，`hb_collect.py` 也會把 repaired raw timestamps 補進 `features_normalized`，避免 raw 修回來卻卡在 feature/label 斷層
 - [x] Sub-4h raw continuity bridge lane：Heartbeat #629 已補上 **1h public-kline repair + hourly interpolated bridge fallback**，把 240m freshness 從 `raw_gap_blocked`（latest raw gap 6.42h）拉回 `expected_horizon_lag`（latest raw gap 1.42h），不再只靠下一根 4h candle 才能恢復 labels
 - [x] Raw continuity recovery telemetry gate：`repair_recent_raw_continuity()` / `hb_collect.py` / `hb_parallel_runner.py` 現在會把 `coarse/fine/bridge_inserted` 與 `bridge_fallback_streak` 寫進 heartbeat summary，後續已可明確監控 **bridge fallback 是否連續多輪被迫介入**。若 streak 再升高，直接升級成 collector/service continuity 根因修復，而不是持續依賴 bridge workaround
+- [x] Sparse-source archive-window denominator hygiene：`feature_history_policy.py` 現在以 `raw_events` 的實際 snapshot minute buckets 對齊 recent-window coverage，排除 continuity bridge / non-snapshot feature rows，避免 Web/Fang/Scales/Nest 因 1h continuity bridge 被誤判成 partial source coverage
 - [ ] Sparse-source historical backfill：在 decontaminate 完成後，為 Web / Fang / Scales / Claw / Fin / Nest 補真正歷史 coverage，而不是再引入 fallback/carry-forward
 - [ ] Dynamic Window recent-window 穩定化：N=100/200/400 已確認不是 merge bug，而是 canonical 24h labels 在最近窗口全部為 1；下一步需設計 distribution-aware window / alternate evaluation rule
 

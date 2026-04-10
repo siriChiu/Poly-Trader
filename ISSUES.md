@@ -1,21 +1,47 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-10 05:12 UTC — Heartbeat #631b（raw continuity bridge telemetry + streak guard）*
+*最後更新：2026-04-10 05:34 UTC — Heartbeat #632c（archive-window coverage excludes continuity bridge rows）*
 
-## 📊 系統健康狀態 v4.51
+## 📊 系統健康狀態 v4.52
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,131** | 🟢 本輪新增 **+2**（#631 / #631b collect verified） |
-| Features | **11,560** | 🟢 本輪新增 **+2**（feature pipeline持續跟上 raw） |
-| Labels | **40,415** | 🟢 本輪新增 **+1**；240m/1440m freshness 仍在 expected horizon lag 內 |
-||| simulated_pyramid_win (1440m) | **57.11%** | 🟢 canonical DB 整體口徑；`full_ic.py` / `regime_aware_ic.py` 分析樣本 n=11,012 |
-||| spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
-| 全域 IC | **14/22** | 🟢 latest fast heartbeat #631b |
-| TW-IC | **14/22** | 🟢 latest fast heartbeat #631b |
-| Regime IC | **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows** | 🟢 #630 fallback 修復維持；#631b 新增 continuity telemetry 後可判斷是否是 raw continuity 再次退化 |
+| Raw | **20,134** | 🟢 本輪新增 **+3**（#632 / #632b / #632c collect verified） |
+| Features | **11,563** | 🟢 本輪新增 **+3**（feature pipeline持續跟上 raw） |
+| Labels | **40,423** | 🟢 本輪新增 **+8**；240m/1440m freshness 仍在 expected horizon lag 內 |
+|| simulated_pyramid_win (1440m) | **57.13%** | 🟢 canonical DB 整體口徑；`full_ic.py` / `regime_aware_ic.py` 分析樣本 n=11,012 |
+|| spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
+| 全域 IC | **14/22** | 🟢 latest fast heartbeat #632c |
+| TW-IC | **14/22** | 🟢 latest fast heartbeat #632c |
+| Regime IC | **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；本輪修正 archive-window coverage 後 blocker 判讀不再被 continuity bridge row 稀釋 |
 | 模型數 | **8** | ✅ |
-| Verification | **9 pytest + fast heartbeat runtime** | ✅ 本輪已重驗證 |
+| Verification | **7 pytest + fast heartbeat runtime** | ✅ 本輪已重驗證 |
+
+## 📈 心跳 #632c 摘要
+
+### 本輪已驗證 patch
+1. **Sparse-source archive-window coverage 不再被 continuity bridge / 非 snapshot rows 稀釋成假 partial coverage**：`feature_engine/feature_history_policy.py` 現在會用 `raw_events` 的實際 snapshot minute buckets 對齊 archive window，只計算有對應 source snapshot 的 feature rows。這修掉了 #629 之後 hourly continuity bridge rows 被算進 sparse-source recent-window denominator、把 coverage 錯誤壓到 92~99% 的假 blocker。
+2. **Regression tests 補齊**：`tests/test_feature_history_policy.py` 新增「bridge row without snapshot event must be excluded」測試，並把 forward-archive cases 改成使用 recent timestamps，鎖住 ready / partial / healthy 三種 action lane 不再被 stale fixture 或 continuity bridge 汙染。
+3. **Coverage report / fast heartbeat 已用新口徑重驗證**：`feature_coverage_report.py` 與 `hb_parallel_runner.py --fast --hb 632c` 都重新跑過，`web_whale` / `fang_*` archive-window 已回到 **100% recent-window coverage**，剩餘 `nest_pred` / `scales_ssr` 的 <100% 才是真實 source-output 缺值，而不是 bridge side effect。
+
+### 本輪 runtime facts（Heartbeat #632 / #632b / #632c）
+- `python scripts/hb_parallel_runner.py --fast --hb 632`：**Raw 20131→20132 / Features 11560→11561 / Labels 40415→40417**。
+- `python scripts/hb_parallel_runner.py --fast --hb 632b`：**Raw 20132→20133 / Features 11561→11562 / Labels 40417→40421**。
+- `python scripts/hb_parallel_runner.py --fast --hb 632c`：**Raw 20133→20134 / Features 11562→11563 / Labels 40421→40423**；summary 已落地 `data/heartbeat_632c_summary.json`。
+- Canonical freshness 維持健康：240m `latest_target=2026-04-10 02:33:12.611102`、`raw_gap=0.3h`；1440m `latest_target=2026-04-09 06:00:00`、`raw_gap=1.4h`，兩者皆為 `expected_horizon_lag`。
+- Canonical diagnostics 維持：**Global IC 14/22 PASS**、**TW-IC 14/22 PASS**；regime-aware IC **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,012）。
+- Coverage gate 經新口徑校正後：
+  - **web_whale / fang_pcr / fang_skew**：archive-window **100.00%**（不再被 continuity bridge rows 誤判成 partial）
+  - **nest_pred / scales_ssr**：archive-window **98.46% / 98.77%**，代表仍有少量真實 source-output 缺值，下一輪才需要查 parser/source path，而不是回頭重修 bridge logic
+  - **Claw / Claw intensity / Fin**：仍是 `source_auth_blocked`，archive-window **0%**，根因仍是 `COINGLASS_API_KEY` 缺失
+- 驗證：`PYTHONPATH=. pytest tests/test_feature_history_policy.py -q` → **7 passed**；`python scripts/feature_coverage_report.py` ✅；`python scripts/hb_parallel_runner.py --fast --hb 632c` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#ARCHIVE_WINDOW_FALSE_PARTIAL（本輪已修）**：本輪確認 sparse-source recent-window coverage 的一部分「未達 100%」其實是 continuity bridge / non-snapshot rows 被錯算進 denominator，而非 source path 真的 partial。這個分析污染已修掉，後續只有真正沒有 snapshot event 的 row 會被排除。
+- **#LOW_COVERAGE_SOURCES（持續真 blocker）**：本輪把 blocker 再收斂：
+  1. **已證明 forward recent-window healthy**：Web / Fang 不要再重開 live-fetch debugging。
+  2. **真實 partial recent-window**：Nest / Scales 仍有少量 recent-output 缺值，下一輪若要修，應直接查 parser/source mapping。
+  3. **Credential blocker**：Claw / Fin 仍被 `COINGLASS_API_KEY` 卡住，這件事沒有被 coverage policy 修補假裝解掉。
 
 ## 📈 心跳 #631b 摘要
 

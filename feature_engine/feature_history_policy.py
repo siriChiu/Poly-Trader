@@ -194,6 +194,14 @@ def _parse_sqlite_timestamp(value: Any) -> datetime | None:
     return dt.astimezone(timezone.utc)
 
 
+def _snapshot_minute_key(ts_value: Any) -> str | None:
+    ts = _parse_sqlite_timestamp(ts_value)
+    if ts is None:
+        return None
+    return ts.astimezone(timezone.utc).replace(second=0, microsecond=0).isoformat()
+
+
+
 def _compute_archive_window_coverage(
     clean_key: str,
     timestamp_values: Sequence[Any],
@@ -217,11 +225,24 @@ def _compute_archive_window_coverage(
             'archive_window_coverage_pct': None,
         }
 
+    snapshot_minute_keys = {
+        minute_key
+        for subtype in subtypes
+        for minute_key in snapshot_stats.get(subtype, {}).get('minute_keys', [])
+        if minute_key
+    }
+
     rows_since_start = 0
     non_null_since_start = 0
     for ts_value, feature_value in zip(timestamp_values, feature_values):
         ts = _parse_sqlite_timestamp(ts_value)
-        if ts is None or ts < archive_start_dt:
+        if ts is None:
+            continue
+        if snapshot_minute_keys:
+            minute_key = _snapshot_minute_key(ts_value)
+            if minute_key not in snapshot_minute_keys:
+                continue
+        elif ts < archive_start_dt:
             continue
         rows_since_start += 1
         if feature_value is not None:
@@ -258,35 +279,62 @@ def compute_raw_snapshot_stats(conn: sqlite3.Connection) -> Dict[str, Dict[str, 
     ).fetchone()
     if not table_exists:
         return {}
+
     rows = conn.execute(
-        'SELECT subtype, COUNT(*), MIN(timestamp), MAX(timestamp) FROM raw_events GROUP BY subtype'
+        'SELECT subtype, timestamp, payload_json FROM raw_events ORDER BY subtype, timestamp, id'
     ).fetchall()
     stats: Dict[str, Dict[str, Any]] = {}
     now = datetime.now(timezone.utc)
-    for subtype, count, min_ts, max_ts in rows:
-        oldest_dt = _parse_sqlite_timestamp(min_ts)
-        latest_dt = _parse_sqlite_timestamp(max_ts)
+
+    for subtype, ts_value, payload_json in rows:
+        subtype = str(subtype)
+        ts = _parse_sqlite_timestamp(ts_value)
+        payload = _safe_parse_payload_json(payload_json)
+        bucket = stats.setdefault(
+            subtype,
+            {
+                'count': 0,
+                'oldest_dt': None,
+                'latest_dt': None,
+                'latest_payload': {},
+                'minute_keys': set(),
+            },
+        )
+        bucket['count'] += 1
+        if ts is not None:
+            if bucket['oldest_dt'] is None or ts < bucket['oldest_dt']:
+                bucket['oldest_dt'] = ts
+            if bucket['latest_dt'] is None or ts >= bucket['latest_dt']:
+                bucket['latest_dt'] = ts
+                bucket['latest_payload'] = payload
+            minute_key = _snapshot_minute_key(ts)
+            if minute_key:
+                bucket['minute_keys'].add(minute_key)
+        elif not bucket['latest_payload']:
+            bucket['latest_payload'] = payload
+
+    normalized: Dict[str, Dict[str, Any]] = {}
+    for subtype, bucket in stats.items():
+        oldest_dt = bucket['oldest_dt']
+        latest_dt = bucket['latest_dt']
         span_hours = None
         if oldest_dt and latest_dt:
             span_hours = round(max(0.0, (latest_dt - oldest_dt).total_seconds() / 3600.0), 2)
         age_minutes = None
         if latest_dt:
             age_minutes = round(max(0.0, (now - latest_dt).total_seconds() / 60.0), 1)
-        latest_payload_row = conn.execute(
-            'SELECT payload_json FROM raw_events WHERE subtype = ? ORDER BY timestamp DESC, id DESC LIMIT 1',
-            (subtype,),
-        ).fetchone()
-        latest_payload = _safe_parse_payload_json(latest_payload_row[0] if latest_payload_row else None)
-        stats[str(subtype)] = {
-            'count': int(count),
+        latest_payload = bucket.get('latest_payload') or {}
+        normalized[subtype] = {
+            'count': int(bucket['count']),
             'oldest_ts': oldest_dt.isoformat() if oldest_dt else None,
             'latest_ts': latest_dt.isoformat() if latest_dt else None,
             'span_hours': span_hours,
             'latest_age_minutes': age_minutes,
             'latest_status': latest_payload.get('status'),
             'latest_message': latest_payload.get('message'),
+            'minute_keys': sorted(bucket['minute_keys']),
         }
-    return stats
+    return normalized
 
 
 def compute_raw_snapshot_counts(conn: sqlite3.Connection) -> Dict[str, int]:

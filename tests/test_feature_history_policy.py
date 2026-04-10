@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
 
@@ -37,8 +38,8 @@ def test_compute_sqlite_feature_coverage_and_blocker_summary(tmp_path: Path):
     ]
     conn.execute(f"CREATE TABLE features_normalized ({', '.join(columns + feature_columns)})")
     conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT, payload_json TEXT)")
-    conn.execute("INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('web_snapshot', '2024-04-09 00:00:00', '{\"status\": \"ok\"}')")
-    conn.execute("INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('web_snapshot', '2024-04-09 01:00:00', '{\"status\": \"ok\"}')")
+    conn.execute("INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('web_snapshot', '2026-04-09 00:00:00', '{\"status\": \"ok\"}')")
+    conn.execute("INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('web_snapshot', '2026-04-09 01:00:00', '{\"status\": \"ok\"}')")
     for i in range(10):
         conn.execute(
             """
@@ -75,9 +76,9 @@ def test_compute_sqlite_feature_coverage_and_blocker_summary(tmp_path: Path):
     assert by_key["web_whale"]["raw_snapshot_latest_age_min"] is not None
     assert by_key["web_whale"]["raw_snapshot_latest_status"] == "ok"
     assert by_key["web_whale"]["archive_window_started"] is True
-    assert by_key["web_whale"]["archive_window_rows"] == 10
+    assert by_key["web_whale"]["archive_window_rows"] == 2
     assert by_key["web_whale"]["archive_window_non_null"] == 2
-    assert by_key["web_whale"]["archive_window_coverage_pct"] == 20.0
+    assert by_key["web_whale"]["archive_window_coverage_pct"] == 100.0
     assert "Forward raw snapshot archive is stale (2/10 stored event(s)" in by_key["web_whale"]["backfill_blocker"]
 
     summary = build_source_blocker_summary(payload)
@@ -91,15 +92,16 @@ def test_ready_forward_archive_changes_recommended_action_without_hiding_blocker
     conn.execute("CREATE TABLE features_normalized (id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, feat_web_whale REAL)")
     conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT, payload_json TEXT)")
 
+    base = datetime.now(timezone.utc).replace(second=0, microsecond=0) - timedelta(minutes=9)
     for i in range(12):
-        hour = i % 10
+        ts = base + timedelta(minutes=i)
         conn.execute(
             "INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('web_snapshot', ?, '{\"status\": \"ok\"}')",
-            (f"2026-04-09 {hour:02d}:00:00",),
+            (ts.strftime('%Y-%m-%d %H:%M:%S'),),
         )
         conn.execute(
             "INSERT INTO features_normalized (timestamp, symbol, feat_web_whale) VALUES (?, 'BTCUSDT', ?)",
-            (f"2026-04-09T{hour:02d}:00:00", float(i) / 10.0),
+            (ts.strftime('%Y-%m-%dT%H:%M:%S'), float(i) / 10.0),
         )
 
     conn.commit()
@@ -152,14 +154,16 @@ def test_partial_archive_window_recommends_fixing_active_source_path_gap(tmp_pat
     conn.execute("CREATE TABLE features_normalized (id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, feat_nest_pred REAL)")
     conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT, payload_json TEXT)")
 
+    base = datetime.now(timezone.utc).replace(second=0, microsecond=0) - timedelta(minutes=6)
     for i in range(7):
+        ts = base + timedelta(minutes=i)
         conn.execute(
             "INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('nest_snapshot', ?, '{\"status\": \"ok\"}')",
-            (f"2026-04-09 {i:02d}:00:00",),
+            (ts.strftime('%Y-%m-%d %H:%M:%S'),),
         )
         conn.execute(
             "INSERT INTO features_normalized (timestamp, symbol, feat_nest_pred) VALUES (?, 'BTCUSDT', ?)",
-            (f"2026-04-09T{i:02d}:00:00", 0.55 if i < 3 else None),
+            (ts.strftime('%Y-%m-%dT%H:%M:%S'), 0.55 if i < 3 else None),
         )
 
     conn.commit()
@@ -180,14 +184,16 @@ def test_recent_window_healthy_before_ready_deprioritizes_live_fetch_debugging(t
     conn.execute("CREATE TABLE features_normalized (id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, feat_scales_ssr REAL)")
     conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT, payload_json TEXT)")
 
+    base = datetime.now(timezone.utc).replace(second=0, microsecond=0) - timedelta(minutes=6)
     for i in range(7):
+        ts = base + timedelta(minutes=i)
         conn.execute(
             "INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('scales_snapshot', ?, '{\"status\": \"ok\"}')",
-            (f"2026-04-09 {i:02d}:00:00",),
+            (ts.strftime('%Y-%m-%d %H:%M:%S'),),
         )
         conn.execute(
             "INSERT INTO features_normalized (timestamp, symbol, feat_scales_ssr) VALUES (?, 'BTCUSDT', ?)",
-            (f"2026-04-09T{i:02d}:00:00", float(i)),
+            (ts.strftime('%Y-%m-%dT%H:%M:%S'), float(i)),
         )
 
     conn.commit()
@@ -200,3 +206,44 @@ def test_recent_window_healthy_before_ready_deprioritizes_live_fetch_debugging(t
     assert scales["forward_archive_ready"] is False
     assert "already healthy" in scales["recommended_action"]
     assert "do not reopen live-fetch debugging" in scales["recommended_action"]
+
+
+def test_archive_window_coverage_ignores_bridge_rows_without_snapshot_events(tmp_path: Path):
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE features_normalized (id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, feat_scales_ssr REAL)")
+    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT, payload_json TEXT)")
+
+    snapshot_times = [
+        "2026-04-09 00:00:10",
+        "2026-04-09 00:15:20",
+        "2026-04-09 00:30:40",
+    ]
+    feature_times = [
+        "2026-04-09T00:00:09",
+        "2026-04-09T00:15:00",
+        "2026-04-09T00:30:01",
+        "2026-04-09T01:00:00",
+    ]
+
+    for ts in snapshot_times:
+        conn.execute(
+            "INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES ('scales_snapshot', ?, '{\"status\": \"ok\"}')",
+            (ts,),
+        )
+    for i, ts in enumerate(feature_times):
+        value = float(i + 1) if i < 3 else None
+        conn.execute(
+            "INSERT INTO features_normalized (timestamp, symbol, feat_scales_ssr) VALUES (?, 'BTCUSDT', ?)",
+            (ts, value),
+        )
+
+    conn.commit()
+    conn.close()
+
+    payload = compute_sqlite_feature_coverage(db_path)
+    scales = next(row for row in payload["features"] if row["key"] == "scales_ssr")
+
+    assert scales["archive_window_rows"] == 3
+    assert scales["archive_window_non_null"] == 3
+    assert scales["archive_window_coverage_pct"] == 100.0

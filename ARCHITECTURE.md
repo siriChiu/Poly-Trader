@@ -30,7 +30,7 @@
 
 **Shared policy contract（Heartbeat #617）**：source-history policy 不可再在 report/API/heartbeat runner 各自複製一份。`feature_engine/feature_history_policy.py` 現在是單一真相來源（single source of truth），`scripts/feature_coverage_report.py`、`/api/features/coverage`、`hb_parallel_runner.py` 都必須共用它，避免 blocker metadata drift 導致 UI 與 heartbeat 對同一 sparse source 給出不同治理結論。
 
-**Archive-window coverage contract（Heartbeat #620）**：對 sparse sources，除了整體 `coverage_pct` 與 `raw_snapshot_events`，還必須同步輸出 `archive_window_rows / archive_window_non_null / archive_window_coverage_pct`（自第一筆 snapshot archive 起點以來的 recent-window coverage）。這是區分「forward archive 已健康、僅剩歷史缺口」與「forward archive 本身仍沒產出 feature 值」的必要欄位；FeatureChart、coverage report、heartbeat runner 都必須顯示它，避免把歷史稀釋後的總 coverage 誤判成當前 collector 失效。
+**Archive-window coverage contract（Heartbeat #620 / #632c）**：對 sparse sources，除了整體 `coverage_pct` 與 `raw_snapshot_events`，還必須同步輸出 `archive_window_rows / archive_window_non_null / archive_window_coverage_pct`（自第一筆 snapshot archive 起點以來的 recent-window coverage）。這個 recent-window denominator 不可再用「所有 feature rows since archive start」粗算；必須以 `raw_events` 的實際 snapshot timestamp buckets 對齊，只計算有對應 source snapshot 的 feature rows，排除 continuity bridge / non-snapshot rows。FeatureChart、coverage report、heartbeat runner 都必須顯示同一口徑，避免把歷史稀釋或 continuity workaround 誤判成 active source partial coverage。
 
 **Source auth/fetch blocker contract（Heartbeat #622）**：若 sparse source 最新 snapshot `status != ok`（尤其 `auth_missing`），coverage policy 必須把 quality 從 generic `source_history_gap` 升級成 `source_auth_blocked` / `source_fetch_error`，並把 `raw_snapshot_latest_status/message` 同步給 API、markdown report、FeatureChart。這批欄位的用途不是附註，而是要讓 UI 與 heartbeat 明確知道「現在 live fetch 壞掉」優先於「歷史 coverage 還不夠」。
 
