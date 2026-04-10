@@ -171,7 +171,54 @@ def test_live_decision_profile_matches_strategy_lab_baseline():
     assert profile["regime_gate"] == expected_gate
     assert profile["allowed_layers"] == expected_layers
     assert profile["entry_quality_label"] == "B"
-    assert profile["decision_profile_version"] == "phase16_baseline_v1"
+    assert profile["decision_profile_version"] == "phase16_baseline_v2"
+
+
+def test_decision_quality_contract_prefers_matching_gate_and_quality_bucket():
+    rows = [
+        {
+            "timestamp": "2026-04-10T00:00:00",
+            "regime_gate": "ALLOW",
+            "entry_quality_label": "B",
+            "simulated_pyramid_win": 0.82,
+            "simulated_pyramid_pnl": 0.14,
+            "simulated_pyramid_quality": 0.71,
+            "simulated_pyramid_drawdown_penalty": 0.09,
+            "simulated_pyramid_time_underwater": 0.16,
+        }
+        for _ in range(35)
+    ]
+    rows.extend(
+        {
+            "timestamp": "2026-04-09T00:00:00",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "C",
+            "simulated_pyramid_win": 0.31,
+            "simulated_pyramid_pnl": -0.04,
+            "simulated_pyramid_quality": 0.22,
+            "simulated_pyramid_drawdown_penalty": 0.34,
+            "simulated_pyramid_time_underwater": 0.52,
+        }
+        for _ in range(80)
+    )
+
+    contract = predictor_module._summarize_decision_quality_contract(
+        rows,
+        {
+            "regime_gate": "ALLOW",
+            "entry_quality_label": "B",
+            "decision_profile_version": "phase16_baseline_v2",
+        },
+    )
+
+    assert contract["decision_quality_calibration_scope"] == "regime_gate+entry_quality_label"
+    assert contract["decision_quality_sample_size"] == 35
+    assert contract["expected_win_rate"] == 0.82
+    assert contract["expected_pyramid_quality"] == 0.71
+    assert contract["expected_drawdown_penalty"] == 0.09
+    assert contract["expected_time_underwater"] == 0.16
+    assert contract["decision_quality_score"] == predictor_module._compute_decision_quality_score(0.82, 0.71, 0.09, 0.16)
+    assert contract["decision_quality_label"] == "B"
 
 
 def test_predict_confidence_route_unpacks_load_predictor_tuple(monkeypatch):
@@ -200,7 +247,18 @@ def test_predict_confidence_route_unpacks_load_predictor_tuple(monkeypatch):
             "entry_quality": 0.74,
             "entry_quality_label": "B",
             "allowed_layers": 3,
-            "decision_profile_version": "phase16_baseline_v1",
+            "decision_quality_horizon_minutes": 1440,
+            "decision_quality_calibration_scope": "regime_gate+entry_quality_label",
+            "decision_quality_sample_size": 64,
+            "decision_quality_reference_from": "2026-04-10 12:00:00",
+            "expected_win_rate": 0.68,
+            "expected_pyramid_pnl": 0.12,
+            "expected_pyramid_quality": 0.61,
+            "expected_drawdown_penalty": 0.09,
+            "expected_time_underwater": 0.22,
+            "decision_quality_score": 0.4405,
+            "decision_quality_label": "C",
+            "decision_profile_version": "phase16_baseline_v2",
         }
 
     monkeypatch.setattr(predictor_module, "predict", _fake_predict)
@@ -210,4 +268,7 @@ def test_predict_confidence_route_unpacks_load_predictor_tuple(monkeypatch):
     assert result["signal"] == "BUY"
     assert result["regime_gate"] == "ALLOW"
     assert result["allowed_layers"] == 3
+    assert result["decision_quality_calibration_scope"] == "regime_gate+entry_quality_label"
+    assert result["expected_drawdown_penalty"] == 0.09
+    assert result["decision_profile_version"] == "phase16_baseline_v2"
     assert closed["value"] is True

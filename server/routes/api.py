@@ -570,7 +570,18 @@ async def get_confidence_prediction():
             "entry_quality": None,
             "entry_quality_label": None,
             "allowed_layers": None,
-            "decision_profile_version": "phase16_baseline_v1",
+            "decision_quality_horizon_minutes": 1440,
+            "decision_quality_calibration_scope": None,
+            "decision_quality_sample_size": 0,
+            "decision_quality_reference_from": None,
+            "expected_win_rate": None,
+            "expected_pyramid_pnl": None,
+            "expected_pyramid_quality": None,
+            "expected_drawdown_penalty": None,
+            "expected_time_underwater": None,
+            "decision_quality_score": None,
+            "decision_quality_label": None,
+            "decision_profile_version": "phase16_baseline_v2",
         }
     return result
 
@@ -726,6 +737,8 @@ def load_model_leaderboard_frame(db_path: str = DB_PATH):
             "label_spot_long_quality",
             "simulated_pyramid_pnl",
             "simulated_pyramid_quality",
+            "simulated_pyramid_drawdown_penalty",
+            "simulated_pyramid_time_underwater",
         ]
         selected_optional = [col for col in optional_label_cols if col in label_cols]
         labels_select = ", ".join(dict.fromkeys(["timestamp", *required_label_cols, *selected_optional]))

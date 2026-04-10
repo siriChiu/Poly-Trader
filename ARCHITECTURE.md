@@ -60,6 +60,12 @@
 
 **Canonical consumer rule（Heartbeat #615）**：Leaderboard / target-comparison 類資料載入應優先以 `simulated_pyramid_win` 作為 row gate；`label_spot_long_win` 僅保留比較欄位，不得再作為 canonical dataset 的必要條件。
 
+**Decision-quality label contract（Heartbeat #639）**：canonical labels 不得只剩 `simulated_pyramid_win + simulated_pyramid_pnl + simulated_pyramid_quality` 的半成品語義。`labels` 現在還必須持久化：
+- `simulated_pyramid_drawdown_penalty`
+- `simulated_pyramid_time_underwater`
+
+這兩個欄位由 labeling pipeline 在生成金字塔路徑標籤時一併計算，heartbeat 也必須驗證它們在 active horizons（240m / 1440m）上有非空覆蓋，避免「說要低回撤 / 低深套，DB 卻沒有顯式欄位」的假對齊。
+
 ### 4. 模型層
 使用特徵做交易決策與現貨 long 加碼判斷，允許 abstain 與 regime-aware weights。
 
@@ -79,16 +85,25 @@
 
 **Confidence-based sizing contract（2026-04-10 strategy review）**：模型輸出除了進/不進，還必須逐步演化成 `size / layer_count` 決策依據。低品質訊號只允許首層，強訊號才允許完整 20/30/50 金字塔；倉位本身就是回撤控制器，不可再完全與信號品質脫鉤。
 
-**Live predictor decision-profile contract（Heartbeat #637）**：`model/predictor.py::predict()`、`scripts/hb_predict_probe.py`、`/predict/confidence` 必須至少共同輸出同一套 baseline decision profile：
+**Live predictor decision-profile contract（Heartbeat #640）**：`model/predictor.py::predict()`、`scripts/hb_predict_probe.py`、`/predict/confidence` 必須共同輸出 `phase16_baseline_v2` contract，而不是只剩 signal/confidence：
 - `regime_gate`（ALLOW / CAUTION / BLOCK）
 - `entry_quality`
 - `entry_quality_label`
 - `allowed_layers`
+- `decision_quality_calibration_scope`
+- `decision_quality_sample_size`
+- `expected_win_rate`
+- `expected_pyramid_pnl`
+- `expected_pyramid_quality`
+- `expected_drawdown_penalty`
+- `expected_time_underwater`
+- `decision_quality_score`
+- `decision_quality_label`
 - `decision_profile_version`
 
-這些欄位目前是 `phase16_baseline_v1`，其語義必須與 Strategy Lab 的 `_compute_regime_gate()` / `_compute_entry_quality()` / `_allowed_layers_for_signal()` 對齊。Heartbeat 不可再把 live path 描述成「只有 signal/confidence」。下一階段若升級到完整 decision-quality target，必須在這個 contract 上擴展，而不是另起一套平行語義。
+其中 quality-related 欄位目前不是直接多目標模型輸出，而是用 canonical **1440m historical labels** 按 `regime_gate + entry_quality_label`（不足時 fallback 到 `regime_gate / entry_quality_label / global`）做 calibrated expectation layer。這層的目的，是讓 live path 直接說出「這筆 setup 在歷史上通常贏多少、回撤多深、會不會久套」，把 canonical quality semantics 從 DB / leaderboard 往前推到即時 API。下一階段若升級到完整 decision-quality target，必須沿用這個 contract 擴展，而不是另起一套平行語義。
 
-**Leaderboard objective contract（Heartbeat #638）**：`backtesting/model_leaderboard.py` 與 `/api/models/leaderboard` 不可再只用 ROI / overfit gap / volatility 當主排序語義。當前 composite score 與 API payload 至少要同步輸出以下 decision-aware components：
+**Leaderboard objective contract（Heartbeat #638 / #639）**：`backtesting/model_leaderboard.py` 與 `/api/models/leaderboard` 不可再只用 ROI / overfit gap / volatility 當主排序語義。當前 composite score 與 API payload 至少要同步輸出以下 decision-aware components：
 - `avg_entry_quality`
 - `avg_allowed_layers`
 - `avg_trade_quality`
@@ -97,7 +112,7 @@
 - `profit_factor_score`
 - `overfit_penalty`
 
-這些欄位目前仍是 **backtest-side proxy**，但它們已成為 leaderboard 對外 contract 的一部分。下一階段若把 canonical quality target（`win + pnl_quality + drawdown_penalty + time_underwater`）直接接進 ranking，必須在這組欄位上擴充或替換，而不是回退成只看 ROI 的單一排序。
+Heartbeat #639 之後，leaderboard frame 還必須能讀到 canonical labels 中的 `simulated_pyramid_drawdown_penalty` / `simulated_pyramid_time_underwater`；這代表下一階段不該再停留在純 backtest proxy，而要把 ranking 與 API contract 直接升級成使用這組 canonical quality target，而不是回退成只看 ROI 的單一排序。
 
 **Core-vs-research signal contract（2026-04-10 strategy review）**：主模型與主 UI 必須區分兩類信號：
 - **核心信號**：4H 結構 + 高 coverage technical（可直接參與主決策）

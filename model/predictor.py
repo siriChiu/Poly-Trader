@@ -4,7 +4,7 @@ Only trade when model confidence > 0.7 or < 0.3
 """
 
 import os
-from typing import Optional, Dict
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 import numpy as np
 from sqlalchemy.orm import Session
@@ -372,7 +372,7 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
             "entry_quality": None,
             "entry_quality_label": None,
             "allowed_layers": None,
-            "decision_profile_version": "phase16_baseline_v1",
+            "decision_profile_version": "phase16_baseline_v2",
         }
 
     def _f(name: str) -> float:
@@ -394,8 +394,168 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
         "entry_quality": entry_quality,
         "entry_quality_label": _quality_label(entry_quality),
         "allowed_layers": allowed_layers,
-        "decision_profile_version": "phase16_baseline_v1",
+        "decision_profile_version": "phase16_baseline_v2",
     }
+
+
+def _decision_quality_fallback(profile_version: str = "phase16_baseline_v2") -> Dict[str, Any]:
+    return {
+        "decision_quality_horizon_minutes": 1440,
+        "decision_quality_calibration_scope": None,
+        "decision_quality_sample_size": 0,
+        "decision_quality_reference_from": None,
+        "expected_win_rate": None,
+        "expected_pyramid_pnl": None,
+        "expected_pyramid_quality": None,
+        "expected_drawdown_penalty": None,
+        "expected_time_underwater": None,
+        "decision_quality_score": None,
+        "decision_quality_label": None,
+        "decision_profile_version": profile_version,
+    }
+
+
+def _decision_quality_label(score: Optional[float]) -> Optional[str]:
+    if score is None:
+        return None
+    if score >= 0.65:
+        return "A"
+    if score >= 0.50:
+        return "B"
+    if score >= 0.35:
+        return "C"
+    return "D"
+
+
+def _compute_decision_quality_score(win_rate: Optional[float], pyramid_quality: Optional[float], drawdown_penalty: Optional[float], time_underwater: Optional[float]) -> Optional[float]:
+    if win_rate is None or pyramid_quality is None or drawdown_penalty is None or time_underwater is None:
+        return None
+    score = (
+        0.45 * float(win_rate)
+        + 0.25 * float(pyramid_quality)
+        - 0.20 * float(drawdown_penalty)
+        - 0.10 * float(time_underwater)
+    )
+    return round(float(score), 4)
+
+
+def _summarize_decision_quality_contract(rows: List[Dict[str, Any]], decision_profile: Dict[str, Any], horizon_minutes: int = 1440) -> Dict[str, Any]:
+    base = _decision_quality_fallback(decision_profile.get("decision_profile_version") or "phase16_baseline_v2")
+    if not rows:
+        return base
+
+    target_gate = decision_profile.get("regime_gate")
+    target_quality_label = decision_profile.get("entry_quality_label")
+    selection_lanes = [
+        ("regime_gate+entry_quality_label", lambda row: row.get("regime_gate") == target_gate and row.get("entry_quality_label") == target_quality_label, 30),
+        ("regime_gate", lambda row: row.get("regime_gate") == target_gate, 50),
+        ("entry_quality_label", lambda row: row.get("entry_quality_label") == target_quality_label, 50),
+        ("global", lambda row: True, 1),
+    ]
+
+    chosen_scope = None
+    chosen_rows: List[Dict[str, Any]] = []
+    for scope_name, predicate, min_rows in selection_lanes:
+        scoped_rows = [row for row in rows if predicate(row)]
+        if len(scoped_rows) >= min_rows:
+            chosen_scope = scope_name
+            chosen_rows = scoped_rows
+            break
+    if not chosen_rows:
+        return base
+
+    def _avg(key: str) -> Optional[float]:
+        values = [float(row[key]) for row in chosen_rows if row.get(key) is not None]
+        if not values:
+            return None
+        return round(float(sum(values) / len(values)), 4)
+
+    expected_win_rate = _avg("simulated_pyramid_win")
+    expected_pnl = _avg("simulated_pyramid_pnl")
+    expected_quality = _avg("simulated_pyramid_quality")
+    expected_drawdown_penalty = _avg("simulated_pyramid_drawdown_penalty")
+    expected_time_underwater = _avg("simulated_pyramid_time_underwater")
+    decision_quality_score = _compute_decision_quality_score(
+        expected_win_rate,
+        expected_quality,
+        expected_drawdown_penalty,
+        expected_time_underwater,
+    )
+    latest_ts = max((row.get("timestamp") for row in chosen_rows if row.get("timestamp") is not None), default=None)
+
+    return {
+        **base,
+        "decision_quality_horizon_minutes": horizon_minutes,
+        "decision_quality_calibration_scope": chosen_scope,
+        "decision_quality_sample_size": len(chosen_rows),
+        "decision_quality_reference_from": str(latest_ts) if latest_ts is not None else None,
+        "expected_win_rate": expected_win_rate,
+        "expected_pyramid_pnl": expected_pnl,
+        "expected_pyramid_quality": expected_quality,
+        "expected_drawdown_penalty": expected_drawdown_penalty,
+        "expected_time_underwater": expected_time_underwater,
+        "decision_quality_score": decision_quality_score,
+        "decision_quality_label": _decision_quality_label(decision_quality_score),
+    }
+
+
+def _infer_live_decision_quality_contract(session: Session, decision_profile: Dict[str, Any], horizon_minutes: int = 1440, lookback_rows: int = 5000) -> Dict[str, Any]:
+    base = _decision_quality_fallback(decision_profile.get("decision_profile_version") or "phase16_baseline_v2")
+    rows = (
+        session.query(
+            FeaturesNormalized.timestamp,
+            FeaturesNormalized.symbol,
+            FeaturesNormalized.regime_label,
+            FeaturesNormalized.feat_4h_bias200,
+            FeaturesNormalized.feat_4h_bias50,
+            FeaturesNormalized.feat_nose,
+            FeaturesNormalized.feat_pulse,
+            FeaturesNormalized.feat_ear,
+            Labels.simulated_pyramid_win,
+            Labels.simulated_pyramid_pnl,
+            Labels.simulated_pyramid_quality,
+            Labels.simulated_pyramid_drawdown_penalty,
+            Labels.simulated_pyramid_time_underwater,
+        )
+        .join(
+            Labels,
+            (FeaturesNormalized.timestamp == Labels.timestamp)
+            & (FeaturesNormalized.symbol == Labels.symbol),
+        )
+        .filter(
+            Labels.horizon_minutes == horizon_minutes,
+            Labels.simulated_pyramid_win.isnot(None),
+        )
+        .order_by(FeaturesNormalized.timestamp.desc())
+        .limit(lookback_rows)
+        .all()
+    )
+    if not rows:
+        return base
+
+    summarized_rows: List[Dict[str, Any]] = []
+    for row in rows:
+        hist_features = {
+            "regime_label": row.regime_label,
+            "feat_4h_bias200": row.feat_4h_bias200,
+            "feat_4h_bias50": row.feat_4h_bias50,
+            "feat_nose": row.feat_nose,
+            "feat_pulse": row.feat_pulse,
+            "feat_ear": row.feat_ear,
+        }
+        hist_profile = _build_live_decision_profile(hist_features)
+        summarized_rows.append({
+            "timestamp": row.timestamp,
+            "symbol": row.symbol,
+            "regime_gate": hist_profile.get("regime_gate"),
+            "entry_quality_label": hist_profile.get("entry_quality_label"),
+            "simulated_pyramid_win": row.simulated_pyramid_win,
+            "simulated_pyramid_pnl": row.simulated_pyramid_pnl,
+            "simulated_pyramid_quality": row.simulated_pyramid_quality,
+            "simulated_pyramid_drawdown_penalty": row.simulated_pyramid_drawdown_penalty,
+            "simulated_pyramid_time_underwater": row.simulated_pyramid_time_underwater,
+        })
+    return _summarize_decision_quality_contract(summarized_rows, decision_profile, horizon_minutes=horizon_minutes)
 
 
 class RegimeAwarePredictor:
@@ -757,7 +917,14 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
     cb = _check_circuit_breaker(session)
     if cb is not None:
         logger.warning(f"CIRCUIT BREAKER TRIGGERED: {cb['reason']}")
-        return cb
+        return {
+            **cb,
+            **_decision_quality_fallback(),
+            "regime_gate": None,
+            "entry_quality": None,
+            "entry_quality_label": None,
+            "allowed_layers": 0,
+        }
     features = load_latest_features(session)
     if not features:
         return None
@@ -765,6 +932,7 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
         predictor, regime_models = load_predictor()
 
     decision_profile = _build_live_decision_profile(features)
+    decision_quality_contract = _infer_live_decision_quality_contract(session, decision_profile)
 
     # Per-regime model routing (H145-fix + #H122 chop-abstain ensemble)
     used_model = "global"
@@ -787,6 +955,7 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
                     "used_model": "regime_chop_abstain",
                     "target_col": getattr(getattr(predictor, '_global', predictor), '_target_col', DEFAULT_TARGET_COL),
                     **decision_profile,
+                    **decision_quality_contract,
                 }
             # Ensemble: weight regime model 60%, global 40%
             global_conf = predictor.predict_proba(features)
@@ -824,6 +993,7 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
         "used_model": used_model,
         "target_col": getattr(getattr(predictor, '_global', predictor), '_target_col', DEFAULT_TARGET_COL),
         **decision_profile,
+        **decision_quality_contract,
     }
     logger.info(
         "Prediction: conf=%.4f, signal=%s, level=%s, gate=%s, quality=%.4f, layers=%s",

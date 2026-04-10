@@ -1,30 +1,31 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-10 15:39 UTC — Heartbeat #638（leaderboard composite shifted toward win/drawdown/trade-quality ranking）*
+*最後更新：2026-04-10 16:50 UTC — Heartbeat #640（live predictor / API now export calibrated decision-quality contract on top of the canonical simulated_pyramid target）*
 
-## 📊 系統健康狀態 v4.57
+## 📊 系統健康狀態 v4.59
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,309** | 🟢 本輪新增 **+1**（`python scripts/hb_parallel_runner.py --fast` collect verified） |
-| Features | **11,738** | 🟢 本輪新增 **+1**；最新 row 仍可推進 canonical 4H / lag feature path |
-| Labels | **40,697** | 🟡 本輪 **持平**；240m/1440m freshness 仍在 expected horizon lag 內，未出現新的 raw-gap blocker |
-|| simulated_pyramid_win (DB overall) | **57.30%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5730` |
-|| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.31%** | 🟢 分析樣本 n=11,022 |
+| Raw | **20,348** | 🟢 本輪新增 **+2**（`python scripts/hb_parallel_runner.py --fast --hb 640`）；本輪 live collect 主路徑曾失敗但 fallback raw 仍成功落地，raw continuity 未倒退 |
+| Features | **11,777** | 🟢 本輪新增 **+2**；canonical 4H / lag feature path 仍可正常推進 |
+| Labels | **40,699** | 🟡 本輪 **持平**；240m/1440m freshness 仍在 expected horizon lag 內，沒有新的 raw-gap blocker |
+|| simulated_pyramid_win (DB overall) | **57.19%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5719` |
+|| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.23%** | 🟢 分析樣本 n=11,023 |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
 | 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Aura/Mind/VIX/DXY/4H features 仍是主要通過來源 |
-| TW-IC | **17/30** | 🟢 recent-weighted 診斷維持；4H features + Macro 仍明顯強於弱核心短線欄位 |
+| TW-IC | **16/30** | 🟢 recent-weighted 診斷維持 macro + 4H 優勢 |
 | Regime IC | **Bear 7/8 / Bull 6/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；core regime 診斷未退化 |
-| 模型 / 決策語義 | **live predictor baseline 穩定；leaderboard 現開始輸出 trade-quality / drawdown-aware ranking fields** | 🟢 live path 仍是 `phase16_baseline_v1`；本輪把 leaderboard composite 從偏 ROI 轉向 win-rate / drawdown / PF / regime stability / trade quality |
-| Verification | **20 pytest + fast heartbeat** | ✅ 本輪已重驗證 |
+| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`** | 🟢 `/predict/confidence` / `hb_predict_probe.py` 現在會直接回傳 `expected_win_rate / expected_pyramid_quality / expected_drawdown_penalty / expected_time_underwater / decision_quality_score`，不再只剩 gate/quality/layers baseline |
+| Verification | **24 pytest + hb_predict_probe + fast heartbeat** | ✅ 本輪已重驗證 |
 
 ## 🎯 當前戰略問題（高準確度 / 高勝率 / 低回撤）
 
-### #DECISION_QUALITY_GAP（持續 P0）
-- **現象**：目前 canonical target 已對齊，且 live predictor baseline 已開始輸出 `regime_gate` / `entry_quality` / `allowed_layers`；但 `win + pnl_quality + drawdown_penalty + time_underwater` 仍未正式成為 live predictor / API 主輸出 contract。
-- **本輪進度**：Heartbeat #637 已把 Strategy Lab 的 baseline decision contract 接到 `model/predictor.py` 與 `/predict/confidence`，不再只停留在 backtest semantics。
-- **風險**：若下一步不把 quality-target 欄位接到 live path，模型仍可能在 binary win 上可用，卻把高回撤、深套、久才解套的交易視為可接受訊號。
-- **建議方向**：把 decision-quality 欄位從 labeling / leaderboard 延伸到 predictor 與 API 主輸出，而不是只停留在 `phase16_baseline_v1` 的 gate/quality/layers baseline。
+### #DECISION_QUALITY_GAP（持續 P0，但本輪再收斂）
+- **現象**：canonical target 與 label DB 已對齊後，真正缺口變成 live predictor / API 還沒把 decision-quality semantics 直接說出來，導致即使 binary target 正確，前台仍不夠清楚「這筆單贏面高不高、回撤會不會太深、會不會套很久」。
+- **本輪修復**：Heartbeat #640 讓 `model/predictor.py::predict()` 與 `/predict/confidence` 正式輸出 **calibrated decision-quality contract**：`decision_quality_calibration_scope`、`decision_quality_sample_size`、`expected_win_rate`、`expected_pyramid_pnl`、`expected_pyramid_quality`、`expected_drawdown_penalty`、`expected_time_underwater`、`decision_quality_score`、`decision_quality_label`。校準方式採用 canonical 1440m labels 的歷史樣本，先按 `regime_gate + entry_quality_label`，不足時再 fallback 到 `regime_gate / entry_quality_label / global`。
+- **本輪證據**：`python scripts/hb_predict_probe.py` 實際輸出 `decision_quality_calibration_scope=regime_gate`、`sample_size=3901`、`expected_win_rate=0.7654`、`expected_drawdown_penalty=0.1940`、`expected_time_underwater=0.5180`、`decision_quality_score=0.3623 (C)`；代表 live path 已能把 canonical quality semantics帶到主輸出，而不是停留在 DB/leaderboard 背後。
+- **剩餘風險**：這仍是 **historical calibration layer**，不是直接訓練出的多目標 live head。若後續不把 ranking / predictor 進一步升級成直接使用這批 canonical quality target，仍可能出現「baseline 說得出風險，但排序 / 交易邏輯沒有完全用上」的半閉環。
+- **建議方向**：下一輪把 `decision_quality_score` / penalties 接進 leaderboard 主排序與 API 主摘要，讓 live contract 與 ranking contract 使用同一套 canonical decision-quality semantics，而不是 predictor 有、leaderboard 仍只看 proxy。
 
 ### #SINGLE_STAGE_ENTRY_LOGIC（P0，本輪再推進）
 - **現象**：兩階段決策 baseline 已在 `strategy_lab.py` 落地：`_compute_regime_gate()` / `_compute_entry_quality()` / `_allowed_layers_for_signal()` 已存在，API 與 UI 也能顯示 gate/quality 摘要。
@@ -54,6 +55,49 @@
 
 ### 實作計畫
 - `docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+## 📈 心跳 #640 摘要
+
+### 本輪已驗證 patch
+1. **Live predictor / API now carry canonical decision-quality expectations**：`model/predictor.py` 會對當前 `regime_gate + entry_quality_label` 做 1440m historical calibration，輸出 `expected_win_rate`、`expected_pyramid_pnl`、`expected_pyramid_quality`、`expected_drawdown_penalty`、`expected_time_underwater`、`decision_quality_score`、`decision_quality_label`，而不是只剩 baseline gate/quality/layers。
+2. **Fallback lanes keep the contract stable**：`/predict/confidence` 的 error path 與 predictor circuit-breaker / chop-abstain paths 都會帶同一組 decision-quality keys，避免 API 在非標準路徑又退回不完整 schema。
+3. **Heartbeat probe upgraded from parity-only to decision-quality verification**：`scripts/hb_predict_probe.py` 現在會把 calibration scope / sample size / expected penalties 一起印出，heartbeat 可以直接驗證 live contract 是否真的包含 canonical quality semantics。
+4. **Regression tests lock the new contract**：`tests/test_api_feature_history_and_predictor.py` 新增 calibration scope 選擇測試，並驗證 `/predict/confidence` 會把新的 decision-quality 欄位一起回傳。
+
+### 本輪 runtime facts（Heartbeat #640）
+- `python scripts/hb_parallel_runner.py --fast --hb 640`：**Raw 20346→20348 / Features 11775→11777 / Labels 40699→40699**；summary 已落地 `data/heartbeat_640_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-10 13:02:11.880523`、`raw_gap=1.4h`；1440m `latest_target=2026-04-09 17:00:00`、`raw_gap=1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **16/30 PASS**；Regime IC **Bear 7/8 / Bull 6/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,023）。
+- `python scripts/hb_predict_probe.py`：`target_col=simulated_pyramid_win`、`used_model=regime_bull_ensemble`、`regime_gate=CAUTION`、`entry_quality=0.8393 (A)`、`allowed_layers=2`，且新增 `decision_quality_calibration_scope=regime_gate`、`sample_size=3901`、`expected_win_rate=0.7654`、`expected_drawdown_penalty=0.1940`、`expected_time_underwater=0.5180`、`decision_quality_score=0.3623 (C)`。
+- `PYTHONPATH=. pytest tests/test_api_feature_history_and_predictor.py tests/test_model_leaderboard.py tests/test_labeling_p0_p1.py tests/test_hb_collect.py -q` → **24 passed**。
+- Source blocker 狀態沒有假改善：仍是 **8 blocked sparse features**；`fin_netflow` 仍為 `auth_missing`，Claw / Claw intensity / Fin 依舊受 `COINGLASS_API_KEY` 缺失阻擋。
+
+### Blocker 升級 / 狀態更正
+- **#DECISION_QUALITY_GAP（本輪部分修復）**：不能再說 live predictor 只會回 binary confidence。它現在已能直接回傳 canonical quality target 的 calibrated expectations；剩餘缺口是 ranking / live strategy 還沒有把這組 score 當成主排序與主決策依據。
+- **Raw collect fallback（本輪新觀察）**：`hb_collect.py` 本輪出現一次 `Raw data collection FAILED`，但 fallback raw row 仍成功落地且 freshness 未退化。這代表 collector 主路徑仍需監控，但目前尚未造成 raw continuity / label freshness blocker。
+
+## 📈 心跳 #639 摘要
+
+### 本輪已驗證 patch
+1. **Canonical decision-quality labels now persist explicit penalty fields**：`database/models.py` 與 `data_ingestion/labeling.py` 新增並回填 `simulated_pyramid_drawdown_penalty` / `simulated_pyramid_time_underwater`，讓 canonical labels 不再只停留在 `simulated_pyramid_win + pnl + quality` 的半成品狀態。
+2. **Leaderboard training frame now carries the new quality contract**：`server/routes/api.py::load_model_leaderboard_frame()` 與 `model/train.py` 已把新的 drawdown/time-underwater 欄位一起載入，後續可直接用同一批 canonical rows 比較 binary target 與 quality target，而不是再靠外部人工對照。
+3. **Reusable verification lane added**：新增 `scripts/hb_quality_contract_check.py`，heartbeat 現在可以直接檢查 240m / 1440m labels 的 `drawdown_penalty` / `time_underwater` 非空覆蓋與平均值，不用再只靠肉眼翻 DB。
+4. **Regression tests cover the new schema contract**：`tests/test_labeling_p0_p1.py`、`tests/test_hb_collect.py`、`tests/test_model_leaderboard.py`、`tests/test_api_feature_history_and_predictor.py` 共 **23 passed**，鎖住 schema / backfill / frame loader 不再回退。
+
+### 本輪 runtime facts（Heartbeat #639）
+- `python scripts/hb_parallel_runner.py --fast --hb 639`：**Raw 20313→20315 / Features 11742→11744 / Labels 40699→40699**；summary 已落地 `data/heartbeat_639_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-10 13:02:11.880523`、`raw_gap=1.4h`；1440m `latest_target=2026-04-09 17:00:00`、`raw_gap=1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **16/30 PASS**；Regime IC **Bear 7/8 / Bull 6/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,023）。
+- `PYTHONPATH=. python scripts/hb_quality_contract_check.py`：
+  - **240m** `rows=20462`, `drawdown_penalty_non_null=11540`, `time_underwater_non_null=11540`, `avg_drawdown_penalty=0.0556`, `avg_time_underwater=0.2521`
+  - **1440m** `rows=11152`, `drawdown_penalty_non_null=11152`, `time_underwater_non_null=11152`, `avg_drawdown_penalty=0.2026`, `avg_time_underwater=0.4876`
+- `python -m pytest tests/test_labeling_p0_p1.py tests/test_hb_collect.py tests/test_model_leaderboard.py tests/test_api_feature_history_and_predictor.py -q` → **23 passed**。
+- Source blocker 狀態沒有假改善：仍是 **8 blocked sparse features**；`fin_netflow` 仍為 `auth_missing`，Claw / Claw intensity / Fin 依舊受 `COINGLASS_API_KEY` 缺失阻擋。
+
+### Blocker 升級 / 狀態更正
+- **#DECISION_QUALITY_GAP（本輪部分修復）**：不能再說 canonical quality target 只有 `simulated_pyramid_quality` 一個 proxy。現在 labels DB 已明確持久化 `drawdown_penalty` / `time_underwater`；剩餘缺口是 live predictor / API 主輸出還沒直接回傳它們。
+- **#LEADERBOARD_OBJECTIVE_MISMATCH（本輪再推進）**：leaderboard frame 已能讀到 canonical quality penalties，下一輪應直接把這些欄位接入 ranking / API，而不是只靠 backtest-side proxy 分數。
+- **#LOW_COVERAGE_SOURCES（持續真 blocker）**：Claw / Claw intensity / Fin 仍受 `COINGLASS_API_KEY` 缺失阻擋；本輪 decision-quality patch 不應被誤報成 source blocker 已解。
 
 ## 📈 心跳 #638 摘要
 
