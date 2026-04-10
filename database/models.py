@@ -8,8 +8,7 @@ from datetime import datetime
 from typing import Dict, Iterable, Tuple
 
 from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text, inspect, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 Base = declarative_base()
 

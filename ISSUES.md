@@ -1,45 +1,44 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-10 06:02 UTC — Heartbeat #633（train/predict/full-IC parity restored; recent 4H feature rows backfilled）*
+*最後更新：2026-04-10 07:44 UTC — Heartbeat #634（predictor probe restored; train warning hygiene + TW-IC logging fixed）*
 
-## 📊 系統健康狀態 v4.53
+## 📊 系統健康狀態 v4.54
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,135** | 🟢 本輪新增 **+1**（`hb_parallel_runner.py --fast --hb 633` collect verified） |
-| Features | **11,564** | 🟢 本輪新增 **+1**；4H features 已補齊到最新 row |
-| Labels | **40,446** | 🟢 本輪新增 **+23**；240m/1440m freshness 仍在 expected horizon lag 內 |
-|| simulated_pyramid_win (1440m) | **57.16%** | 🟢 canonical DB 整體口徑；`full_ic.py` 分析樣本 n=11,012 |
+| Raw | **20,168** | 🟢 本輪新增 **+1**（`hb_parallel_runner.py --fast --hb 634` collect verified） |
+| Features | **11,597** | 🟢 本輪新增 **+1**；最新 row 的 10 個 canonical 4H features 與 30 個 4H lag values 均可由 predictor probe 讀到 |
+| Labels | **40,511** | 🟢 本輪新增 **+65**；240m/1440m freshness 仍在 expected horizon lag 內 |
+|| simulated_pyramid_win (DB overall) | **57.01%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5701` |
+|| simulated_pyramid_win (`full_ic.py` sample) | **64.28%** | 🟢 `full_ic.py` / `regime_aware_ic.py` 分析樣本 n=11,014 |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
-| 全域 IC | **13/25** | 🟢 Heartbeat #633 after fresh 4H backfill；新增 4H columns 已進入診斷口徑 |
-| TW-IC | **17/25** | 🟢 Heartbeat #633 after fresh 4H backfill |
+| 全域 IC | **13/25** | 🟢 canonical 25-feature diagnostics 維持 |
+| TW-IC | **17/25** | 🟢 canonical 25-feature diagnostics 維持 |
 | Regime IC | **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；core regime 診斷未退化 |
 | 模型數 | **8** | ✅ |
-| Verification | **5 pytest + fast heartbeat + 4H backfill + retrain + live predict probe** | ✅ 本輪已重驗證 |
+| Verification | **18 pytest + fast heartbeat + warning-free retrain + predictor probe** | ✅ 本輪已重驗證 |
 
-## 📈 心跳 #633 摘要
+## 📈 心跳 #634 摘要
 
 ### 本輪已驗證 patch
-1. **Train / predictor / full-IC feature parity restored for canonical 4H stack**：`model/train.py`、`model/predictor.py`、`scripts/full_ic.py` 現在都納入 `feat_4h_bias200` / `feat_4h_dist_bb_lower` / `feat_4h_vol_ratio`，不再出現「DB / coverage / UI 已有新 4H 欄位，但訓練、推論、IC 仍忽略」的語義漂移。
-2. **Inference path now uses training-style 4H asof alignment instead of raw NULL latest rows**：`model/predictor.py::load_latest_features()` 改成先對最近 dense rows 套用與 training 相同的 `_align_sparse_4h_features()`，再產生 base + lag features；4H lag features 不再被最新 dense row 的 `NULL` 直接打成 0，並新增 regression test 鎖住這個 contract。
-3. **Recent 4H feature drought closed with real data backfill**：執行 `PYTHONPATH=. python scripts/backfill_4h_distance.py` 後，`feat_4h_bias50/200/vol_ratio` 的最新 non-null timestamp 已從 **2026-04-08 16:54 UTC** 推進到 **2026-04-10 05:49 UTC**，`non_null feat_4h_bias50` **10871 → 11349**。這修掉了 predictor 雖已支援 4H parity、但 live rows 仍拿不到最新 4H values 的實際資料斷層。
-4. **Regression guard added**：新增 `tests/test_model_feature_parity.py`，鎖住訓練/推論 feature parity、lag parity，以及 predictor 的 4H asof alignment contract；`tests/test_backfill_technical_history.py` 持續保護 TI backfill volume proxy 不做 forward/backward fill。
+1. **Predictor probe contract restored**：新增 `scripts/hb_predict_probe.py`，把「live inference 是否真的走到 canonical `simulated_pyramid_win` predictor path、且 4H features / lag values 非空」變成 repo 內可重跑的標準腳本，不再依賴已消失的 `scripts/hb633_predict_probe.py` 臨時檔名。
+2. **Training warning hygiene fixed at the root cause**：`model/train.py` 把 cross/regime features 改成一次 `pd.concat(...)` 生成，取代多次 `frame.insert`；重新訓練已不再噴 `DataFrame is highly fragmented` PerformanceWarning，heartbeat / retrain stderr 噪音下降。
+3. **TW-IC logging corrected**：`model/train.py` 原本把 `TW-IC (core)` 錯誤記成 global `core_ic_summary`，這會污染 heartbeat 對 recent-vs-global feature health 的判讀；本輪已修回真正的 `tw_ic_summary`。
+4. **SQLAlchemy 2 deprecation warning removed**：`database/models.py` 改用 `sqlalchemy.orm.declarative_base`，pytest 不再噴 `MovedIn20Warning`，讓 warning channel 更聚焦於真 blocker。
 
-### 本輪 runtime facts（Heartbeat #633）
-- `python scripts/hb_parallel_runner.py --fast --hb 633`：**Raw 20134→20135 / Features 11563→11564 / Labels 40423→40446**；summary 已落地 `data/heartbeat_633_summary.json`。
-- Canonical freshness 維持健康：240m `latest_target=2026-04-10 02:48:50.437420`、`raw_gap=0.3h`；1440m `latest_target=2026-04-09 06:00:00`、`raw_gap=1.4h`，兩者仍為 `expected_horizon_lag`。
-- Backfill 前 4H stale probe：`latest_4h_bias50=2026-04-08 16:54:04.634286`；backfill 後 probe：`latest_4h_bias50/latest_4h_bias200/latest_4h_vol_ratio=2026-04-10 05:49:15.768863`，與 `latest_any` 對齊。
-- `python scripts/full_ic.py`（backfill 後）顯示 canonical 口徑升級為 **25 features**：Global **13/25 PASS**、TW-IC **17/25 PASS**。新增 4H 特徵中：
-  - Global PASS：`feat_4h_bias200` **-0.0934**, `feat_4h_ma_order` **-0.0995**, `feat_4h_vol_ratio` **-0.1023**
-  - TW-IC PASS：`feat_4h_bias50` **-0.2845**, `feat_4h_bias20` **-0.3480**, `feat_4h_bias200` **-0.2563**, `feat_4h_rsi14` **-0.2357**, `feat_4h_macd_hist` **+0.5126**, `feat_4h_bb_pct_b` **-0.4606**, `feat_4h_dist_bb_lower` **-0.3098**, `feat_4h_dist_swing_low` **-0.2389**, `feat_4h_vol_ratio` **-0.1697**。
-- `PYTHONPATH=. python model/train.py`（修正後）成功完成：global **Train=70.15% / CV=72.49% ± 14.28pp**；regime models **Bear CV 59.48% / Bull 79.31% / Chop 70.01%**。
-- `PYTHONPATH=. python scripts/hb633_predict_probe.py` 成功走完整 predictor path，最新 live inference 已帶入非空 4H values 與 4H lag values，回傳 `used_model=regime_chop_ensemble`, `target_col=simulated_pyramid_win`, `confidence=0.2616`。
+### 本輪 runtime facts（Heartbeat #634）
+- `python scripts/hb_parallel_runner.py --fast --hb 634`：**Raw 20167→20168 / Features 11596→11597 / Labels 40446→40511**；summary 已落地 `data/heartbeat_634_summary.json`。
+- Canonical freshness 維持健康：240m `latest_target=2026-04-10 04:33:25.898070`、`raw_gap=1.2h`；1440m `latest_target=2026-04-09 08:00:00`、`raw_gap=1.4h`，兩者仍為 `expected_horizon_lag`。
+- `python scripts/full_ic.py`：Global **13/25 PASS**、TW-IC **17/25 PASS**；`python scripts/regime_aware_ic.py`：**Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,014）。
+- `PYTHONPATH=. python model/train.py`（warning-hygiene patch 後）成功完成且 stderr 無 pandas fragmentation warning：global **Train=70.25% / CV=72.23% ± 13.64pp**；regime models **Bear CV 58.97% / Bull 78.30% / Chop 71.05%**。
+- `PYTHONPATH=. python scripts/hb_predict_probe.py` 成功走完整 predictor path：`target_col=simulated_pyramid_win`、`used_model=circuit_breaker`、`signal=CIRCUIT_BREAKER`，並確認 **10/10 canonical 4H features** 與 **30/30 4H lag values** 非空。這表示 live inference 對齊仍成立，但目前風控 gate 正主動阻擋交易。
 - Source blocker 狀態沒有假改善：仍是 **8 blocked sparse features**；**Claw / Claw intensity / Fin** 繼續被 `COINGLASS_API_KEY` 缺失阻擋。
 
 ### Blocker 升級 / 狀態更正
-- **#MODEL_FEATURE_PARITY_4H（本輪已修）**：根因不是 4H 欄位不存在，而是它們在 DB / coverage / preprocessor 已存在，卻沒有被訓練、推論與 full-IC 同步消費。現在 canonical feature set 已在 train / predictor / full_ic 對齊，避免 heartbeat 依據舊 22-feature 口徑做假結論。
-- **#RECENT_4H_FEATURE_STALENESS（本輪已修）**：live features 的最新 row 雖存在，但最近兩天 4H 欄位停在 2026-04-08，造成 predictor 4H parity 補上後仍拿到 `NULL`。本輪已透過 `backfill_4h_distance.py` 真實補齊到最新 timestamp。
-- **#LOW_COVERAGE_SOURCES（持續真 blocker）**：Claw / Claw intensity / Fin 仍受 `COINGLASS_API_KEY` 缺失阻擋；這次 4H parity/backfill 修復不應被誤報成 sparse-source blocker 已解。
+- **#PREDICT_PROBE_DRIFT（本輪已修）**：Heartbeat #633 提到的 predictor probe 腳本名稱已漂移消失，導致 inference verification 不可重跑。現在已用 `scripts/hb_predict_probe.py` 固定成可重跑 contract。
+- **#TRAIN_WARNING_HYGIENE（本輪已修）**：train.py 多次插欄造成 pandas fragmentation warnings，會把 retrain stderr 變成高噪音訊號。現在 cross-feature construction 已改為單次 concat，warning channel 重新乾淨。
+- **#LOW_COVERAGE_SOURCES（持續真 blocker）**：Claw / Claw intensity / Fin 仍受 `COINGLASS_API_KEY` 缺失阻擋；這輪的 warning/probe 修復不應被誤報成 sparse-source blocker 已解。
+- **#CIRCUIT_BREAKER_ACTIVE（持續風控 gate）**：live predictor probe 目前回傳 `used_model=circuit_breaker`，表示交易保護仍在啟動。這不是 probe 壞掉，而是 runtime risk gate 仍有效，下一輪若要解除必須用標籤/策略證據而不是硬關閉保護。
 
 ## 📈 心跳 #632c 摘要
 

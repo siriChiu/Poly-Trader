@@ -79,6 +79,8 @@
 - [x] Raw continuity recovery telemetry gate：`repair_recent_raw_continuity()` / `hb_collect.py` / `hb_parallel_runner.py` 現在會把 `coarse/fine/bridge_inserted` 與 `bridge_fallback_streak` 寫進 heartbeat summary，後續已可明確監控 **bridge fallback 是否連續多輪被迫介入**。若 streak 再升高，直接升級成 collector/service continuity 根因修復，而不是持續依賴 bridge workaround
 - [x] Sparse-source archive-window denominator hygiene：`feature_history_policy.py` 現在以 `raw_events` 的實際 snapshot minute buckets 對齊 recent-window coverage，排除 continuity bridge / non-snapshot feature rows，避免 Web/Fang/Scales/Nest 因 1h continuity bridge 被誤判成 partial source coverage
 - [x] Canonical 4H feature parity + freshness：`model/train.py` / `model/predictor.py` / `scripts/full_ic.py` 已統一納入 `feat_4h_bias200` / `feat_4h_dist_bb_lower` / `feat_4h_vol_ratio`，predictor 也改成使用 training-style 4H asof alignment；Heartbeat #633 已用 `backfill_4h_distance.py` 將 recent 4H rows 補回最新 timestamp，避免 train / infer / diagnostics 再使用不同 4H 語義
+- [x] Predictor probe reproducibility：`scripts/hb_predict_probe.py` 成為 canonical inference verification 腳本，固定輸出 `target_col / used_model / 4H feature non-null count / 4H lag non-null count`，避免 heartbeat 驗證再依賴漂移的臨時 probe 檔名
+- [x] Train warning / logging hygiene：`model/train.py` cross-feature 建構改為單次 concat，移除 pandas fragmentation warning；`TW-IC (core)` log 也已修正為真實 `tw_ic_summary`，heartbeat runtime 不再被假 warning / 假 log 汙染
 - [ ] Sparse-source historical backfill：在 decontaminate 完成後，為 Web / Fang / Scales / Claw / Fin / Nest 補真正歷史 coverage，而不是再引入 fallback/carry-forward
 - [ ] Dynamic Window recent-window 穩定化：N=100/200/400 已確認不是 merge bug，而是 canonical 24h labels 在最近窗口全部為 1；下一步需設計 distribution-aware window / alternate evaluation rule
 

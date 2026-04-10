@@ -62,6 +62,47 @@ REGIME_THRESHOLD_BIAS = {
 }
 
 
+def _ensure_regime_label_column(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize merge suffixes so downstream feature engineering sees one regime_label."""
+    if "regime_label" in df.columns:
+        return df
+    if "regime_label_y" in df.columns:
+        df["regime_label"] = df["regime_label_y"]
+    elif "regime_label_x" in df.columns:
+        df["regime_label"] = df["regime_label_x"]
+    else:
+        df["regime_label"] = "neutral"
+    return df
+
+
+def _append_cross_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add cross/regime features in one concat to avoid DataFrame fragmentation warnings."""
+    df = _ensure_regime_label_column(df)
+    cross_df = pd.DataFrame(
+        {
+            "feat_vix_x_eye": df["feat_vix"] * df["feat_eye"],
+            "feat_vix_x_pulse": df["feat_vix"] * df["feat_pulse"],
+            "feat_vix_x_mind": df["feat_vix"] * df["feat_mind"],
+            "feat_mind_x_pulse": df["feat_mind"] * df["feat_pulse"],
+            "feat_eye_x_ear": df["feat_eye"] * df["feat_ear"],
+            "feat_nose_x_aura": df["feat_nose"] * df["feat_aura"],
+            "feat_eye_x_body": df["feat_eye"] * df["feat_body"],
+            "feat_ear_x_nose": df["feat_ear"] * df["feat_nose"],
+            "feat_mind_x_aura": df["feat_mind"] * df["feat_aura"],
+            "feat_regime_flag": df["regime_label"].map({
+                "trend": 1.0,
+                "chop": -1.0,
+                "panic": -0.5,
+                "event": 0.5,
+                "normal": 0.0,
+            }).fillna(0.0),
+            "feat_mean_rev_proxy": df["feat_mind"] - df["feat_aura"],
+        },
+        index=df.index,
+    )
+    return pd.concat([df, cross_df], axis=1)
+
+
 def _feature_row(r):
     return {
         "timestamp": r.timestamp,
@@ -315,7 +356,7 @@ def load_training_data(session: Session, min_samples: int = 50,
             "core_ic_summary": core_ic_summary,
             "tw_ic_summary": tw_ic_summary,
         }, f, indent=2, ensure_ascii=False)
-    logger.info(f"TW-IC (core): {core_ic_summary}")
+    logger.info(f"TW-IC (core): {tw_ic_summary}")
     logger.info(f"Global IC (core): {core_ic_summary}")
     logger.info(f"動態 TW-IC/Global IC 計算完成 — core 使用 TW-IC, 其餘使用 Global IC")
     logger.info(f"NEG_IC 反轉特徵: {NEG_IC_FEATS}")
@@ -329,33 +370,9 @@ def load_training_data(session: Session, min_samples: int = 50,
     # we can approximate using the eye_dist which IS in raw_market_data)
     # Note: feat_eye IS eye_dist (alias in models.py), so it already contains the high-IC eye_dist signal
 
-    # VIX interaction features — VIX is the highest-IC macro signal
-    # VIX×Eye: fear × return/vol ratio (captures risk-off sentiment amplification)
-    merged["feat_vix_x_eye"] = merged["feat_vix"] * merged["feat_eye"]
-    # VIX×Pulse: fear × volume spike (panics come with volume)
-    merged["feat_vix_x_pulse"] = merged["feat_vix"] * merged["feat_pulse"]
-    # VIX×Mind: fear × short-term return (inverse relationship in fear regimes)
-    merged["feat_vix_x_mind"] = merged["feat_vix"] * merged["feat_mind"]
-
-    # Cross-sense features that capture regime friction
-    merged["feat_mind_x_pulse"] = merged["feat_mind"] * merged["feat_pulse"]
-    merged["feat_eye_x_ear"] = merged["feat_eye"] * merged["feat_ear"]
-    merged["feat_nose_x_aura"] = merged["feat_nose"] * merged["feat_aura"]
-    merged["feat_eye_x_body"] = merged["feat_eye"] * merged["feat_body"]
-    merged["feat_ear_x_nose"] = merged["feat_ear"] * merged["feat_nose"]
-    merged["feat_mind_x_aura"] = merged["feat_mind"] * merged["feat_aura"]
-    # Handle suffix from merge_asof (both sides have regime_label → regime_label_x / regime_label_y)
-    if "regime_label" not in merged.columns:
-        if "regime_label_y" in merged.columns:
-            merged["regime_label"] = merged["regime_label_y"]
-        elif "regime_label_x" in merged.columns:
-            merged["regime_label"] = merged["regime_label_x"]
-        else:
-            merged["regime_label"] = "neutral"
-    merged["feat_regime_flag"] = merged["regime_label"].map({"trend": 1.0, "chop": -1.0, "panic": -0.5, "event": 0.5, "normal": 0.0}).fillna(0.0)
-
-    # Mean-reversion proxy: difference between short-term (mind=ret_144) and long-term (aura=sma144_deviation)
-    merged["feat_mean_rev_proxy"] = merged["feat_mind"] - merged["feat_aura"]
+    # VIX / cross-sense / regime interaction features.
+    # Build in one concat so retraining does not emit pandas fragmentation warnings.
+    merged = _append_cross_features(merged)
 
     # RSI proxy: nose IS rsi14_norm, so use it directly as-is (already in FEATURE_COLS)
 
@@ -668,16 +685,7 @@ def train_regime_models(session: Session, target_col: str = DEFAULT_TARGET_COL) 
     merged[all_feat_cols] = merged[all_feat_cols].fillna(0.0)
 
     # Cross features
-    merged["feat_vix_x_eye"] = merged["feat_vix"] * merged["feat_eye"]
-    merged["feat_vix_x_pulse"] = merged["feat_vix"] * merged["feat_pulse"]
-    merged["feat_vix_x_mind"] = merged["feat_vix"] * merged["feat_mind"]
-    merged["feat_mind_x_pulse"] = merged["feat_mind"] * merged["feat_pulse"]
-    merged["feat_eye_x_ear"] = merged["feat_eye"] * merged["feat_ear"]
-    merged["feat_nose_x_aura"] = merged["feat_nose"] * merged["feat_aura"]
-    merged["feat_eye_x_body"] = merged["feat_eye"] * merged["feat_body"]
-    merged["feat_ear_x_nose"] = merged["feat_ear"] * merged["feat_nose"]
-    merged["feat_mind_x_aura"] = merged["feat_mind"] * merged["feat_aura"]
-    merged["feat_mean_rev_proxy"] = merged["feat_mind"] - merged["feat_aura"]
+    merged = _append_cross_features(merged)
 
     X_cols = [c for c in all_feat_cols + CROSS_FEATURES if c in merged.columns]
 
