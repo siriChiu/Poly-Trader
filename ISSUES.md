@@ -1,21 +1,41 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-10 04:53 UTC — Heartbeat #630（regime-aware IC null-bucket collapse fix）*
+*最後更新：2026-04-10 05:12 UTC — Heartbeat #631b（raw continuity bridge telemetry + streak guard）*
 
 ## 📊 系統健康狀態 v4.51
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,129** | 🟢 本輪新增 **+2**（heartbeat #630 collect verified） |
-| Features | **11,558** | 🟢 本輪新增 **+2**（feature pipeline持續跟上 raw） |
-| Labels | **40,414** | 🟡 本輪 **持平**；240m/1440m freshness 仍在 expected horizon lag 內 |
-|| simulated_pyramid_win (1440m) | **57.11%** | 🟢 canonical DB 整體口徑；`full_ic.py` / `regime_aware_ic.py` 分析樣本 n=11,011 |
-|| spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
-| 全域 IC | **14/22** | 🟢 latest fast heartbeat #630 |
-| TW-IC | **14/22** | 🟢 latest fast heartbeat #630 |
-| Regime IC | **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows** | 🟢 #630 修正後不再被假 neutral bucket 汙染 |
+| Raw | **20,131** | 🟢 本輪新增 **+2**（#631 / #631b collect verified） |
+| Features | **11,560** | 🟢 本輪新增 **+2**（feature pipeline持續跟上 raw） |
+| Labels | **40,415** | 🟢 本輪新增 **+1**；240m/1440m freshness 仍在 expected horizon lag 內 |
+||| simulated_pyramid_win (1440m) | **57.11%** | 🟢 canonical DB 整體口徑；`full_ic.py` / `regime_aware_ic.py` 分析樣本 n=11,012 |
+||| spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
+| 全域 IC | **14/22** | 🟢 latest fast heartbeat #631b |
+| TW-IC | **14/22** | 🟢 latest fast heartbeat #631b |
+| Regime IC | **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows** | 🟢 #630 fallback 修復維持；#631b 新增 continuity telemetry 後可判斷是否是 raw continuity 再次退化 |
 | 模型數 | **8** | ✅ |
-| Verification | **5 pytest + regime_aware_ic runtime + fast heartbeat runtime** | ✅ 本輪已重驗證 |
+| Verification | **9 pytest + fast heartbeat runtime** | ✅ 本輪已重驗證 |
+
+## 📈 心跳 #631b 摘要
+
+### 本輪已驗證 patch
+1. **Raw continuity bridge 不再是只能靠肉眼看 log 的隱性 workaround**：`data_ingestion/collector.py::repair_recent_raw_continuity()` 現在支援 `return_details=True`，會回傳 coarse / fine / interpolated bridge 的實際插入數，讓 heartbeat 能分辨這輪是正常 continuity、1h repair，還是真的用了 interpolated bridge。
+2. **hb_collect / hb_parallel_runner 會把 continuity telemetry 寫進 summary**：`scripts/hb_collect.py` 現在輸出 `CONTINUITY_REPAIR_META`；`scripts/hb_parallel_runner.py` 會解析它並落地到 `data/heartbeat_631b_summary.json -> collect_result.continuity_repair`，包含 `bridge_inserted`、`used_bridge`、`bridge_fallback_streak`。
+3. **Regression guard 補齊**：`tests/test_raw_continuity_repair.py` 新增 detail contract；`tests/test_hb_parallel_runner.py` 鎖住 collect metadata parsing 與 summary persistence，避免下輪又退回「bridge 被用了但 summary 看不見」。
+
+### 本輪 runtime facts（Heartbeat #631 / #631b）
+- `python scripts/hb_parallel_runner.py --fast --hb 631`：**Raw 20129→20130 / Features 11558→11559 / Labels 40414→40415**。
+- `python scripts/hb_parallel_runner.py --fast --hb 631b`：**Raw 20130→20131 / Features 11559→11560 / Labels 40415→40415**；summary 已落地 `data/heartbeat_631b_summary.json`。
+- 本輪 continuity telemetry 顯示：`coarse_inserted=0 / fine_inserted=0 / bridge_inserted=0 / bridge_fallback_streak=0`。這代表 #629 的 bridge workaround **本輪沒有再次觸發**，240m freshness 目前不是靠 interpolated bridge 撐住，而是 collector continuity 仍健康。
+- Canonical freshness：240m `latest_target=2026-04-10 01:00:00`、`raw_gap=1.42h`；1440m `latest_target=2026-04-09 06:00:00`、`raw_gap=1.42h`，兩者都維持 `expected_horizon_lag`。
+- Canonical diagnostics 維持：**Global IC 14/22 PASS**、**TW-IC 14/22 PASS**；regime-aware IC **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,012）。
+- Source blocker 沒有假裝修好：仍是 **8 blocked sparse features**；**Claw / Claw intensity / Fin** 依舊被 `COINGLASS_API_KEY` 缺失阻擋。
+- 驗證：`PYTHONPATH=. pytest tests/test_raw_continuity_repair.py tests/test_hb_parallel_runner.py -q` → **9 passed**；`python scripts/hb_parallel_runner.py --fast --hb 631b` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#RAW_CONTINUITY_RECOVERY（本輪再收斂）**：Roadmap/charter 仍要求監控「interpolated bridge 是否連續多輪被迫介入」。本輪已把這件事變成 summary 裡的可驗證欄位，不再靠人工翻 log 判讀。現況 streak=0，因此暫不升級成 collector/service continuity blocker。
+- **#LOW_COVERAGE_SOURCES（未修、維持真 blocker）**：Claw / Claw intensity / Fin 仍受 `COINGLASS_API_KEY` 缺失阻擋；這仍是下一輪真正的 P0/P1 候選之一。
 
 ## 📈 心跳 #630 摘要
 

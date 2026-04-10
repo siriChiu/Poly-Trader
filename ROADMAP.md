@@ -76,7 +76,7 @@
 - [x] label horizon freshness root-cause gating：`hb_collect.py` / `hb_parallel_runner.py` 現在會把 horizon 分成 `expected_horizon_lag` / `raw_gap_blocked` / `inactive_horizon`，避免把 720m legacy rows 或 upstream raw gap 誤報成 label pipeline 本身故障
 - [x] Recent raw continuity repair lane：`data_ingestion/collector.py` 現在會在 live collect 前以 Binance 4h closed klines 回補 recent raw gaps，`hb_collect.py` 也會把 repaired raw timestamps 補進 `features_normalized`，避免 raw 修回來卻卡在 feature/label 斷層
 - [x] Sub-4h raw continuity bridge lane：Heartbeat #629 已補上 **1h public-kline repair + hourly interpolated bridge fallback**，把 240m freshness 從 `raw_gap_blocked`（latest raw gap 6.42h）拉回 `expected_horizon_lag`（latest raw gap 1.42h），不再只靠下一根 4h candle 才能恢復 labels
-- [ ] Raw continuity recovery gate：後續不再是「有沒有修復路徑」，而是監控 **bridge fallback 是否連續多輪被迫介入**。若連續心跳都需要 interpolated bridge 才能維持 240m freshness，需升級成 collector/service continuity 根因修復，而不是持續依賴 bridge workaround
+- [x] Raw continuity recovery telemetry gate：`repair_recent_raw_continuity()` / `hb_collect.py` / `hb_parallel_runner.py` 現在會把 `coarse/fine/bridge_inserted` 與 `bridge_fallback_streak` 寫進 heartbeat summary，後續已可明確監控 **bridge fallback 是否連續多輪被迫介入**。若 streak 再升高，直接升級成 collector/service continuity 根因修復，而不是持續依賴 bridge workaround
 - [ ] Sparse-source historical backfill：在 decontaminate 完成後，為 Web / Fang / Scales / Claw / Fin / Nest 補真正歷史 coverage，而不是再引入 fallback/carry-forward
 - [ ] Dynamic Window recent-window 穩定化：N=100/200/400 已確認不是 merge bug，而是 canonical 24h labels 在最近窗口全部為 1；下一步需設計 distribution-aware window / alternate evaluation rule
 

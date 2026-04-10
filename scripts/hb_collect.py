@@ -7,7 +7,7 @@ runs the preprocessor to compute features, and generates labels.
 
 Usage: python scripts/hb_collect.py
 """
-import os, sys, logging
+import json, os, sys, logging
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -146,9 +146,19 @@ def collect_raw_data(session):
     """Step 1: Collect fresh raw data from all sources."""
     from data_ingestion.collector import repair_recent_raw_continuity, run_collection_and_save
 
-    repaired = repair_recent_raw_continuity(session, SYMBOL)
+    repair_meta = repair_recent_raw_continuity(session, SYMBOL, return_details=True)
+    repaired = int(repair_meta.get("inserted_total", 0))
+    print(f"CONTINUITY_REPAIR_META: {json.dumps(repair_meta, ensure_ascii=False, sort_keys=True)}")
     if repaired:
-        print(f"🩹 Recent raw continuity repair inserted {repaired} Binance 4h rows before live collect")
+        print(
+            "🩹 Recent raw continuity repair inserted "
+            f"{repaired} Binance continuity rows before live collect "
+            f"(4h={repair_meta.get('coarse_inserted', 0)}, "
+            f"1h={repair_meta.get('fine_inserted', 0)}, "
+            f"bridge={repair_meta.get('bridge_inserted', 0)})"
+        )
+    if repair_meta.get("used_bridge"):
+        print("⚠️  Interpolated bridge fallback was required to keep recent raw continuity alive")
 
     success = run_collection_and_save(session, SYMBOL)
     if success:

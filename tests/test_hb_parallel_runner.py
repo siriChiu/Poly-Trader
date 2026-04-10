@@ -26,11 +26,28 @@ def test_parse_args_requires_hb_for_full_mode():
         raise AssertionError("Expected parser error when --hb missing in full mode")
 
 
+def test_parse_collect_metadata_extracts_continuity_repair_json():
+    payload = '{"inserted_total": 3, "bridge_inserted": 1, "used_bridge": true}'
+    stdout = f"hello\nCONTINUITY_REPAIR_META: {payload}\nworld"
+
+    parsed = hb_parallel_runner.parse_collect_metadata(stdout)
+
+    assert parsed["inserted_total"] == 3
+    assert parsed["bridge_inserted"] == 1
+    assert parsed["used_bridge"] is True
+
+
 def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
 
     counts = {"raw_market_data": 1, "features_normalized": 2, "labels": 3, "simulated_pyramid_win_rate": 0.5}
-    collect_result = {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""}
+    collect_result = {
+        "attempted": True,
+        "success": True,
+        "returncode": 0,
+        "stdout": 'CONTINUITY_REPAIR_META: {"inserted_total": 2, "bridge_inserted": 1, "used_bridge": true}',
+        "stderr": "",
+    }
     blockers = {
         "blocked_count": 1,
         "counts_by_history_class": {"snapshot_only": 1},
@@ -51,9 +68,12 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert summary["heartbeat"] == "fast"
     assert summary["mode"] == "fast"
     assert summary["collect_result"]["success"] is True
+    assert summary["collect_result"]["continuity_repair"]["bridge_inserted"] == 1
+    assert summary["collect_result"]["continuity_repair"]["bridge_fallback_streak"] == 1
     assert summary["source_blockers"]["blocked_count"] == 1
     assert summary_path.endswith("heartbeat_fast_summary.json")
 
     saved = json.loads(Path(summary_path).read_text())
     assert saved["collect_result"]["attempted"] is True
+    assert saved["collect_result"]["continuity_repair"]["used_bridge"] is True
     assert saved["source_blockers"]["blocked_features"][0]["key"] == "nest_pred"

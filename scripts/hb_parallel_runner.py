@@ -12,10 +12,12 @@ import argparse
 import concurrent.futures
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict
 
 PROJECT_ROOT = '/home/kazuha/Poly-Trader'
@@ -168,9 +170,46 @@ def collect_source_blockers() -> Dict[str, Any]:
     return blocker_summary
 
 
+def parse_collect_metadata(stdout: str) -> Dict[str, Any]:
+    match = re.search(r"CONTINUITY_REPAIR_META:\s*(\{.*\})", stdout or "")
+    if not match:
+        return {}
+    try:
+        return json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return {}
+
+
+def compute_bridge_fallback_streak(current_meta: Dict[str, Any], summaries_dir: str | None = None) -> int:
+    if not current_meta.get("used_bridge"):
+        return 0
+
+    summaries_path = Path(summaries_dir or (Path(PROJECT_ROOT) / "data"))
+    summary_files = sorted(summaries_path.glob("heartbeat_*_summary.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    streak = 1
+    current_name = f"heartbeat_{current_meta.get('heartbeat', '')}_summary.json"
+    for path in summary_files:
+        if path.name == current_name:
+            continue
+        try:
+            payload = json.loads(path.read_text())
+        except Exception:
+            continue
+        prev_meta = (payload.get("collect_result") or {}).get("continuity_repair") or {}
+        if prev_meta.get("used_bridge"):
+            streak += 1
+            continue
+        break
+    return streak
+
+
 def save_summary(run_label, counts, source_blockers, collect_result, results, elapsed, fast_mode):
     passed = sum(1 for r in results.values() if r["success"])
     total = len(results)
+    continuity_repair = parse_collect_metadata(collect_result.get("stdout", ""))
+    if continuity_repair:
+        continuity_repair = {**continuity_repair, "heartbeat": run_label}
+        continuity_repair["bridge_fallback_streak"] = compute_bridge_fallback_streak(continuity_repair)
 
     summary = {
         "heartbeat": run_label,
@@ -182,6 +221,7 @@ def save_summary(run_label, counts, source_blockers, collect_result, results, el
             "returncode": collect_result.get("returncode", 0),
             "stdout_preview": collect_result.get("stdout", "")[:2000],
             "stderr_preview": collect_result.get("stderr", "")[:1000],
+            "continuity_repair": continuity_repair,
         },
         "db_counts": counts,
         "source_blockers": source_blockers,
@@ -262,6 +302,16 @@ def main(argv=None):
             print(f"\n--- hb_collect ---\n{preview}")
         if collect_result.get("stderr"):
             print(f"\n--- hb_collect stderr ---\n{collect_result['stderr']}")
+        continuity_repair = parse_collect_metadata(collect_result.get("stdout", ""))
+        if continuity_repair:
+            print(
+                "🩹 Continuity repair detail: "
+                f"4h={continuity_repair.get('coarse_inserted', 0)}, "
+                f"1h={continuity_repair.get('fine_inserted', 0)}, "
+                f"bridge={continuity_repair.get('bridge_inserted', 0)}"
+            )
+            if continuity_repair.get("used_bridge"):
+                print("⚠️  Interpolated bridge fallback triggered in this collect run")
 
     counts = quick_counts()
     source_blockers = collect_source_blockers()

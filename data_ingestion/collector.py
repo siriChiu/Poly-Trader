@@ -14,7 +14,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from datetime import datetime, timedelta
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 
 from data_ingestion.body_liquidation import get_body_feature
@@ -100,39 +100,19 @@ def _has_nearby_timestamp(sorted_timestamps, ts: datetime, tolerance: timedelta)
     return any(abs(candidate - ts) <= tolerance for candidate in neighbors)
 
 
-def repair_recent_raw_continuity(
+def _insert_klines_into_raw(
     session: Session,
-    symbol: str = "BTCUSDT",
+    symbol: str,
+    existing_timestamps,
+    klines_df,
     *,
-    lookback_days: int = 7,
-    interval: str = "4h",
-    alignment_tolerance_minutes: int = 30,
-    klines_df=None,
+    cutoff: datetime,
+    tolerance: timedelta,
 ) -> int:
-    """Backfill missing recent Binance klines into raw_market_data.
-
-    Heartbeat #628 root-cause fix: the live collector only appends a single snapshot row,
-    so if the scheduler stalls for several hours the raw timeline develops large gaps and
-    4h canonical labels stop growing (`raw_gap_blocked`). This helper repairs recent
-    continuity using public Binance candles before the live snapshot is appended.
-    """
-    tolerance = timedelta(minutes=alignment_tolerance_minutes)
-    cutoff = datetime.utcnow() - timedelta(days=lookback_days)
-    existing_rows = (
-        session.query(RawMarketData.timestamp)
-        .filter(RawMarketData.symbol == symbol, RawMarketData.timestamp >= cutoff)
-        .order_by(RawMarketData.timestamp)
-        .all()
-    )
-    existing_timestamps = [ts for (ts,) in existing_rows if ts is not None]
-
-    if klines_df is None:
-        klines_df = fetch_binance_klines(symbol=symbol, interval=interval, days=lookback_days)
+    inserted = 0
     if klines_df is None or klines_df.empty:
-        logger.warning("recent raw continuity repair skipped: no Binance klines fetched")
         return 0
 
-    inserted = 0
     for _, row in klines_df.sort_values("timestamp").iterrows():
         ts = row.get("timestamp")
         if ts is None:
@@ -156,15 +136,149 @@ def repair_recent_raw_continuity(
         )
         existing_timestamps.insert(bisect_left(existing_timestamps, ts), ts)
         inserted += 1
-
-    if inserted:
-        logger.info(
-            "recent raw continuity repair inserted %s Binance %s rows for %s",
-            inserted,
-            interval,
-            symbol,
-        )
     return inserted
+
+
+def _insert_interpolated_gap_bridges(
+    session: Session,
+    symbol: str,
+    existing_timestamps,
+    *,
+    cutoff: datetime,
+    tolerance: timedelta,
+    max_gap_hours: float = 12.0,
+    bridge_interval_hours: int = 1,
+) -> int:
+    rows = (
+        session.query(RawMarketData.timestamp, RawMarketData.close_price)
+        .filter(RawMarketData.symbol == symbol, RawMarketData.timestamp >= cutoff)
+        .order_by(RawMarketData.timestamp)
+        .all()
+    )
+    inserted = 0
+    step = timedelta(hours=bridge_interval_hours)
+    for (prev_ts, prev_price), (curr_ts, curr_price) in zip(rows, rows[1:]):
+        if prev_ts is None or curr_ts is None or prev_price is None or curr_price is None:
+            continue
+        gap_hours = (curr_ts - prev_ts).total_seconds() / 3600
+        if gap_hours <= bridge_interval_hours + 0.5 or gap_hours > max_gap_hours:
+            continue
+        bridge_ts = prev_ts + step
+        while bridge_ts < curr_ts:
+            if not _has_nearby_timestamp(existing_timestamps, bridge_ts, tolerance):
+                weight = (bridge_ts - prev_ts).total_seconds() / (curr_ts - prev_ts).total_seconds()
+                bridge_price = float(prev_price) + (float(curr_price) - float(prev_price)) * weight
+                session.add(
+                    RawMarketData(
+                        timestamp=bridge_ts,
+                        symbol=symbol,
+                        close_price=float(bridge_price),
+                        volume=None,
+                    )
+                )
+                existing_timestamps.insert(bisect_left(existing_timestamps, bridge_ts), bridge_ts)
+                inserted += 1
+            bridge_ts += step
+    return inserted
+
+
+def repair_recent_raw_continuity(
+    session: Session,
+    symbol: str = "BTCUSDT",
+    *,
+    lookback_days: int = 7,
+    interval: str = "4h",
+    alignment_tolerance_minutes: int = 30,
+    klines_df=None,
+    fine_grain_interval: str = "1h",
+    fine_grain_days: int = 2,
+    fine_grain_klines_df=None,
+    return_details: bool = False,
+) -> int | Dict[str, Any]:
+    """Backfill missing recent Binance klines into raw_market_data.
+
+    Heartbeat #628 root-cause fix: the live collector only appends a single snapshot row,
+    so if the scheduler stalls for several hours the raw timeline develops large gaps and
+    4h canonical labels stop growing (`raw_gap_blocked`). Heartbeat #629 extends the repair
+    lane with a finer 1h public-kline pass so the 240m label path is not stuck waiting for
+    the next 4h closed candle.
+    """
+    tolerance = timedelta(minutes=alignment_tolerance_minutes)
+    cutoff = datetime.utcnow() - timedelta(days=lookback_days)
+    existing_rows = (
+        session.query(RawMarketData.timestamp)
+        .filter(RawMarketData.symbol == symbol, RawMarketData.timestamp >= cutoff)
+        .order_by(RawMarketData.timestamp)
+        .all()
+    )
+    existing_timestamps = [ts for (ts,) in existing_rows if ts is not None]
+
+    if klines_df is None:
+        klines_df = fetch_binance_klines(symbol=symbol, interval=interval, days=lookback_days)
+
+    inserted_coarse = _insert_klines_into_raw(
+        session,
+        symbol,
+        existing_timestamps,
+        klines_df,
+        cutoff=cutoff,
+        tolerance=tolerance,
+    )
+
+    fine_cutoff = max(cutoff, datetime.utcnow() - timedelta(days=fine_grain_days))
+    if fine_grain_klines_df is None:
+        fine_grain_klines_df = fetch_binance_klines(
+            symbol=symbol,
+            interval=fine_grain_interval,
+            days=fine_grain_days,
+        )
+    inserted_fine = _insert_klines_into_raw(
+        session,
+        symbol,
+        existing_timestamps,
+        fine_grain_klines_df,
+        cutoff=fine_cutoff,
+        tolerance=tolerance,
+    )
+    inserted_bridge = _insert_interpolated_gap_bridges(
+        session,
+        symbol,
+        existing_timestamps,
+        cutoff=fine_cutoff,
+        tolerance=tolerance,
+    )
+    inserted_total = inserted_coarse + inserted_fine + inserted_bridge
+    details = {
+        "symbol": symbol,
+        "lookback_days": lookback_days,
+        "coarse_interval": interval,
+        "fine_interval": fine_grain_interval,
+        "coarse_inserted": inserted_coarse,
+        "fine_inserted": inserted_fine,
+        "bridge_inserted": inserted_bridge,
+        "inserted_total": inserted_total,
+        "used_bridge": inserted_bridge > 0,
+        "used_fine_grain": inserted_fine > 0,
+        "skipped_no_klines": bool(
+            (klines_df is None or klines_df.empty)
+            and (fine_grain_klines_df is None or fine_grain_klines_df.empty)
+        ),
+    }
+
+    if inserted_total:
+        logger.info(
+            "recent raw continuity repair inserted %s rows for %s (coarse=%s via %s, fine=%s via %s, bridge=%s interpolated)",
+            inserted_total,
+            symbol,
+            inserted_coarse,
+            interval,
+            inserted_fine,
+            fine_grain_interval,
+            inserted_bridge,
+        )
+    elif (klines_df is None or klines_df.empty) and (fine_grain_klines_df is None or fine_grain_klines_df.empty):
+        logger.warning("recent raw continuity repair skipped: no Binance klines fetched")
+    return details if return_details else inserted_total
 
 
 def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
