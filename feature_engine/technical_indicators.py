@@ -22,6 +22,15 @@ from scipy.signal import savgol_filter
 from typing import Optional, Dict, List, Tuple
 
 
+def _safe_divide(numerator: np.ndarray, denominator: np.ndarray, default: float = 0.0) -> np.ndarray:
+    """Elementwise divide without emitting RuntimeWarning on zero denominators."""
+    numerator_arr = np.asarray(numerator, dtype=float)
+    denominator_arr = np.asarray(denominator, dtype=float)
+    result = np.full(np.broadcast_shapes(numerator_arr.shape, denominator_arr.shape), float(default), dtype=float)
+    np.divide(numerator_arr, denominator_arr, out=result, where=denominator_arr != 0)
+    return result
+
+
 def nadaraya_watson_envelope(
     closes: np.ndarray,
     lookback: int = 64,
@@ -60,7 +69,7 @@ def nadaraya_watson_envelope(
     
     upper = smoothed + mult * roll_std
     lower = smoothed - mult * roll_std
-    width = (upper - lower) / smoothed  # Normalized bandwidth
+    width = _safe_divide(upper - lower, smoothed, default=0.0)  # Normalized bandwidth
     
     return smoothed, upper, lower, width
 
@@ -80,7 +89,7 @@ def rsi(prices: np.ndarray, period: int = 14) -> np.ndarray:
         avg_gain[i] = (avg_gain[i-1] * (period - 1) + gains[i-1]) / period
         avg_loss[i] = (avg_loss[i-1] * (period - 1) + losses[i-1]) / period
     
-    rs = np.where(avg_loss == 0, 100, avg_gain / avg_loss)
+    rs = _safe_divide(avg_gain, avg_loss, default=100.0)
     return 100 - 100 / (1 + rs)
 
 
@@ -125,7 +134,8 @@ def bollinger_bands(prices: np.ndarray, period: int = 20, std_mult: float = 2.0)
     
     # %B — where price sits within the bands
     width = upper - lower
-    percent_b = np.where(width > 0, (prices - lower) / width, 0.5)
+    percent_b = np.full(n, 0.5, dtype=float)
+    np.divide(prices - lower, width, out=percent_b, where=width > 0)
     
     return middle, upper, lower, percent_b
 
@@ -155,7 +165,9 @@ def vwap(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, volumes: np.nd
     typical_price = (highs + lows + closes) / 3
     cum_tp = np.cumsum(typical_price * volumes)
     cum_vol = np.cumsum(volumes)
-    return np.where(cum_vol > 0, cum_tp / cum_vol, closes)
+    result = closes.astype(float).copy()
+    np.divide(cum_tp, cum_vol, out=result, where=cum_vol > 0)
+    return result
 
 
 def compute_technical_features(

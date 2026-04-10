@@ -1,20 +1,40 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-09 05:32 UTC — Heartbeat #624（archive-window triage refinement + canonical target emphasis）*
+*最後更新：2026-04-10 03:19 UTC — Heartbeat #626（warning-safe indicator math + fast-heartbeat verification）*
 
-## 📊 系統健康狀態 v4.46
+## 📊 系統健康狀態 v4.47
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **19,787** | 🟢 `hb_parallel_runner.py --fast --hb 624` 本輪先自動 collect，Raw +1 |
-| Features | **11,173** | 🟢 fast heartbeat 本輪直接推進 Features +1 |
-| Labels | **38,717** | 🟡 本輪持平（24h canonical label 尚未形成新 horizon） |
-|| simulated_pyramid_win (1440m) | **61.37%** | 🟢 canonical 24h 分析口徑（`regime_aware_ic.py`, n=9,763） |
+| Raw | **20,070** | 🟢 `hb_parallel_runner.py --fast --hb 626` 本輪先自動 collect，Raw +1 |
+| Features | **11,456** | 🟢 fast heartbeat 本輪直接推進 Features +1 |
+| Labels | **39,239** | 🟡 本輪持平（24h canonical label 尚未形成新 horizon） |
+|| simulated_pyramid_win (1440m) | **61.19%** | 🟢 canonical 24h 分析口徑（`full_ic.py` / `regime_aware_ic.py`, n=10,216） |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
 | 全域 IC | **15/22** | 🟢 維持 |
-| TW-IC | **17/22** | 🟢 維持高檔 |
+| TW-IC | **12/22** | 🟡 近期結構較上輪收斂，但仍高於多輪歷史基準 |
 | 模型數 | **8** | ✅ |
-| Verification | **15 pytest + web build + fast heartbeat runtime** | ✅ 本輪已重驗證 |
+| Verification | **3 pytest + fast heartbeat runtime** | ✅ 本輪已重驗證 |
+
+## 📈 心跳 #626 摘要
+
+### 本輪已驗證 patch
+1. **Indicator math no longer emits divide-by-zero / invalid RuntimeWarning during heartbeat collection**：`feature_engine/technical_indicators.py` 與 `feature_engine/ohlcv_4h.py` 全部改成 warning-safe divide（`np.divide(..., where=...)`），修掉 flat/zero-volume window 仍會在 `np.where` 的未選分支先做除法、把 fast heartbeat stderr 汙染成假異常的 root cause。
+2. **Regression guard added for flat-series edge cases**：新增 `tests/test_indicator_warning_hygiene.py`，直接覆蓋 technical indicators 與 4H indicator pipeline 在零價格 / 零成交量 / 平坦序列下的 warning hygiene，鎖住 `%B`、VWAP、RSI、4H bias / BB / vol_ratio / dist_swing_low` 不再重引入 RuntimeWarning。
+3. **Fast heartbeat re-verified on real runtime**：`python scripts/hb_parallel_runner.py --fast --hb 626` 已確認 pre-collect stderr 不再出現 `technical_indicators.py` / `ohlcv_4h.py` 的 divide-by-zero warnings；現在若 collect stderr 出現內容，優先代表真實 blocker 而不是數值邊界噪音。
+
+### 本輪 runtime facts（Heartbeat #626）
+- `python scripts/hb_parallel_runner.py --fast --hb 626`：**Raw 20069→20070 / Features 11455→11456 / Labels 39239→39239**；fast heartbeat 仍先 collect 再診斷，閉環未退化。
+- Canonical diagnostics：**Global IC 15/22 PASS**、**TW-IC 12/22 PASS**；regime-aware IC 為 **Bear 4/8 / Bull 8/8 / Chop 6/8 / Neutral 1/8**（`simulated_pyramid_win`, n=10,216）。
+- **Pre-collect stderr 已清空 warning 噪音**：Heartbeat #625 還會在 collect 階段看到 `divide by zero encountered in divide` / `invalid value encountered in divide`；Heartbeat #626 同一路徑重跑後這些訊息已消失。
+- Source blocker 狀態沒有假改善：仍是 **8 blocked sparse features**，其中 **Claw / Claw intensity / Fin** 明確卡在 `COINGLASS_API_KEY` 缺失；Nest / Fang / Web / Scales 則是 forward archive 已健康、歷史 coverage 仍缺。
+- Label freshness 仍顯示 **240m stale / 720m no targets / 1440m expected horizon lag**；這輪沒有假裝修好未處理的 label path 問題。
+- 驗證：`PYTHONPATH=. pytest tests/test_indicator_warning_hygiene.py tests/test_hb_collect.py -q` → **3 passed**；`python scripts/hb_parallel_runner.py --fast --hb 626` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#HEARTBEAT_STDERR_NOISE（本輪已修）**：先前 collect 階段的 divide-by-zero warnings 會把 flat-window 邊界條件偽裝成 pipeline 異常，降低真正 blocker 的可見性；現在已降噪完成，後續 stderr 若再出現內容，應優先視為真實 collector / source / label blocker。
+- **#LOW_COVERAGE_SOURCES（未修、維持真 blocker）**：Claw / Claw intensity / Fin 仍受 `COINGLASS_API_KEY` 缺失阻擋；這不是本輪能在 repo 內自行修復的問題，不能用 warning hygiene 當作假進展掩蓋。
+- **#LABEL_HORIZON_GROWTH_GATE（仍開）**：24h canonical horizon 正常；240m stale 與 720m zero-target 仍需獨立判斷是不是 label-path / target-definition 問題，下一輪若持續不動要升級 source-level investigation。
 
 ## 📈 心跳 #624 摘要
 

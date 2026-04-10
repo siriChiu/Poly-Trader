@@ -13,6 +13,15 @@ from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 
 
+def _safe_divide(numerator, denominator, default=0.0):
+    """Elementwise divide without evaluating zero-denominator branches."""
+    numerator_arr = np.asarray(numerator, dtype=float)
+    denominator_arr = np.asarray(denominator, dtype=float)
+    result = np.full(np.broadcast_shapes(numerator_arr.shape, denominator_arr.shape), float(default), dtype=float)
+    np.divide(numerator_arr, denominator_arr, out=result, where=denominator_arr != 0)
+    return result
+
+
 def resample_to_ohlcv(timestamps, closes, highs, lows, volumes, timeframe_minutes=240):
     """把任意時間間隔的價格數據聚合為 OHLCV K 線。
     
@@ -118,7 +127,7 @@ def compute_4h_indicators(candles: dict, max_idx: int = None) -> dict:
     for period, name in [(20, "bias20"), (50, "bias50"), (200, "bias200")]:
         if n >= period:
             ma = result[f"4h_ma{period}"]
-            result[f"4h_{name}"] = np.where(ma != 0, (closes - ma) / ma * 100, 0)
+            result[f"4h_{name}"] = _safe_divide(closes - ma, ma, default=0.0) * 100
     
     # ─── 4H 布林通道 (20, 2σ) ───
     if n >= 20:
@@ -132,13 +141,9 @@ def compute_4h_indicators(candles: dict, max_idx: int = None) -> dict:
         result["4h_bb_upper"] = bb_mid + 2 * bb_std
         result["4h_bb_lower"] = bb_mid - 2 * bb_std
         bb_width = (bb_mid + 2 * bb_std) - (bb_mid - 2 * bb_std)
-        result["4h_bb_pct_b"] = np.where(
-            bb_width > 0,
-            (closes - (bb_mid - 2 * bb_std)) / bb_width,
-            0.5
-        )
+        result["4h_bb_pct_b"] = _safe_divide(closes - (bb_mid - 2 * bb_std), bb_width, default=0.5)
         # 價格距離布林下軌（支撐線代理）
-        result["4h_dist_bb_lower"] = (closes - result["4h_bb_lower"]) / closes * 100
+        result["4h_dist_bb_lower"] = _safe_divide(closes - result["4h_bb_lower"], closes, default=0.0) * 100
     
     # ─── 4H RSI (14) ───
     result["4h_rsi14"] = compute_rsi_4h(closes, 14)
@@ -154,7 +159,7 @@ def compute_4h_indicators(candles: dict, max_idx: int = None) -> dict:
     # 距最近 swing low 的距離（%）
     result["4h_dist_swing_low"] = np.where(
         result["4h_swing_low"] > 0,
-        (closes - result["4h_swing_low"]) / closes * 100,
+        _safe_divide(closes - result["4h_swing_low"], closes, default=0.0) * 100,
         0
     )
     
@@ -179,7 +184,7 @@ def compute_4h_indicators(candles: dict, max_idx: int = None) -> dict:
         for i in range(19, n):
             vol_ma20[i] = volumes[i - 19:i + 1].mean()
         result["4h_vol_ma20"] = vol_ma20
-        result["4h_vol_ratio"] = np.where(vol_ma20 > 0, volumes / vol_ma20, 1)
+        result["4h_vol_ratio"] = _safe_divide(volumes, vol_ma20, default=1.0)
     
     return result
 
@@ -207,7 +212,7 @@ def compute_rsi_4h(closes: np.ndarray, period: int = 14) -> np.ndarray:
         avg_gain[i] = (avg_gain[i - 1] * (period - 1) + gains[i - 1]) / period
         avg_loss[i] = (avg_loss[i - 1] * (period - 1) + losses[i - 1]) / period
     
-    rs = np.where(avg_loss > 0, avg_gain / avg_loss, 100)
+    rs = _safe_divide(avg_gain, avg_loss, default=100.0)
     result[period:] = 100 - 100 / (1 + rs[period:])
     return result
 

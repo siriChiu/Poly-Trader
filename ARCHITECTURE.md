@@ -34,6 +34,8 @@
 
 **Source auth/fetch blocker contract（Heartbeat #622）**：若 sparse source 最新 snapshot `status != ok`（尤其 `auth_missing`），coverage policy 必須把 quality 從 generic `source_history_gap` 升級成 `source_auth_blocked` / `source_fetch_error`，並把 `raw_snapshot_latest_status/message` 同步給 API、markdown report、FeatureChart。這批欄位的用途不是附註，而是要讓 UI 與 heartbeat 明確知道「現在 live fetch 壞掉」優先於「歷史 coverage 還不夠」。
 
+**Warning-safe indicator math contract（Heartbeat #626）**：feature layer 的技術指標 / 4H 指標計算不得在 flat price、zero-volume 或 zero-width band 視窗下產生 `divide by zero` / `invalid value` RuntimeWarning。所有分母可能為 0 的計算都必須使用 warning-safe divide（例如 `np.divide(..., where=...)`），確保 fast heartbeat stderr 只保留真實 blocker，而不是數值邊界噪音。
+
 **Fast heartbeat contract（Heartbeat #617）**：`python scripts/hb_parallel_runner.py --fast` 必須可直接在 cron 執行，不依賴額外 `--hb` 參數；fast summary 仍需包含 DB counts、canonical IC 腳本結果與 `source_blockers` 摘要，確保快檢查模式不是「只剩數字」的半閉環。
 
 ### 3. 標籤層
