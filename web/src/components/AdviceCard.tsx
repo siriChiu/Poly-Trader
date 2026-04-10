@@ -10,6 +10,11 @@ interface Props {
   action?: string;
   timestamp?: string;
   onTrade?: (side: string) => void;
+  maturitySummary?: {
+    core: number;
+    research: number;
+    blocked: number;
+  };
 }
 
 // Core strategy: SPOT LONG + pyramid entries.
@@ -30,7 +35,7 @@ function getScoreLevel(score: number): string {
   return "text-red-400";
 }
 
-export default function AdviceCard({ score = 50, summary = "分析中...", descriptions = [], action = "hold", timestamp, onTrade }: Props) {
+export default function AdviceCard({ score = 50, summary = "分析中...", descriptions = [], action = "hold", timestamp, onTrade, maturitySummary }: Props) {
   const [confirmTrade, setConfirmTrade] = useState<string | null>(null);
   const [tradeStatus, setTradeStatus] = useState<string | null>(null);
   const [prevScore, setPrevScore] = useState(score);
@@ -67,6 +72,26 @@ export default function AdviceCard({ score = 50, summary = "分析中...", descr
       </div>
 
       <div className="text-sm text-slate-200 leading-relaxed">{summary}</div>
+
+      {maturitySummary && (
+        <div className="bg-slate-900/40 border border-slate-700/50 rounded-lg px-3 py-2 space-y-2">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+            <span className="text-slate-400">成熟度摘要</span>
+            <span className="rounded-full border border-emerald-700/40 bg-emerald-950/40 px-2 py-0.5 text-emerald-300">
+              核心 {maturitySummary.core}
+            </span>
+            <span className="rounded-full border border-sky-700/40 bg-sky-950/40 px-2 py-0.5 text-sky-300">
+              研究 {maturitySummary.research}
+            </span>
+            <span className="rounded-full border border-amber-700/40 bg-amber-950/30 px-2 py-0.5 text-amber-300">
+              阻塞 {maturitySummary.blocked}
+            </span>
+          </div>
+          <div className="text-[11px] leading-relaxed text-slate-400">
+            主建議卡請優先解讀核心訊號；研究與阻塞特徵保留在 Dashboard / FeatureChart 供觀察與排障，避免把成熟度不足的資料當成主判斷。
+          </div>
+        </div>
+      )}
 
       {descriptions && descriptions.length > 0 && (
         <div className="bg-slate-800/30 rounded-lg p-2.5 space-y-0.5">

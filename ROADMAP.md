@@ -59,7 +59,8 @@
   ↳ Heartbeat #638：`backtesting/model_leaderboard.py` 與 API payload 已輸出 trade-quality / drawdown-aware component fields；Heartbeat #639 再把 canonical `drawdown_penalty/time_underwater` 帶進 leaderboard frame，下一步是把 ranking 從 proxy 分數升級成直接使用這組 canonical quality target
 - [ ] Dynamic Window distribution-aware 版：窗口評估必須顯示 label distribution / regime distribution / constant-target guardrail，不再只看固定 N 導致近期窗口誤判
 - [ ] strategy archetype layer：把策略從 `rule_baseline` / `xgboost` 升級成「抄底型 / 趨勢型 / 均值回歸型 / 4H濾網型」等決策語義層
-- [ ] maturity-aware UI：FeatureChart / Strategy Lab 明確顯示 **核心可用 / 研究中 / blocked** 三層成熟度，讓使用者知道哪些訊號能當主判斷、哪些只能輔助觀察
+- [~] maturity-aware UI：FeatureChart / Strategy Lab 明確顯示 **核心可用 / 研究中 / blocked** 三層成熟度，讓使用者知道哪些訊號能當主判斷、哪些只能輔助觀察  
+  ↳ Heartbeat #647：`/api/features/coverage` 與 `FeatureChart` 已新增 `maturity_tier + score_usable` contract，legend / summary / composite score 已區分 core vs research vs blocked；Heartbeat #648 再把同一套 maturity summary 推進到 Dashboard 雷達與 AdviceCard。下一步收斂到 Dashboard 其他摘要卡與 Strategy Lab compare flow，避免首頁/實驗室又回退成只看數值不看成熟度
 
 - [x] Web Model Leaderboard 視覺化（表格版已上線；後續可再補柱狀圖 + Fold 比較）
 - [x] 市場分類回測（依進場 regime 顯示 Bull / Bear / Chop ROI、勝率、PF）

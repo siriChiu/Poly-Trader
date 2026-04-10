@@ -1,14 +1,14 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-10 20:12 UTC — Heartbeat #645（promote active Strategy Lab summary + strategy detail/run payloads to canonical decision-quality semantics and re-verify closed-loop heartbeat on fresh data）*
+*最後更新：2026-04-10 23:36 UTC — Heartbeat #648（push maturity-aware semantics into Dashboard radar + AdviceCard, re-verify closed-loop heartbeat on fresh canonical data）*
 
 ## 📊 系統健康狀態 v4.61
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,375** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 645` 本輪新增 **+1**；raw continuity repair 仍未觸發 bridge |
-| Features | **11,804** | 🟢 fast heartbeat 本輪新增 **+1**；canonical 4H / lag feature path 仍可正常推進 |
-| Labels | **40,757** | 🟢 本輪 `hb_collect.py` 補 **+21**（240m +20 / 1440m +1）；240m/1440m freshness 仍在 expected horizon lag 內 |
+| Raw | **20,377** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 647` 本輪新增 **+1**；raw continuity repair 仍未觸發 bridge |
+| Features | **11,806** | 🟢 fast heartbeat 本輪新增 **+1**；canonical 4H / lag feature path 仍可正常推進 |
+| Labels | **40,766** | 🟢 本輪 240m labels 維持 **11,603 target rows**、1440m 維持 **11,156**；freshness 仍在 expected horizon lag 內 |
 || simulated_pyramid_win (DB overall) | **57.29%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5729` |
 || simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.24%** | 🟢 分析樣本 n=11,026 |
 | spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
@@ -55,6 +55,41 @@
 
 ### 實作計畫
 - `docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+## 📈 心跳 #648 摘要
+
+### 本輪已驗證 patch
+1. **Dashboard radar now surfaces maturity summary instead of hiding score semantics**：`web/src/pages/Dashboard.tsx` 現在會額外抓 `/api/features/coverage?days=30`，在雷達卡上直接顯示 `核心 / 研究 / 阻塞` 計數，並明講雷達保留 research / blocked overlays 供觀察，避免使用者把所有線條都誤解成可同權進主決策。
+2. **AdviceCard now carries the same maturity contract as FeatureChart**：`web/src/components/AdviceCard.tsx` 新增成熟度 badge 與說明，提醒主建議卡應優先解讀核心訊號，而 research / blocked features 只用於觀察與排障，正式把 #CORE_VS_RESEARCH_SIGNAL_MIXING 推進到首頁主決策區。
+3. **Closed-loop heartbeat kept green on fresh canonical data**：`python scripts/hb_parallel_runner.py --fast --hb 648` 成功推進 **Raw 20377→20378 / Features 11806→11807 / Labels 40766→40772**，`simulated_pyramid_win` DB overall 維持 **57.3%**，並輸出 `data/heartbeat_648_summary.json`。
+
+### 本輪 runtime facts（Heartbeat #648）
+- `python scripts/hb_parallel_runner.py --fast --hb 648`：**Raw 20377→20378 / Features 11806→11807 / Labels 40766→40772**；summary 已落地 `data/heartbeat_648_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-10 20:07:57.973491`、`raw_gap≈2.8h`；1440m `latest_target=2026-04-10 00:00:00`、`raw_gap≈2.8h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **16/30 PASS**；Regime IC **Bear 7/8 / Bull 6/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,029）。
+- `python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_feature_history_policy.py -q` → **13 passed**；`cd web && npm run build` ✅。
+- Source blocker 狀態沒有假改善：仍是 **8 blocked sparse features**；`fin_netflow` 仍為 `auth_missing`，Claw / Claw intensity / Fin 依舊受 `COINGLASS_API_KEY` 缺失阻擋。
+
+### Blocker 升級 / 狀態更正
+- **#CORE_VS_RESEARCH_SIGNAL_MIXING（本輪再推進）**：不能再說成熟度語義只停在 FeatureChart。Dashboard 雷達與 AdviceCard 已直接暴露 `核心 / 研究 / 阻塞` 摘要；剩餘真缺口是 Dashboard 其他摘要卡與 Strategy Lab compare flow 尚未共用同一層 maturity contract。
+- **#LOW_COVERAGE_SOURCES（持續真 blocker）**：這輪修的是 UI 決策語義，不是 sparse-source historical backfill；blocked features 仍是 **8**。
+
+## 📈 心跳 #647 摘要
+
+### 本輪已驗證 patch
+1. **Coverage/API now exposes feature maturity semantics**：`feature_history_policy.py` 與 `/api/features/coverage` 新增 `maturity_tier + maturity_label + score_usable + maturity_counts`，把 feature 正式分成 `core / research / blocked`，不再讓 sparse-source readiness 只停在 quality_flag。
+2. **FeatureChart composite score no longer mixes sparse research overlays into canonical score**：`web/src/components/FeatureChart.tsx` 現在只用 `score_usable=true` 的核心訊號計算綜合分數；research sparse-source 仍可視覺觀察，但不再稀釋主分數與進/減碼訊號。
+3. **UI now surfaces maturity badges and summary counts**：FeatureChart legend 顯示 `核心 / 研究 / 阻塞` badge，並在圖表上方直接提示「綜合分數只採用核心 decision signals」，把 #CORE_VS_RESEARCH_SIGNAL_MIXING 從抽象文件條目推到實際 UI contract。
+
+### 本輪 runtime facts（Heartbeat #647）
+- `python scripts/hb_parallel_runner.py --fast --hb 647`：**Raw 20376→20377 / Features 11805→11806 / Labels 40766→40766**；summary 已落地 `data/heartbeat_647_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-10 17:21:47.280547`、`raw_gap≈0.7h`；1440m `latest_target=2026-04-09 21:00:00`、`raw_gap≈1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **16/30 PASS**；Regime IC **Bear 7/8 / Bull 6/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,027）。
+- `python -m pytest tests/test_strategy_lab.py tests/test_model_leaderboard.py tests/test_hb_collect.py tests/test_api_feature_history_and_predictor.py tests/test_feature_history_policy.py -q` → **44 passed**；`cd web && npm run build` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#CORE_VS_RESEARCH_SIGNAL_MIXING（本輪實際推進）**：不能再說 UI 完全沒有 maturity-aware contract。FeatureChart 的 legend / score path 已正式分出 core vs research vs blocked；剩餘缺口是 Dashboard 雷達/建議卡也尚未同步採用同一層 maturity summary。
+- **#LOW_COVERAGE_SOURCES（持續真 blocker）**：這輪修的是語義分層，不是 sparse-source 歷史補齊；blocked features 仍是 **8**，`fin_netflow` 仍受 `COINGLASS_API_KEY` 缺失阻擋。
 
 ## 📈 心跳 #645 摘要
 

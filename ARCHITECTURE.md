@@ -127,6 +127,8 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 
 若不分層，系統會把成熟度不足的 alpha source 誤混入主決策，造成假信心。
 
+**Feature maturity contract（Heartbeat #647 / #648）**：`feature_history_policy.py` / `/api/features/coverage` / `FeatureChart.tsx` / `Dashboard.tsx` / `AdviceCard.tsx` 現在共同使用 `maturity_tier = core | research | blocked` 與 `score_usable` 的同一套語義。FeatureChart composite score / entry-reduce markers 只能使用 `score_usable=true` 的 core features；Dashboard 雷達與 AdviceCard 則必須直接揭露 `核心 / 研究 / 阻塞` 摘要，明講 research / blocked 只作 overlay / 排障，禁止把 auth-blocked / snapshot-only sparse-source 特徵誤包裝成與核心訊號同權的主決策依據。
+
 **Model feature parity contract（Heartbeat #633 / #642）**：`model/train.py`、`model/predictor.py`、`scripts/full_ic.py`、`load_model_leaderboard_frame()` 必須共用同一個 canonical base feature semantics。當 DB / preprocessor 新增可訓練特徵（例如 `feat_4h_bias200`、`feat_4h_dist_bb_lower`、`feat_4h_vol_ratio`）時，不允許只更新 schema 或 coverage/UI；訓練、推論、IC diagnostics、leaderboard frame 必須同輪一起升級，否則 heartbeat 會落入「資料已存在但模型、診斷、ranking 其中一條路仍忽略」的假進度。
 
 **Sparse 4H inference alignment contract（Heartbeat #633）**：predictor 不可直接使用 latest dense row 上的 raw 4H 欄位，因為 4H features 在 dense rows 上可能是 sparse/NULL。`load_latest_features()` 必須套用與 training 相同的 asof alignment（目前沿用 `model.train._align_sparse_4h_features()`）來生成 base + lag 4H features；若 recent 4H rows 在 DB 已 stale，應先 backfill 4H history，而不是讓推論默默退回 0/NULL。

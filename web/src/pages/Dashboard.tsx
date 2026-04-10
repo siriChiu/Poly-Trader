@@ -7,7 +7,7 @@ import AdviceCard from "../components/AdviceCard";
 import FeatureChart from "../components/FeatureChart";
 import CandlestickChart from "../components/CandlestickChart";
 import BacktestSummary from "../components/BacktestSummary";
-import { useApi, fetchApi } from "../hooks/useApi";
+import { buildWsUrl, useApi, fetchApi } from "../hooks/useApi";
 import ConfidenceIndicator from "../components/ConfidenceIndicator";
 import { ALL_SENSES, getSenseConfig } from "../config/senses";
 
@@ -21,6 +21,14 @@ interface SensesResponse {
     descriptions: string[];
     action: string;
     timestamp?: string;
+  };
+}
+
+interface FeatureCoverageResponse {
+  maturity_counts?: {
+    core: number;
+    research: number;
+    blocked: number;
   };
 }
 
@@ -71,15 +79,14 @@ export default function Dashboard() {
   const [wsConnected, setWsConnected] = useState(false);
 
   const { data: sensesData, error: apiError, refresh: refreshSenses } = useApi<SensesResponse>("/api/senses", 30000);
+  const { data: featureCoverageData } = useApi<FeatureCoverageResponse>("/api/features/coverage?days=30", 60000);
   const { data: backtestData } = useApi<BacktestData>("/api/backtest");
   const { data: confidenceData } = useApi<ConfidenceData>("/api/predict/confidence", 60000);
   const { data: modelStats } = useApi<ModelStats>("/api/model/stats", 60000);
 
   // WebSocket
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host;
-    const url = `${protocol}//${host}/ws/live`;
+    const url = buildWsUrl("/ws/live");
     let ws: WebSocket | null = null;
     let timer: number;
 
@@ -125,6 +132,7 @@ export default function Dashboard() {
     : sensesData?.scores || liveScores;
 
   const advice = liveAdvice || sensesData?.recommendation;
+  const maturitySummary = featureCoverageData?.maturity_counts ?? null;
 
   const handleTrade = useCallback(async (side: string) => {
     if (side === "hold") return;
@@ -193,6 +201,22 @@ export default function Dashboard() {
             <div>
               <h2 className="text-sm font-semibold text-slate-300">🎯 多特徵雷達圖</h2>
               <div className="text-xs text-slate-500 mt-1">已改用市場語義短標籤，避免舊感官命名與文字重疊。</div>
+              {maturitySummary && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+                  <span className="rounded-full border border-emerald-700/40 bg-emerald-950/40 px-2 py-0.5 text-emerald-300">
+                    核心 {maturitySummary.core}
+                  </span>
+                  <span className="rounded-full border border-sky-700/40 bg-sky-950/40 px-2 py-0.5 text-sky-300">
+                    研究 {maturitySummary.research}
+                  </span>
+                  <span className="rounded-full border border-amber-700/40 bg-amber-950/30 px-2 py-0.5 text-amber-300">
+                    阻塞 {maturitySummary.blocked}
+                  </span>
+                  <span className="text-slate-500">
+                    雷達保留研究/阻塞 overlay 供觀察；主決策請搭配下方建議卡與 FeatureChart 成熟度資訊。
+                  </span>
+                </div>
+              )}
             </div>
             <span className="text-xs text-slate-500 cursor-pointer hover:text-slate-300"
               onClick={() => setSelectedSense(null)}>
@@ -222,6 +246,7 @@ export default function Dashboard() {
               action={advice.action}
               timestamp={advice.timestamp || lastUpdate}
               onTrade={handleTrade}
+              maturitySummary={maturitySummary || undefined}
             />
           ) : apiError ? (
             <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-8 text-center">
