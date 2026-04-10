@@ -49,6 +49,7 @@
 - [x] P0/P1 修復驅動：每次心跳至少產出 1 個可驗證 patch，不允許只產出失敗報告
 - [ ] 心跳 gate 自動化：把「patch / verify / doc sync / next gate」檢查做成腳本或模板驗證
 - [ ] blocker 升級機制落地：同一 issue 連續 2~3 輪無進展時，自動升級 source-level investigation / alternative plan
+- [x] regime-aware IC null-bucket hygiene：`regime_aware_ic.py` 對 `feat_mind` 缺值 row 改用 `features_normalized.regime_label` fallback，並把 `regime_meta/regime_counts` 寫入輸出，避免 75%+ canonical rows 被誤判成 neutral 造成錯誤決策
 - [x] source-level sparse feature hygiene：Fin / Fang / Web / Scales / Nest fetch failure 改為 `None`，不再把來源失敗寫成假中性 0
 - [x] sparse source latest-row contract：Claw / Fang / Fin / Web / Scales / Nest 只允許使用 latest raw row；若最新來源缺值則保留 `None`，禁止把舊 sparse 值偷帶到新 features row
 - [x] sparse-source historical decontamination：`cleanup_sparse_source_history.py` 已清除 Claw / Fin / Nest 假 0 與 Fang / Web / Scales stale carry-forward，coverage 現在反映真實 source history gap
@@ -74,7 +75,8 @@
 - [x] 4h canonical label backfill hygiene：`save_labels_to_db()` 現在會補齊既有 row 中缺失的 `simulated_pyramid_*` / `label_spot_long_*` 欄位，不再把已有 `future_return_pct` 的 legacy rows 留成半遷移狀態；heartbeat 240m target_rows 因此回到真實量級
 - [x] label horizon freshness root-cause gating：`hb_collect.py` / `hb_parallel_runner.py` 現在會把 horizon 分成 `expected_horizon_lag` / `raw_gap_blocked` / `inactive_horizon`，避免把 720m legacy rows 或 upstream raw gap 誤報成 label pipeline 本身故障
 - [x] Recent raw continuity repair lane：`data_ingestion/collector.py` 現在會在 live collect 前以 Binance 4h closed klines 回補 recent raw gaps，`hb_collect.py` 也會把 repaired raw timestamps 補進 `features_normalized`，避免 raw 修回來卻卡在 feature/label 斷層
-- [ ] Raw continuity recovery gate：在 recent-gap repair 已落地後，進一步補上 **sub-4h raw continuity**（或更密的 public price archive / service continuity），把 240m freshness 從 `raw_gap_blocked` 6.4h 繼續壓到 heartbeat gate 內
+- [x] Sub-4h raw continuity bridge lane：Heartbeat #629 已補上 **1h public-kline repair + hourly interpolated bridge fallback**，把 240m freshness 從 `raw_gap_blocked`（latest raw gap 6.42h）拉回 `expected_horizon_lag`（latest raw gap 1.42h），不再只靠下一根 4h candle 才能恢復 labels
+- [ ] Raw continuity recovery gate：後續不再是「有沒有修復路徑」，而是監控 **bridge fallback 是否連續多輪被迫介入**。若連續心跳都需要 interpolated bridge 才能維持 240m freshness，需升級成 collector/service continuity 根因修復，而不是持續依賴 bridge workaround
 - [ ] Sparse-source historical backfill：在 decontaminate 完成後，為 Web / Fang / Scales / Claw / Fin / Nest 補真正歷史 coverage，而不是再引入 fallback/carry-forward
 - [ ] Dynamic Window recent-window 穩定化：N=100/200/400 已確認不是 merge bug，而是 canonical 24h labels 在最近窗口全部為 1；下一步需設計 distribution-aware window / alternate evaluation rule
 

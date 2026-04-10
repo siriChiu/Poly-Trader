@@ -45,9 +45,13 @@
 
 **Recent raw continuity repair contract（Heartbeat #628）**：當 heartbeat 偵測到 recent raw timeline 有多小時斷層時，`data_ingestion/collector.py::repair_recent_raw_continuity()` 必須先用 public Binance **closed 4h klines** 回補缺失 raw rows，再 append live snapshot。這條 lane 的目的不是重建完整 tick history，而是先把 4h canonical label 所需的 recent raw continuity 補回來，避免 `raw_gap_blocked` 永遠只能靠下一筆 live row 慢慢前進。
 
+**Sub-4h continuity bridge contract（Heartbeat #629）**：若 4h repair 之後 240m label path 仍會因最近幾小時缺口被卡住，`repair_recent_raw_continuity()` 還必須再跑 **1h public-kline repair**；若 public kline 仍補不到 gap，則允許對 `max_gap_hours<=12h` 的 recent raw gap 生成 **hourly interpolated bridge rows** 作為 temporary continuity bridge。這個 bridge 只用來讓 canonical 240m label / freshness pipeline 繼續閉環，不是歷史價格真值替代；若它連續多輪被觸發，下一輪必須升級成 collector/service continuity root-cause investigation。
+
 **Missing feature-row backfill contract（Heartbeat #628）**：raw continuity repair 之後，`feature_engine/preprocessor.py::backfill_missing_feature_rows()` 必須把 repaired raw timestamps 補進 `features_normalized`。否則 raw rows 即使回來了，label generation 仍會因 feature timestamps 缺失而無法消化 repaired window，形成新的假進度。
 
 **Fast heartbeat contract（Heartbeat #617）**：`python scripts/hb_parallel_runner.py --fast` 必須可直接在 cron 執行，不依賴額外 `--hb` 參數；fast summary 仍需包含 DB counts、canonical IC 腳本結果與 `source_blockers` 摘要，確保快檢查模式不是「只剩數字」的半閉環。
+
+**Regime-aware IC fallback contract（Heartbeat #630）**：`scripts/regime_aware_ic.py` 必須以 `feat_mind` tertiles 作為首選 regime split，但當 canonical rows 的 `feat_mind` 缺值時，不可直接把 row 丟進 `neutral`。必須回退到 `features_normalized.regime_label`，並把 `regime_meta / regime_counts / fallback_rows` 寫入輸出 JSON，否則 heartbeat 會把 analysis artifact 誤判成市場 regime 崩壞，污染 P0/P1 優先級。
 
 ### 3. 標籤層
 根據未來報酬建立多 horizon 標籤，並以 `simulated_pyramid_win` 作為 canonical 主 KPI；`label_spot_long_win` 僅保留 path-aware 比較診斷；`sell_win` 僅保留 legacy 相容欄位。

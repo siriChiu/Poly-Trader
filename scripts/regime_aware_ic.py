@@ -22,6 +22,64 @@ CORE_FEATURES = [
     'feat_body', 'feat_pulse', 'feat_aura', 'feat_mind',
 ]
 
+
+def _is_finite_number(value):
+    return isinstance(value, (int, float, np.floating)) and np.isfinite(value)
+
+
+def _assign_regimes(matched):
+    """Assign regimes using Mind tertiles when available, else fallback to features.regime_label.
+
+    Heartbeat #630 fix: many canonical rows have feat_mind=None, which previously dumped
+    most rows into a fake 'neutral' bucket and polluted regime-aware IC analysis.
+    """
+    mind_vals = np.array([
+        float(r['feat_mind']) for r in matched if _is_finite_number(r.get('feat_mind'))
+    ], dtype=float)
+
+    fallback_used = 0
+    if len(mind_vals) > 100:
+        p33, p67 = float(np.percentile(mind_vals, 33)), float(np.percentile(mind_vals, 67))
+        for r in matched:
+            feat_mind = r.get('feat_mind')
+            if _is_finite_number(feat_mind):
+                feat_mind = float(feat_mind)
+                if feat_mind < p33:
+                    r['regime'] = 'bear'
+                elif feat_mind > p67:
+                    r['regime'] = 'bull'
+                else:
+                    r['regime'] = 'chop'
+                continue
+
+            feature_regime = r.get('feature_regime')
+            if feature_regime in {'bear', 'bull', 'chop'}:
+                r['regime'] = feature_regime
+            else:
+                r['regime'] = 'neutral'
+            fallback_used += 1
+        return {
+            'method': 'mind_tertiles_with_feature_regime_fallback',
+            'p33': round(p33, 6),
+            'p67': round(p67, 6),
+            'fallback_rows': fallback_used,
+            'mind_rows': int(len(mind_vals)),
+        }
+
+    for r in matched:
+        feature_regime = r.get('feature_regime')
+        if feature_regime in {'bear', 'bull', 'chop'}:
+            r['regime'] = feature_regime
+        else:
+            r['regime'] = 'neutral'
+        fallback_used += 1
+    return {
+        'method': 'feature_regime_only_fallback',
+        'fallback_rows': fallback_used,
+        'mind_rows': int(len(mind_vals)),
+    }
+
+
 def _safe_spearman(vals, labs):
     vals = np.array(vals, dtype=float)
     labs = np.array(labs, dtype=float)
@@ -44,7 +102,7 @@ def main():
     conn = sqlite3.connect(DB_PATH)
     
     # Load features + labels via JOIN
-    feat_query = f"""SELECT f.{', f.'.join(CORE_FEATURES)}, f.timestamp, f.symbol, f.regime_label
+    feat_query = f"""SELECT f.{', f.'.join(CORE_FEATURES)}, f.timestamp, f.symbol, f.regime_label AS feature_regime
                      FROM features_normalized f ORDER BY f.timestamp"""
     feat_df = conn.execute(feat_query)
     feat_names = [d[0] for d in feat_df.description]
@@ -74,29 +132,17 @@ def main():
     print(f"Regime-Aware IC Analysis — n={n}")
     print("=" * 70)
     
-    # Determine regime using Mind tertiles (as per skill doc pattern)
-    mind_vals = np.array([r['feat_mind'] for r in matched if r['feat_mind'] is not None])
-    if len(mind_vals) > 100:
-        p33, p67 = float(np.percentile(mind_vals, 33)), float(np.percentile(mind_vals, 67))
-        for r in matched:
-            if r['feat_mind'] is not None:
-                if r['feat_mind'] < p33:
-                    r['regime'] = 'bear'
-                elif r['feat_mind'] > p67:
-                    r['regime'] = 'bull'
-                else:
-                    r['regime'] = 'chop'
-            else:
-                r['regime'] = 'neutral'
-    else:
-        for r in matched:
-            r['regime'] = 'neutral'
-    
-    # Also count DB regime_label
+    regime_meta = _assign_regimes(matched)
+
     regime_counts = {}
     for r in matched:
         regime_counts[r['regime']] = regime_counts.get(r['regime'], 0) + 1
-    print(f"Regime distribution (Mind tertiles): {regime_counts}")
+    print(f"Regime distribution ({regime_meta['method']}): {regime_counts}")
+    if regime_meta.get('fallback_rows'):
+        print(
+            f"  ↳ fallback rows using features.regime_label: {regime_meta['fallback_rows']}"
+            f" / {len(matched)}"
+        )
     
     # Compute IC per regime
     regimes = ['bear', 'bull', 'chop', 'neutral']
@@ -150,6 +196,8 @@ def main():
     
     result[f'overall_{TARGET_COL}'] = round(overall, 4)
     result['overall_n'] = len(matched)
+    result['regime_meta'] = regime_meta
+    result['regime_counts'] = regime_counts
     
     os.makedirs('/home/kazuha/Poly-Trader/data', exist_ok=True)
     with open('/home/kazuha/Poly-Trader/data/ic_regime_analysis.json', 'w') as f:
