@@ -59,6 +59,13 @@ interface StrategyMetadata {
   model_summary?: string;
 }
 
+interface DecisionContractMeta {
+  target_col?: string | null;
+  target_label?: string | null;
+  sort_semantics?: string | null;
+  decision_quality_horizon_minutes?: number | null;
+}
+
 interface StrategyResult {
   roi: number;
   win_rate: number;
@@ -83,6 +90,8 @@ interface StrategyResult {
   decision_quality_label?: string | null;
   decision_quality_sample_size?: number | null;
   target_col?: string | null;
+  target_label?: string | null;
+  sort_semantics?: string | null;
   regime_breakdown?: RegimeBreakdownEntry[];
   benchmarks?: {
     buy_hold?: BenchmarkEntry;
@@ -100,6 +109,7 @@ interface StrategyEntry {
   definition: { type: string; params: Record<string, any> };
   metadata?: StrategyMetadata;
   last_results?: StrategyResult;
+  decision_contract?: DecisionContractMeta;
   run_count: number;
   stability_score?: number | null;
   stability_label?: string;
@@ -572,6 +582,11 @@ export default function StrategyLab() {
     activeResult ? { label: "你的策略", roi: activeResult.roi, win_rate: activeResult.win_rate, total_pnl: activeResult.total_pnl, profit_factor: activeResult.profit_factor } : null,
   ].filter(Boolean) as BenchmarkEntry[];
 
+  const activeDecisionContract = activeResult ?? selectedStrategy?.decision_contract ?? null;
+  const activeTargetLabel = activeResult?.target_label || selectedStrategy?.decision_contract?.target_label || strategyMeta.target_label || "Canonical Decision Quality";
+  const activeSortSemantics = activeResult?.sort_semantics || selectedStrategy?.decision_contract?.sort_semantics || strategyMeta.sort_semantics || "avg_decision_quality_score -> avg_expected_win_rate -> lower drawdown penalty -> ROI";
+  const activeHorizonMinutes = activeResult?.decision_quality_horizon_minutes || selectedStrategy?.decision_contract?.decision_quality_horizon_minutes || activeDecisionContract?.decision_quality_horizon_minutes || 1440;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -685,6 +700,41 @@ export default function StrategyLab() {
               />
             </div>
             <div className="space-y-3">
+              <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-300">🎯 Active Strategy Decision Quality</div>
+                    <div className="text-[11px] text-slate-500">{activeTargetLabel} · horizon {activeHorizonMinutes}m</div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-lg font-bold ${decisionQualityTone(activeResult?.avg_decision_quality_score)}`}>
+                      DQ {formatDecimal(activeResult?.avg_decision_quality_score, 3)}
+                    </div>
+                    <div className="text-[11px] text-slate-500">{activeResult?.decision_quality_label || "尚未校準"}</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: "預期勝率", value: formatPct(activeResult?.avg_expected_win_rate), color: "text-emerald-300" },
+                    { label: "預期品質", value: formatDecimal(activeResult?.avg_expected_pyramid_quality, 3), color: "text-cyan-300" },
+                    { label: "回撤懲罰", value: formatPct(activeResult?.avg_expected_drawdown_penalty), color: "text-amber-300" },
+                    { label: "深套時間", value: formatPct(activeResult?.avg_expected_time_underwater), color: "text-orange-300" },
+                    { label: "校準樣本", value: `${activeResult?.decision_quality_sample_size ?? 0}`, color: "text-slate-200" },
+                    { label: "平均允許層數", value: formatDecimal(activeResult?.avg_allowed_layers, 1), color: "text-fuchsia-300" },
+                  ].map((card) => (
+                    <div key={card.label} className="bg-slate-800/50 rounded-lg p-3">
+                      <div className="text-[11px] text-slate-500">{card.label}</div>
+                      <div className={`text-lg font-bold ${card.color}`}>{card.value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 p-3 text-[11px] text-slate-400 leading-5">
+                  <div className="text-cyan-200">Canonical 排序 / 說明語義</div>
+                  <div className="mt-1">{describeStrategyRankingReason(activeResult || null)}</div>
+                  <div className="mt-1 text-slate-500">排序依據：{activeSortSemantics}</div>
+                </div>
+              </div>
+
               <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 grid grid-cols-2 gap-3">
                 {[
                   { label: "ROI", value: formatPct(activeResult?.roi, 1, true), color: isFiniteNumber(activeResult?.roi) && (activeResult?.roi ?? 0) >= 0 ? "text-green-400" : "text-red-400" },
@@ -694,7 +744,7 @@ export default function StrategyLab() {
                   { label: "最大回撤", value: formatPct(activeResult?.max_drawdown), color: "text-red-400" },
                   { label: "總損益", value: formatMoney(activeResult?.total_pnl), color: isFiniteNumber(activeResult?.total_pnl) && (activeResult?.total_pnl ?? 0) >= 0 ? "text-green-400" : "text-red-400" },
                   { label: "平均進場品質", value: formatDecimal(activeResult?.avg_entry_quality, 2), color: "text-cyan-300" },
-                  { label: "平均允許層數", value: formatDecimal(activeResult?.avg_allowed_layers, 1), color: "text-fuchsia-300" },
+                  { label: "主 target", value: activeDecisionContract?.target_col || "simulated_pyramid_win", color: "text-sky-300" },
                 ].map((card) => (
                   <div key={card.label} className="bg-slate-800/50 rounded-lg p-3">
                     <div className="text-[11px] text-slate-500">{card.label}</div>

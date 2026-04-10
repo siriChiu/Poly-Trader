@@ -11,6 +11,7 @@ from server.routes.api import (
     _compute_strategy_risk,
     _decorate_strategy_entry,
     _compute_strategy_decision_quality_profile,
+    _strategy_decision_contract_meta,
     _strategy_leaderboard_sort_key,
 )
 
@@ -224,6 +225,24 @@ def test_decorate_strategy_entry_adds_risk_fields():
     assert enriched["stability_label"] in {"穩定", "中等"}
     assert enriched["overfit_risk"] == "low"
     assert enriched["trade_sufficiency"] == "high"
+
+
+def test_decorate_strategy_entry_attaches_decision_contract_meta():
+    entry = {
+        "name": "Canonical Strategy",
+        "run_count": 1,
+        "last_results": {
+            "decision_quality_horizon_minutes": 240,
+            "avg_decision_quality_score": 0.31,
+        },
+    }
+
+    enriched = _decorate_strategy_entry(entry)
+
+    assert enriched["decision_contract"] == _strategy_decision_contract_meta(horizon_minutes=240)
+    assert enriched["last_results"]["target_col"] == "simulated_pyramid_win"
+    assert enriched["last_results"]["target_label"] == "Canonical Decision Quality"
+    assert "avg_expected_win_rate" not in enriched["decision_contract"]
 
 
 def test_compute_strategy_decision_quality_profile_uses_canonical_label_fields(tmp_path: Path):

@@ -974,10 +974,23 @@ def _get_sqlite_db_path(db) -> Optional[str]:
 
 
 
+STRATEGY_DECISION_TARGET_COL = "simulated_pyramid_win"
+STRATEGY_DECISION_TARGET_LABEL = "Canonical Decision Quality"
+STRATEGY_DECISION_SORT_SEMANTICS = "avg_decision_quality_score -> avg_expected_win_rate -> lower drawdown penalty -> ROI"
+
+
+def _strategy_decision_contract_meta(horizon_minutes: int = 1440) -> Dict[str, Any]:
+    return {
+        "target_col": STRATEGY_DECISION_TARGET_COL,
+        "target_label": STRATEGY_DECISION_TARGET_LABEL,
+        "sort_semantics": STRATEGY_DECISION_SORT_SEMANTICS,
+        "decision_quality_horizon_minutes": horizon_minutes,
+    }
+
+
 def _empty_strategy_quality_profile(horizon_minutes: int = 1440) -> Dict[str, Any]:
     return {
-        "target_col": "simulated_pyramid_win",
-        "decision_quality_horizon_minutes": horizon_minutes,
+        **_strategy_decision_contract_meta(horizon_minutes=horizon_minutes),
         "avg_expected_win_rate": None,
         "avg_expected_pyramid_pnl": None,
         "avg_expected_pyramid_quality": None,
@@ -1191,7 +1204,14 @@ def _decorate_strategy_entry(entry: Dict[str, Any], db=None) -> Dict[str, Any]:
         for key, value in quality_profile.items():
             if last_results.get(key) is None:
                 last_results[key] = value
+
+    contract_horizon = int(last_results.get("decision_quality_horizon_minutes") or 1440)
+    for key, value in _strategy_decision_contract_meta(horizon_minutes=contract_horizon).items():
+        if last_results.get(key) is None:
+            last_results[key] = value
+
     enriched["last_results"] = last_results or None
+    enriched["decision_contract"] = _strategy_decision_contract_meta(horizon_minutes=contract_horizon)
     risk = _compute_strategy_risk(last_results)
     enriched.update(risk)
     return enriched
@@ -1335,9 +1355,7 @@ async def api_strategy_leaderboard():
     return {
         "strategies": strategies,
         "count": len(strategies),
-        "target_col": "simulated_pyramid_win",
-        "target_label": "Canonical Decision Quality",
-        "sort_semantics": "avg_decision_quality_score -> avg_expected_win_rate -> lower drawdown penalty -> ROI",
+        **_strategy_decision_contract_meta(),
     }
 
 
@@ -1460,10 +1478,17 @@ async def api_run_strategy(body: Dict[str, Any]):
         **decision_profile,
         **canonical_quality_profile,
     }
+    contract_meta = _strategy_decision_contract_meta(
+        horizon_minutes=int(results_dict.get("decision_quality_horizon_minutes") or 1440)
+    )
+    for key, value in contract_meta.items():
+        results_dict.setdefault(key, value)
+
     save_strategy(name, strat_def, results_dict)
     return {
         "strategy": name, "type": stype, "params": params,
         "results": results_dict,
+        "decision_contract": contract_meta,
         "equity_curve": recent_equity_curve,
         "trades": recent_trades,
         "chart_context": chart_context,

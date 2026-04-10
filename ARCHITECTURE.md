@@ -119,7 +119,7 @@
 - `profit_factor_score`
 - `overfit_penalty`
 
-Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `simulated_pyramid_drawdown_penalty` / `simulated_pyramid_time_underwater`；它還必須在每個 fold 的**實際 trade entry timestamps** 上聚合這些欄位，計算與 predictor 對齊的 `avg_decision_quality_score`，並把這組欄位序列化到 API payload。Heartbeat #643 已把 Strategy Lab 模型排行榜前端摘要同步切到這組 canonical decision-quality semantics；Heartbeat #644 再把 `/api/strategies/leaderboard`、`/api/strategies/{name}` 與 Strategy Lab 的**策略排行榜主表**一起升級為同一組 `avg_decision_quality_score + avg_expected_*` contract。剩餘缺口不再是 leaderboard/detail path 漏接，而是 active strategy summary 與更深的 strategy comparison 文案仍需升級到同一語義。
+Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `simulated_pyramid_drawdown_penalty` / `simulated_pyramid_time_underwater`；它還必須在每個 fold 的**實際 trade entry timestamps** 上聚合這些欄位，計算與 predictor 對齊的 `avg_decision_quality_score`，並把這組欄位序列化到 API payload。Heartbeat #643 已把 Strategy Lab 模型排行榜前端摘要同步切到這組 canonical decision-quality semantics；Heartbeat #644 再把 `/api/strategies/leaderboard`、`/api/strategies/{name}` 與 Strategy Lab 的**策略排行榜主表**一起升級為同一組 `avg_decision_quality_score + avg_expected_*` contract。Heartbeat #645 進一步要求 `/api/strategies/{name}`、`/api/strategies/run` 與前端 active strategy summary 一律攜帶 `decision_contract = {target_col, target_label, sort_semantics, decision_quality_horizon_minutes}`，讓「剛跑完的策略」與「已儲存策略詳情」都使用同一套 canonical 語義，而不是只在 leaderboard 中成立。剩餘缺口縮小到更深的 strategy comparison 文案。
 
 **Core-vs-research signal contract（2026-04-10 strategy review）**：主模型與主 UI 必須區分兩類信號：
 - **核心信號**：4H 結構 + 高 coverage technical（可直接參與主決策）
