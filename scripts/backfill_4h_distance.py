@@ -13,8 +13,10 @@
   feat_4h_rsi14          : 1m 所屬時段對應的 4H RSI14 值
   feat_4h_macd_hist      : 1m 所屬時段對應的 4H MACD histogram
   feat_4h_bb_pct_b       : 1m 價格在 4H 布林通道中的位置
+  feat_4h_dist_bb_lower  : 1m 價格距 4H 布林下軌距離 (%)
   feat_4h_dist_swing_low : (1m_price - 最近4H支撐) / 4H支撐 * 100
   feat_4h_ma_order       : MA 排列方向 (bullish / bearish / mixed)
+  feat_4h_vol_ratio      : 4H 成交量 / 20 期平均量
 """
 import sys
 import os
@@ -189,6 +191,8 @@ def main():
     rsi14_arr = compute_rsi(c4h.tolist(), 14)
     macd_h_arr = compute_macd_hist(c4h.tolist())
     swing_low, swing_high = find_swings_rolling(h4h.tolist(), l4h.tolist(), window=10)
+    vol_ma20 = np.convolve(np.array([o[5] for o in ohlcv_all], dtype=float), np.ones(20) / 20.0, mode='same')
+    vol_ratio_arr = np.where(vol_ma20 > 0, np.array([o[5] for o in ohlcv_all], dtype=float) / vol_ma20, 1.0)
 
     # 布林通道
     bb_upper = [0.0] * n4h
@@ -234,13 +238,15 @@ def main():
     out_rsi14   = [50.0] * len(price_list)
     out_macd_h  = [0.0] * len(price_list)
     out_bb_pct  = [0.5] * len(price_list)
+    out_dist_bb_lower = [0.0] * len(price_list)
     out_swing_l = [0.0] * len(price_list)
     out_swing_h = [0.0] * len(price_list)
     out_ma_ord  = [0.0] * len(price_list)
+    out_vol_ratio = [1.0] * len(price_list)
 
     filled = 0
     for i in range(len(price_list)):
-        dt = datetime.strptime(ts_list[i], '%Y-%m-%d %H:%M:%S')
+        dt = datetime.fromisoformat(ts_list[i])
         ts_ms = int(dt.timestamp() * 1000)
         price = price_list[i]
 
@@ -258,6 +264,7 @@ def main():
             out_bias20[i] = (price - ma20_arr[pos]) / ma20_arr[pos] * 100.0
         out_rsi14[i]  = rsi14_arr[pos]
         out_macd_h[i] = macd_h_arr[pos]
+        out_vol_ratio[i] = float(vol_ratio_arr[pos]) if np.isfinite(vol_ratio_arr[pos]) else 1.0
         if swing_low[pos]:
             out_swing_l[i] = (price - swing_low[pos]) / swing_low[pos] * 100.0
         if swing_high[pos]:
@@ -269,6 +276,8 @@ def main():
         bl = bb_lower[pos]
         if bu != bl:
             out_bb_pct[i] = (price - bl) / (bu - bl)
+        if bl:
+            out_dist_bb_lower[i] = (price - bl) / bl * 100.0
 
         filled += 1
 
@@ -297,17 +306,17 @@ def main():
     batch = []
     for i in range(len(price_list)):
         batch.append((
-            out_bias50[i],  out_bias20[i],
+            out_bias50[i],  out_bias20[i], out_bias200[i],
             out_rsi14[i],   out_macd_h[i],
-            out_bb_pct[i],  out_ma_ord[i],
-            out_swing_l[i], id_list[i],
+            out_bb_pct[i],  out_dist_bb_lower[i], out_ma_ord[i],
+            out_swing_l[i], out_vol_ratio[i], id_list[i],
         ))
         if len(batch) >= BATCH:
             conn.executemany("""
                 UPDATE features_normalized
-                SET feat_4h_bias50=?, feat_4h_bias20=?, feat_4h_rsi14=?,
-                    feat_4h_macd_hist=?, feat_4h_bb_pct_b=?, feat_4h_ma_order=?,
-                    feat_4h_dist_swing_low=?
+                SET feat_4h_bias50=?, feat_4h_bias20=?, feat_4h_bias200=?, feat_4h_rsi14=?,
+                    feat_4h_macd_hist=?, feat_4h_bb_pct_b=?, feat_4h_dist_bb_lower=?, feat_4h_ma_order=?,
+                    feat_4h_dist_swing_low=?, feat_4h_vol_ratio=?
                 WHERE id=?
             """, batch)
             conn.commit()
@@ -316,9 +325,9 @@ def main():
     if batch:
         conn.executemany("""
             UPDATE features_normalized
-            SET feat_4h_bias50=?, feat_4h_bias20=?, feat_4h_rsi14=?,
-                feat_4h_macd_hist=?, feat_4h_bb_pct_b=?, feat_4h_ma_order=?,
-                feat_4h_dist_swing_low=?
+            SET feat_4h_bias50=?, feat_4h_bias20=?, feat_4h_bias200=?, feat_4h_rsi14=?,
+                feat_4h_macd_hist=?, feat_4h_bb_pct_b=?, feat_4h_dist_bb_lower=?, feat_4h_ma_order=?,
+                feat_4h_dist_swing_low=?, feat_4h_vol_ratio=?
             WHERE id=?
         """, batch)
         conn.commit()

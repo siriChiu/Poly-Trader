@@ -63,6 +63,10 @@
 ### 4. 模型層
 使用特徵做交易決策與現貨 long 加碼判斷，允許 abstain 與 regime-aware weights。
 
+**Model feature parity contract（Heartbeat #633）**：`model/train.py`、`model/predictor.py`、`scripts/full_ic.py` 必須共用同一個 canonical base feature semantics。當 DB / preprocessor 新增可訓練特徵（例如 `feat_4h_bias200`、`feat_4h_dist_bb_lower`、`feat_4h_vol_ratio`）時，不允許只更新 schema 或 coverage/UI；訓練、推論、IC diagnostics 必須同輪一起升級，否則 heartbeat 會落入「資料已存在但模型與診斷仍忽略」的假進度。
+
+**Sparse 4H inference alignment contract（Heartbeat #633）**：predictor 不可直接使用 latest dense row 上的 raw 4H 欄位，因為 4H features 在 dense rows 上可能是 sparse/NULL。`load_latest_features()` 必須套用與 training 相同的 asof alignment（目前沿用 `model.train._align_sparse_4h_features()`）來生成 base + lag 4H features；若 recent 4H rows 在 DB 已 stale，應先 backfill 4H history，而不是讓推論默默退回 0/NULL。
+
 ### 5. 回測層
 驗證不同特徵組合、不同市場狀態與不同入場／加碼／出場閾值下的表現。
 

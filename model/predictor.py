@@ -15,15 +15,21 @@ logger = setup_logger(__name__)
 
 DEFAULT_TARGET_COL = "simulated_pyramid_win"
 MODEL_PATH = "model/xgb_model.pkl"
-# Core 8 senses: IC-validated, non-constant features
+# Canonical inference feature base — must stay in parity with model.train.FEATURE_COLS.
 BASE_FEATURE_COLS = [
-    "feat_eye", "feat_ear", "feat_nose",
-    "feat_tongue", "feat_body", "feat_pulse",
-    "feat_aura", "feat_mind",
-    # 4H Timeframe Features (低雜訊大方向)
-    "feat_4h_bias50", "feat_4h_bias20",
+    # 8 core senses
+    "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
+    "feat_body", "feat_pulse", "feat_aura", "feat_mind",
+    # 2 macro
+    "feat_vix", "feat_dxy",
+    # 5 technical indicators
+    "feat_rsi14", "feat_macd_hist", "feat_atr_pct",
+    "feat_vwap_dev", "feat_bb_pct_b",
+    # 4H timeframe features
+    "feat_4h_bias50", "feat_4h_bias20", "feat_4h_bias200",
     "feat_4h_rsi14", "feat_4h_macd_hist", "feat_4h_bb_pct_b",
-    "feat_4h_ma_order", "feat_4h_dist_swing_low",
+    "feat_4h_dist_bb_lower", "feat_4h_ma_order",
+    "feat_4h_dist_swing_low", "feat_4h_vol_ratio",
 ]
 
 # Aux 8 senses: permanently removed from DB — #H380 (HB #206 cleanup)
@@ -370,33 +376,38 @@ def load_predictor():
 
 
 def load_latest_features(session: Session) -> Optional[Dict]:
-    """Load latest features including lag features (for 32-feature model support),
-    plus VIX, DXY, and cross-features that the model was trained with."""
-    max_lag = max(LAG_STEPS) + 1  # need 289 rows for lag288
-    rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp.desc()).limit(max_lag).all()
+    """Load latest features in parity with the training pipeline.
+
+    Critical contract: inference must see the same base + lag feature space as
+    `model.train.load_training_data()`, including sparse 4H features aligned via
+    the same asof merge logic rather than raw `None` values on dense rows.
+    """
+    import pandas as pd
+    from model.train import _align_sparse_4h_features
+
+    max_lag = max(LAG_STEPS) + 1  # need 289 dense rows for lag288
+    lookback_rows = max(max_lag, 2000)  # include sparse 4H snapshots for asof alignment
+    rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp.desc()).limit(lookback_rows).all()
     if not rows:
         return None
-    # rows[0] is the latest
+
     latest = rows[0]
+    dense_rows = []
+    for row in reversed(rows):
+        dense_rows.append({
+            "timestamp": row.timestamp,
+            "regime_label": getattr(row, "regime_label", None),
+            **{col: getattr(row, col, None) for col in BASE_FEATURE_COLS},
+        })
+    aligned_df = _align_sparse_4h_features(pd.DataFrame(dense_rows))
+    aligned_df = aligned_df.sort_values("timestamp", ascending=False).reset_index(drop=True)
+    latest_aligned = aligned_df.iloc[0].to_dict()
+
     features = {
         "timestamp": latest.timestamp,
-        "feat_eye": getattr(latest, "feat_eye", None),
-        "feat_ear": getattr(latest, "feat_ear", None),
-        "feat_nose": getattr(latest, "feat_nose", None),
-        "feat_tongue": getattr(latest, "feat_tongue", None),
-        "feat_body": getattr(latest, "feat_body", None),
-        "feat_pulse": getattr(latest, "feat_pulse", None),
-        "feat_aura": getattr(latest, "feat_aura", None),
-        "feat_mind": getattr(latest, "feat_mind", None),
-        # #H380: dead aux features removed from DB (HB #206 cleanup)
-        # P0 #H149-fix1: Include VIX and DXY at inference time (model was trained with them)
-        "feat_vix": getattr(latest, "feat_vix", None),
-        "feat_dxy": getattr(latest, "feat_dxy", None),
-        "feat_rsi14": getattr(latest, "feat_rsi14", None),
-        "feat_macd_hist": getattr(latest, "feat_macd_hist", None),
-        "feat_atr_pct": getattr(latest, "feat_atr_pct", None),
-        "feat_vwap_dev": getattr(latest, "feat_vwap_dev", None),
-        "feat_bb_pct_b": getattr(latest, "feat_bb_pct_b", None),
+        **{col: latest_aligned.get(col) for col in BASE_FEATURE_COLS},
+        # Keep sparse / experimental features visible for diagnostics even though
+        # they are intentionally excluded from the canonical training feature set.
         "feat_claw": getattr(latest, "feat_claw", None),
         "feat_claw_intensity": getattr(latest, "feat_claw_intensity", None),
         "feat_fang_pcr": getattr(latest, "feat_fang_pcr", None),
@@ -408,31 +419,36 @@ def load_latest_features(session: Session) -> Optional[Dict]:
         "feat_nq_return_1h": getattr(latest, "feat_nq_return_1h", None),
         "feat_nq_return_24h": getattr(latest, "feat_nq_return_24h", None),
     }
-    # Compute lag features: rows are DESC, so rows[lag] is `lag` steps ago
+    # Compute lag features from the aligned dense frame so 4H lags match training-time asof alignment.
     for col in BASE_FEATURE_COLS:
         for lag in LAG_STEPS:
             lag_col = f"{col}_lag{lag}"
-            if lag < len(rows):
-                features[lag_col] = getattr(rows[lag], col, None)
+            if lag < len(aligned_df):
+                val = aligned_df.iloc[lag].get(col)
+                features[lag_col] = None if pd.isna(val) else val
             else:
                 features[lag_col] = None  # Not enough history
 
+    def _num(name: str) -> float:
+        val = features.get(name)
+        return 0.0 if val is None else float(val)
+
     # P0 #H149-fix2: Compute VIX cross-features at inference time to match training
-    vix = features.get("feat_vix") or 0
-    eye = features.get("feat_eye") or 0
-    pulse = features.get("feat_pulse") or 0
-    mind = features.get("feat_mind") or 0
+    vix = _num("feat_vix")
+    eye = _num("feat_eye")
+    pulse = _num("feat_pulse")
+    mind = _num("feat_mind")
     features["feat_vix_x_eye"] = vix * eye
     features["feat_vix_x_pulse"] = vix * pulse
     features["feat_vix_x_mind"] = vix * mind
 
     # Cross-sense features matching train.py
-    features["feat_mind_x_pulse"] = (mind * pulse)
-    features["feat_eye_x_ear"] = (eye * features.get("feat_ear", 0))
-    features["feat_nose_x_aura"] = (features.get("feat_nose", 0) * features.get("feat_aura", 0))
-    features["feat_eye_x_body"] = eye * (features.get("feat_body", 0))
-    features["feat_ear_x_nose"] = (features.get("feat_ear", 0) * features.get("feat_nose", 0))
-    features["feat_mind_x_aura"] = mind * (features.get("feat_aura", 0))
+    features["feat_mind_x_pulse"] = mind * pulse
+    features["feat_eye_x_ear"] = eye * _num("feat_ear")
+    features["feat_nose_x_aura"] = _num("feat_nose") * _num("feat_aura")
+    features["feat_eye_x_body"] = eye * _num("feat_body")
+    features["feat_ear_x_nose"] = _num("feat_ear") * _num("feat_nose")
+    features["feat_mind_x_aura"] = mind * _num("feat_aura")
 
     # Regime flag — prefer DB regime_label over heuristic (P0 #H379)
     regime = getattr(latest, "regime_label", None)
@@ -442,7 +458,7 @@ def load_latest_features(session: Session) -> Optional[Dict]:
     features["feat_regime_flag"] = {"trend": 1.0, "chop": -1.0, "panic": -0.5, "event": 0.5, "normal": 0.0}.get(regime, 0.0)
 
     # Mean-reversion proxy
-    features["feat_mean_rev_proxy"] = mind - (features.get("feat_aura", 0))
+    features["feat_mean_rev_proxy"] = mind - _num("feat_aura")
     # P0: Disabled cross-features — base features (claw, fang, fin, nq) have <500 samples
     # Re-enable when these features have sufficient data
     # vix = features.get("feat_vix", 0) or 0
