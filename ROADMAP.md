@@ -71,6 +71,9 @@
 - [x] Canonical-window IC guardrails：full/regime/dynamic-window 腳本固定使用 `horizon_minutes=1440`，對 `constant_target` / `constant_feature` 顯式標註，避免 NaN 假 blocker
 - [x] Strategy Lab canonical target emphasis：model leaderboard target comparison 現在把 `simulated_pyramid_win` 排在第一位並標成 `canonical`，`label_spot_long_win` 明確降級為 `legacy compare` 診斷卡，避免主 target 再被舊語義稀釋
 - [x] warning-safe indicator math：`technical_indicators.py` / `ohlcv_4h.py` 已改用 warning-safe divide，fast heartbeat collect 在 flat price / zero-volume window 下不再噴 divide-by-zero RuntimeWarning，stderr 可重新代表真 blocker
+- [x] 4h canonical label backfill hygiene：`save_labels_to_db()` 現在會補齊既有 row 中缺失的 `simulated_pyramid_*` / `label_spot_long_*` 欄位，不再把已有 `future_return_pct` 的 legacy rows 留成半遷移狀態；heartbeat 240m target_rows 因此回到真實量級
+- [x] label horizon freshness root-cause gating：`hb_collect.py` / `hb_parallel_runner.py` 現在會把 horizon 分成 `expected_horizon_lag` / `raw_gap_blocked` / `inactive_horizon`，避免把 720m legacy rows 或 upstream raw gap 誤報成 label pipeline 本身故障
+- [ ] Raw continuity recovery gate：針對 240m `raw_gap_blocked` 狀態，定位並修復 upstream raw collection / service continuity，讓 4h canonical targets 重新隨 raw 增長而更新
 - [ ] Sparse-source historical backfill：在 decontaminate 完成後，為 Web / Fang / Scales / Claw / Fin / Nest 補真正歷史 coverage，而不是再引入 fallback/carry-forward
 - [ ] Dynamic Window recent-window 穩定化：N=100/200/400 已確認不是 merge bug，而是 canonical 24h labels 在最近窗口全部為 1；下一步需設計 distribution-aware window / alternate evaluation rule
 

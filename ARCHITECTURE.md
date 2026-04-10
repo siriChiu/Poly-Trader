@@ -36,6 +36,13 @@
 
 **Warning-safe indicator math contract（Heartbeat #626）**：feature layer 的技術指標 / 4H 指標計算不得在 flat price、zero-volume 或 zero-width band 視窗下產生 `divide by zero` / `invalid value` RuntimeWarning。所有分母可能為 0 的計算都必須使用 warning-safe divide（例如 `np.divide(..., where=...)`），確保 fast heartbeat stderr 只保留真實 blocker，而不是數值邊界噪音。
 
+**Label horizon freshness contract（Heartbeat #627）**：heartbeat 維護的 active horizons 目前只有 **240m 與 1440m**。`scripts/hb_collect.py::summarize_label_horizons()` 與 `hb_parallel_runner.py` summary 必須把 label freshness 分成：
+- `expected_horizon_lag`：符合 lookahead 預期
+- `raw_gap_blocked`：label 落後主因是 target 之後的 raw timeline 出現超過 horizon 容許值的斷層
+- `inactive_horizon`：DB 中保留的 legacy horizon（如 720m），不得再當 active heartbeat blocker
+
+**Canonical label backfill contract（Heartbeat #627）**：`save_labels_to_db()` 不得只更新 `future_return_pct IS NULL` 的舊 rows。若既有 label row 已有 `future_return_pct`，但 `simulated_pyramid_*` / `label_spot_long_*` canonical 欄位仍為 `NULL`，heartbeat label generation 必須原地回填，避免 heartbeat 對 4h/24h freshness 做出假陰性判斷。
+
 **Fast heartbeat contract（Heartbeat #617）**：`python scripts/hb_parallel_runner.py --fast` 必須可直接在 cron 執行，不依賴額外 `--hb` 參數；fast summary 仍需包含 DB counts、canonical IC 腳本結果與 `source_blockers` 摘要，確保快檢查模式不是「只剩數字」的半閉環。
 
 ### 3. 標籤層

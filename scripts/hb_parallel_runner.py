@@ -26,6 +26,8 @@ from feature_engine.feature_history_policy import (
     build_source_blocker_summary,
     compute_sqlite_feature_coverage,
 )
+from scripts.hb_collect import summarize_label_horizons
+
 PYTHON = os.path.join(PROJECT_ROOT, 'venv', 'bin', 'python')
 DB_PATH = os.path.join(PROJECT_ROOT, 'poly_trader.db')
 
@@ -83,7 +85,28 @@ def quick_counts():
         "SELECT AVG(CAST(simulated_pyramid_win AS FLOAT)) FROM labels WHERE simulated_pyramid_win IS NOT NULL"
     ).fetchone()[0]
     results['simulated_pyramid_win_rate'] = round(target_rate, 4) if target_rate else 0
+    results['latest_raw_timestamp'] = conn.execute("SELECT MAX(timestamp) FROM raw_market_data").fetchone()[0]
     conn.close()
+
+    from config import load_config
+    from database.models import init_db
+
+    orm_session = init_db(load_config()["database"]["url"])
+    try:
+        results['label_horizons'] = [
+            {
+                'horizon_minutes': row['horizon_minutes'],
+                'rows': row['total_rows'],
+                'target_rows': row['target_rows'],
+                'latest_target_timestamp': row['latest_target_ts'],
+                'freshness': row['freshness'],
+                'is_active': row['is_active'],
+                'latest_raw_gap_hours': row['latest_raw_gap_hours'],
+            }
+            for row in summarize_label_horizons(orm_session)
+        ]
+    finally:
+        orm_session.close()
     return results
 
 
@@ -246,6 +269,12 @@ def main(argv=None):
         f"📊 DB Counts: Raw={counts['raw_market_data']}, Features={counts['features_normalized']}, "
         f"Labels={counts['labels']}, simulated_win={counts['simulated_pyramid_win_rate']}"
     )
+    latest_raw_ts = counts.get('latest_raw_timestamp')
+    for row in counts.get('label_horizons', []):
+        print(
+            f"   • labels[{row['horizon_minutes']}m]: rows={row['rows']} target_rows={row['target_rows']} "
+            f"latest_target={row['latest_target_timestamp']} vs raw={latest_raw_ts}"
+        )
     print_source_blockers(source_blockers)
 
     tasks = TASKS.copy()

@@ -9,6 +9,7 @@ Usage: python scripts/hb_collect.py
 """
 import os, sys, logging
 from datetime import datetime
+from typing import Any, Dict, List
 
 PROJECT = "/home/kazuha/Poly-Trader"
 sys.path.insert(0, PROJECT)
@@ -21,6 +22,125 @@ from config import load_config
 from database.models import RawMarketData, FeaturesNormalized, Labels, init_db
 
 SYMBOL = "BTCUSDT"
+ACTIVE_HEARTBEAT_HORIZONS = {240, 1440}
+
+
+def _coerce_dt(value):
+    if value is None or isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value))
+
+
+def _max_raw_gap_hours_since(session, since_ts: datetime | None, symbol: str = SYMBOL) -> float | None:
+    if since_ts is None:
+        return None
+    raw_rows = (
+        session.query(RawMarketData.timestamp)
+        .filter(RawMarketData.symbol == symbol, RawMarketData.timestamp >= since_ts)
+        .order_by(RawMarketData.timestamp)
+        .all()
+    )
+    if not raw_rows:
+        return None
+    max_gap = 0.0
+    prev_ts = since_ts
+    for (raw_ts,) in raw_rows:
+        current_ts = _coerce_dt(raw_ts)
+        if current_ts is None or prev_ts is None:
+            continue
+        max_gap = max(max_gap, (current_ts - prev_ts).total_seconds() / 3600)
+        prev_ts = current_ts
+    return round(max_gap, 2)
+
+
+def summarize_label_horizons(
+    session,
+    symbol: str = SYMBOL,
+    active_horizons: set[int] | None = None,
+) -> List[Dict[str, Any]]:
+    """Return per-horizon label freshness so active-vs-legacy horizons are not conflated.
+
+    240m and 1440m are the heartbeat-maintained horizons. Older legacy horizons may still
+    exist in the DB for diagnostics, but should not be surfaced as active pipeline blockers.
+    """
+    active_horizons = set(active_horizons or ACTIVE_HEARTBEAT_HORIZONS)
+    latest_raw = session.query(RawMarketData.timestamp).filter(
+        RawMarketData.symbol == symbol
+    ).order_by(RawMarketData.timestamp.desc()).first()
+    latest_raw_ts = _coerce_dt(latest_raw[0]) if latest_raw else None
+
+    rows = session.execute(
+        __import__('sqlalchemy').text(
+            """
+            SELECT horizon_minutes,
+                   COUNT(*) AS total_rows,
+                   SUM(CASE WHEN simulated_pyramid_win IS NOT NULL THEN 1 ELSE 0 END) AS target_rows,
+                   MAX(CASE WHEN simulated_pyramid_win IS NOT NULL THEN timestamp END) AS latest_target_ts
+            FROM labels
+            WHERE symbol = :symbol
+            GROUP BY horizon_minutes
+            ORDER BY horizon_minutes
+            """
+        ),
+        {"symbol": symbol},
+    ).fetchall()
+
+    summary = []
+    for horizon_minutes, total_rows, target_rows, latest_target_ts in rows:
+        horizon_minutes = int(horizon_minutes)
+        latest_target_dt = _coerce_dt(latest_target_ts)
+        lag_hours = None
+        raw_gap_hours = _max_raw_gap_hours_since(session, latest_target_dt, symbol)
+        freshness = "no_targets"
+        expected_horizon_hours = horizon_minutes / 60.0
+        tolerance_hours = max(2.0, expected_horizon_hours * 0.25)
+        if latest_raw_ts and latest_target_dt:
+            lag_hours = round((latest_raw_ts - latest_target_dt).total_seconds() / 3600, 2)
+            freshness = "expected_horizon_lag" if lag_hours <= expected_horizon_hours + tolerance_hours else "stale"
+            if (
+                freshness == "stale"
+                and horizon_minutes in active_horizons
+                and raw_gap_hours is not None
+                and raw_gap_hours > expected_horizon_hours + tolerance_hours
+            ):
+                freshness = "raw_gap_blocked"
+        if horizon_minutes not in active_horizons:
+            freshness = "inactive_horizon"
+        summary.append(
+            {
+                "horizon_minutes": horizon_minutes,
+                "total_rows": int(total_rows or 0),
+                "target_rows": int(target_rows or 0),
+                "latest_target_ts": latest_target_dt.isoformat(sep=' ') if latest_target_dt else None,
+                "lag_hours_vs_raw": lag_hours,
+                "latest_raw_gap_hours": raw_gap_hours,
+                "freshness": freshness,
+                "is_active": horizon_minutes in active_horizons,
+            }
+        )
+    return summary
+
+
+def print_label_horizon_summary(session, symbol: str = SYMBOL) -> None:
+    print("\n🏷️  Label horizon freshness:")
+    for row in summarize_label_horizons(session, symbol):
+        lag = row["lag_hours_vs_raw"]
+        lag_str = "n/a" if lag is None else f"{lag:.1f}h"
+        raw_gap = row.get("latest_raw_gap_hours")
+        raw_gap_str = "n/a" if raw_gap is None else f"{raw_gap:.1f}h"
+        note = {
+            "expected_horizon_lag": "expected due to lookahead horizon",
+            "stale": "STALE — investigate collect/label pipeline",
+            "raw_gap_blocked": "STALE — upstream raw gap exceeds this horizon; label path is blocked by missing raw continuity",
+            "no_targets": "no non-null targets yet",
+            "inactive_horizon": "legacy horizon present in DB but not maintained by heartbeat",
+        }[row["freshness"]]
+        print(
+            f"  h={row['horizon_minutes']:>4}m | rows={row['total_rows']:<6} "
+            f"target_rows={row['target_rows']:<6} latest_target={row['latest_target_ts'] or 'N/A'} "
+            f"lag_vs_raw={lag_str} raw_gap={raw_gap_str} | {note}"
+        )
+
 
 def collect_raw_data(session):
     """Step 1: Collect fresh raw data from all sources."""
@@ -214,21 +334,40 @@ def update_regime_labels(session):
     print(f"  ✅ Updated {updated} features with regime labels")
     return updated
 
-def generate_labels(session, horizon_hours=4):
-    """Step 4: Generate labels for features that don't yet have them."""
+def generate_labels(session, horizon_hours=(4, 24)):
+    """Step 4: Generate labels for the active heartbeat horizons.
+
+    24h is the canonical heartbeat target used by IC/model scripts.
+    4h is retained for legacy/diagnostic workflows.
+    """
     from data_ingestion.labeling import generate_future_return_labels, save_labels_to_db
-    
-    labels_df = generate_future_return_labels(session, SYMBOL, horizon_hours)
-    if labels_df.empty:
-        print("❌ Label generation produced empty results")
-        return 0
-    
-    # save_labels_to_db expects horizon_hours and converts to horizon_minutes internally.
-    # Passing horizon_hours * 60 here created bogus 14400-minute labels from a 4-hour job.
-    save_labels_to_db(session, labels_df, SYMBOL, horizon_hours)
+
+    if isinstance(horizon_hours, int):
+        horizons = [horizon_hours]
+    else:
+        horizons = list(horizon_hours)
+
+    total_generated = 0
+    for horizon in horizons:
+        labels_df = generate_future_return_labels(session, SYMBOL, horizon)
+        if labels_df.empty:
+            print(f"⚠️  Label generation produced empty results for horizon={horizon}h")
+            continue
+
+        # save_labels_to_db expects horizon_hours and converts to horizon_minutes internally.
+        # Passing horizon_hours * 60 here created bogus 14400-minute labels from a 4-hour job.
+        before = session.query(Labels).filter(Labels.horizon_minutes == horizon * 60).count()
+        save_labels_to_db(session, labels_df, SYMBOL, horizon)
+        after = session.query(Labels).filter(Labels.horizon_minutes == horizon * 60).count()
+        total_generated += len(labels_df)
+        print(
+            f"✅ Label horizon {horizon}h complete "
+            f"(generated={len(labels_df)}, db_rows={after}, delta={after - before:+d})"
+        )
+
     count = session.query(Labels).count()
     print(f"✅ Label pipeline complete (total={count})")
-    return len(labels_df)
+    return total_generated
 
 def main():
     ts_start = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
@@ -303,6 +442,8 @@ def main():
     print(f"\n🏛️  Regime distribution:")
     for r, c in regimes:
         print(f"  {r or 'NULL'}: {c}")
+
+    print_label_horizon_summary(session)
     
     session.close()
     

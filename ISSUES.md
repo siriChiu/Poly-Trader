@@ -1,20 +1,44 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-10 03:19 UTC — Heartbeat #626（warning-safe indicator math + fast-heartbeat verification）*
+*最後更新：2026-04-10 03:44 UTC — Heartbeat #627（4h canonical label backfill + horizon freshness root-cause classification）*
 
-## 📊 系統健康狀態 v4.47
+## 📊 系統健康狀態 v4.48
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,070** | 🟢 `hb_parallel_runner.py --fast --hb 626` 本輪先自動 collect，Raw +1 |
-| Features | **11,456** | 🟢 fast heartbeat 本輪直接推進 Features +1 |
+| Raw | **20,091** | 🟢 `hb_parallel_runner.py --fast --hb 627c` 本輪先自動 collect，Raw +1 |
+| Features | **11,476** | 🟢 fast heartbeat 本輪直接推進 Features +1 |
 | Labels | **39,239** | 🟡 本輪持平（24h canonical label 尚未形成新 horizon） |
-|| simulated_pyramid_win (1440m) | **61.19%** | 🟢 canonical 24h 分析口徑（`full_ic.py` / `regime_aware_ic.py`, n=10,216） |
+|| simulated_pyramid_win (1440m) | **56.01%** | 🟢 canonical DB 整體口徑；`full_ic.py` / `regime_aware_ic.py` 分析樣本 n=10,216 |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
 | 全域 IC | **15/22** | 🟢 維持 |
-| TW-IC | **12/22** | 🟡 近期結構較上輪收斂，但仍高於多輪歷史基準 |
+| TW-IC | **12/22** | 🟡 維持 |
 | 模型數 | **8** | ✅ |
-| Verification | **3 pytest + fast heartbeat runtime** | ✅ 本輪已重驗證 |
+| Verification | **3 pytest + hb_collect + fast heartbeat runtime** | ✅ 本輪已重驗證 |
+
+## 📈 心跳 #627 摘要
+
+### 本輪已驗證 patch
+1. **4h label canonical backfill no longer leaves legacy rows half-migrated**：`data_ingestion/labeling.py::save_labels_to_db()` 現在會在既有 row 已有 `future_return_pct`、但 `simulated_pyramid_*` / `label_spot_long_*` 仍為 `NULL` 時回填 canonical 欄位，而不是只更新 `future_return_pct IS NULL` 的舊邏輯。實際效果：**240m simulated targets 由 1,379 → 11,007**，把「4h 看似 stale 其實只是 canonical 欄位沒補齊」的假 blocker 收斂掉。
+2. **Heartbeat horizon freshness now distinguishes active / inactive / raw-gap-blocked**：`scripts/hb_collect.py` 新增 `summarize_label_horizons()` 的 active horizon contract（240m / 1440m）、`inactive_horizon` 分類（720m legacy rows 不再被誤報成 heartbeat blocker），以及 `raw_gap_blocked` 診斷（若 label 落後是因為 target 之後 raw timeline 有超過 horizon 容許值的大斷層，就明確指向 upstream raw continuity，而不是籠統寫成 label pipeline 壞掉）。
+3. **Fast heartbeat JSON summary 與 collect console 對齊**：`scripts/hb_parallel_runner.py` 改為重用 `summarize_label_horizons()`，`data/heartbeat_627c_summary.json` 現在會直接寫出每個 horizon 的 `freshness / is_active / latest_raw_gap_hours`，避免 runtime 與 summary 對同一個 label blocker 給出不同結論。
+4. **Regression tests added**：`tests/test_hb_collect.py` 新增 canonical backfill 與 `raw_gap_blocked` / `inactive_horizon` 分類測試，鎖住本輪修復。
+
+### 本輪 runtime facts（Heartbeat #627）
+- `python scripts/hb_collect.py`：**Raw 20089→20090 / Features 11474→11475 / Labels 39239→39239**。
+- `python scripts/hb_parallel_runner.py --fast --hb 627c`：**Raw 20090→20091 / Features 11475→11476 / Labels 39239→39239**；summary 已落地 `data/heartbeat_627c_summary.json`。
+- Canonical label freshness 現在可分層判讀：
+  - **240m**：`target_rows=11007`、`latest_target=2026-04-08 23:56:09`、`lag_vs_raw=27.8h`、**`raw_gap_blocked`**、`latest_raw_gap_hours=23.48` → 不是單純 label 欄位缺失，而是 **2026-04-09 02:56 → 2026-04-10 02:25 的 raw timeline 大斷層** 讓 4h target 無法持續長出。
+  - **720m**：`target_rows=0`、**`inactive_horizon`** → DB 裡仍有 legacy 12h rows，但 heartbeat 不再維護它，不能再當 active blocker 報警。
+  - **1440m**：`target_rows=10225`、`latest_target=2026-04-09 02:56:15`、**`expected_horizon_lag`**。
+- Canonical diagnostics 維持：**Global IC 15/22 PASS**、**TW-IC 12/22 PASS**；regime-aware IC **Bear 4/8 / Bull 8/8 / Chop 6/8 / Neutral 1/8**（`simulated_pyramid_win`, n=10,216）。
+- Source blocker 未假裝修好：仍是 **8 blocked sparse features**；Claw / Claw intensity / Fin 依舊被 `COINGLASS_API_KEY` 缺失阻擋。
+- 驗證：`PYTHONPATH=. pytest tests/test_hb_collect.py -q` → **3 passed**；`python scripts/hb_collect.py` ✅；`python scripts/hb_parallel_runner.py --fast --hb 627c` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#LABEL_HORIZON_GROWTH_GATE（重新定義）**：本輪證明 240m 不再是「canonical 欄位沒回填」造成的假 stale；剩餘 blocker 是 **raw continuity gap**。後續若 240m 仍不增長，優先查 upstream raw collection / service continuity，而不是再重修 label upsert。
+- **#LEGACY_720_HORIZON_NOISE（本輪已降噪）**：720m rows 仍存在於 DB，但已被明確標記成 `inactive_horizon`；未來 heartbeat 不應再把它當 active pipeline blocker。
+- **#LOW_COVERAGE_SOURCES（未修、維持真 blocker）**：Claw / Claw intensity / Fin 仍受 `COINGLASS_API_KEY` 缺失阻擋；這不是本輪能在 repo 內自行修復的問題。
 
 ## 📈 心跳 #626 摘要
 

@@ -249,37 +249,79 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
     for _, row in labels_df.iterrows():
         ts_str = str(row["timestamp"])
         fut_ret = row.get("future_return_pct")
+        spot_long_win = int(row.get("label_spot_long_win", row.get("label_up", 0)))
+        spot_long_tp_hit = int(row.get("label_spot_long_tp_hit", spot_long_win))
+        spot_long_quality = float(row.get("label_spot_long_quality") or 0.0)
+        simulated_win = int(row.get("simulated_pyramid_win", 0))
+        simulated_pnl = float(row.get("simulated_pyramid_pnl") or 0.0)
+        simulated_quality = float(row.get("simulated_pyramid_quality") or 0.0)
+        label_sell_win = int(row.get("label_sell_win", 1 - spot_long_win))
+        label_up = int(row.get("label_up", spot_long_win))
+        future_max_drawdown = float(row.get("future_max_drawdown") or 0)
+        future_max_runup = float(row.get("future_max_runup") or 0)
         # 從此 timestamp 對應的 feature 中取得 regime
         regime_val = regime_map.get(ts_str)
 
         if ts_str in existing_rows:
             existing = existing_rows[ts_str]
             needs_update = False
+            canonical_missing = any(
+                getattr(existing, field) is None
+                for field in (
+                    "label_spot_long_win",
+                    "label_spot_long_tp_hit",
+                    "label_spot_long_quality",
+                    "simulated_pyramid_win",
+                    "simulated_pyramid_pnl",
+                    "simulated_pyramid_quality",
+                    "label_up",
+                )
+            )
             if force_update_all:
                 # P0 #SELL_WIN_40: 強制更新所有標籤
-                existing.label_spot_long_win = int(row.get("label_spot_long_win", row.get("label_up", 0)))
-                existing.label_spot_long_tp_hit = int(row.get("label_spot_long_tp_hit", existing.label_spot_long_win))
-                existing.label_spot_long_quality = float(row.get("label_spot_long_quality") or 0.0)
-                existing.simulated_pyramid_win = int(row.get("simulated_pyramid_win", 0))
-                existing.simulated_pyramid_pnl = float(row.get("simulated_pyramid_pnl") or 0.0)
-                existing.simulated_pyramid_quality = float(row.get("simulated_pyramid_quality") or 0.0)
-                existing.label_sell_win = int(row.get("label_sell_win", 1 - existing.label_spot_long_win))
-                existing.label_up = int(row.get("label_up", existing.label_spot_long_win))
+                existing.label_spot_long_win = spot_long_win
+                existing.label_spot_long_tp_hit = spot_long_tp_hit
+                existing.label_spot_long_quality = spot_long_quality
+                existing.simulated_pyramid_win = simulated_win
+                existing.simulated_pyramid_pnl = simulated_pnl
+                existing.simulated_pyramid_quality = simulated_quality
+                existing.label_sell_win = label_sell_win
+                existing.label_up = label_up
                 existing.future_return_pct = float(fut_ret) if fut_ret is not None else existing.future_return_pct
-                existing.future_max_drawdown = float(row.get("future_max_drawdown") or 0)
-                existing.future_max_runup = float(row.get("future_max_runup") or 0)
+                existing.future_max_drawdown = future_max_drawdown
+                existing.future_max_runup = future_max_runup
                 needs_update = True
             elif existing.future_return_pct is None and fut_ret is not None:
                 # 更新 NULL label：現在有未來數據了
                 existing.future_return_pct = float(fut_ret)
-                existing.label_spot_long_win = int(row.get("label_spot_long_win", row.get("label_up", 0)))
-                existing.label_spot_long_tp_hit = int(row.get("label_spot_long_tp_hit", existing.label_spot_long_win))
-                existing.label_spot_long_quality = float(row.get("label_spot_long_quality") or 0.0)
-                existing.simulated_pyramid_win = int(row.get("simulated_pyramid_win", 0))
-                existing.simulated_pyramid_pnl = float(row.get("simulated_pyramid_pnl") or 0.0)
-                existing.simulated_pyramid_quality = float(row.get("simulated_pyramid_quality") or 0.0)
-                existing.label_sell_win = int(row.get("label_sell_win", 1 - existing.label_spot_long_win))
-                existing.label_up = int(row.get("label_up", existing.label_spot_long_win))
+                existing.label_spot_long_win = spot_long_win
+                existing.label_spot_long_tp_hit = spot_long_tp_hit
+                existing.label_spot_long_quality = spot_long_quality
+                existing.simulated_pyramid_win = simulated_win
+                existing.simulated_pyramid_pnl = simulated_pnl
+                existing.simulated_pyramid_quality = simulated_quality
+                existing.label_sell_win = label_sell_win
+                existing.label_up = label_up
+                existing.future_max_drawdown = future_max_drawdown
+                existing.future_max_runup = future_max_runup
+                needs_update = True
+            elif canonical_missing:
+                # Legacy rows may already have future_return_pct but still miss the
+                # canonical spot-long / simulated target columns. Backfill them in-place
+                # so heartbeat freshness reflects the actual label horizon state.
+                existing.label_spot_long_win = spot_long_win
+                existing.label_spot_long_tp_hit = spot_long_tp_hit
+                existing.label_spot_long_quality = spot_long_quality
+                existing.simulated_pyramid_win = simulated_win
+                existing.simulated_pyramid_pnl = simulated_pnl
+                existing.simulated_pyramid_quality = simulated_quality
+                if existing.label_sell_win is None:
+                    existing.label_sell_win = label_sell_win
+                existing.label_up = label_up
+                if existing.future_max_drawdown is None:
+                    existing.future_max_drawdown = future_max_drawdown
+                if existing.future_max_runup is None:
+                    existing.future_max_runup = future_max_runup
                 needs_update = True
             # P0 fix: 如果現有 label 的 regime_label 是 NULL，從 features 填充
             if existing.regime_label is None and regime_val is not None:
