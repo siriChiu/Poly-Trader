@@ -144,15 +144,19 @@ def print_label_horizon_summary(session, symbol: str = SYMBOL) -> None:
 
 def collect_raw_data(session):
     """Step 1: Collect fresh raw data from all sources."""
-    from data_ingestion.collector import collect_all_senses, run_collection_and_save
-    
+    from data_ingestion.collector import repair_recent_raw_continuity, run_collection_and_save
+
+    repaired = repair_recent_raw_continuity(session, SYMBOL)
+    if repaired:
+        print(f"🩹 Recent raw continuity repair inserted {repaired} Binance 4h rows before live collect")
+
     success = run_collection_and_save(session, SYMBOL)
     if success:
         count = session.query(RawMarketData).count()
         print(f"✅ Raw data collection success (total={count})")
     else:
         print("❌ Raw data collection FAILED")
-    
+
     # Fallback: minimal Binance price check if collector fails
     if not success:
         try:
@@ -175,13 +179,17 @@ def collect_raw_data(session):
         except Exception as e:
             print(f"❌ Fallback also failed: {e}")
             return False
-    
+
     return True
 
 def preprocess_features(session):
-    """Step 2: Compute features from ALL raw data (including new entry)."""
-    from feature_engine.preprocessor import run_preprocessor
+    """Step 2: Compute features from ALL raw data (including continuity repairs)."""
+    from feature_engine.preprocessor import backfill_missing_feature_rows, run_preprocessor
+
     result = run_preprocessor(session, SYMBOL)
+    repaired = backfill_missing_feature_rows(session, SYMBOL)
+    if repaired:
+        print(f"🩹 Backfilled {repaired} missing feature rows from repaired raw continuity")
     if result:
         count = session.query(FeaturesNormalized).count()
         print(f"✅ Feature engineering success (total={count})")

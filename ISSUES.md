@@ -1,20 +1,46 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-10 03:44 UTC — Heartbeat #627（4h canonical label backfill + horizon freshness root-cause classification）*
+*最後更新：2026-04-10 04:09 UTC — Heartbeat #628（recent raw continuity repair + missing feature-row backfill）*
 
-## 📊 系統健康狀態 v4.48
+## 📊 系統健康狀態 v4.49
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,091** | 🟢 `hb_parallel_runner.py --fast --hb 627c` 本輪先自動 collect，Raw +1 |
-| Features | **11,476** | 🟢 fast heartbeat 本輪直接推進 Features +1 |
-| Labels | **39,239** | 🟡 本輪持平（24h canonical label 尚未形成新 horizon） |
-|| simulated_pyramid_win (1440m) | **56.01%** | 🟢 canonical DB 整體口徑；`full_ic.py` / `regime_aware_ic.py` 分析樣本 n=10,216 |
+| Raw | **20,103** | 🟢 `hb_collect.py` / `hb_parallel_runner.py --fast --hb 628b` 本輪持續推進；含 **7 筆 Binance 4h continuity backfill** |
+| Features | **11,532** | 🟢 本輪新增 **+56**（含 **51 筆 missing feature-row backfill**） |
+| Labels | **39,879** | 🟢 本輪新增 **+640**（4h +137、24h +503 across the repair runs） |
+|| simulated_pyramid_win (1440m) | **56.81%** | 🟢 canonical DB 整體口徑；`full_ic.py` / `regime_aware_ic.py` 分析樣本 n=10,677 |
 || spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
-| 全域 IC | **15/22** | 🟢 維持 |
-| TW-IC | **12/22** | 🟡 維持 |
+| 全域 IC | **13/22** | 🟡 latest fast heartbeat；樣本擴張後重新計算 |
+| TW-IC | **17/22** | 🟢 latest fast heartbeat；recent-window signal strengthened after continuity repair |
 | 模型數 | **8** | ✅ |
-| Verification | **3 pytest + hb_collect + fast heartbeat runtime** | ✅ 本輪已重驗證 |
+| Verification | **6 pytest + hb_collect + fast heartbeat runtime** | ✅ 本輪已重驗證 |
+
+## 📈 心跳 #628 摘要
+
+### 本輪已驗證 patch
+1. **Recent raw continuity is no longer left entirely to the live snapshot cadence**：`data_ingestion/collector.py` 新增 `repair_recent_raw_continuity()`，在 heartbeat live collect 前先用 **Binance 4h public klines** 回補最近缺失的 raw rows，避免 scheduler 斷檔後只靠「下一筆 live snapshot」讓 `raw_gap_blocked` 長期卡死。
+2. **Repaired raw rows now actually enter the feature pipeline**：`feature_engine/preprocessor.py` 新增 `backfill_missing_feature_rows()`；`scripts/hb_collect.py` 在正常 `run_preprocessor()` 後會只對缺失 timestamp 補 feature rows，而不是把 raw 修回來卻讓 `features_normalized` 仍缺洞。
+3. **Heartbeat collection now closes the raw → feature → label loop for continuity repairs**：`scripts/hb_collect.py` Step 1/2 會明確印出 raw continuity repair 與 missing feature-row backfill 數量，讓 heartbeat runtime 能區分「只是 collect +1」和「真的修回中斷時段」。
+4. **Regression tests added**：新增 `tests/test_raw_continuity_repair.py` 與 `tests/test_preprocessor_missing_feature_backfill.py`，鎖住 recent-gap backfill 與 missing-feature backfill contract。
+
+### 本輪 runtime facts（Heartbeat #628 / 628b）
+- `python scripts/hb_collect.py`（第一次修復 run）：**Raw 20093→20101 / Features 11478→11479 / Labels 39239→39784**；其中明確印出 **`Recent raw continuity repair inserted 7 Binance 4h rows`**，把 240m / 1440m label growth 從完全卡死推進到 **4h +88 / 24h +457**。
+- `python scripts/hb_collect.py`（修 feature gap 後再驗證）：**Raw 20101→20102 / Features 11479→11531 / Labels 39784→39879**；明確印出 **`Backfilled 51 missing feature rows`**，再把 labels 推進 **+95**。
+- `python scripts/hb_parallel_runner.py --fast --hb 628b`：**Raw 20102→20103 / Features 11531→11532 / Labels 39879→39879**；summary 已落地 `data/heartbeat_628b_summary.json`。
+- 240m canonical freshness **有真前進但未完全解除 blocker**：
+  - `latest_target` **2026-04-08 23:56 → 2026-04-09 16:00**
+  - `latest_raw_gap_hours` **23.48h → 6.42h**
+  - blocker 仍是 `raw_gap_blocked`，因 **2026-04-09 20:00 → 2026-04-10 02:25** 之間仍缺可落在 240m tolerance 內的 raw price（Binance 4h closed-kline backfill 已補到 20:00，00:00 candle尚未在 historical klines 中可用時段內被補齊）。
+- 1440m canonical horizon 已恢復健康口徑：`latest_target=2026-04-09 04:00:00`、`freshness=expected_horizon_lag`。
+- Latest diagnostics（`simulated_pyramid_win`, n=10,677）：**Global IC 13/22 PASS**、**TW-IC 17/22 PASS**；regime-aware IC **Bear 5/8 / Bull 8/8 / Chop 4/8 / Neutral 1/8**。
+- Source blocker 沒被假裝修好：仍是 **8 blocked sparse features**；**Claw / Claw intensity / Fin** 依舊被 `COINGLASS_API_KEY` 缺失阻擋。
+- 驗證：`PYTHONPATH=. pytest tests/test_raw_continuity_repair.py tests/test_preprocessor_missing_feature_backfill.py tests/test_hb_collect.py -q` → **6 passed**；`python scripts/hb_collect.py` ✅；`python scripts/hb_parallel_runner.py --fast --hb 628b` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#RAW_CONTINUITY_RECOVERY（部分修復）**：本輪已修掉「heartbeat 只會 append 一筆 live raw、完全無法補回 recent gap」這個 root cause；剩餘 blocker 不再是完全沒有修復路徑，而是 **closed 4h kline coverage 只能補到上一根已收線 candle，2026-04-10 00:00 這根對 240m 仍缺可用 raw price**。下一輪需追的是更細粒度 raw continuity（例如更短週期 public price archive / collector service continuity），不是回頭重修 label upsert。
+- **#MISSING_FEATURE_ROWS_AFTER_RAW_REPAIR（本輪已修）**：先前即便 raw rows 補回來，`run_preprocessor()` 仍只會寫最新一筆 features，導致 label pipeline 無法消化 repaired raw timestamps；現在已改成自動補缺失 feature rows。
+- **#LOW_COVERAGE_SOURCES（未修、維持真 blocker）**：Claw / Claw intensity / Fin 仍受 `COINGLASS_API_KEY` 缺失阻擋；這不是本輪能在 repo 內自行修復的問題。
 
 ## 📈 心跳 #627 摘要
 

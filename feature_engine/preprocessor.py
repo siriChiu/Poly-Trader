@@ -637,6 +637,45 @@ def run_preprocessor(
     return features if saved else None
 
 
+def backfill_missing_feature_rows(session: Session, symbol: str = "BTCUSDT") -> int:
+    """Compute features for raw timestamps that do not yet have a feature row.
+
+    Heartbeat #628 continuity repair inserts missing raw rows to close upstream gaps.
+    Without this follow-up, the label pipeline still cannot grow because the newly
+    restored timestamps never enter `features_normalized`. This helper backfills only
+    the missing feature rows instead of recomputing the full history every heartbeat.
+    """
+    df = load_latest_raw_data(session, symbol, limit=0)
+    if df.empty:
+        return 0
+
+    existing_rows = (
+        session.query(FeaturesNormalized.timestamp)
+        .filter((FeaturesNormalized.symbol == symbol) | (FeaturesNormalized.symbol.is_(None)))
+        .order_by(FeaturesNormalized.timestamp)
+        .all()
+    )
+    existing_timestamps = {ts for (ts,) in existing_rows if ts is not None}
+
+    inserted = 0
+    min_window = 10
+    for end_idx in range(min_window, len(df) + 1):
+        ts = df.iloc[end_idx - 1].get("timestamp")
+        if ts is None or ts in existing_timestamps:
+            continue
+        features = compute_features_from_raw(df.iloc[:end_idx])
+        if not features:
+            continue
+        saved = save_features_to_db(session, features)
+        if saved:
+            existing_timestamps.add(ts)
+            inserted += 1
+
+    if inserted:
+        logger.info("補回缺失特徵列完成: %s rows inserted for %s", inserted, symbol)
+    return inserted
+
+
 def recompute_all_features(session: Session, symbol: str = "BTCUSDT") -> int:
     """
     重新計算所有歷史特徵（用於特徵升級後批量更新）。

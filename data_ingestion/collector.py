@@ -7,12 +7,13 @@
 
 import json
 import sys
+from bisect import bisect_left
 from pathlib import Path
 _PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Dict
 from sqlalchemy.orm import Session
 
@@ -22,6 +23,7 @@ from data_ingestion.nose_futures import get_nose_feature
 from data_ingestion.eye_binance import get_eye_feature
 from data_ingestion.ear_polymarket import get_ear_feature
 from data_ingestion.binance_derivatives import get_derivatives_features
+from data_ingestion.backfill_historical import fetch_binance_klines
 from data_ingestion.macro_data import fetch_macro_latest, compute_nq_features
 from data_ingestion.claw_liquidation import get_claw_feature
 from data_ingestion.fang_options import get_fang_feature
@@ -84,6 +86,85 @@ def _snapshot_event(source: str, entity: str, subtype: str, snapshot: Dict, *, v
         quality_score=1.0 if status == "ok" and has_signal else 0.0,
         payload_json=payload,
     )
+
+
+def _has_nearby_timestamp(sorted_timestamps, ts: datetime, tolerance: timedelta) -> bool:
+    if not sorted_timestamps:
+        return False
+    pos = bisect_left(sorted_timestamps, ts)
+    neighbors = []
+    if pos < len(sorted_timestamps):
+        neighbors.append(sorted_timestamps[pos])
+    if pos > 0:
+        neighbors.append(sorted_timestamps[pos - 1])
+    return any(abs(candidate - ts) <= tolerance for candidate in neighbors)
+
+
+def repair_recent_raw_continuity(
+    session: Session,
+    symbol: str = "BTCUSDT",
+    *,
+    lookback_days: int = 7,
+    interval: str = "4h",
+    alignment_tolerance_minutes: int = 30,
+    klines_df=None,
+) -> int:
+    """Backfill missing recent Binance klines into raw_market_data.
+
+    Heartbeat #628 root-cause fix: the live collector only appends a single snapshot row,
+    so if the scheduler stalls for several hours the raw timeline develops large gaps and
+    4h canonical labels stop growing (`raw_gap_blocked`). This helper repairs recent
+    continuity using public Binance candles before the live snapshot is appended.
+    """
+    tolerance = timedelta(minutes=alignment_tolerance_minutes)
+    cutoff = datetime.utcnow() - timedelta(days=lookback_days)
+    existing_rows = (
+        session.query(RawMarketData.timestamp)
+        .filter(RawMarketData.symbol == symbol, RawMarketData.timestamp >= cutoff)
+        .order_by(RawMarketData.timestamp)
+        .all()
+    )
+    existing_timestamps = [ts for (ts,) in existing_rows if ts is not None]
+
+    if klines_df is None:
+        klines_df = fetch_binance_klines(symbol=symbol, interval=interval, days=lookback_days)
+    if klines_df is None or klines_df.empty:
+        logger.warning("recent raw continuity repair skipped: no Binance klines fetched")
+        return 0
+
+    inserted = 0
+    for _, row in klines_df.sort_values("timestamp").iterrows():
+        ts = row.get("timestamp")
+        if ts is None:
+            continue
+        ts = ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
+        if ts < cutoff:
+            continue
+        if _has_nearby_timestamp(existing_timestamps, ts, tolerance):
+            continue
+        close_price = row.get("close")
+        volume = row.get("volume")
+        if close_price is None:
+            continue
+        session.add(
+            RawMarketData(
+                timestamp=ts,
+                symbol=symbol,
+                close_price=float(close_price),
+                volume=float(volume) if volume is not None else None,
+            )
+        )
+        existing_timestamps.insert(bisect_left(existing_timestamps, ts), ts)
+        inserted += 1
+
+    if inserted:
+        logger.info(
+            "recent raw continuity repair inserted %s Binance %s rows for %s",
+            inserted,
+            interval,
+            symbol,
+        )
+    return inserted
 
 
 def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
