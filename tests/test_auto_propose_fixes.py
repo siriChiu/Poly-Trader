@@ -50,6 +50,27 @@ def test_load_recent_tw_history_reads_structured_ic_diagnostics(tmp_path, monkey
     assert history[1]["tw_pass"] == 12
 
 
+def test_load_recent_tw_history_prefers_numbered_heartbeats_over_fast_alias(tmp_path, monkeypatch):
+    monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    (data_dir / "heartbeat_fast_summary.json").write_text(
+        '{"heartbeat":"fast","ic_diagnostics":{"tw_pass":12,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_664_summary.json").write_text(
+        '{"heartbeat":"664","ic_diagnostics":{"tw_pass":11,"total_features":30}}'
+    )
+
+    history = auto_propose_fixes.load_recent_tw_history(
+        limit=2,
+        current_entry={"heartbeat": "665", "tw_pass": 12, "total_features": 30},
+    )
+
+    assert history[0]["heartbeat"] == "665"
+    assert history[1]["heartbeat"] == "664"
+
+
 def test_summarize_recent_drift_formats_primary_window():
     summary = auto_propose_fixes.summarize_recent_drift(
         {

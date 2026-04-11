@@ -1,22 +1,22 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-11 05:58 UTC — Heartbeat #663（make live decision-quality calibration consume the distribution-guardrailed recommended window, and force predictor routing to use the same regime label that the live decision contract exposes）*
+*最後更新：2026-04-11 07:02 UTC — Heartbeat #665（fix TW-drift governance so auto-propose compares against the previous numbered heartbeat instead of the anonymous `fast` alias, then re-run the fast heartbeat on fresh canonical data）*
 
 ## 📊 系統健康狀態 v4.64
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,431** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 663` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
-| Features | **11,860** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 repaired raw rows 保持同步 |
-| Labels | **40,893** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels 新增 **+1**，不是 pipeline 停滯 |
-||| simulated_pyramid_win (DB overall) | **57.48%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5748` |
-||| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.59%** | 🟢 分析樣本 n=11,134 |
-||| spot_long_win | **33.25%** | 🟡 legacy 比較口徑，非主 target |
-||| 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY/ATR/VWAP/4H bias path 仍是主要通過來源 |
-||| TW-IC | **12/30** | 🔴 recent-weighted path 仍連續低於 14/30；Heartbeat #663 已把 distribution-aware guardrail 接進 live calibration，但 TW weighting path 仍未消費同一 policy |
-||| Regime IC | **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；bull 仍保持 7/8 |
-||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; live calibration now consumes `data/dw_result.json` recommended window and exposes `decision_quality_calibration_window / decision_quality_guardrail_*`; predictor routing now uses the same regime label that the live decision contract exposes** | 🟢 本輪把 guardrail 真正接到 live calibration，並修掉 route-regime 與 exposed regime_label 可能不一致的假語義 |
-||| Verification | **fast heartbeat `--hb 663` + `python scripts/hb_predict_probe.py` + `python -m pytest tests/test_api_feature_history_and_predictor.py -q`** | ✅ 本輪已重驗證 |
+| Raw | **20,475** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 665` 本輪新增 **+2**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
+| Features | **11,904** | 🟢 fast heartbeat 本輪新增 **+2**；canonical feature path 與 repaired raw rows 保持同步 |
+| Labels | **40,959** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels 新增 **+5**，不是 pipeline 停滯 |
+|||| simulated_pyramid_win (DB overall) | **57.59%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5759` |
+|||| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.78%** | 🟢 分析樣本 n=11,196 |
+|||| spot_long_win | **33.26%** | 🟡 legacy 比較口徑，非主 target |
+|||| 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY/ATR/VWAP/4H bias path 仍是主要通過來源 |
+|||| TW-IC | **12/30** | 🔴 recent-weighted path 仍低於 14/30；Heartbeat #665 修掉 auto-propose 歷史比較把 `fast` 匿名 alias 當成主對照的治理 bug，現在會拿 `#665 -> #664 -> #663` 做連續判讀，但 recent 100-row `constant_target + 100% chop` 污染仍是真 blocker |
+|||| Regime IC | **Bear 7/8 / Bull 8/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；bull 仍保持 8/8 |
+|||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; live calibration consumes `data/dw_result.json`; predictor routing uses exposed regime label; training-side `model/train.py` writes `tw_guardrail={recommended_best_n, primary_window, damped_recent_rows, guardrail_reason}` into `model/ic_signs.json`** | 🟢 live probe 仍輸出 `regime_label=chop / model_route_regime=chop / allowed_layers=2 / decision_quality_calibration_window=5000` |
+|||| Verification | **fast heartbeat `--hb 665` + `python -m pytest tests/test_auto_propose_fixes.py tests/test_hb_parallel_runner.py -q` + `python scripts/hb_predict_probe.py`** | ✅ 本輪已重驗證 |
 
 ## 🎯 當前戰略問題（高準確度 / 高勝率 / 低回撤）
 
@@ -49,12 +49,12 @@
 - **下一步方向**：把 labeling 端的 canonical quality target 明確接進 leaderboard / predictor，共用同一組 decision-quality contract，而不是讓 leaderboard 停留在 proxy 分數。
 
 ### #DYNAMIC_WINDOW_NOT_DISTRIBUTION_AWARE（持續 P0，本輪真推進）
-- **現象**：Heartbeat #660 / #661 / #662 的 canonical TW-IC 都只有 **12/30**，而 full/regime IC 仍維持健康；近期優勢顯著弱化，必須先分辨是 feature drift 還是 recent label / regime distribution 污染。
-- **本輪修復**：`scripts/dynamic_window_train.py` 現在會同時讀取 local window distribution 與 `data/recent_drift_report.json`，對每個候選 window 輸出 `dominant_regime / alerts / distribution_guardrail`；只要出現 `constant_target` 或 `regime_concentration`，該 window 就會被標成 `skip_for_recommendation`，不再當作推薦 calibration / dynamic-window 選擇。新增 `tests/test_dynamic_window_train.py` 鎖住這個 guardrail 與推薦邏輯。
-- **本輪定位結果（Heartbeat #662）**：`python scripts/dynamic_window_train.py` 顯示 **N=100/200** 為 `constant_target + 100% chop`，**N=400/600/1000/2000** 也都是 `regime_concentration`；因此舊版 raw best **N=600 (6/8)** 被明確降級，新的 **recommended window = N=5000 (5/8, guardrail-safe)**。這證明近期高 pass 視窗主要是 distribution 污染，不是可直接拿來校準的近期 alpha。
-- **本輪修復（Heartbeat #663）**：`model/predictor.py::_infer_live_decision_quality_contract()` 現在會讀 `data/dw_result.json`，使用 `recommended_best_n` 當 live calibration window，並把 `decision_quality_calibration_window / decision_quality_guardrail_applied / decision_quality_guardrail_reason` 直接帶到 predictor result 與 `scripts/hb_predict_probe.py`。本輪 probe 證據：`decision_quality_calibration_window=5000`、`guardrail_applied=true`、`guardrail_reason=raw_best_n=600 guardrailed ... regime_concentration`。
-- **剩餘風險**：decision-quality calibration 已吃到 guardrail，但 **TW weighting / training-side recency weighting** 仍未直接消費同一個 policy；TW-IC 依然連續 **12/30**，代表 recent polluted slice 雖已不再被當 calibration baseline，卻仍在近期 weighting 敘事上形成 blocker。
-- **建議方向**：下一輪把同一套 `distribution_guardrail` contract 接進 TW weighting / any recency-heavy path：當 recent window 出現 `constant_target` 或 `dominant_regime_share >= 0.9` 時，直接降權或回退到 guardrail-safe window，而不是只保護 calibration 摘要層。
+- **現象**：Heartbeat #660 之後，canonical full/regime IC 仍健康，但 recent-weighted TW-IC 持續低於 **14/30**；近期視窗已被證實存在 `constant_target + 100% chop` 汙染，不能再讓 recency-heavy path 無條件相信最新 slice。
+- **前序修復**：Heartbeat #662 已讓 `scripts/dynamic_window_train.py` 以 `data/recent_drift_report.json` 為 guardrail 來源，將 `constant_target / regime_concentration` 視窗標成 `skip_for_recommendation`，並把 **raw best N=600** 明確降級成 **recommended window = N=5000**；Heartbeat #663 再讓 `model/predictor.py::_infer_live_decision_quality_contract()` 消費這份 contract，把 live calibration 鎖到 `recommended_best_n`。
+- **本輪修復（Heartbeat #664）**：`model/train.py::load_training_data()` 不再直接用未受保護的 exponential recency weights。它現在會讀同一份 `data/dw_result.json + data/recent_drift_report.json`，若 recent window 出現 `constant_target` 或 `regime_concentration`，就對該 polluted tail 做 **TW-IC recent-window damping**，並把 `tw_guardrail={recommended_best_n, raw_best_n, primary_window, damped_recent_rows, damp_factor, guardrail_reason}` 寫進 `model/ic_signs.json`。新增 `tests/test_train_target_metrics.py` 鎖住這條 training-side policy。
+- **本輪證據**：`python scripts/hb_parallel_runner.py --fast --hb 664` 仍顯示 primary drift window = **100 rows**、alerts=`['constant_target','regime_concentration']`；訓練 helper probe 顯示 `tw_guardrail.applied=true`, `damped_recent_rows=100`, `recent_tail_weights≈0.151633`，不再保留原本 `tail_before_guardrail_anchor≈0.606531` 的 recency premium；`pytest tests/test_train_target_metrics.py tests/test_dynamic_window_train.py tests/test_api_feature_history_and_predictor.py -q` → **15 passed**。
+- **剩餘風險**：這次修的是 **training-side TW-IC weighting contract**，不是讓 TW-IC 指標立刻回升；Heartbeat #664 實測 TW-IC 仍是 **11/30**。也就是說，假語義已修掉，但真正的 recent alpha 仍弱，不能把 guardrail patch 誤報成信號恢復。
+- **建議方向**：下一輪應直接重跑訓練 / compare pre-post `tw_guardrail` 對 `model/ic_signs.json` 與 `last_metrics.json` 的影響，確認問題已從「recent polluted slice 假主導」收斂成「真實 recent signal 弱」，再決定是否需要進一步改 TW feature selection / recent-window label policy。
 
 ### #LIVE_REGIME_ROUTE_MISMATCH（新 P0，本輪已修復）
 - **現象**：Heartbeat #663 前，`model/predictor.py::predict()` 的 regime-model routing 仍用 `_determine_regime(features)` heuristic；但 live decision contract / `hb_predict_probe.py` 對外暴露的是 `decision_profile.regime_label`。這會導致 **used_model 與對外宣告的 regime_label 不一致**，形成假語義與錯誤驗證路徑。
@@ -64,6 +64,43 @@
 
 ### 實作計畫
 - `docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+## 📈 心跳 #665 摘要
+
+### 本輪已驗證 patch
+1. **TW-drift auto-propose now compares against numbered heartbeats instead of the anonymous `fast` alias**：`scripts/auto_propose_fixes.py::load_recent_tw_history()` 改為優先載入 `heartbeat_665 / 664 / 663 ...` 這種可追蹤的正式心跳，避免 `#H_AUTO_TW_DRIFT` 被寫成 `#665 -> #fast` 這種低訊號治理輸出。
+2. **Regression guard added for the governance fix**：`tests/test_auto_propose_fixes.py` 新增 numbered-vs-fast 優先順序測試；`tests/test_hb_parallel_runner.py` 持續確保 fast summary contract 沒被破壞。
+3. **Fast heartbeat re-run on fresh canonical data after the patch**：不是只修測試；`python scripts/hb_parallel_runner.py --fast --hb 665` 已重跑並把更新後的 auto-propose 輸出落地到 `issues.json` / `data/heartbeat_665_summary.json`。
+
+### 本輪 runtime facts（Heartbeat #665）
+- `python scripts/hb_parallel_runner.py --fast --hb 665`：**Raw 20473→20475 / Features 11902→11904 / Labels 40954→40959**；summary 已刷新 `data/heartbeat_665_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-11 04:01:44.374503`、`raw_gap≈0.8h`；1440m `latest_target=2026-04-10 08:02:08.205395`、`raw_gap≈1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **12/30 PASS**；Regime IC **Bear 7/8 / Bull 8/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,196）。
+- `python scripts/recent_drift_report.py`（由 fast heartbeat 觸發）：primary drift window 仍是 **last 100 rows**, `win_rate=1.0000`, `dominant_regime=chop(100%)`, alerts=`constant_target + regime_concentration`。
+- `python scripts/hb_predict_probe.py`：`regime_label=chop`、`model_route_regime=chop`、`used_model=regime_chop_ensemble`、`decision_quality_calibration_window=5000`、`allowed_layers=2`。
+- `python -m pytest tests/test_auto_propose_fixes.py tests/test_hb_parallel_runner.py -q` → **10 passed**。
+
+### Blocker 升級 / 狀態更正
+- **#H_AUTO_TW_DRIFT 治理訊號已校正，但根因未解除**：這輪修掉的是「auto-propose 用 `fast` alias 當歷史對照」的治理 bug；真 blocker 仍是 **recent 100-row canonical window = 100% win / 100% chop**，所以 TW-IC 依然只有 **12/30**，不能把本輪 patch 誤報成 signal 修復。
+- **沒有假進度**：本輪沒有宣稱 recent alpha 恢復，只把 blocker 描述從 `#665 -> #fast` 修正成可追蹤的 `#665 -> #664 -> #663`。下一輪仍必須對準 recent-window constant-target / chop-concentration 的真正根因。
+
+## 📈 心跳 #664 摘要
+
+### 本輪已驗證 patch
+1. **Training-side TW-IC weighting now consumes the same distribution guardrail as dynamic-window selection**：`model/train.py::load_training_data()` 會讀 `data/dw_result.json + data/recent_drift_report.json`，當 recent canonical window 出現 `constant_target / regime_concentration` 時，對 polluted tail 做 recent-window damping，而不是讓這段資料享有最大的 recency premium。
+2. **TW-IC guardrail is now machine-readable instead of hidden inside training math**：`model/ic_signs.json` 新增 `tw_guardrail={recommended_best_n, raw_best_n, primary_window, damped_recent_rows, damp_factor, guardrail_reason}`，讓 heartbeat / debug / 後續訓練比較可以直接看到本輪 TW weighting 是否受 distribution guardrail 影響。
+3. **Regression guard added for the new training-side policy**：`tests/test_train_target_metrics.py` 新增 `load_tw_ic_guardrail` 與 `build_time_decay_weights` tests，固定驗證 `dw_result + recent_drift_report` 會被讀入，且 polluted recent window 會被降權。
+
+### 本輪 runtime facts（Heartbeat #664）
+- `python scripts/hb_parallel_runner.py --fast --hb 664`：**Raw 20448→20449 / Features 11877→11878 / Labels 40893→40919**；summary 已落地 `data/heartbeat_664_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-11 03:23:57.530990`、`raw_gap≈0.8h`；1440m `latest_target=2026-04-10 07:26:13.060925`、`raw_gap≈1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **11/30 PASS**；Regime IC **Bear 7/8 / Bull 8/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,159）。
+- `python scripts/recent_drift_report.py`（由 fast heartbeat 觸發）：primary drift window 仍是 **last 100 rows**, `win_rate=1.0000`, `dominant_regime=chop(100%)`, alerts=`constant_target + regime_concentration`。
+- `python -m pytest tests/test_train_target_metrics.py tests/test_dynamic_window_train.py tests/test_api_feature_history_and_predictor.py -q` → **15 passed**。
+
+### Blocker 升級 / 狀態更正
+- **#DYNAMIC_WINDOW_NOT_DISTRIBUTION_AWARE（本輪再收斂）**：guardrail 已從 dynamic-window report → live calibration → **training-side TW weighting** 三段串起來；剩餘真 blocker 不再是「policy 沒接上」，而是 **接上後 TW-IC 仍只有 11/30**，代表 recent true signal 仍弱。
+- **沒有假進度**：本輪沒有宣稱 TW-IC 已恢復，只修掉「recent polluted slice 仍可主導 TW weighting」這個 root cause。下一輪若要宣稱 signal 改善，必須拿 retrain 後的 `model/ic_signs.json + last_metrics.json` 做前後對照。
 
 ## 📈 心跳 #663 摘要
 

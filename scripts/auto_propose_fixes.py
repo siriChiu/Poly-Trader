@@ -126,9 +126,14 @@ def load_recent_tw_history(limit=3, current_entry=None):
     def _sort_key(path: Path):
         match = re.search(r"heartbeat_(.+)_summary\.json$", path.name)
         label = match.group(1) if match else path.stem
-        return (0, int(label)) if str(label).isdigit() else (1, str(label))
+        if str(label).isdigit():
+            # Prefer numbered heartbeats over aliases like "fast" so the
+            # drift issue compares against stable chronological runs instead of
+            # anonymous helper summaries from ad-hoc fast checks.
+            return (0, -int(label), "")
+        return (1, 0, str(label))
 
-    for path in sorted(data_dir.glob("heartbeat_*_summary.json"), key=_sort_key, reverse=True):
+    for path in sorted(data_dir.glob("heartbeat_*_summary.json"), key=_sort_key):
         try:
             payload = json.loads(path.read_text())
         except Exception:
