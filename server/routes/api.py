@@ -169,9 +169,15 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
             "max": max_val,
             **quality,
         }
+    maturity_counts = {
+        "core": sum(1 for meta in feature_stats.values() if meta.get("maturity_tier") == "core"),
+        "research": sum(1 for meta in feature_stats.values() if meta.get("maturity_tier") == "research"),
+        "blocked": sum(1 for meta in feature_stats.values() if meta.get("maturity_tier") == "blocked"),
+    }
     return {
         "days": days,
         "rows": total_rows,
+        "maturity_counts": maturity_counts,
         "features": feature_stats,
     }
 
@@ -327,6 +333,8 @@ async def api_klines(
 @router.get("/backtest")
 async def api_backtest(days: int = Query(default=30, ge=1, le=365), initial_capital: float = Query(default=10000.0, ge=100.0, le=10000000.0)):
     try:
+        from model import predictor as predictor_module
+
         symbol = "BTCUSDT"
         interval = "4h" if days <= 7 else "1d"
         limit = max(int(days * 6), 20)
@@ -347,11 +355,17 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365), initial_capi
         equity = initial
         position = 0.0
         entry_price = 0.0
+        entry_timestamp = None
+        open_trade_profile: Dict[str, Any] = {}
         equity_curve = []
         trades = []
-        threshold = 0.50
-        exit_thresh = 0.45
+        threshold = 0.55
+        exit_thresh = 0.48
         stop_p = 0.03
+        canonical_core_cols = [
+            "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
+            "feat_body", "feat_pulse", "feat_aura", "feat_mind",
+        ]
         for bar in ohlcv:
             t, o, h, l, c = bar[0], bar[1], bar[2], bar[3], bar[4]
             dt = int(t / 1000)
@@ -368,53 +382,110 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365), initial_capi
                     "timestamp": datetime.fromtimestamp(dt).isoformat() + "Z",
                     "equity": round(equity + (position * price if position else 0), 2)})
                 continue
-            vals = [feat.feat_eye_dist, feat.feat_ear_zscore,
-                    feat.feat_nose_sigmoid, feat.feat_tongue_pct,
-                    feat.feat_body_roc]
-            valid = [v for v in vals if v is not None]
-            if not valid:
+
+            feature_values = {col: getattr(feat, col, None) for col in canonical_core_cols}
+            feature_values.update({
+                "feat_4h_bias50": getattr(feat, "feat_4h_bias50", None),
+                "feat_4h_bias200": getattr(feat, "feat_4h_bias200", None),
+                "regime_label": getattr(feat, "regime_label", None),
+            })
+            normed = [
+                normalize_for_api(feature_values[col], col)
+                for col in canonical_core_cols
+                if normalize_for_api(feature_values[col], col) is not None
+            ]
+            if not normed:
+                equity_curve.append({
+                    "timestamp": datetime.fromtimestamp(dt).isoformat() + "Z",
+                    "equity": round(equity + (position * price if position else 0), 2)})
                 continue
-            normed = [(v + 1) / 2 for v in valid]
+
             score = sum(normed) / len(normed)
+            decision_profile = predictor_module._build_live_decision_profile(feature_values)
+
             if position > 0 and price <= entry_price * (1 - stop_p):
                 pnl = (price - entry_price) * position
                 equity += pnl
-                trades.append({"timestamp": datetime.fromtimestamp(dt).isoformat() + "Z",
-                               "action": "sell", "price": round(price, 2),
-                               "amount": position, "pnl": round(pnl, 2),
-                               "reason": "stop_loss"})
+                trades.append({
+                    "timestamp": datetime.fromtimestamp(dt).isoformat() + "Z",
+                    "entry_timestamp": entry_timestamp,
+                    "action": "sell",
+                    "price": round(price, 2),
+                    "amount": position,
+                    "pnl": round(pnl, 2),
+                    "reason": "stop_loss",
+                    **open_trade_profile,
+                })
                 position = 0
-            if score >= threshold and position == 0:
+                entry_timestamp = None
+                open_trade_profile = {}
+
+            can_enter = (
+                position == 0
+                and score >= threshold
+                and (decision_profile.get("allowed_layers") or 0) > 0
+                and decision_profile.get("regime_gate") != "BLOCK"
+            )
+            if can_enter:
                 position = (equity * 0.05) / price
                 entry_price = price
+                entry_timestamp = datetime.fromtimestamp(dt).isoformat() + "Z"
+                open_trade_profile = {
+                    "regime_gate": decision_profile.get("regime_gate"),
+                    "entry_quality": decision_profile.get("entry_quality"),
+                    "entry_quality_label": decision_profile.get("entry_quality_label"),
+                    "allowed_layers": decision_profile.get("allowed_layers"),
+                }
             elif score < exit_thresh and position > 0:
                 pnl = (price - entry_price) * position
                 equity += pnl
-                trades.append({"timestamp": datetime.fromtimestamp(dt).isoformat() + "Z",
-                               "action": "sell", "price": round(price, 2),
-                               "amount": position, "pnl": round(pnl, 2),
-                               "reason": "signal_exit"})
+                trades.append({
+                    "timestamp": datetime.fromtimestamp(dt).isoformat() + "Z",
+                    "entry_timestamp": entry_timestamp,
+                    "action": "sell",
+                    "price": round(price, 2),
+                    "amount": position,
+                    "pnl": round(pnl, 2),
+                    "reason": "signal_exit",
+                    **open_trade_profile,
+                })
                 position = 0
+                entry_timestamp = None
+                open_trade_profile = {}
             equity_curve.append({
                 "timestamp": datetime.fromtimestamp(dt).isoformat() + "Z",
                 "equity": round(equity + (position * price if position else 0), 2)})
         if position > 0:
             pnl = (c - entry_price) * position
             equity += pnl
-            trades.append({"timestamp": datetime.fromtimestamp(ohlcv[-1][0] / 1000).isoformat() + "Z",
-                           "action": "sell", "price": round(c, 2),
-                           "amount": position, "pnl": round(pnl, 2), "reason": "end"})
+            trades.append({
+                "timestamp": datetime.fromtimestamp(ohlcv[-1][0] / 1000).isoformat() + "Z",
+                "entry_timestamp": entry_timestamp,
+                "action": "sell",
+                "price": round(c, 2),
+                "amount": position,
+                "pnl": round(pnl, 2),
+                "reason": "end",
+                **open_trade_profile,
+            })
         win = [t for t in trades if t["pnl"] > 0]
         aw = sum(t["pnl"] for t in win) / max(len(win), 1)
         al = abs(sum(t["pnl"] for t in trades if t["pnl"] < 0)) / max(len(trades) - len(win), 1)
+        decision_profile_summary = _compute_decision_profile(trades)
+        decision_quality_profile = _compute_strategy_decision_quality_profile(trades, db=db, horizon_minutes=1440)
         return {
-            "final_equity": round(equity, 2), "initial_capital": initial,
+            "final_equity": round(equity, 2),
+            "initial_capital": initial,
             "total_trades": len(trades),
             "win_rate": round(len(win) / max(len(trades), 1) * 100, 1),
             "profit_loss_ratio": round(aw / max(al, 0.01), 2),
             "max_drawdown": round(_calc_max_dd([e["equity"] for e in equity_curve]) * 100, 2),
             "total_return": round((equity - initial) / initial * 100, 2),
-            "equity_curve": equity_curve[-200:], "trades": trades[-50:]
+            "equity_curve": equity_curve[-200:],
+            "trades": trades[-50:],
+            **decision_profile_summary,
+            **decision_quality_profile,
+            "decision_contract": _strategy_decision_contract_meta(horizon_minutes=1440),
         }
     except Exception as e:
         logger.error(f"Backtest failed: {e}")

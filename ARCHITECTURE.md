@@ -103,8 +103,22 @@
 - `decision_quality_label`
 - `decision_profile_version`
 
-其中 quality-related 欄位目前不是直接多目標模型輸出，而是用 canonical **1440m historical labels** 按 `regime_gate + entry_quality_label`（不足時 fallback 到 `regime_gate / entry_quality_label / global`）做 calibrated expectation layer。這層的目的，是讓 live path 直接說出「這筆 setup 在歷史上通常贏多少、回撤多深、會不會久套」，把 canonical quality semantics 從 DB / leaderboard 往前推到即時 API。下一階段若升級到完整 decision-quality target，必須沿用這個 contract 擴展，而不是另起一套平行語義。
+其中 quality-related 欄位目前不是直接多目標模型輸出，而是用 canonical **1440m historical labels** 按 `regime_gate + entry_quality_label`（不足時 fallback 到 `regime_gate / entry_quality_label / global`）做 calibrated expectation layer。這層的目的，是讓 live path 直接說出「這筆 setup 在歷史上通常贏多少、回撤多深、會不會久套」，把 canonical quality semantics 從 DB / leaderboard 往前推到即時 API。Heartbeat #650 起，`web/src/components/ConfidenceIndicator.tsx` 與 `web/src/pages/Dashboard.tsx` 也必須直接消費這組欄位，首頁 live card 不得再回退成舊的二元 confidence/做空 copy。下一階段若升級到完整 decision-quality target，必須沿用這個 contract 擴展，而不是另起一套平行語義。
 
+**Dashboard backtest decision-quality contract（Heartbeat #651）**：`server/routes/api.py::api_backtest()` 不得再只回傳 ROI / 勝率 / PF 這種 legacy summary，也不得默默依賴 `feat_eye_dist` 等舊欄位語義。它現在必須直接使用 canonical core features (`feat_eye`~`feat_mind`) 建立回測 entry，並在 response 中同步輸出：
+- `decision_contract = {target_col, target_label, sort_semantics, decision_quality_horizon_minutes}`
+- `avg_entry_quality`
+- `avg_allowed_layers`
+- `dominant_regime_gate`
+- `avg_expected_win_rate`
+- `avg_expected_pyramid_quality`
+- `avg_expected_drawdown_penalty`
+- `avg_expected_time_underwater`
+- `avg_decision_quality_score`
+- `decision_quality_label`
+- `decision_quality_sample_size`
+
+這組欄位由 `web/src/components/BacktestSummary.tsx` 直接顯示，讓 Dashboard 回測卡與 live predictor / Strategy Lab 共享同一套 canonical decision-quality semantics，而不是首頁 live card 已升級、回測卡仍停留在 ROI-only。
 **Leaderboard objective contract（Heartbeat #638 / #639 / #642）**：`backtesting/model_leaderboard.py` 與 `/api/models/leaderboard` 不可再只用 ROI / overfit gap / volatility 當主排序語義。當前 composite score 與 API payload 至少要同步輸出以下 decision-aware components：
 - `avg_entry_quality`
 - `avg_allowed_layers`
@@ -119,7 +133,7 @@
 - `profit_factor_score`
 - `overfit_penalty`
 
-Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `simulated_pyramid_drawdown_penalty` / `simulated_pyramid_time_underwater`；它還必須在每個 fold 的**實際 trade entry timestamps** 上聚合這些欄位，計算與 predictor 對齊的 `avg_decision_quality_score`，並把這組欄位序列化到 API payload。Heartbeat #643 已把 Strategy Lab 模型排行榜前端摘要同步切到這組 canonical decision-quality semantics；Heartbeat #644 再把 `/api/strategies/leaderboard`、`/api/strategies/{name}` 與 Strategy Lab 的**策略排行榜主表**一起升級為同一組 `avg_decision_quality_score + avg_expected_*` contract。Heartbeat #645 進一步要求 `/api/strategies/{name}`、`/api/strategies/run` 與前端 active strategy summary 一律攜帶 `decision_contract = {target_col, target_label, sort_semantics, decision_quality_horizon_minutes}`，讓「剛跑完的策略」與「已儲存策略詳情」都使用同一套 canonical 語義，而不是只在 leaderboard 中成立。剩餘缺口縮小到更深的 strategy comparison 文案。
+Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `simulated_pyramid_drawdown_penalty` / `simulated_pyramid_time_underwater`；它還必須在每個 fold 的**實際 trade entry timestamps** 上聚合這些欄位，計算與 predictor 對齊的 `avg_decision_quality_score`，並把這組欄位序列化到 API payload。Heartbeat #643 已把 Strategy Lab 模型排行榜前端摘要同步切到這組 canonical decision-quality semantics；Heartbeat #644 再把 `/api/strategies/leaderboard`、`/api/strategies/{name}` 與 Strategy Lab 的**策略排行榜主表**一起升級為同一組 `avg_decision_quality_score + avg_expected_*` contract。Heartbeat #645 進一步要求 `/api/strategies/{name}`、`/api/strategies/run` 與前端 active strategy summary 一律攜帶 `decision_contract = {target_col, target_label, sort_semantics, decision_quality_horizon_minutes}`，讓「剛跑完的策略」與「已儲存策略詳情」都使用同一套 canonical 語義，而不是只在 leaderboard 中成立。Heartbeat #649 再把 Strategy Lab 的 **side-by-side compare panel** 也切到相同 contract，固定比較 `DQ / expected win / drawdown penalty / time underwater / allowed layers / ROI`，避免任何 compare surface 回退成 ROI-only 文案。剩餘缺口縮小到更深的 Dashboard 摘要卡與未來新增比較入口。
 
 **Core-vs-research signal contract（2026-04-10 strategy review）**：主模型與主 UI 必須區分兩類信號：
 - **核心信號**：4H 結構 + 高 coverage technical（可直接參與主決策）

@@ -115,7 +115,10 @@ def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
 
     result = asyncio.run(api_module.api_features_coverage(days=90))
 
+    assert result["maturity_counts"]["blocked"] >= 1
     assert result["features"]["claw"]["chart_usable"] is False
+    assert result["features"]["claw"]["score_usable"] is False
+    assert result["features"]["claw"]["maturity_tier"] == "blocked"
     assert result["features"]["claw"]["quality_flag"] == "source_auth_blocked"
     assert result["features"]["claw"]["quality_label"] == "source auth missing; latest snapshots are failing"
     assert result["features"]["claw"]["reasons"][0] == "source_auth_blocked"
@@ -137,9 +140,13 @@ def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
     assert result["features"]["claw"]["archive_window_coverage_pct"] == 100.0
     assert "Forward raw snapshot archive is stale (3/10 stored event(s)" in result["features"]["claw"]["backfill_blocker"]
     assert result["features"]["4h_bias50"]["chart_usable"] is False
+    assert result["features"]["4h_bias50"]["score_usable"] is False
+    assert result["features"]["4h_bias50"]["maturity_tier"] == "blocked"
     assert result["features"]["4h_bias50"]["quality_flag"] == "low_distinct"
     assert result["features"]["4h_bias50"]["backfill_status"] == "n/a"
     assert result["features"]["4h_ma_order"]["chart_usable"] is True
+    assert result["features"]["4h_ma_order"]["score_usable"] is True
+    assert result["features"]["4h_ma_order"]["maturity_tier"] == "core"
 
 
 def test_circuit_breaker_uses_simulated_target_column():
@@ -272,3 +279,103 @@ def test_predict_confidence_route_unpacks_load_predictor_tuple(monkeypatch):
     assert result["expected_drawdown_penalty"] == 0.09
     assert result["decision_profile_version"] == "phase16_baseline_v2"
     assert closed["value"] is True
+
+
+def test_backtest_route_uses_canonical_features_and_returns_decision_quality(monkeypatch):
+    class _FakeExchange:
+        def fetch_ohlcv(self, symbol, interval, limit=0):
+            assert symbol == "BTCUSDT"
+            assert interval in {"4h", "1d"}
+            return [
+                [1712793600000, 100.0, 101.0, 99.0, 100.0, 10.0],
+                [1712808000000, 101.0, 102.0, 100.0, 101.0, 11.0],
+                [1712822400000, 102.0, 103.0, 101.0, 102.0, 12.0],
+                [1712836800000, 103.0, 104.0, 102.0, 103.0, 13.0],
+                [1712851200000, 104.0, 105.0, 103.0, 104.0, 14.0],
+                [1712865600000, 105.0, 106.0, 104.0, 105.0, 15.0],
+                [1712880000000, 106.0, 107.0, 105.0, 106.0, 16.0],
+                [1712894400000, 107.0, 108.0, 106.0, 107.0, 17.0],
+                [1712908800000, 108.0, 109.0, 107.0, 108.0, 18.0],
+                [1712923200000, 109.0, 110.0, 108.0, 109.0, 19.0],
+                [1712937600000, 110.0, 111.0, 109.0, 110.0, 20.0],
+                [1712952000000, 111.0, 112.0, 110.0, 111.0, 21.0],
+                [1712966400000, 112.0, 113.0, 111.0, 112.0, 22.0],
+                [1712980800000, 113.0, 114.0, 112.0, 113.0, 23.0],
+                [1712995200000, 114.0, 115.0, 113.0, 114.0, 24.0],
+                [1713009600000, 115.0, 116.0, 114.0, 115.0, 25.0],
+                [1713024000000, 116.0, 117.0, 115.0, 116.0, 26.0],
+                [1713038400000, 117.0, 118.0, 116.0, 117.0, 27.0],
+                [1713052800000, 118.0, 119.0, 117.0, 118.0, 28.0],
+                [1713067200000, 119.0, 120.0, 118.0, 119.0, 29.0],
+            ]
+
+    class _FakeQueryBacktest:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def filter(self, *args, **kwargs):
+            return self
+
+        def order_by(self, *args, **kwargs):
+            return self
+
+        def all(self):
+            return self._rows
+
+    class _FakeDbBacktest:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def query(self, *args, **kwargs):
+            return _FakeQueryBacktest(self._rows)
+
+    rows = [
+        SimpleNamespace(
+            timestamp=SimpleNamespace(timestamp=lambda ts=1712793600 + i * 14400: ts),
+            feat_eye=3.0,
+            feat_ear=0.02,
+            feat_nose=0.20,
+            feat_tongue=0.0,
+            feat_body=0.8,
+            feat_pulse=0.95,
+            feat_aura=0.01,
+            feat_mind=0.02,
+            feat_4h_bias50=-5.0,
+            feat_4h_bias200=4.0,
+            regime_label="bull",
+        )
+        for i in range(20)
+    ]
+
+    monkeypatch.setattr(api_module.ccxt, "binance", lambda: _FakeExchange())
+    monkeypatch.setattr(api_module, "get_db", lambda: _FakeDbBacktest(rows))
+    monkeypatch.setattr(
+        api_module,
+        "_compute_strategy_decision_quality_profile",
+        lambda trades, db=None, horizon_minutes=1440: {
+            **api_module._strategy_decision_contract_meta(horizon_minutes=horizon_minutes),
+            "avg_expected_win_rate": 0.71,
+            "avg_expected_pyramid_pnl": 0.12,
+            "avg_expected_pyramid_quality": 0.63,
+            "avg_expected_drawdown_penalty": 0.09,
+            "avg_expected_time_underwater": 0.21,
+            "avg_decision_quality_score": 0.4315,
+            "decision_quality_label": "C",
+            "decision_quality_sample_size": 3,
+        },
+    )
+
+    result = asyncio.run(api_module.api_backtest(days=3, initial_capital=10000.0))
+
+    assert "error" not in result
+    assert result["total_trades"] >= 1
+    assert result["decision_contract"]["target_col"] == "simulated_pyramid_win"
+    assert result["decision_contract"]["decision_quality_horizon_minutes"] == 1440
+    assert result["avg_expected_win_rate"] == 0.71
+    assert result["avg_decision_quality_score"] == 0.4315
+    assert result["decision_quality_label"] == "C"
+    assert result["dominant_regime_gate"] == "ALLOW"
+    assert result["avg_allowed_layers"] == 3.0
+    assert result["avg_entry_quality"] is not None
+    assert result["trades"][0]["entry_quality_label"] in {"A", "B", "C", "D"}
+    assert result["trades"][0]["entry_timestamp"].endswith("Z")

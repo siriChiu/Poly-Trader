@@ -48,6 +48,20 @@ interface ConfidenceData {
   signal: string;
   confidence_level: string;
   should_trade: boolean;
+  regime_gate?: string | null;
+  entry_quality?: number | null;
+  entry_quality_label?: string | null;
+  allowed_layers?: number | null;
+  decision_quality_horizon_minutes?: number | null;
+  decision_quality_calibration_scope?: string | null;
+  decision_quality_sample_size?: number | null;
+  expected_win_rate?: number | null;
+  expected_pyramid_quality?: number | null;
+  expected_drawdown_penalty?: number | null;
+  expected_time_underwater?: number | null;
+  decision_quality_score?: number | null;
+  decision_quality_label?: string | null;
+  decision_profile_version?: string | null;
   timestamp: string;
 }
 
@@ -59,6 +73,22 @@ interface BacktestData {
   profit_loss_ratio: number;
   max_drawdown: number;
   total_return: number;
+  avg_entry_quality?: number | null;
+  avg_allowed_layers?: number | null;
+  dominant_regime_gate?: string | null;
+  avg_expected_win_rate?: number | null;
+  avg_expected_pyramid_quality?: number | null;
+  avg_expected_drawdown_penalty?: number | null;
+  avg_expected_time_underwater?: number | null;
+  avg_decision_quality_score?: number | null;
+  decision_quality_label?: string | null;
+  decision_quality_sample_size?: number | null;
+  decision_contract?: {
+    target_col?: string | null;
+    target_label?: string | null;
+    sort_semantics?: string | null;
+    decision_quality_horizon_minutes?: number | null;
+  } | null;
   error?: string;
 }
 
@@ -274,6 +304,19 @@ export default function Dashboard() {
           signal={confidenceData.signal}
           confidenceLevel={confidenceData.confidence_level}
           shouldTrade={confidenceData.should_trade}
+          regimeGate={confidenceData.regime_gate}
+          entryQuality={confidenceData.entry_quality}
+          entryQualityLabel={confidenceData.entry_quality_label}
+          allowedLayers={confidenceData.allowed_layers}
+          decisionQualityScore={confidenceData.decision_quality_score}
+          decisionQualityLabel={confidenceData.decision_quality_label}
+          expectedWinRate={confidenceData.expected_win_rate}
+          expectedPyramidQuality={confidenceData.expected_pyramid_quality}
+          expectedDrawdownPenalty={confidenceData.expected_drawdown_penalty}
+          expectedTimeUnderwater={confidenceData.expected_time_underwater}
+          decisionQualitySampleSize={confidenceData.decision_quality_sample_size}
+          decisionQualityHorizonMinutes={confidenceData.decision_quality_horizon_minutes}
+          decisionProfileVersion={confidenceData.decision_profile_version}
           timestamp={confidenceData.timestamp}
         />
       )}
@@ -410,6 +453,17 @@ export default function Dashboard() {
           profitLossRatio={backtestData.profit_loss_ratio}
           maxDrawdown={backtestData.max_drawdown}
           totalReturn={backtestData.total_return}
+          avgEntryQuality={backtestData.avg_entry_quality}
+          avgAllowedLayers={backtestData.avg_allowed_layers}
+          dominantRegimeGate={backtestData.dominant_regime_gate}
+          avgDecisionQualityScore={backtestData.avg_decision_quality_score}
+          decisionQualityLabel={backtestData.decision_quality_label}
+          avgExpectedWinRate={backtestData.avg_expected_win_rate}
+          avgExpectedPyramidQuality={backtestData.avg_expected_pyramid_quality}
+          avgExpectedDrawdownPenalty={backtestData.avg_expected_drawdown_penalty}
+          avgExpectedTimeUnderwater={backtestData.avg_expected_time_underwater}
+          decisionQualitySampleSize={backtestData.decision_quality_sample_size}
+          decisionContract={backtestData.decision_contract}
         />
       )}
     </div>
