@@ -105,7 +105,7 @@
 
 其中 quality-related 欄位目前不是直接多目標模型輸出，而是用 canonical **1440m historical labels** 按 `regime_gate + entry_quality_label`（不足時 fallback 到 `regime_gate / entry_quality_label / global`）做 calibrated expectation layer。這層的目的，是讓 live path 直接說出「這筆 setup 在歷史上通常贏多少、回撤多深、會不會久套」，把 canonical quality semantics 從 DB / leaderboard 往前推到即時 API。Heartbeat #650 起，`web/src/components/ConfidenceIndicator.tsx` 與 `web/src/pages/Dashboard.tsx` 也必須直接消費這組欄位，首頁 live card 不得再回退成舊的二元 confidence/做空 copy。下一階段若升級到完整 decision-quality target，必須沿用這個 contract 擴展，而不是另起一套平行語義。
 
-**Dashboard backtest decision-quality contract（Heartbeat #651）**：`server/routes/api.py::api_backtest()` 不得再只回傳 ROI / 勝率 / PF 這種 legacy summary，也不得默默依賴 `feat_eye_dist` 等舊欄位語義。它現在必須直接使用 canonical core features (`feat_eye`~`feat_mind`) 建立回測 entry，並在 response 中同步輸出：
+**Backtest decision-quality contract（Heartbeat #651 / #652）**：`server/routes/api.py::api_backtest()` 不得再只回傳 ROI / 勝率 / PF 這種 legacy summary，也不得默默依賴 `feat_eye_dist` 等舊欄位語義。它現在必須直接使用 canonical core features (`feat_eye`~`feat_mind`) 建立回測 entry，並在 response 中同步輸出：
 - `decision_contract = {target_col, target_label, sort_semantics, decision_quality_horizon_minutes}`
 - `avg_entry_quality`
 - `avg_allowed_layers`
@@ -118,7 +118,7 @@
 - `decision_quality_label`
 - `decision_quality_sample_size`
 
-這組欄位由 `web/src/components/BacktestSummary.tsx` 直接顯示，讓 Dashboard 回測卡與 live predictor / Strategy Lab 共享同一套 canonical decision-quality semantics，而不是首頁 live card 已升級、回測卡仍停留在 ROI-only。
+這組欄位由 `web/src/components/BacktestSummary.tsx` 與 `web/src/pages/Backtest.tsx` 共同顯示；其中 standalone Backtest trade log 也必須保留 `entry_timestamp / regime_gate / entry_quality_label / entry_quality / allowed_layers / reason`，讓 Dashboard 回測卡、獨立回測頁、live predictor 與 Strategy Lab 共用同一套 canonical decision-quality semantics，而不是首頁 live card 已升級、其他回測 surface 仍停留在 ROI-only。
 **Leaderboard objective contract（Heartbeat #638 / #639 / #642）**：`backtesting/model_leaderboard.py` 與 `/api/models/leaderboard` 不可再只用 ROI / overfit gap / volatility 當主排序語義。當前 composite score 與 API payload 至少要同步輸出以下 decision-aware components：
 - `avg_entry_quality`
 - `avg_allowed_layers`

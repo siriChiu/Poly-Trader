@@ -3,6 +3,7 @@
  */
 import { useState, useCallback } from "react";
 import EquityCurve from "../components/EquityCurve";
+import BacktestSummary from "../components/BacktestSummary";
 import { fetchApi } from "../hooks/useApi";
 
 interface BacktestResult {
@@ -13,16 +14,41 @@ interface BacktestResult {
   profit_loss_ratio: number;
   max_drawdown: number;
   total_return: number;
+  avg_entry_quality?: number | null;
+  avg_allowed_layers?: number | null;
+  dominant_regime_gate?: string | null;
+  avg_expected_win_rate?: number | null;
+  avg_expected_pyramid_quality?: number | null;
+  avg_expected_drawdown_penalty?: number | null;
+  avg_expected_time_underwater?: number | null;
+  avg_decision_quality_score?: number | null;
+  decision_quality_label?: string | null;
+  decision_quality_sample_size?: number | null;
+  decision_contract?: {
+    target_col?: string | null;
+    target_label?: string | null;
+    sort_semantics?: string | null;
+    decision_quality_horizon_minutes?: number | null;
+  } | null;
   equity_curve: { timestamp: string; equity: number }[];
   trades: {
     timestamp: string;
+    entry_timestamp?: string | null;
     action: string;
     price: number;
     amount: number;
-    confidence: number;
     pnl: number;
+    reason?: string | null;
+    regime_gate?: string | null;
+    entry_quality?: number | null;
+    entry_quality_label?: string | null;
+    allowed_layers?: number | null;
   }[];
 }
+
+const formatDecimal = (value?: number | null, digits = 2) => (
+  typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : "—"
+);
 
 export default function Backtest() {
   const [days, setDays] = useState(30);
@@ -99,22 +125,51 @@ export default function Backtest() {
       {/* Results */}
       {result && (
         <div className="space-y-4">
-          {/* Stats grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            {[
-              { label: "初始資金", value: `$${result.initial_capital.toLocaleString()}`, color: "text-slate-300" },
-              { label: "最終權益", value: `$${result.final_equity.toLocaleString(undefined, { maximumFractionDigits: 2 })}`, color: "text-slate-200" },
-              { label: "總報酬率", value: `${result.total_return >= 0 ? "+" : ""}${result.total_return.toFixed(2)}%`, color: result.total_return >= 0 ? "text-green-400" : "text-red-400" },
-              { label: "交易次數", value: `${result.total_trades}`, color: "text-slate-300" },
-              { label: "勝率", value: `${result.win_rate.toFixed(1)}%`, color: result.win_rate >= 50 ? "text-green-400" : "text-orange-400" },
-              { label: "盈虧比", value: `${result.profit_loss_ratio.toFixed(2)}`, color: result.profit_loss_ratio >= 1 ? "text-green-400" : "text-orange-400" },
-              { label: "最大回撤", value: `${result.max_drawdown.toFixed(2)}%`, color: result.max_drawdown < 10 ? "text-green-400" : "text-red-400" },
-            ].map((stat) => (
-              <div key={stat.label} className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-3 text-center">
-                <div className="text-xs text-slate-500 mb-1">{stat.label}</div>
-                <div className={`text-lg font-mono font-bold ${stat.color}`}>{stat.value}</div>
+          <BacktestSummary
+            finalEquity={result.final_equity}
+            initialCapital={result.initial_capital}
+            totalTrades={result.total_trades}
+            winRate={result.win_rate}
+            profitLossRatio={result.profit_loss_ratio}
+            maxDrawdown={result.max_drawdown}
+            totalReturn={result.total_return}
+            avgEntryQuality={result.avg_entry_quality}
+            avgAllowedLayers={result.avg_allowed_layers}
+            dominantRegimeGate={result.dominant_regime_gate}
+            avgDecisionQualityScore={result.avg_decision_quality_score}
+            decisionQualityLabel={result.decision_quality_label}
+            avgExpectedWinRate={result.avg_expected_win_rate}
+            avgExpectedPyramidQuality={result.avg_expected_pyramid_quality}
+            avgExpectedDrawdownPenalty={result.avg_expected_drawdown_penalty}
+            avgExpectedTimeUnderwater={result.avg_expected_time_underwater}
+            decisionQualitySampleSize={result.decision_quality_sample_size}
+            decisionContract={result.decision_contract}
+          />
+
+          <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 p-4 text-xs text-slate-400">
+            <div className="font-semibold text-slate-300">🧭 回測排序語義</div>
+            <div className="mt-1 leading-6">
+              {result.decision_contract?.target_label || "Canonical Decision Quality"}
+              {result.decision_contract?.sort_semantics ? ` · ${result.decision_contract.sort_semantics}` : ""}
+            </div>
+            <div className="mt-2 grid gap-2 md:grid-cols-4">
+              <div className="rounded-lg bg-slate-950/40 px-3 py-2">
+                <div className="text-slate-500">目標欄位</div>
+                <div className="text-slate-200">{result.decision_contract?.target_col || "simulated_pyramid_win"}</div>
               </div>
-            ))}
+              <div className="rounded-lg bg-slate-950/40 px-3 py-2">
+                <div className="text-slate-500">Horizon</div>
+                <div className="text-cyan-300">{result.decision_contract?.decision_quality_horizon_minutes || 1440}m</div>
+              </div>
+              <div className="rounded-lg bg-slate-950/40 px-3 py-2">
+                <div className="text-slate-500">主導 gate</div>
+                <div className="text-emerald-300">{result.dominant_regime_gate || "—"}</div>
+              </div>
+              <div className="rounded-lg bg-slate-950/40 px-3 py-2">
+                <div className="text-slate-500">DQ 樣本</div>
+                <div className="text-slate-200">{result.decision_quality_sample_size ?? "—"}</div>
+              </div>
+            </div>
           </div>
 
           {/* Equity curve */}
@@ -123,24 +178,28 @@ export default function Backtest() {
           {/* Trade log */}
           {result.trades.length > 0 && (
             <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
-              <h3 className="text-sm font-semibold text-slate-400 mb-3">📋 交易記錄（最近 {result.trades.length} 筆）</h3>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-slate-300">📋 交易記錄（最近 {result.trades.length} 筆）</h3>
+                <div className="text-[11px] text-slate-500">退出交易同時附帶 entry gate / quality / layers，避免表格退回成只有 ROI/PnL 的舊語義。</div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-slate-500 text-left">
-                      <th className="pb-2 pr-4">時間</th>
-                      <th className="pb-2 pr-4">方向</th>
-                      <th className="pb-2 pr-4">價格</th>
-                      <th className="pb-2 pr-4">數量</th>
-                      <th className="pb-2 pr-4">信心</th>
+                    <tr className="text-left text-slate-500">
+                      <th className="pb-2 pr-4">進場 / 出場</th>
+                      <th className="pb-2 pr-4">方向 / 原因</th>
+                      <th className="pb-2 pr-4">Gate / Layers</th>
+                      <th className="pb-2 pr-4">Entry Quality</th>
+                      <th className="pb-2 pr-4">價格 / 數量</th>
                       <th className="pb-2">盈虧</th>
                     </tr>
                   </thead>
                   <tbody>
                     {result.trades.map((trade, i) => (
-                      <tr key={i} className="border-t border-slate-800">
-                        <td className="py-2 pr-4 text-slate-400 font-mono text-xs">
-                          {new Date(trade.timestamp).toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      <tr key={i} className="border-t border-slate-800 align-top">
+                        <td className="py-2 pr-4 text-[11px] text-slate-400 font-mono">
+                          <div>{trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"}</div>
+                          <div className="mt-1 text-slate-500">→ {new Date(trade.timestamp).toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
                         </td>
                         <td className="py-2 pr-4">
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -148,15 +207,19 @@ export default function Backtest() {
                           }`}>
                             {trade.action === "buy" ? "買入" : "賣出"}
                           </span>
+                          <div className="mt-1 text-[11px] text-slate-500">{trade.reason || "—"}</div>
                         </td>
-                        <td className="py-2 pr-4 font-mono text-slate-300">
-                          ${trade.price.toLocaleString()}
+                        <td className="py-2 pr-4 text-[11px]">
+                          <div className="text-emerald-300">{trade.regime_gate || "—"}</div>
+                          <div className="mt-1 text-slate-500">Layers {typeof trade.allowed_layers === "number" ? trade.allowed_layers.toFixed(2) : "—"}</div>
                         </td>
-                        <td className="py-2 pr-4 font-mono text-slate-400">
-                          {trade.amount}
+                        <td className="py-2 pr-4 text-[11px]">
+                          <div className="text-cyan-300">{trade.entry_quality_label || "—"}</div>
+                          <div className="mt-1 text-slate-500">score {formatDecimal(trade.entry_quality)}</div>
                         </td>
-                        <td className="py-2 pr-4 font-mono text-slate-400">
-                          {trade.confidence != null && !isNaN(trade.confidence) ? `${(trade.confidence * 100).toFixed(0)}%` : "—"}
+                        <td className="py-2 pr-4 text-[11px] font-mono">
+                          <div className="text-slate-200">${trade.price.toLocaleString()}</div>
+                          <div className="mt-1 text-slate-500">qty {trade.amount}</div>
                         </td>
                         <td className={`py-2 font-mono font-bold ${trade.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
                           {trade.pnl >= 0 ? "+" : ""}{trade.pnl.toFixed(2)}
