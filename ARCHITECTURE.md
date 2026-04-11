@@ -53,7 +53,12 @@
 
 **Missing feature-row backfill contract（Heartbeat #628）**：raw continuity repair 之後，`feature_engine/preprocessor.py::backfill_missing_feature_rows()` 必須把 repaired raw timestamps 補進 `features_normalized`。否則 raw rows 即使回來了，label generation 仍會因 feature timestamps 缺失而無法消化 repaired window，形成新的假進度。
 
-**Fast heartbeat contract（Heartbeat #617）**：`python scripts/hb_parallel_runner.py --fast` 必須可直接在 cron 執行，不依賴額外 `--hb` 參數；fast summary 仍需包含 DB counts、canonical IC 腳本結果與 `source_blockers` 摘要，確保快檢查模式不是「只剩數字」的半閉環。
+**Fast heartbeat contract（Heartbeat #617 / #659 / #661）**：`python scripts/hb_parallel_runner.py --fast` 必須可直接在 cron 執行，不依賴額外 `--hb` 參數；fast summary 仍需包含 DB counts、canonical IC 腳本結果與 `source_blockers` 摘要，確保快檢查模式不是「只剩數字」的半閉環。Heartbeat #659 起，summary 必須持久化 `ic_diagnostics` 與 `auto_propose`；Heartbeat #661 再新增 distribution-aware drift artifact：
+- `ic_diagnostics = {global_pass, tw_pass, total_features, n}`
+- `drift_diagnostics = {primary_window, primary_alerts, primary_summary, full_sample}`
+- `auto_propose = {attempted, success, returncode, stdout_preview, stderr_preview}`
+
+另外，fast heartbeat 必須在 auto-propose 之前自動執行 `scripts/recent_drift_report.py`，把 canonical 1440m recent-window `label balance / dominant regime / constant-target` 寫到 `data/recent_drift_report.json`。這樣後續 heartbeat / drift triage / blocker automation 才能直接 machine-read 最近兩輪的 TW-IC 狀態與污染視窗，而不是重新從 `stdout_preview` 猜字串。
 
 **Regime-aware IC fallback contract（Heartbeat #630）**：`scripts/regime_aware_ic.py` 必須以 `feat_mind` tertiles 作為首選 regime split，但當 canonical rows 的 `feat_mind` 缺值時，不可直接把 row 丟進 `neutral`。必須回退到 `features_normalized.regime_label`，並把 `regime_meta / regime_counts / fallback_rows` 寫入輸出 JSON，否則 heartbeat 會把 analysis artifact 誤判成市場 regime 崩壞，污染 P0/P1 優先級。
 

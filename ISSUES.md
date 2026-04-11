@@ -1,22 +1,22 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-11 03:31 UTC — Heartbeat #656（demote Dashboard 4H hand-written action copy behind the live decision-quality contract, add regression guard, then re-verify on fresh canonical data）*
+*最後更新：2026-04-11 04:55 UTC — Heartbeat #661（add machine-readable recent drift diagnostics, wire them into fast heartbeat summaries + auto-propose, and pinpoint TW-IC decay to constant-target / chop-concentrated recent windows）*
 
-## 📊 系統健康狀態 v4.63
+## 📊 系統健康狀態 v4.64
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,389** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 656` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
-| Features | **11,818** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 repaired raw rows 保持同步 |
-| Labels | **40,873** | 🟢 本輪 240m labels 推進至 **11,616 target rows**、1440m 推進至 **11,250**；freshness 仍在 expected horizon lag 內 |
-|| simulated_pyramid_win (DB overall) | **57.47%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5747` |
-|| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.54%** | 🟢 分析樣本 n=11,121 |
-|| spot_long_win | **33.25%** | 🟡 legacy 比較口徑，非主 target |
-|| 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY/ATR/VWAP/4H bias path 仍是主要通過來源 |
-|| TW-IC | **12/30** | 🟡 recent-weighted 診斷再回落 1 格；本輪剩 Body/Aura/Mind/DXY/VWAP 與部分 4H bias path 可用，Nose/Tongue/Pulse/VIX 未回復，若再連 1 輪低於 14/30 應升級為 distribution-aware drift 調查 |
-|| Regime IC | **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；bull 仍保持 7/8 |
-|| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; model leaderboard + strategy leaderboard/detail + active strategy summary + side-by-side compare + Dashboard confidence card + Dashboard backtest summary + Dashboard 4H structure panel + standalone Backtest page expose canonical decision-quality fields or explicit fallback framing** | 🟢 不再只有 route/nav regression guard；本輪再把 Dashboard 仍殘留的手寫 4H action copy 降級成 context-only，主決策固定回到 live contract |
-|| Verification | **fast heartbeat + pytest tests/test_frontend_decision_contract.py tests/test_api_feature_history_and_predictor.py -q + npm build** | ✅ 本輪已重驗證 |
+| Raw | **20,394** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 661` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
+| Features | **11,823** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 repaired raw rows 保持同步 |
+| Labels | **40,890** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels 持平屬 horizon lookahead 自然停頓，不是 pipeline failure |
+||| simulated_pyramid_win (DB overall) | **57.49%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5749` |
+||| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.59%** | 🟢 分析樣本 n=11,134 |
+||| spot_long_win | **33.25%** | 🟡 legacy 比較口徑，非主 target |
+||| 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY/ATR/VWAP/4H bias path 仍是主要通過來源 |
+||| TW-IC | **12/30** | 🔴 recent-weighted path 仍連續低於 14/30；Heartbeat #661 已把 `recent_drift_report.json` / `drift_diagnostics` 接入 runner + auto-propose，避免再把 recent 常數標籤視窗誤解成「近期優勢」 |
+||| Regime IC | **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；bull 仍保持 7/8 |
+||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; model leaderboard + strategy leaderboard/detail + active strategy summary + side-by-side compare + Dashboard confidence card + Dashboard backtest summary + Dashboard 4H structure panel + standalone Backtest page expose canonical decision-quality fields or explicit fallback framing** | 🟢 UI / API canonical contract 維持；本輪推進的是 heartbeat 自動治理，不是前端語義回退 |
+||| Verification | **fast heartbeat + `python scripts/recent_drift_report.py` + `python scripts/auto_propose_fixes.py` + pytest tests/test_frontend_decision_contract.py tests/test_api_feature_history_and_predictor.py tests/test_hb_parallel_runner.py tests/test_auto_propose_fixes.py -q + npm build** | ✅ 本輪已重驗證 |
 
 ## 🎯 當前戰略問題（高準確度 / 高勝率 / 低回撤）
 
@@ -48,13 +48,52 @@
 - **剩餘缺口**：目前 trade quality 仍是 **backtest-side proxy**，尚未直接使用 `win + pnl_quality + drawdown_penalty + time_underwater` 的完整 canonical decision-quality target，也尚未把 regime breakdown / leaderboard UI 主排序文字一起更新成同一語義。
 - **下一步方向**：把 labeling 端的 canonical quality target 明確接進 leaderboard / predictor，共用同一組 decision-quality contract，而不是讓 leaderboard 停留在 proxy 分數。
 
-### #DYNAMIC_WINDOW_NOT_DISTRIBUTION_AWARE（持續 P1）
-- **現象**：Dynamic Window 最近窗已知不是 merge bug，而是 canonical recent labels 在某些窗口內高度偏斜甚至 constant。
-- **風險**：近期 evaluation 容易給出假 blocker 或假優勢，進一步誤導模型與特徵排序。
-- **建議方向**：把 recent-window 評估升級成 **distribution-aware / regime-aware**，顯示 label balance 與 constant-target guardrail。
+### #DYNAMIC_WINDOW_NOT_DISTRIBUTION_AWARE（升級為當前 P0 入口）
+- **現象**：Heartbeat #660 / #661 的 canonical TW-IC 都只有 **12/30**，而 full/regime IC 仍維持健康；近期優勢顯著弱化，必須先分辨是 feature drift 還是 recent label / regime distribution 污染。
+- **本輪修復**：新增 `scripts/recent_drift_report.py`，固定對 canonical `simulated_pyramid_win`（1440m）輸出 `data/recent_drift_report.json`，內容包含 recent window 的 label balance、constant-target guardrail、dominant regime 與相對全樣本的 delta。`scripts/hb_parallel_runner.py` 會把這份報表摘要成 `drift_diagnostics` 寫進 `data/heartbeat_N_summary.json`，`scripts/auto_propose_fixes.py` 則直接把 primary drift window 事實帶進 `#H_AUTO_TW_DRIFT` action，避免 blocker 只剩抽象警告。
+- **本輪定位結果（Heartbeat #661）**：recent drift report 顯示 **last 100 / 250 rows = 100% simulated_pyramid_win=1，且 100% chop**；last 500 rows 也有 **99.8% win_rate、100% chop**。這代表污染 TW-IC 的不是整體 canonical target，而是 **recent window constant-target + chop concentration**，會讓任何 recent-weighted correlation 失真。
+- **剩餘風險**：runner 已能 machine-read drift 根因，但還沒把這個 guardrail 反饋到 dynamic-window / calibration logic 本身；若後續分析仍直接信 recent windows，就會繼續把 constant-target slice 誤當成近期 alpha。
+- **建議方向**：下一輪把這份 drift diagnostics 接進 dynamic-window / calibration 流程：當 recent window 出現 `constant_target` 或 `dominant_regime_share >= 0.9` 時，直接降級該 window 的 TW-IC / calibration 權重，而不是只在 summary 裡提醒。
 
 ### 實作計畫
 - `docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+## 📈 心跳 #661 摘要
+
+### 本輪已驗證 patch
+1. **Recent drift is now a first-class machine-readable heartbeat artifact**：新增 `scripts/recent_drift_report.py`，固定對 canonical 1440m `simulated_pyramid_win` 輸出 recent-window label balance / dominant regime / constant-target guardrail 到 `data/recent_drift_report.json`。
+2. **Fast heartbeat summary now persists root-cause-ready drift diagnostics**：`scripts/hb_parallel_runner.py` 會在 full/regime IC 後自動執行 drift report，並把 `drift_diagnostics={primary_window, primary_alerts, primary_summary...}` 寫進 `data/heartbeat_661_summary.json`，讓後續心跳不用再從 stdout 猜 recent distribution。
+3. **Auto-propose blocker now names the polluted window instead of only shouting about TW-IC**：`scripts/auto_propose_fixes.py` 會讀 `recent_drift_report.json`，把 `recent_window=100, alerts=['constant_target','regime_concentration'], dominant_regime=chop(100.00%)` 直接帶進 `#H_AUTO_TW_DRIFT` action，讓下一輪 patch 可以直接對準 recent-window constant-target / chop concentration。
+
+### 本輪 runtime facts（Heartbeat #661）
+- `python scripts/hb_parallel_runner.py --fast --hb 661`：**Raw 20393→20394 / Features 11822→11823 / Labels 40890→40890**；summary 已落地 `data/heartbeat_661_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-11 01:32:18.956763`、`raw_gap≈0.8h`；1440m `latest_target=2026-04-10 05:49:15.768863`、`raw_gap≈1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- Continuity telemetry：`bridge_inserted=0`、`used_bridge=false`；raw continuity 保持乾淨。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **12/30 PASS**；Regime IC **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,134）。
+- `python scripts/recent_drift_report.py`：full sample `win_rate=0.6419`、regime mix `chop=85.19%`；**last 100 / 250 rows = 100% simulated_pyramid_win=1 且 100% chop**，last 500 rows = `win_rate=0.9980` / `dominant_regime=chop(100%)`；primary drift window = **100 rows** with alerts `constant_target + regime_concentration`。
+- `pytest tests/test_hb_parallel_runner.py tests/test_auto_propose_fixes.py -q` → **9 passed**。
+
+### Blocker 升級 / 狀態更正
+- **#DYNAMIC_WINDOW_NOT_DISTRIBUTION_AWARE（本輪真推進）**：不再只是說「TW-IC 持續低」，而是已定位到 recent canonical slice 本身變成 **constant-target + chop-concentrated**。這讓下一輪可以直接把 dynamic-window / calibration guardrail 做成行為，而不是繼續討論抽象 drift。
+- **#LOW_COVERAGE_SOURCES（持續真 blocker）**：這輪修的是 heartbeat drift 治理，不是 sparse-source 歷史補齊；blocked features 仍是 **8**，`fin_netflow` 仍受 `COINGLASS_API_KEY` 缺失阻擋。
+
+## 📈 心跳 #659 摘要
+
+### 本輪已驗證 patch
+1. **Fast heartbeat now persists machine-readable IC diagnostics and auto-propose output**：`scripts/hb_parallel_runner.py` 新增 `ic_diagnostics` 與 `auto_propose` summary fields，並在 heartbeat 結尾直接執行 `scripts/auto_propose_fixes.py`；`data/heartbeat_658_summary.json` / `data/heartbeat_659_summary.json` 已能直接被後續心跳解析，不必再從 `stdout_preview` 猜 TW-IC。
+2. **Auto-propose no longer relies on legacy target semantics**：`scripts/auto_propose_fixes.py` 改為讀 canonical `simulated_pyramid_win` + `data/full_ic_result.json`，不再用 `label_spot_long_win/sell_win` 來決定主 blocker；同時新增 `HB_RUN_LABEL` current-entry path，讓本輪 heartbeat 還沒先寫 summary 時，也能拿 current `TW-IC` 與上一輪 summary 做連續判斷。
+3. **TW-IC decay is now an auto-escalated blocker instead of a markdown-only warning**：`HB_RUN_LABEL=660 python scripts/auto_propose_fixes.py` 已實際產生 `#H_AUTO_TW_DRIFT: TW-IC 連續低於 14/30：#660=11/30 -> #659=11/30`，證明心跳 runner 已具備「同一問題連兩輪惡化就升級 blocker」的閉環機制。
+
+### 本輪 runtime facts（Heartbeat #659）
+- `python scripts/hb_parallel_runner.py --fast --hb 659`：**Raw 20391→20392 / Features 11820→11821 / Labels 40882→40882**；summary 已落地 `data/heartbeat_659_summary.json`，內含 `ic_diagnostics={global_pass:13, tw_pass:11, total_features:30}` 與 `auto_propose` preview。
+- Canonical freshness：240m `latest_target=2026-04-11 00:59:05.983262`、`raw_gap≈0.5h`；1440m `latest_target=2026-04-10 04:53:08.901581`、`raw_gap≈1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- Continuity telemetry：`bridge_inserted=0`、`used_bridge=false`；raw continuity 保持乾淨。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **11/30 PASS**；Regime IC **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,128）。
+- `python -m pytest tests/test_frontend_decision_contract.py tests/test_api_feature_history_and_predictor.py tests/test_hb_parallel_runner.py tests/test_auto_propose_fixes.py -q` → **18 passed**；`cd web && npm run build` ✅。
+
+### Blocker 升級 / 狀態更正
+- **TW-IC decay 不再只是 markdown 提醒**：Heartbeat #659 已把「連續低於 14/30 就升級 blocker」真正落到 runner + summary + auto-propose；下一輪若 recent-window drift 仍存在，issue 會直接 machine-readable 地浮到 `issues.json` / summary，而不是被新一輪 heartbeat 敘事沖掉。
+- **#DECISION_QUALITY_GAP 無假改善**：本輪沒有再碰 Dashboard / Strategy Lab / Backtest contract，本次推進點是 heartbeat 治理閉環。UI/API canonical semantics 仍維持前一輪狀態，未被這輪 patch 破壞。
 
 ## 📈 心跳 #656 摘要
 

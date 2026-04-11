@@ -57,7 +57,8 @@
 - [ ] 核心信號 vs 研究信號分級：把 4H 結構 + 高 coverage technical 納入主決策；把 sparse-source / 低 coverage 特徵降級為 research overlay，不再與核心信號同權
 - [~] leaderboard 改版：從偏 ROI 排序調整成 **勝率 / 回撤 / regime 穩定度 / PF / trade quality** 的複合評分，讓排行榜更符合高勝率低回撤目標  
   ↳ Heartbeat #638：`backtesting/model_leaderboard.py` 與 API payload 已輸出 trade-quality / drawdown-aware component fields；Heartbeat #639 再把 canonical `drawdown_penalty/time_underwater` 帶進 leaderboard frame，下一步是把 ranking 從 proxy 分數升級成直接使用這組 canonical quality target
-- [ ] Dynamic Window distribution-aware 版：窗口評估必須顯示 label distribution / regime distribution / constant-target guardrail，不再只看固定 N 導致近期窗口誤判
+- [~] Dynamic Window distribution-aware 版：窗口評估必須顯示 label distribution / regime distribution / constant-target guardrail，不再只看固定 N 導致近期窗口誤判  
+  ↳ Heartbeat #661：`scripts/recent_drift_report.py` 已把 canonical 1440m recent-window `label balance + dominant regime + constant-target` 做成 machine-readable artifact，並接入 fast heartbeat summary / auto-propose。下一步是把這個 guardrail 真正套進 dynamic-window / calibration 權重，而不是只在 summary 中揭露。
 - [ ] strategy archetype layer：把策略從 `rule_baseline` / `xgboost` 升級成「抄底型 / 趨勢型 / 均值回歸型 / 4H濾網型」等決策語義層
 - [~] maturity-aware UI：FeatureChart / Strategy Lab 明確顯示 **核心可用 / 研究中 / blocked** 三層成熟度，讓使用者知道哪些訊號能當主判斷、哪些只能輔助觀察  
   ↳ Heartbeat #647：`/api/features/coverage` 與 `FeatureChart` 已新增 `maturity_tier + score_usable` contract，legend / summary / composite score 已區分 core vs research vs blocked；Heartbeat #648 再把同一套 maturity summary 推進到 Dashboard 雷達與 AdviceCard。下一步收斂到 Dashboard 其他摘要卡與 Strategy Lab compare flow，避免首頁/實驗室又回退成只看數值不看成熟度
@@ -69,8 +70,8 @@
 - [x] 心跳閉環標準化：`strategy-decision-guide.md` + 六帽 + ORID + issue/roadmap/architecture 同步更新，並由 `HEARTBEAT.md` 明確定義為強制流程
 - [x] canonical target 統一：`simulated_pyramid_win` 為主；`label_spot_long_win` 僅作 path-aware 比較；`sell_win` 僅作 legacy 相容
 - [x] P0/P1 修復驅動：每次心跳至少產出 1 個可驗證 patch，不允許只產出失敗報告
-- [ ] 心跳 gate 自動化：把「patch / verify / doc sync / next gate」檢查做成腳本或模板驗證
-- [ ] blocker 升級機制落地：同一 issue 連續 2~3 輪無進展時，自動升級 source-level investigation / alternative plan
+- [~] 心跳 gate 自動化：`hb_parallel_runner.py` 已會把 `ic_diagnostics + drift_diagnostics + auto_propose` 寫入 `heartbeat_N_summary.json`，並在 fast heartbeat 自動執行 canonical auto-propose；下一步是把 patch / verify / doc sync / next gate 的缺欄也 machine-check 化
+- [~] blocker 升級機制落地：Heartbeat #659 已讓 TW-IC 連續低於 14/30 時自動觸發 `#H_AUTO_TW_DRIFT`；Heartbeat #661 再把 distribution-aware recent-window / calibration drift 報表直接接進該 issue，已能指出 `constant_target + chop concentration` 的污染視窗。下一步是讓 dynamic-window / calibration path 實際消費這個 guardrail，而不是只做告警與摘要
 - [x] regime-aware IC null-bucket hygiene：`regime_aware_ic.py` 對 `feat_mind` 缺值 row 改用 `features_normalized.regime_label` fallback，並把 `regime_meta/regime_counts` 寫入輸出，避免 75%+ canonical rows 被誤判成 neutral 造成錯誤決策
 - [x] source-level sparse feature hygiene：Fin / Fang / Web / Scales / Nest fetch failure 改為 `None`，不再把來源失敗寫成假中性 0
 - [x] sparse source latest-row contract：Claw / Fang / Fin / Web / Scales / Nest 只允許使用 latest raw row；若最新來源缺值則保留 `None`，禁止把舊 sparse 值偷帶到新 features row

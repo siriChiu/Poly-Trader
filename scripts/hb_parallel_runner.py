@@ -41,6 +41,8 @@ TASKS = [
     {"name": "tests", "label": "🧪 Comprehensive Tests", "cmd": [PYTHON, "tests/comprehensive_test.py"]},
 ]
 COLLECT_CMD = [PYTHON, "scripts/hb_collect.py"]
+AUTO_PROPOSE_CMD = [PYTHON, "scripts/auto_propose_fixes.py"]
+DRIFT_REPORT_CMD = [PYTHON, "scripts/recent_drift_report.py"]
 
 
 def parse_args(argv=None):
@@ -170,6 +172,72 @@ def collect_source_blockers() -> Dict[str, Any]:
     return blocker_summary
 
 
+def collect_ic_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "full_ic_result.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    return {
+        "n": payload.get("n"),
+        "global_pass": payload.get("global_pass"),
+        "tw_pass": payload.get("tw_pass"),
+        "total_features": payload.get("total_features"),
+    }
+
+
+def _run_serial_command(cmd: list[str], timeout: int = 600, extra_env: Dict[str, str] | None = None) -> Dict[str, Any]:
+    env = {**os.environ, "PYTHONPATH": PROJECT_ROOT}
+    if extra_env:
+        env.update(extra_env)
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=env,
+        )
+        return {
+            "attempted": True,
+            "success": result.returncode == 0,
+            "returncode": result.returncode,
+            "stdout": result.stdout.strip(),
+            "stderr": result.stderr.strip(),
+            "command": cmd,
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "attempted": True,
+            "success": False,
+            "returncode": -1,
+            "stdout": "",
+            "stderr": f"TIMEOUT after {timeout}s",
+            "command": cmd,
+        }
+    except Exception as exc:
+        return {
+            "attempted": True,
+            "success": False,
+            "returncode": -1,
+            "stdout": "",
+            "stderr": str(exc),
+            "command": cmd,
+        }
+
+
+def run_recent_drift_report() -> Dict[str, Any]:
+    return _run_serial_command(DRIFT_REPORT_CMD)
+
+
+def run_auto_propose(run_label: str | None = None) -> Dict[str, Any]:
+    extra_env = {"HB_RUN_LABEL": str(run_label)} if run_label is not None else None
+    return _run_serial_command(AUTO_PROPOSE_CMD, extra_env=extra_env)
+
+
 def parse_collect_metadata(stdout: str) -> Dict[str, Any]:
     match = re.search(r"CONTINUITY_REPAIR_META:\s*(\{.*\})", stdout or "")
     if not match:
@@ -203,7 +271,18 @@ def compute_bridge_fallback_streak(current_meta: Dict[str, Any], summaries_dir: 
     return streak
 
 
-def save_summary(run_label, counts, source_blockers, collect_result, results, elapsed, fast_mode):
+def save_summary(
+    run_label,
+    counts,
+    source_blockers,
+    collect_result,
+    results,
+    elapsed,
+    fast_mode,
+    ic_diagnostics=None,
+    drift_diagnostics=None,
+    auto_propose_result=None,
+):
     passed = sum(1 for r in results.values() if r["success"])
     total = len(results)
     continuity_repair = parse_collect_metadata(collect_result.get("stdout", ""))
@@ -225,6 +304,15 @@ def save_summary(run_label, counts, source_blockers, collect_result, results, el
         },
         "db_counts": counts,
         "source_blockers": source_blockers,
+        "ic_diagnostics": ic_diagnostics or {},
+        "drift_diagnostics": drift_diagnostics or {},
+        "auto_propose": {
+            "attempted": (auto_propose_result or {}).get("attempted", False),
+            "success": (auto_propose_result or {}).get("success", False),
+            "returncode": (auto_propose_result or {}).get("returncode", 0),
+            "stdout_preview": (auto_propose_result or {}).get("stdout", "")[:2000],
+            "stderr_preview": (auto_propose_result or {}).get("stderr", "")[:1000],
+        },
         "parallel_results": {},
         "stats": {"passed": passed, "total": total, "elapsed_seconds": round(elapsed, 1)},
     }
@@ -242,6 +330,32 @@ def save_summary(run_label, counts, source_blockers, collect_result, results, el
         json.dump(summary, f, indent=2, default=str)
 
     return summary, summary_path
+
+
+def collect_recent_drift_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "recent_drift_report.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    primary = payload.get("primary_window") or {}
+    summary = primary.get("summary") or {}
+    return {
+        "target_col": payload.get("target_col"),
+        "horizon_minutes": payload.get("horizon_minutes"),
+        "full_sample": payload.get("full_sample") or {},
+        "primary_window": primary.get("window"),
+        "primary_alerts": primary.get("alerts") or [],
+        "primary_summary": {
+            "rows": summary.get("rows"),
+            "win_rate": summary.get("win_rate"),
+            "win_rate_delta_vs_full": summary.get("win_rate_delta_vs_full"),
+            "dominant_regime": summary.get("dominant_regime"),
+            "dominant_regime_share": summary.get("dominant_regime_share"),
+        },
+    }
 
 
 def print_source_blockers(source_blockers: Dict[str, Any]) -> None:
@@ -366,7 +480,64 @@ def main(argv=None):
             if errors:
                 print(f"\n--- {name} stderr ---\n" + '\n'.join(errors[:20]))
 
-    _, summary_path = save_summary(run_label, counts, source_blockers, collect_result, results, elapsed, args.fast)
+    ic_diagnostics = collect_ic_diagnostics()
+    if ic_diagnostics:
+        print(
+            "\n📉 IC diagnostics: "
+            f"Global={ic_diagnostics.get('global_pass')}/{ic_diagnostics.get('total_features')} | "
+            f"TW-IC={ic_diagnostics.get('tw_pass')}/{ic_diagnostics.get('total_features')}"
+        )
+
+    drift_report_result = run_recent_drift_report()
+    drift_diagnostics = collect_recent_drift_diagnostics()
+    print(
+        f"🧭 Recent drift report: {'PASS' if drift_report_result['success'] else 'FAIL'} "
+        f"(rc={drift_report_result['returncode']})"
+    )
+    if drift_report_result.get("stdout"):
+        lines = drift_report_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- recent_drift_report ---\n{preview}")
+    if drift_report_result.get("stderr"):
+        print(f"\n--- recent_drift_report stderr ---\n{drift_report_result['stderr']}")
+    if drift_diagnostics:
+        primary = drift_diagnostics.get("primary_summary") or {}
+        print(
+            "🧭 Drift diagnostics: "
+            f"window={drift_diagnostics.get('primary_window')} "
+            f"alerts={drift_diagnostics.get('primary_alerts')} "
+            f"win_rate={primary.get('win_rate')} "
+            f"dominant_regime={primary.get('dominant_regime')}"
+        )
+
+    auto_propose_result = run_auto_propose(run_label)
+    print(
+        f"🛠️  Auto-propose: {'PASS' if auto_propose_result['success'] else 'FAIL'} "
+        f"(rc={auto_propose_result['returncode']})"
+    )
+    if auto_propose_result.get("stdout"):
+        lines = auto_propose_result["stdout"].split("\n")
+        preview = "\n".join(lines[:25])
+        if len(lines) > 25:
+            preview += "\n...\n" + "\n".join(lines[-10:])
+        print(f"\n--- auto_propose_fixes ---\n{preview}")
+    if auto_propose_result.get("stderr"):
+        print(f"\n--- auto_propose_fixes stderr ---\n{auto_propose_result['stderr']}")
+
+    _, summary_path = save_summary(
+        run_label,
+        counts,
+        source_blockers,
+        collect_result,
+        results,
+        elapsed,
+        args.fast,
+        ic_diagnostics=ic_diagnostics,
+        drift_diagnostics=drift_diagnostics,
+        auto_propose_result=auto_propose_result,
+    )
     print(f"\n📄 Summary saved: {os.path.relpath(summary_path, PROJECT_ROOT)}")
 
 
