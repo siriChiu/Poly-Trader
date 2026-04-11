@@ -60,7 +60,7 @@
 
 另外，fast heartbeat 必須在 auto-propose 之前自動執行 `scripts/recent_drift_report.py`，把 canonical 1440m recent-window `label balance / dominant regime / constant-target` 寫到 `data/recent_drift_report.json`。這樣後續 heartbeat / drift triage / blocker automation 才能直接 machine-read 最近兩輪的 TW-IC 狀態與污染視窗，而不是重新從 `stdout_preview` 猜字串。
 
-**Dynamic-window guardrail contract（Heartbeat #662）**：`scripts/dynamic_window_train.py` 不得再只用「哪個 window 有最多 IC pass」決定推薦 window。它現在必須同時讀取 local window distribution 與 `data/recent_drift_report.json`，對每個候選 window 輸出 `dominant_regime / alerts / distribution_guardrail`，並把 `constant_target` 或 `regime_concentration` 視窗標成 `skip_for_recommendation`。`data/dw_result.json` 也必須同時保存 `raw_best_n` 與 `recommended_best_n`，避免 heartbeat / calibration path 把 distribution-polluted recent window 誤認為可直接採用的 calibration baseline。
+**Dynamic-window guardrail contract（Heartbeat #662 / #663）**：`scripts/dynamic_window_train.py` 不得再只用「哪個 window 有最多 IC pass」決定推薦 window。它現在必須同時讀取 local window distribution 與 `data/recent_drift_report.json`，對每個候選 window 輸出 `dominant_regime / alerts / distribution_guardrail`，並把 `constant_target` 或 `regime_concentration` 視窗標成 `skip_for_recommendation`。`data/dw_result.json` 也必須同時保存 `raw_best_n` 與 `recommended_best_n`，避免 heartbeat / calibration path 把 distribution-polluted recent window 誤認為可直接採用的 calibration baseline。**Heartbeat #663 補充**：live predictor 的 decision-quality calibration 也必須消費這份 artifact，至少輸出 `decision_quality_calibration_window / decision_quality_guardrail_applied / decision_quality_guardrail_reason`，證明 calibration summary 沒有偷偷回退到 guardrailed raw-best window。
 
 **Regime-aware IC fallback contract（Heartbeat #630）**：`scripts/regime_aware_ic.py` 必須以 `feat_mind` tertiles 作為首選 regime split，但當 canonical rows 的 `feat_mind` 缺值時，不可直接把 row 丟進 `neutral`。必須回退到 `features_normalized.regime_label`，並把 `regime_meta / regime_counts / fallback_rows` 寫入輸出 JSON，否則 heartbeat 會把 analysis artifact 誤判成市場 regime 崩壞，污染 P0/P1 優先級。
 
@@ -100,7 +100,11 @@
 - `entry_quality_label`
 - `allowed_layers`
 - `decision_quality_calibration_scope`
+- `decision_quality_calibration_window`
 - `decision_quality_sample_size`
+- `decision_quality_guardrail_applied`
+- `decision_quality_guardrail_reason`
+- `model_route_regime`
 - `expected_win_rate`
 - `expected_pyramid_pnl`
 - `expected_pyramid_quality`
@@ -110,7 +114,10 @@
 - `decision_quality_label`
 - `decision_profile_version`
 
-其中 quality-related 欄位目前不是直接多目標模型輸出，而是用 canonical **1440m historical labels** 按 `regime_gate + entry_quality_label`（不足時 fallback 到 `regime_gate / entry_quality_label / global`）做 calibrated expectation layer。這層的目的，是讓 live path 直接說出「這筆 setup 在歷史上通常贏多少、回撤多深、會不會久套」，把 canonical quality semantics 從 DB / leaderboard 往前推到即時 API。Heartbeat #650 起，`web/src/components/ConfidenceIndicator.tsx` 與 `web/src/pages/Dashboard.tsx` 也必須直接消費這組欄位，首頁 live card 不得再回退成舊的二元 confidence/做空 copy。下一階段若升級到完整 decision-quality target，必須沿用這個 contract 擴展，而不是另起一套平行語義。
+其中 quality-related 欄位目前不是直接多目標模型輸出，而是用 canonical **1440m historical labels** 按 `regime_gate + entry_quality_label`（不足時 fallback 到 `regime_gate / entry_quality_label / global`）做 calibrated expectation layer。這層的目的，是讓 live path 直接說出「這筆 setup 在歷史上通常贏多少、回撤多深、會不會久套」，把 canonical quality semantics 從 DB / leaderboard 往前推到即時 API。**Heartbeat #663 補充兩條硬約束**：
+1. calibration layer 不得偷用 guardrailed recent-window，必須明確輸出 `decision_quality_calibration_window / decision_quality_guardrail_*` 來證明它消費的是 `dw_result.json` 的 `recommended_best_n`；
+2. regime-model routing 不得再用另一套 heuristic 對外說一個 regime、實際走另一個 model path；`model_route_regime` 必須與 live decision profile 的 regime label 一起可見。
+Heartbeat #650 起，`web/src/components/ConfidenceIndicator.tsx` 與 `web/src/pages/Dashboard.tsx` 也必須直接消費這組欄位，首頁 live card 不得再回退成舊的二元 confidence/做空 copy。下一階段若升級到完整 decision-quality target，必須沿用這個 contract 擴展，而不是另起一套平行語義。
 
 **Backtest decision-quality contract（Heartbeat #651 / #652）**：`server/routes/api.py::api_backtest()` 不得再只回傳 ROI / 勝率 / PF 這種 legacy summary，也不得默默依賴 `feat_eye_dist` 等舊欄位語義。它現在必須直接使用 canonical core features (`feat_eye`~`feat_mind`) 建立回測 entry，並在 response 中同步輸出：
 - `decision_contract = {target_col, target_label, sort_semantics, decision_quality_horizon_minutes}`

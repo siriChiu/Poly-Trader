@@ -1,22 +1,22 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-11 05:28 UTC — Heartbeat #662（make dynamic-window selection consume distribution-aware guardrails so constant-target / chop-concentrated recent windows no longer become the recommended calibration window）*
+*最後更新：2026-04-11 05:58 UTC — Heartbeat #663（make live decision-quality calibration consume the distribution-guardrailed recommended window, and force predictor routing to use the same regime label that the live decision contract exposes）*
 
 ## 📊 系統健康狀態 v4.64
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,404** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 662` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
-| Features | **11,833** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 repaired raw rows 保持同步 |
-| Labels | **40,891** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels 新增 **+1**，不是 pipeline 停滯 |
-||| simulated_pyramid_win (DB overall) | **57.49%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5749` |
+| Raw | **20,431** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 663` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
+| Features | **11,860** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 repaired raw rows 保持同步 |
+| Labels | **40,893** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels 新增 **+1**，不是 pipeline 停滯 |
+||| simulated_pyramid_win (DB overall) | **57.48%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5748` |
 ||| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.59%** | 🟢 分析樣本 n=11,134 |
 ||| spot_long_win | **33.25%** | 🟡 legacy 比較口徑，非主 target |
 ||| 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY/ATR/VWAP/4H bias path 仍是主要通過來源 |
-||| TW-IC | **12/30** | 🔴 recent-weighted path 仍連續低於 14/30；Heartbeat #662 已把 distribution-aware guardrail 真正接到 `dynamic_window_train.py`，避免再把 constant-target / chop-concentrated recent windows 當成推薦 calibration window |
+||| TW-IC | **12/30** | 🔴 recent-weighted path 仍連續低於 14/30；Heartbeat #663 已把 distribution-aware guardrail 接進 live calibration，但 TW weighting path 仍未消費同一 policy |
 ||| Regime IC | **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；bull 仍保持 7/8 |
-||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; model leaderboard + strategy leaderboard/detail + active strategy summary + side-by-side compare + Dashboard confidence card + Dashboard backtest summary + Dashboard 4H structure panel + standalone Backtest page expose canonical decision-quality fields or explicit fallback framing** | 🟢 UI / API canonical contract 維持；本輪推進的是 dynamic-window 分布守門，不是前端語義回退 |
-||| Verification | **fast heartbeat + `python scripts/recent_drift_report.py` + `python scripts/dynamic_window_train.py` + pytest tests/test_dynamic_window_train.py tests/test_hb_parallel_runner.py tests/test_auto_propose_fixes.py -q** | ✅ 本輪已重驗證 |
+||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; live calibration now consumes `data/dw_result.json` recommended window and exposes `decision_quality_calibration_window / decision_quality_guardrail_*`; predictor routing now uses the same regime label that the live decision contract exposes** | 🟢 本輪把 guardrail 真正接到 live calibration，並修掉 route-regime 與 exposed regime_label 可能不一致的假語義 |
+||| Verification | **fast heartbeat `--hb 663` + `python scripts/hb_predict_probe.py` + `python -m pytest tests/test_api_feature_history_and_predictor.py -q`** | ✅ 本輪已重驗證 |
 
 ## 🎯 當前戰略問題（高準確度 / 高勝率 / 低回撤）
 
@@ -52,11 +52,36 @@
 - **現象**：Heartbeat #660 / #661 / #662 的 canonical TW-IC 都只有 **12/30**，而 full/regime IC 仍維持健康；近期優勢顯著弱化，必須先分辨是 feature drift 還是 recent label / regime distribution 污染。
 - **本輪修復**：`scripts/dynamic_window_train.py` 現在會同時讀取 local window distribution 與 `data/recent_drift_report.json`，對每個候選 window 輸出 `dominant_regime / alerts / distribution_guardrail`；只要出現 `constant_target` 或 `regime_concentration`，該 window 就會被標成 `skip_for_recommendation`，不再當作推薦 calibration / dynamic-window 選擇。新增 `tests/test_dynamic_window_train.py` 鎖住這個 guardrail 與推薦邏輯。
 - **本輪定位結果（Heartbeat #662）**：`python scripts/dynamic_window_train.py` 顯示 **N=100/200** 為 `constant_target + 100% chop`，**N=400/600/1000/2000** 也都是 `regime_concentration`；因此舊版 raw best **N=600 (6/8)** 被明確降級，新的 **recommended window = N=5000 (5/8, guardrail-safe)**。這證明近期高 pass 視窗主要是 distribution 污染，不是可直接拿來校準的近期 alpha。
-- **剩餘風險**：guardrail 已經進入 dynamic-window 腳本，但 **calibration / weighting path 本身** 還沒真正消費這個 policy；若 live calibration 仍直接信 recent windows，仍可能把 polluted slice 轉成過度樂觀的 expectation。
-- **建議方向**：下一輪把同一套 `distribution_guardrail` contract 接進 calibration / TW weighting：當 recent window 出現 `constant_target` 或 `dominant_regime_share >= 0.9` 時，直接降權或回退到較長 window，而不是只讓 dynamic-window report 避開它。
+- **本輪修復（Heartbeat #663）**：`model/predictor.py::_infer_live_decision_quality_contract()` 現在會讀 `data/dw_result.json`，使用 `recommended_best_n` 當 live calibration window，並把 `decision_quality_calibration_window / decision_quality_guardrail_applied / decision_quality_guardrail_reason` 直接帶到 predictor result 與 `scripts/hb_predict_probe.py`。本輪 probe 證據：`decision_quality_calibration_window=5000`、`guardrail_applied=true`、`guardrail_reason=raw_best_n=600 guardrailed ... regime_concentration`。
+- **剩餘風險**：decision-quality calibration 已吃到 guardrail，但 **TW weighting / training-side recency weighting** 仍未直接消費同一個 policy；TW-IC 依然連續 **12/30**，代表 recent polluted slice 雖已不再被當 calibration baseline，卻仍在近期 weighting 敘事上形成 blocker。
+- **建議方向**：下一輪把同一套 `distribution_guardrail` contract 接進 TW weighting / any recency-heavy path：當 recent window 出現 `constant_target` 或 `dominant_regime_share >= 0.9` 時，直接降權或回退到 guardrail-safe window，而不是只保護 calibration 摘要層。
+
+### #LIVE_REGIME_ROUTE_MISMATCH（新 P0，本輪已修復）
+- **現象**：Heartbeat #663 前，`model/predictor.py::predict()` 的 regime-model routing 仍用 `_determine_regime(features)` heuristic；但 live decision contract / `hb_predict_probe.py` 對外暴露的是 `decision_profile.regime_label`。這會導致 **used_model 與對外宣告的 regime_label 不一致**，形成假語義與錯誤驗證路徑。
+- **本輪修復**：predictor routing 現在優先使用 `decision_profile.regime_label`（再 fallback 到 features/db/heuristic），並把 `model_route_regime` 一起輸出。實測 probe 由先前的 `used_model=regime_bear_ensemble` + `regime_label=chop`，修正為 **`used_model=regime_chop_abstain` + `model_route_regime=chop`**。
+- **本輪證據**：`python scripts/hb_predict_probe.py` → `signal=ABSTAIN`, `regime_label=chop`, `model_route_regime=chop`, `used_model=regime_chop_abstain`；`python -m pytest tests/test_api_feature_history_and_predictor.py -q` → **9 passed**（新增 routing + guardrail regression）。
+- **剩餘風險**：這修的是 live predictor route/contract 一致性，不代表 regime assignment 本身已經最佳化；若之後要重調 `_determine_regime()` heuristic，仍必須與 DB regime label policy / Strategy Lab baseline 一起驗證。
 
 ### 實作計畫
 - `docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+## 📈 心跳 #663 摘要
+
+### 本輪已驗證 patch
+1. **Live decision-quality calibration now consumes the guardrailed recommended window instead of a hardcoded recent slice**：`model/predictor.py` 會讀 `data/dw_result.json`，用 `recommended_best_n` 當 calibration window，並對外輸出 `decision_quality_calibration_window / decision_quality_guardrail_applied / decision_quality_guardrail_reason`。
+2. **Predictor routing and exposed decision contract now use the same regime label**：live route 不再用獨立 heuristic silently pick bear while API/probe 說 chop；`model_route_regime` 已加入 output，`used_model` 與 `regime_label` 現在一致。
+3. **Regression guard added for both fixes**：`tests/test_api_feature_history_and_predictor.py` 新增 guardrail-window 與 regime-route consistency tests，避免之後再回退成 hardcoded 5000/heuristic-only routing。
+
+### 本輪 runtime facts（Heartbeat #663）
+- `python scripts/hb_parallel_runner.py --fast --hb 663`：**Raw 20430→20431 / Features 11859→11860 / Labels 40892→40893**；summary 已落地 `data/heartbeat_663_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-11 02:55:43.292475`、`raw_gap≈0.8h`；1440m `latest_target=2026-04-10 05:49:15.768863`、`raw_gap≈1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **12/30 PASS**；Regime IC **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,134）。
+- `python scripts/hb_predict_probe.py`：`signal=ABSTAIN`、`used_model=regime_chop_abstain`、`regime_label=chop`、`model_route_regime=chop`、`decision_quality_calibration_scope=regime_gate`、`decision_quality_calibration_window=5000`、`decision_quality_guardrail_applied=true`。
+- `python -m pytest tests/test_api_feature_history_and_predictor.py -q` → **9 passed**。
+
+### Blocker 升級 / 狀態更正
+- **#DYNAMIC_WINDOW_NOT_DISTRIBUTION_AWARE（本輪再收斂）**：guardrail 不再只停留在 `dynamic_window_train.py` 報表，而是已真正進入 live calibration contract。剩餘真 blocker 收斂到 **TW weighting / recency-heavy training path** 尚未消費同一 policy。
+- **#LIVE_REGIME_ROUTE_MISMATCH（本輪已修）**：先前 probe 顯示 `used_model` 與 `regime_label` 語義分裂，現在已用 route/output 一致性 + regression test 關閉這個假語義來源。
 
 ## 📈 心跳 #662 摘要
 

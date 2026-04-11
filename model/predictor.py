@@ -4,14 +4,19 @@ Only trade when model confidence > 0.7 or < 0.3
 """
 
 import os
+import json
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+from pathlib import Path
 import numpy as np
 from sqlalchemy.orm import Session
 from database.models import FeaturesNormalized, Labels
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DW_RESULT_PATH = PROJECT_ROOT / "data" / "dw_result.json"
 
 DEFAULT_TARGET_COL = "simulated_pyramid_win"
 MODEL_PATH = "model/xgb_model.pkl"
@@ -404,6 +409,9 @@ def _decision_quality_fallback(profile_version: str = "phase16_baseline_v2") -> 
         "decision_quality_calibration_scope": None,
         "decision_quality_sample_size": 0,
         "decision_quality_reference_from": None,
+        "decision_quality_calibration_window": None,
+        "decision_quality_guardrail_applied": False,
+        "decision_quality_guardrail_reason": None,
         "expected_win_rate": None,
         "expected_pyramid_pnl": None,
         "expected_pyramid_quality": None,
@@ -412,6 +420,43 @@ def _decision_quality_fallback(profile_version: str = "phase16_baseline_v2") -> 
         "decision_quality_score": None,
         "decision_quality_label": None,
         "decision_profile_version": profile_version,
+    }
+
+
+def _load_dynamic_window_guardrail() -> Dict[str, Any]:
+    if not DW_RESULT_PATH.exists():
+        return {}
+    try:
+        payload = json.loads(DW_RESULT_PATH.read_text())
+    except Exception:
+        return {}
+
+    recommended_best_n = payload.get("recommended_best_n")
+    raw_best_n = payload.get("raw_best_n")
+    if not isinstance(recommended_best_n, int) or recommended_best_n <= 0:
+        return {}
+
+    raw_best = payload.get(str(raw_best_n), {}) if raw_best_n is not None else {}
+    recommended_best = payload.get(str(recommended_best_n), {})
+    raw_alerts = list(raw_best.get("alerts") or [])
+    recommended_alerts = list(recommended_best.get("alerts") or [])
+    disqualifying = set((payload.get("guardrail_policy") or {}).get("disqualifying_alerts") or [])
+    raw_guardrailed = bool(raw_best.get("distribution_guardrail")) or any(a in disqualifying for a in raw_alerts)
+
+    reason_parts = []
+    if raw_guardrailed and raw_best_n is not None and raw_best_n != recommended_best_n:
+        reason_parts.append(
+            f"raw_best_n={raw_best_n} guardrailed via alerts={raw_alerts or ['distribution_guardrail']}"
+        )
+    if recommended_alerts:
+        reason_parts.append(f"recommended_best alerts={recommended_alerts}")
+
+    return {
+        "recommended_best_n": recommended_best_n,
+        "raw_best_n": raw_best_n,
+        "raw_best_guardrailed": raw_guardrailed,
+        "recommended_alerts": recommended_alerts,
+        "guardrail_reason": "; ".join(reason_parts) if reason_parts else None,
     }
 
 
@@ -489,6 +534,7 @@ def _summarize_decision_quality_contract(rows: List[Dict[str, Any]], decision_pr
         "decision_quality_calibration_scope": chosen_scope,
         "decision_quality_sample_size": len(chosen_rows),
         "decision_quality_reference_from": str(latest_ts) if latest_ts is not None else None,
+        "decision_quality_calibration_window": len(rows),
         "expected_win_rate": expected_win_rate,
         "expected_pyramid_pnl": expected_pnl,
         "expected_pyramid_quality": expected_quality,
@@ -501,6 +547,8 @@ def _summarize_decision_quality_contract(rows: List[Dict[str, Any]], decision_pr
 
 def _infer_live_decision_quality_contract(session: Session, decision_profile: Dict[str, Any], horizon_minutes: int = 1440, lookback_rows: int = 5000) -> Dict[str, Any]:
     base = _decision_quality_fallback(decision_profile.get("decision_profile_version") or "phase16_baseline_v2")
+    guardrail = _load_dynamic_window_guardrail()
+    calibration_window = guardrail.get("recommended_best_n") or lookback_rows
     rows = (
         session.query(
             FeaturesNormalized.timestamp,
@@ -527,7 +575,7 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
             Labels.simulated_pyramid_win.isnot(None),
         )
         .order_by(FeaturesNormalized.timestamp.desc())
-        .limit(lookback_rows)
+        .limit(calibration_window)
         .all()
     )
     if not rows:
@@ -555,7 +603,11 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
             "simulated_pyramid_drawdown_penalty": row.simulated_pyramid_drawdown_penalty,
             "simulated_pyramid_time_underwater": row.simulated_pyramid_time_underwater,
         })
-    return _summarize_decision_quality_contract(summarized_rows, decision_profile, horizon_minutes=horizon_minutes)
+    contract = _summarize_decision_quality_contract(summarized_rows, decision_profile, horizon_minutes=horizon_minutes)
+    contract["decision_quality_calibration_window"] = calibration_window
+    contract["decision_quality_guardrail_applied"] = bool(guardrail.get("raw_best_guardrailed"))
+    contract["decision_quality_guardrail_reason"] = guardrail.get("guardrail_reason")
+    return contract
 
 
 class RegimeAwarePredictor:
@@ -937,7 +989,7 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
     # Per-regime model routing (H145-fix + #H122 chop-abstain ensemble)
     used_model = "global"
     if regime_models and isinstance(features, dict):
-        regime = _determine_regime(features)
+        regime = decision_profile.get("regime_label") or features.get("regime_label") or _determine_regime(features)
         if regime in regime_models:
             # Chop regime: if confidence ≈ 50% (random), force abstain
             chop_abort = 0.50
@@ -953,6 +1005,7 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
                     "should_trade": False,
                     "model_type": "regime_ensemble",
                     "used_model": "regime_chop_abstain",
+                    "model_route_regime": regime,
                     "target_col": getattr(getattr(predictor, '_global', predictor), '_target_col', DEFAULT_TARGET_COL),
                     **decision_profile,
                     **decision_quality_contract,
@@ -991,6 +1044,7 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
         "should_trade": signal == "BUY" and (decision_profile.get("allowed_layers") or 0) > 0,
         "model_type": type(predictor).__name__,
         "used_model": used_model,
+        "model_route_regime": decision_profile.get("regime_label") or features.get("regime_label") or _determine_regime(features),
         "target_col": getattr(getattr(predictor, '_global', predictor), '_target_col', DEFAULT_TARGET_COL),
         **decision_profile,
         **decision_quality_contract,

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from types import SimpleNamespace
 
 from backtesting import strategy_lab
@@ -226,6 +227,82 @@ def test_decision_quality_contract_prefers_matching_gate_and_quality_bucket():
     assert contract["expected_time_underwater"] == 0.16
     assert contract["decision_quality_score"] == predictor_module._compute_decision_quality_score(0.82, 0.71, 0.09, 0.16)
     assert contract["decision_quality_label"] == "B"
+    assert contract["decision_quality_calibration_window"] == len(rows)
+
+
+def test_decision_quality_contract_uses_guardrail_recommended_window(monkeypatch, tmp_path):
+    dw_result = tmp_path / "dw_result.json"
+    dw_result.write_text(
+        json.dumps(
+            {
+                "raw_best_n": 600,
+                "recommended_best_n": 5000,
+                "guardrail_policy": {"disqualifying_alerts": ["constant_target", "regime_concentration"]},
+                "600": {"alerts": ["label_imbalance", "regime_concentration"], "distribution_guardrail": True},
+                "5000": {"alerts": [], "distribution_guardrail": False},
+            }
+        )
+    )
+    monkeypatch.setattr(predictor_module, "DW_RESULT_PATH", dw_result)
+
+    guardrail = predictor_module._load_dynamic_window_guardrail()
+
+    assert guardrail["recommended_best_n"] == 5000
+    assert guardrail["raw_best_guardrailed"] is True
+    assert "raw_best_n=600" in guardrail["guardrail_reason"]
+
+
+def test_predict_routes_regime_model_using_decision_profile_regime(monkeypatch):
+    monkeypatch.setattr(predictor_module, "_check_circuit_breaker", lambda session: None)
+    monkeypatch.setattr(
+        predictor_module,
+        "load_latest_features",
+        lambda session: {
+            "regime_label": "chop",
+            "feat_body": -0.9,
+            "feat_mind": -0.8,
+            "feat_4h_bias200": -0.5,
+            "feat_4h_bias50": -0.1,
+            "feat_nose": 0.1,
+            "feat_pulse": 0.8,
+            "feat_ear": -0.05,
+        },
+    )
+    monkeypatch.setattr(
+        predictor_module,
+        "_infer_live_decision_quality_contract",
+        lambda session, decision_profile, horizon_minutes=1440, lookback_rows=5000: {
+            **predictor_module._decision_quality_fallback(),
+            "decision_quality_calibration_scope": "global",
+            "decision_quality_calibration_window": 5000,
+        },
+    )
+
+    class _FakePredictor:
+        def predict_proba(self, features):
+            return 0.62
+
+    class _FakeRegimePredictor:
+        def __init__(self, model):
+            self.model = model
+
+        def predict_proba(self, features):
+            return self.model["confidence"]
+
+    monkeypatch.setattr(predictor_module, "XGBoostPredictor", _FakeRegimePredictor)
+
+    result = predictor_module.predict(
+        session=object(),
+        predictor=_FakePredictor(),
+        regime_models={
+            "bear": {"confidence": 0.91},
+            "chop": {"confidence": 0.48},
+        },
+    )
+
+    assert result["regime_label"] == "chop"
+    assert result["model_route_regime"] == "chop"
+    assert result["used_model"] == "regime_chop_abstain"
 
 
 def test_predict_confidence_route_unpacks_load_predictor_tuple(monkeypatch):
@@ -256,8 +333,11 @@ def test_predict_confidence_route_unpacks_load_predictor_tuple(monkeypatch):
             "allowed_layers": 3,
             "decision_quality_horizon_minutes": 1440,
             "decision_quality_calibration_scope": "regime_gate+entry_quality_label",
+            "decision_quality_calibration_window": 5000,
             "decision_quality_sample_size": 64,
             "decision_quality_reference_from": "2026-04-10 12:00:00",
+            "decision_quality_guardrail_applied": True,
+            "decision_quality_guardrail_reason": "raw_best_n=600 guardrailed via alerts=['label_imbalance', 'regime_concentration']",
             "expected_win_rate": 0.68,
             "expected_pyramid_pnl": 0.12,
             "expected_pyramid_quality": 0.61,
@@ -276,6 +356,8 @@ def test_predict_confidence_route_unpacks_load_predictor_tuple(monkeypatch):
     assert result["regime_gate"] == "ALLOW"
     assert result["allowed_layers"] == 3
     assert result["decision_quality_calibration_scope"] == "regime_gate+entry_quality_label"
+    assert result["decision_quality_calibration_window"] == 5000
+    assert result["decision_quality_guardrail_applied"] is True
     assert result["expected_drawdown_penalty"] == 0.09
     assert result["decision_profile_version"] == "phase16_baseline_v2"
     assert closed["value"] is True
