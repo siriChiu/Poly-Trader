@@ -60,6 +60,8 @@
 
 另外，fast heartbeat 必須在 auto-propose 之前自動執行 `scripts/recent_drift_report.py`，把 canonical 1440m recent-window `label balance / dominant regime / constant-target` 寫到 `data/recent_drift_report.json`。這樣後續 heartbeat / drift triage / blocker automation 才能直接 machine-read 最近兩輪的 TW-IC 狀態與污染視窗，而不是重新從 `stdout_preview` 猜字串。
 
+**Dynamic-window guardrail contract（Heartbeat #662）**：`scripts/dynamic_window_train.py` 不得再只用「哪個 window 有最多 IC pass」決定推薦 window。它現在必須同時讀取 local window distribution 與 `data/recent_drift_report.json`，對每個候選 window 輸出 `dominant_regime / alerts / distribution_guardrail`，並把 `constant_target` 或 `regime_concentration` 視窗標成 `skip_for_recommendation`。`data/dw_result.json` 也必須同時保存 `raw_best_n` 與 `recommended_best_n`，避免 heartbeat / calibration path 把 distribution-polluted recent window 誤認為可直接採用的 calibration baseline。
+
 **Regime-aware IC fallback contract（Heartbeat #630）**：`scripts/regime_aware_ic.py` 必須以 `feat_mind` tertiles 作為首選 regime split，但當 canonical rows 的 `feat_mind` 缺值時，不可直接把 row 丟進 `neutral`。必須回退到 `features_normalized.regime_label`，並把 `regime_meta / regime_counts / fallback_rows` 寫入輸出 JSON，否則 heartbeat 會把 analysis artifact 誤判成市場 regime 崩壞，污染 P0/P1 優先級。
 
 ### 3. 標籤層
