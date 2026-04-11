@@ -472,6 +472,22 @@ def _decision_quality_label(score: Optional[float]) -> Optional[str]:
     return "D"
 
 
+def _decision_quality_scope_alerts(rows: List[Dict[str, Any]]) -> List[str]:
+    wins = [int(row["simulated_pyramid_win"]) for row in rows if row.get("simulated_pyramid_win") is not None]
+    if not wins:
+        return ["no_target_rows"]
+
+    unique_targets = set(wins)
+    if len(unique_targets) <= 1:
+        return ["constant_target"]
+
+    win_rate = sum(wins) / len(wins)
+    alerts: List[str] = []
+    if win_rate >= 0.8 or win_rate <= 0.2:
+        alerts.append("label_imbalance")
+    return alerts
+
+
 def _compute_decision_quality_score(win_rate: Optional[float], pyramid_quality: Optional[float], drawdown_penalty: Optional[float], time_underwater: Optional[float]) -> Optional[float]:
     if win_rate is None or pyramid_quality is None or drawdown_penalty is None or time_underwater is None:
         return None
@@ -484,7 +500,12 @@ def _compute_decision_quality_score(win_rate: Optional[float], pyramid_quality: 
     return round(float(score), 4)
 
 
-def _summarize_decision_quality_contract(rows: List[Dict[str, Any]], decision_profile: Dict[str, Any], horizon_minutes: int = 1440) -> Dict[str, Any]:
+def _summarize_decision_quality_contract(
+    rows: List[Dict[str, Any]],
+    decision_profile: Dict[str, Any],
+    horizon_minutes: int = 1440,
+    enforce_scope_guardrails: bool = False,
+) -> Dict[str, Any]:
     base = _decision_quality_fallback(decision_profile.get("decision_profile_version") or "phase16_baseline_v2")
     if not rows:
         return base
@@ -500,12 +521,27 @@ def _summarize_decision_quality_contract(rows: List[Dict[str, Any]], decision_pr
 
     chosen_scope = None
     chosen_rows: List[Dict[str, Any]] = []
+    scope_guardrail_applied = False
+    scope_guardrail_reason = None
+    scope_guardrail_alerts: List[str] = []
     for scope_name, predicate, min_rows in selection_lanes:
         scoped_rows = [row for row in rows if predicate(row)]
-        if len(scoped_rows) >= min_rows:
-            chosen_scope = scope_name
-            chosen_rows = scoped_rows
-            break
+        if len(scoped_rows) < min_rows:
+            continue
+        scope_alerts = _decision_quality_scope_alerts(scoped_rows)
+        if enforce_scope_guardrails and scope_name != "global" and any(
+            alert in scope_alerts for alert in ("constant_target", "label_imbalance")
+        ):
+            scope_guardrail_applied = True
+            scope_guardrail_alerts = scope_alerts
+            scope_guardrail_reason = (
+                f"scope {scope_name} rejected via alerts={scope_alerts} "
+                f"(rows={len(scoped_rows)})"
+            )
+            continue
+        chosen_scope = scope_name
+        chosen_rows = scoped_rows
+        break
     if not chosen_rows:
         return base
 
@@ -535,6 +571,9 @@ def _summarize_decision_quality_contract(rows: List[Dict[str, Any]], decision_pr
         "decision_quality_sample_size": len(chosen_rows),
         "decision_quality_reference_from": str(latest_ts) if latest_ts is not None else None,
         "decision_quality_calibration_window": len(rows),
+        "decision_quality_scope_guardrail_applied": scope_guardrail_applied,
+        "decision_quality_scope_guardrail_reason": scope_guardrail_reason,
+        "decision_quality_scope_guardrail_alerts": scope_guardrail_alerts,
         "expected_win_rate": expected_win_rate,
         "expected_pyramid_pnl": expected_pnl,
         "expected_pyramid_quality": expected_quality,
@@ -603,10 +642,23 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
             "simulated_pyramid_drawdown_penalty": row.simulated_pyramid_drawdown_penalty,
             "simulated_pyramid_time_underwater": row.simulated_pyramid_time_underwater,
         })
-    contract = _summarize_decision_quality_contract(summarized_rows, decision_profile, horizon_minutes=horizon_minutes)
+    enforce_scope_guardrails = bool(
+        guardrail.get("raw_best_guardrailed")
+        or guardrail.get("recommended_alerts")
+    )
+    contract = _summarize_decision_quality_contract(
+        summarized_rows,
+        decision_profile,
+        horizon_minutes=horizon_minutes,
+        enforce_scope_guardrails=enforce_scope_guardrails,
+    )
     contract["decision_quality_calibration_window"] = calibration_window
-    contract["decision_quality_guardrail_applied"] = bool(guardrail.get("raw_best_guardrailed"))
-    contract["decision_quality_guardrail_reason"] = guardrail.get("guardrail_reason")
+    contract["decision_quality_guardrail_applied"] = bool(
+        guardrail.get("raw_best_guardrailed")
+        or contract.get("decision_quality_scope_guardrail_applied")
+    )
+    reason_parts = [guardrail.get("guardrail_reason"), contract.get("decision_quality_scope_guardrail_reason")]
+    contract["decision_quality_guardrail_reason"] = "; ".join(part for part in reason_parts if part)
     return contract
 
 

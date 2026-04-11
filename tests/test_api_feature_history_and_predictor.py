@@ -252,6 +252,52 @@ def test_decision_quality_contract_uses_guardrail_recommended_window(monkeypatch
     assert "raw_best_n=600" in guardrail["guardrail_reason"]
 
 
+def test_decision_quality_contract_guardrails_imbalanced_bucket_to_broader_scope():
+    rows = [
+        {
+            "timestamp": f"2026-04-10T00:{i:02d}:00",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "B",
+            "simulated_pyramid_win": 1.0,
+            "simulated_pyramid_pnl": 0.15,
+            "simulated_pyramid_quality": 0.72,
+            "simulated_pyramid_drawdown_penalty": 0.08,
+            "simulated_pyramid_time_underwater": 0.15,
+        }
+        for i in range(40)
+    ]
+    rows.extend(
+        {
+            "timestamp": f"2026-04-09T00:{i:02d}:00",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "simulated_pyramid_win": 1.0 if i < 50 else 0.0,
+            "simulated_pyramid_pnl": 0.05 if i < 50 else -0.03,
+            "simulated_pyramid_quality": 0.44 if i < 50 else 0.28,
+            "simulated_pyramid_drawdown_penalty": 0.14 if i < 50 else 0.21,
+            "simulated_pyramid_time_underwater": 0.21 if i < 50 else 0.34,
+        }
+        for i in range(80)
+    )
+
+    contract = predictor_module._summarize_decision_quality_contract(
+        rows,
+        {
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "B",
+            "decision_profile_version": "phase16_baseline_v2",
+        },
+        enforce_scope_guardrails=True,
+    )
+
+    assert contract["decision_quality_calibration_scope"] == "regime_gate"
+    assert contract["decision_quality_sample_size"] == 120
+    assert contract["decision_quality_scope_guardrail_applied"] is True
+    assert contract["decision_quality_scope_guardrail_alerts"] == ["constant_target"]
+    assert "scope regime_gate+entry_quality_label rejected" in contract["decision_quality_scope_guardrail_reason"]
+    assert contract["expected_win_rate"] == 0.75
+
+
 def test_predict_routes_regime_model_using_decision_profile_regime(monkeypatch):
     monkeypatch.setattr(predictor_module, "_check_circuit_breaker", lambda session: None)
     monkeypatch.setattr(
