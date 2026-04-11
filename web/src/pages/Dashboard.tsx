@@ -349,18 +349,34 @@ export default function Dashboard() {
           else { zone = '正常偏弱'; zoneColor = 'text-slate-300'; }
         }
 
-        // Pyramiding suggestion
-        let action = '';
-        if (regime === 'bull' && bias50! <= -3) action = '🔥 接近支撐! 可考慮金字塔加碼 (Layer 3)';
-        else if (regime === 'bull' && bias50! <= -1) action = '⚡ 小幅回調，可考慮金字塔進場 (Layer 2)';
-        else if (regime === 'bull' && bias50! >= 5) action = '⚠️ 超買! 考慮止盈';
-        else if (regime === 'bull') action = '✅ 牛市格局，尋找買入時機';
-        else action = '觀望中 — 等待回測 MA50';
+        // Context-only structural note. Canonical trade action must come from the
+        // live decision-quality contract (regime_gate + entry_quality + allowed_layers).
+        let contextAction = '';
+        if (regime === 'bull' && bias50! <= -3) contextAction = '背景偏多，價格接近支撐。';
+        else if (regime === 'bull' && bias50! <= -1) contextAction = '背景偏多，正在回調區。';
+        else if (regime === 'bull' && bias50! >= 5) contextAction = '背景偏熱，已進入超買帶。';
+        else if (regime === 'bull') contextAction = '背景偏多，但仍需等 live gate / quality 確認。';
+        else contextAction = '背景偏保守，先觀察 4H 結構是否改善。';
+
+        const canonicalGate = confidenceData?.regime_gate || '—';
+        const canonicalEntryQuality = typeof confidenceData?.entry_quality === 'number'
+          ? confidenceData.entry_quality.toFixed(2)
+          : '—';
+        const canonicalEntryLabel = confidenceData?.entry_quality_label || '—';
+        const canonicalLayers = typeof confidenceData?.allowed_layers === 'number'
+          ? `${confidenceData.allowed_layers.toFixed(0)} / 3`
+          : '—';
+        const canonicalDecisionText = confidenceData
+          ? `主決策：4H Gate ${canonicalGate} · Entry ${canonicalEntryQuality} (${canonicalEntryLabel}) · Layers ${canonicalLayers}`
+          : '主決策：等待 live decision-quality contract 載入';
 
         return (
         <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-slate-300">📐 4H 結構線儀表板</h2>
+          <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-300">📐 4H 結構線儀表板</h2>
+              <div className="mt-1 text-[11px] text-slate-500">主決策以 live decision-quality contract 為準；以下 4H 指標僅作背景解讀。</div>
+            </div>
             <span className={`text-xs font-bold ${regimeColor} px-2 py-0.5 rounded bg-slate-800`}>{regimeLabel}</span>
           </div>
 
@@ -398,9 +414,18 @@ export default function Dashboard() {
             </span></div>
           </div>
 
-          {/* Actionable suggestion */}
-          <div className="bg-slate-800/30 rounded-lg px-4 py-2 text-sm text-slate-300 border border-slate-700/30">
-            {action}
+          {/* Canonical decision contract first; raw 4H metrics are context only. */}
+          <div className="space-y-2">
+            <div className="bg-cyan-950/20 rounded-lg px-4 py-3 text-sm text-cyan-100 border border-cyan-700/30">
+              <div className="font-semibold">{canonicalDecisionText}</div>
+              <div className="mt-1 text-xs text-cyan-200/80">
+                若 4H raw 結構與 canonical gate 不一致，應以 decision-quality contract 為主，而不是手寫 bias 規則。
+              </div>
+            </div>
+            <div className="bg-slate-800/30 rounded-lg px-4 py-2 text-sm text-slate-300 border border-slate-700/30">
+              <div className="font-medium text-slate-200">結構背景</div>
+              <div className="mt-1">{contextAction}</div>
+            </div>
           </div>
         </div>
         );

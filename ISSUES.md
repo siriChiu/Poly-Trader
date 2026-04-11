@@ -1,31 +1,31 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-11 01:40 UTC — Heartbeat #652（upgrade standalone `web/src/pages/Backtest.tsx` to canonical decision-quality semantics, re-verify closed-loop heartbeat on fresh canonical data）*
+*最後更新：2026-04-11 03:31 UTC — Heartbeat #656（demote Dashboard 4H hand-written action copy behind the live decision-quality contract, add regression guard, then re-verify on fresh canonical data）*
 
-## 📊 系統健康狀態 v4.61
+## 📊 系統健康狀態 v4.63
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,385** | 🟢 `python scripts/hb_parallel_runner.py --fast` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
-| Features | **11,814** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 repaired raw rows 保持同步 |
-| Labels | **40,787** | 🟢 本輪 240m labels 推進至 **11,613 target rows**、1440m 推進至 **11,167**；freshness 仍在 expected horizon lag 內 |
-|| simulated_pyramid_win (DB overall) | **57.31%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5731` |
-|| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.28%** | 🟢 分析樣本 n=11,038 |
-|| spot_long_win | **33.21%** | 🟡 legacy 比較口徑，非主 target |
-|| 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Aura/Mind/VIX/DXY/4H features 仍是主要通過來源 |
-|| TW-IC | **17/30** | 🟢 recent-weighted 診斷小幅改善；4H bias / BB / macro path 仍是主優勢 |
-|| Regime IC | **Bear 7/8 / Bull 6/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；結構仍是 bear/bull 強、chop 較弱 |
-|| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; model leaderboard + strategy leaderboard/detail + active strategy summary + side-by-side compare + Dashboard confidence card + Dashboard backtest summary + standalone Backtest page now expose canonical decision-quality fields** | 🟢 `hb_predict_probe.py` contract 維持；本輪 `web/src/pages/Backtest.tsx` 也接上 `decision_contract + avg_expected_* + avg_entry_quality / avg_allowed_layers`，回測主頁不再停留在 ROI / 勝率 / PF-only 摘要 |
-|| Verification | **fast heartbeat + pytest tests/test_api_feature_history_and_predictor.py -q + npm build** | ✅ 本輪已重驗證 |
+| Raw | **20,389** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 656` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
+| Features | **11,818** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 repaired raw rows 保持同步 |
+| Labels | **40,873** | 🟢 本輪 240m labels 推進至 **11,616 target rows**、1440m 推進至 **11,250**；freshness 仍在 expected horizon lag 內 |
+|| simulated_pyramid_win (DB overall) | **57.47%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5747` |
+|| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.54%** | 🟢 分析樣本 n=11,121 |
+|| spot_long_win | **33.25%** | 🟡 legacy 比較口徑，非主 target |
+|| 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY/ATR/VWAP/4H bias path 仍是主要通過來源 |
+|| TW-IC | **12/30** | 🟡 recent-weighted 診斷再回落 1 格；本輪剩 Body/Aura/Mind/DXY/VWAP 與部分 4H bias path 可用，Nose/Tongue/Pulse/VIX 未回復，若再連 1 輪低於 14/30 應升級為 distribution-aware drift 調查 |
+|| Regime IC | **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；bull 仍保持 7/8 |
+|| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; model leaderboard + strategy leaderboard/detail + active strategy summary + side-by-side compare + Dashboard confidence card + Dashboard backtest summary + Dashboard 4H structure panel + standalone Backtest page expose canonical decision-quality fields or explicit fallback framing** | 🟢 不再只有 route/nav regression guard；本輪再把 Dashboard 仍殘留的手寫 4H action copy 降級成 context-only，主決策固定回到 live contract |
+|| Verification | **fast heartbeat + pytest tests/test_frontend_decision_contract.py tests/test_api_feature_history_and_predictor.py -q + npm build** | ✅ 本輪已重驗證 |
 
 ## 🎯 當前戰略問題（高準確度 / 高勝率 / 低回撤）
 
 ### #DECISION_QUALITY_GAP（持續 P0，但本輪再推進）
 - **現象**：canonical target 與 label DB 已對齊後，真正缺口變成 live predictor / leaderboard / API / 前端摘要 是否使用**同一套** decision-quality semantics，而不是 predictor 說一套、ranking 仍靠 proxy 分數排序。
-- **本輪修復**：Heartbeat #642 已把 `backtesting/model_leaderboard.py` / `server/routes/api.py` 接到 canonical decision-quality contract；Heartbeat #643 把 `web/src/pages/StrategyLab.tsx` 的**模型排行榜**切到 canonical quality semantics；Heartbeat #644 再把 `server/routes/api.py::api_strategy_leaderboard()`、`api_get_strategy()` 與 `web/src/pages/StrategyLab.tsx` 的**策略排行榜主表**一起切到 `avg_decision_quality_score / avg_expected_win_rate / avg_expected_drawdown_penalty / avg_expected_time_underwater / avg_allowed_layers / avg_entry_quality`；Heartbeat #645 再把 **active strategy summary** 與 `/api/strategies/run` / `/api/strategies/{name}` payload 一起補上 `decision_contract`（target label / sort semantics / horizon）；Heartbeat #650 對齊 Dashboard `ConfidenceIndicator`；Heartbeat #651 再把 `/api/backtest` 與 `web/src/components/BacktestSummary.tsx` 一起升級到 canonical feature + decision-quality contract，讓首頁回測卡也直接顯示 `DQ / expected win / drawdown penalty / time underwater / avg entry quality / avg layers`。
-- **本輪證據**：`python scripts/hb_parallel_runner.py --fast` → Raw **20384** / Features **11813** / Labels **40780**；`python -m pytest tests/test_api_feature_history_and_predictor.py -q` → **7 passed**；`cd web && npm run build` ✅。新增 regression test 直接驗證 `/api/backtest` 可在只有 canonical feature 欄位的情況下回傳 `decision_contract + avg_expected_* + avg_decision_quality_score`，避免 route 再回退到舊 `feat_eye_dist` 等 legacy-only 語義。
-- **剩餘風險**：這仍是 **historical calibration layer + leaderboard-side aggregation**，不是直接訓練出的多目標 live head；雖然 Dashboard confidence card 與 backtest summary 已對齊 canonical contract，但首頁其他 legacy summary 卡與未來新增 compare surfaces 仍可能退回 ROI/PF-only 或舊二元信心文案。
-- **建議方向**：下一輪把 Dashboard 其餘摘要卡與任何新 compare surface 一併套上 `decision_quality_score + drawdown_penalty + time_underwater + allowed_layers` 語義，讓首頁、主表、active summary、詳情、compare flow 與 backtest card 全面一致。
+- **本輪修復**：Heartbeat #642 已把 `backtesting/model_leaderboard.py` / `server/routes/api.py` 接到 canonical decision-quality contract；Heartbeat #643 把 `web/src/pages/StrategyLab.tsx` 的**模型排行榜**切到 canonical quality semantics；Heartbeat #644 再把 `server/routes/api.py::api_strategy_leaderboard()`、`api_get_strategy()` 與 `web/src/pages/StrategyLab.tsx` 的**策略排行榜主表**一起切到 `avg_decision_quality_score / avg_expected_win_rate / avg_expected_drawdown_penalty / avg_expected_time_underwater / avg_allowed_layers / avg_entry_quality`；Heartbeat #645 再把 **active strategy summary** 與 `/api/strategies/run` / `/api/strategies/{name}` payload 一起補上 `decision_contract`（target label / sort semantics / horizon）；Heartbeat #650 對齊 Dashboard `ConfidenceIndicator`；Heartbeat #651 再把 `/api/backtest` 與 `web/src/components/BacktestSummary.tsx` 一起升級到 canonical feature + decision-quality contract；Heartbeat #652 雖已把 standalone `web/src/pages/Backtest.tsx` 內容升級，但 **Heartbeat #653 發現 app shell 仍把 `/backtest` redirect 到 `/lab`**，導致使用者其實打不開那個 canonical page；Heartbeat #654 把 route/nav + 三大 surface wiring 鎖進 regression test；Heartbeat #655 再把 Strategy Lab active summary 的 legacy ROI/PF 卡正式降級為 tie-breaker 區塊，並在 canonical ranking reason 缺欄時顯式顯示 `⚠️ canonical DQ 缺失，暫退回 legacy ROI...`；**本輪 #656 再把 Dashboard 4H 結構卡原本的手寫 bias→action 文案降級為 `結構背景`，主決策固定顯示 live `regime_gate + entry_quality + allowed_layers`，並補上「raw 4H 與 canonical gate 衝突時以 decision-quality contract 為準」的明示。**
+- **本輪證據**：`python scripts/hb_parallel_runner.py --fast --hb 656` → Raw **20389** / Features **11818** / Labels **40873**；`python -m pytest tests/test_frontend_decision_contract.py tests/test_api_feature_history_and_predictor.py -q` → **11 passed**；`cd web && npm run build` ✅。
+- **剩餘風險**：這仍是 **historical calibration layer + leaderboard-side aggregation**，不是直接訓練出的多目標 live head；雖然 Dashboard confidence card、Dashboard backtest summary、Dashboard 4H structure panel、Strategy Lab compare flow、standalone Backtest page 都已對齊 canonical contract 或顯式 fallback framing，且 regression 已被測試鎖住，但首頁其他 legacy summary 卡與未來新增 compare surfaces 仍可能退回 ROI/PF-only 或舊二元信心文案。
+- **建議方向**：下一輪把 Dashboard 其餘摘要卡與任何新 compare surface 一併套上 `decision_quality_score + drawdown_penalty + time_underwater + allowed_layers` 語義，並讓新增 surface 一上線就納入 `tests/test_frontend_decision_contract.py`，避免 UI 可見層再次出現「source 有 contract、runtime 看不到」的假完成。
 
 ### #SINGLE_STAGE_ENTRY_LOGIC（P0，本輪再推進）
 - **現象**：兩階段決策 baseline 已在 `strategy_lab.py` 落地：`_compute_regime_gate()` / `_compute_entry_quality()` / `_allowed_layers_for_signal()` 已存在，API 與 UI 也能顯示 gate/quality 摘要。
@@ -55,6 +55,78 @@
 
 ### 實作計畫
 - `docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+## 📈 心跳 #656 摘要
+
+### 本輪已驗證 patch
+1. **Dashboard 4H structure panel no longer pretends hand-written bias rules are the primary trading decision**：`web/src/pages/Dashboard.tsx` 把原本直接輸出「接近支撐即可 Layer 3」這種手寫文案降級成 `結構背景`，並固定先顯示 live `regime_gate + entry_quality + allowed_layers`，讓首頁這張卡也回到 canonical decision-quality contract。
+2. **Dashboard now explicitly warns when raw 4H context and canonical gate diverge**：同卡新增 `若 4H raw 結構與 canonical gate 不一致，應以 decision-quality contract 為主`，避免使用者在首頁同時看到兩套互相衝突的進場語義。
+3. **Regression guard widened to cover the 4H structure card contract**：`tests/test_frontend_decision_contract.py` 現在會檢查 Dashboard source 內存在 `主決策以 live decision-quality contract 為準`、`const canonicalGate = confidenceData?.regime_gate || ...` 與衝突警告文案，避免之後又把手寫 bias action copy 偷放回首頁主決策路徑。
+
+### 本輪 runtime facts（Heartbeat #656）
+- `python scripts/hb_parallel_runner.py --fast --hb 656`：**Raw 20388→20389 / Features 11817→11818 / Labels 40867→40873**；summary 已落地 `data/heartbeat_656_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-11 00:03:29.073765`、`raw_gap≈0.5h`；1440m `latest_target=2026-04-10 04:09:04.046442`、`raw_gap≈1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- Continuity telemetry：`bridge_inserted=0`、`used_bridge=false`；raw continuity 保持乾淨。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **12/30 PASS**；Regime IC **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,121）。
+- `python -m pytest tests/test_frontend_decision_contract.py tests/test_api_feature_history_and_predictor.py -q` → **11 passed**；`cd web && npm run build` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#DECISION_QUALITY_GAP（本輪再收斂）**：不能只修排行榜與明細頁，首頁仍有手寫 bias→action copy 也算 contract 漏接。這輪已把 Dashboard 4H 結構卡收回到 canonical live contract 下；剩餘真 gap 收斂到 Dashboard 其他 legacy summary 卡與未來新增 compare surfaces。
+- **TW-IC 回落（持續監控，未升級為 blocker）**：本輪 TW-IC 仍是 **12/30**。global/regime canonical path 仍健康，但 recent-weighted 優勢未回升；若再連 1 輪低於 14/30，下一輪必須升級為 distribution-aware / calibration drift 調查。
+
+## 📈 心跳 #655 摘要
+
+### 本輪已驗證 patch
+1. **Strategy Lab now treats legacy execution KPIs as secondary instead of silent primary copy**：`web/src/pages/StrategyLab.tsx` 把 ROI / 勝率 / PF 卡明確降級成 **Legacy execution metrics（僅輔助 / tie-breaker）**，避免 active summary 把 legacy 指標和 canonical DQ 摘要混成同級主語義。
+2. **Canonical fallback is now explicit and test-guarded**：`describeRankingReason()` / `describeStrategyRankingReason()` 不再默默退回 `ROI · 勝率` 文案；若 DQ 欄位缺失，UI 會顯示 `⚠️ canonical DQ 缺失，暫退回 legacy ROI...`，並由 `tests/test_frontend_decision_contract.py` 固定鎖住這個警告與 tie-breaker 標示，避免 future compare surface 再把 fallback 偽裝成正常 contract。
+3. **Closed-loop heartbeat re-verified on fresh canonical data**：`python scripts/hb_parallel_runner.py --fast --hb 655` 成功推進 **Raw 20387→20388 / Features 11816→11817 / Labels 40853→40867**；`simulated_pyramid_win` DB overall 升至 **57.46%**。
+
+### 本輪 runtime facts（Heartbeat #655）
+- `python scripts/hb_parallel_runner.py --fast --hb 655`：**Raw 20387→20388 / Features 11816→11817 / Labels 40853→40867**；summary 已落地 `data/heartbeat_655_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-10 23:35:42.751820`、`raw_gap≈0.5h`；1440m `latest_target=2026-04-10 03:44:23.283251`、`raw_gap≈1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- Continuity telemetry：`bridge_inserted=0`、`used_bridge=false`；raw continuity 保持乾淨。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **12/30 PASS**；Regime IC **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,116）。
+- `python -m pytest tests/test_frontend_decision_contract.py tests/test_api_feature_history_and_predictor.py -q` → **11 passed**；`cd web && npm run build` ✅。
+
+### Blocker 升級 / 狀態更正
+- **#DECISION_QUALITY_GAP（本輪再收斂）**：不能只驗證 route 可達或欄位存在，還要防止 UI 把 canonical fallback 包裝成正常摘要。這輪已把 Strategy Lab 的 legacy fallback 顯式警告化並加 regression guard；剩餘真 gap 進一步收斂到 Dashboard 其他 legacy summary 卡與未來新增 compare surfaces。
+- **TW-IC 回落（持續監控，未升級為 blocker）**：本輪 TW-IC 從前輪 **13/30 → 12/30**。目前 global/regime canonical path 仍健康，但 recent-weighted 優勢繼續轉弱；若再連 1 輪低於 14/30，下一輪必須升級為 distribution-aware / calibration drift 調查。
+
+## 📈 心跳 #654 摘要
+
+### 本輪已驗證 patch
+1. **Frontend decision-quality regression guard added**：新增 `tests/test_frontend_decision_contract.py`，直接鎖住 `web/src/App.tsx` 的 `/backtest` nav/route contract，以及 Dashboard / Backtest / StrategyLab 三個主要 surface 的 canonical decision-quality wiring，避免 route 可達性或 DQ 欄位再次悄悄退回 legacy 文案。
+2. **Route-level false-complete risk closed**：不再只靠人工 browser smoke check 才知道 `/backtest` 有沒有被 router 遮掉；pytest 現在會明確驗證 nav 含 `🔬 回測引擎`、`<Route path="/backtest" element={<Backtest />} />` 存在、且 source 中沒有 `Navigate to="/lab"` 這類舊 redirect。
+3. **Closed-loop heartbeat re-verified on fresh canonical data**：`python scripts/hb_parallel_runner.py --fast --hb 654` 成功推進 **Raw 20386→20387 / Features 11815→11816 / Labels 40824→40853**；`simulated_pyramid_win` DB overall 升至 **57.43%**。
+
+### 本輪 runtime facts（Heartbeat #654）
+- `python scripts/hb_parallel_runner.py --fast --hb 654`：**Raw 20386→20387 / Features 11815→11816 / Labels 40824→40853**；summary 已落地 `data/heartbeat_654_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-10 22:46:45.648886`、`raw_gap≈0.8h`；1440m `latest_target=2026-04-10 03:28:06.561826`、`raw_gap≈1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- Continuity telemetry：`bridge_inserted=0`、`used_bridge=false`；raw continuity 保持乾淨。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **13/30 PASS**；Regime IC **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,103）。
+- `python -m pytest tests/test_frontend_decision_contract.py tests/test_api_feature_history_and_predictor.py -q` → **11 passed**；`cd web && npm run build` ✅；browser `/backtest` runtime check ✅。
+
+### Blocker 升級 / 狀態更正
+- **#DECISION_QUALITY_GAP（本輪再收斂）**：不能再把 `/backtest` 的可達性與 canonical surface wiring 只留在口頭或人工 smoke check。這輪已把 route/nav + Dashboard/Backtest/StrategyLab 的核心 DQ fields 鎖進 regression test；剩餘真 gap 收斂到 Dashboard 其他 legacy summary 卡與未來新增 compare surfaces。
+- **TW-IC 回落（新監控項，未升級為 blocker）**：本輪 TW-IC 從前輪 16/30 回落到 **13/30**。目前仍未影響 global/regime canonical path，但 recent-weighted 優勢顯著轉弱；若連續 2 輪維持低於 14/30，需升級為 distribution-aware / calibration drift 調查，而不是繼續沿用同一套近期優勢敘事。
+
+## 📈 心跳 #653 摘要
+
+### 本輪已驗證 patch
+1. **Canonical Backtest page is reachable for real, not just implemented in source**：`web/src/App.tsx` 改為直接掛載 `Backtest` page 到 `/backtest`，移除舊的 `Navigate to="/lab"`，並把 `🔬 回測引擎` 加回頂部 nav，修掉「頁面內容已升級但 router 還在遮住它」的 root cause。
+2. **Standalone Backtest decision-quality surface verified end-to-end**：browser 直接開 `http://127.0.0.1:5173/backtest` 可看到 canonical DQ 摘要、`simulated_pyramid_win` contract 與 trade log 的 `gate / entry quality / allowed layers` 欄位，證明使用者真的能到達 #652 修好的 surface，而不是只存在於 code。
+3. **Closed-loop heartbeat re-verified on fresh canonical data**：`python scripts/hb_parallel_runner.py --fast --hb 653` 成功推進 **Raw 20385→20386 / Features 11814→11815 / Labels 40787→40824**；`simulated_pyramid_win` DB overall 升至 **57.38%**。
+
+### 本輪 runtime facts（Heartbeat #653）
+- `python scripts/hb_parallel_runner.py --fast --hb 653`：**Raw 20385→20386 / Features 11814→11815 / Labels 40787→40824**；summary 已落地 `data/heartbeat_653_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-10 22:46:45.648886`、`raw_gap≈0.8h`；1440m `latest_target=2026-04-10 03:01:19.250806`、`raw_gap≈1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- Continuity telemetry：`bridge_inserted=0`、`used_bridge=false`；raw continuity 保持乾淨。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **16/30 PASS**；Regime IC **Bear 7/8 / Bull 7/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,074）。
+- `python -m pytest tests/test_api_feature_history_and_predictor.py -q` → **7 passed**；`cd web && npm run build` ✅；browser `/backtest` runtime check ✅。
+
+### Blocker 升級 / 狀態更正
+- **#DECISION_QUALITY_GAP（本輪再收斂）**：不能再說 standalone Backtest page 已完成就代表使用者可用。真正的 root cause 是 router 仍把 `/backtest` 導回 `/lab`；這輪已修掉，因此 canonical Backtest surface 現在在 source、build、runtime 三層都成立。剩餘真缺口收斂到 Dashboard 其他 legacy summary 卡與未來新增 compare surfaces。
+- **#LOW_COVERAGE_SOURCES（持續真 blocker）**：這輪修的是 UI route/accessibility，不是 sparse-source historical backfill；blocked features 仍是 **8**，`fin_netflow` 仍受 `COINGLASS_API_KEY` 缺失阻擋。
 
 ## 📈 心跳 #652 摘要
 
