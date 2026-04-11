@@ -1,22 +1,22 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-11 07:31 UTC — Heartbeat #666（re-run the fast canonical heartbeat, then guard live decision-quality calibration against imbalanced scoped buckets so probe output no longer overstates a chop-only 98.8% win expectation）*
+*最後更新：2026-04-11 08:06 UTC — Heartbeat #667（re-run the fast canonical heartbeat, then turn live decision-quality guardrails into execution-time layer caps so polluted calibration windows reduce risk instead of only emitting diagnostics）*
 
 ## 📊 系統健康狀態 v4.65
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,491** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 666` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
-| Features | **11,920** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 repaired raw rows 保持同步 |
-| Labels | **40,979** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels 新增 **+20**，不是 pipeline 停滯 |
-||||| simulated_pyramid_win (DB overall) | **57.63%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5763` |
-||||| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.84%** | 🟢 分析樣本 n=11,216 |
-||||| spot_long_win | **33.26%** | 🟡 legacy 比較口徑，非主 target |
-||||| 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY/ATR/VWAP/4H bias path 仍是主要通過來源 |
-||||| TW-IC | **12/30** | 🔴 recent-weighted path 仍低於 14/30；`recent_drift_report.py` 再次確認 recent 100-row `constant_target + 100% chop` 污染仍是真 blocker |
-||||| Regime IC | **Bear 7/8 / Bull 8/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；bull 仍保持 8/8 |
-||||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; live calibration consumes `data/dw_result.json`; predictor routing uses exposed regime label; calibration scope now rejects imbalanced scoped buckets under guardrail and widens to a broader lane before emitting expectations** | 🟢 live probe 現在輸出 `regime_label=chop / model_route_regime=chop / allowed_layers=2 / decision_quality_calibration_scope=regime_gate / sample_size=3933 / expected_win_rate=0.7841 / quality=C`，不再用 chop-only `B` bucket 的 98.8% expectation 當主語義 |
-||||| Verification | **fast heartbeat `--hb 666` + `python -m pytest tests/test_api_feature_history_and_predictor.py -q` + `python scripts/hb_predict_probe.py`** | ✅ 本輪已重驗證 |
+| Raw | **20,493** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 667` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
+| Features | **11,922** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 repaired raw rows 保持同步 |
+| Labels | **41,005** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels 新增 **+26**，不是 pipeline 停滯 |
+|||||| simulated_pyramid_win (DB overall) | **57.67%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5767` |
+|||||| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.92%** | 🟢 分析樣本 n=11,240 |
+|||||| spot_long_win | **33.26%** | 🟡 legacy 比較口徑，非主 target |
+|||||| 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY/ATR/VWAP/4H bias path 仍是主要通過來源 |
+|||||| TW-IC | **13/30** | 🔴 recent-weighted path 雖較 #666 回升 +1，但仍低於 14/30；`recent_drift_report.py` 再次確認 recent 100-row `constant_target + 100% chop` 污染仍是真 blocker |
+|||||| Regime IC | **Bear 7/8 / Bull 8/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；bull 仍保持 8/8 |
+|||||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; live calibration consumes `data/dw_result.json`; predictor routing uses exposed regime label; calibration scope rejects imbalanced scoped buckets; runtime execution now caps `allowed_layers` when the resulting decision-quality is only C/D or when calibration is guardrailed** | 🟢 live probe 現在輸出 `regime_label=chop / model_route_regime=chop / allowed_layers_raw=2 -> allowed_layers=1 / execution_guardrail_applied=true / decision_quality_calibration_scope=regime_gate / sample_size=3933 / expected_win_rate=0.7844 / quality=C`，不再讓 polluted-window diagnostics 只停留在報表層 |
+|||||| Verification | **fast heartbeat `--hb 667` + `python -m pytest tests/test_api_feature_history_and_predictor.py -q` + `python scripts/hb_predict_probe.py`** | ✅ 本輪已重驗證 |
 
 ## 🎯 當前戰略問題（高準確度 / 高勝率 / 低回撤）
 
@@ -50,11 +50,11 @@
 
 ### #DYNAMIC_WINDOW_NOT_DISTRIBUTION_AWARE（持續 P0，本輪再推進）
 - **現象**：Heartbeat #660 之後，canonical full/regime IC 仍健康，但 recent-weighted TW-IC 持續低於 **14/30**；近期視窗已被證實存在 `constant_target + 100% chop` 汙染，不能再讓 recency-heavy path 無條件相信最新 slice。
-- **前序修復**：Heartbeat #662 已讓 `scripts/dynamic_window_train.py` 以 `data/recent_drift_report.json` 為 guardrail 來源，將 `constant_target / regime_concentration` 視窗標成 `skip_for_recommendation`，並把 **raw best N=600** 明確降級成 **recommended window = N=5000**；Heartbeat #663 再讓 `model/predictor.py::_infer_live_decision_quality_contract()` 消費這份 contract，把 live calibration 鎖到 `recommended_best_n`；Heartbeat #664 再讓 `model/train.py::load_training_data()` 對 polluted recent tail 做 TW-IC damping。
-- **本輪修復（Heartbeat #666）**：`model/predictor.py::_summarize_decision_quality_contract()` 新增 **calibration-scope guardrail**。當 dynamic-window guardrail 已啟動時，若最窄的 `regime_gate+entry_quality_label` bucket 出現 `constant_target` 或 `label_imbalance`，predictor 會拒絕該 bucket、降級到更廣的 `regime_gate / entry_quality_label / global` lane，並把 `decision_quality_scope_guardrail_*` 與合併後的 `decision_quality_guardrail_reason` 一起輸出。這修的是 **live expectation bucket 仍被 recent polluted slice 偷偷劫持** 的 root cause。
-- **本輪證據**：`python scripts/hb_parallel_runner.py --fast --hb 666` 仍顯示 primary drift window = **100 rows**、alerts=`['constant_target','regime_concentration']`；`python scripts/hb_predict_probe.py` 現在由先前的 `decision_quality_calibration_scope=regime_gate+entry_quality_label / sample_size=169 / expected_win_rate=0.9882 / quality=B`，改為 **`decision_quality_calibration_scope=regime_gate / sample_size=3933 / expected_win_rate=0.7841 / quality=C`**，且 guardrail reason 會明示 `scope regime_gate+entry_quality_label rejected via alerts=['label_imbalance']`；`pytest tests/test_api_feature_history_and_predictor.py -q` → **10 passed**。
-- **剩餘風險**：這次修的是 **live calibration bucket contract**，不是讓 TW-IC 指標立刻回升；Heartbeat #666 實測 TW-IC 仍是 **12/30**。也就是說，假樂觀 expectation 已收斂，但真正的 recent alpha / recent label policy 是否健康仍未解決。
-- **建議方向**：下一輪應直接重跑訓練 / compare pre-post `tw_guardrail` 與新的 scope guardrail 對 `model/ic_signs.json / last_metrics.json / hb_predict_probe.py` 的聯動影響，並進一步檢查 recent 100/250 rows 為何仍是 `simulated_pyramid_win=1` 且 100% chop，確認是市場條件、label policy 還是 path simulation 邏輯造成的結構性偏置。
+- **前序修復**：Heartbeat #662 已讓 `scripts/dynamic_window_train.py` 以 `data/recent_drift_report.json` 為 guardrail 來源，將 `constant_target / regime_concentration` 視窗標成 `skip_for_recommendation`，並把 **raw best N=600** 明確降級成 **recommended window = N=5000**；Heartbeat #663 再讓 `model/predictor.py::_infer_live_decision_quality_contract()` 消費這份 contract，把 live calibration 鎖到 `recommended_best_n`；Heartbeat #664 再讓 `model/train.py::load_training_data()` 對 polluted recent tail 做 TW-IC damping；Heartbeat #666 再讓 calibration scope 拒絕 `constant_target / label_imbalance` 的窄 bucket。
+- **本輪修復（Heartbeat #667）**：`model/predictor.py::predict()` 不再把 guardrail 只當報表欄位。新 helper `_apply_live_execution_guardrails()` 會把 **decision-quality label + calibration guardrail** 轉成 execution-time risk control：當 live contract 只有 `C` 或 `D`、或 calibration 本身處於 guardrailed state 時，會直接下修 `allowed_layers`（必要時降到 0/1 層），並輸出 `allowed_layers_raw / execution_guardrail_applied / execution_guardrail_reason`。`scripts/hb_predict_probe.py` 也同步顯示這些欄位，讓 probe 能證明 guardrail 已真正影響 live risk，而不是只寫在 JSON 診斷裡。
+- **本輪證據**：`python scripts/hb_parallel_runner.py --fast --hb 667` 仍顯示 primary drift window = **100 rows**、alerts=`['constant_target','regime_concentration']`；`python scripts/hb_predict_probe.py` 現在輸出 **`allowed_layers_raw=2 -> allowed_layers=1`、`execution_guardrail_applied=true`、`execution_guardrail_reason=decision_quality_label_C_caps_layers`**，同時維持 `decision_quality_calibration_scope=regime_gate / sample_size=3933 / expected_win_rate=0.7844 / quality=C`；`pytest tests/test_api_feature_history_and_predictor.py -q` → **12 passed**。
+- **剩餘風險**：這次修的是 **live execution risk contract**，不是讓 TW-IC 指標立刻回升；Heartbeat #667 實測 TW-IC 雖從 12/30 回升到 **13/30**，但仍低於 14/30。也就是說，live risk 已更保守，但真正的 recent alpha / recent label policy 是否健康仍未解決。
+- **建議方向**：下一輪應直接重跑訓練 / compare pre-post `tw_guardrail + execution_guardrail` 對 `model/ic_signs.json / last_metrics.json / hb_predict_probe.py` 的聯動影響，並進一步檢查 recent 100/250 rows 為何仍是 `simulated_pyramid_win=1` 且 100% chop，確認是市場條件、label policy 還是 path simulation 邏輯造成的結構性偏置。
 
 ### #LIVE_REGIME_ROUTE_MISMATCH（新 P0，本輪已修復）
 - **現象**：Heartbeat #663 前，`model/predictor.py::predict()` 的 regime-model routing 仍用 `_determine_regime(features)` heuristic；但 live decision contract / `hb_predict_probe.py` 對外暴露的是 `decision_profile.regime_label`。這會導致 **used_model 與對外宣告的 regime_label 不一致**，形成假語義與錯誤驗證路徑。
@@ -64,6 +64,25 @@
 
 ### 實作計畫
 - `docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+## 📈 心跳 #667 摘要
+
+### 本輪已驗證 patch
+1. **Live guardrails now reduce risk at execution time, not just in calibration metadata**：`model/predictor.py` 新增 `_apply_live_execution_guardrails()`，把 `decision_quality_label` 與 `decision_quality_guardrail_applied` 轉成 runtime layer cap。當 live contract 只有 `C/D` 或 calibration 正處於 guardrailed state 時，`allowed_layers` 會直接從 raw profile 下修，避免 polluted-window diagnostics 只停留在 summary。
+2. **Predictor probe now exposes the guardrail delta explicitly**：`scripts/hb_predict_probe.py` 新增 `allowed_layers_raw / execution_guardrail_applied / execution_guardrail_reason`，可以直接驗證 live path 是否真的把 guarded calibration 轉成更保守的部位控制。
+3. **Regression tests lock the new execution-risk contract**：`tests/test_api_feature_history_and_predictor.py` 新增 execution guardrail tests，固定驗證 `C` quality + guardrailed calibration 會把 `allowed_layers` 從 2 層壓到 1 層。
+
+### 本輪 runtime facts（Heartbeat #667）
+- `python scripts/hb_parallel_runner.py --fast --hb 667`：**Raw 20492→20493 / Features 11921→11922 / Labels 40979→41005**；summary 已刷新 `data/heartbeat_667_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-11 04:55:28.480906`、`raw_gap≈0.5h`；1440m `latest_target=2026-04-10 08:56:50.090685`、`raw_gap≈1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **13/30 PASS**；Regime IC **Bear 7/8 / Bull 8/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,240）。
+- `python scripts/recent_drift_report.py`（由 fast heartbeat 觸發）：primary drift window 仍是 **last 100 rows**, `win_rate=1.0000`, `dominant_regime=chop(100%)`, alerts=`constant_target + regime_concentration`。
+- `python scripts/hb_predict_probe.py`：`regime_label=chop`、`model_route_regime=chop`、`decision_quality_calibration_scope=regime_gate`、`decision_quality_sample_size=3933`、`decision_quality_label=C`，且 **`allowed_layers_raw=2 -> allowed_layers=1`、`execution_guardrail_applied=true`**。
+- `python -m pytest tests/test_api_feature_history_and_predictor.py -q` → **12 passed**。
+
+### Blocker 升級 / 狀態更正
+- **#H_AUTO_TW_DRIFT 仍未解除**：本輪把 drift guardrail 真正接進 live execution sizing，但 recent 100/250 rows 的 `constant_target + 100% chop` 結構仍存在，TW-IC 只回升到 **13/30**，尚未跨過 14/30 gate。
+- **沒有假進度**：這輪沒有宣稱 recent alpha 已修復；只是把 guardrail 從「會說風險」推進到「會真的縮層」。下一輪仍必須對準 recent canonical label / regime concentration 的根因。
 
 ## 📈 心跳 #666 摘要
 

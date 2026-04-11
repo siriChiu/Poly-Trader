@@ -662,6 +662,41 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
     return contract
 
 
+def _apply_live_execution_guardrails(decision_profile: Dict[str, Any], decision_quality_contract: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert decision-quality diagnostics into execution-time risk controls.
+
+    Heartbeat #667 found that live predictor guardrails were still informational only:
+    the probe remained BUY / 2 layers even when the calibration window was guardrailed
+    and the resulting decision-quality label was only C. Cap deployment before the
+    result is exposed so the live path actually reduces risk under polluted windows.
+    """
+    guarded = dict(decision_profile or {})
+    raw_layers = max(0, int(guarded.get("allowed_layers") or 0))
+    capped_layers = raw_layers
+    reasons: List[str] = []
+
+    quality_label = decision_quality_contract.get("decision_quality_label")
+    quality_score = decision_quality_contract.get("decision_quality_score")
+    guardrail_applied = bool(decision_quality_contract.get("decision_quality_guardrail_applied"))
+
+    if quality_label == "D" or (quality_score is not None and float(quality_score) < 0.35):
+        capped_layers = 0
+        reasons.append("decision_quality_below_trade_floor")
+    elif quality_label == "C" and capped_layers > 1:
+        capped_layers = 1
+        reasons.append("decision_quality_label_C_caps_layers")
+
+    if guardrail_applied and capped_layers > 1:
+        capped_layers = 1
+        reasons.append("guardrailed_calibration_caps_layers")
+
+    guarded["allowed_layers_raw"] = raw_layers
+    guarded["allowed_layers"] = capped_layers
+    guarded["execution_guardrail_applied"] = bool(reasons)
+    guarded["execution_guardrail_reason"] = "; ".join(reasons) if reasons else None
+    return guarded
+
+
 class RegimeAwarePredictor:
     """Wrapper that routes inference to the correct regime-specific model."""
 
@@ -1037,11 +1072,12 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
 
     decision_profile = _build_live_decision_profile(features)
     decision_quality_contract = _infer_live_decision_quality_contract(session, decision_profile)
+    execution_profile = _apply_live_execution_guardrails(decision_profile, decision_quality_contract)
 
     # Per-regime model routing (H145-fix + #H122 chop-abstain ensemble)
     used_model = "global"
     if regime_models and isinstance(features, dict):
-        regime = decision_profile.get("regime_label") or features.get("regime_label") or _determine_regime(features)
+        regime = execution_profile.get("regime_label") or features.get("regime_label") or _determine_regime(features)
         if regime in regime_models:
             # Chop regime: if confidence ≈ 50% (random), force abstain
             chop_abort = 0.50
@@ -1059,7 +1095,7 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
                     "used_model": "regime_chop_abstain",
                     "model_route_regime": regime,
                     "target_col": getattr(getattr(predictor, '_global', predictor), '_target_col', DEFAULT_TARGET_COL),
-                    **decision_profile,
+                    **execution_profile,
                     **decision_quality_contract,
                 }
             # Ensemble: weight regime model 60%, global 40%
@@ -1093,12 +1129,12 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
         "confidence": confidence,
         "signal": signal,
         "confidence_level": confidence_level,
-        "should_trade": signal == "BUY" and (decision_profile.get("allowed_layers") or 0) > 0,
+        "should_trade": signal == "BUY" and (execution_profile.get("allowed_layers") or 0) > 0,
         "model_type": type(predictor).__name__,
         "used_model": used_model,
-        "model_route_regime": decision_profile.get("regime_label") or features.get("regime_label") or _determine_regime(features),
+        "model_route_regime": execution_profile.get("regime_label") or features.get("regime_label") or _determine_regime(features),
         "target_col": getattr(getattr(predictor, '_global', predictor), '_target_col', DEFAULT_TARGET_COL),
-        **decision_profile,
+        **execution_profile,
         **decision_quality_contract,
     }
     logger.info(

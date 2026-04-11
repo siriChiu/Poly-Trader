@@ -298,6 +298,71 @@ def test_decision_quality_contract_guardrails_imbalanced_bucket_to_broader_scope
     assert contract["expected_win_rate"] == 0.75
 
 
+def test_apply_live_execution_guardrails_caps_layers_for_c_quality_and_guardrailed_window():
+    profile = {
+        "regime_label": "chop",
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.91,
+        "entry_quality_label": "A",
+        "allowed_layers": 2,
+        "decision_profile_version": "phase16_baseline_v2",
+    }
+    contract = {
+        **predictor_module._decision_quality_fallback(),
+        "decision_quality_guardrail_applied": True,
+        "decision_quality_label": "C",
+        "decision_quality_score": 0.3759,
+    }
+
+    guarded = predictor_module._apply_live_execution_guardrails(profile, contract)
+
+    assert guarded["allowed_layers_raw"] == 2
+    assert guarded["allowed_layers"] == 1
+    assert guarded["execution_guardrail_applied"] is True
+    assert "decision_quality_label_C_caps_layers" in guarded["execution_guardrail_reason"]
+
+
+def test_predict_applies_execution_guardrail_to_live_result(monkeypatch):
+    monkeypatch.setattr(predictor_module, "_check_circuit_breaker", lambda session: None)
+    monkeypatch.setattr(
+        predictor_module,
+        "load_latest_features",
+        lambda session: {
+            "regime_label": "chop",
+            "feat_body": -0.2,
+            "feat_mind": -0.1,
+            "feat_4h_bias200": -0.5,
+            "feat_4h_bias50": -0.2,
+            "feat_nose": 0.1,
+            "feat_pulse": 0.8,
+            "feat_ear": -0.05,
+        },
+    )
+    monkeypatch.setattr(
+        predictor_module,
+        "_infer_live_decision_quality_contract",
+        lambda session, decision_profile, horizon_minutes=1440, lookback_rows=5000: {
+            **predictor_module._decision_quality_fallback(),
+            "decision_quality_guardrail_applied": True,
+            "decision_quality_guardrail_reason": "raw_best_n=600 guardrailed",
+            "decision_quality_label": "C",
+            "decision_quality_score": 0.39,
+        },
+    )
+
+    class _FakePredictor:
+        def predict_proba(self, features):
+            return 0.78
+
+    result = predictor_module.predict(session=object(), predictor=_FakePredictor(), regime_models={})
+
+    assert result["signal"] == "BUY"
+    assert result["allowed_layers_raw"] == 2
+    assert result["allowed_layers"] == 1
+    assert result["execution_guardrail_applied"] is True
+    assert result["should_trade"] is True
+
+
 def test_predict_routes_regime_model_using_decision_profile_regime(monkeypatch):
     monkeypatch.setattr(predictor_module, "_check_circuit_breaker", lambda session: None)
     monkeypatch.setattr(
