@@ -1,24 +1,42 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-11 08:06 UTC — Heartbeat #667（re-run the fast canonical heartbeat, then turn live decision-quality guardrails into execution-time layer caps so polluted calibration windows reduce risk instead of only emitting diagnostics）*
+*最後更新：2026-04-13 09:38 UTC — Heartbeat #672（patched auto-propose so negative recent canonical distribution pathology is promoted back to a real P0 blocker, re-ran the fast canonical heartbeat on fresh data, and verified the runner now emits `#H_AUTO_RECENT_PATHOLOGY` instead of hiding behind recovered TW-IC）*
 
-## 📊 系統健康狀態 v4.65
+## 📊 系統健康狀態 v4.66
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,493** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 667` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
-| Features | **11,922** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 repaired raw rows 保持同步 |
-| Labels | **41,005** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels 新增 **+26**，不是 pipeline 停滯 |
-|||||| simulated_pyramid_win (DB overall) | **57.67%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5767` |
-|||||| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **64.92%** | 🟢 分析樣本 n=11,240 |
-|||||| spot_long_win | **33.26%** | 🟡 legacy 比較口徑，非主 target |
-|||||| 全域 IC | **13/30** | 🟢 canonical diagnostics 維持；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY/ATR/VWAP/4H bias path 仍是主要通過來源 |
-|||||| TW-IC | **13/30** | 🔴 recent-weighted path 雖較 #666 回升 +1，但仍低於 14/30；`recent_drift_report.py` 再次確認 recent 100-row `constant_target + 100% chop` 污染仍是真 blocker |
-|||||| Regime IC | **Bear 7/8 / Bull 8/8 / Chop 5/8 / Neutral 21 rows** | 🟢 canonical simulated target 維持；bull 仍保持 8/8 |
-|||||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; live calibration consumes `data/dw_result.json`; predictor routing uses exposed regime label; calibration scope rejects imbalanced scoped buckets; runtime execution now caps `allowed_layers` when the resulting decision-quality is only C/D or when calibration is guardrailed** | 🟢 live probe 現在輸出 `regime_label=chop / model_route_regime=chop / allowed_layers_raw=2 -> allowed_layers=1 / execution_guardrail_applied=true / decision_quality_calibration_scope=regime_gate / sample_size=3933 / expected_win_rate=0.7844 / quality=C`，不再讓 polluted-window diagnostics 只停留在報表層 |
-|||||| Verification | **fast heartbeat `--hb 667` + `python -m pytest tests/test_api_feature_history_and_predictor.py -q` + `python scripts/hb_predict_probe.py`** | ✅ 本輪已重驗證 |
+| Raw | **20,992** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 672` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
+| Features | **12,421** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 raw 同步 |
+| Labels | **42,150** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels 持平是 lookahead lag，不是 pipeline 停滯 |
+||||||||| simulated_pyramid_win (DB overall) | **56.53%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5653` |
+||||||||| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **62.98%** | 🟢 分析樣本 n=11,794 |
+||||||||| spot_long_win | **未於本輪重算** | 🟡 legacy 比較口徑，非主 target |
+||||||||| 全域 IC | **20/30** | 🟢 canonical diagnostics 維持強勢；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY + ATR/VWAP/NW/ADX/4H 路徑均通過 |
+||||||||| TW-IC | **27/30** | 🟢 已高於 14/30 gate；但這不再能掩蓋 recent 100/250 rows 的負向 `distribution_pathology` |
+||||||||| Regime IC | **Bear 5/8 / Bull 6/8 / Chop 6/8 / Neutral 4/8** | 🟢 canonical simulated target 維持；bull / chop 皆有可用訊號 |
+||||||||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; live calibration consumes `data/dw_result.json`; predictor routing uses exposed regime label; calibration scope rejects imbalanced scoped buckets; runtime execution now caps `allowed_layers`; auto-propose now escalates negative recent distribution pathology as its own P0 instead of only reporting regime drift** | 🟢 live path 仍 guardrailed；治理層現在會把真正 blocker `#H_AUTO_RECENT_PATHOLOGY` 機器化寫回 issues.json |
+||||||||| Verification | **`python -m pytest tests/test_auto_propose_fixes.py -q` + `python scripts/hb_parallel_runner.py --fast --hb 672`** | ✅ 本輪已重驗證 |
 
 ## 🎯 當前戰略問題（高準確度 / 高勝率 / 低回撤）
+
+### 本輪優先順序（Heartbeat #672 後）
+- **P0#1 — `#H_AUTO_RECENT_PATHOLOGY`（重新 machine-check 化）**：`scripts/auto_propose_fixes.py` 現在會在 **recent 100/250/500 canonical rows = `distribution_pathology` + negative quality** 時，主動把 blocker 寫回 `issues.json`；本輪實測 primary window 仍是 **last 100 rows = `constant_target` + avg_pnl<0 + avg_quality<0 + chop 75%**，所以真正待解問題依然是 recent feature variance / distinct-count collapse、recent canonical label path 與 calibration scope。
+- **P0#2 — raw continuity bridge 觀察**：Heartbeat #671 / #672 皆為 `bridge=0`，但仍需連續觀察，避免 continuity fallback 再次回來。
+- **Resolved — `#H_AUTO_TW_DRIFT` / `#H_AUTO_STREAK`**：治理層已能在 current run recovered 時自動 resolve；這兩個不再應該遮蔽真正的 recent pathology blocker。
+- **Resolved — `#H_AUTO_STALE`**：freshness 仍維持健康，未再回來。
+- **P1**：`#H_AUTO_REGIME_DRIFT`、`#CORE_VS_RESEARCH_SIGNAL_MIXING`、`#LEADERBOARD_OBJECTIVE_MISMATCH` —— 在 current distribution pathology 收斂後再往下推語義與排序契約。
+- **P2**：其餘文件/展示層整理與非阻塞優化。
+
+### 本輪建議起手式
+1. 直接對 recent 100/250/500 canonical rows 做 feature variance / distinct-count / null-heavy drill-down，確認為何 full IC 已 20/30、TW-IC 已 27/30，但 primary drift window 仍是負向 `distribution_pathology`。
+2. 用下一輪 heartbeat 驗證 continuity bridge 是否持續為 0；若再次連續觸發 bridge fallback，立刻升級回 raw continuity root-cause investigation。
+
+### 本輪 root-cause 新證據（2026-04-12 續推）
+- **已定位一個真 root cause**：`feature_engine/preprocessor.py::compute_features_from_raw()` 先前雖然呼叫 `_compute_technical_indicators_from_df()`，但**沒有把 `feat_4h_*` 欄位回寫到 `features` dict**，導致新 feature rows 實際落庫時 4H 欄位保持 `NULL`。
+- **另一個伴隨問題**：同一個 helper 只回傳舊版技術指標子集，沒有透過 `compute_technical_features()` 輸出 `feat_nw_width / feat_nw_slope / feat_adx / feat_choppiness / feat_donchian_pos`，所以 recent rows 容易退回預設值 `0 / 0.5`，把 drift diagnostics 誤導成 feature collapse。
+- **本輪修復後驗證**：重新執行 `hb_collect.py` 後，最新 `features_normalized` rows 已重新出現非空 `feat_4h_bias50 / feat_4h_rsi14 / feat_4h_vol_ratio` 與有效 `feat_nw_width / feat_adx / feat_choppiness / feat_donchian_pos`。
+- **Blocker framing 更新**：recent drift 現在不再是 `constant_target + supported_extreme_trend`；修復後重跑 `recent_drift_report.py` 已轉成 **`window=500`, `label_imbalance + regime_concentration`, `interpretation=distribution_pathology`**。也就是說，先前那部分「極端單向口袋」敘事裡，混進了 feature projection bug；下一輪應改為直接調查 **all-chop regime concentration + label imbalance + calibration guardrail**，而不是先懷疑 4H 欄位缺失本身。
 
 ### #DECISION_QUALITY_GAP（持續 P0，但本輪再推進）
 - **現象**：canonical target 與 label DB 已對齊後，真正缺口變成 live predictor / leaderboard / API / 前端摘要 是否使用**同一套** decision-quality semantics，而不是 predictor 說一套、ranking 仍靠 proxy 分數排序。
@@ -49,12 +67,12 @@
 - **下一步方向**：把 labeling 端的 canonical quality target 明確接進 leaderboard / predictor，共用同一組 decision-quality contract，而不是讓 leaderboard 停留在 proxy 分數。
 
 ### #DYNAMIC_WINDOW_NOT_DISTRIBUTION_AWARE（持續 P0，本輪再推進）
-- **現象**：Heartbeat #660 之後，canonical full/regime IC 仍健康，但 recent-weighted TW-IC 持續低於 **14/30**；近期視窗已被證實存在 `constant_target + 100% chop` 汙染，不能再讓 recency-heavy path 無條件相信最新 slice。
-- **前序修復**：Heartbeat #662 已讓 `scripts/dynamic_window_train.py` 以 `data/recent_drift_report.json` 為 guardrail 來源，將 `constant_target / regime_concentration` 視窗標成 `skip_for_recommendation`，並把 **raw best N=600** 明確降級成 **recommended window = N=5000**；Heartbeat #663 再讓 `model/predictor.py::_infer_live_decision_quality_contract()` 消費這份 contract，把 live calibration 鎖到 `recommended_best_n`；Heartbeat #664 再讓 `model/train.py::load_training_data()` 對 polluted recent tail 做 TW-IC damping；Heartbeat #666 再讓 calibration scope 拒絕 `constant_target / label_imbalance` 的窄 bucket。
-- **本輪修復（Heartbeat #667）**：`model/predictor.py::predict()` 不再把 guardrail 只當報表欄位。新 helper `_apply_live_execution_guardrails()` 會把 **decision-quality label + calibration guardrail** 轉成 execution-time risk control：當 live contract 只有 `C` 或 `D`、或 calibration 本身處於 guardrailed state 時，會直接下修 `allowed_layers`（必要時降到 0/1 層），並輸出 `allowed_layers_raw / execution_guardrail_applied / execution_guardrail_reason`。`scripts/hb_predict_probe.py` 也同步顯示這些欄位，讓 probe 能證明 guardrail 已真正影響 live risk，而不是只寫在 JSON 診斷裡。
-- **本輪證據**：`python scripts/hb_parallel_runner.py --fast --hb 667` 仍顯示 primary drift window = **100 rows**、alerts=`['constant_target','regime_concentration']`；`python scripts/hb_predict_probe.py` 現在輸出 **`allowed_layers_raw=2 -> allowed_layers=1`、`execution_guardrail_applied=true`、`execution_guardrail_reason=decision_quality_label_C_caps_layers`**，同時維持 `decision_quality_calibration_scope=regime_gate / sample_size=3933 / expected_win_rate=0.7844 / quality=C`；`pytest tests/test_api_feature_history_and_predictor.py -q` → **12 passed**。
-- **剩餘風險**：這次修的是 **live execution risk contract**，不是讓 TW-IC 指標立刻回升；Heartbeat #667 實測 TW-IC 雖從 12/30 回升到 **13/30**，但仍低於 14/30。也就是說，live risk 已更保守，但真正的 recent alpha / recent label policy 是否健康仍未解決。
-- **建議方向**：下一輪應直接重跑訓練 / compare pre-post `tw_guardrail + execution_guardrail` 對 `model/ic_signs.json / last_metrics.json / hb_predict_probe.py` 的聯動影響，並進一步檢查 recent 100/250 rows 為何仍是 `simulated_pyramid_win=1` 且 100% chop，確認是市場條件、label policy 還是 path simulation 邏輯造成的結構性偏置。
+- **現象**：Heartbeat #660 之後，canonical full/regime IC 仍健康，但 recent-weighted TW-IC 持續低於 **14/30**；近期視窗已被證實存在 `constant_target + 100% chop`，不能再讓 recency-heavy path 無條件相信最新 slice。
+- **前序修復**：Heartbeat #662 已讓 `scripts/dynamic_window_train.py` 以 `data/recent_drift_report.json` 為 guardrail 來源，將 `constant_target / regime_concentration` 視窗標成 `skip_for_recommendation`，並把 **raw best N=600** 明確降級成 **recommended window = N=5000**；Heartbeat #663 再讓 `model/predictor.py::_infer_live_decision_quality_contract()` 消費這份 contract，把 live calibration 鎖到 `recommended_best_n`；Heartbeat #664 再讓 `model/train.py::load_training_data()` 對 polluted recent tail 做 TW-IC damping；Heartbeat #666 再讓 calibration scope 拒絕 `constant_target / label_imbalance` 的窄 bucket；Heartbeat #667 再把 guardrail 推到 execution-time layer caps。
+- **本輪修復（Heartbeat #668）**：`scripts/recent_drift_report.py` 不再只回報 `alerts`。它現在額外輸出 `quality_metrics + drift_interpretation`（`supported_extreme_trend / distribution_pathology / regime_concentration / healthy`），把 recent constant-target 視窗分成「真實極端趨勢口袋」與「真的可疑病灶」。`scripts/auto_propose_fixes.py` 也同步吃這個 contract：當 recent 100-row window 雖為 constant-target，但同時具備 **高 avg_pnl / 高 avg_quality / 低 drawdown_penalty / 高 spot_long_win_rate** 時，blocker 仍保留 calibration guardrail，但 investigation wording 會改成檢查 **recent feature variance / regime narrowness / calibration scope**，不再直接假設 labels 壞掉。
+- **本輪證據**：`python scripts/recent_drift_report.py` → last 100 rows `win_rate=1.0000 / dominant_regime=chop(100%) / interpretation=supported_extreme_trend / avg_pnl=0.0202 / avg_quality=0.6869 / avg_dd_penalty=0.0269`；`HB_RUN_LABEL=668 python scripts/auto_propose_fixes.py` → `#H_AUTO_TW_DRIFT` action wording 已改成「保留 guardrail，但改查 recent feature variance / regime narrowness / calibration scope」；`pytest tests/test_auto_propose_fixes.py -q` → **6 passed**；`python scripts/hb_parallel_runner.py --fast --hb 668` 已把新 drift contract 寫回 `data/heartbeat_668_summary.json`。
+- **剩餘風險**：這次修的是 **drift blocker 治理與判讀**，不是讓 TW-IC 指標立刻回升；Heartbeat #668 實測 TW-IC 仍是 **12/30**。也就是說，我們現在更清楚知道 recent 100 rows 是「真實單向極端口袋」而不是直接的 label corruption，但 recent feature variance / calibration scope 是否因此被過度稀釋仍未解決。
+- **建議方向**：下一輪應直接重跑訓練 / compare pre-post `tw_guardrail + execution_guardrail` 對 `model/ic_signs.json / last_metrics.json / hb_predict_probe.py` 的聯動影響，並額外檢查 recent 100/250 rows 的 feature variance / distinct count / regime narrowness，確認 TW-IC 低迷是 **真實單向行情下的特徵退化**，還是 calibration/training weighting 仍有殘餘偏誤。
 
 ### #LIVE_REGIME_ROUTE_MISMATCH（新 P0，本輪已修復）
 - **現象**：Heartbeat #663 前，`model/predictor.py::predict()` 的 regime-model routing 仍用 `_determine_regime(features)` heuristic；但 live decision contract / `hb_predict_probe.py` 對外暴露的是 `decision_profile.regime_label`。這會導致 **used_model 與對外宣告的 regime_label 不一致**，形成假語義與錯誤驗證路徑。
@@ -64,6 +82,44 @@
 
 ### 實作計畫
 - `docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+## 📈 心跳 #672 摘要
+
+### 本輪已驗證 patch
+1. **Auto-propose now escalates negative recent canonical pathology as a first-class P0**：`scripts/auto_propose_fixes.py` 新增 `#H_AUTO_RECENT_PATHOLOGY` 規則；當 primary drift window 是 `distribution_pathology`，且同時出現 `constant_target/label_imbalance` + 負 `avg_pnl/avg_quality` 或極低 `spot_long_win_rate` 時，會直接把真正 blocker 寫回 `issues.json`。
+2. **Regression tests lock the new blocker contract**：`tests/test_auto_propose_fixes.py` 新增 recovered-TW-but-pathological-window 測試，固定驗證 TW-IC 已恢復時，治理層仍會升級 `#H_AUTO_RECENT_PATHOLOGY`，不再只留下較弱的 `#H_AUTO_REGIME_DRIFT`。
+3. **End-to-end fast heartbeat re-run confirms the runner now emits the real blocker**：`python scripts/hb_parallel_runner.py --fast --hb 672` 已重新收集 fresh raw/features、重跑 IC / drift / auto-propose，summary 與 issues.json 都顯示 current run 的 P0 為 `#H_AUTO_RECENT_PATHOLOGY`。
+
+### 本輪 runtime facts（Heartbeat #672）
+- `python scripts/hb_parallel_runner.py --fast --hb 672`：**Raw 20991→20992 / Features 12420→12421 / Labels 42150→42150**；summary 已刷新 `data/heartbeat_672_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-13 06:00:00`、`raw_gap≈1.0h`；1440m `latest_target=2026-04-12 10:00:00`、`raw_gap≈1.5h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **20/30 PASS**、TW-IC **27/30 PASS**；Regime IC **Bear 5/8 / Bull 6/8 / Chop 6/8 / Neutral 4/8**（`simulated_pyramid_win`, n=11,794）。
+- `python scripts/recent_drift_report.py`：primary drift window 仍是 **last 100 rows**，`win_rate=0.0000`、`dominant_regime=chop(75%)`、`interpretation=distribution_pathology`、`avg_pnl=-0.0108`、`avg_quality=-0.2809`、`avg_dd_penalty=0.2702`、feature diagnostics=`variance:28/49, distinct:15, null_heavy:10`。
+- `python scripts/hb_predict_probe.py`：live predictor 仍被 guardrail 壓到 `should_trade=false`、`allowed_layers=0`、`decision_quality_label=D`；說明 runtime execution path 已保守，但治理層之前沒有把 recent pathology 正確升級。
+- `python -m pytest tests/test_auto_propose_fixes.py -q` → **9 passed**。
+
+### Blocker 升級 / 狀態更正
+- **#H_AUTO_RECENT_PATHOLOGY 現在是 current runtime 的真正 P0 blocker**：不是 TW-IC 崩掉，而是 recent canonical rows 本身呈現負向 distribution pathology；這個 blocker 現在終於被 auto-propose 正確 machine-check 化。
+- **#H_AUTO_TW_DRIFT / #H_AUTO_STREAK 維持 resolved**：它們已不再應該遮蔽真正的 recent-pathology investigation。
+
+## 📈 心跳 #668 摘要
+
+### 本輪已驗證 patch
+1. **Recent drift artifacts now distinguish suspicious pathology from an extreme-but-supported trend pocket**：`scripts/recent_drift_report.py` 新增 `quality_metrics + drift_interpretation`，把 `constant_target` 視窗拆成 `supported_extreme_trend / distribution_pathology / regime_concentration / healthy`，不再只靠 alerts 判讀。
+2. **Auto-propose no longer auto-describes every constant-target recent window as label corruption**：`scripts/auto_propose_fixes.py` 現在會讀 `drift_interpretation`；若 recent window 雖是 constant-target，但同時具備高 `avg_simulated_pnl / avg_simulated_quality / spot_long_win_rate` 且低 `avg_drawdown_penalty / time_underwater`，則 blocker 會保留 guardrail，但 investigation wording 改成檢查 **recent feature variance / regime narrowness / calibration scope**。
+3. **Regression tests lock the new governance contract**：`tests/test_auto_propose_fixes.py` 新增 drift summary richness 與 `supported_extreme_trend` wording coverage，避免未來又退回「只要 constant-target 就一律當 label 壞掉」的假治理。
+
+### 本輪 runtime facts（Heartbeat #668）
+- `python scripts/hb_parallel_runner.py --fast --hb 668`：**Raw 20494→20495 / Features 11923→11924 / Labels 41051→41059**；summary 已刷新 `data/heartbeat_668_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-11 05:36:08.122370`、`raw_gap≈0.6h`；1440m `latest_target=2026-04-10 09:36:06.756661`、`raw_gap≈1.4h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **13/30 PASS**、TW-IC **12/30 PASS**；Regime IC **Bear 6/8 / Bull 8/8 / Chop 5/8 / Neutral 21 rows**（`simulated_pyramid_win`, n=11,274）。
+- `python scripts/recent_drift_report.py`：primary drift window 仍是 **last 100 rows**，但現在明確落地為 **`interpretation=supported_extreme_trend`**，同時附帶 `avg_pnl=0.0202 / avg_quality=0.6869 / avg_dd_penalty=0.0269 / spot_long_win_rate=0.93`；這表示它仍必須被 guardrail，但不能再直接描述成 label corruption。
+- `HB_RUN_LABEL=668 python scripts/auto_propose_fixes.py`：`#H_AUTO_TW_DRIFT` 仍存在，但 action wording 已改成 **保留 distribution-aware calibration guardrail，並檢查 recent feature variance / regime narrowness / calibration scope**。
+- `python -m pytest tests/test_auto_propose_fixes.py -q` → **6 passed**。
+
+### Blocker 升級 / 狀態更正
+- **#H_AUTO_TW_DRIFT 仍未解除**：本輪修的是 blocker 判讀與治理契約，不是讓 TW-IC 立即回升；目前 TW-IC 仍是 **12/30**。
+- **更精確的根因 framing**：現在已能排除「recent 100 rows 一定是 labels 壞掉」這種過度簡化敘事；真正待驗證的是 **真實單向極端口袋下的 recent feature variance / regime narrowness / calibration scope** 是否讓 TW-IC 被結構性稀釋。
 
 ## 📈 心跳 #667 摘要
 

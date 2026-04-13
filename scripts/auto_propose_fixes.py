@@ -192,12 +192,54 @@ def summarize_recent_drift(report):
     dominant_share = summary.get("dominant_regime_share")
     win_rate = summary.get("win_rate")
     delta = summary.get("win_rate_delta_vs_full")
+    interpretation = summary.get("drift_interpretation") or "unknown"
+    quality = summary.get("quality_metrics") or {}
+    feature_diag = summary.get("feature_diagnostics") or {}
+    avg_pnl = quality.get("avg_simulated_pnl")
+    avg_quality = quality.get("avg_simulated_quality")
+    avg_dd_penalty = quality.get("avg_drawdown_penalty")
+    spot_long_win_rate = quality.get("spot_long_win_rate")
     share_text = f"{dominant_share:.2%}" if isinstance(dominant_share, (int, float)) else "n/a"
     delta_text = f"{delta:+.4f}" if isinstance(delta, (int, float)) else "n/a"
     win_text = f"{win_rate:.4f}" if isinstance(win_rate, (int, float)) else "n/a"
+    pnl_text = f"{avg_pnl:+.4f}" if isinstance(avg_pnl, (int, float)) else "n/a"
+    quality_text = f"{avg_quality:.4f}" if isinstance(avg_quality, (int, float)) else "n/a"
+    dd_text = f"{avg_dd_penalty:.4f}" if isinstance(avg_dd_penalty, (int, float)) else "n/a"
+    spot_long_text = f"{spot_long_win_rate:.4f}" if isinstance(spot_long_win_rate, (int, float)) else "n/a"
+    feature_summary = (
+        f"feature_diag=variance:{feature_diag.get('low_variance_count', 0)}/{feature_diag.get('feature_count', 0)}"
+        f", distinct:{feature_diag.get('low_distinct_count', 0)}"
+        f", null_heavy:{feature_diag.get('null_heavy_count', 0)}"
+    )
+    low_variance_examples = feature_diag.get("low_variance_examples") or []
+    low_distinct_examples = feature_diag.get("low_distinct_examples") or []
+    null_heavy_examples = feature_diag.get("null_heavy_examples") or []
+    example_bits = []
+    if low_variance_examples:
+        example_bits.append(
+            "variance_examples=" + "/".join(
+                f"{row.get('feature')}({row.get('std_ratio')})" for row in low_variance_examples[:3]
+            )
+        )
+    if low_distinct_examples:
+        example_bits.append(
+            "distinct_examples=" + "/".join(
+                f"{row.get('feature')}({row.get('recent_distinct')}/{row.get('baseline_distinct')})"
+                for row in low_distinct_examples[:3]
+            )
+        )
+    if null_heavy_examples:
+        example_bits.append(
+            "null_examples=" + "/".join(
+                f"{row.get('feature')}({row.get('non_null_ratio')})" for row in null_heavy_examples[:3]
+            )
+        )
+    examples_text = (", " + ", ".join(example_bits)) if example_bits else ""
     return (
         f"recent_window={window}, alerts={alerts}, win_rate={win_text}, "
-        f"delta_vs_full={delta_text}, dominant_regime={dominant_regime}({share_text})"
+        f"delta_vs_full={delta_text}, dominant_regime={dominant_regime}({share_text}), "
+        f"interpretation={interpretation}, avg_pnl={pnl_text}, avg_quality={quality_text}, "
+        f"avg_dd_penalty={dd_text}, spot_long_win_rate={spot_long_text}, {feature_summary}{examples_text}"
     )
 
 
@@ -221,6 +263,15 @@ def main():
     tw_history = load_recent_tw_history(limit=3, current_entry=current_entry)
     drift_report = load_recent_drift_report()
     drift_summary = summarize_recent_drift(drift_report)
+    drift_primary = (drift_report or {}).get("primary_window") or {}
+    drift_primary_summary = drift_primary.get("summary") or {}
+    drift_interpretation = drift_primary_summary.get("drift_interpretation")
+    drift_alerts = drift_primary.get("alerts") or []
+    drift_window = drift_primary.get("window")
+    drift_quality = drift_primary_summary.get("quality_metrics") or {}
+    drift_avg_pnl = drift_quality.get("avg_simulated_pnl")
+    drift_avg_quality = drift_quality.get("avg_simulated_quality")
+    drift_spot_long_win = drift_quality.get("spot_long_win_rate")
     metrics = check_metrics()
 
     # Load existing issues
@@ -243,6 +294,8 @@ def main():
             f"連續 {db_stats['losing_streak']} 筆 simulated_pyramid_win=0",
             "檢查 recent canonical labels / regime breakdown / circuit breaker；必要時升級為 distribution-aware drift 調查",
         )
+    else:
+        tracker.resolve("#H_AUTO_STREAK")
 
     # Rule 3: Global IC crash on canonical feature set
     if ic_stats["global_pass"] <= 2:
@@ -270,8 +323,32 @@ def main():
             f"Raw 數據已 {db_stats['raw_latest_age_min']:.0f} 分鐘未更新",
             "檢查 main.py scheduler; 檢查 collector background process; 手動觸發 collect",
         )
+    else:
+        tracker.resolve("#H_AUTO_STALE")
 
-    # Rule 6: TW-IC >> Global IC (regime-dependence indicator)
+    # Rule 6: recent canonical distribution pathology persists even when global/TW IC recover
+    drift_is_negative_pathology = (
+        drift_interpretation == "distribution_pathology"
+        and any(alert in drift_alerts for alert in ("constant_target", "label_imbalance"))
+        and (
+            (isinstance(drift_avg_pnl, (int, float)) and drift_avg_pnl <= 0.0)
+            or (isinstance(drift_avg_quality, (int, float)) and drift_avg_quality <= 0.0)
+            or (isinstance(drift_spot_long_win, (int, float)) and drift_spot_long_win <= 0.20)
+        )
+    )
+    if drift_is_negative_pathology:
+        tracker.add(
+            "P0",
+            "#H_AUTO_RECENT_PATHOLOGY",
+            f"recent canonical window {drift_window} rows = distribution_pathology",
+            "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；"
+            "維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。"
+            f" {drift_summary}",
+        )
+    else:
+        tracker.resolve("#H_AUTO_RECENT_PATHOLOGY")
+
+    # Rule 7: TW-IC >> Global IC (regime-dependence indicator)
     if ic_stats["tw_pass"] > ic_stats["global_pass"] + 2:
         tracker.add(
             "P1",
@@ -280,19 +357,32 @@ def main():
             "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
         )
 
-    # Rule 7: TW-IC degraded below the phase-16 floor across consecutive heartbeats
-    if len(tw_history) >= 2 and all((row.get("tw_pass") or 0) < 14 for row in tw_history[:2]):
+    # Rule 8: TW-IC degraded below the phase-16 floor across consecutive heartbeats
+    tw_drift_triggered = len(tw_history) >= 2 and all((row.get("tw_pass") or 0) < 14 for row in tw_history[:2])
+    if tw_drift_triggered:
         history_desc = " -> ".join(
             f"#{row['heartbeat']}={row['tw_pass']}/{row.get('total_features') or ic_stats['total_features']}"
             for row in tw_history[:2]
         )
+        if drift_interpretation == "supported_extreme_trend":
+            drift_action = (
+                "近期視窗雖然 constant-target，但 path-quality 顯示這更像『真實極端趨勢口袋』，"
+                "不是直接證明 label 壞掉；保留 distribution-aware calibration guardrail，"
+                "並改查 recent feature variance / regime narrowness / calibration scope 是否讓 TW-IC 被真實單向行情稀釋。"
+            )
+        else:
+            drift_action = (
+                "停止沿用近期優勢敘事；升級為 distribution-aware / calibration drift 調查，"
+                "檢查 recent label balance、regime mix、recent-window constant-target guardrail。"
+            )
         tracker.add(
             "P0",
             "#H_AUTO_TW_DRIFT",
             f"TW-IC 連續低於 14/30：{history_desc}",
-            "停止沿用近期優勢敘事；升級為 distribution-aware / calibration drift 調查，"
-            f"檢查 recent label balance、regime mix、recent-window constant-target guardrail。{drift_summary}",
+            f"{drift_action}{drift_summary}",
         )
+    else:
+        tracker.resolve("#H_AUTO_TW_DRIFT")
 
     # Rule 8: CV gap > 15pp
     cv = metrics.get("cv_accuracy", 0)

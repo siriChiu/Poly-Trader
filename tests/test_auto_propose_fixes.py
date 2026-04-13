@@ -82,6 +82,29 @@ def test_summarize_recent_drift_formats_primary_window():
                     "win_rate_delta_vs_full": 0.2641,
                     "dominant_regime": "chop",
                     "dominant_regime_share": 0.97,
+                    "drift_interpretation": "distribution_pathology",
+                    "quality_metrics": {
+                        "avg_simulated_pnl": 0.0123,
+                        "avg_simulated_quality": 0.6123,
+                        "avg_drawdown_penalty": 0.1212,
+                        "spot_long_win_rate": 0.55,
+                    },
+                    "feature_diagnostics": {
+                        "feature_count": 30,
+                        "low_variance_count": 4,
+                        "low_distinct_count": 3,
+                        "null_heavy_count": 1,
+                        "low_variance_examples": [
+                            {"feature": "feat_eye", "std_ratio": 0.02},
+                            {"feature": "feat_nose", "std_ratio": 0.05},
+                        ],
+                        "low_distinct_examples": [
+                            {"feature": "feat_eye", "recent_distinct": 1, "baseline_distinct": 50},
+                        ],
+                        "null_heavy_examples": [
+                            {"feature": "feat_claw", "non_null_ratio": 0.42},
+                        ],
+                    },
                 },
             }
         }
@@ -90,6 +113,209 @@ def test_summarize_recent_drift_formats_primary_window():
     assert "recent_window=100" in summary
     assert "dominant_regime=chop(97.00%)" in summary
     assert "delta_vs_full=+0.2641" in summary
+    assert "interpretation=distribution_pathology" in summary
+    assert "avg_pnl=+0.0123" in summary
+    assert "feature_diag=variance:4/30, distinct:3, null_heavy:1" in summary
+    assert "variance_examples=feat_eye(0.02)/feat_nose(0.05)" in summary
+
+
+def test_main_resolves_stale_issue_when_raw_is_fresh(monkeypatch, capsys):
+    events = []
+
+    class DummyTracker:
+        def add(self, priority, issue_id, title, action="", status="open"):
+            events.append(("add", issue_id, status))
+
+        def resolve(self, issue_id):
+            events.append(("resolve", issue_id, "resolved"))
+            return True
+
+        def save(self):
+            return None
+
+        def by_priority(self, priority):
+            return []
+
+    monkeypatch.setattr(auto_propose_fixes, "check_db", lambda: {
+        "simulated_win_avg": 0.577,
+        "losing_streak": 0,
+        "raw_latest_age_min": 1.3,
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_full_ic_data", lambda: {"global_pass": 14, "tw_pass": 15, "total_features": 30})
+    monkeypatch.setattr(auto_propose_fixes, "check_ic", lambda ic_data, full_ic_data=None: {
+        "global_pass": 14,
+        "tw_pass": 15,
+        "total_core": 15,
+        "total_features": 30,
+        "no_data": [],
+        "low_data": [],
+        "best_ic": ("feat_aura", -0.35),
+        "worst_ic": ("feat_eye", 0.0),
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_tw_history", lambda limit=3, current_entry=None: [])
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_drift_report", lambda: {})
+    monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.70, "cv_accuracy": 0.72})
+    monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: DummyTracker())}))
+
+    auto_propose_fixes.main()
+    _ = capsys.readouterr().out
+
+    assert ("resolve", "#H_AUTO_STALE", "resolved") in events
+    assert not any(event[0] == "add" and event[1] == "#H_AUTO_STALE" for event in events)
+
+
+
+def test_main_resolves_tw_drift_and_streak_when_current_run_recovers(monkeypatch, capsys):
+    events = []
+
+    class DummyTracker:
+        def add(self, priority, issue_id, title, action="", status="open"):
+            events.append(("add", issue_id, status))
+
+        def resolve(self, issue_id):
+            events.append(("resolve", issue_id, "resolved"))
+            return True
+
+        def save(self):
+            return None
+
+        def by_priority(self, priority):
+            return []
+
+    monkeypatch.setattr(auto_propose_fixes, "check_db", lambda: {
+        "simulated_win_avg": 0.5653,
+        "losing_streak": 6,
+        "raw_latest_age_min": 1.1,
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_full_ic_data", lambda: {"global_pass": 20, "tw_pass": 27, "total_features": 30})
+    monkeypatch.setattr(auto_propose_fixes, "check_ic", lambda ic_data, full_ic_data=None: {
+        "global_pass": 20,
+        "tw_pass": 27,
+        "total_core": 15,
+        "total_features": 30,
+        "no_data": [],
+        "low_data": [],
+        "best_ic": ("feat_vix", 0.74),
+        "worst_ic": ("feat_ear", 0.0014),
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_tw_history", lambda limit=3, current_entry=None: [
+        {"heartbeat": "669", "tw_pass": 27, "total_features": 30},
+        {"heartbeat": "668", "tw_pass": 12, "total_features": 30},
+        {"heartbeat": "667", "tw_pass": 13, "total_features": 30},
+    ])
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_drift_report", lambda: {
+        "primary_window": {
+            "window": "100",
+            "alerts": ["constant_target"],
+            "summary": {
+                "win_rate": 0.0,
+                "win_rate_delta_vs_full": -0.6263,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.75,
+                "drift_interpretation": "distribution_pathology",
+                "quality_metrics": {
+                    "avg_simulated_pnl": -0.0108,
+                    "avg_simulated_quality": -0.2809,
+                    "avg_drawdown_penalty": 0.2702,
+                    "spot_long_win_rate": 0.0,
+                },
+            },
+        }
+    })
+    monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.703, "cv_accuracy": 0.722})
+    monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: DummyTracker())}))
+
+    auto_propose_fixes.main()
+    _ = capsys.readouterr().out
+
+    assert ("resolve", "#H_AUTO_TW_DRIFT", "resolved") in events
+    assert ("resolve", "#H_AUTO_STREAK", "resolved") in events
+    assert not any(event[0] == "add" and event[1] == "#H_AUTO_TW_DRIFT" for event in events)
+    assert not any(event[0] == "add" and event[1] == "#H_AUTO_STREAK" for event in events)
+
+
+def test_main_promotes_recent_distribution_pathology_even_when_tw_ic_recovers(monkeypatch, capsys):
+    added = []
+
+    class DummyTracker:
+        def add(self, priority, issue_id, title, action="", status="open"):
+            added.append((priority, issue_id, title, action, status))
+
+        def resolve(self, issue_id):
+            return True
+
+        def save(self):
+            return None
+
+        def by_priority(self, priority):
+            return [
+                {
+                    "id": issue_id,
+                    "priority": prio,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+                for prio, issue_id, title, action, status in added
+                if prio == priority and status == "open"
+            ]
+
+    monkeypatch.setattr(auto_propose_fixes, "check_db", lambda: {
+        "simulated_win_avg": 0.5653,
+        "losing_streak": 6,
+        "raw_latest_age_min": 0.5,
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_full_ic_data", lambda: {"global_pass": 20, "tw_pass": 27, "total_features": 30})
+    monkeypatch.setattr(auto_propose_fixes, "check_ic", lambda ic_data, full_ic_data=None: {
+        "global_pass": 20,
+        "tw_pass": 27,
+        "total_core": 15,
+        "total_features": 30,
+        "no_data": [],
+        "low_data": [],
+        "best_ic": ("feat_vix", 0.74),
+        "worst_ic": ("feat_ear", 0.0014),
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_tw_history", lambda limit=3, current_entry=None: [
+        {"heartbeat": "671", "tw_pass": 27, "total_features": 30},
+        {"heartbeat": "670", "tw_pass": 27, "total_features": 30},
+    ])
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_drift_report", lambda: {
+        "primary_window": {
+            "window": "100",
+            "alerts": ["constant_target"],
+            "summary": {
+                "win_rate": 0.0,
+                "win_rate_delta_vs_full": -0.6263,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.75,
+                "drift_interpretation": "distribution_pathology",
+                "quality_metrics": {
+                    "avg_simulated_pnl": -0.0108,
+                    "avg_simulated_quality": -0.2809,
+                    "avg_drawdown_penalty": 0.2702,
+                    "spot_long_win_rate": 0.0,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 49,
+                    "low_variance_count": 28,
+                    "low_distinct_count": 15,
+                    "null_heavy_count": 10,
+                },
+            },
+        }
+    })
+    monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.703, "cv_accuracy": 0.722})
+    monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: DummyTracker())}))
+
+    auto_propose_fixes.main()
+    out = capsys.readouterr().out
+
+    pathology_issue = next(item for item in added if item[1] == "#H_AUTO_RECENT_PATHOLOGY")
+    assert pathology_issue[0] == "P0"
+    assert "recent canonical window 100 rows = distribution_pathology" in pathology_issue[2]
+    assert "feature_diag=variance:28/49, distinct:15, null_heavy:10" in pathology_issue[3]
+    assert "#H_AUTO_RECENT_PATHOLOGY" in out
 
 
 def test_main_escalates_tw_drift_on_consecutive_low_history(monkeypatch, capsys):
@@ -98,6 +324,9 @@ def test_main_escalates_tw_drift_on_consecutive_low_history(monkeypatch, capsys)
     class DummyTracker:
         def add(self, priority, issue_id, title, action="", status="open"):
             added.append((priority, issue_id, title, action, status))
+
+        def resolve(self, issue_id):
+            return True
 
         def save(self):
             return None
@@ -144,6 +373,13 @@ def test_main_escalates_tw_drift_on_consecutive_low_history(monkeypatch, capsys)
                 "win_rate_delta_vs_full": 0.2641,
                 "dominant_regime": "chop",
                 "dominant_regime_share": 0.97,
+                "drift_interpretation": "regime_concentration",
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.01,
+                    "avg_simulated_quality": 0.55,
+                    "avg_drawdown_penalty": 0.12,
+                    "spot_long_win_rate": 0.61,
+                },
             },
         }
     })
@@ -158,3 +394,79 @@ def test_main_escalates_tw_drift_on_consecutive_low_history(monkeypatch, capsys)
     assert "recent_window=100" in drift_issue[3]
     assert "TW history: #657=10/30, #656=12/30" in out
     assert "dominant_regime=chop(97.00%)" in out
+
+
+def test_main_tw_drift_uses_supported_extreme_trend_wording(monkeypatch, capsys):
+    added = []
+
+    class DummyTracker:
+        def add(self, priority, issue_id, title, action="", status="open"):
+            added.append((priority, issue_id, title, action, status))
+
+        def resolve(self, issue_id):
+            return True
+
+        def save(self):
+            return None
+
+        def by_priority(self, priority):
+            return [
+                {
+                    "id": issue_id,
+                    "priority": prio,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+                for prio, issue_id, title, action, status in added
+                if prio == priority and status == "open"
+            ]
+
+    monkeypatch.setattr(auto_propose_fixes, "check_db", lambda: {
+        "simulated_win_avg": 0.577,
+        "losing_streak": 0,
+        "raw_latest_age_min": 0.5,
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_full_ic_data", lambda: {"total_features": 30})
+    monkeypatch.setattr(auto_propose_fixes, "check_ic", lambda ic_data, full_ic_data=None: {
+        "global_pass": 13,
+        "tw_pass": 12,
+        "total_core": 15,
+        "total_features": 30,
+        "no_data": [],
+        "low_data": [],
+        "best_ic": ("feat_aura", -0.35),
+        "worst_ic": ("feat_eye", 0.0),
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_tw_history", lambda limit=3, current_entry=None: [
+        {"heartbeat": "668", "tw_pass": 12, "total_features": 30},
+        {"heartbeat": "667", "tw_pass": 13, "total_features": 30},
+    ])
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_drift_report", lambda: {
+        "primary_window": {
+            "window": "100",
+            "alerts": ["constant_target", "regime_concentration"],
+            "summary": {
+                "win_rate": 1.0,
+                "win_rate_delta_vs_full": 0.3538,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 1.0,
+                "drift_interpretation": "supported_extreme_trend",
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0204,
+                    "avg_simulated_quality": 0.688,
+                    "avg_drawdown_penalty": 0.0296,
+                    "spot_long_win_rate": 0.96,
+                },
+            },
+        }
+    })
+    monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.70, "cv_accuracy": 0.72})
+    monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: DummyTracker())}))
+
+    auto_propose_fixes.main()
+    _ = capsys.readouterr().out
+
+    drift_issue = next(item for item in added if item[1] == "#H_AUTO_TW_DRIFT")
+    assert "真實極端趨勢口袋" in drift_issue[3]
+    assert "interpretation=supported_extreme_trend" in drift_issue[3]

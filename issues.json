@@ -1,0 +1,54 @@
+{
+  "issues": [
+    {
+      "id": "#H_AUTO_TW_DRIFT",
+      "priority": "P0",
+      "title": "TW-IC 連續低於 14/30：#668=12/30 -> #667=13/30",
+      "action": "停止沿用近期優勢敘事；升級為 distribution-aware / calibration drift 調查，檢查 recent label balance、regime mix、recent-window constant-target guardrail。recent_window=500, alerts=['label_imbalance', 'regime_concentration'], win_rate=0.9680, delta_vs_full=+0.3196, dominant_regime=chop(100.00%), interpretation=distribution_pathology, avg_pnl=+0.0144, avg_quality=0.5669, avg_dd_penalty=0.0768, spot_long_win_rate=0.3900, feature_diag=variance:16/49, distinct:15, null_heavy:27, variance_examples=feat_adx(0.0)/feat_choppiness(0.0)/feat_donchian_pos(0.0), distinct_examples=feat_adx(1/1)/feat_choppiness(1/1)/feat_donchian_pos(1/1), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0)",
+      "status": "resolved",
+      "created_at": "2026-04-11T04:03:21.817943",
+      "updated_at": "2026-04-13T09:38:16.663597",
+      "hb_detected": null
+    },
+    {
+      "id": "#H_AUTO_STALE",
+      "priority": "P0",
+      "title": "Raw 數據已 957 分鐘未更新",
+      "action": "檢查 main.py scheduler; 檢查 collector background process; 手動觸發 collect",
+      "status": "resolved",
+      "created_at": "2026-04-12T02:00:23.166273",
+      "updated_at": "2026-04-13T09:38:16.663585",
+      "hb_detected": null
+    },
+    {
+      "id": "#H_AUTO_STREAK",
+      "priority": "P0",
+      "title": "連續 200 筆 simulated_pyramid_win=0",
+      "action": "檢查 recent canonical labels / regime breakdown / circuit breaker；必要時升級為 distribution-aware drift 調查",
+      "status": "resolved",
+      "created_at": "2026-04-13T09:03:19.651069",
+      "updated_at": "2026-04-13T09:38:16.663577",
+      "hb_detected": null
+    },
+    {
+      "id": "#H_AUTO_REGIME_DRIFT",
+      "priority": "P1",
+      "title": "TW-IC 27 vs Global IC 20 — 信號強依賴近期資料",
+      "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
+      "status": "open",
+      "created_at": "2026-04-13T09:03:54.444132",
+      "updated_at": "2026-04-13T09:38:16.663594",
+      "hb_detected": null
+    },
+    {
+      "id": "#H_AUTO_RECENT_PATHOLOGY",
+      "priority": "P0",
+      "title": "recent canonical window 100 rows = distribution_pathology",
+      "action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=100, alerts=['constant_target'], win_rate=0.0000, delta_vs_full=-0.6263, dominant_regime=chop(75.00%), interpretation=distribution_pathology, avg_pnl=-0.0108, avg_quality=-0.2809, avg_dd_penalty=0.2702, spot_long_win_rate=0.0000, feature_diag=variance:28/49, distinct:15, null_heavy:10, variance_examples=feat_4h_ma_order(0.0)/feat_body(0.0)/feat_dxy(0.0), distinct_examples=feat_nq_return_24h(1/8549)/feat_dxy(1/3227)/feat_nq_return_1h(1/1785), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0)",
+      "status": "open",
+      "created_at": "2026-04-13T09:38:16.663591",
+      "updated_at": "2026-04-13T09:38:16.663591",
+      "hb_detected": null
+    }
+  ]
+}
