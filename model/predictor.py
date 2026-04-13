@@ -412,6 +412,11 @@ def _decision_quality_fallback(profile_version: str = "phase16_baseline_v2") -> 
         "decision_quality_calibration_window": None,
         "decision_quality_guardrail_applied": False,
         "decision_quality_guardrail_reason": None,
+        "decision_quality_recent_pathology_applied": False,
+        "decision_quality_recent_pathology_reason": None,
+        "decision_quality_recent_pathology_window": 0,
+        "decision_quality_recent_pathology_alerts": [],
+        "decision_quality_recent_pathology_summary": None,
         "expected_win_rate": None,
         "expected_pyramid_pnl": None,
         "expected_pyramid_quality": None,
@@ -500,6 +505,87 @@ def _compute_decision_quality_score(win_rate: Optional[float], pyramid_quality: 
     return round(float(score), 4)
 
 
+def _avg_metric(rows: List[Dict[str, Any]], key: str) -> Optional[float]:
+    values = [float(row[key]) for row in rows if row.get(key) is not None]
+    if not values:
+        return None
+    return round(float(sum(values) / len(values)), 4)
+
+
+def _recent_scope_pathology_summary(rows: List[Dict[str, Any]], recent_window: int = 100, min_rows: int = 30) -> Dict[str, Any]:
+    if len(rows) < min_rows:
+        return {
+            "applied": False,
+            "window": min(len(rows), recent_window),
+            "alerts": [],
+            "reason": None,
+            "summary": None,
+        }
+
+    ordered_rows = sorted(
+        rows,
+        key=lambda row: (str(row.get("timestamp") or ""), str(row.get("symbol") or "")),
+        reverse=True,
+    )
+    recent_rows = ordered_rows[: min(recent_window, len(ordered_rows))]
+    alerts = _decision_quality_scope_alerts(recent_rows)
+    win_rate = _avg_metric(recent_rows, "simulated_pyramid_win")
+    avg_pnl = _avg_metric(recent_rows, "simulated_pyramid_pnl")
+    avg_quality = _avg_metric(recent_rows, "simulated_pyramid_quality")
+    avg_drawdown_penalty = _avg_metric(recent_rows, "simulated_pyramid_drawdown_penalty")
+    avg_time_underwater = _avg_metric(recent_rows, "simulated_pyramid_time_underwater")
+
+    is_negative_pathology = any(alert in alerts for alert in ("constant_target", "label_imbalance")) and (
+        (win_rate is not None and win_rate <= 0.2)
+        or (avg_pnl is not None and avg_pnl < 0)
+        or (avg_quality is not None and avg_quality < 0)
+    )
+    if not is_negative_pathology:
+        return {
+            "applied": False,
+            "window": len(recent_rows),
+            "alerts": alerts,
+            "reason": None,
+            "summary": None,
+        }
+
+    summary = {
+        "rows": len(recent_rows),
+        "win_rate": win_rate,
+        "avg_pnl": avg_pnl,
+        "avg_quality": avg_quality,
+        "avg_drawdown_penalty": avg_drawdown_penalty,
+        "avg_time_underwater": avg_time_underwater,
+    }
+    reason = (
+        f"recent scope slice {len(recent_rows)} rows shows distribution_pathology "
+        f"alerts={alerts} win_rate={win_rate} avg_pnl={avg_pnl} avg_quality={avg_quality}"
+    )
+    return {
+        "applied": True,
+        "window": len(recent_rows),
+        "alerts": alerts,
+        "reason": reason,
+        "summary": summary,
+    }
+
+
+def _min_optional(current: Optional[float], other: Optional[float]) -> Optional[float]:
+    if current is None:
+        return other
+    if other is None:
+        return current
+    return round(min(float(current), float(other)), 4)
+
+
+def _max_optional(current: Optional[float], other: Optional[float]) -> Optional[float]:
+    if current is None:
+        return other
+    if other is None:
+        return current
+    return round(max(float(current), float(other)), 4)
+
+
 def _summarize_decision_quality_contract(
     rows: List[Dict[str, Any]],
     decision_profile: Dict[str, Any],
@@ -545,17 +631,21 @@ def _summarize_decision_quality_contract(
     if not chosen_rows:
         return base
 
-    def _avg(key: str) -> Optional[float]:
-        values = [float(row[key]) for row in chosen_rows if row.get(key) is not None]
-        if not values:
-            return None
-        return round(float(sum(values) / len(values)), 4)
+    expected_win_rate = _avg_metric(chosen_rows, "simulated_pyramid_win")
+    expected_pnl = _avg_metric(chosen_rows, "simulated_pyramid_pnl")
+    expected_quality = _avg_metric(chosen_rows, "simulated_pyramid_quality")
+    expected_drawdown_penalty = _avg_metric(chosen_rows, "simulated_pyramid_drawdown_penalty")
+    expected_time_underwater = _avg_metric(chosen_rows, "simulated_pyramid_time_underwater")
 
-    expected_win_rate = _avg("simulated_pyramid_win")
-    expected_pnl = _avg("simulated_pyramid_pnl")
-    expected_quality = _avg("simulated_pyramid_quality")
-    expected_drawdown_penalty = _avg("simulated_pyramid_drawdown_penalty")
-    expected_time_underwater = _avg("simulated_pyramid_time_underwater")
+    recent_pathology = _recent_scope_pathology_summary(chosen_rows)
+    if recent_pathology.get("applied"):
+        pathology_summary = recent_pathology.get("summary") or {}
+        expected_win_rate = _min_optional(expected_win_rate, pathology_summary.get("win_rate"))
+        expected_pnl = _min_optional(expected_pnl, pathology_summary.get("avg_pnl"))
+        expected_quality = _min_optional(expected_quality, pathology_summary.get("avg_quality"))
+        expected_drawdown_penalty = _max_optional(expected_drawdown_penalty, pathology_summary.get("avg_drawdown_penalty"))
+        expected_time_underwater = _max_optional(expected_time_underwater, pathology_summary.get("avg_time_underwater"))
+
     decision_quality_score = _compute_decision_quality_score(
         expected_win_rate,
         expected_quality,
@@ -574,6 +664,11 @@ def _summarize_decision_quality_contract(
         "decision_quality_scope_guardrail_applied": scope_guardrail_applied,
         "decision_quality_scope_guardrail_reason": scope_guardrail_reason,
         "decision_quality_scope_guardrail_alerts": scope_guardrail_alerts,
+        "decision_quality_recent_pathology_applied": bool(recent_pathology.get("applied")),
+        "decision_quality_recent_pathology_reason": recent_pathology.get("reason"),
+        "decision_quality_recent_pathology_window": int(recent_pathology.get("window") or 0),
+        "decision_quality_recent_pathology_alerts": list(recent_pathology.get("alerts") or []),
+        "decision_quality_recent_pathology_summary": recent_pathology.get("summary"),
         "expected_win_rate": expected_win_rate,
         "expected_pyramid_pnl": expected_pnl,
         "expected_pyramid_quality": expected_quality,
@@ -656,8 +751,13 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
     contract["decision_quality_guardrail_applied"] = bool(
         guardrail.get("raw_best_guardrailed")
         or contract.get("decision_quality_scope_guardrail_applied")
+        or contract.get("decision_quality_recent_pathology_applied")
     )
-    reason_parts = [guardrail.get("guardrail_reason"), contract.get("decision_quality_scope_guardrail_reason")]
+    reason_parts = [
+        guardrail.get("guardrail_reason"),
+        contract.get("decision_quality_scope_guardrail_reason"),
+        contract.get("decision_quality_recent_pathology_reason"),
+    ]
     contract["decision_quality_guardrail_reason"] = "; ".join(part for part in reason_parts if part)
     return contract
 
@@ -678,6 +778,7 @@ def _apply_live_execution_guardrails(decision_profile: Dict[str, Any], decision_
     quality_label = decision_quality_contract.get("decision_quality_label")
     quality_score = decision_quality_contract.get("decision_quality_score")
     guardrail_applied = bool(decision_quality_contract.get("decision_quality_guardrail_applied"))
+    recent_pathology_applied = bool(decision_quality_contract.get("decision_quality_recent_pathology_applied"))
 
     if quality_label == "D" or (quality_score is not None and float(quality_score) < 0.35):
         capped_layers = 0
@@ -686,7 +787,10 @@ def _apply_live_execution_guardrails(decision_profile: Dict[str, Any], decision_
         capped_layers = 1
         reasons.append("decision_quality_label_C_caps_layers")
 
-    if guardrail_applied and capped_layers > 1:
+    if recent_pathology_applied and capped_layers > 0:
+        capped_layers = 0
+        reasons.append("recent_distribution_pathology_blocks_trade")
+    elif guardrail_applied and capped_layers > 1:
         capped_layers = 1
         reasons.append("guardrailed_calibration_caps_layers")
 

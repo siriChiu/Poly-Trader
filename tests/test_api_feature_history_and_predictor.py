@@ -298,6 +298,55 @@ def test_decision_quality_contract_guardrails_imbalanced_bucket_to_broader_scope
     assert contract["expected_win_rate"] == 0.75
 
 
+def test_decision_quality_contract_penalizes_negative_recent_pathology_in_chosen_scope():
+    rows = [
+        {
+            "timestamp": f"2026-04-10T00:{i:02d}:00",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "C",
+            "simulated_pyramid_win": 0.82,
+            "simulated_pyramid_pnl": 0.12,
+            "simulated_pyramid_quality": 0.62,
+            "simulated_pyramid_drawdown_penalty": 0.12,
+            "simulated_pyramid_time_underwater": 0.18,
+        }
+        for i in range(200)
+    ]
+    rows.extend(
+        {
+            "timestamp": f"2026-04-11T00:{i:02d}:00",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "C",
+            "simulated_pyramid_win": 0.0,
+            "simulated_pyramid_pnl": -0.04,
+            "simulated_pyramid_quality": -0.22,
+            "simulated_pyramid_drawdown_penalty": 0.31,
+            "simulated_pyramid_time_underwater": 0.57,
+        }
+        for i in range(100)
+    )
+
+    contract = predictor_module._summarize_decision_quality_contract(
+        rows,
+        {
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "C",
+            "decision_profile_version": "phase16_baseline_v2",
+        },
+    )
+
+    assert contract["decision_quality_calibration_scope"] == "regime_gate+entry_quality_label"
+    assert contract["decision_quality_recent_pathology_applied"] is True
+    assert contract["decision_quality_recent_pathology_window"] == 100
+    assert contract["decision_quality_recent_pathology_alerts"] == ["constant_target"]
+    assert contract["expected_win_rate"] == 0.0
+    assert contract["expected_pyramid_pnl"] == -0.04
+    assert contract["expected_pyramid_quality"] == -0.22
+    assert contract["expected_drawdown_penalty"] == 0.31
+    assert contract["decision_quality_label"] == "D"
+    assert "distribution_pathology" in contract["decision_quality_recent_pathology_reason"]
+
+
 def test_apply_live_execution_guardrails_caps_layers_for_c_quality_and_guardrailed_window():
     profile = {
         "regime_label": "chop",
@@ -320,6 +369,32 @@ def test_apply_live_execution_guardrails_caps_layers_for_c_quality_and_guardrail
     assert guarded["allowed_layers"] == 1
     assert guarded["execution_guardrail_applied"] is True
     assert "decision_quality_label_C_caps_layers" in guarded["execution_guardrail_reason"]
+
+
+def test_apply_live_execution_guardrails_blocks_trade_for_recent_distribution_pathology():
+    profile = {
+        "regime_label": "chop",
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.74,
+        "entry_quality_label": "B",
+        "allowed_layers": 2,
+        "decision_profile_version": "phase16_baseline_v2",
+    }
+    contract = {
+        **predictor_module._decision_quality_fallback(),
+        "decision_quality_guardrail_applied": True,
+        "decision_quality_recent_pathology_applied": True,
+        "decision_quality_recent_pathology_reason": "recent scope slice 100 rows shows distribution_pathology",
+        "decision_quality_label": "B",
+        "decision_quality_score": 0.51,
+    }
+
+    guarded = predictor_module._apply_live_execution_guardrails(profile, contract)
+
+    assert guarded["allowed_layers_raw"] == 2
+    assert guarded["allowed_layers"] == 0
+    assert guarded["execution_guardrail_applied"] is True
+    assert "recent_distribution_pathology_blocks_trade" in guarded["execution_guardrail_reason"]
 
 
 def test_predict_applies_execution_guardrail_to_live_result(monkeypatch):

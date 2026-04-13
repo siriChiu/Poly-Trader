@@ -1,36 +1,37 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-13 09:38 UTC — Heartbeat #672（patched auto-propose so negative recent canonical distribution pathology is promoted back to a real P0 blocker, re-ran the fast canonical heartbeat on fresh data, and verified the runner now emits `#H_AUTO_RECENT_PATHOLOGY` instead of hiding behind recovered TW-IC）*
+*最後更新：2026-04-13 10:46 UTC — Heartbeat #674（re-ran the canonical fast heartbeat, then patched live decision-quality calibration so recent negative canonical pathology now propagates into predictor expectations/execution guardrails instead of being diluted by broader historical buckets）*
 
-## 📊 系統健康狀態 v4.66
+## 📊 系統健康狀態 v4.67
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **20,992** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 672` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
-| Features | **12,421** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 raw 同步 |
-| Labels | **42,150** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels 持平是 lookahead lag，不是 pipeline 停滯 |
-||||||||| simulated_pyramid_win (DB overall) | **56.53%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5653` |
-||||||||| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **62.98%** | 🟢 分析樣本 n=11,794 |
-||||||||| spot_long_win | **未於本輪重算** | 🟡 legacy 比較口徑，非主 target |
-||||||||| 全域 IC | **20/30** | 🟢 canonical diagnostics 維持強勢；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY + ATR/VWAP/NW/ADX/4H 路徑均通過 |
-||||||||| TW-IC | **27/30** | 🟢 已高於 14/30 gate；但這不再能掩蓋 recent 100/250 rows 的負向 `distribution_pathology` |
-||||||||| Regime IC | **Bear 5/8 / Bull 6/8 / Chop 6/8 / Neutral 4/8** | 🟢 canonical simulated target 維持；bull / chop 皆有可用訊號 |
-||||||||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; live calibration consumes `data/dw_result.json`; predictor routing uses exposed regime label; calibration scope rejects imbalanced scoped buckets; runtime execution now caps `allowed_layers`; auto-propose now escalates negative recent distribution pathology as its own P0 instead of only reporting regime drift** | 🟢 live path 仍 guardrailed；治理層現在會把真正 blocker `#H_AUTO_RECENT_PATHOLOGY` 機器化寫回 issues.json |
-||||||||| Verification | **`python -m pytest tests/test_auto_propose_fixes.py -q` + `python scripts/hb_parallel_runner.py --fast --hb 672`** | ✅ 本輪已重驗證 |
+| Raw | **21,027** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 674` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
+| Features | **12,456** | 🟢 fast heartbeat 本輪新增 **+1**；canonical feature path 與 raw 同步 |
+| Labels | **42,152** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels 持平仍屬 lookahead lag，不是 pipeline 停滯 |
+||||||||||| simulated_pyramid_win (DB overall) | **56.53%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5653` |
+||||||||||| simulated_pyramid_win (`full_ic.py` / `regime_aware_ic.py` sample) | **62.98%** | 🟢 分析樣本 n=11,795 |
+||||||||||| spot_long_win | **未於本輪重算** | 🟡 legacy 比較口徑，非主 target |
+||||||||||| 全域 IC | **20/30** | 🟢 canonical diagnostics 維持強勢；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY + ATR/VWAP/NW/ADX/4H 路徑均通過 |
+||||||||||| TW-IC | **27/30** | 🟢 已高於 14/30 gate；但這不再能掩蓋 recent 100/250 rows 的負向 `distribution_pathology` |
+||||||||||| Regime IC | **Bear 5/8 / Bull 6/8 / Chop 6/8 / Neutral 4/8** | 🟢 canonical simulated target 維持；bull / chop 皆有可用訊號 |
+||||||||||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; live calibration consumes `data/dw_result.json`; predictor routing uses exposed regime label; calibration scope rejects imbalanced scoped buckets; runtime execution caps `allowed_layers`; Heartbeat #674 adds recent-pathology-aware calibration so negative recent slices now clamp `expected_win_rate/pnl/quality` and can hard-block live deployment instead of being diluted by broader `regime_gate` history** | 🟢 live path 仍 guardrailed；目前 probe 已把 recent negative pathology 直接反映到 live expectations |
+||||||||||| Verification | **`python -m pytest tests/test_api_feature_history_and_predictor.py -q` + `python scripts/hb_predict_probe.py` + `python scripts/hb_parallel_runner.py --fast --hb 674`** | ✅ 本輪已重驗證 |
 
 ## 🎯 當前戰略問題（高準確度 / 高勝率 / 低回撤）
 
-### 本輪優先順序（Heartbeat #672 後）
-- **P0#1 — `#H_AUTO_RECENT_PATHOLOGY`（重新 machine-check 化）**：`scripts/auto_propose_fixes.py` 現在會在 **recent 100/250/500 canonical rows = `distribution_pathology` + negative quality** 時，主動把 blocker 寫回 `issues.json`；本輪實測 primary window 仍是 **last 100 rows = `constant_target` + avg_pnl<0 + avg_quality<0 + chop 75%**，所以真正待解問題依然是 recent feature variance / distinct-count collapse、recent canonical label path 與 calibration scope。
-- **P0#2 — raw continuity bridge 觀察**：Heartbeat #671 / #672 皆為 `bridge=0`，但仍需連續觀察，避免 continuity fallback 再次回來。
-- **Resolved — `#H_AUTO_TW_DRIFT` / `#H_AUTO_STREAK`**：治理層已能在 current run recovered 時自動 resolve；這兩個不再應該遮蔽真正的 recent pathology blocker。
-- **Resolved — `#H_AUTO_STALE`**：freshness 仍維持健康，未再回來。
+### 本輪優先順序（Heartbeat #674 後）
+- **P0#1 — `#H_AUTO_RECENT_PATHOLOGY`（仍是主 blocker）**：recent **100 rows** 仍是 `constant_target + avg_pnl<0 + avg_quality<0 + chop 75%`。Heartbeat #674 已把這個病態 recent slice 從 heartbeat/issue 層推進到 **live predictor calibration + execution guardrail**，避免更寬的 `regime_gate` bucket 繼續稀釋它，但 root cause 本身仍未解除。
+- **P0#2 — live calibration dilution 已補第一個治本 guardrail**：`model/predictor.py` 現在會對 chosen scope 做 **recent negative-pathology stress check**；若 recent 100 rows 出現 `constant_target / label_imbalance` 且 `avg_pnl`/`avg_quality` 轉負，會直接下修 `expected_win_rate/pnl/quality`，並可把 live deployment 壓成 `allowed_layers=0`。這關閉了「governance 說危險、但 live expectation 還顯得偏樂觀」的假語義缺口。
+- **P0#3 — raw continuity bridge 觀察**：Heartbeat #671/#672/#673/#674 皆為 `bridge=0`，仍需連續觀察，避免 continuity fallback 再次回來。
+- **Resolved — `#H_AUTO_TW_DRIFT` / `#H_AUTO_STREAK` / `#H_AUTO_STALE`**：current run recovered；這些不再應遮蔽真正的 recent pathology blocker。
 - **P1**：`#H_AUTO_REGIME_DRIFT`、`#CORE_VS_RESEARCH_SIGNAL_MIXING`、`#LEADERBOARD_OBJECTIVE_MISMATCH` —— 在 current distribution pathology 收斂後再往下推語義與排序契約。
 - **P2**：其餘文件/展示層整理與非阻塞優化。
 
 ### 本輪建議起手式
-1. 直接對 recent 100/250/500 canonical rows 做 feature variance / distinct-count / null-heavy drill-down，確認為何 full IC 已 20/30、TW-IC 已 27/30，但 primary drift window 仍是負向 `distribution_pathology`。
-2. 用下一輪 heartbeat 驗證 continuity bridge 是否持續為 0；若再次連續觸發 bridge fallback，立刻升級回 raw continuity root-cause investigation。
+1. 直接對 recent 100/250/500 canonical rows 做 **target-path drill-down**：查最後 100 筆 `simulated_pyramid_*` 的 entry timestamps / regime mix / label path，確認為何 recent canonical pocket 持續全敗且 `avg_quality<0`。
+2. 用下一輪 heartbeat 驗證新的 live guardrail 是否穩定把 pathology 轉成保守部署（`hb_predict_probe.py` 預期維持 `expected_win_rate<=0.2` 或 `allowed_layers=0`），而不是再次被 broader bucket 稀釋。
+3. 持續驗證 continuity bridge 是否為 0；若再次連續觸發 bridge fallback，立刻升級回 raw continuity root-cause investigation。
 
 ### 本輪 root-cause 新證據（2026-04-12 續推）
 - **已定位一個真 root cause**：`feature_engine/preprocessor.py::compute_features_from_raw()` 先前雖然呼叫 `_compute_technical_indicators_from_df()`，但**沒有把 `feat_4h_*` 欄位回寫到 `features` dict**，導致新 feature rows 實際落庫時 4H 欄位保持 `NULL`。
@@ -60,11 +61,13 @@
 - **風險**：會出現「研究信號看起來很厲害，但其實成熟度不足」的假信心，污染準確度與決策穩定性。
 - **建議方向**：把訊號明確分成 **核心可用 / 研究中 / blocked** 三層，並在主模型與 UI 上採不同權重與展示策略。
 
-### #LEADERBOARD_OBJECTIVE_MISMATCH（部分修復，降為 P1 follow-up）
-- **現象**：Heartbeat #638 已把 `backtesting/model_leaderboard.py` 的 composite score 從偏 **ROI / test accuracy gap / ROI 波動**，改成更偏向 **勝率 / 最大回撤 / PF / regime stability / trade quality / trade count** 的複合排序，並把這些 component fields 經由 API payload 一起輸出。
-- **本輪修復**：新增 fold/model 層級的 `avg_entry_quality`、`avg_allowed_layers`、`avg_trade_quality`、`regime_stability_score`、`max_drawdown_score`、`profit_factor_score`、`overfit_penalty` 等欄位；`tests/test_model_leaderboard.py` 與 `tests/test_api.py` 共 **20 passed**，證明 API 序列化與 ranking contract 已更新。
-- **剩餘缺口**：目前 trade quality 仍是 **backtest-side proxy**，尚未直接使用 `win + pnl_quality + drawdown_penalty + time_underwater` 的完整 canonical decision-quality target，也尚未把 regime breakdown / leaderboard UI 主排序文字一起更新成同一語義。
-- **下一步方向**：把 labeling 端的 canonical quality target 明確接進 leaderboard / predictor，共用同一組 decision-quality contract，而不是讓 leaderboard 停留在 proxy 分數。
+### #LEADERBOARD_OBJECTIVE_MISMATCH（本輪再推進）
+- **現象**：先前 leaderboard 已從單看 ROI 進化到複合評分，但勝率權重仍偏高，容易把「看起來命中率漂亮、實際資金效率一般」的模型排太前面。
+- **本輪修復**：已把 `backtesting/model_leaderboard.py` 與 `server/routes/api.py::_strategy_leaderboard_sort_key()` 調整成 **ROI + 低回撤優先**，再看 `profit_factor / decision_quality`；勝率只保留為 reference。前端 `StrategyLab.tsx` 的 `sort_semantics` 與 fallback 文案也同步改成 `ROI -> lower max_drawdown -> avg_decision_quality_score -> profit_factor (win_rate reference only)`。
+- **額外實作**：Strategy Lab 新增 **`reserve_90`（10% 試單 / 90% 後守）** 資金模式。回測會先用小倉位試單，只有當價格相對首筆建倉回撤達門檻時才解鎖後守資金，目的不是提高名義勝率，而是提升資金生存率與降低早期滿倉風險。
+- **對『風暴斬倉』的評估**：概念上有助於降低高位套牢時間，但它需要真正的 **inventory-lot accounting / partial inventory release engine**。目前 `strategy_lab.py` 仍是整筆持倉聚合回測模型，尚未追蹤「低位獲利單同步替高位套牢單減倉」的 lot 級生命週期，因此這一部分先記為下一階段策略引擎升級，不在本輪直接硬上，以免做出假回測。
+- **剩餘缺口**：目前排行榜仍未把 storm-unwind / trapped-inventory half-life 納入 score，也還沒把 reserve mode 對 recent pathology / drawdown 的效果回寫成新的 leaderboard diagnostics。
+- **下一步方向**：先比較 classic pyramid vs reserve_90 的 OOS `ROI / max_drawdown / PF / underwater time`；若有效，再升級到真正的 inventory-lot / storm-unwind backtest engine，而不是先用勝率包裝成假改善。
 
 ### #DYNAMIC_WINDOW_NOT_DISTRIBUTION_AWARE（持續 P0，本輪再推進）
 - **現象**：Heartbeat #660 之後，canonical full/regime IC 仍健康，但 recent-weighted TW-IC 持續低於 **14/30**；近期視窗已被證實存在 `constant_target + 100% chop`，不能再讓 recency-heavy path 無條件相信最新 slice。
@@ -82,6 +85,25 @@
 
 ### 實作計畫
 - `docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+## 📈 心跳 #674 摘要
+
+### 本輪已驗證 patch
+1. **Live decision-quality calibration now respects negative recent canonical pathology inside the chosen scope**：`model/predictor.py::_summarize_decision_quality_contract()` 新增 recent-scope pathology stress check。若 chosen calibration lane 的 recent 100 rows 出現 `constant_target / label_imbalance` 且 `avg_pnl` 或 `avg_quality` 已轉負，contract 會直接用 recent 壞資料下修 `expected_win_rate / expected_pyramid_pnl / expected_pyramid_quality`，並同步提高 drawdown / time-underwater 風險，而不是繼續沿用較寬歷史 bucket 的樂觀平均。
+2. **Pathology guardrail now reaches execution-time deployment**：`model/predictor.py::_apply_live_execution_guardrails()` 會在 `decision_quality_recent_pathology_applied=true` 時直接把 live deployment 壓到 `allowed_layers=0`，避免 runtime 繼續拿看似 healthy 的 B/C quality 去部署 recent negative pocket。
+3. **Regression tests lock the new predictor contract**：`tests/test_api_feature_history_and_predictor.py` 新增 recent-pathology calibration 與 execution guardrail 測試，固定驗證 negative recent slice 會把 contract 壓成 D/0-layer，而不是只在 issue/governance 層報警。
+
+### 本輪 runtime facts（Heartbeat #674）
+- `python scripts/hb_parallel_runner.py --fast --hb 674`：**Raw 21026→21027 / Features 12455→12456 / Labels 42152→42152**；summary 已刷新 `data/heartbeat_674_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-13 07:00:00`、`raw_gap≈1.0h`；1440m `latest_target=2026-04-12 11:00:00`、`raw_gap≈1.5h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **20/30 PASS**、TW-IC **27/30 PASS**；Regime IC **Bear 5/8 / Bull 6/8 / Chop 6/8 / Neutral 4/8**（`simulated_pyramid_win`, n=11,795）。
+- `python scripts/recent_drift_report.py`（由 fast heartbeat 觸發）：primary drift window 仍是 **last 100 rows**, `win_rate=0.0000`, `dominant_regime=chop(75%)`, `interpretation=distribution_pathology`, `avg_pnl=-0.0108`, `avg_quality=-0.2810`, `feature_diag=variance:28/49, frozen:5, compressed:23, distinct:15, null_heavy:10`。
+- `python scripts/hb_predict_probe.py`（patch 後重跑）：live predictor 仍為 `regime_gate=CAUTION / entry_quality_label=C`，但 calibration contract 已被 recent pathology 拉回 **`expected_win_rate=0.0`, `expected_pyramid_pnl=-0.0102`, `expected_pyramid_quality=-0.2649`, `decision_quality_label=D`, `allowed_layers=0`**；不再出現用 broader `regime_gate` 歷史桶稀釋 recent 壞 pocket 的假樂觀。
+- `python -m pytest tests/test_api_feature_history_and_predictor.py -q` → **14 passed**。
+
+### Blocker 升級 / 狀態更正
+- **#H_AUTO_RECENT_PATHOLOGY 仍未解除**：本輪修的是 live calibration / execution 語義，讓 runtime 不再忽視 recent 負向 canonical pocket；但造成 recent 100-row 全敗的 label/path 根因仍未找出。
+- **沒有假進度**：這輪沒有宣稱 signal 已恢復，只是把 blocker 從「issue/heartbeat 看得到、live path 還會稀釋掉」推進成「live predictor 會真的縮手」。下一輪必須直接對準 recent canonical entry path 與 target 生成根因。
 
 ## 📈 心跳 #672 摘要
 
