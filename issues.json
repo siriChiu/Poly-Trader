@@ -7,7 +7,7 @@
       "action": "停止沿用近期優勢敘事；升級為 distribution-aware / calibration drift 調查，檢查 recent label balance、regime mix、recent-window constant-target guardrail。recent_window=500, alerts=['label_imbalance', 'regime_concentration'], win_rate=0.9680, delta_vs_full=+0.3196, dominant_regime=chop(100.00%), interpretation=distribution_pathology, avg_pnl=+0.0144, avg_quality=0.5669, avg_dd_penalty=0.0768, spot_long_win_rate=0.3900, feature_diag=variance:16/49, distinct:15, null_heavy:27, variance_examples=feat_adx(0.0)/feat_choppiness(0.0)/feat_donchian_pos(0.0), distinct_examples=feat_adx(1/1)/feat_choppiness(1/1)/feat_donchian_pos(1/1), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0)",
       "status": "resolved",
       "created_at": "2026-04-11T04:03:21.817943",
-      "updated_at": "2026-04-13T09:38:16.663597",
+      "updated_at": "2026-04-13T13:12:52.413054",
       "hb_detected": null
     },
     {
@@ -17,7 +17,7 @@
       "action": "檢查 main.py scheduler; 檢查 collector background process; 手動觸發 collect",
       "status": "resolved",
       "created_at": "2026-04-12T02:00:23.166273",
-      "updated_at": "2026-04-13T09:38:16.663585",
+      "updated_at": "2026-04-13T13:12:52.413043",
       "hb_detected": null
     },
     {
@@ -27,27 +27,27 @@
       "action": "檢查 recent canonical labels / regime breakdown / circuit breaker；必要時升級為 distribution-aware drift 調查",
       "status": "resolved",
       "created_at": "2026-04-13T09:03:19.651069",
-      "updated_at": "2026-04-13T09:38:16.663577",
+      "updated_at": "2026-04-13T13:12:52.413038",
       "hb_detected": null
     },
     {
       "id": "#H_AUTO_REGIME_DRIFT",
       "priority": "P1",
-      "title": "TW-IC 27 vs Global IC 20 — 信號強依賴近期資料",
+      "title": "TW-IC 25 vs Global IC 18 — 信號強依賴近期資料",
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-04-13T09:03:54.444132",
-      "updated_at": "2026-04-13T09:38:16.663594",
+      "updated_at": "2026-04-13T13:12:52.413052",
       "hb_detected": null
     },
     {
       "id": "#H_AUTO_RECENT_PATHOLOGY",
       "priority": "P0",
-      "title": "recent canonical window 100 rows = distribution_pathology",
-      "action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=100, alerts=['constant_target'], win_rate=0.0000, delta_vs_full=-0.6263, dominant_regime=chop(75.00%), interpretation=distribution_pathology, avg_pnl=-0.0108, avg_quality=-0.2809, avg_dd_penalty=0.2702, spot_long_win_rate=0.0000, feature_diag=variance:28/49, distinct:15, null_heavy:10, variance_examples=feat_4h_ma_order(0.0)/feat_body(0.0)/feat_dxy(0.0), distinct_examples=feat_nq_return_24h(1/8549)/feat_dxy(1/3227)/feat_nq_return_1h(1/1785), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0)",
+      "title": "recent canonical window 250 rows = distribution_pathology",
+      "action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=250, alerts=['label_imbalance'], win_rate=0.1040, delta_vs_full=-0.5225, dominant_regime=chop(59.20%), interpretation=distribution_pathology, avg_pnl=-0.0087, avg_quality=-0.1935, avg_dd_penalty=0.2410, spot_long_win_rate=0.0000, feature_diag=variance:19/49, frozen:5, compressed:14, expected_static:5, unexpected_frozen:0, distinct:15, null_heavy:10, tail_streak=26x1 since 2026-04-12 13:40:49.523824 -> 2026-04-12 14:11:18.089855, adverse_streak=224x0 since 2026-04-12 05:02:22.180010 -> 2026-04-12 13:39:36.317262, frozen_examples=feat_4h_ma_order(0.0/1)/feat_nq_return_1h(0.0/1)/feat_nq_return_24h(0.0/1), compressed_examples=feat_body(0.0/250)/feat_ear(0.0031/249)/feat_scales_ssr(0.0047/208), expected_static_examples=feat_4h_ma_order[discrete_regime_feature]/feat_dxy[weekend_macro_market_closed]/feat_nq_return_1h[weekend_macro_market_closed], distinct_examples=feat_nq_return_24h(1/8549)/feat_dxy(2/3227)/feat_nq_return_1h(1/1785), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-12 14:08:53.613692:1:chop:0.3754/2026-04-12 14:10:05.655920:1:chop:0.3698/2026-04-12 14:11:18.089855:1:chop:0.3718, adverse_examples=2026-04-12 13:37:09.969092:0:chop:-0.1573/2026-04-12 13:38:22.705784:0:chop:-0.1354/2026-04-12 13:39:36.317262:0:chop:-0.1314",
       "status": "open",
       "created_at": "2026-04-13T09:38:16.663591",
-      "updated_at": "2026-04-13T09:38:16.663591",
+      "updated_at": "2026-04-13T13:12:52.413048",
       "hb_detected": null
     }
   ]

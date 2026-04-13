@@ -512,11 +512,51 @@ def _avg_metric(rows: List[Dict[str, Any]], key: str) -> Optional[float]:
     return round(float(sum(values) / len(values)), 4)
 
 
-def _recent_scope_pathology_summary(rows: List[Dict[str, Any]], recent_window: int = 100, min_rows: int = 30) -> Dict[str, Any]:
+def _longest_binary_streak(rows: List[Dict[str, Any]], key: str, target_value: int) -> Dict[str, Any]:
+    best_rows: List[Dict[str, Any]] = []
+    current_rows: List[Dict[str, Any]] = []
+    for row in rows:
+        value = row.get(key)
+        if value is None:
+            if len(current_rows) > len(best_rows):
+                best_rows = list(current_rows)
+            current_rows = []
+            continue
+        current_value = int(value)
+        if current_value == target_value:
+            current_rows.append(row)
+            continue
+        if len(current_rows) > len(best_rows):
+            best_rows = list(current_rows)
+        current_rows = []
+    if len(current_rows) > len(best_rows):
+        best_rows = list(current_rows)
+
+    if not best_rows:
+        return {
+            "target": target_value,
+            "count": 0,
+            "start_timestamp": None,
+            "end_timestamp": None,
+        }
+
+    return {
+        "target": target_value,
+        "count": len(best_rows),
+        "start_timestamp": str(best_rows[-1].get("timestamp")) if best_rows[-1].get("timestamp") is not None else None,
+        "end_timestamp": str(best_rows[0].get("timestamp")) if best_rows[0].get("timestamp") is not None else None,
+    }
+
+
+def _recent_scope_pathology_summary(
+    rows: List[Dict[str, Any]],
+    recent_windows: tuple[int, ...] = (100, 250, 500),
+    min_rows: int = 30,
+) -> Dict[str, Any]:
     if len(rows) < min_rows:
         return {
             "applied": False,
-            "window": min(len(rows), recent_window),
+            "window": min(len(rows), min(recent_windows) if recent_windows else 0),
             "alerts": [],
             "reason": None,
             "summary": None,
@@ -527,44 +567,84 @@ def _recent_scope_pathology_summary(rows: List[Dict[str, Any]], recent_window: i
         key=lambda row: (str(row.get("timestamp") or ""), str(row.get("symbol") or "")),
         reverse=True,
     )
-    recent_rows = ordered_rows[: min(recent_window, len(ordered_rows))]
-    alerts = _decision_quality_scope_alerts(recent_rows)
-    win_rate = _avg_metric(recent_rows, "simulated_pyramid_win")
-    avg_pnl = _avg_metric(recent_rows, "simulated_pyramid_pnl")
-    avg_quality = _avg_metric(recent_rows, "simulated_pyramid_quality")
-    avg_drawdown_penalty = _avg_metric(recent_rows, "simulated_pyramid_drawdown_penalty")
-    avg_time_underwater = _avg_metric(recent_rows, "simulated_pyramid_time_underwater")
+    candidates = []
+    for recent_window in recent_windows:
+        if recent_window <= 0:
+            continue
+        window_rows = ordered_rows[: min(recent_window, len(ordered_rows))]
+        if len(window_rows) < min_rows:
+            continue
+        alerts = _decision_quality_scope_alerts(window_rows)
+        win_rate = _avg_metric(window_rows, "simulated_pyramid_win")
+        avg_pnl = _avg_metric(window_rows, "simulated_pyramid_pnl")
+        avg_quality = _avg_metric(window_rows, "simulated_pyramid_quality")
+        avg_drawdown_penalty = _avg_metric(window_rows, "simulated_pyramid_drawdown_penalty")
+        avg_time_underwater = _avg_metric(window_rows, "simulated_pyramid_time_underwater")
 
-    is_negative_pathology = any(alert in alerts for alert in ("constant_target", "label_imbalance")) and (
-        (win_rate is not None and win_rate <= 0.2)
-        or (avg_pnl is not None and avg_pnl < 0)
-        or (avg_quality is not None and avg_quality < 0)
-    )
-    if not is_negative_pathology:
+        is_negative_pathology = any(alert in alerts for alert in ("constant_target", "label_imbalance")) and (
+            (win_rate is not None and win_rate <= 0.2)
+            or (avg_pnl is not None and avg_pnl < 0)
+            or (avg_quality is not None and avg_quality < 0)
+        )
+        if not is_negative_pathology:
+            continue
+
+        severity = 0
+        if "constant_target" in alerts:
+            severity += 4
+        if "label_imbalance" in alerts:
+            severity += 3
+        negative_score = round(
+            max(0.0, 0.2 - float(win_rate if win_rate is not None else 0.2))
+            + max(0.0, -(avg_pnl or 0.0))
+            + max(0.0, -(avg_quality or 0.0)),
+            6,
+        )
+        adverse_target = 0 if win_rate is None or win_rate <= 0.5 else 1
+        adverse_streak = _longest_binary_streak(window_rows, "simulated_pyramid_win", adverse_target)
+        candidates.append(
+            {
+                "score": (severity, negative_score, adverse_streak.get("count", 0), len(window_rows)),
+                "window": len(window_rows),
+                "alerts": alerts,
+                "summary": {
+                    "rows": len(window_rows),
+                    "win_rate": win_rate,
+                    "avg_pnl": avg_pnl,
+                    "avg_quality": avg_quality,
+                    "avg_drawdown_penalty": avg_drawdown_penalty,
+                    "avg_time_underwater": avg_time_underwater,
+                    "start_timestamp": str(window_rows[-1].get("timestamp")) if window_rows[-1].get("timestamp") is not None else None,
+                    "end_timestamp": str(window_rows[0].get("timestamp")) if window_rows[0].get("timestamp") is not None else None,
+                    "adverse_target_streak": adverse_streak,
+                },
+            }
+        )
+
+    if not candidates:
         return {
             "applied": False,
-            "window": len(recent_rows),
-            "alerts": alerts,
+            "window": min(len(ordered_rows), min(recent_windows) if recent_windows else 0),
+            "alerts": [],
             "reason": None,
             "summary": None,
         }
 
-    summary = {
-        "rows": len(recent_rows),
-        "win_rate": win_rate,
-        "avg_pnl": avg_pnl,
-        "avg_quality": avg_quality,
-        "avg_drawdown_penalty": avg_drawdown_penalty,
-        "avg_time_underwater": avg_time_underwater,
-    }
+    chosen = max(candidates, key=lambda row: row["score"])
+    summary = chosen["summary"]
+    adverse_streak = summary.get("adverse_target_streak") or {}
     reason = (
-        f"recent scope slice {len(recent_rows)} rows shows distribution_pathology "
-        f"alerts={alerts} win_rate={win_rate} avg_pnl={avg_pnl} avg_quality={avg_quality}"
+        f"recent scope slice {chosen['window']} rows shows distribution_pathology "
+        f"alerts={chosen['alerts']} win_rate={summary.get('win_rate')} avg_pnl={summary.get('avg_pnl')} "
+        f"avg_quality={summary.get('avg_quality')} "
+        f"window={summary.get('start_timestamp')}->{summary.get('end_timestamp')} "
+        f"adverse_streak={adverse_streak.get('count', 0)}x{adverse_streak.get('target')} "
+        f"({adverse_streak.get('start_timestamp')}->{adverse_streak.get('end_timestamp')})"
     )
     return {
         "applied": True,
-        "window": len(recent_rows),
-        "alerts": alerts,
+        "window": chosen["window"],
+        "alerts": chosen["alerts"],
         "reason": reason,
         "summary": summary,
     }

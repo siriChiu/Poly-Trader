@@ -1,6 +1,6 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-13 10:46 UTC — Heartbeat #674（re-ran the canonical fast heartbeat, then patched live decision-quality calibration so recent negative canonical pathology now propagates into predictor expectations/execution guardrails instead of being diluted by broader historical buckets）*
+*最後更新：2026-04-13 13:12 UTC — Heartbeat #680（re-ran the canonical fast heartbeat, then patched recent-pathology diagnostics so the drift report / auto-propose / live predictor no longer stop at a recovered tail; they now surface the longest adverse target streak inside the chosen window, exposing the real 224-row 0-target pocket behind the final 26-row rebound）*
 
 ## 📊 系統健康狀態 v4.67
 
@@ -20,17 +20,19 @@
 
 ## 🎯 當前戰略問題（高準確度 / 高勝率 / 低回撤）
 
-### 本輪優先順序（Heartbeat #674 後）
-- **P0#1 — `#H_AUTO_RECENT_PATHOLOGY`（仍是主 blocker）**：recent **100 rows** 仍是 `constant_target + avg_pnl<0 + avg_quality<0 + chop 75%`。Heartbeat #674 已把這個病態 recent slice 從 heartbeat/issue 層推進到 **live predictor calibration + execution guardrail**，避免更寬的 `regime_gate` bucket 繼續稀釋它，但 root cause 本身仍未解除。
-- **P0#2 — live calibration dilution 已補第一個治本 guardrail**：`model/predictor.py` 現在會對 chosen scope 做 **recent negative-pathology stress check**；若 recent 100 rows 出現 `constant_target / label_imbalance` 且 `avg_pnl`/`avg_quality` 轉負，會直接下修 `expected_win_rate/pnl/quality`，並可把 live deployment 壓成 `allowed_layers=0`。這關閉了「governance 說危險、但 live expectation 還顯得偏樂觀」的假語義缺口。
-- **P0#3 — raw continuity bridge 觀察**：Heartbeat #671/#672/#673/#674 皆為 `bridge=0`，仍需連續觀察，避免 continuity fallback 再次回來。
+### 本輪優先順序（Heartbeat #680 後）
+- **P0#1 — `#H_AUTO_RECENT_PATHOLOGY`（仍是主 blocker）**：primary drift window 仍是 **recent 250 rows = distribution_pathology**，但 Heartbeat #680 已證明不能只看 window 尾端的回升。target-path diagnostics 現在明確暴露 **`adverse_streak=224x0`（`2026-04-12 05:02:22` → `2026-04-12 13:39:36`）**，而不是被最後 **26x1** 的 rebound 尾巴掩蓋。下一輪 root-cause drill-down 必須直接對這段 224-row 失敗 pocket 做 source / feature / label path 調查。
+- **P0#2 — live same-scope guardrail 已引用同一段 adverse streak**：`model/predictor.py::_recent_scope_pathology_summary()` 現在會把 chosen scope 內最長 adverse streak 寫進 `decision_quality_guardrail_reason`。`hb_predict_probe.py` 已驗證 runtime guardrail 明確標出 **250-row pathology + 224x0 adverse streak**，且維持 `decision_quality_label=D / allowed_layers=0`。
+- **P0#3 — recent drift diagnostics 仍顯式標出 `expected_static`**：`scripts/recent_drift_report.py` / `scripts/auto_propose_fixes.py` 仍會把 **週末關閉的宏觀市場欄位（VIX/DXY/NQ returns）** 與 **離散 4H `feat_4h_ma_order`** 標成 `expected_static`，避免把 market-closed 靜態值誤判成真正的 freeze blocker。當前 primary 250-row window 的真正焦點仍是負向 target path 與 compressed core features，而不是週末 macro freeze。
+- **P0#4 — NQ returns 不再用 `0.0` 假裝有訊號**：`feature_engine/preprocessor.py` 與 `data_ingestion/macro_data.py` 已改成在 NQ 歷史不足時回寫 `None`，避免新 rows 把「市場關閉 / 歷史不足」偽裝成中性 0 報酬，持續污染 recent drift 診斷。
+- **P0#5 — raw continuity bridge 觀察**：Heartbeat #671→#680 連續為 `bridge=0`，仍需持續監控，避免 continuity fallback 再次回來。
 - **Resolved — `#H_AUTO_TW_DRIFT` / `#H_AUTO_STREAK` / `#H_AUTO_STALE`**：current run recovered；這些不再應遮蔽真正的 recent pathology blocker。
 - **P1**：`#H_AUTO_REGIME_DRIFT`、`#CORE_VS_RESEARCH_SIGNAL_MIXING`、`#LEADERBOARD_OBJECTIVE_MISMATCH` —— 在 current distribution pathology 收斂後再往下推語義與排序契約。
 - **P2**：其餘文件/展示層整理與非阻塞優化。
 
 ### 本輪建議起手式
-1. 直接對 recent 100/250/500 canonical rows 做 **target-path drill-down**：查最後 100 筆 `simulated_pyramid_*` 的 entry timestamps / regime mix / label path，確認為何 recent canonical pocket 持續全敗且 `avg_quality<0`。
-2. 用下一輪 heartbeat 驗證新的 live guardrail 是否穩定把 pathology 轉成保守部署（`hb_predict_probe.py` 預期維持 `expected_win_rate<=0.2` 或 `allowed_layers=0`），而不是再次被 broader bucket 稀釋。
+1. 以 Heartbeat #676 新增的 **tail_target_streak / recent_examples** 為入口，直接對 `2026-04-12 07:21:13` 之後的 canonical rows 做 source/feature/label path drill-down，確認為何 recent 100-row pocket 變成連續 target=0。
+2. 用下一輪 heartbeat 驗證新的 target-path artifact 是否持續輸出同一段 recent pocket（若 tail_streak 繼續延長，就必須升級成 root-cause fix，而不是再補治理文案），同時確認 live guardrail 仍維持 `expected_win_rate<=0.2` 或 `allowed_layers=0`。
 3. 持續驗證 continuity bridge 是否為 0；若再次連續觸發 bridge fallback，立刻升級回 raw continuity root-cause investigation。
 
 ### 本輪 root-cause 新證據（2026-04-12 續推）
@@ -85,6 +87,62 @@
 
 ### 實作計畫
 - `docs/plans/2026-04-10-phase-16-implementation-plan.md`
+
+## 📈 心跳 #680 摘要
+
+### 本輪已驗證 patch
+1. **Recent drift report now exposes the real adverse streak inside a mixed window**：`scripts/recent_drift_report.py` 新增 `longest_target_streak / longest_zero_target_streak / longest_one_target_streak`，CLI 也同步列出 `adverse_streak` 與 example rows；不再只顯示恢復中的 tail streak。
+2. **Auto-propose now escalates the hidden losing pocket instead of just the recovered tail**：`scripts/auto_propose_fixes.py` 的 drift summary 會帶出 `adverse_streak` + `adverse_examples`，讓 `#H_AUTO_RECENT_PATHOLOGY` 直接指向 224-row `target=0` pocket，而不是只看到最後 26-row rebound。
+3. **Live predictor same-scope pathology reason now cites the same adverse streak evidence**：`model/predictor.py::_recent_scope_pathology_summary()` 會把 chosen scope 內最長 adverse streak 寫進 `decision_quality_guardrail_reason`，probe 已驗證 live path 與 heartbeat 對齊到同一段 recent pathology。
+4. **Regression tests locked the new diagnostics contract**：`python -m pytest tests/test_recent_drift_report.py tests/test_api_feature_history_and_predictor.py -q` → **19 passed**。
+
+### 本輪 runtime facts（Heartbeat #680）
+- `python scripts/hb_parallel_runner.py --fast --hb 680`：**Raw 21137→21138 / Features 12566→12567 / Labels 42197→42211**；continuity repair `4h=0 / 1h=0 / bridge=0`。
+- Canonical freshness：240m `latest_target=2026-04-13 10:12:19.450525`（lag vs raw ≈3.0h）；1440m `latest_target=2026-04-12 14:11:18.089855`（lag vs raw ≈23.0h, raw gap ≈1.0h）— 皆屬 expected horizon lag。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **18/30 PASS**、TW-IC **25/30 PASS**；Regime IC **Bear 4/8 / Bull 6/8 / Chop 6/8 / Neutral 4/8**（`simulated_pyramid_win`, n=11,831）。
+- `python scripts/recent_drift_report.py`：primary drift window 仍是 **250 rows**, `win_rate=0.1040`, `interpretation=distribution_pathology`, `dominant_regime=chop(59.2%)`，但現在也明確顯示 **`tail_streak=26x1` + `adverse_streak=224x0 (2026-04-12 05:02:22 -> 2026-04-12 13:39:36)`**。
+- `python scripts/hb_predict_probe.py`：live predictor 仍為 `should_trade=false / allowed_layers=0 / decision_quality_label=D`，guardrail reason 直接引用 **250-row pathology + 224x0 adverse streak**。
+
+### Blocker 升級 / 狀態更正
+- **#H_AUTO_RECENT_PATHOLOGY 仍未解除**：本輪修的是 **病灶定位品質**，不是 recent canonical path 本身。現在已確定最需要 root-cause drill-down 的不是尾端 26-row rebound，而是其前面的 **224-row target=0 pocket**。
+- **沒有假進度**：這輪沒有宣稱 signal 已恢復，只把 recent-pathology evidence 從「尾端看起來有點好轉」推進成「可 machine-read 地指出真正的失敗主體」。下一輪必須直接對 224-row pocket 做 source / feature / label path 拆解。
+
+## 📈 心跳 #679 摘要
+
+### 本輪已驗證 patch
+1. **Primary drift window no longer under-reports sustained recent pathology**：`scripts/recent_drift_report.py::_find_primary_window()` 現在在 severity / delta 同級時優先選更持久的視窗，避免把 250-row 連續 target=0 病灶縮成 100-row 短 slice。
+2. **Live predictor same-scope pathology guardrail now scans 100/250/500 rows instead of hardcoding 100**：`model/predictor.py::_recent_scope_pathology_summary()` 會挑出最嚴重且最持久的負向 recent window，並把 window 起迄時間寫進 `decision_quality_guardrail_reason`。
+3. **Regression tests lock both governance fixes**：`tests/test_recent_drift_report.py` 與 `tests/test_api_feature_history_and_predictor.py` 新增 coverage，固定驗證 drift primary window 與 live recent-pathology summary 都會偏向更持久的 pathology slice。
+
+### 本輪 runtime facts（Heartbeat #679）
+- `python scripts/hb_parallel_runner.py --fast --hb 679`：**Raw 21135→21136 / Features 12564→12565 / Labels 42158→42168**；collect pipeline 持續健康，continuity repair `4h=0 / 1h=0 / bridge=0`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（fast heartbeat 觸發）：Global **20/30 PASS**、TW-IC **29/30 PASS**；Regime IC **Bear 5/8 / Bull 6/8 / Chop 6/8 / Neutral 4/8**（`simulated_pyramid_win`, n=11,805）。
+- `python scripts/recent_drift_report.py`（patch 後重跑）：primary drift window 已從 **100 rows** 升級成 **250 rows**；`win_rate=0.0000`、`alerts=['constant_target']`、`interpretation=distribution_pathology`、`tail_streak=250x0 since 2026-04-12 03:00:00.000000`。
+- `python scripts/hb_predict_probe.py`（patch 後重跑）：live predictor 仍為 `should_trade=false / allowed_layers=0 / decision_quality_label=D`，且 guardrail reason 現在直接引用 **250-row same-scope pathology window**：`avg_pnl=-0.0120 / avg_quality=-0.2882 / window=2026-04-11 06:24:07.424593->2026-04-12 13:39:36.317262`。
+- `python -m pytest tests/test_recent_drift_report.py tests/test_api_feature_history_and_predictor.py -q` → **18 passed**。
+
+### Blocker 升級 / 狀態更正
+- **#H_AUTO_RECENT_PATHOLOGY 仍未解除**：本輪修的是 **治理與 runtime guardrail 對 sustained pathology 的對齊**，不是 recent canonical path 本身的 root cause。現在已確認病灶至少持續 250 rows，下一輪必須直接對這段 canonical tail 做 source / feature / label path drill-down。
+- **沒有假進度**：這輪沒有宣稱 signal 恢復，也沒有宣稱 recent pathology 消失；只把 blocker 從「知道最後 100 rows 很壞」推進成「heartbeat 與 live predictor 都知道真正更持久的壞區段在哪裡」。
+
+## 📈 心跳 #676 摘要
+
+### 本輪已驗證 patch
+1. **Recent drift artifact now carries target-path drill-down, not just aggregate pathology counters**：`scripts/recent_drift_report.py` 新增 `target_path_diagnostics={tail_target_streak, target_regime_breakdown, recent_examples}`，把 recent canonical pocket 具體落到「從何時開始連續 target=0、最後幾筆的 regime / pnl / quality 長什麼樣」。
+2. **Heartbeat summary and auto-propose now preserve the same machine-readable path evidence**：`scripts/hb_parallel_runner.py` 會把 `target_path_diagnostics` 寫進 `data/heartbeat_676_summary.json`；`scripts/auto_propose_fixes.py` 也會把 `tail_streak + recent_examples` 直接帶進 `#H_AUTO_RECENT_PATHOLOGY` action，避免下輪 heartbeat 重新退回只看 aggregate 敘事。
+3. **Regression tests lock the new governance contract**：`tests/test_recent_drift_report.py`、`tests/test_auto_propose_fixes.py`、`tests/test_hb_parallel_runner.py` 已固定驗證 drift report / auto-propose / heartbeat summary 會同步攜帶 target-path evidence。
+
+### 本輪 runtime facts（Heartbeat #676）
+- `python scripts/hb_parallel_runner.py --fast --hb 676`：**Raw 21077→21078 / Features 12506→12507 / Labels 42154→42154**；summary 已刷新 `data/heartbeat_676_summary.json`。
+- Canonical freshness：240m `latest_target=2026-04-13 08:00:00`、`raw_gap≈1.0h`；1440m `latest_target=2026-04-12 12:00:00`、`raw_gap≈1.5h`，兩者皆仍屬 `expected_horizon_lag`。
+- `python scripts/full_ic.py` / `python scripts/regime_aware_ic.py`（由 fast heartbeat 觸發）：Global **20/30 PASS**、TW-IC **27/30 PASS**；Regime IC **Bear 5/8 / Bull 6/8 / Chop 6/8 / Neutral 4/8**（`simulated_pyramid_win`, n=11,796）。
+- `python scripts/recent_drift_report.py`：primary drift window 仍是 **last 100 rows**，但現在可直接看到 **`tail_streak=100x0 since 2026-04-12 07:21:13`**，且 recent examples 尾端仍為 `target=0 / regime=chop / negative quality`。
+- `python scripts/hb_predict_probe.py`：live predictor 仍被壓到 **`expected_win_rate=0.0 / decision_quality_label=D / allowed_layers=0`**，表示 runtime guardrail 仍與 recent pathology 對齊。
+- `python -m pytest tests/test_recent_drift_report.py tests/test_auto_propose_fixes.py tests/test_hb_parallel_runner.py -q` → **15 passed**。
+
+### Blocker 升級 / 狀態更正
+- **#H_AUTO_RECENT_PATHOLOGY 仍未解除**：這輪修的是 **root-cause evidence path**，不是 recent negative canonical pocket 本身。現在已能 machine-read 地指出 pathology 從哪個 timestamp 開始、最後幾筆樣本長什麼樣；下一輪必須直接對準這段 canonical path 的 source/feature/label 根因。
+- **沒有假進度**：這輪沒有宣稱 signal 恢復，也沒有宣稱 recent pathology 消失；只是把 blocker 從「知道有病灶」推進成「heartbeat / auto-propose / summary 都能帶著可執行的 target-path 線索」。
 
 ## 📈 心跳 #674 摘要
 

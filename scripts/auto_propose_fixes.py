@@ -208,17 +208,53 @@ def summarize_recent_drift(report):
     spot_long_text = f"{spot_long_win_rate:.4f}" if isinstance(spot_long_win_rate, (int, float)) else "n/a"
     feature_summary = (
         f"feature_diag=variance:{feature_diag.get('low_variance_count', 0)}/{feature_diag.get('feature_count', 0)}"
+        f", frozen:{feature_diag.get('frozen_count', 0)}"
+        f", compressed:{feature_diag.get('compressed_count', 0)}"
+        f", expected_static:{feature_diag.get('expected_static_count', 0)}"
+        f", unexpected_frozen:{feature_diag.get('unexpected_frozen_count', 0)}"
         f", distinct:{feature_diag.get('low_distinct_count', 0)}"
         f", null_heavy:{feature_diag.get('null_heavy_count', 0)}"
     )
     low_variance_examples = feature_diag.get("low_variance_examples") or []
     low_distinct_examples = feature_diag.get("low_distinct_examples") or []
+    frozen_examples = feature_diag.get("frozen_examples") or []
+    compressed_examples = feature_diag.get("compressed_examples") or []
+    expected_static_examples = feature_diag.get("expected_static_examples") or []
+    unexpected_frozen_examples = feature_diag.get("unexpected_frozen_examples") or []
     null_heavy_examples = feature_diag.get("null_heavy_examples") or []
     example_bits = []
-    if low_variance_examples:
+    if frozen_examples:
+        example_bits.append(
+            "frozen_examples=" + "/".join(
+                f"{row.get('feature')}({row.get('std_ratio')}/{row.get('recent_distinct')})"
+                for row in frozen_examples[:3]
+            )
+        )
+    if compressed_examples:
+        example_bits.append(
+            "compressed_examples=" + "/".join(
+                f"{row.get('feature')}({row.get('std_ratio')}/{row.get('recent_distinct')})"
+                for row in compressed_examples[:3]
+            )
+        )
+    elif low_variance_examples:
         example_bits.append(
             "variance_examples=" + "/".join(
                 f"{row.get('feature')}({row.get('std_ratio')})" for row in low_variance_examples[:3]
+            )
+        )
+    if expected_static_examples:
+        example_bits.append(
+            "expected_static_examples=" + "/".join(
+                f"{row.get('feature')}[{row.get('expected_static_reason')}]"
+                for row in expected_static_examples[:3]
+            )
+        )
+    if unexpected_frozen_examples:
+        example_bits.append(
+            "unexpected_frozen_examples=" + "/".join(
+                f"{row.get('feature')}({row.get('std_ratio')}/{row.get('recent_distinct')})"
+                for row in unexpected_frozen_examples[:3]
             )
         )
     if low_distinct_examples:
@@ -234,12 +270,47 @@ def summarize_recent_drift(report):
                 f"{row.get('feature')}({row.get('non_null_ratio')})" for row in null_heavy_examples[:3]
             )
         )
+    path_diag = summary.get("target_path_diagnostics") or {}
+    tail_streak = path_diag.get("tail_target_streak") or {}
+    streak_target = tail_streak.get("target")
+    streak_target_text = "n/a" if streak_target is None else str(streak_target)
+    adverse_streak = {}
+    if isinstance(win_rate, (int, float)):
+        adverse_streak = path_diag.get("longest_zero_target_streak") if win_rate <= 0.5 else path_diag.get("longest_one_target_streak")
+    adverse_streak = adverse_streak or {}
+    adverse_target = adverse_streak.get("target")
+    adverse_target_text = "n/a" if adverse_target is None else str(adverse_target)
+    adverse_examples = adverse_streak.get("examples") or []
+    recent_examples = path_diag.get("recent_examples") or []
+    recent_examples_text = ""
+    if recent_examples:
+        recent_examples_text = ", recent_examples=" + "/".join(
+            f"{row.get('timestamp')}:{row.get('target')}:{row.get('regime')}:{row.get('simulated_pyramid_quality')}"
+            for row in recent_examples[-3:]
+        )
+    adverse_examples_text = ""
+    if adverse_examples:
+        adverse_examples_text = ", adverse_examples=" + "/".join(
+            f"{row.get('timestamp')}:{row.get('target')}:{row.get('regime')}:{row.get('simulated_pyramid_quality')}"
+            for row in adverse_examples[-3:]
+        )
+    tail_text = (
+        f", tail_streak={tail_streak.get('count', 0)}x{streak_target_text}"
+        f" since {tail_streak.get('start_timestamp')}"
+        f" -> {tail_streak.get('end_timestamp')}"
+    )
+    adverse_text = (
+        f", adverse_streak={adverse_streak.get('count', 0)}x{adverse_target_text}"
+        f" since {adverse_streak.get('start_timestamp')}"
+        f" -> {adverse_streak.get('end_timestamp')}"
+    )
     examples_text = (", " + ", ".join(example_bits)) if example_bits else ""
     return (
         f"recent_window={window}, alerts={alerts}, win_rate={win_text}, "
         f"delta_vs_full={delta_text}, dominant_regime={dominant_regime}({share_text}), "
         f"interpretation={interpretation}, avg_pnl={pnl_text}, avg_quality={quality_text}, "
-        f"avg_dd_penalty={dd_text}, spot_long_win_rate={spot_long_text}, {feature_summary}{examples_text}"
+        f"avg_dd_penalty={dd_text}, spot_long_win_rate={spot_long_text}, {feature_summary}"
+        f"{tail_text}{adverse_text}{examples_text}{recent_examples_text}{adverse_examples_text}"
     )
 
 
@@ -401,23 +472,23 @@ def main():
 
     # Print report
     print(f"\n{'=' * 60}")
-    print(f"🔧 Auto-Propose Fixes Report — {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}")
+    print(f"🔧 自動修復建議報告 — {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}")
     print(f"{'=' * 60}")
 
     for prio in ["P0", "P1", "P2"]:
         items = tracker.by_priority(prio)
         if items:
-            print(f"\n{prio} Issues:")
+            print(f"\n{prio} 問題：")
             for item in items:
                 print(f"  {item['id']}: {item['title']}")
                 print(f"    → {item.get('action', '')}")
 
     print(
-        f"\n📊 DB: simulated_win={db_stats['simulated_win_avg']:.4f}, "
+        f"\n📊 資料庫：simulated_win={db_stats['simulated_win_avg']:.4f}, "
         f"streak={db_stats['losing_streak']}, age={db_stats['raw_latest_age_min']}"
     )
     print(
-        f"📊 IC: global={ic_stats['global_pass']}/{ic_stats['total_features']}, "
+        f"📊 IC 概況：global={ic_stats['global_pass']}/{ic_stats['total_features']}, "
         f"tw={ic_stats['tw_pass']}/{ic_stats['total_features']}"
     )
     if tw_history:
@@ -425,10 +496,10 @@ def main():
             f"#{row['heartbeat']}={row['tw_pass']}/{row.get('total_features') or ic_stats['total_features']}"
             for row in tw_history
         )
-        print(f"📊 TW history: {history_desc}")
-    print(f"📊 Drift: {drift_summary}")
-    print(f"📊 Model: Train={train:.1%}, CV={cv:.1%}" if train else "📊 Model: no data")
-    print(f"\n💾 Saved to: {Path(__file__).parent.parent / 'issues.json'}")
+        print(f"📊 TW 歷史：{history_desc}")
+    print(f"📊 漂移摘要：{drift_summary}")
+    print(f"📊 模型：Train={train:.1%}, CV={cv:.1%}" if train else "📊 模型：目前無資料")
+    print(f"\n💾 已儲存至：{Path(__file__).parent.parent / 'issues.json'}")
 
 
 if __name__ == "__main__":

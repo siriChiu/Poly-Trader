@@ -347,6 +347,53 @@ def test_decision_quality_contract_penalizes_negative_recent_pathology_in_chosen
     assert "distribution_pathology" in contract["decision_quality_recent_pathology_reason"]
 
 
+def test_recent_scope_pathology_prefers_more_persistent_negative_window_when_scores_tie():
+    def _ts(i: int) -> str:
+        return f"2026-04-12T{(i // 60):02d}:{(i % 60):02d}:00"
+
+    rows = [
+        {
+            "timestamp": f"2026-04-11T{(i // 60):02d}:{(i % 60):02d}:00",
+            "symbol": "BTCUSDT",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "C",
+            "simulated_pyramid_win": 0.82,
+            "simulated_pyramid_pnl": 0.08,
+            "simulated_pyramid_quality": 0.41,
+            "simulated_pyramid_drawdown_penalty": 0.12,
+            "simulated_pyramid_time_underwater": 0.18,
+        }
+        for i in range(250)
+    ]
+    rows.extend(
+        {
+            "timestamp": _ts(i),
+            "symbol": "BTCUSDT",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "C",
+            "simulated_pyramid_win": 0.0,
+            "simulated_pyramid_pnl": -0.04,
+            "simulated_pyramid_quality": -0.22,
+            "simulated_pyramid_drawdown_penalty": 0.31,
+            "simulated_pyramid_time_underwater": 0.57,
+        }
+        for i in range(250)
+    )
+
+    summary = predictor_module._recent_scope_pathology_summary(rows)
+
+    assert summary["applied"] is True
+    assert summary["window"] == 250
+    assert summary["alerts"] == ["constant_target"]
+    assert summary["summary"]["win_rate"] == 0.0
+    assert summary["summary"]["start_timestamp"] == "2026-04-12T00:00:00"
+    assert summary["summary"]["end_timestamp"] == "2026-04-12T04:09:00"
+    assert summary["summary"]["adverse_target_streak"]["target"] == 0
+    assert summary["summary"]["adverse_target_streak"]["count"] == 250
+    assert "window=2026-04-12T00:00:00->2026-04-12T04:09:00" in summary["reason"]
+    assert "adverse_streak=250x0" in summary["reason"]
+
+
 def test_apply_live_execution_guardrails_caps_layers_for_c_quality_and_guardrailed_window():
     profile = {
         "regime_label": "chop",
