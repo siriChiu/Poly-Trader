@@ -65,6 +65,7 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
         fast_mode=True,
         ic_diagnostics={"global_pass": 13, "tw_pass": 10, "total_features": 30},
         drift_diagnostics={"primary_window": "100", "primary_alerts": ["regime_concentration"]},
+        live_predictor_diagnostics={"decision_quality_label": "D", "allowed_layers": 0},
         auto_propose_result={"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""},
     )
 
@@ -76,6 +77,7 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert summary["source_blockers"]["blocked_count"] == 1
     assert summary["ic_diagnostics"]["tw_pass"] == 10
     assert summary["drift_diagnostics"]["primary_window"] == "100"
+    assert summary["live_predictor_diagnostics"]["decision_quality_label"] == "D"
     assert summary["auto_propose"]["success"] is True
     assert summary_path.endswith("heartbeat_fast_summary.json")
 
@@ -85,6 +87,7 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert saved["source_blockers"]["blocked_features"][0]["key"] == "nest_pred"
     assert saved["ic_diagnostics"]["global_pass"] == 13
     assert saved["drift_diagnostics"]["primary_alerts"] == ["regime_concentration"]
+    assert saved["live_predictor_diagnostics"]["allowed_layers"] == 0
     assert saved["auto_propose"]["stdout_preview"] == "ok"
 
 
@@ -107,6 +110,27 @@ def test_collect_recent_drift_diagnostics_reads_primary_window(tmp_path, monkeyp
                         "win_rate_delta_vs_full": 0.2841,
                         "dominant_regime": "chop",
                         "dominant_regime_share": 0.97,
+                        "drift_interpretation": "supported_extreme_trend",
+                        "feature_diagnostics": {
+                            "feature_count": 30,
+                            "low_variance_count": 4,
+                            "low_distinct_count": 2,
+                            "null_heavy_count": 1,
+                        },
+                        "target_path_diagnostics": {
+                            "window_start_timestamp": "2026-04-12 00:00:00",
+                            "window_end_timestamp": "2026-04-13 03:00:00",
+                            "latest_target": 1,
+                            "tail_target_streak": {
+                                "target": 1,
+                                "count": 14,
+                                "start_timestamp": "2026-04-12 14:00:00",
+                                "end_timestamp": "2026-04-13 03:00:00",
+                                "regime_counts": {"chop": 14},
+                            },
+                            "target_regime_breakdown": {"chop:1": 93, "bear:0": 7},
+                            "recent_examples": [{"timestamp": "2026-04-13 03:00:00", "target": 1, "regime": "chop"}],
+                        },
                     },
                 },
             }
@@ -118,3 +142,54 @@ def test_collect_recent_drift_diagnostics_reads_primary_window(tmp_path, monkeyp
     assert diag["target_col"] == "simulated_pyramid_win"
     assert diag["primary_window"] == "100"
     assert diag["primary_summary"]["dominant_regime"] == "chop"
+    assert diag["primary_summary"]["drift_interpretation"] == "supported_extreme_trend"
+    assert diag["primary_summary"]["feature_diagnostics"]["low_variance_count"] == 4
+    assert diag["primary_summary"]["target_path_diagnostics"]["tail_target_streak"]["count"] == 14
+    assert diag["primary_summary"]["target_path_diagnostics"]["recent_examples"][0]["timestamp"] == "2026-04-13 03:00:00"
+
+
+def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "target_col": "simulated_pyramid_win",
+                "used_model": "regime_bull_ensemble",
+                "signal": "HOLD",
+                "confidence": 0.21,
+                "should_trade": False,
+                "regime_label": "bull",
+                "model_route_regime": "bull",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "D",
+                "allowed_layers_raw": 0,
+                "allowed_layers": 0,
+                "execution_guardrail_applied": True,
+                "decision_quality_calibration_scope": "entry_quality_label",
+                "decision_quality_recent_pathology_applied": True,
+                "decision_quality_recent_pathology_window": 500,
+                "decision_quality_recent_pathology_alerts": ["label_imbalance"],
+                "decision_quality_label": "D",
+                "expected_win_rate": 0.154,
+                "expected_pyramid_quality": -0.1536,
+                "non_null_4h_feature_count": 10,
+                "non_null_4h_lag_count": 30,
+                "decision_quality_recent_pathology_summary": {
+                    "rows": 500,
+                    "reference_window_comparison": {
+                        "top_mean_shift_features": [{"feature": "feat_4h_dist_swing_low"}]
+                    },
+                },
+            }
+        )
+    )
+
+    diag = hb_parallel_runner.collect_live_predictor_diagnostics()
+
+    assert diag["used_model"] == "regime_bull_ensemble"
+    assert diag["decision_quality_recent_pathology_applied"] is True
+    assert diag["decision_quality_recent_pathology_window"] == 500
+    assert diag["decision_quality_label"] == "D"
+    assert diag["non_null_4h_lag_count"] == 30

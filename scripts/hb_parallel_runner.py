@@ -43,6 +43,7 @@ TASKS = [
 COLLECT_CMD = [PYTHON, "scripts/hb_collect.py"]
 AUTO_PROPOSE_CMD = [PYTHON, "scripts/auto_propose_fixes.py"]
 DRIFT_REPORT_CMD = [PYTHON, "scripts/recent_drift_report.py"]
+PREDICT_PROBE_CMD = [PYTHON, "scripts/hb_predict_probe.py"]
 
 
 def parse_args(argv=None):
@@ -233,6 +234,10 @@ def run_recent_drift_report() -> Dict[str, Any]:
     return _run_serial_command(DRIFT_REPORT_CMD)
 
 
+def run_predict_probe() -> Dict[str, Any]:
+    return _run_serial_command(PREDICT_PROBE_CMD)
+
+
 def run_auto_propose(run_label: str | None = None) -> Dict[str, Any]:
     extra_env = {"HB_RUN_LABEL": str(run_label)} if run_label is not None else None
     return _run_serial_command(AUTO_PROPOSE_CMD, extra_env=extra_env)
@@ -281,6 +286,7 @@ def save_summary(
     fast_mode,
     ic_diagnostics=None,
     drift_diagnostics=None,
+    live_predictor_diagnostics=None,
     auto_propose_result=None,
 ):
     passed = sum(1 for r in results.values() if r["success"])
@@ -306,6 +312,7 @@ def save_summary(
         "source_blockers": source_blockers,
         "ic_diagnostics": ic_diagnostics or {},
         "drift_diagnostics": drift_diagnostics or {},
+        "live_predictor_diagnostics": live_predictor_diagnostics or {},
         "auto_propose": {
             "attempted": (auto_propose_result or {}).get("attempted", False),
             "success": (auto_propose_result or {}).get("success", False),
@@ -342,6 +349,8 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
         return {}
     primary = payload.get("primary_window") or {}
     summary = primary.get("summary") or {}
+    target_path = summary.get("target_path_diagnostics") or {}
+    tail_streak = target_path.get("tail_target_streak") or {}
     return {
         "target_col": payload.get("target_col"),
         "horizon_minutes": payload.get("horizon_minutes"),
@@ -354,15 +363,96 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
             "win_rate_delta_vs_full": summary.get("win_rate_delta_vs_full"),
             "dominant_regime": summary.get("dominant_regime"),
             "dominant_regime_share": summary.get("dominant_regime_share"),
+            "drift_interpretation": summary.get("drift_interpretation"),
+            "feature_diagnostics": summary.get("feature_diagnostics") or {},
+            "target_path_diagnostics": {
+                "window_start_timestamp": target_path.get("window_start_timestamp"),
+                "window_end_timestamp": target_path.get("window_end_timestamp"),
+                "latest_target": target_path.get("latest_target"),
+                "tail_target_streak": {
+                    "target": tail_streak.get("target"),
+                    "count": tail_streak.get("count"),
+                    "start_timestamp": tail_streak.get("start_timestamp"),
+                    "end_timestamp": tail_streak.get("end_timestamp"),
+                    "regime_counts": tail_streak.get("regime_counts") or {},
+                },
+                "target_regime_breakdown": target_path.get("target_regime_breakdown") or {},
+                "recent_examples": target_path.get("recent_examples") or [],
+            },
         },
+    }
+
+
+def _persist_live_predictor_probe(stdout: str) -> Path | None:
+    if not stdout:
+        return None
+    try:
+        payload = json.loads(stdout)
+    except Exception:
+        return None
+    out_path = Path(PROJECT_ROOT) / "data" / "live_predict_probe.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, indent=2, default=str))
+    return out_path
+
+
+def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    payload = None
+    stdout = (probe_result or {}).get("stdout") if probe_result else None
+    if stdout:
+        try:
+            payload = json.loads(stdout)
+        except Exception:
+            payload = None
+    if payload is None:
+        result_path = Path(PROJECT_ROOT) / "data" / "live_predict_probe.json"
+        if not result_path.exists():
+            return {}
+        try:
+            payload = json.loads(result_path.read_text())
+        except Exception:
+            return {}
+    return {
+        "target_col": payload.get("target_col"),
+        "used_model": payload.get("used_model"),
+        "signal": payload.get("signal"),
+        "confidence": payload.get("confidence"),
+        "should_trade": payload.get("should_trade"),
+        "regime_label": payload.get("regime_label"),
+        "model_route_regime": payload.get("model_route_regime"),
+        "regime_gate": payload.get("regime_gate"),
+        "entry_quality_label": payload.get("entry_quality_label"),
+        "allowed_layers_raw": payload.get("allowed_layers_raw"),
+        "allowed_layers": payload.get("allowed_layers"),
+        "execution_guardrail_applied": payload.get("execution_guardrail_applied"),
+        "execution_guardrail_reason": payload.get("execution_guardrail_reason"),
+        "decision_quality_calibration_scope": payload.get("decision_quality_calibration_scope"),
+        "decision_quality_calibration_window": payload.get("decision_quality_calibration_window"),
+        "decision_quality_sample_size": payload.get("decision_quality_sample_size"),
+        "decision_quality_guardrail_applied": payload.get("decision_quality_guardrail_applied"),
+        "decision_quality_guardrail_reason": payload.get("decision_quality_guardrail_reason"),
+        "decision_quality_recent_pathology_applied": payload.get("decision_quality_recent_pathology_applied"),
+        "decision_quality_recent_pathology_window": payload.get("decision_quality_recent_pathology_window"),
+        "decision_quality_recent_pathology_alerts": payload.get("decision_quality_recent_pathology_alerts") or [],
+        "decision_quality_recent_pathology_reason": payload.get("decision_quality_recent_pathology_reason"),
+        "decision_quality_label": payload.get("decision_quality_label"),
+        "decision_quality_score": payload.get("decision_quality_score"),
+        "expected_win_rate": payload.get("expected_win_rate"),
+        "expected_pyramid_pnl": payload.get("expected_pyramid_pnl"),
+        "expected_pyramid_quality": payload.get("expected_pyramid_quality"),
+        "expected_drawdown_penalty": payload.get("expected_drawdown_penalty"),
+        "expected_time_underwater": payload.get("expected_time_underwater"),
+        "non_null_4h_feature_count": payload.get("non_null_4h_feature_count"),
+        "non_null_4h_lag_count": payload.get("non_null_4h_lag_count"),
+        "decision_quality_recent_pathology_summary": payload.get("decision_quality_recent_pathology_summary") or {},
     }
 
 
 def print_source_blockers(source_blockers: Dict[str, Any]) -> None:
     blocked = source_blockers.get("blocked_features", [])
     print(
-        "🚧 Source blockers: "
-        f"{source_blockers.get('blocked_count', 0)} blocked features across "
+        "🚧 Source blockers："
+        f"{source_blockers.get('blocked_count', 0)} 個 blocked features，分布於 "
         f"{source_blockers.get('counts_by_history_class', {})}"
     )
     for row in blocked[:5]:
@@ -405,7 +495,7 @@ def main(argv=None):
     collect_result = run_collect_step(skip=args.no_collect)
     if collect_result.get("attempted"):
         print(
-            f"🛰️ Pre-heartbeat collect: {'PASS' if collect_result['success'] else 'FAIL'} "
+            f"🛰️ 心跳前 collect：{'通過' if collect_result['success'] else '失敗'} "
             f"(rc={collect_result['returncode']})"
         )
         if collect_result.get("stdout"):
@@ -419,24 +509,24 @@ def main(argv=None):
         continuity_repair = parse_collect_metadata(collect_result.get("stdout", ""))
         if continuity_repair:
             print(
-                "🩹 Continuity repair detail: "
+                "🩹 連續性修復明細："
                 f"4h={continuity_repair.get('coarse_inserted', 0)}, "
                 f"1h={continuity_repair.get('fine_inserted', 0)}, "
                 f"bridge={continuity_repair.get('bridge_inserted', 0)}"
             )
             if continuity_repair.get("used_bridge"):
-                print("⚠️  Interpolated bridge fallback triggered in this collect run")
+                print("⚠️  本輪 collect 觸發了插值 bridge fallback")
 
     counts = quick_counts()
     source_blockers = collect_source_blockers()
     print(
-        f"📊 DB Counts: Raw={counts['raw_market_data']}, Features={counts['features_normalized']}, "
+        f"📊 DB 計數：Raw={counts['raw_market_data']}, Features={counts['features_normalized']}, "
         f"Labels={counts['labels']}, simulated_win={counts['simulated_pyramid_win_rate']}"
     )
     latest_raw_ts = counts.get('latest_raw_timestamp')
     for row in counts.get('label_horizons', []):
         print(
-            f"   • labels[{row['horizon_minutes']}m]: rows={row['rows']} target_rows={row['target_rows']} "
+            f"   • labels[{row['horizon_minutes']}m]：rows={row['rows']} target_rows={row['target_rows']} "
             f"latest_target={row['latest_target_timestamp']} vs raw={latest_raw_ts}"
         )
     print_source_blockers(source_blockers)
@@ -449,7 +539,7 @@ def main(argv=None):
     if args.fast:
         tasks = [t for t in tasks if t["name"] in ["full_ic", "regime_ic"]]
 
-    print(f"心跳 #{run_label} 平行执行 — {len(tasks)} tasks ({'fast' if args.fast else 'full'} mode)")
+    print(f"心跳 #{run_label} 平行執行 — {len(tasks)} 個 tasks（{'fast' if args.fast else 'full'} 模式）")
     start = datetime.now()
     results = {}
     with concurrent.futures.ProcessPoolExecutor(max_workers=min(len(tasks), 5)) as ex:
@@ -462,7 +552,7 @@ def main(argv=None):
 
     elapsed = (datetime.now() - start).total_seconds()
     passed = sum(1 for r in results.values() if r["success"])
-    print(f"\n  {passed}/{len(results)} PASS ({elapsed:.1f}s)")
+    print(f"\n  {passed}/{len(results)} 通過（{elapsed:.1f}s）")
 
     for name, r in results.items():
         if r.get("stdout"):
@@ -483,7 +573,7 @@ def main(argv=None):
     ic_diagnostics = collect_ic_diagnostics()
     if ic_diagnostics:
         print(
-            "\n📉 IC diagnostics: "
+            "\n📉 IC 診斷："
             f"Global={ic_diagnostics.get('global_pass')}/{ic_diagnostics.get('total_features')} | "
             f"TW-IC={ic_diagnostics.get('tw_pass')}/{ic_diagnostics.get('total_features')}"
         )
@@ -491,7 +581,7 @@ def main(argv=None):
     drift_report_result = run_recent_drift_report()
     drift_diagnostics = collect_recent_drift_diagnostics()
     print(
-        f"🧭 Recent drift report: {'PASS' if drift_report_result['success'] else 'FAIL'} "
+        f"🧭 近期漂移報告：{'通過' if drift_report_result['success'] else '失敗'} "
         f"(rc={drift_report_result['returncode']})"
     )
     if drift_report_result.get("stdout"):
@@ -504,17 +594,50 @@ def main(argv=None):
         print(f"\n--- recent_drift_report stderr ---\n{drift_report_result['stderr']}")
     if drift_diagnostics:
         primary = drift_diagnostics.get("primary_summary") or {}
+        feature_diag = primary.get("feature_diagnostics") or {}
+        path_diag = primary.get("target_path_diagnostics") or {}
+        tail_streak = path_diag.get("tail_target_streak") or {}
         print(
-            "🧭 Drift diagnostics: "
+            "🧭 漂移診斷："
             f"window={drift_diagnostics.get('primary_window')} "
             f"alerts={drift_diagnostics.get('primary_alerts')} "
             f"win_rate={primary.get('win_rate')} "
-            f"dominant_regime={primary.get('dominant_regime')}"
+            f"dominant_regime={primary.get('dominant_regime')} "
+            f"feature_diag=variance:{feature_diag.get('low_variance_count', 0)}/{feature_diag.get('feature_count', 0)} "
+            f"frozen:{feature_diag.get('frozen_count', 0)} compressed:{feature_diag.get('compressed_count', 0)} "
+            f"distinct:{feature_diag.get('low_distinct_count', 0)} null_heavy:{feature_diag.get('null_heavy_count', 0)} "
+            f"tail_streak={tail_streak.get('count', 0)}x{tail_streak.get('target')} since {tail_streak.get('start_timestamp')}"
+        )
+
+    predict_probe_result = run_predict_probe()
+    _persist_live_predictor_probe(predict_probe_result.get("stdout", ""))
+    live_predictor_diagnostics = collect_live_predictor_diagnostics(predict_probe_result)
+    print(
+        f"🧪 Live predictor probe：{'通過' if predict_probe_result['success'] else '失敗'} "
+        f"(rc={predict_probe_result['returncode']})"
+    )
+    if predict_probe_result.get("stdout"):
+        lines = predict_probe_result["stdout"].split("\n")
+        preview = "\n".join(lines[:40])
+        if len(lines) > 40:
+            preview += "\n...\n" + "\n".join(lines[-12:])
+        print(f"\n--- hb_predict_probe ---\n{preview}")
+    if predict_probe_result.get("stderr"):
+        print(f"\n--- hb_predict_probe stderr ---\n{predict_probe_result['stderr']}")
+    if live_predictor_diagnostics:
+        print(
+            "🧪 Live 決策品質："
+            f"scope={live_predictor_diagnostics.get('decision_quality_calibration_scope')} "
+            f"win={live_predictor_diagnostics.get('expected_win_rate')} "
+            f"quality={live_predictor_diagnostics.get('expected_pyramid_quality')} "
+            f"label={live_predictor_diagnostics.get('decision_quality_label')} "
+            f"layers={live_predictor_diagnostics.get('allowed_layers_raw')}→{live_predictor_diagnostics.get('allowed_layers')} "
+            f"recent_pathology={live_predictor_diagnostics.get('decision_quality_recent_pathology_applied')}"
         )
 
     auto_propose_result = run_auto_propose(run_label)
     print(
-        f"🛠️  Auto-propose: {'PASS' if auto_propose_result['success'] else 'FAIL'} "
+        f"🛠️  自動修復建議：{'通過' if auto_propose_result['success'] else '失敗'} "
         f"(rc={auto_propose_result['returncode']})"
     )
     if auto_propose_result.get("stdout"):
@@ -533,12 +656,13 @@ def main(argv=None):
         collect_result,
         results,
         elapsed,
-        args.fast,
+        fast_mode=args.fast,
         ic_diagnostics=ic_diagnostics,
         drift_diagnostics=drift_diagnostics,
+        live_predictor_diagnostics=live_predictor_diagnostics,
         auto_propose_result=auto_propose_result,
     )
-    print(f"\n📄 Summary saved: {os.path.relpath(summary_path, PROJECT_ROOT)}")
+    print(f"\n📄 摘要已儲存：{os.path.relpath(summary_path, PROJECT_ROOT)}")
 
 
 if __name__ == '__main__':

@@ -181,6 +181,14 @@ def load_recent_drift_report():
     return {}
 
 
+def load_live_predict_probe():
+    path = ROOT / "data" / "live_predict_probe.json"
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+
 def summarize_recent_drift(report):
     primary = (report or {}).get("primary_window") or {}
     summary = primary.get("summary") or {}
@@ -211,6 +219,7 @@ def summarize_recent_drift(report):
         f", frozen:{feature_diag.get('frozen_count', 0)}"
         f", compressed:{feature_diag.get('compressed_count', 0)}"
         f", expected_static:{feature_diag.get('expected_static_count', 0)}"
+        f", overlay_only:{feature_diag.get('overlay_only_count', 0)}"
         f", unexpected_frozen:{feature_diag.get('unexpected_frozen_count', 0)}"
         f", distinct:{feature_diag.get('low_distinct_count', 0)}"
         f", null_heavy:{feature_diag.get('null_heavy_count', 0)}"
@@ -220,6 +229,7 @@ def summarize_recent_drift(report):
     frozen_examples = feature_diag.get("frozen_examples") or []
     compressed_examples = feature_diag.get("compressed_examples") or []
     expected_static_examples = feature_diag.get("expected_static_examples") or []
+    overlay_only_examples = feature_diag.get("overlay_only_examples") or []
     unexpected_frozen_examples = feature_diag.get("unexpected_frozen_examples") or []
     null_heavy_examples = feature_diag.get("null_heavy_examples") or []
     example_bits = []
@@ -248,6 +258,13 @@ def summarize_recent_drift(report):
             "expected_static_examples=" + "/".join(
                 f"{row.get('feature')}[{row.get('expected_static_reason')}]"
                 for row in expected_static_examples[:3]
+            )
+        )
+    if overlay_only_examples:
+        example_bits.append(
+            "overlay_only_examples=" + "/".join(
+                f"{row.get('feature')}[{row.get('overlay_only_reason')}]"
+                for row in overlay_only_examples[:3]
             )
         )
     if unexpected_frozen_examples:
@@ -304,13 +321,70 @@ def summarize_recent_drift(report):
         f" since {adverse_streak.get('start_timestamp')}"
         f" -> {adverse_streak.get('end_timestamp')}"
     )
+    reference = summary.get("reference_window_comparison") or {}
+    reference_text = ""
+    if reference:
+        ref_quality = reference.get("reference_quality") or {}
+        reference_text = (
+            f", prev_win_rate={ref_quality.get('win_rate')}"
+            f", delta_vs_prev={reference.get('win_rate_delta_vs_reference')}"
+            f", prev_quality={ref_quality.get('avg_simulated_quality')}"
+            f", quality_delta_vs_prev={reference.get('avg_simulated_quality_delta_vs_reference')}"
+            f", prev_pnl={ref_quality.get('avg_simulated_pnl')}"
+            f", pnl_delta_vs_prev={reference.get('avg_simulated_pnl_delta_vs_reference')}"
+        )
+        top_shift = reference.get("top_mean_shift_features") or []
+        if top_shift:
+            reference_text += ", top_shift_examples=" + "/".join(
+                f"{row.get('feature')}({row.get('reference_mean')}→{row.get('current_mean')},Δσ={row.get('delta_vs_baseline_std')})"
+                for row in top_shift[:3]
+            )
+        new_flags = []
+        if reference.get("new_unexpected_frozen_features"):
+            new_flags.append("new_frozen=" + "/".join(reference.get("new_unexpected_frozen_features")[:3]))
+        if reference.get("new_unexpected_compressed_features"):
+            new_flags.append("new_compressed=" + "/".join(reference.get("new_unexpected_compressed_features")[:3]))
+        if reference.get("new_null_heavy_features"):
+            new_flags.append("new_null_heavy=" + "/".join(reference.get("new_null_heavy_features")[:3]))
+        if new_flags:
+            reference_text += ", " + ", ".join(new_flags)
     examples_text = (", " + ", ".join(example_bits)) if example_bits else ""
     return (
         f"recent_window={window}, alerts={alerts}, win_rate={win_text}, "
         f"delta_vs_full={delta_text}, dominant_regime={dominant_regime}({share_text}), "
         f"interpretation={interpretation}, avg_pnl={pnl_text}, avg_quality={quality_text}, "
         f"avg_dd_penalty={dd_text}, spot_long_win_rate={spot_long_text}, {feature_summary}"
-        f"{tail_text}{adverse_text}{examples_text}{recent_examples_text}{adverse_examples_text}"
+        f"{tail_text}{adverse_text}{reference_text}{examples_text}{recent_examples_text}{adverse_examples_text}"
+    )
+
+
+def summarize_live_predict_probe(report):
+    if not report:
+        return "live_predict_probe=missing"
+    summary = report.get("decision_quality_recent_pathology_summary") or {}
+    reference = summary.get("reference_window_comparison") or {}
+    top_shifts = reference.get("top_mean_shift_features") or []
+    top_shift_text = "/".join(
+        f"{row.get('feature')}({row.get('reference_mean')}→{row.get('current_mean')})"
+        for row in top_shifts[:3]
+        if row.get("feature")
+    )
+    window = report.get("decision_quality_recent_pathology_window")
+    alerts = report.get("decision_quality_recent_pathology_alerts") or []
+    win_rate = report.get("expected_win_rate")
+    quality = report.get("expected_pyramid_quality")
+    pnl = report.get("expected_pyramid_pnl")
+    scope = report.get("decision_quality_calibration_scope") or "unknown"
+    label = report.get("decision_quality_label") or "unknown"
+    layers_raw = report.get("allowed_layers_raw")
+    layers = report.get("allowed_layers")
+    regime = report.get("regime_label") or "unknown"
+    gate = report.get("regime_gate") or "unknown"
+    sample_size = report.get("decision_quality_sample_size")
+    return (
+        f"live_scope={scope}, regime={regime}/{gate}, label={label}, sample_size={sample_size}, "
+        f"window={window}, alerts={alerts}, expected_win_rate={win_rate}, expected_pnl={pnl}, "
+        f"expected_quality={quality}, layers={layers_raw}→{layers}, top_shifts={top_shift_text or 'n/a'}"
     )
 
 
@@ -332,10 +406,13 @@ def main():
             "total_features": full_ic_data.get("total_features"),
         }
     tw_history = load_recent_tw_history(limit=3, current_entry=current_entry)
-    drift_report = load_recent_drift_report()
-    drift_summary = summarize_recent_drift(drift_report)
-    drift_primary = (drift_report or {}).get("primary_window") or {}
+    recent_drift = load_recent_drift_report()
+    drift_summary = summarize_recent_drift(recent_drift)
+    live_predict_probe = load_live_predict_probe()
+    live_predict_summary = summarize_live_predict_probe(live_predict_probe)
+    drift_primary = (recent_drift or {}).get("primary_window") or {}
     drift_primary_summary = drift_primary.get("summary") or {}
+
     drift_interpretation = drift_primary_summary.get("drift_interpretation")
     drift_alerts = drift_primary.get("alerts") or []
     drift_window = drift_primary.get("window")
@@ -419,7 +496,32 @@ def main():
     else:
         tracker.resolve("#H_AUTO_RECENT_PATHOLOGY")
 
-    # Rule 7: TW-IC >> Global IC (regime-dependence indicator)
+    # Rule 7: live predictor runtime shows same-scope decision-quality pathology
+    live_recent_pathology = bool(live_predict_probe.get("decision_quality_recent_pathology_applied"))
+    live_expected_win = live_predict_probe.get("expected_win_rate")
+    live_expected_pnl = live_predict_probe.get("expected_pyramid_pnl")
+    live_expected_quality = live_predict_probe.get("expected_pyramid_quality")
+    live_layers = live_predict_probe.get("allowed_layers")
+    live_label = live_predict_probe.get("decision_quality_label")
+    if live_recent_pathology and (
+        (isinstance(live_expected_win, (int, float)) and live_expected_win <= 0.20)
+        or (isinstance(live_expected_pnl, (int, float)) and live_expected_pnl < 0.0)
+        or (isinstance(live_expected_quality, (int, float)) and live_expected_quality < 0.0)
+        or live_layers == 0
+        or live_label == "D"
+    ):
+        tracker.add(
+            "P1",
+            "#H_AUTO_LIVE_DQ_PATHOLOGY",
+            "live predictor decision-quality contract is runtime-blocked by recent pathology",
+            "把 hb_predict_probe 納入每輪 heartbeat 驗證，對當前 calibration scope 做 root-cause drill-down；"
+            "優先檢查 recent same-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。"
+            f" {live_predict_summary}",
+        )
+    else:
+        tracker.resolve("#H_AUTO_LIVE_DQ_PATHOLOGY")
+
+    # Rule 8: TW-IC >> Global IC (regime-dependence indicator)
     if ic_stats["tw_pass"] > ic_stats["global_pass"] + 2:
         tracker.add(
             "P1",
@@ -427,6 +529,8 @@ def main():
             f"TW-IC {ic_stats['tw_pass']} vs Global IC {ic_stats['global_pass']} — 信號強依賴近期資料",
             "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
         )
+    else:
+        tracker.resolve("#H_AUTO_REGIME_DRIFT")
 
     # Rule 8: TW-IC degraded below the phase-16 floor across consecutive heartbeats
     tw_drift_triggered = len(tw_history) >= 2 and all((row.get("tw_pass") or 0) < 14 for row in tw_history[:2])
@@ -498,6 +602,7 @@ def main():
         )
         print(f"📊 TW 歷史：{history_desc}")
     print(f"📊 漂移摘要：{drift_summary}")
+    print(f"📊 Live probe：{live_predict_summary}")
     print(f"📊 模型：Train={train:.1%}, CV={cv:.1%}" if train else "📊 模型：目前無資料")
     print(f"\n💾 已儲存至：{Path(__file__).parent.parent / 'issues.json'}")
 
