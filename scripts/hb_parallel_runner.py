@@ -429,6 +429,7 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "decision_quality_calibration_scope": payload.get("decision_quality_calibration_scope"),
         "decision_quality_calibration_window": payload.get("decision_quality_calibration_window"),
         "decision_quality_sample_size": payload.get("decision_quality_sample_size"),
+        "decision_quality_scope_diagnostics": payload.get("decision_quality_scope_diagnostics") or {},
         "decision_quality_guardrail_applied": payload.get("decision_quality_guardrail_applied"),
         "decision_quality_guardrail_reason": payload.get("decision_quality_guardrail_reason"),
         "decision_quality_recent_pathology_applied": payload.get("decision_quality_recent_pathology_applied"),
@@ -445,6 +446,7 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "non_null_4h_feature_count": payload.get("non_null_4h_feature_count"),
         "non_null_4h_lag_count": payload.get("non_null_4h_lag_count"),
         "decision_quality_recent_pathology_summary": payload.get("decision_quality_recent_pathology_summary") or {},
+        "decision_quality_pathology_consensus": ((payload.get("decision_quality_scope_diagnostics") or {}).get("pathology_consensus") or {}),
     }
 
 
@@ -625,6 +627,22 @@ def main(argv=None):
     if predict_probe_result.get("stderr"):
         print(f"\n--- hb_predict_probe stderr ---\n{predict_probe_result['stderr']}")
     if live_predictor_diagnostics:
+        consensus = live_predictor_diagnostics.get("decision_quality_pathology_consensus") or {}
+        shared = consensus.get("shared_top_shift_features") or []
+        shared_text = "/".join(
+            f"{row.get('feature')}[x{row.get('scope_count')}]"
+            for row in shared[:2]
+            if row.get("feature")
+        )
+        worst_scope = consensus.get("worst_pathology_scope") or {}
+        extra = ""
+        if shared_text:
+            extra += f" shared={shared_text}"
+        if worst_scope.get("scope"):
+            extra += (
+                f" worst_scope={worst_scope.get('scope')}"
+                f"(wr={worst_scope.get('win_rate')},q={worst_scope.get('avg_quality')})"
+            )
         print(
             "🧪 Live 決策品質："
             f"scope={live_predictor_diagnostics.get('decision_quality_calibration_scope')} "
@@ -633,6 +651,7 @@ def main(argv=None):
             f"label={live_predictor_diagnostics.get('decision_quality_label')} "
             f"layers={live_predictor_diagnostics.get('allowed_layers_raw')}→{live_predictor_diagnostics.get('allowed_layers')} "
             f"recent_pathology={live_predictor_diagnostics.get('decision_quality_recent_pathology_applied')}"
+            f"{extra}"
         )
 
     auto_propose_result = run_auto_propose(run_label)

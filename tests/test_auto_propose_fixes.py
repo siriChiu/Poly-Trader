@@ -641,6 +641,18 @@ def test_main_promotes_live_predictor_runtime_pathology(monkeypatch, capsys):
         "regime_gate": "ALLOW",
         "decision_quality_calibration_scope": "entry_quality_label",
         "decision_quality_sample_size": 3186,
+        "decision_quality_scope_diagnostics": {
+            "regime_gate+entry_quality_label": {"rows": 315, "win_rate": 0.1429, "avg_quality": -0.1491, "alerts": ["label_imbalance"]},
+            "regime_label+entry_quality_label": {"rows": 140, "win_rate": 0.05, "avg_quality": -0.2333, "alerts": ["label_imbalance"]},
+            "entry_quality_label": {"rows": 3186, "win_rate": 0.6152, "avg_quality": 0.2562, "alerts": []},
+            "pathology_consensus": {
+                "worst_pathology_scope": {"scope": "regime_label+entry_quality_label", "rows": 140, "win_rate": 0.05, "avg_quality": -0.2333},
+                "shared_top_shift_features": [
+                    {"feature": "feat_4h_dist_swing_low", "scope_count": 3},
+                    {"feature": "feat_4h_dist_bb_lower", "scope_count": 3},
+                ],
+            },
+        },
         "decision_quality_recent_pathology_applied": True,
         "decision_quality_recent_pathology_window": 500,
         "decision_quality_recent_pathology_alerts": ["label_imbalance"],
@@ -670,5 +682,8 @@ def test_main_promotes_live_predictor_runtime_pathology(monkeypatch, capsys):
     assert "runtime-blocked by recent pathology" in live_issue[2]
     assert "live_scope=entry_quality_label" in live_issue[3]
     assert "top_shifts=feat_4h_dist_swing_low(8.58→2.0)/feat_4h_dist_bb_lower(6.89→1.33)" in live_issue[3]
+    assert "scope_matrix=regime_gate+entry_quality_label:rows=315,wr=0.1429,q=-0.1491,alerts=['label_imbalance']" in live_issue[3]
+    assert "shared_shifts=feat_4h_dist_swing_low[x3]/feat_4h_dist_bb_lower[x3]" in live_issue[3]
+    assert "worst_scope=regime_label+entry_quality_label(wr=0.05,q=-0.2333,rows=140)" in live_issue[3]
     assert "#H_AUTO_LIVE_DQ_PATHOLOGY" in out
     assert "📊 Live probe：live_scope=entry_quality_label" in out

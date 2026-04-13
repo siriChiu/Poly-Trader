@@ -381,10 +381,40 @@ def summarize_live_predict_probe(report):
     regime = report.get("regime_label") or "unknown"
     gate = report.get("regime_gate") or "unknown"
     sample_size = report.get("decision_quality_sample_size")
+    scope_diags = report.get("decision_quality_scope_diagnostics") or {}
+    scope_bits = []
+    for scope_name in ("regime_gate+entry_quality_label", "regime_label+entry_quality_label", "entry_quality_label"):
+        scope_info = scope_diags.get(scope_name) or {}
+        if not scope_info:
+            continue
+        scope_bits.append(
+            f"{scope_name}:rows={scope_info.get('rows')}"
+            f",wr={scope_info.get('win_rate')}"
+            f",q={scope_info.get('avg_quality')}"
+            f",alerts={scope_info.get('alerts')}"
+        )
+    scope_matrix_text = f", scope_matrix={'; '.join(scope_bits)}" if scope_bits else ""
+
+    consensus = scope_diags.get("pathology_consensus") or {}
+    shared_shifts = consensus.get("shared_top_shift_features") or []
+    shared_shift_text = "/".join(
+        f"{row.get('feature')}[x{row.get('scope_count')}]"
+        for row in shared_shifts[:3]
+        if row.get("feature")
+    )
+    worst_scope = consensus.get("worst_pathology_scope") or {}
+    worst_scope_text = ""
+    if worst_scope.get("scope"):
+        worst_scope_text = (
+            f", worst_scope={worst_scope.get('scope')}"
+            f"(wr={worst_scope.get('win_rate')},q={worst_scope.get('avg_quality')},rows={worst_scope.get('rows')})"
+        )
+    shared_scope_text = f", shared_shifts={shared_shift_text}" if shared_shift_text else ""
     return (
         f"live_scope={scope}, regime={regime}/{gate}, label={label}, sample_size={sample_size}, "
         f"window={window}, alerts={alerts}, expected_win_rate={win_rate}, expected_pnl={pnl}, "
         f"expected_quality={quality}, layers={layers_raw}→{layers}, top_shifts={top_shift_text or 'n/a'}"
+        f"{scope_matrix_text}{shared_scope_text}{worst_scope_text}"
     )
 
 

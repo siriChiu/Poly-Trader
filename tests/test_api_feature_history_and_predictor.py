@@ -347,6 +347,94 @@ def test_decision_quality_contract_penalizes_negative_recent_pathology_in_chosen
     assert "distribution_pathology" in contract["decision_quality_recent_pathology_reason"]
 
 
+def test_decision_quality_scope_diagnostics_expose_narrow_and_broad_pathology_lanes():
+    rows = []
+    for i in range(120):
+        rows.append(
+            {
+                "timestamp": f"2026-04-10T00:{i:02d}:00",
+                "symbol": "BTCUSDT",
+                "regime_label": "bull",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "D",
+                "feat_4h_dist_bb_lower": 7.5,
+                "feat_4h_dist_swing_low": 8.0,
+                "feat_4h_bb_pct_b": 0.92,
+                "simulated_pyramid_win": 1.0,
+                "simulated_pyramid_pnl": 0.012,
+                "simulated_pyramid_quality": 0.42,
+                "simulated_pyramid_drawdown_penalty": 0.18,
+                "simulated_pyramid_time_underwater": 0.42,
+            }
+        )
+    for i in range(100):
+        rows.append(
+            {
+                "timestamp": f"2026-04-11T00:{i:02d}:00",
+                "symbol": "BTCUSDT",
+                "regime_label": "bull",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "D",
+                "feat_4h_dist_bb_lower": 0.4,
+                "feat_4h_dist_swing_low": 1.7,
+                "feat_4h_bb_pct_b": 0.13,
+                "simulated_pyramid_win": 0.0,
+                "simulated_pyramid_pnl": -0.011,
+                "simulated_pyramid_quality": -0.28,
+                "simulated_pyramid_drawdown_penalty": 0.28,
+                "simulated_pyramid_time_underwater": 0.88,
+            }
+        )
+    for i in range(380):
+        rows.append(
+            {
+                "timestamp": f"2026-04-12T00:{i:02d}:00",
+                "symbol": "BTCUSDT",
+                "regime_label": "chop",
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "feat_4h_dist_bb_lower": 1.3,
+                "feat_4h_dist_swing_low": 2.0,
+                "feat_4h_bb_pct_b": 0.4,
+                "simulated_pyramid_win": 0.0,
+                "simulated_pyramid_pnl": -0.008,
+                "simulated_pyramid_quality": -0.16,
+                "simulated_pyramid_drawdown_penalty": 0.26,
+                "simulated_pyramid_time_underwater": 0.75,
+            }
+        )
+
+    diags = predictor_module._build_decision_quality_scope_diagnostics(
+        rows,
+        {
+            "regime_label": "bull",
+            "regime_gate": "ALLOW",
+            "entry_quality_label": "D",
+        },
+    )
+
+    narrow = diags["regime_gate+entry_quality_label"]
+    broad = diags["entry_quality_label"]
+    assert narrow["rows"] == 220
+    assert narrow["recent_pathology"]["applied"] is True
+    assert narrow["recent_pathology"]["window"] == 100
+    assert broad["rows"] == 600
+    assert broad["recent_pathology"]["applied"] is True
+    assert broad["recent_pathology"]["window"] == 250
+
+    consensus = diags["pathology_consensus"]
+    assert consensus["pathology_scope_count"] == 3
+    assert consensus["worst_pathology_scope"]["scope"] == "entry_quality_label"
+    shared_features = {row["feature"]: row for row in consensus["shared_top_shift_features"]}
+    assert {"feat_4h_dist_bb_lower", "feat_4h_dist_swing_low", "feat_4h_bb_pct_b"}.issuperset(shared_features)
+    assert shared_features["feat_4h_dist_swing_low"]["scope_count"] == 3
+    assert set(shared_features["feat_4h_dist_swing_low"]["scopes"]) == {
+        "regime_gate+entry_quality_label",
+        "regime_label+entry_quality_label",
+        "entry_quality_label",
+    }
+
+
 def test_recent_scope_pathology_prefers_more_persistent_negative_window_when_scores_tie():
     def _ts(i: int) -> str:
         return f"2026-04-12T{(i // 60):02d}:{(i % 60):02d}:00"
@@ -357,6 +445,9 @@ def test_recent_scope_pathology_prefers_more_persistent_negative_window_when_sco
             "symbol": "BTCUSDT",
             "regime_gate": "CAUTION",
             "entry_quality_label": "C",
+            "feat_4h_dist_bb_lower": 6.0,
+            "feat_4h_dist_swing_low": 8.5,
+            "feat_4h_bb_pct_b": 0.78,
             "simulated_pyramid_win": 0.82,
             "simulated_pyramid_pnl": 0.08,
             "simulated_pyramid_quality": 0.41,
@@ -371,6 +462,9 @@ def test_recent_scope_pathology_prefers_more_persistent_negative_window_when_sco
             "symbol": "BTCUSDT",
             "regime_gate": "CAUTION",
             "entry_quality_label": "C",
+            "feat_4h_dist_bb_lower": 0.35,
+            "feat_4h_dist_swing_low": 1.4,
+            "feat_4h_bb_pct_b": 0.11,
             "simulated_pyramid_win": 0.0,
             "simulated_pyramid_pnl": -0.04,
             "simulated_pyramid_quality": -0.22,
@@ -390,8 +484,15 @@ def test_recent_scope_pathology_prefers_more_persistent_negative_window_when_sco
     assert summary["summary"]["end_timestamp"] == "2026-04-12T04:09:00"
     assert summary["summary"]["adverse_target_streak"]["target"] == 0
     assert summary["summary"]["adverse_target_streak"]["count"] == 250
+    comparison = summary["summary"]["reference_window_comparison"]
+    assert comparison["reference_quality"]["win_rate"] == 0.82
+    assert comparison["win_rate_delta_vs_reference"] == -0.82
+    assert comparison["avg_simulated_quality_delta_vs_reference"] == -0.63
+    assert comparison["top_mean_shift_features"][0]["feature"] == "feat_4h_dist_swing_low"
     assert "window=2026-04-12T00:00:00->2026-04-12T04:09:00" in summary["reason"]
     assert "adverse_streak=250x0" in summary["reason"]
+    assert "vs sibling prev_win_rate=0.82" in summary["reason"]
+    assert "feat_4h_dist_swing_low(8.5→1.4)" in summary["reason"]
 
 
 def test_apply_live_execution_guardrails_caps_layers_for_c_quality_and_guardrailed_window():

@@ -548,6 +548,67 @@ def _longest_binary_streak(rows: List[Dict[str, Any]], key: str, target_value: i
     }
 
 
+def _reference_window_contrast(
+    rows: List[Dict[str, Any]],
+    reference_rows: List[Dict[str, Any]],
+    feature_keys: tuple[str, ...] = (
+        "feat_4h_dist_bb_lower",
+        "feat_4h_dist_swing_low",
+        "feat_4h_bb_pct_b",
+    ),
+) -> Dict[str, Any]:
+    if not rows or not reference_rows:
+        return {}
+
+    def _delta(current: Optional[float], reference: Optional[float]) -> Optional[float]:
+        if current is None or reference is None:
+            return None
+        return round(float(current) - float(reference), 4)
+
+    current_quality = {
+        "win_rate": _avg_metric(rows, "simulated_pyramid_win"),
+        "avg_simulated_pnl": _avg_metric(rows, "simulated_pyramid_pnl"),
+        "avg_simulated_quality": _avg_metric(rows, "simulated_pyramid_quality"),
+        "avg_drawdown_penalty": _avg_metric(rows, "simulated_pyramid_drawdown_penalty"),
+        "avg_time_underwater": _avg_metric(rows, "simulated_pyramid_time_underwater"),
+    }
+    reference_quality = {
+        "win_rate": _avg_metric(reference_rows, "simulated_pyramid_win"),
+        "avg_simulated_pnl": _avg_metric(reference_rows, "simulated_pyramid_pnl"),
+        "avg_simulated_quality": _avg_metric(reference_rows, "simulated_pyramid_quality"),
+        "avg_drawdown_penalty": _avg_metric(reference_rows, "simulated_pyramid_drawdown_penalty"),
+        "avg_time_underwater": _avg_metric(reference_rows, "simulated_pyramid_time_underwater"),
+    }
+
+    feature_shifts: List[Dict[str, Any]] = []
+    for feature_key in feature_keys:
+        current_mean = _avg_metric(rows, feature_key)
+        reference_mean = _avg_metric(reference_rows, feature_key)
+        if current_mean is None or reference_mean is None:
+            continue
+        delta = round(float(current_mean) - float(reference_mean), 4)
+        feature_shifts.append(
+            {
+                "feature": feature_key,
+                "current_mean": current_mean,
+                "reference_mean": reference_mean,
+                "mean_delta": delta,
+            }
+        )
+    feature_shifts.sort(key=lambda row: (-abs(float(row.get("mean_delta") or 0.0)), row["feature"]))
+
+    return {
+        "current_quality": current_quality,
+        "reference_quality": reference_quality,
+        "win_rate_delta_vs_reference": _delta(current_quality.get("win_rate"), reference_quality.get("win_rate")),
+        "avg_simulated_pnl_delta_vs_reference": _delta(current_quality.get("avg_simulated_pnl"), reference_quality.get("avg_simulated_pnl")),
+        "avg_simulated_quality_delta_vs_reference": _delta(current_quality.get("avg_simulated_quality"), reference_quality.get("avg_simulated_quality")),
+        "avg_drawdown_penalty_delta_vs_reference": _delta(current_quality.get("avg_drawdown_penalty"), reference_quality.get("avg_drawdown_penalty")),
+        "avg_time_underwater_delta_vs_reference": _delta(current_quality.get("avg_time_underwater"), reference_quality.get("avg_time_underwater")),
+        "top_mean_shift_features": feature_shifts[:3],
+    }
+
+
 def _recent_scope_pathology_summary(
     rows: List[Dict[str, Any]],
     recent_windows: tuple[int, ...] = (100, 250, 500),
@@ -580,6 +641,8 @@ def _recent_scope_pathology_summary(
         avg_quality = _avg_metric(window_rows, "simulated_pyramid_quality")
         avg_drawdown_penalty = _avg_metric(window_rows, "simulated_pyramid_drawdown_penalty")
         avg_time_underwater = _avg_metric(window_rows, "simulated_pyramid_time_underwater")
+        reference_rows = ordered_rows[len(window_rows): len(window_rows) * 2]
+        sibling_contrast = _reference_window_contrast(window_rows, reference_rows)
 
         is_negative_pathology = any(alert in alerts for alert in ("constant_target", "label_imbalance")) and (
             (win_rate is not None and win_rate <= 0.2)
@@ -600,11 +663,17 @@ def _recent_scope_pathology_summary(
             + max(0.0, -(avg_quality or 0.0)),
             6,
         )
+        sibling_contrast_score = round(
+            max(0.0, -(sibling_contrast.get("win_rate_delta_vs_reference") or 0.0))
+            + max(0.0, -(sibling_contrast.get("avg_simulated_pnl_delta_vs_reference") or 0.0))
+            + max(0.0, -(sibling_contrast.get("avg_simulated_quality_delta_vs_reference") or 0.0)),
+            6,
+        )
         adverse_target = 0 if win_rate is None or win_rate <= 0.5 else 1
         adverse_streak = _longest_binary_streak(window_rows, "simulated_pyramid_win", adverse_target)
         candidates.append(
             {
-                "score": (severity, negative_score, adverse_streak.get("count", 0), len(window_rows)),
+                "score": (severity, sibling_contrast_score, negative_score, adverse_streak.get("count", 0), len(window_rows)),
                 "window": len(window_rows),
                 "alerts": alerts,
                 "summary": {
@@ -617,6 +686,7 @@ def _recent_scope_pathology_summary(
                     "start_timestamp": str(window_rows[-1].get("timestamp")) if window_rows[-1].get("timestamp") is not None else None,
                     "end_timestamp": str(window_rows[0].get("timestamp")) if window_rows[0].get("timestamp") is not None else None,
                     "adverse_target_streak": adverse_streak,
+                    "reference_window_comparison": sibling_contrast,
                 },
             }
         )
@@ -633,6 +703,24 @@ def _recent_scope_pathology_summary(
     chosen = max(candidates, key=lambda row: row["score"])
     summary = chosen["summary"]
     adverse_streak = summary.get("adverse_target_streak") or {}
+    sibling_contrast = summary.get("reference_window_comparison") or {}
+    sibling_reason = ""
+    if sibling_contrast:
+        top_shift = sibling_contrast.get("top_mean_shift_features") or []
+        top_shift_text = ", ".join(
+            f"{row.get('feature')}({row.get('reference_mean')}→{row.get('current_mean')})"
+            for row in top_shift[:3]
+        )
+        sibling_reason = (
+            f" vs sibling prev_win_rate={sibling_contrast.get('reference_quality', {}).get('win_rate')}"
+            f" Δwin_rate={sibling_contrast.get('win_rate_delta_vs_reference')}"
+            f" prev_quality={sibling_contrast.get('reference_quality', {}).get('avg_simulated_quality')}"
+            f" Δquality={sibling_contrast.get('avg_simulated_quality_delta_vs_reference')}"
+            f" prev_pnl={sibling_contrast.get('reference_quality', {}).get('avg_simulated_pnl')}"
+            f" Δpnl={sibling_contrast.get('avg_simulated_pnl_delta_vs_reference')}"
+        )
+        if top_shift_text:
+            sibling_reason += f" top_shifts={top_shift_text}"
     reason = (
         f"recent scope slice {chosen['window']} rows shows distribution_pathology "
         f"alerts={chosen['alerts']} win_rate={summary.get('win_rate')} avg_pnl={summary.get('avg_pnl')} "
@@ -640,6 +728,7 @@ def _recent_scope_pathology_summary(
         f"window={summary.get('start_timestamp')}->{summary.get('end_timestamp')} "
         f"adverse_streak={adverse_streak.get('count', 0)}x{adverse_streak.get('target')} "
         f"({adverse_streak.get('start_timestamp')}->{adverse_streak.get('end_timestamp')})"
+        f"{sibling_reason}"
     )
     return {
         "applied": True,
@@ -648,6 +737,145 @@ def _recent_scope_pathology_summary(
         "reason": reason,
         "summary": summary,
     }
+
+
+def _build_decision_quality_scope_diagnostics(
+    rows: List[Dict[str, Any]],
+    decision_profile: Dict[str, Any],
+) -> Dict[str, Any]:
+    if not rows:
+        return {}
+
+    target_gate = decision_profile.get("regime_gate")
+    target_quality_label = decision_profile.get("entry_quality_label")
+    target_regime_label = decision_profile.get("regime_label")
+
+    scope_rows = {
+        "regime_gate+entry_quality_label": [
+            row for row in rows
+            if row.get("regime_gate") == target_gate and row.get("entry_quality_label") == target_quality_label
+        ],
+        "regime_gate": [row for row in rows if row.get("regime_gate") == target_gate],
+        "entry_quality_label": [row for row in rows if row.get("entry_quality_label") == target_quality_label],
+        "regime_label+entry_quality_label": [
+            row for row in rows
+            if row.get("regime_label") == target_regime_label and row.get("entry_quality_label") == target_quality_label
+        ],
+        "regime_label": [row for row in rows if row.get("regime_label") == target_regime_label],
+        "global": list(rows),
+    }
+
+    diagnostics: Dict[str, Any] = {}
+    for scope_name, scoped_rows in scope_rows.items():
+        if not scoped_rows:
+            diagnostics[scope_name] = {
+                "rows": 0,
+                "alerts": ["no_rows"],
+                "win_rate": None,
+                "avg_pnl": None,
+                "avg_quality": None,
+                "recent_pathology": {
+                    "applied": False,
+                    "window": 0,
+                    "alerts": [],
+                    "reason": None,
+                    "summary": None,
+                },
+            }
+            continue
+        diagnostics[scope_name] = {
+            "rows": len(scoped_rows),
+            "alerts": _decision_quality_scope_alerts(scoped_rows),
+            "win_rate": _avg_metric(scoped_rows, "simulated_pyramid_win"),
+            "avg_pnl": _avg_metric(scoped_rows, "simulated_pyramid_pnl"),
+            "avg_quality": _avg_metric(scoped_rows, "simulated_pyramid_quality"),
+            "recent_pathology": _recent_scope_pathology_summary(scoped_rows),
+        }
+
+    focus_scopes = (
+        "regime_gate+entry_quality_label",
+        "regime_label+entry_quality_label",
+        "entry_quality_label",
+    )
+    pathological_scope_rows: List[Dict[str, Any]] = []
+    shared_feature_map: Dict[str, Dict[str, Any]] = {}
+    for scope_name in focus_scopes:
+        scope_info = diagnostics.get(scope_name) or {}
+        recent = scope_info.get("recent_pathology") or {}
+        summary = recent.get("summary") or {}
+        reference = summary.get("reference_window_comparison") or {}
+        top_shifts = reference.get("top_mean_shift_features") or []
+        if not recent.get("applied") or not top_shifts:
+            continue
+        pathological_scope_rows.append(
+            {
+                "scope": scope_name,
+                "rows": scope_info.get("rows"),
+                "win_rate": scope_info.get("win_rate"),
+                "avg_quality": scope_info.get("avg_quality"),
+                "window": recent.get("window"),
+                "alerts": recent.get("alerts") or [],
+            }
+        )
+        for shift in top_shifts:
+            feature = shift.get("feature")
+            if not feature:
+                continue
+            entry = shared_feature_map.setdefault(
+                feature,
+                {
+                    "feature": feature,
+                    "scope_count": 0,
+                    "scopes": [],
+                    "mean_deltas": {},
+                    "current_means": {},
+                    "reference_means": {},
+                },
+            )
+            entry["scope_count"] += 1
+            entry["scopes"].append(scope_name)
+            entry["mean_deltas"][scope_name] = shift.get("mean_delta")
+            entry["current_means"][scope_name] = shift.get("current_mean")
+            entry["reference_means"][scope_name] = shift.get("reference_mean")
+
+    consensus_features: List[Dict[str, Any]] = []
+    for entry in shared_feature_map.values():
+        if entry["scope_count"] < 2:
+            continue
+        max_abs_delta = max(abs(float(v or 0.0)) for v in entry["mean_deltas"].values()) if entry["mean_deltas"] else 0.0
+        consensus_features.append(
+            {
+                **entry,
+                "scopes": sorted(entry["scopes"]),
+                "max_abs_delta": round(float(max_abs_delta), 4),
+            }
+        )
+    consensus_features.sort(
+        key=lambda row: (-int(row.get("scope_count") or 0), -float(row.get("max_abs_delta") or 0.0), row.get("feature") or "")
+    )
+
+    if pathological_scope_rows:
+        pathological_scope_rows.sort(
+            key=lambda row: (
+                float(row.get("win_rate") if row.get("win_rate") is not None else 1.0),
+                float(row.get("avg_quality") if row.get("avg_quality") is not None else 1.0),
+                int(row.get("rows") or 0),
+            )
+        )
+        diagnostics["pathology_consensus"] = {
+            "pathology_scope_count": len(pathological_scope_rows),
+            "pathology_scopes": pathological_scope_rows,
+            "worst_pathology_scope": pathological_scope_rows[0],
+            "shared_top_shift_features": consensus_features[:3],
+        }
+    else:
+        diagnostics["pathology_consensus"] = {
+            "pathology_scope_count": 0,
+            "pathology_scopes": [],
+            "worst_pathology_scope": None,
+            "shared_top_shift_features": [],
+        }
+    return diagnostics
 
 
 def _min_optional(current: Optional[float], other: Optional[float]) -> Optional[float]:
@@ -738,6 +966,7 @@ def _summarize_decision_quality_contract(
         **base,
         "decision_quality_horizon_minutes": horizon_minutes,
         "decision_quality_calibration_scope": chosen_scope,
+        "decision_quality_scope_diagnostics": _build_decision_quality_scope_diagnostics(rows, decision_profile),
         "decision_quality_sample_size": len(chosen_rows),
         "decision_quality_reference_from": str(latest_ts) if latest_ts is not None else None,
         "decision_quality_calibration_window": len(rows),
@@ -770,6 +999,9 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
             FeaturesNormalized.regime_label,
             FeaturesNormalized.feat_4h_bias200,
             FeaturesNormalized.feat_4h_bias50,
+            FeaturesNormalized.feat_4h_bb_pct_b,
+            FeaturesNormalized.feat_4h_dist_bb_lower,
+            FeaturesNormalized.feat_4h_dist_swing_low,
             FeaturesNormalized.feat_nose,
             FeaturesNormalized.feat_pulse,
             FeaturesNormalized.feat_ear,
@@ -801,6 +1033,9 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
             "regime_label": row.regime_label,
             "feat_4h_bias200": row.feat_4h_bias200,
             "feat_4h_bias50": row.feat_4h_bias50,
+            "feat_4h_bb_pct_b": row.feat_4h_bb_pct_b,
+            "feat_4h_dist_bb_lower": row.feat_4h_dist_bb_lower,
+            "feat_4h_dist_swing_low": row.feat_4h_dist_swing_low,
             "feat_nose": row.feat_nose,
             "feat_pulse": row.feat_pulse,
             "feat_ear": row.feat_ear,
@@ -809,8 +1044,12 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
         summarized_rows.append({
             "timestamp": row.timestamp,
             "symbol": row.symbol,
+            "regime_label": row.regime_label,
             "regime_gate": hist_profile.get("regime_gate"),
             "entry_quality_label": hist_profile.get("entry_quality_label"),
+            "feat_4h_bb_pct_b": row.feat_4h_bb_pct_b,
+            "feat_4h_dist_bb_lower": row.feat_4h_dist_bb_lower,
+            "feat_4h_dist_swing_low": row.feat_4h_dist_swing_low,
             "simulated_pyramid_win": row.simulated_pyramid_win,
             "simulated_pyramid_pnl": row.simulated_pyramid_pnl,
             "simulated_pyramid_quality": row.simulated_pyramid_quality,
