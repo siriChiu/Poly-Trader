@@ -642,11 +642,63 @@ def test_main_promotes_live_predictor_runtime_pathology(monkeypatch, capsys):
         "decision_quality_calibration_scope": "entry_quality_label",
         "decision_quality_sample_size": 3186,
         "decision_quality_scope_diagnostics": {
-            "regime_gate+entry_quality_label": {"rows": 315, "win_rate": 0.1429, "avg_quality": -0.1491, "alerts": ["label_imbalance"]},
-            "regime_label+entry_quality_label": {"rows": 140, "win_rate": 0.05, "avg_quality": -0.2333, "alerts": ["label_imbalance"]},
-            "entry_quality_label": {"rows": 3186, "win_rate": 0.6152, "avg_quality": 0.2562, "alerts": []},
+            "regime_gate+entry_quality_label": {
+                "rows": 315,
+                "win_rate": 0.1429,
+                "avg_quality": -0.1491,
+                "avg_drawdown_penalty": 0.2612,
+                "avg_time_underwater": 0.7321,
+                "alerts": ["label_imbalance"],
+                "recent500_regime_counts": {"bull": 141, "neutral": 114, "bear": 60},
+                "recent500_dominant_regime": {"regime": "bull", "count": 141, "share": 0.4476},
+                "recent500_gate_counts": {"ALLOW": 315},
+                "recent500_dominant_gate": {"gate": "ALLOW", "count": 315, "share": 1.0},
+                "recent500_regime_gate_counts": {"bull|ALLOW": 141, "neutral|ALLOW": 114, "bear|ALLOW": 60},
+                "recent500_dominant_regime_gate": {"regime_gate": "bull|ALLOW", "regime": "bull", "gate": "ALLOW", "count": 141, "share": 0.4476},
+            },
+            "regime_label+entry_quality_label": {
+                "rows": 140,
+                "win_rate": 0.05,
+                "avg_quality": -0.2333,
+                "avg_drawdown_penalty": 0.3111,
+                "avg_time_underwater": 0.9444,
+                "alerts": ["label_imbalance"],
+                "recent500_regime_counts": {"bull": 140},
+                "recent500_dominant_regime": {"regime": "bull", "count": 140, "share": 1.0},
+                "recent500_gate_counts": {"ALLOW": 40, "CAUTION": 100},
+                "recent500_dominant_gate": {"gate": "CAUTION", "count": 100, "share": 0.7143},
+                "recent500_regime_gate_counts": {"bull|ALLOW": 40, "bull|CAUTION": 100},
+                "recent500_dominant_regime_gate": {"regime_gate": "bull|CAUTION", "regime": "bull", "gate": "CAUTION", "count": 100, "share": 0.7143},
+            },
+            "entry_quality_label": {
+                "rows": 3186,
+                "win_rate": 0.6152,
+                "avg_quality": 0.2562,
+                "avg_drawdown_penalty": 0.1211,
+                "avg_time_underwater": 0.3112,
+                "alerts": [],
+                "recent500_regime_counts": {"chop": 359, "bull": 141},
+                "recent500_dominant_regime": {"regime": "chop", "count": 359, "share": 0.718},
+                "recent500_gate_counts": {"CAUTION": 359, "ALLOW": 141},
+                "recent500_dominant_gate": {"gate": "CAUTION", "count": 359, "share": 0.718},
+                "recent500_regime_gate_counts": {"chop|CAUTION": 359, "bull|ALLOW": 141},
+                "recent500_dominant_regime_gate": {"regime_gate": "chop|CAUTION", "regime": "chop", "gate": "CAUTION", "count": 359, "share": 0.718},
+            },
             "pathology_consensus": {
-                "worst_pathology_scope": {"scope": "regime_label+entry_quality_label", "rows": 140, "win_rate": 0.05, "avg_quality": -0.2333},
+                "worst_pathology_scope": {
+                    "scope": "regime_label+entry_quality_label",
+                    "rows": 140,
+                    "win_rate": 0.05,
+                    "avg_quality": -0.2333,
+                    "avg_drawdown_penalty": 0.3111,
+                    "avg_time_underwater": 0.9444,
+                    "recent500_regime_counts": {"bull": 140},
+                    "recent500_dominant_regime": {"regime": "bull", "count": 140, "share": 1.0},
+                    "recent500_gate_counts": {"ALLOW": 40, "CAUTION": 100},
+                    "recent500_dominant_gate": {"gate": "CAUTION", "count": 100, "share": 0.7143},
+                    "recent500_regime_gate_counts": {"bull|ALLOW": 40, "bull|CAUTION": 100},
+                    "recent500_dominant_regime_gate": {"regime_gate": "bull|CAUTION", "regime": "bull", "gate": "CAUTION", "count": 100, "share": 0.7143},
+                },
                 "shared_top_shift_features": [
                     {"feature": "feat_4h_dist_swing_low", "scope_count": 3},
                     {"feature": "feat_4h_dist_bb_lower", "scope_count": 3},
@@ -682,8 +734,172 @@ def test_main_promotes_live_predictor_runtime_pathology(monkeypatch, capsys):
     assert "runtime-blocked by recent pathology" in live_issue[2]
     assert "live_scope=entry_quality_label" in live_issue[3]
     assert "top_shifts=feat_4h_dist_swing_low(8.58→2.0)/feat_4h_dist_bb_lower(6.89→1.33)" in live_issue[3]
-    assert "scope_matrix=regime_gate+entry_quality_label:rows=315,wr=0.1429,q=-0.1491,alerts=['label_imbalance']" in live_issue[3]
+    assert "scope_matrix=regime_gate+entry_quality_label:rows=315,wr=0.1429,q=-0.1491,dd=0.2612,tuw=0.7321,alerts=['label_imbalance'],recent500_dominant=bull@0.4476,recent500_gate_dominant=ALLOW@1.0,recent500_regime_gate_dominant=bull|ALLOW@0.4476,recent500_regimes=bull:141/neutral:114/bear:60,recent500_gates=ALLOW:315,recent500_regime_gates=bull|ALLOW:141/neutral|ALLOW:114/bear|ALLOW:60" in live_issue[3]
+    assert "regime_label+entry_quality_label:rows=140,wr=0.05,q=-0.2333,dd=0.3111,tuw=0.9444,alerts=['label_imbalance'],recent500_dominant=bull@1.0,recent500_gate_dominant=CAUTION@0.7143,recent500_regime_gate_dominant=bull|CAUTION@0.7143,recent500_regimes=bull:140,recent500_gates=CAUTION:100/ALLOW:40,recent500_regime_gates=bull|CAUTION:100/bull|ALLOW:40" in live_issue[3]
+    assert "entry_quality_label:rows=3186,wr=0.6152,q=0.2562,dd=0.1211,tuw=0.3112,alerts=[],recent500_dominant=chop@0.718,recent500_gate_dominant=CAUTION@0.718,recent500_regime_gate_dominant=chop|CAUTION@0.718,recent500_regimes=chop:359/bull:141,recent500_gates=CAUTION:359/ALLOW:141,recent500_regime_gates=chop|CAUTION:359/bull|ALLOW:141" in live_issue[3]
     assert "shared_shifts=feat_4h_dist_swing_low[x3]/feat_4h_dist_bb_lower[x3]" in live_issue[3]
-    assert "worst_scope=regime_label+entry_quality_label(wr=0.05,q=-0.2333,rows=140)" in live_issue[3]
+    assert "worst_scope=regime_label+entry_quality_label(wr=0.05,q=-0.2333,rows=140,dd=0.3111,tuw=0.9444,recent500_dominant=bull@1.0,recent500_gate_dominant=CAUTION@0.7143,recent500_regime_gate_dominant=bull|CAUTION@0.7143,recent500_regimes=bull:140,recent500_gates=CAUTION:100/ALLOW:40,recent500_regime_gates=bull|CAUTION:100/bull|ALLOW:40)" in live_issue[3]
+    assert "#H_AUTO_LIVE_DQ_PATHOLOGY" in out
+    assert "📊 Live probe：live_scope=entry_quality_label" in out
+
+
+def test_main_promotes_live_dq_pathology_from_narrowed_scope_even_when_broad_scope_is_healthy(monkeypatch, capsys):
+    added = []
+
+    class DummyTracker:
+        def add(self, priority, issue_id, title, action="", status="open"):
+            added.append((priority, issue_id, title, action, status))
+
+        def resolve(self, issue_id):
+            return True
+
+        def save(self):
+            return None
+
+        def by_priority(self, priority):
+            return [
+                {
+                    "id": issue_id,
+                    "priority": prio,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+                for prio, issue_id, title, action, status in added
+                if prio == priority and status == "open"
+            ]
+
+    monkeypatch.setattr(auto_propose_fixes, "check_db", lambda: {
+        "simulated_win_avg": 0.5702,
+        "losing_streak": 0,
+        "raw_latest_age_min": 0.7,
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_full_ic_data", lambda: {"global_pass": 17, "tw_pass": 22, "total_features": 30})
+    monkeypatch.setattr(auto_propose_fixes, "check_ic", lambda ic_data, full_ic_data=None: {
+        "global_pass": 17,
+        "tw_pass": 22,
+        "total_core": 15,
+        "total_features": 30,
+        "no_data": [],
+        "low_data": [],
+        "best_ic": ("feat_vwap_dev", -0.18),
+        "worst_ic": ("feat_ear", 0.001),
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_tw_history", lambda limit=3, current_entry=None: [
+        {"heartbeat": "696", "tw_pass": 22, "total_features": 30},
+        {"heartbeat": "695", "tw_pass": 22, "total_features": 30},
+        {"heartbeat": "694", "tw_pass": 20, "total_features": 30},
+    ])
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_drift_report", lambda: {
+        "primary_window": {
+            "window": "100",
+            "alerts": ["constant_target", "regime_concentration"],
+            "summary": {
+                "win_rate": 1.0,
+                "win_rate_delta_vs_full": 0.3708,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 1.0,
+                "drift_interpretation": "supported_extreme_trend",
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0184,
+                    "avg_simulated_quality": 0.6220,
+                    "avg_drawdown_penalty": 0.0476,
+                    "spot_long_win_rate": 0.59,
+                },
+            },
+        }
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {
+        "regime_label": "bull",
+        "regime_gate": "ALLOW",
+        "decision_quality_calibration_scope": "entry_quality_label",
+        "decision_quality_sample_size": 3610,
+        "decision_quality_scope_diagnostics": {
+            "regime_gate+entry_quality_label": {
+                "rows": 272,
+                "win_rate": 0.1728,
+                "avg_quality": -0.1385,
+                "avg_drawdown_penalty": 0.2422,
+                "avg_time_underwater": 0.7011,
+                "alerts": ["label_imbalance"],
+                "recent500_regime_counts": {"bull": 134, "neutral": 102, "bear": 36},
+                "recent500_dominant_regime": {"regime": "bull", "count": 134, "share": 0.4926},
+                "recent500_gate_counts": {"ALLOW": 272},
+                "recent500_dominant_gate": {"gate": "ALLOW", "count": 272, "share": 1.0},
+                "recent500_regime_gate_counts": {"bull|ALLOW": 134, "neutral|ALLOW": 102, "bear|ALLOW": 36},
+                "recent500_dominant_regime_gate": {"regime_gate": "bull|ALLOW", "regime": "bull", "gate": "ALLOW", "count": 134, "share": 0.4926},
+            },
+            "regime_label+entry_quality_label": {
+                "rows": 147,
+                "win_rate": 0.0748,
+                "avg_quality": -0.2098,
+                "avg_drawdown_penalty": 0.2877,
+                "avg_time_underwater": 0.8811,
+                "alerts": ["label_imbalance"],
+                "recent500_regime_counts": {"bull": 147},
+                "recent500_dominant_regime": {"regime": "bull", "count": 147, "share": 1.0},
+                "recent500_gate_counts": {"CAUTION": 123, "ALLOW": 24},
+                "recent500_dominant_gate": {"gate": "CAUTION", "count": 123, "share": 0.8367},
+                "recent500_regime_gate_counts": {"bull|CAUTION": 123, "bull|ALLOW": 24},
+                "recent500_dominant_regime_gate": {"regime_gate": "bull|CAUTION", "regime": "bull", "gate": "CAUTION", "count": 123, "share": 0.8367},
+            },
+            "entry_quality_label": {
+                "rows": 3610,
+                "win_rate": 0.6457,
+                "avg_quality": 0.2905,
+                "avg_drawdown_penalty": 0.1181,
+                "avg_time_underwater": 0.2994,
+                "alerts": [],
+                "recent500_regime_counts": {"chop": 390, "bull": 110},
+                "recent500_dominant_regime": {"regime": "chop", "count": 390, "share": 0.78},
+                "recent500_gate_counts": {"CAUTION": 390, "ALLOW": 110},
+                "recent500_dominant_gate": {"gate": "CAUTION", "count": 390, "share": 0.78},
+                "recent500_regime_gate_counts": {"chop|CAUTION": 390, "bull|ALLOW": 110},
+                "recent500_dominant_regime_gate": {"regime_gate": "chop|CAUTION", "regime": "chop", "gate": "CAUTION", "count": 390, "share": 0.78},
+            },
+            "pathology_consensus": {
+                "worst_pathology_scope": {
+                    "scope": "regime_label+entry_quality_label",
+                    "rows": 147,
+                    "win_rate": 0.0748,
+                    "avg_quality": -0.2098,
+                    "avg_drawdown_penalty": 0.2877,
+                    "avg_time_underwater": 0.8811,
+                    "recent500_regime_counts": {"bull": 147},
+                    "recent500_dominant_regime": {"regime": "bull", "count": 147, "share": 1.0},
+                    "recent500_gate_counts": {"CAUTION": 123, "ALLOW": 24},
+                    "recent500_dominant_gate": {"gate": "CAUTION", "count": 123, "share": 0.8367},
+                    "recent500_regime_gate_counts": {"bull|CAUTION": 123, "bull|ALLOW": 24},
+                    "recent500_dominant_regime_gate": {"regime_gate": "bull|CAUTION", "regime": "bull", "gate": "CAUTION", "count": 123, "share": 0.8367},
+                },
+                "shared_top_shift_features": [
+                    {"feature": "feat_4h_dist_swing_low", "scope_count": 2},
+                    {"feature": "feat_4h_dist_bb_lower", "scope_count": 2},
+                ],
+            },
+        },
+        "decision_quality_recent_pathology_applied": False,
+        "decision_quality_recent_pathology_window": 100,
+        "decision_quality_recent_pathology_alerts": [],
+        "decision_quality_label": "D",
+        "expected_win_rate": 0.6457,
+        "expected_pyramid_pnl": 0.0084,
+        "expected_pyramid_quality": 0.2905,
+        "allowed_layers_raw": 0,
+        "allowed_layers": 0,
+        "decision_quality_recent_pathology_summary": {},
+    })
+    monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.703, "cv_accuracy": 0.722})
+    monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: DummyTracker())}))
+
+    auto_propose_fixes.main()
+    out = capsys.readouterr().out
+
+    live_issue = next(item for item in added if item[1] == "#H_AUTO_LIVE_DQ_PATHOLOGY")
+    assert live_issue[0] == "P1"
+    assert "runtime-blocked by recent pathology or a severe narrowed pathology lane" in live_issue[2]
+    assert "live_scope=entry_quality_label" in live_issue[3]
+    assert "shared_shifts=feat_4h_dist_swing_low[x2]/feat_4h_dist_bb_lower[x2]" in live_issue[3]
+    assert "worst_scope=regime_label+entry_quality_label(wr=0.0748,q=-0.2098,rows=147,dd=0.2877,tuw=0.8811,recent500_dominant=bull@1.0,recent500_gate_dominant=CAUTION@0.8367,recent500_regime_gate_dominant=bull|CAUTION@0.8367,recent500_regimes=bull:147,recent500_gates=CAUTION:123/ALLOW:24,recent500_regime_gates=bull|CAUTION:123/bull|ALLOW:24)" in live_issue[3]
     assert "#H_AUTO_LIVE_DQ_PATHOLOGY" in out
     assert "📊 Live probe：live_scope=entry_quality_label" in out

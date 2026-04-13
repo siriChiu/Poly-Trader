@@ -167,19 +167,42 @@ def test_live_decision_profile_matches_strategy_lab_baseline():
         "feat_nose": 0.24,
         "feat_pulse": 0.81,
         "feat_ear": -0.04,
+        "feat_4h_bb_pct_b": 0.82,
+        "feat_4h_dist_bb_lower": 7.2,
+        "feat_4h_dist_swing_low": 9.1,
     }
 
     profile = predictor_module._build_live_decision_profile(features)
 
-    expected_quality = strategy_lab._compute_entry_quality(-1.8, 0.24, 0.81, -0.04)
-    expected_gate = strategy_lab._compute_regime_gate(2.2, "bull", -10.0)
+    expected_quality = strategy_lab._compute_entry_quality(-1.8, 0.24, 0.81, -0.04, 0.82, 7.2, 9.1)
+    expected_gate = strategy_lab._compute_regime_gate(2.2, "bull", -10.0, 0.82, 7.2, 9.1)
     expected_layers = strategy_lab._allowed_layers_for_signal(expected_gate, expected_quality, 3)
 
     assert profile["entry_quality"] == expected_quality
     assert profile["regime_gate"] == expected_gate
     assert profile["allowed_layers"] == expected_layers
-    assert profile["entry_quality_label"] == "B"
+    assert profile["entry_quality_label"] == "A"
     assert profile["decision_profile_version"] == "phase16_baseline_v2"
+
+
+def test_live_decision_profile_downgrades_allow_gate_when_4h_structure_collapses():
+    features = {
+        "regime_label": "bull",
+        "feat_4h_bias200": 2.4,
+        "feat_4h_bias50": -2.0,
+        "feat_nose": 0.18,
+        "feat_pulse": 0.78,
+        "feat_ear": -0.03,
+        "feat_4h_bb_pct_b": 0.10,
+        "feat_4h_dist_bb_lower": 0.35,
+        "feat_4h_dist_swing_low": 1.5,
+    }
+
+    profile = predictor_module._build_live_decision_profile(features)
+
+    assert profile["regime_gate"] == "BLOCK"
+    assert profile["allowed_layers"] == 0
+    assert profile["entry_quality_label"] == "C"
 
 
 def test_decision_quality_contract_prefers_matching_gate_and_quality_bucket():
@@ -413,26 +436,166 @@ def test_decision_quality_scope_diagnostics_expose_narrow_and_broad_pathology_la
         },
     )
 
+    exact_narrow = diags["regime_label+regime_gate+entry_quality_label"]
     narrow = diags["regime_gate+entry_quality_label"]
+    regime_narrow = diags["regime_label+entry_quality_label"]
     broad = diags["entry_quality_label"]
+    assert exact_narrow["rows"] == 220
+    assert exact_narrow["recent500_regime_counts"] == {"bull": 220}
+    assert exact_narrow["recent500_dominant_regime"] == {"regime": "bull", "count": 220, "share": 1.0}
+    assert exact_narrow["recent500_gate_counts"] == {"ALLOW": 220}
+    assert exact_narrow["recent500_dominant_gate"] == {"gate": "ALLOW", "count": 220, "share": 1.0}
+    assert exact_narrow["recent500_regime_gate_counts"] == {"bull|ALLOW": 220}
+    assert exact_narrow["recent500_dominant_regime_gate"] == {
+        "regime_gate": "bull|ALLOW",
+        "regime": "bull",
+        "gate": "ALLOW",
+        "count": 220,
+        "share": 1.0,
+    }
+    assert exact_narrow["avg_drawdown_penalty"] == 0.2255
+    assert exact_narrow["avg_time_underwater"] == 0.6291
+    assert exact_narrow["recent_pathology"]["applied"] is True
+    assert exact_narrow["recent_pathology"]["window"] == 100
     assert narrow["rows"] == 220
+    assert narrow["recent500_regime_counts"] == {"bull": 220}
+    assert narrow["recent500_dominant_regime"] == {"regime": "bull", "count": 220, "share": 1.0}
+    assert narrow["recent500_gate_counts"] == {"ALLOW": 220}
+    assert narrow["recent500_dominant_gate"] == {"gate": "ALLOW", "count": 220, "share": 1.0}
+    assert narrow["recent500_regime_gate_counts"] == {"bull|ALLOW": 220}
+    assert narrow["recent500_dominant_regime_gate"] == {
+        "regime_gate": "bull|ALLOW",
+        "regime": "bull",
+        "gate": "ALLOW",
+        "count": 220,
+        "share": 1.0,
+    }
     assert narrow["recent_pathology"]["applied"] is True
     assert narrow["recent_pathology"]["window"] == 100
     assert broad["rows"] == 600
+    assert broad["recent500_regime_counts"] == {"chop": 280, "bull": 220}
+    assert broad["recent500_dominant_regime"] == {"regime": "chop", "count": 280, "share": 0.56}
+    assert broad["recent500_gate_counts"] == {"CAUTION": 280, "ALLOW": 220}
+    assert broad["recent500_dominant_gate"] == {"gate": "CAUTION", "count": 280, "share": 0.56}
+    assert broad["recent500_regime_gate_counts"] == {"chop|CAUTION": 280, "bull|ALLOW": 220}
+    assert broad["recent500_dominant_regime_gate"] == {
+        "regime_gate": "chop|CAUTION",
+        "regime": "chop",
+        "gate": "CAUTION",
+        "count": 280,
+        "share": 0.56,
+    }
     assert broad["recent_pathology"]["applied"] is True
     assert broad["recent_pathology"]["window"] == 250
 
     consensus = diags["pathology_consensus"]
-    assert consensus["pathology_scope_count"] == 3
+    assert consensus["pathology_scope_count"] == 4
     assert consensus["worst_pathology_scope"]["scope"] == "entry_quality_label"
+    assert consensus["worst_pathology_scope"]["recent500_regime_counts"] == broad["recent500_regime_counts"]
+    exact_scope = next(row for row in consensus["pathology_scopes"] if row["scope"] == "regime_label+regime_gate+entry_quality_label")
+    assert exact_scope["recent500_regime_counts"] == exact_narrow["recent500_regime_counts"]
+    assert exact_scope["recent500_dominant_regime"] == {"regime": "bull", "count": 220, "share": 1.0}
+    regime_scope = next(row for row in consensus["pathology_scopes"] if row["scope"] == "regime_label+entry_quality_label")
+    assert regime_scope["recent500_regime_counts"] == regime_narrow["recent500_regime_counts"]
+    assert regime_scope["recent500_dominant_regime"] == {"regime": "bull", "count": 220, "share": 1.0}
+    assert regime_scope["recent500_gate_counts"] == regime_narrow["recent500_gate_counts"]
+    assert regime_scope["recent500_dominant_gate"] == regime_narrow["recent500_dominant_gate"]
+    assert regime_scope["recent500_regime_gate_counts"] == regime_narrow["recent500_regime_gate_counts"]
+    assert regime_scope["recent500_dominant_regime_gate"] == regime_narrow["recent500_dominant_regime_gate"]
     shared_features = {row["feature"]: row for row in consensus["shared_top_shift_features"]}
     assert {"feat_4h_dist_bb_lower", "feat_4h_dist_swing_low", "feat_4h_bb_pct_b"}.issuperset(shared_features)
-    assert shared_features["feat_4h_dist_swing_low"]["scope_count"] == 3
+    assert shared_features["feat_4h_dist_swing_low"]["scope_count"] == 4
     assert set(shared_features["feat_4h_dist_swing_low"]["scopes"]) == {
+        "regime_label+regime_gate+entry_quality_label",
         "regime_gate+entry_quality_label",
         "regime_label+entry_quality_label",
         "entry_quality_label",
     }
+
+
+def test_decision_quality_contract_clamps_to_worse_regime_specific_d_lane_when_broader_scope_hides_bull_pathology():
+    def _stamp(day: str, idx: int) -> str:
+        hour, minute = divmod(idx, 60)
+        return f"{day}T{hour:02d}:{minute:02d}:00"
+
+    rows = []
+    for i in range(127):
+        rows.append(
+            {
+                "timestamp": _stamp("2026-04-12", i),
+                "symbol": "BTCUSDT",
+                "regime_label": "neutral" if i < 102 else "bull",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "D",
+                "feat_4h_dist_bb_lower": 6.9,
+                "feat_4h_dist_swing_low": 7.2,
+                "feat_4h_bb_pct_b": 1.16,
+                "simulated_pyramid_win": 1.0 if i < 28 else 0.0,
+                "simulated_pyramid_pnl": 0.004 if i < 28 else -0.0048,
+                "simulated_pyramid_quality": 0.05 if i < 28 else -0.1156,
+                "simulated_pyramid_drawdown_penalty": 0.14 if i < 28 else 0.22,
+                "simulated_pyramid_time_underwater": 0.29 if i < 28 else 0.39,
+            }
+        )
+    for i in range(147):
+        rows.append(
+            {
+                "timestamp": _stamp("2026-04-11", i),
+                "symbol": "BTCUSDT",
+                "regime_label": "bull",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "D",
+                "feat_4h_dist_bb_lower": 6.86,
+                "feat_4h_dist_swing_low": 7.18,
+                "feat_4h_bb_pct_b": 1.16,
+                "simulated_pyramid_win": 1.0 if i < 11 else 0.0,
+                "simulated_pyramid_pnl": 0.001 if i < 11 else -0.0158,
+                "simulated_pyramid_quality": -0.05 if i < 11 else -0.2218,
+                "simulated_pyramid_drawdown_penalty": 0.19 if i < 11 else 0.31,
+                "simulated_pyramid_time_underwater": 0.41 if i < 11 else 0.98,
+            }
+        )
+    for i in range(3463):
+        rows.append(
+            {
+                "timestamp": _stamp("2026-04-10", i),
+                "symbol": "BTCUSDT",
+                "regime_label": "chop",
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "feat_4h_dist_bb_lower": 1.3,
+                "feat_4h_dist_swing_low": 2.1,
+                "feat_4h_bb_pct_b": 0.4,
+                "simulated_pyramid_win": 1.0 if i < 2397 else 0.0,
+                "simulated_pyramid_pnl": 0.018 if i < 2397 else -0.0042,
+                "simulated_pyramid_quality": 0.43 if i < 2397 else 0.085,
+                "simulated_pyramid_drawdown_penalty": 0.08 if i < 2397 else 0.21,
+                "simulated_pyramid_time_underwater": 0.24 if i < 2397 else 0.44,
+            }
+        )
+
+    contract = predictor_module._summarize_decision_quality_contract(
+        rows,
+        {
+            "regime_label": "bull",
+            "regime_gate": "ALLOW",
+            "entry_quality_label": "D",
+            "decision_profile_version": "phase16_baseline_v2",
+        },
+    )
+
+    assert contract["decision_quality_calibration_scope"] == "regime_label+regime_gate+entry_quality_label"
+    assert contract["decision_quality_sample_size"] == 172
+    assert contract["decision_quality_recent_pathology_applied"] is True
+    assert contract["decision_quality_recent_pathology_window"] == 100
+    assert contract["decision_quality_narrowed_pathology_applied"] is False
+    assert contract["expected_win_rate"] == 0.0
+    assert contract["expected_pyramid_pnl"] == -0.0131
+    assert contract["expected_pyramid_quality"] == -0.1954
+    assert contract["expected_drawdown_penalty"] == 0.2892
+    assert contract["expected_time_underwater"] == 0.8578
+    assert contract["decision_quality_guardrail_applied"] is False
+
 
 
 def test_recent_scope_pathology_prefers_more_persistent_negative_window_when_scores_tie():

@@ -1,36 +1,36 @@
 # ISSUES.md — 問題追蹤
 
-*最後更新：2026-04-13 19:01 UTC — Heartbeat #693 pushed the live decision-quality blocker one step deeper: `model/predictor.py` now emits `decision_quality_scope_diagnostics.pathology_consensus`, so heartbeat/runtime governance no longer just sees separate scope rows — it can machine-read the **shared collapse features** and the **worst failing scope** across `regime_gate+entry_quality_label`, `regime_label+entry_quality_label`, and `entry_quality_label`. `scripts/hb_parallel_runner.py --fast` and `scripts/auto_propose_fixes.py` now surface the same consensus summary directly (`shared_shifts=feat_4h_dist_swing_low/feat_4h_dist_bb_lower/feat_4h_bb_pct_b`, `worst_scope=regime_label+entry_quality_label`). Current facts from the re-run: freshness remains healthy (`Raw=21173 / Features=12602 / Labels=42506`, 240m lag≈3.3h, 1440m lag≈23.0h), recent global canonical window is still `supported_extreme_trend`, but the live `entry_quality_label=D` path stays a 500-row runtime-blocked pathology (`expected_win_rate=0.154`, `expected_quality=-0.1536`, `allowed_layers=0`) and the **worst narrowed lane is still `regime_label+entry_quality_label`** (`rows=140`, `win_rate=0.05`, `avg_quality=-0.2333`). This confirms the next fix must drill into the shared 4H collapse pocket itself, not just repeat scope comparisons.*
+*最後更新：2026-04-13 23:36 UTC — Heartbeat #703 完成第二段 live D-lane 閉環：不只知道 exact `bull+ALLOW+D` 與 broader `bull+D` 不同，現在 **heartbeat / probe / auto-propose 已能直接看到 broader bull+D 的 gate 組成**。本輪 patch：`model/predictor.py::_build_decision_quality_scope_diagnostics()` 補上 `avg_drawdown_penalty / avg_time_underwater / recent500_gate_counts / recent500_regime_gate_counts`，`scripts/auto_propose_fixes.py::summarize_live_predict_probe()` 也把這些欄位納入 scope matrix / worst-scope 摘要。驗證：`python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_auto_propose_fixes.py -q` → **30 passed**。新證據：current exact `bull+ALLOW+D` lane 仍只有 **24 rows**（`wr=0.2917 / q=-0.005 / dd=0.2986 / tuw=0.6147`），但 broader `regime_label+entry_quality_label=bull+D` lane 現在可 machine-read 地拆成 **`bull|BLOCK=106`, `bull|ALLOW=24`, `bull|CAUTION=17`**，其整體仍是 `wr=0.0748 / q=-0.2098 / dd=0.2833 / tuw=0.8040`。這代表前一輪留下的「額外 123 rows 為何拖垮 bull+D」已縮小成更具體的 blocker：**主病灶不是 current live ALLOW lane，而是 bull+D 中被 gate 壓成 BLOCK/CAUTION 的歷史口袋。***
 
 ## 📊 系統健康狀態 v4.69
 
 | 項目 | 數值 | 狀態 |
 |------|------|------|
-| Raw | **21,163** | 🟢 `python scripts/hb_parallel_runner.py --fast` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
-| Features | **12,592** | 🟢 fast heartbeat 本輪新增 **+1**；recent 4H projection parity 仍維持，probe 顯示 live 4H base/lag 皆非空 |
-| Labels | **42,479** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels 持平（lookahead horizon 內正常） |
-||||||||||||||| simulated_pyramid_win (DB overall) | **56.97%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5697` |
+| Raw | **21,252** | 🟢 `python scripts/hb_parallel_runner.py --fast --hb 702` 本輪新增 **+1**；freshness 健康，continuity repair `4h=0 / 1h=0 / bridge=0` |
+| Features | **12,681** | 🟢 fast heartbeat 本輪新增 **+1**；live probe 仍顯示 4H base/lag `10 / 30` 非空 |
+| Labels | **42,559** | 🟢 240m / 1440m freshness 仍在 expected horizon lag 內；本輪 labels **+7**（lookahead horizon 內正常） |
+|||||||||||||||||| simulated_pyramid_win (DB overall) | **57.10%** | 🟢 canonical DB 整體口徑；fast heartbeat collect summary `simulated_win=0.5710` |
 
-|||||||||||||| spot_long_win | **42.00%（recent 100）** | 🟡 legacy/path-aware 比較口徑；Heartbeat #686 起不再用它否決 canonical positive pocket 判讀 |
-|||||||||||||| 全域 IC | **18/30** | 🟢 canonical diagnostics 仍可用；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY + ADX/4H 路徑通過 |
-|||||||||||||| TW-IC | **23/30** | 🟢 高於 14/30 gate；較 #685 的 24/30 微回落，但仍維持近期優勢 |
-|||||||||||||| Regime IC | **Bear 4/8 / Bull 6/8 / Chop 5/8 / Neutral 4/8** | 🟢 canonical simulated target 維持；bull / chop 仍有可用訊號 |
-||||||||||||||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; calibration consumes `data/dw_result.json`; scope guardrails reject imbalanced buckets; execution caps `allowed_layers`; Heartbeat #687 fixes the TUW-threshold regression so the current 100-row canonical chop pocket is again `supported_extreme_trend` rather than a fake `distribution_pathology`** | 🟢 live path 仍 guardrailed；`hb_predict_probe.py` 顯示 `non_null_4h_feature_count=10`, `non_null_4h_lag_count=30` |
-||||||||||||||| Verification | **`python -m pytest tests/test_recent_drift_report.py tests/test_auto_propose_fixes.py -q` + `python scripts/recent_drift_report.py` + `python scripts/auto_propose_fixes.py` + `python scripts/hb_predict_probe.py` + `python scripts/hb_parallel_runner.py --fast`** | ✅ 本輪已重驗證 |
+|||||||||||||||| spot_long_win | **60.00%（recent 100）** | 🟡 legacy/path-aware 比較口徑；Heartbeat #686 起不再用它否決 canonical positive pocket 判讀 |
+|||||||||||||||| 全域 IC | **17/30** | 🟢 canonical diagnostics 仍可用；Nose/Tongue/Body/Pulse/Aura/Mind + VIX/DXY + ATR/VWAP/4H 路徑通過 |
+|||||||||||||||| TW-IC | **21/30** | 🟢 高於 14/30 gate；較 #696 小幅收斂，但仍高於全域 |
+|||||||||||||||| Regime IC | **Bear 4/8 / Bull 6/8 / Chop 5/8 / Neutral 4/8** | 🟢 canonical simulated target 維持；bull / chop 仍有可用訊號 |
+|||||||||||||||||| 模型 / 決策語義 | **live predictor = `phase16_baseline_v2`; Heartbeat #702 新增 exact `regime_label+regime_gate+entry_quality_label` scope。當前 calibration scope 仍是 `regime_gate+entry_quality_label`（127 rows, win=0.2205, quality=-0.0780, recent_pathology=True），但 exact live `bull+ALLOW+D` lane 僅 24 rows（wr=0.2917, q=-0.005）並非 worst scope；真正病灶仍是 broader `regime_label+entry_quality_label` bull D lane（147 rows, wr=0.0748）** | 🟡 live path 與 bull-only pathology 不再被混為一談；下一輪要拆那 123 個不在 exact ALLOW lane 的 bull+D rows 為何仍拖垮 expectation。`hb_predict_probe.py` 顯示 `non_null_4h_feature_count=10`, `non_null_4h_lag_count=30` |
+|||||||||||||||||| Verification | **`python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_auto_propose_fixes.py -q` + `python scripts/hb_parallel_runner.py --fast --hb 702`** | ✅ 本輪已重驗證 |
 
 ## 🎯 當前戰略問題（高準確度 / 高勝率 / 低回撤）
 
-### 本輪優先順序（Heartbeat #691 後）
-- **P1#1 — `#H_AUTO_LIVE_DQ_PATHOLOGY` / live decision-quality recent-pathology investigation**：Heartbeat #692 已把 scope drill-down 正式併入 `hb_predict_probe.py` / `live_predict_probe.json` contract。最新 live facts：主 calibration lane `entry_quality_label=D` 仍是 **500-row `distribution_pathology`**（`expected_win_rate=0.154`, `expected_quality=-0.1536`, `allowed_layers=0`），而新 `decision_quality_scope_diagnostics` 進一步證明更窄的 `bull + ALLOW + D` lane 也同樣失效（`rows=315`, `win_rate=0.1429`, recent pathology window=100）。下一輪應直接沿這兩條 lane 的共同 4H shift 做 root-cause drill-down，而不是只停在 overall supported-extreme-trend 敘事。
+### 本輪優先順序（Heartbeat #703 後）
+- **P1#1 — `#H_AUTO_LIVE_DQ_PATHOLOGY` 已從「額外 123 rows 是誰」再收斂到「`bull+D` lane 的主病灶其實是 gate=BLOCK/CAUTION」**：Heartbeat #703 讓 live probe / auto-propose 直接顯示 broader `regime_label+entry_quality_label=bull+D` 的 gate mix：**`bull|BLOCK=106`, `bull|CAUTION=17`, `bull|ALLOW=24`**。因此下一輪的 root-cause 問題不再是抽象的「bull-only D lane 很差」，而是：**為什麼這 106 個 bull|BLOCK rows 與 17 個 bull|CAUTION rows 仍被歸在 bull+D，且其 canonical quality 長期為負。**
 - **P1#2 — `#CORE_VS_RESEARCH_SIGNAL_MIXING`**：Heartbeat #688 已把 recent-drift diagnostics 裡的 sparse-source frozen / shift evidence降級成 `overlay_only=research_sparse_source`，並避免 `feat_claw*` / `feat_nest_pred` 之類研究欄位再次搶走 sibling-window 主證據；但 `null_heavy=10` 與 8 個 blocked sparse sources 仍存在，需持續限制研究訊號只做 overlay，避免再污染 canonical calibration / ranking。
-- **P1#3 — `#LEADERBOARD_OBJECTIVE_MISMATCH`**：canonical decision-quality contract 已對齊多數 surface；待 live-path pathology framing 穩定後，再繼續推排序 / compare surface 治理。
-- **Resolved — stale `#H_AUTO_REGIME_DRIFT` governance**：`scripts/auto_propose_fixes.py` 現在會在 `TW-IC <= Global IC + 2` 時自動 `resolve("#H_AUTO_REGIME_DRIFT")`，避免 `issues.json` 殘留假開啟 blocker。Heartbeat #689 已驗證 recovery path。
+- **P1#3 — `#LEADERBOARD_OBJECTIVE_MISMATCH`**：Strategy Lab/API/backtest 已有 4H gate + entry-quality parity；剩餘缺口更聚焦在 ranking contract 本身，而不是底層 4H 語義分裂。
+- **Resolved / downgraded — exact live ALLOW-path ambiguity**：Heartbeat #702 解開了 exact ALLOW lane 與 broader bull+D 的混淆；Heartbeat #703 進一步 machine-check 化 gate composition，所以 heartbeat 不必再用 ad-hoc probe 才能知道 extra rows 落在 BLOCK/CAUTION。
 - **持續監控**：raw continuity bridge 仍連續為 `bridge=0`，保持健康但不可鬆手；`fin_netflow` 仍因 `COINGLASS_API_KEY` 缺失而 blocked。
 - **P2**：其餘文件/展示層整理與非阻塞優化。
 
 ### 本輪建議起手式
-1. 直接沿 **`#H_AUTO_LIVE_DQ_PATHOLOGY`** 的 live scope 下鑽：優先使用 `data/live_predict_probe.json` 內建的 `decision_quality_scope_diagnostics`，同時對 `entry_quality_label=D`（500-row pathology）與 `bull + ALLOW + D`（315-row / recent-100 pathology）兩條 lane 做同 scope feature / label / regime 拆解，確認 `feat_4h_dist_swing_low / feat_4h_dist_bb_lower / feat_4h_bb_pct_b` 是真市場 pocket 還是 scope-selection 偏誤。
-2. 針對 drift artifact 裡仍保留的 `null_heavy=10` 與 blocked sparse sources，繼續限制 research signals 只做 overlay，不讓它們重新污染 canonical calibration / ranking。
+1. 直接沿 **`#H_AUTO_LIVE_DQ_PATHOLOGY`** 做第二段拆解：比較 `regime_label+entry_quality_label` 的 147 rows 與 exact `regime_label+regime_gate+entry_quality_label` 的 24 rows，找出那 **123 個不在 live ALLOW lane** 的 bull+D rows 是落在哪些 regime_gate / 4H 結構條件下。
+2. 針對這 123 rows 做 feature / label / gate drill-down，優先驗證是否是 `bull + CAUTION/BLOCK + D` 的歷史口袋拖累整個 bull+D bucket，而不是 current live ALLOW path 的 4H collapse。
 3. 持續驗證 continuity bridge 是否為 0；若再次連續觸發 bridge fallback，立刻升級回 raw continuity root-cause investigation。
 
 ### 本輪 root-cause 新證據（Heartbeat #684）

@@ -358,6 +358,13 @@ def summarize_recent_drift(report):
     )
 
 
+def _format_recent_regime_counts(counts):
+    if not counts:
+        return ""
+    parts = [f"{regime}:{count}" for regime, count in sorted(counts.items(), key=lambda item: (-int(item[1]), str(item[0])))]
+    return "/".join(parts)
+
+
 def summarize_live_predict_probe(report):
     if not report:
         return "live_predict_probe=missing"
@@ -383,15 +390,44 @@ def summarize_live_predict_probe(report):
     sample_size = report.get("decision_quality_sample_size")
     scope_diags = report.get("decision_quality_scope_diagnostics") or {}
     scope_bits = []
-    for scope_name in ("regime_gate+entry_quality_label", "regime_label+entry_quality_label", "entry_quality_label"):
+    for scope_name in (
+        "regime_label+regime_gate+entry_quality_label",
+        "regime_gate+entry_quality_label",
+        "regime_label+entry_quality_label",
+        "entry_quality_label",
+    ):
         scope_info = scope_diags.get(scope_name) or {}
         if not scope_info:
             continue
+        recent_regimes = _format_recent_regime_counts(scope_info.get("recent500_regime_counts") or {})
+        recent_gates = _format_recent_regime_counts(scope_info.get("recent500_gate_counts") or {})
+        recent_regime_gates = _format_recent_regime_counts(scope_info.get("recent500_regime_gate_counts") or {})
+        dominant = scope_info.get("recent500_dominant_regime") or {}
+        dominant_gate = scope_info.get("recent500_dominant_gate") or {}
+        dominant_regime_gate = scope_info.get("recent500_dominant_regime_gate") or {}
+        dominant_text = ""
+        if dominant.get("regime"):
+            dominant_text = f",recent500_dominant={dominant.get('regime')}@{dominant.get('share')}"
+        dominant_gate_text = ""
+        if dominant_gate.get("gate"):
+            dominant_gate_text = f",recent500_gate_dominant={dominant_gate.get('gate')}@{dominant_gate.get('share')}"
+        dominant_regime_gate_text = ""
+        if dominant_regime_gate.get("regime_gate"):
+            dominant_regime_gate_text = (
+                f",recent500_regime_gate_dominant={dominant_regime_gate.get('regime_gate')}@{dominant_regime_gate.get('share')}"
+            )
+        recent_regime_text = f",recent500_regimes={recent_regimes}" if recent_regimes else ""
+        recent_gate_text = f",recent500_gates={recent_gates}" if recent_gates else ""
+        recent_regime_gate_text = f",recent500_regime_gates={recent_regime_gates}" if recent_regime_gates else ""
         scope_bits.append(
             f"{scope_name}:rows={scope_info.get('rows')}"
             f",wr={scope_info.get('win_rate')}"
             f",q={scope_info.get('avg_quality')}"
+            f",dd={scope_info.get('avg_drawdown_penalty')}"
+            f",tuw={scope_info.get('avg_time_underwater')}"
             f",alerts={scope_info.get('alerts')}"
+            f"{dominant_text}{dominant_gate_text}{dominant_regime_gate_text}"
+            f"{recent_regime_text}{recent_gate_text}{recent_regime_gate_text}"
         )
     scope_matrix_text = f", scope_matrix={'; '.join(scope_bits)}" if scope_bits else ""
 
@@ -405,9 +441,32 @@ def summarize_live_predict_probe(report):
     worst_scope = consensus.get("worst_pathology_scope") or {}
     worst_scope_text = ""
     if worst_scope.get("scope"):
+        worst_scope_regimes = _format_recent_regime_counts(worst_scope.get("recent500_regime_counts") or {})
+        worst_scope_gates = _format_recent_regime_counts(worst_scope.get("recent500_gate_counts") or {})
+        worst_scope_regime_gates = _format_recent_regime_counts(worst_scope.get("recent500_regime_gate_counts") or {})
+        worst_scope_dominant = worst_scope.get("recent500_dominant_regime") or {}
+        worst_scope_dominant_gate = worst_scope.get("recent500_dominant_gate") or {}
+        worst_scope_dominant_regime_gate = worst_scope.get("recent500_dominant_regime_gate") or {}
+        dominant_suffix = ""
+        if worst_scope_dominant.get("regime"):
+            dominant_suffix = f",recent500_dominant={worst_scope_dominant.get('regime')}@{worst_scope_dominant.get('share')}"
+        dominant_gate_suffix = ""
+        if worst_scope_dominant_gate.get("gate"):
+            dominant_gate_suffix = f",recent500_gate_dominant={worst_scope_dominant_gate.get('gate')}@{worst_scope_dominant_gate.get('share')}"
+        dominant_regime_gate_suffix = ""
+        if worst_scope_dominant_regime_gate.get("regime_gate"):
+            dominant_regime_gate_suffix = (
+                f",recent500_regime_gate_dominant={worst_scope_dominant_regime_gate.get('regime_gate')}@{worst_scope_dominant_regime_gate.get('share')}"
+            )
+        regime_suffix = f",recent500_regimes={worst_scope_regimes}" if worst_scope_regimes else ""
+        gate_suffix = f",recent500_gates={worst_scope_gates}" if worst_scope_gates else ""
+        regime_gate_suffix = f",recent500_regime_gates={worst_scope_regime_gates}" if worst_scope_regime_gates else ""
         worst_scope_text = (
             f", worst_scope={worst_scope.get('scope')}"
-            f"(wr={worst_scope.get('win_rate')},q={worst_scope.get('avg_quality')},rows={worst_scope.get('rows')})"
+            f"(wr={worst_scope.get('win_rate')},q={worst_scope.get('avg_quality')},rows={worst_scope.get('rows')}"
+            f",dd={worst_scope.get('avg_drawdown_penalty')},tuw={worst_scope.get('avg_time_underwater')}"
+            f"{dominant_suffix}{dominant_gate_suffix}{dominant_regime_gate_suffix}"
+            f"{regime_suffix}{gate_suffix}{regime_gate_suffix})"
         )
     shared_scope_text = f", shared_shifts={shared_shift_text}" if shared_shift_text else ""
     return (
@@ -526,26 +585,39 @@ def main():
     else:
         tracker.resolve("#H_AUTO_RECENT_PATHOLOGY")
 
-    # Rule 7: live predictor runtime shows same-scope decision-quality pathology
+    # Rule 7: live predictor runtime shows same-scope or narrowed-lane decision-quality pathology
     live_recent_pathology = bool(live_predict_probe.get("decision_quality_recent_pathology_applied"))
     live_expected_win = live_predict_probe.get("expected_win_rate")
     live_expected_pnl = live_predict_probe.get("expected_pyramid_pnl")
     live_expected_quality = live_predict_probe.get("expected_pyramid_quality")
     live_layers = live_predict_probe.get("allowed_layers")
     live_label = live_predict_probe.get("decision_quality_label")
-    if live_recent_pathology and (
+    live_scope_diags = live_predict_probe.get("decision_quality_scope_diagnostics") or {}
+    live_consensus = live_scope_diags.get("pathology_consensus") or {}
+    worst_scope = live_consensus.get("worst_pathology_scope") or {}
+    worst_scope_win = worst_scope.get("win_rate")
+    worst_scope_quality = worst_scope.get("avg_quality")
+    worst_scope_rows = worst_scope.get("rows")
+    narrowed_scope_pathology = bool(worst_scope.get("scope")) and (
+        (isinstance(worst_scope_win, (int, float)) and worst_scope_win <= 0.20)
+        or (isinstance(worst_scope_quality, (int, float)) and worst_scope_quality < 0.0)
+    ) and (
+        not isinstance(worst_scope_rows, (int, float)) or worst_scope_rows >= 100
+    )
+    if (live_recent_pathology or narrowed_scope_pathology) and (
         (isinstance(live_expected_win, (int, float)) and live_expected_win <= 0.20)
         or (isinstance(live_expected_pnl, (int, float)) and live_expected_pnl < 0.0)
         or (isinstance(live_expected_quality, (int, float)) and live_expected_quality < 0.0)
         or live_layers == 0
         or live_label == "D"
+        or narrowed_scope_pathology
     ):
         tracker.add(
             "P1",
             "#H_AUTO_LIVE_DQ_PATHOLOGY",
-            "live predictor decision-quality contract is runtime-blocked by recent pathology",
-            "把 hb_predict_probe 納入每輪 heartbeat 驗證，對當前 calibration scope 做 root-cause drill-down；"
-            "優先檢查 recent same-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。"
+            "live predictor decision-quality contract is runtime-blocked by recent pathology or a severe narrowed pathology lane",
+            "把 hb_predict_probe 納入每輪 heartbeat 驗證，對當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；"
+            "優先檢查 recent same-scope / narrowed-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。"
             f" {live_predict_summary}",
         )
     else:

@@ -322,7 +322,14 @@ def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
 
 
-def _compute_live_regime_gate(bias200_value: float, regime: str, regime_min: float = LIVE_REGIME_BIAS200_MIN) -> str:
+def _compute_live_regime_gate(
+    bias200_value: float,
+    regime: str,
+    regime_min: float = LIVE_REGIME_BIAS200_MIN,
+    bb_pct_b_value: Optional[float] = None,
+    dist_bb_lower_value: Optional[float] = None,
+    dist_swing_low_value: Optional[float] = None,
+) -> str:
     """Mirror Strategy Lab's regime gate semantics for live inference.
 
     Keep these thresholds in sync with `backtesting.strategy_lab._compute_regime_gate`
@@ -335,17 +342,71 @@ def _compute_live_regime_gate(bias200_value: float, regime: str, regime_min: flo
     if regime == "bear" and bias200_value <= -3.0:
         return "BLOCK"
     if regime in {"chop", "unknown"} or bias200_value < -1.0:
+        base_gate = "CAUTION"
+    else:
+        base_gate = "ALLOW"
+
+    structure_quality = _compute_live_4h_structure_quality(
+        bb_pct_b_value=bb_pct_b_value,
+        dist_bb_lower_value=dist_bb_lower_value,
+        dist_swing_low_value=dist_swing_low_value,
+    )
+    if structure_quality is None:
+        return base_gate
+
+    if base_gate == "ALLOW" and structure_quality < 0.15:
+        return "BLOCK"
+    if base_gate == "ALLOW" and structure_quality < 0.35:
         return "CAUTION"
-    return "ALLOW"
+    return base_gate
 
 
-def _compute_live_entry_quality(bias50_value: float, nose_value: float, pulse_value: float, ear_value: float) -> float:
+def _compute_live_4h_structure_quality(
+    bb_pct_b_value: Optional[float] = None,
+    dist_bb_lower_value: Optional[float] = None,
+    dist_swing_low_value: Optional[float] = None,
+) -> Optional[float]:
+    components: List[tuple[float, float]] = []
+    if bb_pct_b_value is not None:
+        components.append((0.34, _clamp01(float(bb_pct_b_value))))
+    if dist_bb_lower_value is not None:
+        components.append((0.33, _clamp01(float(dist_bb_lower_value) / 8.0)))
+    if dist_swing_low_value is not None:
+        components.append((0.33, _clamp01(float(dist_swing_low_value) / 10.0)))
+    if not components:
+        return None
+
+    total_weight = sum(weight for weight, _ in components)
+    score = sum(weight * value for weight, value in components) / total_weight
+    return round(float(score), 4)
+
+
+
+def _compute_live_entry_quality(
+    bias50_value: float,
+    nose_value: float,
+    pulse_value: float,
+    ear_value: float,
+    bb_pct_b_value: Optional[float] = None,
+    dist_bb_lower_value: Optional[float] = None,
+    dist_swing_low_value: Optional[float] = None,
+) -> float:
     """Mirror Strategy Lab's entry-quality baseline for live inference."""
     bias_score = _clamp01((-bias50_value + 2.4) / 5.0)
     nose_score = _clamp01(1.0 - nose_value)
     pulse_score = _clamp01(pulse_value)
     ear_score = _clamp01(1.0 - abs(ear_value) * 5.0)
-    return round(0.40 * bias_score + 0.18 * nose_score + 0.27 * pulse_score + 0.15 * ear_score, 4)
+    base_quality = 0.40 * bias_score + 0.18 * nose_score + 0.27 * pulse_score + 0.15 * ear_score
+
+    structure_quality = _compute_live_4h_structure_quality(
+        bb_pct_b_value=bb_pct_b_value,
+        dist_bb_lower_value=dist_bb_lower_value,
+        dist_swing_low_value=dist_swing_low_value,
+    )
+    if structure_quality is None:
+        return round(base_quality, 4)
+
+    return round(0.75 * base_quality + 0.25 * structure_quality, 4)
 
 
 def _quality_label(entry_quality: float) -> str:
@@ -385,12 +446,24 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
         return 0.0 if value is None else float(value)
 
     regime = str(features.get("regime_label") or _determine_regime(features))
-    regime_gate = _compute_live_regime_gate(_f("feat_4h_bias200"), regime)
+    bb_pct_b_value = features.get("feat_4h_bb_pct_b")
+    dist_bb_lower_value = features.get("feat_4h_dist_bb_lower")
+    dist_swing_low_value = features.get("feat_4h_dist_swing_low")
+    regime_gate = _compute_live_regime_gate(
+        _f("feat_4h_bias200"),
+        regime,
+        bb_pct_b_value=bb_pct_b_value,
+        dist_bb_lower_value=dist_bb_lower_value,
+        dist_swing_low_value=dist_swing_low_value,
+    )
     entry_quality = _compute_live_entry_quality(
         _f("feat_4h_bias50"),
         _f("feat_nose"),
         _f("feat_pulse"),
         _f("feat_ear"),
+        bb_pct_b_value,
+        dist_bb_lower_value,
+        dist_swing_low_value,
     )
     allowed_layers = _allowed_layers_for_live_signal(regime_gate, entry_quality, max_layers=max_layers)
     return {
@@ -739,6 +812,65 @@ def _recent_scope_pathology_summary(
     }
 
 
+def _recent_scope_value_counts(scoped_rows: List[Dict[str, Any]], key: str, limit: int = 500) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for row in scoped_rows[: max(0, int(limit))]:
+        value = str(row.get(key) or "unknown")
+        counts[value] = counts.get(value, 0) + 1
+    return counts
+
+
+def _recent_scope_regime_counts(scoped_rows: List[Dict[str, Any]], limit: int = 500) -> Dict[str, int]:
+    return _recent_scope_value_counts(scoped_rows, "regime_label", limit=limit)
+
+
+def _recent_scope_gate_counts(scoped_rows: List[Dict[str, Any]], limit: int = 500) -> Dict[str, int]:
+    return _recent_scope_value_counts(scoped_rows, "regime_gate", limit=limit)
+
+
+def _recent_scope_regime_gate_counts(scoped_rows: List[Dict[str, Any]], limit: int = 500) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for row in scoped_rows[: max(0, int(limit))]:
+        regime = str(row.get("regime_label") or "unknown")
+        gate = str(row.get("regime_gate") or "unknown")
+        combo = f"{regime}|{gate}"
+        counts[combo] = counts.get(combo, 0) + 1
+    return counts
+
+
+def _dominant_value_summary(counts: Dict[str, int], field_name: str) -> Optional[Dict[str, Any]]:
+    if not counts:
+        return None
+    value, count = max(counts.items(), key=lambda item: (int(item[1]), str(item[0])))
+    total = sum(int(v) for v in counts.values())
+    if total <= 0:
+        return None
+    return {
+        field_name: value,
+        "count": int(count),
+        "share": round(float(count) / float(total), 4),
+    }
+
+
+def _dominant_regime_summary(counts: Dict[str, int]) -> Optional[Dict[str, Any]]:
+    return _dominant_value_summary(counts, "regime")
+
+
+def _dominant_gate_summary(counts: Dict[str, int]) -> Optional[Dict[str, Any]]:
+    return _dominant_value_summary(counts, "gate")
+
+
+def _dominant_regime_gate_summary(counts: Dict[str, int]) -> Optional[Dict[str, Any]]:
+    summary = _dominant_value_summary(counts, "regime_gate")
+    if not summary or not summary.get("regime_gate"):
+        return summary
+    regime_gate = str(summary.get("regime_gate") or "")
+    regime, _, gate = regime_gate.partition("|")
+    summary["regime"] = regime or None
+    summary["gate"] = gate or None
+    return summary
+
+
 def _build_decision_quality_scope_diagnostics(
     rows: List[Dict[str, Any]],
     decision_profile: Dict[str, Any],
@@ -751,6 +883,12 @@ def _build_decision_quality_scope_diagnostics(
     target_regime_label = decision_profile.get("regime_label")
 
     scope_rows = {
+        "regime_label+regime_gate+entry_quality_label": [
+            row for row in rows
+            if row.get("regime_label") == target_regime_label
+            and row.get("regime_gate") == target_gate
+            and row.get("entry_quality_label") == target_quality_label
+        ],
         "regime_gate+entry_quality_label": [
             row for row in rows
             if row.get("regime_gate") == target_gate and row.get("entry_quality_label") == target_quality_label
@@ -774,6 +912,14 @@ def _build_decision_quality_scope_diagnostics(
                 "win_rate": None,
                 "avg_pnl": None,
                 "avg_quality": None,
+                "avg_drawdown_penalty": None,
+                "avg_time_underwater": None,
+                "recent500_regime_counts": {},
+                "recent500_dominant_regime": None,
+                "recent500_gate_counts": {},
+                "recent500_dominant_gate": None,
+                "recent500_regime_gate_counts": {},
+                "recent500_dominant_regime_gate": None,
                 "recent_pathology": {
                     "applied": False,
                     "window": 0,
@@ -783,16 +929,28 @@ def _build_decision_quality_scope_diagnostics(
                 },
             }
             continue
+        regime_counts = _recent_scope_regime_counts(scoped_rows)
+        gate_counts = _recent_scope_gate_counts(scoped_rows)
+        regime_gate_counts = _recent_scope_regime_gate_counts(scoped_rows)
         diagnostics[scope_name] = {
             "rows": len(scoped_rows),
             "alerts": _decision_quality_scope_alerts(scoped_rows),
             "win_rate": _avg_metric(scoped_rows, "simulated_pyramid_win"),
             "avg_pnl": _avg_metric(scoped_rows, "simulated_pyramid_pnl"),
             "avg_quality": _avg_metric(scoped_rows, "simulated_pyramid_quality"),
+            "avg_drawdown_penalty": _avg_metric(scoped_rows, "simulated_pyramid_drawdown_penalty"),
+            "avg_time_underwater": _avg_metric(scoped_rows, "simulated_pyramid_time_underwater"),
+            "recent500_regime_counts": regime_counts,
+            "recent500_dominant_regime": _dominant_regime_summary(regime_counts),
+            "recent500_gate_counts": gate_counts,
+            "recent500_dominant_gate": _dominant_gate_summary(gate_counts),
+            "recent500_regime_gate_counts": regime_gate_counts,
+            "recent500_dominant_regime_gate": _dominant_regime_gate_summary(regime_gate_counts),
             "recent_pathology": _recent_scope_pathology_summary(scoped_rows),
         }
 
     focus_scopes = (
+        "regime_label+regime_gate+entry_quality_label",
         "regime_gate+entry_quality_label",
         "regime_label+entry_quality_label",
         "entry_quality_label",
@@ -813,8 +971,16 @@ def _build_decision_quality_scope_diagnostics(
                 "rows": scope_info.get("rows"),
                 "win_rate": scope_info.get("win_rate"),
                 "avg_quality": scope_info.get("avg_quality"),
+                "avg_drawdown_penalty": scope_info.get("avg_drawdown_penalty"),
+                "avg_time_underwater": scope_info.get("avg_time_underwater"),
                 "window": recent.get("window"),
                 "alerts": recent.get("alerts") or [],
+                "recent500_regime_counts": scope_info.get("recent500_regime_counts") or {},
+                "recent500_dominant_regime": scope_info.get("recent500_dominant_regime"),
+                "recent500_gate_counts": scope_info.get("recent500_gate_counts") or {},
+                "recent500_dominant_gate": scope_info.get("recent500_dominant_gate"),
+                "recent500_regime_gate_counts": scope_info.get("recent500_regime_gate_counts") or {},
+                "recent500_dominant_regime_gate": scope_info.get("recent500_dominant_regime_gate"),
             }
         )
         for shift in top_shifts:
@@ -894,6 +1060,115 @@ def _max_optional(current: Optional[float], other: Optional[float]) -> Optional[
     return round(max(float(current), float(other)), 4)
 
 
+def _narrowed_regime_scope_downside_guardrail(
+    decision_profile: Dict[str, Any],
+    chosen_scope: Optional[str],
+    scope_diagnostics: Dict[str, Any],
+    expected_win_rate: Optional[float],
+    expected_pnl: Optional[float],
+    expected_quality: Optional[float],
+    expected_drawdown_penalty: Optional[float],
+    expected_time_underwater: Optional[float],
+) -> Dict[str, Any]:
+    default_result = {
+        "applied": False,
+        "scope": None,
+        "reason": None,
+        "expected_win_rate": expected_win_rate,
+        "expected_pnl": expected_pnl,
+        "expected_quality": expected_quality,
+        "expected_drawdown_penalty": expected_drawdown_penalty,
+        "expected_time_underwater": expected_time_underwater,
+    }
+
+    target_regime = str(decision_profile.get("regime_label") or "")
+    target_gate = str(decision_profile.get("regime_gate") or "")
+    candidate_scopes = [
+        "regime_label+regime_gate+entry_quality_label",
+        "regime_label+entry_quality_label",
+    ]
+    if chosen_scope in candidate_scopes:
+        return default_result
+
+    for scope_name in candidate_scopes:
+        narrowed_scope = (scope_diagnostics or {}).get(scope_name) or {}
+        if not narrowed_scope:
+            continue
+
+        dominant = narrowed_scope.get("recent500_dominant_regime") or {}
+        dominant_regime = str(dominant.get("regime") or "")
+        dominant_share = float(dominant.get("share") or 0.0)
+        if not target_regime or dominant_regime != target_regime or dominant_share < 0.8:
+            continue
+
+        if scope_name == "regime_label+regime_gate+entry_quality_label":
+            current_gate = str(decision_profile.get("regime_gate") or "")
+            scope_rows_for_gate = int(narrowed_scope.get("rows") or 0)
+            if not current_gate or scope_rows_for_gate < 30:
+                continue
+        narrowed_alerts = list(narrowed_scope.get("alerts") or [])
+        narrowed_rows = int(narrowed_scope.get("rows") or 0)
+        if narrowed_rows < 30:
+            continue
+
+        recent_pathology = narrowed_scope.get("recent_pathology") or {}
+        narrowed_win_rate = narrowed_scope.get("win_rate")
+        narrowed_pnl = narrowed_scope.get("avg_pnl")
+        narrowed_quality = narrowed_scope.get("avg_quality")
+        narrowed_summary = recent_pathology.get("summary") or {}
+        if recent_pathology.get("applied"):
+            narrowed_win_rate = _min_optional(narrowed_win_rate, narrowed_summary.get("win_rate"))
+            narrowed_pnl = _min_optional(narrowed_pnl, narrowed_summary.get("avg_pnl"))
+            narrowed_quality = _min_optional(narrowed_quality, narrowed_summary.get("avg_quality"))
+        narrowed_dd = _max_optional(
+            narrowed_scope.get("avg_drawdown_penalty"),
+            narrowed_summary.get("avg_drawdown_penalty"),
+        )
+        narrowed_tuw = _max_optional(
+            narrowed_scope.get("avg_time_underwater"),
+            narrowed_summary.get("avg_time_underwater"),
+        )
+        narrowed_scope_is_pathological = bool(recent_pathology.get("applied")) or (
+            any(alert in narrowed_alerts for alert in ("constant_target", "label_imbalance"))
+            and (
+                (narrowed_win_rate is not None and float(narrowed_win_rate) <= 0.2)
+                or (narrowed_pnl is not None and float(narrowed_pnl) < 0)
+                or (narrowed_quality is not None and float(narrowed_quality) < 0)
+            )
+        )
+        if not narrowed_scope_is_pathological:
+            continue
+
+        is_materially_worse = False
+        if narrowed_win_rate is not None and expected_win_rate is not None and float(narrowed_win_rate) + 0.02 < float(expected_win_rate):
+            is_materially_worse = True
+        if narrowed_quality is not None and expected_quality is not None and float(narrowed_quality) + 0.02 < float(expected_quality):
+            is_materially_worse = True
+        if not is_materially_worse:
+            continue
+
+        reason = (
+            f"narrowed {scope_name} lane dominates current {target_regime}/{target_gate} runtime path "
+            f"(rows={narrowed_rows}, dominant={dominant_regime}@{round(dominant_share, 4)}, "
+            f"win_rate={narrowed_win_rate}, quality={narrowed_quality})"
+        )
+        if recent_pathology.get("applied") and recent_pathology.get("reason"):
+            reason += f"; {recent_pathology.get('reason')}"
+
+        return {
+            "applied": True,
+            "scope": scope_name,
+            "reason": reason,
+            "expected_win_rate": _min_optional(expected_win_rate, narrowed_win_rate),
+            "expected_pnl": _min_optional(expected_pnl, narrowed_pnl),
+            "expected_quality": _min_optional(expected_quality, narrowed_quality),
+            "expected_drawdown_penalty": _max_optional(expected_drawdown_penalty, narrowed_dd),
+            "expected_time_underwater": _max_optional(expected_time_underwater, narrowed_tuw),
+        }
+
+    return default_result
+
+
 def _summarize_decision_quality_contract(
     rows: List[Dict[str, Any]],
     decision_profile: Dict[str, Any],
@@ -906,12 +1181,24 @@ def _summarize_decision_quality_contract(
 
     target_gate = decision_profile.get("regime_gate")
     target_quality_label = decision_profile.get("entry_quality_label")
-    selection_lanes = [
+    target_regime_label = decision_profile.get("regime_label")
+    selection_lanes = []
+    if target_regime_label:
+        selection_lanes.append(
+            (
+                "regime_label+regime_gate+entry_quality_label",
+                lambda row: row.get("regime_label") == target_regime_label
+                and row.get("regime_gate") == target_gate
+                and row.get("entry_quality_label") == target_quality_label,
+                30,
+            )
+        )
+    selection_lanes.extend([
         ("regime_gate+entry_quality_label", lambda row: row.get("regime_gate") == target_gate and row.get("entry_quality_label") == target_quality_label, 30),
         ("regime_gate", lambda row: row.get("regime_gate") == target_gate, 50),
         ("entry_quality_label", lambda row: row.get("entry_quality_label") == target_quality_label, 50),
         ("global", lambda row: True, 1),
-    ]
+    ])
 
     chosen_scope = None
     chosen_rows: List[Dict[str, Any]] = []
@@ -954,6 +1241,23 @@ def _summarize_decision_quality_contract(
         expected_drawdown_penalty = _max_optional(expected_drawdown_penalty, pathology_summary.get("avg_drawdown_penalty"))
         expected_time_underwater = _max_optional(expected_time_underwater, pathology_summary.get("avg_time_underwater"))
 
+    scope_diagnostics = _build_decision_quality_scope_diagnostics(rows, decision_profile)
+    narrowed_scope_guardrail = _narrowed_regime_scope_downside_guardrail(
+        decision_profile,
+        chosen_scope,
+        scope_diagnostics,
+        expected_win_rate,
+        expected_pnl,
+        expected_quality,
+        expected_drawdown_penalty,
+        expected_time_underwater,
+    )
+    expected_win_rate = narrowed_scope_guardrail["expected_win_rate"]
+    expected_pnl = narrowed_scope_guardrail["expected_pnl"]
+    expected_quality = narrowed_scope_guardrail["expected_quality"]
+    expected_drawdown_penalty = narrowed_scope_guardrail["expected_drawdown_penalty"]
+    expected_time_underwater = narrowed_scope_guardrail["expected_time_underwater"]
+
     decision_quality_score = _compute_decision_quality_score(
         expected_win_rate,
         expected_quality,
@@ -966,7 +1270,7 @@ def _summarize_decision_quality_contract(
         **base,
         "decision_quality_horizon_minutes": horizon_minutes,
         "decision_quality_calibration_scope": chosen_scope,
-        "decision_quality_scope_diagnostics": _build_decision_quality_scope_diagnostics(rows, decision_profile),
+        "decision_quality_scope_diagnostics": scope_diagnostics,
         "decision_quality_sample_size": len(chosen_rows),
         "decision_quality_reference_from": str(latest_ts) if latest_ts is not None else None,
         "decision_quality_calibration_window": len(rows),
@@ -978,6 +1282,9 @@ def _summarize_decision_quality_contract(
         "decision_quality_recent_pathology_window": int(recent_pathology.get("window") or 0),
         "decision_quality_recent_pathology_alerts": list(recent_pathology.get("alerts") or []),
         "decision_quality_recent_pathology_summary": recent_pathology.get("summary"),
+        "decision_quality_narrowed_pathology_applied": bool(narrowed_scope_guardrail.get("applied")),
+        "decision_quality_narrowed_pathology_scope": narrowed_scope_guardrail.get("scope"),
+        "decision_quality_narrowed_pathology_reason": narrowed_scope_guardrail.get("reason"),
         "expected_win_rate": expected_win_rate,
         "expected_pyramid_pnl": expected_pnl,
         "expected_pyramid_quality": expected_quality,
@@ -1071,11 +1378,13 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
         guardrail.get("raw_best_guardrailed")
         or contract.get("decision_quality_scope_guardrail_applied")
         or contract.get("decision_quality_recent_pathology_applied")
+        or contract.get("decision_quality_narrowed_pathology_applied")
     )
     reason_parts = [
         guardrail.get("guardrail_reason"),
         contract.get("decision_quality_scope_guardrail_reason"),
         contract.get("decision_quality_recent_pathology_reason"),
+        contract.get("decision_quality_narrowed_pathology_reason"),
     ]
     contract["decision_quality_guardrail_reason"] = "; ".join(part for part in reason_parts if part)
     return contract
