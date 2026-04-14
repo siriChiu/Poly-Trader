@@ -101,6 +101,48 @@ def test_support_pathology_summary_surfaces_exact_bucket_gap_and_proxy_fallback(
     assert bucket_cmp["proxy_vs_broader_same_bucket"]["win_rate_delta"] == 0.5391
 
 
+def test_build_proxy_boundary_diagnostics_prefers_same_bucket_proxy_over_cross_regime_broader_scope():
+    frame = bull_4h_pocket_ablation.pd.DataFrame(
+        [
+            {"regime_label": "bull", "regime_gate": "CAUTION", "entry_quality_label": "D", "structure_bucket": "CAUTION|structure_quality_caution|q35", "feat_4h_bias200": -1.0, "feat_4h_dist_swing_low": 1.0, "feat_4h_dist_bb_lower": 0.2, "feat_4h_bb_pct_b": 0.1},
+            {"regime_label": "bull", "regime_gate": "CAUTION", "entry_quality_label": "D", "structure_bucket": "CAUTION|structure_quality_caution|q35", "feat_4h_bias200": -1.1, "feat_4h_dist_swing_low": 1.1, "feat_4h_dist_bb_lower": 0.2, "feat_4h_bb_pct_b": 0.1},
+            {"regime_label": "bull", "regime_gate": "CAUTION", "entry_quality_label": "D", "structure_bucket": "CAUTION|structure_quality_caution|q35", "feat_4h_bias200": -1.2, "feat_4h_dist_swing_low": 1.2, "feat_4h_dist_bb_lower": 0.3, "feat_4h_bb_pct_b": 0.1},
+            {"regime_label": "bull", "regime_gate": "CAUTION", "entry_quality_label": "D", "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15", "feat_4h_bias200": -0.8, "feat_4h_dist_swing_low": 1.5, "feat_4h_dist_bb_lower": 0.4, "feat_4h_bb_pct_b": 0.2},
+            {"regime_label": "chop", "regime_gate": "CAUTION", "entry_quality_label": "D", "structure_bucket": "CAUTION|structure_quality_caution|q35", "feat_4h_bias200": -0.3, "feat_4h_dist_swing_low": 2.0, "feat_4h_dist_bb_lower": 0.8, "feat_4h_bb_pct_b": 0.5},
+            {"regime_label": "chop", "regime_gate": "CAUTION", "entry_quality_label": "D", "structure_bucket": "CAUTION|structure_quality_caution|q35", "feat_4h_bias200": -0.2, "feat_4h_dist_swing_low": 2.1, "feat_4h_dist_bb_lower": 0.9, "feat_4h_bb_pct_b": 0.6},
+            {"regime_label": "chop", "regime_gate": "CAUTION", "entry_quality_label": "D", "structure_bucket": "CAUTION|structure_quality_caution|q35", "feat_4h_bias200": -0.1, "feat_4h_dist_swing_low": 2.2, "feat_4h_dist_bb_lower": 1.0, "feat_4h_bb_pct_b": 0.7},
+        ]
+    )
+    y = bull_4h_pocket_ablation.pd.Series([1, 1, 1, 0, 0, 0, 0], dtype=float)
+    exact_live_lane_mask = (frame["regime_label"] == "bull") & (frame["regime_gate"] == "CAUTION") & (frame["entry_quality_label"] == "D")
+    live_bucket_mask = exact_live_lane_mask & (frame["structure_bucket"] == "CAUTION|structure_quality_caution|q35")
+    broad_same_bucket_mask = (frame["regime_gate"] == "CAUTION") & (frame["entry_quality_label"] == "D") & (frame["structure_bucket"] == "CAUTION|structure_quality_caution|q35")
+
+    diagnostics = bull_4h_pocket_ablation._build_proxy_boundary_diagnostics(
+        frame,
+        y,
+        live_context={
+            "regime_label": "bull",
+            "current_live_structure_bucket_rows": 2,
+            "exact_scope_rows": 3,
+            "broad_current_live_structure_bucket_rows": 4,
+            "exact_scope_metrics": {"avg_quality": 0.30},
+            "exact_current_live_structure_bucket_metrics": {"avg_quality": 0.70},
+            "broad_current_live_structure_bucket_metrics": {"avg_quality": 0.20},
+        },
+        exact_live_lane_mask=exact_live_lane_mask,
+        live_bucket_mask=live_bucket_mask,
+        broad_same_bucket_mask=broad_same_bucket_mask,
+    )
+
+    assert diagnostics["recent_exact_current_bucket"]["rows"] == 2
+    assert diagnostics["historical_exact_bucket_proxy"]["rows"] == 3
+    assert diagnostics["recent_broader_same_bucket"]["rows"] == 4
+    assert diagnostics["recent_broader_same_bucket"]["dominant_regime"]["regime"] == "chop"
+    assert diagnostics["proxy_vs_current_live_bucket"]["win_rate_delta"] == 0.0
+    assert diagnostics["proxy_boundary_verdict"] == "proxy_matches_exact_bucket_better_than_cross_regime_broader_scope"
+
+
 def test_support_pathology_summary_marks_exact_bucket_supported_when_rows_clear_threshold():
     payload = {
         "live_context": {

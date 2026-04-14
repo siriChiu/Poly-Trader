@@ -264,6 +264,12 @@ def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, 
                     "current_live_structure_bucket_gap_to_minimum": 50,
                     "exact_bucket_root_cause": "same_lane_exists_but_q35_missing",
                     "bucket_comparison_takeaway": "neighbor_bucket_outperforms_broader_same_bucket",
+                    "proxy_boundary_verdict": "proxy_too_wide_vs_exact_bucket",
+                    "proxy_boundary_reason": "proxy 與 recent exact bucket 差距過大",
+                    "proxy_boundary_diagnostics": {
+                        "recent_exact_current_bucket": {"rows": 5, "win_rate": 0.4},
+                        "historical_exact_bucket_proxy": {"rows": 8, "win_rate": 0.8},
+                    },
                     "bucket_evidence_comparison": {
                         "current_live_bucket": "CAUTION|structure_quality_caution|q35",
                         "exact_live_lane": {"bucket": "CAUTION|base_caution_regime_or_bias|q15", "rows": 25},
@@ -289,6 +295,8 @@ def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, 
     assert diag["live_context"]["supported_neighbor_buckets"] == ["CAUTION|base_caution_regime_or_bias|q15"]
     assert diag["support_pathology_summary"]["exact_bucket_root_cause"] == "same_lane_exists_but_q35_missing"
     assert diag["support_pathology_summary"]["bucket_comparison_takeaway"] == "neighbor_bucket_outperforms_broader_same_bucket"
+    assert diag["support_pathology_summary"]["proxy_boundary_verdict"] == "proxy_too_wide_vs_exact_bucket"
+    assert diag["support_pathology_summary"]["proxy_boundary_diagnostics"]["recent_exact_current_bucket"]["rows"] == 5
     assert diag["support_pathology_summary"]["bucket_evidence_comparison"]["broader_same_bucket"]["rows"] == 61
     assert diag["bull_all"]["recommended_profile"] == "core_plus_macro_plus_all_4h"
     assert diag["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"

@@ -362,6 +362,206 @@ def _metric_delta(lhs: Any, rhs: Any) -> float | None:
         return None
 
 
+def _safe_ratio(numerator: Any, denominator: Any) -> float | None:
+    try:
+        num = float(numerator)
+        den = float(denominator)
+        if den == 0:
+            return None
+        return round(num / den, 4)
+    except (TypeError, ValueError):
+        return None
+
+
+def _cohort_snapshot(
+    frame: pd.DataFrame,
+    y: pd.Series,
+    mask: pd.Series,
+    *,
+    tail_rows: int | None = None,
+    feature_cols: list[str] | None = None,
+) -> dict[str, Any]:
+    feature_cols = feature_cols or []
+    subset = frame.loc[mask].copy()
+    target = y.loc[mask].copy()
+    if tail_rows is not None:
+        tail_n = max(int(tail_rows), 0)
+        if tail_n == 0:
+            subset = subset.iloc[0:0].copy()
+            target = target.iloc[0:0].copy()
+        else:
+            subset = subset.tail(tail_n).copy()
+            target = target.tail(tail_n).copy()
+    rows = int(len(subset))
+    regime_counts = {
+        str(key): int(val)
+        for key, val in subset.get("regime_label", pd.Series(dtype=object)).value_counts().to_dict().items()
+    }
+    dominant_regime = None
+    if regime_counts:
+        regime, count = max(regime_counts.items(), key=lambda item: item[1])
+        dominant_regime = {
+            "regime": regime,
+            "count": int(count),
+            "share": round(count / rows, 4) if rows else None,
+        }
+    feature_means: dict[str, float | None] = {}
+    for col in feature_cols:
+        if col not in subset.columns or rows == 0:
+            feature_means[col] = None
+            continue
+        series = pd.to_numeric(subset[col], errors="coerce")
+        feature_means[col] = None if series.dropna().empty else round(float(series.mean()), 4)
+    return {
+        "rows": rows,
+        "win_rate": round(float(target.mean()), 4) if rows else None,
+        "regime_counts": regime_counts,
+        "dominant_regime": dominant_regime,
+        "feature_means": feature_means,
+    }
+
+
+def _feature_mean_deltas(lhs: dict[str, Any], rhs: dict[str, Any], *, feature_cols: list[str]) -> dict[str, float | None]:
+    lhs_means = lhs.get("feature_means") or {}
+    rhs_means = rhs.get("feature_means") or {}
+    return {
+        feature: _metric_delta(lhs_means.get(feature), rhs_means.get(feature))
+        for feature in feature_cols
+    }
+
+
+def _build_proxy_boundary_diagnostics(
+    frame: pd.DataFrame,
+    y: pd.Series,
+    *,
+    live_context: dict[str, Any],
+    exact_live_lane_mask: pd.Series,
+    live_bucket_mask: pd.Series,
+    broad_same_bucket_mask: pd.Series,
+) -> dict[str, Any]:
+    feature_cols = ["feat_4h_bias200", *[col for col in COLLAPSE_FEATURES if col != "feat_4h_bias200"]]
+    current_bucket_rows = int(live_context.get("current_live_structure_bucket_rows") or 0)
+    exact_scope_rows = int(live_context.get("exact_scope_rows") or 0)
+    broad_bucket_rows = int(live_context.get("broad_current_live_structure_bucket_rows") or 0)
+
+    recent_exact_bucket = _cohort_snapshot(
+        frame,
+        y,
+        live_bucket_mask,
+        tail_rows=current_bucket_rows,
+        feature_cols=feature_cols,
+    )
+    recent_exact_lane = _cohort_snapshot(
+        frame,
+        y,
+        exact_live_lane_mask,
+        tail_rows=exact_scope_rows,
+        feature_cols=feature_cols,
+    )
+    historical_exact_bucket_proxy = _cohort_snapshot(
+        frame,
+        y,
+        live_bucket_mask,
+        feature_cols=feature_cols,
+    )
+    recent_broader_same_bucket = _cohort_snapshot(
+        frame,
+        y,
+        broad_same_bucket_mask,
+        tail_rows=broad_bucket_rows,
+        feature_cols=feature_cols,
+    )
+
+    proxy_vs_current_live_bucket = {
+        "win_rate_delta": _metric_delta(
+            historical_exact_bucket_proxy.get("win_rate"),
+            recent_exact_bucket.get("win_rate"),
+        ),
+        "row_ratio": _safe_ratio(
+            historical_exact_bucket_proxy.get("rows"),
+            recent_exact_bucket.get("rows"),
+        ),
+        "feature_mean_deltas": _feature_mean_deltas(
+            historical_exact_bucket_proxy,
+            recent_exact_bucket,
+            feature_cols=feature_cols,
+        ),
+    }
+    exact_live_lane_vs_current_live_bucket = {
+        "win_rate_delta": _metric_delta(
+            recent_exact_lane.get("win_rate"),
+            recent_exact_bucket.get("win_rate"),
+        ),
+        "quality_delta": _metric_delta(
+            (live_context.get("exact_scope_metrics") or {}).get("avg_quality"),
+            (live_context.get("exact_current_live_structure_bucket_metrics") or {}).get("avg_quality"),
+        ),
+        "row_ratio": _safe_ratio(
+            recent_exact_lane.get("rows"),
+            recent_exact_bucket.get("rows"),
+        ),
+        "feature_mean_deltas": _feature_mean_deltas(
+            recent_exact_lane,
+            recent_exact_bucket,
+            feature_cols=feature_cols,
+        ),
+    }
+    broader_same_bucket_vs_current_live_bucket = {
+        "win_rate_delta": _metric_delta(
+            recent_broader_same_bucket.get("win_rate"),
+            recent_exact_bucket.get("win_rate"),
+        ),
+        "quality_delta": _metric_delta(
+            (live_context.get("broad_current_live_structure_bucket_metrics") or {}).get("avg_quality"),
+            (live_context.get("exact_current_live_structure_bucket_metrics") or {}).get("avg_quality"),
+        ),
+        "row_ratio": _safe_ratio(
+            recent_broader_same_bucket.get("rows"),
+            recent_exact_bucket.get("rows"),
+        ),
+        "feature_mean_deltas": _feature_mean_deltas(
+            recent_broader_same_bucket,
+            recent_exact_bucket,
+            feature_cols=feature_cols,
+        ),
+    }
+
+    verdict = "insufficient_recent_exact_bucket_rows"
+    reason = "current live structure bucket 沒有 recent exact rows，無法判斷 proxy cohort 邊界。"
+    proxy_gap = abs(proxy_vs_current_live_bucket.get("win_rate_delta") or 0.0)
+    broader_regime = ((recent_broader_same_bucket.get("dominant_regime") or {}).get("regime"))
+    live_regime = live_context.get("regime_label")
+    if recent_exact_bucket.get("rows"):
+        if proxy_gap <= 0.10 and broader_regime and broader_regime != live_regime:
+            verdict = "proxy_matches_exact_bucket_better_than_cross_regime_broader_scope"
+            reason = (
+                "historical same-bucket proxy 與 recent exact bucket 的 win-rate 差距可接受，"
+                "但 broader same-bucket 已被其他 regime 主導；目前 blocker 比較像 support 不足，而不是 proxy cohort 過寬。"
+            )
+        elif proxy_gap > 0.15:
+            verdict = "proxy_too_wide_vs_exact_bucket"
+            reason = (
+                "historical same-bucket proxy 與 recent exact bucket 的 win-rate 差距過大，"
+                "應優先縮窄 proxy cohort，而不是把 proxy 直接當成 exact bucket 替身。"
+            )
+        else:
+            verdict = "proxy_boundary_inconclusive"
+            reason = "proxy 與 exact bucket 差距尚未大到可直接判定，但也不足以解除 runtime blocker。"
+
+    return {
+        "feature_columns": feature_cols,
+        "recent_exact_current_bucket": recent_exact_bucket,
+        "recent_exact_live_lane": recent_exact_lane,
+        "historical_exact_bucket_proxy": historical_exact_bucket_proxy,
+        "recent_broader_same_bucket": recent_broader_same_bucket,
+        "proxy_vs_current_live_bucket": proxy_vs_current_live_bucket,
+        "exact_live_lane_vs_current_live_bucket": exact_live_lane_vs_current_live_bucket,
+        "broader_same_bucket_vs_current_live_bucket": broader_same_bucket_vs_current_live_bucket,
+        "proxy_boundary_verdict": verdict,
+        "proxy_boundary_reason": reason,
+    }
+
+
 def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
     live_context = payload.get("live_context") or {}
     cohorts = payload.get("cohorts") or {}
@@ -492,6 +692,7 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
         exact_bucket_root_cause = "same_lane_exists_but_q65_missing"
     broad_recent_pathology = live_context.get("broad_recent_pathology") or {}
     broader_bucket_pathology = ((broad_recent_pathology.get("summary") or {}).get("reference_window_comparison") or {}).get("top_mean_shift_features") or []
+    boundary_diagnostics = payload.get("proxy_boundary_diagnostics") or {}
     comparison_takeaway = "support_gap_unresolved"
     proxy_win_delta = (bucket_evidence_comparison.get("proxy_vs_broader_same_bucket") or {}).get("win_rate_delta")
     exact_win_delta = (bucket_evidence_comparison.get("exact_live_lane_vs_broader_same_bucket") or {}).get("win_rate_delta")
@@ -539,6 +740,9 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
         ),
         "bucket_evidence_comparison": bucket_evidence_comparison,
         "bucket_comparison_takeaway": comparison_takeaway,
+        "proxy_boundary_diagnostics": boundary_diagnostics,
+        "proxy_boundary_verdict": boundary_diagnostics.get("proxy_boundary_verdict"),
+        "proxy_boundary_reason": boundary_diagnostics.get("proxy_boundary_reason"),
         "broader_bucket_pathology_shift_features": [
             item.get("feature") for item in broader_bucket_pathology if item.get("feature")
         ],
@@ -644,6 +848,8 @@ def _write_markdown(payload: dict[str, Any]) -> None:
         f"- broader q65 rows / dominant regime: **{support_summary.get('broad_current_live_structure_bucket_rows')} / {support_summary.get('broad_dominant_regime')} ({support_summary.get('broad_dominant_regime_share'):.4f})**",
         f"- root cause interpretation: {support_summary.get('root_cause_interpretation')}",
         f"- bucket comparison takeaway: **{support_summary.get('bucket_comparison_takeaway')}**",
+        f"- proxy boundary verdict: **{support_summary.get('proxy_boundary_verdict')}**",
+        f"- proxy boundary reason: {support_summary.get('proxy_boundary_reason')}",
         f"- decision-quality scope / label: **{support_summary.get('decision_quality_calibration_scope')} / {support_summary.get('decision_quality_label')}**",
         f"- narrowed pathology scope: **{support_summary.get('narrowed_pathology_scope')}**",
         f"- worst pathology scope: **{support_summary.get('pathology_worst_scope')}**",
@@ -658,6 +864,16 @@ def _write_markdown(payload: dict[str, Any]) -> None:
         f"| exact live lane | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_live_lane') or {}).get('bucket')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_live_lane') or {}).get('rows')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_live_lane') or {}).get('win_rate')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_live_lane') or {}).get('avg_quality')} | current bucket rows={((support_summary.get('bucket_evidence_comparison') or {}).get('exact_live_lane') or {}).get('current_live_bucket_rows')} |",
         f"| exact bucket proxy | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_bucket_proxy') or {}).get('bucket')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_bucket_proxy') or {}).get('rows')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_bucket_proxy') or {}).get('base_win_rate')} | {(((support_summary.get('bucket_evidence_comparison') or {}).get('exact_bucket_proxy') or {}).get('recommended_metrics') or {}).get('cv_mean_accuracy')} | proxy-vs-broader win Δ={(((support_summary.get('bucket_evidence_comparison') or {}).get('proxy_vs_broader_same_bucket') or {}).get('win_rate_delta'))} |",
         f"| broader same bucket | {((support_summary.get('bucket_evidence_comparison') or {}).get('broader_same_bucket') or {}).get('bucket')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('broader_same_bucket') or {}).get('rows')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('broader_same_bucket') or {}).get('win_rate')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('broader_same_bucket') or {}).get('avg_quality')} | dominant_regime={((support_summary.get('bucket_evidence_comparison') or {}).get('broader_same_bucket') or {}).get('dominant_regime')} |",
+        "",
+        "## Proxy boundary diagnostics",
+        "",
+        f"- recent exact current bucket rows / win_rate: **{((support_summary.get('proxy_boundary_diagnostics') or {}).get('recent_exact_current_bucket') or {}).get('rows')} / {((support_summary.get('proxy_boundary_diagnostics') or {}).get('recent_exact_current_bucket') or {}).get('win_rate')}**",
+        f"- recent exact live lane rows / win_rate: **{((support_summary.get('proxy_boundary_diagnostics') or {}).get('recent_exact_live_lane') or {}).get('rows')} / {((support_summary.get('proxy_boundary_diagnostics') or {}).get('recent_exact_live_lane') or {}).get('win_rate')}**",
+        f"- historical exact-bucket proxy rows / win_rate: **{((support_summary.get('proxy_boundary_diagnostics') or {}).get('historical_exact_bucket_proxy') or {}).get('rows')} / {((support_summary.get('proxy_boundary_diagnostics') or {}).get('historical_exact_bucket_proxy') or {}).get('win_rate')}**",
+        f"- recent broader same-bucket rows / dominant regime: **{((support_summary.get('proxy_boundary_diagnostics') or {}).get('recent_broader_same_bucket') or {}).get('rows')} / {(((support_summary.get('proxy_boundary_diagnostics') or {}).get('recent_broader_same_bucket') or {}).get('dominant_regime') or {}).get('regime')}**",
+        f"- proxy vs current bucket win Δ / row ratio: **{(((support_summary.get('proxy_boundary_diagnostics') or {}).get('proxy_vs_current_live_bucket') or {}).get('win_rate_delta'))} / {(((support_summary.get('proxy_boundary_diagnostics') or {}).get('proxy_vs_current_live_bucket') or {}).get('row_ratio'))}**",
+        f"- exact lane vs current bucket win Δ / quality Δ: **{(((support_summary.get('proxy_boundary_diagnostics') or {}).get('exact_live_lane_vs_current_live_bucket') or {}).get('win_rate_delta'))} / {(((support_summary.get('proxy_boundary_diagnostics') or {}).get('exact_live_lane_vs_current_live_bucket') or {}).get('quality_delta'))}**",
+        f"- broader same-bucket vs current bucket win Δ / quality Δ: **{(((support_summary.get('proxy_boundary_diagnostics') or {}).get('broader_same_bucket_vs_current_live_bucket') or {}).get('win_rate_delta'))} / {(((support_summary.get('proxy_boundary_diagnostics') or {}).get('broader_same_bucket_vs_current_live_bucket') or {}).get('quality_delta'))}**",
         "",
         "## Notes",
         "",
@@ -692,6 +908,11 @@ def main() -> None:
     )
     current_bucket = live_context.get("current_live_structure_bucket")
     live_bucket_mask = exact_live_lane_mask & (frame["structure_bucket"] == current_bucket)
+    broad_same_bucket_mask = (
+        (frame["regime_gate"] == live_context.get("regime_gate"))
+        & (frame["entry_quality_label"] == live_context.get("entry_quality_label"))
+        & (frame["structure_bucket"] == current_bucket)
+    )
     supported_neighbor_buckets = set(live_context.get("supported_neighbor_buckets") or [])
     supported_neighbor_mask = exact_live_lane_mask & frame["structure_bucket"].isin(supported_neighbor_buckets)
 
@@ -727,6 +948,14 @@ def main() -> None:
             "bull_supported_neighbor_buckets_proxy": _evaluate_cohort(supported_neighbor_mask),
         },
     }
+    payload["proxy_boundary_diagnostics"] = _build_proxy_boundary_diagnostics(
+        frame,
+        y,
+        live_context=live_context,
+        exact_live_lane_mask=exact_live_lane_mask,
+        live_bucket_mask=live_bucket_mask,
+        broad_same_bucket_mask=broad_same_bucket_mask,
+    )
     payload["support_pathology_summary"] = _support_pathology_summary(payload)
 
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
