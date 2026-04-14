@@ -2,9 +2,16 @@
 FastAPI 主應用入口
 """
 
+import sys
+from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Allow both `uvicorn server.main:app` and direct `python server/main.py` execution.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from server.dependencies import init_dependencies
 from server.routes.api import router as api_router
@@ -58,3 +65,9 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("server.main:app", host="127.0.0.1", port=8000, reload=False)

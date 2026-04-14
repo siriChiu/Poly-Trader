@@ -3,10 +3,11 @@
 用於監督式學習（XGBoost 訓練）
 """
 
-import pandas as pd
 from datetime import timedelta
-from sqlalchemy.orm import Session
 from typing import Optional, Iterable
+
+import pandas as pd
+from sqlalchemy.orm import Session
 
 from database.models import RawMarketData, FeaturesNormalized, Labels
 from utils.logger import setup_logger
@@ -27,14 +28,17 @@ def _simulate_pyramid_outcome(
     entry_price: float,
     take_profit_pct: float = DEFAULT_LONG_TP_PCT,
     stop_loss_pct: float = DEFAULT_LONG_MAX_DD_PCT,
-) -> tuple[int, float, float]:
+) -> tuple[int, float, float, float, float]:
     prices = [float(p) for p in horizon_prices if p is not None]
     if not prices or entry_price <= 0:
-        return 0, 0.0, -1.0
+        return 0, 0.0, -1.0, 1.0, 1.0
 
     invested = 0.0
     units = 0.0
     deployed = []
+    max_drawdown_seen = 0.0
+    underwater_steps = 0
+    total_steps = 0
 
     def add_layer(weight: float, price: float) -> None:
         nonlocal invested, units
@@ -43,6 +47,18 @@ def _simulate_pyramid_outcome(
         invested += weight
         units += weight / max(price, 1e-9)
         deployed.append((weight, price))
+
+    def finalize(win_flag: int, pnl_pct: float) -> tuple[int, float, float, float, float]:
+        pnl_component = pnl_pct / max(take_profit_pct, 1e-9)
+        drawdown_penalty = max_drawdown_seen / max(stop_loss_pct, 1e-9)
+        time_underwater = underwater_steps / max(total_steps, 1)
+        quality = (
+            0.45 * float(win_flag)
+            + 0.25 * pnl_component
+            - 0.20 * drawdown_penalty
+            - 0.10 * time_underwater
+        )
+        return win_flag, pnl_pct, float(quality), float(drawdown_penalty), float(time_underwater)
 
     add_layer(DEFAULT_PYRAMID_LAYERS[0], entry_price)
     layer2_trigger = entry_price * (1 + DEFAULT_PYRAMID_LAYER2_DROP)
@@ -56,18 +72,19 @@ def _simulate_pyramid_outcome(
 
         avg_price = invested / max(units, 1e-9)
         pnl_pct = (price - avg_price) / avg_price
+        total_steps += 1
+        if pnl_pct < 0:
+            underwater_steps += 1
+        max_drawdown_seen = max(max_drawdown_seen, max(0.0, -pnl_pct))
         if pnl_pct >= take_profit_pct:
-            quality = pnl_pct / max(stop_loss_pct, 1e-9)
-            return 1, pnl_pct, quality
+            return finalize(1, pnl_pct)
         if pnl_pct <= -stop_loss_pct:
-            quality = pnl_pct / max(stop_loss_pct, 1e-9)
-            return 0, pnl_pct, quality
+            return finalize(0, pnl_pct)
 
     final_price = prices[-1]
     avg_price = invested / max(units, 1e-9)
     pnl_pct = (final_price - avg_price) / avg_price
-    quality = pnl_pct / max(stop_loss_pct, 1e-9)
-    return int(pnl_pct > 0), pnl_pct, quality
+    return finalize(int(pnl_pct > 0), pnl_pct)
 
 
 def generate_future_return_labels(
@@ -179,7 +196,13 @@ def generate_future_return_labels(
         dd_component = abs(min(max_drawdown or 0.0, 0.0)) / max(neutral_band, 1e-9)
         quality_score = runup_component - 0.7 * dd_component + 0.3 * ret_pct / max(threshold_pct, 1e-9)
 
-        simulated_win, simulated_pnl, simulated_quality = _simulate_pyramid_outcome(
+        (
+            simulated_win,
+            simulated_pnl,
+            simulated_quality,
+            simulated_drawdown_penalty,
+            simulated_time_underwater,
+        ) = _simulate_pyramid_outcome(
             horizon_prices["close_price"].tolist() if not horizon_prices.empty else [],
             current_price,
             take_profit_pct=threshold_pct,
@@ -198,6 +221,8 @@ def generate_future_return_labels(
             "simulated_pyramid_win": simulated_win,
             "simulated_pyramid_pnl": simulated_pnl,
             "simulated_pyramid_quality": simulated_quality,
+            "simulated_pyramid_drawdown_penalty": simulated_drawdown_penalty,
+            "simulated_pyramid_time_underwater": simulated_time_underwater,
             "label_sell_win": label_sell_win,
             "label_up": label_up,
             "future_return_pct": ret_pct,
@@ -255,6 +280,8 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
         simulated_win = int(row.get("simulated_pyramid_win", 0))
         simulated_pnl = float(row.get("simulated_pyramid_pnl") or 0.0)
         simulated_quality = float(row.get("simulated_pyramid_quality") or 0.0)
+        simulated_drawdown_penalty = float(row.get("simulated_pyramid_drawdown_penalty") or 0.0)
+        simulated_time_underwater = float(row.get("simulated_pyramid_time_underwater") or 0.0)
         label_sell_win = int(row.get("label_sell_win", 1 - spot_long_win))
         label_up = int(row.get("label_up", spot_long_win))
         future_max_drawdown = float(row.get("future_max_drawdown") or 0)
@@ -274,6 +301,8 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
                     "simulated_pyramid_win",
                     "simulated_pyramid_pnl",
                     "simulated_pyramid_quality",
+                    "simulated_pyramid_drawdown_penalty",
+                    "simulated_pyramid_time_underwater",
                     "label_up",
                 )
             )
@@ -285,6 +314,8 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
                 existing.simulated_pyramid_win = simulated_win
                 existing.simulated_pyramid_pnl = simulated_pnl
                 existing.simulated_pyramid_quality = simulated_quality
+                existing.simulated_pyramid_drawdown_penalty = simulated_drawdown_penalty
+                existing.simulated_pyramid_time_underwater = simulated_time_underwater
                 existing.label_sell_win = label_sell_win
                 existing.label_up = label_up
                 existing.future_return_pct = float(fut_ret) if fut_ret is not None else existing.future_return_pct
@@ -300,6 +331,8 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
                 existing.simulated_pyramid_win = simulated_win
                 existing.simulated_pyramid_pnl = simulated_pnl
                 existing.simulated_pyramid_quality = simulated_quality
+                existing.simulated_pyramid_drawdown_penalty = simulated_drawdown_penalty
+                existing.simulated_pyramid_time_underwater = simulated_time_underwater
                 existing.label_sell_win = label_sell_win
                 existing.label_up = label_up
                 existing.future_max_drawdown = future_max_drawdown
@@ -315,6 +348,8 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
                 existing.simulated_pyramid_win = simulated_win
                 existing.simulated_pyramid_pnl = simulated_pnl
                 existing.simulated_pyramid_quality = simulated_quality
+                existing.simulated_pyramid_drawdown_penalty = simulated_drawdown_penalty
+                existing.simulated_pyramid_time_underwater = simulated_time_underwater
                 if existing.label_sell_win is None:
                     existing.label_sell_win = label_sell_win
                 existing.label_up = label_up
@@ -346,6 +381,8 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
             simulated_pyramid_win=int(row.get("simulated_pyramid_win", 0)),
             simulated_pyramid_pnl=float(row.get("simulated_pyramid_pnl") or 0.0),
             simulated_pyramid_quality=float(row.get("simulated_pyramid_quality") or 0.0),
+            simulated_pyramid_drawdown_penalty=float(row.get("simulated_pyramid_drawdown_penalty") or 0.0),
+            simulated_pyramid_time_underwater=float(row.get("simulated_pyramid_time_underwater") or 0.0),
             label_sell_win=int(row.get("label_sell_win", 1 - spot_long_win)),
             label_up=int(row.get("label_up", spot_long_win)),
             regime_label=regime_val,  # P0 fix: 自動填入 regime

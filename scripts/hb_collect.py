@@ -151,21 +151,21 @@ def collect_raw_data(session):
     print(f"CONTINUITY_REPAIR_META: {json.dumps(repair_meta, ensure_ascii=False, sort_keys=True)}")
     if repaired:
         print(
-            "🩹 Recent raw continuity repair inserted "
-            f"{repaired} Binance continuity rows before live collect "
+            "🩹 最近 raw 連續性修復已補回 "
+            f"{repaired} 筆 Binance 連續資料，並在即時 collect 前完成回補 "
             f"(4h={repair_meta.get('coarse_inserted', 0)}, "
             f"1h={repair_meta.get('fine_inserted', 0)}, "
             f"bridge={repair_meta.get('bridge_inserted', 0)})"
         )
     if repair_meta.get("used_bridge"):
-        print("⚠️  Interpolated bridge fallback was required to keep recent raw continuity alive")
+        print("⚠️  本輪依賴插值 bridge fallback 才維持住最近 raw 連續性")
 
     success = run_collection_and_save(session, SYMBOL)
     if success:
         count = session.query(RawMarketData).count()
-        print(f"✅ Raw data collection success (total={count})")
+        print(f"✅ Raw 數據收集成功（總筆數={count}）")
     else:
-        print("❌ Raw data collection FAILED")
+        print("❌ Raw 數據收集失敗")
 
     # Fallback: minimal Binance price check if collector fails
     if not success:
@@ -185,9 +185,9 @@ def collect_raw_data(session):
                 )
                 session.add(rec)
                 session.commit()
-                print(f"⚠️  Fallback raw data saved: BTC=${price:.2f}")
+                print(f"⚠️  已寫入 fallback raw 數據：BTC=${price:.2f}")
         except Exception as e:
-            print(f"❌ Fallback also failed: {e}")
+            print(f"❌ Fallback 也失敗：{e}")
             return False
 
     return True
@@ -199,12 +199,12 @@ def preprocess_features(session):
     result = run_preprocessor(session, SYMBOL)
     repaired = backfill_missing_feature_rows(session, SYMBOL)
     if repaired:
-        print(f"🩹 Backfilled {repaired} missing feature rows from repaired raw continuity")
+        print(f"🩹 已從修復過的 raw 連續區間補回 {repaired} 筆缺失 feature rows")
     if result:
         count = session.query(FeaturesNormalized).count()
-        print(f"✅ Feature engineering success (total={count})")
+        print(f"✅ 特徵工程成功（總筆數={count}）")
     else:
-        print("❌ Feature engineering FAILED")
+        print("❌ 特徵工程失敗")
     return result is not None
 
 def update_regime_labels(session):
@@ -219,14 +219,14 @@ def update_regime_labels(session):
     - chop:   abs(close - SMA(144)) / SMA(144) < 0.03 (within 3% of SMA)
     - neutral: fallback
     """
-    print("\n🏛️  Assigning regime labels...")
+    print("\n🏛️  正在補齊 regime labels...")
 
     null_count = session.query(FeaturesNormalized).filter(
         FeaturesNormalized.regime_label == None
     ).count()
     if null_count == 0:
         total_count = session.query(FeaturesNormalized).count()
-        print(f"  ✅ All features already have regime labels (total={total_count})")
+        print(f"  ✅ 所有 features 都已具備 regime labels（總筆數={total_count}）")
         return 0
     
     # Get all raw data ordered by timestamp for SMA calculation
@@ -236,10 +236,10 @@ def update_regime_labels(session):
     
     # Build close price series
     close_prices = [(r.timestamp, r.close_price) for r in raw_rows if r.close_price is not None]
-    print(f"  Using {len(close_prices)} price points for regime assignment")
+    print(f"  這次用 {len(close_prices)} 筆價格資料做 regime 補標")
     
     if len(close_prices) == 0:
-        print("  ❌ No price data for regime assignment")
+        print("  ❌ 沒有可用價格資料，無法補齊 regime")
         return 0
     
     # Build FNG series for additional signal
@@ -255,10 +255,10 @@ def update_regime_labels(session):
         FeaturesNormalized.regime_label != None
     ).count()
     
-    print(f"  Features: total={total_count}, with_regime={has_count}, null_regime={null_count}")
+    print(f"  Features 現況：總筆數={total_count}, 已有 regime={has_count}, 缺 regime={null_count}")
     
     if null_count == 0:
-        print("  ✅ All features already have regime labels")
+        print("  ✅ 所有 features 都已具備 regime labels")
         return 0
     
     import numpy as np
@@ -349,7 +349,7 @@ def update_regime_labels(session):
         updated += 1
     
     session.commit()
-    print(f"  ✅ Updated {updated} features with regime labels")
+    print(f"  ✅ 已補上 {updated} 筆 features 的 regime labels")
     return updated
 
 def generate_labels(session, horizon_hours=(4, 24)):
@@ -369,7 +369,7 @@ def generate_labels(session, horizon_hours=(4, 24)):
     for horizon in horizons:
         labels_df = generate_future_return_labels(session, SYMBOL, horizon)
         if labels_df.empty:
-            print(f"⚠️  Label generation produced empty results for horizon={horizon}h")
+            print(f"⚠️  horizon={horizon}h 的 label 生成結果為空")
             continue
 
         # save_labels_to_db expects horizon_hours and converts to horizon_minutes internally.
@@ -379,18 +379,18 @@ def generate_labels(session, horizon_hours=(4, 24)):
         after = session.query(Labels).filter(Labels.horizon_minutes == horizon * 60).count()
         total_generated += len(labels_df)
         print(
-            f"✅ Label horizon {horizon}h complete "
-            f"(generated={len(labels_df)}, db_rows={after}, delta={after - before:+d})"
+            f"✅ Label horizon {horizon}h 已完成 "
+            f"（generated={len(labels_df)}, db_rows={after}, delta={after - before:+d}）"
         )
 
     count = session.query(Labels).count()
-    print(f"✅ Label pipeline complete (total={count})")
+    print(f"✅ Label 管線完成（總筆數={count}）")
     return total_generated
 
 def main():
     ts_start = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     print(f"{'='*60}")
-    print(f"  數據收集管線 v1 started {ts_start} UTC")
+    print(f"  數據收集管線 v1 啟動於 {ts_start} UTC")
     print(f"{'='*60}")
     
     cfg = load_config()
@@ -401,7 +401,7 @@ def main():
     feat_before = session.query(FeaturesNormalized).count()
     labels_before = session.query(Labels).count()
     
-    print(f"\n📊 Before: Raw={raw_before}, Features={feat_before}, Labels={labels_before}")
+    print(f"\n📊 執行前：Raw={raw_before}, Features={feat_before}, Labels={labels_before}")
     
     success = True
     
@@ -435,7 +435,7 @@ def main():
             return f"+{after - before}"
         return "持平"
     
-    print(f"\n📊 After:  Raw={raw_after} ({delta_str(raw_after, raw_before)}), "
+    print(f"\n📊 執行後：Raw={raw_after} ({delta_str(raw_after, raw_before)}), "
           f"Features={feat_after} ({delta_str(feat_after, feat_before)}), "
           f"Labels={labels_after} ({delta_str(labels_after, labels_before)})")
     
@@ -467,7 +467,7 @@ def main():
     
     ts_end = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     print(f"\n{'='*60}")
-    print(f"  數據收集管線 complete {ts_end} UTC")
+    print(f"  數據收集管線完成於 {ts_end} UTC")
     print(f"{'='*60}")
 
 if __name__ == "__main__":

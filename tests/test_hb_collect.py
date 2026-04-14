@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
 import pandas as pd
+from sqlalchemy import text
 
 from data_ingestion.labeling import save_labels_to_db
 from database.models import FeaturesNormalized, Labels, RawMarketData, init_db
@@ -115,6 +116,8 @@ def test_save_labels_to_db_backfills_canonical_columns_for_existing_rows(tmp_pat
                     "simulated_pyramid_win": 1,
                     "simulated_pyramid_pnl": 0.021,
                     "simulated_pyramid_quality": 0.42,
+                    "simulated_pyramid_drawdown_penalty": 0.18,
+                    "simulated_pyramid_time_underwater": 0.25,
                     "label_sell_win": 0,
                     "label_up": 1,
                 }
@@ -126,8 +129,22 @@ def test_save_labels_to_db_backfills_canonical_columns_for_existing_rows(tmp_pat
         row = session.query(Labels).filter_by(symbol="BTCUSDT", horizon_minutes=240).one()
         assert row.simulated_pyramid_win == 1
         assert row.simulated_pyramid_pnl == 0.021
+        assert row.simulated_pyramid_drawdown_penalty == 0.18
+        assert row.simulated_pyramid_time_underwater == 0.25
         assert row.label_spot_long_win == 1
         assert row.label_up == 1
         assert row.regime_label == "bull"
+    finally:
+        session.close()
+
+
+def test_init_db_sets_sqlite_busy_timeout_and_wal(tmp_path):
+    db_path = tmp_path / "hb_collect_pragmas.sqlite"
+    session = init_db(f"sqlite:///{db_path}")
+    try:
+        journal_mode = session.execute(text("PRAGMA journal_mode")).scalar()
+        busy_timeout = session.execute(text("PRAGMA busy_timeout")).scalar()
+        assert str(journal_mode).lower() == "wal"
+        assert int(busy_timeout) >= 30000
     finally:
         session.close()

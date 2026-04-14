@@ -46,13 +46,13 @@ def fetch_macro_latest():
 
 def compute_nq_features(hist):
     if not hist or len(hist) < 2:
-        return {'feat_nq_return_1h': 0.0, 'feat_nq_return_24h': 0.0}
+        return {'feat_nq_return_1h': None, 'feat_nq_return_24h': None}
     latest = hist[-1][1]
     prev_1h = hist[-2][1] if len(hist) >= 2 else latest
-    prev_24h = hist[-min(24, len(hist))][1]
-    ret_1h = (latest / prev_1h - 1) if prev_1h > 0 else 0
-    ret_24h = (latest / prev_24h - 1) if prev_24h > 0 else 0
+    prev_24h = hist[-24][1] if len(hist) >= 24 else None
+    ret_1h = (latest / prev_1h - 1) if prev_1h > 0 else None
+    ret_24h = (latest / prev_24h - 1) if prev_24h and prev_24h > 0 else None
     return {
-        'feat_nq_return_1h': -ret_1h,
-        'feat_nq_return_24h': -ret_24h,
+        'feat_nq_return_1h': (-ret_1h if ret_1h is not None else None),
+        'feat_nq_return_24h': (-ret_24h if ret_24h is not None else None),
     }

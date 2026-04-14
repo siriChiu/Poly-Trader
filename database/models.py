@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Dict, Iterable, Tuple
 
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text, inspect, text
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text, inspect, text, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 Base = declarative_base()
@@ -90,6 +90,11 @@ class FeaturesNormalized(Base):
     feat_atr_pct = Column(Float, nullable=True)
     feat_vwap_dev = Column(Float, nullable=True)
     feat_bb_pct_b = Column(Float, nullable=True)
+    feat_nw_width = Column(Float, nullable=True)
+    feat_nw_slope = Column(Float, nullable=True)
+    feat_adx = Column(Float, nullable=True)
+    feat_choppiness = Column(Float, nullable=True)
+    feat_donchian_pos = Column(Float, nullable=True)
     feat_nq_return_1h = Column(Float, nullable=True)
     feat_nq_return_24h = Column(Float, nullable=True)
     feat_claw = Column(Float, nullable=True)
@@ -189,6 +194,8 @@ class Labels(Base):
     simulated_pyramid_win = Column(Integer, nullable=True)
     simulated_pyramid_pnl = Column(Float, nullable=True)
     simulated_pyramid_quality = Column(Float, nullable=True)
+    simulated_pyramid_drawdown_penalty = Column(Float, nullable=True)
+    simulated_pyramid_time_underwater = Column(Float, nullable=True)
     # Legacy compatibility fields — kept for older scripts and reports.
     label_sell_win = Column(Integer)
     label_up = Column(Integer)
@@ -223,6 +230,11 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
         ("feat_atr_pct", "REAL"),
         ("feat_vwap_dev", "REAL"),
         ("feat_bb_pct_b", "REAL"),
+        ("feat_nw_width", "REAL"),
+        ("feat_nw_slope", "REAL"),
+        ("feat_adx", "REAL"),
+        ("feat_choppiness", "REAL"),
+        ("feat_donchian_pos", "REAL"),
         ("feat_nq_return_1h", "REAL"),
         ("feat_nq_return_24h", "REAL"),
         ("feat_claw", "REAL"),
@@ -262,6 +274,8 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
         ("simulated_pyramid_win", "INTEGER"),
         ("simulated_pyramid_pnl", "REAL"),
         ("simulated_pyramid_quality", "REAL"),
+        ("simulated_pyramid_drawdown_penalty", "REAL"),
+        ("simulated_pyramid_time_underwater", "REAL"),
         ("label_sell_win", "INTEGER"),
         ("label_up", "INTEGER"),
         ("regime_label", "TEXT"),
@@ -318,8 +332,30 @@ def _sqlite_add_missing_columns(engine) -> None:
                     pass
 
 
+def _configure_sqlite_engine(engine) -> None:
+    if engine.dialect.name != "sqlite":
+        return
+
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_connection, _connection_record):
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA busy_timeout=30000")
+            cursor.execute("PRAGMA foreign_keys=ON")
+        finally:
+            cursor.close()
+
+
+
 def init_db(db_url: str):
-    engine = create_engine(db_url, echo=False, future=True)
+    engine_kwargs = {"echo": False, "future": True}
+    if db_url.startswith("sqlite"):
+        engine_kwargs["connect_args"] = {"timeout": 30, "check_same_thread": False}
+
+    engine = create_engine(db_url, **engine_kwargs)
+    _configure_sqlite_engine(engine)
     Base.metadata.create_all(engine)
     _sqlite_add_missing_columns(engine)
     SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)

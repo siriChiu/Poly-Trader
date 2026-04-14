@@ -225,10 +225,45 @@ mia 追問或複雜度高？
 
 **修正方向**：統一以 `simulated_pyramid_win` 為 canonical target，並保留 `label_spot_long_win` 作 path-aware 比較；同時把 drawdown、pnl、quality 一併納入資料與評估，才能讓整個 label / training / prediction / leaderboard 真正對齊你的現貨 pyramid 策略。
 
-**最後更新**: 2026-04-08
+---
+
+## 本次結論：如何繼續提高準確度、高勝率、低回撤
+
+### 第一階：策略後果表
+
+| 策略 | 好處 | 風險／代價 | 治標/治本 | 適用條件 | 建議 |
+|---|---|---|---|---|---|
+| 繼續只優化單一 binary win/loss 模型 | 改動最少、維持現有 pipeline | 只能回答「會不會贏」，無法區分高回撤、深套、久才解套的差交易 | 治標（治本需做：把 drawdown / quality 納入目標） | 只想快速做 baseline 比較 | ❌ 不建議 |
+| 升級成交易品質評分（win + pnl_quality + drawdown_penalty + time_underwater） | 直接對齊「高勝率、低回撤、低深套」目標；更符合現貨金字塔真需求 | 需要重算 labels / leaderboard / 目標欄位 | 治本 | 目標是現貨 long pyramid，重視實盤舒適度與一致性 | ✅ 推薦 |
+| 用更多模型/更多 feature 直接硬堆效果 | 可能短期提升部分指標 | 若決策語義沒先收斂，只會把不成熟資料源與高噪音特徵一起放大 | 治標（治本需做：先分核心/研究信號、先修決策架構） | demo / 實驗衝刺階段 | ❌ 不建議作為主路線 |
+| 兩階段決策：4H regime gate + 短線 entry-quality score | 可先擋掉壞背景，再在可做背景內找精準節奏；通常最直接提升勝率並壓回撤 | 需要重構 strategy / predictor / UI 的決策語義 | 治本 | 已有 4H 結構與短線 technical 雙層特徵 | ✅ 強烈推薦 |
+| confidence-based layer sizing（依訊號品質決定只做首層/兩層/三層） | 直接把倉位變成風控器，低品質訊號不再放大回撤 | 需要把模型輸出從 yes/no 升級到 quality / size | 治本 | 金字塔本來就是核心交易結構 | ✅ 強烈推薦 |
+
+### 第二階：效益前提驗證
+
+| 前提條件 | 原本假設 | 現況 | 影響 |
+|---|---|---|---|
+| 主系統只需回答 binary win/loss | 目前 canonical target 已足夠 | ❌ 不成立；它仍不足以表達回撤深度與解套品質 | 必須升級成 decision-quality target |
+| 4H 結構與短線節奏可以混成單一分數 | 一個模型自己會學好 | ⚠️ 部分不成立；邏輯上仍容易在錯背景裡用對短線訊號 | 應正式拆成兩階段決策 |
+| 所有特徵都可同權進主判斷 | coverage 不夠也可以慢慢補 | ❌ 不成立；sparse-source 成熟度不一，會污染主決策 | 必須分核心信號 vs 研究信號 |
+| 排行榜只要看 ROI / model score 就能代表好策略 | 高 ROI 就代表可實盤 | ❌ 不成立；高 ROI 不一定等於高勝率低回撤 | leaderboard 必須重加 win-rate / drawdown / regime stability |
+
+### 第三階：正式結論
+
+**下一個階段最值得投入的，不是再堆更多模型，而是把系統升級成「交易品質評級 + 兩階段決策 + 倉位分級」的決策平台。**
+
+優先順序應為：
+1. **兩階段決策**：4H regime gate → 短線 entry-quality score
+2. **目標升級**：從 `simulated_pyramid_win` 擴展到 decision-quality target
+3. **倉位升級**：confidence-based layer sizing
+4. **訊號分級**：核心可用 vs 研究中 vs blocked
+5. **排行榜升級**：向高勝率、低回撤、多 regime 穩定度傾斜
+
+**最後更新**: 2026-04-10
 **適用對象**: 所有使用 Claude Code 的團隊成員
-**文件版本**: v1.1.1
+**文件版本**: v1.2.0
 **變更記錄**:
+- v1.2.0 (2026-04-10): 新增「如何繼續提高準確度、高勝率、低回撤」決策段落，明確收斂為兩階段決策、decision-quality target、confidence-based sizing 三條主線
 - v1.1.1 (2026-04-08): 新增與 HEARTBEAT 心跳閉環的銜接說明，明確定位本指南為決策前置層
 - v1.1.0 (2026-04-07): 新增第三階（等 mia 確認）、四個可選延伸環節（成本對比、關鍵問題、關鍵洞察、效益前提再驗證）、完整流程圖、更新 CLAUDE.md 指令範本
 - v1.0.0 (2026-04-06): 初始版本（兩階段：策略後果表 + 效益前提驗證）

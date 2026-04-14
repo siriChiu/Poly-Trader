@@ -59,7 +59,7 @@ export default function AdviceCard({ score = 50, summary = "分析中...", descr
   const config = ACTION_CONFIG[action] || ACTION_CONFIG.hold;
 
   return (
-    <div className={`bg-gradient-to-br ${config.bg} rounded-xl border border-slate-700/50 p-4 space-y-3`}>
+    <div className={`bg-gradient-to-br ${config.bg} rounded-xl border border-slate-700/50 p-4 space-y-3 h-full`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className={`text-5xl font-mono font-bold transition-all duration-500 ${getScoreLevel(score)}`}>{score}</div>

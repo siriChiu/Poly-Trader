@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +20,8 @@ from statistics import pstdev
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+from feature_engine.feature_history_policy import FEATURE_KEY_MAP, SOURCE_FEATURE_KEYS
 DB_PATH = PROJECT_ROOT / "poly_trader.db"
 OUT_PATH = PROJECT_ROOT / "data" / "recent_drift_report.json"
 TARGET_COL = "simulated_pyramid_win"
@@ -114,6 +117,13 @@ def _expected_static_reason(feature_col: str, window_context: dict[str, Any]) ->
     return None
 
 
+def _overlay_only_reason(feature_col: str) -> str | None:
+    clean_key = FEATURE_KEY_MAP.get(feature_col)
+    if clean_key in SOURCE_FEATURE_KEYS:
+        return "research_sparse_source"
+    return None
+
+
 def _feature_stats(rows: list[sqlite3.Row], feature_col: str) -> dict[str, Any]:
     values = [_safe_float(r[feature_col]) for r in rows]
     numeric_values = [v for v in values if v is not None]
@@ -124,17 +134,70 @@ def _feature_stats(rows: list[sqlite3.Row], feature_col: str) -> dict[str, Any]:
             "distinct": 0,
             "std": None,
             "range": None,
+            "mean": None,
         }
     distinct = len({round(v, 8) for v in numeric_values})
     std = pstdev(numeric_values) if len(numeric_values) >= 2 else (0.0 if numeric_values else None)
     value_range = (max(numeric_values) - min(numeric_values)) if numeric_values else None
+    mean = (sum(numeric_values) / len(numeric_values)) if numeric_values else None
     return {
         "non_null": len(numeric_values),
         "non_null_ratio": len(numeric_values) / len(values),
         "distinct": distinct,
         "std": std,
         "range": value_range,
+        "mean": mean,
     }
+
+
+def _feature_name_set(rows: list[dict[str, Any]]) -> set[str]:
+    return {str(row.get("feature")) for row in rows if row.get("feature")}
+
+
+def _compute_feature_shift_examples(
+    current_rows: list[sqlite3.Row],
+    reference_rows: list[sqlite3.Row],
+    feature_cols: list[str],
+    baseline_feature_stats: dict[str, dict[str, Any]],
+    limit: int = FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT,
+) -> list[dict[str, Any]]:
+    shifts: list[dict[str, Any]] = []
+    for feature_col in feature_cols:
+        current_stats = _feature_stats(current_rows, feature_col)
+        reference_stats = _feature_stats(reference_rows, feature_col)
+        current_mean = current_stats.get("mean")
+        reference_mean = reference_stats.get("mean")
+        if current_mean is None or reference_mean is None:
+            continue
+        delta = current_mean - reference_mean
+        baseline_std = baseline_feature_stats.get(feature_col, {}).get("std")
+        delta_vs_baseline_std = None
+        if isinstance(baseline_std, (int, float)) and baseline_std > 0:
+            delta_vs_baseline_std = abs(delta) / baseline_std
+        overlay_only_reason = _overlay_only_reason(feature_col)
+        shifts.append(
+            {
+                "feature": feature_col,
+                "current_mean": _round(current_mean),
+                "reference_mean": _round(reference_mean),
+                "mean_delta": _round(delta),
+                "delta_vs_baseline_std": _round(delta_vs_baseline_std),
+                "overlay_only_reason": overlay_only_reason,
+            }
+        )
+    shifts.sort(
+        key=lambda row: (
+            row.get("overlay_only_reason") is not None,
+            row.get("delta_vs_baseline_std") is None,
+            -(row.get("delta_vs_baseline_std") or 0.0),
+            -(abs(row.get("mean_delta") or 0.0)),
+            row["feature"],
+        )
+    )
+    non_overlay_shifts = [row for row in shifts if not row.get("overlay_only_reason")]
+    if non_overlay_shifts:
+        return non_overlay_shifts[:limit]
+    return shifts[:limit]
 
 
 def _compute_feature_diagnostics(
@@ -192,6 +255,7 @@ def _compute_feature_diagnostics(
             )
 
         expected_static_reason = _expected_static_reason(feature_col, window_context)
+        overlay_only_reason = _overlay_only_reason(feature_col)
 
         if std_ratio is not None and std_ratio <= LOW_VARIANCE_STD_RATIO_THRESHOLD:
             row = {
@@ -205,6 +269,7 @@ def _compute_feature_diagnostics(
                 "baseline_distinct": baseline_distinct,
                 "distinct_ratio": _round(distinct_ratio),
                 "expected_static_reason": expected_static_reason,
+                "overlay_only_reason": overlay_only_reason,
             }
             low_variance_examples.append(row)
             low_variance_map[feature_col] = row
@@ -223,6 +288,7 @@ def _compute_feature_diagnostics(
                 "baseline_std": _round(baseline_std),
                 "std_ratio": _round(std_ratio),
                 "expected_static_reason": expected_static_reason,
+                "overlay_only_reason": overlay_only_reason,
             }
             low_distinct_examples.append(row)
             low_distinct_map[feature_col] = row
@@ -234,6 +300,7 @@ def _compute_feature_diagnostics(
             "baseline_distinct": low_distinct_map[feature].get("baseline_distinct"),
             "distinct_ratio": low_distinct_map[feature].get("distinct_ratio"),
             "expected_static_reason": low_distinct_map[feature].get("expected_static_reason") or low_variance_map[feature].get("expected_static_reason"),
+            "overlay_only_reason": low_distinct_map[feature].get("overlay_only_reason") or low_variance_map[feature].get("overlay_only_reason"),
         }
         for feature in sorted(set(low_variance_map) & set(low_distinct_map))
     ]
@@ -245,14 +312,22 @@ def _compute_feature_diagnostics(
     expected_static_examples = [
         row for row in (frozen_examples + compressed_examples) if row.get("expected_static_reason")
     ]
-    unexpected_frozen_examples = [row for row in frozen_examples if not row.get("expected_static_reason")]
-    unexpected_compressed_examples = [row for row in compressed_examples if not row.get("expected_static_reason")]
+    overlay_only_examples = [
+        row for row in (frozen_examples + compressed_examples) if row.get("overlay_only_reason")
+    ]
+    unexpected_frozen_examples = [
+        row for row in frozen_examples if not row.get("expected_static_reason") and not row.get("overlay_only_reason")
+    ]
+    unexpected_compressed_examples = [
+        row for row in compressed_examples if not row.get("expected_static_reason") and not row.get("overlay_only_reason")
+    ]
 
     low_variance_examples.sort(key=lambda row: (row.get("std_ratio") is None, row.get("std_ratio", 1e9), row["feature"]))
     low_distinct_examples.sort(key=lambda row: (row.get("distinct_ratio") is None, row.get("distinct_ratio", 1e9), row["feature"]))
     frozen_examples.sort(key=lambda row: (row.get("std_ratio") is None, row.get("std_ratio", 1e9), row["feature"]))
     compressed_examples.sort(key=lambda row: (row.get("std_ratio") is None, row.get("std_ratio", 1e9), row["feature"]))
     expected_static_examples.sort(key=lambda row: (row.get("expected_static_reason") or "", row["feature"]))
+    overlay_only_examples.sort(key=lambda row: (row.get("overlay_only_reason") or "", row["feature"]))
     unexpected_frozen_examples.sort(key=lambda row: (row.get("std_ratio") is None, row.get("std_ratio", 1e9), row["feature"]))
     unexpected_compressed_examples.sort(key=lambda row: (row.get("std_ratio") is None, row.get("std_ratio", 1e9), row["feature"]))
     null_heavy_examples.sort(key=lambda row: (row.get("non_null_ratio") is None, row.get("non_null_ratio", 1e9), row["feature"]))
@@ -266,6 +341,7 @@ def _compute_feature_diagnostics(
         "frozen_count": len(frozen_examples),
         "compressed_count": len(compressed_examples),
         "expected_static_count": len(expected_static_examples),
+        "overlay_only_count": len(overlay_only_examples),
         "unexpected_frozen_count": len(unexpected_frozen_examples),
         "unexpected_compressed_count": len(unexpected_compressed_examples),
         "null_heavy_count": len(null_heavy_examples),
@@ -274,6 +350,7 @@ def _compute_feature_diagnostics(
         "frozen_examples": frozen_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
         "compressed_examples": compressed_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
         "expected_static_examples": expected_static_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
+        "overlay_only_examples": overlay_only_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
         "unexpected_frozen_examples": unexpected_frozen_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
         "unexpected_compressed_examples": unexpected_compressed_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
         "null_heavy_examples": null_heavy_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
@@ -412,16 +489,32 @@ def _classify_window(alerts: list[str], metrics: dict[str, Any]) -> str:
     avg_quality = metrics.get("avg_simulated_quality")
     avg_dd_penalty = metrics.get("avg_drawdown_penalty")
     avg_tuw = metrics.get("avg_time_underwater")
-    spot_long_win_rate = metrics.get("spot_long_win_rate")
 
+    # Canonical classification must be driven by canonical pyramid outcomes first.
+    # `spot_long_win_rate` is still useful as a comparison diagnostic, but it is a
+    # legacy/path-aware target and must not veto a clearly healthy canonical pocket.
+    # Heartbeat #686 showed that recent canonical pockets can still be genuinely
+    # healthy even when time-underwater drifts slightly above the original 0.45
+    # cutoff. Treat near-threshold TUW as acceptable if the rest of the canonical
+    # quality profile is clearly strong (high win/pnl/quality, low drawdown).
+    tuw_supported = (
+        isinstance(avg_tuw, (int, float))
+        and (
+            avg_tuw <= 0.45
+            or (
+                avg_tuw <= 0.55
+                and isinstance(avg_dd_penalty, (int, float)) and avg_dd_penalty <= 0.08
+                and isinstance(avg_quality, (int, float)) and avg_quality >= 0.60
+            )
+        )
+    )
     strong_positive_extreme = (
-        "constant_target" in alerts
+        any(alert in alerts for alert in ("constant_target", "label_imbalance"))
         and isinstance(win_rate, (int, float)) and win_rate >= 0.95
         and isinstance(avg_pnl, (int, float)) and avg_pnl >= 0.01
         and isinstance(avg_quality, (int, float)) and avg_quality >= 0.55
         and isinstance(avg_dd_penalty, (int, float)) and avg_dd_penalty <= 0.20
-        and isinstance(avg_tuw, (int, float)) and avg_tuw <= 0.45
-        and isinstance(spot_long_win_rate, (int, float)) and spot_long_win_rate >= 0.40
+        and tuw_supported
     )
     if strong_positive_extreme:
         return "supported_extreme_trend"
@@ -433,12 +526,94 @@ def _classify_window(alerts: list[str], metrics: dict[str, Any]) -> str:
     return "healthy"
 
 
+def _reference_window_comparison(
+    rows: list[sqlite3.Row],
+    reference_rows: list[sqlite3.Row],
+    feature_cols: list[str],
+    baseline_feature_stats: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    if not rows or not reference_rows:
+        return {}
+
+    current_regimes = Counter((r["regime"] or "unknown") for r in rows)
+    reference_regimes = Counter((r["regime"] or "unknown") for r in reference_rows)
+    current_total = len(rows)
+    reference_total = len(reference_rows)
+    current_quality = {
+        "win_rate": _round(sum(int(r["target"]) for r in rows) / current_total) if current_total else None,
+        "spot_long_win_rate": _avg(rows, "spot_long_win"),
+        "avg_simulated_pnl": _avg(rows, "simulated_pyramid_pnl"),
+        "avg_simulated_quality": _avg(rows, "simulated_pyramid_quality"),
+        "avg_drawdown_penalty": _avg(rows, "simulated_pyramid_drawdown_penalty"),
+        "avg_time_underwater": _avg(rows, "simulated_pyramid_time_underwater"),
+    }
+    reference_quality = {
+        "win_rate": _round(sum(int(r["target"]) for r in reference_rows) / reference_total) if reference_total else None,
+        "spot_long_win_rate": _avg(reference_rows, "spot_long_win"),
+        "avg_simulated_pnl": _avg(reference_rows, "simulated_pyramid_pnl"),
+        "avg_simulated_quality": _avg(reference_rows, "simulated_pyramid_quality"),
+        "avg_drawdown_penalty": _avg(reference_rows, "simulated_pyramid_drawdown_penalty"),
+        "avg_time_underwater": _avg(reference_rows, "simulated_pyramid_time_underwater"),
+    }
+    current_time_context = _window_time_context(rows)
+    reference_time_context = _window_time_context(reference_rows)
+    current_diag = _compute_feature_diagnostics(rows, feature_cols, baseline_feature_stats, current_time_context)
+    reference_diag = _compute_feature_diagnostics(reference_rows, feature_cols, baseline_feature_stats, reference_time_context)
+
+    current_unexpected_frozen = _feature_name_set(current_diag.get("unexpected_frozen_examples") or [])
+    reference_unexpected_frozen = _feature_name_set(reference_diag.get("unexpected_frozen_examples") or [])
+    current_unexpected_compressed = _feature_name_set(current_diag.get("unexpected_compressed_examples") or [])
+    reference_unexpected_compressed = _feature_name_set(reference_diag.get("unexpected_compressed_examples") or [])
+    current_null_heavy = _feature_name_set(current_diag.get("null_heavy_examples") or [])
+    reference_null_heavy = _feature_name_set(reference_diag.get("null_heavy_examples") or [])
+
+    regime_share_deltas = {}
+    for regime in sorted(set(current_regimes) | set(reference_regimes)):
+        current_share = (current_regimes.get(regime, 0) / current_total) if current_total else None
+        reference_share = (reference_regimes.get(regime, 0) / reference_total) if reference_total else None
+        regime_share_deltas[regime] = {
+            "current_share": _round(current_share),
+            "reference_share": _round(reference_share),
+            "share_delta": _round((current_share or 0.0) - (reference_share or 0.0)),
+        }
+
+    def _delta(current_value: float | None, reference_value: float | None) -> float | None:
+        if current_value is None or reference_value is None:
+            return None
+        return _round(current_value - reference_value)
+
+    return {
+        "current_rows": current_total,
+        "reference_rows": reference_total,
+        "current_start_timestamp": rows[0]["timestamp"],
+        "current_end_timestamp": rows[-1]["timestamp"],
+        "reference_start_timestamp": reference_rows[0]["timestamp"],
+        "reference_end_timestamp": reference_rows[-1]["timestamp"],
+        "current_quality": current_quality,
+        "reference_quality": reference_quality,
+        "win_rate_delta_vs_reference": _delta(current_quality.get("win_rate"), reference_quality.get("win_rate")),
+        "spot_long_win_rate_delta_vs_reference": _delta(current_quality.get("spot_long_win_rate"), reference_quality.get("spot_long_win_rate")),
+        "avg_simulated_pnl_delta_vs_reference": _delta(current_quality.get("avg_simulated_pnl"), reference_quality.get("avg_simulated_pnl")),
+        "avg_simulated_quality_delta_vs_reference": _delta(current_quality.get("avg_simulated_quality"), reference_quality.get("avg_simulated_quality")),
+        "avg_drawdown_penalty_delta_vs_reference": _delta(current_quality.get("avg_drawdown_penalty"), reference_quality.get("avg_drawdown_penalty")),
+        "avg_time_underwater_delta_vs_reference": _delta(current_quality.get("avg_time_underwater"), reference_quality.get("avg_time_underwater")),
+        "current_dominant_regime": max(current_regimes, key=current_regimes.get) if current_regimes else None,
+        "reference_dominant_regime": max(reference_regimes, key=reference_regimes.get) if reference_regimes else None,
+        "regime_share_deltas": regime_share_deltas,
+        "new_unexpected_frozen_features": sorted(current_unexpected_frozen - reference_unexpected_frozen),
+        "new_unexpected_compressed_features": sorted(current_unexpected_compressed - reference_unexpected_compressed),
+        "new_null_heavy_features": sorted(current_null_heavy - reference_null_heavy),
+        "top_mean_shift_features": _compute_feature_shift_examples(rows, reference_rows, feature_cols, baseline_feature_stats),
+    }
+
+
 def _window_summary(
     rows: list[sqlite3.Row],
     baseline_win_rate: float,
     baseline_regimes: Counter,
     feature_cols: list[str],
     baseline_feature_stats: dict[str, dict[str, Any]],
+    reference_rows: list[sqlite3.Row] | None = None,
 ) -> dict[str, Any]:
     total = len(rows)
     wins = sum(int(r["target"]) for r in rows)
@@ -476,6 +651,10 @@ def _window_summary(
     target_path_diagnostics = _target_path_diagnostics(rows)
     interpretation = _classify_window(alerts, quality_metrics)
 
+    reference_comparison = {}
+    if reference_rows:
+        reference_comparison = _reference_window_comparison(rows, reference_rows, feature_cols, baseline_feature_stats)
+
     return {
         "rows": total,
         "wins": wins,
@@ -492,6 +671,7 @@ def _window_summary(
         "quality_metrics": quality_metrics,
         "feature_diagnostics": feature_diagnostics,
         "target_path_diagnostics": target_path_diagnostics,
+        "reference_window_comparison": reference_comparison,
         "drift_interpretation": interpretation,
         "alerts": alerts,
     }
@@ -567,12 +747,14 @@ def build_report() -> dict[str, Any]:
         if total < window:
             continue
         window_rows = rows[-window:]
+        reference_rows = rows[-(window * 2):-window] if total >= window * 2 else []
         window_summaries[str(window)] = _window_summary(
             window_rows,
             baseline_win_rate,
             baseline_regimes,
             feature_cols,
             baseline_feature_stats,
+            reference_rows=reference_rows,
         )
 
     primary_window, primary_summary = _find_primary_window(window_summaries)
@@ -626,6 +808,7 @@ def main() -> int:
             f"avg_quality={quality.get('avg_simulated_quality')} avg_dd_penalty={quality.get('avg_drawdown_penalty')} "
             f"feature_diag=variance:{feature_diag.get('low_variance_count', 0)}/{feature_diag.get('feature_count', 0)} "
             f"expected_static:{feature_diag.get('expected_static_count', 0)} "
+            f"overlay_only:{feature_diag.get('overlay_only_count', 0)} "
             f"unexpected_frozen:{feature_diag.get('unexpected_frozen_count', 0)} "
             f"distinct:{feature_diag.get('low_distinct_count', 0)} null_heavy:{feature_diag.get('null_heavy_count', 0)}"
         )
@@ -649,11 +832,42 @@ def main() -> int:
             f"avg_dd_penalty={quality.get('avg_drawdown_penalty')} "
             f"feature_diag=variance:{feature_diag.get('low_variance_count', 0)}/{feature_diag.get('feature_count', 0)} "
             f"expected_static:{feature_diag.get('expected_static_count', 0)} "
+            f"overlay_only:{feature_diag.get('overlay_only_count', 0)} "
             f"unexpected_frozen:{feature_diag.get('unexpected_frozen_count', 0)} "
             f"distinct:{feature_diag.get('low_distinct_count', 0)} null_heavy:{feature_diag.get('null_heavy_count', 0)} "
             f"tail_streak={tail_streak.get('count', 0)}x{streak_target_text} since {tail_streak.get('start_timestamp')} "
             f"adverse_streak={adverse_streak.get('count', 0)}x{adverse_target_text} since {adverse_streak.get('start_timestamp')}"
         )
+        reference = summary.get("reference_window_comparison") or {}
+        if reference:
+            print(
+                "  ↳ sibling-window contrast: "
+                f"prev_win_rate={reference.get('reference_quality', {}).get('win_rate')} "
+                f"vs current={reference.get('current_quality', {}).get('win_rate')} "
+                f"(Δ={reference.get('win_rate_delta_vs_reference')}), "
+                f"prev_quality={reference.get('reference_quality', {}).get('avg_simulated_quality')} "
+                f"vs current={reference.get('current_quality', {}).get('avg_simulated_quality')} "
+                f"(Δ={reference.get('avg_simulated_quality_delta_vs_reference')}), "
+                f"prev_pnl={reference.get('reference_quality', {}).get('avg_simulated_pnl')} "
+                f"vs current={reference.get('current_quality', {}).get('avg_simulated_pnl')} "
+                f"(Δ={reference.get('avg_simulated_pnl_delta_vs_reference')})"
+            )
+            top_shift = reference.get("top_mean_shift_features") or []
+            if top_shift:
+                preview = "/".join(
+                    f"{row.get('feature')}({row.get('reference_mean')}→{row.get('current_mean')}, Δσ={row.get('delta_vs_baseline_std')})"
+                    for row in top_shift[:3]
+                )
+                print(f"  ↳ top feature shifts vs sibling window: {preview}")
+            new_flags = []
+            if reference.get("new_unexpected_frozen_features"):
+                new_flags.append("new_frozen=" + "/".join(reference.get("new_unexpected_frozen_features")[:3]))
+            if reference.get("new_unexpected_compressed_features"):
+                new_flags.append("new_compressed=" + "/".join(reference.get("new_unexpected_compressed_features")[:3]))
+            if reference.get("new_null_heavy_features"):
+                new_flags.append("new_null_heavy=" + "/".join(reference.get("new_null_heavy_features")[:3]))
+            if new_flags:
+                print("  ↳ new pathology vs sibling window: " + "; ".join(new_flags))
         recent_examples = path_diag.get("recent_examples") or []
         if recent_examples:
             preview = "; ".join(

@@ -11,6 +11,8 @@ FEATURE_KEY_MAP = {
     'feat_body': 'body', 'feat_pulse': 'pulse', 'feat_aura': 'aura', 'feat_mind': 'mind',
     'feat_vix': 'vix', 'feat_dxy': 'dxy', 'feat_rsi14': 'rsi14', 'feat_macd_hist': 'macd_hist',
     'feat_atr_pct': 'atr_pct', 'feat_vwap_dev': 'vwap_dev', 'feat_bb_pct_b': 'bb_pct_b',
+    'feat_nw_width': 'nw_width', 'feat_nw_slope': 'nw_slope', 'feat_adx': 'adx',
+    'feat_choppiness': 'choppiness', 'feat_donchian_pos': 'donchian_pos',
     'feat_nq_return_1h': 'nq_return_1h', 'feat_nq_return_24h': 'nq_return_24h',
     'feat_claw': 'claw', 'feat_claw_intensity': 'claw_intensity',
     'feat_fang_pcr': 'fang_pcr', 'feat_fang_skew': 'fang_skew', 'feat_fin_netflow': 'fin_netflow',
@@ -25,6 +27,10 @@ SOURCE_FEATURE_KEYS = {
     'claw', 'claw_intensity', 'fang_pcr', 'fang_skew', 'fin_netflow',
     'web_whale', 'scales_ssr', 'nest_pred',
 }
+
+CORE_MATURITY_TIER = 'core'
+RESEARCH_MATURITY_TIER = 'research'
+BLOCKED_MATURITY_TIER = 'blocked'
 
 SOURCE_SNAPSHOT_SUBTYPES = {
     'claw': ('claw_snapshot',),
@@ -156,8 +162,31 @@ def assess_feature_quality(clean_key: str, coverage_pct: float, distinct: int, n
         quality_flag = 'ok'
         quality_label = 'ok'
 
+    chart_usable = coverage_pct >= min_coverage and distinct >= min_distinct
+    if source_issue:
+        if chart_usable and quality_flag == 'ok':
+            maturity_tier = RESEARCH_MATURITY_TIER
+            maturity_label = 'research overlay only'
+            score_usable = False
+        else:
+            maturity_tier = BLOCKED_MATURITY_TIER
+            maturity_label = 'blocked sparse-source signal'
+            score_usable = False
+    else:
+        if chart_usable and quality_flag == 'ok':
+            maturity_tier = CORE_MATURITY_TIER
+            maturity_label = 'core decision signal'
+            score_usable = True
+        else:
+            maturity_tier = BLOCKED_MATURITY_TIER
+            maturity_label = 'blocked until coverage/distinctness recovers'
+            score_usable = False
+
     return {
-        'chart_usable': coverage_pct >= min_coverage and distinct >= min_distinct,
+        'chart_usable': chart_usable,
+        'score_usable': score_usable,
+        'maturity_tier': maturity_tier,
+        'maturity_label': maturity_label,
         'reasons': reasons,
         'quality_flag': quality_flag,
         'quality_label': quality_label,
@@ -532,10 +561,16 @@ def compute_sqlite_feature_coverage(db_path: str | Path) -> Dict[str, Any]:
         })
     conn.close()
     stats.sort(key=lambda row: (row['chart_usable'], row['coverage_pct'], row['distinct']))
+    maturity_counts = {
+        CORE_MATURITY_TIER: sum(1 for row in stats if row.get('maturity_tier') == CORE_MATURITY_TIER),
+        RESEARCH_MATURITY_TIER: sum(1 for row in stats if row.get('maturity_tier') == RESEARCH_MATURITY_TIER),
+        BLOCKED_MATURITY_TIER: sum(1 for row in stats if row.get('maturity_tier') == BLOCKED_MATURITY_TIER),
+    }
     return {
         'rows_total': total_rows,
         'usable_count': sum(1 for row in stats if row['chart_usable']),
         'hidden_count': sum(1 for row in stats if not row['chart_usable']),
+        'maturity_counts': maturity_counts,
         'features': stats,
     }
 

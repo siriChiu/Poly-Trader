@@ -166,15 +166,24 @@ npm run dev
 - 調整每個特徵的權重
 - 即時預覽權重調整對綜合分數的影響
 
-### 回測頁（/backtest）
+### 策略實驗室（/lab）
 
-在導航列點擊「🔬 回測」進入。
+目前正式的回測工作區是 **Strategy Lab `/lab`**；舊的 `/backtest` 已退役並導向 `/lab`。
 
-此頁面可以：
-- 選擇回測時間範圍
-- 設定初始資金、信心閾值、止損止盈
-- 選擇金字塔模式（特徵信心 / 斐波那契支撐）
-- 查看資金曲線圖和每筆交易明細
+Strategy Lab 目前支援：
+- 規則式 / Hybrid 模式切換
+- 模型排行榜 + 策略排行榜
+- 非同步回測進度條（頁面上方統一顯示）
+- 上下同步的價格 / 權益雙圖
+- buy / sell markers、倉位水位、entry quality、model confidence
+- 本地 K 線快取 + 增量補資料，切頁後不必每次整包重抓
+- click leaderboard row 回填策略參數與結果
+
+如果你想看更細的實作與演進規劃，請直接看：
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [ROADMAP.md](ROADMAP.md)
+- `docs/plans/`
+- `docs/analysis/`
 
 ---
 
@@ -231,19 +240,19 @@ trading:
 
 ```
 Poly-Trader/
-├── server/                    ← FastAPI 後端 + WebSocket
-├── data_ingestion/            ← 數據收集器（8 特徵 + 衍生品）
-├── feature_engine/            ← 特徵工程 v3
-├── model/                     ← XGBoost 預測器
-├── backtesting/               ← 回測引擎 v2（金字塔加碼）
-├── execution/                 ← 風控 + 下單
-├── database/                  ← SQLAlchemy ORM
-├── web/                       ← React 前端
-├── scripts/                   ← 開發腳本
-├── tests/                     ← 測試
-├── poly_trader.db             ← SQLite 資料庫
+├── server/                    ← FastAPI 後端 + API / WebSocket
+├── data_ingestion/            ← 市場 / sparse-source / heartbeat 收集器
+├── feature_engine/            ← 特徵工程與 coverage / maturity policy
+├── model/                     ← predictor / train / calibration artifacts
+├── backtesting/               ← Strategy Lab 與模型排行榜核心
+├── database/                  ← SQLAlchemy ORM + SQLite schema
+├── web/                       ← React 前端（Dashboard / Strategy Lab）
+├── scripts/                   ← heartbeat / probes / analysis / maintenance
+├── tests/                     ← pytest 測試
+├── docs/
+│   ├── plans/                 ← 實作計畫
+│   └── analysis/              ← 研究分析與 sweep 結果
 │
-├── AI_AGENT_ROLE.md           ← AI 角色定義
 ├── HEARTBEAT.md               ← 心跳流程
 ├── ARCHITECTURE.md            ← 系統架構
 ├── ISSUES.md                  ← 問題追蹤
@@ -256,6 +265,17 @@ Poly-Trader/
 ## 🔧 開發指令
 
 ```bash
+# Strategy Lab / heartbeat 相關快速檢查
+python -m pytest tests/test_strategy_lab.py -q
+python -m pytest tests/test_model_leaderboard.py -q
+
+# 前端 build
+cd web && npm run build
+
+# heartbeat / drift / live probe
+python scripts/hb_parallel_runner.py --fast
+python scripts/hb_predict_probe.py
+
 # 結構檢查
 python scripts/dev_heartbeat.py
 

@@ -224,9 +224,9 @@ export default function Dashboard() {
       </div>
 
       {/* Row 1: Radar + Advice */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-4 items-stretch">
         {/* Left: Radar */}
-        <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-5 flex flex-col items-center">
+        <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-5 flex h-full flex-col items-center">
           <div className="flex items-center justify-between w-full mb-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-300">🎯 多特徵雷達圖</h2>
@@ -267,19 +267,21 @@ export default function Dashboard() {
         </div>
 
         {/* Right: Advice Card */}
-        <div>
+        <div className="h-full">
           {advice ? (
-            <AdviceCard
-              score={advice.score}
-              summary={advice.summary}
-              descriptions={advice.descriptions}
-              action={advice.action}
-              timestamp={advice.timestamp || lastUpdate}
-              onTrade={handleTrade}
-              maturitySummary={maturitySummary || undefined}
-            />
+            <div className="h-full">
+              <AdviceCard
+                score={advice.score}
+                summary={advice.summary}
+                descriptions={advice.descriptions}
+                action={advice.action}
+                timestamp={advice.timestamp || lastUpdate}
+                onTrade={handleTrade}
+                maturitySummary={maturitySummary || undefined}
+              />
+            </div>
           ) : apiError ? (
-            <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-8 text-center">
+            <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-8 text-center h-full min-h-[420px] flex flex-col items-center justify-center">
               <div className="text-red-400 text-lg mb-2">⚠️ 無法連線</div>
               <p className="text-slate-400 text-sm">{apiError}</p>
               <button onClick={refreshSenses} className="mt-4 px-4 py-2 text-sm bg-red-600 rounded hover:bg-red-500">
@@ -287,7 +289,7 @@ export default function Dashboard() {
               </button>
             </div>
           ) : (
-            <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-8 flex items-center justify-center h-48">
+            <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-8 flex h-full min-h-[420px] items-center justify-center">
               <div className="text-slate-500 animate-pulse text-center">
                 <div className="text-2xl mb-2">🤔</div>
                 <div>分析中...</div>

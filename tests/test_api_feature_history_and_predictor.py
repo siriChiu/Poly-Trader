@@ -178,8 +178,13 @@ def test_live_decision_profile_matches_strategy_lab_baseline():
     expected_gate = strategy_lab._compute_regime_gate(2.2, "bull", -10.0, 0.82, 7.2, 9.1)
     expected_layers = strategy_lab._allowed_layers_for_signal(expected_gate, expected_quality, 3)
 
+    debug = predictor_module._compute_live_regime_gate_debug(2.2, "bull", bb_pct_b_value=0.82, dist_bb_lower_value=7.2, dist_swing_low_value=9.1)
+
     assert profile["entry_quality"] == expected_quality
     assert profile["regime_gate"] == expected_gate
+    assert profile["regime_gate_reason"] == debug["final_reason"]
+    assert profile["structure_quality"] == debug["structure_quality"]
+    assert profile["structure_bucket"] == predictor_module._live_structure_bucket_from_debug(debug)
     assert profile["allowed_layers"] == expected_layers
     assert profile["entry_quality_label"] == "A"
     assert profile["decision_profile_version"] == "phase16_baseline_v2"
@@ -840,6 +845,114 @@ def test_decision_quality_contract_surfaces_toxic_exact_allow_lane_when_broader_
 
 
 
+def test_decision_quality_contract_flags_unsupported_live_structure_bucket_when_scope_is_misaligned():
+    rows = []
+    for i in range(14):
+        rows.append(
+            {
+                "timestamp": f"2026-04-13T00:{i:02d}:00",
+                "symbol": "BTCUSDT",
+                "regime_label": "bull",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "D",
+                "structure_bucket": "ALLOW|base_allow|q85",
+                "feat_4h_dist_bb_lower": 10.2,
+                "feat_4h_dist_swing_low": 13.0,
+                "feat_4h_bb_pct_b": 1.22,
+                "simulated_pyramid_win": 1.0 if i < 7 else 0.0,
+                "simulated_pyramid_pnl": 0.008 if i < 7 else -0.004,
+                "simulated_pyramid_quality": 0.28 if i < 7 else 0.02,
+                "simulated_pyramid_drawdown_penalty": 0.19 if i < 7 else 0.22,
+                "simulated_pyramid_time_underwater": 0.41 if i < 7 else 0.5,
+            }
+        )
+    for i in range(66):
+        rows.append(
+            {
+                "timestamp": f"2026-04-12T01:{i:02d}:00",
+                "symbol": "BTCUSDT",
+                "regime_label": "neutral",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "D",
+                "structure_bucket": "ALLOW|base_allow|q65",
+                "feat_4h_dist_bb_lower": 8.1,
+                "feat_4h_dist_swing_low": 10.8,
+                "feat_4h_bb_pct_b": 1.04,
+                "simulated_pyramid_win": 0.0,
+                "simulated_pyramid_pnl": -0.002,
+                "simulated_pyramid_quality": -0.04,
+                "simulated_pyramid_drawdown_penalty": 0.31,
+                "simulated_pyramid_time_underwater": 0.73,
+            }
+        )
+    for i in range(35):
+        rows.append(
+            {
+                "timestamp": f"2026-04-11T02:{i:02d}:00",
+                "symbol": "BTCUSDT",
+                "regime_label": "neutral",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "D",
+                "structure_bucket": "ALLOW|base_allow|q85",
+                "feat_4h_dist_bb_lower": 9.9,
+                "feat_4h_dist_swing_low": 11.9,
+                "feat_4h_bb_pct_b": 1.19,
+                "simulated_pyramid_win": 0.0,
+                "simulated_pyramid_pnl": -0.01,
+                "simulated_pyramid_quality": -0.22,
+                "simulated_pyramid_drawdown_penalty": 0.29,
+                "simulated_pyramid_time_underwater": 0.84,
+            }
+        )
+    for i in range(2):
+        rows.append(
+            {
+                "timestamp": f"2026-04-10T03:{i:02d}:00",
+                "symbol": "BTCUSDT",
+                "regime_label": "neutral",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "D",
+                "structure_bucket": "ALLOW|base_allow|q35",
+                "feat_4h_dist_bb_lower": 6.8,
+                "feat_4h_dist_swing_low": 7.1,
+                "feat_4h_bb_pct_b": 0.64,
+                "simulated_pyramid_win": 1.0 if i == 0 else 0.0,
+                "simulated_pyramid_pnl": 0.001 if i == 0 else -0.0048,
+                "simulated_pyramid_quality": 0.24 if i == 0 else -0.0408,
+                "simulated_pyramid_drawdown_penalty": 0.2 if i == 0 else 0.24,
+                "simulated_pyramid_time_underwater": 0.46 if i == 0 else 0.55,
+            }
+        )
+
+    contract = predictor_module._summarize_decision_quality_contract(
+        rows,
+        {
+            "regime_label": "bull",
+            "regime_gate": "ALLOW",
+            "entry_quality_label": "D",
+            "structure_bucket": "ALLOW|base_allow|q35",
+            "decision_profile_version": "phase16_baseline_v2",
+        },
+    )
+
+    scope_diag = contract["decision_quality_scope_diagnostics"]["regime_gate+entry_quality_label"]
+    assert contract["decision_quality_calibration_scope"] == "regime_gate+entry_quality_label"
+    assert scope_diag["current_live_structure_bucket"] == "ALLOW|base_allow|q35"
+    assert scope_diag["current_live_structure_bucket_rows"] == 2
+    assert scope_diag["current_live_structure_bucket_share"] == 0.0171
+    assert scope_diag["recent500_dominant_structure_bucket"] == {
+        "structure_bucket": "ALLOW|base_allow|q65",
+        "count": 66,
+        "share": 0.5641,
+    }
+    assert contract["decision_quality_live_structure_bucket"] == "ALLOW|base_allow|q35"
+    assert contract["decision_quality_structure_bucket_guardrail_applied"] is True
+    assert contract["decision_quality_structure_bucket_support_rows"] == 2
+    assert contract["decision_quality_structure_bucket_support_share"] == 0.0171
+    assert "weak support for live structure bucket ALLOW|base_allow|q35" in contract["decision_quality_structure_bucket_guardrail_reason"]
+
+
+
 def test_recent_scope_pathology_prefers_more_persistent_negative_window_when_scores_tie():
     def _ts(i: int) -> str:
         return f"2026-04-12T{(i // 60):02d}:{(i % 60):02d}:00"
@@ -948,6 +1061,34 @@ def test_apply_live_execution_guardrails_blocks_trade_for_recent_distribution_pa
     assert guarded["allowed_layers"] == 0
     assert guarded["execution_guardrail_applied"] is True
     assert "recent_distribution_pathology_blocks_trade" in guarded["execution_guardrail_reason"]
+
+
+def test_apply_live_execution_guardrails_blocks_trade_for_unsupported_live_structure_bucket():
+    profile = {
+        "regime_label": "bull",
+        "regime_gate": "ALLOW",
+        "entry_quality": 0.71,
+        "entry_quality_label": "B",
+        "allowed_layers": 2,
+        "decision_profile_version": "phase16_baseline_v2",
+    }
+    contract = {
+        **predictor_module._decision_quality_fallback(),
+        "decision_quality_guardrail_applied": True,
+        "decision_quality_structure_bucket_guardrail_applied": True,
+        "decision_quality_structure_bucket_support_rows": 2,
+        "decision_quality_structure_bucket_guardrail_reason": "chosen scope regime_gate+entry_quality_label has weak support for live structure bucket ALLOW|base_allow|q35",
+        "decision_quality_label": "B",
+        "decision_quality_score": 0.58,
+    }
+
+    guarded = predictor_module._apply_live_execution_guardrails(profile, contract)
+
+    assert guarded["allowed_layers_raw"] == 2
+    assert guarded["allowed_layers"] == 0
+    assert guarded["execution_guardrail_applied"] is True
+    assert "unsupported_live_structure_bucket_blocks_trade" in guarded["execution_guardrail_reason"]
+
 
 
 def test_apply_live_execution_guardrails_reports_exact_live_lane_toxicity():

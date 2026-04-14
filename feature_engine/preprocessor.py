@@ -37,36 +37,14 @@ def _compute_technical_indicators_from_df(df: pd.DataFrame) -> Dict[str, float]:
     if len(close) < 64:  # Minimum for NW envelope
         return {}
 
-    from feature_engine.technical_indicators import (
-        rsi, macd, bollinger_bands, atr, vwap
-    )
+    from feature_engine.technical_indicators import compute_technical_features
 
     closes = close.values
     high_est = closes * 1.005  # Estimate highs from close
     low_est = closes * 0.995   # Estimate lows from close
     vols = vol.values[-len(closes):]  # now guaranteed same length
-    
-    result = {}
-    
-    # RSI 14 (normalize to 0-1)
-    rsi_vals = rsi(closes, period=14)
-    result["feat_rsi14"] = float(rsi_vals[-1]) / 100.0
-    
-    # MACD Histogram (normalize by price)
-    macd_line, sig_line, hist = macd(closes)
-    result["feat_macd_hist"] = float(hist[-1] / closes[-1]) if closes[-1] != 0 else 0
-    
-    # Bollinger Bands %B (already 0-1 range)
-    _, _, _, bb_pct_b = bollinger_bands(closes)
-    result["feat_bb_pct_b"] = float(bb_pct_b[-1])
-    
-    # ATR as % of price
-    atr_val = atr(high_est, low_est, closes, period=14)
-    result["feat_atr_pct"] = float(atr_val[-1] / closes[-1]) if closes[-1] != 0 else 0
-    
-    # VWAP deviation (normalize by price)
-    vwap_vals = vwap(high_est, low_est, closes, vols)
-    result["feat_vwap_dev"] = float((closes[-1] - vwap_vals[-1]) / closes[-1]) if closes[-1] != 0 else 0
+
+    result = compute_technical_features(closes, high_est, low_est, vols)
     
     # ─── P0: 4H Timeframe Features ───
     # Fetch 4H data from Binance and compute 4H support-line bias features
@@ -91,7 +69,11 @@ def _compute_technical_indicators_from_df(df: pd.DataFrame) -> Dict[str, float]:
                 arr = ind_4h.get(name, [default] * n_4h)
                 if n_4h > 0:
                     v = arr[-1]
-                    return float(v) if isinstance(v, (int, float)) and np.isfinite(v) else float(default)
+                    try:
+                        v_float = float(v)
+                    except (TypeError, ValueError):
+                        return float(default)
+                    return v_float if np.isfinite(v_float) else float(default)
                 return float(default)
             
             result["feat_4h_bias50"] = gv_4h("4h_bias50", 0)
@@ -339,6 +321,21 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     features["feat_atr_pct"] = ti.get("feat_atr_pct", 0.0)
     features["feat_vwap_dev"] = ti.get("feat_vwap_dev", 0.0)
     features["feat_bb_pct_b"] = ti.get("feat_bb_pct_b", 0.5)
+    features["feat_nw_width"] = ti.get("feat_nw_width", 0.0)
+    features["feat_nw_slope"] = ti.get("feat_nw_slope", 0.0)
+    features["feat_adx"] = ti.get("feat_adx", 0.0)
+    features["feat_choppiness"] = ti.get("feat_choppiness", 0.5)
+    features["feat_donchian_pos"] = ti.get("feat_donchian_pos", 0.5)
+    features["feat_4h_bias50"] = ti.get("feat_4h_bias50")
+    features["feat_4h_bias20"] = ti.get("feat_4h_bias20")
+    features["feat_4h_bias200"] = ti.get("feat_4h_bias200")
+    features["feat_4h_rsi14"] = ti.get("feat_4h_rsi14")
+    features["feat_4h_macd_hist"] = ti.get("feat_4h_macd_hist")
+    features["feat_4h_bb_pct_b"] = ti.get("feat_4h_bb_pct_b")
+    features["feat_4h_dist_bb_lower"] = ti.get("feat_4h_dist_bb_lower")
+    features["feat_4h_ma_order"] = ti.get("feat_4h_ma_order")
+    features["feat_4h_dist_swing_low"] = ti.get("feat_4h_dist_swing_low")
+    features["feat_4h_vol_ratio"] = ti.get("feat_4h_vol_ratio")
 
     # ─── P0 #H381: VIX & DXY — #1 and #2 IC features (must be in pipeline!) ───
     # DXY IC=-0.1107, VIX IC=-0.0796 (highest-IC macro features)
@@ -391,9 +388,9 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
         if len(nq_vals) >= 24:
             features["feat_nq_return_24h"] = -(float(nq_vals.iloc[-1] / nq_vals.iloc[-min(24, len(nq_vals))] - 1))
     if "feat_nq_return_1h" not in features:
-        features["feat_nq_return_1h"] = 0.0
+        features["feat_nq_return_1h"] = None
     if "feat_nq_return_24h" not in features:
-        features["feat_nq_return_24h"] = 0.0
+        features["feat_nq_return_24h"] = None
 
     latest_row = df.iloc[-1] if len(df) > 0 else None
 
@@ -467,7 +464,7 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
         f"mind={features['feat_mind']:.4f} "
         f"| TI: rsi={features['feat_rsi14']:.4f} macd={features['feat_macd_hist']:.6f} "
         f"atr={features['feat_atr_pct']:.6f} vwap={features['feat_vwap_dev']:.6f} "
-        f"bb={features['feat_bb_pct_b']:.4f} "
+        f"nw={features['feat_bb_pct_b']:.4f} nw_width={features['feat_nw_width']:.4f} adx={features['feat_adx']:.4f} "
         f"| Macro: vix={features.get('feat_vix')} dxy={features.get('feat_dxy')}"
     )
     return features
@@ -538,6 +535,11 @@ def save_features_to_db(
             existing.feat_atr_pct = features.get("feat_atr_pct")
             existing.feat_vwap_dev = features.get("feat_vwap_dev")
             existing.feat_bb_pct_b = features.get("feat_bb_pct_b")
+            existing.feat_nw_width = features.get("feat_nw_width")
+            existing.feat_nw_slope = features.get("feat_nw_slope")
+            existing.feat_adx = features.get("feat_adx")
+            existing.feat_choppiness = features.get("feat_choppiness")
+            existing.feat_donchian_pos = features.get("feat_donchian_pos")
             existing.feat_vix = features.get("feat_vix")
             existing.feat_dxy = features.get("feat_dxy")
             existing.feat_nq_return_1h = features.get("feat_nq_return_1h")
@@ -582,6 +584,11 @@ def save_features_to_db(
             feat_atr_pct=features.get("feat_atr_pct"),
             feat_vwap_dev=features.get("feat_vwap_dev"),
             feat_bb_pct_b=features.get("feat_bb_pct_b"),
+            feat_nw_width=features.get("feat_nw_width"),
+            feat_nw_slope=features.get("feat_nw_slope"),
+            feat_adx=features.get("feat_adx"),
+            feat_choppiness=features.get("feat_choppiness"),
+            feat_donchian_pos=features.get("feat_donchian_pos"),
             feat_vix=features.get("feat_vix"),
             feat_dxy=features.get("feat_dxy"),
             # P0 #H232: New sensory features
@@ -718,6 +725,11 @@ def recompute_all_features(session: Session, symbol: str = "BTCUSDT") -> int:
                 existing.feat_atr_pct = features.get("feat_atr_pct")
                 existing.feat_vwap_dev = features.get("feat_vwap_dev")
                 existing.feat_bb_pct_b = features.get("feat_bb_pct_b")
+                existing.feat_nw_width = features.get("feat_nw_width")
+                existing.feat_nw_slope = features.get("feat_nw_slope")
+                existing.feat_adx = features.get("feat_adx")
+                existing.feat_choppiness = features.get("feat_choppiness")
+                existing.feat_donchian_pos = features.get("feat_donchian_pos")
                 existing.feat_nq_return_1h = features.get("feat_nq_return_1h")
                 existing.feat_nq_return_24h = features.get("feat_nq_return_24h")
                 existing.feat_claw = features.get("feat_claw")
@@ -731,6 +743,19 @@ def recompute_all_features(session: Session, symbol: str = "BTCUSDT") -> int:
                 # P0 #H381: VIX & DXY macro features
                 existing.feat_vix = features.get("feat_vix")
                 existing.feat_dxy = features.get("feat_dxy")
+                # P0: 4H timeframe features must stay aligned during recompute
+                existing.feat_4h_bias50 = features.get("feat_4h_bias50")
+                existing.feat_4h_bias20 = features.get("feat_4h_bias20")
+                existing.feat_4h_bias200 = features.get("feat_4h_bias200")
+                existing.feat_4h_rsi14 = features.get("feat_4h_rsi14")
+                existing.feat_4h_macd_hist = features.get("feat_4h_macd_hist")
+                existing.feat_4h_bb_pct_b = features.get("feat_4h_bb_pct_b")
+                existing.feat_4h_dist_bb_lower = features.get("feat_4h_dist_bb_lower")
+                existing.feat_4h_ma_order = features.get("feat_4h_ma_order")
+                existing.feat_4h_dist_swing_low = features.get("feat_4h_dist_swing_low")
+                existing.feat_4h_vol_ratio = features.get("feat_4h_vol_ratio")
+                existing.regime_label = features.get("regime_label") or _derive_regime_label(features)
+                existing.feature_version = "v4_4h_integration"
                 count += 1
         else:
             features = compute_features_from_raw(window)
@@ -738,6 +763,8 @@ def recompute_all_features(session: Session, symbol: str = "BTCUSDT") -> int:
                 record = FeaturesNormalized(
                     timestamp=ts,
                     symbol=symbol,
+                    regime_label=features.get("regime_label") or _derive_regime_label(features),
+                    feature_version="v4_4h_integration",
                     **{k: v for k, v in features.items() if k.startswith("feat_")}
                 )
                 session.add(record)

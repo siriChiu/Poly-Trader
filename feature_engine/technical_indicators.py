@@ -160,6 +160,59 @@ def atr(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, period: int = 1
     return atr_val
 
 
+def adx(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, period: int = 14) -> np.ndarray:
+    """Average Directional Index (0-100) — trend strength without direction."""
+    n = len(closes)
+    plus_dm = np.zeros(n)
+    minus_dm = np.zeros(n)
+    for i in range(1, n):
+        up_move = highs[i] - highs[i - 1]
+        down_move = lows[i - 1] - lows[i]
+        plus_dm[i] = up_move if up_move > down_move and up_move > 0 else 0.0
+        minus_dm[i] = down_move if down_move > up_move and down_move > 0 else 0.0
+
+    atr_vals = atr(highs, lows, closes, period)
+    plus_di = 100 * _safe_divide(plus_dm, atr_vals, default=0.0)
+    minus_di = 100 * _safe_divide(minus_dm, atr_vals, default=0.0)
+    dx = 100 * _safe_divide(np.abs(plus_di - minus_di), plus_di + minus_di, default=0.0)
+
+    adx_vals = np.zeros(n)
+    seed = min(period * 2, n)
+    if seed > period:
+        adx_vals[seed - 1] = np.mean(dx[period:seed])
+    for i in range(seed, n):
+        adx_vals[i] = ((adx_vals[i - 1] * (period - 1)) + dx[i]) / period
+    return adx_vals
+
+
+def choppiness_index(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, period: int = 14) -> np.ndarray:
+    """Choppiness Index (0-100) — higher = more range-bound."""
+    n = len(closes)
+    atr_vals = atr(highs, lows, closes, 1)
+    result = np.full(n, 50.0)
+    for i in range(period - 1, n):
+        tr_sum = atr_vals[i - period + 1:i + 1].sum()
+        high_range = highs[i - period + 1:i + 1].max()
+        low_range = lows[i - period + 1:i + 1].min()
+        denom = high_range - low_range
+        if denom > 1e-10 and tr_sum > 1e-10:
+            result[i] = 100.0 * np.log10(tr_sum / denom) / np.log10(period)
+    return result
+
+
+def donchian_position(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, period: int = 20) -> np.ndarray:
+    """Price position inside Donchian channel (0-1)."""
+    n = len(closes)
+    result = np.full(n, 0.5)
+    for i in range(period - 1, n):
+        upper = highs[i - period + 1:i + 1].max()
+        lower = lows[i - period + 1:i + 1].min()
+        width = upper - lower
+        if width > 1e-10:
+            result[i] = (closes[i] - lower) / width
+    return result
+
+
 def vwap(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, volumes: np.ndarray) -> np.ndarray:
     """Volume Weighted Average Price."""
     typical_price = (highs + lows + closes) / 3
@@ -204,6 +257,7 @@ def compute_technical_features(
     
     # NW Bandwidth — volatility expansion/contraction
     result["feat_nw_width"] = float(nw_width[-1])
+    result["feat_nw_slope"] = float((nw_smoothed[-1] - nw_smoothed[-5]) / latest_price) if n >= 5 and latest_price != 0 else 0.0
     
     # 4: RSI 14 (0-100, normalize to 0-1)
     rsi_vals = rsi(closes_f, period=14)
@@ -220,8 +274,20 @@ def compute_technical_features(
     # 7: ATR as % of price
     atr_val = atr(highs_f, lows_f, closes_f, period=14)
     result["feat_atr_pct"] = float(atr_val[-1] / latest_price) if latest_price != 0 else 0
+
+    # 8: ADX trend strength
+    adx_vals = adx(highs_f, lows_f, closes_f, period=14)
+    result["feat_adx"] = float(adx_vals[-1] / 100.0)
+
+    # 9: Choppiness index
+    chop_vals = choppiness_index(highs_f, lows_f, closes_f, period=14)
+    result["feat_choppiness"] = float(chop_vals[-1] / 100.0)
+
+    # 10: Donchian channel position
+    donchian_vals = donchian_position(highs_f, lows_f, closes_f, period=20)
+    result["feat_donchian_pos"] = float(donchian_vals[-1])
     
-    # 8: VWAP deviation (normalize by price)
+    # 11: VWAP deviation (normalize by price)
     vwap_vals = vwap(highs_f, lows_f, closes_f, volumes_f)
     result["feat_vwap_dev"] = float((latest_price - vwap_vals[-1]) / latest_price) if latest_price != 0 else 0
     

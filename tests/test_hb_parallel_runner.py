@@ -168,6 +168,10 @@ def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypat
                 "allowed_layers": 0,
                 "execution_guardrail_applied": True,
                 "decision_quality_calibration_scope": "entry_quality_label",
+                "decision_quality_scope_diagnostics": {
+                    "regime_gate+entry_quality_label": {"rows": 315},
+                    "entry_quality_label": {"rows": 3186},
+                },
                 "decision_quality_recent_pathology_applied": True,
                 "decision_quality_recent_pathology_window": 500,
                 "decision_quality_recent_pathology_alerts": ["label_imbalance"],
@@ -193,3 +197,4 @@ def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypat
     assert diag["decision_quality_recent_pathology_window"] == 500
     assert diag["decision_quality_label"] == "D"
     assert diag["non_null_4h_lag_count"] == 30
+    assert diag["decision_quality_scope_diagnostics"]["entry_quality_label"]["rows"] == 3186

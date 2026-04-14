@@ -31,7 +31,25 @@ def _mean(values: List[float]) -> float:
     return float(np.mean(values)) if values else 0.0
 
 
-def _summarize_trade_quality(result) -> Dict[str, float]:
+def _compute_decision_quality_score(
+    win_rate: Optional[float],
+    pyramid_quality: Optional[float],
+    drawdown_penalty: Optional[float],
+    time_underwater: Optional[float],
+) -> Optional[float]:
+    """Keep leaderboard scoring aligned with predictor decision-quality semantics."""
+    if win_rate is None or pyramid_quality is None or drawdown_penalty is None or time_underwater is None:
+        return None
+    score = (
+        0.45 * float(win_rate)
+        + 0.25 * float(pyramid_quality)
+        - 0.20 * float(drawdown_penalty)
+        - 0.10 * float(time_underwater)
+    )
+    return round(float(score), 4)
+
+
+def _summarize_trade_quality(result, trade_frame: Optional[pd.DataFrame] = None) -> Dict[str, float]:
     trades = list(getattr(result, 'trades', []) or [])
     if not trades:
         return {
@@ -39,6 +57,11 @@ def _summarize_trade_quality(result) -> Dict[str, float]:
             'avg_allowed_layers': 0.0,
             'regime_gate_allow_ratio': 0.0,
             'trade_quality_score': 0.0,
+            'avg_decision_quality_score': 0.0,
+            'avg_expected_win_rate': 0.0,
+            'avg_expected_pyramid_quality': 0.0,
+            'avg_expected_drawdown_penalty': 0.0,
+            'avg_expected_time_underwater': 0.0,
         }
 
     entry_quality_values = [float(t.get('entry_quality')) for t in trades if t.get('entry_quality') is not None]
@@ -55,7 +78,7 @@ def _summarize_trade_quality(result) -> Dict[str, float]:
     win_rate_score = _clamp01((float(getattr(result, 'win_rate', 0.0) or 0.0) - 0.45) / 0.20)
     allowed_layers_score = _clamp01(avg_allowed_layers / 3.0)
 
-    trade_quality_score = round(
+    proxy_trade_quality_score = round(
         0.35 * avg_entry_quality
         + 0.20 * win_rate_score
         + 0.15 * drawdown_score
@@ -65,11 +88,54 @@ def _summarize_trade_quality(result) -> Dict[str, float]:
         + 0.05 * allowed_layers_score,
         4,
     )
+
+    avg_expected_win_rate = 0.0
+    avg_expected_pyramid_quality = 0.0
+    avg_expected_drawdown_penalty = 0.0
+    avg_expected_time_underwater = 0.0
+    avg_decision_quality_score = 0.0
+
+    if trade_frame is not None and not trade_frame.empty and 'timestamp' in trade_frame.columns:
+        entry_timestamps = {
+            str(t.get('entry_timestamp'))
+            for t in trades
+            if t.get('entry_timestamp')
+        }
+        if entry_timestamps:
+            ts_strings = trade_frame['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
+            aligned = trade_frame.loc[ts_strings.isin(entry_timestamps)].copy()
+            if not aligned.empty:
+                def _avg_if_present(col: str) -> Optional[float]:
+                    if col not in aligned.columns:
+                        return None
+                    series = pd.to_numeric(aligned[col], errors='coerce').dropna()
+                    if series.empty:
+                        return None
+                    return round(float(series.mean()), 4)
+
+                avg_expected_win_rate = _avg_if_present('simulated_pyramid_win') or 0.0
+                avg_expected_pyramid_quality = _avg_if_present('simulated_pyramid_quality') or 0.0
+                avg_expected_drawdown_penalty = _avg_if_present('simulated_pyramid_drawdown_penalty') or 0.0
+                avg_expected_time_underwater = _avg_if_present('simulated_pyramid_time_underwater') or 0.0
+                decision_quality_score = _compute_decision_quality_score(
+                    _avg_if_present('simulated_pyramid_win'),
+                    _avg_if_present('simulated_pyramid_quality'),
+                    _avg_if_present('simulated_pyramid_drawdown_penalty'),
+                    _avg_if_present('simulated_pyramid_time_underwater'),
+                )
+                avg_decision_quality_score = decision_quality_score or 0.0
+
+    trade_quality_score = avg_decision_quality_score or proxy_trade_quality_score
     return {
         'avg_entry_quality': round(avg_entry_quality, 4),
         'avg_allowed_layers': round(avg_allowed_layers, 4),
         'regime_gate_allow_ratio': round(allow_ratio, 4),
         'trade_quality_score': trade_quality_score,
+        'avg_decision_quality_score': round(avg_decision_quality_score, 4),
+        'avg_expected_win_rate': round(avg_expected_win_rate, 4),
+        'avg_expected_pyramid_quality': round(avg_expected_pyramid_quality, 4),
+        'avg_expected_drawdown_penalty': round(avg_expected_drawdown_penalty, 4),
+        'avg_expected_time_underwater': round(avg_expected_time_underwater, 4),
     }
 
 
@@ -101,6 +167,11 @@ class FoldResult:
     avg_allowed_layers: float = 0.0
     trade_quality_score: float = 0.0
     regime_gate_allow_ratio: float = 0.0
+    avg_decision_quality_score: float = 0.0
+    avg_expected_win_rate: float = 0.0
+    avg_expected_pyramid_quality: float = 0.0
+    avg_expected_drawdown_penalty: float = 0.0
+    avg_expected_time_underwater: float = 0.0
 
 @dataclass
 class ModelScore:
@@ -115,14 +186,26 @@ class ModelScore:
     avg_entry_quality: float = 0.0
     avg_allowed_layers: float = 0.0
     avg_trade_quality: float = 0.0
+    avg_decision_quality_score: float = 0.0
+    avg_expected_win_rate: float = 0.0
+    avg_expected_pyramid_quality: float = 0.0
+    avg_expected_drawdown_penalty: float = 0.0
+    avg_expected_time_underwater: float = 0.0
     regime_stability_score: float = 0.0
     trade_count_score: float = 0.0
     roi_score: float = 0.0
     max_drawdown_score: float = 0.0
     profit_factor_score: float = 0.0
+    time_underwater_score: float = 0.0
+    decision_quality_component: float = 0.0
     overfit_penalty: float = 0.0
     std_roi: float = 0.0
     train_test_gap: float = 0.0  # 訓練集與測試集的差距（過擬合指標）
+    reliability_score: float = 0.0
+    return_power_score: float = 0.0
+    risk_control_score: float = 0.0
+    capital_efficiency_score: float = 0.0
+    overall_score: float = 0.0
     composite_score: float = 0.0  # 綜合排名分數
     folds: List[FoldResult] = field(default_factory=list)
     train_accuracy: float = 0.0  # 訓練集分類準確率
@@ -365,7 +448,7 @@ class ModelLeaderboard:
             nose.tolist(), pulse.tolist(), ear.tolist(), confidence.tolist(),
             params
         )
-        trade_quality = _summarize_trade_quality(result)
+        trade_quality = _summarize_trade_quality(result, test_df)
 
         return FoldResult(
             fold=0,
@@ -385,6 +468,11 @@ class ModelLeaderboard:
             avg_allowed_layers=trade_quality['avg_allowed_layers'],
             trade_quality_score=trade_quality['trade_quality_score'],
             regime_gate_allow_ratio=trade_quality['regime_gate_allow_ratio'],
+            avg_decision_quality_score=trade_quality['avg_decision_quality_score'],
+            avg_expected_win_rate=trade_quality['avg_expected_win_rate'],
+            avg_expected_pyramid_quality=trade_quality['avg_expected_pyramid_quality'],
+            avg_expected_drawdown_penalty=trade_quality['avg_expected_drawdown_penalty'],
+            avg_expected_time_underwater=trade_quality['avg_expected_time_underwater'],
         ), confidence, result, train_acc, test_acc
 
     def evaluate_model(self, model_name: str) -> Optional[ModelScore]:
@@ -435,12 +523,19 @@ class ModelLeaderboard:
         avg_entry_quality = np.mean([f.avg_entry_quality for f in folds])
         avg_allowed_layers = np.mean([f.avg_allowed_layers for f in folds])
         avg_trade_quality = np.mean([f.trade_quality_score for f in folds])
+        avg_decision_quality_score = np.mean([f.avg_decision_quality_score for f in folds])
+        avg_expected_win_rate = np.mean([f.avg_expected_win_rate for f in folds])
+        avg_expected_pyramid_quality = np.mean([f.avg_expected_pyramid_quality for f in folds])
+        avg_expected_drawdown_penalty = np.mean([f.avg_expected_drawdown_penalty for f in folds])
+        avg_expected_time_underwater = np.mean([f.avg_expected_time_underwater for f in folds])
         regime_allow_ratios = [f.regime_gate_allow_ratio for f in folds]
         regime_stability_score = _clamp01(1.0 - float(np.std(regime_allow_ratios)) / 0.25)
         trade_count_score = _clamp01(avg_trades / 20.0)
         roi_score = _clamp01(0.5 + float(np.mean(rois)) / 0.20)
         max_drawdown_score = _clamp01(1.0 - avg_max_drawdown / 0.35)
         profit_factor_score = _clamp01((avg_profit_factor - 1.0) / 1.5)
+        time_underwater_score = _clamp01(1.0 - avg_expected_time_underwater / 0.60)
+        decision_quality_component = avg_decision_quality_score or avg_trade_quality
 
         scores = ModelScore(
             model_name=model_name,
@@ -452,11 +547,18 @@ class ModelLeaderboard:
             avg_entry_quality=avg_entry_quality,
             avg_allowed_layers=avg_allowed_layers,
             avg_trade_quality=avg_trade_quality,
+            avg_decision_quality_score=avg_decision_quality_score,
+            avg_expected_win_rate=avg_expected_win_rate,
+            avg_expected_pyramid_quality=avg_expected_pyramid_quality,
+            avg_expected_drawdown_penalty=avg_expected_drawdown_penalty,
+            avg_expected_time_underwater=avg_expected_time_underwater,
             regime_stability_score=regime_stability_score,
             trade_count_score=trade_count_score,
             roi_score=roi_score,
             max_drawdown_score=max_drawdown_score,
             profit_factor_score=profit_factor_score,
+            time_underwater_score=time_underwater_score,
+            decision_quality_component=decision_quality_component,
             std_roi=np.std(rois),
             train_accuracy=np.mean(all_train_accs) if all_train_accs else 0,
             test_accuracy=np.mean(all_test_accs) if all_test_accs else 0,
@@ -466,18 +568,46 @@ class ModelLeaderboard:
         # Overfitting penalty
         scores.train_test_gap = scores.train_accuracy - scores.test_accuracy
         scores.overfit_penalty = _clamp01(scores.train_test_gap / 0.20)
-        scores.composite_score = round(
-            0.30 * _clamp01((scores.avg_win_rate - 0.45) / 0.20)
-            + 0.20 * scores.max_drawdown_score
-            + 0.15 * scores.profit_factor_score
-            + 0.15 * _clamp01(scores.avg_trade_quality)
-            + 0.10 * scores.regime_stability_score
-            + 0.05 * scores.roi_score
-            + 0.05 * scores.trade_count_score
-            - 0.15 * scores.overfit_penalty
-            - 0.05 * _clamp01(scores.std_roi / 0.10),
+        win_rate_reference_score = _clamp01((scores.avg_win_rate - 0.45) / 0.20)
+        variance_penalty = _clamp01(scores.std_roi / 0.10)
+
+        scores.reliability_score = round(
+            0.35 * scores.max_drawdown_score
+            + 0.30 * scores.time_underwater_score
+            + 0.15 * (1.0 - scores.overfit_penalty)
+            + 0.10 * scores.trade_count_score
+            + 0.10 * scores.regime_stability_score,
             4,
         )
+        scores.return_power_score = round(
+            0.50 * scores.roi_score
+            + 0.30 * scores.profit_factor_score
+            + 0.20 * _clamp01(win_rate_reference_score),
+            4,
+        )
+        scores.risk_control_score = round(
+            0.45 * scores.max_drawdown_score
+            + 0.30 * scores.time_underwater_score
+            + 0.15 * (1.0 - scores.overfit_penalty)
+            + 0.10 * (1.0 - variance_penalty),
+            4,
+        )
+        scores.capital_efficiency_score = round(
+            0.40 * _clamp01(scores.decision_quality_component)
+            + 0.25 * scores.profit_factor_score
+            + 0.20 * scores.time_underwater_score
+            + 0.15 * _clamp01(scores.avg_allowed_layers / 3.0),
+            4,
+        )
+        scores.overall_score = round(
+            0.35 * scores.reliability_score
+            + 0.30 * scores.return_power_score
+            + 0.20 * scores.risk_control_score
+            + 0.15 * scores.capital_efficiency_score,
+            4,
+        )
+        # Keep composite_score as the canonical ranking field consumed by existing APIs/UI.
+        scores.composite_score = scores.overall_score
 
         self.last_model_statuses[model_name] = {
             "status": "ok",

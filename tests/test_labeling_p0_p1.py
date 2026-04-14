@@ -99,6 +99,8 @@ def test_generate_future_return_labels_uses_path_aware_long_win(tmp_path: Path):
         assert row["simulated_pyramid_win"] == 1
         assert row["simulated_pyramid_pnl"] > 0
         assert row["simulated_pyramid_quality"] > 0
+        assert row["simulated_pyramid_drawdown_penalty"] >= 0
+        assert 0 <= row["simulated_pyramid_time_underwater"] <= 1
         assert row["label_spot_long_win"] == 1
     finally:
         session.close()

@@ -140,25 +140,25 @@ async def websocket_live(ws: WebSocket):
     if ws_manager._task is None or ws_manager._task.done():
         ws_manager._task = asyncio.create_task(ws_manager.data_push_loop())
 
-    # 發送當前狀態
-    await ws.send_text(json.dumps({
-        "type": "connected",
-        "data": {"message": "已連接"},
-    }))
-
-    # 發送最新數據
-    raw = ws_manager.get_latest_raw()
-    if raw:
-        await ws.send_text(json.dumps({"type": "senses_update", "data": raw}, default=str))
-
     try:
+        # 發送當前狀態
+        await ws.send_text(json.dumps({
+            "type": "connected",
+            "data": {"message": "已連接"},
+        }))
+
+        # 發送最新數據
+        raw = ws_manager.get_latest_raw()
+        if raw:
+            await ws.send_text(json.dumps({"type": "senses_update", "data": raw}, default=str))
+
         while True:
             msg = await ws.receive_text()
             data = json.loads(msg)
             if data.get("type") == "ping":
                 await ws.send_text(json.dumps({"type": "pong"}))
     except WebSocketDisconnect:
-        pass
+        logger.info("WebSocket 客戶端已中斷連線")
     except Exception as e:
         logger.error(f"WS 錯誤: {e}")
     finally:

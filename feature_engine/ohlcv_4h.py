@@ -11,6 +11,7 @@
 import numpy as np
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
+from feature_engine.technical_indicators import nadaraya_watson_envelope
 
 
 def _safe_divide(numerator, denominator, default=0.0):
@@ -129,20 +130,15 @@ def compute_4h_indicators(candles: dict, max_idx: int = None) -> dict:
             ma = result[f"4h_ma{period}"]
             result[f"4h_{name}"] = _safe_divide(closes - ma, ma, default=0.0) * 100
     
-    # ─── 4H 布林通道 (20, 2σ) ───
-    if n >= 20:
-        bb_mid = np.zeros(n)
-        bb_std = np.zeros(n)
-        for i in range(19, n):
-            window = closes[i - 19:i + 1]
-            bb_mid[i] = window.mean()
-            bb_std[i] = window.std()
-        result["4h_bb_mid"] = bb_mid
-        result["4h_bb_upper"] = bb_mid + 2 * bb_std
-        result["4h_bb_lower"] = bb_mid - 2 * bb_std
-        bb_width = (bb_mid + 2 * bb_std) - (bb_mid - 2 * bb_std)
-        result["4h_bb_pct_b"] = _safe_divide(closes - (bb_mid - 2 * bb_std), bb_width, default=0.5)
-        # 價格距離布林下軌（支撐線代理）
+    # ─── 4H Nadaraya-Watson Envelope ───
+    if n >= 64:
+        nw_mid, nw_upper, nw_lower, _ = nadaraya_watson_envelope(closes, lookback=64, bandwidth=4.0, mult=3.0)
+        result["4h_bb_mid"] = nw_mid
+        result["4h_bb_upper"] = nw_upper
+        result["4h_bb_lower"] = nw_lower
+        nw_width = nw_upper - nw_lower
+        result["4h_bb_pct_b"] = _safe_divide(closes - nw_lower, nw_width, default=0.5)
+        # 價格距離 Nadaraya-Watson 下軌（支撐線代理）
         result["4h_dist_bb_lower"] = _safe_divide(closes - result["4h_bb_lower"], closes, default=0.0) * 100
     
     # ─── 4H RSI (14) ───

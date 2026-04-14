@@ -45,7 +45,8 @@ def main():
         'feat_body', 'feat_pulse', 'feat_aura', 'feat_mind',
         'feat_vix', 'feat_dxy',
         'feat_rsi14', 'feat_macd_hist', 'feat_atr_pct',
-        'feat_vwap_dev', 'feat_bb_pct_b',
+        'feat_vwap_dev', 'feat_bb_pct_b', 'feat_nw_width',
+        'feat_nw_slope', 'feat_adx', 'feat_choppiness', 'feat_donchian_pos',
         # 4H Timeframe Features (低雜訊大方向)
         'feat_4h_bias50', 'feat_4h_bias20', 'feat_4h_bias200',
         'feat_4h_rsi14', 'feat_4h_macd_hist', 'feat_4h_bb_pct_b',

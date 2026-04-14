@@ -4,6 +4,7 @@ import sqlite3
 import pandas as pd
 import pytest
 
+import backtesting.model_leaderboard as model_leaderboard_module
 from backtesting.model_leaderboard import ModelLeaderboard
 from server.routes import api as api_module
 from server.routes.api import load_model_leaderboard_frame
@@ -35,11 +36,14 @@ def leaderboard_db(tmp_path: Path) -> Path:
             feat_bb_pct_b REAL,
             feat_4h_bias50 REAL,
             feat_4h_bias20 REAL,
+            feat_4h_bias200 REAL,
             feat_4h_rsi14 REAL,
             feat_4h_macd_hist REAL,
             feat_4h_bb_pct_b REAL,
+            feat_4h_dist_bb_lower REAL,
             feat_4h_ma_order REAL,
-            feat_4h_dist_swing_low REAL
+            feat_4h_dist_swing_low REAL,
+            feat_4h_vol_ratio REAL
         );
         CREATE TABLE raw_market_data (
             timestamp TEXT,
@@ -57,8 +61,8 @@ def leaderboard_db(tmp_path: Path) -> Path:
 
     ts = "2026-01-01 00:00:00"
     conn.execute(
-        "INSERT INTO features_normalized VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (ts, "BTCUSDT", 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 11.0, 101.0, 0.55, 0.01, 0.02, 0.03, 0.8, -2.0, -1.0, 45.0, 100.0, 0.4, 1.0, 3.0),
+        "INSERT INTO features_normalized VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (ts, "BTCUSDT", 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 11.0, 101.0, 0.55, 0.01, 0.02, 0.03, 0.8, -2.0, -1.0, -3.0, 45.0, 100.0, 0.4, -0.6, 1.0, 3.0, 1.2),
     )
     conn.execute(
         "INSERT INTO raw_market_data VALUES (?,?,?)",
@@ -128,11 +132,14 @@ def test_load_model_leaderboard_frame_prefers_simulated_target_rows(tmp_path: Pa
             feat_bb_pct_b REAL,
             feat_4h_bias50 REAL,
             feat_4h_bias20 REAL,
+            feat_4h_bias200 REAL,
             feat_4h_rsi14 REAL,
             feat_4h_macd_hist REAL,
             feat_4h_bb_pct_b REAL,
+            feat_4h_dist_bb_lower REAL,
             feat_4h_ma_order REAL,
-            feat_4h_dist_swing_low REAL
+            feat_4h_dist_swing_low REAL,
+            feat_4h_vol_ratio REAL
         );
         CREATE TABLE raw_market_data (
             timestamp TEXT,
@@ -146,19 +153,21 @@ def test_load_model_leaderboard_frame_prefers_simulated_target_rows(tmp_path: Pa
             label_spot_long_win INTEGER,
             simulated_pyramid_win INTEGER,
             simulated_pyramid_pnl REAL,
-            simulated_pyramid_quality REAL
+            simulated_pyramid_quality REAL,
+            simulated_pyramid_drawdown_penalty REAL,
+            simulated_pyramid_time_underwater REAL
         );
         """
     )
     ts = "2026-01-02 00:00:00"
     conn.execute(
-        "INSERT INTO features_normalized VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (ts, "BTCUSDT", 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 11.0, 101.0, 0.55, 0.01, 0.02, 0.03, 0.8, -2.0, -1.0, 45.0, 100.0, 0.4, 1.0, 3.0),
+        "INSERT INTO features_normalized VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (ts, "BTCUSDT", 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 11.0, 101.0, 0.55, 0.01, 0.02, 0.03, 0.8, -2.0, -1.0, -3.0, 45.0, 100.0, 0.4, -0.6, 1.0, 3.0, 1.2),
     )
     conn.execute("INSERT INTO raw_market_data VALUES (?,?,?)", (ts, "BTCUSDT", 51000.0))
     conn.execute(
-        "INSERT INTO labels VALUES (?,?,?,?,?,?,?)",
-        (ts, "BTCUSDT", 1440, None, 1, 0.12, 0.45),
+        "INSERT INTO labels VALUES (?,?,?,?,?,?,?,?,?)",
+        (ts, "BTCUSDT", 1440, None, 1, 0.12, 0.45, 0.18, 0.25),
     )
     conn.commit()
     conn.close()
@@ -167,8 +176,18 @@ def test_load_model_leaderboard_frame_prefers_simulated_target_rows(tmp_path: Pa
 
     assert not df.empty
     assert "simulated_pyramid_win" in df.columns
+    assert "simulated_pyramid_drawdown_penalty" in df.columns
+    assert "simulated_pyramid_time_underwater" in df.columns
+    assert "feat_4h_bias200" in df.columns
+    assert "feat_4h_dist_bb_lower" in df.columns
+    assert "feat_4h_vol_ratio" in df.columns
     assert pd.isna(df.loc[0, "label_spot_long_win"])
     assert df.loc[0, "simulated_pyramid_win"] == 1
+    assert df.loc[0, "simulated_pyramid_drawdown_penalty"] == pytest.approx(0.18)
+    assert df.loc[0, "simulated_pyramid_time_underwater"] == pytest.approx(0.25)
+    assert df.loc[0, "feat_4h_bias200"] == pytest.approx(-3.0)
+    assert df.loc[0, "feat_4h_dist_bb_lower"] == pytest.approx(-0.6)
+    assert df.loc[0, "feat_4h_vol_ratio"] == pytest.approx(1.2)
     assert df.loc[0, "close_price"] == 51000.0
 
 
@@ -295,6 +314,11 @@ def test_evaluate_model_records_average_profit_factor(monkeypatch):
             "avg_allowed_layers": 2.0,
             "trade_quality_score": 0.71,
             "regime_gate_allow_ratio": 0.83,
+            "avg_decision_quality_score": 0.58,
+            "avg_expected_win_rate": 0.77,
+            "avg_expected_pyramid_quality": 0.52,
+            "avg_expected_drawdown_penalty": 0.14,
+            "avg_expected_time_underwater": 0.18,
         })()
         return fold, None, DummyResult(), 0.72, 0.64
 
@@ -305,7 +329,46 @@ def test_evaluate_model_records_average_profit_factor(monkeypatch):
     assert score is not None
     assert score.avg_profit_factor == pytest.approx(1.42)
     assert score.avg_trade_quality == pytest.approx(0.71)
+    assert score.avg_decision_quality_score == pytest.approx(0.58)
+    assert score.avg_expected_drawdown_penalty == pytest.approx(0.14)
     assert score.regime_stability_score == pytest.approx(1.0)
+    assert score.reliability_score > 0
+    assert score.return_power_score > 0
+    assert score.risk_control_score > 0
+    assert score.capital_efficiency_score > 0
+    assert score.overall_score == pytest.approx(score.composite_score)
+
+
+def test_summarize_trade_quality_prefers_canonical_decision_quality_when_labels_exist():
+    result = type("Result", (), {
+        "trades": [{
+            "entry_timestamp": "2025-05-01 00:00:00",
+            "entry_quality": 0.82,
+            "allowed_layers": 2,
+            "regime_gate": "ALLOW",
+        }],
+        "max_drawdown": 0.09,
+        "profit_factor": 1.5,
+        "win_rate": 0.64,
+    })()
+    trade_frame = pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime(["2025-05-01 00:00:00"]),
+            "simulated_pyramid_win": [0.8],
+            "simulated_pyramid_quality": [0.5],
+            "simulated_pyramid_drawdown_penalty": [0.12],
+            "simulated_pyramid_time_underwater": [0.18],
+        }
+    )
+
+    summary = model_leaderboard_module._summarize_trade_quality(result, trade_frame)
+
+    assert summary["avg_expected_win_rate"] == pytest.approx(0.8)
+    assert summary["avg_expected_pyramid_quality"] == pytest.approx(0.5)
+    assert summary["avg_expected_drawdown_penalty"] == pytest.approx(0.12)
+    assert summary["avg_expected_time_underwater"] == pytest.approx(0.18)
+    assert summary["avg_decision_quality_score"] == pytest.approx(0.443)
+    assert summary["trade_quality_score"] == pytest.approx(0.443)
 
 
 def test_evaluate_model_composite_rewards_low_drawdown_and_trade_quality(monkeypatch):
@@ -349,6 +412,11 @@ def test_evaluate_model_composite_rewards_low_drawdown_and_trade_quality(monkeyp
                 "avg_allowed_layers": 1.0,
                 "trade_quality_score": 0.41,
                 "regime_gate_allow_ratio": 0.35,
+                "avg_decision_quality_score": 0.22,
+                "avg_expected_win_rate": 0.54,
+                "avg_expected_pyramid_quality": 0.31,
+                "avg_expected_drawdown_penalty": 0.33,
+                "avg_expected_time_underwater": 0.51,
             })()
             return fold, None, object(), 0.88, 0.60
         fold = type("Fold", (), {
@@ -369,6 +437,11 @@ def test_evaluate_model_composite_rewards_low_drawdown_and_trade_quality(monkeyp
             "avg_allowed_layers": 2.3,
             "trade_quality_score": 0.79,
             "regime_gate_allow_ratio": 0.86,
+            "avg_decision_quality_score": 0.63,
+            "avg_expected_win_rate": 0.81,
+            "avg_expected_pyramid_quality": 0.59,
+            "avg_expected_drawdown_penalty": 0.12,
+            "avg_expected_time_underwater": 0.14,
         })()
         return fold, None, object(), 0.76, 0.67
 
@@ -437,17 +510,29 @@ def test_build_model_leaderboard_payload_includes_skipped_models(monkeypatch):
                 avg_entry_quality = 0.74
                 avg_allowed_layers = 2.2
                 avg_trade_quality = 0.71
+                avg_decision_quality_score = 0.57
+                avg_expected_win_rate = 0.79
+                avg_expected_pyramid_quality = 0.55
+                avg_expected_drawdown_penalty = 0.13
+                avg_expected_time_underwater = 0.19
                 regime_stability_score = 0.92
                 trade_count_score = 0.55
                 roi_score = 0.8
                 max_drawdown_score = 0.77
                 profit_factor_score = 0.27
+                time_underwater_score = 0.68
+                decision_quality_component = 0.57
+                reliability_score = 0.73
+                return_power_score = 0.61
+                risk_control_score = 0.69
+                capital_efficiency_score = 0.58
+                overall_score = 0.66
                 overfit_penalty = 0.4
                 std_roi = 0.03
                 train_accuracy = 0.72
                 test_accuracy = 0.64
                 train_test_gap = 0.08
-                composite_score = 0.21
+                composite_score = 0.66
                 folds = []
 
             return [Score()]
@@ -463,7 +548,17 @@ def test_build_model_leaderboard_payload_includes_skipped_models(monkeypatch):
 
     assert payload["leaderboard"][0]["model_name"] == "xgboost"
     assert payload["leaderboard"][0]["avg_trade_quality"] == pytest.approx(0.71)
+    assert payload["leaderboard"][0]["avg_decision_quality_score"] == pytest.approx(0.57)
+    assert payload["leaderboard"][0]["avg_expected_drawdown_penalty"] == pytest.approx(0.13)
     assert payload["leaderboard"][0]["regime_stability_score"] == pytest.approx(0.92)
+    assert payload["leaderboard"][0]["overall_score"] == pytest.approx(0.66)
+    assert payload["leaderboard"][0]["reliability_score"] == pytest.approx(0.73)
+    assert payload["leaderboard"][0]["return_power_score"] == pytest.approx(0.61)
+    assert payload["quadrant_points"][0]["model_name"] == "xgboost"
+    assert payload["leaderboard"][0]["rank_delta"] == 0
+    assert isinstance(payload["snapshot_history"], list)
+    assert payload["storage"]["canonical_store"].startswith("sqlite:")
+    assert payload["overfit_gap_threshold"] == pytest.approx(0.12)
     assert payload["leaderboard"][0]["overfit_penalty"] == pytest.approx(0.4)
     assert payload["skipped_models"][0]["model_name"] == "lightgbm"
     assert payload["skipped_models"][0]["reason"] == "missing_dependency"
@@ -539,3 +634,25 @@ def test_api_model_leaderboard_returns_cached_payload_without_recompute(monkeypa
 
     assert result["leaderboard"][0]["model_name"] == "cached_model"
     assert result["cached"] is True
+
+
+def test_api_model_leaderboard_history_returns_recent_snapshot_rows(tmp_path, monkeypatch):
+    db_path = tmp_path / "lb_history.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        api_module._ensure_model_leaderboard_tables(conn)
+        conn.execute(
+            "INSERT INTO leaderboard_model_snapshots(created_at, updated_at, target_col, model_count, payload_json) VALUES (?, ?, ?, ?, ?)",
+            ("2026-04-13T16:00:00Z", 123.0, "simulated_pyramid_win", 8, "{}"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(api_module, "DB_PATH", str(db_path))
+
+    import asyncio
+    result = asyncio.run(api_module.api_model_leaderboard_history(limit=5))
+
+    assert result["count"] == 1
+    assert result["history"][0]["target_col"] == "simulated_pyramid_win"

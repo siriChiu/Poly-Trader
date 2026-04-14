@@ -63,7 +63,12 @@ def test_compute_sqlite_feature_coverage_and_blocker_summary(tmp_path: Path):
     by_key = {row["key"]: row for row in payload["features"]}
 
     assert by_key["eye"]["chart_usable"] is True
+    assert by_key["eye"]["maturity_tier"] == "core"
+    assert by_key["eye"]["score_usable"] is True
+    assert payload["maturity_counts"]["core"] >= 1
     assert by_key["web_whale"]["chart_usable"] is False
+    assert by_key["web_whale"]["maturity_tier"] == "blocked"
+    assert by_key["web_whale"]["score_usable"] is False
     assert by_key["web_whale"]["history_class"] == "short_window_public_api"
     assert by_key["web_whale"]["raw_snapshot_events"] == 2
     assert by_key["web_whale"]["forward_archive_started"] is True
@@ -113,6 +118,8 @@ def test_ready_forward_archive_changes_recommended_action_without_hiding_blocker
     assert web["forward_archive_ready"] is True
     assert web["forward_archive_status"] == "ready"
     assert web["backfill_status"] == "blocked"
+    assert web["maturity_tier"] == "research"
+    assert web["score_usable"] is False
     assert web["archive_window_coverage_pct"] == 100.0
     assert "ready for recent-window diagnostics" in web["recommended_action"]
 

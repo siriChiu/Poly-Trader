@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import sqlite3
 
@@ -51,3 +52,64 @@ def test_run_training_writes_target_specific_last_metrics(tmp_path, monkeypatch)
     metrics = Path("model/last_metrics.json").read_text(encoding="utf-8")
     assert '"target_col": "simulated_pyramid_win"' in metrics
     assert '"n_features": 2' in metrics
+
+
+def test_load_tw_ic_guardrail_reads_dynamic_window_and_recent_drift(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    dw_result = data_dir / "dw_result.json"
+    drift_report = data_dir / "recent_drift_report.json"
+    dw_result.write_text(
+        json.dumps(
+            {
+                "raw_best_n": 600,
+                "recommended_best_n": 5000,
+                "guardrail_policy": {"disqualifying_alerts": ["constant_target", "regime_concentration"]},
+                "600": {"alerts": ["label_imbalance", "regime_concentration"], "distribution_guardrail": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    drift_report.write_text(
+        json.dumps(
+            {
+                "primary_window": {
+                    "window": "100",
+                    "alerts": ["constant_target", "regime_concentration"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(train_module, "DW_RESULT_PATH", dw_result)
+    monkeypatch.setattr(train_module, "RECENT_DRIFT_REPORT_PATH", drift_report)
+
+    guardrail = train_module._load_tw_ic_guardrail()
+
+    assert guardrail["recommended_best_n"] == 5000
+    assert guardrail["raw_best_n"] == 600
+    assert guardrail["raw_best_guardrailed"] is True
+    assert guardrail["should_dampen_recent_window"] is True
+    assert "recent_window=100" in guardrail["guardrail_reason"]
+
+
+
+def test_build_time_decay_weights_damps_guardrailed_recent_window():
+    weights, metadata = train_module._build_time_decay_weights(
+        10,
+        tau=2,
+        guardrail={
+            "primary_window": 3,
+            "recommended_best_n": 5,
+            "raw_best_n": 2,
+            "should_dampen_recent_window": True,
+            "guardrail_reason": "recent_window=3 alerts=['constant_target']",
+        },
+    )
+
+    assert metadata["applied"] is True
+    assert metadata["damped_recent_rows"] == 3
+    assert metadata["recommended_best_n"] == 5
+    assert weights[-1] == weights[-2] == weights[-3]
+    assert weights[-1] < weights[-4]

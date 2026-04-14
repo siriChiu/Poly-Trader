@@ -472,6 +472,32 @@ def _compute_live_4h_structure_quality(
 
 
 
+def _live_structure_bucket_from_debug(debug: Optional[Dict[str, Any]]) -> Optional[str]:
+    if not isinstance(debug, dict):
+        return None
+    final_gate = str(debug.get("final_gate") or "").strip()
+    if not final_gate:
+        return None
+    structure_quality = debug.get("structure_quality")
+    if structure_quality is None:
+        quality_bucket = "missing"
+    else:
+        quality_value = float(structure_quality)
+        if quality_value >= 0.85:
+            quality_bucket = "q85"
+        elif quality_value >= 0.65:
+            quality_bucket = "q65"
+        elif quality_value >= 0.35:
+            quality_bucket = "q35"
+        elif quality_value >= 0.15:
+            quality_bucket = "q15"
+        else:
+            quality_bucket = "q00"
+    final_reason = str(debug.get("final_reason") or "unknown")
+    return f"{final_gate}|{final_reason}|{quality_bucket}"
+
+
+
 def _compute_live_entry_quality(
     bias50_value: float,
     nose_value: float,
@@ -525,6 +551,9 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
         return {
             "regime_label": None,
             "regime_gate": None,
+            "regime_gate_reason": None,
+            "structure_quality": None,
+            "structure_bucket": None,
             "entry_quality": None,
             "entry_quality_label": None,
             "allowed_layers": None,
@@ -539,13 +568,14 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
     bb_pct_b_value = features.get("feat_4h_bb_pct_b")
     dist_bb_lower_value = features.get("feat_4h_dist_bb_lower")
     dist_swing_low_value = features.get("feat_4h_dist_swing_low")
-    regime_gate = _compute_live_regime_gate(
+    gate_debug = _compute_live_regime_gate_debug(
         _f("feat_4h_bias200"),
         regime,
         bb_pct_b_value=bb_pct_b_value,
         dist_bb_lower_value=dist_bb_lower_value,
         dist_swing_low_value=dist_swing_low_value,
     )
+    regime_gate = str(gate_debug.get("final_gate") or "BLOCK")
     entry_quality = _compute_live_entry_quality(
         _f("feat_4h_bias50"),
         _f("feat_nose"),
@@ -559,6 +589,9 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
     return {
         "regime_label": regime,
         "regime_gate": regime_gate,
+        "regime_gate_reason": gate_debug.get("final_reason"),
+        "structure_quality": gate_debug.get("structure_quality"),
+        "structure_bucket": _live_structure_bucket_from_debug(gate_debug),
         "entry_quality": entry_quality,
         "entry_quality_label": _quality_label(entry_quality),
         "allowed_layers": allowed_layers,
@@ -584,6 +617,11 @@ def _decision_quality_fallback(profile_version: str = "phase16_baseline_v2") -> 
         "decision_quality_exact_live_lane_status": None,
         "decision_quality_exact_live_lane_reason": None,
         "decision_quality_exact_live_lane_summary": None,
+        "decision_quality_live_structure_bucket": None,
+        "decision_quality_structure_bucket_guardrail_applied": False,
+        "decision_quality_structure_bucket_guardrail_reason": None,
+        "decision_quality_structure_bucket_support_rows": 0,
+        "decision_quality_structure_bucket_support_share": None,
         "expected_win_rate": None,
         "expected_pyramid_pnl": None,
         "expected_pyramid_quality": None,
@@ -954,6 +992,10 @@ def _recent_scope_regime_gate_counts(scoped_rows: List[Dict[str, Any]], limit: i
     return counts
 
 
+def _recent_scope_structure_bucket_counts(scoped_rows: List[Dict[str, Any]], limit: int = 500) -> Dict[str, int]:
+    return _recent_scope_value_counts(scoped_rows, "structure_bucket", limit=limit)
+
+
 def _dominant_value_summary(counts: Dict[str, int], field_name: str) -> Optional[Dict[str, Any]]:
     if not counts:
         return None
@@ -985,6 +1027,23 @@ def _dominant_regime_gate_summary(counts: Dict[str, int]) -> Optional[Dict[str, 
     summary["regime"] = regime or None
     summary["gate"] = gate or None
     return summary
+
+
+def _dominant_structure_bucket_summary(counts: Dict[str, int]) -> Optional[Dict[str, Any]]:
+    return _dominant_value_summary(counts, "structure_bucket")
+
+
+def _scope_metric_summary(scoped_rows: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not scoped_rows:
+        return None
+    return {
+        "rows": len(scoped_rows),
+        "win_rate": _avg_metric(scoped_rows, "simulated_pyramid_win"),
+        "avg_pnl": _avg_metric(scoped_rows, "simulated_pyramid_pnl"),
+        "avg_quality": _avg_metric(scoped_rows, "simulated_pyramid_quality"),
+        "avg_drawdown_penalty": _avg_metric(scoped_rows, "simulated_pyramid_drawdown_penalty"),
+        "avg_time_underwater": _avg_metric(scoped_rows, "simulated_pyramid_time_underwater"),
+    }
 
 
 def _round_optional(value: Optional[float]) -> Optional[float]:
@@ -1305,6 +1364,7 @@ def _build_decision_quality_scope_diagnostics(
     target_gate = decision_profile.get("regime_gate")
     target_quality_label = decision_profile.get("entry_quality_label")
     target_regime_label = decision_profile.get("regime_label")
+    target_structure_bucket = decision_profile.get("structure_bucket")
 
     scope_rows = {
         "regime_label+regime_gate+entry_quality_label": [
@@ -1344,6 +1404,12 @@ def _build_decision_quality_scope_diagnostics(
                 "recent500_dominant_gate": None,
                 "recent500_regime_gate_counts": {},
                 "recent500_dominant_regime_gate": None,
+                "recent500_structure_bucket_counts": {},
+                "recent500_dominant_structure_bucket": None,
+                "current_live_structure_bucket": target_structure_bucket,
+                "current_live_structure_bucket_rows": 0,
+                "current_live_structure_bucket_share": None,
+                "current_live_structure_bucket_metrics": None,
                 "recent_pathology": {
                     "applied": False,
                     "window": 0,
@@ -1356,6 +1422,12 @@ def _build_decision_quality_scope_diagnostics(
         regime_counts = _recent_scope_regime_counts(scoped_rows)
         gate_counts = _recent_scope_gate_counts(scoped_rows)
         regime_gate_counts = _recent_scope_regime_gate_counts(scoped_rows)
+        structure_bucket_counts = _recent_scope_structure_bucket_counts(scoped_rows)
+        bucket_rows = [
+            row for row in scoped_rows
+            if target_structure_bucket and row.get("structure_bucket") == target_structure_bucket
+        ]
+        bucket_rows_count = len(bucket_rows)
         diagnostics[scope_name] = {
             "rows": len(scoped_rows),
             "alerts": _decision_quality_scope_alerts(scoped_rows),
@@ -1370,6 +1442,14 @@ def _build_decision_quality_scope_diagnostics(
             "recent500_dominant_gate": _dominant_gate_summary(gate_counts),
             "recent500_regime_gate_counts": regime_gate_counts,
             "recent500_dominant_regime_gate": _dominant_regime_gate_summary(regime_gate_counts),
+            "recent500_structure_bucket_counts": structure_bucket_counts,
+            "recent500_dominant_structure_bucket": _dominant_structure_bucket_summary(structure_bucket_counts),
+            "current_live_structure_bucket": target_structure_bucket,
+            "current_live_structure_bucket_rows": bucket_rows_count,
+            "current_live_structure_bucket_share": _round_optional(
+                bucket_rows_count / len(scoped_rows) if target_structure_bucket and scoped_rows else None
+            ),
+            "current_live_structure_bucket_metrics": _scope_metric_summary(bucket_rows),
             "recent_pathology": _recent_scope_pathology_summary(scoped_rows),
         }
 
@@ -1728,6 +1808,83 @@ def _narrowed_regime_scope_downside_guardrail(
     return default_result
 
 
+def _structure_bucket_support_guardrail(
+    decision_profile: Dict[str, Any],
+    chosen_scope: Optional[str],
+    scope_diagnostics: Dict[str, Any],
+    expected_win_rate: Optional[float],
+    expected_pnl: Optional[float],
+    expected_quality: Optional[float],
+    expected_drawdown_penalty: Optional[float],
+    expected_time_underwater: Optional[float],
+) -> Dict[str, Any]:
+    live_structure_bucket = decision_profile.get("structure_bucket")
+    default_result = {
+        "applied": False,
+        "reason": None,
+        "support_rows": 0,
+        "support_share": None,
+        "live_structure_bucket": live_structure_bucket,
+        "expected_win_rate": expected_win_rate,
+        "expected_pnl": expected_pnl,
+        "expected_quality": expected_quality,
+        "expected_drawdown_penalty": expected_drawdown_penalty,
+        "expected_time_underwater": expected_time_underwater,
+    }
+    if not chosen_scope or not live_structure_bucket:
+        return default_result
+
+    chosen_info = (scope_diagnostics or {}).get(chosen_scope) or {}
+    support_rows = int(chosen_info.get("current_live_structure_bucket_rows") or 0)
+    support_share = chosen_info.get("current_live_structure_bucket_share")
+    support_share = float(support_share) if support_share is not None else None
+    support_metrics = chosen_info.get("current_live_structure_bucket_metrics") or {}
+    dominant_structure_bucket = (chosen_info.get("recent500_dominant_structure_bucket") or {}).get("structure_bucket")
+
+    apply_guardrail = support_rows < 5
+    if not apply_guardrail and support_share is not None and dominant_structure_bucket:
+        apply_guardrail = support_share < 0.1 and dominant_structure_bucket != live_structure_bucket
+    if not apply_guardrail:
+        return default_result
+
+    expected_win_rate_new = expected_win_rate
+    expected_pnl_new = expected_pnl
+    expected_quality_new = expected_quality
+    expected_drawdown_penalty_new = expected_drawdown_penalty
+    expected_time_underwater_new = expected_time_underwater
+    if support_rows >= 5 and support_metrics:
+        expected_win_rate_new = _min_optional(expected_win_rate_new, support_metrics.get("win_rate"))
+        expected_pnl_new = _min_optional(expected_pnl_new, support_metrics.get("avg_pnl"))
+        expected_quality_new = _min_optional(expected_quality_new, support_metrics.get("avg_quality"))
+        expected_drawdown_penalty_new = _max_optional(
+            expected_drawdown_penalty_new,
+            support_metrics.get("avg_drawdown_penalty"),
+        )
+        expected_time_underwater_new = _max_optional(
+            expected_time_underwater_new,
+            support_metrics.get("avg_time_underwater"),
+        )
+
+    reason = (
+        f"chosen scope {chosen_scope} has weak support for live structure bucket {live_structure_bucket} "
+        f"(support_rows={support_rows}, support_share={_round_optional(support_share)}, "
+        f"dominant_bucket={dominant_structure_bucket or 'unknown'})"
+    )
+    return {
+        "applied": True,
+        "reason": reason,
+        "support_rows": support_rows,
+        "support_share": _round_optional(support_share),
+        "live_structure_bucket": live_structure_bucket,
+        "expected_win_rate": expected_win_rate_new,
+        "expected_pnl": expected_pnl_new,
+        "expected_quality": expected_quality_new,
+        "expected_drawdown_penalty": expected_drawdown_penalty_new,
+        "expected_time_underwater": expected_time_underwater_new,
+    }
+
+
+
 def _summarize_decision_quality_contract(
     rows: List[Dict[str, Any]],
     decision_profile: Dict[str, Any],
@@ -1833,6 +1990,22 @@ def _summarize_decision_quality_contract(
     expected_drawdown_penalty = narrowed_scope_guardrail["expected_drawdown_penalty"]
     expected_time_underwater = narrowed_scope_guardrail["expected_time_underwater"]
 
+    structure_bucket_guardrail = _structure_bucket_support_guardrail(
+        decision_profile,
+        chosen_scope,
+        scope_diagnostics,
+        expected_win_rate,
+        expected_pnl,
+        expected_quality,
+        expected_drawdown_penalty,
+        expected_time_underwater,
+    )
+    expected_win_rate = structure_bucket_guardrail["expected_win_rate"]
+    expected_pnl = structure_bucket_guardrail["expected_pnl"]
+    expected_quality = structure_bucket_guardrail["expected_quality"]
+    expected_drawdown_penalty = structure_bucket_guardrail["expected_drawdown_penalty"]
+    expected_time_underwater = structure_bucket_guardrail["expected_time_underwater"]
+
     decision_quality_score = _compute_decision_quality_score(
         expected_win_rate,
         expected_quality,
@@ -1861,6 +2034,11 @@ def _summarize_decision_quality_contract(
         "decision_quality_exact_live_lane_status": exact_live_lane_guardrail.get("status"),
         "decision_quality_exact_live_lane_reason": exact_live_lane_guardrail.get("reason"),
         "decision_quality_exact_live_lane_summary": exact_live_lane_guardrail.get("summary"),
+        "decision_quality_live_structure_bucket": structure_bucket_guardrail.get("live_structure_bucket"),
+        "decision_quality_structure_bucket_guardrail_applied": bool(structure_bucket_guardrail.get("applied")),
+        "decision_quality_structure_bucket_guardrail_reason": structure_bucket_guardrail.get("reason"),
+        "decision_quality_structure_bucket_support_rows": int(structure_bucket_guardrail.get("support_rows") or 0),
+        "decision_quality_structure_bucket_support_share": structure_bucket_guardrail.get("support_share"),
         "decision_quality_narrowed_pathology_applied": bool(narrowed_scope_guardrail.get("applied")),
         "decision_quality_narrowed_pathology_scope": narrowed_scope_guardrail.get("scope"),
         "decision_quality_narrowed_pathology_reason": narrowed_scope_guardrail.get("reason"),
@@ -1932,6 +2110,9 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
             "symbol": row.symbol,
             "regime_label": row.regime_label,
             "regime_gate": hist_profile.get("regime_gate"),
+            "regime_gate_reason": hist_profile.get("regime_gate_reason"),
+            "structure_quality": hist_profile.get("structure_quality"),
+            "structure_bucket": hist_profile.get("structure_bucket"),
             "entry_quality_label": hist_profile.get("entry_quality_label"),
             "feat_4h_bias200": row.feat_4h_bias200,
             "feat_4h_bb_pct_b": row.feat_4h_bb_pct_b,
@@ -1960,6 +2141,7 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
         or contract.get("decision_quality_recent_pathology_applied")
         or contract.get("decision_quality_exact_live_lane_toxicity_applied")
         or contract.get("decision_quality_narrowed_pathology_applied")
+        or contract.get("decision_quality_structure_bucket_guardrail_applied")
     )
     reason_parts = [
         guardrail.get("guardrail_reason"),
@@ -1967,6 +2149,7 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
         contract.get("decision_quality_recent_pathology_reason"),
         contract.get("decision_quality_exact_live_lane_reason"),
         contract.get("decision_quality_narrowed_pathology_reason"),
+        contract.get("decision_quality_structure_bucket_guardrail_reason"),
     ]
     contract["decision_quality_guardrail_reason"] = "; ".join(part for part in reason_parts if part)
     return contract
@@ -1993,6 +2176,12 @@ def _apply_live_execution_guardrails(decision_profile: Dict[str, Any], decision_
         decision_quality_contract.get("decision_quality_exact_live_lane_toxicity_applied")
     )
     exact_live_lane_status = decision_quality_contract.get("decision_quality_exact_live_lane_status") or "toxicity"
+    structure_bucket_guardrail_applied = bool(
+        decision_quality_contract.get("decision_quality_structure_bucket_guardrail_applied")
+    )
+    structure_bucket_support_rows = int(
+        decision_quality_contract.get("decision_quality_structure_bucket_support_rows") or 0
+    )
 
     if quality_label == "D" or (quality_score is not None and float(quality_score) < 0.35):
         capped_layers = 0
@@ -2013,6 +2202,18 @@ def _apply_live_execution_guardrails(decision_profile: Dict[str, Any], decision_
         toxic_reason = f"exact_live_lane_{exact_live_lane_status}_blocks_trade"
         if toxic_reason not in reasons:
             reasons.append(toxic_reason)
+
+    if structure_bucket_guardrail_applied:
+        if structure_bucket_support_rows < 5:
+            capped_layers = 0
+            structure_reason = "unsupported_live_structure_bucket_blocks_trade"
+        elif capped_layers > 1:
+            capped_layers = 1
+            structure_reason = "weak_live_structure_bucket_support_caps_layers"
+        else:
+            structure_reason = None
+        if structure_reason and structure_reason not in reasons:
+            reasons.append(structure_reason)
 
     guarded["allowed_layers_raw"] = raw_layers
     guarded["allowed_layers"] = capped_layers

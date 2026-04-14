@@ -23,15 +23,19 @@ logger = setup_logger(__name__)
 DEFAULT_TARGET_COL = "simulated_pyramid_win"
 MODEL_PATH = "model/xgb_model.pkl"
 DB_PATH = str(Path(__file__).parent.parent / "poly_trader.db")
+PROJECT_ROOT = Path(__file__).parent.parent
+DW_RESULT_PATH = PROJECT_ROOT / "data" / "dw_result.json"
+RECENT_DRIFT_REPORT_PATH = PROJECT_ROOT / "data" / "recent_drift_report.json"
 FEATURE_COLS = [
     # === 8 Core Senses ===
     "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
     "feat_body", "feat_pulse", "feat_aura", "feat_mind",
     # === 2 Macro ===
     "feat_vix", "feat_dxy",
-    # === 5 Technical Indicators ===
+    # === Technical Indicators ===
     "feat_rsi14", "feat_macd_hist", "feat_atr_pct",
-    "feat_vwap_dev", "feat_bb_pct_b",
+    "feat_vwap_dev", "feat_bb_pct_b", "feat_nw_width",
+    "feat_nw_slope", "feat_adx", "feat_choppiness", "feat_donchian_pos",
     # === 4H Timeframe Features (低雜訊大方向) ===
     "feat_4h_bias50", "feat_4h_bias20", "feat_4h_bias200",
     "feat_4h_rsi14", "feat_4h_macd_hist", "feat_4h_bb_pct_b",
@@ -60,6 +64,124 @@ REGIME_THRESHOLD_BIAS = {
     'event': 0.02,
     'normal': 0.0,
 }
+
+TW_GUARDRAIL_ALERTS = {"constant_target", "regime_concentration"}
+
+
+def _load_json_file(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _load_tw_ic_guardrail() -> dict:
+    """Load dynamic-window / drift guardrails for recency-heavy TW-IC weighting."""
+    dw_payload = _load_json_file(DW_RESULT_PATH)
+    drift_payload = _load_json_file(RECENT_DRIFT_REPORT_PATH)
+
+    primary = drift_payload.get("primary_window") or {}
+    primary_alerts = list(primary.get("alerts") or [])
+    primary_window = primary.get("window")
+    try:
+        primary_window = int(primary_window) if primary_window is not None else 0
+    except (TypeError, ValueError):
+        primary_window = 0
+
+    recommended_best_n = dw_payload.get("recommended_best_n")
+    raw_best_n = dw_payload.get("raw_best_n")
+    try:
+        recommended_best_n = int(recommended_best_n) if recommended_best_n is not None else None
+    except (TypeError, ValueError):
+        recommended_best_n = None
+    try:
+        raw_best_n = int(raw_best_n) if raw_best_n is not None else None
+    except (TypeError, ValueError):
+        raw_best_n = None
+
+    disqualifying = set((dw_payload.get("guardrail_policy") or {}).get("disqualifying_alerts") or [])
+    if not disqualifying:
+        disqualifying = set(TW_GUARDRAIL_ALERTS)
+
+    raw_best = dw_payload.get(str(raw_best_n), {}) if raw_best_n is not None else {}
+    raw_best_alerts = list(raw_best.get("alerts") or [])
+    raw_best_guardrailed = bool(raw_best.get("distribution_guardrail")) or any(
+        alert in disqualifying for alert in raw_best_alerts
+    )
+    should_dampen_recent_window = primary_window > 0 and any(
+        alert in disqualifying for alert in primary_alerts
+    )
+
+    reason_parts = []
+    if raw_best_guardrailed and raw_best_n is not None and recommended_best_n is not None:
+        reason_parts.append(
+            f"dynamic_window raw_best_n={raw_best_n} -> recommended_best_n={recommended_best_n}"
+        )
+    if should_dampen_recent_window:
+        reason_parts.append(f"recent_window={primary_window} alerts={primary_alerts}")
+
+    return {
+        "recommended_best_n": recommended_best_n,
+        "raw_best_n": raw_best_n,
+        "raw_best_guardrailed": raw_best_guardrailed,
+        "primary_window": primary_window,
+        "primary_alerts": primary_alerts,
+        "should_dampen_recent_window": should_dampen_recent_window,
+        "guardrail_reason": "; ".join(reason_parts) if reason_parts else None,
+    }
+
+
+def _build_time_decay_weights(n_samples: int, tau: int = 200, guardrail: Optional[dict] = None) -> Tuple[np.ndarray, dict]:
+    """Build TW-IC weights and damp polluted recent windows when guardrailed."""
+    weights = np.exp(-(n_samples - 1 - np.arange(n_samples, dtype=float)) / tau)
+    metadata = {
+        "tau": tau,
+        "applied": False,
+        "damped_recent_rows": 0,
+        "damp_factor": None,
+        "primary_window": 0,
+        "recommended_best_n": None,
+        "raw_best_n": None,
+        "guardrail_reason": None,
+    }
+    if not guardrail:
+        return weights, metadata
+
+    metadata.update(
+        {
+            "primary_window": int(guardrail.get("primary_window") or 0),
+            "recommended_best_n": guardrail.get("recommended_best_n"),
+            "raw_best_n": guardrail.get("raw_best_n"),
+            "guardrail_reason": guardrail.get("guardrail_reason"),
+        }
+    )
+
+    if not guardrail.get("should_dampen_recent_window"):
+        return weights, metadata
+
+    damp_rows = min(int(guardrail.get("primary_window") or 0), n_samples)
+    if damp_rows <= 0:
+        return weights, metadata
+
+    damp_factor = 0.25
+    if damp_rows >= n_samples:
+        weights = weights * damp_factor
+    else:
+        boundary_idx = n_samples - damp_rows - 1
+        boundary_weight = float(weights[boundary_idx])
+        capped_weight = boundary_weight * damp_factor
+        weights[-damp_rows:] = np.minimum(weights[-damp_rows:], capped_weight)
+
+    metadata.update(
+        {
+            "applied": True,
+            "damped_recent_rows": damp_rows,
+            "damp_factor": damp_factor,
+        }
+    )
+    return weights, metadata
 
 
 def _ensure_regime_label_column(df: pd.DataFrame) -> pd.DataFrame:
@@ -192,6 +314,8 @@ def load_training_data(session: Session, min_samples: int = 50,
         "simulated_pyramid_win": int(r.simulated_pyramid_win) if getattr(r, 'simulated_pyramid_win', None) is not None else None,
         "simulated_pyramid_pnl": float(r.simulated_pyramid_pnl) if getattr(r, 'simulated_pyramid_pnl', None) is not None else None,
         "simulated_pyramid_quality": float(r.simulated_pyramid_quality) if getattr(r, 'simulated_pyramid_quality', None) is not None else None,
+        "simulated_pyramid_drawdown_penalty": float(r.simulated_pyramid_drawdown_penalty) if getattr(r, 'simulated_pyramid_drawdown_penalty', None) is not None else None,
+        "simulated_pyramid_time_underwater": float(r.simulated_pyramid_time_underwater) if getattr(r, 'simulated_pyramid_time_underwater', None) is not None else None,
         "label_sell_win": int(r.label_sell_win) if r.label_sell_win is not None else None,
         "label_up": int(r.label_up) if r.label_up is not None else None,
         "future_return_pct": float(r.future_return_pct) if r.future_return_pct is not None else None,
@@ -277,7 +401,8 @@ def load_training_data(session: Session, min_samples: int = 50,
     # For non-core features (lags, crosses), fall back to global Spearman IC.
     tau = 200
     core_cols = set(FEATURE_COLS)  # 8 core senses + VIX + DXY
-    weights = np.exp(-(N - 1 - np.arange(N, dtype=float)) / tau)
+    tw_guardrail = _load_tw_ic_guardrail()
+    weights, tw_guardrail_meta = _build_time_decay_weights(N, tau=tau, guardrail=tw_guardrail)
 
     for col in all_feature_cols:
         feat_arr = merged[col].astype(float).values
@@ -355,9 +480,11 @@ def load_training_data(session: Session, min_samples: int = 50,
             "target": target_col,
             "core_ic_summary": core_ic_summary,
             "tw_ic_summary": tw_ic_summary,
+            "tw_guardrail": tw_guardrail_meta,
         }, f, indent=2, ensure_ascii=False)
     logger.info(f"TW-IC (core): {tw_ic_summary}")
     logger.info(f"Global IC (core): {core_ic_summary}")
+    logger.info(f"TW-IC guardrail: {tw_guardrail_meta}")
     logger.info(f"動態 TW-IC/Global IC 計算完成 — core 使用 TW-IC, 其餘使用 Global IC")
     logger.info(f"NEG_IC 反轉特徵: {NEG_IC_FEATS}")
 
