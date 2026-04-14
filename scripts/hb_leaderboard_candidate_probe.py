@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 from typing import Any
+import warnings
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -17,6 +18,29 @@ LAST_METRICS_PATH = PROJECT_ROOT / "model" / "last_metrics.json"
 LIVE_PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 BULL_POCKET_PATH = PROJECT_ROOT / "data" / "bull_4h_pocket_ablation.json"
 FEATURE_ABLATION_PATH = PROJECT_ROOT / "data" / "feature_group_ablation.json"
+
+
+KNOWN_SKLEARN_FEATURE_NAME_WARNING_PATTERNS = (
+    r"X has feature names, but LogisticRegression was fitted without feature names",
+    r"X has feature names, but MLPClassifier was fitted without feature names",
+    r"X has feature names, but SVC was fitted without feature names",
+)
+
+
+def _suppress_known_feature_name_warnings() -> None:
+    """Hide noisy sklearn feature-name warnings from heartbeat probe stderr.
+
+    The leaderboard probe reuses pre-fit sklearn models that were trained on ndarray
+    inputs. During heartbeat governance we only need the resulting payload; repeated
+    feature-name warnings drown out real stderr failures and make cron summaries hard
+    to read. Keep the suppression narrowly scoped to the exact known warning strings.
+    """
+    for pattern in KNOWN_SKLEARN_FEATURE_NAME_WARNING_PATTERNS:
+        warnings.filterwarnings(
+            "ignore",
+            message=pattern,
+            category=UserWarning,
+        )
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -105,6 +129,7 @@ def _build_alignment(top_model: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> int:
+    _suppress_known_feature_name_warnings()
     payload = api_module._build_model_leaderboard_payload()
     top_model = _top_model_payload(payload)
     result = {
