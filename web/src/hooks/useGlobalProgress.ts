@@ -38,8 +38,19 @@ const tasks = new Map<string, GlobalProgressTask>();
 
 let networkBatchStarted = 0;
 let networkBatchCompleted = 0;
+let storeVersion = 0;
+let cachedSnapshotVersion = -1;
+let cachedSnapshot: GlobalProgressSnapshot = {
+  active: false,
+  label: "",
+  detail: null,
+  progress: null,
+  tone: "blue",
+  activeCount: 0,
+};
 
 const emit = () => {
+  storeVersion += 1;
   listeners.forEach((listener) => listener());
 };
 
@@ -84,7 +95,7 @@ export function beginGlobalProgress(input: GlobalProgressInput): string {
 export function updateGlobalProgress(id: string, patch: Partial<GlobalProgressInput>) {
   const current = tasks.get(id);
   if (!current) return;
-  tasks.set(id, {
+  const next: GlobalProgressTask = {
     ...current,
     label: patch.label ?? current.label,
     detail: patch.detail === undefined ? current.detail : patch.detail,
@@ -92,7 +103,19 @@ export function updateGlobalProgress(id: string, patch: Partial<GlobalProgressIn
     tone: patch.tone ?? current.tone,
     priority: patch.priority ?? current.priority,
     updatedAt: Date.now(),
-  });
+  };
+
+  if (
+    next.label === current.label &&
+    next.detail === current.detail &&
+    next.progress === current.progress &&
+    next.tone === current.tone &&
+    next.priority === current.priority
+  ) {
+    return;
+  }
+
+  tasks.set(id, next);
   emit();
 }
 
@@ -124,7 +147,7 @@ const buildNetworkSnapshot = (networkTasks: GlobalProgressTask[]): GlobalProgres
   };
 };
 
-const getSnapshot = (): GlobalProgressSnapshot => {
+const computeSnapshot = (): GlobalProgressSnapshot => {
   if (tasks.size === 0) {
     return {
       active: false,
@@ -154,6 +177,15 @@ const getSnapshot = (): GlobalProgressSnapshot => {
   }
 
   return buildNetworkSnapshot(allTasks.filter((task) => task.kind === "network"));
+};
+
+const getSnapshot = (): GlobalProgressSnapshot => {
+  if (cachedSnapshotVersion === storeVersion) {
+    return cachedSnapshot;
+  }
+  cachedSnapshot = computeSnapshot();
+  cachedSnapshotVersion = storeVersion;
+  return cachedSnapshot;
 };
 
 export function useGlobalProgressSnapshot() {
