@@ -185,16 +185,21 @@ def _build_time_decay_weights(n_samples: int, tau: int = 200, guardrail: Optiona
 
 
 def _ensure_regime_label_column(df: pd.DataFrame) -> pd.DataFrame:
-    """Normalize merge suffixes so downstream feature engineering sees one regime_label."""
+    """Normalize merge suffixes so downstream feature engineering sees one regime_label.
+
+    Take a de-fragmenting copy before adding the column; otherwise pandas emits
+    fragmentation warnings during training/diagnostic scripts that append many features.
+    """
     if "regime_label" in df.columns:
         return df
-    if "regime_label_y" in df.columns:
-        df["regime_label"] = df["regime_label_y"]
-    elif "regime_label_x" in df.columns:
-        df["regime_label"] = df["regime_label_x"]
+    normalized = df.copy()
+    if "regime_label_y" in normalized.columns:
+        normalized["regime_label"] = normalized["regime_label_y"]
+    elif "regime_label_x" in normalized.columns:
+        normalized["regime_label"] = normalized["regime_label_x"]
     else:
-        df["regime_label"] = "neutral"
-    return df
+        normalized["regime_label"] = "neutral"
+    return normalized
 
 
 def _append_cross_features(df: pd.DataFrame) -> pd.DataFrame:
