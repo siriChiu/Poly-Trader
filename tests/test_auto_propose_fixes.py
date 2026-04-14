@@ -882,7 +882,14 @@ def test_main_promotes_live_dq_pathology_from_narrowed_scope_even_when_broad_sco
                         "final_reason_counts": {"structure_quality_caution": 123},
                         "base_gate_counts": {"ALLOW": 123},
                         "avg_structure_quality": 0.2214,
+                        "structure_quality_distribution": {"min": 0.2214, "p25": 0.2214, "p50": 0.2214, "p75": 0.2214, "max": 0.2214},
+                        "structure_quality_gate_bands": {"block_lt_0.15": 0, "caution_0.15_to_0.35": 123, "allow_ge_0.35": 0},
                         "avg_bias200": 0.9,
+                        "target_counts": {"loss": 123},
+                        "pnl_sign_counts": {"positive": 0, "zero": 0, "negative": 123},
+                        "quality_sign_counts": {"positive": 0, "zero": 0, "negative": 123},
+                        "canonical_true_negative_rows": 123,
+                        "canonical_true_negative_share": 1.0,
                         "missing_input_rows": 0,
                         "missing_input_feature_counts": {},
                     },
@@ -892,7 +899,14 @@ def test_main_promotes_live_dq_pathology_from_narrowed_scope_even_when_broad_sco
                         "final_reason_counts": {"base_allow": 24},
                         "base_gate_counts": {"ALLOW": 24},
                         "avg_structure_quality": 0.8125,
+                        "structure_quality_distribution": {"min": 0.8125, "p25": 0.8125, "p50": 0.8125, "p75": 0.8125, "max": 0.8125},
+                        "structure_quality_gate_bands": {"block_lt_0.15": 0, "caution_0.15_to_0.35": 0, "allow_ge_0.35": 24},
                         "avg_bias200": 2.4,
+                        "target_counts": {"win": 24},
+                        "pnl_sign_counts": {"positive": 24, "zero": 0, "negative": 0},
+                        "quality_sign_counts": {"positive": 24, "zero": 0, "negative": 0},
+                        "canonical_true_negative_rows": 0,
+                        "canonical_true_negative_share": 0.0,
                         "missing_input_rows": 0,
                         "missing_input_feature_counts": {},
                     },
@@ -957,6 +971,8 @@ def test_main_promotes_live_dq_pathology_from_narrowed_scope_even_when_broad_sco
                             "final_reason_counts": {"structure_quality_caution": 123},
                             "base_gate_counts": {"ALLOW": 123},
                             "avg_structure_quality": 0.2214,
+                            "structure_quality_distribution": {"min": 0.2214, "p25": 0.2214, "p50": 0.2214, "p75": 0.2214, "max": 0.2214},
+                            "structure_quality_gate_bands": {"block_lt_0.15": 0, "caution_0.15_to_0.35": 123, "allow_ge_0.35": 0},
                             "avg_bias200": 0.9,
                             "missing_input_rows": 0,
                             "missing_input_feature_counts": {},
@@ -967,6 +983,8 @@ def test_main_promotes_live_dq_pathology_from_narrowed_scope_even_when_broad_sco
                             "final_reason_counts": {"base_allow": 24},
                             "base_gate_counts": {"ALLOW": 24},
                             "avg_structure_quality": 0.8125,
+                            "structure_quality_distribution": {"min": 0.8125, "p25": 0.8125, "p50": 0.8125, "p75": 0.8125, "max": 0.8125},
+                            "structure_quality_gate_bands": {"block_lt_0.15": 0, "caution_0.15_to_0.35": 0, "allow_ge_0.35": 24},
                             "avg_bias200": 2.4,
                             "missing_input_rows": 0,
                             "missing_input_feature_counts": {},
@@ -1001,7 +1019,7 @@ def test_main_promotes_live_dq_pathology_from_narrowed_scope_even_when_broad_sco
 
     live_issue = next(item for item in added if item[1] == "#H_AUTO_LIVE_DQ_PATHOLOGY")
     assert live_issue[0] == "P1"
-    assert "runtime-blocked by recent pathology or a severe narrowed pathology lane" in live_issue[2]
+    assert "runtime-blocked by recent pathology, a toxic exact live lane, or a severe narrowed pathology lane" in live_issue[2]
     assert "live_scope=entry_quality_label" in live_issue[3]
     assert "shared_shifts=feat_4h_dist_swing_low[x2]/feat_4h_dist_bb_lower[x2]" in live_issue[3]
     assert "spillover_rows=123" in live_issue[3]
@@ -1010,9 +1028,48 @@ def test_main_promotes_live_dq_pathology_from_narrowed_scope_even_when_broad_sco
     assert "spillover_worst=bull|CAUTION(rows=123,wr=0.0,q=-0.3011,pnl=-0.0112,dd=0.3122,tuw=0.9555)" in live_issue[3]
     assert "spillover_feature_shift=feat_4h_bias200(2.4→0.9,Δ=-1.5)/feat_4h_dist_bb_lower(7.4→0.4,Δ=-7.0)/feat_4h_dist_swing_low(9.3→1.7,Δ=-7.6)/feat_4h_bb_pct_b(0.87→0.13,Δ=-0.74)" in live_issue[3]
     assert "spillover_gate_inputs=feat_4h_bias200(2.4→0.9,Δ=-1.5)/feat_4h_bb_pct_b(0.87→0.13,Δ=-0.74)/feat_4h_dist_bb_lower(7.4→0.4,Δ=-7.0)/feat_4h_dist_swing_low(9.3→1.7,Δ=-7.6)" in live_issue[3]
-    assert "spillover_gate_path=final[CAUTION:123]|reason[structure_quality_caution:123]|base[ALLOW:123]|avg_structure=0.2214|avg_bias200=0.9|missing_rows=0" in live_issue[3]
-    assert "exact_gate_path=final[ALLOW:24]|reason[base_allow:24]|base[ALLOW:24]|avg_structure=0.8125|avg_bias200=2.4|missing_rows=0" in live_issue[3]
+    assert "spillover_gate_path=final[CAUTION:123]|reason[structure_quality_caution:123]|base[ALLOW:123]|avg_structure=0.2214|structure_q[min:0.2214,p25:0.2214,p50:0.2214,p75:0.2214,max:0.2214]|structure_bands[block:0,caution:123,allow:0]|targets[loss:123]|pnl_signs[negative:123/positive:0/zero:0]|quality_signs[negative:123/positive:0/zero:0]|true_negative_rows=123@1.0|avg_bias200=0.9|missing_rows=0" in live_issue[3]
+    assert "exact_gate_path=final[ALLOW:24]|reason[base_allow:24]|base[ALLOW:24]|avg_structure=0.8125|structure_q[min:0.8125,p25:0.8125,p50:0.8125,p75:0.8125,max:0.8125]|structure_bands[block:0,caution:0,allow:24]|targets[win:24]|pnl_signs[negative:0/positive:24/zero:0]|quality_signs[negative:0/positive:24/zero:0]|true_negative_rows=0@0.0|avg_bias200=2.4|missing_rows=0" in live_issue[3]
     assert "worst_scope=regime_label+entry_quality_label(wr=0.0748,q=-0.2098,rows=147,dd=0.2877,tuw=0.8811,recent500_dominant=bull@1.0,recent500_gate_dominant=CAUTION@0.8367,recent500_regime_gate_dominant=bull|CAUTION@0.8367,recent500_regimes=bull:147,recent500_gates=CAUTION:123/ALLOW:24,recent500_regime_gates=bull|CAUTION:123/bull|ALLOW:24,spillover_rows=123,spillover_share=0.8367,spillover_wr_delta=-0.5709,spillover_q_delta=-0.5003,spillover_pnl_delta=-0.0098,spillover_gate_dominant=CAUTION@1." in live_issue[3]
 
     assert "#H_AUTO_LIVE_DQ_PATHOLOGY" in out
     assert "📊 Live probe：live_scope=entry_quality_label" in out
+
+
+def test_summarize_live_predict_probe_flags_toxic_exact_live_lane():
+    summary = auto_propose_fixes.summarize_live_predict_probe({
+        "decision_quality_calibration_scope": "regime_gate+entry_quality_label",
+        "decision_quality_label": "D",
+        "decision_quality_recent_pathology_window": 100,
+        "decision_quality_recent_pathology_alerts": ["label_imbalance"],
+        "expected_win_rate": 0.0,
+        "expected_pyramid_pnl": -0.0108,
+        "expected_pyramid_quality": -0.2789,
+        "allowed_layers_raw": 0,
+        "allowed_layers": 0,
+        "regime_label": "bull",
+        "regime_gate": "ALLOW",
+        "decision_quality_sample_size": 127,
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "rows": 24,
+                "win_rate": 0.2917,
+                "avg_quality": -0.005,
+                "avg_drawdown_penalty": 0.2986,
+                "avg_time_underwater": 0.6147,
+                "recent500_dominant_regime_gate": {"regime_gate": "bull|ALLOW", "share": 1.0},
+                "spillover_vs_exact_live_lane": {
+                    "exact_live_gate_path_summary": {
+                        "target_counts": {"loss": 17, "win": 7},
+                        "canonical_true_negative_rows": 17,
+                        "canonical_true_negative_share": 0.7083,
+                        "final_gate_counts": {"ALLOW": 24},
+                    }
+                },
+            }
+        },
+        "decision_quality_recent_pathology_summary": {},
+    })
+
+    assert "exact_live_lane=(rows=24,wr=0.2917,q=-0.005,dd=0.2986,tuw=0.6147,recent500_dom=bull|ALLOW@1.0,targets=loss:17/win:7,true_negative_rows=17@0.7083,final_gate=ALLOW:24)" in summary
+    assert "exact_lane_status=toxic_allow_lane" in summary

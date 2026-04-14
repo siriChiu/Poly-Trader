@@ -389,6 +389,7 @@ def summarize_live_predict_probe(report):
     gate = report.get("regime_gate") or "unknown"
     sample_size = report.get("decision_quality_sample_size")
     scope_diags = report.get("decision_quality_scope_diagnostics") or {}
+    exact_scope_info = scope_diags.get("regime_label+regime_gate+entry_quality_label") or {}
 
     def _format_feature_contrast(contrast, prefix):
         if not contrast:
@@ -429,11 +430,37 @@ def summarize_live_predict_probe(report):
             if not counts:
                 return "none"
             return "/".join(f"{k}:{v}" for k, v in sorted(counts.items()))
+        structure_dist = summary.get("structure_quality_distribution") or {}
+        gate_bands = summary.get("structure_quality_gate_bands") or {}
+        quantile_bits = []
+        for key in ("min", "p25", "p50", "p75", "max"):
+            if structure_dist.get(key) is not None:
+                quantile_bits.append(f"{key}:{structure_dist.get(key)}")
+        band_bits = []
+        if gate_bands:
+            band_bits = [
+                f"block:{gate_bands.get('block_lt_0.15', 0)}",
+                f"caution:{gate_bands.get('caution_0.15_to_0.35', 0)}",
+                f"allow:{gate_bands.get('allow_ge_0.35', 0)}",
+            ]
+        quantile_text = f"|structure_q[{','.join(quantile_bits)}]" if quantile_bits else ""
+        band_text = f"|structure_bands[{','.join(band_bits)}]" if band_bits else ""
+        target_counts_text = f"|targets[{_fmt_counts(summary.get('target_counts') or {})}]"
+        pnl_sign_text = f"|pnl_signs[{_fmt_counts(summary.get('pnl_sign_counts') or {})}]"
+        quality_sign_text = f"|quality_signs[{_fmt_counts(summary.get('quality_sign_counts') or {})}]"
+        true_negative_rows = summary.get("canonical_true_negative_rows")
+        true_negative_share = summary.get("canonical_true_negative_share")
+        true_negative_text = ""
+        if true_negative_rows is not None:
+            true_negative_text = f"|true_negative_rows={true_negative_rows}"
+            if true_negative_share is not None:
+                true_negative_text += f"@{true_negative_share}"
         return (
             f",{prefix}=final[{_fmt_counts(summary.get('final_gate_counts') or {})}]"
             f"|reason[{_fmt_counts(summary.get('final_reason_counts') or {})}]"
             f"|base[{_fmt_counts(summary.get('base_gate_counts') or {})}]"
             f"|avg_structure={summary.get('avg_structure_quality')}"
+            f"{quantile_text}{band_text}{target_counts_text}{pnl_sign_text}{quality_sign_text}{true_negative_text}"
             f"|avg_bias200={summary.get('avg_bias200')}"
             f"|missing_rows={summary.get('missing_input_rows')}"
         )
@@ -600,12 +627,65 @@ def summarize_live_predict_probe(report):
             f"{dominant_suffix}{dominant_gate_suffix}{dominant_regime_gate_suffix}"
             f"{regime_suffix}{gate_suffix}{regime_gate_suffix}{spillover_text})"
         )
+    exact_gate_path_summary = (
+        (exact_scope_info.get("spillover_vs_exact_live_lane") or {}).get("exact_live_gate_path_summary")
+        or {}
+    )
+    if not exact_gate_path_summary:
+        for candidate_scope in scope_diags.values():
+            if not isinstance(candidate_scope, dict):
+                continue
+            candidate_summary = ((candidate_scope.get("spillover_vs_exact_live_lane") or {}).get("exact_live_gate_path_summary")) or {}
+            if candidate_summary:
+                exact_gate_path_summary = candidate_summary
+                break
+    exact_true_negative_rows = exact_gate_path_summary.get("canonical_true_negative_rows")
+    exact_true_negative_share = exact_gate_path_summary.get("canonical_true_negative_share")
+    exact_target_counts = exact_gate_path_summary.get("target_counts") or {}
+    exact_scope_text = ""
+    if exact_scope_info:
+        exact_scope_bits = [
+            f"rows={exact_scope_info.get('rows')}",
+            f"wr={exact_scope_info.get('win_rate')}",
+            f"q={exact_scope_info.get('avg_quality')}",
+            f"dd={exact_scope_info.get('avg_drawdown_penalty')}",
+            f"tuw={exact_scope_info.get('avg_time_underwater')}",
+        ]
+        if exact_scope_info.get("recent500_dominant_regime_gate"):
+            dom = exact_scope_info.get("recent500_dominant_regime_gate") or {}
+            exact_scope_bits.append(f"recent500_dom={dom.get('regime_gate')}@{dom.get('share')}")
+        if exact_target_counts:
+            exact_scope_bits.append(
+                "targets=" + "/".join(f"{k}:{v}" for k, v in sorted(exact_target_counts.items()))
+            )
+        if exact_true_negative_rows is not None:
+            exact_scope_bits.append(f"true_negative_rows={exact_true_negative_rows}@{exact_true_negative_share}")
+        final_gate_counts = exact_gate_path_summary.get("final_gate_counts") or {}
+        if final_gate_counts:
+            exact_scope_bits.append(
+                "final_gate=" + "/".join(f"{k}:{v}" for k, v in sorted(final_gate_counts.items()))
+            )
+        exact_scope_text = ", exact_live_lane=" + "(" + ",".join(exact_scope_bits) + ")"
+        exact_rows = exact_scope_info.get("rows")
+        exact_win_rate = exact_scope_info.get("win_rate")
+        exact_quality = exact_scope_info.get("avg_quality")
+        exact_toxic = (
+            isinstance(exact_rows, (int, float)) and exact_rows >= 20
+            and (
+                (isinstance(exact_true_negative_share, (int, float)) and exact_true_negative_share >= 0.60)
+                or (isinstance(exact_win_rate, (int, float)) and exact_win_rate <= 0.35)
+                or (isinstance(exact_quality, (int, float)) and exact_quality < 0.0)
+            )
+        )
+        if exact_toxic:
+            exact_scope_text += ", exact_lane_status=toxic_allow_lane"
+
     shared_scope_text = f", shared_shifts={shared_shift_text}" if shared_shift_text else ""
     return (
         f"live_scope={scope}, regime={regime}/{gate}, label={label}, sample_size={sample_size}, "
         f"window={window}, alerts={alerts}, expected_win_rate={win_rate}, expected_pnl={pnl}, "
         f"expected_quality={quality}, layers={layers_raw}→{layers}, top_shifts={top_shift_text or 'n/a'}"
-        f"{scope_matrix_text}{shared_scope_text}{worst_scope_text}"
+        f"{exact_scope_text}{scope_matrix_text}{shared_scope_text}{worst_scope_text}"
     )
 
 
@@ -747,9 +827,9 @@ def main():
         tracker.add(
             "P1",
             "#H_AUTO_LIVE_DQ_PATHOLOGY",
-            "live predictor decision-quality contract is runtime-blocked by recent pathology or a severe narrowed pathology lane",
-            "把 hb_predict_probe 納入每輪 heartbeat 驗證，對當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；"
-            "優先檢查 recent same-scope / narrowed-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。"
+            "live predictor decision-quality contract is runtime-blocked by recent pathology, a toxic exact live lane, or a severe narrowed pathology lane",
+            "把 hb_predict_probe 納入每輪 heartbeat 驗證，對 exact live lane、當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；"
+            "優先檢查 exact lane 是否仍是 ALLOW 但 canonical true-negative share 已偏高，並交叉比對 recent same-scope / narrowed-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。"
             f" {live_predict_summary}",
         )
     else:
