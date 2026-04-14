@@ -427,8 +427,41 @@ class ModelLeaderboard:
             add_candidate("current_full", {"source": "leaderboard.fallback_current_full"})
         return candidates
 
-    def _candidate_selection_key(self, score: ModelScore) -> Tuple[float, float, float, float, float]:
+    def _feature_profile_blocker_assessment(self, meta: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        meta = dict(meta or {})
+        support_rows = meta.get("support_rows")
+        exact_live_bucket_rows = meta.get("exact_live_bucket_rows")
+        minimum_support_rows = meta.get("minimum_support_rows")
+        support_cohort = meta.get("support_cohort")
+        source = str(meta.get("source") or "")
+
+        blocker_reason: Optional[str] = None
+        if support_cohort and exact_live_bucket_rows is not None and float(exact_live_bucket_rows) <= 0:
+            blocker_reason = "unsupported_exact_live_structure_bucket"
+        elif support_cohort and support_rows is not None and minimum_support_rows is not None and float(support_rows) < float(minimum_support_rows):
+            blocker_reason = "insufficient_supported_neighbor_rows"
+        elif source.endswith("support_aware_profile") and exact_live_bucket_rows is not None and float(exact_live_bucket_rows) <= 0:
+            blocker_reason = "unsupported_exact_live_structure_bucket"
+
+        blocker_applied = blocker_reason is not None
+        return {
+            "blocker_applied": blocker_applied,
+            "blocker_reason": blocker_reason,
+            "support_rows": support_rows,
+            "exact_live_bucket_rows": exact_live_bucket_rows,
+            "support_cohort": support_cohort,
+            "minimum_support_rows": minimum_support_rows,
+        }
+
+    def _candidate_selection_key(self, score: ModelScore) -> Tuple[float, float, float, float, float, float, float, float]:
+        blocker = self._feature_profile_blocker_assessment(score.feature_profile_meta)
+        blocker_gate = 0.0 if blocker["blocker_applied"] else 1.0
+        exact_rows = float(blocker.get("exact_live_bucket_rows") or 0.0)
+        support_rows = float(blocker.get("support_rows") or 0.0)
         return (
+            blocker_gate,
+            exact_rows,
+            support_rows,
             float(score.composite_score),
             float(score.reliability_score),
             float(score.avg_decision_quality_score),
@@ -871,6 +904,27 @@ class ModelLeaderboard:
 
         candidate_scores.sort(key=self._candidate_selection_key, reverse=True)
         scores = candidate_scores[0]
+        selected_blocker = self._feature_profile_blocker_assessment(scores.feature_profile_meta)
+        candidate_diagnostics: List[Dict[str, Any]] = []
+        for rank, candidate_score in enumerate(candidate_scores, start=1):
+            blocker = self._feature_profile_blocker_assessment(candidate_score.feature_profile_meta)
+            candidate_diagnostics.append({
+                "rank": rank,
+                "model_name": candidate_score.model_name,
+                "deployment_profile": candidate_score.deployment_profile,
+                "feature_profile": candidate_score.feature_profile,
+                "feature_profile_source": candidate_score.feature_profile_source,
+                "support_cohort": blocker.get("support_cohort"),
+                "support_rows": blocker.get("support_rows"),
+                "exact_live_bucket_rows": blocker.get("exact_live_bucket_rows"),
+                "minimum_support_rows": blocker.get("minimum_support_rows"),
+                "blocker_applied": blocker.get("blocker_applied", False),
+                "blocker_reason": blocker.get("blocker_reason"),
+                "overall_score": round(float(candidate_score.overall_score), 4),
+                "composite_score": round(float(candidate_score.composite_score), 4),
+                "avg_decision_quality_score": round(float(candidate_score.avg_decision_quality_score), 4),
+                "avg_win_rate": round(float(candidate_score.avg_win_rate), 4),
+            })
 
         self.last_model_statuses[model_name] = {
             "status": "ok",
@@ -880,11 +934,14 @@ class ModelLeaderboard:
             "selected_deployment_profile": scores.deployment_profile,
             "selected_feature_profile": scores.feature_profile,
             "selected_feature_profile_source": scores.feature_profile_source,
+            "selected_feature_profile_blocker_applied": selected_blocker.get("blocker_applied", False),
+            "selected_feature_profile_blocker_reason": selected_blocker.get("blocker_reason"),
             "feature_profile_support_cohort": scores.feature_profile_meta.get("support_cohort"),
             "feature_profile_support_rows": scores.feature_profile_meta.get("support_rows"),
             "feature_profile_exact_live_bucket_rows": scores.feature_profile_meta.get("exact_live_bucket_rows"),
             "deployment_profiles_evaluated": list(dict.fromkeys(score.deployment_profile for score in candidate_scores)),
             "feature_profiles_evaluated": list(dict.fromkeys(score.feature_profile for score in candidate_scores)),
+            "feature_profile_candidate_diagnostics": candidate_diagnostics,
         }
         return scores
 

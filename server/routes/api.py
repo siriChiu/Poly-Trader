@@ -2045,10 +2045,13 @@ def _build_model_leaderboard_payload() -> Dict[str, Any]:
             "deployment_profiles_evaluated": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("deployment_profiles_evaluated", [row.get("deployment_profile")]),
             "selected_feature_profile": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("selected_feature_profile", row.get("feature_profile")),
             "selected_feature_profile_source": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("selected_feature_profile_source", row.get("feature_profile_source")),
+            "selected_feature_profile_blocker_applied": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("selected_feature_profile_blocker_applied", False),
+            "selected_feature_profile_blocker_reason": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("selected_feature_profile_blocker_reason"),
             "feature_profiles_evaluated": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("feature_profiles_evaluated", [row.get("feature_profile")]),
             "feature_profile_support_cohort": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("feature_profile_support_cohort", row.get("feature_profile_support_cohort")),
             "feature_profile_support_rows": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("feature_profile_support_rows", row.get("feature_profile_support_rows")),
             "feature_profile_exact_live_bucket_rows": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("feature_profile_exact_live_bucket_rows", row.get("feature_profile_exact_live_bucket_rows")),
+            "feature_profile_candidate_diagnostics": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("feature_profile_candidate_diagnostics", []),
         }
         for row in leaderboard
     ]

@@ -436,6 +436,123 @@ def test_evaluate_model_auto_selects_best_feature_profile(monkeypatch):
     assert "core_plus_macro" in leaderboard.last_model_statuses["xgboost"]["feature_profiles_evaluated"]
 
 
+def test_evaluate_model_rejects_zero_exact_support_feature_profile_even_if_score_is_higher(monkeypatch):
+    timestamps = pd.date_range("2025-01-01", periods=220, freq="D")
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "close_price": [50000 + i for i in range(len(timestamps))],
+            "simulated_pyramid_win": [i % 2 for i in range(len(timestamps))],
+            "feat_4h_bias50": [0.0] * len(timestamps),
+            "feat_nose": [0.4] * len(timestamps),
+            "feat_pulse": [0.6] * len(timestamps),
+            "feat_ear": [0.1] * len(timestamps),
+        }
+    )
+    leaderboard = ModelLeaderboard(df)
+    monkeypatch.setattr("backtesting.model_leaderboard.MIN_TRAIN_SAMPLES", 50)
+    monkeypatch.setattr(
+        leaderboard,
+        "_get_walk_forward_splits",
+        lambda: [("2025-01-01", "2025-05-01", "2025-05-01", "2025-07-15")],
+    )
+    monkeypatch.setattr(
+        leaderboard,
+        "_feature_profile_candidates_for_frame",
+        lambda feature_cols: [
+            {"name": "core_only", "columns": feature_cols[:2], "meta": {"source": "feature_group_ablation.recommended_profile"}},
+            {
+                "name": "core_plus_macro",
+                "columns": feature_cols,
+                "meta": {
+                    "source": "bull_4h_pocket_ablation.support_aware_profile",
+                    "support_cohort": "bull_supported_neighbor_buckets_proxy",
+                    "support_rows": 84,
+                    "exact_live_bucket_rows": 0,
+                    "minimum_support_rows": 20,
+                },
+            },
+        ],
+    )
+
+    def fake_run_single_fold(train_df, test_df, model_name):
+        deployment = leaderboard._deployment_profile_override or leaderboard._default_deployment_profile_name(model_name)
+        feature_profile = leaderboard._feature_profile_override or "current_full"
+        feature_source = (leaderboard._feature_profile_meta_override or {}).get("source", "code_default")
+        if feature_profile == "core_plus_macro":
+            fold = type("Fold", (), {
+                "fold": 0,
+                "train_start": "2025-01-01",
+                "train_end": "2025-05-01",
+                "test_start": "2025-05-01",
+                "test_end": "2025-06-01",
+                "train_samples": len(train_df),
+                "test_samples": len(test_df),
+                "roi": 0.24,
+                "win_rate": 0.79,
+                "total_trades": 18,
+                "max_drawdown": 0.05,
+                "sharpe_ratio": 0.0,
+                "profit_factor": 1.8,
+                "avg_entry_quality": 0.83,
+                "avg_allowed_layers": 2.8,
+                "trade_quality_score": 0.81,
+                "regime_gate_allow_ratio": 0.91,
+                "avg_decision_quality_score": 0.77,
+                "avg_expected_win_rate": 0.88,
+                "avg_expected_pyramid_quality": 0.64,
+                "avg_expected_drawdown_penalty": 0.10,
+                "avg_expected_time_underwater": 0.12,
+                "deployment_profile": deployment,
+                "feature_profile": feature_profile,
+                "feature_profile_source": feature_source,
+            })()
+            return fold, None, object(), 0.84, 0.75
+
+        fold = type("Fold", (), {
+            "fold": 0,
+            "train_start": "2025-01-01",
+            "train_end": "2025-05-01",
+            "test_start": "2025-05-01",
+            "test_end": "2025-06-01",
+            "train_samples": len(train_df),
+            "test_samples": len(test_df),
+            "roi": 0.10,
+            "win_rate": 0.62,
+            "total_trades": 10,
+            "max_drawdown": 0.08,
+            "sharpe_ratio": 0.0,
+            "profit_factor": 1.30,
+            "avg_entry_quality": 0.66,
+            "avg_allowed_layers": 2.0,
+            "trade_quality_score": 0.60,
+            "regime_gate_allow_ratio": 0.78,
+            "avg_decision_quality_score": 0.58,
+            "avg_expected_win_rate": 0.73,
+            "avg_expected_pyramid_quality": 0.49,
+            "avg_expected_drawdown_penalty": 0.16,
+            "avg_expected_time_underwater": 0.20,
+            "deployment_profile": deployment,
+            "feature_profile": feature_profile,
+            "feature_profile_source": feature_source,
+        })()
+        return fold, None, object(), 0.72, 0.64
+
+    monkeypatch.setattr(leaderboard, "_run_single_fold", fake_run_single_fold)
+
+    score = leaderboard.evaluate_model("xgboost")
+
+    assert score is not None
+    assert score.feature_profile == "core_only"
+    status = leaderboard.last_model_statuses["xgboost"]
+    assert status["selected_feature_profile"] == "core_only"
+    diagnostics = status["feature_profile_candidate_diagnostics"]
+    blocked = next(item for item in diagnostics if item["feature_profile"] == "core_plus_macro")
+    assert blocked["blocker_applied"] is True
+    assert blocked["blocker_reason"] == "unsupported_exact_live_structure_bucket"
+    assert blocked["rank"] > 1
+
+
 def test_model_leaderboard_can_use_simulated_target(monkeypatch):
     timestamps = pd.date_range("2025-01-01", periods=220, freq="D")
     df = pd.DataFrame(
@@ -784,7 +901,25 @@ def test_build_model_leaderboard_payload_includes_skipped_models(monkeypatch):
                     "deployment_profiles_evaluated": ["balanced_conviction", "standard"],
                     "selected_feature_profile": "core_only",
                     "selected_feature_profile_source": "feature_group_ablation.recommended_profile",
+                    "selected_feature_profile_blocker_applied": False,
+                    "selected_feature_profile_blocker_reason": None,
                     "feature_profiles_evaluated": ["core_only", "core_plus_macro"],
+                    "feature_profile_candidate_diagnostics": [
+                        {
+                            "rank": 1,
+                            "deployment_profile": "balanced_conviction",
+                            "feature_profile": "core_only",
+                            "blocker_applied": False,
+                            "blocker_reason": None,
+                        },
+                        {
+                            "rank": 2,
+                            "deployment_profile": "balanced_conviction",
+                            "feature_profile": "core_plus_macro",
+                            "blocker_applied": True,
+                            "blocker_reason": "unsupported_exact_live_structure_bucket",
+                        },
+                    ],
                 },
             }
 
@@ -843,6 +978,9 @@ def test_build_model_leaderboard_payload_includes_skipped_models(monkeypatch):
     assert payload["leaderboard"][0]["deployment_profile"] == "balanced_conviction"
     assert payload["leaderboard"][0]["feature_profile"] == "core_only"
     assert payload["leaderboard"][0]["selected_feature_profile"] == "core_only"
+    assert payload["leaderboard"][0]["selected_feature_profile_blocker_applied"] is False
+    assert payload["leaderboard"][0]["selected_feature_profile_blocker_reason"] is None
+    assert payload["leaderboard"][0]["feature_profile_candidate_diagnostics"][1]["blocker_reason"] == "unsupported_exact_live_structure_bucket"
     assert "core_plus_macro" in payload["leaderboard"][0]["feature_profiles_evaluated"]
     assert payload["leaderboard"][0]["model_tier"] == "core"
     assert payload["leaderboard"][0]["model_tier_label"] == "核心模型"

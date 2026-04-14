@@ -9,17 +9,72 @@
     "deployment_profiles_evaluated": [
       "standard"
     ],
-    "feature_profile": "core_plus_macro",
-    "selected_feature_profile": "core_plus_macro",
-    "selected_feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+    "feature_profile": "core_only",
+    "selected_feature_profile": "core_only",
+    "selected_feature_profile_source": "feature_group_ablation.recommended_profile",
     "feature_profiles_evaluated": [
-      "core_plus_macro",
       "core_only",
-      "current_full"
+      "current_full",
+      "core_plus_macro"
     ],
-    "feature_profile_support_cohort": "bull_supported_neighbor_buckets_proxy",
-    "feature_profile_support_rows": 84,
-    "feature_profile_exact_live_bucket_rows": 0,
+    "selected_feature_profile_blocker_applied": false,
+    "selected_feature_profile_blocker_reason": null,
+    "feature_profile_support_cohort": null,
+    "feature_profile_support_rows": null,
+    "feature_profile_exact_live_bucket_rows": null,
+    "feature_profile_candidate_diagnostics": [
+      {
+        "rank": 1,
+        "model_name": "rule_baseline",
+        "deployment_profile": "standard",
+        "feature_profile": "core_only",
+        "feature_profile_source": "feature_group_ablation.recommended_profile",
+        "support_cohort": null,
+        "support_rows": null,
+        "exact_live_bucket_rows": null,
+        "minimum_support_rows": null,
+        "blocker_applied": false,
+        "blocker_reason": null,
+        "overall_score": 0.62,
+        "composite_score": 0.62,
+        "avg_decision_quality_score": 0.0,
+        "avg_win_rate": 0.0
+      },
+      {
+        "rank": 2,
+        "model_name": "rule_baseline",
+        "deployment_profile": "standard",
+        "feature_profile": "current_full",
+        "feature_profile_source": "leaderboard.fixed_feature_candidate",
+        "support_cohort": null,
+        "support_rows": null,
+        "exact_live_bucket_rows": null,
+        "minimum_support_rows": null,
+        "blocker_applied": false,
+        "blocker_reason": null,
+        "overall_score": 0.62,
+        "composite_score": 0.62,
+        "avg_decision_quality_score": 0.0,
+        "avg_win_rate": 0.0
+      },
+      {
+        "rank": 3,
+        "model_name": "rule_baseline",
+        "deployment_profile": "standard",
+        "feature_profile": "core_plus_macro",
+        "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+        "support_cohort": "bull_supported_neighbor_buckets_proxy",
+        "support_rows": 84,
+        "exact_live_bucket_rows": 0,
+        "minimum_support_rows": 50,
+        "blocker_applied": true,
+        "blocker_reason": "unsupported_exact_live_structure_bucket",
+        "overall_score": 0.62,
+        "composite_score": 0.62,
+        "avg_decision_quality_score": 0.0,
+        "avg_win_rate": 0.0
+      }
+    ],
     "overall_score": 0.62,
     "avg_decision_quality_score": 0.0
   }
