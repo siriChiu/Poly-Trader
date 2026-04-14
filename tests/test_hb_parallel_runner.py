@@ -184,6 +184,16 @@ def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypat
                 "decision_quality_recent_pathology_applied": True,
                 "decision_quality_recent_pathology_window": 500,
                 "decision_quality_recent_pathology_alerts": ["label_imbalance"],
+                "decision_quality_exact_live_lane_bucket_verdict": "toxic_sub_bucket_identified",
+                "decision_quality_exact_live_lane_bucket_reason": "q15 子 bucket 比 q35 差，應升級成 veto 候選",
+                "decision_quality_exact_live_lane_toxic_bucket": {
+                    "bucket": "CAUTION|structure_quality_caution|q15",
+                    "rows": 4,
+                    "win_rate": 0.0,
+                },
+                "decision_quality_exact_live_lane_bucket_diagnostics": {
+                    "verdict": "toxic_sub_bucket_identified"
+                },
                 "decision_quality_label": "D",
                 "expected_win_rate": 0.154,
                 "expected_pyramid_quality": -0.1536,
@@ -204,6 +214,8 @@ def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypat
     assert diag["used_model"] == "regime_bull_ensemble"
     assert diag["decision_quality_recent_pathology_applied"] is True
     assert diag["decision_quality_recent_pathology_window"] == 500
+    assert diag["decision_quality_exact_live_lane_bucket_verdict"] == "toxic_sub_bucket_identified"
+    assert diag["decision_quality_exact_live_lane_toxic_bucket"]["bucket"] == "CAUTION|structure_quality_caution|q15"
     assert diag["decision_quality_label"] == "D"
     assert diag["non_null_4h_lag_count"] == 30
     assert diag["decision_quality_scope_diagnostics"]["entry_quality_label"]["rows"] == 3186

@@ -622,6 +622,10 @@ def _decision_quality_fallback(profile_version: str = "phase16_baseline_v2") -> 
         "decision_quality_exact_live_lane_status": None,
         "decision_quality_exact_live_lane_reason": None,
         "decision_quality_exact_live_lane_summary": None,
+        "decision_quality_exact_live_lane_bucket_verdict": None,
+        "decision_quality_exact_live_lane_bucket_reason": None,
+        "decision_quality_exact_live_lane_toxic_bucket": None,
+        "decision_quality_exact_live_lane_bucket_diagnostics": None,
         "decision_quality_live_structure_bucket": None,
         "decision_quality_structure_bucket_guardrail_applied": False,
         "decision_quality_structure_bucket_guardrail_reason": None,
@@ -1055,6 +1059,158 @@ def _scope_metric_summary(scoped_rows: List[Dict[str, Any]]) -> Optional[Dict[st
     }
 
 
+def _exact_live_lane_bucket_diagnostics(
+    scoped_rows: List[Dict[str, Any]],
+    current_bucket: Optional[str],
+) -> Dict[str, Any]:
+    if not scoped_rows:
+        return {
+            "bucket_count": 0,
+            "buckets": {},
+            "toxic_bucket": None,
+            "verdict": "no_exact_lane_rows",
+            "reason": "exact live lane 沒有 rows，無法做子 bucket 診斷。",
+        }
+
+    buckets: Dict[str, Dict[str, Any]] = {}
+    for row in scoped_rows:
+        bucket = row.get("structure_bucket")
+        if not bucket:
+            continue
+        bucket_rows = buckets.setdefault(bucket, {"rows_data": []})["rows_data"]
+        bucket_rows.append(row)
+
+    if not buckets:
+        return {
+            "bucket_count": 0,
+            "buckets": {},
+            "toxic_bucket": None,
+            "verdict": "missing_structure_bucket",
+            "reason": "exact live lane 缺少 structure_bucket，無法做子 bucket 診斷。",
+        }
+
+    normalized_buckets: Dict[str, Dict[str, Any]] = {}
+    for bucket, payload in buckets.items():
+        rows_data = payload.get("rows_data") or []
+        normalized_buckets[bucket] = {
+            "rows": len(rows_data),
+            "win_rate": _avg_metric(rows_data, "simulated_pyramid_win"),
+            "avg_pnl": _avg_metric(rows_data, "simulated_pyramid_pnl"),
+            "avg_quality": _avg_metric(rows_data, "simulated_pyramid_quality"),
+            "avg_drawdown_penalty": _avg_metric(rows_data, "simulated_pyramid_drawdown_penalty"),
+            "avg_time_underwater": _avg_metric(rows_data, "simulated_pyramid_time_underwater"),
+        }
+
+    current_metrics = normalized_buckets.get(current_bucket or "") if current_bucket else None
+    bucket_payloads = []
+    for bucket, payload in normalized_buckets.items():
+        versus_current = None
+        if current_metrics and bucket != current_bucket:
+            versus_current = {
+                "win_rate_delta": _round_optional(
+                    (payload.get("win_rate") - current_metrics.get("win_rate"))
+                    if payload.get("win_rate") is not None and current_metrics.get("win_rate") is not None
+                    else None
+                ),
+                "quality_delta": _round_optional(
+                    (payload.get("avg_quality") - current_metrics.get("avg_quality"))
+                    if payload.get("avg_quality") is not None and current_metrics.get("avg_quality") is not None
+                    else None
+                ),
+                "pnl_delta": _round_optional(
+                    (payload.get("avg_pnl") - current_metrics.get("avg_pnl"))
+                    if payload.get("avg_pnl") is not None and current_metrics.get("avg_pnl") is not None
+                    else None
+                ),
+            }
+        bucket_payload = {
+            "bucket": bucket,
+            **payload,
+            "vs_current_bucket": versus_current,
+        }
+        normalized_buckets[bucket] = bucket_payload
+        bucket_payloads.append(bucket_payload)
+
+    toxic_bucket = None
+    if current_metrics and bucket_payloads:
+        overall_worst = min(
+            bucket_payloads,
+            key=lambda row: (
+                float(row.get("win_rate") if row.get("win_rate") is not None else 1.0),
+                float(row.get("avg_quality") if row.get("avg_quality") is not None else 1.0),
+                -int(row.get("rows") or 0),
+                str(row.get("bucket") or ""),
+            ),
+        )
+        if overall_worst.get("bucket") == current_bucket:
+            competitor_buckets = [row for row in bucket_payloads if row.get("bucket") != current_bucket]
+            best_alternative = max(
+                competitor_buckets,
+                key=lambda row: (
+                    float(row.get("win_rate") if row.get("win_rate") is not None else 0.0),
+                    float(row.get("avg_quality") if row.get("avg_quality") is not None else 0.0),
+                    int(row.get("rows") or 0),
+                    str(row.get("bucket") or ""),
+                ),
+                default=None,
+            )
+            if best_alternative is not None:
+                overall_worst = {
+                    **overall_worst,
+                    "vs_current_bucket": {
+                        "win_rate_delta": _round_optional(
+                            (overall_worst.get("win_rate") - best_alternative.get("win_rate"))
+                            if overall_worst.get("win_rate") is not None and best_alternative.get("win_rate") is not None
+                            else None
+                        ),
+                        "quality_delta": _round_optional(
+                            (overall_worst.get("avg_quality") - best_alternative.get("avg_quality"))
+                            if overall_worst.get("avg_quality") is not None and best_alternative.get("avg_quality") is not None
+                            else None
+                        ),
+                        "pnl_delta": _round_optional(
+                            (overall_worst.get("avg_pnl") - best_alternative.get("avg_pnl"))
+                            if overall_worst.get("avg_pnl") is not None and best_alternative.get("avg_pnl") is not None
+                            else None
+                        ),
+                        "reference_bucket": best_alternative.get("bucket"),
+                    },
+                }
+        toxic_bucket = overall_worst
+
+    verdict = "no_exact_lane_sub_bucket_split"
+    reason = "exact live lane 沒有可比較的非 current bucket 子 bucket。"
+    if toxic_bucket and current_metrics:
+        quality_delta = ((toxic_bucket.get("vs_current_bucket") or {}).get("quality_delta"))
+        win_delta = ((toxic_bucket.get("vs_current_bucket") or {}).get("win_rate_delta"))
+        if (
+            (quality_delta is not None and quality_delta <= -0.15)
+            or (win_delta is not None and win_delta <= -0.20)
+        ):
+            verdict = "toxic_sub_bucket_identified"
+            if toxic_bucket.get("bucket") == current_bucket:
+                reason = (
+                    f"exact live lane 的 current bucket `{current_bucket}` 本身就是最差子 bucket，"
+                    "應直接升級成 runtime veto / rejection 規則。"
+                )
+            else:
+                reason = (
+                    f"exact live lane 內的 `{toxic_bucket.get('bucket')}` 明顯比 current bucket `{current_bucket}` 更差，"
+                    "應把它視為 lane-internal veto / rejection 候選，而不是把整條 lane 一起降級。"
+                )
+        else:
+            verdict = "sub_buckets_present_but_not_toxic"
+            reason = "exact live lane 雖有其他子 bucket，但目前沒有任何一個達到 toxic 判定門檻。"
+
+    return {
+        "bucket_count": len(normalized_buckets),
+        "buckets": normalized_buckets,
+        "toxic_bucket": toxic_bucket,
+        "verdict": verdict,
+        "reason": reason,
+    }
+
+
 def _round_optional(value: Optional[float]) -> Optional[float]:
     if value is None:
         return None
@@ -1419,6 +1575,13 @@ def _build_decision_quality_scope_diagnostics(
                 "current_live_structure_bucket_rows": 0,
                 "current_live_structure_bucket_share": None,
                 "current_live_structure_bucket_metrics": None,
+                "exact_lane_bucket_diagnostics": {
+                    "bucket_count": 0,
+                    "buckets": {},
+                    "toxic_bucket": None,
+                    "verdict": "no_exact_lane_rows",
+                    "reason": "exact live lane 沒有 rows，無法做子 bucket 診斷。",
+                },
                 "recent_pathology": {
                     "applied": False,
                     "window": 0,
@@ -1459,6 +1622,10 @@ def _build_decision_quality_scope_diagnostics(
                 bucket_rows_count / len(scoped_rows) if target_structure_bucket and scoped_rows else None
             ),
             "current_live_structure_bucket_metrics": _scope_metric_summary(bucket_rows),
+            "exact_lane_bucket_diagnostics": _exact_live_lane_bucket_diagnostics(
+                scoped_rows if scope_name == "regime_label+regime_gate+entry_quality_label" else [],
+                target_structure_bucket,
+            ),
             "recent_pathology": _recent_scope_pathology_summary(scoped_rows),
         }
 
@@ -1603,11 +1770,19 @@ def _exact_live_lane_toxicity_guardrail(
     expected_drawdown_penalty: Optional[float],
     expected_time_underwater: Optional[float],
 ) -> Dict[str, Any]:
+    exact_scope_name = "regime_label+regime_gate+entry_quality_label"
+    exact_scope = (scope_diagnostics or {}).get(exact_scope_name) or {}
+    bucket_diagnostics = exact_scope.get("exact_lane_bucket_diagnostics") or {}
+    toxic_bucket = bucket_diagnostics.get("toxic_bucket") or {}
     default_result = {
         "applied": False,
         "status": None,
         "reason": None,
         "summary": None,
+        "bucket_verdict": bucket_diagnostics.get("verdict"),
+        "bucket_reason": bucket_diagnostics.get("reason"),
+        "bucket_diagnostics": bucket_diagnostics,
+        "toxic_bucket": toxic_bucket or None,
         "expected_win_rate": expected_win_rate,
         "expected_pnl": expected_pnl,
         "expected_quality": expected_quality,
@@ -1615,11 +1790,50 @@ def _exact_live_lane_toxicity_guardrail(
         "expected_time_underwater": expected_time_underwater,
     }
 
-    exact_scope_name = "regime_label+regime_gate+entry_quality_label"
+    current_bucket = str(decision_profile.get("structure_bucket") or "")
+    toxic_bucket_name = str(toxic_bucket.get("bucket") or "")
+    toxic_bucket_rows = int(toxic_bucket.get("rows") or 0)
+    toxic_bucket_matches_current = (
+        bucket_diagnostics.get("verdict") == "toxic_sub_bucket_identified"
+        and current_bucket
+        and toxic_bucket_name == current_bucket
+        and toxic_bucket_rows > 0
+    )
+    if toxic_bucket_matches_current:
+        summary = {
+            "scope": exact_scope_name,
+            "rows": toxic_bucket_rows,
+            "regime_label": decision_profile.get("regime_label"),
+            "regime_gate": decision_profile.get("regime_gate"),
+            "entry_quality_label": decision_profile.get("entry_quality_label"),
+            "structure_bucket": toxic_bucket_name,
+            "win_rate": _round_optional(toxic_bucket.get("win_rate")),
+            "avg_pnl": _round_optional(toxic_bucket.get("avg_pnl")),
+            "avg_quality": _round_optional(toxic_bucket.get("avg_quality")),
+            "avg_drawdown_penalty": _round_optional(toxic_bucket.get("avg_drawdown_penalty")),
+            "avg_time_underwater": _round_optional(toxic_bucket.get("avg_time_underwater")),
+            "vs_current_bucket": toxic_bucket.get("vs_current_bucket"),
+        }
+        reason = (
+            f"exact live lane current bucket `{current_bucket}` 已被標記為 toxic sub-bucket "
+            f"(rows={toxic_bucket_rows}, win_rate={summary['win_rate']}, quality={summary['avg_quality']})"
+        )
+        return {
+            **default_result,
+            "applied": True,
+            "status": "toxic_sub_bucket_current_bucket",
+            "reason": reason,
+            "summary": summary,
+            "expected_win_rate": _min_optional(expected_win_rate, toxic_bucket.get("win_rate")),
+            "expected_pnl": _min_optional(expected_pnl, toxic_bucket.get("avg_pnl")),
+            "expected_quality": _min_optional(expected_quality, toxic_bucket.get("avg_quality")),
+            "expected_drawdown_penalty": _max_optional(expected_drawdown_penalty, toxic_bucket.get("avg_drawdown_penalty")),
+            "expected_time_underwater": _max_optional(expected_time_underwater, toxic_bucket.get("avg_time_underwater")),
+        }
+
     if chosen_scope == exact_scope_name:
         return default_result
 
-    exact_scope = (scope_diagnostics or {}).get(exact_scope_name) or {}
     exact_rows = int(exact_scope.get("rows") or 0)
     if exact_rows < 20:
         return default_result
@@ -1695,6 +1909,7 @@ def _exact_live_lane_toxicity_guardrail(
         f"true_negative_share={summary['canonical_true_negative_share']}, allow_share={summary['allow_share']})"
     )
     return {
+        **default_result,
         "applied": True,
         "status": "toxic_allow_lane",
         "reason": reason,
@@ -2169,6 +2384,10 @@ def _summarize_decision_quality_contract(
         "decision_quality_exact_live_lane_status": exact_live_lane_guardrail.get("status"),
         "decision_quality_exact_live_lane_reason": exact_live_lane_guardrail.get("reason"),
         "decision_quality_exact_live_lane_summary": exact_live_lane_guardrail.get("summary"),
+        "decision_quality_exact_live_lane_bucket_verdict": exact_live_lane_guardrail.get("bucket_verdict"),
+        "decision_quality_exact_live_lane_bucket_reason": exact_live_lane_guardrail.get("bucket_reason"),
+        "decision_quality_exact_live_lane_toxic_bucket": exact_live_lane_guardrail.get("toxic_bucket"),
+        "decision_quality_exact_live_lane_bucket_diagnostics": exact_live_lane_guardrail.get("bucket_diagnostics"),
         "decision_quality_live_structure_bucket": structure_bucket_guardrail.get("live_structure_bucket"),
         "decision_quality_structure_bucket_guardrail_applied": bool(structure_bucket_guardrail.get("applied")),
         "decision_quality_structure_bucket_guardrail_reason": structure_bucket_guardrail.get("reason"),

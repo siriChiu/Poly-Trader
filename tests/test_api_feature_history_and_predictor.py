@@ -1341,6 +1341,193 @@ def test_apply_live_execution_guardrails_reports_exact_live_lane_toxicity():
 
 
 
+def test_decision_quality_contract_surfaces_exact_lane_toxic_sub_bucket_without_penalizing_current_q35_bucket():
+    rows = [
+        {
+            "timestamp": f"2026-04-14T00:{i:02d}:00",
+            "symbol": "BTCUSDT",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "simulated_pyramid_win": 1.0,
+            "simulated_pyramid_pnl": 0.022,
+            "simulated_pyramid_quality": 0.71,
+            "simulated_pyramid_drawdown_penalty": 0.07,
+            "simulated_pyramid_time_underwater": 0.09,
+        }
+        for i in range(13)
+    ]
+    rows.extend(
+        {
+            "timestamp": f"2026-04-13T01:{i:02d}:00",
+            "symbol": "BTCUSDT",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "simulated_pyramid_win": 0.0,
+            "simulated_pyramid_pnl": -0.02,
+            "simulated_pyramid_quality": -0.3,
+            "simulated_pyramid_drawdown_penalty": 0.31,
+            "simulated_pyramid_time_underwater": 0.61,
+        }
+        for i in range(4)
+    )
+    rows.extend(
+        {
+            "timestamp": f"2026-04-12T02:{i:02d}:00",
+            "symbol": "BTCUSDT",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "simulated_pyramid_win": 1.0 if i < 4 else 0.0,
+            "simulated_pyramid_pnl": 0.01 if i < 4 else -0.005,
+            "simulated_pyramid_quality": 0.22 if i < 4 else 0.05,
+            "simulated_pyramid_drawdown_penalty": 0.11,
+            "simulated_pyramid_time_underwater": 0.22,
+        }
+        for i in range(7)
+    )
+    rows.extend(
+        {
+            "timestamp": f"2026-04-11T03:{i:02d}:00",
+            "symbol": "BTCUSDT",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q85",
+            "simulated_pyramid_win": 1.0 if i < 5 else 0.0,
+            "simulated_pyramid_pnl": 0.012 if i < 5 else -0.003,
+            "simulated_pyramid_quality": 0.33 if i < 5 else 0.08,
+            "simulated_pyramid_drawdown_penalty": 0.12,
+            "simulated_pyramid_time_underwater": 0.19,
+        }
+        for i in range(6)
+    )
+
+    contract = predictor_module._summarize_decision_quality_contract(
+        rows,
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "decision_profile_version": "phase16_baseline_v2",
+        },
+    )
+
+    assert contract["decision_quality_calibration_scope"] == "regime_label+regime_gate+entry_quality_label"
+    assert contract["decision_quality_exact_live_lane_bucket_verdict"] == "toxic_sub_bucket_identified"
+    assert contract["decision_quality_exact_live_lane_toxicity_applied"] is False
+    assert contract["decision_quality_exact_live_lane_toxic_bucket"]["bucket"] == "CAUTION|structure_quality_caution|q15"
+    assert contract["decision_quality_exact_live_lane_toxic_bucket"]["win_rate"] == 0.0
+    assert contract["decision_quality_exact_live_lane_toxic_bucket"]["vs_current_bucket"]["win_rate_delta"] == -1.0
+    assert contract["decision_quality_exact_live_lane_bucket_diagnostics"]["buckets"]["CAUTION|structure_quality_caution|q35"]["rows"] == 13
+
+
+
+def test_decision_quality_contract_blocks_when_current_bucket_is_exact_lane_toxic_sub_bucket():
+    rows = [
+        {
+            "timestamp": f"2026-04-14T00:{i:02d}:00",
+            "symbol": "BTCUSDT",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "simulated_pyramid_win": 0.0,
+            "simulated_pyramid_pnl": -0.02,
+            "simulated_pyramid_quality": -0.3,
+            "simulated_pyramid_drawdown_penalty": 0.31,
+            "simulated_pyramid_time_underwater": 0.61,
+        }
+        for i in range(4)
+    ]
+    rows.extend(
+        {
+            "timestamp": f"2026-04-13T01:{i:02d}:00",
+            "symbol": "BTCUSDT",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "simulated_pyramid_win": 1.0,
+            "simulated_pyramid_pnl": 0.022,
+            "simulated_pyramid_quality": 0.71,
+            "simulated_pyramid_drawdown_penalty": 0.07,
+            "simulated_pyramid_time_underwater": 0.09,
+        }
+        for i in range(13)
+    )
+    rows.extend(
+        {
+            "timestamp": f"2026-04-12T02:{i:02d}:00",
+            "symbol": "BTCUSDT",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q85",
+            "simulated_pyramid_win": 1.0 if i < 5 else 0.0,
+            "simulated_pyramid_pnl": 0.012 if i < 5 else -0.003,
+            "simulated_pyramid_quality": 0.33 if i < 5 else 0.08,
+            "simulated_pyramid_drawdown_penalty": 0.12,
+            "simulated_pyramid_time_underwater": 0.19,
+        }
+        for i in range(6)
+    )
+    rows.extend(
+        {
+            "timestamp": f"2026-04-11T03:{i:02d}:00",
+            "symbol": "BTCUSDT",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "simulated_pyramid_win": 1.0 if i < 4 else 0.0,
+            "simulated_pyramid_pnl": 0.01 if i < 4 else -0.005,
+            "simulated_pyramid_quality": 0.22 if i < 4 else 0.05,
+            "simulated_pyramid_drawdown_penalty": 0.11,
+            "simulated_pyramid_time_underwater": 0.22,
+        }
+        for i in range(7)
+    )
+
+    contract = predictor_module._summarize_decision_quality_contract(
+        rows,
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "decision_profile_version": "phase16_baseline_v2",
+        },
+    )
+
+    assert contract["decision_quality_exact_live_lane_toxicity_applied"] is True
+    assert contract["decision_quality_exact_live_lane_status"] == "toxic_sub_bucket_current_bucket"
+    assert contract["decision_quality_exact_live_lane_toxic_bucket"]["bucket"] == "CAUTION|structure_quality_caution|q15"
+    assert "toxic sub-bucket" in contract["decision_quality_exact_live_lane_reason"]
+
+    guarded = predictor_module._apply_live_execution_guardrails(
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality": 0.42,
+            "entry_quality_label": "D",
+            "allowed_layers": 2,
+            "decision_profile_version": "phase16_baseline_v2",
+        },
+        contract,
+    )
+
+    assert guarded["allowed_layers_raw"] == 2
+    assert guarded["allowed_layers"] == 0
+    assert "exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade" in guarded["execution_guardrail_reason"]
+
+
+
 def test_structure_bucket_support_guardrail_blocks_unsupported_exact_bucket_without_broader_fallback():
     decision_profile = {
         "structure_bucket": "CAUTION|structure_quality_caution|q35",
