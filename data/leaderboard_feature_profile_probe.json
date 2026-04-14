@@ -77,5 +77,39 @@
     ],
     "overall_score": 0.62,
     "avg_decision_quality_score": 0.0
+  },
+  "alignment": {
+    "global_recommended_profile": "core_only",
+    "train_selected_profile": "core_plus_macro",
+    "train_selected_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+    "train_support_cohort": "bull_supported_neighbor_buckets_proxy",
+    "train_support_rows": 84,
+    "train_exact_live_bucket_rows": 0,
+    "leaderboard_selected_profile": "core_only",
+    "leaderboard_selected_profile_source": "feature_group_ablation.recommended_profile",
+    "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
+    "blocked_candidate_profiles": [
+      {
+        "feature_profile": "core_plus_macro",
+        "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+        "support_cohort": "bull_supported_neighbor_buckets_proxy",
+        "support_rows": 84,
+        "exact_live_bucket_rows": 0,
+        "blocker_reason": "unsupported_exact_live_structure_bucket"
+      }
+    ],
+    "live_regime_gate": "CAUTION",
+    "live_entry_quality_label": "D",
+    "live_execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade",
+    "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+    "live_current_structure_bucket_rows": 0,
+    "supported_neighbor_buckets": [
+      "CAUTION|structure_quality_caution|q15",
+      "CAUTION|base_caution_regime_or_bias|q15",
+      "CAUTION|base_caution_regime_or_bias|q85"
+    ],
+    "bull_support_aware_profile": "core_plus_macro",
+    "bull_support_neighbor_rows": 84,
+    "bull_exact_live_bucket_proxy_rows": 43
   }
 }

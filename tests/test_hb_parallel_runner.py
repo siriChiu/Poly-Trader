@@ -66,6 +66,9 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
         ic_diagnostics={"global_pass": 13, "tw_pass": 10, "total_features": 30},
         drift_diagnostics={"primary_window": "100", "primary_alerts": ["regime_concentration"]},
         live_predictor_diagnostics={"decision_quality_label": "D", "allowed_layers": 0},
+        feature_ablation={"recommended_profile": "core_plus_macro"},
+        bull_4h_pocket_ablation={"bull_collapse_q35": {"recommended_profile": "core_plus_macro"}},
+        leaderboard_candidate_diagnostics={"selected_feature_profile": "core_only", "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"},
         auto_propose_result={"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""},
     )
 
@@ -78,6 +81,9 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert summary["ic_diagnostics"]["tw_pass"] == 10
     assert summary["drift_diagnostics"]["primary_window"] == "100"
     assert summary["live_predictor_diagnostics"]["decision_quality_label"] == "D"
+    assert summary["feature_ablation"]["recommended_profile"] == "core_plus_macro"
+    assert summary["bull_4h_pocket_ablation"]["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
+    assert summary["leaderboard_candidate_diagnostics"]["selected_feature_profile"] == "core_only"
     assert summary["auto_propose"]["success"] is True
     assert summary_path.endswith("heartbeat_fast_summary.json")
 
@@ -88,6 +94,9 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert saved["ic_diagnostics"]["global_pass"] == 13
     assert saved["drift_diagnostics"]["primary_alerts"] == ["regime_concentration"]
     assert saved["live_predictor_diagnostics"]["allowed_layers"] == 0
+    assert saved["feature_ablation"]["recommended_profile"] == "core_plus_macro"
+    assert saved["bull_4h_pocket_ablation"]["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
+    assert saved["leaderboard_candidate_diagnostics"]["dual_profile_state"] == "leaderboard_global_winner_vs_train_support_fallback"
     assert saved["auto_propose"]["stdout_preview"] == "ok"
 
 
@@ -198,3 +207,125 @@ def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypat
     assert diag["decision_quality_label"] == "D"
     assert diag["non_null_4h_lag_count"] == 30
     assert diag["decision_quality_scope_diagnostics"]["entry_quality_label"]["rows"] == 3186
+
+
+def test_collect_feature_ablation_diagnostics_reads_recommended_profile(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "feature_group_ablation.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-14 10:00:00",
+                "target_col": "simulated_pyramid_win",
+                "recent_rows": 5000,
+                "recommended_profile": "core_plus_macro",
+                "bull_collapse_4h_features": ["feat_4h_dist_bb_lower"],
+                "stable_4h_features": ["feat_4h_bias200"],
+                "profiles": {
+                    "core_plus_macro": {"cv_mean_accuracy": 0.73, "cv_worst_accuracy": 0.45},
+                    "current_full": {"cv_mean_accuracy": 0.65, "cv_worst_accuracy": 0.44},
+                },
+            }
+        )
+    )
+
+    diag = hb_parallel_runner.collect_feature_ablation_diagnostics()
+
+    assert diag["recommended_profile"] == "core_plus_macro"
+    assert diag["recommended_metrics"]["cv_mean_accuracy"] == 0.73
+    assert diag["current_full_metrics"]["cv_mean_accuracy"] == 0.65
+    assert diag["bull_collapse_4h_features"] == ["feat_4h_dist_bb_lower"]
+
+
+def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "bull_4h_pocket_ablation.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-14 10:05:00",
+                "target_col": "simulated_pyramid_win",
+                "collapse_features": ["feat_4h_dist_bb_lower"],
+                "collapse_thresholds": {"feat_4h_dist_bb_lower": 0.43},
+                "live_context": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "entry_quality_label": "D",
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 0,
+                    "supported_neighbor_buckets": ["CAUTION|base_caution_regime_or_bias|q15"],
+                },
+                "cohorts": {
+                    "bull_all": {"rows": 100, "base_win_rate": 0.67, "recommended_profile": "core_plus_macro_plus_all_4h", "profiles": {"core_plus_macro_plus_all_4h": {"cv_mean_accuracy": 0.64}}},
+                    "bull_collapse_q35": {"rows": 40, "base_win_rate": 0.51, "recommended_profile": "core_plus_macro", "profiles": {"core_plus_macro": {"cv_mean_accuracy": 0.70}}},
+                    "bull_exact_live_lane_proxy": {"rows": 25, "base_win_rate": 0.79, "recommended_profile": "core_plus_macro", "profiles": {"core_plus_macro": {"cv_mean_accuracy": 0.81}}},
+                    "bull_live_exact_lane_bucket_proxy": {"rows": 8, "base_win_rate": 0.50, "recommended_profile": "core_plus_macro", "profiles": {"core_plus_macro": {"cv_mean_accuracy": 0.62}}},
+                    "bull_supported_neighbor_buckets_proxy": {"rows": 20, "base_win_rate": 0.69, "recommended_profile": "core_plus_macro", "profiles": {"core_plus_macro": {"cv_mean_accuracy": 0.73}}},
+                },
+            }
+        )
+    )
+
+    diag = hb_parallel_runner.collect_bull_4h_pocket_diagnostics()
+
+    assert diag["live_context"]["current_live_structure_bucket_rows"] == 0
+    assert diag["live_context"]["supported_neighbor_buckets"] == ["CAUTION|base_caution_regime_or_bias|q15"]
+    assert diag["bull_all"]["recommended_profile"] == "core_plus_macro_plus_all_4h"
+    assert diag["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
+    assert diag["bull_live_exact_lane_bucket_proxy"]["rows"] == 8
+
+
+def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "leaderboard_feature_profile_probe.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-14T12:40:00Z",
+                "target_col": "simulated_pyramid_win",
+                "leaderboard_count": 8,
+                "top_model": {
+                    "selected_feature_profile": "core_only",
+                    "selected_feature_profile_source": "feature_group_ablation.recommended_profile",
+                    "selected_feature_profile_blocker_applied": False,
+                    "selected_feature_profile_blocker_reason": None,
+                },
+                "alignment": {
+                    "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
+                    "global_recommended_profile": "core_only",
+                    "train_selected_profile": "core_plus_macro",
+                    "train_selected_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+                    "train_support_cohort": "bull_supported_neighbor_buckets_proxy",
+                    "train_support_rows": 84,
+                    "train_exact_live_bucket_rows": 0,
+                    "live_regime_gate": "CAUTION",
+                    "live_entry_quality_label": "D",
+                    "live_execution_guardrail_reason": "unsupported_exact_live_structure_bucket_blocks_trade",
+                    "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "live_current_structure_bucket_rows": 0,
+                    "supported_neighbor_buckets": ["CAUTION|base_caution_regime_or_bias|q15"],
+                    "bull_support_aware_profile": "core_plus_macro",
+                    "bull_support_neighbor_rows": 84,
+                    "bull_exact_live_bucket_proxy_rows": 43,
+                    "blocked_candidate_profiles": [
+                        {
+                            "feature_profile": "core_plus_macro",
+                            "blocker_reason": "unsupported_exact_live_structure_bucket",
+                            "exact_live_bucket_rows": 0,
+                        }
+                    ],
+                },
+            }
+        )
+    )
+
+    diag = hb_parallel_runner.collect_leaderboard_candidate_diagnostics()
+
+    assert diag["selected_feature_profile"] == "core_only"
+    assert diag["dual_profile_state"] == "leaderboard_global_winner_vs_train_support_fallback"
+    assert diag["train_selected_profile"] == "core_plus_macro"
+    assert diag["live_current_structure_bucket_rows"] == 0
+    assert diag["blocked_candidate_profiles"][0]["blocker_reason"] == "unsupported_exact_live_structure_bucket"

@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-14 12:38 UTC — Heartbeat #727（leaderboard blocker-aware ranking synced）_
+_最後更新：2026-04-14 13:08 UTC — Heartbeat #728（leaderboard candidate 對齊納入 fast heartbeat）_
 
 本文件只保留**目前已落地能力、當前主目標、下一步 gate**，不保留歷史 roadmap 敘事。
 
@@ -18,42 +18,39 @@ _最後更新：2026-04-14 12:38 UTC — Heartbeat #727（leaderboard blocker-aw
   - `data/feature_group_ablation.json`
   - `data/bull_4h_pocket_ablation.json`
   - `issues.json`
-  - numbered summary：`data/heartbeat_727_summary.json`
-- leaderboard candidate probe 持續刷新：
+  - numbered summary：`data/heartbeat_728_summary.json`
+- **本輪新完成**：fast heartbeat 會同步刷新：
   - `data/leaderboard_feature_profile_probe.json`
+  - summary 內的 `leaderboard_candidate_diagnostics`
 
 ### 資料與 canonical target
 - canonical target 仍統一為 **`simulated_pyramid_win`**。
-- 最新 DB 狀態（#727）：
-  - Raw / Features / Labels = **21408 / 12837 / 42905**
-  - simulated_pyramid_win = **0.5747**
+- 最新 DB 狀態（#728）：
+  - Raw / Features / Labels = **21409 / 12838 / 42912**
+  - simulated_pyramid_win = **0.5749**
 - label freshness 正常：
-  - 240m lag 約 **3.4h**
-  - 1440m lag 約 **23.4h**
+  - 240m lag 約 **3.1h**
+  - 1440m lag 約 **23.1h**
 
-### 模型 / shrinkage / leaderboard governance
+### 模型 / shrinkage / bull blocker governance
 - global feature ablation 仍指向：
   - global winner = **`core_only`**
-  - `current_full` 明顯較差（cv ≈ **0.5861**）
+  - `current_full` 明顯較差（cv ≈ **0.5803**）
 - train path 仍保留 support-aware fallback 語義：
   - current production-oriented profile = **`core_plus_macro`**
   - source = **`bull_4h_pocket_ablation.support_aware_profile`**
   - support cohort = **`bull_supported_neighbor_buckets_proxy`**
   - support rows = **84**
   - exact live bucket rows = **0**
-- **本輪新完成**：leaderboard 已從 metadata-aware 升級為 **blocker-aware ranking**
-  - 正式比較：**`core_only` / `current_full` / `core_plus_macro`**
-  - 若 candidate 依賴 support cohort，但 `exact_live_bucket_rows <= 0`，會被標成 blocker 並在排序上降級
-  - `/api/models/leaderboard` 與 probe 現在會回傳：
-    - `selected_feature_profile_blocker_applied`
-    - `selected_feature_profile_blocker_reason`
-    - `feature_profile_candidate_diagnostics`
-- probe 已證明這不是口頭承諾：
-  - `data/leaderboard_feature_profile_probe.json` 顯示 top model 現在選到 **`core_only`**
-  - 同時保留 `core_plus_macro` diagnostics：
-    - `support_rows=84`
-    - `exact_live_bucket_rows=0`
-    - `blocker_reason=unsupported_exact_live_structure_bucket`
+- leaderboard candidate governance 已經有三條 machine-readable 證據鏈：
+  1. `data/feature_group_ablation.json`：global shrinkage winner = **`core_only`**
+  2. `model/last_metrics.json`：train fallback = **`core_plus_macro`**
+  3. `data/leaderboard_feature_profile_probe.json`：
+     - selected profile = **`core_only`**
+     - `dual_profile_state = leaderboard_global_winner_vs_train_support_fallback`
+     - blocked candidate = **`core_plus_macro` → unsupported_exact_live_structure_bucket**
+- 這代表：
+  - leaderboard winner、train fallback、bull live blocker 三條語義已**可直接被 heartbeat machine-read**。
 
 ### Live guardrail / bull blocker
 - live predictor 仍正確保守：
@@ -73,63 +70,72 @@ _最後更新：2026-04-14 12:38 UTC — Heartbeat #727（leaderboard blocker-aw
 
 ## 當前主目標
 
-### 目標 A：維持 leaderboard blocker-aware ranking，避免 0-support fallback 再次被誤選
-現在已經完成的，是把 `core_only`、`current_full`、`core_plus_macro` 正式放進 candidate flow，並讓 `core_plus_macro` 在 `exact_live_bucket_rows=0` 時被 blocker-aware 排序降級。
+### 目標 A：把 bull exact bucket 0-support 持續當成 deployment blocker，而不是分析註腳
+目前已完成的是：
+- live probe、bull pocket artifact、leaderboard candidate probe、heartbeat summary 都能說出 **current live structure bucket rows = 0**。
 
-接下來主目標不是再補一份解釋，而是持續確保：
-- `feature_profile_candidate_diagnostics`
-- `selected_feature_profile_blocker_*`
-- `feature_profile_support_rows`
-- `feature_profile_exact_live_bucket_rows`
-在 heartbeat / API / probe / docs 中維持同一語義。
+接下來主目標不是再補一份文字說明，而是：
+- 每輪先確認 exact bucket rows 是否仍為 0；
+- 若仍為 0，就維持 `0 layers`；
+- 若 >0，四條路徑必須同輪同步更新結論。
 
-### 目標 B：bull live exact bucket 0-support 仍是正式 deployment blocker
-目前 live path 仍是：
-- **bull / CAUTION / D / 0 layers**
-- exact live lane **17 rows**
-- current live structure bucket **0 support rows**
-
-因此接下來主目標仍不是放寬 guardrail，而是：
-- 繼續把 exact bucket 0-support 視為正式 blocker；
-- 只在 exact bucket / supported-neighbor-buckets 證據鏈上繼續治理；
-- 如果 exact bucket 還是 0 rows，就維持 `0 layers`，不准拿 broader spillover lane 假裝已解。
-
-### 目標 C：保持 train fallback 與 leaderboard winner 的雙軌語義清楚
-目前存在兩條都正確、但不能混寫的語義：
-- global shrinkage winner = **`core_only`**
+### 目標 B：維持 `core_only`（global winner）與 `core_plus_macro`（train fallback）雙軌語義清楚
+目前雙軌已經不是口頭描述，而是 machine-readable contract：
+- global winner = **`core_only`**
 - bull support-aware train fallback = **`core_plus_macro`**
+- blocked candidate reason = **`unsupported_exact_live_structure_bucket`**
+- dual profile state = **`leaderboard_global_winner_vs_train_support_fallback`**
 
-接下來要做的，不是消滅其中一條，而是把兩條語義在 heartbeat / probe / docs 中持續對齊，避免又回到「文件看不出誰是 winner、誰只是 fallback」的漂移狀態。
+接下來主目標不是消滅其中一條，而是保持：
+- heartbeat / probe / summary / docs 全部沿用同一套語義；
+- 不允許 `core_plus_macro` 被誤寫成正式 leaderboard winner；
+- 不允許 `current_full` 因歷史慣性回到安全預設。
+
+### 目標 C：把 fast heartbeat 保持成可直接交接下一輪的閉環輸出
+本輪新增後，fast heartbeat 已能自動帶出：
+- collect / IC / drift
+- live predictor / drilldown
+- feature-group ablation
+- bull 4H pocket ablation
+- leaderboard candidate alignment
+
+接下來要做的是：
+- 確保這些 artifact 不漂移；
+- 若 bull blocker 長期不變，下一輪直接推 patch，不再重複手動交叉比對。
 
 ### 目標 D：維持 source auth blocker 與模型 blocker 分離治理
 - `fin_netflow` 目前仍是 **auth_missing**。
-- 這是外部 source blocker，不可混進 leaderboard / calibration / feature-profile patch 的成功敘事中。
+- 這是外部 source blocker，不可混進 leaderboard / calibration / feature-profile patch 的成功敘事。
 
 ---
 
 ## 接下來要做
 
-### 1. 追蹤 bull exact bucket 是否從 0 rows 轉為可用 support
+### 1. 每輪先檢查 bull exact bucket 是否仍為 0 rows
 要做：
-- 每輪先讀 `data/bull_4h_pocket_ablation.json` 與 `data/live_predict_probe.json`
-- 確認 `current_live_structure_bucket_rows` 是否仍為 0
-- 若仍為 0：維持 blocker；若 >0：同步更新 leaderboard / probe / docs
+- 先讀 `data/heartbeat_728_summary.json`
+- 再核對：
+  - `data/live_predict_probe.json`
+  - `data/bull_4h_pocket_ablation.json`
+  - `data/leaderboard_feature_profile_probe.json`
+- 若 `current_live_structure_bucket_rows` 仍為 0：維持 blocker；若 >0：同輪同步更新 probe / summary / docs
 
-### 2. 維持 blocker-aware candidate diagnostics 的 machine-readable contract
+### 2. 維持 dual-profile 語義一致
 要做：
-- 確保 `data/leaderboard_feature_profile_probe.json` 每輪都能看到：
-  - `selected_feature_profile`
-  - `selected_feature_profile_blocker_*`
-  - `feature_profile_candidate_diagnostics`
-- 若 probe、API、heartbeat 任一條少欄位或語義不一致，下一輪優先修 contract，而不是補新分析
-
-### 3. 維持雙 baseline 語義一致
-要做：
-- 保持下列兩條語義分開，但同時存在於正式工件中：
+- 保持下列兩條語義分開，但都留在正式工件中：
   - global winner = **`core_only`**
   - bull support-aware fallback = **`core_plus_macro`**
-- 不允許 `current_full` 因歷史慣性回到安全預設
-- 不允許 heartbeat 把 `core_plus_macro` 被 blocker 擋下的情況寫成「已被正式選中」
+- heartbeat summary 必須能直接 machine-read：
+  - `selected_feature_profile`
+  - `global_recommended_profile`
+  - `train_selected_profile`
+  - `dual_profile_state`
+  - `blocked_candidate_profiles`
+
+### 3. 視需要處理 leaderboard probe / fast heartbeat warning hygiene
+要做：
+- 觀察 `scripts/hb_leaderboard_candidate_probe.py` 是否持續被 sklearn feature-name warnings 淹沒
+- 若 warnings 開始遮蔽真正錯誤，再把 warning hygiene 升級為正式 patch 目標
 
 ### 4. 維持 source blocker 顯式治理
 要做：
@@ -141,21 +147,21 @@ _最後更新：2026-04-14 12:38 UTC — Heartbeat #727（leaderboard blocker-aw
 ## 暫不優先
 
 以下本輪後仍不排最前面：
-- 新增更多 feature family
 - 放寬 bull live guardrail
+- 用 broader spillover lane 幫 exact bucket 解套
+- 新增更多 feature family
 - UI 美化與 fancy controls
-- 用 broader spillover lane 替 bull live path 解套
 
 原因：
-> 現在真正的瓶頸不是功能不夠，而是**bull exact bucket 仍無支持樣本，且雙軌 feature-profile 語義必須維持嚴格同步**。
+> 現在真正的瓶頸仍是 **bull exact bucket 0-support**；本輪已把觀測與對齊機制補齊，但根因還沒消失。
 
 ---
 
 ## 成功標準
 
 接下來幾輪工作的成功標準：
-1. `data/leaderboard_feature_profile_probe.json` 持續能 machine-read blocked candidate diagnostics。
-2. bull live exact structure bucket 若仍 0-support，heartbeat / leaderboard / probe / docs 都明確維持 blocker 語義；若不再 0，四條路徑要同輪同步更新。
+1. `leaderboard_candidate_diagnostics` 持續能 machine-read：`leaderboard / global / train / live_bucket_rows / blocked_candidate_profiles`。
+2. bull live exact structure bucket 若仍 0-support，heartbeat / live probe / bull pocket / leaderboard probe / docs 都明確維持 blocker 語義；若不再 0，四條路徑要同輪同步更新。
 3. `core_only` 與 `core_plus_macro` 的雙軌語義零漂移：前者是 global winner，後者是 bull support-aware fallback。
 4. `current_full` 不再因歷史慣性被默認為安全預設。
 5. `fin_netflow` 繼續被正確標成 source auth blocker。
@@ -167,27 +173,27 @@ _最後更新：2026-04-14 12:38 UTC — Heartbeat #727（leaderboard blocker-aw
 - **Next focus:**
   1. 追蹤 bull `CAUTION|structure_quality_caution|q35` exact bucket 是否仍為 0 rows；
   2. 持續維持 `core_only`（leaderboard winner）與 `core_plus_macro`（train fallback）雙軌語義對齊；
-  3. 持續把 `fin_netflow` 當外部 source blocker 管理。
+  3. 視需要處理 leaderboard probe / fast heartbeat 的 warning hygiene。
 
 - **Success gate:**
-  1. next run 能直接指出 `core_plus_macro` 是否仍被 `unsupported_exact_live_structure_bucket` 擋下；
+  1. next run 能直接指出 `leaderboard_candidate_diagnostics.dual_profile_state` 與 `blocked_candidate_profiles`；
   2. bull live exact bucket 0-support 的狀態，在 live probe / bull pocket artifact / leaderboard probe / docs 之間零漂移；
   3. 若 exact bucket rows 有變化，四條路徑能同輪同步更新結論。
 
 - **Fallback if fail:**
   - exact bucket 若仍 0 support，維持 `0 layers`；
-  - 若 blocker-aware diagnostics 缺欄位或漂移，下一輪先修 contract，不准退回人工解讀；
-  - source auth 若未修，繼續標記 blocked，不准假裝 coverage 會自然恢復。
+  - 若 candidate probe 或 summary 缺欄位 / 漂移，下一輪先修 contract；
+  - 若 warning hygiene 未修，至少不得讓 warnings 蓋掉真正錯誤。
 
 - **Documents to update next round:**
   - `ISSUES.md`
   - `ROADMAP.md`
-  - 若 feature-profile / blocker contract 再變，更新 `ARCHITECTURE.md`
+  - 若 fast-heartbeat / candidate-governance contract 再變，更新 `ARCHITECTURE.md`
 
 - **Carry-forward input for next heartbeat:**
-  1. 先讀 `data/heartbeat_727_summary.json`。
+  1. 先讀 `data/heartbeat_728_summary.json`。
   2. 再讀：
      - `data/leaderboard_feature_profile_probe.json`
      - `data/live_predict_probe.json`
      - `data/bull_4h_pocket_ablation.json`
-  3. 若 `selected_feature_profile`、`feature_profile_candidate_diagnostics[*].blocker_reason`、`current_live_structure_bucket_rows`、`execution_guardrail_reason` 四項有三項以上完全不變，下一輪不得只重跑 fast heartbeat；必須直接推進 **bull exact bucket 支持樣本治理 / 雙軌語義對齊**。
+  3. 若 `selected_feature_profile`、`dual_profile_state`、`live_current_structure_bucket_rows`、`blocked_candidate_profiles[0].blocker_reason`、`execution_guardrail_reason` 五項有四項以上完全不變，下一輪不得只重跑 fast heartbeat；必須直接推進 **bull exact bucket 支持樣本治理** 或 **warning hygiene** 其中之一。

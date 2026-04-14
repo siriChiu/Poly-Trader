@@ -44,6 +44,10 @@ COLLECT_CMD = [PYTHON, "scripts/hb_collect.py"]
 AUTO_PROPOSE_CMD = [PYTHON, "scripts/auto_propose_fixes.py"]
 DRIFT_REPORT_CMD = [PYTHON, "scripts/recent_drift_report.py"]
 PREDICT_PROBE_CMD = [PYTHON, "scripts/hb_predict_probe.py"]
+LIVE_DQ_DRILLDOWN_CMD = [PYTHON, "scripts/live_decision_quality_drilldown.py"]
+FEATURE_ABLATION_CMD = [PYTHON, "scripts/feature_group_ablation.py"]
+BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
+LEADERBOARD_CANDIDATE_PROBE_CMD = [PYTHON, "scripts/hb_leaderboard_candidate_probe.py"]
 
 
 def parse_args(argv=None):
@@ -238,6 +242,22 @@ def run_predict_probe() -> Dict[str, Any]:
     return _run_serial_command(PREDICT_PROBE_CMD)
 
 
+def run_live_decision_quality_drilldown() -> Dict[str, Any]:
+    return _run_serial_command(LIVE_DQ_DRILLDOWN_CMD)
+
+
+def run_feature_group_ablation() -> Dict[str, Any]:
+    return _run_serial_command(FEATURE_ABLATION_CMD)
+
+
+def run_bull_4h_pocket_ablation() -> Dict[str, Any]:
+    return _run_serial_command(BULL_4H_POCKET_ABLATION_CMD)
+
+
+def run_leaderboard_candidate_probe() -> Dict[str, Any]:
+    return _run_serial_command(LEADERBOARD_CANDIDATE_PROBE_CMD)
+
+
 def run_auto_propose(run_label: str | None = None) -> Dict[str, Any]:
     extra_env = {"HB_RUN_LABEL": str(run_label)} if run_label is not None else None
     return _run_serial_command(AUTO_PROPOSE_CMD, extra_env=extra_env)
@@ -287,6 +307,10 @@ def save_summary(
     ic_diagnostics=None,
     drift_diagnostics=None,
     live_predictor_diagnostics=None,
+    live_decision_drilldown=None,
+    feature_ablation=None,
+    bull_4h_pocket_ablation=None,
+    leaderboard_candidate_diagnostics=None,
     auto_propose_result=None,
 ):
     passed = sum(1 for r in results.values() if r["success"])
@@ -313,6 +337,10 @@ def save_summary(
         "ic_diagnostics": ic_diagnostics or {},
         "drift_diagnostics": drift_diagnostics or {},
         "live_predictor_diagnostics": live_predictor_diagnostics or {},
+        "live_decision_drilldown": live_decision_drilldown or {},
+        "feature_ablation": feature_ablation or {},
+        "bull_4h_pocket_ablation": bull_4h_pocket_ablation or {},
+        "leaderboard_candidate_diagnostics": leaderboard_candidate_diagnostics or {},
         "auto_propose": {
             "attempted": (auto_propose_result or {}).get("attempted", False),
             "success": (auto_propose_result or {}).get("success", False),
@@ -447,6 +475,114 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "non_null_4h_lag_count": payload.get("non_null_4h_lag_count"),
         "decision_quality_recent_pathology_summary": payload.get("decision_quality_recent_pathology_summary") or {},
         "decision_quality_pathology_consensus": ((payload.get("decision_quality_scope_diagnostics") or {}).get("pathology_consensus") or {}),
+    }
+
+
+def collect_feature_ablation_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "feature_group_ablation.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    profiles = payload.get("profiles") or {}
+    recommended = payload.get("recommended_profile")
+    recommended_metrics = profiles.get(recommended) or {}
+    current_full = profiles.get("current_full") or {}
+    return {
+        "generated_at": payload.get("generated_at"),
+        "target_col": payload.get("target_col"),
+        "recent_rows": payload.get("recent_rows"),
+        "recommended_profile": recommended,
+        "recommended_metrics": recommended_metrics,
+        "current_full_metrics": current_full,
+        "bull_collapse_4h_features": payload.get("bull_collapse_4h_features") or [],
+        "stable_4h_features": payload.get("stable_4h_features") or [],
+    }
+
+
+def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "bull_4h_pocket_ablation.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+
+    cohorts = payload.get("cohorts") or {}
+
+    def _cohort_summary(name: str) -> Dict[str, Any]:
+        cohort = cohorts.get(name) or {}
+        return {
+            "rows": cohort.get("rows"),
+            "base_win_rate": cohort.get("base_win_rate"),
+            "recommended_profile": cohort.get("recommended_profile"),
+            "recommended_metrics": ((cohort.get("profiles") or {}).get(cohort.get("recommended_profile")) or {}),
+        }
+
+    live_context = payload.get("live_context") or {}
+    return {
+        "generated_at": payload.get("generated_at"),
+        "target_col": payload.get("target_col"),
+        "collapse_features": payload.get("collapse_features") or [],
+        "collapse_thresholds": payload.get("collapse_thresholds") or {},
+        "live_context": {
+            "regime_label": live_context.get("regime_label"),
+            "regime_gate": live_context.get("regime_gate"),
+            "entry_quality_label": live_context.get("entry_quality_label"),
+            "execution_guardrail_reason": live_context.get("execution_guardrail_reason"),
+            "current_live_structure_bucket": live_context.get("current_live_structure_bucket"),
+            "current_live_structure_bucket_rows": live_context.get("current_live_structure_bucket_rows"),
+            "supported_neighbor_buckets": live_context.get("supported_neighbor_buckets") or [],
+            "collapse_feature_snapshot": live_context.get("collapse_feature_snapshot") or {},
+        },
+        "bull_all": _cohort_summary("bull_all"),
+        "bull_collapse_q35": _cohort_summary("bull_collapse_q35"),
+        "bull_exact_live_lane_proxy": _cohort_summary("bull_exact_live_lane_proxy"),
+        "bull_live_exact_lane_bucket_proxy": _cohort_summary("bull_live_exact_lane_bucket_proxy"),
+        "bull_supported_neighbor_buckets_proxy": _cohort_summary("bull_supported_neighbor_buckets_proxy"),
+    }
+
+
+def collect_leaderboard_candidate_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+
+    top_model = payload.get("top_model") or {}
+    alignment = payload.get("alignment") or {}
+    blocked_candidates = alignment.get("blocked_candidate_profiles") or []
+    return {
+        "generated_at": payload.get("generated_at"),
+        "target_col": payload.get("target_col"),
+        "leaderboard_count": payload.get("leaderboard_count"),
+        "selected_feature_profile": top_model.get("selected_feature_profile"),
+        "selected_feature_profile_source": top_model.get("selected_feature_profile_source"),
+        "selected_feature_profile_blocker_applied": top_model.get("selected_feature_profile_blocker_applied"),
+        "selected_feature_profile_blocker_reason": top_model.get("selected_feature_profile_blocker_reason"),
+        "dual_profile_state": alignment.get("dual_profile_state"),
+        "global_recommended_profile": alignment.get("global_recommended_profile"),
+        "train_selected_profile": alignment.get("train_selected_profile"),
+        "train_selected_profile_source": alignment.get("train_selected_profile_source"),
+        "train_support_cohort": alignment.get("train_support_cohort"),
+        "train_support_rows": alignment.get("train_support_rows"),
+        "train_exact_live_bucket_rows": alignment.get("train_exact_live_bucket_rows"),
+        "live_regime_gate": alignment.get("live_regime_gate"),
+        "live_entry_quality_label": alignment.get("live_entry_quality_label"),
+        "live_execution_guardrail_reason": alignment.get("live_execution_guardrail_reason"),
+        "live_current_structure_bucket": alignment.get("live_current_structure_bucket"),
+        "live_current_structure_bucket_rows": alignment.get("live_current_structure_bucket_rows"),
+        "supported_neighbor_buckets": alignment.get("supported_neighbor_buckets") or [],
+        "bull_support_aware_profile": alignment.get("bull_support_aware_profile"),
+        "bull_support_neighbor_rows": alignment.get("bull_support_neighbor_rows"),
+        "bull_exact_live_bucket_proxy_rows": alignment.get("bull_exact_live_bucket_proxy_rows"),
+        "blocked_candidate_profiles": blocked_candidates,
     }
 
 
@@ -654,6 +790,114 @@ def main(argv=None):
             f"{extra}"
         )
 
+    live_drilldown_result = run_live_decision_quality_drilldown()
+    live_drilldown_summary: Dict[str, Any] = {}
+    print(
+        f"🧭 Live DQ drilldown：{'通過' if live_drilldown_result['success'] else '失敗'} "
+        f"(rc={live_drilldown_result['returncode']})"
+    )
+    if live_drilldown_result.get("stdout"):
+        lines = live_drilldown_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- live_decision_quality_drilldown ---\n{preview}")
+        try:
+            drill_payload = json.loads(live_drilldown_result["stdout"])
+            live_drilldown_summary = {
+                "json": drill_payload.get("json"),
+                "markdown": drill_payload.get("markdown"),
+                "chosen_scope": drill_payload.get("chosen_scope"),
+                "worst_pathology_scope": drill_payload.get("worst_pathology_scope"),
+            }
+        except Exception:
+            live_drilldown_summary = {}
+    if live_drilldown_result.get("stderr"):
+        print(f"\n--- live_decision_quality_drilldown stderr ---\n{live_drilldown_result['stderr']}")
+
+    feature_ablation_result = run_feature_group_ablation()
+    feature_ablation_summary = collect_feature_ablation_diagnostics()
+    print(
+        f"📚 Feature-group ablation：{'通過' if feature_ablation_result['success'] else '失敗'} "
+        f"(rc={feature_ablation_result['returncode']})"
+    )
+    if feature_ablation_result.get("stdout"):
+        lines = feature_ablation_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- feature_group_ablation ---\n{preview}")
+    if feature_ablation_result.get("stderr"):
+        print(f"\n--- feature_group_ablation stderr ---\n{feature_ablation_result['stderr']}")
+    if feature_ablation_summary:
+        recommended = feature_ablation_summary.get("recommended_metrics") or {}
+        current_full = feature_ablation_summary.get("current_full_metrics") or {}
+        print(
+            "📚 Feature shrinkage："
+            f"recommended={feature_ablation_summary.get('recommended_profile')} "
+            f"cv={recommended.get('cv_mean_accuracy')} "
+            f"worst={recommended.get('cv_worst_accuracy')} "
+            f"vs current_full={current_full.get('cv_mean_accuracy')}"
+        )
+
+    bull_pocket_result = run_bull_4h_pocket_ablation()
+    bull_pocket_summary = collect_bull_4h_pocket_diagnostics()
+    print(
+        f"🐂 Bull 4H pocket ablation：{'通過' if bull_pocket_result['success'] else '失敗'} "
+        f"(rc={bull_pocket_result['returncode']})"
+    )
+    if bull_pocket_result.get("stdout"):
+        lines = bull_pocket_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- bull_4h_pocket_ablation ---\n{preview}")
+    if bull_pocket_result.get("stderr"):
+        print(f"\n--- bull_4h_pocket_ablation stderr ---\n{bull_pocket_result['stderr']}")
+    if bull_pocket_summary:
+        collapse = bull_pocket_summary.get("bull_collapse_q35") or {}
+        live_bucket = bull_pocket_summary.get("bull_live_exact_lane_bucket_proxy") or {}
+        neighbors = bull_pocket_summary.get("bull_supported_neighbor_buckets_proxy") or {}
+        live_context = bull_pocket_summary.get("live_context") or {}
+        print(
+            "🐂 Bull pocket："
+            f"collapse_best={collapse.get('recommended_profile')} "
+            f"live_bucket_rows={live_bucket.get('rows')} best={live_bucket.get('recommended_profile')} "
+            f"neighbor_rows={neighbors.get('rows')} best={neighbors.get('recommended_profile')} "
+            f"current_bucket_rows={live_context.get('current_live_structure_bucket_rows')}"
+        )
+
+    leaderboard_probe_result = run_leaderboard_candidate_probe()
+    leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
+    print(
+        f"🏁 Leaderboard candidate probe：{'通過' if leaderboard_probe_result['success'] else '失敗'} "
+        f"(rc={leaderboard_probe_result['returncode']})"
+    )
+    if leaderboard_probe_result.get("stdout"):
+        lines = leaderboard_probe_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- hb_leaderboard_candidate_probe ---\n{preview}")
+    if leaderboard_probe_result.get("stderr"):
+        print(f"\n--- hb_leaderboard_candidate_probe stderr ---\n{leaderboard_probe_result['stderr']}")
+    if leaderboard_candidate_diagnostics:
+        blocked = leaderboard_candidate_diagnostics.get("blocked_candidate_profiles") or []
+        blocked_text = ",".join(
+            f"{row.get('feature_profile')}:{row.get('blocker_reason')}"
+            for row in blocked[:2]
+            if row.get("feature_profile")
+        )
+        print(
+            "🏁 Candidate 對齊："
+            f"leaderboard={leaderboard_candidate_diagnostics.get('selected_feature_profile')} "
+            f"train={leaderboard_candidate_diagnostics.get('train_selected_profile')} "
+            f"global={leaderboard_candidate_diagnostics.get('global_recommended_profile')} "
+            f"state={leaderboard_candidate_diagnostics.get('dual_profile_state')} "
+            f"live_bucket_rows={leaderboard_candidate_diagnostics.get('live_current_structure_bucket_rows')}"
+            f" blocked={blocked_text or 'none'}"
+        )
+
     auto_propose_result = run_auto_propose(run_label)
     print(
         f"🛠️  自動修復建議：{'通過' if auto_propose_result['success'] else '失敗'} "
@@ -679,6 +923,10 @@ def main(argv=None):
         ic_diagnostics=ic_diagnostics,
         drift_diagnostics=drift_diagnostics,
         live_predictor_diagnostics=live_predictor_diagnostics,
+        live_decision_drilldown=live_drilldown_summary,
+        feature_ablation=feature_ablation_summary,
+        bull_4h_pocket_ablation=bull_pocket_summary,
+        leaderboard_candidate_diagnostics=leaderboard_candidate_diagnostics,
         auto_propose_result=auto_propose_result,
     )
     print(f"\n📄 摘要已儲存：{os.path.relpath(summary_path, PROJECT_ROOT)}")
