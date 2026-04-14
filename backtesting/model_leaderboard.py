@@ -436,8 +436,18 @@ class ModelLeaderboard:
         source = str(meta.get("source") or "")
 
         blocker_reason: Optional[str] = None
-        if support_cohort and exact_live_bucket_rows is not None and float(exact_live_bucket_rows) <= 0:
-            blocker_reason = "unsupported_exact_live_structure_bucket"
+        exact_bucket_under_minimum = (
+            support_cohort
+            and exact_live_bucket_rows is not None
+            and minimum_support_rows is not None
+            and float(exact_live_bucket_rows) < float(minimum_support_rows)
+        )
+        if exact_bucket_under_minimum:
+            blocker_reason = (
+                "under_minimum_exact_live_structure_bucket"
+                if float(exact_live_bucket_rows) > 0
+                else "unsupported_exact_live_structure_bucket"
+            )
         elif support_cohort and support_rows is not None and minimum_support_rows is not None and float(support_rows) < float(minimum_support_rows):
             blocker_reason = "insufficient_supported_neighbor_rows"
         elif source.endswith("support_aware_profile") and exact_live_bucket_rows is not None and float(exact_live_bucket_rows) <= 0:

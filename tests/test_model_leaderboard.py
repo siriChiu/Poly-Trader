@@ -553,6 +553,33 @@ def test_evaluate_model_rejects_zero_exact_support_feature_profile_even_if_score
     assert blocked["rank"] > 1
 
 
+def test_feature_profile_blocker_assessment_flags_under_minimum_exact_bucket():
+    timestamps = pd.date_range("2025-01-01", periods=40, freq="D")
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "close_price": [50000 + i for i in range(len(timestamps))],
+            "simulated_pyramid_win": [1 if i % 2 else 0 for i in range(len(timestamps))],
+            "feat_a": [float(i) for i in range(len(timestamps))],
+            "feat_b": [float(i % 5) for i in range(len(timestamps))],
+        }
+    )
+    leaderboard = ModelLeaderboard(df, target_col="simulated_pyramid_win")
+
+    blocker = leaderboard._feature_profile_blocker_assessment(
+        {
+            "source": "bull_4h_pocket_ablation.support_aware_profile",
+            "support_cohort": "bull_exact_live_lane_proxy",
+            "support_rows": 315,
+            "exact_live_bucket_rows": 8,
+            "minimum_support_rows": 50,
+        }
+    )
+
+    assert blocker["blocker_applied"] is True
+    assert blocker["blocker_reason"] == "under_minimum_exact_live_structure_bucket"
+
+
 def test_model_leaderboard_can_use_simulated_target(monkeypatch):
     timestamps = pd.date_range("2025-01-01", periods=220, freq="D")
     df = pd.DataFrame(

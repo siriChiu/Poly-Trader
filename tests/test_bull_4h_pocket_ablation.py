@@ -14,6 +14,19 @@ def test_support_pathology_summary_surfaces_exact_bucket_gap_and_proxy_fallback(
             "current_live_structure_bucket": "ALLOW|base_allow|q65",
             "current_live_structure_bucket_rows": 0,
             "supported_neighbor_buckets": ["ALLOW|base_allow|q85"],
+            "exact_scope_metrics": {
+                "rows": 14,
+                "win_rate": 0.5,
+                "avg_pnl": 0.0082,
+                "avg_quality": 0.2412,
+                "avg_drawdown_penalty": 0.2041,
+                "avg_time_underwater": 0.4575,
+            },
+            "exact_dominant_structure_bucket": {
+                "structure_bucket": "ALLOW|base_allow|q85",
+                "count": 14,
+                "share": 1.0,
+            },
             "exact_recent_structure_bucket_counts": {
                 "ALLOW|base_allow|q85": 14,
                 "ALLOW|base_allow|q65": 0,
@@ -48,7 +61,12 @@ def test_support_pathology_summary_surfaces_exact_bucket_gap_and_proxy_fallback(
         },
         "cohorts": {
             "bull_exact_live_lane_proxy": {"rows": 50},
-            "bull_live_exact_lane_bucket_proxy": {"rows": 38},
+            "bull_live_exact_lane_bucket_proxy": {
+                "rows": 38,
+                "base_win_rate": 0.8421,
+                "recommended_profile": "core_plus_macro",
+                "profiles": {"core_plus_macro": {"cv_mean_accuracy": 0.8333}},
+            },
             "bull_supported_neighbor_buckets_proxy": {"rows": 12},
         },
     }
@@ -63,6 +81,7 @@ def test_support_pathology_summary_surfaces_exact_bucket_gap_and_proxy_fallback(
     assert summary["dominant_neighbor_bucket"] == "ALLOW|base_allow|q85"
     assert summary["bucket_gap_vs_dominant_neighbor"] == 14
     assert summary["exact_bucket_root_cause"] == "cross_regime_spillover_dominates_q65"
+    assert summary["bucket_comparison_takeaway"] == "prefer_same_bucket_proxy_over_cross_regime_spillover"
     assert summary["broad_current_live_structure_bucket_rows"] == 66
     assert summary["broad_dominant_regime"] == "neutral"
     assert summary["broader_bucket_pathology_shift_features"] == [
@@ -74,6 +93,12 @@ def test_support_pathology_summary_surfaces_exact_bucket_gap_and_proxy_fallback(
         "feat_4h_dist_swing_low",
         "feat_4h_dist_bb_lower",
     ]
+    bucket_cmp = summary["bucket_evidence_comparison"]
+    assert bucket_cmp["exact_live_lane"]["bucket"] == "ALLOW|base_allow|q85"
+    assert bucket_cmp["exact_live_lane"]["rows"] == 14
+    assert bucket_cmp["exact_bucket_proxy"]["rows"] == 38
+    assert bucket_cmp["broader_same_bucket"]["rows"] == 66
+    assert bucket_cmp["proxy_vs_broader_same_bucket"]["win_rate_delta"] == 0.5391
 
 
 def test_support_pathology_summary_marks_exact_bucket_supported_when_rows_clear_threshold():

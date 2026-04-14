@@ -257,6 +257,21 @@ def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, 
                     "current_live_structure_bucket_rows": 0,
                     "supported_neighbor_buckets": ["CAUTION|base_caution_regime_or_bias|q15"],
                 },
+                "support_pathology_summary": {
+                    "blocker_state": "exact_lane_proxy_fallback_only",
+                    "preferred_support_cohort": "bull_exact_live_lane_proxy",
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 50,
+                    "exact_bucket_root_cause": "same_lane_exists_but_q35_missing",
+                    "bucket_comparison_takeaway": "neighbor_bucket_outperforms_broader_same_bucket",
+                    "bucket_evidence_comparison": {
+                        "current_live_bucket": "CAUTION|structure_quality_caution|q35",
+                        "exact_live_lane": {"bucket": "CAUTION|base_caution_regime_or_bias|q15", "rows": 25},
+                        "exact_bucket_proxy": {"bucket": "CAUTION|structure_quality_caution|q35", "rows": 8},
+                        "broader_same_bucket": {"bucket": "CAUTION|structure_quality_caution|q35", "rows": 61},
+                    },
+                    "recommended_action": "維持 blocker",
+                },
                 "cohorts": {
                     "bull_all": {"rows": 100, "base_win_rate": 0.67, "recommended_profile": "core_plus_macro_plus_all_4h", "profiles": {"core_plus_macro_plus_all_4h": {"cv_mean_accuracy": 0.64}}},
                     "bull_collapse_q35": {"rows": 40, "base_win_rate": 0.51, "recommended_profile": "core_plus_macro", "profiles": {"core_plus_macro": {"cv_mean_accuracy": 0.70}}},
@@ -272,6 +287,9 @@ def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, 
 
     assert diag["live_context"]["current_live_structure_bucket_rows"] == 0
     assert diag["live_context"]["supported_neighbor_buckets"] == ["CAUTION|base_caution_regime_or_bias|q15"]
+    assert diag["support_pathology_summary"]["exact_bucket_root_cause"] == "same_lane_exists_but_q35_missing"
+    assert diag["support_pathology_summary"]["bucket_comparison_takeaway"] == "neighbor_bucket_outperforms_broader_same_bucket"
+    assert diag["support_pathology_summary"]["bucket_evidence_comparison"]["broader_same_bucket"]["rows"] == 61
     assert diag["bull_all"]["recommended_profile"] == "core_plus_macro_plus_all_4h"
     assert diag["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
     assert diag["bull_live_exact_lane_bucket_proxy"]["rows"] == 8

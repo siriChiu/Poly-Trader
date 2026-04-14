@@ -523,6 +523,7 @@ def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
         }
 
     live_context = payload.get("live_context") or {}
+    support_summary = payload.get("support_pathology_summary") or {}
     return {
         "generated_at": payload.get("generated_at"),
         "target_col": payload.get("target_col"),
@@ -537,6 +538,16 @@ def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
             "current_live_structure_bucket_rows": live_context.get("current_live_structure_bucket_rows"),
             "supported_neighbor_buckets": live_context.get("supported_neighbor_buckets") or [],
             "collapse_feature_snapshot": live_context.get("collapse_feature_snapshot") or {},
+        },
+        "support_pathology_summary": {
+            "blocker_state": support_summary.get("blocker_state"),
+            "preferred_support_cohort": support_summary.get("preferred_support_cohort"),
+            "minimum_support_rows": support_summary.get("minimum_support_rows"),
+            "current_live_structure_bucket_gap_to_minimum": support_summary.get("current_live_structure_bucket_gap_to_minimum"),
+            "exact_bucket_root_cause": support_summary.get("exact_bucket_root_cause"),
+            "bucket_comparison_takeaway": support_summary.get("bucket_comparison_takeaway"),
+            "bucket_evidence_comparison": support_summary.get("bucket_evidence_comparison") or {},
+            "recommended_action": support_summary.get("recommended_action"),
         },
         "bull_all": _cohort_summary("bull_all"),
         "bull_collapse_q35": _cohort_summary("bull_collapse_q35"),

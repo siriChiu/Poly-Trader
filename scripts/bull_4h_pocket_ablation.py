@@ -302,7 +302,16 @@ def _live_context() -> dict[str, Any]:
         "current_live_structure_bucket": current_bucket,
         "current_live_structure_bucket_rows": exact.get("current_live_structure_bucket_rows"),
         "exact_scope_rows": exact.get("rows"),
+        "exact_scope_metrics": {
+            "rows": exact.get("rows"),
+            "win_rate": exact.get("win_rate"),
+            "avg_pnl": exact.get("avg_pnl"),
+            "avg_quality": exact.get("avg_quality"),
+            "avg_drawdown_penalty": exact.get("avg_drawdown_penalty"),
+            "avg_time_underwater": exact.get("avg_time_underwater"),
+        },
         "exact_recent_structure_bucket_counts": exact_bucket_counts,
+        "exact_dominant_structure_bucket": exact.get("recent500_dominant_structure_bucket"),
         "exact_current_live_structure_bucket_metrics": exact.get("current_live_structure_bucket_metrics"),
         "narrow_recent_structure_bucket_counts": narrow.get("recent500_structure_bucket_counts") or {},
         "narrow_scope_rows": narrow.get("rows"),
@@ -330,6 +339,27 @@ def _cohort_overview(name: str, cohort: dict[str, Any]) -> str:
         f"- {name} rows: **{cohort['rows']}** / win_rate **{cohort['base_win_rate']:.4f}**"
         f" / recommended **`{cohort['recommended_profile']}`**"
     )
+
+
+def _cohort_detail(cohort: dict[str, Any] | None) -> dict[str, Any]:
+    cohort = cohort or {}
+    recommended_profile = cohort.get("recommended_profile")
+    profiles = cohort.get("profiles") or {}
+    return {
+        "rows": int(cohort.get("rows") or 0),
+        "base_win_rate": cohort.get("base_win_rate"),
+        "recommended_profile": recommended_profile,
+        "recommended_metrics": profiles.get(recommended_profile) or {},
+    }
+
+
+def _metric_delta(lhs: Any, rhs: Any) -> float | None:
+    try:
+        if lhs is None or rhs is None:
+            return None
+        return round(float(lhs) - float(rhs), 4)
+    except (TypeError, ValueError):
+        return None
 
 
 def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
@@ -381,6 +411,66 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
     broad_dominant_regime_label = broad_dominant_regime.get("regime")
     broad_dominant_regime_share = float(broad_dominant_regime.get("share") or 0.0)
     broad_bucket_metrics = live_context.get("broad_current_live_structure_bucket_metrics") or {}
+    exact_scope_metrics = live_context.get("exact_scope_metrics") or {}
+    exact_dominant_structure_bucket = live_context.get("exact_dominant_structure_bucket") or {}
+    exact_bucket_proxy = _cohort_detail(cohorts.get("bull_live_exact_lane_bucket_proxy"))
+    exact_lane_proxy = _cohort_detail(cohorts.get("bull_exact_live_lane_proxy"))
+    broader_same_bucket_summary = {
+        "bucket": current_bucket,
+        "rows": broad_bucket_rows,
+        "dominant_regime": broad_dominant_regime_label,
+        "dominant_regime_share": broad_dominant_regime_share,
+        "win_rate": broad_bucket_metrics.get("win_rate"),
+        "avg_pnl": broad_bucket_metrics.get("avg_pnl"),
+        "avg_quality": broad_bucket_metrics.get("avg_quality"),
+        "avg_drawdown_penalty": broad_bucket_metrics.get("avg_drawdown_penalty"),
+        "avg_time_underwater": broad_bucket_metrics.get("avg_time_underwater"),
+    }
+    exact_scope_bucket = (
+        current_bucket if current_bucket_rows > 0 else (exact_dominant_structure_bucket or {}).get("structure_bucket")
+    )
+    exact_live_lane_summary = {
+        "bucket": exact_scope_bucket,
+        "rows": int(exact_scope_metrics.get("rows") or 0),
+        "current_live_bucket_rows": current_bucket_rows,
+        "win_rate": exact_scope_metrics.get("win_rate"),
+        "avg_pnl": exact_scope_metrics.get("avg_pnl"),
+        "avg_quality": exact_scope_metrics.get("avg_quality"),
+        "avg_drawdown_penalty": exact_scope_metrics.get("avg_drawdown_penalty"),
+        "avg_time_underwater": exact_scope_metrics.get("avg_time_underwater"),
+    }
+    bucket_evidence_comparison = {
+        "current_live_bucket": current_bucket,
+        "exact_live_lane": exact_live_lane_summary,
+        "exact_bucket_proxy": {
+            "bucket": current_bucket,
+            **exact_bucket_proxy,
+        },
+        "exact_lane_proxy": {
+            "bucket": exact_scope_bucket,
+            **exact_lane_proxy,
+        },
+        "broader_same_bucket": broader_same_bucket_summary,
+        "proxy_vs_broader_same_bucket": {
+            "win_rate_delta": _metric_delta(
+                exact_bucket_proxy.get("base_win_rate"),
+                broader_same_bucket_summary.get("win_rate"),
+            ),
+            "proxy_cv_mean_accuracy": (exact_bucket_proxy.get("recommended_metrics") or {}).get("cv_mean_accuracy"),
+            "row_delta": int(exact_bucket_proxy.get("rows") or 0) - broad_bucket_rows,
+        },
+        "exact_live_lane_vs_broader_same_bucket": {
+            "win_rate_delta": _metric_delta(
+                exact_live_lane_summary.get("win_rate"),
+                broader_same_bucket_summary.get("win_rate"),
+            ),
+            "quality_delta": _metric_delta(
+                exact_live_lane_summary.get("avg_quality"),
+                broader_same_bucket_summary.get("avg_quality"),
+            ),
+            "row_delta": int(exact_live_lane_summary.get("rows") or 0) - broad_bucket_rows,
+        },
+    }
     exact_bucket_root_cause = "insufficient_scope_data"
     if current_bucket_rows >= min_support_rows:
         exact_bucket_root_cause = "exact_bucket_supported"
@@ -394,6 +484,15 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
         exact_bucket_root_cause = "same_lane_exists_but_q65_missing"
     broad_recent_pathology = live_context.get("broad_recent_pathology") or {}
     broader_bucket_pathology = ((broad_recent_pathology.get("summary") or {}).get("reference_window_comparison") or {}).get("top_mean_shift_features") or []
+    comparison_takeaway = "support_gap_unresolved"
+    proxy_win_delta = (bucket_evidence_comparison.get("proxy_vs_broader_same_bucket") or {}).get("win_rate_delta")
+    exact_win_delta = (bucket_evidence_comparison.get("exact_live_lane_vs_broader_same_bucket") or {}).get("win_rate_delta")
+    if current_bucket_rows >= min_support_rows:
+        comparison_takeaway = "exact_bucket_supported"
+    elif broad_dominant_regime_label and broad_dominant_regime_label != live_regime and proxy_win_delta is not None and proxy_win_delta > 0:
+        comparison_takeaway = "prefer_same_bucket_proxy_over_cross_regime_spillover"
+    elif exact_scope_bucket and exact_scope_bucket != current_bucket and exact_win_delta is not None and exact_win_delta > 0:
+        comparison_takeaway = "neighbor_bucket_outperforms_broader_same_bucket"
 
     return {
         "blocker_state": blocker_state,
@@ -430,6 +529,8 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
             if exact_bucket_root_cause == "exact_bucket_supported"
             else "目前支持資訊不足，需補更多 same-lane / broader-scope 證據。"
         ),
+        "bucket_evidence_comparison": bucket_evidence_comparison,
+        "bucket_comparison_takeaway": comparison_takeaway,
         "broader_bucket_pathology_shift_features": [
             item.get("feature") for item in broader_bucket_pathology if item.get("feature")
         ],
@@ -534,12 +635,21 @@ def _write_markdown(payload: dict[str, Any]) -> None:
         f"- exact bucket root cause: **{support_summary.get('exact_bucket_root_cause')}**",
         f"- broader q65 rows / dominant regime: **{support_summary.get('broad_current_live_structure_bucket_rows')} / {support_summary.get('broad_dominant_regime')} ({support_summary.get('broad_dominant_regime_share'):.4f})**",
         f"- root cause interpretation: {support_summary.get('root_cause_interpretation')}",
+        f"- bucket comparison takeaway: **{support_summary.get('bucket_comparison_takeaway')}**",
         f"- decision-quality scope / label: **{support_summary.get('decision_quality_calibration_scope')} / {support_summary.get('decision_quality_label')}**",
         f"- narrowed pathology scope: **{support_summary.get('narrowed_pathology_scope')}**",
         f"- worst pathology scope: **{support_summary.get('pathology_worst_scope')}**",
         f"- shared pathology shift features: {json.dumps(support_summary.get('pathology_shared_shift_features') or [], ensure_ascii=False)}",
         f"- broader-bucket pathology shifts: {json.dumps(support_summary.get('broader_bucket_pathology_shift_features') or [], ensure_ascii=False)}",
         f"- recommended_action: {support_summary.get('recommended_action')}",
+        "",
+        "## Bucket evidence comparison",
+        "",
+        "| cohort | bucket | rows | win_rate | quality / cv | note |",
+        "|---|---|---:|---:|---:|---|",
+        f"| exact live lane | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_live_lane') or {}).get('bucket')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_live_lane') or {}).get('rows')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_live_lane') or {}).get('win_rate')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_live_lane') or {}).get('avg_quality')} | current bucket rows={((support_summary.get('bucket_evidence_comparison') or {}).get('exact_live_lane') or {}).get('current_live_bucket_rows')} |",
+        f"| exact bucket proxy | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_bucket_proxy') or {}).get('bucket')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_bucket_proxy') or {}).get('rows')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('exact_bucket_proxy') or {}).get('base_win_rate')} | {(((support_summary.get('bucket_evidence_comparison') or {}).get('exact_bucket_proxy') or {}).get('recommended_metrics') or {}).get('cv_mean_accuracy')} | proxy-vs-broader win Δ={(((support_summary.get('bucket_evidence_comparison') or {}).get('proxy_vs_broader_same_bucket') or {}).get('win_rate_delta'))} |",
+        f"| broader same bucket | {((support_summary.get('bucket_evidence_comparison') or {}).get('broader_same_bucket') or {}).get('bucket')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('broader_same_bucket') or {}).get('rows')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('broader_same_bucket') or {}).get('win_rate')} | {((support_summary.get('bucket_evidence_comparison') or {}).get('broader_same_bucket') or {}).get('avg_quality')} | dominant_regime={((support_summary.get('bucket_evidence_comparison') or {}).get('broader_same_bucket') or {}).get('dominant_regime')} |",
         "",
         "## Notes",
         "",
