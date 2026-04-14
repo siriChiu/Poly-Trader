@@ -22,6 +22,7 @@ import {
   AreaChart,
 } from "recharts";
 import { fetchApi } from "../hooks/useApi";
+import { useGlobalProgressTask } from "../hooks/useGlobalProgress";
 import { ALL_SENSES, FEATURE_GROUPS, getSenseConfig, type FeatureGroupKey } from "../config/senses";
 
 // ─── Types ───
@@ -58,6 +59,9 @@ interface FeatureCoverageMeta {
   min?: number | null;
   max?: number | null;
   chart_usable: boolean;
+  score_usable?: boolean;
+  maturity_tier?: "core" | "research" | "blocked";
+  maturity_label?: string;
   reasons: string[];
   quality_flag?: string;
   quality_label?: string;
@@ -112,28 +116,35 @@ function formatCoverageReason(meta?: FeatureCoverageMeta | null): string {
 function summarizeCoverageChip(meta?: FeatureCoverageMeta | null): string {
   if (!meta) return "coverage不足";
   if (meta.quality_flag === "source_auth_blocked") {
-    return `auth缺失 · ${meta.raw_snapshot_events ?? 0}/${meta.forward_archive_ready_min_events ?? 10}`;
+    return "來源授權缺失";
   }
   if (meta.quality_flag === "source_fetch_error") {
-    return `fetch失敗 · ${meta.raw_snapshot_latest_status ?? "error"}`;
+    return "來源抓取失敗";
   }
   if (meta.quality_flag === "source_history_gap" && meta.history_class) {
     if (meta.raw_snapshot_events) {
-      const staleBadge = meta.forward_archive_stale ? " · stale" : "";
-      const statusBadge = meta.raw_snapshot_latest_status && meta.raw_snapshot_latest_status !== "ok"
-        ? ` · ${meta.raw_snapshot_latest_status}`
-        : "";
       const archiveWindow = meta.archive_window_started
         ? ` · 最近窗${meta.archive_window_coverage_pct?.toFixed(0) ?? "0"}%`
         : "";
-      return `${meta.coverage_pct.toFixed(0)}% · ${meta.history_class} · ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10}${staleBadge}${statusBadge}${archiveWindow}`;
+      return `來源歷史不足 · ${meta.coverage_pct.toFixed(0)}%${archiveWindow}`;
     }
-    return `${meta.coverage_pct.toFixed(0)}% · ${meta.history_class}`;
+    return `來源歷史不足 · ${meta.coverage_pct.toFixed(0)}%`;
   }
   if (meta.quality_flag === "source_fallback_zero") {
-    return "fallback污染";
+    return "來源 fallback 污染";
   }
   return `${meta.coverage_pct.toFixed(0)}% / d${meta.distinct}`;
+}
+
+function maturityBadge(meta?: FeatureCoverageMeta | null) {
+  const tier = meta?.maturity_tier ?? "blocked";
+  if (tier === "core") {
+    return { label: "核心", className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" };
+  }
+  if (tier === "research") {
+    return { label: "研究", className: "border-sky-500/30 bg-sky-500/10 text-sky-300" };
+  }
+  return { label: "阻塞", className: "border-amber-500/30 bg-amber-500/10 text-amber-300" };
 }
 
 interface MergedPoint {
@@ -193,9 +204,9 @@ function formatPrice(v: number): string {
   return `$${v.toFixed(0)}`;
 }
 
-/** Combine visible feature scores into a recommendation score 0–100 */
-function calcScore(point: Partial<MergedPoint>): number | null {
-  const vals = FEATURE_ORDER.map((k) => point[FEATURE_CONFIG[k].key]);
+/** Combine only core-score features into a recommendation score 0–100. */
+function calcScore(point: Partial<MergedPoint>, scoreKeys: string[]): number | null {
+  const vals = scoreKeys.map((k) => point[FEATURE_CONFIG[k].key]);
   const valid = vals.filter((v): v is number => v !== null && v !== undefined);
   if (valid.length === 0) return null;
   const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
@@ -231,6 +242,8 @@ function CustomLegend({
   onToggleAverage: (group: FeatureGroupKey) => void;
 }) {
   const groupedEntries = Object.entries(FEATURE_CONFIG).reduce((acc, [key, cfg]) => {
+    const meta = coverage[key];
+    if (meta && !meta.chart_usable) return acc;
     (acc[cfg.category] ||= []).push([key, cfg] as [string, typeof cfg]);
     return acc;
   }, {} as Record<FeatureGroupKey, Array<[string, (typeof FEATURE_CONFIG)[string]]>>);
@@ -274,6 +287,7 @@ function CustomLegend({
               const meta = coverage[key];
               const disabled = meta ? !meta.chart_usable : false;
               const reason = formatCoverageReason(meta);
+              const badge = maturityBadge(meta);
               return (
                 <button
                   key={key}
@@ -291,6 +305,9 @@ function CustomLegend({
                 >
                   <span className="w-3 h-0.5 inline-block" style={{ backgroundColor: !disabled && active ? cfg.color : "#475569" }} />
                   {cfg.label}
+                  <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${badge.className}`}>
+                    {badge.label}
+                  </span>
                   {disabled && (
                     <span className="text-[10px] text-slate-500">
                       {summarizeCoverageChip(meta)}
@@ -396,6 +413,8 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
   const containerRef = useRef<HTMLDivElement>(null);
   const [days, setDays] = useState(initialDays);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingDetail, setLoadingDetail] = useState("準備同步特徵、coverage 與 BTC/USDT 價格資料");
   const [error, setError] = useState<string | null>(null);
   const [merged, setMerged] = useState<MergedPoint[]>([]);
   const [visibility, setVisibility] = useState<Record<string, boolean>>(
@@ -409,10 +428,36 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
   });
   const [featureCoverage, setFeatureCoverage] = useState<Record<string, FeatureCoverageMeta>>({});
 
+  useGlobalProgressTask(loading, {
+    label: "載入歷史特徵資料中",
+    detail: loadingDetail,
+    progress: loadingProgress,
+    tone: "violet",
+    priority: 45,
+    kind: "manual",
+  });
+
   const hiddenCoverageItems = useMemo(
     () => Object.entries(featureCoverage).filter(([, meta]) => !meta.chart_usable),
     [featureCoverage]
   );
+  const scoreFeatureKeys = useMemo(
+    () => FEATURE_ORDER.filter((key) => {
+      const meta = featureCoverage[key];
+      return meta ? meta.score_usable !== false : true;
+    }),
+    [featureCoverage]
+  );
+  const maturitySummary = useMemo(() => {
+    const summary = { core: 0, research: 0, blocked: 0 };
+    for (const meta of Object.values(featureCoverage)) {
+      const tier = meta.maturity_tier ?? "blocked";
+      if (tier === "core" || tier === "research" || tier === "blocked") {
+        summary[tier] += 1;
+      }
+    }
+    return summary;
+  }, [featureCoverage]);
 
   const [_autoHighlight, setAutoHighlight] = useState(false);
 
@@ -437,18 +482,28 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadingProgress(0);
+    setLoadingDetail("準備同步特徵、coverage 與 BTC/USDT 價格資料");
     setError(null);
 
     async function load() {
       try {
         const interval = days <= 1 ? "15m" : days <= 7 ? "1h" : "4h";
         const limit = days <= 1 ? 96 : days <= 7 ? 168 : 180;
+        const totalSteps = 5;
+        let completedSteps = 0;
+        const advance = (detail: string) => {
+          completedSteps += 1;
+          setLoadingProgress(Math.round((completedSteps / totalSteps) * 100));
+          setLoadingDetail(detail);
+        };
 
         const [features, coverageResp, klines] = await Promise.all([
           fetchApi<FeatureRow[]>(`/api/features?days=${days}`),
           fetchApi<{ features: Record<string, FeatureCoverageMeta> }>(`/api/features/coverage?days=${Math.max(days, 30)}`),
           fetchApi<KlineResponse>(`/api/chart/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`),
         ]);
+        advance(`已取得 ${features.length} 筆特徵資料、${klines.candles.length} 根價格 K 線`);
 
         if (cancelled) return;
 
@@ -504,9 +559,14 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
           };
         });
 
-        // Calculate scores and detect signals
+        const scoreKeys = FEATURE_ORDER.filter((featureKey) => {
+          const coverageMeta = coverage[featureKey];
+          return coverageMeta ? coverageMeta.score_usable !== false : true;
+        });
+
+        // Calculate scores and detect signals using core decision signals only.
         for (const p of points) {
-          p.score = calcScore(p);
+          p.score = calcScore(p, scoreKeys);
         }
         detectSignals(points);
 
@@ -608,6 +668,17 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
       </div>
 
       {/* Legend Toggles */}
+      <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2 text-[11px] text-slate-300 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-sky-200">成熟度分層</span>
+          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">核心 {maturitySummary.core}</span>
+          <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-sky-300">研究 {maturitySummary.research}</span>
+          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-amber-300">阻塞 {maturitySummary.blocked}</span>
+        </div>
+        <div className="text-slate-400 leading-5">
+          綜合分數現在只使用 <span className="text-emerald-300">核心 decision signals</span>（{scoreFeatureKeys.length} 個），研究型 sparse-source 特徵只做 overlay 觀察，不再把 forward-archive / auth-blocked / snapshot-only 訊號混進主分數。
+        </div>
+      </div>
       <CustomLegend
         visibility={visibility}
         averageVisibility={averageVisibility}
@@ -646,8 +717,11 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
 
       {/* Loading / Error */}
       {loading && (
-        <div className="flex items-center justify-center h-64 text-slate-500 animate-pulse">
-          載入歷史數據...
+        <div className="px-4 py-10">
+          <div className="rounded-xl border border-slate-700/60 bg-slate-950/60 px-4 py-3 text-sm text-slate-200">
+            <div className="font-medium">載入歷史特徵資料中…</div>
+            <div className="mt-1 text-xs text-slate-400">{loadingDetail}</div>
+          </div>
         </div>
       )}
       {error && (

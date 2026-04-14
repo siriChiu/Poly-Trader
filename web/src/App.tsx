@@ -1,24 +1,22 @@
 import React from 'react'
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Senses from './pages/Senses'
-import Backtest from './pages/Backtest'
 import StrategyLab from './pages/StrategyLab'
+import GlobalTopProgress from './components/GlobalTopProgress'
 
 const NAV_ITEMS = [
   { to: '/', label: '📊 儀表板', end: true },
   { to: '/senses', label: '🎛️ 特徵管理' },
-  { to: '/backtest', label: '🔬 回測' },
   { to: '/lab', label: '🧪 策略實驗室' },
 ]
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <div className="min-h-screen bg-dark-950">
-        {/* 導航欄 */}
         <nav className="bg-dark-900 border-b border-dark-700 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="w-full px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-14">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🔮</span>
@@ -46,14 +44,15 @@ export default function App() {
             </div>
           </div>
         </nav>
+        <GlobalTopProgress />
 
-        {/* 主內容 */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main className="w-full px-4 sm:px-6 lg:px-8 py-6">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/backtest" element={<Navigate to="/lab" replace />} />
             <Route path="/senses" element={<Senses />} />
-            <Route path="/backtest" element={<Backtest />} />
             <Route path="/lab" element={<StrategyLab />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>
