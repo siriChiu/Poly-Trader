@@ -589,6 +589,11 @@ def collect_leaderboard_candidate_diagnostics() -> Dict[str, Any]:
         "selected_feature_profile_blocker_applied": top_model.get("selected_feature_profile_blocker_applied"),
         "selected_feature_profile_blocker_reason": top_model.get("selected_feature_profile_blocker_reason"),
         "dual_profile_state": alignment.get("dual_profile_state"),
+        "leaderboard_snapshot_created_at": alignment.get("leaderboard_snapshot_created_at"),
+        "alignment_evaluated_at": alignment.get("alignment_evaluated_at"),
+        "current_alignment_inputs_stale": alignment.get("current_alignment_inputs_stale"),
+        "current_alignment_recency": alignment.get("current_alignment_recency") or {},
+        "artifact_recency": alignment.get("artifact_recency") or {},
         "global_recommended_profile": alignment.get("global_recommended_profile"),
         "train_selected_profile": alignment.get("train_selected_profile"),
         "train_selected_profile_source": alignment.get("train_selected_profile_source"),
@@ -910,12 +915,15 @@ def main(argv=None):
             for row in blocked[:2]
             if row.get("feature_profile")
         )
+        current_alignment = leaderboard_candidate_diagnostics.get("current_alignment_recency") or {}
         print(
             "🏁 Candidate 對齊："
             f"leaderboard={leaderboard_candidate_diagnostics.get('selected_feature_profile')} "
             f"train={leaderboard_candidate_diagnostics.get('train_selected_profile')} "
             f"global={leaderboard_candidate_diagnostics.get('global_recommended_profile')} "
             f"state={leaderboard_candidate_diagnostics.get('dual_profile_state')} "
+            f"runtime_inputs_current={current_alignment.get('inputs_current')} "
+            f"snapshot_stale={(leaderboard_candidate_diagnostics.get('artifact_recency') or {}).get('alignment_snapshot_stale')} "
             f"live_bucket_rows={leaderboard_candidate_diagnostics.get('live_current_structure_bucket_rows')}"
             f" blocked={blocked_text or 'none'}"
         )

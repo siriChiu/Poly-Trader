@@ -351,6 +351,11 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
                 },
                 "alignment": {
                     "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
+                    "leaderboard_snapshot_created_at": "2026-04-14T06:51:24Z",
+                    "alignment_evaluated_at": "2026-04-14T12:40:00Z",
+                    "current_alignment_inputs_stale": False,
+                    "current_alignment_recency": {"inputs_current": True},
+                    "artifact_recency": {"alignment_snapshot_stale": True},
                     "global_recommended_profile": "core_only",
                     "train_selected_profile": "core_plus_macro",
                     "train_selected_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
@@ -383,5 +388,8 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
     assert diag["selected_feature_profile"] == "core_only"
     assert diag["dual_profile_state"] == "leaderboard_global_winner_vs_train_support_fallback"
     assert diag["train_selected_profile"] == "core_plus_macro"
+    assert diag["current_alignment_inputs_stale"] is False
+    assert diag["current_alignment_recency"]["inputs_current"] is True
+    assert diag["artifact_recency"]["alignment_snapshot_stale"] is True
     assert diag["live_current_structure_bucket_rows"] == 0
     assert diag["blocked_candidate_profiles"][0]["blocker_reason"] == "unsupported_exact_live_structure_bucket"

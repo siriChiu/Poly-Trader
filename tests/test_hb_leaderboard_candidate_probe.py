@@ -201,6 +201,295 @@ def test_build_alignment_marks_under_supported_exact_bucket(tmp_path, monkeypatc
 
 
 
+def test_build_alignment_marks_stale_alignment_snapshot_when_train_is_newer(tmp_path, monkeypatch):
+    last_metrics = tmp_path / "last_metrics.json"
+    live_probe = tmp_path / "live_predict_probe.json"
+    bull_pocket = tmp_path / "bull_4h_pocket_ablation.json"
+    feature_ablation = tmp_path / "feature_group_ablation.json"
+
+    last_metrics.write_text(
+        json.dumps(
+            {
+                "feature_profile": "core_plus_macro_plus_4h_structure_shift",
+                "trained_at": "2026-04-14T19:59:42Z",
+                "feature_profile_meta": {
+                    "source": "bull_4h_pocket_ablation.exact_supported_profile",
+                    "support_cohort": "bull_all",
+                    "support_rows": 759,
+                    "exact_live_bucket_rows": 85,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    live_probe.write_text(
+        json.dumps(
+            {
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "execution_guardrail_reason": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    bull_pocket.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-14 19:39:13",
+                "live_context": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 85,
+                    "supported_neighbor_buckets": ["CAUTION|structure_quality_caution|q15"],
+                },
+                "support_pathology_summary": {
+                    "minimum_support_rows": 50,
+                    "exact_bucket_root_cause": "exact_bucket_supported",
+                    "blocker_state": "exact_live_bucket_supported",
+                    "proxy_boundary_verdict": "exact_bucket_supported_proxy_not_required",
+                    "proxy_boundary_reason": "current live structure bucket 已達 minimum support；後續治理與驗證應直接以 exact bucket 為主，proxy 只保留輔助比較，不再作 blocker 判讀。",
+                    "exact_lane_bucket_verdict": "toxic_sub_bucket_identified",
+                    "exact_lane_toxic_bucket": {"bucket": "CAUTION|structure_quality_caution|q15"},
+                },
+                "cohorts": {
+                    "bull_supported_neighbor_buckets_proxy": {
+                        "rows": 84,
+                        "recommended_profile": "core_plus_macro",
+                    },
+                    "bull_exact_live_lane_proxy": {
+                        "rows": 392,
+                        "recommended_profile": "core_plus_macro",
+                    },
+                    "bull_live_exact_lane_bucket_proxy": {
+                        "rows": 129,
+                        "recommended_profile": None,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    feature_ablation.write_text(
+        json.dumps({"recommended_profile": "core_only", "generated_at": "2026-04-14 19:39:11"}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "LAST_METRICS_PATH", last_metrics)
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "LIVE_PROBE_PATH", live_probe)
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "BULL_POCKET_PATH", bull_pocket)
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "FEATURE_ABLATION_PATH", feature_ablation)
+
+    alignment = hb_leaderboard_candidate_probe._build_alignment(
+        {
+            "selected_feature_profile": "core_plus_macro",
+            "selected_feature_profile_source": "bull_4h_pocket_ablation.exact_supported_profile",
+            "feature_profile_candidate_diagnostics": [],
+        },
+        leaderboard_snapshot_created_at="2026-04-14T06:51:24Z",
+        alignment_evaluated_at="2026-04-14T06:51:24Z",
+    )
+
+    assert alignment["dual_profile_state"] == "stale_alignment_snapshot"
+    assert alignment["artifact_recency"]["alignment_snapshot_stale"] is True
+    assert alignment["artifact_recency"]["stale_against_train"] is True
+    assert alignment["artifact_recency"]["stale_against_bull_pocket"] is True
+    assert alignment["artifact_recency"]["stale_against_feature_ablation"] is True
+    assert alignment["current_alignment_inputs_stale"] is True
+    assert alignment["current_alignment_recency"]["inputs_current"] is False
+    assert alignment["leaderboard_snapshot_created_at"] == "2026-04-14T06:51:24Z"
+
+
+
+def test_build_alignment_keeps_aligned_when_live_probe_matches_train_despite_old_snapshot(tmp_path, monkeypatch):
+    last_metrics = tmp_path / "last_metrics.json"
+    live_probe = tmp_path / "live_predict_probe.json"
+    bull_pocket = tmp_path / "bull_4h_pocket_ablation.json"
+    feature_ablation = tmp_path / "feature_group_ablation.json"
+
+    last_metrics.write_text(
+        json.dumps(
+            {
+                "feature_profile": "core_plus_macro_plus_4h_structure_shift",
+                "trained_at": "2026-04-14T19:59:42Z",
+                "feature_profile_meta": {
+                    "source": "bull_4h_pocket_ablation.exact_supported_profile",
+                    "support_cohort": "bull_all",
+                    "support_rows": 759,
+                    "exact_live_bucket_rows": 85,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    live_probe.write_text(
+        json.dumps(
+            {
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "execution_guardrail_reason": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    bull_pocket.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-14 19:39:13",
+                "live_context": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 85,
+                    "supported_neighbor_buckets": ["CAUTION|structure_quality_caution|q15"],
+                },
+                "support_pathology_summary": {
+                    "minimum_support_rows": 50,
+                    "exact_bucket_root_cause": "exact_bucket_supported",
+                    "blocker_state": "exact_live_bucket_supported",
+                    "proxy_boundary_verdict": "exact_bucket_supported_proxy_not_required",
+                    "proxy_boundary_reason": "current live structure bucket 已達 minimum support；後續治理與驗證應直接以 exact bucket 為主，proxy 只保留輔助比較，不再作 blocker 判讀。",
+                    "exact_lane_bucket_verdict": "toxic_sub_bucket_identified",
+                    "exact_lane_toxic_bucket": {"bucket": "CAUTION|structure_quality_caution|q15"},
+                },
+                "cohorts": {
+                    "bull_supported_neighbor_buckets_proxy": {
+                        "rows": 84,
+                        "recommended_profile": "core_plus_macro",
+                    },
+                    "bull_exact_live_lane_proxy": {
+                        "rows": 392,
+                        "recommended_profile": "core_plus_macro",
+                    },
+                    "bull_live_exact_lane_bucket_proxy": {
+                        "rows": 129,
+                        "recommended_profile": None,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    feature_ablation.write_text(
+        json.dumps({"recommended_profile": "core_only", "generated_at": "2026-04-14 19:39:11"}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "LAST_METRICS_PATH", last_metrics)
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "LIVE_PROBE_PATH", live_probe)
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "BULL_POCKET_PATH", bull_pocket)
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "FEATURE_ABLATION_PATH", feature_ablation)
+
+    alignment = hb_leaderboard_candidate_probe._build_alignment(
+        {
+            "selected_feature_profile": "core_plus_macro_plus_4h_structure_shift",
+            "selected_feature_profile_source": "bull_4h_pocket_ablation.exact_supported_profile",
+            "feature_profile_candidate_diagnostics": [],
+        },
+        leaderboard_snapshot_created_at="2026-04-14T06:51:24Z",
+        alignment_evaluated_at="2026-04-14T21:00:00Z",
+    )
+
+    assert alignment["dual_profile_state"] == "aligned"
+    assert alignment["artifact_recency"]["alignment_snapshot_stale"] is True
+    assert alignment["artifact_recency"]["stale_against_train"] is True
+    assert alignment["artifact_recency"]["stale_against_bull_pocket"] is True
+    assert alignment["artifact_recency"]["stale_against_feature_ablation"] is True
+    assert alignment["current_alignment_inputs_stale"] is False
+    assert alignment["current_alignment_recency"]["inputs_current"] is True
+
+
+
+def test_build_alignment_prefers_current_governance_state_over_old_snapshot_when_inputs_are_fresh(tmp_path, monkeypatch):
+    last_metrics = tmp_path / "last_metrics.json"
+    live_probe = tmp_path / "live_predict_probe.json"
+    bull_pocket = tmp_path / "bull_4h_pocket_ablation.json"
+    feature_ablation = tmp_path / "feature_group_ablation.json"
+
+    last_metrics.write_text(
+        json.dumps(
+            {
+                "feature_profile": "core_plus_macro",
+                "trained_at": "2026-04-14T22:04:35Z",
+                "feature_profile_meta": {
+                    "source": "bull_4h_pocket_ablation.exact_supported_profile",
+                    "support_cohort": "bull_exact_live_lane_proxy",
+                    "support_rows": 396,
+                    "exact_live_bucket_rows": 4,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    live_probe.write_text(
+        json.dumps(
+            {
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "execution_guardrail_reason": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    bull_pocket.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-14 22:08:34",
+                "live_context": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 90,
+                    "supported_neighbor_buckets": ["CAUTION|structure_quality_caution|q15"],
+                },
+                "support_pathology_summary": {
+                    "minimum_support_rows": 50,
+                    "exact_bucket_root_cause": "exact_bucket_supported",
+                    "blocker_state": "exact_live_bucket_supported",
+                    "proxy_boundary_verdict": "exact_bucket_supported_proxy_not_required",
+                    "proxy_boundary_reason": "current live structure bucket 已達 minimum support；後續治理與驗證應直接以 exact bucket 為主，proxy 只保留輔助比較，不再作 blocker 判讀。",
+                    "exact_lane_bucket_verdict": "toxic_sub_bucket_identified",
+                    "exact_lane_toxic_bucket": {"bucket": "CAUTION|structure_quality_caution|q15"},
+                },
+                "cohorts": {
+                    "bull_supported_neighbor_buckets_proxy": {
+                        "rows": 84,
+                        "recommended_profile": "core_plus_macro",
+                    },
+                    "bull_exact_live_lane_proxy": {
+                        "rows": 396,
+                        "recommended_profile": "core_plus_macro",
+                    },
+                    "bull_live_exact_lane_bucket_proxy": {
+                        "rows": 133,
+                        "recommended_profile": None,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    feature_ablation.write_text(
+        json.dumps({"recommended_profile": "core_only", "generated_at": "2026-04-14 22:08:32"}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "LAST_METRICS_PATH", last_metrics)
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "LIVE_PROBE_PATH", live_probe)
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "BULL_POCKET_PATH", bull_pocket)
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "FEATURE_ABLATION_PATH", feature_ablation)
+
+    alignment = hb_leaderboard_candidate_probe._build_alignment(
+        {
+            "selected_feature_profile": "core_plus_macro_plus_4h_structure_shift",
+            "selected_feature_profile_source": "bull_4h_pocket_ablation.exact_supported_profile",
+            "feature_profile_candidate_diagnostics": [],
+        },
+        leaderboard_snapshot_created_at="2026-04-14T06:51:24Z",
+        alignment_evaluated_at="2026-04-14T22:12:16Z",
+    )
+
+    assert alignment["dual_profile_state"] == "post_threshold_profile_governance_stalled"
+    assert alignment["artifact_recency"]["alignment_snapshot_stale"] is True
+    assert alignment["current_alignment_inputs_stale"] is False
+    assert alignment["current_alignment_recency"]["inputs_current"] is True
+
+
+
 def test_build_alignment_marks_proxy_not_required_when_exact_bucket_supported(tmp_path, monkeypatch):
     last_metrics = tmp_path / "last_metrics.json"
     live_probe = tmp_path / "live_predict_probe.json"
@@ -319,7 +608,11 @@ def test_main_suppresses_known_sklearn_feature_name_warnings(tmp_path, monkeypat
         }
 
     monkeypatch.setattr(hb_leaderboard_candidate_probe.api_module, "_build_model_leaderboard_payload", fake_payload)
-    monkeypatch.setattr(hb_leaderboard_candidate_probe, "_build_alignment", lambda top_model: {"dual_profile_state": "aligned"})
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe,
+        "_build_alignment",
+        lambda top_model, leaderboard_snapshot_created_at=None, alignment_evaluated_at=None: {"dual_profile_state": "aligned"},
+    )
 
     with warnings.catch_warnings(record=True) as caught:
         rc = hb_leaderboard_candidate_probe.main()
