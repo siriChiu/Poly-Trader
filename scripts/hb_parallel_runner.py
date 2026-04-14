@@ -254,6 +254,28 @@ def run_bull_4h_pocket_ablation() -> Dict[str, Any]:
     return _run_serial_command(BULL_4H_POCKET_ABLATION_CMD)
 
 
+def refresh_train_prerequisites(needs_train: bool) -> Dict[str, Any]:
+    """Refresh ablation artifacts before training so train.py consumes current governance inputs.
+
+    Root cause fixed in Heartbeat #744: running train in parallel *before* refreshing
+    feature-group / bull-pocket artifacts causes model/train.py to keep selecting a
+    support-aware stale profile even after the exact-supported live bucket has recovered.
+    """
+    if not needs_train:
+        return {}
+
+    feature_ablation_result = run_feature_group_ablation()
+    feature_ablation_summary = collect_feature_ablation_diagnostics()
+    bull_pocket_result = run_bull_4h_pocket_ablation()
+    bull_pocket_summary = collect_bull_4h_pocket_diagnostics()
+    return {
+        "feature_ablation_result": feature_ablation_result,
+        "feature_ablation_summary": feature_ablation_summary,
+        "bull_pocket_result": bull_pocket_result,
+        "bull_pocket_summary": bull_pocket_summary,
+    }
+
+
 def run_leaderboard_candidate_probe() -> Dict[str, Any]:
     return _run_serial_command(LEADERBOARD_CANDIDATE_PROBE_CMD)
 
@@ -452,6 +474,7 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "entry_quality_label": payload.get("entry_quality_label"),
         "allowed_layers_raw": payload.get("allowed_layers_raw"),
         "allowed_layers": payload.get("allowed_layers"),
+        "allowed_layers_reason": payload.get("allowed_layers_reason"),
         "execution_guardrail_applied": payload.get("execution_guardrail_applied"),
         "execution_guardrail_reason": payload.get("execution_guardrail_reason"),
         "decision_quality_calibration_scope": payload.get("decision_quality_calibration_scope"),
@@ -704,6 +727,38 @@ def main(argv=None):
     if args.fast:
         tasks = [t for t in tasks if t["name"] in ["full_ic", "regime_ic"]]
 
+    needs_train = any(t["name"] == "train" for t in tasks)
+    preflight = refresh_train_prerequisites(needs_train)
+    feature_ablation_result = preflight.get("feature_ablation_result")
+    feature_ablation_summary = preflight.get("feature_ablation_summary") or {}
+    bull_pocket_result = preflight.get("bull_pocket_result")
+    bull_pocket_summary = preflight.get("bull_pocket_summary") or {}
+
+    if feature_ablation_result is not None:
+        print(
+            f"📚 訓練前 Feature-group ablation：{'通過' if feature_ablation_result['success'] else '失敗'} "
+            f"(rc={feature_ablation_result['returncode']})"
+        )
+        if feature_ablation_summary:
+            recommended = feature_ablation_summary.get("recommended_metrics") or {}
+            print(
+                "📚 訓練前 shrinkage："
+                f"recommended={feature_ablation_summary.get('recommended_profile')} "
+                f"cv={recommended.get('cv_mean_accuracy')}"
+            )
+    if bull_pocket_result is not None:
+        print(
+            f"🐂 訓練前 Bull 4H pocket ablation：{'通過' if bull_pocket_result['success'] else '失敗'} "
+            f"(rc={bull_pocket_result['returncode']})"
+        )
+        if bull_pocket_summary:
+            live_context = bull_pocket_summary.get("live_context") or {}
+            print(
+                "🐂 訓練前 Bull pocket："
+                f"current_bucket_rows={live_context.get('current_live_structure_bucket_rows')} "
+                f"blocker={bull_pocket_summary.get('support_pathology_summary', {}).get('blocker_state')}"
+            )
+
     print(f"心跳 #{run_label} 平行執行 — {len(tasks)} 個 tasks（{'fast' if args.fast else 'full'} 模式）")
     start = datetime.now()
     results = {}
@@ -842,20 +897,21 @@ def main(argv=None):
     if live_drilldown_result.get("stderr"):
         print(f"\n--- live_decision_quality_drilldown stderr ---\n{live_drilldown_result['stderr']}")
 
-    feature_ablation_result = run_feature_group_ablation()
-    feature_ablation_summary = collect_feature_ablation_diagnostics()
-    print(
-        f"📚 Feature-group ablation：{'通過' if feature_ablation_result['success'] else '失敗'} "
-        f"(rc={feature_ablation_result['returncode']})"
-    )
-    if feature_ablation_result.get("stdout"):
-        lines = feature_ablation_result["stdout"].split("\n")
-        preview = "\n".join(lines[:20])
-        if len(lines) > 20:
-            preview += "\n...\n" + "\n".join(lines[-8:])
-        print(f"\n--- feature_group_ablation ---\n{preview}")
-    if feature_ablation_result.get("stderr"):
-        print(f"\n--- feature_group_ablation stderr ---\n{feature_ablation_result['stderr']}")
+    if feature_ablation_result is None:
+        feature_ablation_result = run_feature_group_ablation()
+        feature_ablation_summary = collect_feature_ablation_diagnostics()
+        print(
+            f"📚 Feature-group ablation：{'通過' if feature_ablation_result['success'] else '失敗'} "
+            f"(rc={feature_ablation_result['returncode']})"
+        )
+        if feature_ablation_result.get("stdout"):
+            lines = feature_ablation_result["stdout"].split("\n")
+            preview = "\n".join(lines[:20])
+            if len(lines) > 20:
+                preview += "\n...\n" + "\n".join(lines[-8:])
+            print(f"\n--- feature_group_ablation ---\n{preview}")
+        if feature_ablation_result.get("stderr"):
+            print(f"\n--- feature_group_ablation stderr ---\n{feature_ablation_result['stderr']}")
     if feature_ablation_summary:
         recommended = feature_ablation_summary.get("recommended_metrics") or {}
         current_full = feature_ablation_summary.get("current_full_metrics") or {}
@@ -867,20 +923,21 @@ def main(argv=None):
             f"vs current_full={current_full.get('cv_mean_accuracy')}"
         )
 
-    bull_pocket_result = run_bull_4h_pocket_ablation()
-    bull_pocket_summary = collect_bull_4h_pocket_diagnostics()
-    print(
-        f"🐂 Bull 4H pocket ablation：{'通過' if bull_pocket_result['success'] else '失敗'} "
-        f"(rc={bull_pocket_result['returncode']})"
-    )
-    if bull_pocket_result.get("stdout"):
-        lines = bull_pocket_result["stdout"].split("\n")
-        preview = "\n".join(lines[:20])
-        if len(lines) > 20:
-            preview += "\n...\n" + "\n".join(lines[-8:])
-        print(f"\n--- bull_4h_pocket_ablation ---\n{preview}")
-    if bull_pocket_result.get("stderr"):
-        print(f"\n--- bull_4h_pocket_ablation stderr ---\n{bull_pocket_result['stderr']}")
+    if bull_pocket_result is None:
+        bull_pocket_result = run_bull_4h_pocket_ablation()
+        bull_pocket_summary = collect_bull_4h_pocket_diagnostics()
+        print(
+            f"🐂 Bull 4H pocket ablation：{'通過' if bull_pocket_result['success'] else '失敗'} "
+            f"(rc={bull_pocket_result['returncode']})"
+        )
+        if bull_pocket_result.get("stdout"):
+            lines = bull_pocket_result["stdout"].split("\n")
+            preview = "\n".join(lines[:20])
+            if len(lines) > 20:
+                preview += "\n...\n" + "\n".join(lines[-8:])
+            print(f"\n--- bull_4h_pocket_ablation ---\n{preview}")
+        if bull_pocket_result.get("stderr"):
+            print(f"\n--- bull_4h_pocket_ablation stderr ---\n{bull_pocket_result['stderr']}")
     if bull_pocket_summary:
         collapse = bull_pocket_summary.get("bull_collapse_q35") or {}
         live_bucket = bull_pocket_summary.get("bull_live_exact_lane_bucket_proxy") or {}

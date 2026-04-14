@@ -540,6 +540,20 @@ def _quality_label(entry_quality: float) -> str:
     return "D"
 
 
+def _allowed_layers_reason_for_live_signal(regime_gate: str, entry_quality: float) -> str:
+    if regime_gate == "BLOCK":
+        return "regime_gate_block"
+    if entry_quality < 0.55:
+        return "entry_quality_below_trade_floor"
+    if entry_quality < 0.68:
+        return "entry_quality_C_single_layer"
+    if regime_gate == "CAUTION":
+        return "caution_gate_caps_two_layers"
+    if entry_quality < 0.70:
+        return "entry_quality_B_caps_two_layers"
+    return "full_three_layers_allowed"
+
+
 def _allowed_layers_for_live_signal(regime_gate: str, entry_quality: float, max_layers: int = LIVE_MAX_LAYERS) -> int:
     max_layers = max(0, int(max_layers))
     if regime_gate == "BLOCK" or entry_quality < 0.55:
@@ -600,6 +614,7 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
         "entry_quality": entry_quality,
         "entry_quality_label": _quality_label(entry_quality),
         "allowed_layers": allowed_layers,
+        "allowed_layers_reason": _allowed_layers_reason_for_live_signal(regime_gate, entry_quality),
         "decision_profile_version": "phase16_baseline_v2",
     }
 
@@ -1180,7 +1195,7 @@ def _exact_live_lane_bucket_diagnostics(
 
     verdict = "no_exact_lane_sub_bucket_split"
     reason = "exact live lane 沒有可比較的非 current bucket 子 bucket。"
-    if toxic_bucket and current_metrics:
+    if len(normalized_buckets) > 1 and toxic_bucket and current_metrics:
         quality_delta = ((toxic_bucket.get("vs_current_bucket") or {}).get("quality_delta"))
         win_delta = ((toxic_bucket.get("vs_current_bucket") or {}).get("win_rate_delta"))
         if (
@@ -1201,6 +1216,8 @@ def _exact_live_lane_bucket_diagnostics(
         else:
             verdict = "sub_buckets_present_but_not_toxic"
             reason = "exact live lane 雖有其他子 bucket，但目前沒有任何一個達到 toxic 判定門檻。"
+    elif len(normalized_buckets) <= 1:
+        toxic_bucket = None
 
     return {
         "bucket_count": len(normalized_buckets),

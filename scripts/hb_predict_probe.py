@@ -68,6 +68,7 @@ def main() -> None:
             "entry_quality_label": result.get("entry_quality_label"),
             "allowed_layers_raw": result.get("allowed_layers_raw"),
             "allowed_layers": result.get("allowed_layers"),
+            "allowed_layers_reason": result.get("allowed_layers_reason"),
             "execution_guardrail_applied": result.get("execution_guardrail_applied"),
             "execution_guardrail_reason": result.get("execution_guardrail_reason"),
             "decision_quality_horizon_minutes": result.get("decision_quality_horizon_minutes"),

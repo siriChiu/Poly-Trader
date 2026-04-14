@@ -1,6 +1,6 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-14 22:23 UTC — Heartbeat #743（本輪已修補 leaderboard candidate probe 的 current-vs-snapshot recency 判讀：舊 snapshot 不再覆蓋當前治理狀態；同時重跑 train + fast heartbeat，確認目前真實 blocker 是 **q35 exact-supported 已恢復，但 train 仍停在 support-aware `core_plus_macro`，與 leaderboard 的 exact-supported `core_plus_macro_plus_4h_structure_shift` 未收斂**。）_
+_最後更新：2026-04-14 23:40 UTC — Heartbeat #745（本輪已修補 **live bull q35 runtime semantics 診斷漂移**：exact live lane 單一 bucket 不再被誤標為 sub-buckets-present，且 live probe / drilldown / heartbeat summary 現在會明確輸出 `allowed_layers_reason`，把「layers=0 是 entry-quality trade floor」和「execution guardrail 額外壓層」分開。）_
 
 本文件只保留**目前仍有效的問題、證據、下一步與 carry-forward 指令**，不保留歷史流水帳。
 
@@ -8,58 +8,53 @@ _最後更新：2026-04-14 22:23 UTC — Heartbeat #743（本輪已修補 leader
 
 ## Step 0.5 承接上輪輸入
 
-### 上輪（#742）要求本輪處理
+### 上輪（#744）要求本輪處理
 - **Next focus**：
-  1. 追 `post_threshold_profile_governance_stalled` 的 root cause：為何 leaderboard 已選 `core_plus_macro_plus_4h_structure_shift`，但 train 仍落在 `core_plus_macro`；
-  2. 驗證 q15 toxic pocket 在 profile 收斂後仍維持 lane-internal veto；
-  3. 持續把 `fin_netflow` 當外部 auth blocker 管理。
+  1. 追 live bull q35 path，釐清 exact-supported 後仍 `CAUTION / D / 0-layer` 的根因；
+  2. 收斂 global `core_only` 與 bull production `core_plus_macro_plus_4h_structure_shift` 的分工；
+  3. 繼續把 `fin_netflow` 當外部 source blocker 管理。
 - **Success gate**：
-  1. 至少留下 1 個與 **exact-supported train-frame parity / leaderboard convergence** 直接相關的 patch / artifact / verify；
-  2. `support_blocker_state / support_governance_route / exact_bucket_root_cause / proxy_boundary_verdict / exact_lane_bucket_verdict / dual_profile_state / allowed_layers` 在 artifact / probe / docs / summary 間零漂移；
-  3. 若 train 仍無法切到 leaderboard 同一 profile，必須明確寫出技術限制與 verify 門檻。
+  1. 至少留下 1 個與 **live bull runtime semantics / 4H shrinkage 分工** 直接相關的 patch / artifact / verify；
+  2. `train_selected_profile / leaderboard_selected_profile / dual_profile_state / support_blocker_state / proxy_boundary_verdict / live_current_structure_bucket / allowed_layers` 在 artifact / probe / docs / summary 間零漂移；
+  3. 若 q35 exact-supported 仍成立，必須同輪說清楚為何 runtime 仍不放行，或留下修補後的驗證證據。
 - **Fallback if fail**：
-  - 若仍找不到 train / leaderboard 不一致 root cause，升級為 `exact_supported_train_frame_parity_blocker`；
-  - 若 proxy contract 回退成 pre-threshold blocker 文案，視為 governance regression；
-  - `fin_netflow` auth 未修前持續標記 blocked。
+  - 若 train / leaderboard 再次分裂，回升為 `exact_supported_train_frame_parity_blocker`；
+  - 若 docs 又把舊 q15 toxic narrative 當 current blocker，視為 stale-doc regression；
+  - 若 source auth 未修，持續標記 blocked。
 
 ### 本輪承接結果
 - **已處理**：
-  - `scripts/hb_leaderboard_candidate_probe.py`
-    - 新增 `alignment_evaluated_at / current_alignment_inputs_stale / current_alignment_recency / artifact_recency`；
-    - 修正 `dual_profile_state` 判讀：**舊 leaderboard snapshot 只能作背景訊號，不可覆蓋當前治理差異**；只有 current inputs 真的過期時才標 `stale_alignment_snapshot`。
+  - `model/predictor.py`
+    - 修正 exact live lane 只有單一 bucket 時的診斷：`decision_quality_exact_live_lane_bucket_verdict` 現在固定回 `no_exact_lane_sub_bucket_split`，`toxic_bucket=null`；
+    - 新增 `allowed_layers_reason`，把 raw 層數決策原因 machine-read 化。
+  - `scripts/hb_predict_probe.py`
+    - probe JSON 現在持久化 `allowed_layers_reason`。
+  - `scripts/live_decision_quality_drilldown.py`
+    - drilldown JSON / markdown 現在直接揭露 `allowed_layers_reason`。
   - `scripts/hb_parallel_runner.py`
-    - fast heartbeat summary / console 現在會同步暴露 `current_alignment_recency` 與 `artifact_recency`，避免 summary 把「舊 snapshot」誤當成「當前 blocker 已解」。
-  - `tests/test_hb_leaderboard_candidate_probe.py`
-    - 新增 regression test，鎖住「inputs 已新鮮時，仍須回報當前治理差異」；
+    - heartbeat summary 的 `live_predictor_diagnostics` 現在同步帶出 `allowed_layers_reason`。
+  - `tests/test_api_feature_history_and_predictor.py`
+    - 新增 regression test：single-bucket exact lane 必須回 `no_exact_lane_sub_bucket_split`；
+    - 驗證 live decision profile 會輸出 `allowed_layers_reason`。
   - `tests/test_hb_parallel_runner.py`
-    - 修正 JSON fixture 布林值 typo，讓新 recency contract 測試可穩定執行。
+    - 新增 heartbeat summary 對 `allowed_layers_reason` 的回歸檢查。
   - `ARCHITECTURE.md`
-    - 同步寫入 current-vs-snapshot alignment recency contract。
+    - 已同步新 contract：`allowed_layers_reason` + single-bucket exact-lane semantics。
 - **驗證已完成**：
-  - `source venv/bin/activate && python -m pytest tests/test_hb_leaderboard_candidate_probe.py tests/test_hb_parallel_runner.py tests/test_strategy_lab.py -q` → **38 passed**
-  - `source venv/bin/activate && python model/train.py` → **通過**
-  - `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast --hb 743` → **通過**
+  - `source venv/bin/activate && python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_hb_parallel_runner.py -q` → **42 passed**
+  - `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast --hb 745` → **通過**
+  - `source venv/bin/activate && python scripts/hb_predict_probe.py > data/live_predict_probe.json && python scripts/live_decision_quality_drilldown.py` → **通過**
 - **本輪前提更新**：
-  - q35 current live structure bucket 已恢復 exact-supported：
-    - `support_blocker_state = exact_live_bucket_supported`
-    - `support_governance_route = exact_live_bucket_supported`
-    - `exact_bucket_root_cause = exact_bucket_supported`
-    - `proxy_boundary_verdict = exact_bucket_supported_proxy_not_required`
-    - `current_live_structure_bucket = CAUTION|structure_quality_caution|q35`
-    - `current_live_structure_bucket_rows = 90`
-  - q15 toxic pocket 仍存在且必須保留 lane-internal veto：
-    - `exact_lane_bucket_verdict = toxic_sub_bucket_identified`
-    - toxic bucket = `CAUTION|structure_quality_caution|q15`（4 rows / win_rate 0.0）
-  - **真實未收斂點已被重新定位**：
-    - leaderboard 目前選 `core_plus_macro_plus_4h_structure_shift`
-    - train 目前選 `core_plus_macro`
-    - `dual_profile_state = leaderboard_global_winner_vs_train_support_fallback`
-    - `current_alignment_inputs_stale = false`
-    - `artifact_recency.alignment_snapshot_stale = true`
+  - live bull current path 目前不是 q15 toxic pocket，也不是 execution guardrail 額外壓層；
+  - 最新 probe 已證明：
+    - `exact_live_lane_bucket_verdict = no_exact_lane_sub_bucket_split`
+    - `allowed_layers_reason = entry_quality_below_trade_floor`
+    - `execution_guardrail_applied = false`
+  - 因此目前 `CAUTION / D / 0 layers` 的直接來源，是 **raw entry-quality trade floor + q35 weak-structure semantics**，不是 stale exact-lane toxicity 敘事。
 - **本輪明確不做**：
-  - 不把「舊 snapshot 過期」直接當成已解或未解的唯一結論；
-  - 不因 q35 rows 已達標就放寬 live layers；
-  - 不把 `fin_netflow` auth blocker 混進 bull profile governance 問題。
+  - 不把已解的 exact-lane diagnostic drift 留在 active issues；
+  - 不在證據不足時直接放寬 q35 runtime gate；
+  - 不把 `fin_netflow` auth 缺失混成 bull live lane 問題。
 
 ---
 
@@ -67,91 +62,86 @@ _最後更新：2026-04-14 22:23 UTC — Heartbeat #743（本輪已修補 leader
 
 ### 本輪 patch / 驗證
 - **Patch（已落地）**
-  - `scripts/hb_leaderboard_candidate_probe.py`
+  - `model/predictor.py`
+  - `scripts/hb_predict_probe.py`
+  - `scripts/live_decision_quality_drilldown.py`
   - `scripts/hb_parallel_runner.py`
-  - `tests/test_hb_leaderboard_candidate_probe.py`
+  - `tests/test_api_feature_history_and_predictor.py`
   - `tests/test_hb_parallel_runner.py`
   - `ARCHITECTURE.md`
 - **Tests（已通過）**
-  - `source venv/bin/activate && python -m pytest tests/test_hb_leaderboard_candidate_probe.py tests/test_hb_parallel_runner.py tests/test_strategy_lab.py -q` → **38 passed**
+  - `source venv/bin/activate && python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_hb_parallel_runner.py -q` → **42 passed**
 - **Runtime verify（已通過）**
-  - `source venv/bin/activate && python model/train.py`
-    - Train=`63.8%`
-    - CV=`73.5% ± 8.4pp`
-    - `feature_profile = core_plus_macro`
-    - `feature_profile_meta.source = bull_4h_pocket_ablation.support_aware_profile`
-    - `support_cohort = bull_exact_live_lane_proxy`
-    - `exact_live_bucket_rows = 4`（train 使用的是較舊 bull pocket artifact）
-  - `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast --hb 743` → **通過**
-  - 已刷新：
-    - `data/heartbeat_743_summary.json`
-    - `data/full_ic_result.json`
-    - `data/ic_regime_analysis.json`
-    - `data/recent_drift_report.json`
-    - `data/live_predict_probe.json`
-    - `data/live_decision_quality_drilldown.json`
-    - `data/feature_group_ablation.json`
-    - `data/bull_4h_pocket_ablation.json`
-    - `data/leaderboard_feature_profile_probe.json`
-    - `model/last_metrics.json`
+  - `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast --hb 745`
+  - `source venv/bin/activate && python scripts/hb_predict_probe.py > data/live_predict_probe.json && python scripts/live_decision_quality_drilldown.py`
+- **已刷新 artifacts**
+  - `data/heartbeat_745_summary.json`
+  - `data/full_ic_result.json`
+  - `data/ic_regime_analysis.json`
+  - `data/recent_drift_report.json`
+  - `data/live_predict_probe.json`
+  - `data/live_decision_quality_drilldown.json`
+  - `data/feature_group_ablation.json`
+  - `data/bull_4h_pocket_ablation.json`
+  - `data/leaderboard_feature_profile_probe.json`
+  - `model/ic_signs.json`
 
 ### 資料 / 新鮮度 / canonical target
-- 來自 Heartbeat #743：
-  - Raw / Features / Labels：**21433 / 12862 / 43047**
-  - 本輪增量：**+1 raw / +1 feature / +1 label**
-  - canonical target `simulated_pyramid_win`：**0.5766**
-  - 240m labels：**21582 rows / target_rows 12660 / lag_vs_raw 3.2h**
-  - 1440m labels：**12380 rows / target_rows 12380 / lag_vs_raw 23.3h**
-  - recent raw age：**約 5.2 分鐘**
+- 來自 Heartbeat #745：
+  - Raw / Features / Labels：**21436 / 12865 / 43055**
+  - 本輪增量：**+1 raw / +1 feature / +3 labels**
+  - canonical target `simulated_pyramid_win`：**0.5765**
+  - 240m labels：**21585 rows / target_rows 12663 / lag_vs_raw 3.2h**
+  - 1440m labels：**12385 rows / target_rows 12385 / lag_vs_raw 23.0h**
+  - recent raw age：**約 0.5 分鐘**
   - continuity repair：**4h=0 / 1h=0 / bridge=0**
 
 ### IC / regime / drift
 - Global IC：**19/30 pass**
-- TW-IC：**26/30 pass**
-- TW 歷史：**#743=26/30，#742=25/30，#741=25/30**
-- Regime IC：**Bear 4/8 / Bull 6/8 / Chop 4/8**
+- TW-IC：**25/30 pass**
+- TW 歷史：**#745=25/30，#744=25/30，#743=26/30**
+- Regime IC：**Bear 4/8 / Bull 6/8 / Chop 5/8**
 - primary drift window：**recent 100**
-  - alerts：`label_imbalance`, `regime_shift`
+  - alerts：`label_imbalance`, `regime_concentration`, `regime_shift`
   - interpretation：**supported_extreme_trend**
-  - dominant_regime：**bull 89.0%**
-  - win_rate：**0.9900**
-  - avg_quality：**0.6954**
-  - avg_pnl：**+0.0218**
-  - avg_drawdown_penalty：**0.0326**
-- 判讀：近期 canonical pocket 仍健康；本輪沒有新的 recent-window pathology blocker。
+  - dominant_regime：**bull 94.0%**
+  - win_rate：**0.9700**
+  - avg_quality：**0.6764**
+  - avg_pnl：**+0.0212**
+  - avg_drawdown_penalty：**0.0343**
+- 判讀：recent canonical pocket 仍健康；問題不在 recent target pathology，而在 live q35 runtime semantics 與 4H spillover 對 raw entry-quality 的壓制。
 
-### Live predictor / bull lane
+### Train / leaderboard / live contract
+- `model/last_metrics.json`
+  - `feature_profile = core_plus_macro_plus_4h_structure_shift`
+  - `feature_profile_meta.source = bull_4h_pocket_ablation.exact_supported_profile`
+  - Train=`67.5%`
+  - CV=`71.7% ± 9.9pp`
+  - `n_features = 21`
+- `data/leaderboard_feature_profile_probe.json`
+  - `train_selected_profile = core_plus_macro_plus_4h_structure_shift`
+  - `leaderboard_selected_profile = core_plus_macro_plus_4h_structure_shift`
+  - `dual_profile_state = aligned`
+  - `support_blocker_state = exact_live_bucket_supported`
+  - `proxy_boundary_verdict = exact_bucket_supported_proxy_not_required`
+  - `live_current_structure_bucket = CAUTION|structure_quality_caution|q35`
+  - `live_current_structure_bucket_rows = 90`
+  - `exact_lane_bucket_verdict = no_exact_lane_sub_bucket_split`
 - `data/live_predict_probe.json`
   - signal：**HOLD**
-  - confidence：**0.5110**
+  - confidence：**0.4312**
   - regime：**bull**
   - gate：**CAUTION**
-  - entry quality：**0.3843 (D)**
+  - entry quality：**0.3861 (D)**
   - decision-quality label：**B**
-  - expected win / quality：**0.8785 / 0.5816**
+  - expected win / quality：**0.9697 / 0.6755**
   - allowed layers：**0 → 0**
-  - execution guardrail：**未額外觸發**（`allowed_layers_raw` 本來就是 0）
-  - chosen calibration scope：**`regime_label+regime_gate+entry_quality_label` / sample_size=107**
-  - current live structure bucket：**`CAUTION|structure_quality_caution|q35` rows=90**
-  - `decision_quality_exact_live_lane_bucket_verdict`：**`toxic_sub_bucket_identified`**
-  - `decision_quality_exact_live_lane_toxic_bucket.bucket`：**`CAUTION|structure_quality_caution|q15`（4 rows / win_rate 0.0）**
-- `data/bull_4h_pocket_ablation.json`
-  - blocker_state：**`exact_live_bucket_supported`**
-  - support_governance_route：**`exact_live_bucket_supported`**
-  - exact bucket root cause：**`exact_bucket_supported`**
-  - current bucket gap to minimum：**0**
-  - bull all cohort recommended profile：**`core_plus_macro_plus_4h_structure_shift`**
-  - exact live lane proxy recommended profile：**`core_plus_macro`**
-  - `proxy_boundary_verdict`：**`exact_bucket_supported_proxy_not_required`**
-  - `exact_lane_bucket_verdict`：**`toxic_sub_bucket_identified`**
-- `data/leaderboard_feature_profile_probe.json`
-  - leaderboard selected profile：**`core_plus_macro_plus_4h_structure_shift`**
-  - train selected profile：**`core_plus_macro`**
-  - global recommended profile：**`core_only`**
-  - dual profile state：**`leaderboard_global_winner_vs_train_support_fallback`**
-  - `current_alignment_inputs_stale = false`
-  - `artifact_recency.alignment_snapshot_stale = true`
-- 判讀：**本輪已證實 current live bucket 重新回到 exact-supported，但 train 仍沿用 support-aware 路徑；這是目前真正的治理未收斂點。舊 leaderboard snapshot 只是背景訊號，不是本輪主 blocker。**
+  - `allowed_layers_reason = entry_quality_below_trade_floor`
+  - `execution_guardrail_applied = false`
+  - chosen calibration scope：**`regime_label+entry_quality_label` / sample_size=99**
+  - exact live lane：**90 rows / win=1.0 / quality=0.7033 / verdict=no_exact_lane_sub_bucket_split**
+  - same-regime spillover：**9 rows / bucket=`bull|ALLOW` / win=0.6667 / quality=0.3969 / 4H shift = bias200↑, dist_swing_low↑, dist_bb_lower↑**
+- 判讀：**目前 0-layer 是 raw entry-quality trade floor 的結果，不是 execution guardrail 額外壓層；exact lane 本身沒有 toxic sub-bucket，但同 regime 的 ALLOW spillover 仍顯示更高 4H 延伸距離會明顯惡化品質。**
 
 ### Source blockers
 - blocked sparse features：**8 個**
@@ -162,37 +152,44 @@ _最後更新：2026-04-14 22:23 UTC — Heartbeat #743（本輪已修補 leader
 
 ## 目前有效問題
 
-### P1. train 仍未切到 exact-supported bull profile（真實 blocker）
+### P1. live bull q35 path 仍停在 CAUTION / D / allowed_layers=0，但 root cause 已收斂成「raw entry-quality trade floor」
 **現象**
-- q35 current live bucket 已 supported：**90 rows ≥ 50**；
-- leaderboard 已選 **`core_plus_macro_plus_4h_structure_shift`**；
-- train 剛重跑後仍是 **`core_plus_macro`**；
-- `train_selected_profile_source = bull_4h_pocket_ablation.support_aware_profile`。
+- q35 exact-supported 已成立（rows=90）；
+- train / leaderboard 已對齊 exact-supported profile；
+- probe 顯示：
+  - `exact_lane_bucket_verdict = no_exact_lane_sub_bucket_split`
+  - `allowed_layers_reason = entry_quality_below_trade_floor`
+  - `execution_guardrail_applied = false`
+  - exact lane `win_rate=1.0 / quality=0.7033`
 
 **判讀**
-- 這不是 support 不足，也不是 probe 讀錯 snapshot；
-- 這是 **train artifact 與最新 bull pocket / leaderboard artifact 的收斂失敗**；
-- 目前最可能的直接根因是：train 執行時吃到的是較舊 bull pocket artifact（`generated_at=21:45:38`），而 fast heartbeat 之後 bull pocket 已刷新到 q35 supported（`generated_at=22:08:34`）。
+- 目前 bottleneck 已從「train parity」與「exact-lane toxic bucket」收斂到：
+  1. q35 lane 的 raw entry-quality 本身偏低（0.3861 → D）；
+  2. 同 regime 的少量 `bull|ALLOW` spillover rows 雖然結構更高，但 quality 明顯更差（0.3969），說明單純提高 4H 延伸不會自動變成可部署 pocket。
+- 換句話說：
+  - **現在的 `CAUTION / D / 0-layer` 更像是正確保守治理，而不是 stale blocker。**
+  - 下一步不是直接放寬 gate，而是要驗證 entry-quality 公式是否過度懲罰 q35，或 bull q35 根本就只該是 hold-only lane。
 
 **下一步方向**
-- 直接修 train/heartbeat 的 artifact 順序或 freshness gate，避免 train 在 exact-supported 恢復後仍吃到 support-aware 舊 artifact；
-- 修完後必須重跑 train + probe，確認 train / leaderboard 同步收斂到 exact-supported profile，或明確輸出新的技術限制。
+- 針對 q35 current lane 與 bull ALLOW spillover 的 **entry-quality 組成** 做 component-level 對比；
+- 把 `feat_4h_bias50 / feat_nose / feat_pulse / feat_ear` 與 `feat_4h_*` 結構欄位如何壓低 raw quality 量化出來，再決定要調公式還是保留 hold-only 語義。
 
 ---
 
-### P1. q15 toxic pocket 仍是 bull exact lane 內部病灶
+### P1. global shrinkage winner 與 production bull profile 仍分裂
 **現象**
-- `exact_lane_bucket_verdict = toxic_sub_bucket_identified`
-- toxic bucket：**`CAUTION|structure_quality_caution|q15`**
-- rows：**4**；win_rate：**0.0000**
+- `feature_group_ablation.json.recommended_profile = core_only`；
+- bull exact-supported production profile = `core_plus_macro_plus_4h_structure_shift`；
+- 這個分裂在 #745 仍成立，但 train / leaderboard 對齊沒有漂移。
 
 **判讀**
-- q35 current bucket 已 supported 且健康（90 rows / win_rate 1.0）；
-- 但 lane 內部的 q15 仍必須維持 veto 候選，不可因 q35 supported 就一起放行。
+- global CV 最佳與 bull exact-supported best 仍然不同；
+- 現在需要回答的是：`4h_structure_shift` 在 bull q35 path 到底是必要 signal、風控提示，還是只是一個讓 raw quality 變保守的 proxy。
 
 **下一步方向**
-- profile 收斂時，必須同步驗證 q15 veto 仍保留；
-- 不得讓 exact-supported profile 收斂把 q15 toxic sub-bucket 一併稀釋掉。
+- 直接對 bull q35 exact lane 跑 feature attribution / ablation drilldown；
+- 優先看：`feat_4h_bias200`、`feat_4h_dist_swing_low`、`feat_4h_dist_bb_lower`、`feat_4h_bb_pct_b` 與 `feat_4h_bias50` 的交互作用；
+- 不再把 `core_only` 直接當 production 結論，也不因 parity 已解就停止 shrinkage 治理。
 
 ---
 
@@ -200,88 +197,108 @@ _最後更新：2026-04-14 22:23 UTC — Heartbeat #743（本輪已修補 leader
 **現象**
 - `fin_netflow` coverage：**0.0%**
 - latest status：**auth_missing**
-- archive_window_coverage：**0.0% (0/1562)**
+- archive_window_coverage：**0.0% (0/1565)**
 
 **判讀**
-- 這仍是**外部憑證 blocker**，不是 bull profile governance 問題。
+- 這仍是**外部憑證 blocker**，不是 bull live lane 問題。
 
 ---
 
 ## 本輪已清掉的問題
 
-### RESOLVED. 舊 leaderboard snapshot 會遮蔽當前治理狀態
-**現象（修前）**
-- probe 只要看到 `leaderboard_snapshot_created_at` 舊，就容易把當前 mismatch 一律包成 stale，導致 heartbeat 無法分辨：
-  - 只是舊 snapshot 過期；或
-  - train / leaderboard 真的還沒收斂。
+### RESOLVED. exact live lane single-bucket diagnostic drift
+**修前**
+- `live_predict_probe.json` 的 exact live lane 明明只有一個 q35 bucket，卻仍回 `sub_buckets_present_but_not_toxic`，與 leaderboard probe / docs 的 `no_exact_lane_sub_bucket_split` 不一致。
 
 **本輪 patch + 證據**
-- `scripts/hb_leaderboard_candidate_probe.py`
-  - 補 `alignment_evaluated_at / current_alignment_inputs_stale / current_alignment_recency / artifact_recency`
-  - `dual_profile_state` 現在優先依 current inputs 判讀，而不是直接被舊 snapshot 吃掉
-- `scripts/hb_parallel_runner.py`
-  - summary / console 同步暴露 recency metadata
-- 測試：
-  - `pytest tests/test_hb_leaderboard_candidate_probe.py tests/test_hb_parallel_runner.py tests/test_strategy_lab.py -q` → **38 passed**
+- `model/predictor.py`
+  - `_exact_live_lane_bucket_diagnostics()` 現在在 single-bucket 情境下強制回：
+    - `verdict = no_exact_lane_sub_bucket_split`
+    - `toxic_bucket = null`
+- `tests/test_api_feature_history_and_predictor.py`
+  - 新增 single-bucket regression test。
+- `python scripts/hb_predict_probe.py > data/live_predict_probe.json`
+  - 最新 artifact 已顯示：
+    - `bucket_count = 1`
+    - `verdict = no_exact_lane_sub_bucket_split`
+    - `toxic_bucket = null`
 
 **狀態**
-- **已修復**：heartbeat 現在能分清「舊 snapshot」與「當前真 blocker」；
-- **因此本輪重新確認的真 blocker**：train 仍未切到 exact-supported bull profile。
+- **已修復**：exact-lane verdict 已與 leaderboard probe / docs 對齊。
+
+### RESOLVED. 0-layer root cause 在 probe / drilldown / heartbeat summary 中不再模糊
+**修前**
+- probe 只看到 `allowed_layers_raw=0 → allowed_layers=0`，但無法 machine-check 這是 raw trade floor 還是 execution guardrail 額外壓層。
+
+**本輪 patch + 證據**
+- `model/predictor.py`
+  - `_build_live_decision_profile()` 新增 `allowed_layers_reason`。
+- `scripts/hb_predict_probe.py`
+  - probe JSON 會持久化 `allowed_layers_reason`。
+- `scripts/live_decision_quality_drilldown.py`
+  - markdown / JSON 現在會顯示 `allowed_layers_reason`。
+- `scripts/hb_parallel_runner.py`
+  - heartbeat summary 的 `live_predictor_diagnostics` 也同步帶出 `allowed_layers_reason`。
+- 最新 artifact：
+  - `allowed_layers_reason = entry_quality_below_trade_floor`
+  - `execution_guardrail_applied = false`
+
+**狀態**
+- **已修復**：本輪已能明確證明 `0-layer` 來自 raw entry-quality trade floor，不是額外 guardrail。
 
 ---
 
 ## 本輪決策（收斂版）
 
 ### 本輪要推進的 3 件事
-1. **先修 probe / summary 的 recency contract，避免舊 snapshot 遮蔽真 blocker。** ✅
-2. **重跑 train + fast heartbeat，重新量測 train / leaderboard / q15 contract 的當前狀態。** ✅
-3. **把 blocker 從模糊的 stale snapshot 重新收斂為 train artifact parity 問題。** ✅
+1. **修 exact live lane 單一 bucket 誤診斷，消除 artifact / probe / docs 漂移。** ✅
+2. **把 0-layer 的直接原因 machine-read 化，避免再把 raw trade floor 和 execution guardrail 混為一談。** ✅
+3. **重跑 fast heartbeat / probe / drilldown，驗證 live bull q35 path 的當前 blocker 是否真的收斂。** ✅
 
 ### 本輪不做
-- 不直接放寬 live layers；
-- 不把 q15 toxic pocket 視為已清除；
-- 不把 `fin_netflow` auth blocker 與 bull profile governance 混在一起。
+- 不直接放寬 q35 runtime gate；
+- 不把單一 exact lane 高勝率直接當成可加碼依據；
+- 不把 `fin_netflow` auth 缺失寫成即將恢復。
 
 ---
 
 ## 下一輪 gate
 
 - **Next focus:**
-  1. 修 `model/train.py` / heartbeat artifact 順序，確保 train 會吃到最新 `bull_4h_pocket_ablation.json` 與 `feature_group_ablation.json`，不再停在 support-aware 舊 artifact；
-  2. 重跑 train + probe，驗證 q35 exact-supported 時 train / leaderboard 是否收斂到 `core_plus_macro_plus_4h_structure_shift`；
-  3. 繼續保留並驗證 q15 toxic pocket lane-internal veto。
+  1. 拆解 bull q35 current lane 的 raw entry-quality 組成，驗證 `entry_quality_below_trade_floor` 是否過嚴；
+  2. 釐清 `core_only` 與 `core_plus_macro_plus_4h_structure_shift` 在 bull q35 production path 的分工；
+  3. 持續把 `fin_netflow` 當外部 source auth blocker 管理。
 
 - **Success gate:**
-  1. next run 必須留下至少一個與 **train artifact freshness / exact-supported train-frame parity** 直接相關的 patch / artifact / verify；
-  2. 若 q35 current bucket rows 仍 **≥50**，`train_selected_profile` 不得再停在 support-aware `core_plus_macro` 而沒有明確原因；
-  3. `support_blocker_state / support_governance_route / exact_bucket_root_cause / proxy_boundary_verdict / exact_lane_bucket_verdict / dual_profile_state / current_alignment_inputs_stale / allowed_layers` 在 artifact / probe / docs / summary 間零漂移。
+  1. next run 必須留下至少一個與 **q35 raw entry-quality 組成 / 4H shrinkage 分工** 直接相關的 patch / artifact / verify；
+  2. `exact_lane_bucket_verdict / allowed_layers_reason / execution_guardrail_applied / train_selected_profile / leaderboard_selected_profile / dual_profile_state` 必須在 artifact / docs / summary 間零漂移；
+  3. 若 q35 仍是 `CAUTION / D / 0-layer`，必須以 component-level 證據說清楚這是正確保守治理還是公式過嚴。
 
 - **Fallback if fail:**
-  - 若 train 仍吃到舊 bull pocket artifact，升級為 `exact_supported_train_frame_parity_blocker`；
-  - 若 q35 rows 再跌回 <50，必須同輪恢復 under-minimum blocker contract；
-  - 若 probe 又把舊 snapshot 誤當成唯一結論，視為 recency governance regression。
+  - 若 exact-lane verdict 又回成 `sub_buckets_present_but_not_toxic`，視為 live diagnostic regression；
+  - 若 `allowed_layers_reason` 消失或 again 無法分辨 raw vs guardrail，視為 runtime semantics regression；
+  - 若 train / leaderboard 再次分裂，立刻回升為 `exact_supported_train_frame_parity_blocker`；
+  - 若 `fin_netflow` auth 未修，持續標記 blocked，不准寫成「快好了」。
 
 - **Documents to update next round:**
   - `ISSUES.md`
   - `ROADMAP.md`
-  - `ARCHITECTURE.md`（若 train artifact freshness contract 再擴充）
+  - `ARCHITECTURE.md`（若 entry-quality contract 或 4H shrinkage contract 再擴充）
 
 - **Carry-forward input for next heartbeat:**
-  1. 先讀：
-     - `data/heartbeat_743_summary.json`
-     - `model/last_metrics.json`
-     - `data/leaderboard_feature_profile_probe.json`
-     - `data/bull_4h_pocket_ablation.json`
+  1. 先讀 `data/heartbeat_745_summary.json`
+  2. 再讀：
      - `data/live_predict_probe.json`
-  2. 逐條確認：
-     - `support_blocker_state` 是否仍是 **`exact_live_bucket_supported`**；
-     - `support_governance_route` 是否仍是 **`exact_live_bucket_supported`**；
-     - `proxy_boundary_verdict` 是否仍是 **`exact_bucket_supported_proxy_not_required`**；
-     - `current_live_structure_bucket` 是否仍是 **`CAUTION|structure_quality_caution|q35`** 且 rows 是否仍 **≥50**；
-     - `decision_quality_exact_live_lane_toxic_bucket.bucket` 是否仍是 **`CAUTION|structure_quality_caution|q15`**；
-     - `leaderboard_selected_profile` 是否仍是 **`core_plus_macro_plus_4h_structure_shift`**；
-     - `train_selected_profile` 是否仍是 **`core_plus_macro`** 還是已收斂；
-     - `train_selected_profile_source` 是否仍是 **`bull_4h_pocket_ablation.support_aware_profile`**；
-     - `current_alignment_inputs_stale` 是否仍是 **false**；
-     - `artifact_recency.alignment_snapshot_stale` 是否仍是 **true**（僅作背景，不可取代當前 blocker 判讀）。
-  3. 若以上條件大多仍成立，下一輪不得再把「snapshot 舊」當主結論；必須直接推進 **train artifact freshness / exact-supported train-frame parity / q15 toxic pocket 保守治理**。
+     - `data/live_decision_quality_drilldown.json`
+     - `data/feature_group_ablation.json`
+     - `data/bull_4h_pocket_ablation.json`
+     - `data/leaderboard_feature_profile_probe.json`
+  3. 若下輪仍看到：
+     - `exact_lane_bucket_verdict = no_exact_lane_sub_bucket_split`
+     - `allowed_layers_reason = entry_quality_below_trade_floor`
+     - `execution_guardrail_applied = false`
+     - `live_current_structure_bucket = CAUTION|structure_quality_caution|q35`
+     - `live_current_structure_bucket_rows >= 50`
+     - `feature_group_ablation.recommended_profile = core_only`
+     - `train_selected_profile = leaderboard_selected_profile = core_plus_macro_plus_4h_structure_shift`
+     則不得再把問題描述成「q15 toxic pocket」或「train parity」；必須直接推進 **q35 raw entry-quality root cause / 4H shrinkage 分工 / source auth blocker 顯式治理**。

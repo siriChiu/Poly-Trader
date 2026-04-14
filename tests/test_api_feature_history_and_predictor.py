@@ -204,6 +204,7 @@ def test_live_decision_profile_matches_strategy_lab_baseline():
     assert profile["structure_quality"] == debug["structure_quality"]
     assert profile["structure_bucket"] == predictor_module._live_structure_bucket_from_debug(debug)
     assert profile["allowed_layers"] == expected_layers
+    assert profile["allowed_layers_reason"] == "full_three_layers_allowed"
     assert profile["entry_quality_label"] == "A"
     assert profile["decision_profile_version"] == "phase16_baseline_v2"
 
@@ -286,7 +287,32 @@ def test_live_decision_profile_downgrades_borderline_allow_q35_to_caution():
     assert profile["regime_gate"] == "CAUTION"
     assert profile["structure_bucket"] == "CAUTION|structure_quality_caution|q35"
     assert profile["allowed_layers"] == 0
+    assert profile["allowed_layers_reason"] == "entry_quality_below_trade_floor"
     assert expected_gate == "CAUTION"
+
+
+def test_exact_live_lane_bucket_diagnostics_treats_single_bucket_as_no_split():
+    rows = [
+        {
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "simulated_pyramid_win": 1.0,
+            "simulated_pyramid_pnl": 0.02,
+            "simulated_pyramid_quality": 0.70,
+            "simulated_pyramid_drawdown_penalty": 0.03,
+            "simulated_pyramid_time_underwater": 0.18,
+        }
+        for _ in range(12)
+    ]
+
+    diag = predictor_module._exact_live_lane_bucket_diagnostics(
+        rows,
+        "CAUTION|structure_quality_caution|q35",
+    )
+
+    assert diag["bucket_count"] == 1
+    assert diag["verdict"] == "no_exact_lane_sub_bucket_split"
+    assert diag["reason"] == "exact live lane 沒有可比較的非 current bucket 子 bucket。"
+    assert diag["toxic_bucket"] is None
 
 
 def test_decision_quality_contract_prefers_matching_gate_and_quality_bucket():

@@ -175,6 +175,7 @@ def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypat
                 "entry_quality_label": "D",
                 "allowed_layers_raw": 0,
                 "allowed_layers": 0,
+                "allowed_layers_reason": "entry_quality_below_trade_floor",
                 "execution_guardrail_applied": True,
                 "decision_quality_calibration_scope": "entry_quality_label",
                 "decision_quality_scope_diagnostics": {
@@ -216,6 +217,7 @@ def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypat
     assert diag["decision_quality_recent_pathology_window"] == 500
     assert diag["decision_quality_exact_live_lane_bucket_verdict"] == "toxic_sub_bucket_identified"
     assert diag["decision_quality_exact_live_lane_toxic_bucket"]["bucket"] == "CAUTION|structure_quality_caution|q15"
+    assert diag["allowed_layers_reason"] == "entry_quality_below_trade_floor"
     assert diag["decision_quality_label"] == "D"
     assert diag["non_null_4h_lag_count"] == 30
     assert diag["decision_quality_scope_diagnostics"]["entry_quality_label"]["rows"] == 3186
@@ -393,3 +395,38 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
     assert diag["artifact_recency"]["alignment_snapshot_stale"] is True
     assert diag["live_current_structure_bucket_rows"] == 0
     assert diag["blocked_candidate_profiles"][0]["blocker_reason"] == "unsupported_exact_live_structure_bucket"
+
+
+def test_refresh_train_prerequisites_runs_both_artifacts_when_train_is_needed(monkeypatch):
+    calls = []
+
+    def _feature_result():
+        calls.append("feature_result")
+        return {"success": True, "returncode": 0}
+
+    def _feature_summary():
+        calls.append("feature_summary")
+        return {"recommended_profile": "core_plus_macro_plus_4h_structure_shift"}
+
+    def _bull_result():
+        calls.append("bull_result")
+        return {"success": True, "returncode": 0}
+
+    def _bull_summary():
+        calls.append("bull_summary")
+        return {"live_context": {"current_live_structure_bucket_rows": 90}}
+
+    monkeypatch.setattr(hb_parallel_runner, "run_feature_group_ablation", _feature_result)
+    monkeypatch.setattr(hb_parallel_runner, "collect_feature_ablation_diagnostics", _feature_summary)
+    monkeypatch.setattr(hb_parallel_runner, "run_bull_4h_pocket_ablation", _bull_result)
+    monkeypatch.setattr(hb_parallel_runner, "collect_bull_4h_pocket_diagnostics", _bull_summary)
+
+    result = hb_parallel_runner.refresh_train_prerequisites(needs_train=True)
+
+    assert calls == ["feature_result", "feature_summary", "bull_result", "bull_summary"]
+    assert result["feature_ablation_summary"]["recommended_profile"] == "core_plus_macro_plus_4h_structure_shift"
+    assert result["bull_pocket_summary"]["live_context"]["current_live_structure_bucket_rows"] == 90
+
+
+def test_refresh_train_prerequisites_skips_artifacts_when_train_not_needed():
+    assert hb_parallel_runner.refresh_train_prerequisites(needs_train=False) == {}
