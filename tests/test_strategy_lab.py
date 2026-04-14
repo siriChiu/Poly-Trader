@@ -416,6 +416,19 @@ def test_compute_regime_gate_downgrades_allow_when_4h_structure_collapses():
     assert gate == "BLOCK"
 
 
+def test_compute_regime_gate_downgrades_borderline_allow_q35_to_caution():
+    gate = strategy_lab._compute_regime_gate(
+        1.8,
+        "bull",
+        -10.0,
+        bb_pct_b_value=0.45,
+        dist_bb_lower_value=5.0,
+        dist_swing_low_value=6.0,
+    )
+
+    assert gate == "CAUTION"
+
+
 def test_run_rule_backtest_records_regime_gate_and_entry_quality():
     result = strategy_lab.run_rule_backtest(
         prices=[100.0, 98.0, 96.0, 108.0],

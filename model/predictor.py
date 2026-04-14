@@ -394,7 +394,11 @@ def _compute_live_regime_gate_debug(
         if structure_quality < 0.15:
             final_gate = "BLOCK"
             final_reason = "structure_quality_block"
-        elif structure_quality < 0.35:
+        # Heartbeat #718: ALLOW+q35 produced a live bull path that looked permissive
+        # but had almost no historical support (2 rows in the 24h calibration set).
+        # Treat borderline 4H structure (<0.65) as CAUTION so runtime semantics stop
+        # advertising these sparse, weak-structure setups as true ALLOW lanes.
+        elif structure_quality < 0.65:
             final_gate = "CAUTION"
             final_reason = "structure_quality_caution"
 

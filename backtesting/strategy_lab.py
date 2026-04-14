@@ -288,7 +288,10 @@ def _compute_regime_gate(
         return "BLOCK"
     if base_gate == "ALLOW" and structure_quality < 0.15:
         return "BLOCK"
-    if base_gate == "ALLOW" and structure_quality < 0.35:
+    # Heartbeat #718 parity: borderline ALLOW+q35 setups were too sparse to treat as
+    # trustworthy ALLOW lanes. Keep Strategy Lab aligned with live predictor by
+    # downgrading weak-but-not-collapsed 4H structure to CAUTION.
+    if base_gate == "ALLOW" and structure_quality < 0.65:
         return "CAUTION"
     return base_gate
 

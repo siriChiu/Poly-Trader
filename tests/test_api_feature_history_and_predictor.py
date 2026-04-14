@@ -239,6 +239,38 @@ def test_live_decision_profile_blocks_overextended_allow_lane_even_when_bias200_
     assert expected_gate == "BLOCK"
 
 
+def test_live_decision_profile_downgrades_borderline_allow_q35_to_caution():
+    features = {
+        "regime_label": "bull",
+        "feat_4h_bias200": 1.8,
+        "feat_4h_bias50": 0.9,
+        "feat_nose": 0.22,
+        "feat_pulse": 0.35,
+        "feat_ear": 0.01,
+        "feat_4h_bb_pct_b": 0.45,
+        "feat_4h_dist_bb_lower": 5.0,
+        "feat_4h_dist_swing_low": 6.0,
+    }
+
+    profile = predictor_module._build_live_decision_profile(features)
+    debug = predictor_module._compute_live_regime_gate_debug(
+        1.8,
+        "bull",
+        bb_pct_b_value=0.45,
+        dist_bb_lower_value=5.0,
+        dist_swing_low_value=6.0,
+    )
+    expected_gate = strategy_lab._compute_regime_gate(1.8, "bull", -10.0, 0.45, 5.0, 6.0)
+
+    assert round(debug["structure_quality"], 4) == 0.5573
+    assert debug["final_reason"] == "structure_quality_caution"
+    assert debug["final_gate"] == "CAUTION"
+    assert profile["regime_gate"] == "CAUTION"
+    assert profile["structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert profile["allowed_layers"] == 0
+    assert expected_gate == "CAUTION"
+
+
 def test_decision_quality_contract_prefers_matching_gate_and_quality_bucket():
     rows = [
         {
