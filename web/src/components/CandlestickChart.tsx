@@ -24,8 +24,12 @@ interface KlineResponse {
     ma20?: (number | null)[];
     ma60?: (number | null)[];
     rsi?: (number | null)[];
-    macd?: { macd: (number | null)[]; signal: (number | null)[]; histogram: (number | null)[] };
+    macd?: (number | null)[];
+    signal?: (number | null)[];
+    histogram?: (number | null)[];
   };
+  incremental?: boolean;
+  append_after?: number;
 }
 
 interface TradeMarkerInput {
@@ -172,8 +176,76 @@ const buildFallbackPositionSeries = (trades: TradeMarkerInput[], candleTimes: nu
   return uniqueByTime(Array.from(levelByTime.entries()).map(([time, value]) => ({ time: time as Time, value })));
 };
 
-const CHART_CACHE_KEY_PREFIX = "polytrader.chartcache.v2";
+const CHART_CACHE_KEY_PREFIX = "polytrader.chartcache.v3";
 const CHART_MEMORY_CACHE = new Map<string, KlineResponse>();
+const CHART_INCREMENTAL_REFRESH_GAP_MS = 30_000;
+
+const getIndicatorValue = (payload: KlineResponse, key: "ma20" | "ma60" | "rsi" | "macd" | "signal" | "histogram", time: number) => {
+  const candles = payload.candles || [];
+  const index = candles.findIndex((row) => row.time === time);
+  if (index < 0) return null;
+  return payload.indicators?.[key]?.[index] ?? null;
+};
+
+const mergeKlinePayload = (base: KlineResponse, incoming: KlineResponse): KlineResponse => {
+  const candleMap = new Map<number, KlineResponse["candles"][number]>();
+  const indicatorMaps = {
+    ma20: new Map<number, number | null>(),
+    ma60: new Map<number, number | null>(),
+    rsi: new Map<number, number | null>(),
+    macd: new Map<number, number | null>(),
+    signal: new Map<number, number | null>(),
+    histogram: new Map<number, number | null>(),
+  };
+  const applyPayload = (payload: KlineResponse) => {
+    for (const candle of payload.candles || []) {
+      candleMap.set(candle.time, candle);
+      indicatorMaps.ma20.set(candle.time, getIndicatorValue(payload, "ma20", candle.time));
+      indicatorMaps.ma60.set(candle.time, getIndicatorValue(payload, "ma60", candle.time));
+      indicatorMaps.rsi.set(candle.time, getIndicatorValue(payload, "rsi", candle.time));
+      indicatorMaps.macd.set(candle.time, getIndicatorValue(payload, "macd", candle.time));
+      indicatorMaps.signal.set(candle.time, getIndicatorValue(payload, "signal", candle.time));
+      indicatorMaps.histogram.set(candle.time, getIndicatorValue(payload, "histogram", candle.time));
+    }
+  };
+  applyPayload(base);
+  applyPayload(incoming);
+  const candles = Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
+  const candleTimes = candles.map((candle) => candle.time);
+  return {
+    symbol: incoming.symbol || base.symbol,
+    interval: incoming.interval || base.interval,
+    candles,
+    indicators: {
+      ma20: candleTimes.map((time) => indicatorMaps.ma20.get(time) ?? null),
+      ma60: candleTimes.map((time) => indicatorMaps.ma60.get(time) ?? null),
+      rsi: candleTimes.map((time) => indicatorMaps.rsi.get(time) ?? null),
+      macd: candleTimes.map((time) => indicatorMaps.macd.get(time) ?? null),
+      signal: candleTimes.map((time) => indicatorMaps.signal.get(time) ?? null),
+      histogram: candleTimes.map((time) => indicatorMaps.histogram.get(time) ?? null),
+    },
+    incremental: false,
+  };
+};
+
+const shouldIncrementallyRefresh = (payload: KlineResponse, interval: string, until?: number | null) => {
+  const lastCandle = payload.candles?.[payload.candles.length - 1];
+  if (!lastCandle) return false;
+  const intervalMsMap: Record<string, number> = {
+    "1m": 60_000,
+    "5m": 300_000,
+    "15m": 900_000,
+    "1h": 3_600_000,
+    "4h": 14_400_000,
+    "1d": 86_400_000,
+  };
+  const intervalMs = intervalMsMap[interval] || 3_600_000;
+  const lastCandleMs = lastCandle.time * 1000;
+  if (until && until > 0) {
+    return lastCandleMs + intervalMs <= until;
+  }
+  return Date.now() - lastCandleMs > Math.max(intervalMs, CHART_INCREMENTAL_REFRESH_GAP_MS);
+};
 
 const loadCachedChartPayload = (cacheKey: string): KlineResponse | null => {
   if (CHART_MEMORY_CACHE.has(cacheKey)) {
@@ -469,6 +541,201 @@ export default function CandlestickChart({
   useEffect(() => {
     let cancelled = false;
 
+    const applyChartData = async (data: KlineResponse, options?: { updateViewport?: boolean; readyDetail?: string }) => {
+      setProgress(toChartProgress(1));
+      setProgressDetail(`已取得 ${data.candles?.length ?? 0} 根 K 線，正在整理價格序列`);
+      if (!data.candles?.length) {
+        if (!cancelled) {
+          candleSeriesRef.current?.setData([]);
+          volumeSeriesRef.current?.setData([]);
+          ma20SeriesRef.current?.setData([]);
+          ma60SeriesRef.current?.setData([]);
+          equitySeriesRef.current?.setData([]);
+          positionSeriesRef.current?.setData([]);
+          candleSeriesRef.current?.setMarkers([]);
+          equitySeriesRef.current?.setMarkers([]);
+          setLoading(false);
+          setHasLoadedOnce(true);
+        }
+        return;
+      }
+
+      const candleData = uniqueByTime(data.candles.map((c) => ({
+        time: c.time as Time,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+      })) as CandlestickData<Time>[]);
+      const candleTimes = candleData.map((row) => Number(row.time));
+      const candleLookup = new Map<number, CandlestickData<Time>>();
+      candleData.forEach((row) => candleLookup.set(Number(row.time), row));
+      candleLookupRef.current = candleLookup;
+      candleTimesRef.current = candleTimes;
+      candleSeriesRef.current?.setData(candleData);
+      setProgress(toChartProgress(2));
+      setProgressDetail("價格 K 線已對齊，正在整理 MA 與分數指標");
+
+      volumeSeriesRef.current?.setData(
+        uniqueByTime(data.candles.map((c) => ({
+          time: c.time as Time,
+          value: c.volume,
+          color: c.close >= c.open ? "#26a69a40" : "#ef535040",
+        })) as HistogramData<Time>[])
+      );
+
+      const safeLine = (arr?: (number | null)[]) =>
+        uniqueByTime(
+          (arr || [])
+            .map((value, idx) => ({ time: data.candles[idx]?.time as Time, value }))
+            .filter((row): row is LineData<Time> => typeof row.value === "number")
+        );
+
+      const ma20Data = safeLine(data.indicators?.ma20);
+      const ma60Data = safeLine(data.indicators?.ma60);
+      ma20SeriesRef.current?.setData(ma20Data);
+      ma60SeriesRef.current?.setData(ma60Data);
+      ma20LookupRef.current = new Map(ma20Data.map((row) => [Number(row.time), row.value]));
+      ma60LookupRef.current = new Map(ma60Data.map((row) => [Number(row.time), row.value]));
+
+      const toScoreLine = (selector: (point: ScorePoint) => number | null | undefined) => uniqueByTime(
+        scoreSeries
+          .map((point) => {
+            const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes);
+            const value = selector(point);
+            if (!ts || typeof value !== "number" || !Number.isFinite(value)) return null;
+            return { time: ts as Time, value: value * 100 };
+          })
+          .filter((row): row is LineData<Time> => !!row)
+      );
+      const scoreData = toScoreLine((point) => point.score);
+      const confidenceData = toScoreLine((point) => point.model_confidence);
+      const entryQualityData = toScoreLine((point) => point.entry_quality);
+      scoreSeriesRef.current?.setData(scoreData.length > 0 ? scoreData : entryQualityData);
+      confidenceSeriesRef.current?.setData(confidenceData);
+      scoreLookupRef.current = new Map((scoreData.length > 0 ? scoreData : entryQualityData).map((row) => [Number(row.time), row.value]));
+      entryQualityLookupRef.current = new Map(entryQualityData.map((row) => [Number(row.time), row.value]));
+      confidenceLookupRef.current = new Map(confidenceData.map((row) => [Number(row.time), row.value]));
+      setProgress(toChartProgress(3));
+      setProgressDetail("模型 / 進場分數已整理完成，正在對齊權益曲線");
+
+      const baseEquity = equityCurve[0]?.equity ?? 0;
+      const equityData = baseEquity > 0 && equityCurve.length > 1
+        ? uniqueByTime(
+            equityCurve
+              .map((point) => {
+                const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes);
+                if (!ts) return null;
+                return { time: ts as Time, value: 100 * (point.equity / baseEquity) };
+              })
+              .filter((row): row is LineData<Time> => !!row)
+          )
+        : [];
+      const rawPositionData = uniqueByTime(
+        equityCurve
+          .map((point) => {
+            const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes);
+            const value = typeof point.position_pct === "number" && Number.isFinite(point.position_pct)
+              ? point.position_pct * 100
+              : null;
+            if (!ts || value == null) return null;
+            return { time: ts as Time, value };
+          })
+          .filter((row): row is LineData<Time> => !!row)
+      );
+      const positionData = rawPositionData.length > 0 ? rawPositionData : buildFallbackPositionSeries(tradeMarkers, candleTimes);
+      equitySeriesRef.current?.setData(equityData);
+      positionSeriesRef.current?.setData(positionData);
+      equityLookupRef.current = new Map(equityData.map((row) => [Number(row.time), row.value]));
+      equityTimesRef.current = Array.from(new Set([...equityData.map((row) => Number(row.time)), ...positionData.map((row) => Number(row.time))])).sort((a, b) => a - b);
+      positionLookupRef.current = new Map(positionData.map((row) => [Number(row.time), row.value]));
+      setProgress(toChartProgress(4));
+      setProgressDetail("權益曲線與倉位水位已對齊，正在把買賣 markers 掛到圖上");
+
+      const markers: SeriesMarker<Time>[] = [];
+      const equityMarkers: SeriesMarker<Time>[] = [];
+      for (const trade of tradeMarkers) {
+        const buyTs = alignToCandleTime(toUnix(trade.entry_timestamp), candleTimes);
+        if (buyTs) {
+          const buyMarker = {
+            time: buyTs as Time,
+            position: "belowBar" as const,
+            color: "#38bdf8",
+            shape: "arrowUp" as const,
+            text: trade.layers ? `buy L${trade.layers}` : "buy",
+          };
+          markers.push(buyMarker);
+          equityMarkers.push({ ...buyMarker, text: trade.layers ? `進 L${trade.layers}` : "進" });
+        }
+        const sellTs = alignToCandleTime(toUnix(trade.timestamp), candleTimes);
+        if (sellTs) {
+          const positive = (trade.pnl ?? 0) >= 0;
+          const sellMarker = {
+            time: sellTs as Time,
+            position: "aboveBar" as const,
+            color: positive ? "#22c55e" : "#ef4444",
+            shape: "arrowDown" as const,
+            text: `${trade.reason ?? "exit"}${typeof trade.pnl === "number" ? ` ${trade.pnl.toFixed(0)}` : ""}`,
+          };
+          markers.push(sellMarker);
+          equityMarkers.push({ ...sellMarker, text: positive ? "出 ✓" : "出 ✕" });
+        }
+      }
+      const lastCandleTime = candleTimes[candleTimes.length - 1] ?? null;
+      const normalizedMarkers = markers
+        .filter((marker) => marker.time != null && (lastCandleTime == null || Number(marker.time) <= lastCandleTime))
+        .map((marker) => Number(marker.time) === lastCandleTime ? { ...marker, text: marker.text?.slice(0, 12) ?? "" } : marker)
+        .sort((a, b) => Number(a.time) - Number(b.time));
+      const normalizedEquityMarkers = equityMarkers
+        .filter((marker) => marker.time != null && (lastCandleTime == null || Number(marker.time) <= lastCandleTime))
+        .map((marker) => Number(marker.time) === lastCandleTime ? { ...marker, text: marker.text?.slice(0, 8) ?? "" } : marker)
+        .sort((a, b) => Number(a.time) - Number(b.time));
+      candleSeriesRef.current?.setMarkers(normalizedMarkers);
+      equitySeriesRef.current?.setMarkers(normalizedEquityMarkers);
+      setProgress(toChartProgress(5));
+      setProgressDetail(`買賣點已對齊完成，共 ${normalizedMarkers.length} 個 markers，正在更新視窗`);
+
+      const viewportKey = `${symbol}:${interval}:${since ?? ""}:${until ?? ""}`;
+      if ((options?.updateViewport ?? true) && (!hasLoadedOnce || viewportKeyRef.current !== viewportKey)) {
+        priceChartRef.current?.timeScale().fitContent();
+        equityChartRef.current?.timeScale().fitContent();
+        viewportKeyRef.current = viewportKey;
+      }
+
+      if (!cancelled) {
+        const firstTs = Number(candleData[0]?.time ?? 0);
+        const lastTs = Number(candleData[candleData.length - 1]?.time ?? 0);
+        const lastClose = candleData[candleData.length - 1]?.close ?? null;
+        setLastPrice(lastClose);
+        setLastCandleTime(lastTs || null);
+        setWindowLabel(
+          firstTs && lastTs
+            ? `${new Date(firstTs * 1000).toLocaleString("zh-TW")} → ${new Date(lastTs * 1000).toLocaleString("zh-TW")}`
+            : "—"
+        );
+        if (lastTs) {
+          const lastEquity = findClosestPoint(equityLookupRef.current, equityTimesRef.current, lastTs)?.value;
+          const lastPosition = findClosestPoint(positionLookupRef.current, equityTimesRef.current, lastTs)?.value;
+          setHover({
+            timeLabel: new Date(lastTs * 1000).toLocaleString("zh-TW"),
+            priceText: lastClose != null ? `C ${formatPrice(lastClose)}` : "—",
+            ma20Text: formatPrice(ma20LookupRef.current.get(lastTs)),
+            ma60Text: formatPrice(ma60LookupRef.current.get(lastTs)),
+            equityText: lastEquity != null ? `${lastEquity.toFixed(1)}` : "—",
+            positionText: lastPosition != null ? `${lastPosition.toFixed(0)}%` : "—",
+            scoreText: formatPct(scoreLookupRef.current.get(lastTs)),
+            entryQualityText: formatPct(entryQualityLookupRef.current.get(lastTs)),
+            confidenceText: formatPct(confidenceLookupRef.current.get(lastTs)),
+            source: "price",
+          });
+        }
+        setProgress(toChartProgress(6));
+        setProgressDetail(options?.readyDetail || "BTC/USDT 價格圖、買賣點、分數指標與權益曲線已同步完成");
+        setLoading(false);
+        setHasLoadedOnce(true);
+      }
+    };
+
     const fetchAndSetData = async () => {
       try {
         setLoading(true);
@@ -481,205 +748,49 @@ export default function CandlestickChart({
         if (until) params.set("until", `${until}`);
         const cacheKey = `${symbol}:${interval}:${since ?? ""}:${until ?? ""}:${limit}`;
         const cachedPayload = loadCachedChartPayload(cacheKey);
-        const data: KlineResponse = cachedPayload ?? await (async () => {
-          const resp = await fetch(buildApiUrl(`/api/chart/klines?${params.toString()}`));
-          if (!resp.ok) throw new Error(`${resp.status}`);
-          const payload: KlineResponse = await resp.json();
-          saveCachedChartPayload(cacheKey, payload);
-          return payload;
-        })();
-        setProgress(toChartProgress(1));
-        setProgressDetail(`已取得 ${data.candles?.length ?? 0} 根 K 線，正在整理價格序列`);
-        if (!data.candles?.length) {
-          if (!cancelled) {
-            candleSeriesRef.current?.setData([]);
-            volumeSeriesRef.current?.setData([]);
-            ma20SeriesRef.current?.setData([]);
-            ma60SeriesRef.current?.setData([]);
-            equitySeriesRef.current?.setData([]);
-            positionSeriesRef.current?.setData([]);
-            candleSeriesRef.current?.setMarkers([]);
-            equitySeriesRef.current?.setMarkers([]);
-            setLoading(false);
-            setHasLoadedOnce(true);
+
+        if (cachedPayload) {
+          await applyChartData(cachedPayload, {
+            updateViewport: !hasLoadedOnce,
+            readyDetail: "已從本地快取還原價格圖與權益曲線。",
+          });
+          if (!shouldIncrementallyRefresh(cachedPayload, interval, until)) {
+            return;
           }
+          setLoading(true);
+          setProgress(toChartProgress(0));
+          setProgressDetail("已載入本地快取，正在補抓最新 K 線差異");
+          const lastCachedCandle = cachedPayload.candles[cachedPayload.candles.length - 1];
+          if (!lastCachedCandle) {
+            setLoading(false);
+            return;
+          }
+          const incrementalParams = new URLSearchParams({ symbol, interval, limit: `${limit}`, append_after: `${lastCachedCandle.time * 1000}` });
+          if (since) incrementalParams.set("since", `${since}`);
+          if (until) incrementalParams.set("until", `${until}`);
+          const incrementalResp = await fetch(buildApiUrl(`/api/chart/klines?${incrementalParams.toString()}`));
+          if (!incrementalResp.ok) throw new Error(`${incrementalResp.status}`);
+          const incrementalPayload: KlineResponse = await incrementalResp.json();
+          if (!incrementalPayload.candles?.length) {
+            setProgress(toChartProgress(6));
+            setProgressDetail("本地快取已是最新，無需重新完整刷新。");
+            setLoading(false);
+            return;
+          }
+          const mergedPayload = mergeKlinePayload(cachedPayload, incrementalPayload);
+          saveCachedChartPayload(cacheKey, mergedPayload);
+          await applyChartData(mergedPayload, {
+            updateViewport: false,
+            readyDetail: `已從本地快取還原，並補上 ${incrementalPayload.candles.length} 根新 K 線。`,
+          });
           return;
         }
 
-        const candleData = uniqueByTime(data.candles.map((c) => ({
-          time: c.time as Time,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        })) as CandlestickData<Time>[]);
-        const candleTimes = candleData.map((row) => Number(row.time));
-        const candleLookup = new Map<number, CandlestickData<Time>>();
-        candleData.forEach((row) => candleLookup.set(Number(row.time), row));
-        candleLookupRef.current = candleLookup;
-        candleTimesRef.current = candleTimes;
-        candleSeriesRef.current?.setData(candleData);
-        setProgress(toChartProgress(2));
-        setProgressDetail("價格 K 線已對齊，正在整理 MA 與分數指標");
-
-        volumeSeriesRef.current?.setData(
-          uniqueByTime(data.candles.map((c) => ({
-            time: c.time as Time,
-            value: c.volume,
-            color: c.close >= c.open ? "#26a69a40" : "#ef535040",
-          })) as HistogramData<Time>[])
-        );
-
-        const safeLine = (arr?: (number | null)[]) =>
-          uniqueByTime(
-            (arr || [])
-              .map((value, idx) => ({ time: data.candles[idx]?.time as Time, value }))
-              .filter((row): row is LineData<Time> => typeof row.value === "number")
-          );
-
-        const ma20Data = safeLine(data.indicators?.ma20);
-        const ma60Data = safeLine(data.indicators?.ma60);
-        ma20SeriesRef.current?.setData(ma20Data);
-        ma60SeriesRef.current?.setData(ma60Data);
-        ma20LookupRef.current = new Map(ma20Data.map((row) => [Number(row.time), row.value]));
-        ma60LookupRef.current = new Map(ma60Data.map((row) => [Number(row.time), row.value]));
-
-        const toScoreLine = (selector: (point: ScorePoint) => number | null | undefined) => uniqueByTime(
-          scoreSeries
-            .map((point) => {
-              const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes);
-              const value = selector(point);
-              if (!ts || typeof value !== "number" || !Number.isFinite(value)) return null;
-              return { time: ts as Time, value: value * 100 };
-            })
-            .filter((row): row is LineData<Time> => !!row)
-        );
-        const scoreData = toScoreLine((point) => point.score);
-        const confidenceData = toScoreLine((point) => point.model_confidence);
-        const entryQualityData = toScoreLine((point) => point.entry_quality);
-        scoreSeriesRef.current?.setData(scoreData.length > 0 ? scoreData : entryQualityData);
-        confidenceSeriesRef.current?.setData(confidenceData);
-        scoreLookupRef.current = new Map((scoreData.length > 0 ? scoreData : entryQualityData).map((row) => [Number(row.time), row.value]));
-        entryQualityLookupRef.current = new Map(entryQualityData.map((row) => [Number(row.time), row.value]));
-        confidenceLookupRef.current = new Map(confidenceData.map((row) => [Number(row.time), row.value]));
-        setProgress(toChartProgress(3));
-        setProgressDetail("模型 / 進場分數已整理完成，正在對齊權益曲線");
-
-        const baseEquity = equityCurve[0]?.equity ?? 0;
-        const equityData = baseEquity > 0 && equityCurve.length > 1
-          ? uniqueByTime(
-              equityCurve
-                .map((point) => {
-                  const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes);
-                  if (!ts) return null;
-                  return { time: ts as Time, value: 100 * (point.equity / baseEquity) };
-                })
-                .filter((row): row is LineData<Time> => !!row)
-            )
-          : [];
-        const rawPositionData = uniqueByTime(
-          equityCurve
-            .map((point) => {
-              const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes);
-              const value = typeof point.position_pct === "number" && Number.isFinite(point.position_pct)
-                ? point.position_pct * 100
-                : null;
-              if (!ts || value == null) return null;
-              return { time: ts as Time, value };
-            })
-            .filter((row): row is LineData<Time> => !!row)
-        );
-        const positionData = rawPositionData.length > 0 ? rawPositionData : buildFallbackPositionSeries(tradeMarkers, candleTimes);
-        equitySeriesRef.current?.setData(equityData);
-        positionSeriesRef.current?.setData(positionData);
-        equityLookupRef.current = new Map(equityData.map((row) => [Number(row.time), row.value]));
-        equityTimesRef.current = Array.from(new Set([...equityData.map((row) => Number(row.time)), ...positionData.map((row) => Number(row.time))])).sort((a, b) => a - b);
-        positionLookupRef.current = new Map(positionData.map((row) => [Number(row.time), row.value]));
-        setProgress(toChartProgress(4));
-        setProgressDetail("權益曲線與倉位水位已對齊，正在把買賣 markers 掛到圖上");
-
-        const markers: SeriesMarker<Time>[] = [];
-        const equityMarkers: SeriesMarker<Time>[] = [];
-        for (const trade of tradeMarkers) {
-          const buyTs = alignToCandleTime(toUnix(trade.entry_timestamp), candleTimes);
-          if (buyTs) {
-            const buyMarker = {
-              time: buyTs as Time,
-              position: "belowBar" as const,
-              color: "#38bdf8",
-              shape: "arrowUp" as const,
-              text: trade.layers ? `buy L${trade.layers}` : "buy",
-            };
-            markers.push(buyMarker);
-            equityMarkers.push({ ...buyMarker, text: trade.layers ? `進 L${trade.layers}` : "進" });
-          }
-          const sellTs = alignToCandleTime(toUnix(trade.timestamp), candleTimes);
-          if (sellTs) {
-            const positive = (trade.pnl ?? 0) >= 0;
-            const sellMarker = {
-              time: sellTs as Time,
-              position: "aboveBar" as const,
-              color: positive ? "#22c55e" : "#ef4444",
-              shape: "arrowDown" as const,
-              text: `${trade.reason ?? "exit"}${typeof trade.pnl === "number" ? ` ${trade.pnl.toFixed(0)}` : ""}`,
-            };
-            markers.push(sellMarker);
-            equityMarkers.push({ ...sellMarker, text: positive ? "出 ✓" : "出 ✕" });
-          }
-        }
-        const lastCandleTime = candleTimes[candleTimes.length - 1] ?? null;
-        const normalizedMarkers = markers
-          .filter((marker) => marker.time != null && (lastCandleTime == null || Number(marker.time) <= lastCandleTime))
-          .map((marker) => Number(marker.time) === lastCandleTime ? { ...marker, text: marker.text?.slice(0, 12) ?? "" } : marker)
-          .sort((a, b) => Number(a.time) - Number(b.time));
-        const normalizedEquityMarkers = equityMarkers
-          .filter((marker) => marker.time != null && (lastCandleTime == null || Number(marker.time) <= lastCandleTime))
-          .map((marker) => Number(marker.time) === lastCandleTime ? { ...marker, text: marker.text?.slice(0, 8) ?? "" } : marker)
-          .sort((a, b) => Number(a.time) - Number(b.time));
-        candleSeriesRef.current?.setMarkers(normalizedMarkers);
-        equitySeriesRef.current?.setMarkers(normalizedEquityMarkers);
-        setProgress(toChartProgress(5));
-        setProgressDetail(`買賣點已對齊完成，共 ${normalizedMarkers.length} 個 markers，正在更新視窗`);
-
-        const viewportKey = `${symbol}:${interval}:${since ?? ""}:${until ?? ""}`;
-        if (!hasLoadedOnce || viewportKeyRef.current !== viewportKey) {
-          priceChartRef.current?.timeScale().fitContent();
-          equityChartRef.current?.timeScale().fitContent();
-          viewportKeyRef.current = viewportKey;
-        }
-
-        if (!cancelled) {
-          const firstTs = Number(candleData[0]?.time ?? 0);
-          const lastTs = Number(candleData[candleData.length - 1]?.time ?? 0);
-          const lastClose = candleData[candleData.length - 1]?.close ?? null;
-          setLastPrice(lastClose);
-          setLastCandleTime(lastTs || null);
-          setWindowLabel(
-            firstTs && lastTs
-              ? `${new Date(firstTs * 1000).toLocaleString("zh-TW")} → ${new Date(lastTs * 1000).toLocaleString("zh-TW")}`
-              : "—"
-          );
-          if (lastTs) {
-            const lastEquity = findClosestPoint(equityLookupRef.current, equityTimesRef.current, lastTs)?.value;
-            const lastPosition = findClosestPoint(positionLookupRef.current, equityTimesRef.current, lastTs)?.value;
-            setHover({
-              timeLabel: new Date(lastTs * 1000).toLocaleString("zh-TW"),
-              priceText: lastClose != null ? `C ${formatPrice(lastClose)}` : "—",
-              ma20Text: formatPrice(ma20LookupRef.current.get(lastTs)),
-              ma60Text: formatPrice(ma60LookupRef.current.get(lastTs)),
-              equityText: lastEquity != null ? `${lastEquity.toFixed(1)}` : "—",
-              positionText: lastPosition != null ? `${lastPosition.toFixed(0)}%` : "—",
-              scoreText: formatPct(scoreLookupRef.current.get(lastTs)),
-              entryQualityText: formatPct(entryQualityLookupRef.current.get(lastTs)),
-              confidenceText: formatPct(confidenceLookupRef.current.get(lastTs)),
-              source: "price",
-            });
-          }
-          setProgress(toChartProgress(6));
-          setProgressDetail("BTC/USDT 價格圖、買賣點、分數指標與權益曲線已同步完成");
-          setLoading(false);
-          setHasLoadedOnce(true);
-        }
+        const resp = await fetch(buildApiUrl(`/api/chart/klines?${params.toString()}`));
+        if (!resp.ok) throw new Error(`${resp.status}`);
+        const payload: KlineResponse = await resp.json();
+        saveCachedChartPayload(cacheKey, payload);
+        await applyChartData(payload, { updateViewport: true });
       } catch (e: any) {
         if (!cancelled) {
           setError(e.message || "Failed to load chart data");

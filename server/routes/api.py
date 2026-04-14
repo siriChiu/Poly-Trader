@@ -8,7 +8,7 @@ import sqlite3
 import threading
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 from fastapi import APIRouter, Query, HTTPException
@@ -37,6 +37,7 @@ _KLINE_RESPONSE_CACHE: Dict[str, Dict[str, Any]] = {}
 _STRATEGY_RUN_LOCK = threading.Lock()
 _STRATEGY_RUN_JOBS: Dict[str, Dict[str, Any]] = {}
 _STRATEGY_RUN_EXECUTOR = ThreadPoolExecutor(max_workers=2)
+_BENCHMARK_PROCESS_EXECUTOR = ProcessPoolExecutor(max_workers=1)
 _HYBRID_MODEL_LOCK = threading.Lock()
 _HYBRID_MODEL_CACHE: Dict[str, Dict[str, Any]] = {}
 
@@ -48,6 +49,8 @@ _INTERVAL_MS = {
     "4h": 14_400_000,
     "1d": 86_400_000,
 }
+
+_KLINE_INCREMENTAL_WARMUP_CANDLES = 90
 
 
 def _interval_ms(interval: str) -> int:
@@ -115,6 +118,99 @@ def _calc_ma_at(data, period, i):
     s = max(0, i - period + 1)
     n = i - s + 1
     return sum(data[s:i + 1]) / n if n > 0 else 0
+
+
+def _compute_chart_indicators(ohlcv: List[List[float]]) -> Dict[str, Any]:
+    closes = [float(row[4]) for row in ohlcv]
+    indicators: Dict[str, Any] = {
+        "ma20": [],
+        "ma60": [],
+        "rsi": [],
+        "macd": [],
+        "signal": [],
+        "histogram": [],
+    }
+    for i in range(len(closes)):
+        indicators["ma20"].append(round(_calc_ma_at(closes, 20, i), 2))
+        indicators["ma60"].append(round(_calc_ma_at(closes, 60, i), 2))
+
+    if len(closes) >= 15:
+        avg_g = [0.0] * len(closes)
+        avg_l = [0.0] * len(closes)
+        for i in range(1, len(closes)):
+            d = closes[i] - closes[i - 1]
+            if i < 14:
+                if d > 0:
+                    avg_g[i] = d
+                if d < 0:
+                    avg_l[i] = -d
+            else:
+                avg_g[i] = (avg_g[i - 1] * 13 + max(d, 0)) / 14
+                avg_l[i] = (avg_l[i - 1] * 13 + max(-d, 0)) / 14
+        indicators["rsi"] = [
+            round(100 - 100 / (1 + (g / l if l > 0 else 999)), 1) if g + l > 0 else 50
+            for g, l in zip(avg_g, avg_l)
+        ]
+
+    if len(closes) >= 26:
+        def _ema(values: List[float], period: int) -> List[float]:
+            k = 2 / (period + 1)
+            result = [values[0]]
+            for value in values[1:]:
+                result.append(result[-1] * (1 - k) + value * k)
+            return result
+
+        ema12 = _ema(closes, 12)
+        ema26 = _ema(closes, 26)
+        macd_line = [fast - slow for fast, slow in zip(ema12, ema26)]
+        signal_line = _ema(macd_line[25:], 9)
+        signal_line = [None] * 25 + signal_line
+        indicators["macd"] = [round(value, 4) if value is not None else None for value in macd_line]
+        indicators["signal"] = [round(value, 4) if value is not None else None for value in signal_line]
+        indicators["histogram"] = [
+            round(macd - signal, 4) if macd is not None and signal is not None else None
+            for macd, signal in zip(macd_line, signal_line)
+        ]
+
+    return indicators
+
+
+def _build_chart_payload(symbol: str, interval: str, ohlcv: List[List[float]]) -> Dict[str, Any]:
+    return {
+        "symbol": symbol,
+        "interval": interval,
+        "candles": [
+            {
+                "time": int(row[0] / 1000),
+                "open": row[1],
+                "high": row[2],
+                "low": row[3],
+                "close": row[4],
+                "volume": row[5],
+            }
+            for row in ohlcv
+        ],
+        "indicators": _compute_chart_indicators(ohlcv),
+    }
+
+
+def _slice_chart_payload(payload: Dict[str, Any], start_index: int) -> Dict[str, Any]:
+    if start_index <= 0:
+        return payload
+    indicators = payload.get("indicators") or {}
+    return {
+        "symbol": payload.get("symbol"),
+        "interval": payload.get("interval"),
+        "candles": (payload.get("candles") or [])[start_index:],
+        "indicators": {
+            "ma20": (indicators.get("ma20") or [])[start_index:],
+            "ma60": (indicators.get("ma60") or [])[start_index:],
+            "rsi": (indicators.get("rsi") or [])[start_index:],
+            "macd": (indicators.get("macd") or [])[start_index:],
+            "signal": (indicators.get("signal") or [])[start_index:],
+            "histogram": (indicators.get("histogram") or [])[start_index:],
+        },
+    }
 
 
 def _calc_max_dd(eq):
@@ -343,60 +439,43 @@ async def api_klines(
     limit: int = 500,
     since: Optional[int] = Query(default=None),
     until: Optional[int] = Query(default=None),
+    append_after: Optional[int] = Query(default=None),
 ):
-    cache_key = _build_cache_key("chart_klines", symbol, interval, limit, since or "", until or "")
+    since = since if isinstance(since, (int, float)) else None
+    until = until if isinstance(until, (int, float)) else None
+    append_after = append_after if isinstance(append_after, (int, float)) else None
+    cache_key = _build_cache_key("chart_klines", symbol, interval, limit, since or "", until or "", append_after or "")
     with _KLINE_CACHE_LOCK:
         cached = _KLINE_RESPONSE_CACHE.get(cache_key)
         if cached and (time.time() - cached.get("updated_at", 0.0) < 180):
             return cached["payload"]
     try:
-        exchange = ccxt.binance()
+        interval_ms = _interval_ms(interval)
         fetch_limit = max(min(limit, 1000), 50)
-        ohlcv = exchange.fetch_ohlcv(symbol, interval, since=since, limit=fetch_limit)
+        fetch_since = since
+        trim_after_time = append_after
+        if append_after is not None:
+            warmup_window_ms = interval_ms * _KLINE_INCREMENTAL_WARMUP_CANDLES
+            warmup_since = max(0, append_after - warmup_window_ms)
+            fetch_since = max(since or 0, warmup_since) if since is not None else warmup_since
+            if until is not None and until > fetch_since:
+                incremental_span = max(until - fetch_since, interval_ms)
+                fetch_limit = max(fetch_limit, min(1000, math.ceil(incremental_span / interval_ms) + 5))
+
+        exchange = ccxt.binance()
+        ohlcv = exchange.fetch_ohlcv(symbol, interval, since=fetch_since, limit=fetch_limit)
         if until is not None:
             ohlcv = [row for row in ohlcv if row[0] <= until]
-        candles = [{"time": int(b[0] / 1000), "open": b[1], "high": b[2],
-                     "low": b[3], "close": b[4], "volume": b[5]} for b in ohlcv]
-        closes = [b[4] for b in ohlcv]
-        indicators = {"ma20": [], "ma60": [], "rsi": [], "macd": None,
-                      "signal": [], "histogram": []}
-        for i in range(len(closes)):
-            indicators["ma20"].append(round(_calc_ma_at(closes, 20, i), 2))
-            indicators["ma60"].append(round(_calc_ma_at(closes, 60, i), 2))
-        if len(closes) >= 15:
-            avg_g = [0] * len(closes)
-            avg_l = [0] * len(closes)
-            for i in range(1, len(closes)):
-                d = closes[i] - closes[i - 1]
-                if i < 14:
-                    if d > 0:
-                        avg_g[i] = d
-                    if d < 0:
-                        avg_l[i] = -d
-                else:
-                    avg_g[i] = (avg_g[i - 1] * 13 + max(d, 0)) / 14
-                    avg_l[i] = (avg_l[i - 1] * 13 + max(-d, 0)) / 14
-            indicators["rsi"] = [
-                round(100 - 100 / (1 + (g / l if l > 0 else 999)), 1)
-                if g + l > 0 else 50 for g, l in zip(avg_g, avg_l)]
-        if len(closes) >= 26:
-            def _ema(v, period):
-                k = 2 / (period + 1)
-                r = [v[0]]
-                for x in v[1:]:
-                    r.append(r[-1] * (1 - k) + x * k)
-                return r
-            ema12 = _ema(closes, 12)
-            ema26 = _ema(closes, 26)
-            macd_l = [f - s for f, s in zip(ema12, ema26)]
-            signal_l = _ema(macd_l[26 - 1:], 9)
-            signal_l = [None] * (26 - 1) + signal_l
-            indicators["macd"] = [round(m, 4) if m is not None else None for m in macd_l]
-            indicators["signal"] = [round(s, 4) if s is not None else None for s in signal_l]
-            indicators["histogram"] = [
-                round(m - s, 4) if (m is not None and s is not None) else None
-                for m, s in zip(macd_l, signal_l)]
-        payload = {"symbol": symbol, "candles": candles, "indicators": indicators}
+        payload = _build_chart_payload(symbol, interval, ohlcv)
+        if trim_after_time is not None:
+            trim_index = 0
+            while trim_index < len(ohlcv) and int(ohlcv[trim_index][0]) <= trim_after_time:
+                trim_index += 1
+            payload = _slice_chart_payload(payload, trim_index)
+            payload["incremental"] = True
+            payload["append_after"] = int(trim_after_time / 1000)
+        else:
+            payload["incremental"] = False
         with _KLINE_CACHE_LOCK:
             _KLINE_RESPONSE_CACHE[cache_key] = {"updated_at": time.time(), "payload": payload}
         return payload
@@ -1079,7 +1158,7 @@ def _build_strategy_score_series(
     return points
 
 
-def _compute_backtest_benchmarks(
+def _compute_blind_pyramid_benchmark(
     prices: List[float],
     timestamps: List[str],
     bias50: List[float],
@@ -1096,17 +1175,12 @@ def _compute_backtest_benchmarks(
 ) -> Dict[str, Any]:
     from backtesting.strategy_lab import run_rule_backtest
 
-    buy_hold_roi = 0.0
-    if prices and prices[0]:
-        buy_hold_roi = (prices[-1] - prices[0]) / prices[0]
-
     blind_params = json.loads(json.dumps(params or {}))
     blind_entry = blind_params.setdefault("entry", {})
     blind_entry["bias50_max"] = 999.0
     blind_entry["nose_max"] = 1.0
     blind_entry["pulse_min"] = 0.0
     blind_entry["regime_bias200_min"] = -999.0
-
     blind_result = run_rule_backtest(
         prices,
         timestamps,
@@ -1122,17 +1196,74 @@ def _compute_backtest_benchmarks(
         dist_bb_lower_4h=dist_bb_lower_4h,
         dist_swing_low_4h=dist_swing_low_4h,
     )
-    blind_summary = _summarize_trades(blind_result.trades, initial_capital)
+    return {
+        "label": "盲金字塔",
+        **_summarize_trades(blind_result.trades, initial_capital),
+    }
+
+
+def _compute_backtest_benchmarks(
+    prices: List[float],
+    timestamps: List[str],
+    bias50: List[float],
+    bias200: List[float],
+    nose: List[float],
+    pulse: List[float],
+    ear: List[float],
+    regimes: List[str],
+    initial_capital: float,
+    params: Dict[str, Any],
+    bb_pct_b_4h: Optional[List[float]] = None,
+    dist_bb_lower_4h: Optional[List[float]] = None,
+    dist_swing_low_4h: Optional[List[float]] = None,
+) -> Dict[str, Any]:
+    buy_hold_roi = 0.0
+    if prices and prices[0]:
+        buy_hold_roi = (prices[-1] - prices[0]) / prices[0]
+    buy_hold_summary = {
+        "label": "買入持有",
+        "roi": round(buy_hold_roi, 4),
+    }
+
+    blind_future = _BENCHMARK_PROCESS_EXECUTOR.submit(
+        _compute_blind_pyramid_benchmark,
+        prices,
+        timestamps,
+        bias50,
+        bias200,
+        nose,
+        pulse,
+        ear,
+        regimes,
+        initial_capital,
+        params,
+        bb_pct_b_4h,
+        dist_bb_lower_4h,
+        dist_swing_low_4h,
+    )
+    try:
+        blind_summary = blind_future.result(timeout=180)
+    except Exception:
+        logger.exception("Blind benchmark process failed; falling back to in-process execution")
+        blind_summary = _compute_blind_pyramid_benchmark(
+            prices,
+            timestamps,
+            bias50,
+            bias200,
+            nose,
+            pulse,
+            ear,
+            regimes,
+            initial_capital,
+            params,
+            bb_pct_b_4h=bb_pct_b_4h,
+            dist_bb_lower_4h=dist_bb_lower_4h,
+            dist_swing_low_4h=dist_swing_low_4h,
+        )
 
     return {
-        "buy_hold": {
-            "label": "買入持有",
-            "roi": round(buy_hold_roi, 4),
-        },
-        "blind_pyramid": {
-            "label": "盲金字塔",
-            **blind_summary,
-        },
+        "buy_hold": buy_hold_summary,
+        "blind_pyramid": blind_summary,
     }
 
 
@@ -1236,13 +1367,14 @@ def _empty_strategy_quality_profile(horizon_minutes: int = 1440) -> Dict[str, An
 def _compute_strategy_decision_quality_profile(
     trades: List[Dict[str, Any]],
     db=None,
+    db_path: Optional[str] = None,
     horizon_minutes: int = 1440,
 ) -> Dict[str, Any]:
     profile = _empty_strategy_quality_profile(horizon_minutes=horizon_minutes)
     if not trades:
         return profile
 
-    db_path = _get_sqlite_db_path(db) if db is not None else None
+    db_path = db_path or (_get_sqlite_db_path(db) if db is not None else None)
     if not db_path:
         return profile
 
@@ -2089,21 +2221,29 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
 
     db = get_db()
     try:
+        db_path = _get_sqlite_db_path(db)
         if stype == "rule_based":
             _set_strategy_job_progress(job_id, 22, f"已載入 {len(rows)} 筆資料，正在執行 rule-based 回測。")
-            result = run_rule_backtest(
-                prices, timestamps, bias50, bias200, nose, pulse, ear, params, initial,
-                regimes=regimes,
-                bb_pct_b_4h=bb_pct_b_4h,
-                dist_bb_lower_4h=dist_bb_lower_4h,
-                dist_swing_low_4h=dist_swing_low_4h,
-            )
-            score_series = _build_strategy_score_series(
-                timestamps, bias50, nose, pulse, ear,
-                bb_pct_b_4h=bb_pct_b_4h,
-                dist_bb_lower_4h=dist_bb_lower_4h,
-                dist_swing_low_4h=dist_swing_low_4h,
-            )
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                score_future = executor.submit(
+                    _build_strategy_score_series,
+                    timestamps,
+                    bias50,
+                    nose,
+                    pulse,
+                    ear,
+                    bb_pct_b_4h=bb_pct_b_4h,
+                    dist_bb_lower_4h=dist_bb_lower_4h,
+                    dist_swing_low_4h=dist_swing_low_4h,
+                )
+                result = run_rule_backtest(
+                    prices, timestamps, bias50, bias200, nose, pulse, ear, params, initial,
+                    regimes=regimes,
+                    bb_pct_b_4h=bb_pct_b_4h,
+                    dist_bb_lower_4h=dist_bb_lower_4h,
+                    dist_swing_low_4h=dist_swing_low_4h,
+                )
+                score_series = score_future.result()
         elif stype == "hybrid":
             model_name = str(params.get("model_name") or "xgboost")
             _set_strategy_job_progress(job_id, 24, f"Hybrid 模式：正在準備 {model_name} 訓練資料。")
@@ -2147,35 +2287,61 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
                     }
             conf = [confidence_map.get(ts, max(0.0, min(1.0, 1.0 - b / 20.0))) for ts, b in zip(timestamps, bias50)]
             _set_strategy_job_progress(job_id, 58, f"Hybrid 模式：{model_name} 已就緒，正在執行回測。")
-            result = run_hybrid_backtest(
-                prices, timestamps, bias50, bias200, nose, pulse, ear, conf, params, initial,
-                regimes=regimes,
-                bb_pct_b_4h=bb_pct_b_4h,
-                dist_bb_lower_4h=dist_bb_lower_4h,
-                dist_swing_low_4h=dist_swing_low_4h,
-            )
-            score_series = _build_strategy_score_series(
-                timestamps, bias50, nose, pulse, ear, conf,
-                bb_pct_b_4h=bb_pct_b_4h,
-                dist_bb_lower_4h=dist_bb_lower_4h,
-                dist_swing_low_4h=dist_swing_low_4h,
-            )
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                score_future = executor.submit(
+                    _build_strategy_score_series,
+                    timestamps,
+                    bias50,
+                    nose,
+                    pulse,
+                    ear,
+                    conf,
+                    bb_pct_b_4h=bb_pct_b_4h,
+                    dist_bb_lower_4h=dist_bb_lower_4h,
+                    dist_swing_low_4h=dist_swing_low_4h,
+                )
+                result = run_hybrid_backtest(
+                    prices, timestamps, bias50, bias200, nose, pulse, ear, conf, params, initial,
+                    regimes=regimes,
+                    bb_pct_b_4h=bb_pct_b_4h,
+                    dist_bb_lower_4h=dist_bb_lower_4h,
+                    dist_swing_low_4h=dist_swing_low_4h,
+                )
+                score_series = score_future.result()
         else:
             return {"error": f"Unknown strategy type: {stype}"}
 
-        _set_strategy_job_progress(job_id, 76, "回測核心完成，正在計算 benchmark 與決策品質摘要。")
-        benchmarks = _compute_backtest_benchmarks(
-            prices, timestamps, bias50, bias200, nose, pulse, ear, regimes, initial, params,
-            bb_pct_b_4h=bb_pct_b_4h,
-            dist_bb_lower_4h=dist_bb_lower_4h,
-            dist_swing_low_4h=dist_swing_low_4h,
-        )
+        _set_strategy_job_progress(job_id, 76, "回測核心完成，正在平行計算 benchmark、決策品質摘要與圖表上下文。")
         chart_context = _build_strategy_chart_context(timestamps)
         recent_equity_curve = result.equity_curve[-300:] if result.equity_curve else []
         recent_trades = result.trades[-80:] if result.trades else []
         strat_def = {"type": stype, "params": params}
-        decision_profile = _compute_decision_profile(result.trades)
-        canonical_quality_profile = _compute_strategy_decision_quality_profile(result.trades, db=db)
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            benchmarks_future = executor.submit(
+                _compute_backtest_benchmarks,
+                prices,
+                timestamps,
+                bias50,
+                bias200,
+                nose,
+                pulse,
+                ear,
+                regimes,
+                initial,
+                params,
+                bb_pct_b_4h=bb_pct_b_4h,
+                dist_bb_lower_4h=dist_bb_lower_4h,
+                dist_swing_low_4h=dist_swing_low_4h,
+            )
+            decision_profile_future = executor.submit(_compute_decision_profile, result.trades)
+            canonical_quality_future = executor.submit(
+                _compute_strategy_decision_quality_profile,
+                result.trades,
+                db_path=db_path,
+            )
+            benchmarks = benchmarks_future.result()
+            decision_profile = decision_profile_future.result()
+            canonical_quality_profile = canonical_quality_future.result()
         capital_management = params.get("capital_management") if isinstance(params.get("capital_management"), dict) else {}
         results_dict = {
             "roi": round(result.roi, 4),

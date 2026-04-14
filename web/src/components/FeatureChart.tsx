@@ -49,6 +49,8 @@ interface KlineCandle {
 
 interface KlineResponse {
   candles: KlineCandle[];
+  incremental?: boolean;
+  append_after?: number;
 }
 
 interface FeatureCoverageMeta {
@@ -189,6 +191,9 @@ const TIMEFRAMES = [
   { label: "30D", days: 30 },
 ];
 
+const FEATURE_CHART_KLINE_CACHE_KEY_PREFIX = "polytrader.featurechart.klines.v1";
+const FEATURE_CHART_KLINE_MEMORY_CACHE = new Map<string, KlineResponse>();
+
 // ─── Helpers ───
 
 function formatTime(ts: number): string {
@@ -202,6 +207,42 @@ function formatTime(ts: number): string {
 function formatPrice(v: number): string {
   if (v >= 1000) return `$${(v / 1000).toFixed(1)}k`;
   return `$${v.toFixed(0)}`;
+}
+
+function loadCachedFeatureChartKlines(cacheKey: string): KlineResponse | null {
+  if (FEATURE_CHART_KLINE_MEMORY_CACHE.has(cacheKey)) {
+    return FEATURE_CHART_KLINE_MEMORY_CACHE.get(cacheKey) ?? null;
+  }
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(`${FEATURE_CHART_KLINE_CACHE_KEY_PREFIX}:${cacheKey}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as KlineResponse;
+    FEATURE_CHART_KLINE_MEMORY_CACHE.set(cacheKey, parsed);
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedFeatureChartKlines(cacheKey: string, payload: KlineResponse) {
+  FEATURE_CHART_KLINE_MEMORY_CACHE.set(cacheKey, payload);
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(`${FEATURE_CHART_KLINE_CACHE_KEY_PREFIX}:${cacheKey}`, JSON.stringify(payload));
+  } catch {
+    // ignore quota issues
+  }
+}
+
+function mergeFeatureChartKlines(base: KlineResponse, incoming: KlineResponse): KlineResponse {
+  const candleMap = new Map<number, KlineCandle>();
+  for (const candle of base.candles || []) candleMap.set(candle.time, candle);
+  for (const candle of incoming.candles || []) candleMap.set(candle.time, candle);
+  return {
+    candles: Array.from(candleMap.values()).sort((a, b) => a.time - b.time),
+    incremental: false,
+  };
 }
 
 /** Combine only core-score features into a recommendation score 0–100. */
@@ -490,7 +531,7 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
       try {
         const interval = days <= 1 ? "15m" : days <= 7 ? "1h" : "4h";
         const limit = days <= 1 ? 96 : days <= 7 ? 168 : 180;
-        const totalSteps = 5;
+        const totalSteps = 6;
         let completedSteps = 0;
         const advance = (detail: string) => {
           completedSteps += 1;
@@ -498,12 +539,33 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
           setLoadingDetail(detail);
         };
 
-        const [features, coverageResp, klines] = await Promise.all([
+        const klineCacheKey = `BTCUSDT:${interval}:${limit}`;
+        const cachedKlines = loadCachedFeatureChartKlines(klineCacheKey);
+        const [features, coverageResp, initialKlines] = await Promise.all([
           fetchApi<FeatureRow[]>(`/api/features?days=${days}`),
           fetchApi<{ features: Record<string, FeatureCoverageMeta> }>(`/api/features/coverage?days=${Math.max(days, 30)}`),
-          fetchApi<KlineResponse>(`/api/chart/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`),
+          cachedKlines
+            ? Promise.resolve(cachedKlines)
+            : fetchApi<KlineResponse>(`/api/chart/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`),
         ]);
-        advance(`已取得 ${features.length} 筆特徵資料、${klines.candles.length} 根價格 K 線`);
+        let klines = initialKlines;
+        if (!cachedKlines) {
+          saveCachedFeatureChartKlines(klineCacheKey, klines);
+        }
+        advance(`已取得 ${features.length} 筆特徵資料、${klines.candles.length} 根價格 K 線${cachedKlines ? "（本地快取）" : ""}`);
+
+        if (cachedKlines && klines.candles.length > 0) {
+          const lastCached = klines.candles[klines.candles.length - 1];
+          setLoadingDetail("特徵與 coverage 已就緒，正在補抓 FeatureChart 缺少的最新 K 線");
+          const delta = await fetchApi<KlineResponse>(
+            `/api/chart/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}&append_after=${lastCached.time * 1000}`
+          );
+          if (delta.candles?.length) {
+            klines = mergeFeatureChartKlines(klines, delta);
+            saveCachedFeatureChartKlines(klineCacheKey, klines);
+            advance(`FeatureChart 已從本地快取還原，並補上 ${delta.candles.length} 根新 K 線`);
+          }
+        }
 
         if (cancelled) return;
 

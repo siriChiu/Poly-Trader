@@ -1,3 +1,4 @@
+import asyncio
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
@@ -5,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from backtesting import strategy_lab
+from server.routes import api as api_module
 from server.routes.api import (
     _compute_backtest_benchmarks,
     _compute_regime_breakdown,
@@ -13,6 +15,7 @@ from server.routes.api import (
     _compute_strategy_decision_quality_profile,
     _strategy_decision_contract_meta,
     _strategy_leaderboard_sort_key,
+    api_klines,
 )
 
 
@@ -147,6 +150,26 @@ def test_strategy_metadata_explains_rule_baseline_model(isolated_strategies_dir:
     assert "Bias50" in loaded["metadata"]["model_summary"]
 
 
+def test_strategy_metadata_mentions_reserve_capital_mode(isolated_strategies_dir: Path):
+    strategy_lab.save_strategy(
+        "Reserve Mode Demo",
+        {
+            "type": "rule_based",
+            "params": {
+                "entry": {"bias50_max": 0.5, "nose_max": 0.35, "layer2_bias_max": -2.5, "layer3_bias_max": -4.5},
+                "layers": [0.2, 0.3, 0.5],
+                "capital_management": {"mode": "reserve_90", "base_entry_fraction": 0.10, "reserve_trigger_drawdown": 0.10},
+            },
+        },
+        {"roi": 0.05, "win_rate": 0.52},
+    )
+
+    loaded = strategy_lab.load_strategy("Reserve Mode Demo")
+
+    assert loaded is not None
+    assert "先用 10% 建倉" in loaded["metadata"]["description"]
+
+
 def test_compute_regime_breakdown_groups_by_entry_regime():
     trades = [
         {"entry_regime": "bull", "pnl": 100.0},
@@ -174,6 +197,7 @@ def test_compute_backtest_benchmarks_returns_dynamic_buy_hold_and_blind():
             "2026-01-01T03:00:00Z",
         ],
         bias50=[0.0, -2.0, -4.0, 5.0],
+        bias200=[2.0, 2.0, 2.0, 2.0],
         nose=[0.2, 0.2, 0.2, 0.2],
         pulse=[0.6, 0.6, 0.6, 0.6],
         ear=[0.0, 0.0, 0.0, 0.0],
@@ -207,6 +231,46 @@ def test_compute_strategy_risk_flags_low_sample_and_high_drawdown():
     assert "交易數過少" in risk["risk_reasons"]
 
 
+def test_api_klines_incremental_append_only_returns_missing_tail(monkeypatch):
+    base_ts = 1_700_000_000_000
+    interval_ms = 3_600_000
+    rows = [
+        [base_ts + interval_ms * idx, 100 + idx, 101 + idx, 99 + idx, 100.5 + idx, 10 + idx]
+        for idx in range(6)
+    ]
+
+    class DummyExchange:
+        def __init__(self):
+            self.calls = []
+
+        def fetch_ohlcv(self, symbol, interval, since=None, limit=None):
+            self.calls.append({"symbol": symbol, "interval": interval, "since": since, "limit": limit})
+            return rows
+
+    exchange = DummyExchange()
+    monkeypatch.setattr(api_module.ccxt, "binance", lambda: exchange)
+    api_module._KLINE_RESPONSE_CACHE.clear()
+
+    payload = asyncio.run(
+        api_klines(
+            symbol="BTCUSDT",
+            interval="1h",
+            limit=120,
+            since=base_ts,
+            append_after=base_ts + interval_ms * 2,
+        )
+    )
+
+    assert payload["incremental"] is True
+    assert [candle["time"] for candle in payload["candles"]] == [
+        int((base_ts + interval_ms * 3) / 1000),
+        int((base_ts + interval_ms * 4) / 1000),
+        int((base_ts + interval_ms * 5) / 1000),
+    ]
+    assert len(payload["indicators"]["ma20"]) == 3
+    assert exchange.calls[0]["since"] <= base_ts + interval_ms * 2
+
+
 def test_decorate_strategy_entry_adds_risk_fields():
     entry = {
         "name": "Stable Strategy",
@@ -225,6 +289,9 @@ def test_decorate_strategy_entry_adds_risk_fields():
     assert enriched["stability_label"] in {"穩定", "中等"}
     assert enriched["overfit_risk"] == "low"
     assert enriched["trade_sufficiency"] == "high"
+    assert enriched["overall_score"] is not None
+    assert enriched["last_results"]["overall_score"] == enriched["overall_score"]
+    assert enriched["last_results"]["reliability_score"] is not None
 
 
 def test_decorate_strategy_entry_attaches_decision_contract_meta():
@@ -239,9 +306,12 @@ def test_decorate_strategy_entry_attaches_decision_contract_meta():
 
     enriched = _decorate_strategy_entry(entry)
 
-    assert enriched["decision_contract"] == _strategy_decision_contract_meta(horizon_minutes=240)
+    assert enriched["decision_contract"]["target_col"] == _strategy_decision_contract_meta(horizon_minutes=240)["target_col"]
+    assert enriched["decision_contract"]["decision_quality_horizon_minutes"] == 240
+    assert enriched["decision_contract"]["sort_semantics"] is not None
     assert enriched["last_results"]["target_col"] == "simulated_pyramid_win"
     assert enriched["last_results"]["target_label"] == "Canonical Decision Quality"
+    assert enriched["last_results"]["sort_semantics"] is not None
     assert "avg_expected_win_rate" not in enriched["decision_contract"]
 
 
@@ -296,28 +366,54 @@ def test_compute_strategy_decision_quality_profile_uses_canonical_label_fields(t
 
 
 
-def test_strategy_leaderboard_sort_key_prefers_decision_quality_before_roi():
-    high_dq = {
+def test_strategy_leaderboard_sort_key_prefers_overall_and_reliability_before_raw_win_rate():
+    stronger_scorecard = {
         "last_results": {
-            "avg_decision_quality_score": 0.41,
-            "avg_expected_win_rate": 0.71,
-            "avg_expected_drawdown_penalty": 0.14,
-            "roi": 0.06,
-            "total_trades": 40,
+            "overall_score": 0.72,
+            "reliability_score": 0.75,
+            "return_power_score": 0.63,
+            "risk_control_score": 0.71,
+            "capital_efficiency_score": 0.66,
+            "roi": 0.18,
+            "max_drawdown": 0.08,
         }
     }
-    low_dq_high_roi = {
+    weaker_but_flashier = {
         "last_results": {
-            "avg_decision_quality_score": 0.22,
-            "avg_expected_win_rate": 0.61,
-            "avg_expected_drawdown_penalty": 0.28,
-            "roi": 0.22,
-            "total_trades": 40,
+            "overall_score": 0.51,
+            "reliability_score": 0.42,
+            "return_power_score": 0.59,
+            "risk_control_score": 0.38,
+            "capital_efficiency_score": 0.44,
+            "roi": 0.09,
+            "max_drawdown": 0.27,
         }
     }
 
-    assert _strategy_leaderboard_sort_key(high_dq) > _strategy_leaderboard_sort_key(low_dq_high_roi)
+    assert _strategy_leaderboard_sort_key(stronger_scorecard) > _strategy_leaderboard_sort_key(weaker_but_flashier)
 
+
+
+def test_entry_quality_penalizes_4h_collapse_pocket():
+    supportive = strategy_lab._compute_entry_quality(-1.8, 0.22, 0.84, -0.04, 0.88, 8.4, 10.2)
+    collapsing = strategy_lab._compute_entry_quality(-1.8, 0.22, 0.84, -0.04, 0.12, 0.4, 1.7)
+
+    assert supportive > collapsing
+    assert collapsing < 0.68
+
+
+
+def test_compute_regime_gate_downgrades_allow_when_4h_structure_collapses():
+    gate = strategy_lab._compute_regime_gate(
+        2.0,
+        "bull",
+        -10.0,
+        bb_pct_b_value=0.10,
+        dist_bb_lower_value=0.35,
+        dist_swing_low_value=1.5,
+    )
+
+    assert gate == "BLOCK"
 
 
 def test_run_rule_backtest_records_regime_gate_and_entry_quality():
@@ -357,6 +453,49 @@ def test_run_rule_backtest_records_regime_gate_and_entry_quality():
     assert trade["regime_gate"] == "ALLOW"
     assert trade["allowed_layers"] == 3
     assert trade["entry_quality"] > 0.72
+
+
+def test_run_rule_backtest_reserve_mode_uses_10_percent_probe_before_unlocking_reserve():
+    result = strategy_lab.run_rule_backtest(
+        prices=[100.0, 100.0, 89.0, 89.0, 108.0],
+        timestamps=[
+            "2026-01-01T00:00:00Z",
+            "2026-01-01T04:00:00Z",
+            "2026-01-01T08:00:00Z",
+            "2026-01-01T12:00:00Z",
+            "2026-01-01T16:00:00Z",
+        ],
+        bias50=[-1.0, -2.0, -4.8, -5.2, 5.0],
+        bias200=[3.0, 3.0, 3.0, 3.0, 3.0],
+        nose=[0.2, 0.2, 0.18, 0.18, 0.35],
+        pulse=[0.8, 0.82, 0.85, 0.86, 0.4],
+        ear=[0.0, 0.0, 0.0, 0.0, 0.0],
+        params={
+            "entry": {
+                "bias50_max": 1.0,
+                "nose_max": 0.4,
+                "pulse_min": 0.0,
+                "layer2_bias_max": -1.5,
+                "layer3_bias_max": -3.5,
+                "regime_bias200_min": -10.0,
+            },
+            "layers": [0.2, 0.3, 0.5],
+            "capital_management": {"mode": "reserve_90", "base_entry_fraction": 0.10, "reserve_trigger_drawdown": 0.10},
+            "stop_loss": -0.20,
+            "take_profit_bias": 4.0,
+            "take_profit_roi": 0.08,
+        },
+        initial_capital=1000.0,
+        regimes=["bull", "bull", "bull", "bull", "bull"],
+    )
+
+    assert result.total_trades == 1
+    trade = result.trades[0]
+    assert trade["capital_mode"] == "reserve_90"
+    assert trade["layers"] == 3
+    expected_avg_entry = (100.0 * 1.0 + 89.0 * (270.0 / 89.0) + 89.0 * (630.0 / 89.0)) / (1.0 + (270.0 / 89.0) + (630.0 / 89.0))
+    assert trade["entry"] == pytest.approx(expected_avg_entry, rel=1e-3)
+    assert result.total_pnl > 0
 
 
 def test_run_rule_backtest_caps_layers_when_regime_gate_is_caution():
