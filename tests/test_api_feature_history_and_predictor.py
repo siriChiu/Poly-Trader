@@ -205,6 +205,35 @@ def test_live_decision_profile_downgrades_allow_gate_when_4h_structure_collapses
     assert profile["entry_quality_label"] == "C"
 
 
+def test_live_decision_profile_blocks_overextended_allow_lane_even_when_bias200_is_positive():
+    features = {
+        "regime_label": "bull",
+        "feat_4h_bias200": 3.4,
+        "feat_4h_bias50": 4.1,
+        "feat_nose": 0.45,
+        "feat_pulse": 0.5,
+        "feat_ear": 0.02,
+        "feat_4h_bb_pct_b": 1.08,
+        "feat_4h_dist_bb_lower": 10.8,
+        "feat_4h_dist_swing_low": 11.6,
+    }
+
+    profile = predictor_module._build_live_decision_profile(features)
+    debug = predictor_module._compute_live_regime_gate_debug(
+        3.4,
+        "bull",
+        bb_pct_b_value=1.08,
+        dist_bb_lower_value=10.8,
+        dist_swing_low_value=11.6,
+    )
+    expected_gate = strategy_lab._compute_regime_gate(3.4, "bull", -10.0, 1.08, 10.8, 11.6)
+
+    assert debug["final_reason"] == "structure_overextended_block"
+    assert profile["regime_gate"] == "BLOCK"
+    assert profile["allowed_layers"] == 0
+    assert expected_gate == "BLOCK"
+
+
 def test_decision_quality_contract_prefers_matching_gate_and_quality_bucket():
     rows = [
         {
@@ -561,7 +590,24 @@ def test_decision_quality_scope_diagnostics_expose_narrow_and_broad_pathology_la
         "final_reason_counts": {"base_caution_regime_or_bias": 380},
         "base_gate_counts": {"CAUTION": 380},
         "avg_structure_quality": 0.2556,
+        "structure_quality_distribution": {
+            "min": 0.2556,
+            "p25": 0.2556,
+            "p50": 0.2556,
+            "p75": 0.2556,
+            "max": 0.2556,
+        },
+        "structure_quality_gate_bands": {
+            "block_lt_0.15": 0,
+            "caution_0.15_to_0.35": 380,
+            "allow_ge_0.35": 0,
+        },
         "avg_bias200": 0.8,
+        "target_counts": {"loss": 380},
+        "pnl_sign_counts": {"positive": 0, "zero": 0, "negative": 380},
+        "quality_sign_counts": {"positive": 0, "zero": 0, "negative": 380},
+        "canonical_true_negative_rows": 380,
+        "canonical_true_negative_share": 1.0,
         "missing_input_rows": 0,
         "missing_input_feature_counts": {},
     }
@@ -571,7 +617,24 @@ def test_decision_quality_scope_diagnostics_expose_narrow_and_broad_pathology_la
         "final_reason_counts": {"base_allow": 120, "structure_quality_block": 100},
         "base_gate_counts": {"ALLOW": 220},
         "avg_structure_quality": 0.5365,
+        "structure_quality_distribution": {
+            "min": 0.1168,
+            "p25": 0.1168,
+            "p50": 0.8862,
+            "p75": 0.8862,
+            "max": 0.8862,
+        },
+        "structure_quality_gate_bands": {
+            "block_lt_0.15": 100,
+            "caution_0.15_to_0.35": 0,
+            "allow_ge_0.35": 120,
+        },
         "avg_bias200": 1.7182,
+        "target_counts": {"win": 120, "loss": 100},
+        "pnl_sign_counts": {"positive": 120, "zero": 0, "negative": 100},
+        "quality_sign_counts": {"positive": 120, "zero": 0, "negative": 100},
+        "canonical_true_negative_rows": 100,
+        "canonical_true_negative_share": 0.4545,
         "missing_input_rows": 0,
         "missing_input_feature_counts": {},
     }
@@ -693,6 +756,90 @@ def test_decision_quality_contract_clamps_to_worse_regime_specific_d_lane_when_b
 
 
 
+def test_decision_quality_contract_surfaces_toxic_exact_allow_lane_when_broader_scope_is_selected():
+    def _stamp(day: str, idx: int) -> str:
+        hour, minute = divmod(idx, 60)
+        return f"{day}T{hour:02d}:{minute:02d}:00"
+
+    rows = []
+    for i in range(24):
+        rows.append(
+            {
+                "timestamp": _stamp("2026-04-13", i),
+                "symbol": "BTCUSDT",
+                "regime_label": "bull",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "D",
+                "feat_4h_bias200": 2.1,
+                "feat_4h_dist_bb_lower": 6.8,
+                "feat_4h_dist_swing_low": 7.2,
+                "feat_4h_bb_pct_b": 1.16,
+                "simulated_pyramid_win": 1.0 if i < 7 else 0.0,
+                "simulated_pyramid_pnl": 0.0012 if i < 7 else -0.0022,
+                "simulated_pyramid_quality": 0.02 if i < 7 else -0.0153,
+                "simulated_pyramid_drawdown_penalty": 0.22 if i < 7 else 0.331,
+                "simulated_pyramid_time_underwater": 0.39 if i < 7 else 0.707,
+            }
+        )
+    for i in range(103):
+        rows.append(
+            {
+                "timestamp": _stamp("2026-04-12", i),
+                "symbol": "BTCUSDT",
+                "regime_label": "neutral",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "D",
+                "feat_4h_bias200": 1.5,
+                "feat_4h_dist_bb_lower": 4.6,
+                "feat_4h_dist_swing_low": 5.9,
+                "feat_4h_bb_pct_b": 0.81,
+                "simulated_pyramid_win": 1.0 if i < 60 else 0.0,
+                "simulated_pyramid_pnl": 0.006 if i < 60 else -0.001,
+                "simulated_pyramid_quality": 0.18 if i < 60 else 0.04,
+                "simulated_pyramid_drawdown_penalty": 0.14 if i < 60 else 0.22,
+                "simulated_pyramid_time_underwater": 0.33 if i < 60 else 0.49,
+            }
+        )
+
+    contract = predictor_module._summarize_decision_quality_contract(
+        rows,
+        {
+            "regime_label": "bull",
+            "regime_gate": "ALLOW",
+            "entry_quality_label": "D",
+            "decision_profile_version": "phase16_baseline_v2",
+        },
+    )
+
+    assert contract["decision_quality_calibration_scope"] == "regime_gate+entry_quality_label"
+    assert contract["decision_quality_sample_size"] == 127
+    assert contract["decision_quality_exact_live_lane_toxicity_applied"] is True
+    assert contract["decision_quality_exact_live_lane_status"] == "toxic_allow_lane"
+    assert "stays ALLOW but is toxic" in contract["decision_quality_exact_live_lane_reason"]
+    assert contract["decision_quality_exact_live_lane_summary"] == {
+        "scope": "regime_label+regime_gate+entry_quality_label",
+        "rows": 24,
+        "regime_label": "bull",
+        "regime_gate": "ALLOW",
+        "entry_quality_label": "D",
+        "win_rate": 0.2917,
+        "avg_pnl": -0.0012,
+        "avg_quality": -0.005,
+        "avg_drawdown_penalty": 0.2986,
+        "avg_time_underwater": 0.6145,
+        "allow_rows": 24,
+        "allow_share": 1.0,
+        "canonical_true_negative_share": 0.7083,
+        "final_gate_counts": {"ALLOW": 24},
+    }
+    assert contract["expected_win_rate"] == 0.2917
+    assert contract["expected_pyramid_pnl"] == -0.0012
+    assert contract["expected_pyramid_quality"] == -0.005
+    assert contract["expected_drawdown_penalty"] == 0.2986
+    assert contract["expected_time_underwater"] == 0.6145
+
+
+
 def test_recent_scope_pathology_prefers_more_persistent_negative_window_when_scores_tie():
     def _ts(i: int) -> str:
         return f"2026-04-12T{(i // 60):02d}:{(i % 60):02d}:00"
@@ -801,6 +948,33 @@ def test_apply_live_execution_guardrails_blocks_trade_for_recent_distribution_pa
     assert guarded["allowed_layers"] == 0
     assert guarded["execution_guardrail_applied"] is True
     assert "recent_distribution_pathology_blocks_trade" in guarded["execution_guardrail_reason"]
+
+
+def test_apply_live_execution_guardrails_reports_exact_live_lane_toxicity():
+    profile = {
+        "regime_label": "bull",
+        "regime_gate": "ALLOW",
+        "entry_quality": 0.41,
+        "entry_quality_label": "D",
+        "allowed_layers": 2,
+        "decision_profile_version": "phase16_baseline_v2",
+    }
+    contract = {
+        **predictor_module._decision_quality_fallback(),
+        "decision_quality_guardrail_applied": True,
+        "decision_quality_exact_live_lane_toxicity_applied": True,
+        "decision_quality_exact_live_lane_status": "toxic_allow_lane",
+        "decision_quality_label": "D",
+        "decision_quality_score": 0.24,
+    }
+
+    guarded = predictor_module._apply_live_execution_guardrails(profile, contract)
+
+    assert guarded["allowed_layers_raw"] == 2
+    assert guarded["allowed_layers"] == 0
+    assert guarded["execution_guardrail_applied"] is True
+    assert "decision_quality_below_trade_floor" in guarded["execution_guardrail_reason"]
+    assert "exact_live_lane_toxic_allow_lane_blocks_trade" in guarded["execution_guardrail_reason"]
 
 
 def test_predict_applies_execution_guardrail_to_live_result(monkeypatch):

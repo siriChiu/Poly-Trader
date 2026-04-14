@@ -109,6 +109,13 @@ MODEL_SUMMARY_MAP = {
 CAPITAL_MODE_CLASSIC = "classic_pyramid"
 CAPITAL_MODE_RESERVE = "reserve_90"
 
+# Heartbeat #715: the bull ALLOW + D lane still contained a small but fully losing
+# overextended 4H pocket. Mirror predictor.py so Strategy Lab/backtests and live
+# inference share the same ALLOW-lane veto semantics.
+OVEREXTENDED_4H_BB_PCT_B_MIN = 1.0
+OVEREXTENDED_4H_DIST_BB_LOWER_MIN = 10.0
+OVEREXTENDED_4H_DIST_SWING_LOW_MIN = 11.0
+
 
 def _sanitize_json_like(value: Any) -> Any:
     if isinstance(value, dict):
@@ -273,11 +280,31 @@ def _compute_regime_gate(
     # same 4H collapse pocket (`bb_pct_b`, `dist_bb_lower`, `dist_swing_low`).
     # If the higher-timeframe structure is this weak, do not keep advertising an
     # ALLOW gate just because bias200 is positive — downgrade the gate first.
+    if base_gate == "ALLOW" and _is_4h_structure_overextended(
+        bb_pct_b_value=bb_pct_b_value,
+        dist_bb_lower_value=dist_bb_lower_value,
+        dist_swing_low_value=dist_swing_low_value,
+    ):
+        return "BLOCK"
     if base_gate == "ALLOW" and structure_quality < 0.15:
         return "BLOCK"
     if base_gate == "ALLOW" and structure_quality < 0.35:
         return "CAUTION"
     return base_gate
+
+
+def _is_4h_structure_overextended(
+    bb_pct_b_value: Optional[float] = None,
+    dist_bb_lower_value: Optional[float] = None,
+    dist_swing_low_value: Optional[float] = None,
+) -> bool:
+    if bb_pct_b_value is None or dist_bb_lower_value is None or dist_swing_low_value is None:
+        return False
+    return (
+        float(bb_pct_b_value) >= OVEREXTENDED_4H_BB_PCT_B_MIN
+        and float(dist_bb_lower_value) >= OVEREXTENDED_4H_DIST_BB_LOWER_MIN
+        and float(dist_swing_low_value) >= OVEREXTENDED_4H_DIST_SWING_LOW_MIN
+    )
 
 
 def _compute_4h_structure_quality(

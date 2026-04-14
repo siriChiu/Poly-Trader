@@ -53,6 +53,13 @@ CONFIDENCE_HIGH = 0.7   # BUY — high confidence price will rise enough for spo
 CONFIDENCE_LOW = 0.3    # HOLD — low confidence, avoid entering
 LIVE_MAX_LAYERS = 3
 LIVE_REGIME_BIAS200_MIN = -10.0
+# Heartbeat #715: bull ALLOW + D rows with very stretched 4H structure were still
+# passing the gate even though 19 historical rows at/above this pocket went 0/19.
+# Treat this as an explicit ALLOW-lane veto until the gate is retrained with a
+# richer structure-aware bucket instead of monotonic "farther from lower band is better".
+LIVE_4H_OVEREXTENDED_BB_PCT_B_MIN = 1.0
+LIVE_4H_OVEREXTENDED_DIST_BB_LOWER_MIN = 10.0
+LIVE_4H_OVEREXTENDED_DIST_SWING_LOW_MIN = 11.0
 
 # P0 #H426: Bull regime signal inversion
 # Legacy short-selling logic needed inversion in bull markets.
@@ -376,7 +383,14 @@ def _compute_live_regime_gate_debug(
 
     final_gate = base_gate
     final_reason = base_reason
-    if base_gate == "ALLOW" and structure_quality is not None:
+    if base_gate == "ALLOW" and _is_live_4h_structure_overextended(
+        bb_pct_b_value=bb_pct_b_value,
+        dist_bb_lower_value=dist_bb_lower_value,
+        dist_swing_low_value=dist_swing_low_value,
+    ):
+        final_gate = "BLOCK"
+        final_reason = "structure_overextended_block"
+    elif base_gate == "ALLOW" and structure_quality is not None:
         if structure_quality < 0.15:
             final_gate = "BLOCK"
             final_reason = "structure_quality_block"
@@ -420,6 +434,20 @@ def _compute_live_regime_gate(
             dist_swing_low_value=dist_swing_low_value,
         ).get("final_gate")
         or "BLOCK"
+    )
+
+
+def _is_live_4h_structure_overextended(
+    bb_pct_b_value: Optional[float] = None,
+    dist_bb_lower_value: Optional[float] = None,
+    dist_swing_low_value: Optional[float] = None,
+) -> bool:
+    if bb_pct_b_value is None or dist_bb_lower_value is None or dist_swing_low_value is None:
+        return False
+    return (
+        float(bb_pct_b_value) >= LIVE_4H_OVEREXTENDED_BB_PCT_B_MIN
+        and float(dist_bb_lower_value) >= LIVE_4H_OVEREXTENDED_DIST_BB_LOWER_MIN
+        and float(dist_swing_low_value) >= LIVE_4H_OVEREXTENDED_DIST_SWING_LOW_MIN
     )
 
 
@@ -552,6 +580,10 @@ def _decision_quality_fallback(profile_version: str = "phase16_baseline_v2") -> 
         "decision_quality_recent_pathology_window": 0,
         "decision_quality_recent_pathology_alerts": [],
         "decision_quality_recent_pathology_summary": None,
+        "decision_quality_exact_live_lane_toxicity_applied": False,
+        "decision_quality_exact_live_lane_status": None,
+        "decision_quality_exact_live_lane_reason": None,
+        "decision_quality_exact_live_lane_summary": None,
         "expected_win_rate": None,
         "expected_pyramid_pnl": None,
         "expected_pyramid_quality": None,
@@ -1047,6 +1079,33 @@ def _summarize_gate_path(rows: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]
     missing_input_rows = 0
     structure_quality_values: List[float] = []
     bias200_values: List[float] = []
+    target_counts: Dict[str, int] = {}
+    pnl_sign_counts: Dict[str, int] = {"positive": 0, "zero": 0, "negative": 0}
+    quality_sign_counts: Dict[str, int] = {"positive": 0, "zero": 0, "negative": 0}
+
+    def _bucket_target(value: Any) -> str:
+        if value is None:
+            return "missing"
+        try:
+            val = float(value)
+        except (TypeError, ValueError):
+            return "missing"
+        if val >= 0.5:
+            return "win"
+        return "loss"
+
+    def _bucket_sign(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        try:
+            val = float(value)
+        except (TypeError, ValueError):
+            return None
+        if val > 0:
+            return "positive"
+        if val < 0:
+            return "negative"
+        return "zero"
 
     for row in rows:
         bias200_raw = row.get("feat_4h_bias200")
@@ -1074,11 +1133,52 @@ def _summarize_gate_path(rows: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]
         bias200 = debug.get("bias200")
         if bias200 is not None:
             bias200_values.append(float(bias200))
+        target_bucket = _bucket_target(row.get(DEFAULT_TARGET_COL))
+        target_counts[target_bucket] = target_counts.get(target_bucket, 0) + 1
+        pnl_bucket = _bucket_sign(row.get("simulated_pyramid_pnl"))
+        if pnl_bucket:
+            pnl_sign_counts[pnl_bucket] = pnl_sign_counts.get(pnl_bucket, 0) + 1
+        quality_bucket = _bucket_sign(row.get("simulated_pyramid_quality"))
+        if quality_bucket:
+            quality_sign_counts[quality_bucket] = quality_sign_counts.get(quality_bucket, 0) + 1
 
     def _avg(values: List[float]) -> Optional[float]:
         if not values:
             return None
         return round(sum(values) / len(values), 4)
+
+    def _nearest_quantiles(values: List[float]) -> Optional[Dict[str, float]]:
+        if not values:
+            return None
+        ordered = sorted(float(v) for v in values)
+
+        def _pick(frac: float) -> float:
+            idx = int(round((len(ordered) - 1) * frac))
+            return round(ordered[idx], 4)
+
+        return {
+            "min": round(ordered[0], 4),
+            "p25": _pick(0.25),
+            "p50": _pick(0.50),
+            "p75": _pick(0.75),
+            "max": round(ordered[-1], 4),
+        }
+
+    def _structure_gate_bands(values: List[float]) -> Dict[str, int]:
+        block = sum(1 for value in values if value < 0.15)
+        caution = sum(1 for value in values if 0.15 <= value < 0.35)
+        allow = sum(1 for value in values if value >= 0.35)
+        return {
+            "block_lt_0.15": block,
+            "caution_0.15_to_0.35": caution,
+            "allow_ge_0.35": allow,
+        }
+
+    canonical_true_negative_rows = min(
+        int(target_counts.get("loss", 0)),
+        int(pnl_sign_counts.get("negative", 0)),
+        int(quality_sign_counts.get("negative", 0)),
+    )
 
     return {
         "rows": len(rows),
@@ -1086,7 +1186,14 @@ def _summarize_gate_path(rows: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]
         "final_reason_counts": final_reason_counts,
         "base_gate_counts": base_gate_counts,
         "avg_structure_quality": _avg(structure_quality_values),
+        "structure_quality_distribution": _nearest_quantiles(structure_quality_values),
+        "structure_quality_gate_bands": _structure_gate_bands(structure_quality_values),
         "avg_bias200": _avg(bias200_values),
+        "target_counts": target_counts,
+        "pnl_sign_counts": pnl_sign_counts,
+        "quality_sign_counts": quality_sign_counts,
+        "canonical_true_negative_rows": canonical_true_negative_rows,
+        "canonical_true_negative_share": round(canonical_true_negative_rows / len(rows), 4) if rows else None,
         "missing_input_rows": missing_input_rows,
         "missing_input_feature_counts": missing_input_feature_counts,
     }
@@ -1397,6 +1504,121 @@ def _max_optional(current: Optional[float], other: Optional[float]) -> Optional[
     return round(max(float(current), float(other)), 4)
 
 
+def _exact_live_lane_toxicity_guardrail(
+    decision_profile: Dict[str, Any],
+    chosen_scope: Optional[str],
+    scope_diagnostics: Dict[str, Any],
+    expected_win_rate: Optional[float],
+    expected_pnl: Optional[float],
+    expected_quality: Optional[float],
+    expected_drawdown_penalty: Optional[float],
+    expected_time_underwater: Optional[float],
+) -> Dict[str, Any]:
+    default_result = {
+        "applied": False,
+        "status": None,
+        "reason": None,
+        "summary": None,
+        "expected_win_rate": expected_win_rate,
+        "expected_pnl": expected_pnl,
+        "expected_quality": expected_quality,
+        "expected_drawdown_penalty": expected_drawdown_penalty,
+        "expected_time_underwater": expected_time_underwater,
+    }
+
+    exact_scope_name = "regime_label+regime_gate+entry_quality_label"
+    if chosen_scope == exact_scope_name:
+        return default_result
+
+    exact_scope = (scope_diagnostics or {}).get(exact_scope_name) or {}
+    exact_rows = int(exact_scope.get("rows") or 0)
+    if exact_rows < 20:
+        return default_result
+
+    target_regime = str(decision_profile.get("regime_label") or "")
+    target_gate = str(decision_profile.get("regime_gate") or "")
+    target_label = str(decision_profile.get("entry_quality_label") or "")
+    dominant_regime_gate = exact_scope.get("recent500_dominant_regime_gate") or {}
+    if (
+        str(dominant_regime_gate.get("regime") or "") != target_regime
+        or str(dominant_regime_gate.get("gate") or "") != target_gate
+        or float(dominant_regime_gate.get("share") or 0.0) < 0.8
+    ):
+        return default_result
+
+    exact_gate_path_summary = None
+    for scope_name, scope_info in (scope_diagnostics or {}).items():
+        if scope_name == exact_scope_name or not isinstance(scope_info, dict):
+            continue
+        spillover = scope_info.get("spillover_vs_exact_live_lane") or {}
+        candidate = spillover.get("exact_live_gate_path_summary")
+        if candidate:
+            exact_gate_path_summary = candidate
+            break
+    if not isinstance(exact_gate_path_summary, dict):
+        return default_result
+
+    final_gate_counts = exact_gate_path_summary.get("final_gate_counts") or {}
+    allow_rows = int(final_gate_counts.get("ALLOW") or 0)
+    gate_rows = int(exact_gate_path_summary.get("rows") or exact_rows)
+    allow_share = (allow_rows / gate_rows) if gate_rows > 0 else 0.0
+    true_negative_share = exact_gate_path_summary.get("canonical_true_negative_share")
+    true_negative_share = float(true_negative_share) if true_negative_share is not None else None
+    exact_win_rate = exact_scope.get("win_rate")
+    exact_pnl = exact_scope.get("avg_pnl")
+    exact_quality = exact_scope.get("avg_quality")
+    exact_drawdown_penalty = exact_scope.get("avg_drawdown_penalty")
+    exact_time_underwater = exact_scope.get("avg_time_underwater")
+
+    toxic_allow_lane = (
+        allow_rows > 0
+        and allow_share >= 0.8
+        and true_negative_share is not None
+        and true_negative_share >= 0.65
+        and (
+            (exact_win_rate is not None and float(exact_win_rate) <= 0.35)
+            or (exact_pnl is not None and float(exact_pnl) < 0)
+            or (exact_quality is not None and float(exact_quality) <= 0.05)
+        )
+    )
+    if not toxic_allow_lane:
+        return default_result
+
+    summary = {
+        "scope": exact_scope_name,
+        "rows": exact_rows,
+        "regime_label": target_regime or None,
+        "regime_gate": target_gate or None,
+        "entry_quality_label": target_label or None,
+        "win_rate": _round_optional(exact_win_rate),
+        "avg_pnl": _round_optional(exact_pnl),
+        "avg_quality": _round_optional(exact_quality),
+        "avg_drawdown_penalty": _round_optional(exact_drawdown_penalty),
+        "avg_time_underwater": _round_optional(exact_time_underwater),
+        "allow_rows": allow_rows,
+        "allow_share": round(float(allow_share), 4),
+        "canonical_true_negative_share": round(float(true_negative_share), 4),
+        "final_gate_counts": final_gate_counts,
+    }
+    reason = (
+        f"exact {target_regime}/{target_gate}/{target_label} lane stays ALLOW but is toxic "
+        f"(rows={exact_rows}, win_rate={summary['win_rate']}, quality={summary['avg_quality']}, "
+        f"true_negative_share={summary['canonical_true_negative_share']}, allow_share={summary['allow_share']})"
+    )
+    return {
+        "applied": True,
+        "status": "toxic_allow_lane",
+        "reason": reason,
+        "summary": summary,
+        "expected_win_rate": _min_optional(expected_win_rate, exact_win_rate),
+        "expected_pnl": _min_optional(expected_pnl, exact_pnl),
+        "expected_quality": _min_optional(expected_quality, exact_quality),
+        "expected_drawdown_penalty": _max_optional(expected_drawdown_penalty, exact_drawdown_penalty),
+        "expected_time_underwater": _max_optional(expected_time_underwater, exact_time_underwater),
+    }
+
+
+
 def _narrowed_regime_scope_downside_guardrail(
     decision_profile: Dict[str, Any],
     chosen_scope: Optional[str],
@@ -1579,6 +1801,22 @@ def _summarize_decision_quality_contract(
         expected_time_underwater = _max_optional(expected_time_underwater, pathology_summary.get("avg_time_underwater"))
 
     scope_diagnostics = _build_decision_quality_scope_diagnostics(rows, decision_profile)
+    exact_live_lane_guardrail = _exact_live_lane_toxicity_guardrail(
+        decision_profile,
+        chosen_scope,
+        scope_diagnostics,
+        expected_win_rate,
+        expected_pnl,
+        expected_quality,
+        expected_drawdown_penalty,
+        expected_time_underwater,
+    )
+    expected_win_rate = exact_live_lane_guardrail["expected_win_rate"]
+    expected_pnl = exact_live_lane_guardrail["expected_pnl"]
+    expected_quality = exact_live_lane_guardrail["expected_quality"]
+    expected_drawdown_penalty = exact_live_lane_guardrail["expected_drawdown_penalty"]
+    expected_time_underwater = exact_live_lane_guardrail["expected_time_underwater"]
+
     narrowed_scope_guardrail = _narrowed_regime_scope_downside_guardrail(
         decision_profile,
         chosen_scope,
@@ -1619,6 +1857,10 @@ def _summarize_decision_quality_contract(
         "decision_quality_recent_pathology_window": int(recent_pathology.get("window") or 0),
         "decision_quality_recent_pathology_alerts": list(recent_pathology.get("alerts") or []),
         "decision_quality_recent_pathology_summary": recent_pathology.get("summary"),
+        "decision_quality_exact_live_lane_toxicity_applied": bool(exact_live_lane_guardrail.get("applied")),
+        "decision_quality_exact_live_lane_status": exact_live_lane_guardrail.get("status"),
+        "decision_quality_exact_live_lane_reason": exact_live_lane_guardrail.get("reason"),
+        "decision_quality_exact_live_lane_summary": exact_live_lane_guardrail.get("summary"),
         "decision_quality_narrowed_pathology_applied": bool(narrowed_scope_guardrail.get("applied")),
         "decision_quality_narrowed_pathology_scope": narrowed_scope_guardrail.get("scope"),
         "decision_quality_narrowed_pathology_reason": narrowed_scope_guardrail.get("reason"),
@@ -1716,12 +1958,14 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
         guardrail.get("raw_best_guardrailed")
         or contract.get("decision_quality_scope_guardrail_applied")
         or contract.get("decision_quality_recent_pathology_applied")
+        or contract.get("decision_quality_exact_live_lane_toxicity_applied")
         or contract.get("decision_quality_narrowed_pathology_applied")
     )
     reason_parts = [
         guardrail.get("guardrail_reason"),
         contract.get("decision_quality_scope_guardrail_reason"),
         contract.get("decision_quality_recent_pathology_reason"),
+        contract.get("decision_quality_exact_live_lane_reason"),
         contract.get("decision_quality_narrowed_pathology_reason"),
     ]
     contract["decision_quality_guardrail_reason"] = "; ".join(part for part in reason_parts if part)
@@ -1745,6 +1989,10 @@ def _apply_live_execution_guardrails(decision_profile: Dict[str, Any], decision_
     quality_score = decision_quality_contract.get("decision_quality_score")
     guardrail_applied = bool(decision_quality_contract.get("decision_quality_guardrail_applied"))
     recent_pathology_applied = bool(decision_quality_contract.get("decision_quality_recent_pathology_applied"))
+    exact_live_lane_toxicity_applied = bool(
+        decision_quality_contract.get("decision_quality_exact_live_lane_toxicity_applied")
+    )
+    exact_live_lane_status = decision_quality_contract.get("decision_quality_exact_live_lane_status") or "toxicity"
 
     if quality_label == "D" or (quality_score is not None and float(quality_score) < 0.35):
         capped_layers = 0
@@ -1759,6 +2007,12 @@ def _apply_live_execution_guardrails(decision_profile: Dict[str, Any], decision_
     elif guardrail_applied and capped_layers > 1:
         capped_layers = 1
         reasons.append("guardrailed_calibration_caps_layers")
+
+    if exact_live_lane_toxicity_applied:
+        capped_layers = 0
+        toxic_reason = f"exact_live_lane_{exact_live_lane_status}_blocks_trade"
+        if toxic_reason not in reasons:
+            reasons.append(toxic_reason)
 
     guarded["allowed_layers_raw"] = raw_layers
     guarded["allowed_layers"] = capped_layers
