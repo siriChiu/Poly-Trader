@@ -386,6 +386,14 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
         blocker_state = "exact_live_bucket_supported"
         preferred_support_cohort = "exact_live_bucket"
         recommended_action = "可回到 exact live bucket 直接治理與驗證。"
+    elif current_bucket_rows > 0:
+        blocker_state = "exact_lane_proxy_fallback_only"
+        preferred_support_cohort = (
+            "bull_live_exact_lane_bucket_proxy"
+            if exact_bucket_proxy_rows >= min_support_rows
+            else "bull_exact_live_lane_proxy"
+        )
+        recommended_action = "維持部署 blocker；exact bucket 已出現但仍低於 minimum support，proxy 只可作治理參考。"
     elif exact_bucket_proxy_rows >= min_support_rows:
         blocker_state = "exact_live_bucket_proxy_ready_but_exact_missing"
         preferred_support_cohort = "bull_live_exact_lane_bucket_proxy"

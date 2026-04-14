@@ -154,5 +154,40 @@ def test_support_pathology_summary_marks_present_but_under_supported_bucket_gap(
     summary = bull_4h_pocket_ablation._support_pathology_summary(payload)
 
     assert summary["blocker_state"] == "exact_lane_proxy_fallback_only"
+    assert summary["preferred_support_cohort"] == "bull_exact_live_lane_proxy"
     assert summary["current_live_structure_bucket_gap_to_minimum"] == 45
+    assert summary["exact_bucket_root_cause"] == "exact_bucket_present_but_below_minimum"
+
+
+def test_support_pathology_summary_keeps_under_minimum_blocker_even_if_exact_bucket_proxy_is_ready():
+    payload = {
+        "live_context": {
+            "regime_label": "bull",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "current_live_structure_bucket_rows": 9,
+            "broad_current_live_structure_bucket_rows": 11,
+            "broad_recent500_dominant_regime": {"regime": "chop", "share": 0.974},
+            "supported_neighbor_buckets": [
+                "CAUTION|structure_quality_caution|q15",
+                "CAUTION|base_caution_regime_or_bias|q15",
+            ],
+            "exact_recent_structure_bucket_counts": {
+                "CAUTION|structure_quality_caution|q35": 9,
+                "CAUTION|structure_quality_caution|q15": 4,
+                "CAUTION|base_caution_regime_or_bias|q15": 7,
+            },
+        },
+        "cohorts": {
+            "bull_exact_live_lane_proxy": {"rows": 315},
+            "bull_live_exact_lane_bucket_proxy": {"rows": 52},
+            "bull_supported_neighbor_buckets_proxy": {"rows": 84},
+        },
+    }
+
+    summary = bull_4h_pocket_ablation._support_pathology_summary(payload)
+
+    assert summary["blocker_state"] == "exact_lane_proxy_fallback_only"
+    assert summary["preferred_support_cohort"] == "bull_live_exact_lane_bucket_proxy"
+    assert summary["current_live_structure_bucket_gap_to_minimum"] == 41
+    assert summary["exact_live_bucket_proxy_gap_to_minimum"] == 0
     assert summary["exact_bucket_root_cause"] == "exact_bucket_present_but_below_minimum"

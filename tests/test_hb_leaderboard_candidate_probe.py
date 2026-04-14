@@ -152,7 +152,7 @@ def test_build_alignment_marks_under_supported_exact_bucket(tmp_path, monkeypatc
                         "recommended_profile": "core_plus_macro",
                     },
                     "bull_live_exact_lane_bucket_proxy": {
-                        "rows": 48,
+                        "rows": 52,
                         "recommended_profile": None,
                     },
                 },
