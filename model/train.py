@@ -26,6 +26,8 @@ DB_PATH = str(Path(__file__).parent.parent / "poly_trader.db")
 PROJECT_ROOT = Path(__file__).parent.parent
 DW_RESULT_PATH = PROJECT_ROOT / "data" / "dw_result.json"
 RECENT_DRIFT_REPORT_PATH = PROJECT_ROOT / "data" / "recent_drift_report.json"
+FEATURE_ABLATION_PATH = PROJECT_ROOT / "data" / "feature_group_ablation.json"
+BULL_4H_POCKET_ABLATION_PATH = PROJECT_ROOT / "data" / "bull_4h_pocket_ablation.json"
 FEATURE_COLS = [
     # === 8 Core Senses ===
     "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
@@ -50,12 +52,36 @@ FEATURE_COLS = [
 ]
 LAG_STEPS = [12, 48, 288]
 BASE_FEATURE_COLS = FEATURE_COLS
+CORE_FEATURES = [
+    "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
+    "feat_body", "feat_pulse", "feat_aura", "feat_mind",
+]
+MACRO_FEATURES = ["feat_vix", "feat_dxy"]
+TECHNICAL_FEATURES = [
+    "feat_rsi14", "feat_macd_hist", "feat_atr_pct",
+    "feat_vwap_dev", "feat_bb_pct_b", "feat_nw_width",
+    "feat_nw_slope", "feat_adx", "feat_choppiness", "feat_donchian_pos",
+]
+FOUR_H_FEATURES = [
+    "feat_4h_bias50", "feat_4h_bias20", "feat_4h_bias200",
+    "feat_4h_rsi14", "feat_4h_macd_hist", "feat_4h_bb_pct_b",
+    "feat_4h_dist_bb_lower", "feat_4h_ma_order",
+    "feat_4h_dist_swing_low", "feat_4h_vol_ratio",
+]
+BULL_COLLAPSE_4H_FEATURES = [
+    "feat_4h_bb_pct_b",
+    "feat_4h_dist_bb_lower",
+    "feat_4h_dist_swing_low",
+]
+STABLE_4H_FEATURES = [f for f in FOUR_H_FEATURES if f not in BULL_COLLAPSE_4H_FEATURES]
 CROSS_FEATURES = [
     "feat_vix_x_eye", "feat_vix_x_pulse", "feat_vix_x_mind",
     "feat_mind_x_pulse", "feat_eye_x_ear", "feat_nose_x_aura",
     "feat_eye_x_body", "feat_ear_x_nose", "feat_mind_x_aura",
     "feat_regime_flag", "feat_mean_rev_proxy",
 ]
+STRONG_BASELINE_FEATURE_PROFILE = "core_plus_macro"
+MIN_SUPPORT_AWARE_BUCKET_ROWS = 50
 
 REGIME_THRESHOLD_BIAS = {
     'trend': -0.03,
@@ -75,6 +101,183 @@ def _load_json_file(path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def _feature_and_lag_columns(all_columns: list[str], base_features: list[str]) -> list[str]:
+    return [
+        col
+        for col in all_columns
+        if any(col == base or col.startswith(f"{base}_lag") for base in base_features)
+    ]
+
+
+def _build_feature_profile_columns(all_columns: list[str]) -> dict[str, list[str]]:
+    """Canonical feature-profile definitions used by ablation and training shrinkage."""
+    lag_cols = [c for c in all_columns if "_lag" in c]
+    cross_cols = [c for c in all_columns if c in CROSS_FEATURES]
+    core_cols = [c for c in all_columns if c in CORE_FEATURES]
+    macro_cols = [c for c in all_columns if c in MACRO_FEATURES]
+    technical_cols = [c for c in all_columns if c in TECHNICAL_FEATURES]
+    four_h_cols = [c for c in all_columns if c in FOUR_H_FEATURES]
+    base_no_lags_cross = [c for c in all_columns if c not in lag_cols and c not in cross_cols]
+    subsets = {
+        "core_only": core_cols,
+        "core_plus_4h": sorted(set(core_cols + four_h_cols)),
+        "core_plus_technical": sorted(set(core_cols + technical_cols)),
+        "core_plus_macro": sorted(set(core_cols + macro_cols)),
+        "full_no_lags": sorted(set(base_no_lags_cross + cross_cols)),
+        "full_no_cross": [c for c in all_columns if c not in cross_cols],
+        "full_no_technical": [c for c in all_columns if c not in technical_cols],
+        "full_no_macro": [c for c in all_columns if c not in macro_cols],
+        "full_no_4h": [c for c in all_columns if c not in four_h_cols],
+        "current_full": list(all_columns),
+    }
+
+    strong_baseline = subsets.get("core_plus_macro", [])
+    stable_4h_with_lags = _feature_and_lag_columns(all_columns, STABLE_4H_FEATURES)
+    weak_4h_with_lags = set(_feature_and_lag_columns(all_columns, BULL_COLLAPSE_4H_FEATURES))
+    if strong_baseline and stable_4h_with_lags:
+        subsets["core_macro_plus_stable_4h"] = sorted(set(strong_baseline + stable_4h_with_lags))
+    if weak_4h_with_lags:
+        subsets["current_full_no_bull_collapse_4h"] = [
+            col for col in all_columns if col not in weak_4h_with_lags
+        ]
+    return subsets
+
+
+def _rank_feature_profile(name: str, metrics: dict) -> tuple[float, float, float, float, str]:
+    """Sort higher mean/worst and lower std/brier first."""
+    return (
+        float(metrics.get("cv_mean_accuracy", float("-inf"))),
+        float(metrics.get("cv_worst_accuracy", float("-inf"))),
+        -float(metrics.get("cv_std_accuracy", float("inf"))),
+        -float(metrics.get("cv_mean_brier", float("inf"))),
+        name,
+    )
+
+
+def _parse_int(value: object, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _select_support_aware_profile(
+    profile_columns: dict[str, list[str]],
+    ablation_payload: dict,
+    bull_pocket_payload: dict,
+    target_col: str,
+) -> tuple[str, list[str], dict] | None:
+    """Prefer a supported small-family profile when the live bull structure bucket has no support."""
+    if not bull_pocket_payload or bull_pocket_payload.get("target_col") != target_col:
+        return None
+
+    profiles = ablation_payload.get("profiles") or {}
+    if not profiles:
+        return None
+
+    live_context = bull_pocket_payload.get("live_context") or {}
+    live_bucket_rows = _parse_int(live_context.get("current_live_structure_bucket_rows"), default=0)
+    if live_bucket_rows >= MIN_SUPPORT_AWARE_BUCKET_ROWS:
+        return None
+
+    cohorts = bull_pocket_payload.get("cohorts") or {}
+    for cohort_name in (
+        "bull_live_exact_lane_bucket_proxy",
+        "bull_exact_live_lane_proxy",
+        "bull_supported_neighbor_buckets_proxy",
+        "bull_collapse_q35",
+    ):
+        cohort = cohorts.get(cohort_name) or {}
+        profile_name = cohort.get("recommended_profile")
+        row_count = _parse_int(cohort.get("rows"), default=0)
+        if (
+            not profile_name
+            or row_count < MIN_SUPPORT_AWARE_BUCKET_ROWS
+            or profile_name not in profile_columns
+            or profile_name not in profiles
+        ):
+            continue
+        columns = profile_columns.get(profile_name) or []
+        if not columns:
+            continue
+        return profile_name, columns, {
+            "source": "bull_4h_pocket_ablation.support_aware_profile",
+            "generated_at": bull_pocket_payload.get("generated_at"),
+            "support_cohort": cohort_name,
+            "support_rows": row_count,
+            "exact_live_bucket_rows": live_bucket_rows,
+            "minimum_support_rows": MIN_SUPPORT_AWARE_BUCKET_ROWS,
+            "support_profile_rank": _rank_feature_profile(profile_name, profiles[profile_name]),
+        }
+
+    return None
+
+
+def select_feature_profile(
+    all_columns: list[str],
+    target_col: str = DEFAULT_TARGET_COL,
+    ablation_payload: Optional[dict] = None,
+    bull_pocket_payload: Optional[dict] = None,
+) -> tuple[str, list[str], dict]:
+    """Choose a shrinkage profile automatically from the latest ablation report.
+
+    This keeps training focused on the currently best validated feature family mix
+    without adding new user-facing knobs.
+    """
+    profile_columns = _build_feature_profile_columns(all_columns)
+    payload = ablation_payload if ablation_payload is not None else _load_json_file(FEATURE_ABLATION_PATH)
+    bull_payload = (
+        bull_pocket_payload
+        if bull_pocket_payload is not None
+        else ({} if ablation_payload is not None else _load_json_file(BULL_4H_POCKET_ABLATION_PATH))
+    )
+    profiles = payload.get("profiles") or {}
+    recommended_name = payload.get("recommended_profile")
+    compatible = (
+        bool(payload)
+        and payload.get("target_col") == target_col
+        and all(name in profile_columns for name in profiles.keys())
+    )
+
+    if compatible:
+        support_aware = _select_support_aware_profile(
+            profile_columns=profile_columns,
+            ablation_payload=payload,
+            bull_pocket_payload=bull_payload,
+            target_col=target_col,
+        )
+        if support_aware is not None:
+            return support_aware
+
+    if compatible and recommended_name in profile_columns:
+        cols = profile_columns[recommended_name]
+        if cols:
+            return recommended_name, cols, {
+                "source": "feature_group_ablation.recommended_profile",
+                "generated_at": payload.get("generated_at"),
+                "candidate_count": len(profiles),
+            }
+
+    if compatible and profiles:
+        ranked = sorted(profiles.items(), key=lambda item: _rank_feature_profile(item[0], item[1]), reverse=True)
+        best_name, best_metrics = ranked[0]
+        cols = profile_columns.get(best_name) or []
+        if cols:
+            return best_name, cols, {
+                "source": "feature_group_ablation.ranked_profiles",
+                "generated_at": payload.get("generated_at"),
+                "cv_mean_accuracy": float(best_metrics.get("cv_mean_accuracy", 0.0)),
+                "cv_worst_accuracy": float(best_metrics.get("cv_worst_accuracy", 0.0)),
+                "cv_std_accuracy": float(best_metrics.get("cv_std_accuracy", 0.0)),
+            }
+
+    fallback_name = STRONG_BASELINE_FEATURE_PROFILE if profile_columns.get(STRONG_BASELINE_FEATURE_PROFILE) else "current_full"
+    return fallback_name, profile_columns.get(fallback_name, list(all_columns)), {
+        "source": "code_default",
+        "generated_at": None,
+    }
 
 
 def _load_tw_ic_guardrail() -> dict:
@@ -528,7 +731,7 @@ def load_training_data(session: Session, min_samples: int = 50,
     pruned_count = 0
     for col in all_training_cols:
         if col in set(FEATURE_COLS):
-            pruned_cols.append(col)  # Always keep core features
+            pruned_cols.append(col)  # Always keep base features before shrinkage profile selection
             continue
         # For lag/cross features, check IC
         base_col = col.replace("_lag12", "").replace("_lag48", "").replace("_lag144", "")
@@ -544,10 +747,23 @@ def load_training_data(session: Session, min_samples: int = 50,
         logger.info(f"P0 #H430: IC Pruning — dropped {pruned_count} features (|IC| < {IC_PRUNE_THRESHOLD}), keeping {len(pruned_cols)}/{len(all_training_cols)}")
         all_training_cols = pruned_cols
 
-    X = merged[all_training_cols]
+    feature_profile_name, all_training_cols, feature_profile_meta = select_feature_profile(
+        all_training_cols,
+        target_col=target_col,
+    )
+    logger.info(
+        "Feature shrinkage profile selected: %s (%s cols, source=%s)",
+        feature_profile_name,
+        len(all_training_cols),
+        feature_profile_meta.get("source"),
+    )
+
+    X = merged[all_training_cols].copy()
+    X.attrs["feature_profile"] = feature_profile_name
+    X.attrs["feature_profile_meta"] = feature_profile_meta
     y = merged[target_col].astype(int)
     y_return = merged["future_return_pct"].astype(float)
-    logger.info(f"載入訓練資料: {len(X)} 筆, {len(all_training_cols)} features ({len(FEATURE_COLS)} core + {len(all_training_cols)-len(FEATURE_COLS)} lag/cross, {pruned_count} pruned)")
+    logger.info(f"載入訓練資料: {len(X)} 筆, {len(all_training_cols)} features (profile={feature_profile_name}, pruned={pruned_count})")
     logger.info(f"分類目標 {target_col} ratio: {y.mean():.3f}, 回歸目標 future_return_pct mean={y_return.mean():.5f} std={y_return.std():.5f}")
     return X, y, y_return
 
@@ -593,10 +809,16 @@ def fit_probability_calibrator(model, X: pd.DataFrame, y: pd.Series):
         if len(np.unique(y_arr)) >= 2 and len(y_arr) >= 30:
             iso = IsotonicRegression(out_of_bounds='clip')
             iso.fit(scores, y_arr)
+            xs = [float(v) for v in iso.X_thresholds_.tolist()]
+            ys = [float(v) for v in iso.y_thresholds_.tolist()]
             return {
                 'kind': 'isotonic',
-                'x': [float(v) for v in iso.X_thresholds_.tolist()],
-                'y': [float(v) for v in iso.y_thresholds_.tolist()],
+                # Keep both legacy and canonical keys so older predictor payloads
+                # remain readable while new code can use explicit names.
+                'x': xs,
+                'y': ys,
+                'isotonic_x': xs,
+                'isotonic_y': ys,
             }
 
         p = np.clip(scores, 1e-6, 1 - 1e-6)
@@ -643,6 +865,8 @@ def run_training(session: Session, regime_filter: Optional[list] = None, target_
     X, y, y_return = loaded
     model = train_xgboost(X, y)
     calibrator = fit_probability_calibrator(model, X, y)
+    feature_profile = X.attrs.get("feature_profile", "current_full")
+    feature_profile_meta = X.attrs.get("feature_profile_meta", {"source": "unknown"})
 
     neg_ic = []
     ic_path = Path('model/ic_signs.json')
@@ -655,6 +879,8 @@ def run_training(session: Session, regime_filter: Optional[list] = None, target_
     payload = {
         'clf': model,
         'feature_names': X.columns.tolist(),
+        'feature_profile': feature_profile,
+        'feature_profile_meta': feature_profile_meta,
         'neg_ic_feats': neg_ic,
         'calibration': calibrator,
         'regime_threshold_bias': REGIME_THRESHOLD_BIAS,
@@ -714,6 +940,8 @@ def run_training(session: Session, regime_filter: Optional[list] = None, target_
         db.commit(); db.close()
         metrics_payload = {
             'target_col': target_col,
+            'feature_profile': feature_profile,
+            'feature_profile_meta': feature_profile_meta,
             'train_accuracy': train_acc,
             'cv_accuracy': cv_acc,
             'cv_std': cv_std,

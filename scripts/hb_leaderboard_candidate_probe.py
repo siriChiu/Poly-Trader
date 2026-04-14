@@ -82,7 +82,11 @@ def _build_alignment(top_model: dict[str, Any]) -> dict[str, Any]:
     feature_ablation = _load_json(FEATURE_ABLATION_PATH)
 
     live_context = bull_pocket.get("live_context") or {}
-    support_cohort = ((bull_pocket.get("cohorts") or {}).get("bull_supported_neighbor_buckets_proxy") or {})
+    cohorts = bull_pocket.get("cohorts") or {}
+    support_cohort = cohorts.get("bull_supported_neighbor_buckets_proxy") or {}
+    exact_lane_proxy = cohorts.get("bull_exact_live_lane_proxy") or {}
+    exact_bucket_proxy = cohorts.get("bull_live_exact_lane_bucket_proxy") or {}
+    live_bucket_rows = live_context.get("current_live_structure_bucket_rows")
     blocked_candidates = [
         {
             "feature_profile": row.get("feature_profile"),
@@ -105,6 +109,16 @@ def _build_alignment(top_model: dict[str, Any]) -> dict[str, Any]:
     elif leaderboard_selected != global_recommended:
         dual_profile_state = "leaderboard_train_winner_vs_global_probe_drift"
 
+    support_governance_route = "no_support_proxy"
+    if int(live_bucket_rows or 0) > 0:
+        support_governance_route = "exact_live_bucket_supported"
+    elif int(exact_bucket_proxy.get("rows") or 0) > 0:
+        support_governance_route = "exact_live_bucket_proxy_available"
+    elif int(exact_lane_proxy.get("rows") or 0) > 0:
+        support_governance_route = "exact_live_lane_proxy_available"
+    elif int(support_cohort.get("rows") or 0) > 0:
+        support_governance_route = "supported_neighbor_only"
+
     return {
         "global_recommended_profile": global_recommended,
         "train_selected_profile": train_profile,
@@ -120,11 +134,16 @@ def _build_alignment(top_model: dict[str, Any]) -> dict[str, Any]:
         "live_entry_quality_label": live_probe.get("entry_quality_label"),
         "live_execution_guardrail_reason": live_probe.get("execution_guardrail_reason"),
         "live_current_structure_bucket": live_context.get("current_live_structure_bucket"),
-        "live_current_structure_bucket_rows": live_context.get("current_live_structure_bucket_rows"),
+        "live_current_structure_bucket_rows": live_bucket_rows,
         "supported_neighbor_buckets": live_context.get("supported_neighbor_buckets") or [],
         "bull_support_aware_profile": support_cohort.get("recommended_profile"),
         "bull_support_neighbor_rows": support_cohort.get("rows"),
-        "bull_exact_live_bucket_proxy_rows": ((bull_pocket.get("cohorts") or {}).get("bull_live_exact_lane_bucket_proxy") or {}).get("rows"),
+        "bull_exact_live_lane_proxy_profile": exact_lane_proxy.get("recommended_profile"),
+        "bull_exact_live_lane_proxy_rows": exact_lane_proxy.get("rows"),
+        "bull_live_exact_bucket_proxy_profile": exact_bucket_proxy.get("recommended_profile"),
+        "bull_live_exact_bucket_proxy_rows": exact_bucket_proxy.get("rows"),
+        "bull_exact_live_bucket_proxy_rows": exact_bucket_proxy.get("rows"),
+        "support_governance_route": support_governance_route,
     }
 
 

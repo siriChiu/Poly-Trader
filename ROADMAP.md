@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-14 13:39 UTC — Heartbeat #729（warning hygiene 已修，下一步轉向 bull exact bucket 支持樣本治理）_
+_最後更新：2026-04-14 14:10 UTC — Heartbeat #730（bull exact bucket 治理路徑已顯式化，下一步轉向訓練工件重刷）_
 
 本文件只保留**目前已落地能力、當前主目標、下一步 gate**，不保留歷史 roadmap 敘事。
 
@@ -19,130 +19,123 @@ _最後更新：2026-04-14 13:39 UTC — Heartbeat #729（warning hygiene 已修
   - `data/bull_4h_pocket_ablation.json`
   - `data/leaderboard_feature_profile_probe.json`
   - `issues.json`
-  - numbered summary：`data/heartbeat_729_summary.json`
+  - numbered summary：`data/heartbeat_730_summary.json`
 
 ### 資料與 canonical target
 - canonical target 仍統一為 **`simulated_pyramid_win`**。
-- 最新 DB 狀態（#729）：
-  - Raw / Features / Labels = **21410 / 12839 / 42914**
-  - simulated_pyramid_win = **0.5749**
+- 最新 DB 狀態（#730）：
+  - Raw / Features / Labels = **21412 / 12841 / 42921**
+  - simulated_pyramid_win = **0.5750**
 - label freshness 正常：
-  - 240m lag 約 **3.0h**
-  - 1440m lag 約 **23.4h**
+  - 240m lag 約 **3.3h**
+  - 1440m lag 約 **23.0h**
 
 ### 模型 / shrinkage / bull blocker governance
 - global feature ablation 仍指向：
   - global winner = **`core_only`**
-  - `current_full` cv ≈ **0.5767**，明顯弱於 shrinkage baseline
-- train path 仍保留 support-aware fallback 語義：
-  - current production-oriented profile = **`core_plus_macro`**
-  - source = **`bull_4h_pocket_ablation.support_aware_profile`**
-  - support cohort = **`bull_supported_neighbor_buckets_proxy`**
-  - support rows = **84**
-  - exact live bucket rows = **0**
-- leaderboard candidate governance 仍有三條 machine-readable 證據鏈：
-  1. `data/feature_group_ablation.json`：global shrinkage winner = **`core_only`**
-  2. `model/last_metrics.json`：train fallback = **`core_plus_macro`**
-  3. `data/leaderboard_feature_profile_probe.json`：
-     - selected profile = **`core_only`**
-     - `dual_profile_state = leaderboard_global_winner_vs_train_support_fallback`
-     - blocked candidate = **`core_plus_macro` → unsupported_exact_live_structure_bucket**
+- bull pocket artifacts 目前 machine-readable：
+  - `bull_exact_live_lane_proxy_rows = 50`
+  - `bull_live_exact_lane_bucket_proxy_rows = 38`
+  - `bull_supported_neighbor_buckets_proxy_rows = 12`
+- **本輪新完成**：bull support governance route 已正式顯式化
+  - `scripts/hb_leaderboard_candidate_probe.py` 現在輸出：
+    - `support_governance_route`
+    - `bull_exact_live_lane_proxy_profile/rows`
+    - `bull_live_exact_bucket_proxy_profile/rows`
+  - current state（#730）為：
+    - `support_governance_route = exact_live_bucket_proxy_available`
+    - leaderboard selected profile = **`core_only`**
+    - blocked candidate = **`core_plus_macro` → unsupported_exact_live_structure_bucket`**
+- **本輪新完成**：`model/train.py::select_feature_profile()` 現在優先選擇
+  - `bull_live_exact_lane_bucket_proxy`
+  - `bull_exact_live_lane_proxy`
+  - 再退回 `bull_supported_neighbor_buckets_proxy`
+  - 最後才是 `bull_collapse_q35`
 
 ### Live guardrail / bull blocker
 - live predictor 仍正確保守：
   - regime = **bull**
-  - gate = **CAUTION**
+  - gate = **ALLOW**
   - entry quality = **D**
   - allowed layers = **0**
   - guardrail reason = `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade`
-- `bull_4h_pocket_ablation.live_context.current_live_structure_bucket_rows` 仍是 **0**。
-- exact live lane 仍只有 **17 rows**，而且 quality 為負。
-
-### Warning hygiene（本輪新完成）
-- `scripts/hb_leaderboard_candidate_probe.py` 已抑制已知 sklearn feature-name warnings。
-- 驗證：`python scripts/hb_leaderboard_candidate_probe.py` → **stderr 0 行**。
-- 這代表 fast heartbeat / cron 現在更容易看見**真正錯誤**，而不是被 probe 評估期間的無害 warnings 淹沒。
+- `live_current_structure_bucket_rows` 仍是 **0**。
+- 這代表 exact bucket 仍未解鎖，**proxy rows 只能作治理，不是部署授權**。
 
 ### Source blocker
 - `fin_netflow` 仍是 **auth_missing**。
-- forward archive 雖持續累積，但未補 `COINGLASS_API_KEY` 前，coverage 不會改善。
+- 未補 `COINGLASS_API_KEY` 前，不會進入主決策成熟特徵。
 
 ---
 
 ## 當前主目標
 
-### 目標 A：把 bull exact bucket 0-support 從「持續觀測」推進到「支持樣本治理」
+### 目標 A：把 bull exact bucket 治理從「知道 blocker」推進到「刷新訓練工件」
 目前已完成的是：
-- live probe、bull pocket artifact、leaderboard candidate probe、heartbeat summary 都能一致指出 **current live structure bucket rows = 0**。
+- 已 machine-read 目前可用治理路徑不是空白，而是 **exact live bucket proxy available**。
+- 已在訓練程式中把 support-aware selection 順序改成先 exact proxy、後 broader cohort。
 
-下一步主目標不是再補第五份說明，而是：
-- 直接推進 **bull exact bucket 支持樣本治理**；
-- 若 exact bucket 仍 0，就留下新的治理 artifact / contract / patch，而不是再做同一句 blocker 重報；
-- 若 >0，四條路徑必須同輪同步更新結論與 deployment 語義。
+下一步主目標不是再重報 `0 support`，而是：
+- **讓訓練工件 (`model/last_metrics.json`) 真正反映新順序**；
+- 若 train meta 仍停在舊的 `bull_supported_neighbor_buckets_proxy`，就不算完成。
 
 ### 目標 B：維持 `core_only`（global winner）與 `core_plus_macro`（train fallback）雙軌語義清楚
-目前雙軌已是 machine-readable contract：
+目前雙軌仍成立：
 - global winner = **`core_only`**
-- bull support-aware train fallback = **`core_plus_macro`**
-- blocked candidate reason = **`unsupported_exact_live_structure_bucket`**
-- dual profile state = **`leaderboard_global_winner_vs_train_support_fallback`**
+- train fallback = **`core_plus_macro`**
+
+但本輪新增一層治理語義：
+- **train fallback 應優先依附 exact proxy cohort，而不是先回退到 broader cohort**。
 
 下一步主目標：
-- heartbeat / probe / summary / docs 全部沿用同一套語義；
-- 不允許 `core_plus_macro` 被誤寫成正式 leaderboard winner；
-- 不允許 `current_full` 因歷史慣性回到安全預設。
+- probe / metrics / docs 對 support cohort 的敘述全部一致；
+- 不允許 probe 已說 `exact_live_bucket_proxy_available`，但 train meta 還停在舊 neighbor proxy。
 
-### 目標 C：把 fast heartbeat 保持成可直接交接下一輪的閉環輸出
-本輪完成後，fast heartbeat 已能穩定輸出：
-- collect / IC / drift
-- live predictor / live drilldown
-- feature-group ablation
-- bull 4H pocket ablation
-- leaderboard candidate alignment
-- **乾淨的 probe stderr（warning hygiene 已修）**
+### 目標 C：維持 bull live blocker 的 deployment discipline
+- exact live bucket rows 仍是 **0**。
+- 即使 proxy rows > 0，也**不代表 runtime 可放寬層數**。
 
 下一步主目標：
-- 把 console / cron 可讀性優勢用在真正的 bull blocker root-cause 推進；
-- 若 bull blocker 長期不變，下一輪直接推治理 patch，而不是再做手動交叉比對。
+- 讓治理與部署語義嚴格分離；
+- 任何 retrain / probe / docs 更新都必須明講：**治理可前進，部署仍 blocked**。
 
 ### 目標 D：維持 source auth blocker 與模型 blocker 分離治理
-- `fin_netflow` 目前仍是 **auth_missing**。
-- 這是外部 source blocker，不可混進 leaderboard / calibration / feature-profile patch 的成功敘事。
+- `fin_netflow` 仍是 **auth_missing**。
+- 這是外部 source blocker，不可混進 bull exact bucket 支持樣本治理成功敘事。
 
 ---
 
 ## 接下來要做
 
-### 1. 直接推進 bull exact bucket 支持樣本治理
+### 1. 刷新 train artifact，讓 support-aware 順序真正落到工件
 要做：
-- 先讀 `data/heartbeat_729_summary.json`
-- 再核對：
-  - `data/live_predict_probe.json`
-  - `data/bull_4h_pocket_ablation.json`
-  - `data/leaderboard_feature_profile_probe.json`
-- 若 `current_live_structure_bucket_rows` 仍為 0：下一輪要留下新的治理 artifact / patch / contract；若 >0：同輪同步更新 probe / summary / docs
+- 重新跑能寫回 `model/last_metrics.json` 的 train / retrain 路徑；
+- 驗證 `feature_profile_meta.support_cohort` 是否從舊的 `bull_supported_neighbor_buckets_proxy` 切到新的 exact proxy；
+- 若沒有切換，留下 blocker 與原因。
 
-### 2. 維持 dual-profile 語義一致
+### 2. 維持 governance-route 與 deployment guardrail 同步
 要做：
-- 保持下列兩條語義分開，但都留在正式工件中：
-  - global winner = **`core_only`**
-  - bull support-aware fallback = **`core_plus_macro`**
-- heartbeat summary 必須能直接 machine-read：
+- 持續檢查：
+  - `support_governance_route`
+  - `bull_exact_live_lane_proxy_rows`
+  - `bull_live_exact_bucket_proxy_rows`
+  - `live_current_structure_bucket_rows`
+- 若 exact bucket 仍 0，持續維持 `0 layers`。
+
+### 3. 維持 dual-profile 語義一致
+要做：
+- heartbeat summary / probe / docs 必須能 machine-read：
   - `selected_feature_profile`
   - `global_recommended_profile`
   - `train_selected_profile`
+  - `train_support_cohort`
   - `dual_profile_state`
-  - `blocked_candidate_profiles`
-
-### 3. 維持 warning hygiene 已修狀態，不再回退
-要做：
-- 若 `hb_leaderboard_candidate_probe.py` 或 fast heartbeat 再次出現 sklearn feature-name warnings，直接視為 regression；
-- 讓 stderr 保持留給真實失敗訊號，不讓無害警告重新污染 cron 報告。
+  - `support_governance_route`
 
 ### 4. 維持 source blocker 顯式治理
 要做：
 - 在 `COINGLASS_API_KEY` 未補前，持續把 `fin_netflow` 保持為 blocked source；
-- 不把它重新包裝成即將可用的主決策特徵。
+- 不把它重包裝成 calibration 或 bull pocket 問題。
 
 ---
 
@@ -150,53 +143,54 @@ _最後更新：2026-04-14 13:39 UTC — Heartbeat #729（warning hygiene 已修
 
 以下本輪後仍不排最前面：
 - 放寬 bull live guardrail
-- 用 broader spillover lane 幫 exact bucket 解套
+- 把 proxy bucket 視為 exact bucket 已修好
 - 新增更多 feature family
 - UI 美化與 fancy controls
 
 原因：
-> 現在真正的瓶頸仍是 **bull exact bucket 0-support**；本輪已把 warning hygiene 清掉，但根因仍未消失。
+> 現在真正的瓶頸已從「治理路徑不可見」轉成「訓練工件尚未重刷到新的治理順序」，而 exact bucket 本身仍是 0-support。
 
 ---
 
 ## 成功標準
 
 接下來幾輪工作的成功標準：
-1. next run 必須留下至少一個與 **bull exact bucket 支持樣本治理** 直接相關的 patch / artifact / verify。
-2. bull live exact structure bucket 若仍 0-support，heartbeat / live probe / bull pocket / leaderboard probe / docs 都明確維持 blocker 語義；若不再 0，四條路徑要同輪同步更新。
-3. `core_only` 與 `core_plus_macro` 的雙軌語義零漂移：前者是 global winner，後者是 bull support-aware fallback。
-4. `current_full` 不再因歷史慣性被默認為安全預設。
-5. `fin_netflow` 繼續被正確標成 source auth blocker。
-6. leaderboard candidate probe / fast heartbeat 的 warning hygiene 不回退。
+1. next run 必須留下至少一個**可重寫 train artifact** 的 run / patch / verify。
+2. `model/last_metrics.json` 的 `feature_profile_meta.support_cohort` 必須與新的 exact proxy 治理順序一致，不能再停留在舊 neighbor proxy。
+3. bull exact live bucket 若仍 0-support，runtime / docs / probe 都明確維持 blocker 語義。
+4. `core_only` 與 `core_plus_macro` 的雙軌語義零漂移。
+5. `support_governance_route` 持續可 machine-read，不回退成只有 blocker 沒有治理路徑。
+6. `fin_netflow` 繼續被正確標成 source auth blocker。
 
 ---
 
 ## Next gate
 
 - **Next focus:**
-  1. 直接推進 **bull exact bucket 支持樣本治理**；
-  2. 持續維持 `core_only`（leaderboard winner）與 `core_plus_macro`（train fallback）雙軌語義對齊；
+  1. 刷新 `model/last_metrics.json` 與 train meta，使其正式採用新的 exact-proxy 治理順序；
+  2. 持續維持 bull exact bucket 0-support 時的 `0 layers` runtime discipline；
   3. 繼續把 `fin_netflow` 當外部 source blocker 管理。
 
 - **Success gate:**
-  1. next run 必須留下 bull exact bucket 治理的真 patch / 新 artifact / 驗證，不得只重跑 fast heartbeat；
-  2. bull live exact bucket 0-support 的狀態，在 live probe / bull pocket artifact / leaderboard probe / docs 之間零漂移；
+  1. next run 必須留下 train artifact 重刷的真 run / verify，不能只停在 probe 已經可見 route；
+  2. `leaderboard_feature_profile_probe.json`、`live_predict_probe.json`、`bull_4h_pocket_ablation.json`、`model/last_metrics.json` 對 support governance 的敘述零漂移；
   3. 若 exact bucket rows 有變化，四條路徑能同輪同步更新結論。
 
 - **Fallback if fail:**
-  - exact bucket 若仍 0 support，維持 `0 layers`；
-  - 若無法直接補樣本，至少把治理路徑 machine-readable 化，不能退回 warning hygiene 或敘述性報告；
+  - 若 exact bucket 仍 0 support，維持 `0 layers`；
+  - 若 train artifact 仍未刷新，下一輪至少要留下可重跑 retrain contract / command / blocker；
   - 若 source auth 未修，繼續標記 blocked，不准寫成即將恢復。
 
 - **Documents to update next round:**
   - `ISSUES.md`
   - `ROADMAP.md`
-  - 若 bull exact bucket governance contract 再變，更新 `ARCHITECTURE.md`
+  - 若 support-governance contract 再變，更新 `ARCHITECTURE.md`
 
 - **Carry-forward input for next heartbeat:**
-  1. 先讀 `data/heartbeat_729_summary.json`。
+  1. 先讀 `data/heartbeat_730_summary.json`。
   2. 再讀：
      - `data/leaderboard_feature_profile_probe.json`
      - `data/live_predict_probe.json`
      - `data/bull_4h_pocket_ablation.json`
-  3. 若 `selected_feature_profile`、`dual_profile_state`、`live_current_structure_bucket_rows`、`blocked_candidate_profiles[0].blocker_reason`、`execution_guardrail_reason` 五項有四項以上完全不變，下一輪不得只重跑 fast heartbeat；必須直接推進 **bull exact bucket 支持樣本治理**。
+     - `model/last_metrics.json`
+  3. 若 `support_governance_route`、`bull_exact_live_lane_proxy_rows`、`bull_live_exact_bucket_proxy_rows`、`live_current_structure_bucket_rows` 四項大致不變，但 train meta 仍未刷新，下一輪不得只重跑 fast heartbeat；必須直接推進 **訓練工件重刷 / support-aware retrain 驗證**。
