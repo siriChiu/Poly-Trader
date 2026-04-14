@@ -126,6 +126,7 @@ def test_build_proxy_boundary_diagnostics_prefers_same_bucket_proxy_over_cross_r
             "current_live_structure_bucket_rows": 2,
             "exact_scope_rows": 3,
             "broad_current_live_structure_bucket_rows": 4,
+            "broad_recent500_dominant_regime": {"regime": "chop", "share": 1.0},
             "exact_scope_metrics": {"avg_quality": 0.30},
             "exact_current_live_structure_bucket_metrics": {"avg_quality": 0.70},
             "broad_current_live_structure_bucket_metrics": {"avg_quality": 0.20},
@@ -233,6 +234,10 @@ def test_support_pathology_summary_marks_present_but_under_supported_bucket_gap(
             "bull_live_exact_lane_bucket_proxy": {"rows": 48},
             "bull_supported_neighbor_buckets_proxy": {"rows": 84},
         },
+        "proxy_boundary_diagnostics": {
+            "proxy_boundary_verdict": "proxy_matches_exact_bucket_better_than_cross_regime_broader_scope",
+            "proxy_boundary_reason": "proxy 與 exact bucket 接近，但 broader same-bucket 已被其他 regime 主導。",
+        },
     }
 
     summary = bull_4h_pocket_ablation._support_pathology_summary(payload)
@@ -241,6 +246,7 @@ def test_support_pathology_summary_marks_present_but_under_supported_bucket_gap(
     assert summary["preferred_support_cohort"] == "bull_exact_live_lane_proxy"
     assert summary["current_live_structure_bucket_gap_to_minimum"] == 45
     assert summary["exact_bucket_root_cause"] == "exact_bucket_present_but_below_minimum"
+    assert summary["proxy_boundary_verdict"] == "proxy_governance_reference_only_exact_support_blocked"
 
 
 def test_support_pathology_summary_keeps_under_minimum_blocker_even_if_exact_bucket_proxy_is_ready():

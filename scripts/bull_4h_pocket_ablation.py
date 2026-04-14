@@ -529,14 +529,18 @@ def _build_proxy_boundary_diagnostics(
     verdict = "insufficient_recent_exact_bucket_rows"
     reason = "current live structure bucket 沒有 recent exact rows，無法判斷 proxy cohort 邊界。"
     proxy_gap = abs(proxy_vs_current_live_bucket.get("win_rate_delta") or 0.0)
-    broader_regime = ((recent_broader_same_bucket.get("dominant_regime") or {}).get("regime"))
+    broader_regime = (
+        ((recent_broader_same_bucket.get("dominant_regime") or {}).get("regime"))
+        or ((live_context.get("broad_recent500_dominant_regime") or {}).get("regime"))
+    )
     live_regime = live_context.get("regime_label")
     if recent_exact_bucket.get("rows"):
         if proxy_gap <= 0.10 and broader_regime and broader_regime != live_regime:
             verdict = "proxy_matches_exact_bucket_better_than_cross_regime_broader_scope"
             reason = (
                 "historical same-bucket proxy 與 recent exact bucket 的 win-rate 差距可接受，"
-                "但 broader same-bucket 已被其他 regime 主導；目前 blocker 比較像 support 不足，而不是 proxy cohort 過寬。"
+                "且 broader same-bucket 已被其他 regime 主導；proxy 較適合作為 same-bucket governance 參考，"
+                "不應再把 cross-regime broader scope 當成 exact bucket 的替代證據。"
             )
         elif proxy_gap > 0.15:
             verdict = "proxy_too_wide_vs_exact_bucket"
@@ -813,6 +817,21 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
     elif exact_scope_bucket and exact_scope_bucket != current_bucket and exact_win_delta is not None and exact_win_delta > 0:
         comparison_takeaway = "neighbor_bucket_outperforms_broader_same_bucket"
 
+    proxy_boundary_verdict = boundary_diagnostics.get("proxy_boundary_verdict")
+    proxy_boundary_reason = boundary_diagnostics.get("proxy_boundary_reason")
+    if (
+        exact_bucket_root_cause == "exact_bucket_present_but_below_minimum"
+        and proxy_boundary_verdict in {
+            "proxy_matches_exact_bucket_better_than_cross_regime_broader_scope",
+            "proxy_boundary_inconclusive",
+        }
+    ):
+        proxy_boundary_verdict = "proxy_governance_reference_only_exact_support_blocked"
+        proxy_boundary_reason = (
+            "historical same-bucket proxy 可保留作 governance 參考，但 current live structure bucket 仍低於 minimum support；"
+            "在 exact support 補滿前，proxy 不得當成 deployment 放行依據。"
+        )
+
     return {
         "blocker_state": blocker_state,
         "preferred_support_cohort": preferred_support_cohort,
@@ -851,8 +870,8 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
         "bucket_evidence_comparison": bucket_evidence_comparison,
         "bucket_comparison_takeaway": comparison_takeaway,
         "proxy_boundary_diagnostics": boundary_diagnostics,
-        "proxy_boundary_verdict": boundary_diagnostics.get("proxy_boundary_verdict"),
-        "proxy_boundary_reason": boundary_diagnostics.get("proxy_boundary_reason"),
+        "proxy_boundary_verdict": proxy_boundary_verdict,
+        "proxy_boundary_reason": proxy_boundary_reason,
         "exact_lane_bucket_diagnostics": exact_lane_bucket_diagnostics,
         "exact_lane_bucket_verdict": exact_lane_bucket_diagnostics.get("verdict"),
         "exact_lane_bucket_reason": exact_lane_bucket_diagnostics.get("reason"),

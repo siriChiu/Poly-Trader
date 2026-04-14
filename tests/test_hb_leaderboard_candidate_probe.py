@@ -52,6 +52,10 @@ def test_build_alignment_surfaces_support_governance_route(tmp_path, monkeypatch
                     "minimum_support_rows": 50,
                     "exact_bucket_root_cause": "same_lane_exists_but_q65_missing",
                     "blocker_state": "exact_live_bucket_proxy_ready_but_exact_missing",
+                    "proxy_boundary_verdict": "proxy_too_wide_vs_exact_bucket",
+                    "proxy_boundary_reason": "proxy 邊界過寬",
+                    "exact_lane_bucket_verdict": "no_exact_lane_rows",
+                    "exact_lane_toxic_bucket": {},
                 },
                 "cohorts": {
                     "bull_supported_neighbor_buckets_proxy": {
@@ -108,6 +112,10 @@ def test_build_alignment_surfaces_support_governance_route(tmp_path, monkeypatch
     assert alignment["live_current_structure_bucket_gap_to_minimum"] == 50
     assert alignment["exact_bucket_root_cause"] == "same_lane_exists_but_q65_missing"
     assert alignment["support_blocker_state"] == "exact_live_bucket_proxy_ready_but_exact_missing"
+    assert alignment["proxy_boundary_verdict"] == "proxy_too_wide_vs_exact_bucket"
+    assert alignment["proxy_boundary_reason"] == "proxy 邊界過寬"
+    assert alignment["exact_lane_bucket_verdict"] == "no_exact_lane_rows"
+    assert alignment["exact_lane_toxic_bucket"] == {}
     assert alignment["support_governance_route"] == "exact_live_bucket_proxy_available"
 
 
@@ -141,6 +149,10 @@ def test_build_alignment_marks_under_supported_exact_bucket(tmp_path, monkeypatc
                     "minimum_support_rows": 50,
                     "exact_bucket_root_cause": "exact_bucket_present_but_below_minimum",
                     "blocker_state": "exact_lane_proxy_fallback_only",
+                    "proxy_boundary_verdict": "proxy_governance_reference_only_exact_support_blocked",
+                    "proxy_boundary_reason": "historical same-bucket proxy 可保留作 governance 參考，但 current live structure bucket 仍低於 minimum support；在 exact support 補滿前，proxy 不得當成 deployment 放行依據。",
+                    "exact_lane_bucket_verdict": "toxic_sub_bucket_identified",
+                    "exact_lane_toxic_bucket": {"bucket": "CAUTION|structure_quality_caution|q15"},
                 },
                 "cohorts": {
                     "bull_supported_neighbor_buckets_proxy": {
@@ -182,6 +194,9 @@ def test_build_alignment_marks_under_supported_exact_bucket(tmp_path, monkeypatc
     assert alignment["live_current_structure_bucket_gap_to_minimum"] == 45
     assert alignment["exact_bucket_root_cause"] == "exact_bucket_present_but_below_minimum"
     assert alignment["support_blocker_state"] == "exact_lane_proxy_fallback_only"
+    assert alignment["proxy_boundary_verdict"] == "proxy_governance_reference_only_exact_support_blocked"
+    assert alignment["exact_lane_bucket_verdict"] == "toxic_sub_bucket_identified"
+    assert alignment["exact_lane_toxic_bucket"] == {"bucket": "CAUTION|structure_quality_caution|q15"}
     assert alignment["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
 
 

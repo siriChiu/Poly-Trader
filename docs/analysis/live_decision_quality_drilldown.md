@@ -1,20 +1,20 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-14 18:15:16.436018**
+- feature_timestamp: **2026-04-14 18:40:28.725618**
 - target: `simulated_pyramid_win`
 - live path: **bull / CAUTION / D**
-- signal: **HOLD** @ confidence **0.3987**
+- signal: **HOLD** @ confidence **0.3309**
 - layers: **0 → 0**
-- execution_guardrail_reason: `decision_quality_below_trade_floor`
+- execution_guardrail_reason: `None`
 
 ## Scope comparison
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label+regime_gate+entry_quality_label` | 35 | 0.6286 | 0.3328 | 0.1511 | 0.3298 | 18 | False |
-| exact `regime_label+regime_gate+entry_quality_label` | 35 | 0.6286 | 0.3328 | 0.1511 | 0.3298 | 18 | False |
-| narrow `regime_label+entry_quality_label` | 165 | 0.1758 | -0.1099 | 0.2584 | 0.7237 | 18 | True |
-| broad `regime_gate+entry_quality_label` | 2784 | 0.7277 | 0.3818 | 0.2067 | 0.5617 | 20 | False |
+| chosen `regime_label+regime_gate+entry_quality_label` | 59 | 0.7797 | 0.4908 | 0.093 | 0.2217 | 42 | False |
+| exact `regime_label+regime_gate+entry_quality_label` | 59 | 0.7797 | 0.4908 | 0.093 | 0.2217 | 42 | False |
+| narrow `regime_label+entry_quality_label` | 189 | 0.2804 | -0.0043 | 0.2267 | 0.64 | 42 | False |
+| broad `regime_gate+entry_quality_label` | 2784 | 0.7356 | 0.3903 | 0.2037 | 0.557 | 44 | False |
 
 ## Shared shifts
 
