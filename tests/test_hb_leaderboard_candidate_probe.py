@@ -201,6 +201,98 @@ def test_build_alignment_marks_under_supported_exact_bucket(tmp_path, monkeypatc
 
 
 
+def test_build_alignment_marks_proxy_not_required_when_exact_bucket_supported(tmp_path, monkeypatch):
+    last_metrics = tmp_path / "last_metrics.json"
+    live_probe = tmp_path / "live_predict_probe.json"
+    bull_pocket = tmp_path / "bull_4h_pocket_ablation.json"
+    feature_ablation = tmp_path / "feature_group_ablation.json"
+
+    last_metrics.write_text(
+        json.dumps(
+            {
+                "feature_profile": "core_plus_macro_plus_4h_structure_shift",
+                "feature_profile_meta": {
+                    "source": "bull_4h_pocket_ablation.support_aware_profile",
+                    "support_cohort": "exact_live_bucket",
+                    "support_rows": 55,
+                    "exact_live_bucket_rows": 55,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    live_probe.write_text(
+        json.dumps(
+            {
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "execution_guardrail_reason": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    bull_pocket.write_text(
+        json.dumps(
+            {
+                "live_context": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 55,
+                    "supported_neighbor_buckets": ["CAUTION|structure_quality_caution|q15"],
+                },
+                "support_pathology_summary": {
+                    "minimum_support_rows": 50,
+                    "exact_bucket_root_cause": "exact_bucket_supported",
+                    "blocker_state": "exact_live_bucket_supported",
+                    "proxy_boundary_verdict": "exact_bucket_supported_proxy_not_required",
+                    "proxy_boundary_reason": "current live structure bucket 已達 minimum support；後續治理與驗證應直接以 exact bucket 為主，proxy 只保留輔助比較，不再作 blocker 判讀。",
+                    "exact_lane_bucket_verdict": "toxic_sub_bucket_identified",
+                    "exact_lane_toxic_bucket": {"bucket": "CAUTION|structure_quality_caution|q15"},
+                },
+                "cohorts": {
+                    "bull_supported_neighbor_buckets_proxy": {
+                        "rows": 84,
+                        "recommended_profile": "core_plus_macro",
+                    },
+                    "bull_exact_live_lane_proxy": {
+                        "rows": 370,
+                        "recommended_profile": "core_plus_macro",
+                    },
+                    "bull_live_exact_lane_bucket_proxy": {
+                        "rows": 107,
+                        "recommended_profile": None,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    feature_ablation.write_text(
+        json.dumps({"recommended_profile": "core_only"}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "LAST_METRICS_PATH", last_metrics)
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "LIVE_PROBE_PATH", live_probe)
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "BULL_POCKET_PATH", bull_pocket)
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "FEATURE_ABLATION_PATH", feature_ablation)
+
+    alignment = hb_leaderboard_candidate_probe._build_alignment(
+        {
+            "selected_feature_profile": "core_only",
+            "selected_feature_profile_source": "feature_group_ablation.recommended_profile",
+            "feature_profile_candidate_diagnostics": [],
+        }
+    )
+
+    assert alignment["minimum_support_rows"] == 50
+    assert alignment["live_current_structure_bucket_gap_to_minimum"] == 0
+    assert alignment["exact_bucket_root_cause"] == "exact_bucket_supported"
+    assert alignment["support_blocker_state"] == "exact_live_bucket_supported"
+    assert alignment["proxy_boundary_verdict"] == "exact_bucket_supported_proxy_not_required"
+    assert alignment["support_governance_route"] == "exact_live_bucket_supported"
+
+
+
 def test_main_suppresses_known_sklearn_feature_name_warnings(tmp_path, monkeypatch):
     out_path = tmp_path / "leaderboard_feature_profile_probe.json"
     monkeypatch.setattr(hb_leaderboard_candidate_probe, "OUT_PATH", out_path)

@@ -213,6 +213,8 @@ def test_support_pathology_summary_marks_exact_bucket_supported_when_rows_clear_
     assert summary["current_live_structure_bucket_gap_to_minimum"] == 0
     assert summary["bucket_gap_vs_dominant_neighbor"] == 0
     assert summary["exact_bucket_root_cause"] == "exact_bucket_supported"
+    assert summary["proxy_boundary_verdict"] == "exact_bucket_supported_proxy_not_required"
+    assert "exact bucket 為主" in summary["proxy_boundary_reason"]
 
 
 def test_support_pathology_summary_marks_present_but_under_supported_bucket_gap():

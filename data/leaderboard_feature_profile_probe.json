@@ -14,8 +14,8 @@
     "selected_feature_profile_source": "feature_group_ablation.recommended_profile",
     "feature_profiles_evaluated": [
       "core_only",
-      "current_full",
-      "core_plus_macro"
+      "core_plus_macro",
+      "current_full"
     ],
     "selected_feature_profile_blocker_applied": false,
     "selected_feature_profile_blocker_reason": null,
@@ -44,7 +44,7 @@
         "rank": 2,
         "model_name": "rule_baseline",
         "deployment_profile": "standard",
-        "feature_profile": "current_full",
+        "feature_profile": "core_plus_macro",
         "feature_profile_source": "leaderboard.fixed_feature_candidate",
         "support_cohort": null,
         "support_rows": null,
@@ -61,14 +61,14 @@
         "rank": 3,
         "model_name": "rule_baseline",
         "deployment_profile": "standard",
-        "feature_profile": "core_plus_macro",
-        "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
-        "support_cohort": "bull_exact_live_lane_proxy",
-        "support_rows": 354,
-        "exact_live_bucket_rows": 42,
-        "minimum_support_rows": 50,
-        "blocker_applied": true,
-        "blocker_reason": "under_minimum_exact_live_structure_bucket",
+        "feature_profile": "current_full",
+        "feature_profile_source": "leaderboard.fixed_feature_candidate",
+        "support_cohort": null,
+        "support_rows": null,
+        "exact_live_bucket_rows": null,
+        "minimum_support_rows": null,
+        "blocker_applied": false,
+        "blocker_reason": null,
         "overall_score": 0.62,
         "composite_score": 0.62,
         "avg_decision_quality_score": 0.0,
@@ -88,27 +88,18 @@
     "leaderboard_selected_profile": "core_only",
     "leaderboard_selected_profile_source": "feature_group_ablation.recommended_profile",
     "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
-    "blocked_candidate_profiles": [
-      {
-        "feature_profile": "core_plus_macro",
-        "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
-        "support_cohort": "bull_exact_live_lane_proxy",
-        "support_rows": 354,
-        "exact_live_bucket_rows": 42,
-        "blocker_reason": "under_minimum_exact_live_structure_bucket"
-      }
-    ],
+    "blocked_candidate_profiles": [],
     "live_regime_gate": "CAUTION",
     "live_entry_quality_label": "D",
     "live_execution_guardrail_reason": null,
     "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
-    "live_current_structure_bucket_rows": 42,
+    "live_current_structure_bucket_rows": 61,
     "minimum_support_rows": 50,
-    "live_current_structure_bucket_gap_to_minimum": 8,
-    "exact_bucket_root_cause": "exact_bucket_present_but_below_minimum",
-    "support_blocker_state": "exact_lane_proxy_fallback_only",
-    "proxy_boundary_verdict": "proxy_governance_reference_only_exact_support_blocked",
-    "proxy_boundary_reason": "historical same-bucket proxy 可保留作 governance 參考，但 current live structure bucket 仍低於 minimum support；在 exact support 補滿前，proxy 不得當成 deployment 放行依據。",
+    "live_current_structure_bucket_gap_to_minimum": 0,
+    "exact_bucket_root_cause": "exact_bucket_supported",
+    "support_blocker_state": "exact_live_bucket_supported",
+    "proxy_boundary_verdict": "exact_bucket_supported_proxy_not_required",
+    "proxy_boundary_reason": "current live structure bucket 已達 minimum support；後續治理與驗證應直接以 exact bucket 為主，proxy 只保留輔助比較，不再作 blocker 判讀。",
     "exact_lane_bucket_verdict": "toxic_sub_bucket_identified",
     "exact_lane_toxic_bucket": {
       "bucket": "CAUTION|structure_quality_caution|q15",
@@ -129,10 +120,10 @@
         "quality_delta": null,
         "pnl_delta": null,
         "feature_mean_deltas": {
-          "feat_4h_bias200": -1.3752,
-          "feat_4h_dist_swing_low": -1.3028,
-          "feat_4h_dist_bb_lower": -2.6199,
-          "feat_4h_bb_pct_b": -0.8379
+          "feat_4h_bias200": -1.6844,
+          "feat_4h_dist_swing_low": -1.597,
+          "feat_4h_dist_bb_lower": -2.7441,
+          "feat_4h_bb_pct_b": -0.8581
         }
       }
     },
@@ -144,10 +135,10 @@
     "bull_support_aware_profile": "core_plus_macro",
     "bull_support_neighbor_rows": 84,
     "bull_exact_live_lane_proxy_profile": "core_plus_macro",
-    "bull_exact_live_lane_proxy_rows": 354,
+    "bull_exact_live_lane_proxy_rows": 377,
     "bull_live_exact_bucket_proxy_profile": null,
-    "bull_live_exact_bucket_proxy_rows": 91,
-    "bull_exact_live_bucket_proxy_rows": 91,
-    "support_governance_route": "exact_live_bucket_present_but_below_minimum"
+    "bull_live_exact_bucket_proxy_rows": 114,
+    "bull_exact_live_bucket_proxy_rows": 114,
+    "support_governance_route": "exact_live_bucket_supported"
   }
 }

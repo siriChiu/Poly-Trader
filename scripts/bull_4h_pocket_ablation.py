@@ -819,7 +819,13 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
 
     proxy_boundary_verdict = boundary_diagnostics.get("proxy_boundary_verdict")
     proxy_boundary_reason = boundary_diagnostics.get("proxy_boundary_reason")
-    if (
+    if exact_bucket_root_cause == "exact_bucket_supported":
+        proxy_boundary_verdict = "exact_bucket_supported_proxy_not_required"
+        proxy_boundary_reason = (
+            "current live structure bucket 已達 minimum support；後續治理與驗證應直接以 exact bucket 為主，"
+            "proxy 只保留輔助比較，不再作 blocker 判讀。"
+        )
+    elif (
         exact_bucket_root_cause == "exact_bucket_present_but_below_minimum"
         and proxy_boundary_verdict in {
             "proxy_matches_exact_bucket_better_than_cross_regime_broader_scope",
