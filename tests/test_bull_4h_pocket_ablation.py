@@ -143,6 +143,48 @@ def test_build_proxy_boundary_diagnostics_prefers_same_bucket_proxy_over_cross_r
     assert diagnostics["proxy_boundary_verdict"] == "proxy_matches_exact_bucket_better_than_cross_regime_broader_scope"
 
 
+def test_build_exact_lane_bucket_diagnostics_identifies_toxic_sub_bucket():
+    frame = bull_4h_pocket_ablation.pd.DataFrame(
+        [
+            {"structure_bucket": "CAUTION|structure_quality_caution|q35", "feat_4h_bias200": -0.2, "feat_4h_dist_swing_low": 1.0, "feat_4h_dist_bb_lower": 0.2, "feat_4h_bb_pct_b": 0.10},
+            {"structure_bucket": "CAUTION|structure_quality_caution|q35", "feat_4h_bias200": -0.3, "feat_4h_dist_swing_low": 1.1, "feat_4h_dist_bb_lower": 0.2, "feat_4h_bb_pct_b": 0.11},
+            {"structure_bucket": "CAUTION|structure_quality_caution|q35", "feat_4h_bias200": -0.4, "feat_4h_dist_swing_low": 1.2, "feat_4h_dist_bb_lower": 0.3, "feat_4h_bb_pct_b": 0.12},
+            {"structure_bucket": "CAUTION|base_caution_regime_or_bias|q15", "feat_4h_bias200": -1.1, "feat_4h_dist_swing_low": 4.5, "feat_4h_dist_bb_lower": 1.1, "feat_4h_bb_pct_b": 0.55},
+            {"structure_bucket": "CAUTION|base_caution_regime_or_bias|q15", "feat_4h_bias200": -1.0, "feat_4h_dist_swing_low": 4.2, "feat_4h_dist_bb_lower": 1.0, "feat_4h_bb_pct_b": 0.50},
+            {"structure_bucket": "CAUTION|base_caution_regime_or_bias|q85", "feat_4h_bias200": -0.6, "feat_4h_dist_swing_low": 2.0, "feat_4h_dist_bb_lower": 0.5, "feat_4h_bb_pct_b": 0.20},
+        ]
+    )
+    y = bull_4h_pocket_ablation.pd.Series([1, 1, 1, 0, 0, 1], dtype=float)
+    mask = bull_4h_pocket_ablation.pd.Series([True] * len(frame))
+
+    diagnostics = bull_4h_pocket_ablation._build_exact_lane_bucket_diagnostics(
+        frame,
+        y,
+        live_context={
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "exact_recent_structure_bucket_counts": {
+                "CAUTION|structure_quality_caution|q35": 3,
+                "CAUTION|base_caution_regime_or_bias|q15": 2,
+                "CAUTION|base_caution_regime_or_bias|q85": 1,
+            },
+            "exact_current_live_structure_bucket_metrics": {
+                "win_rate": 1.0,
+                "avg_pnl": 0.02,
+                "avg_quality": 0.65,
+                "avg_drawdown_penalty": 0.08,
+                "avg_time_underwater": 0.10,
+            },
+        },
+        exact_live_lane_mask=mask,
+    )
+
+    assert diagnostics["verdict"] == "toxic_sub_bucket_identified"
+    assert diagnostics["toxic_bucket"]["bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
+    assert diagnostics["toxic_bucket"]["win_rate"] == 0.0
+    assert diagnostics["toxic_bucket"]["vs_current_bucket"]["win_rate_delta"] == -1.0
+    assert diagnostics["buckets"]["CAUTION|structure_quality_caution|q35"]["avg_quality"] == 0.65
+
+
 def test_support_pathology_summary_marks_exact_bucket_supported_when_rows_clear_threshold():
     payload = {
         "live_context": {

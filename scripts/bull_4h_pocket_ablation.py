@@ -562,6 +562,115 @@ def _build_proxy_boundary_diagnostics(
     }
 
 
+def _build_exact_lane_bucket_diagnostics(
+    frame: pd.DataFrame,
+    y: pd.Series,
+    *,
+    live_context: dict[str, Any],
+    exact_live_lane_mask: pd.Series,
+) -> dict[str, Any]:
+    feature_cols = ["feat_4h_bias200", *[col for col in COLLAPSE_FEATURES if col != "feat_4h_bias200"]]
+    current_bucket = live_context.get("current_live_structure_bucket")
+    bucket_counts = live_context.get("exact_recent_structure_bucket_counts") or {}
+    current_bucket_metrics = live_context.get("exact_current_live_structure_bucket_metrics") or {}
+
+    buckets: dict[str, dict[str, Any]] = {}
+    current_bucket_feature_means: dict[str, Any] = {}
+    toxic_bucket: dict[str, Any] | None = None
+
+    for bucket, count in bucket_counts.items():
+        bucket_rows = int(count or 0)
+        if bucket_rows <= 0:
+            continue
+        bucket_mask = exact_live_lane_mask & (frame["structure_bucket"] == bucket)
+        snapshot = _cohort_snapshot(
+            frame,
+            y,
+            bucket_mask,
+            tail_rows=bucket_rows,
+            feature_cols=feature_cols,
+        )
+        metrics = {
+            "rows": snapshot.get("rows"),
+            "win_rate": snapshot.get("win_rate"),
+            "avg_pnl": None,
+            "avg_quality": None,
+            "avg_drawdown_penalty": None,
+            "avg_time_underwater": None,
+        }
+        if bucket == current_bucket:
+            metrics.update(
+                {
+                    "avg_pnl": current_bucket_metrics.get("avg_pnl"),
+                    "avg_quality": current_bucket_metrics.get("avg_quality"),
+                    "avg_drawdown_penalty": current_bucket_metrics.get("avg_drawdown_penalty"),
+                    "avg_time_underwater": current_bucket_metrics.get("avg_time_underwater"),
+                }
+            )
+            current_bucket_feature_means = snapshot.get("feature_means") or {}
+
+        bucket_payload = {
+            "bucket": bucket,
+            **metrics,
+            "feature_means": snapshot.get("feature_means") or {},
+        }
+        if current_bucket and bucket != current_bucket:
+            bucket_payload["vs_current_bucket"] = {
+                "win_rate_delta": _metric_delta(metrics.get("win_rate"), (current_bucket_metrics or {}).get("win_rate")),
+                "quality_delta": _metric_delta(metrics.get("avg_quality"), (current_bucket_metrics or {}).get("avg_quality")),
+                "pnl_delta": _metric_delta(metrics.get("avg_pnl"), (current_bucket_metrics or {}).get("avg_pnl")),
+                "feature_mean_deltas": {
+                    feature: _metric_delta(
+                        (snapshot.get("feature_means") or {}).get(feature),
+                        current_bucket_feature_means.get(feature),
+                    )
+                    for feature in feature_cols
+                },
+            }
+        buckets[bucket] = bucket_payload
+
+    candidate_buckets = [
+        payload for bucket, payload in buckets.items() if bucket != current_bucket and int(payload.get("rows") or 0) > 0
+    ]
+    if candidate_buckets:
+        toxic_bucket = min(
+            candidate_buckets,
+            key=lambda payload: (
+                float(payload.get("avg_quality") if payload.get("avg_quality") is not None else 999.0),
+                float(payload.get("win_rate") if payload.get("win_rate") is not None else 999.0),
+                -int(payload.get("rows") or 0),
+            ),
+        )
+
+    verdict = "no_exact_lane_sub_bucket_split"
+    reason = "exact live lane 沒有可比較的非 current bucket 子 bucket。"
+    if toxic_bucket and current_bucket:
+        quality_delta = ((toxic_bucket.get("vs_current_bucket") or {}).get("quality_delta"))
+        win_delta = ((toxic_bucket.get("vs_current_bucket") or {}).get("win_rate_delta"))
+        if (
+            (quality_delta is not None and quality_delta <= -0.15)
+            or (win_delta is not None and win_delta <= -0.20)
+        ):
+            verdict = "toxic_sub_bucket_identified"
+            reason = (
+                f"exact live lane 內的 `{toxic_bucket.get('bucket')}` 明顯比 current bucket `{current_bucket}` 更差，"
+                "bull exact lane 的病灶主要來自 lane-internal 子 bucket，而不是 current bucket 本身。"
+            )
+        else:
+            verdict = "sub_bucket_gap_present_but_inconclusive"
+            reason = "exact live lane 內部 bucket 有差異，但目前落差仍不足以下 toxic pocket 結論。"
+
+    return {
+        "feature_columns": feature_cols,
+        "current_bucket": current_bucket,
+        "bucket_count": len(buckets),
+        "buckets": buckets,
+        "toxic_bucket": toxic_bucket,
+        "verdict": verdict,
+        "reason": reason,
+    }
+
+
 def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
     live_context = payload.get("live_context") or {}
     cohorts = payload.get("cohorts") or {}
@@ -693,6 +802,7 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
     broad_recent_pathology = live_context.get("broad_recent_pathology") or {}
     broader_bucket_pathology = ((broad_recent_pathology.get("summary") or {}).get("reference_window_comparison") or {}).get("top_mean_shift_features") or []
     boundary_diagnostics = payload.get("proxy_boundary_diagnostics") or {}
+    exact_lane_bucket_diagnostics = payload.get("exact_lane_bucket_diagnostics") or {}
     comparison_takeaway = "support_gap_unresolved"
     proxy_win_delta = (bucket_evidence_comparison.get("proxy_vs_broader_same_bucket") or {}).get("win_rate_delta")
     exact_win_delta = (bucket_evidence_comparison.get("exact_live_lane_vs_broader_same_bucket") or {}).get("win_rate_delta")
@@ -743,6 +853,10 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
         "proxy_boundary_diagnostics": boundary_diagnostics,
         "proxy_boundary_verdict": boundary_diagnostics.get("proxy_boundary_verdict"),
         "proxy_boundary_reason": boundary_diagnostics.get("proxy_boundary_reason"),
+        "exact_lane_bucket_diagnostics": exact_lane_bucket_diagnostics,
+        "exact_lane_bucket_verdict": exact_lane_bucket_diagnostics.get("verdict"),
+        "exact_lane_bucket_reason": exact_lane_bucket_diagnostics.get("reason"),
+        "exact_lane_toxic_bucket": exact_lane_bucket_diagnostics.get("toxic_bucket"),
         "broader_bucket_pathology_shift_features": [
             item.get("feature") for item in broader_bucket_pathology if item.get("feature")
         ],
@@ -875,6 +989,14 @@ def _write_markdown(payload: dict[str, Any]) -> None:
         f"- exact lane vs current bucket win Δ / quality Δ: **{(((support_summary.get('proxy_boundary_diagnostics') or {}).get('exact_live_lane_vs_current_live_bucket') or {}).get('win_rate_delta'))} / {(((support_summary.get('proxy_boundary_diagnostics') or {}).get('exact_live_lane_vs_current_live_bucket') or {}).get('quality_delta'))}**",
         f"- broader same-bucket vs current bucket win Δ / quality Δ: **{(((support_summary.get('proxy_boundary_diagnostics') or {}).get('broader_same_bucket_vs_current_live_bucket') or {}).get('win_rate_delta'))} / {(((support_summary.get('proxy_boundary_diagnostics') or {}).get('broader_same_bucket_vs_current_live_bucket') or {}).get('quality_delta'))}**",
         "",
+        "## Exact lane sub-bucket diagnostics",
+        "",
+        f"- verdict: **{support_summary.get('exact_lane_bucket_verdict')}**",
+        f"- reason: {support_summary.get('exact_lane_bucket_reason')}",
+        f"- toxic bucket: **{((support_summary.get('exact_lane_toxic_bucket') or {}).get('bucket'))}**",
+        f"- toxic bucket rows / win_rate / avg_quality: **{((support_summary.get('exact_lane_toxic_bucket') or {}).get('rows'))} / {((support_summary.get('exact_lane_toxic_bucket') or {}).get('win_rate'))} / {((support_summary.get('exact_lane_toxic_bucket') or {}).get('avg_quality'))}**",
+        f"- toxic bucket vs current win Δ / quality Δ: **{(((support_summary.get('exact_lane_toxic_bucket') or {}).get('vs_current_bucket') or {}).get('win_rate_delta'))} / {(((support_summary.get('exact_lane_toxic_bucket') or {}).get('vs_current_bucket') or {}).get('quality_delta'))}**",
+        "",
         "## Notes",
         "",
         f"- collapse features under inspection: {', '.join(payload['collapse_features'])}",
@@ -955,6 +1077,12 @@ def main() -> None:
         exact_live_lane_mask=exact_live_lane_mask,
         live_bucket_mask=live_bucket_mask,
         broad_same_bucket_mask=broad_same_bucket_mask,
+    )
+    payload["exact_lane_bucket_diagnostics"] = _build_exact_lane_bucket_diagnostics(
+        frame,
+        y,
+        live_context=live_context,
+        exact_live_lane_mask=exact_live_lane_mask,
     )
     payload["support_pathology_summary"] = _support_pathology_summary(payload)
 

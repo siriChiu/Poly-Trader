@@ -276,6 +276,21 @@ def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, 
                         "exact_bucket_proxy": {"bucket": "CAUTION|structure_quality_caution|q35", "rows": 8},
                         "broader_same_bucket": {"bucket": "CAUTION|structure_quality_caution|q35", "rows": 61},
                     },
+                    "exact_lane_bucket_verdict": "toxic_sub_bucket_identified",
+                    "exact_lane_bucket_reason": "q15 子 bucket 明顯拖累 exact lane",
+                    "exact_lane_toxic_bucket": {
+                        "bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                        "rows": 7,
+                        "win_rate": 0.1429,
+                        "vs_current_bucket": {"win_rate_delta": -0.6571},
+                    },
+                    "exact_lane_bucket_diagnostics": {
+                        "verdict": "toxic_sub_bucket_identified",
+                        "buckets": {
+                            "CAUTION|structure_quality_caution|q35": {"rows": 5, "win_rate": 0.8},
+                            "CAUTION|base_caution_regime_or_bias|q15": {"rows": 7, "win_rate": 0.1429},
+                        },
+                    },
                     "recommended_action": "維持 blocker",
                 },
                 "cohorts": {
@@ -298,6 +313,9 @@ def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, 
     assert diag["support_pathology_summary"]["proxy_boundary_verdict"] == "proxy_too_wide_vs_exact_bucket"
     assert diag["support_pathology_summary"]["proxy_boundary_diagnostics"]["recent_exact_current_bucket"]["rows"] == 5
     assert diag["support_pathology_summary"]["bucket_evidence_comparison"]["broader_same_bucket"]["rows"] == 61
+    assert diag["support_pathology_summary"]["exact_lane_bucket_verdict"] == "toxic_sub_bucket_identified"
+    assert diag["support_pathology_summary"]["exact_lane_toxic_bucket"]["bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
+    assert diag["support_pathology_summary"]["exact_lane_bucket_diagnostics"]["buckets"]["CAUTION|base_caution_regime_or_bias|q15"]["rows"] == 7
     assert diag["bull_all"]["recommended_profile"] == "core_plus_macro_plus_all_4h"
     assert diag["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
     assert diag["bull_live_exact_lane_bucket_proxy"]["rows"] == 8
