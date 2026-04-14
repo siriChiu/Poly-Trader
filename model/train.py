@@ -141,8 +141,20 @@ def _build_feature_profile_columns(all_columns: list[str]) -> dict[str, list[str
     strong_baseline = subsets.get("core_plus_macro", [])
     stable_4h_with_lags = _feature_and_lag_columns(all_columns, STABLE_4H_FEATURES)
     weak_4h_with_lags = set(_feature_and_lag_columns(all_columns, BULL_COLLAPSE_4H_FEATURES))
+    bull_collapse_4h_with_lags = _feature_and_lag_columns(all_columns, BULL_COLLAPSE_4H_FEATURES)
+    trend_4h_with_lags = _feature_and_lag_columns(all_columns, ["feat_4h_bias50", "feat_4h_bias20", "feat_4h_bias200"])
+    momentum_4h_with_lags = _feature_and_lag_columns(all_columns, ["feat_4h_rsi14", "feat_4h_macd_hist", "feat_4h_vol_ratio"])
+    all_4h_with_lags = _feature_and_lag_columns(all_columns, FOUR_H_FEATURES)
     if strong_baseline and stable_4h_with_lags:
         subsets["core_macro_plus_stable_4h"] = sorted(set(strong_baseline + stable_4h_with_lags))
+    if strong_baseline and bull_collapse_4h_with_lags:
+        subsets["core_plus_macro_plus_4h_structure_shift"] = sorted(set(strong_baseline + bull_collapse_4h_with_lags))
+    if strong_baseline and trend_4h_with_lags:
+        subsets["core_plus_macro_plus_4h_trend"] = sorted(set(strong_baseline + trend_4h_with_lags))
+    if strong_baseline and momentum_4h_with_lags:
+        subsets["core_plus_macro_plus_4h_momentum"] = sorted(set(strong_baseline + momentum_4h_with_lags))
+    if strong_baseline and all_4h_with_lags:
+        subsets["core_plus_macro_plus_all_4h"] = sorted(set(strong_baseline + all_4h_with_lags))
     if weak_4h_with_lags:
         subsets["current_full_no_bull_collapse_4h"] = [
             col for col in all_columns if col not in weak_4h_with_lags
@@ -174,7 +186,12 @@ def _select_support_aware_profile(
     bull_pocket_payload: dict,
     target_col: str,
 ) -> tuple[str, list[str], dict] | None:
-    """Prefer a supported small-family profile when the live bull structure bucket has no support."""
+    """Prefer exact-supported or support-aware bull profiles over generic global shrinkage.
+
+    Two modes:
+    - exact bucket unsupported  -> use support-aware proxy cohorts
+    - exact bucket supported    -> use the best exact-supported bull cohort/profile
+    """
     if not bull_pocket_payload or bull_pocket_payload.get("target_col") != target_col:
         return None
 
@@ -183,11 +200,47 @@ def _select_support_aware_profile(
         return None
 
     live_context = bull_pocket_payload.get("live_context") or {}
+    support_summary = bull_pocket_payload.get("support_pathology_summary") or {}
     live_bucket_rows = _parse_int(live_context.get("current_live_structure_bucket_rows"), default=0)
-    if live_bucket_rows >= MIN_SUPPORT_AWARE_BUCKET_ROWS:
-        return None
+    exact_bucket_root_cause = str(support_summary.get("exact_bucket_root_cause") or "")
 
     cohorts = bull_pocket_payload.get("cohorts") or {}
+
+    if (
+        live_bucket_rows >= MIN_SUPPORT_AWARE_BUCKET_ROWS
+        or exact_bucket_root_cause == "exact_bucket_supported"
+    ):
+        for cohort_name in (
+            "exact_live_bucket",
+            "bull_live_exact_lane_bucket_proxy",
+            "bull_all",
+            "bull_exact_live_lane_proxy",
+        ):
+            cohort = cohorts.get(cohort_name) or {}
+            profile_name = cohort.get("recommended_profile")
+            row_count = _parse_int(cohort.get("rows"), default=0)
+            if (
+                not profile_name
+                or row_count < MIN_SUPPORT_AWARE_BUCKET_ROWS
+                or profile_name not in profile_columns
+                or profile_name not in profiles
+            ):
+                continue
+            columns = profile_columns.get(profile_name) or []
+            if not columns:
+                continue
+            return profile_name, columns, {
+                "source": "bull_4h_pocket_ablation.exact_supported_profile",
+                "generated_at": bull_pocket_payload.get("generated_at"),
+                "support_cohort": cohort_name,
+                "support_rows": row_count,
+                "exact_live_bucket_rows": live_bucket_rows,
+                "minimum_support_rows": MIN_SUPPORT_AWARE_BUCKET_ROWS,
+                "exact_bucket_root_cause": exact_bucket_root_cause or "exact_bucket_supported",
+                "support_profile_rank": _rank_feature_profile(profile_name, profiles[profile_name]),
+            }
+        return None
+
     for cohort_name in (
         "bull_live_exact_lane_bucket_proxy",
         "bull_exact_live_lane_proxy",
@@ -214,6 +267,7 @@ def _select_support_aware_profile(
             "support_rows": row_count,
             "exact_live_bucket_rows": live_bucket_rows,
             "minimum_support_rows": MIN_SUPPORT_AWARE_BUCKET_ROWS,
+            "exact_bucket_root_cause": exact_bucket_root_cause or None,
             "support_profile_rank": _rank_feature_profile(profile_name, profiles[profile_name]),
         }
 

@@ -212,7 +212,7 @@ def test_build_alignment_marks_proxy_not_required_when_exact_bucket_supported(tm
             {
                 "feature_profile": "core_plus_macro_plus_4h_structure_shift",
                 "feature_profile_meta": {
-                    "source": "bull_4h_pocket_ablation.support_aware_profile",
+                    "source": "bull_4h_pocket_ablation.exact_supported_profile",
                     "support_cohort": "exact_live_bucket",
                     "support_rows": 55,
                     "exact_live_bucket_rows": 55,
@@ -290,6 +290,7 @@ def test_build_alignment_marks_proxy_not_required_when_exact_bucket_supported(tm
     assert alignment["support_blocker_state"] == "exact_live_bucket_supported"
     assert alignment["proxy_boundary_verdict"] == "exact_bucket_supported_proxy_not_required"
     assert alignment["support_governance_route"] == "exact_live_bucket_supported"
+    assert alignment["dual_profile_state"] == "post_threshold_profile_governance_stalled"
 
 
 

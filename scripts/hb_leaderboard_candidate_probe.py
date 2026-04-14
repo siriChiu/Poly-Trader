@@ -108,13 +108,9 @@ def _build_alignment(top_model: dict[str, Any]) -> dict[str, Any]:
     ]
 
     train_profile = last_metrics.get("feature_profile")
+    train_profile_source = last_metrics.get("feature_profile_source") or last_metrics.get("feature_profile_meta", {}).get("source")
     global_recommended = feature_ablation.get("recommended_profile")
     leaderboard_selected = top_model.get("selected_feature_profile")
-    dual_profile_state = "aligned"
-    if leaderboard_selected != train_profile:
-        dual_profile_state = "leaderboard_global_winner_vs_train_support_fallback"
-    elif leaderboard_selected != global_recommended:
-        dual_profile_state = "leaderboard_train_winner_vs_global_probe_drift"
 
     support_governance_route = "no_support_proxy"
     if int(live_bucket_rows or 0) > 0:
@@ -129,6 +125,18 @@ def _build_alignment(top_model: dict[str, Any]) -> dict[str, Any]:
         support_governance_route = "exact_live_lane_proxy_available"
     elif int(support_cohort.get("rows") or 0) > 0:
         support_governance_route = "supported_neighbor_only"
+
+    dual_profile_state = "aligned"
+    if leaderboard_selected != train_profile:
+        if (
+            support_governance_route == "exact_live_bucket_supported"
+            and train_profile_source == "bull_4h_pocket_ablation.exact_supported_profile"
+        ):
+            dual_profile_state = "post_threshold_profile_governance_stalled"
+        else:
+            dual_profile_state = "leaderboard_global_winner_vs_train_support_fallback"
+    elif leaderboard_selected != global_recommended:
+        dual_profile_state = "leaderboard_train_winner_vs_global_probe_drift"
 
     return {
         "global_recommended_profile": global_recommended,

@@ -284,9 +284,15 @@ def test_select_support_aware_profile_prefers_exact_live_bucket_proxy_when_avail
 
 
 
-def test_select_feature_profile_keeps_global_recommendation_when_exact_bucket_support_is_sufficient():
-    all_columns = train_module.FEATURE_COLS + ["feat_eye_lag12", "feat_vix_x_eye"]
-    profile, _, meta = train_module.select_feature_profile(
+def test_select_feature_profile_prefers_exact_supported_bull_profile_when_bucket_support_is_sufficient():
+    all_columns = train_module.FEATURE_COLS + [
+        "feat_eye_lag12",
+        "feat_vix_x_eye",
+        "feat_4h_dist_swing_low",
+        "feat_4h_dist_bb_lower",
+        "feat_4h_bb_pct_b",
+    ]
+    profile, columns, meta = train_module.select_feature_profile(
         all_columns,
         target_col="simulated_pyramid_win",
         ablation_payload={
@@ -306,6 +312,12 @@ def test_select_feature_profile_keeps_global_recommendation_when_exact_bucket_su
                     "cv_std_accuracy": 0.16,
                     "cv_mean_brier": 0.19,
                 },
+                "core_plus_macro_plus_4h_structure_shift": {
+                    "cv_mean_accuracy": 0.76,
+                    "cv_worst_accuracy": 0.46,
+                    "cv_std_accuracy": 0.15,
+                    "cv_mean_brier": 0.18,
+                },
             },
         },
         bull_pocket_payload={
@@ -314,7 +326,18 @@ def test_select_feature_profile_keeps_global_recommendation_when_exact_bucket_su
             "live_context": {
                 "current_live_structure_bucket_rows": 75,
             },
+            "support_pathology_summary": {
+                "exact_bucket_root_cause": "exact_bucket_supported",
+            },
             "cohorts": {
+                "exact_live_bucket": {
+                    "rows": 75,
+                    "recommended_profile": None,
+                },
+                "bull_all": {
+                    "rows": 759,
+                    "recommended_profile": "core_plus_macro_plus_4h_structure_shift",
+                },
                 "bull_supported_neighbor_buckets_proxy": {
                     "rows": 84,
                     "recommended_profile": "core_plus_macro",
@@ -323,8 +346,16 @@ def test_select_feature_profile_keeps_global_recommendation_when_exact_bucket_su
         },
     )
 
-    assert profile == "core_only"
-    assert meta["source"] == "feature_group_ablation.recommended_profile"
+    assert profile == "core_plus_macro_plus_4h_structure_shift"
+    assert set(columns) == set(
+        train_module.CORE_FEATURES
+        + train_module.MACRO_FEATURES
+        + ["feat_4h_dist_swing_low", "feat_4h_dist_bb_lower", "feat_4h_bb_pct_b"]
+    )
+    assert meta["source"] == "bull_4h_pocket_ablation.exact_supported_profile"
+    assert meta["support_cohort"] == "bull_all"
+    assert meta["support_rows"] == 759
+    assert meta["exact_live_bucket_rows"] == 75
 
 
 def test_select_feature_profile_accepts_extended_ablation_profiles_from_report():
