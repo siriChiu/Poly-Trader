@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-14 — Heartbeat #720_
+_最後更新：2026-04-14 — Heartbeat #724 (fast + leaderboard auto lane selection)_
 
 本文件只保留**當前進度**與**接下來要做的事情**，不保留歷史 roadmap 演進紀錄。
 
@@ -21,6 +21,7 @@ _最後更新：2026-04-14 — Heartbeat #720_
 - blind benchmark 已加入 process fallback
 
 ### 模型與 leaderboard
+- 已新增 `docs/analysis/model-shortlist-current.md`，整理目前最適合 Poly-Trader 環境與概念的核心 / 對照 / 研究模型分層
 - leaderboard 已吃到真正的 4H context：
   - `feat_4h_bias200`
   - `regime_label`
@@ -29,25 +30,41 @@ _最後更新：2026-04-14 — Heartbeat #720_
   - `feat_4h_dist_swing_low`
 - leaderboard 已加入 `deployment_profile`
 - 已導入 evidence-driven deployment presets
+- **Heartbeat #724**：leaderboard 會自動比較固定 deployment lane 候選（`standard` / `high_conviction_bear_top10` / `bear_top5` / `balanced_conviction` / `quality_filtered_all_regimes` 的相容子集），並持久化當前 best lane
 - top-k walk-forward precision 報告可產出 `model/topk_walkforward_precision.json`
+- predictor 已修正 isotonic calibration payload 相容性，舊版 `x/y` keys 不再被忽略
 
 ### 決策語義
 - target 已統一以 `simulated_pyramid_win` 為主
 - 4H regime gate / entry quality / allowed layers 已串進主要 decision path
 - live predictor / Strategy Lab / leaderboard 的 4H 語義已比以前一致
+- predictor runtime 現在已改成 **support-aware structure-bucket blocker**：exact live bucket support=0 直接阻擋，neighbor buckets 只作保守參考，不再用 broader same-bucket scope 放行
+- 已用 `scripts/hb_predict_probe.py` 實測驗證：artifact 現在會明確落出 `unsupported_exact_live_structure_bucket_blocks_trade`
 - Heartbeat #719 已把 live decision-quality calibration 從 **cross-regime broader lane** 收斂到 **same-regime fallback**，避免 neutral-dominated `regime_gate+entry_quality_label` 再假代表 bull runtime path
 - Heartbeat #720 新增 reusable drill-down artifact：
   - `data/live_decision_quality_drilldown.json`
   - `docs/analysis/live_decision_quality_drilldown.md`
   讓每輪可以直接比對 chosen scope / exact live lane / narrow same-regime lane / broad same-gate lane
+- Heartbeat #721：`hb_parallel_runner.py --fast` 現在會在 `hb_predict_probe.py` 後**自動刷新**上述 drill-down artifact，避免 heartbeat summary 還在引用舊的 live lane snapshot
 
-### 分析治理（Heartbeat #720）
-- 新增 `scripts/feature_group_ablation.py`
-  - 會輸出 `data/feature_group_ablation.json`
-  - 會輸出 `docs/analysis/feature_group_ablation.md`
-- 已用 recent 5000 rows + TimeSeriesSplit 驗證：
-  - `core_plus_macro` 目前比 `current_full` 更穩、更準
-  - `current_full` 不再可被視為預設最佳 baseline
+### 分析治理（Heartbeat #722 → #723）
+- `scripts/feature_group_ablation.py` 現在會固定輸出：
+  - `recommended_profile`
+  - bull_top10 指標
+- `scripts/bull_4h_pocket_ablation.py` 已新增：
+  - 會輸出 `data/bull_4h_pocket_ablation.json`
+  - 會輸出 `docs/analysis/bull_4h_pocket_ablation.md`
+  - 專門比較 bull_all / bull_collapse_q35 / exact-live-lane proxy / live-bucket proxy / supported-neighbor-bucket proxy 的 4H family 組合
+- **Heartbeat #722 patch**：`scripts/hb_parallel_runner.py --fast` 現在也會自動刷新這兩份 ablation artifact，並把結果寫進 `data/heartbeat_fast_summary.json`，避免 heartbeat 只更新 collect/IC/drift 而 feature-family 證據仍是舊 snapshot
+- **Heartbeat #723 patch**：`model/train.py` 不再因 extended ablation profile 名稱（如 `core_macro_plus_stable_4h` / `current_full_no_bull_collapse_4h`）與 training-side profile registry 不一致而 silently 回退到 `code_default`
+- **Heartbeat #723 patch**：當 live bull exact structure bucket support=0 時，training 會改採 `bull_supported_neighbor_buckets_proxy` 的 support-aware profile（目前落在 `core_plus_macro`），而不是盲目沿用 global `core_only`
+- Heartbeat #723 實測：`PYTHONPATH=. python model/train.py` → `feature_profile=core_plus_macro`, `feature_profile_meta.source=bull_4h_pocket_ablation.support_aware_profile`, `cv_accuracy=0.7530`, `cv_worst=0.6121`
+- Heartbeat #722 / #723 的 recent 5000 rows 驗證：
+  - `core_only` → **0.7248 / 0.1812 / 0.4538**
+  - `core_plus_macro` → **0.6849 / 0.2161 / 0.4538**
+  - `current_full` → **0.5604 / 0.2523 / 0.4538**
+  - bull_all best profile → **`core_plus_macro_plus_all_4h`**（brier **0.2241**）
+  - bull_collapse_q35 best profile → **`core_plus_macro`**（**0.7073 / 0.0797 / 0.6098**）
 
 ---
 
@@ -79,64 +96,72 @@ _最後更新：2026-04-14 — Heartbeat #720_
 ### 1. Feature-family shrinkage（最高優先）
 目標：找出哪些特徵群真的幫助泛化，哪些只是在 full stack 裡放大 variance。
 
-Heartbeat #720 最新證據：
-- `core_plus_macro` → **0.7364 / 0.1769 / 0.4610**
-- `core_only` → **0.7239 / 0.1857 / 0.4538**
-- `current_full` → **0.6533 / 0.1598 / 0.4538**
+Heartbeat #722 最新證據：
+- `recommended_profile` → **`core_only`**
+- `core_only` → **0.7248 / 0.1812 / 0.4538**
+- `core_plus_macro` → **0.6849 / 0.2161 / 0.4538**
+- `current_full` → **0.5604 / 0.2523 / 0.4538**
+- bull_all best profile → **`core_plus_macro_plus_all_4h`**（brier **0.2241**）
+- bull_collapse_q35 best profile → **`core_plus_macro`**（**0.7073 / 0.0797 / 0.6098**）
+- bull_exact_live_lane_proxy → **306 rows / best=`core_plus_macro`**
+- bull_live_exact_lane_bucket_proxy → **43 rows / no stable profile yet**
+- bull_supported_neighbor_buckets_proxy → **84 rows / best=`core_plus_macro`**
 
 這代表：
 - full stack 目前不是最佳 baseline
 - 不能再預設「保留全部 feature 最安全」
-- 下一輪應先做 **family shrinkage**，不是再擴張 feature list
+- training path 已先落地 shrinkage auto-selection
+- bull blocker **不是**靠直接刪掉三個 4H collapse features 就能解掉
+- bull 全體與 bull collapse pocket 的最佳 4H 組合不一樣，下一步要往 bucket/support 分層治理
+- live exact bucket support 明顯比 neighbor buckets 更薄，下一步要直接把 support 分層帶進 deployment/blocker 規則
 
 要做：
 - 以 `core_plus_macro` 當小型強 baseline
 - 比較：
-  - `core + macro + selected 4H`
   - `current_full - lags`
   - `current_full - cross`
-  - `current_full - selected weak 4H`
+  - 更細的 4H bucket-specific shrinkage / support-based pruning
+  - leaderboard candidate sets derived from ablation winners
 - 產出：
   - CV mean
   - CV std
   - worst fold
-  - top10 / bear top10 precision
+  - top10 / bear top10 / bull top10 precision
 
 ### 2. Bull live pocket 4H collapse drill-down
 目標：直接處理 bull live blocker，而不是只做 generic calibration 調參。
 
-Heartbeat #720 drill-down 已證明：
+Heartbeat #721 drill-down 已證明：
 - chosen scope = `regime_label`
-- exact live lane 只有 **14 rows**，且 **q65 structure bucket support = 0**
+- exact live lane 只有 **17 rows**，且 **current live structure bucket support = 0**
 - narrow bull-only D lane **147 rows / win_rate 0.0748 / quality -0.2098**
+- broader `regime_gate+entry_quality_label` 雖然健康，但 recent500 幾乎全是 **chop spillover**，不能代表 live bull path
 - shared collapse features 仍是：
   - `feat_4h_dist_swing_low`
   - `feat_4h_dist_bb_lower`
   - `feat_4h_bb_pct_b`
 
 要做：
-- bull-only negative pocket 的 4H family ablation
-- 確認哪些 4H feature 應降權 / 移除 / 分桶重做
-- 若 exact live lane 長期低樣本，明確把 support 不足升級為 deployment blocker
+- 以 `scripts/bull_4h_pocket_ablation.py` 的 q35 collapse cohort 與 exact-live-bucket proxy 為基準，細分 structure bucket / support ablation
+- 確認哪些 4H feature 應降權 / 分桶重做，而不是整族硬刪
+- 若 exact live bucket 持續低支持，而 neighbor buckets 有 support，明確把這種 support 落差升級為 deployment blocker / fallback 規則
 
 ### 3. Multi-lane leaderboard evaluation
 目標：讓 leaderboard 比的是「模型 × 合理部署方式」，而不是單一僵硬 preset。
 
 目前狀態：
-- leaderboard 的 deployment profile 已比以前合理
-- 但仍是 **手工 evidence-driven presets**
-- 還不是自動從資料學出最佳 deployment lane
+- Heartbeat #724 已讓 `backtesting/model_leaderboard.py` 自動比較固定 lane 候選，而不是只吃單一 hand-tuned preset
+- 目前會輸出選中的 `deployment_profile`，並在 status metadata 留下 `deployment_profiles_evaluated`
+- 但 lane 候選仍是**固定集合**，還沒有吃進 bull pocket support / structure bucket support 的更細分治理
 
 要做：
-- 每個模型比較幾條固定 lane：
-  - `standard`
-  - `bear_top10`
-  - `bear_top5`
-  - `balanced_conviction`
+- 把 auto lane selection 從 fixed candidates 延伸到 support-aware / bucket-aware lanes
+- 將 lane evaluation 結果直接回灌到 leaderboard candidate / production lane 決策
 - 產出：
   - best lane
   - stable lane
   - production lane
+  - lane-selection evidence（support rows / structure bucket coverage / worst-fold stability）
 
 ### 4. 降低最差 fold 崩掉的問題
 目標：不要只看平均分數。

@@ -172,11 +172,13 @@ class FoldResult:
     avg_expected_pyramid_quality: float = 0.0
     avg_expected_drawdown_penalty: float = 0.0
     avg_expected_time_underwater: float = 0.0
+    deployment_profile: str = "standard"
 
 @dataclass
 class ModelScore:
     """模型的綜合得分"""
     model_name: str
+    deployment_profile: str = "standard"
     avg_roi: float = 0.0
     avg_win_rate: float = 0.0
     avg_trades: float = 0.0
@@ -218,6 +220,46 @@ class ModelLeaderboard:
         'rule_baseline', 'logistic_regression', 'xgboost',
         'lightgbm', 'catboost', 'random_forest', 'mlp', 'svm', 'ensemble'
     ]
+    DEPLOYMENT_PROFILES: Dict[str, Dict[str, Any]] = {
+        'standard': {
+            'entry_overrides': {
+                'entry_quality_min': 0.55,
+                'allowed_regimes': ['all'],
+            },
+        },
+        'high_conviction_bear_top10': {
+            'entry_overrides': {
+                'confidence_min': 0.52,
+                'entry_quality_min': 0.58,
+                'top_k_percent': 10.0,
+                'allowed_regimes': ['bear'],
+            },
+        },
+        'bear_top5': {
+            'entry_overrides': {
+                'confidence_min': 0.50,
+                'entry_quality_min': 0.57,
+                'top_k_percent': 5.0,
+                'allowed_regimes': ['bear'],
+            },
+        },
+        'balanced_conviction': {
+            'entry_overrides': {
+                'confidence_min': 0.50,
+                'entry_quality_min': 0.55,
+                'top_k_percent': 5.0,
+                'allowed_regimes': ['bear', 'chop'],
+            },
+        },
+        'quality_filtered_all_regimes': {
+            'entry_overrides': {
+                'confidence_min': 0.48,
+                'entry_quality_min': 0.56,
+                'top_k_percent': 5.0,
+                'allowed_regimes': ['all'],
+            },
+        },
+    }
 
     def __init__(self, data_df: pd.DataFrame, target_col: str = 'simulated_pyramid_win'):
         """
@@ -232,6 +274,7 @@ class ModelLeaderboard:
         self.data = self.data.sort_values('timestamp').reset_index(drop=True)
         self.target_col = target_col
         self.last_model_statuses: Dict[str, Dict[str, Any]] = {}
+        self._deployment_profile_override: Optional[str] = None
 
     def _get_walk_forward_splits(self) -> List[Tuple[str, str, str, str]]:
         """產生 Walk-Forward 折疊列表: (train_start, train_end, test_start, test_end)"""
@@ -267,6 +310,194 @@ class ModelLeaderboard:
              (data_start + pd.DateOffset(months=6)).strftime('%Y-%m-%d'),
              data_end.strftime('%Y-%m-%d'))
         ]
+
+    def _default_deployment_profile_name(self, model_name: str) -> str:
+        if model_name == 'random_forest':
+            return 'high_conviction_bear_top10'
+        if model_name in {'xgboost', 'catboost', 'lightgbm', 'ensemble'}:
+            return 'balanced_conviction'
+        if model_name in {'logistic_regression', 'mlp', 'svm'}:
+            return 'quality_filtered_all_regimes'
+        return 'standard'
+
+    def _deployment_profile_candidates_for_model(self, model_name: str) -> List[str]:
+        """Fixed candidate lanes for automatic leaderboard lane selection.
+
+        The leaderboard should compare a small set of deployment lanes rather than
+        hard-coding one evidence-driven preset forever.
+        """
+        if model_name == 'random_forest':
+            candidates = [
+                'high_conviction_bear_top10',
+                'bear_top5',
+                'balanced_conviction',
+                'standard',
+            ]
+        elif model_name in {'xgboost', 'catboost', 'lightgbm', 'ensemble'}:
+            candidates = [
+                'balanced_conviction',
+                'high_conviction_bear_top10',
+                'bear_top5',
+                'standard',
+            ]
+        elif model_name in {'logistic_regression', 'mlp', 'svm'}:
+            candidates = [
+                'quality_filtered_all_regimes',
+                'balanced_conviction',
+                'standard',
+            ]
+        else:
+            candidates = ['standard']
+
+        default_name = self._default_deployment_profile_name(model_name)
+        ordered = [default_name] + candidates
+        unique: List[str] = []
+        for name in ordered:
+            if name in self.DEPLOYMENT_PROFILES and name not in unique:
+                unique.append(name)
+        return unique or ['standard']
+
+    def _deployment_profile_for_model(self, model_name: str) -> Dict[str, Any]:
+        """Return the active deployment profile, honoring temporary auto-selection overrides."""
+        profile_name = self._deployment_profile_override or self._default_deployment_profile_name(model_name)
+        profile = self.DEPLOYMENT_PROFILES.get(profile_name, self.DEPLOYMENT_PROFILES['standard'])
+        return {
+            'name': profile_name,
+            'entry_overrides': dict(profile.get('entry_overrides', {})),
+        }
+
+    def _candidate_selection_key(self, score: ModelScore) -> Tuple[float, float, float, float, float]:
+        return (
+            float(score.composite_score),
+            float(score.reliability_score),
+            float(score.avg_decision_quality_score),
+            float(score.avg_win_rate),
+            -float(score.std_roi),
+        )
+
+    def _score_model_from_folds(
+        self,
+        model_name: str,
+        folds: List[FoldResult],
+        all_train_accs: List[float],
+        all_test_accs: List[float],
+    ) -> ModelScore:
+        rois = [f.roi for f in folds]
+        wrs = [f.win_rate for f in folds]
+        avg_trades = np.mean([f.total_trades for f in folds])
+        avg_max_drawdown = np.mean([f.max_drawdown for f in folds])
+        avg_profit_factor = np.mean([f.profit_factor for f in folds])
+        avg_entry_quality = np.mean([f.avg_entry_quality for f in folds])
+        avg_allowed_layers = np.mean([f.avg_allowed_layers for f in folds])
+        avg_trade_quality = np.mean([f.trade_quality_score for f in folds])
+        avg_decision_quality_score = np.mean([f.avg_decision_quality_score for f in folds])
+        avg_expected_win_rate = np.mean([f.avg_expected_win_rate for f in folds])
+        avg_expected_pyramid_quality = np.mean([f.avg_expected_pyramid_quality for f in folds])
+        avg_expected_drawdown_penalty = np.mean([f.avg_expected_drawdown_penalty for f in folds])
+        avg_expected_time_underwater = np.mean([f.avg_expected_time_underwater for f in folds])
+        regime_allow_ratios = [f.regime_gate_allow_ratio for f in folds]
+        regime_stability_score = _clamp01(1.0 - float(np.std(regime_allow_ratios)) / 0.25)
+        trade_count_score = _clamp01(avg_trades / 20.0)
+        roi_score = _clamp01(0.5 + float(np.mean(rois)) / 0.20)
+        max_drawdown_score = _clamp01(1.0 - avg_max_drawdown / 0.35)
+        profit_factor_score = _clamp01((avg_profit_factor - 1.0) / 1.5)
+        time_underwater_score = _clamp01(1.0 - avg_expected_time_underwater / 0.60)
+        decision_quality_component = avg_decision_quality_score or avg_trade_quality
+
+        scores = ModelScore(
+            model_name=model_name,
+            deployment_profile=str(getattr(folds[0], 'deployment_profile', 'standard') if folds else 'standard'),
+            avg_roi=np.mean(rois),
+            avg_win_rate=np.mean(wrs),
+            avg_trades=avg_trades,
+            avg_max_drawdown=avg_max_drawdown,
+            avg_profit_factor=avg_profit_factor,
+            avg_entry_quality=avg_entry_quality,
+            avg_allowed_layers=avg_allowed_layers,
+            avg_trade_quality=avg_trade_quality,
+            avg_decision_quality_score=avg_decision_quality_score,
+            avg_expected_win_rate=avg_expected_win_rate,
+            avg_expected_pyramid_quality=avg_expected_pyramid_quality,
+            avg_expected_drawdown_penalty=avg_expected_drawdown_penalty,
+            avg_expected_time_underwater=avg_expected_time_underwater,
+            regime_stability_score=regime_stability_score,
+            trade_count_score=trade_count_score,
+            roi_score=roi_score,
+            max_drawdown_score=max_drawdown_score,
+            profit_factor_score=profit_factor_score,
+            time_underwater_score=time_underwater_score,
+            decision_quality_component=decision_quality_component,
+            std_roi=np.std(rois),
+            train_accuracy=np.mean(all_train_accs) if all_train_accs else 0,
+            test_accuracy=np.mean(all_test_accs) if all_test_accs else 0,
+            folds=folds,
+        )
+
+        scores.train_test_gap = scores.train_accuracy - scores.test_accuracy
+        scores.overfit_penalty = _clamp01(scores.train_test_gap / 0.20)
+        win_rate_reference_score = _clamp01((scores.avg_win_rate - 0.45) / 0.20)
+        variance_penalty = _clamp01(scores.std_roi / 0.10)
+
+        scores.reliability_score = round(
+            0.35 * scores.max_drawdown_score
+            + 0.30 * scores.time_underwater_score
+            + 0.15 * (1.0 - scores.overfit_penalty)
+            + 0.10 * scores.trade_count_score
+            + 0.10 * scores.regime_stability_score,
+            4,
+        )
+        scores.return_power_score = round(
+            0.50 * scores.roi_score
+            + 0.30 * scores.profit_factor_score
+            + 0.20 * _clamp01(win_rate_reference_score),
+            4,
+        )
+        scores.risk_control_score = round(
+            0.45 * scores.max_drawdown_score
+            + 0.30 * scores.time_underwater_score
+            + 0.15 * (1.0 - scores.overfit_penalty)
+            + 0.10 * (1.0 - variance_penalty),
+            4,
+        )
+        scores.capital_efficiency_score = round(
+            0.40 * _clamp01(scores.decision_quality_component)
+            + 0.25 * scores.profit_factor_score
+            + 0.20 * scores.time_underwater_score
+            + 0.15 * _clamp01(scores.avg_allowed_layers / 3.0),
+            4,
+        )
+        scores.overall_score = round(
+            0.35 * scores.reliability_score
+            + 0.30 * scores.return_power_score
+            + 0.20 * scores.risk_control_score
+            + 0.15 * scores.capital_efficiency_score,
+            4,
+        )
+        scores.composite_score = scores.overall_score
+        return scores
+
+    def _build_strategy_params(self, model_name: str) -> Dict[str, Any]:
+        profile = self._deployment_profile_for_model(model_name)
+        entry = {
+            'bias50_max': 1.0,
+            'nose_max': 0.40,
+            'pulse_min': 0,
+            'layer2_bias_max': -1.5,
+            'layer3_bias_max': -3.5,
+            'confidence_min': 0.45,
+            'entry_quality_min': 0.55,
+            'top_k_percent': 0.0,
+            'allowed_regimes': ['all'],
+        }
+        entry.update(profile.get('entry_overrides', {}))
+        return {
+            'entry': entry,
+            'layers': [0.20, 0.30, 0.50],
+            'stop_loss': -0.05,
+            'take_profit_bias': 4.0,
+            'take_profit_roi': 0.08,
+            'deployment_profile': profile['name'],
+        }
 
     def _train_model(self, X_train, y_train, model_name):
         """訓練單一模型"""
@@ -430,23 +661,26 @@ class ModelLeaderboard:
         pulse = test_df['feat_pulse'].fillna(0.5).values
         ear = test_df['feat_ear'].fillna(0).values
 
-        # 金字塔參數
-        params = {
-            'entry': {
-                'bias50_max': 1.0, 'nose_max': 0.40, 'pulse_min': 0,
-                'layer2_bias_max': -1.5, 'layer3_bias_max': -3.5,
-                'confidence_min': 0.45,  # 模型信心閾值
-            },
-            'layers': [0.20, 0.30, 0.50],
-            'stop_loss': -0.05,
-            'take_profit_bias': 4.0,
-            'take_profit_roi': 0.08,
-        }
+        bias200 = test_df['feat_4h_bias200'].fillna(0).values if 'feat_4h_bias200' in test_df.columns else bias50.copy()
+        regimes = (
+            test_df['regime_label'].fillna('unknown').astype(str).str.lower().tolist()
+            if 'regime_label' in test_df.columns
+            else None
+        )
+        bb_pct_b_4h = test_df['feat_4h_bb_pct_b'].tolist() if 'feat_4h_bb_pct_b' in test_df.columns else None
+        dist_bb_lower_4h = test_df['feat_4h_dist_bb_lower'].tolist() if 'feat_4h_dist_bb_lower' in test_df.columns else None
+        dist_swing_low_4h = test_df['feat_4h_dist_swing_low'].tolist() if 'feat_4h_dist_swing_low' in test_df.columns else None
+
+        params = self._build_strategy_params(model_name)
 
         result = run_hybrid_backtest(
-            prices.tolist(), timestamps.tolist(), bias50.tolist(), bias50.tolist(),
+            prices.tolist(), timestamps.tolist(), bias50.tolist(), bias200.tolist(),
             nose.tolist(), pulse.tolist(), ear.tolist(), confidence.tolist(),
-            params
+            params,
+            regimes=regimes,
+            bb_pct_b_4h=bb_pct_b_4h,
+            dist_bb_lower_4h=dist_bb_lower_4h,
+            dist_swing_low_4h=dist_swing_low_4h,
         )
         trade_quality = _summarize_trade_quality(result, test_df)
 
@@ -473,14 +707,21 @@ class ModelLeaderboard:
             avg_expected_pyramid_quality=trade_quality['avg_expected_pyramid_quality'],
             avg_expected_drawdown_penalty=trade_quality['avg_expected_drawdown_penalty'],
             avg_expected_time_underwater=trade_quality['avg_expected_time_underwater'],
+            deployment_profile=str(params.get('deployment_profile') or 'standard'),
         ), confidence, result, train_acc, test_acc
 
     def evaluate_model(self, model_name: str) -> Optional[ModelScore]:
         """評估單一模型的 Walk-Forward 表現"""
         splits = self._get_walk_forward_splits()
-        folds = []
-        all_train_accs = []
-        all_test_accs = []
+        candidate_profiles = self._deployment_profile_candidates_for_model(model_name)
+        candidate_runs = {
+            profile_name: {
+                "folds": [],
+                "train_accs": [],
+                "test_accs": [],
+            }
+            for profile_name in candidate_profiles
+        }
         self.last_model_statuses[model_name] = {"status": "pending", "reason": None, "detail": None}
 
         try:
@@ -491,22 +732,42 @@ class ModelLeaderboard:
                 if len(train_df) < MIN_TRAIN_SAMPLES or len(test_df) < 50:
                     continue
 
-                result = self._run_single_fold(train_df, test_df, model_name)
-                if result is not None:
+                for profile_name in candidate_profiles:
+                    self._deployment_profile_override = profile_name
+                    result = self._run_single_fold(train_df, test_df, model_name)
+                    self._deployment_profile_override = None
+                    if result is None:
+                        continue
                     fr, _, _, train_acc, test_acc = result
                     fr.fold = i
-                    folds.append(fr)
-                    all_train_accs.append(train_acc)
-                    all_test_accs.append(test_acc)
+                    candidate_runs[profile_name]["folds"].append(fr)
+                    candidate_runs[profile_name]["train_accs"].append(train_acc)
+                    candidate_runs[profile_name]["test_accs"].append(test_acc)
         except ModelUnavailableError as exc:
+            self._deployment_profile_override = None
             self.last_model_statuses[model_name] = {
                 "status": "unavailable",
                 "reason": exc.reason,
                 "detail": exc.detail,
             }
             return None
+        finally:
+            self._deployment_profile_override = None
 
-        if not folds:
+        candidate_scores: List[ModelScore] = []
+        for profile_name, run in candidate_runs.items():
+            if not run["folds"]:
+                continue
+            score = self._score_model_from_folds(
+                model_name=model_name,
+                folds=run["folds"],
+                all_train_accs=run["train_accs"],
+                all_test_accs=run["test_accs"],
+            )
+            score.deployment_profile = profile_name
+            candidate_scores.append(score)
+
+        if not candidate_scores:
             self.last_model_statuses[model_name] = {
                 "status": "insufficient_data",
                 "reason": "no_valid_folds",
@@ -514,106 +775,16 @@ class ModelLeaderboard:
             }
             return None
 
-        # 統計
-        rois = [f.roi for f in folds]
-        wrs = [f.win_rate for f in folds]
-        avg_trades = np.mean([f.total_trades for f in folds])
-        avg_max_drawdown = np.mean([f.max_drawdown for f in folds])
-        avg_profit_factor = np.mean([f.profit_factor for f in folds])
-        avg_entry_quality = np.mean([f.avg_entry_quality for f in folds])
-        avg_allowed_layers = np.mean([f.avg_allowed_layers for f in folds])
-        avg_trade_quality = np.mean([f.trade_quality_score for f in folds])
-        avg_decision_quality_score = np.mean([f.avg_decision_quality_score for f in folds])
-        avg_expected_win_rate = np.mean([f.avg_expected_win_rate for f in folds])
-        avg_expected_pyramid_quality = np.mean([f.avg_expected_pyramid_quality for f in folds])
-        avg_expected_drawdown_penalty = np.mean([f.avg_expected_drawdown_penalty for f in folds])
-        avg_expected_time_underwater = np.mean([f.avg_expected_time_underwater for f in folds])
-        regime_allow_ratios = [f.regime_gate_allow_ratio for f in folds]
-        regime_stability_score = _clamp01(1.0 - float(np.std(regime_allow_ratios)) / 0.25)
-        trade_count_score = _clamp01(avg_trades / 20.0)
-        roi_score = _clamp01(0.5 + float(np.mean(rois)) / 0.20)
-        max_drawdown_score = _clamp01(1.0 - avg_max_drawdown / 0.35)
-        profit_factor_score = _clamp01((avg_profit_factor - 1.0) / 1.5)
-        time_underwater_score = _clamp01(1.0 - avg_expected_time_underwater / 0.60)
-        decision_quality_component = avg_decision_quality_score or avg_trade_quality
-
-        scores = ModelScore(
-            model_name=model_name,
-            avg_roi=np.mean(rois),
-            avg_win_rate=np.mean(wrs),
-            avg_trades=avg_trades,
-            avg_max_drawdown=avg_max_drawdown,
-            avg_profit_factor=avg_profit_factor,
-            avg_entry_quality=avg_entry_quality,
-            avg_allowed_layers=avg_allowed_layers,
-            avg_trade_quality=avg_trade_quality,
-            avg_decision_quality_score=avg_decision_quality_score,
-            avg_expected_win_rate=avg_expected_win_rate,
-            avg_expected_pyramid_quality=avg_expected_pyramid_quality,
-            avg_expected_drawdown_penalty=avg_expected_drawdown_penalty,
-            avg_expected_time_underwater=avg_expected_time_underwater,
-            regime_stability_score=regime_stability_score,
-            trade_count_score=trade_count_score,
-            roi_score=roi_score,
-            max_drawdown_score=max_drawdown_score,
-            profit_factor_score=profit_factor_score,
-            time_underwater_score=time_underwater_score,
-            decision_quality_component=decision_quality_component,
-            std_roi=np.std(rois),
-            train_accuracy=np.mean(all_train_accs) if all_train_accs else 0,
-            test_accuracy=np.mean(all_test_accs) if all_test_accs else 0,
-            folds=folds,
-        )
-
-        # Overfitting penalty
-        scores.train_test_gap = scores.train_accuracy - scores.test_accuracy
-        scores.overfit_penalty = _clamp01(scores.train_test_gap / 0.20)
-        win_rate_reference_score = _clamp01((scores.avg_win_rate - 0.45) / 0.20)
-        variance_penalty = _clamp01(scores.std_roi / 0.10)
-
-        scores.reliability_score = round(
-            0.35 * scores.max_drawdown_score
-            + 0.30 * scores.time_underwater_score
-            + 0.15 * (1.0 - scores.overfit_penalty)
-            + 0.10 * scores.trade_count_score
-            + 0.10 * scores.regime_stability_score,
-            4,
-        )
-        scores.return_power_score = round(
-            0.50 * scores.roi_score
-            + 0.30 * scores.profit_factor_score
-            + 0.20 * _clamp01(win_rate_reference_score),
-            4,
-        )
-        scores.risk_control_score = round(
-            0.45 * scores.max_drawdown_score
-            + 0.30 * scores.time_underwater_score
-            + 0.15 * (1.0 - scores.overfit_penalty)
-            + 0.10 * (1.0 - variance_penalty),
-            4,
-        )
-        scores.capital_efficiency_score = round(
-            0.40 * _clamp01(scores.decision_quality_component)
-            + 0.25 * scores.profit_factor_score
-            + 0.20 * scores.time_underwater_score
-            + 0.15 * _clamp01(scores.avg_allowed_layers / 3.0),
-            4,
-        )
-        scores.overall_score = round(
-            0.35 * scores.reliability_score
-            + 0.30 * scores.return_power_score
-            + 0.20 * scores.risk_control_score
-            + 0.15 * scores.capital_efficiency_score,
-            4,
-        )
-        # Keep composite_score as the canonical ranking field consumed by existing APIs/UI.
-        scores.composite_score = scores.overall_score
+        candidate_scores.sort(key=self._candidate_selection_key, reverse=True)
+        scores = candidate_scores[0]
 
         self.last_model_statuses[model_name] = {
             "status": "ok",
             "reason": None,
             "detail": None,
-            "folds": len(folds),
+            "folds": len(scores.folds),
+            "selected_deployment_profile": scores.deployment_profile,
+            "deployment_profiles_evaluated": [score.deployment_profile for score in candidate_scores],
         }
         return scores
 
