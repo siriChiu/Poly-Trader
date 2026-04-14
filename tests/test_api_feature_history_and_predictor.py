@@ -380,6 +380,7 @@ def test_decision_quality_scope_diagnostics_expose_narrow_and_broad_pathology_la
                 "regime_label": "bull",
                 "regime_gate": "ALLOW",
                 "entry_quality_label": "D",
+                "feat_4h_bias200": 2.4,
                 "feat_4h_dist_bb_lower": 7.5,
                 "feat_4h_dist_swing_low": 8.0,
                 "feat_4h_bb_pct_b": 0.92,
@@ -398,6 +399,7 @@ def test_decision_quality_scope_diagnostics_expose_narrow_and_broad_pathology_la
                 "regime_label": "bull",
                 "regime_gate": "ALLOW",
                 "entry_quality_label": "D",
+                "feat_4h_bias200": 0.9,
                 "feat_4h_dist_bb_lower": 0.4,
                 "feat_4h_dist_swing_low": 1.7,
                 "feat_4h_bb_pct_b": 0.13,
@@ -416,6 +418,7 @@ def test_decision_quality_scope_diagnostics_expose_narrow_and_broad_pathology_la
                 "regime_label": "chop",
                 "regime_gate": "CAUTION",
                 "entry_quality_label": "D",
+                "feat_4h_bias200": 0.8,
                 "feat_4h_dist_bb_lower": 1.3,
                 "feat_4h_dist_swing_low": 2.0,
                 "feat_4h_bb_pct_b": 0.4,
@@ -455,6 +458,7 @@ def test_decision_quality_scope_diagnostics_expose_narrow_and_broad_pathology_la
     }
     assert exact_narrow["avg_drawdown_penalty"] == 0.2255
     assert exact_narrow["avg_time_underwater"] == 0.6291
+    assert exact_narrow["spillover_vs_exact_live_lane"] is None
     assert exact_narrow["recent_pathology"]["applied"] is True
     assert exact_narrow["recent_pathology"]["window"] == 100
     assert narrow["rows"] == 220
@@ -485,6 +489,97 @@ def test_decision_quality_scope_diagnostics_expose_narrow_and_broad_pathology_la
         "count": 280,
         "share": 0.56,
     }
+    spillover = broad["spillover_vs_exact_live_lane"]
+    assert spillover["extra_rows"] == 380
+    assert spillover["extra_row_share"] == 0.6333
+    assert spillover["extra_gate_counts"] == {"CAUTION": 280}
+    assert spillover["extra_dominant_gate"] == {"gate": "CAUTION", "count": 280, "share": 1.0}
+    assert spillover["extra_regime_gate_counts"] == {"chop|CAUTION": 280}
+    assert spillover["extra_dominant_regime_gate"] == {
+        "regime_gate": "chop|CAUTION",
+        "regime": "chop",
+        "gate": "CAUTION",
+        "count": 280,
+        "share": 1.0,
+    }
+    assert spillover["extra_regime_gate_metrics"] == {
+        "chop|CAUTION": {
+            "rows": 380,
+            "win_rate": 0.0,
+            "avg_pnl": -0.008,
+            "avg_quality": -0.16,
+            "avg_drawdown_penalty": 0.26,
+            "avg_time_underwater": 0.75,
+        }
+    }
+    assert spillover["worst_extra_regime_gate"] == {
+        "regime_gate": "chop|CAUTION",
+        "regime": "chop",
+        "gate": "CAUTION",
+        "rows": 380,
+        "win_rate": 0.0,
+        "avg_pnl": -0.008,
+        "avg_quality": -0.16,
+        "avg_drawdown_penalty": 0.26,
+        "avg_time_underwater": 0.75,
+    }
+    assert spillover["worst_extra_regime_gate_feature_contrast"] == {
+        "current_quality": {
+            "win_rate": 0.0,
+            "avg_simulated_pnl": -0.008,
+            "avg_simulated_quality": -0.16,
+            "avg_drawdown_penalty": 0.26,
+            "avg_time_underwater": 0.75,
+        },
+        "reference_quality": {
+            "win_rate": 0.5455,
+            "avg_simulated_pnl": 0.0015,
+            "avg_simulated_quality": 0.1018,
+            "avg_drawdown_penalty": 0.2255,
+            "avg_time_underwater": 0.6291,
+        },
+        "win_rate_delta_vs_reference": -0.5455,
+        "avg_simulated_pnl_delta_vs_reference": -0.0095,
+        "avg_simulated_quality_delta_vs_reference": -0.2618,
+        "avg_drawdown_penalty_delta_vs_reference": 0.0345,
+        "avg_time_underwater_delta_vs_reference": 0.1209,
+        "top_mean_shift_features": [
+            {"feature": "feat_4h_dist_swing_low", "current_mean": 2.0, "reference_mean": 5.1364, "mean_delta": -3.1364},
+            {"feature": "feat_4h_dist_bb_lower", "current_mean": 1.3, "reference_mean": 4.2727, "mean_delta": -2.9727},
+            {"feature": "feat_4h_bias200", "current_mean": 0.8, "reference_mean": 1.7182, "mean_delta": -0.9182},
+        ],
+    }
+    assert spillover["worst_extra_regime_gate_feature_snapshot"] == {
+        "feat_4h_bias200": {"current_mean": 0.8, "reference_mean": 1.7182, "mean_delta": -0.9182},
+        "feat_4h_bb_pct_b": {"current_mean": 0.4, "reference_mean": 0.5609, "mean_delta": -0.1609},
+        "feat_4h_dist_bb_lower": {"current_mean": 1.3, "reference_mean": 4.2727, "mean_delta": -2.9727},
+        "feat_4h_dist_swing_low": {"current_mean": 2.0, "reference_mean": 5.1364, "mean_delta": -3.1364},
+    }
+    assert spillover["worst_extra_regime_gate_path_summary"] == {
+        "rows": 380,
+        "final_gate_counts": {"CAUTION": 380},
+        "final_reason_counts": {"base_caution_regime_or_bias": 380},
+        "base_gate_counts": {"CAUTION": 380},
+        "avg_structure_quality": 0.2556,
+        "avg_bias200": 0.8,
+        "missing_input_rows": 0,
+        "missing_input_feature_counts": {},
+    }
+    assert spillover["exact_live_gate_path_summary"] == {
+        "rows": 220,
+        "final_gate_counts": {"ALLOW": 120, "BLOCK": 100},
+        "final_reason_counts": {"base_allow": 120, "structure_quality_block": 100},
+        "base_gate_counts": {"ALLOW": 220},
+        "avg_structure_quality": 0.5365,
+        "avg_bias200": 1.7182,
+        "missing_input_rows": 0,
+        "missing_input_feature_counts": {},
+    }
+    assert spillover["win_rate_delta_vs_exact"] == -0.3455
+    assert spillover["avg_pnl_delta_vs_exact"] == -0.006
+    assert spillover["avg_quality_delta_vs_exact"] == -0.1658
+    assert spillover["avg_drawdown_penalty_delta_vs_exact"] == 0.0218
+    assert spillover["avg_time_underwater_delta_vs_exact"] == 0.0766
     assert broad["recent_pathology"]["applied"] is True
     assert broad["recent_pathology"]["window"] == 250
 

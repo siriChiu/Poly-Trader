@@ -322,6 +322,80 @@ def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
 
 
+def _compute_live_regime_gate_debug(
+    bias200_value: float,
+    regime: str,
+    regime_min: float = LIVE_REGIME_BIAS200_MIN,
+    bb_pct_b_value: Optional[float] = None,
+    dist_bb_lower_value: Optional[float] = None,
+    dist_swing_low_value: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Explain how the live regime gate was formed for diagnostics/root-cause work."""
+    regime = (regime or "unknown").lower()
+    missing_inputs = [
+        name
+        for name, value in (
+            ("feat_4h_bias200", bias200_value),
+            ("feat_4h_bb_pct_b", bb_pct_b_value),
+            ("feat_4h_dist_bb_lower", dist_bb_lower_value),
+            ("feat_4h_dist_swing_low", dist_swing_low_value),
+        )
+        if value is None
+    ]
+    structure_quality = _compute_live_4h_structure_quality(
+        bb_pct_b_value=bb_pct_b_value,
+        dist_bb_lower_value=dist_bb_lower_value,
+        dist_swing_low_value=dist_swing_low_value,
+    )
+    if bias200_value < regime_min:
+        return {
+            "regime": regime,
+            "bias200": _round_optional(bias200_value),
+            "structure_quality": structure_quality,
+            "base_gate": "BLOCK",
+            "final_gate": "BLOCK",
+            "final_reason": "bias200_below_min",
+            "missing_inputs": missing_inputs,
+        }
+    if regime == "bear" and bias200_value <= -3.0:
+        return {
+            "regime": regime,
+            "bias200": _round_optional(bias200_value),
+            "structure_quality": structure_quality,
+            "base_gate": "BLOCK",
+            "final_gate": "BLOCK",
+            "final_reason": "bear_bias200_hard_block",
+            "missing_inputs": missing_inputs,
+        }
+    if regime in {"chop", "unknown"} or bias200_value < -1.0:
+        base_gate = "CAUTION"
+        base_reason = "base_caution_regime_or_bias"
+    else:
+        base_gate = "ALLOW"
+        base_reason = "base_allow"
+
+    final_gate = base_gate
+    final_reason = base_reason
+    if base_gate == "ALLOW" and structure_quality is not None:
+        if structure_quality < 0.15:
+            final_gate = "BLOCK"
+            final_reason = "structure_quality_block"
+        elif structure_quality < 0.35:
+            final_gate = "CAUTION"
+            final_reason = "structure_quality_caution"
+
+    return {
+        "regime": regime,
+        "bias200": _round_optional(bias200_value),
+        "structure_quality": structure_quality,
+        "base_gate": base_gate,
+        "final_gate": final_gate,
+        "final_reason": final_reason,
+        "missing_inputs": missing_inputs,
+    }
+
+
+
 def _compute_live_regime_gate(
     bias200_value: float,
     regime: str,
@@ -336,29 +410,17 @@ def _compute_live_regime_gate(
     so the heartbeat can verify that live predictor output speaks the same decision
     contract as Strategy Lab / API / UI.
     """
-    regime = (regime or "unknown").lower()
-    if bias200_value < regime_min:
-        return "BLOCK"
-    if regime == "bear" and bias200_value <= -3.0:
-        return "BLOCK"
-    if regime in {"chop", "unknown"} or bias200_value < -1.0:
-        base_gate = "CAUTION"
-    else:
-        base_gate = "ALLOW"
-
-    structure_quality = _compute_live_4h_structure_quality(
-        bb_pct_b_value=bb_pct_b_value,
-        dist_bb_lower_value=dist_bb_lower_value,
-        dist_swing_low_value=dist_swing_low_value,
+    return str(
+        _compute_live_regime_gate_debug(
+            bias200_value,
+            regime,
+            regime_min=regime_min,
+            bb_pct_b_value=bb_pct_b_value,
+            dist_bb_lower_value=dist_bb_lower_value,
+            dist_swing_low_value=dist_swing_low_value,
+        ).get("final_gate")
+        or "BLOCK"
     )
-    if structure_quality is None:
-        return base_gate
-
-    if base_gate == "ALLOW" and structure_quality < 0.15:
-        return "BLOCK"
-    if base_gate == "ALLOW" and structure_quality < 0.35:
-        return "CAUTION"
-    return base_gate
 
 
 def _compute_live_4h_structure_quality(
@@ -621,6 +683,28 @@ def _longest_binary_streak(rows: List[Dict[str, Any]], key: str, target_value: i
     }
 
 
+def _feature_mean_snapshot(
+    rows: List[Dict[str, Any]],
+    reference_rows: List[Dict[str, Any]],
+    feature_keys: tuple[str, ...],
+) -> Dict[str, Dict[str, Optional[float]]]:
+    snapshot: Dict[str, Dict[str, Optional[float]]] = {}
+    for feature_key in feature_keys:
+        current_mean = _avg_metric(rows, feature_key)
+        reference_mean = _avg_metric(reference_rows, feature_key)
+        if current_mean is None and reference_mean is None:
+            continue
+        delta = None
+        if current_mean is not None and reference_mean is not None:
+            delta = round(float(current_mean) - float(reference_mean), 4)
+        snapshot[feature_key] = {
+            "current_mean": current_mean,
+            "reference_mean": reference_mean,
+            "mean_delta": delta,
+        }
+    return snapshot
+
+
 def _reference_window_contrast(
     rows: List[Dict[str, Any]],
     reference_rows: List[Dict[str, Any]],
@@ -871,6 +955,239 @@ def _dominant_regime_gate_summary(counts: Dict[str, int]) -> Optional[Dict[str, 
     return summary
 
 
+def _round_optional(value: Optional[float]) -> Optional[float]:
+    if value is None:
+        return None
+    return round(float(value), 4)
+
+
+def _subtract_count_maps(base: Dict[str, int], subtract: Dict[str, int]) -> Dict[str, int]:
+    diff: Dict[str, int] = {}
+    keys = set(base) | set(subtract)
+    for key in keys:
+        remaining = int(base.get(key, 0)) - int(subtract.get(key, 0))
+        if remaining > 0:
+            diff[key] = remaining
+    return diff
+
+
+def _scope_row_identity(row: Dict[str, Any]) -> tuple:
+    return (
+        row.get("timestamp"),
+        row.get("symbol"),
+        row.get("regime_label"),
+        row.get("regime_gate"),
+        row.get("entry_quality_label"),
+        row.get("simulated_pyramid_win"),
+        row.get("simulated_pyramid_pnl"),
+        row.get("simulated_pyramid_quality"),
+    )
+
+
+def _summarize_regime_gate_pockets(rows: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    pockets: Dict[str, List[Dict[str, Any]]] = {}
+    for row in rows:
+        regime = row.get("regime_label") or "unknown"
+        gate = row.get("regime_gate") or "unknown"
+        pocket = f"{regime}|{gate}"
+        pockets.setdefault(pocket, []).append(row)
+
+    summaries: Dict[str, Dict[str, Any]] = {}
+    for pocket, pocket_rows in pockets.items():
+        summaries[pocket] = {
+            "rows": len(pocket_rows),
+            "win_rate": _avg_metric(pocket_rows, "simulated_pyramid_win"),
+            "avg_pnl": _avg_metric(pocket_rows, "simulated_pyramid_pnl"),
+            "avg_quality": _avg_metric(pocket_rows, "simulated_pyramid_quality"),
+            "avg_drawdown_penalty": _avg_metric(pocket_rows, "simulated_pyramid_drawdown_penalty"),
+            "avg_time_underwater": _avg_metric(pocket_rows, "simulated_pyramid_time_underwater"),
+        }
+    return summaries
+def _pick_worst_regime_gate_pocket(
+    pockets: Dict[str, Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    if not pockets:
+        return None
+
+    def _sort_key(item: tuple[str, Dict[str, Any]]) -> tuple[float, float, float, float, str]:
+        pocket, payload = item
+        win_rate = payload.get("win_rate")
+        quality = payload.get("avg_quality")
+        pnl = payload.get("avg_pnl")
+        dd = payload.get("avg_drawdown_penalty")
+        tuw = payload.get("avg_time_underwater")
+        return (
+            float(win_rate) if win_rate is not None else 1.0,
+            float(quality) if quality is not None else 1.0,
+            float(pnl) if pnl is not None else float("inf"),
+            -float(dd) if dd is not None else float("inf"),
+            -float(tuw) if tuw is not None else float("inf"),
+            pocket,
+        )
+
+    pocket, payload = min(pockets.items(), key=_sort_key)
+    regime, _, gate = pocket.partition("|")
+    return {
+        "regime_gate": pocket,
+        "regime": regime or None,
+        "gate": gate or None,
+        **payload,
+    }
+
+
+
+def _summarize_gate_path(rows: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not rows:
+        return None
+
+    final_gate_counts: Dict[str, int] = {}
+    final_reason_counts: Dict[str, int] = {}
+    base_gate_counts: Dict[str, int] = {}
+    missing_input_feature_counts: Dict[str, int] = {}
+    missing_input_rows = 0
+    structure_quality_values: List[float] = []
+    bias200_values: List[float] = []
+
+    for row in rows:
+        bias200_raw = row.get("feat_4h_bias200")
+        debug = _compute_live_regime_gate_debug(
+            0.0 if bias200_raw is None else float(bias200_raw),
+            str(row.get("regime_label") or "unknown"),
+            bb_pct_b_value=row.get("feat_4h_bb_pct_b"),
+            dist_bb_lower_value=row.get("feat_4h_dist_bb_lower"),
+            dist_swing_low_value=row.get("feat_4h_dist_swing_low"),
+        )
+        final_gate = str(debug.get("final_gate") or "unknown")
+        final_reason = str(debug.get("final_reason") or "unknown")
+        base_gate = str(debug.get("base_gate") or "unknown")
+        final_gate_counts[final_gate] = final_gate_counts.get(final_gate, 0) + 1
+        final_reason_counts[final_reason] = final_reason_counts.get(final_reason, 0) + 1
+        base_gate_counts[base_gate] = base_gate_counts.get(base_gate, 0) + 1
+        missing_inputs = list(debug.get("missing_inputs") or [])
+        if missing_inputs:
+            missing_input_rows += 1
+            for feature in missing_inputs:
+                missing_input_feature_counts[feature] = missing_input_feature_counts.get(feature, 0) + 1
+        structure_quality = debug.get("structure_quality")
+        if structure_quality is not None:
+            structure_quality_values.append(float(structure_quality))
+        bias200 = debug.get("bias200")
+        if bias200 is not None:
+            bias200_values.append(float(bias200))
+
+    def _avg(values: List[float]) -> Optional[float]:
+        if not values:
+            return None
+        return round(sum(values) / len(values), 4)
+
+    return {
+        "rows": len(rows),
+        "final_gate_counts": final_gate_counts,
+        "final_reason_counts": final_reason_counts,
+        "base_gate_counts": base_gate_counts,
+        "avg_structure_quality": _avg(structure_quality_values),
+        "avg_bias200": _avg(bias200_values),
+        "missing_input_rows": missing_input_rows,
+        "missing_input_feature_counts": missing_input_feature_counts,
+    }
+
+
+
+def _scope_spillover_vs_exact_live_lane(
+    scoped_rows: List[Dict[str, Any]],
+    exact_scoped_rows: List[Dict[str, Any]],
+    scope_info: Dict[str, Any],
+    exact_scope_info: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    scope_rows = int(scope_info.get("rows") or 0)
+    exact_rows = int(exact_scope_info.get("rows") or 0)
+    extra_rows = max(0, scope_rows - exact_rows)
+    if extra_rows <= 0:
+        return None
+
+    scope_regime_gate_counts = scope_info.get("recent500_regime_gate_counts") or {}
+    exact_regime_gate_counts = exact_scope_info.get("recent500_regime_gate_counts") or {}
+    spillover_regime_gate_counts = _subtract_count_maps(scope_regime_gate_counts, exact_regime_gate_counts)
+
+    scope_gate_counts = scope_info.get("recent500_gate_counts") or {}
+    exact_gate_counts = exact_scope_info.get("recent500_gate_counts") or {}
+    spillover_gate_counts = _subtract_count_maps(scope_gate_counts, exact_gate_counts)
+
+    exact_win_rate = exact_scope_info.get("win_rate")
+    exact_pnl = exact_scope_info.get("avg_pnl")
+    exact_quality = exact_scope_info.get("avg_quality")
+    exact_dd = exact_scope_info.get("avg_drawdown_penalty")
+    exact_tuw = exact_scope_info.get("avg_time_underwater")
+
+    scope_win_rate = scope_info.get("win_rate")
+    scope_pnl = scope_info.get("avg_pnl")
+    scope_quality = scope_info.get("avg_quality")
+    scope_dd = scope_info.get("avg_drawdown_penalty")
+    scope_tuw = scope_info.get("avg_time_underwater")
+
+    exact_keys = {_scope_row_identity(row) for row in exact_scoped_rows}
+    spillover_rows = [row for row in scoped_rows if _scope_row_identity(row) not in exact_keys]
+    spillover_regime_gate_metrics = _summarize_regime_gate_pockets(spillover_rows)
+    worst_spillover_regime_gate = _pick_worst_regime_gate_pocket(spillover_regime_gate_metrics)
+    worst_spillover_contrast = None
+    gate_input_features = (
+        "feat_4h_bias200",
+        "feat_4h_bb_pct_b",
+        "feat_4h_dist_bb_lower",
+        "feat_4h_dist_swing_low",
+    )
+    worst_spillover_feature_snapshot = None
+    worst_spillover_gate_path_summary = None
+    exact_live_gate_path_summary = _summarize_gate_path(exact_scoped_rows)
+    if worst_spillover_regime_gate and worst_spillover_regime_gate.get("regime_gate"):
+        target_regime_gate = worst_spillover_regime_gate.get("regime_gate")
+        worst_spillover_rows = [
+            row for row in spillover_rows
+            if f"{row.get('regime_label') or 'unknown'}|{row.get('regime_gate') or 'unknown'}" == target_regime_gate
+        ]
+        worst_spillover_contrast = _reference_window_contrast(
+            worst_spillover_rows,
+            exact_scoped_rows,
+            feature_keys=gate_input_features,
+        )
+        worst_spillover_feature_snapshot = _feature_mean_snapshot(
+            worst_spillover_rows,
+            exact_scoped_rows,
+            feature_keys=gate_input_features,
+        )
+        worst_spillover_gate_path_summary = _summarize_gate_path(worst_spillover_rows)
+
+    return {
+        "extra_rows": extra_rows,
+        "extra_row_share": round(float(extra_rows) / float(scope_rows), 4) if scope_rows > 0 else None,
+        "extra_gate_counts": spillover_gate_counts,
+        "extra_dominant_gate": _dominant_gate_summary(spillover_gate_counts),
+        "extra_regime_gate_counts": spillover_regime_gate_counts,
+        "extra_dominant_regime_gate": _dominant_regime_gate_summary(spillover_regime_gate_counts),
+        "extra_regime_gate_metrics": spillover_regime_gate_metrics,
+        "worst_extra_regime_gate": worst_spillover_regime_gate,
+        "worst_extra_regime_gate_feature_contrast": worst_spillover_contrast,
+        "worst_extra_regime_gate_feature_snapshot": worst_spillover_feature_snapshot,
+        "worst_extra_regime_gate_path_summary": worst_spillover_gate_path_summary,
+        "exact_live_gate_path_summary": exact_live_gate_path_summary,
+        "win_rate_delta_vs_exact": _round_optional(
+            None if scope_win_rate is None or exact_win_rate is None else float(scope_win_rate) - float(exact_win_rate)
+        ),
+        "avg_pnl_delta_vs_exact": _round_optional(
+            None if scope_pnl is None or exact_pnl is None else float(scope_pnl) - float(exact_pnl)
+        ),
+        "avg_quality_delta_vs_exact": _round_optional(
+            None if scope_quality is None or exact_quality is None else float(scope_quality) - float(exact_quality)
+        ),
+        "avg_drawdown_penalty_delta_vs_exact": _round_optional(
+            None if scope_dd is None or exact_dd is None else float(scope_dd) - float(exact_dd)
+        ),
+        "avg_time_underwater_delta_vs_exact": _round_optional(
+            None if scope_tuw is None or exact_tuw is None else float(scope_tuw) - float(exact_tuw)
+        ),
+    }
+
+
 def _build_decision_quality_scope_diagnostics(
     rows: List[Dict[str, Any]],
     decision_profile: Dict[str, Any],
@@ -949,8 +1266,28 @@ def _build_decision_quality_scope_diagnostics(
             "recent_pathology": _recent_scope_pathology_summary(scoped_rows),
         }
 
+    exact_live_scope_name = "regime_label+regime_gate+entry_quality_label"
+    exact_live_scope = diagnostics.get(exact_live_scope_name) or {}
+    exact_live_scope_rows = scope_rows.get(exact_live_scope_name) or []
+    diagnostics.setdefault(exact_live_scope_name, {})["spillover_vs_exact_live_lane"] = None
+    for scope_name in (
+        "regime_gate+entry_quality_label",
+        "regime_label+entry_quality_label",
+        "entry_quality_label",
+        "regime_gate",
+        "regime_label",
+        "global",
+    ):
+        scope_info = diagnostics.get(scope_name) or {}
+        scope_info["spillover_vs_exact_live_lane"] = _scope_spillover_vs_exact_live_lane(
+            scope_rows.get(scope_name) or [],
+            exact_live_scope_rows,
+            scope_info,
+            exact_live_scope,
+        )
+
     focus_scopes = (
-        "regime_label+regime_gate+entry_quality_label",
+        exact_live_scope_name,
         "regime_gate+entry_quality_label",
         "regime_label+entry_quality_label",
         "entry_quality_label",
@@ -1354,6 +1691,7 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
             "regime_label": row.regime_label,
             "regime_gate": hist_profile.get("regime_gate"),
             "entry_quality_label": hist_profile.get("entry_quality_label"),
+            "feat_4h_bias200": row.feat_4h_bias200,
             "feat_4h_bb_pct_b": row.feat_4h_bb_pct_b,
             "feat_4h_dist_bb_lower": row.feat_4h_dist_bb_lower,
             "feat_4h_dist_swing_low": row.feat_4h_dist_swing_low,

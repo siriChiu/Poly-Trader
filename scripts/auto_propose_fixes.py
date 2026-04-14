@@ -389,6 +389,83 @@ def summarize_live_predict_probe(report):
     gate = report.get("regime_gate") or "unknown"
     sample_size = report.get("decision_quality_sample_size")
     scope_diags = report.get("decision_quality_scope_diagnostics") or {}
+
+    def _format_feature_contrast(contrast, prefix):
+        if not contrast:
+            return ""
+        top_shift = contrast.get("top_mean_shift_features") or []
+        if not top_shift:
+            return ""
+        shift_text = "/".join(
+            f"{row.get('feature')}({row.get('reference_mean')}→{row.get('current_mean')},Δ={row.get('mean_delta')})"
+            for row in top_shift[:4]
+            if row.get("feature")
+        )
+        return f",{prefix}={shift_text}" if shift_text else ""
+
+    def _format_feature_snapshot(snapshot, prefix):
+        if not snapshot:
+            return ""
+        ordered_keys = [
+            "feat_4h_bias200",
+            "feat_4h_bb_pct_b",
+            "feat_4h_dist_bb_lower",
+            "feat_4h_dist_swing_low",
+        ]
+        bits = []
+        for key in ordered_keys:
+            row = snapshot.get(key) or {}
+            if row.get("current_mean") is None and row.get("reference_mean") is None:
+                continue
+            bits.append(f"{key}({row.get('reference_mean')}→{row.get('current_mean')},Δ={row.get('mean_delta')})")
+        if not bits:
+            return ""
+        return f",{prefix}={'/'.join(bits)}"
+
+    def _format_gate_path_summary(summary, prefix):
+        if not summary:
+            return ""
+        def _fmt_counts(counts):
+            if not counts:
+                return "none"
+            return "/".join(f"{k}:{v}" for k, v in sorted(counts.items()))
+        return (
+            f",{prefix}=final[{_fmt_counts(summary.get('final_gate_counts') or {})}]"
+            f"|reason[{_fmt_counts(summary.get('final_reason_counts') or {})}]"
+            f"|base[{_fmt_counts(summary.get('base_gate_counts') or {})}]"
+            f"|avg_structure={summary.get('avg_structure_quality')}"
+            f"|avg_bias200={summary.get('avg_bias200')}"
+            f"|missing_rows={summary.get('missing_input_rows')}"
+        )
+
+    def _format_worst_spillover_pocket(spillover):
+        pocket = spillover.get("worst_extra_regime_gate") or {}
+        if not pocket.get("regime_gate"):
+            return ""
+        contrast_text = _format_feature_contrast(
+            spillover.get("worst_extra_regime_gate_feature_contrast") or {},
+            "spillover_feature_shift",
+        )
+        snapshot_text = _format_feature_snapshot(
+            spillover.get("worst_extra_regime_gate_feature_snapshot") or {},
+            "spillover_gate_inputs",
+        )
+        gate_path_text = _format_gate_path_summary(
+            spillover.get("worst_extra_regime_gate_path_summary") or {},
+            "spillover_gate_path",
+        )
+        ref_gate_path_text = _format_gate_path_summary(
+            spillover.get("exact_live_gate_path_summary") or {},
+            "exact_gate_path",
+        )
+        return (
+            f",spillover_worst={pocket.get('regime_gate')}"
+            f"(rows={pocket.get('rows')},wr={pocket.get('win_rate')},q={pocket.get('avg_quality')}"
+            f",pnl={pocket.get('avg_pnl')},dd={pocket.get('avg_drawdown_penalty')}"
+            f",tuw={pocket.get('avg_time_underwater')})"
+            f"{contrast_text}{snapshot_text}{gate_path_text}{ref_gate_path_text}"
+        )
+
     scope_bits = []
     for scope_name in (
         "regime_label+regime_gate+entry_quality_label",
@@ -419,6 +496,33 @@ def summarize_live_predict_probe(report):
         recent_regime_text = f",recent500_regimes={recent_regimes}" if recent_regimes else ""
         recent_gate_text = f",recent500_gates={recent_gates}" if recent_gates else ""
         recent_regime_gate_text = f",recent500_regime_gates={recent_regime_gates}" if recent_regime_gates else ""
+        spillover = scope_info.get("spillover_vs_exact_live_lane") or {}
+        spillover_text = ""
+        if spillover:
+            spillover_gates = _format_recent_regime_counts(spillover.get("extra_gate_counts") or {})
+            spillover_regime_gates = _format_recent_regime_counts(spillover.get("extra_regime_gate_counts") or {})
+            spillover_dom_gate = spillover.get("extra_dominant_gate") or {}
+            spillover_dom_regime_gate = spillover.get("extra_dominant_regime_gate") or {}
+            spillover_dom_gate_text = ""
+            if spillover_dom_gate.get("gate"):
+                spillover_dom_gate_text = f",spillover_gate_dominant={spillover_dom_gate.get('gate')}@{spillover_dom_gate.get('share')}"
+            spillover_dom_regime_gate_text = ""
+            if spillover_dom_regime_gate.get("regime_gate"):
+                spillover_dom_regime_gate_text = (
+                    f",spillover_regime_gate_dominant={spillover_dom_regime_gate.get('regime_gate')}@{spillover_dom_regime_gate.get('share')}"
+                )
+            spillover_gates_text = f",spillover_gates={spillover_gates}" if spillover_gates else ""
+            spillover_regime_gates_text = f",spillover_regime_gates={spillover_regime_gates}" if spillover_regime_gates else ""
+            spillover_text = (
+                f",spillover_rows={spillover.get('extra_rows')}"
+                f",spillover_share={spillover.get('extra_row_share')}"
+                f",spillover_wr_delta={spillover.get('win_rate_delta_vs_exact')}"
+                f",spillover_q_delta={spillover.get('avg_quality_delta_vs_exact')}"
+                f",spillover_pnl_delta={spillover.get('avg_pnl_delta_vs_exact')}"
+                f"{spillover_dom_gate_text}{spillover_dom_regime_gate_text}"
+                f"{spillover_gates_text}{spillover_regime_gates_text}"
+                f"{_format_worst_spillover_pocket(spillover)}"
+            )
         scope_bits.append(
             f"{scope_name}:rows={scope_info.get('rows')}"
             f",wr={scope_info.get('win_rate')}"
@@ -428,6 +532,7 @@ def summarize_live_predict_probe(report):
             f",alerts={scope_info.get('alerts')}"
             f"{dominant_text}{dominant_gate_text}{dominant_regime_gate_text}"
             f"{recent_regime_text}{recent_gate_text}{recent_regime_gate_text}"
+            f"{spillover_text}"
         )
     scope_matrix_text = f", scope_matrix={'; '.join(scope_bits)}" if scope_bits else ""
 
@@ -461,12 +566,39 @@ def summarize_live_predict_probe(report):
         regime_suffix = f",recent500_regimes={worst_scope_regimes}" if worst_scope_regimes else ""
         gate_suffix = f",recent500_gates={worst_scope_gates}" if worst_scope_gates else ""
         regime_gate_suffix = f",recent500_regime_gates={worst_scope_regime_gates}" if worst_scope_regime_gates else ""
+        spillover = worst_scope.get("spillover_vs_exact_live_lane") or {}
+        spillover_text = ""
+        if spillover:
+            spillover_gates = _format_recent_regime_counts(spillover.get("extra_gate_counts") or {})
+            spillover_regime_gates = _format_recent_regime_counts(spillover.get("extra_regime_gate_counts") or {})
+            spillover_dom_gate = spillover.get("extra_dominant_gate") or {}
+            spillover_dom_regime_gate = spillover.get("extra_dominant_regime_gate") or {}
+            spillover_dom_gate_text = ""
+            if spillover_dom_gate.get("gate"):
+                spillover_dom_gate_text = f",spillover_gate_dominant={spillover_dom_gate.get('gate')}@{spillover_dom_gate.get('share')}"
+            spillover_dom_regime_gate_text = ""
+            if spillover_dom_regime_gate.get("regime_gate"):
+                spillover_dom_regime_gate_text = (
+                    f",spillover_regime_gate_dominant={spillover_dom_regime_gate.get('regime_gate')}@{spillover_dom_regime_gate.get('share')}"
+                )
+            spillover_gates_text = f",spillover_gates={spillover_gates}" if spillover_gates else ""
+            spillover_regime_gates_text = f",spillover_regime_gates={spillover_regime_gates}" if spillover_regime_gates else ""
+            spillover_text = (
+                f",spillover_rows={spillover.get('extra_rows')}"
+                f",spillover_share={spillover.get('extra_row_share')}"
+                f",spillover_wr_delta={spillover.get('win_rate_delta_vs_exact')}"
+                f",spillover_q_delta={spillover.get('avg_quality_delta_vs_exact')}"
+                f",spillover_pnl_delta={spillover.get('avg_pnl_delta_vs_exact')}"
+                f"{spillover_dom_gate_text}{spillover_dom_regime_gate_text}"
+                f"{spillover_gates_text}{spillover_regime_gates_text}"
+                f"{_format_worst_spillover_pocket(spillover)}"
+            )
         worst_scope_text = (
             f", worst_scope={worst_scope.get('scope')}"
             f"(wr={worst_scope.get('win_rate')},q={worst_scope.get('avg_quality')},rows={worst_scope.get('rows')}"
             f",dd={worst_scope.get('avg_drawdown_penalty')},tuw={worst_scope.get('avg_time_underwater')}"
             f"{dominant_suffix}{dominant_gate_suffix}{dominant_regime_gate_suffix}"
-            f"{regime_suffix}{gate_suffix}{regime_gate_suffix})"
+            f"{regime_suffix}{gate_suffix}{regime_gate_suffix}{spillover_text})"
         )
     shared_scope_text = f", shared_shifts={shared_shift_text}" if shared_shift_text else ""
     return (

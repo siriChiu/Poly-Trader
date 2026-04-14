@@ -828,6 +828,18 @@ def test_main_promotes_live_dq_pathology_from_narrowed_scope_even_when_broad_sco
                 "recent500_dominant_gate": {"gate": "ALLOW", "count": 272, "share": 1.0},
                 "recent500_regime_gate_counts": {"bull|ALLOW": 134, "neutral|ALLOW": 102, "bear|ALLOW": 36},
                 "recent500_dominant_regime_gate": {"regime_gate": "bull|ALLOW", "regime": "bull", "gate": "ALLOW", "count": 134, "share": 0.4926},
+                "spillover_vs_exact_live_lane": {
+                    "extra_rows": 248,
+                    "extra_row_share": 0.9118,
+                    "extra_gate_counts": {"ALLOW": 248},
+                    "extra_dominant_gate": {"gate": "ALLOW", "count": 248, "share": 1.0},
+                    "extra_regime_gate_counts": {"neutral|ALLOW": 102, "bear|ALLOW": 36, "bull|ALLOW": 110},
+                    "extra_dominant_regime_gate": {"regime_gate": "bull|ALLOW", "regime": "bull", "gate": "ALLOW", "count": 110, "share": 0.4435},
+                    "worst_extra_regime_gate": {"regime_gate": "neutral|ALLOW", "regime": "neutral", "gate": "ALLOW", "rows": 102, "win_rate": 0.08, "avg_pnl": -0.0046, "avg_quality": -0.1821, "avg_drawdown_penalty": 0.2611, "avg_time_underwater": 0.7444},
+                    "win_rate_delta_vs_exact": -0.1189,
+                    "avg_pnl_delta_vs_exact": -0.0034,
+                    "avg_quality_delta_vs_exact": -0.1335,
+                },
             },
             "regime_label+entry_quality_label": {
                 "rows": 147,
@@ -842,6 +854,52 @@ def test_main_promotes_live_dq_pathology_from_narrowed_scope_even_when_broad_sco
                 "recent500_dominant_gate": {"gate": "CAUTION", "count": 123, "share": 0.8367},
                 "recent500_regime_gate_counts": {"bull|CAUTION": 123, "bull|ALLOW": 24},
                 "recent500_dominant_regime_gate": {"regime_gate": "bull|CAUTION", "regime": "bull", "gate": "CAUTION", "count": 123, "share": 0.8367},
+                "spillover_vs_exact_live_lane": {
+                    "extra_rows": 123,
+                    "extra_row_share": 0.8367,
+                    "extra_gate_counts": {"CAUTION": 123},
+                    "extra_dominant_gate": {"gate": "CAUTION", "count": 123, "share": 1.0},
+                    "extra_regime_gate_counts": {"bull|CAUTION": 123},
+                    "extra_dominant_regime_gate": {"regime_gate": "bull|CAUTION", "regime": "bull", "gate": "CAUTION", "count": 123, "share": 1.0},
+                    "worst_extra_regime_gate": {"regime_gate": "bull|CAUTION", "regime": "bull", "gate": "CAUTION", "rows": 123, "win_rate": 0.0, "avg_pnl": -0.0112, "avg_quality": -0.3011, "avg_drawdown_penalty": 0.3122, "avg_time_underwater": 0.9555},
+                    "worst_extra_regime_gate_feature_contrast": {
+                        "top_mean_shift_features": [
+                            {"feature": "feat_4h_bias200", "reference_mean": 2.4, "current_mean": 0.9, "mean_delta": -1.5},
+                            {"feature": "feat_4h_dist_bb_lower", "reference_mean": 7.4, "current_mean": 0.4, "mean_delta": -7.0},
+                            {"feature": "feat_4h_dist_swing_low", "reference_mean": 9.3, "current_mean": 1.7, "mean_delta": -7.6},
+                            {"feature": "feat_4h_bb_pct_b", "reference_mean": 0.87, "current_mean": 0.13, "mean_delta": -0.74},
+                        ]
+                    },
+                    "worst_extra_regime_gate_feature_snapshot": {
+                        "feat_4h_bias200": {"reference_mean": 2.4, "current_mean": 0.9, "mean_delta": -1.5},
+                        "feat_4h_bb_pct_b": {"reference_mean": 0.87, "current_mean": 0.13, "mean_delta": -0.74},
+                        "feat_4h_dist_bb_lower": {"reference_mean": 7.4, "current_mean": 0.4, "mean_delta": -7.0},
+                        "feat_4h_dist_swing_low": {"reference_mean": 9.3, "current_mean": 1.7, "mean_delta": -7.6}
+                    },
+                    "worst_extra_regime_gate_path_summary": {
+                        "rows": 123,
+                        "final_gate_counts": {"CAUTION": 123},
+                        "final_reason_counts": {"structure_quality_caution": 123},
+                        "base_gate_counts": {"ALLOW": 123},
+                        "avg_structure_quality": 0.2214,
+                        "avg_bias200": 0.9,
+                        "missing_input_rows": 0,
+                        "missing_input_feature_counts": {},
+                    },
+                    "exact_live_gate_path_summary": {
+                        "rows": 24,
+                        "final_gate_counts": {"ALLOW": 24},
+                        "final_reason_counts": {"base_allow": 24},
+                        "base_gate_counts": {"ALLOW": 24},
+                        "avg_structure_quality": 0.8125,
+                        "avg_bias200": 2.4,
+                        "missing_input_rows": 0,
+                        "missing_input_feature_counts": {},
+                    },
+                    "win_rate_delta_vs_exact": -0.5709,
+                    "avg_pnl_delta_vs_exact": -0.0098,
+                    "avg_quality_delta_vs_exact": -0.5003,
+                },
             },
             "entry_quality_label": {
                 "rows": 3610,
@@ -871,6 +929,52 @@ def test_main_promotes_live_dq_pathology_from_narrowed_scope_even_when_broad_sco
                     "recent500_dominant_gate": {"gate": "CAUTION", "count": 123, "share": 0.8367},
                     "recent500_regime_gate_counts": {"bull|CAUTION": 123, "bull|ALLOW": 24},
                     "recent500_dominant_regime_gate": {"regime_gate": "bull|CAUTION", "regime": "bull", "gate": "CAUTION", "count": 123, "share": 0.8367},
+                    "spillover_vs_exact_live_lane": {
+                        "extra_rows": 123,
+                        "extra_row_share": 0.8367,
+                        "extra_gate_counts": {"CAUTION": 123},
+                        "extra_dominant_gate": {"gate": "CAUTION", "count": 123, "share": 1.0},
+                        "extra_regime_gate_counts": {"bull|CAUTION": 123},
+                        "extra_dominant_regime_gate": {"regime_gate": "bull|CAUTION", "regime": "bull", "gate": "CAUTION", "count": 123, "share": 1.0},
+                        "worst_extra_regime_gate": {"regime_gate": "bull|CAUTION", "regime": "bull", "gate": "CAUTION", "rows": 123, "win_rate": 0.0, "avg_pnl": -0.0112, "avg_quality": -0.3011, "avg_drawdown_penalty": 0.3122, "avg_time_underwater": 0.9555},
+                        "worst_extra_regime_gate_feature_contrast": {
+                            "top_mean_shift_features": [
+                                {"feature": "feat_4h_bias200", "reference_mean": 2.4, "current_mean": 0.9, "mean_delta": -1.5},
+                                {"feature": "feat_4h_dist_bb_lower", "reference_mean": 7.4, "current_mean": 0.4, "mean_delta": -7.0},
+                                {"feature": "feat_4h_dist_swing_low", "reference_mean": 9.3, "current_mean": 1.7, "mean_delta": -7.6},
+                                {"feature": "feat_4h_bb_pct_b", "reference_mean": 0.87, "current_mean": 0.13, "mean_delta": -0.74},
+                            ]
+                        },
+                        "worst_extra_regime_gate_feature_snapshot": {
+                            "feat_4h_bias200": {"reference_mean": 2.4, "current_mean": 0.9, "mean_delta": -1.5},
+                            "feat_4h_bb_pct_b": {"reference_mean": 0.87, "current_mean": 0.13, "mean_delta": -0.74},
+                            "feat_4h_dist_bb_lower": {"reference_mean": 7.4, "current_mean": 0.4, "mean_delta": -7.0},
+                            "feat_4h_dist_swing_low": {"reference_mean": 9.3, "current_mean": 1.7, "mean_delta": -7.6}
+                        },
+                        "worst_extra_regime_gate_path_summary": {
+                            "rows": 123,
+                            "final_gate_counts": {"CAUTION": 123},
+                            "final_reason_counts": {"structure_quality_caution": 123},
+                            "base_gate_counts": {"ALLOW": 123},
+                            "avg_structure_quality": 0.2214,
+                            "avg_bias200": 0.9,
+                            "missing_input_rows": 0,
+                            "missing_input_feature_counts": {},
+                        },
+                        "exact_live_gate_path_summary": {
+                            "rows": 24,
+                            "final_gate_counts": {"ALLOW": 24},
+                            "final_reason_counts": {"base_allow": 24},
+                            "base_gate_counts": {"ALLOW": 24},
+                            "avg_structure_quality": 0.8125,
+                            "avg_bias200": 2.4,
+                            "missing_input_rows": 0,
+                            "missing_input_feature_counts": {},
+                        },
+                        "win_rate_delta_vs_exact": -0.5709,
+                        "avg_pnl_delta_vs_exact": -0.0098,
+                        "avg_quality_delta_vs_exact": -0.5003,
+                    },
                 },
                 "shared_top_shift_features": [
                     {"feature": "feat_4h_dist_swing_low", "scope_count": 2},
@@ -900,6 +1004,15 @@ def test_main_promotes_live_dq_pathology_from_narrowed_scope_even_when_broad_sco
     assert "runtime-blocked by recent pathology or a severe narrowed pathology lane" in live_issue[2]
     assert "live_scope=entry_quality_label" in live_issue[3]
     assert "shared_shifts=feat_4h_dist_swing_low[x2]/feat_4h_dist_bb_lower[x2]" in live_issue[3]
-    assert "worst_scope=regime_label+entry_quality_label(wr=0.0748,q=-0.2098,rows=147,dd=0.2877,tuw=0.8811,recent500_dominant=bull@1.0,recent500_gate_dominant=CAUTION@0.8367,recent500_regime_gate_dominant=bull|CAUTION@0.8367,recent500_regimes=bull:147,recent500_gates=CAUTION:123/ALLOW:24,recent500_regime_gates=bull|CAUTION:123/bull|ALLOW:24)" in live_issue[3]
+    assert "spillover_rows=123" in live_issue[3]
+    assert "spillover_regime_gate_dominant=bull|CAUTION@1.0" in live_issue[3]
+    assert "spillover_regime_gates=bull|CAUTION:123" in live_issue[3]
+    assert "spillover_worst=bull|CAUTION(rows=123,wr=0.0,q=-0.3011,pnl=-0.0112,dd=0.3122,tuw=0.9555)" in live_issue[3]
+    assert "spillover_feature_shift=feat_4h_bias200(2.4→0.9,Δ=-1.5)/feat_4h_dist_bb_lower(7.4→0.4,Δ=-7.0)/feat_4h_dist_swing_low(9.3→1.7,Δ=-7.6)/feat_4h_bb_pct_b(0.87→0.13,Δ=-0.74)" in live_issue[3]
+    assert "spillover_gate_inputs=feat_4h_bias200(2.4→0.9,Δ=-1.5)/feat_4h_bb_pct_b(0.87→0.13,Δ=-0.74)/feat_4h_dist_bb_lower(7.4→0.4,Δ=-7.0)/feat_4h_dist_swing_low(9.3→1.7,Δ=-7.6)" in live_issue[3]
+    assert "spillover_gate_path=final[CAUTION:123]|reason[structure_quality_caution:123]|base[ALLOW:123]|avg_structure=0.2214|avg_bias200=0.9|missing_rows=0" in live_issue[3]
+    assert "exact_gate_path=final[ALLOW:24]|reason[base_allow:24]|base[ALLOW:24]|avg_structure=0.8125|avg_bias200=2.4|missing_rows=0" in live_issue[3]
+    assert "worst_scope=regime_label+entry_quality_label(wr=0.0748,q=-0.2098,rows=147,dd=0.2877,tuw=0.8811,recent500_dominant=bull@1.0,recent500_gate_dominant=CAUTION@0.8367,recent500_regime_gate_dominant=bull|CAUTION@0.8367,recent500_regimes=bull:147,recent500_gates=CAUTION:123/ALLOW:24,recent500_regime_gates=bull|CAUTION:123/bull|ALLOW:24,spillover_rows=123,spillover_share=0.8367,spillover_wr_delta=-0.5709,spillover_q_delta=-0.5003,spillover_pnl_delta=-0.0098,spillover_gate_dominant=CAUTION@1." in live_issue[3]
+
     assert "#H_AUTO_LIVE_DQ_PATHOLOGY" in out
     assert "📊 Live probe：live_scope=entry_quality_label" in out
