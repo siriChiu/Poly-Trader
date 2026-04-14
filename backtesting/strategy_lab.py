@@ -106,6 +106,9 @@ MODEL_SUMMARY_MAP = {
     "ensemble": "ensemble：混合多個模型的平均投票，用來降低單模型偏差。",
 }
 
+CAPITAL_MODE_CLASSIC = "classic_pyramid"
+CAPITAL_MODE_RESERVE = "reserve_90"
+
 
 def _sanitize_json_like(value: Any) -> Any:
     if isinstance(value, dict):
@@ -131,6 +134,7 @@ def _build_strategy_metadata(name: str, definition: Dict[str, Any]) -> Dict[str,
         params = {}
     entry = params.get("entry") if isinstance(params.get("entry"), dict) else {}
     layers = params.get("layers") if isinstance(params.get("layers"), list) else []
+    capital_management = params.get("capital_management") if isinstance(params.get("capital_management"), dict) else {}
     model_name = str(params.get("model_name") or "rule_baseline")
     layer_text = " / ".join(f"{round(float(layer) * 100):.0f}%" for layer in layers[:3]) if layers else "20% / 30% / 50%"
     title = name or "Unnamed Strategy"
@@ -146,6 +150,10 @@ def _build_strategy_metadata(name: str, definition: Dict[str, Any]) -> Dict[str,
         description_bits.append(f"第三層在 Bias50 ≤ {_coerce_float(entry.get('layer3_bias_max')):.1f}% 時加碼")
     if _coerce_float(params.get("stop_loss")) is not None:
         description_bits.append(f"止損 {(_coerce_float(params.get('stop_loss')) or 0.0) * 100:.0f}%")
+    if str(capital_management.get("mode") or CAPITAL_MODE_CLASSIC) == CAPITAL_MODE_RESERVE:
+        entry_fraction = (_coerce_float(capital_management.get("base_entry_fraction")) or 0.10) * 100
+        reserve_trigger = (_coerce_float(capital_management.get("reserve_trigger_drawdown")) or 0.10) * 100
+        description_bits.append(f"先用 {entry_fraction:.0f}% 建倉，回撤達 {reserve_trigger:.0f}% 後才啟用後守資金")
 
     return {
         "title": title,
@@ -203,6 +211,7 @@ def _sanitize_results(results: Optional[Dict[str, Any]]) -> Optional[Dict[str, A
     cleaned["benchmarks"] = _sanitize_json_like(results.get("benchmarks") or {})
     cleaned["equity_curve"] = _sanitize_json_like(results.get("equity_curve") or [])
     cleaned["trades"] = _sanitize_json_like(results.get("trades") or [])
+    cleaned["score_series"] = _sanitize_json_like(results.get("score_series") or [])
     cleaned["chart_context"] = _sanitize_json_like(results.get("chart_context") or {})
     return cleaned
 
@@ -234,23 +243,98 @@ def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
 
 
-def _compute_regime_gate(bias200_value: float, regime: str, regime_min: float) -> str:
+def _compute_regime_gate(
+    bias200_value: float,
+    regime: str,
+    regime_min: float,
+    bb_pct_b_value: Optional[float] = None,
+    dist_bb_lower_value: Optional[float] = None,
+    dist_swing_low_value: Optional[float] = None,
+) -> str:
     regime = (regime or "unknown").lower()
     if bias200_value < regime_min:
         return "BLOCK"
     if regime == "bear" and bias200_value <= -3.0:
         return "BLOCK"
     if regime in {"chop", "unknown"} or bias200_value < -1.0:
+        base_gate = "CAUTION"
+    else:
+        base_gate = "ALLOW"
+
+    structure_quality = _compute_4h_structure_quality(
+        bb_pct_b_value=bb_pct_b_value,
+        dist_bb_lower_value=dist_bb_lower_value,
+        dist_swing_low_value=dist_swing_low_value,
+    )
+    if structure_quality is None:
+        return base_gate
+
+    # Heartbeat #697: the narrowed bull+ALLOW+D pathology lane kept surfacing the
+    # same 4H collapse pocket (`bb_pct_b`, `dist_bb_lower`, `dist_swing_low`).
+    # If the higher-timeframe structure is this weak, do not keep advertising an
+    # ALLOW gate just because bias200 is positive — downgrade the gate first.
+    if base_gate == "ALLOW" and structure_quality < 0.15:
+        return "BLOCK"
+    if base_gate == "ALLOW" and structure_quality < 0.35:
         return "CAUTION"
-    return "ALLOW"
+    return base_gate
 
 
-def _compute_entry_quality(bias50_value: float, nose_value: float, pulse_value: float, ear_value: float) -> float:
+def _compute_4h_structure_quality(
+    bb_pct_b_value: Optional[float] = None,
+    dist_bb_lower_value: Optional[float] = None,
+    dist_swing_low_value: Optional[float] = None,
+) -> Optional[float]:
+    """Estimate whether the 4H structure is supportive, not just oversold.
+
+    Heartbeat #694 found that the worst live decision-quality lane shared the same
+    4H collapse pocket across three scopes: very low `feat_4h_bb_pct_b`,
+    `feat_4h_dist_bb_lower`, and `feat_4h_dist_swing_low`. Those features were
+    already present in DB/runtime diagnostics but were not influencing Strategy Lab's
+    entry-quality baseline, so falling-knife structures could still look acceptable
+    as long as bias50/nose/pulse/ear were decent.
+    """
+
+    components: List[tuple[float, float]] = []
+    if bb_pct_b_value is not None:
+        components.append((0.34, _clamp01(float(bb_pct_b_value))))
+    if dist_bb_lower_value is not None:
+        components.append((0.33, _clamp01(float(dist_bb_lower_value) / 8.0)))
+    if dist_swing_low_value is not None:
+        components.append((0.33, _clamp01(float(dist_swing_low_value) / 10.0)))
+    if not components:
+        return None
+
+    total_weight = sum(weight for weight, _ in components)
+    score = sum(weight * value for weight, value in components) / total_weight
+    return round(float(score), 4)
+
+
+
+def _compute_entry_quality(
+    bias50_value: float,
+    nose_value: float,
+    pulse_value: float,
+    ear_value: float,
+    bb_pct_b_value: Optional[float] = None,
+    dist_bb_lower_value: Optional[float] = None,
+    dist_swing_low_value: Optional[float] = None,
+) -> float:
     bias_score = _clamp01((-bias50_value + 2.4) / 5.0)
     nose_score = _clamp01(1.0 - nose_value)
     pulse_score = _clamp01(pulse_value)
     ear_score = _clamp01(1.0 - abs(ear_value) * 5.0)
-    return round(0.40 * bias_score + 0.18 * nose_score + 0.27 * pulse_score + 0.15 * ear_score, 4)
+    base_quality = 0.40 * bias_score + 0.18 * nose_score + 0.27 * pulse_score + 0.15 * ear_score
+
+    structure_quality = _compute_4h_structure_quality(
+        bb_pct_b_value=bb_pct_b_value,
+        dist_bb_lower_value=dist_bb_lower_value,
+        dist_swing_low_value=dist_swing_low_value,
+    )
+    if structure_quality is None:
+        return round(base_quality, 4)
+
+    return round(0.75 * base_quality + 0.25 * structure_quality, 4)
 
 
 def _quality_label(entry_quality: float) -> str:
@@ -274,6 +358,82 @@ def _allowed_layers_for_signal(regime_gate: str, entry_quality: float, max_layer
     return min(3, max_layers)
 
 
+def _normalize_allowed_regimes(value: Any) -> Optional[set]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        items = [part.strip().lower() for part in value.split(",") if part.strip()]
+    elif isinstance(value, (list, tuple, set)):
+        items = [str(part).strip().lower() for part in value if str(part).strip()]
+    else:
+        return None
+    allowed = {item for item in items if item}
+    return allowed or None
+
+
+def _regime_allowed(regime: str, allowed_regimes: Optional[set]) -> bool:
+    if not allowed_regimes:
+        return True
+    return (regime or "unknown").lower() in allowed_regimes
+
+
+def _top_k_cutoff(values: List[float], top_k_percent: float) -> Optional[float]:
+    clean = [float(v) for v in values if v is not None]
+    if not clean:
+        return None
+    if top_k_percent <= 0:
+        return None
+    top_k_percent = max(0.0, min(100.0, float(top_k_percent)))
+    if top_k_percent >= 100.0:
+        return min(clean)
+    clean.sort(reverse=True)
+    count = max(1, int(math.ceil(len(clean) * (top_k_percent / 100.0))))
+    return clean[count - 1]
+
+
+def _capital_management_config(params: Dict[str, Any]) -> Dict[str, Any]:
+    cfg = params.get("capital_management") if isinstance(params.get("capital_management"), dict) else {}
+    mode = str(cfg.get("mode") or CAPITAL_MODE_CLASSIC)
+    base_entry_fraction = _coerce_float(cfg.get("base_entry_fraction")) or 0.10
+    reserve_trigger_drawdown = _coerce_float(cfg.get("reserve_trigger_drawdown")) or 0.10
+    return {
+        "mode": mode,
+        "base_entry_fraction": _clamp01(base_entry_fraction),
+        "reserve_trigger_drawdown": max(0.0, min(0.95, reserve_trigger_drawdown)),
+    }
+
+
+def _layer_budget(layer_index: int, layers_pct: List[float], initial_capital: float, capital_cfg: Dict[str, Any]) -> float:
+    if layer_index < 0 or layer_index >= len(layers_pct):
+        return 0.0
+    if capital_cfg.get("mode") != CAPITAL_MODE_RESERVE:
+        return max(0.0, initial_capital * float(layers_pct[layer_index]))
+
+    base_entry_fraction = float(capital_cfg.get("base_entry_fraction") or 0.10)
+    reserve_capital = max(0.0, initial_capital * (1.0 - base_entry_fraction))
+    if layer_index == 0:
+        return initial_capital * base_entry_fraction
+
+    tail_weights = [max(0.0, float(v)) for v in layers_pct[1:]]
+    tail_total = sum(tail_weights)
+    if tail_total <= 0:
+        return 0.0
+    return reserve_capital * (tail_weights[layer_index - 1] / tail_total)
+
+
+def _reserve_unlocked(capital_cfg: Dict[str, Any], entry_layers: List[Dict[str, Any]], current_price: float) -> bool:
+    if capital_cfg.get("mode") != CAPITAL_MODE_RESERVE:
+        return True
+    if not entry_layers:
+        return False
+    trigger = float(capital_cfg.get("reserve_trigger_drawdown") or 0.10)
+    anchor_price = float(entry_layers[0].get("price", 0.0) or 0.0)
+    if anchor_price <= 0:
+        return False
+    drawdown = (current_price - anchor_price) / anchor_price
+    return drawdown <= -trigger
+
+
 def run_rule_backtest(
     prices: List[float],
     timestamps: List[str],
@@ -285,6 +445,9 @@ def run_rule_backtest(
     params: Dict,
     initial_capital: float = 10000.0,
     regimes: Optional[List[str]] = None,
+    bb_pct_b_4h: Optional[List[float]] = None,
+    dist_bb_lower_4h: Optional[List[float]] = None,
+    dist_swing_low_4h: Optional[List[float]] = None,
 ) -> BacktestResult:
     """純規則回測：bias50 + 特徵條件 + 金字塔 + SL/TP。"""
     # ── 解包參數 ──
@@ -293,8 +456,12 @@ def run_rule_backtest(
     nose_max     = entry.get("nose_max", 0.40)        # nose (RSI) 上限
     pulse_min    = entry.get("pulse_min", 0.0)        # pulse 下限（放量確認）
     regime_min   = entry.get("regime_bias200_min", -10.0)  # bias200 下限（允許熊市做多？）
+    entry_quality_min = float(entry.get("entry_quality_min", 0.0) or 0.0)
+    allowed_regimes = _normalize_allowed_regimes(entry.get("allowed_regimes"))
+    top_k_percent = float(entry.get("top_k_percent", 0.0) or 0.0)
 
     layers_pct   = params.get("layers", [0.20, 0.30, 0.50])
+    capital_cfg  = _capital_management_config(params)
     stop_loss    = params.get("stop_loss", -0.05)     # -5%
     tp_bias      = params.get("take_profit_bias", 4.0)  # bias50 > 4% 止盈
     tp_roi       = params.get("take_profit_roi", 0.08)  # ROI > 8% 止盈
@@ -309,6 +476,44 @@ def run_rule_backtest(
     consec_loss = 0
     max_consec_loss = 0
 
+    top_k_cutoff = None
+    if top_k_percent > 0:
+        entry_quality_series = []
+        for i in range(len(prices)):
+            regime = regimes[i] if regimes and i < len(regimes) and regimes[i] else "unknown"
+            if not _regime_allowed(regime, allowed_regimes):
+                continue
+            b200 = bias200[i] if i < len(bias200) else 0
+            bb_pct_b_val = bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None
+            dist_bb_lower_val = dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None
+            dist_swing_low_val = dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None
+            regime_gate = _compute_regime_gate(
+                b200,
+                regime,
+                regime_min,
+                bb_pct_b_val,
+                dist_bb_lower_val,
+                dist_swing_low_val,
+            )
+            if regime_gate == "BLOCK":
+                continue
+            b50 = bias50[i] if i < len(bias50) else 0
+            n_val = nose[i] if i < len(nose) else 0.5
+            p_val = pulse[i] if i < len(pulse) else 0.5
+            e_val = ear[i] if i < len(ear) else 0.0
+            quality = _compute_entry_quality(
+                b50,
+                n_val,
+                p_val,
+                e_val,
+                bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None,
+                dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None,
+                dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None,
+            )
+            if quality >= entry_quality_min:
+                entry_quality_series.append(quality)
+        top_k_cutoff = _top_k_cutoff(entry_quality_series, top_k_percent)
+
     for i in range(len(prices)):
         p = prices[i]
         b50 = bias50[i] if i < len(bias50) else 0
@@ -318,7 +523,15 @@ def run_rule_backtest(
         e_val = ear[i] if i < len(ear) else 0.0
         regime = regimes[i] if regimes and i < len(regimes) and regimes[i] else "unknown"
         regime_gate = _compute_regime_gate(b200, regime, regime_min)
-        entry_quality = _compute_entry_quality(b50, n_val, p_val, e_val)
+        entry_quality = _compute_entry_quality(
+            b50,
+            n_val,
+            p_val,
+            e_val,
+            bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None,
+            dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None,
+            dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None,
+        )
         allowed_layers = _allowed_layers_for_signal(regime_gate, entry_quality, len(layers_pct))
 
         # 更新權益
@@ -342,6 +555,7 @@ def run_rule_backtest(
                     "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
                     "entry_quality": entry_layers[0].get("entry_quality"),
                     "allowed_layers": entry_layers[0].get("allowed_layers"),
+                    "capital_mode": entry_layers[0].get("capital_mode"),
                 })
                 position = 0
                 entry_layers = []
@@ -367,6 +581,7 @@ def run_rule_backtest(
                     "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
                     "entry_quality": entry_layers[0].get("entry_quality"),
                     "allowed_layers": entry_layers[0].get("allowed_layers"),
+                    "capital_mode": entry_layers[0].get("capital_mode"),
                 })
                 position = 0
                 entry_layers = []
@@ -378,6 +593,9 @@ def run_rule_backtest(
         can_enter = (
             regime_gate != "BLOCK"
             and allowed_layers > 0
+            and _regime_allowed(regime, allowed_regimes)
+            and entry_quality >= entry_quality_min
+            and (top_k_cutoff is None or entry_quality >= top_k_cutoff)
             and b50 <= bias50_max
             and n_val <= nose_max
             and p_val >= pulse_min
@@ -385,50 +603,56 @@ def run_rule_backtest(
         )
 
         if can_enter and position == 0 and len(layers_pct) > 0 and allowed_layers >= 1:
-            buy_amt = initial_capital * layers_pct[0]
-            coins = buy_amt / p
-            cash -= buy_amt
-            position += coins
-            entry_layers.append({
-                "price": p, "coins": coins, "layer": 1,
-                "timestamp": timestamps[i] if i < len(timestamps) else "",
-                "regime": regime,
-                "regime_gate": regime_gate,
-                "entry_quality": entry_quality,
-                "allowed_layers": allowed_layers,
-            })
+            buy_amt = min(cash, _layer_budget(0, layers_pct, initial_capital, capital_cfg))
+            if buy_amt > 0:
+                coins = buy_amt / p
+                cash -= buy_amt
+                position += coins
+                entry_layers.append({
+                    "price": p, "coins": coins, "layer": 1,
+                    "timestamp": timestamps[i] if i < len(timestamps) else "",
+                    "regime": regime,
+                    "regime_gate": regime_gate,
+                    "entry_quality": entry_quality,
+                    "allowed_layers": allowed_layers,
+                    "capital_mode": capital_cfg.get("mode"),
+                })
 
         elif can_enter and len(entry_layers) == 1 and len(layers_pct) > 1 and allowed_layers >= 2:
             layer2_bias = entry.get("layer2_bias_max", bias50_max - 1.5)
-            if b50 <= layer2_bias:
-                buy_amt = initial_capital * layers_pct[1]
-                coins = buy_amt / p
-                cash -= buy_amt
-                position += coins
-                entry_layers.append({
-                    "price": p, "coins": coins, "layer": 2,
-                    "timestamp": timestamps[i] if i < len(timestamps) else "",
-                    "regime": regime,
-                    "regime_gate": regime_gate,
-                    "entry_quality": entry_quality,
-                    "allowed_layers": allowed_layers,
-                })
+            if b50 <= layer2_bias and _reserve_unlocked(capital_cfg, entry_layers, p):
+                buy_amt = min(cash, _layer_budget(1, layers_pct, initial_capital, capital_cfg))
+                if buy_amt > 0:
+                    coins = buy_amt / p
+                    cash -= buy_amt
+                    position += coins
+                    entry_layers.append({
+                        "price": p, "coins": coins, "layer": 2,
+                        "timestamp": timestamps[i] if i < len(timestamps) else "",
+                        "regime": regime,
+                        "regime_gate": regime_gate,
+                        "entry_quality": entry_quality,
+                        "allowed_layers": allowed_layers,
+                        "capital_mode": capital_cfg.get("mode"),
+                    })
 
         elif can_enter and len(entry_layers) == 2 and len(layers_pct) > 2 and allowed_layers >= 3:
             layer3_bias = entry.get("layer3_bias_max", bias50_max - 3.0)
-            if b50 <= layer3_bias:
-                buy_amt = initial_capital * layers_pct[2]
-                coins = buy_amt / p
-                cash -= buy_amt
-                position += coins
-                entry_layers.append({
-                    "price": p, "coins": coins, "layer": 3,
-                    "timestamp": timestamps[i] if i < len(timestamps) else "",
-                    "regime": regime,
-                    "regime_gate": regime_gate,
-                    "entry_quality": entry_quality,
-                    "allowed_layers": allowed_layers,
-                })
+            if b50 <= layer3_bias and _reserve_unlocked(capital_cfg, entry_layers, p):
+                buy_amt = min(cash, _layer_budget(2, layers_pct, initial_capital, capital_cfg))
+                if buy_amt > 0:
+                    coins = buy_amt / p
+                    cash -= buy_amt
+                    position += coins
+                    entry_layers.append({
+                        "price": p, "coins": coins, "layer": 3,
+                        "timestamp": timestamps[i] if i < len(timestamps) else "",
+                        "regime": regime,
+                        "regime_gate": regime_gate,
+                        "entry_quality": entry_quality,
+                        "allowed_layers": allowed_layers,
+                        "capital_mode": capital_cfg.get("mode"),
+                    })
 
         # 更新最大回撤
         if equity > peak_equity:
@@ -437,7 +661,13 @@ def run_rule_backtest(
         if dd > max_dd:
             max_dd = dd
 
-        result.equity_curve.append({"timestamp": timestamps[i] if i < len(timestamps) else "", "equity": round(equity, 2)})
+        invested_value = position * p
+        result.equity_curve.append({
+            "timestamp": timestamps[i] if i < len(timestamps) else "",
+            "equity": round(equity, 2),
+            "position_pct": round((invested_value / initial_capital) if initial_capital > 0 else 0.0, 4),
+            "position_layers": len(entry_layers),
+        })
 
     # 平倉未結部位
     if position > 0 and entry_layers:
@@ -492,14 +722,21 @@ def run_hybrid_backtest(
     params: Dict,
     initial_capital: float = 10000.0,
     regimes: Optional[List[str]] = None,
+    bb_pct_b_4h: Optional[List[float]] = None,
+    dist_bb_lower_4h: Optional[List[float]] = None,
+    dist_swing_low_4h: Optional[List[float]] = None,
 ) -> BacktestResult:
     """混合模式：4H 規則過濾 + ML 信心分數入場。"""
     entry = params.get("entry", {})
     bias50_max   = entry.get("bias50_max", -3.0)
     conf_min     = entry.get("confidence_min", 0.35)  # ML 信心閾值
     regime_min   = entry.get("regime_bias200_min", -10.0)
+    entry_quality_min = float(entry.get("entry_quality_min", 0.0) or 0.0)
+    allowed_regimes = _normalize_allowed_regimes(entry.get("allowed_regimes"))
+    top_k_percent = float(entry.get("top_k_percent", 0.0) or 0.0)
 
     layers_pct   = params.get("layers", [0.20, 0.30, 0.50])
+    capital_cfg  = _capital_management_config(params)
     stop_loss    = params.get("stop_loss", -0.05)
     tp_bias      = params.get("take_profit_bias", 4.0)
     tp_roi       = params.get("take_profit_roi", 0.08)
@@ -514,6 +751,43 @@ def run_hybrid_backtest(
     consec_loss = 0
     max_consec_loss = 0
 
+    top_k_cutoff = None
+    if top_k_percent > 0:
+        eligible_confidence = []
+        for i in range(len(prices)):
+            regime = regimes[i] if regimes and i < len(regimes) and regimes[i] else "unknown"
+            if not _regime_allowed(regime, allowed_regimes):
+                continue
+            b200 = bias200[i] if i < len(bias200) else 0
+            bb_pct_b_val = bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None
+            dist_bb_lower_val = dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None
+            dist_swing_low_val = dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None
+            regime_gate = _compute_regime_gate(
+                b200,
+                regime,
+                regime_min,
+                bb_pct_b_val,
+                dist_bb_lower_val,
+                dist_swing_low_val,
+            )
+            if regime_gate == "BLOCK":
+                continue
+            b50 = bias50[i] if i < len(bias50) else 0
+            conf = model_confidence[i] if i < len(model_confidence) else 0.5
+            base_quality = _compute_entry_quality(
+                b50,
+                nose[i] if i < len(nose) else 0.5,
+                pulse[i] if i < len(pulse) else 0.5,
+                ear[i] if i < len(ear) else 0.0,
+                bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None,
+                dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None,
+                dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None,
+            )
+            quality = round(0.6 * _clamp01(conf) + 0.4 * base_quality, 4)
+            if quality >= entry_quality_min and conf >= conf_min:
+                eligible_confidence.append(conf)
+        top_k_cutoff = _top_k_cutoff(eligible_confidence, top_k_percent)
+
     for i in range(len(prices)):
         p = prices[i]
         b50 = bias50[i] if i < len(bias50) else 0
@@ -521,7 +795,20 @@ def run_hybrid_backtest(
         conf = model_confidence[i] if i < len(model_confidence) else 0.5
         regime = regimes[i] if regimes and i < len(regimes) and regimes[i] else "unknown"
         regime_gate = _compute_regime_gate(b200, regime, regime_min)
-        entry_quality = round(0.6 * _clamp01(conf) + 0.4 * _compute_entry_quality(b50, nose[i] if i < len(nose) else 0.5, pulse[i] if i < len(pulse) else 0.5, ear[i] if i < len(ear) else 0.0), 4)
+        entry_quality = round(
+            0.6 * _clamp01(conf)
+            + 0.4
+            * _compute_entry_quality(
+                b50,
+                nose[i] if i < len(nose) else 0.5,
+                pulse[i] if i < len(pulse) else 0.5,
+                ear[i] if i < len(ear) else 0.0,
+                bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None,
+                dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None,
+                dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None,
+            ),
+            4,
+        )
         allowed_layers = _allowed_layers_for_signal(regime_gate, entry_quality, len(layers_pct))
 
         if position > 0 and entry_layers:
@@ -542,6 +829,7 @@ def run_hybrid_backtest(
                     "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
                     "entry_quality": entry_layers[0].get("entry_quality"),
                     "allowed_layers": entry_layers[0].get("allowed_layers"),
+                    "capital_mode": entry_layers[0].get("capital_mode"),
                 })
                 position = 0; entry_layers = []
                 consec_loss += 1
@@ -562,6 +850,7 @@ def run_hybrid_backtest(
                     "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
                     "entry_quality": entry_layers[0].get("entry_quality"),
                     "allowed_layers": entry_layers[0].get("allowed_layers"),
+                    "capital_mode": entry_layers[0].get("capital_mode"),
                 })
                 position = 0; entry_layers = []
                 if pnl > 0: consec_loss = 0
@@ -571,56 +860,71 @@ def run_hybrid_backtest(
         can_enter = (
             regime_gate != "BLOCK"
             and allowed_layers > 0
+            and _regime_allowed(regime, allowed_regimes)
+            and entry_quality >= entry_quality_min
+            and (top_k_cutoff is None or conf >= top_k_cutoff)
             and b50 <= bias50_max
             and conf >= conf_min
             and b200 >= regime_min
         )
 
         if can_enter and position == 0 and len(layers_pct) > 0 and allowed_layers >= 1:
-            buy_amt = initial_capital * layers_pct[0]
-            coins = buy_amt / p
-            cash -= buy_amt; position += coins
-            entry_layers.append({
-                "price": p, "coins": coins, "layer": 1,
-                "timestamp": timestamps[i] if i < len(timestamps) else "",
-                "regime": regime,
-                "regime_gate": regime_gate,
-                "entry_quality": entry_quality,
-                "allowed_layers": allowed_layers,
-            })
+            buy_amt = min(cash, _layer_budget(0, layers_pct, initial_capital, capital_cfg))
+            if buy_amt > 0:
+                coins = buy_amt / p
+                cash -= buy_amt; position += coins
+                entry_layers.append({
+                    "price": p, "coins": coins, "layer": 1,
+                    "timestamp": timestamps[i] if i < len(timestamps) else "",
+                    "regime": regime,
+                    "regime_gate": regime_gate,
+                    "entry_quality": entry_quality,
+                    "allowed_layers": allowed_layers,
+                    "capital_mode": capital_cfg.get("mode"),
+                })
         elif can_enter and len(entry_layers) == 1 and len(layers_pct) > 1 and allowed_layers >= 2:
             layer2_bias = entry.get("layer2_bias_max", bias50_max - 1.5)
-            if b50 <= layer2_bias:
-                buy_amt = initial_capital * layers_pct[1]
-                coins = buy_amt / p
-                cash -= buy_amt; position += coins
-                entry_layers.append({
-                    "price": p, "coins": coins, "layer": 2,
-                    "timestamp": timestamps[i] if i < len(timestamps) else "",
-                    "regime": regime,
-                    "regime_gate": regime_gate,
-                    "entry_quality": entry_quality,
-                    "allowed_layers": allowed_layers,
-                })
+            if b50 <= layer2_bias and _reserve_unlocked(capital_cfg, entry_layers, p):
+                buy_amt = min(cash, _layer_budget(1, layers_pct, initial_capital, capital_cfg))
+                if buy_amt > 0:
+                    coins = buy_amt / p
+                    cash -= buy_amt; position += coins
+                    entry_layers.append({
+                        "price": p, "coins": coins, "layer": 2,
+                        "timestamp": timestamps[i] if i < len(timestamps) else "",
+                        "regime": regime,
+                        "regime_gate": regime_gate,
+                        "entry_quality": entry_quality,
+                        "allowed_layers": allowed_layers,
+                        "capital_mode": capital_cfg.get("mode"),
+                    })
         elif can_enter and len(entry_layers) == 2 and len(layers_pct) > 2 and allowed_layers >= 3:
             layer3_bias = entry.get("layer3_bias_max", bias50_max - 3.0)
-            if b50 <= layer3_bias:
-                buy_amt = initial_capital * layers_pct[2]
-                coins = buy_amt / p
-                cash -= buy_amt; position += coins
-                entry_layers.append({
-                    "price": p, "coins": coins, "layer": 3,
-                    "timestamp": timestamps[i] if i < len(timestamps) else "",
-                    "regime": regime,
-                    "regime_gate": regime_gate,
-                    "entry_quality": entry_quality,
-                    "allowed_layers": allowed_layers,
-                })
+            if b50 <= layer3_bias and _reserve_unlocked(capital_cfg, entry_layers, p):
+                buy_amt = min(cash, _layer_budget(2, layers_pct, initial_capital, capital_cfg))
+                if buy_amt > 0:
+                    coins = buy_amt / p
+                    cash -= buy_amt; position += coins
+                    entry_layers.append({
+                        "price": p, "coins": coins, "layer": 3,
+                        "timestamp": timestamps[i] if i < len(timestamps) else "",
+                        "regime": regime,
+                        "regime_gate": regime_gate,
+                        "entry_quality": entry_quality,
+                        "allowed_layers": allowed_layers,
+                        "capital_mode": capital_cfg.get("mode"),
+                    })
 
         if equity > peak_equity: peak_equity = equity
         dd = (peak_equity - equity) / peak_equity if peak_equity > 0 else 0
         if dd > max_dd: max_dd = dd
-        result.equity_curve.append({"timestamp": timestamps[i] if i < len(timestamps) else "", "equity": round(equity, 2)})
+        invested_value = position * p
+        result.equity_curve.append({
+            "timestamp": timestamps[i] if i < len(timestamps) else "",
+            "equity": round(equity, 2),
+            "position_pct": round((invested_value / initial_capital) if initial_capital > 0 else 0.0, 4),
+            "position_layers": len(entry_layers),
+        })
 
     if position > 0 and entry_layers:
         avg = sum(l["price"] * l["coins"] for l in entry_layers) / sum(l["coins"] for l in entry_layers)

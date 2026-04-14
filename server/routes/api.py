@@ -7,11 +7,14 @@ import json
 import sqlite3
 import threading
 import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 from pathlib import Path
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from server.dependencies import get_db, get_config, is_automation_enabled, set_automation_enabled
 from server.features_engine import get_engine
@@ -28,6 +31,69 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 router = APIRouter()
+
+_KLINE_CACHE_LOCK = threading.Lock()
+_KLINE_RESPONSE_CACHE: Dict[str, Dict[str, Any]] = {}
+_STRATEGY_RUN_LOCK = threading.Lock()
+_STRATEGY_RUN_JOBS: Dict[str, Dict[str, Any]] = {}
+_STRATEGY_RUN_EXECUTOR = ThreadPoolExecutor(max_workers=2)
+_HYBRID_MODEL_LOCK = threading.Lock()
+_HYBRID_MODEL_CACHE: Dict[str, Dict[str, Any]] = {}
+
+_INTERVAL_MS = {
+    "1m": 60_000,
+    "5m": 300_000,
+    "15m": 900_000,
+    "1h": 3_600_000,
+    "4h": 14_400_000,
+    "1d": 86_400_000,
+}
+
+
+def _interval_ms(interval: str) -> int:
+    return _INTERVAL_MS.get(interval, 3_600_000)
+
+
+def _iso_utc_timestamp(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    text = str(value).strip()
+    if not text:
+        return None
+    text = text.replace("T", " ")
+    if text.endswith("Z"):
+        text = text[:-1]
+    if "+" in text:
+        text = text.split("+", 1)[0]
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        try:
+            dt = datetime.strptime(text[:19], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return str(value)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _normalize_result_timestamps(payload: Any) -> Any:
+    if isinstance(payload, list):
+        return [_normalize_result_timestamps(item) for item in payload]
+    if isinstance(payload, dict):
+        normalized = dict(payload)
+        for key in ("timestamp", "entry_timestamp", "start", "end", "run_at"):
+            if key in normalized:
+                normalized[key] = _iso_utc_timestamp(normalized.get(key))
+        return {k: _normalize_result_timestamps(v) for k, v in normalized.items()}
+    return payload
+
+
+def _build_cache_key(*parts: Any) -> str:
+    return "::".join(str(part) for part in parts)
 
 
 # ─── Models ───
@@ -278,6 +344,11 @@ async def api_klines(
     since: Optional[int] = Query(default=None),
     until: Optional[int] = Query(default=None),
 ):
+    cache_key = _build_cache_key("chart_klines", symbol, interval, limit, since or "", until or "")
+    with _KLINE_CACHE_LOCK:
+        cached = _KLINE_RESPONSE_CACHE.get(cache_key)
+        if cached and (time.time() - cached.get("updated_at", 0.0) < 180):
+            return cached["payload"]
     try:
         exchange = ccxt.binance()
         fetch_limit = max(min(limit, 1000), 50)
@@ -325,7 +396,10 @@ async def api_klines(
             indicators["histogram"] = [
                 round(m - s, 4) if (m is not None and s is not None) else None
                 for m, s in zip(macd_l, signal_l)]
-        return {"symbol": symbol, "candles": candles, "indicators": indicators}
+        payload = {"symbol": symbol, "candles": candles, "indicators": indicators}
+        with _KLINE_CACHE_LOCK:
+            _KLINE_RESPONSE_CACHE[cache_key] = {"updated_at": time.time(), "payload": payload}
+        return payload
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -716,6 +790,13 @@ def _serialize_model_scores(results, overfit_gap_threshold: float, hard_train_ac
             "roi_score": float(round(getattr(r, "roi_score", 0.0), 4)),
             "max_drawdown_score": float(round(getattr(r, "max_drawdown_score", 0.0), 4)),
             "profit_factor_score": float(round(getattr(r, "profit_factor_score", 0.0), 4)),
+            "time_underwater_score": float(round(getattr(r, "time_underwater_score", 0.0), 4)),
+            "decision_quality_component": float(round(getattr(r, "decision_quality_component", 0.0), 4)),
+            "reliability_score": float(round(getattr(r, "reliability_score", 0.0), 4)),
+            "return_power_score": float(round(getattr(r, "return_power_score", 0.0), 4)),
+            "risk_control_score": float(round(getattr(r, "risk_control_score", 0.0), 4)),
+            "capital_efficiency_score": float(round(getattr(r, "capital_efficiency_score", 0.0), 4)),
+            "overall_score": float(round(getattr(r, "overall_score", getattr(r, "composite_score", 0.0)), 4)),
             "overfit_penalty": float(round(getattr(r, "overfit_penalty", 0.0), 4)),
             "std_roi": float(round(r.std_roi, 4)),
             "profit_factor": float(round(r.avg_profit_factor, 4)),
@@ -880,15 +961,16 @@ def _get_4h_signal():
     }
 
 
-def _load_strategy_data():
-    """載入回測用的完整資料"""
+@lru_cache(maxsize=4)
+def _load_strategy_data_cached(db_mtime_ns: int):
     import sqlite3
     conn = sqlite3.connect(DB_PATH)
     rows = conn.execute("""
         SELECT f.timestamp, r.close_price,
-               f.feat_4h_bias50, f.feat_4h_dist_swing_low,
+               f.feat_4h_bias50, f.feat_4h_bias200,
                f.feat_nose, f.feat_pulse, f.feat_ear,
-               COALESCE(f.regime_label, 'unknown') AS regime_label
+               COALESCE(f.regime_label, 'unknown') AS regime_label,
+               f.feat_4h_bb_pct_b, f.feat_4h_dist_bb_lower, f.feat_4h_dist_swing_low
         FROM features_normalized f
         JOIN raw_market_data r ON r.timestamp = f.timestamp AND r.symbol = f.symbol
         WHERE f.feat_4h_bias50 IS NOT NULL AND r.close_price IS NOT NULL
@@ -896,6 +978,15 @@ def _load_strategy_data():
     """).fetchall()
     conn.close()
     return rows
+
+
+def _load_strategy_data():
+    """載入回測用的完整資料（依 DB mtime 快取）。"""
+    try:
+        db_mtime_ns = Path(DB_PATH).stat().st_mtime_ns
+    except FileNotFoundError:
+        db_mtime_ns = 0
+    return _load_strategy_data_cached(db_mtime_ns)
 
 
 def _summarize_trades(trades: List[Dict[str, Any]], initial_capital: float) -> Dict[str, Any]:
@@ -921,22 +1012,87 @@ def _build_strategy_chart_context(timestamps: List[str]) -> Dict[str, Any]:
     return {
         "symbol": "BTCUSDT",
         "interval": "4h",
-        "start": timestamps[0],
-        "end": timestamps[-1],
+        "start": _iso_utc_timestamp(timestamps[0]),
+        "end": _iso_utc_timestamp(timestamps[-1]),
         "limit": min(max(len(timestamps), 150), 1000),
     }
+
+
+def _clamp01(value: float) -> float:
+    return max(0.0, min(1.0, float(value)))
+
+
+def _compute_chart_entry_quality(
+    bias50_value: float,
+    nose_value: float,
+    pulse_value: float,
+    ear_value: float,
+    bb_pct_b_value: Optional[float] = None,
+    dist_bb_lower_value: Optional[float] = None,
+    dist_swing_low_value: Optional[float] = None,
+) -> float:
+    from backtesting import strategy_lab as strategy_lab_module
+
+    return strategy_lab_module._compute_entry_quality(
+        bias50_value,
+        nose_value,
+        pulse_value,
+        ear_value,
+        bb_pct_b_value,
+        dist_bb_lower_value,
+        dist_swing_low_value,
+    )
+
+
+def _build_strategy_score_series(
+    timestamps: List[str],
+    bias50: List[float],
+    nose: List[float],
+    pulse: List[float],
+    ear: List[float],
+    model_confidence: Optional[List[float]] = None,
+    bb_pct_b_4h: Optional[List[float]] = None,
+    dist_bb_lower_4h: Optional[List[float]] = None,
+    dist_swing_low_4h: Optional[List[float]] = None,
+) -> List[Dict[str, Any]]:
+    points: List[Dict[str, Any]] = []
+    for idx, timestamp in enumerate(timestamps):
+        entry_quality = _compute_chart_entry_quality(
+            bias50[idx] if idx < len(bias50) else 0.0,
+            nose[idx] if idx < len(nose) else 0.5,
+            pulse[idx] if idx < len(pulse) else 0.5,
+            ear[idx] if idx < len(ear) else 0.0,
+            bb_pct_b_4h[idx] if bb_pct_b_4h and idx < len(bb_pct_b_4h) else None,
+            dist_bb_lower_4h[idx] if dist_bb_lower_4h and idx < len(dist_bb_lower_4h) else None,
+            dist_swing_low_4h[idx] if dist_swing_low_4h and idx < len(dist_swing_low_4h) else None,
+        )
+        confidence = None
+        if model_confidence is not None and idx < len(model_confidence):
+            confidence = round(float(model_confidence[idx]), 4)
+        composite_score = round((0.6 * confidence + 0.4 * entry_quality), 4) if confidence is not None else entry_quality
+        points.append({
+            "timestamp": timestamp,
+            "entry_quality": entry_quality,
+            "model_confidence": confidence,
+            "score": composite_score,
+        })
+    return points
 
 
 def _compute_backtest_benchmarks(
     prices: List[float],
     timestamps: List[str],
     bias50: List[float],
+    bias200: List[float],
     nose: List[float],
     pulse: List[float],
     ear: List[float],
     regimes: List[str],
     initial_capital: float,
     params: Dict[str, Any],
+    bb_pct_b_4h: Optional[List[float]] = None,
+    dist_bb_lower_4h: Optional[List[float]] = None,
+    dist_swing_low_4h: Optional[List[float]] = None,
 ) -> Dict[str, Any]:
     from backtesting.strategy_lab import run_rule_backtest
 
@@ -955,13 +1111,16 @@ def _compute_backtest_benchmarks(
         prices,
         timestamps,
         bias50,
-        bias50,
+        bias200,
         nose,
         pulse,
         ear,
         blind_params,
         initial_capital,
         regimes=regimes,
+        bb_pct_b_4h=bb_pct_b_4h,
+        dist_bb_lower_4h=dist_bb_lower_4h,
+        dist_swing_low_4h=dist_swing_low_4h,
     )
     blind_summary = _summarize_trades(blind_result.trades, initial_capital)
 
@@ -1047,7 +1206,7 @@ def _get_sqlite_db_path(db) -> Optional[str]:
 
 STRATEGY_DECISION_TARGET_COL = "simulated_pyramid_win"
 STRATEGY_DECISION_TARGET_LABEL = "Canonical Decision Quality"
-STRATEGY_DECISION_SORT_SEMANTICS = "avg_decision_quality_score -> avg_expected_win_rate -> lower drawdown penalty -> ROI"
+STRATEGY_DECISION_SORT_SEMANTICS = "ROI -> lower max_drawdown -> avg_decision_quality_score -> profit_factor (win_rate reference only)"
 
 
 def _strategy_decision_contract_meta(horizon_minutes: int = 1440) -> Dict[str, Any]:
@@ -1267,6 +1426,203 @@ def _compute_strategy_risk(last_results: Optional[Dict[str, Any]]) -> Dict[str, 
     }
 
 
+STRATEGY_LB_SORT_SEMANTICS_V2 = "Overall -> Reliability -> Return Power -> Risk Control -> Capital Efficiency (win_rate reference only)"
+
+
+def _compute_strategy_scorecard(last_results: Optional[Dict[str, Any]], risk: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    if not isinstance(last_results, dict):
+        return {
+            "overall_score": None,
+            "reliability_score": None,
+            "return_power_score": None,
+            "risk_control_score": None,
+            "capital_efficiency_score": None,
+            "rank_delta": 0,
+        }
+    risk = risk or _compute_strategy_risk(last_results)
+    roi = float(last_results.get("roi") or 0.0)
+    max_dd = float(last_results.get("max_drawdown") or 0.0)
+    profit_factor = float(last_results.get("profit_factor") or 0.0)
+    avg_time_underwater = float(last_results.get("avg_expected_time_underwater") or 0.0)
+    decision_quality = float(last_results.get("avg_decision_quality_score") or 0.0)
+    avg_allowed_layers = float(last_results.get("avg_allowed_layers") or 0.0)
+    total_trades = float(last_results.get("total_trades") or 0.0)
+    overfit_risk = str((risk or {}).get("overfit_risk") or "unknown")
+    overfit_penalty = 1.0 if overfit_risk == "high" else 0.5 if overfit_risk == "medium" else 0.0
+    trade_count_score = _clamp01(total_trades / 30.0)
+    roi_score = _clamp01(0.5 + roi / 0.20)
+    max_drawdown_score = _clamp01(1.0 - max_dd / 0.35)
+    profit_factor_score = _clamp01((profit_factor - 1.0) / 1.5)
+    time_underwater_score = _clamp01(1.0 - avg_time_underwater / 0.60)
+    decision_quality_score = _clamp01(decision_quality)
+    allowed_layers_score = _clamp01(avg_allowed_layers / 3.0)
+
+    reliability_score = round(
+        0.35 * max_drawdown_score
+        + 0.30 * time_underwater_score
+        + 0.15 * (1.0 - overfit_penalty)
+        + 0.10 * trade_count_score
+        + 0.10 * _clamp01((float((risk or {}).get("stability_score") or 0.0)) / 100.0),
+        4,
+    )
+    return_power_score = round(
+        0.50 * roi_score
+        + 0.30 * profit_factor_score
+        + 0.20 * decision_quality_score,
+        4,
+    )
+    risk_control_score = round(
+        0.45 * max_drawdown_score
+        + 0.35 * time_underwater_score
+        + 0.20 * (1.0 - overfit_penalty),
+        4,
+    )
+    capital_efficiency_score = round(
+        0.45 * decision_quality_score
+        + 0.25 * profit_factor_score
+        + 0.15 * time_underwater_score
+        + 0.15 * allowed_layers_score,
+        4,
+    )
+    overall_score = round(
+        0.35 * reliability_score
+        + 0.30 * return_power_score
+        + 0.20 * risk_control_score
+        + 0.15 * capital_efficiency_score,
+        4,
+    )
+    return {
+        "overall_score": overall_score,
+        "reliability_score": reliability_score,
+        "return_power_score": return_power_score,
+        "risk_control_score": risk_control_score,
+        "capital_efficiency_score": capital_efficiency_score,
+        "time_underwater_score": time_underwater_score,
+        "decision_quality_component": decision_quality_score,
+        "rank_delta": 0,
+    }
+
+
+
+def _ensure_strategy_leaderboard_tables(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS leaderboard_strategy_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            target_col TEXT,
+            strategy_count INTEGER NOT NULL DEFAULT 0,
+            payload_json TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS leaderboard_strategy_scorecards (
+            snapshot_id INTEGER NOT NULL,
+            rank INTEGER NOT NULL,
+            strategy_name TEXT NOT NULL,
+            overall_score REAL,
+            reliability_score REAL,
+            return_power_score REAL,
+            risk_control_score REAL,
+            capital_efficiency_score REAL,
+            roi REAL,
+            max_drawdown REAL,
+            total_trades REAL,
+            payload_json TEXT NOT NULL,
+            PRIMARY KEY (snapshot_id, rank)
+        )
+        """
+    )
+
+
+
+def _load_recent_strategy_leaderboard_snapshots(limit: int = 12, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            _ensure_strategy_leaderboard_tables(conn)
+            rows = conn.execute(
+                "SELECT id, created_at, target_col, strategy_count FROM leaderboard_strategy_snapshots ORDER BY id DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning(f"Failed to load strategy leaderboard snapshots: {exc}")
+        return []
+
+
+
+def _compute_strategy_rank_deltas(rows: List[Dict[str, Any]], db_path: str = DB_PATH) -> Dict[str, int]:
+    if len(rows) < 2:
+        return {}
+    latest_snapshot_id = rows[0].get("id")
+    previous_snapshot_id = rows[1].get("id")
+    try:
+        conn = sqlite3.connect(db_path)
+        try:
+            latest_rows = conn.execute(
+                "SELECT strategy_name, rank FROM leaderboard_strategy_scorecards WHERE snapshot_id=?",
+                (latest_snapshot_id,),
+            ).fetchall()
+            previous_rows = conn.execute(
+                "SELECT strategy_name, rank FROM leaderboard_strategy_scorecards WHERE snapshot_id=?",
+                (previous_snapshot_id,),
+            ).fetchall()
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning(f"Failed to compute strategy rank deltas: {exc}")
+        return {}
+    latest_map = {str(name): int(rank) for name, rank in latest_rows}
+    previous_map = {str(name): int(rank) for name, rank in previous_rows}
+    return {name: int(previous_map[name] - rank) for name, rank in latest_map.items() if name in previous_map}
+
+
+
+def _persist_strategy_leaderboard_snapshot(strategies: List[Dict[str, Any]], db_path: str = DB_PATH) -> None:
+    try:
+        conn = sqlite3.connect(db_path)
+        try:
+            _ensure_strategy_leaderboard_tables(conn)
+            created_at = datetime.utcnow().isoformat() + "Z"
+            target_col = (strategies[0].get("last_results") or {}).get("target_col") if strategies else None
+            cursor = conn.execute(
+                "INSERT INTO leaderboard_strategy_snapshots(created_at, target_col, strategy_count, payload_json) VALUES (?, ?, ?, ?)",
+                (created_at, target_col, len(strategies), json.dumps({"strategies": strategies}, ensure_ascii=False)),
+            )
+            snapshot_id = int(cursor.lastrowid)
+            for rank, entry in enumerate(strategies, start=1):
+                results = entry.get("last_results") or {}
+                conn.execute(
+                    "INSERT INTO leaderboard_strategy_scorecards(snapshot_id, rank, strategy_name, overall_score, reliability_score, return_power_score, risk_control_score, capital_efficiency_score, roi, max_drawdown, total_trades, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        snapshot_id,
+                        rank,
+                        entry.get("name"),
+                        results.get("overall_score"),
+                        results.get("reliability_score"),
+                        results.get("return_power_score"),
+                        results.get("risk_control_score"),
+                        results.get("capital_efficiency_score"),
+                        results.get("roi"),
+                        results.get("max_drawdown"),
+                        results.get("total_trades"),
+                        json.dumps(entry, ensure_ascii=False),
+                    ),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning(f"Failed to persist strategy leaderboard snapshot: {exc}")
+
+
+
 def _decorate_strategy_entry(entry: Dict[str, Any], db=None) -> Dict[str, Any]:
     enriched = dict(entry)
     last_results = dict(entry.get("last_results") or {})
@@ -1281,26 +1637,31 @@ def _decorate_strategy_entry(entry: Dict[str, Any], db=None) -> Dict[str, Any]:
         if last_results.get(key) is None:
             last_results[key] = value
 
-    enriched["last_results"] = last_results or None
-    enriched["decision_contract"] = _strategy_decision_contract_meta(horizon_minutes=contract_horizon)
     risk = _compute_strategy_risk(last_results)
+    scorecard = _compute_strategy_scorecard(last_results, risk)
+    last_results.update({k: v for k, v in scorecard.items() if k != "rank_delta"})
+    last_results["sort_semantics"] = STRATEGY_LB_SORT_SEMANTICS_V2
+    last_results = _normalize_result_timestamps(last_results)
+    enriched["last_results"] = last_results or None
+    enriched["decision_contract"] = {
+        **_strategy_decision_contract_meta(horizon_minutes=contract_horizon),
+        "sort_semantics": STRATEGY_LB_SORT_SEMANTICS_V2,
+    }
     enriched.update(risk)
+    enriched.update(scorecard)
     return enriched
 
 
 def _strategy_leaderboard_sort_key(entry: Dict[str, Any]):
     results = entry.get("last_results") or {}
-    decision_quality = results.get("avg_decision_quality_score")
-    expected_win_rate = results.get("avg_expected_win_rate")
-    drawdown_penalty = results.get("avg_expected_drawdown_penalty")
-    roi = results.get("roi")
-    total_trades = results.get("total_trades") or 0
     return (
-        float(decision_quality) if decision_quality is not None else -999.0,
-        float(expected_win_rate) if expected_win_rate is not None else -999.0,
-        -(float(drawdown_penalty) if drawdown_penalty is not None else 999.0),
-        float(roi) if roi is not None else -999.0,
-        int(total_trades),
+        float(results.get("overall_score") if results.get("overall_score") is not None else -999.0),
+        float(results.get("reliability_score") if results.get("reliability_score") is not None else -999.0),
+        float(results.get("return_power_score") if results.get("return_power_score") is not None else -999.0),
+        float(results.get("risk_control_score") if results.get("risk_control_score") is not None else -999.0),
+        float(results.get("capital_efficiency_score") if results.get("capital_efficiency_score") is not None else -999.0),
+        float(results.get("roi") if results.get("roi") is not None else -999.0),
+        -(float(results.get("max_drawdown") if results.get("max_drawdown") is not None else 999.0)),
     )
 
 
@@ -1326,6 +1687,147 @@ def _write_model_leaderboard_cache_file(payload: Dict[str, Any], updated_at: flo
         )
     except Exception as exc:
         logger.warning(f"Failed to write model leaderboard cache: {exc}")
+
+
+def _ensure_model_leaderboard_tables(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS leaderboard_model_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            updated_at REAL NOT NULL,
+            target_col TEXT,
+            model_count INTEGER NOT NULL DEFAULT 0,
+            payload_json TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS leaderboard_model_scorecards (
+            snapshot_id INTEGER NOT NULL,
+            rank INTEGER NOT NULL,
+            model_name TEXT NOT NULL,
+            overall_score REAL,
+            reliability_score REAL,
+            return_power_score REAL,
+            risk_control_score REAL,
+            capital_efficiency_score REAL,
+            avg_roi REAL,
+            avg_max_dd REAL,
+            avg_expected_time_underwater REAL,
+            profit_factor REAL,
+            avg_trades REAL,
+            overfit_penalty REAL,
+            payload_json TEXT NOT NULL,
+            PRIMARY KEY (snapshot_id, rank)
+        )
+        """
+    )
+
+
+
+def _persist_model_leaderboard_snapshot(payload: Dict[str, Any], updated_at: float, db_path: str = DB_PATH) -> None:
+    try:
+        conn = sqlite3.connect(db_path)
+        try:
+            _ensure_model_leaderboard_tables(conn)
+            created_at = datetime.utcfromtimestamp(updated_at).isoformat() + "Z"
+            cursor = conn.execute(
+                "INSERT INTO leaderboard_model_snapshots(created_at, updated_at, target_col, model_count, payload_json) VALUES (?, ?, ?, ?, ?)",
+                (
+                    created_at,
+                    float(updated_at),
+                    payload.get("target_col"),
+                    int(len(payload.get("leaderboard") or [])),
+                    json.dumps(payload, ensure_ascii=False),
+                ),
+            )
+            snapshot_id = int(cursor.lastrowid)
+            for rank, row in enumerate(payload.get("leaderboard") or [], start=1):
+                conn.execute(
+                    """
+                    INSERT INTO leaderboard_model_scorecards(
+                        snapshot_id, rank, model_name, overall_score, reliability_score, return_power_score,
+                        risk_control_score, capital_efficiency_score, avg_roi, avg_max_dd,
+                        avg_expected_time_underwater, profit_factor, avg_trades, overfit_penalty, payload_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        snapshot_id,
+                        rank,
+                        row.get("model_name"),
+                        row.get("overall_score"),
+                        row.get("reliability_score"),
+                        row.get("return_power_score"),
+                        row.get("risk_control_score"),
+                        row.get("capital_efficiency_score"),
+                        row.get("avg_roi"),
+                        row.get("avg_max_dd"),
+                        row.get("avg_expected_time_underwater"),
+                        row.get("profit_factor"),
+                        row.get("avg_trades"),
+                        row.get("overfit_penalty"),
+                        json.dumps(row, ensure_ascii=False),
+                    ),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning(f"Failed to persist model leaderboard snapshot: {exc}")
+
+
+def _load_recent_model_leaderboard_snapshots(limit: int = 12, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            _ensure_model_leaderboard_tables(conn)
+            rows = conn.execute(
+                "SELECT id, created_at, updated_at, target_col, model_count FROM leaderboard_model_snapshots ORDER BY id DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning(f"Failed to load model leaderboard snapshots: {exc}")
+        return []
+
+
+
+def _compute_model_rank_deltas(rows: List[Dict[str, Any]], db_path: str = DB_PATH) -> Dict[str, int]:
+    if len(rows) < 2:
+        return {}
+    latest_snapshot_id = rows[0].get("id")
+    previous_snapshot_id = rows[1].get("id")
+    try:
+        conn = sqlite3.connect(db_path)
+        try:
+            latest_rows = conn.execute(
+                "SELECT model_name, rank FROM leaderboard_model_scorecards WHERE snapshot_id=?",
+                (latest_snapshot_id,),
+            ).fetchall()
+            previous_rows = conn.execute(
+                "SELECT model_name, rank FROM leaderboard_model_scorecards WHERE snapshot_id=?",
+                (previous_snapshot_id,),
+            ).fetchall()
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning(f"Failed to compute model rank deltas: {exc}")
+        return {}
+    latest_map = {str(model_name): int(rank) for model_name, rank in latest_rows}
+    previous_map = {str(model_name): int(rank) for model_name, rank in previous_rows}
+    deltas: Dict[str, int] = {}
+    for model_name, latest_rank in latest_map.items():
+        prev_rank = previous_map.get(model_name)
+        if prev_rank is None:
+            continue
+        deltas[model_name] = int(prev_rank - latest_rank)
+    return deltas
+
 
 
 def _build_model_leaderboard_payload() -> Dict[str, Any]:
@@ -1363,6 +1865,27 @@ def _build_model_leaderboard_payload() -> Dict[str, Any]:
     global_metrics = json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else None
     regime_metrics = json.loads(regime_stats_path.read_text(encoding="utf-8")) if regime_stats_path.exists() else None
 
+    snapshot_history = _load_recent_model_leaderboard_snapshots(limit=12, db_path=DB_PATH)
+    rank_deltas = _compute_model_rank_deltas(snapshot_history, db_path=DB_PATH)
+    leaderboard = [
+        {**row, "rank_delta": rank_deltas.get(str(row.get("model_name")), 0)}
+        for row in leaderboard
+    ]
+    quadrant_points = [
+        {
+            "model_name": row.get("model_name"),
+            "x": row.get("reliability_score"),
+            "y": row.get("return_power_score"),
+            "overall_score": row.get("overall_score"),
+            "risk_control_score": row.get("risk_control_score"),
+            "capital_efficiency_score": row.get("capital_efficiency_score"),
+            "avg_roi": row.get("avg_roi"),
+            "avg_max_dd": row.get("avg_max_dd"),
+            "rank_delta": row.get("rank_delta"),
+        }
+        for row in leaderboard
+    ]
+
     return {
         "leaderboard": leaderboard,
         "count": len(leaderboard),
@@ -1371,6 +1894,27 @@ def _build_model_leaderboard_payload() -> Dict[str, Any]:
         "target_col": default_target_col,
         "target_label": "Simulated Pyramid" if default_target_col == "simulated_pyramid_win" else "Path-aware TP/DD",
         "target_comparison": target_comparison,
+        "quadrant_points": quadrant_points,
+        "score_dimensions": [
+            {"key": "overall_score", "label": "Overall", "description": "綜合能力分數：可靠性 + 收益力 + 風控 + 資金效率"},
+            {"key": "reliability_score", "label": "Reliability", "description": "低回撤、低深套、樣本充分、低過擬合風險"},
+            {"key": "return_power_score", "label": "Return Power", "description": "ROI 與 PF 主導，勝率僅作輔助參考"},
+            {"key": "risk_control_score", "label": "Risk Control", "description": "最大回撤、深套時間、波動與過擬合抑制"},
+            {"key": "capital_efficiency_score", "label": "Capital Efficiency", "description": "decision quality、PF、深套時間與可部署層數"},
+        ],
+        "storage": {
+            "canonical_store": "sqlite:leaderboard_model_snapshots + leaderboard_model_scorecards",
+            "cache_store": str(MODEL_LB_CACHE_PATH),
+        },
+        "snapshot_history": [
+            {
+                "id": row.get("id"),
+                "created_at": row.get("created_at"),
+                "target_col": row.get("target_col"),
+                "model_count": row.get("model_count"),
+            }
+            for row in snapshot_history
+        ],
         "skipped_models": skipped_models,
         "global_metrics": global_metrics,
         "regime_metrics": regime_metrics,
@@ -1392,6 +1936,7 @@ def _refresh_model_leaderboard_cache() -> None:
             _MODEL_LB_CACHE["error"] = None
             _MODEL_LB_CACHE["refreshing"] = False
         _write_model_leaderboard_cache_file(payload, updated_at)
+        _persist_model_leaderboard_snapshot(payload, updated_at, DB_PATH)
     except Exception as exc:
         with _MODEL_LB_LOCK:
             _MODEL_LB_CACHE["error"] = str(exc)
@@ -1412,6 +1957,15 @@ def _ensure_model_leaderboard_refresh(force: bool = False) -> None:
         threading.Thread(target=_refresh_model_leaderboard_cache, daemon=True).start()
 
 
+@router.get("/strategies/leaderboard/history")
+async def api_strategy_leaderboard_history(limit: int = Query(default=12, ge=1, le=100)):
+    rows = _load_recent_strategy_leaderboard_snapshots(limit=limit, db_path=DB_PATH)
+    return {
+        "history": rows,
+        "count": len(rows),
+    }
+
+
 @router.get("/strategies/leaderboard")
 async def api_strategy_leaderboard():
     """回傳所有已儲存策略的 Leaderboard（依 canonical decision-quality semantics 排序）"""
@@ -1423,10 +1977,46 @@ async def api_strategy_leaderboard():
     finally:
         db.close()
     strategies.sort(key=_strategy_leaderboard_sort_key, reverse=True)
+    snapshot_history = _load_recent_strategy_leaderboard_snapshots(limit=12, db_path=DB_PATH)
+    rank_deltas = _compute_strategy_rank_deltas(snapshot_history, db_path=DB_PATH)
+    strategies = [
+        {
+            **entry,
+            "rank_delta": rank_deltas.get(str(entry.get("name")), 0),
+            "last_results": {
+                **(entry.get("last_results") or {}),
+                "rank_delta": rank_deltas.get(str(entry.get("name")), 0),
+            },
+        }
+        for entry in strategies
+    ]
+    _persist_strategy_leaderboard_snapshot(strategies, db_path=DB_PATH)
+    quadrant_points = [
+        {
+            "strategy_name": entry.get("name"),
+            "x": (entry.get("last_results") or {}).get("reliability_score"),
+            "y": (entry.get("last_results") or {}).get("return_power_score"),
+            "overall_score": (entry.get("last_results") or {}).get("overall_score"),
+            "risk_control_score": (entry.get("last_results") or {}).get("risk_control_score"),
+            "capital_efficiency_score": (entry.get("last_results") or {}).get("capital_efficiency_score"),
+            "rank_delta": entry.get("rank_delta", 0),
+        }
+        for entry in strategies
+    ]
     return {
         "strategies": strategies,
         "count": len(strategies),
+        "quadrant_points": quadrant_points,
+        "snapshot_history": snapshot_history,
+        "score_dimensions": [
+            {"key": "overall_score", "label": "Overall", "description": "綜合能力分數：可靠性 + 收益力 + 風控 + 資金效率"},
+            {"key": "reliability_score", "label": "Reliability", "description": "低回撤、低深套、樣本充分、低過擬合風險"},
+            {"key": "return_power_score", "label": "Return Power", "description": "ROI 與 PF 主導，勝率僅作輔助參考"},
+            {"key": "risk_control_score", "label": "Risk Control", "description": "最大回撤、深套時間與穩定度"},
+            {"key": "capital_efficiency_score", "label": "Capital Efficiency", "description": "decision quality、PF、深套時間與可部署層數"},
+        ],
         **_strategy_decision_contract_meta(),
+        "sort_semantics": STRATEGY_LB_SORT_SEMANTICS_V2,
     }
 
 
@@ -1456,21 +2046,30 @@ async def api_delete_strategy(name: str):
     return {"ok": True, "deleted": name}
 
 
-@router.post("/strategies/run")
-async def api_run_strategy(body: Dict[str, Any]):
-    """
-    執行策略回測
-    Body: {name, type, params, initial_capital}
-    """
-    import sqlite3
-    from backtesting.strategy_lab import (
-        run_rule_backtest, run_hybrid_backtest, save_strategy)
+def _set_strategy_job_progress(job_id: Optional[str], progress: int, detail: str, *, status: str = "running") -> None:
+    if not job_id:
+        return
+    with _STRATEGY_RUN_LOCK:
+        job = _STRATEGY_RUN_JOBS.get(job_id)
+        if not job:
+            return
+        job.update({
+            "status": status,
+            "progress": max(0, min(100, int(progress))),
+            "detail": detail,
+            "updated_at": datetime.utcnow().isoformat() + "Z",
+        })
+
+
+def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None) -> Dict[str, Any]:
+    from backtesting.strategy_lab import run_rule_backtest, run_hybrid_backtest, save_strategy
 
     name = body.get("name", "unnamed_strategy")
     stype = body.get("type", "rule_based")
     params = body.get("params", {})
     initial = body.get("initial_capital", 10000.0)
 
+    _set_strategy_job_progress(job_id, 5, "正在載入回測資料與特徵欄位。")
     rows = _load_strategy_data()
     if not rows:
         return {"error": "No data available for backtest"}
@@ -1478,92 +2077,210 @@ async def api_run_strategy(body: Dict[str, Any]):
     timestamps = [str(r[0]) for r in rows]
     prices = [float(r[1]) for r in rows]
     bias50 = [float(r[2]) if r[2] is not None else 0 for r in rows]
-    dist_sl = [float(r[3]) if r[3] is not None else 100 for r in rows]
+    bias200 = [float(r[3]) if r[3] is not None else 0 for r in rows]
     nose = [float(r[4]) if r[4] is not None else 0.5 for r in rows]
     pulse = [float(r[5]) if r[5] is not None else 0.5 for r in rows]
     ear = [float(r[6]) if r[6] is not None else 0 for r in rows]
     regimes = [str(r[7]).lower() if r[7] else "unknown" for r in rows]
+    bb_pct_b_4h = [float(r[8]) if r[8] is not None else None for r in rows]
+    dist_bb_lower_4h = [float(r[9]) if r[9] is not None else None for r in rows]
+    dist_swing_low_4h = [float(r[10]) if r[10] is not None else None for r in rows]
+    score_series: List[Dict[str, Any]] = []
 
-    if stype == "rule_based":
-        result = run_rule_backtest(
-            prices, timestamps, bias50, bias50,
-            nose, pulse, ear, params, initial, regimes=regimes)
-    elif stype == "hybrid":
-        model_name = str(params.get("model_name") or "xgboost")
-        df = load_model_leaderboard_frame(DB_PATH)
-        if df.empty:
-            return {"error": "Hybrid 模式缺少可用訓練資料"}
-
-        feature_cols = [c for c in df.columns if c.startswith("feat_")]
-        target_col = "simulated_pyramid_win" if "simulated_pyramid_win" in df.columns else "label_spot_long_win"
-        train_df = df.dropna(subset=[target_col]).copy()
-        if train_df.empty:
-            return {"error": "Hybrid 模式缺少 target 標籤資料"}
-
-        from backtesting.model_leaderboard import ModelLeaderboard
-        lb = ModelLeaderboard(train_df, target_col=target_col)
-        model = lb._train_model(train_df[feature_cols].fillna(0).values, train_df[target_col].fillna(0).astype(int).values, model_name)
-        if model is None:
-            return {"error": f"{model_name} 目前不可用"}
-        confidence_map = {
-            str(ts): float(conf)
-            for ts, conf in zip(
-                train_df["timestamp"].dt.strftime('%Y-%m-%d %H:%M:%S').values,
-                lb._get_confidence(model, train_df[feature_cols].fillna(0).values, model_name),
+    db = get_db()
+    try:
+        if stype == "rule_based":
+            _set_strategy_job_progress(job_id, 22, f"已載入 {len(rows)} 筆資料，正在執行 rule-based 回測。")
+            result = run_rule_backtest(
+                prices, timestamps, bias50, bias200, nose, pulse, ear, params, initial,
+                regimes=regimes,
+                bb_pct_b_4h=bb_pct_b_4h,
+                dist_bb_lower_4h=dist_bb_lower_4h,
+                dist_swing_low_4h=dist_swing_low_4h,
             )
+            score_series = _build_strategy_score_series(
+                timestamps, bias50, nose, pulse, ear,
+                bb_pct_b_4h=bb_pct_b_4h,
+                dist_bb_lower_4h=dist_bb_lower_4h,
+                dist_swing_low_4h=dist_swing_low_4h,
+            )
+        elif stype == "hybrid":
+            model_name = str(params.get("model_name") or "xgboost")
+            _set_strategy_job_progress(job_id, 24, f"Hybrid 模式：正在準備 {model_name} 訓練資料。")
+            df = load_model_leaderboard_frame(DB_PATH)
+            if df.empty:
+                return {"error": "Hybrid 模式缺少可用訓練資料"}
+
+            feature_cols = [c for c in df.columns if c.startswith("feat_")]
+            target_col = "simulated_pyramid_win" if "simulated_pyramid_win" in df.columns else "label_spot_long_win"
+            train_df = df.dropna(subset=[target_col]).copy()
+            if train_df.empty:
+                return {"error": "Hybrid 模式缺少 target 標籤資料"}
+
+            from backtesting.model_leaderboard import ModelLeaderboard
+            lb = ModelLeaderboard(train_df, target_col=target_col)
+            signature = _build_cache_key(model_name, target_col, len(train_df), str(train_df["timestamp"].iloc[-1]))
+            with _HYBRID_MODEL_LOCK:
+                cached = _HYBRID_MODEL_CACHE.get(signature)
+            if cached:
+                confidence_map = cached["confidence_map"]
+            else:
+                _set_strategy_job_progress(job_id, 40, f"Hybrid 模式：正在訓練 {model_name}。")
+                model = lb._train_model(
+                    train_df[feature_cols].fillna(0).values,
+                    train_df[target_col].fillna(0).astype(int).values,
+                    model_name,
+                )
+                if model is None:
+                    return {"error": f"{model_name} 目前不可用"}
+                confidence_map = {
+                    str(ts): float(conf)
+                    for ts, conf in zip(
+                        train_df["timestamp"].dt.strftime('%Y-%m-%d %H:%M:%S').values,
+                        lb._get_confidence(model, train_df[feature_cols].fillna(0).values, model_name),
+                    )
+                }
+                with _HYBRID_MODEL_LOCK:
+                    _HYBRID_MODEL_CACHE[signature] = {
+                        "confidence_map": confidence_map,
+                        "updated_at": time.time(),
+                    }
+            conf = [confidence_map.get(ts, max(0.0, min(1.0, 1.0 - b / 20.0))) for ts, b in zip(timestamps, bias50)]
+            _set_strategy_job_progress(job_id, 58, f"Hybrid 模式：{model_name} 已就緒，正在執行回測。")
+            result = run_hybrid_backtest(
+                prices, timestamps, bias50, bias200, nose, pulse, ear, conf, params, initial,
+                regimes=regimes,
+                bb_pct_b_4h=bb_pct_b_4h,
+                dist_bb_lower_4h=dist_bb_lower_4h,
+                dist_swing_low_4h=dist_swing_low_4h,
+            )
+            score_series = _build_strategy_score_series(
+                timestamps, bias50, nose, pulse, ear, conf,
+                bb_pct_b_4h=bb_pct_b_4h,
+                dist_bb_lower_4h=dist_bb_lower_4h,
+                dist_swing_low_4h=dist_swing_low_4h,
+            )
+        else:
+            return {"error": f"Unknown strategy type: {stype}"}
+
+        _set_strategy_job_progress(job_id, 76, "回測核心完成，正在計算 benchmark 與決策品質摘要。")
+        benchmarks = _compute_backtest_benchmarks(
+            prices, timestamps, bias50, bias200, nose, pulse, ear, regimes, initial, params,
+            bb_pct_b_4h=bb_pct_b_4h,
+            dist_bb_lower_4h=dist_bb_lower_4h,
+            dist_swing_low_4h=dist_swing_low_4h,
+        )
+        chart_context = _build_strategy_chart_context(timestamps)
+        recent_equity_curve = result.equity_curve[-300:] if result.equity_curve else []
+        recent_trades = result.trades[-80:] if result.trades else []
+        strat_def = {"type": stype, "params": params}
+        decision_profile = _compute_decision_profile(result.trades)
+        canonical_quality_profile = _compute_strategy_decision_quality_profile(result.trades, db=db)
+        capital_management = params.get("capital_management") if isinstance(params.get("capital_management"), dict) else {}
+        results_dict = {
+            "roi": round(result.roi, 4),
+            "win_rate": round(result.win_rate, 4),
+            "total_trades": result.total_trades,
+            "capital_mode": capital_management.get("mode") or "classic_pyramid",
+            "wins": result.wins, "losses": result.losses,
+            "max_drawdown": round(result.max_drawdown, 4),
+            "profit_factor": round(result.profit_factor, 4),
+            "total_pnl": round(result.total_pnl, 2),
+            "avg_win": round(result.avg_win, 2),
+            "avg_loss": round(result.avg_loss, 2),
+            "max_consecutive_losses": result.max_consecutive_losses,
+            "regime_breakdown": _compute_regime_breakdown(result.trades, initial),
+            "benchmarks": benchmarks,
+            "equity_curve": recent_equity_curve,
+            "trades": recent_trades,
+            "score_series": score_series[-300:] if score_series else [],
+            "chart_context": chart_context,
+            "run_at": datetime.utcnow().isoformat() + "Z",
+            **decision_profile,
+            **canonical_quality_profile,
         }
-        conf = [confidence_map.get(ts, max(0.0, min(1.0, 1.0 - b / 20.0))) for ts, b in zip(timestamps, bias50)]
-        result = run_hybrid_backtest(
-            prices, timestamps, bias50, bias50,
-            nose, pulse, ear, conf, params, initial, regimes=regimes)
-    else:
-        return {"error": f"Unknown strategy type: {stype}"}
+        contract_meta = _strategy_decision_contract_meta(
+            horizon_minutes=int(results_dict.get("decision_quality_horizon_minutes") or 1440)
+        )
+        for key, value in contract_meta.items():
+            results_dict.setdefault(key, value)
 
-    benchmarks = _compute_backtest_benchmarks(
-        prices, timestamps, bias50, nose, pulse, ear, regimes, initial, params
-    )
-    chart_context = _build_strategy_chart_context(timestamps)
-    recent_equity_curve = result.equity_curve[-300:] if result.equity_curve else []
-    recent_trades = result.trades[-80:] if result.trades else []
+        _set_strategy_job_progress(job_id, 92, "正在儲存策略、整理圖表上下文與輸出結果。")
+        normalized_results = _normalize_result_timestamps(results_dict)
+        save_strategy(name, strat_def, normalized_results)
+        response = {
+            "strategy": name,
+            "type": stype,
+            "params": params,
+            "results": normalized_results,
+            "decision_contract": contract_meta,
+            "equity_curve": normalized_results.get("equity_curve") or [],
+            "trades": normalized_results.get("trades") or [],
+            "score_series": normalized_results.get("score_series") or [],
+            "chart_context": _normalize_result_timestamps(chart_context),
+        }
+        _set_strategy_job_progress(job_id, 100, "回測、圖表與排行榜資料已全部同步完成。", status="completed")
+        return response
+    finally:
+        db.close()
 
-    strat_def = {"type": stype, "params": params}
-    decision_profile = _compute_decision_profile(result.trades)
-    canonical_quality_profile = _compute_strategy_decision_quality_profile(result.trades, db=db)
-    results_dict = {
-        "roi": round(result.roi, 4),
-        "win_rate": round(result.win_rate, 4),
-        "total_trades": result.total_trades,
-        "wins": result.wins, "losses": result.losses,
-        "max_drawdown": round(result.max_drawdown, 4),
-        "profit_factor": round(result.profit_factor, 4),
-        "total_pnl": round(result.total_pnl, 2),
-        "avg_win": round(result.avg_win, 2),
-        "avg_loss": round(result.avg_loss, 2),
-        "max_consecutive_losses": result.max_consecutive_losses,
-        "regime_breakdown": _compute_regime_breakdown(result.trades, initial),
-        "benchmarks": benchmarks,
-        "equity_curve": recent_equity_curve,
-        "trades": recent_trades,
-        "chart_context": chart_context,
-        "run_at": datetime.utcnow().isoformat() + "Z",
-        **decision_profile,
-        **canonical_quality_profile,
-    }
-    contract_meta = _strategy_decision_contract_meta(
-        horizon_minutes=int(results_dict.get("decision_quality_horizon_minutes") or 1440)
-    )
-    for key, value in contract_meta.items():
-        results_dict.setdefault(key, value)
 
-    save_strategy(name, strat_def, results_dict)
-    return {
-        "strategy": name, "type": stype, "params": params,
-        "results": results_dict,
-        "decision_contract": contract_meta,
-        "equity_curve": recent_equity_curve,
-        "trades": recent_trades,
-        "chart_context": chart_context,
-    }
+@router.post("/strategies/run")
+async def api_run_strategy(body: Dict[str, Any]):
+    """同步執行策略回測。"""
+    return _execute_strategy_run(body)
+
+
+@router.post("/strategies/run_async")
+async def api_run_strategy_async(body: Dict[str, Any]):
+    job_id = uuid.uuid4().hex
+    with _STRATEGY_RUN_LOCK:
+        _STRATEGY_RUN_JOBS[job_id] = {
+            "job_id": job_id,
+            "status": "queued",
+            "progress": 0,
+            "detail": "已建立回測任務，等待背景工作執行。",
+            "created_at": datetime.utcnow().isoformat() + "Z",
+            "updated_at": datetime.utcnow().isoformat() + "Z",
+            "result": None,
+            "error": None,
+        }
+
+    def _runner() -> None:
+        _set_strategy_job_progress(job_id, 2, "背景工作已啟動。")
+        try:
+            result = _execute_strategy_run(body, job_id=job_id)
+            with _STRATEGY_RUN_LOCK:
+                job = _STRATEGY_RUN_JOBS.get(job_id)
+                if job is not None:
+                    job["result"] = result
+                    job["error"] = result.get("error") if isinstance(result, dict) else None
+                    if result.get("error"):
+                        job["status"] = "failed"
+        except Exception as exc:
+            logger.exception("Strategy async job failed")
+            with _STRATEGY_RUN_LOCK:
+                job = _STRATEGY_RUN_JOBS.get(job_id)
+                if job is not None:
+                    job.update({
+                        "status": "failed",
+                        "progress": 100,
+                        "detail": f"回測失敗：{exc}",
+                        "error": str(exc),
+                        "updated_at": datetime.utcnow().isoformat() + "Z",
+                    })
+
+    _STRATEGY_RUN_EXECUTOR.submit(_runner)
+    return {"job_id": job_id, "status": "queued", "progress": 0}
+
+
+@router.get("/strategies/jobs/{job_id}")
+async def api_strategy_job_status(job_id: str):
+    with _STRATEGY_RUN_LOCK:
+        job = _STRATEGY_RUN_JOBS.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail=f"Strategy job '{job_id}' not found")
+        return dict(job)
 
 
 @router.post("/strategies/save")
@@ -1584,6 +2301,23 @@ async def api_save_strategy(body: Dict[str, Any]):
 #           CatBoost, RandomForest, MLP, SVM, Ensemble
 # 全部在固定金字塔框架 + Walk-Forward 驗證下比較
 # ═══════════════════════════════════════════════
+
+@router.get("/models/leaderboard/history")
+async def api_model_leaderboard_history(limit: int = Query(default=12, ge=1, le=100)):
+    rows = _load_recent_model_leaderboard_snapshots(limit=limit, db_path=DB_PATH)
+    return {
+        "history": [
+            {
+                "id": row.get("id"),
+                "created_at": row.get("created_at"),
+                "target_col": row.get("target_col"),
+                "model_count": row.get("model_count"),
+            }
+            for row in rows
+        ],
+        "count": len(rows),
+    }
+
 
 @router.get("/models/leaderboard")
 async def api_model_leaderboard(refresh: bool = Query(default=False)):

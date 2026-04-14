@@ -448,6 +448,38 @@ const toMillis = (value?: string | null) => {
   return Number.isFinite(ms) ? ms : null;
 };
 
+const STRATEGY_LAB_CACHE_KEY = "polytrader.strategylab.cache.v1";
+const STRATEGY_LAB_MEMORY_CACHE: {
+  strategies?: StrategyEntry[];
+  strategyMeta?: StrategyLeaderboardMeta;
+  strategyQuadrantPoints?: StrategyQuadrantPoint[];
+  modelLeaderboard?: ModelLeaderboardEntry[];
+  modelQuadrantPoints?: QuadrantPoint[];
+  modelMeta?: ModelLeaderboardMeta;
+  modelStats?: ModelStatsResponse | null;
+  selectedStrategy?: StrategyEntry | null;
+  updatedAt?: number;
+} = {};
+
+const loadStrategyLabCache = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(STRATEGY_LAB_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveStrategyLabCache = (payload: typeof STRATEGY_LAB_MEMORY_CACHE) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(STRATEGY_LAB_CACHE_KEY, JSON.stringify({ ...payload, updatedAt: Date.now() }));
+  } catch {
+    // ignore quota / serialization failures
+  }
+};
+
 export default function StrategyLab() {
   const [strategies, setStrategies] = useState<StrategyEntry[]>([]);
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyEntry | null>(null);
@@ -492,6 +524,20 @@ export default function StrategyLab() {
   const [chartEnd, setChartEnd] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"workspace" | "leaderboard">("workspace");
   const [capitalModeFilter, setCapitalModeFilter] = useState<"all" | "classic_pyramid" | "reserve_90">("all");
+
+  useEffect(() => {
+    const cached = Object.keys(STRATEGY_LAB_MEMORY_CACHE).length ? STRATEGY_LAB_MEMORY_CACHE : loadStrategyLabCache();
+    if (!cached) return;
+    if (Array.isArray(cached.strategies)) setStrategies(cached.strategies);
+    if (cached.strategyMeta) setStrategyMeta(cached.strategyMeta);
+    if (Array.isArray(cached.strategyQuadrantPoints)) setStrategyQuadrantPoints(cached.strategyQuadrantPoints);
+    if (Array.isArray(cached.modelLeaderboard)) setModelLeaderboard(cached.modelLeaderboard);
+    if (Array.isArray(cached.modelQuadrantPoints)) setModelQuadrantPoints(cached.modelQuadrantPoints);
+    if (cached.modelMeta) setModelMeta(cached.modelMeta);
+    if (cached.modelStats) setModelStats(cached.modelStats);
+    if (cached.selectedStrategy) setSelectedStrategy(cached.selectedStrategy);
+    setInitialLoading(false);
+  }, []);
 
   const activeResult = runResult ?? selectedStrategy?.last_results ?? null;
   const activeMeta = selectedStrategy?.metadata ?? {
@@ -661,6 +707,8 @@ export default function StrategyLab() {
       });
       setSelectedStrategy(detail);
       setRunResult(null);
+      STRATEGY_LAB_MEMORY_CACHE.selectedStrategy = detail;
+      saveStrategyLabCache(STRATEGY_LAB_MEMORY_CACHE);
       applyStrategyToForm(detail);
       updateBackgroundStage({
         mode: "select_strategy",
@@ -686,16 +734,23 @@ export default function StrategyLab() {
     try {
       const res = await fetchApi("/api/strategies/leaderboard") as any;
       const list = res?.strategies ?? res?.data?.strategies ?? (Array.isArray(res) ? res : []);
-      setStrategies(list || []);
-      setStrategyQuadrantPoints(Array.isArray(res?.quadrant_points) ? res.quadrant_points : []);
-      setStrategyMeta({
+      const nextStrategies = list || [];
+      const nextQuadrantPoints = Array.isArray(res?.quadrant_points) ? res.quadrant_points : [];
+      const nextMeta = {
         target_col: res?.target_col ?? res?.data?.target_col ?? "simulated_pyramid_win",
         target_label: res?.target_label ?? res?.data?.target_label ?? "Canonical Decision Quality",
         sort_semantics: res?.sort_semantics ?? res?.data?.sort_semantics ?? null,
         score_dimensions: Array.isArray(res?.score_dimensions) ? res.score_dimensions : [],
         snapshot_history: Array.isArray(res?.snapshot_history) ? res.snapshot_history : [],
-      });
-      return list || [];
+      };
+      setStrategies(nextStrategies);
+      setStrategyQuadrantPoints(nextQuadrantPoints);
+      setStrategyMeta(nextMeta);
+      STRATEGY_LAB_MEMORY_CACHE.strategies = nextStrategies;
+      STRATEGY_LAB_MEMORY_CACHE.strategyQuadrantPoints = nextQuadrantPoints;
+      STRATEGY_LAB_MEMORY_CACHE.strategyMeta = nextMeta;
+      saveStrategyLabCache(STRATEGY_LAB_MEMORY_CACHE);
+      return nextStrategies;
     } catch (err: any) {
       console.error("Leaderboard error:", err);
       return [];
@@ -705,9 +760,9 @@ export default function StrategyLab() {
   const loadModelLeaderboard = async (forceRefresh = false) => {
     try {
       const data = await fetchApi(`/api/models/leaderboard${forceRefresh ? "?refresh=true" : ""}`) as any;
-      setModelLeaderboard(Array.isArray(data?.leaderboard) ? data.leaderboard : []);
-      setModelQuadrantPoints(Array.isArray(data?.quadrant_points) ? data.quadrant_points : []);
-      setModelMeta({
+      const nextModelLeaderboard = Array.isArray(data?.leaderboard) ? data.leaderboard : [];
+      const nextModelQuadrants = Array.isArray(data?.quadrant_points) ? data.quadrant_points : [];
+      const nextModelMeta = {
         refreshing: !!data?.refreshing,
         cached: !!data?.cached,
         stale: !!data?.stale,
@@ -723,7 +778,14 @@ export default function StrategyLab() {
         score_dimensions: Array.isArray(data?.score_dimensions) ? data.score_dimensions : [],
         storage: data?.storage ?? null,
         snapshot_history: Array.isArray(data?.snapshot_history) ? data.snapshot_history : [],
-      });
+      };
+      setModelLeaderboard(nextModelLeaderboard);
+      setModelQuadrantPoints(nextModelQuadrants);
+      setModelMeta(nextModelMeta);
+      STRATEGY_LAB_MEMORY_CACHE.modelLeaderboard = nextModelLeaderboard;
+      STRATEGY_LAB_MEMORY_CACHE.modelQuadrantPoints = nextModelQuadrants;
+      STRATEGY_LAB_MEMORY_CACHE.modelMeta = nextModelMeta;
+      saveStrategyLabCache(STRATEGY_LAB_MEMORY_CACHE);
     } catch (err) {
       console.error("Model leaderboard error:", err);
       setModelMeta({ error: "模型排行榜載入失敗" });
@@ -734,6 +796,8 @@ export default function StrategyLab() {
     try {
       const data = await fetchApi("/api/model/stats") as ModelStatsResponse;
       setModelStats(data);
+      STRATEGY_LAB_MEMORY_CACHE.modelStats = data;
+      saveStrategyLabCache(STRATEGY_LAB_MEMORY_CACHE);
     } catch (err) {
       console.error("Model stats error:", err);
     }
@@ -848,11 +912,38 @@ export default function StrategyLab() {
           },
         },
       };
-      const data = await fetchApi("/api/strategies/run", {
+      const kickoff = await fetchApi("/api/strategies/run_async", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }) as any;
+      const jobId = kickoff?.job_id;
+      if (!jobId) {
+        throw new Error("回測任務未建立成功");
+      }
+
+      let data: any = null;
+      for (let attempt = 0; attempt < 600; attempt += 1) {
+        const job = await fetchApi(`/api/strategies/jobs/${jobId}`) as any;
+        updateBackgroundStage({
+          mode: "run_strategy",
+          label: `正在執行回測：${name}`,
+          detail: job?.detail || "背景回測執行中。",
+          progress: typeof job?.progress === "number" ? job.progress : toStageProgress(1, STAGE_TOTALS.run_strategy),
+        });
+        if (job?.status === "completed") {
+          data = job?.result;
+          break;
+        }
+        if (job?.status === "failed") {
+          throw new Error(job?.error || job?.detail || "回測失敗");
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 400));
+      }
+
+      if (!data) {
+        throw new Error("回測逾時，請稍後再試");
+      }
       if (data?.error) {
         setError(data.error);
       } else {
@@ -860,7 +951,7 @@ export default function StrategyLab() {
           mode: "run_strategy",
           label: `正在執行回測：${name}`,
           detail: "回測結果已返回，正在同步價格圖、權益圖與交易明細。",
-          progress: toStageProgress(1, STAGE_TOTALS.run_strategy),
+          progress: 82,
         });
         const result = data?.results ?? data?.result ?? data?.run_result ?? null;
         const enrichedResult = result
@@ -877,28 +968,28 @@ export default function StrategyLab() {
           mode: "run_strategy",
           label: `正在執行回測：${name}`,
           detail: "工作區已載入最新回測結果，正在刷新排行榜。",
-          progress: toStageProgress(2, STAGE_TOTALS.run_strategy),
+          progress: 88,
         });
         await loadLeaderboard();
         updateBackgroundStage({
           mode: "run_strategy",
           label: `正在執行回測：${name}`,
           detail: "策略排行榜已刷新，正在同步模型統計。",
-          progress: toStageProgress(3, STAGE_TOTALS.run_strategy),
+          progress: 93,
         });
         await loadModelStats();
         updateBackgroundStage({
           mode: "run_strategy",
           label: `正在執行回測：${name}`,
           detail: "模型統計已同步，正在把最新策略詳情掛回工作區。",
-          progress: toStageProgress(4, STAGE_TOTALS.run_strategy),
+          progress: 96,
         });
         await selectStrategyByName(name);
         updateBackgroundStage({
           mode: "run_strategy",
           label: `回測完成：${name}`,
           detail: "最新結果、價格圖、分數指標與權益曲線都已同步完成。",
-          progress: toStageProgress(5, STAGE_TOTALS.run_strategy),
+          progress: 100,
         });
       }
     } catch (err: any) {

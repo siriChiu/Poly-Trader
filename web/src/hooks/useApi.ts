@@ -38,6 +38,19 @@ const toRequestLabel = (endpoint: string) => {
   return `載入 ${endpoint}`;
 };
 
+const API_MEMORY_CACHE = new Map<string, { data: unknown; updatedAt: number }>();
+
+const getCachedApiResponse = <T,>(endpoint: string, maxAgeMs: number): T | null => {
+  const cached = API_MEMORY_CACHE.get(endpoint);
+  if (!cached) return null;
+  if (Date.now() - cached.updatedAt > maxAgeMs) return null;
+  return cached.data as T;
+};
+
+const setCachedApiResponse = (endpoint: string, data: unknown) => {
+  API_MEMORY_CACHE.set(endpoint, { data, updatedAt: Date.now() });
+};
+
 async function fetchJsonTracked<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const taskId = beginGlobalProgress({
     kind: "network",
@@ -56,6 +69,7 @@ async function fetchJsonTracked<T>(endpoint: string, options?: RequestInit): Pro
       throw new Error(err.detail || `${resp.status}`);
     }
     const json = await resp.json();
+    setCachedApiResponse(endpoint, json);
     updateGlobalProgress(taskId, { progress: 100, detail: `${endpoint} · 完成` });
     return json;
   } finally {
@@ -68,12 +82,19 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
 }
 
 export function useApi<T>(endpoint: string, refreshMs?: number) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cacheMaxAgeMs = refreshMs ? Math.max(1000, refreshMs) : 60_000;
+  const [data, setData] = useState<T | null>(() => getCachedApiResponse<T>(endpoint, cacheMaxAgeMs));
+  const [loading, setLoading] = useState(data == null);
   const [error, setError] = useState<string | null>(null);
 
   const fetch_ = useCallback(async () => {
-    setLoading(true);
+    const cached = getCachedApiResponse<T>(endpoint, cacheMaxAgeMs);
+    if (cached != null) {
+      setData(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
       const json = await fetchJsonTracked<T>(endpoint);
       setData(json);
@@ -83,7 +104,7 @@ export function useApi<T>(endpoint: string, refreshMs?: number) {
     } finally {
       setLoading(false);
     }
-  }, [endpoint]);
+  }, [endpoint, cacheMaxAgeMs]);
 
   useEffect(() => {
     fetch_();

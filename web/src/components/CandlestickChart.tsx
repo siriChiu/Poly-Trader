@@ -80,7 +80,8 @@ interface Props {
 
 const toUnix = (value?: string | null) => {
   if (!value) return null;
-  const ms = new Date(value).getTime();
+  const normalized = /[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value.replace(" ", "T")}Z`;
+  const ms = new Date(normalized).getTime();
   return Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
 };
 
@@ -171,6 +172,35 @@ const buildFallbackPositionSeries = (trades: TradeMarkerInput[], candleTimes: nu
   return uniqueByTime(Array.from(levelByTime.entries()).map(([time, value]) => ({ time: time as Time, value })));
 };
 
+const CHART_CACHE_KEY_PREFIX = "polytrader.chartcache.v2";
+const CHART_MEMORY_CACHE = new Map<string, KlineResponse>();
+
+const loadCachedChartPayload = (cacheKey: string): KlineResponse | null => {
+  if (CHART_MEMORY_CACHE.has(cacheKey)) {
+    return CHART_MEMORY_CACHE.get(cacheKey) ?? null;
+  }
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(`${CHART_CACHE_KEY_PREFIX}:${cacheKey}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as KlineResponse;
+    CHART_MEMORY_CACHE.set(cacheKey, parsed);
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const saveCachedChartPayload = (cacheKey: string, payload: KlineResponse) => {
+  CHART_MEMORY_CACHE.set(cacheKey, payload);
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(`${CHART_CACHE_KEY_PREFIX}:${cacheKey}`, JSON.stringify(payload));
+  } catch {
+    // ignore quota issues
+  }
+};
+
 export default function CandlestickChart({
   symbol = "BTCUSDT",
   interval = "1h",
@@ -209,6 +239,7 @@ export default function CandlestickChart({
   const confidenceLookupRef = useRef<Map<number, number>>(new Map());
   const syncingRangeRef = useRef(false);
   const syncingCrosshairRef = useRef(false);
+  const viewportKeyRef = useRef<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -448,9 +479,15 @@ export default function CandlestickChart({
         const params = new URLSearchParams({ symbol, interval, limit: `${limit}` });
         if (since) params.set("since", `${since}`);
         if (until) params.set("until", `${until}`);
-        const resp = await fetch(buildApiUrl(`/api/chart/klines?${params.toString()}`));
-        if (!resp.ok) throw new Error(`${resp.status}`);
-        const data: KlineResponse = await resp.json();
+        const cacheKey = `${symbol}:${interval}:${since ?? ""}:${until ?? ""}:${limit}`;
+        const cachedPayload = loadCachedChartPayload(cacheKey);
+        const data: KlineResponse = cachedPayload ?? await (async () => {
+          const resp = await fetch(buildApiUrl(`/api/chart/klines?${params.toString()}`));
+          if (!resp.ok) throw new Error(`${resp.status}`);
+          const payload: KlineResponse = await resp.json();
+          saveCachedChartPayload(cacheKey, payload);
+          return payload;
+        })();
         setProgress(toChartProgress(1));
         setProgressDetail(`已取得 ${data.candles?.length ?? 0} 根 K 線，正在整理價格序列`);
         if (!data.candles?.length) {
@@ -590,13 +627,26 @@ export default function CandlestickChart({
             equityMarkers.push({ ...sellMarker, text: positive ? "出 ✓" : "出 ✕" });
           }
         }
-        candleSeriesRef.current?.setMarkers(markers.sort((a, b) => Number(a.time) - Number(b.time)));
-        equitySeriesRef.current?.setMarkers(equityMarkers.sort((a, b) => Number(a.time) - Number(b.time)));
+        const lastCandleTime = candleTimes[candleTimes.length - 1] ?? null;
+        const normalizedMarkers = markers
+          .filter((marker) => marker.time != null && (lastCandleTime == null || Number(marker.time) <= lastCandleTime))
+          .map((marker) => Number(marker.time) === lastCandleTime ? { ...marker, text: marker.text?.slice(0, 12) ?? "" } : marker)
+          .sort((a, b) => Number(a.time) - Number(b.time));
+        const normalizedEquityMarkers = equityMarkers
+          .filter((marker) => marker.time != null && (lastCandleTime == null || Number(marker.time) <= lastCandleTime))
+          .map((marker) => Number(marker.time) === lastCandleTime ? { ...marker, text: marker.text?.slice(0, 8) ?? "" } : marker)
+          .sort((a, b) => Number(a.time) - Number(b.time));
+        candleSeriesRef.current?.setMarkers(normalizedMarkers);
+        equitySeriesRef.current?.setMarkers(normalizedEquityMarkers);
         setProgress(toChartProgress(5));
-        setProgressDetail(`買賣點已對齊完成，共 ${markers.length} 個 markers，正在更新視窗`);
+        setProgressDetail(`買賣點已對齊完成，共 ${normalizedMarkers.length} 個 markers，正在更新視窗`);
 
-        priceChartRef.current?.timeScale().fitContent();
-        equityChartRef.current?.timeScale().fitContent();
+        const viewportKey = `${symbol}:${interval}:${since ?? ""}:${until ?? ""}`;
+        if (!hasLoadedOnce || viewportKeyRef.current !== viewportKey) {
+          priceChartRef.current?.timeScale().fitContent();
+          equityChartRef.current?.timeScale().fitContent();
+          viewportKeyRef.current = viewportKey;
+        }
 
         if (!cancelled) {
           const firstTs = Number(candleData[0]?.time ?? 0);
