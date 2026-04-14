@@ -301,8 +301,19 @@ def _live_context() -> dict[str, Any]:
         "decision_quality_label": payload.get("decision_quality_label"),
         "current_live_structure_bucket": current_bucket,
         "current_live_structure_bucket_rows": exact.get("current_live_structure_bucket_rows"),
+        "exact_scope_rows": exact.get("rows"),
         "exact_recent_structure_bucket_counts": exact_bucket_counts,
+        "exact_current_live_structure_bucket_metrics": exact.get("current_live_structure_bucket_metrics"),
         "narrow_recent_structure_bucket_counts": narrow.get("recent500_structure_bucket_counts") or {},
+        "narrow_scope_rows": narrow.get("rows"),
+        "narrow_current_live_structure_bucket_rows": narrow.get("current_live_structure_bucket_rows"),
+        "narrow_current_live_structure_bucket_metrics": narrow.get("current_live_structure_bucket_metrics"),
+        "broad_scope_rows": broad.get("rows"),
+        "broad_current_live_structure_bucket_rows": broad.get("current_live_structure_bucket_rows"),
+        "broad_current_live_structure_bucket_metrics": broad.get("current_live_structure_bucket_metrics"),
+        "broad_recent500_regime_counts": broad.get("recent500_regime_counts") or {},
+        "broad_recent500_dominant_regime": broad.get("recent500_dominant_regime"),
+        "broad_recent_pathology": broad.get("recent_pathology") or {},
         "supported_neighbor_buckets": supported_neighbor_buckets,
         "collapse_feature_snapshot": snapshot,
         "pathology_worst_scope": (pathology_consensus.get("worst_pathology_scope") or {}).get("scope"),
@@ -364,6 +375,25 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
 
     collapse_snapshot = live_context.get("collapse_feature_snapshot") or {}
     shared_shift_features = list(live_context.get("pathology_shared_shift_features") or [])
+    live_regime = live_context.get("regime_label")
+    broad_bucket_rows = int(live_context.get("broad_current_live_structure_bucket_rows") or 0)
+    broad_dominant_regime = live_context.get("broad_recent500_dominant_regime") or {}
+    broad_dominant_regime_label = broad_dominant_regime.get("regime")
+    broad_dominant_regime_share = float(broad_dominant_regime.get("share") or 0.0)
+    broad_bucket_metrics = live_context.get("broad_current_live_structure_bucket_metrics") or {}
+    exact_bucket_root_cause = "insufficient_scope_data"
+    if current_bucket_rows >= min_support_rows:
+        exact_bucket_root_cause = "exact_bucket_supported"
+    elif current_bucket_rows > 0:
+        exact_bucket_root_cause = "exact_bucket_present_but_below_minimum"
+    elif broad_bucket_rows > 0 and broad_dominant_regime_label and broad_dominant_regime_label != live_regime:
+        exact_bucket_root_cause = "cross_regime_spillover_dominates_q65"
+    elif dominant_neighbor_bucket and dominant_neighbor_rows > 0:
+        exact_bucket_root_cause = "same_lane_shifted_to_neighbor_bucket"
+    elif exact_lane_rows > 0:
+        exact_bucket_root_cause = "same_lane_exists_but_q65_missing"
+    broad_recent_pathology = live_context.get("broad_recent_pathology") or {}
+    broader_bucket_pathology = ((broad_recent_pathology.get("summary") or {}).get("reference_window_comparison") or {}).get("top_mean_shift_features") or []
 
     return {
         "blocker_state": blocker_state,
@@ -382,6 +412,27 @@ def _support_pathology_summary(payload: dict[str, Any]) -> dict[str, Any]:
         "dominant_neighbor_bucket": dominant_neighbor_bucket,
         "dominant_neighbor_bucket_rows": dominant_neighbor_rows,
         "bucket_gap_vs_dominant_neighbor": max(dominant_neighbor_rows - current_bucket_rows, 0),
+        "exact_scope_rows": int(live_context.get("exact_scope_rows") or 0),
+        "broad_scope_rows": int(live_context.get("broad_scope_rows") or 0),
+        "broad_current_live_structure_bucket_rows": broad_bucket_rows,
+        "broad_current_live_structure_bucket_metrics": broad_bucket_metrics,
+        "broad_dominant_regime": broad_dominant_regime_label,
+        "broad_dominant_regime_share": broad_dominant_regime_share,
+        "exact_bucket_root_cause": exact_bucket_root_cause,
+        "root_cause_interpretation": (
+            "q65 在較寬 ALLOW+D scope 內存在，但主要由其他 regime 支配；目前 bull exact lane 只剩 q85 鄰近 bucket。"
+            if exact_bucket_root_cause == "cross_regime_spillover_dominates_q65"
+            else "bull exact lane 已出現當前 bucket 樣本，但距離 minimum support 仍有缺口；需持續累積 exact rows，不能當成已解 blocker。"
+            if exact_bucket_root_cause == "exact_bucket_present_but_below_minimum"
+            else "bull exact lane 仍有同 lane 樣本，但當前結構已偏到鄰近 bucket，需先查 q65↔q85 分桶與 same-lane pathology。"
+            if exact_bucket_root_cause == "same_lane_shifted_to_neighbor_bucket"
+            else "exact bucket 已獲支持，可直接驗證 exact lane。"
+            if exact_bucket_root_cause == "exact_bucket_supported"
+            else "目前支持資訊不足，需補更多 same-lane / broader-scope 證據。"
+        ),
+        "broader_bucket_pathology_shift_features": [
+            item.get("feature") for item in broader_bucket_pathology if item.get("feature")
+        ],
         "decision_quality_calibration_scope": live_context.get("decision_quality_calibration_scope"),
         "decision_quality_label": live_context.get("decision_quality_label"),
         "scope_guardrail_applied": bool(live_context.get("decision_quality_scope_guardrail_applied")),
@@ -480,10 +531,14 @@ def _write_markdown(payload: dict[str, Any]) -> None:
         f"- exact-lane proxy gap to minimum: **{support_summary.get('exact_live_lane_proxy_gap_to_minimum')}**",
         f"- dominant neighbor bucket: `{support_summary.get('dominant_neighbor_bucket')}` rows={support_summary.get('dominant_neighbor_bucket_rows')}",
         f"- bucket gap vs dominant neighbor: **{support_summary.get('bucket_gap_vs_dominant_neighbor')}**",
+        f"- exact bucket root cause: **{support_summary.get('exact_bucket_root_cause')}**",
+        f"- broader q65 rows / dominant regime: **{support_summary.get('broad_current_live_structure_bucket_rows')} / {support_summary.get('broad_dominant_regime')} ({support_summary.get('broad_dominant_regime_share'):.4f})**",
+        f"- root cause interpretation: {support_summary.get('root_cause_interpretation')}",
         f"- decision-quality scope / label: **{support_summary.get('decision_quality_calibration_scope')} / {support_summary.get('decision_quality_label')}**",
         f"- narrowed pathology scope: **{support_summary.get('narrowed_pathology_scope')}**",
         f"- worst pathology scope: **{support_summary.get('pathology_worst_scope')}**",
         f"- shared pathology shift features: {json.dumps(support_summary.get('pathology_shared_shift_features') or [], ensure_ascii=False)}",
+        f"- broader-bucket pathology shifts: {json.dumps(support_summary.get('broader_bucket_pathology_shift_features') or [], ensure_ascii=False)}",
         f"- recommended_action: {support_summary.get('recommended_action')}",
         "",
         "## Notes",

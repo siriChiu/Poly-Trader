@@ -143,11 +143,25 @@ Declare next gate
 - `ARCHITECTURE.md`（必要時）
 - `strategy-decision-guide.md`（本輪若有取捨）
 
+### Step 0.5 — 把上輪結論當成這一輪輸入（必做）
+**上一輪心跳的結論，必須成為下一輪的輸入訊息。不可只把它留在報告尾巴。**
+
+每輪開始時，必須先從目前文件中抽取：
+- `ISSUES.md` 的：
+  - 目前最高優先問題
+  - 上輪留下的下一步 / blocker / 驗證門檻
+- `ROADMAP.md` 的：
+  - `Next focus`
+  - `Success gate`
+  - `Fallback if fail`
+- 若存在本輪專屬分析 artifact（例如 drift / ablation / drilldown），也必須一起讀，當作本輪決策前提
+
 ### Step 0 gate
-讀完後必須回答三件事：
+讀完後必須回答四件事：
 1. 現在最大的 P0/P1 是什麼？
-2. 本輪要推進哪 1~3 件事？
-3. 哪些事本輪明確不做？
+2. **上輪明確要求本輪處理的是什麼？**
+3. 本輪要推進哪 1~3 件事？
+4. 哪些事本輪明確不做？
 
 若答不出來，不得進入下一步。
 
@@ -282,16 +296,31 @@ patch 可以是：
 
 ### 文件同步規則
 #### ISSUES.md
+**必須使用覆蓋更新（current-state-only overwrite），不得累積歷史流水帳。**
+
 必須更新：
 - 問題狀態（未修 / 部分修復 / 已修復 / blocker）
 - 本輪 patch 與證據
 - 下一輪 gate
+- 上輪結論如何成為下一輪輸入
+
+禁止：
+- 把舊 issue 逐條往下累積
+- 保留過時 heartbeat 摘要
+- 讓讀者需要翻很長歷史才能知道現在要做什麼
 
 #### ROADMAP.md
+**必須使用覆蓋更新（current-state-only overwrite），不得保留過時 roadmap 敘事。**
+
 必須更新：
 - 新增的閉環機制
 - 已落地項目
 - 尚未完成的 phase/next step
+- `Next focus / Success gate / Fallback if fail`
+
+禁止：
+- 保留舊階段的冗長進度敘事
+- 把已失效的 next step 留在文件中
 
 #### ARCHITECTURE.md
 若本輪改動了：
@@ -318,6 +347,14 @@ patch 可以是：
 - `Success gate:`
 - `Fallback if fail:`
 - `Documents to update next round:`
+- `Carry-forward input for next heartbeat:`
+
+### Step 8 強制要求
+- `Carry-forward input for next heartbeat` 必須是**下一輪一開始就要讀入的明確指令**，不能只是摘要句子。
+- 下一輪在 Step 0.5 必須逐條對照這個 carry-forward input，說明：
+  - 哪些已處理
+  - 哪些未處理
+  - 為何延後
 
 ---
 

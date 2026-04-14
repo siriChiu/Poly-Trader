@@ -55,6 +55,12 @@ FOUR_H_FEATURES = [
     "feat_4h_dist_swing_low", "feat_4h_vol_ratio",
 ]
 CROSS_FEATURES = list(train_module.CROSS_FEATURES)
+BULL_COLLAPSE_4H_FEATURES = [
+    "feat_4h_bb_pct_b",
+    "feat_4h_dist_bb_lower",
+    "feat_4h_dist_swing_low",
+]
+STABLE_4H_FEATURES = [f for f in FOUR_H_FEATURES if f not in BULL_COLLAPSE_4H_FEATURES]
 
 
 @dataclass
@@ -65,6 +71,8 @@ class FoldMetrics:
     top10_rows: int
     bear_top10_win_rate: float | None
     bear_top10_rows: int
+    bull_top10_win_rate: float | None
+    bull_top10_rows: int
 
 
 DEFAULT_XGB_PARAMS = {
@@ -188,7 +196,9 @@ def _evaluate_subset(X: pd.DataFrame, y: pd.Series, regimes: pd.Series, columns:
 
         top10, top10_rows = _safe_win_rate(y_test, proba)
         bear_mask = regime_test == "bear"
+        bull_mask = regime_test == "bull"
         bear_top10, bear_top10_rows = _safe_win_rate(y_test[bear_mask], proba[bear_mask.values])
+        bull_top10, bull_top10_rows = _safe_win_rate(y_test[bull_mask], proba[bull_mask.values])
 
         folds.append(
             FoldMetrics(
@@ -198,6 +208,8 @@ def _evaluate_subset(X: pd.DataFrame, y: pd.Series, regimes: pd.Series, columns:
                 top10_rows=top10_rows,
                 bear_top10_win_rate=bear_top10,
                 bear_top10_rows=bear_top10_rows,
+                bull_top10_win_rate=bull_top10,
+                bull_top10_rows=bull_top10_rows,
             )
         )
 
@@ -205,6 +217,7 @@ def _evaluate_subset(X: pd.DataFrame, y: pd.Series, regimes: pd.Series, columns:
     briers = [f.brier for f in folds]
     top10_rates = [f.top10_win_rate for f in folds if f.top10_win_rate is not None]
     bear_top10_rates = [f.bear_top10_win_rate for f in folds if f.bear_top10_win_rate is not None]
+    bull_top10_rates = [f.bull_top10_win_rate for f in folds if f.bull_top10_win_rate is not None]
 
     return {
         "feature_count": len(columns),
@@ -214,6 +227,7 @@ def _evaluate_subset(X: pd.DataFrame, y: pd.Series, regimes: pd.Series, columns:
         "cv_mean_brier": float(np.mean(briers)),
         "top10_win_rate_mean": float(np.mean(top10_rates)) if top10_rates else None,
         "bear_top10_win_rate_mean": float(np.mean(bear_top10_rates)) if bear_top10_rates else None,
+        "bull_top10_win_rate_mean": float(np.mean(bull_top10_rates)) if bull_top10_rates else None,
         "folds": [
             {
                 "accuracy": round(f.accuracy, 4),
@@ -222,35 +236,37 @@ def _evaluate_subset(X: pd.DataFrame, y: pd.Series, regimes: pd.Series, columns:
                 "top10_rows": f.top10_rows,
                 "bear_top10_win_rate": None if f.bear_top10_win_rate is None else round(f.bear_top10_win_rate, 4),
                 "bear_top10_rows": f.bear_top10_rows,
+                "bull_top10_win_rate": None if f.bull_top10_win_rate is None else round(f.bull_top10_win_rate, 4),
+                "bull_top10_rows": f.bull_top10_rows,
             }
             for f in folds
         ],
     }
 
 
+def _feature_and_lag_columns(all_columns: list[str], base_features: list[str]) -> list[str]:
+    return [
+        col
+        for col in all_columns
+        if any(col == base or col.startswith(f"{base}_lag") for base in base_features)
+    ]
+
+
 def _build_subsets(all_columns: list[str]) -> dict[str, list[str]]:
-    lag_cols = [c for c in all_columns if "_lag" in c]
-    cross_cols = [c for c in all_columns if c in CROSS_FEATURES]
+    subsets = train_module._build_feature_profile_columns(all_columns)
+    strong_baseline = subsets.get("core_plus_macro", [])
+    stable_4h_with_lags = _feature_and_lag_columns(all_columns, STABLE_4H_FEATURES)
+    weak_4h_with_lags = set(_feature_and_lag_columns(all_columns, BULL_COLLAPSE_4H_FEATURES))
 
-    core_cols = [c for c in all_columns if c in CORE_FEATURES]
-    macro_cols = [c for c in all_columns if c in MACRO_FEATURES]
-    technical_cols = [c for c in all_columns if c in TECHNICAL_FEATURES]
-    four_h_cols = [c for c in all_columns if c in FOUR_H_FEATURES]
+    if strong_baseline and stable_4h_with_lags:
+        subsets["core_macro_plus_stable_4h"] = sorted(set(strong_baseline + stable_4h_with_lags))
 
-    base_no_lags_cross = [c for c in all_columns if c not in lag_cols and c not in cross_cols]
+    if weak_4h_with_lags:
+        subsets["current_full_no_bull_collapse_4h"] = [
+            col for col in all_columns if col not in weak_4h_with_lags
+        ]
 
-    return {
-        "core_only": core_cols,
-        "core_plus_4h": sorted(set(core_cols + four_h_cols)),
-        "core_plus_technical": sorted(set(core_cols + technical_cols)),
-        "core_plus_macro": sorted(set(core_cols + macro_cols)),
-        "full_no_lags": sorted(set(base_no_lags_cross + cross_cols)),
-        "full_no_cross": [c for c in all_columns if c not in cross_cols],
-        "full_no_technical": [c for c in all_columns if c not in technical_cols],
-        "full_no_macro": [c for c in all_columns if c not in macro_cols],
-        "full_no_4h": [c for c in all_columns if c not in four_h_cols],
-        "current_full": list(all_columns),
-    }
+    return subsets
 
 
 def _write_markdown(payload: dict[str, Any]) -> None:
@@ -275,12 +291,12 @@ def _write_markdown(payload: dict[str, Any]) -> None:
         "",
         "## Ranking (accuracy / worst fold / stability)",
         "",
-        "| profile | n_features | cv_mean | cv_std | cv_worst | brier | top10 | bear_top10 |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
+        "| profile | n_features | cv_mean | cv_std | cv_worst | brier | top10 | bear_top10 | bull_top10 |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for name, metrics in ranking:
         lines.append(
-            "| {name} | {feature_count} | {cv_mean_accuracy:.4f} | {cv_std_accuracy:.4f} | {cv_worst_accuracy:.4f} | {cv_mean_brier:.4f} | {top10} | {bear_top10} |".format(
+            "| {name} | {feature_count} | {cv_mean_accuracy:.4f} | {cv_std_accuracy:.4f} | {cv_worst_accuracy:.4f} | {cv_mean_brier:.4f} | {top10} | {bear_top10} | {bull_top10} |".format(
                 name=name,
                 feature_count=metrics["feature_count"],
                 cv_mean_accuracy=metrics["cv_mean_accuracy"],
@@ -289,18 +305,24 @@ def _write_markdown(payload: dict[str, Any]) -> None:
                 cv_mean_brier=metrics["cv_mean_brier"],
                 top10="-" if metrics["top10_win_rate_mean"] is None else f"{metrics['top10_win_rate_mean']:.4f}",
                 bear_top10="-" if metrics["bear_top10_win_rate_mean"] is None else f"{metrics['bear_top10_win_rate_mean']:.4f}",
+                bull_top10="-" if metrics["bull_top10_win_rate_mean"] is None else f"{metrics['bull_top10_win_rate_mean']:.4f}",
             )
         )
 
-    best = ranking[0][0]
+    best = payload.get("recommended_profile") or ranking[0][0]
+    collapse_text = ", ".join(payload.get("bull_collapse_4h_features") or [])
     lines.extend(
         [
             "",
             "## Notes",
             "",
-            f"- Best profile this run: **`{best}`**",
+            f"- Recommended profile this run: **`{best}`**",
+            f"- Bull collapse 4H watchlist carried into this run: `{collapse_text}`",
             "- `full_no_*` profiles are removal tests — if they improve worst fold or reduce std, that feature family is a variance suspect.",
             "- `core_plus_*` profiles are additive sanity checks — they show which family helps most before lags/cross-features enter.",
+            "- `core_macro_plus_stable_4h` answers the current heartbeat question: do the non-collapse 4H signals help once the three toxic bull-pocket features are removed?",
+            "- `current_full_no_bull_collapse_4h` removes the bull collapse trio plus their lag columns to test whether the live blocker is tied to that 4H family rather than to calibration alone.",
+            "- `model/train.py` now auto-selects this recommended profile during training when the ablation artifact matches the active target.",
         ]
     )
 
@@ -318,13 +340,21 @@ def main() -> None:
     }
 
     generated_at = pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M:%S")
+    ranked = sorted(
+        profile_results.items(),
+        key=lambda item: train_module._rank_feature_profile(item[0], item[1]),
+        reverse=True,
+    )
     payload = {
         "generated_at": generated_at,
         "target_col": TARGET_COL,
-        "recent_rows": int(len(X)),
-        "positive_ratio": float(y.mean()),
-        "regime_mix": {str(k): int(v) for k, v in regimes.value_counts().to_dict().items()},
+        "recent_rows": RECENT_ROWS,
+        "positive_ratio": round(float(y.mean()), 4),
+        "regime_mix": {k: int(v) for k, v in regimes.value_counts().to_dict().items()},
         "n_splits": N_SPLITS,
+        "bull_collapse_4h_features": BULL_COLLAPSE_4H_FEATURES,
+        "stable_4h_features": STABLE_4H_FEATURES,
+        "recommended_profile": ranked[0][0] if ranked else None,
         "profiles": profile_results,
     }
 
@@ -335,7 +365,7 @@ def main() -> None:
     print(json.dumps({
         "json": str(OUT_JSON),
         "markdown": str(OUT_MD),
-        "best_profile": max(profile_results.items(), key=lambda item: item[1]["cv_mean_accuracy"])[0],
+        "best_profile": payload.get("recommended_profile"),
     }, indent=2, ensure_ascii=False))
 
 

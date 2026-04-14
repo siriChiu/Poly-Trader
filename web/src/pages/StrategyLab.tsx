@@ -148,6 +148,10 @@ interface StrategyEntry {
 
 interface ModelLeaderboardEntry {
   model_name: string;
+  model_tier?: "core" | "control" | "research" | string;
+  model_tier_label?: string;
+  model_tier_reason?: string;
+  deployment_profile?: string;
   avg_roi: number;
   avg_win_rate: number;
   avg_trades: number;
@@ -354,6 +358,50 @@ const decisionQualityTone = (value: number | null | undefined) => {
   if (value >= 0.3) return "text-yellow-300";
   return "text-red-300";
 };
+const modelTierOrder: Record<string, number> = { core: 0, control: 1, research: 2 };
+const modelTierBadgeTone: Record<string, string> = {
+  core: "border-emerald-700/40 bg-emerald-900/20 text-emerald-200",
+  control: "border-cyan-700/40 bg-cyan-900/20 text-cyan-200",
+  research: "border-amber-700/40 bg-amber-900/20 text-amber-200",
+};
+const defaultModelTierMeta = (modelName: string) => {
+  const normalized = String(modelName || "").trim().toLowerCase();
+  if (["rule_baseline", "random_forest", "xgboost", "logistic_regression"].includes(normalized)) {
+    return {
+      model_tier: "core",
+      model_tier_label: "核心模型",
+      model_tier_reason: "最符合目前 Poly-Trader 的多特徵、低頻高信念、可解釋與穩定度優先主線。",
+    };
+  }
+  if (["lightgbm", "catboost", "ensemble"].includes(normalized)) {
+    return {
+      model_tier: "control",
+      model_tier_label: "對照模型",
+      model_tier_reason: "適合作為 XGBoost / RandomForest 的對照與補充，不是當前第一主線。",
+    };
+  }
+  if (["mlp", "svm"].includes(normalized)) {
+    return {
+      model_tier: "research",
+      model_tier_label: "研究模型",
+      model_tier_reason: "目前保留在研究層，用來觀察是否有額外訊號，不建議當前主線優先投入。",
+    };
+  }
+  return {
+    model_tier: "control",
+    model_tier_label: "對照模型",
+    model_tier_reason: "未明確歸類，預設先放在對照層，避免過早升為主線。",
+  };
+};
+const modelTierMetaForRow = (model: Pick<ModelLeaderboardEntry, "model_name" | "model_tier" | "model_tier_label" | "model_tier_reason">) => {
+  const fallback = defaultModelTierMeta(model.model_name);
+  return {
+    model_tier: model.model_tier || fallback.model_tier,
+    model_tier_label: model.model_tier_label || fallback.model_tier_label,
+    model_tier_reason: model.model_tier_reason || fallback.model_tier_reason,
+  };
+};
+const modelTierLabel = (model: Pick<ModelLeaderboardEntry, "model_name" | "model_tier" | "model_tier_label" | "model_tier_reason">) => modelTierMetaForRow(model).model_tier_label;
 const describeRankingReason = (model: ModelLeaderboardEntry) => {
   const reasons: string[] = [];
   if (isFiniteNumber(model.avg_decision_quality_score)) {
@@ -551,9 +599,38 @@ export default function StrategyLab() {
     const merged = [...modelLeaderboard.map((row) => row.model_name), ...MODEL_OPTIONS];
     return merged.filter((name, idx) => merged.indexOf(name) === idx);
   }, [modelLeaderboard]);
+  const groupedTradingModels = useMemo(() => {
+    const leaderboardMetaByName = new Map(
+      modelLeaderboard.map((row) => [row.model_name, modelTierMetaForRow(row)]),
+    );
+    const groups = [
+      { key: "core", label: "核心模型", description: "目前最符合主線：規則對照、穩健 production 候選、乾淨 sanity baseline。" },
+      { key: "control", label: "對照模型", description: "用來和核心模型做補充比較，避免過早把次要模型升為主線。" },
+      { key: "research", label: "研究模型", description: "保留研究視角觀察額外訊號，不建議直接當前線交易模型。" },
+    ] as const;
+    return groups
+      .map((group) => ({
+        ...group,
+        rows: availableTradingModels
+          .map((modelName) => {
+            const meta = leaderboardMetaByName.get(modelName) || defaultModelTierMeta(modelName);
+            return { model_name: modelName, ...meta };
+          })
+          .filter((row) => row.model_tier === group.key)
+          .sort((a, b) => a.model_name.localeCompare(b.model_name)),
+      }))
+      .filter((group) => group.rows.length > 0);
+  }, [availableTradingModels, modelLeaderboard]);
+  const selectedModelTierMeta = useMemo(
+    () => groupedTradingModels.flatMap((group) => group.rows).find((row) => row.model_name === selectedModelName) || defaultModelTierMeta(selectedModelName),
+    [groupedTradingModels, selectedModelName],
+  );
   const sortedModelLeaderboard = useMemo(() => {
     const rows = [...modelLeaderboard];
     rows.sort((a, b) => {
+      const aTier = modelTierOrder[String(a.model_tier || "control")] ?? 99;
+      const bTier = modelTierOrder[String(b.model_tier || "control")] ?? 99;
+      if (aTier !== bTier) return aTier - bTier;
       const aValue = a[modelSortKey];
       const bValue = b[modelSortKey];
       if (typeof aValue === "string" || typeof bValue === "string") {
@@ -567,6 +644,16 @@ export default function StrategyLab() {
     });
     return rows;
   }, [modelLeaderboard, modelSortDirection, modelSortKey]);
+  const groupedModelLeaderboard = useMemo(() => {
+    const groups = [
+      { key: "core", label: "核心模型", description: "目前最適合 Poly-Trader 主線：規則對照 + 穩健 production 候選 + 乾淨 sanity baseline。" },
+      { key: "control", label: "對照模型", description: "適合做樹模型 / boosting 對照與補充比較，不建議壓過核心模型。" },
+      { key: "research", label: "研究模型", description: "保留在研究層觀察額外訊號，目前不建議優先投入主線。" },
+    ] as const;
+    return groups
+      .map((group) => ({ ...group, rows: sortedModelLeaderboard.filter((row) => String(row.model_tier || "control") === group.key) }))
+      .filter((group) => group.rows.length > 0);
+  }, [sortedModelLeaderboard]);
   const strategyCapitalMode = useCallback((entry: StrategyEntry) => {
     const fromResults = entry.last_results?.capital_mode;
     if (fromResults === "classic_pyramid" || fromResults === "reserve_90") return fromResults;
@@ -1183,8 +1270,21 @@ export default function StrategyLab() {
                 <div>
                   <label className="text-xs text-slate-500">交易模型</label>
                   <select value={selectedModelName} onChange={(e) => setSelectedModelName(e.target.value)} disabled={strategyType !== "hybrid"} className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200 disabled:text-slate-500">
-                    {availableTradingModels.map((modelName) => <option key={modelName} value={modelName}>{modelName}</option>)}
+                    {groupedTradingModels.map((group) => (
+                      <optgroup key={group.key} label={`${group.label}｜${group.description}`}>
+                        {group.rows.map((model) => (
+                          <option key={model.model_name} value={model.model_name}>{model.model_name}</option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
+                  <div className="mt-2 rounded-lg border border-slate-700/40 bg-slate-950/30 px-3 py-2 text-[11px] leading-5 text-slate-300">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${modelTierBadgeTone[selectedModelTierMeta.model_tier] || modelTierBadgeTone.control}`}>{selectedModelTierMeta.model_tier_label}</span>
+                      <span className="text-slate-400">{selectedModelName}</span>
+                    </div>
+                    <div className="mt-1 text-slate-400">{selectedModelTierMeta.model_tier_reason}</div>
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -1497,57 +1597,71 @@ export default function StrategyLab() {
                   </div>
                   <div className="text-[11px] text-slate-500">{modelMeta.updated_at ? `更新 ${new Date(modelMeta.updated_at).toLocaleString("zh-TW")}` : "尚未建立快取"}</div>
                 </div>
-                <div className="overflow-auto rounded-lg border border-slate-700/40">
-                  <table className="w-full min-w-[760px] text-xs">
-                    <thead className="bg-slate-950/30 text-slate-500 border-b border-slate-800">
-                      <tr>
-                        {[
-                          { key: "model_name", label: "Model" },
-                          { key: "overall_score", label: "Overall" },
-                          { key: "reliability_score", label: "Reliability" },
-                          { key: "return_power_score", label: "Return" },
-                          { key: "avg_roi", label: "ROI" },
-                          { key: "avg_max_dd", label: "Max DD" },
-                          { key: "avg_trades", label: "Trades" },
-                        ].map((col) => (
-                          <th key={col.key} className="px-2 py-2 text-right first:text-left">
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-1 hover:text-slate-300"
-                              onClick={() => {
-                                const key = col.key as keyof ModelLeaderboardEntry;
-                                if (modelSortKey === key) {
-                                  setModelSortDirection((current) => (current === "desc" ? "asc" : "desc"));
-                                } else {
-                                  setModelSortKey(key);
-                                  setModelSortDirection("desc");
-                                }
-                              }}
-                            >
-                              <span>{col.label}</span>
-                              {modelSortKey === col.key && <span>{modelSortDirection === "desc" ? "↓" : "↑"}</span>}
-                            </button>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedModelLeaderboard.map((model, idx) => (
-                        <tr key={model.model_name} className="border-b border-slate-800/50 hover:bg-slate-800/20">
-                          <td className="px-2 py-2 text-left text-slate-200 font-medium">
-                            <div>#{idx + 1} {model.model_name}</div>
-                            <div className="mt-1 text-[10px] text-slate-500">{typeof model.rank_delta === "number" ? (model.rank_delta > 0 ? `↑${model.rank_delta}` : model.rank_delta < 0 ? `↓${Math.abs(model.rank_delta)}` : "—") : "—"}</div>
-                          </td>
-                          <td className="px-2 py-2 text-right text-emerald-300">{formatDecimal(model.overall_score, 3)}</td>
-                          <td className="px-2 py-2 text-right text-cyan-300">{formatDecimal(model.reliability_score, 3)}</td>
-                          <td className="px-2 py-2 text-right text-violet-300">{formatDecimal(model.return_power_score, 3)}</td>
-                          <td className={`px-2 py-2 text-right ${isFiniteNumber(model.avg_roi) && model.avg_roi >= 0 ? "text-green-400" : "text-red-400"}`}>{formatPct(model.avg_roi, 1, true)}</td>
-                          <td className="px-2 py-2 text-right text-red-300">{formatPct(model.avg_max_dd)}</td>
-                          <td className="px-2 py-2 text-right text-slate-300">{formatDecimal(model.avg_trades, 0)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-3">
+                  {groupedModelLeaderboard.map((group) => (
+                    <div key={group.key} className="overflow-auto rounded-lg border border-slate-700/40">
+                      <div className="border-b border-slate-800 bg-slate-950/30 px-3 py-2">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] ${modelTierBadgeTone[group.key] || modelTierBadgeTone.control}`}>{group.label}</span>
+                          <span className="text-[11px] text-slate-500">{group.description}</span>
+                        </div>
+                      </div>
+                      <table className="w-full min-w-[860px] text-xs">
+                        <thead className="bg-slate-950/20 text-slate-500 border-b border-slate-800">
+                          <tr>
+                            {[
+                              { key: "model_name", label: "Model" },
+                              { key: "overall_score", label: "Overall" },
+                              { key: "reliability_score", label: "Reliability" },
+                              { key: "return_power_score", label: "Return" },
+                              { key: "avg_roi", label: "ROI" },
+                              { key: "avg_max_dd", label: "Max DD" },
+                              { key: "avg_trades", label: "Trades" },
+                            ].map((col) => (
+                              <th key={`${group.key}-${col.key}`} className="px-2 py-2 text-right first:text-left">
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-1 hover:text-slate-300"
+                                  onClick={() => {
+                                    const key = col.key as keyof ModelLeaderboardEntry;
+                                    if (modelSortKey === key) {
+                                      setModelSortDirection((current) => (current === "desc" ? "asc" : "desc"));
+                                    } else {
+                                      setModelSortKey(key);
+                                      setModelSortDirection("desc");
+                                    }
+                                  }}
+                                >
+                                  <span>{col.label}</span>
+                                  {modelSortKey === col.key && <span>{modelSortDirection === "desc" ? "↓" : "↑"}</span>}
+                                </button>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.rows.map((model, idx) => (
+                            <tr key={`${group.key}-${model.model_name}`} className="border-b border-slate-800/50 hover:bg-slate-800/20">
+                              <td className="px-2 py-2 text-left text-slate-200 font-medium">
+                                <div className="flex items-center gap-2">
+                                  <span>#{idx + 1} {model.model_name}</span>
+                                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${modelTierBadgeTone[String(model.model_tier || group.key)] || modelTierBadgeTone.control}`}>{modelTierLabel(model)}</span>
+                                </div>
+                                <div className="mt-1 text-[10px] text-slate-500">{model.model_tier_reason || describeRankingReason(model)}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">deployment: {model.deployment_profile || "standard"} · {typeof model.rank_delta === "number" ? (model.rank_delta > 0 ? `↑${model.rank_delta}` : model.rank_delta < 0 ? `↓${Math.abs(model.rank_delta)}` : "—") : "—"}</div>
+                              </td>
+                              <td className="px-2 py-2 text-right text-emerald-300">{formatDecimal(model.overall_score, 3)}</td>
+                              <td className="px-2 py-2 text-right text-cyan-300">{formatDecimal(model.reliability_score, 3)}</td>
+                              <td className="px-2 py-2 text-right text-violet-300">{formatDecimal(model.return_power_score, 3)}</td>
+                              <td className={`px-2 py-2 text-right ${isFiniteNumber(model.avg_roi) && model.avg_roi >= 0 ? "text-green-400" : "text-red-400"}`}>{formatPct(model.avg_roi, 1, true)}</td>
+                              <td className="px-2 py-2 text-right text-red-300">{formatPct(model.avg_max_dd)}</td>
+                              <td className="px-2 py-2 text-right text-slate-300">{formatDecimal(model.avg_trades, 0)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

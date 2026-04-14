@@ -97,6 +97,33 @@ const uniqueByTime = <T extends { time: Time }>(rows: T[]) => {
   return Array.from(seen.values()).sort((a, b) => Number(a.time) - Number(b.time));
 };
 
+const mergeMarkersBySlot = (markers: SeriesMarker<Time>[], maxTextLength: number) => {
+  const grouped = new Map<string, SeriesMarker<Time>[]>();
+  for (const marker of markers) {
+    const slot = `${String(marker.time)}::${marker.position}::${marker.shape}::${marker.color}`;
+    const bucket = grouped.get(slot) || [];
+    bucket.push(marker);
+    grouped.set(slot, bucket);
+  }
+  return Array.from(grouped.entries())
+    .sort((a, b) => Number(a[1][0]?.time ?? 0) - Number(b[1][0]?.time ?? 0))
+    .map(([, bucket]) => {
+      const first = bucket[0];
+      if (bucket.length === 1) {
+        return {
+          ...first,
+          text: (first.text || "").slice(0, maxTextLength),
+        };
+      }
+      const labels = Array.from(new Set(bucket.map((marker) => marker.text).filter(Boolean)));
+      const mergedText = labels.join(" · ").slice(0, maxTextLength);
+      return {
+        ...first,
+        text: mergedText || `${bucket.length} 筆`,
+      };
+    });
+};
+
 const formatPrice = (value?: number | null, digits = 2) => (
   typeof value === "number" && Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: digits }) : "—"
 );
@@ -298,6 +325,7 @@ export default function CandlestickChart({
   const confidenceSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const equitySeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const positionSeriesRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const syncAnchorSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
 
   const candleLookupRef = useRef<Map<number, CandlestickData<Time>>>(new Map());
   const candleTimesRef = useRef<number[]>([]);
@@ -427,6 +455,18 @@ export default function CandlestickChart({
       title: "倉位水位",
       priceFormat: { type: "price", precision: 0, minMove: 1 },
     });
+    const syncAnchorSeries = equityChart.addLineSeries({
+      priceScaleId: "sync-anchor",
+      color: "rgba(0,0,0,0)",
+      lineWidth: 1,
+      lastValueVisible: false,
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    equityChart.priceScale("sync-anchor").applyOptions({
+      visible: false,
+      scaleMargins: { top: 0, bottom: 0 },
+    });
 
     priceChartRef.current = priceChart;
     equityChartRef.current = equityChart;
@@ -438,6 +478,7 @@ export default function CandlestickChart({
     confidenceSeriesRef.current = confidenceSeriesHandle;
     equitySeriesRef.current = equitySeries;
     positionSeriesRef.current = positionSeries;
+    syncAnchorSeriesRef.current = syncAnchorSeries;
 
     const syncVisibleRange = (source: IChartApi, target: IChartApi) => {
       source.timeScale().subscribeVisibleLogicalRangeChange((range) => {
@@ -554,6 +595,7 @@ export default function CandlestickChart({
           positionSeriesRef.current?.setData([]);
           candleSeriesRef.current?.setMarkers([]);
           equitySeriesRef.current?.setMarkers([]);
+          positionSeriesRef.current?.setMarkers([]);
           setLoading(false);
           setHasLoadedOnce(true);
         }
@@ -646,6 +688,9 @@ export default function CandlestickChart({
       const positionData = rawPositionData.length > 0 ? rawPositionData : buildFallbackPositionSeries(tradeMarkers, candleTimes);
       equitySeriesRef.current?.setData(equityData);
       positionSeriesRef.current?.setData(positionData);
+      syncAnchorSeriesRef.current?.setData(
+        candleTimes.map((time) => ({ time: time as Time, value: 0 }))
+      );
       equityLookupRef.current = new Map(equityData.map((row) => [Number(row.time), row.value]));
       equityTimesRef.current = Array.from(new Set([...equityData.map((row) => Number(row.time)), ...positionData.map((row) => Number(row.time))])).sort((a, b) => a - b);
       positionLookupRef.current = new Map(positionData.map((row) => [Number(row.time), row.value]));
@@ -682,16 +727,21 @@ export default function CandlestickChart({
         }
       }
       const lastCandleTime = candleTimes[candleTimes.length - 1] ?? null;
-      const normalizedMarkers = markers
-        .filter((marker) => marker.time != null && (lastCandleTime == null || Number(marker.time) <= lastCandleTime))
-        .map((marker) => Number(marker.time) === lastCandleTime ? { ...marker, text: marker.text?.slice(0, 12) ?? "" } : marker)
-        .sort((a, b) => Number(a.time) - Number(b.time));
-      const normalizedEquityMarkers = equityMarkers
-        .filter((marker) => marker.time != null && (lastCandleTime == null || Number(marker.time) <= lastCandleTime))
-        .map((marker) => Number(marker.time) === lastCandleTime ? { ...marker, text: marker.text?.slice(0, 8) ?? "" } : marker)
-        .sort((a, b) => Number(a.time) - Number(b.time));
+      const normalizedMarkers = mergeMarkersBySlot(
+        markers
+          .filter((marker) => marker.time != null && (lastCandleTime == null || Number(marker.time) <= lastCandleTime))
+          .sort((a, b) => Number(a.time) - Number(b.time)),
+        18,
+      );
+      const normalizedEquityMarkers = mergeMarkersBySlot(
+        equityMarkers
+          .filter((marker) => marker.time != null && (lastCandleTime == null || Number(marker.time) <= lastCandleTime))
+          .sort((a, b) => Number(a.time) - Number(b.time)),
+        12,
+      );
       candleSeriesRef.current?.setMarkers(normalizedMarkers);
-      equitySeriesRef.current?.setMarkers(normalizedEquityMarkers);
+      positionSeriesRef.current?.setMarkers(normalizedEquityMarkers);
+      equitySeriesRef.current?.setMarkers([]);
       setProgress(toChartProgress(5));
       setProgressDetail(`買賣點已對齊完成，共 ${normalizedMarkers.length} 個 markers，正在更新視窗`);
 

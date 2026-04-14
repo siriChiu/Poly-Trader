@@ -29,6 +29,19 @@ def test_support_pathology_summary_surfaces_exact_bucket_gap_and_proxy_fallback(
                 "feat_4h_dist_swing_low",
                 "feat_4h_dist_bb_lower",
             ],
+            "broad_current_live_structure_bucket_rows": 66,
+            "broad_recent500_dominant_regime": {"regime": "neutral", "share": 0.8783},
+            "broad_current_live_structure_bucket_metrics": {"rows": 66, "win_rate": 0.303},
+            "broad_recent_pathology": {
+                "summary": {
+                    "reference_window_comparison": {
+                        "top_mean_shift_features": [
+                            {"feature": "feat_4h_dist_swing_low"},
+                            {"feature": "feat_4h_dist_bb_lower"},
+                        ]
+                    }
+                }
+            },
             "collapse_feature_snapshot": {
                 "feat_4h_dist_swing_low": {"mean_delta": -5.9},
             },
@@ -49,6 +62,13 @@ def test_support_pathology_summary_surfaces_exact_bucket_gap_and_proxy_fallback(
     assert summary["exact_live_lane_proxy_gap_to_minimum"] == 0
     assert summary["dominant_neighbor_bucket"] == "ALLOW|base_allow|q85"
     assert summary["bucket_gap_vs_dominant_neighbor"] == 14
+    assert summary["exact_bucket_root_cause"] == "cross_regime_spillover_dominates_q65"
+    assert summary["broad_current_live_structure_bucket_rows"] == 66
+    assert summary["broad_dominant_regime"] == "neutral"
+    assert summary["broader_bucket_pathology_shift_features"] == [
+        "feat_4h_dist_swing_low",
+        "feat_4h_dist_bb_lower",
+    ]
     assert summary["narrowed_pathology_scope"] == "regime_label+entry_quality_label"
     assert summary["pathology_shared_shift_features"] == [
         "feat_4h_dist_swing_low",
@@ -59,8 +79,11 @@ def test_support_pathology_summary_surfaces_exact_bucket_gap_and_proxy_fallback(
 def test_support_pathology_summary_marks_exact_bucket_supported_when_rows_clear_threshold():
     payload = {
         "live_context": {
+            "regime_label": "bull",
             "current_live_structure_bucket": "ALLOW|base_allow|q65",
             "current_live_structure_bucket_rows": 55,
+            "broad_current_live_structure_bucket_rows": 55,
+            "broad_recent500_dominant_regime": {"regime": "bull", "share": 1.0},
             "supported_neighbor_buckets": [],
             "exact_recent_structure_bucket_counts": {
                 "ALLOW|base_allow|q65": 55,
@@ -79,3 +102,32 @@ def test_support_pathology_summary_marks_exact_bucket_supported_when_rows_clear_
     assert summary["preferred_support_cohort"] == "exact_live_bucket"
     assert summary["current_live_structure_bucket_gap_to_minimum"] == 0
     assert summary["bucket_gap_vs_dominant_neighbor"] == 0
+    assert summary["exact_bucket_root_cause"] == "exact_bucket_supported"
+
+
+def test_support_pathology_summary_marks_present_but_under_supported_bucket_gap():
+    payload = {
+        "live_context": {
+            "regime_label": "bull",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "current_live_structure_bucket_rows": 5,
+            "broad_current_live_structure_bucket_rows": 7,
+            "broad_recent500_dominant_regime": {"regime": "chop", "share": 0.982},
+            "supported_neighbor_buckets": ["CAUTION|base_caution_regime_or_bias|q15"],
+            "exact_recent_structure_bucket_counts": {
+                "CAUTION|structure_quality_caution|q35": 5,
+                "CAUTION|base_caution_regime_or_bias|q15": 7,
+            },
+        },
+        "cohorts": {
+            "bull_exact_live_lane_proxy": {"rows": 311},
+            "bull_live_exact_lane_bucket_proxy": {"rows": 48},
+            "bull_supported_neighbor_buckets_proxy": {"rows": 84},
+        },
+    }
+
+    summary = bull_4h_pocket_ablation._support_pathology_summary(payload)
+
+    assert summary["blocker_state"] == "exact_lane_proxy_fallback_only"
+    assert summary["current_live_structure_bucket_gap_to_minimum"] == 45
+    assert summary["exact_bucket_root_cause"] == "exact_bucket_present_but_below_minimum"

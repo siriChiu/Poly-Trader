@@ -5,6 +5,7 @@ Only trade when model confidence > 0.7 or < 0.3
 
 import os
 import json
+from collections import Counter
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pathlib import Path
@@ -205,8 +206,8 @@ class XGBoostPredictor:
         score = float(np.clip(score, 1e-6, 1 - 1e-6))
         if kind == "isotonic":
             try:
-                xs = np.asarray(cal.get("isotonic_x", []), dtype=float)
-                ys = np.asarray(cal.get("isotonic_y", []), dtype=float)
+                xs = np.asarray(cal.get("isotonic_x") or cal.get("x") or [], dtype=float)
+                ys = np.asarray(cal.get("isotonic_y") or cal.get("y") or [], dtype=float)
                 if len(xs) >= 2 and len(xs) == len(ys):
                     return float(np.interp(score, xs, ys, left=ys[0], right=ys[-1]))
             except Exception:
@@ -624,8 +625,12 @@ def _decision_quality_fallback(profile_version: str = "phase16_baseline_v2") -> 
         "decision_quality_live_structure_bucket": None,
         "decision_quality_structure_bucket_guardrail_applied": False,
         "decision_quality_structure_bucket_guardrail_reason": None,
+        "decision_quality_structure_bucket_support_mode": None,
         "decision_quality_structure_bucket_support_rows": 0,
         "decision_quality_structure_bucket_support_share": None,
+        "decision_quality_exact_live_structure_bucket_support_rows": 0,
+        "decision_quality_exact_live_structure_bucket_support_share": None,
+        "decision_quality_structure_bucket_supported_neighbor_buckets": [],
         "expected_win_rate": None,
         "expected_pyramid_pnl": None,
         "expected_pyramid_quality": None,
@@ -1826,8 +1831,12 @@ def _structure_bucket_support_guardrail(
     default_result = {
         "applied": False,
         "reason": None,
+        "support_mode": None,
         "support_rows": 0,
         "support_share": None,
+        "exact_support_rows": 0,
+        "exact_support_share": None,
+        "supported_neighbor_buckets": [],
         "live_structure_bucket": live_structure_bucket,
         "expected_win_rate": expected_win_rate,
         "expected_pnl": expected_pnl,
@@ -1838,36 +1847,26 @@ def _structure_bucket_support_guardrail(
     if not chosen_scope or not live_structure_bucket:
         return default_result
 
+    exact_scope_name = "regime_label+regime_gate+entry_quality_label"
     chosen_info = (scope_diagnostics or {}).get(chosen_scope) or {}
+    exact_info = (scope_diagnostics or {}).get(exact_scope_name) or {}
+
     support_rows = int(chosen_info.get("current_live_structure_bucket_rows") or 0)
     support_share = chosen_info.get("current_live_structure_bucket_share")
     support_share = float(support_share) if support_share is not None else None
     support_metrics = chosen_info.get("current_live_structure_bucket_metrics") or {}
     dominant_structure_bucket = (chosen_info.get("recent500_dominant_structure_bucket") or {}).get("structure_bucket")
 
-    fallback_scope_name = None
-    fallback_scope_rows = 0
-    fallback_scope_share = None
-    fallback_metrics = None
-    for scope_name, scope_info in (scope_diagnostics or {}).items():
-        if scope_name == "pathology_consensus" or not isinstance(scope_info, dict):
-            continue
-        candidate_rows = int(scope_info.get("current_live_structure_bucket_rows") or 0)
-        if candidate_rows <= 0:
-            continue
-        candidate_share = scope_info.get("current_live_structure_bucket_share")
-        candidate_share = float(candidate_share) if candidate_share is not None else None
-        if (
-            candidate_rows > fallback_scope_rows
-            or (
-                candidate_rows == fallback_scope_rows
-                and (candidate_share or 0.0) > (fallback_scope_share or 0.0)
-            )
-        ):
-            fallback_scope_name = scope_name
-            fallback_scope_rows = candidate_rows
-            fallback_scope_share = candidate_share
-            fallback_metrics = scope_info.get("current_live_structure_bucket_metrics") or {}
+    exact_support_rows = int(exact_info.get("current_live_structure_bucket_rows") or 0)
+    exact_support_share = exact_info.get("current_live_structure_bucket_share")
+    exact_support_share = float(exact_support_share) if exact_support_share is not None else None
+    exact_support_metrics = exact_info.get("current_live_structure_bucket_metrics") or {}
+    exact_bucket_counts = exact_info.get("recent500_structure_bucket_counts") or {}
+    supported_neighbor_buckets = [
+        bucket
+        for bucket, count in exact_bucket_counts.items()
+        if bucket != live_structure_bucket and int(count or 0) > 0
+    ]
 
     apply_guardrail = support_rows < 5
     if not apply_guardrail and support_share is not None and dominant_structure_bucket:
@@ -1880,20 +1879,35 @@ def _structure_bucket_support_guardrail(
     expected_quality_new = expected_quality
     expected_drawdown_penalty_new = expected_drawdown_penalty
     expected_time_underwater_new = expected_time_underwater
-    fallback_reason = None
-    metrics_to_apply = support_metrics if support_metrics else None
-    metrics_scope_name = chosen_scope
-    metrics_scope_rows = support_rows
-    metrics_scope_share = support_share
-    if fallback_scope_name and (not metrics_to_apply or fallback_scope_rows > metrics_scope_rows):
-        metrics_to_apply = fallback_metrics
-        metrics_scope_name = fallback_scope_name
-        metrics_scope_rows = fallback_scope_rows
-        metrics_scope_share = fallback_scope_share
-        fallback_reason = (
-            f" using broader same-bucket scope {fallback_scope_name}"
-            f" (support_rows={fallback_scope_rows}, support_share={_round_optional(fallback_scope_share)})"
+    support_mode = "chosen_scope_bucket"
+
+    if exact_support_rows <= 0:
+        reason = (
+            f"exact live scope {exact_scope_name} has zero support for live structure bucket {live_structure_bucket} "
+            f"(chosen_scope={chosen_scope}, chosen_support_rows={support_rows}, chosen_support_share={_round_optional(support_share)})"
+            f"; supported_neighbor_buckets={supported_neighbor_buckets or []}"
+            f"; broader same-bucket scopes are informational only and cannot authorize this live bucket"
         )
+        return {
+            "applied": True,
+            "reason": reason,
+            "support_mode": "exact_bucket_unsupported_block",
+            "support_rows": support_rows,
+            "support_share": _round_optional(support_share),
+            "exact_support_rows": exact_support_rows,
+            "exact_support_share": _round_optional(exact_support_share),
+            "supported_neighbor_buckets": supported_neighbor_buckets,
+            "live_structure_bucket": live_structure_bucket,
+            "expected_win_rate": expected_win_rate_new,
+            "expected_pnl": expected_pnl_new,
+            "expected_quality": expected_quality_new,
+            "expected_drawdown_penalty": expected_drawdown_penalty_new,
+            "expected_time_underwater": expected_time_underwater_new,
+        }
+
+    metrics_to_apply = exact_support_metrics if exact_support_metrics else support_metrics if support_metrics else None
+    if metrics_to_apply is exact_support_metrics and exact_support_metrics:
+        support_mode = "exact_bucket_supported"
 
     if metrics_to_apply:
         expected_win_rate_new = _min_optional(expected_win_rate_new, metrics_to_apply.get("win_rate"))
@@ -1912,15 +1926,18 @@ def _structure_bucket_support_guardrail(
         f"chosen scope {chosen_scope} has weak support for live structure bucket {live_structure_bucket} "
         f"(support_rows={support_rows}, support_share={_round_optional(support_share)}, "
         f"dominant_bucket={dominant_structure_bucket or 'unknown'})"
-        f"; applied bucket metrics from {metrics_scope_name}"
-        f" (rows={metrics_scope_rows}, share={_round_optional(metrics_scope_share)})"
-        f"{fallback_reason or ''}"
+        f"; exact_scope_rows={exact_support_rows}, exact_scope_share={_round_optional(exact_support_share)}"
+        f"; supported_neighbor_buckets={supported_neighbor_buckets or []}"
     )
     return {
         "applied": True,
         "reason": reason,
+        "support_mode": support_mode,
         "support_rows": support_rows,
         "support_share": _round_optional(support_share),
+        "exact_support_rows": exact_support_rows,
+        "exact_support_share": _round_optional(exact_support_share),
+        "supported_neighbor_buckets": supported_neighbor_buckets,
         "live_structure_bucket": live_structure_bucket,
         "expected_win_rate": expected_win_rate_new,
         "expected_pnl": expected_pnl_new,
@@ -1973,7 +1990,14 @@ def _summarize_decision_quality_contract(
     chosen_rows: List[Dict[str, Any]] = []
     scope_guardrail_applied = False
     scope_guardrail_reason = None
+    scope_guardrail_reasons: List[str] = []
     scope_guardrail_alerts: List[str] = []
+    rejected_semantic_scope: Optional[tuple[str, List[Dict[str, Any]]]] = None
+    semantic_scope_priority = {
+        "regime_label+regime_gate+entry_quality_label": 0,
+        "regime_label+entry_quality_label": 1,
+        "regime_label": 2,
+    }
     for scope_name, predicate, min_rows in selection_lanes:
         scoped_rows = [row for row in rows if predicate(row)]
         if len(scoped_rows) < min_rows:
@@ -1983,6 +2007,7 @@ def _summarize_decision_quality_contract(
         scope_pnl = _avg_metric(scoped_rows, "simulated_pyramid_pnl")
         scope_quality = _avg_metric(scoped_rows, "simulated_pyramid_quality")
         reject_scope = False
+        reject_reason = None
         if "constant_target" in scope_alerts:
             reject_scope = True
         elif "label_imbalance" in scope_alerts:
@@ -1994,21 +2019,61 @@ def _summarize_decision_quality_contract(
                     scope_quality is not None and float(scope_quality) < 0,
                 )
             )
-        if enforce_scope_guardrails and scope_name != "global" and any(
-            alert in scope_alerts for alert in ("constant_target", "label_imbalance")
+        if reject_scope:
+            reject_reason = (
+                f"scope {scope_name} rejected via alerts={scope_alerts} "
+                f"(rows={len(scoped_rows)}, win_rate={_round_optional(scope_win_rate)}, "
+                f"pnl={_round_optional(scope_pnl)}, quality={_round_optional(scope_quality)})"
+            )
+
+        if (
+            enforce_scope_guardrails
+            and target_regime_label
+            and scope_name in {"regime_gate+entry_quality_label", "entry_quality_label", "regime_gate"}
         ):
-            if reject_scope:
-                scope_guardrail_applied = True
-                scope_guardrail_alerts = scope_alerts
-                scope_guardrail_reason = (
-                    f"scope {scope_name} rejected via alerts={scope_alerts} "
-                    f"(rows={len(scoped_rows)}, win_rate={_round_optional(scope_win_rate)}, "
-                    f"pnl={_round_optional(scope_pnl)}, quality={_round_optional(scope_quality)})"
+            recent_rows = scoped_rows[-500:]
+            regime_counts = Counter(
+                str(row.get("regime_label") or "unknown")
+                for row in recent_rows
+                if row.get("regime_label") is not None
+            )
+            dominant_regime = _dominant_regime_summary(regime_counts)
+            dominant_regime_label = str((dominant_regime or {}).get("regime") or "")
+            dominant_regime_share = float((dominant_regime or {}).get("share") or 0.0)
+            if (
+                dominant_regime_label
+                and dominant_regime_label != target_regime_label
+                and dominant_regime_share >= 0.8
+            ):
+                reject_scope = True
+                reject_reason = (
+                    f"scope {scope_name} rejected via dominant recent regime mismatch "
+                    f"(target={target_regime_label}, dominant={dominant_regime_label}@{round(dominant_regime_share, 4)}, "
+                    f"rows={len(scoped_rows)})"
                 )
-                continue
+
+        if enforce_scope_guardrails and scope_name != "global" and reject_scope:
+            scope_guardrail_applied = True
+            scope_guardrail_alerts = sorted(set(scope_guardrail_alerts).union(scope_alerts))
+            if reject_reason:
+                scope_guardrail_reasons.append(reject_reason)
+            scope_guardrail_reason = "; ".join(scope_guardrail_reasons) if scope_guardrail_reasons else None
+            if scope_name in semantic_scope_priority and (
+                rejected_semantic_scope is None
+                or semantic_scope_priority[scope_name] < semantic_scope_priority[rejected_semantic_scope[0]]
+            ):
+                rejected_semantic_scope = (scope_name, scoped_rows)
+            continue
         chosen_scope = scope_name
         chosen_rows = scoped_rows
         break
+    if chosen_scope == "global" and rejected_semantic_scope is not None:
+        chosen_scope, chosen_rows = rejected_semantic_scope
+        fallback_reason = (
+            f"retained same-regime fallback {chosen_scope} after broader lanes were rejected"
+        )
+        scope_guardrail_reasons.append(fallback_reason)
+        scope_guardrail_reason = "; ".join(scope_guardrail_reasons) if scope_guardrail_reasons else fallback_reason
     if not chosen_rows:
         return base
 
@@ -2107,8 +2172,12 @@ def _summarize_decision_quality_contract(
         "decision_quality_live_structure_bucket": structure_bucket_guardrail.get("live_structure_bucket"),
         "decision_quality_structure_bucket_guardrail_applied": bool(structure_bucket_guardrail.get("applied")),
         "decision_quality_structure_bucket_guardrail_reason": structure_bucket_guardrail.get("reason"),
+        "decision_quality_structure_bucket_support_mode": structure_bucket_guardrail.get("support_mode"),
         "decision_quality_structure_bucket_support_rows": int(structure_bucket_guardrail.get("support_rows") or 0),
         "decision_quality_structure_bucket_support_share": structure_bucket_guardrail.get("support_share"),
+        "decision_quality_exact_live_structure_bucket_support_rows": int(structure_bucket_guardrail.get("exact_support_rows") or 0),
+        "decision_quality_exact_live_structure_bucket_support_share": structure_bucket_guardrail.get("exact_support_share"),
+        "decision_quality_structure_bucket_supported_neighbor_buckets": list(structure_bucket_guardrail.get("supported_neighbor_buckets") or []),
         "decision_quality_narrowed_pathology_applied": bool(narrowed_scope_guardrail.get("applied")),
         "decision_quality_narrowed_pathology_scope": narrowed_scope_guardrail.get("scope"),
         "decision_quality_narrowed_pathology_reason": narrowed_scope_guardrail.get("reason"),
@@ -2249,8 +2318,12 @@ def _apply_live_execution_guardrails(decision_profile: Dict[str, Any], decision_
     structure_bucket_guardrail_applied = bool(
         decision_quality_contract.get("decision_quality_structure_bucket_guardrail_applied")
     )
+    structure_bucket_support_mode = decision_quality_contract.get("decision_quality_structure_bucket_support_mode")
     structure_bucket_support_rows = int(
         decision_quality_contract.get("decision_quality_structure_bucket_support_rows") or 0
+    )
+    exact_structure_bucket_support_rows = int(
+        decision_quality_contract.get("decision_quality_exact_live_structure_bucket_support_rows") or 0
     )
 
     if quality_label == "D" or (quality_score is not None and float(quality_score) < 0.35):
@@ -2274,7 +2347,10 @@ def _apply_live_execution_guardrails(decision_profile: Dict[str, Any], decision_
             reasons.append(toxic_reason)
 
     if structure_bucket_guardrail_applied:
-        if structure_bucket_support_rows < 5:
+        if structure_bucket_support_mode == "exact_bucket_unsupported_block" or exact_structure_bucket_support_rows <= 0:
+            capped_layers = 0
+            structure_reason = "unsupported_exact_live_structure_bucket_blocks_trade"
+        elif structure_bucket_support_rows < 5:
             capped_layers = 0
             structure_reason = "unsupported_live_structure_bucket_blocks_trade"
         elif capped_layers > 1:
