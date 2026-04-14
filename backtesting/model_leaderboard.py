@@ -16,6 +16,7 @@ from dataclasses import dataclass, field, asdict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backtesting.strategy_lab import run_hybrid_backtest, run_rule_backtest
+from model import train as train_module
 
 # ─── Anti-Overfitting 配置 ───
 WALK_FORWARD_WINDOW_MONTHS = 4  # 訓練視窗
@@ -173,12 +174,17 @@ class FoldResult:
     avg_expected_drawdown_penalty: float = 0.0
     avg_expected_time_underwater: float = 0.0
     deployment_profile: str = "standard"
+    feature_profile: str = "current_full"
+    feature_profile_source: str = "code_default"
 
 @dataclass
 class ModelScore:
     """模型的綜合得分"""
     model_name: str
     deployment_profile: str = "standard"
+    feature_profile: str = "current_full"
+    feature_profile_source: str = "code_default"
+    feature_profile_meta: Dict[str, Any] = field(default_factory=dict)
     avg_roi: float = 0.0
     avg_win_rate: float = 0.0
     avg_trades: float = 0.0
@@ -275,6 +281,10 @@ class ModelLeaderboard:
         self.target_col = target_col
         self.last_model_statuses: Dict[str, Dict[str, Any]] = {}
         self._deployment_profile_override: Optional[str] = None
+        self._feature_profile_override: Optional[str] = None
+        self._feature_profile_meta_override: Optional[Dict[str, Any]] = None
+        self._feature_ablation_payload = train_module._load_json_file(train_module.FEATURE_ABLATION_PATH)
+        self._bull_pocket_payload = train_module._load_json_file(train_module.BULL_4H_POCKET_ABLATION_PATH)
 
     def _get_walk_forward_splits(self) -> List[Tuple[str, str, str, str]]:
         """產生 Walk-Forward 折疊列表: (train_start, train_end, test_start, test_end)"""
@@ -366,6 +376,57 @@ class ModelLeaderboard:
             'entry_overrides': dict(profile.get('entry_overrides', {})),
         }
 
+    def _feature_profile_candidates_for_frame(self, feature_cols: List[str]) -> List[Dict[str, Any]]:
+        """Formal feature-profile candidates for leaderboard ranking.
+
+        This mirrors training-side shrinkage governance so leaderboard evaluation no
+        longer silently assumes the dense full-stack feature set.
+        """
+        profile_columns = train_module._build_feature_profile_columns(feature_cols)
+        candidates: List[Dict[str, Any]] = []
+        seen: set[str] = set()
+
+        def add_candidate(name: Optional[str], meta: Optional[Dict[str, Any]] = None) -> None:
+            if not name or name in seen:
+                return
+            cols = profile_columns.get(name) or []
+            if not cols:
+                return
+            candidate_meta = dict(meta or {})
+            candidate_meta.setdefault("source", "leaderboard.fixed_feature_candidate")
+            candidates.append({
+                "name": name,
+                "columns": cols,
+                "meta": candidate_meta,
+            })
+            seen.add(name)
+
+        selected_name, _, selected_meta = train_module.select_feature_profile(
+            feature_cols,
+            target_col=self.target_col,
+            ablation_payload=self._feature_ablation_payload,
+            bull_pocket_payload=self._bull_pocket_payload,
+        )
+        add_candidate(selected_name, selected_meta)
+
+        ablation_payload = self._feature_ablation_payload or {}
+        if ablation_payload.get("target_col") == self.target_col:
+            add_candidate(
+                ablation_payload.get("recommended_profile"),
+                {
+                    "source": "feature_group_ablation.recommended_profile",
+                    "generated_at": ablation_payload.get("generated_at"),
+                    "candidate_count": len(ablation_payload.get("profiles") or {}),
+                },
+            )
+
+        for fixed_name in ("core_only", train_module.STRONG_BASELINE_FEATURE_PROFILE, "current_full"):
+            add_candidate(fixed_name)
+
+        if not candidates:
+            add_candidate("current_full", {"source": "leaderboard.fallback_current_full"})
+        return candidates
+
     def _candidate_selection_key(self, score: ModelScore) -> Tuple[float, float, float, float, float]:
         return (
             float(score.composite_score),
@@ -407,6 +468,8 @@ class ModelLeaderboard:
         scores = ModelScore(
             model_name=model_name,
             deployment_profile=str(getattr(folds[0], 'deployment_profile', 'standard') if folds else 'standard'),
+            feature_profile=str(getattr(folds[0], 'feature_profile', 'current_full') if folds else 'current_full'),
+            feature_profile_source=str(getattr(folds[0], 'feature_profile_source', 'code_default') if folds else 'code_default'),
             avg_roi=np.mean(rois),
             avg_win_rate=np.mean(wrs),
             avg_trades=avg_trades,
@@ -625,17 +688,27 @@ class ModelLeaderboard:
         """跑單一折疊"""
         # 準備特徵
         feature_cols = [c for c in train_df.columns if c.startswith('feat_')]
-        # 加入價格
-        feature_cols_full = feature_cols + ['close_price']
+        profile_columns = train_module._build_feature_profile_columns(feature_cols)
+        selected_feature_profile = self._feature_profile_override
+        selected_feature_profile_meta = dict(self._feature_profile_meta_override or {})
+        if selected_feature_profile:
+            selected_feature_cols = profile_columns.get(selected_feature_profile) or feature_cols
+        else:
+            selected_feature_profile, selected_feature_cols, selected_feature_profile_meta = train_module.select_feature_profile(
+                feature_cols,
+                target_col=self.target_col,
+                ablation_payload=self._feature_ablation_payload,
+                bull_pocket_payload=self._bull_pocket_payload,
+            )
 
         if self.target_col not in train_df.columns or self.target_col not in test_df.columns:
             return None
 
-        X_train = train_df[feature_cols].fillna(0).values
-        y_train = train_df[self.target_col].fillna(0).astype(int).values
+        X_train = train_df[selected_feature_cols].fillna(0)
+        y_train = train_df[self.target_col].fillna(0).astype(int)
 
-        X_test = test_df[feature_cols].fillna(0).values
-        y_test = test_df[self.target_col].fillna(0).astype(int).values
+        X_test = test_df[selected_feature_cols].fillna(0)
+        y_test = test_df[self.target_col].fillna(0).astype(int)
 
         if model_name == 'rule_baseline':
             # 用 bias50 反轉作為信心：bias50 越低，越該買
@@ -708,19 +781,26 @@ class ModelLeaderboard:
             avg_expected_drawdown_penalty=trade_quality['avg_expected_drawdown_penalty'],
             avg_expected_time_underwater=trade_quality['avg_expected_time_underwater'],
             deployment_profile=str(params.get('deployment_profile') or 'standard'),
+            feature_profile=str(selected_feature_profile or 'current_full'),
+            feature_profile_source=str(selected_feature_profile_meta.get('source') or 'code_default'),
         ), confidence, result, train_acc, test_acc
 
     def evaluate_model(self, model_name: str) -> Optional[ModelScore]:
         """評估單一模型的 Walk-Forward 表現"""
         splits = self._get_walk_forward_splits()
         candidate_profiles = self._deployment_profile_candidates_for_model(model_name)
+        feature_profile_candidates = self._feature_profile_candidates_for_frame(
+            [c for c in self.data.columns if c.startswith('feat_')]
+        )
         candidate_runs = {
-            profile_name: {
+            (deployment_name, feature_candidate['name']): {
                 "folds": [],
                 "train_accs": [],
                 "test_accs": [],
+                "feature_profile_meta": dict(feature_candidate.get("meta") or {}),
             }
-            for profile_name in candidate_profiles
+            for deployment_name in candidate_profiles
+            for feature_candidate in feature_profile_candidates
         }
         self.last_model_statuses[model_name] = {"status": "pending", "reason": None, "detail": None}
 
@@ -733,18 +813,27 @@ class ModelLeaderboard:
                     continue
 
                 for profile_name in candidate_profiles:
-                    self._deployment_profile_override = profile_name
-                    result = self._run_single_fold(train_df, test_df, model_name)
-                    self._deployment_profile_override = None
-                    if result is None:
-                        continue
-                    fr, _, _, train_acc, test_acc = result
-                    fr.fold = i
-                    candidate_runs[profile_name]["folds"].append(fr)
-                    candidate_runs[profile_name]["train_accs"].append(train_acc)
-                    candidate_runs[profile_name]["test_accs"].append(test_acc)
+                    for feature_candidate in feature_profile_candidates:
+                        feature_profile_name = feature_candidate["name"]
+                        self._deployment_profile_override = profile_name
+                        self._feature_profile_override = feature_profile_name
+                        self._feature_profile_meta_override = dict(feature_candidate.get("meta") or {})
+                        result = self._run_single_fold(train_df, test_df, model_name)
+                        self._deployment_profile_override = None
+                        self._feature_profile_override = None
+                        self._feature_profile_meta_override = None
+                        if result is None:
+                            continue
+                        fr, _, _, train_acc, test_acc = result
+                        fr.fold = i
+                        run = candidate_runs[(profile_name, feature_profile_name)]
+                        run["folds"].append(fr)
+                        run["train_accs"].append(train_acc)
+                        run["test_accs"].append(test_acc)
         except ModelUnavailableError as exc:
             self._deployment_profile_override = None
+            self._feature_profile_override = None
+            self._feature_profile_meta_override = None
             self.last_model_statuses[model_name] = {
                 "status": "unavailable",
                 "reason": exc.reason,
@@ -753,9 +842,11 @@ class ModelLeaderboard:
             return None
         finally:
             self._deployment_profile_override = None
+            self._feature_profile_override = None
+            self._feature_profile_meta_override = None
 
         candidate_scores: List[ModelScore] = []
-        for profile_name, run in candidate_runs.items():
+        for (deployment_name, feature_profile_name), run in candidate_runs.items():
             if not run["folds"]:
                 continue
             score = self._score_model_from_folds(
@@ -764,7 +855,10 @@ class ModelLeaderboard:
                 all_train_accs=run["train_accs"],
                 all_test_accs=run["test_accs"],
             )
-            score.deployment_profile = profile_name
+            score.deployment_profile = deployment_name
+            score.feature_profile = feature_profile_name
+            score.feature_profile_meta = dict(run.get("feature_profile_meta") or {})
+            score.feature_profile_source = str(score.feature_profile_meta.get("source") or getattr(score, "feature_profile_source", "code_default"))
             candidate_scores.append(score)
 
         if not candidate_scores:
@@ -784,7 +878,13 @@ class ModelLeaderboard:
             "detail": None,
             "folds": len(scores.folds),
             "selected_deployment_profile": scores.deployment_profile,
-            "deployment_profiles_evaluated": [score.deployment_profile for score in candidate_scores],
+            "selected_feature_profile": scores.feature_profile,
+            "selected_feature_profile_source": scores.feature_profile_source,
+            "feature_profile_support_cohort": scores.feature_profile_meta.get("support_cohort"),
+            "feature_profile_support_rows": scores.feature_profile_meta.get("support_rows"),
+            "feature_profile_exact_live_bucket_rows": scores.feature_profile_meta.get("exact_live_bucket_rows"),
+            "deployment_profiles_evaluated": list(dict.fromkeys(score.deployment_profile for score in candidate_scores)),
+            "feature_profiles_evaluated": list(dict.fromkeys(score.feature_profile for score in candidate_scores)),
         }
         return scores
 

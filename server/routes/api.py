@@ -848,10 +848,21 @@ def _serialize_model_scores(results, overfit_gap_threshold: float, hard_train_ac
                 "avg_expected_pyramid_quality": float(round(getattr(f, "avg_expected_pyramid_quality", 0.0), 4)),
                 "avg_expected_drawdown_penalty": float(round(getattr(f, "avg_expected_drawdown_penalty", 0.0), 4)),
                 "avg_expected_time_underwater": float(round(getattr(f, "avg_expected_time_underwater", 0.0), 4)),
+                "deployment_profile": str(getattr(f, "deployment_profile", "standard")),
+                "feature_profile": str(getattr(f, "feature_profile", "current_full")),
+                "feature_profile_source": str(getattr(f, "feature_profile_source", "code_default")),
             })
         is_overfit = bool(r.train_test_gap > overfit_gap_threshold or r.train_accuracy > hard_train_acc_cap)
+        tier_meta = _model_tier_for_name(str(r.model_name))
         leaderboard.append({
             "model_name": str(r.model_name),
+            "deployment_profile": str(getattr(r, "deployment_profile", "standard")),
+            "feature_profile": str(getattr(r, "feature_profile", "current_full")),
+            "feature_profile_source": str(getattr(r, "feature_profile_source", "code_default")),
+            "feature_profile_support_cohort": (getattr(r, "feature_profile_meta", {}) or {}).get("support_cohort"),
+            "feature_profile_support_rows": (getattr(r, "feature_profile_meta", {}) or {}).get("support_rows"),
+            "feature_profile_exact_live_bucket_rows": (getattr(r, "feature_profile_meta", {}) or {}).get("exact_live_bucket_rows"),
+            **tier_meta,
             "avg_roi": float(round(r.avg_roi, 4)),
             "avg_win_rate": float(round(r.avg_win_rate, 4)),
             "avg_trades": int(r.avg_trades),
@@ -888,6 +899,33 @@ def _serialize_model_scores(results, overfit_gap_threshold: float, hard_train_ac
             "folds": fold_data,
         })
     return leaderboard
+
+
+def _model_tier_for_name(model_name: str) -> Dict[str, str]:
+    normalized = str(model_name or "").strip().lower()
+    if normalized in {"rule_baseline", "random_forest", "xgboost", "logistic_regression"}:
+        return {
+            "model_tier": "core",
+            "model_tier_label": "核心模型",
+            "model_tier_reason": "最符合目前 Poly-Trader 的多特徵、低頻高信念、可解釋與穩定度優先主線。",
+        }
+    if normalized in {"lightgbm", "catboost", "ensemble"}:
+        return {
+            "model_tier": "control",
+            "model_tier_label": "對照模型",
+            "model_tier_reason": "適合作為 XGBoost / RandomForest 的對照與補充，不是當前第一主線。",
+        }
+    if normalized in {"mlp", "svm"}:
+        return {
+            "model_tier": "research",
+            "model_tier_label": "研究模型",
+            "model_tier_reason": "目前保留在研究層，用來觀察是否有額外訊號，不建議當前主線優先投入。",
+        }
+    return {
+        "model_tier": "control",
+        "model_tier_label": "對照模型",
+        "model_tier_reason": "未明確歸類，預設先放在對照層，避免過早升為主線。",
+    }
 
 
 def _summarize_target_candidates(df, overfit_gap_threshold: float, hard_train_acc_cap: float) -> List[Dict[str, Any]]:
@@ -2000,7 +2038,18 @@ def _build_model_leaderboard_payload() -> Dict[str, Any]:
     snapshot_history = _load_recent_model_leaderboard_snapshots(limit=12, db_path=DB_PATH)
     rank_deltas = _compute_model_rank_deltas(snapshot_history, db_path=DB_PATH)
     leaderboard = [
-        {**row, "rank_delta": rank_deltas.get(str(row.get("model_name")), 0)}
+        {
+            **row,
+            "rank_delta": rank_deltas.get(str(row.get("model_name")), 0),
+            "selected_deployment_profile": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("selected_deployment_profile", row.get("deployment_profile")),
+            "deployment_profiles_evaluated": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("deployment_profiles_evaluated", [row.get("deployment_profile")]),
+            "selected_feature_profile": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("selected_feature_profile", row.get("feature_profile")),
+            "selected_feature_profile_source": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("selected_feature_profile_source", row.get("feature_profile_source")),
+            "feature_profiles_evaluated": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("feature_profiles_evaluated", [row.get("feature_profile")]),
+            "feature_profile_support_cohort": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("feature_profile_support_cohort", row.get("feature_profile_support_cohort")),
+            "feature_profile_support_rows": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("feature_profile_support_rows", row.get("feature_profile_support_rows")),
+            "feature_profile_exact_live_bucket_rows": (lb.last_model_statuses.get(str(row.get("model_name")), {}) or {}).get("feature_profile_exact_live_bucket_rows", row.get("feature_profile_exact_live_bucket_rows")),
+        }
         for row in leaderboard
     ]
     quadrant_points = [
