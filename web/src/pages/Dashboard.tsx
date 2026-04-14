@@ -230,7 +230,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between w-full mb-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-300">🎯 多特徵雷達圖</h2>
-              <div className="text-xs text-slate-500 mt-1">已改用市場語義短標籤，避免舊感官命名與文字重疊。</div>
+              <div className="text-xs text-slate-500 mt-1">已改用市場語義短標籤，避免舊人格化命名與文字重疊。</div>
               {maturitySummary && (
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
                   <span className="rounded-full border border-emerald-700/40 bg-emerald-950/40 px-2 py-0.5 text-emerald-300">

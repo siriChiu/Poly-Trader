@@ -234,24 +234,17 @@ Poly-Trader/
 
 ## 特徵架構 v4（建議）
 
-| # | 特徵 | 特徵主軸 | 資料源 | 用途 |
-|---|------|----------|--------|------|
-| 1 | Eye | 趨勢 / 方向 | K 線 / 報酬 | 判斷主方向 |
-| 2 | Ear | 波動 / 節奏 | K 線 / ATR | 判斷躁動 |
-| 3 | Nose | 均值回歸 / 自相關 | K 線衍生 | 判斷過熱 / 過冷 |
-| 4 | Tongue | 噪音 / 波動味覺 | K 線 / wick-body | 判斷亂跳 |
-| 5 | Body | 結構位置 | range / breakout | 判斷所處階段 |
-| 6 | Pulse | 資金壓力 | funding / OI / liquidation | 判斷多空擁擠 |
-| 7 | Aura | 複合結構 | vol×autocorr / funding×price | 判斷轉折區 |
-| 8 | Mind | 長周期風險 | funding z / macro proxy | 判斷風險狀態 |
-| 9 | Whisper | 討論量 / 爆量 | Twitter / RSS / 社群 | 判斷敘事熱度 |
-|10 | Tone | 情緒極性 | Text sentiment | 判斷正負情緒 |
-|11 | Chorus | 共識 / 分歧 | 文本聚類 / sentiment spread | 判斷市場一致性 |
-|12 | Hype | 炒作 / 噪訊 | 重複帖 / influencer spread | 判斷熱炒 |
-|13 | Oracle | 預期變化 | Polymarket | 判斷市場預期 |
-|14 | Shock | 事件驚訝程度 | news / calendar | 判斷事件衝擊 |
-|15 | Tide | 風險偏好 | DXY / VIX / futures | 判斷 risk-on / risk-off |
-|16 | Storm | 宏觀壓力 | macro news / rates shock | 判斷宏觀波動 |
+> 命名層面現在以 **市場語義 / 特徵語義** 為主，不再建議用人格化特徵名當作對外主描述。
+
+| 類別 | 代表欄位 | 主軸 | 資料源 | 用途 |
+|---|---|---|---|---|
+| 趨勢 / 動能 | `feat_eye`, `feat_ear`, `feat_mind` | 方向、節奏、中期動量 | K 線 / 報酬 / funding proxy | 判斷主趨勢與中期風險 |
+| 均值回歸 / 過熱 | `feat_nose`, `feat_tongue`, `feat_aura` | 過熱、偏離、回歸張力 | K 線衍生 / 複合特徵 | 判斷反轉或拉回機率 |
+| 結構 / 波動 | `feat_body`, `feat_pulse` | range 位置、量能與壓力 | breakout / funding / OI / liquidation | 判斷所處階段與擁擠度 |
+| 4H 結構 | `feat_4h_bias50`, `feat_4h_bias200`, `feat_4h_dist_swing_low`, `feat_4h_dist_bb_lower` | 高時間框架背景 | 4H 結構特徵 | 做 regime gate 與結構 veto |
+| 技術延伸 | `feat_nw_width`, `feat_nw_slope`, `feat_adx`, `feat_choppiness`, `feat_donchian_pos` | 技術狀態與市場型態 | OHLCV / indicator engine | 改善短線 entry quality |
+| 宏觀 / 外部 | `feat_vix`, `feat_dxy`, `feat_nq_return_*` | risk-on / risk-off | Macro / futures | 判斷外部風險背景 |
+| 研究型 sparse-source | `feat_claw`, `feat_fin_netflow`, `feat_fang_pcr`, `feat_web_whale`, `feat_scales_ssr`, `feat_nest_pred` | 額外 alpha 線索 | 稀疏來源 / snapshot archive | 僅作 research overlay / veto 候選 |
 
 ---
 

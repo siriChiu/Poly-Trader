@@ -1,6 +1,8 @@
 # Poly-Trader 🐰
 
-> **多特徵量化交易系統** — 模擬人類特徵，用 AI 解讀加密貨幣市場
+> **多特徵量化交易研究與策略實驗平台**
+>
+> 以多來源特徵、4H 結構背景、互動式回測與決策品質評估為核心，而不是用單一指標或黑箱模型直接下結論。
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![React](https://img.shields.io/badge/React-18-blue)
@@ -9,185 +11,199 @@
 
 ---
 
-## 📖 這是什麼？
+## 這是什麼？
 
-Poly-Trader 是一套以**多特徵**為核心的加密貨幣量化交易系統。
+Poly-Trader 是一套面向 **BTC/USDT 多特徵研究、策略驗證、即時判讀** 的平台。
 
-傳統的交易機器人只看一個指標（例如 RSI 或 MACD），就像一個人只用眼睛看世界——能看到東西，但看不全。人類做交易決策時，會同時運用視覺（看 K 線）、聽覺（聽市場消息）、嗅覺（聞到不對勁）、味覺（感受情緒）、觸覺（感受壓力）等多種特徵，綜合判斷後才下決定。
+它目前的定位不是「神祕 AI 自動幫你交易」，而是：
 
-**Poly-Trader 的核心理念：模擬人類多特徵，把加密貨幣市場行為映射到 8 個特徵維度，每個特徵獨立運作、獨立驗證，再由 AI 綜合判斷。**
+- 把市場資料整理成可追蹤的 **多特徵框架**
+- 用 **4H 結構 + 短線特徵** 建立可解釋的 decision contract
+- 提供 **Strategy Lab** 讓你自己選模型、調參、回測、比較 leaderboard
+- 用 **decision quality** 而不是只看 accuracy / 勝率 來評估策略
 
-### 為什麼是「多特徵」？
+換句話說，這個專案現在的主軸是：
 
-| 問題 | 單一指標的困境 | 多特徵的解法 |
-|------|---------------|-------------|
-| 指標失靈 | RSI 在趨勢市中一直超買，錯過大行情 | 8 個特徵同時運作，不會全部同時失靈 |
-| 過擬合 | 單一模型容易記住歷史雜訊 | 多個獨立數據源降低過擬合風險 |
-| 黑箱決策 | 不知道模型為什麼下單 | 每個特徵的貢獻可視化、可解釋 |
-| 無法改進 | 不知道哪個環節有問題 | IC 驗證每個特徵，無效的直接汰換 |
+> **多特徵（multi-feature）描述市場 → 策略實驗 → 回測驗證 → 決策品質治理**
 
----
-
-## 🧠 8 特徵系統
-
-每個特徵代表一種解讀市場的方式，經過 **IC（Information Coefficient）實證**，只有預測力達標的才會被採用。
-
-| 特徵 | 圖示 | 解讀什麼 | 數據來源 | 特徵計算 |
-|------|------|----------|----------|----------|
-| **Eye（視覺）** | 👁️ | 資金費率的長期趨勢 | Binance Futures | 72 小時 funding rate 均值 |
-| **Ear（聽覺）** | 👂 | 價格的動量方向 | Binance K 線 | 48 小時價格變化率 |
-| **Nose（嗅覺）** | 👃 | 市場是否處於「反轉」狀態 | K 線衍生 | 48 小時收益率自相關 |
-| **Tongue（味覺）** | 👅 | 市場波動的強度 | K 線衍生 | 24 小時收益率標準差 |
-| **Body（觸覺）** | 💪 | 當前價格在近期區間中的位置 | K 線衍生 | 24 小時高低點之間的比例 |
-| **Pulse（脈動）** | 💓 | 資金費率的變化方向 | Binance Futures | 24h MA − 72h MA |
-| **Aura（磁場）** | 🌀 | 波動率和趨勢的交互關係 | 複合特徵 | 波動率 × 自相關 |
-| **Mind（認知）** | 🧠 | 資金費率的標準化程度 | Binance Futures | 24h funding rate Z-score |
-
-### 額外數據源（衍生品即時數據）
-
-除了 8 個特徵之外，系統還收集 Binance 衍生品數據：
-
-- **大戶持倉比（LSR）**：大戶的多空比例，反映聰明錢方向
-- **多空人數比（GSR）**：散戶的多空比例，反向指標
-- **主動買賣比（Taker）**：即時訂單流方向
-- **持倉量（OI）**：市場槓桿程度
+而不是早期那種偏人格化命名的產品敘事。
 
 ---
 
-## 🎯 信心分層交易
+## Highlights
 
-系統不只是「買或賣」，而是會告訴你「我有多確定」。
-
-```
-信心等級        精確率          交易頻率
-─────────────────────────────────────────
->0.75          ~92%            ~7% 的時間
->0.70          ~86%            ~14% 的時間
->0.65          ~81%            ~21% 的時間
-全部            ~52%            100% 的時間
-```
-
-**核心策略：不是每次都交易，而是只在高信心時才出手。**
-
-### 金字塔加碼
-
-當信心持續上升時，系統會分批加碼：
-
-| 層級 | 信心閾值 | 資金比例 | 累計 |
-|------|----------|----------|------|
-| Tier 1 | >0.65 | 5% | 5% |
-| Tier 2 | >0.70 | 4% | 9% |
-| Tier 3 | >0.75 | 3% | 12% |
-| Tier 4 | >0.80 | 3% | 15% |
-
-總暴露度上限 20%，確保風險可控。
+- **Strategy Lab**：互動式回測工作區，支援參數調整、leaderboard、策略回填
+- **Decision Quality**：不只看勝率，還看 drawdown penalty、time underwater、allowed layers
+- **4H 結構治理**：用高時間框架 regime gate 避免在錯的背景做低品質 spot-long
+- **多特徵成熟度分級**：區分 `core / research / blocked`，避免稀疏來源污染主決策
+- **快取與增量刷新**：圖表優先從本地還原，再只補缺的 K 線尾段
+- **Heartbeat 閉環**：用固定治理流程推進 patch、驗證、文件同步與下一輪 gate
 
 ---
 
-## 🖥️ 前端操作指南
+## 核心理念
 
-### 啟動
+### 1. 不迷信單一指標
 
-```bash
-# 後端
-uvicorn server.main:app --reload --port 8000
+RSI、MACD、布林帶、單一 funding 指標都可能在某些市場狀態下失效。
 
-# 前端（新終端）
-cd web
-npm install
-npm run dev
-```
+Poly-Trader 改用多特徵方式描述市場，包括：
 
-瀏覽器前往：**http://localhost:5173**
+- 價格 / 波動 / 動能 / 均值回歸
+- 4H 結構位置與 regime
+- microstructure / 衍生品 / macro 類特徵
+- sparse-source 研究特徵與成熟度治理
 
-### 首頁儀表板（Dashboard）
+### 2. 不把模型 accuracy 當成唯一目標
 
-打開首頁，你會看到：
+這個專案目前更重視：
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ 🔮 Poly-Trader v3.0           🟢 即時連線    更新: 14:30  │
-├────────────────────────────────────────────────────────────┤
-│                                                            │
-│  ┌──────────────────┐    ┌─────────────────────────────┐  │
-│  │                  │    │  🎯 信心分層                 │  │
-│  │    多邊形雷達圖    │    │                             │  │
-│  │                  │    │     87%         買入         │  │
-│  │  👁️──────👂     │    │                             │  │
-│  │  │╲      ╱│     │    │  高信心 | >0.65 或 <0.35     │  │
-│  │  │  ╲  ╱  │     │    │  ████████████████░░░░░░     │  │
-│  │  💪──────👅     │    │                             │  │
-│  │                  │    │  💡 建議買入（信心 87%）     │  │
-│  └──────────────────┘    └─────────────────────────────┘  │
-│                                                            │
-│  ┌──────────────────────────────────────────────────────┐ │
-│  │  特徵走勢圖（點擊雷達圖上的特徵查看歷史）              │ │
-│  │  ╱╲    ╱╲                                           │ │
-│  │ ╱  ╲╱╲╱  ╲____╱╲                                   │ │
-│  └──────────────────────────────────────────────────────┘ │
-│                                                            │
-│  ┌──────────────────────────────────────────────────────┐ │
-│  │  K 線圖 + 技術指標        [1H] [4H] [1D]             │ │
-│  │  ┌────────────────────────────────────────────┐     │ │
-│  │  │    ╱╲      ┌─┐                             │     │ │
-│  │  │   ╱  ╲   ┌─┘ └─┐  ── MA20                 │     │ │
-│  │  │  ╱    ╲─╱       └─ ── MA60                │     │ │
-│  │  │ ╱                                       │     │ │
-│  │  └────────────────────────────────────────────┘     │ │
-│  └──────────────────────────────────────────────────────┘ │
-└────────────────────────────────────────────────────────────┘
-```
+- ROI
+- 最大回撤
+- Profit Factor
+- time underwater
+- drawdown penalty
+- decision quality score
 
-#### 操作說明
+也就是說，**模型分類準確率只是中間訊號，不是最終目標**。
 
-**雷達圖**：
-- 8 個頂點代表 8 個特徵
-- 中間區域越大 = 多數特徵偏多（看漲）
-- 點擊任何一個特徵 → 下方顯示該特徵的歷史走勢
-- Hover 可看到特徵的 IC 值和數據來源
+### 3. 不做黑箱
 
-**信心指示器**：
-- 大字顯示模型的信心百分比
-- 顏色：綠色 = 高信心（建議交易）、黃色 = 中信心、紅色 = 低信心（觀望）
-- 只有顯示「建議交易」時才考慮下單
+使用者可以：
 
-**K 線圖**：
-- 支援 1H / 4H / 1D 時間框架切換
-- 疊加 MA20（黃線）、MA60（粉線）
-- RSI、MACD 技術指標
+- 看 leaderboard
+- 選模型
+- 調整 entry / stop loss / take profit / top-k / regime gate
+- 點擊策略回填參數
+- 直接檢視價格圖、權益圖、倉位水位、markers、decision fields
 
-### 特徵管理頁（/senses）
+---
 
-在導航列點擊「🎛️ 特徵管理」進入。
+## 目前系統怎麼描述市場？
 
-此頁面可以：
-- 查看每個特徵的即時分數和 IC 值
-- 啟用 / 停用個別特徵
-- 調整每個特徵的權重
-- 即時預覽權重調整對綜合分數的影響
+目前系統以 **多特徵（multi-feature）** 來描述市場，主要可分成幾類：
 
-### 策略實驗室（/lab）
+### A. 短線特徵
 
-目前正式的回測工作區是 **Strategy Lab `/lab`**；舊的 `/backtest` 已退役並導向 `/lab`。
+用來捕捉短時間框架中的節奏、強弱、過熱、回調與交易品質：
 
-Strategy Lab 目前支援：
+- RSI / MACD / ATR / VWAP deviation
+- NW Envelope 位置與寬度
+- ADX / Choppiness / Donchian position
+- 量價與短期 momentum 類特徵
+
+### B. 4H 結構特徵
+
+用來判斷高時間框架的背景與 regime：
+
+- `feat_4h_bias50`
+- `feat_4h_bias200`
+- `feat_4h_dist_swing_low`
+- `feat_4h_dist_bb_lower`
+- `feat_4h_bb_pct_b`
+- `feat_4h_vol_ratio`
+- `regime_label`
+
+這些欄位主要負責：
+
+- 判斷當前是 `ALLOW / CAUTION / BLOCK`
+- 過濾不應該開倉的背景
+- 避免在過度延伸或結構不支撐時硬做 spot-long pyramid
+
+### C. 研究型 / sparse-source 特徵
+
+部分資料源歷史較稀疏，或受授權 / 抓取狀態影響，因此系統會明確標示成熟度：
+
+- `core`
+- `research`
+- `blocked`
+
+這些研究型特徵可以作為 overlay / bonus / veto 參考，但不應和核心特徵同權看待。
+
+---
+
+## 核心工作區：Strategy Lab
+
+目前正式回測與策略實驗工作區是：
+
+- **`/lab`**
+
+舊的 `/backtest` 已退役，會導向 `/lab`。
+
+### Strategy Lab 目前支援
+
 - 規則式 / Hybrid 模式切換
 - 模型排行榜 + 策略排行榜
-- 非同步回測進度條（頁面上方統一顯示）
-- 上下同步的價格 / 權益雙圖
+- 點擊 leaderboard row 回填策略設定
+- 非同步回測背景任務
+- 頁面上方統一 top progress 顯示真實進度
+- 價格圖 / 權益圖上下同步顯示
 - buy / sell markers、倉位水位、entry quality、model confidence
-- 本地 K 線快取 + 增量補資料，切頁後不必每次整包重抓
-- click leaderboard row 回填策略參數與結果
+- 本地 K 線快取 + incremental append refresh
+- 切頁後優先從 cache 還原，不必每次重抓完整資料
 
-如果你想看更細的實作與演進規劃，請直接看：
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-- [ROADMAP.md](ROADMAP.md)
-- `docs/plans/`
-- `docs/analysis/`
+### 回測時會看到什麼
+
+目前回測流程大致是：
+
+1. 建立背景 job
+2. 後端執行回測
+3. 平行計算 benchmark / decision profile / quality summary
+4. 前端輪詢 job 狀態
+5. 工作區同步更新圖表、排行榜與策略詳情
+
+這讓 Strategy Lab 不再只是「按下 Run 然後整頁卡住」。
 
 ---
 
-## 🚀 安裝與啟動
+## Dashboard 與 FeatureChart
+
+### Dashboard
+
+Dashboard 主要提供：
+
+- 即時市場摘要
+- predictor decision contract
+- 4H 結構背景
+- 多特徵視覺化
+- 策略與風險相關提示
+
+### FeatureChart
+
+FeatureChart 現在聚焦在多特徵歷史結構，而不是舊命名包裝：
+
+- 用多特徵歷史序列對照價格
+- 顯示 feature coverage / maturity / usability
+- 區分哪些特徵可進入主分數、哪些只是研究觀察
+- 對 K 線使用本地 cache + incremental refresh，減少切頁等待
+
+---
+
+## 決策語義：不是只有 buy / sell
+
+目前系統的決策語義重點包含：
+
+- `regime_gate`
+- `entry_quality`
+- `entry_quality_label`
+- `allowed_layers`
+- `decision_quality_score`
+- `expected_win_rate`
+- `expected_pyramid_quality`
+- `expected_drawdown_penalty`
+- `expected_time_underwater`
+
+也就是說，系統不只想回答：
+
+> 這筆會不會贏？
+
+而是更想回答：
+
+> 這筆 setup 值不值得做？如果做，應該開幾層？它歷史上通常會賺得乾淨還是很容易深套？
+
+---
+
+## 快速開始
 
 ### 環境需求
 
@@ -195,10 +211,10 @@ Strategy Lab 目前支援：
 - Node.js 18+
 - Git
 
-### 步驟
+### 啟動方式
 
 ```bash
-# 1. 克隆專案
+# 1. clone
 git clone <repo-url>
 cd Poly-Trader
 
@@ -208,7 +224,7 @@ pip install -r requirements.txt
 # 3. 初始化資料庫
 python scripts/init_db.py
 
-# 4. 啟動後端 API
+# 4. 啟動後端
 uvicorn server.main:app --reload --port 8000
 
 # 5. 啟動前端（新終端）
@@ -217,108 +233,99 @@ npm install
 npm run dev
 ```
 
-### 配置
+開啟：
 
-編輯 `config.yaml`：
-
-```yaml
-database:
-  url: sqlite:///poly_trader.db
-
-trading:
-  symbol: "BTCUSDT"
-  confidence_threshold: 0.7    # 信心閾值
-  max_position_ratio: 0.05     # 最大單筆倉位 5%
-  dry_run: true                # true=模擬交易, false=實盤
-```
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
 
 ---
 
-## 📁 專案結構
-
-詳細架構見 [ARCHITECTURE.md](ARCHITECTURE.md)。
-
-```
-Poly-Trader/
-├── server/                    ← FastAPI 後端 + API / WebSocket
-├── data_ingestion/            ← 市場 / sparse-source / heartbeat 收集器
-├── feature_engine/            ← 特徵工程與 coverage / maturity policy
-├── model/                     ← predictor / train / calibration artifacts
-├── backtesting/               ← Strategy Lab 與模型排行榜核心
-├── database/                  ← SQLAlchemy ORM + SQLite schema
-├── web/                       ← React 前端（Dashboard / Strategy Lab）
-├── scripts/                   ← heartbeat / probes / analysis / maintenance
-├── tests/                     ← pytest 測試
-├── docs/
-│   ├── plans/                 ← 實作計畫
-│   └── analysis/              ← 研究分析與 sweep 結果
-│
-├── HEARTBEAT.md               ← 心跳流程
-├── ARCHITECTURE.md            ← 系統架構
-├── ISSUES.md                  ← 問題追蹤
-├── PRD.md                     ← 產品需求
-└── ROADMAP.md                 ← 發展路線
-```
-
----
-
-## 🔧 開發指令
+## 常用開發指令
 
 ```bash
-# Strategy Lab / heartbeat 相關快速檢查
+# Strategy Lab / leaderboard 核心測試
 python -m pytest tests/test_strategy_lab.py -q
 python -m pytest tests/test_model_leaderboard.py -q
+
+# heartbeat / drift / live predictor probe
+python scripts/hb_parallel_runner.py --fast
+python scripts/hb_predict_probe.py
 
 # 前端 build
 cd web && npm run build
 
-# heartbeat / drift / live probe
-python scripts/hb_parallel_runner.py --fast
-python scripts/hb_predict_probe.py
-
-# 結構檢查
+# 結構檢查 / heartbeat 類工作流
 python scripts/dev_heartbeat.py
-
-# 全面測試
-python tests/comprehensive_test.py
-
-# 批量重算特徵（特徵升級後）
-python scripts/recompute_features.py
-
-# 重訓模型
-python scripts/retrain.py
-
-# 手動收集一次數據
-python -c "from data_ingestion.collector import run_collection_and_save; from database.models import init_db; from config import load_config; s=init_db(load_config()['database']['url']); run_collection_and_save(s)"
 ```
 
 ---
 
-## 📊 API 端點
+## 常用 API
 
-| 端點 | 方法 | 說明 |
-|------|------|------|
-| `/api/senses` | GET | 8 特徵分數 + 綜合建議 |
-| `/api/predict/confidence` | GET | 信心分層預測（信號、信心值） |
-| `/api/recommendation` | GET | 交易建議（自然語言） |
-| `/api/senses/config` | GET/PUT | 查看 / 修改特徵配置 |
-| `/api/backtest` | GET | 回測結果 |
-| `/api/model/stats` | GET | 模型統計（IC、特徵重要性） |
-| `/api/chart/klines` | GET | K 線數據 |
-| `/ws/live` | WebSocket | 即時推送特徵更新 |
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/predict/confidence` | GET | 取得當前 predictor decision contract |
+| `/api/features` | GET | 取得特徵歷史資料 |
+| `/api/features/coverage` | GET | 取得特徵 coverage / maturity / blocker 資訊 |
+| `/api/chart/klines` | GET | 取得 K 線；支援增量補資料 |
+| `/api/strategies/run_async` | POST | 建立 Strategy Lab 背景回測任務 |
+| `/api/strategies/jobs/{job_id}` | GET | 查詢回測 job 進度與結果 |
+| `/api/strategies/leaderboard` | GET | 取得策略排行榜 |
+| `/api/models/leaderboard` | GET | 取得模型排行榜 |
+| `/ws/live` | WebSocket | 即時資料推送 |
 
 ---
 
-## 📄 相關文檔
+## 專案結構
 
-| 文檔 | 說明 |
-|------|------|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | 完整系統架構（目錄、DB schema、API） |
-| [PRD.md](PRD.md) | 產品需求規格 |
-| [ROADMAP.md](ROADMAP.md) | 發展路線與進度 |
-| [ISSUES.md](ISSUES.md) | 問題追蹤（含特徵 IC 表） |
-| [AI_AGENT_ROLE.md](AI_AGENT_ROLE.md) | AI 自主代理角色定義 |
-| [HEARTBEAT.md](HEARTBEAT.md) | 自動化心跳流程 |
+```text
+Poly-Trader/
+├── server/                    # FastAPI 後端 + API / WebSocket
+├── data_ingestion/            # 市場 / sparse-source / heartbeat 收集器
+├── feature_engine/            # 特徵工程與 maturity / coverage policy
+├── model/                     # predictor / train / calibration artifacts
+├── backtesting/               # Strategy Lab 與 leaderboard 核心
+├── database/                  # SQLite / ORM schema
+├── web/                       # React 前端（Dashboard / Strategy Lab）
+├── scripts/                   # heartbeat / probe / analysis / maintenance
+├── tests/                     # pytest
+├── docs/
+│   ├── plans/                 # 實作計畫
+│   └── analysis/              # 分析報告與 sweep 結果
+├── HEARTBEAT.md
+├── ARCHITECTURE.md
+├── ISSUES.md
+├── PRD.md
+└── ROADMAP.md
+```
+
+---
+
+## 文件入口
+
+| File | 說明 |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 系統架構與核心 contract |
+| [ROADMAP.md](ROADMAP.md) | 開發進度與已完成項目 |
+| [ISSUES.md](ISSUES.md) | 目前問題與治理狀態 |
+| [HEARTBEAT.md](HEARTBEAT.md) | heartbeat 閉環流程 |
+| `docs/plans/` | 實作規劃 |
+| `docs/analysis/` | 分析報告、sweep 與研究結果 |
+
+---
+
+## 現在這個專案不是什麼
+
+為避免誤解，現在的 Poly-Trader **不是**：
+
+- 單一指標交易機器人
+- 只看 accuracy 的分類器 demo
+- 只會吐出一個買賣建議的黑箱
+- 以人格化命名為主體、卻缺少策略驗證與治理層的系統介紹
+
+它現在更準確的描述是：
+
+> **一個以多特徵、4H 結構、Strategy Lab、decision quality、heartbeat 治理為核心的量化策略研究平台。**
 
 ---
 
