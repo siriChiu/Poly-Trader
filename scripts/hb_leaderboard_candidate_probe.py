@@ -83,10 +83,17 @@ def _build_alignment(top_model: dict[str, Any]) -> dict[str, Any]:
 
     live_context = bull_pocket.get("live_context") or {}
     cohorts = bull_pocket.get("cohorts") or {}
+    support_summary = bull_pocket.get("support_pathology_summary") or {}
     support_cohort = cohorts.get("bull_supported_neighbor_buckets_proxy") or {}
     exact_lane_proxy = cohorts.get("bull_exact_live_lane_proxy") or {}
     exact_bucket_proxy = cohorts.get("bull_live_exact_lane_bucket_proxy") or {}
     live_bucket_rows = live_context.get("current_live_structure_bucket_rows")
+    minimum_support_rows = int(
+        support_summary.get("minimum_support_rows")
+        or live_probe.get("minimum_support_rows")
+        or 0
+    )
+    live_bucket_gap_to_minimum = max(minimum_support_rows - int(live_bucket_rows or 0), 0)
     blocked_candidates = [
         {
             "feature_profile": row.get("feature_profile"),
@@ -111,7 +118,11 @@ def _build_alignment(top_model: dict[str, Any]) -> dict[str, Any]:
 
     support_governance_route = "no_support_proxy"
     if int(live_bucket_rows or 0) > 0:
-        support_governance_route = "exact_live_bucket_supported"
+        support_governance_route = (
+            "exact_live_bucket_supported"
+            if minimum_support_rows <= 0 or int(live_bucket_rows or 0) >= minimum_support_rows
+            else "exact_live_bucket_present_but_below_minimum"
+        )
     elif int(exact_bucket_proxy.get("rows") or 0) > 0:
         support_governance_route = "exact_live_bucket_proxy_available"
     elif int(exact_lane_proxy.get("rows") or 0) > 0:
@@ -135,6 +146,10 @@ def _build_alignment(top_model: dict[str, Any]) -> dict[str, Any]:
         "live_execution_guardrail_reason": live_probe.get("execution_guardrail_reason"),
         "live_current_structure_bucket": live_context.get("current_live_structure_bucket"),
         "live_current_structure_bucket_rows": live_bucket_rows,
+        "minimum_support_rows": minimum_support_rows,
+        "live_current_structure_bucket_gap_to_minimum": live_bucket_gap_to_minimum,
+        "exact_bucket_root_cause": support_summary.get("exact_bucket_root_cause"),
+        "support_blocker_state": support_summary.get("blocker_state"),
         "supported_neighbor_buckets": live_context.get("supported_neighbor_buckets") or [],
         "bull_support_aware_profile": support_cohort.get("recommended_profile"),
         "bull_support_neighbor_rows": support_cohort.get("rows"),

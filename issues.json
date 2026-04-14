@@ -1,63 +1,94 @@
 {
   "issues": [
     {
-      "id": "#H_AUTO_TW_DRIFT",
-      "priority": "P0",
-      "title": "TW-IC 連續低於 14/30：#668=12/30 -> #667=13/30",
-      "action": "停止沿用近期優勢敘事；升級為 distribution-aware / calibration drift 調查，檢查 recent label balance、regime mix、recent-window constant-target guardrail。recent_window=500, alerts=['label_imbalance', 'regime_concentration'], win_rate=0.9680, delta_vs_full=+0.3196, dominant_regime=chop(100.00%), interpretation=distribution_pathology, avg_pnl=+0.0144, avg_quality=0.5669, avg_dd_penalty=0.0768, spot_long_win_rate=0.3900, feature_diag=variance:16/49, distinct:15, null_heavy:27, variance_examples=feat_adx(0.0)/feat_choppiness(0.0)/feat_donchian_pos(0.0), distinct_examples=feat_adx(1/1)/feat_choppiness(1/1)/feat_donchian_pos(1/1), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0)",
-      "status": "resolved",
-      "created_at": "2026-04-11T04:03:21.817943",
-      "updated_at": "2026-04-14T06:08:27.176385",
-      "hb_detected": null
-    },
-    {
-      "id": "#H_AUTO_STALE",
-      "priority": "P0",
-      "title": "Raw 數據已 957 分鐘未更新",
-      "action": "檢查 main.py scheduler; 檢查 collector background process; 手動觸發 collect",
-      "status": "resolved",
-      "created_at": "2026-04-12T02:00:23.166273",
-      "updated_at": "2026-04-14T06:08:27.176374",
-      "hb_detected": null
-    },
-    {
-      "id": "#H_AUTO_STREAK",
-      "priority": "P0",
-      "title": "連續 200 筆 simulated_pyramid_win=0",
-      "action": "檢查 recent canonical labels / regime breakdown / circuit breaker；必要時升級為 distribution-aware drift 調查",
-      "status": "resolved",
-      "created_at": "2026-04-13T09:03:19.651069",
-      "updated_at": "2026-04-14T06:08:27.176365",
-      "hb_detected": null
-    },
-    {
-      "id": "#H_AUTO_REGIME_DRIFT",
+      "id": "P1_live_bull_4h_collapse",
       "priority": "P1",
-      "title": "TW-IC 21 vs Global IC 17 — 信號強依賴近期資料",
-      "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
+      "title": "bull live decision-quality path is still blocked by weak 4H structure pockets",
       "status": "open",
-      "created_at": "2026-04-13T09:03:54.444132",
-      "updated_at": "2026-04-14T06:08:27.176381",
-      "hb_detected": null
+      "summary": {
+        "live_probe_timestamp": "2026-04-14 09:48:47.989112",
+        "live_path": "bull|CAUTION|D",
+        "confidence": 0.920128,
+        "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+        "current_live_structure_bucket_support_rows": 0,
+        "runtime_policy": "predictor now treats exact live structure bucket support=0 as an explicit blocker; broader same-bucket scopes are informational only",
+        "supported_neighbor_buckets": [
+          "CAUTION|structure_quality_caution|q15",
+          "CAUTION|base_caution_regime_or_bias|q15",
+          "CAUTION|base_caution_regime_or_bias|q85"
+        ],
+        "bull_exact_live_lane_rows": 17,
+        "bull_exact_live_lane_win_rate": 0.2353,
+        "bull_exact_live_lane_quality": -0.0626,
+        "bull_regime_scope_rows": 194,
+        "bull_regime_scope_recent_pathology": true
+      },
+      "next_actions": [
+        "keep exact live bucket as an explicit deployment blocker while support remains zero",
+        "if fallback is allowed, restrict it to supported neighbor buckets instead of broader same-bucket scopes",
+        "continue bucket-level re-bucketing/down-weighting for the 4H collapse features"
+      ]
     },
     {
-      "id": "#H_AUTO_RECENT_PATHOLOGY",
-      "priority": "P0",
-      "title": "recent canonical window 500 rows = distribution_pathology",
-      "action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['label_imbalance'], win_rate=0.1620, delta_vs_full=-0.4651, dominant_regime=chop(78.00%), interpretation=distribution_pathology, avg_pnl=-0.0080, avg_quality=-0.1520, avg_dd_penalty=0.2491, spot_long_win_rate=0.0000, feature_diag=variance:14/49, frozen:5, compressed:9, expected_static:5, unexpected_frozen:0, distinct:15, null_heavy:10, tail_streak=54x1 since 2026-04-12 14:39:21.271319 -> 2026-04-12 15:44:02.220885, adverse_streak=398x0 since 2026-04-11 05:28:26.648180 -> 2026-04-12 13:39:36.317262, prev_win_rate=0.928, delta_vs_prev=-0.766, prev_quality=0.5266, quality_delta_vs_prev=-0.6786, prev_pnl=0.0129, pnl_delta_vs_prev=-0.0209, top_shift_examples=feat_4h_dist_bb_lower(6.1388→0.3215,Δσ=1.99)/feat_4h_dist_swing_low(8.7356→1.3127,Δσ=1.6367)/feat_4h_bb_pct_b(0.7588→0.102,Δσ=1.5821), frozen_examples=feat_4h_ma_order(0.0/1)/feat_vix(0.0/1)/feat_dxy(0.006/3), compressed_examples=feat_body(0.0001/500)/feat_ear(0.005/499)/feat_scales_ssr(0.0081/379), expected_static_examples=feat_4h_ma_order[discrete_regime_feature]/feat_dxy[weekend_macro_market_closed]/feat_nq_return_1h[weekend_macro_market_closed], distinct_examples=feat_nq_return_24h(2/8549)/feat_vix(1/1425)/feat_dxy(3/3227), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-12 15:41:35.936918:1:chop:0.6352/2026-04-12 15:42:49.087301:1:chop:0.6097/2026-04-12 15:44:02.220885:1:chop:0.5754, adverse_examples=2026-04-12 13:37:09.969092:0:chop:-0.1573/2026-04-12 13:38:22.705784:0:chop:-0.1354/2026-04-12 13:39:36.317262:0:chop:-0.1314",
-      "status": "resolved",
-      "created_at": "2026-04-13T09:38:16.663591",
-      "updated_at": "2026-04-14T06:08:27.176376",
-      "hb_detected": null
+      "id": "P1_feature_stack_variance",
+      "priority": "P1",
+      "title": "current_full feature stack is weaker than the shrinkage-selected baseline",
+      "status": "open",
+      "summary": {
+        "recommended_profile": "core_plus_macro",
+        "core_plus_macro": {
+          "cv_mean_accuracy": 0.733,
+          "cv_std_accuracy": 0.1787,
+          "cv_worst_accuracy": 0.455
+        },
+        "current_full": {
+          "cv_mean_accuracy": 0.6567,
+          "cv_std_accuracy": 0.1574,
+          "cv_worst_accuracy": 0.4538
+        },
+        "bull_all_best_profile": "core_plus_macro_plus_all_4h",
+        "bull_all_best_brier": 0.2241,
+        "training_pipeline_status": "model/train.py auto-selects recommended_profile from data/feature_group_ablation.json when target matches"
+      },
+      "next_actions": [
+        "compare current_full minus lags/cross against bucket-aware 4H variants",
+        "separate bull-all improvements from collapse-pocket improvements instead of forcing one shared 4H profile",
+        "raise cv_worst and reduce variance without adding user-facing parameter bloat"
+      ]
+    },
+    {
+      "id": "P2_leaderboard_lane_selection",
+      "priority": "P2",
+      "title": "leaderboard deployment_profile is still evidence-driven and hand-tuned rather than auto-learned",
+      "status": "open",
+      "summary": {
+        "current_state": "deployment_profile is exposed and more realistic than before, but model lane choice is still manual",
+        "target_state": "evaluate fixed candidate lanes per model and emit best/stable/production lanes"
+      },
+      "next_actions": [
+        "compare standard, bear_top10, bear_top5, and balanced_conviction lanes per model",
+        "promote the best lane from measured OOS results instead of hard-coded presets"
+      ]
     },
     {
       "id": "#H_AUTO_LIVE_DQ_PATHOLOGY",
       "priority": "P1",
       "title": "live predictor decision-quality contract is runtime-blocked by recent pathology, a toxic exact live lane, or a severe narrowed pathology lane",
-      "action": "把 hb_predict_probe 納入每輪 heartbeat 驗證，對 exact live lane、當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；優先檢查 exact lane 是否仍是 ALLOW 但 canonical true-negative share 已偏高，並交叉比對 recent same-scope / narrowed-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。 live_scope=regime_gate+entry_quality_label, regime=bull/ALLOW, label=D, sample_size=117, window=100, alerts=['label_imbalance'], expected_win_rate=0.0, expected_pnl=-0.0108, expected_quality=-0.2789, layers=0→0, top_shifts=feat_4h_dist_swing_low(11.1642→7.1769)/feat_4h_dist_bb_lower(8.1222→6.8611)/feat_4h_bb_pct_b(1.6523→1.1619), exact_live_lane=(rows=14,wr=0.5,q=0.2412,dd=0.2041,tuw=0.4575,recent500_dom=bull|ALLOW@1.0,targets=loss:7/win:7,true_negative_rows=7@0.5,final_gate=ALLOW:14), scope_matrix=regime_label+regime_gate+entry_quality_label:rows=14,wr=0.5,q=0.2412,dd=0.2041,tuw=0.4575,alerts=[],recent500_dominant=bull@1.0,recent500_gate_dominant=ALLOW@1.0,recent500_regime_gate_dominant=bull|ALLOW@1.0,recent500_regimes=bull:14,recent500_gates=ALLOW:14,recent500_regime_gates=bull|ALLOW:14; regime_gate+entry_quality_label:rows=117,wr=0.2393,q=-0.0548,dd=0.3287,tuw=0.7418,alerts=[],recent500_dominant=neutral@0.8718,recent500_gate_dominant=ALLOW@1.0,recent500_regime_gate_dominant=neutral|ALLOW@0.8718,recent500_regimes=neutral:102/bull:14/bear:1,recent500_gates=ALLOW:117,recent500_regime_gates=neutral|ALLOW:102/bull|ALLOW:14/bear|ALLOW:1,spillover_rows=103,spillover_share=0.8803,spillover_wr_delta=-0.2607,spillover_q_delta=-0.296,spillover_pnl_delta=-0.01,spillover_gate_dominant=ALLOW@1.0,spillover_regime_gate_dominant=neutral|ALLOW@0.9903,spillover_gates=ALLOW:103,spillover_regime_gates=neutral|ALLOW:102/bear|ALLOW:1,spillover_worst=bear|ALLOW(rows=1,wr=0.0,q=-0.5039,pnl=-0.0241,dd=0.5351,tuw=0.9615),spillover_feature_shift=feat_4h_dist_bb_lower(10.2643→1.5027,Δ=-8.7616)/feat_4h_dist_swing_low(12.9839→9.9286,Δ=-3.0553)/feat_4h_bb_pct_b(1.2271→0.2357,Δ=-0.9914),spillover_gate_inputs=feat_4h_bias200(1.5796→1.4857,Δ=-0.0939)/feat_4h_bb_pct_b(1.2271→0.2357,Δ=-0.9914)/feat_4h_dist_bb_lower(10.2643→1.5027,Δ=-8.7616)/feat_4h_dist_swing_low(12.9839→9.9286,Δ=-3.0553),spillover_gate_path=final[ALLOW:1]|reason[base_allow:1]|base[ALLOW:1]|avg_structure=0.4698|structure_q[min:0.4698,p25:0.4698,p50:0.4698,p75:0.4698,max:0.4698]|structure_bands[block:0,caution:0,allow:1]|targets[loss:1]|pnl_signs[negative:1/positive:0/zero:0]|quality_signs[negative:1/positive:0/zero:0]|true_negative_rows=1@1.0|avg_bias200=1.4857|missing_rows=0,exact_gate_path=final[ALLOW:14]|reason[base_allow:14]|base[ALLOW:14]|avg_structure=0.9905|structure_q[min:0.9671,p25:0.9819,p50:0.9936,p75:1.0,max:1.0]|structure_bands[block:0,caution:0,allow:14]|targets[loss:7/win:7]|pnl_signs[negative:7/positive:7/zero:0]|quality_signs[negative:7/positive:7/zero:0]|true_negative_rows=7@0.5|avg_bias200=1.5796|missing_rows=0; regime_label+entry_quality_label:rows=147,wr=0.0748,q=-0.2098,dd=0.2833,tuw=0.804,alerts=['label_imbalance'],recent500_dominant=bull@1.0,recent500_gate_dominant=BLOCK@0.7891,recent500_regime_gate_dominant=bull|BLOCK@0.7891,recent500_regimes=bull:147,recent500_gates=BLOCK:116/CAUTION:17/ALLOW:14,recent500_regime_gates=bull|BLOCK:116/bull|CAUTION:17/bull|ALLOW:14,spillover_rows=133,spillover_share=0.9048,spillover_wr_delta=-0.4252,spillover_q_delta=-0.451,spillover_pnl_delta=-0.0167,spillover_gate_dominant=BLOCK@0.8722,spillover_regime_gate_dominant=bull|BLOCK@0.8722,spillover_gates=BLOCK:116/CAUTION:17,spillover_regime_gates=bull|BLOCK:116/bull|CAUTION:17,spillover_worst=bull|BLOCK(rows=116,wr=0.0,q=-0.2858,pnl=-0.0111,dd=0.2974,tuw=0.8747),spillover_feature_shift=feat_4h_dist_swing_low(12.9839→2.9611,Δ=-10.0228)/feat_4h_dist_bb_lower(10.2643→1.4677,Δ=-8.7966)/feat_4h_bias200(1.5796→2.7037,Δ=1.1241),spillover_gate_inputs=feat_4h_bias200(1.5796→2.7037,Δ=1.1241)/feat_4h_bb_pct_b(1.2271→0.2252,Δ=-1.0019)/feat_4h_dist_bb_lower(10.2643→1.4677,Δ=-8.7966)/feat_4h_dist_swing_low(12.9839→2.9611,Δ=-10.0228),spillover_gate_path=final[BLOCK:116]|reason[structure_overextended_block:10/structure_quality_block:106]|base[ALLOW:116]|avg_structure=0.1886|structure_q[min:0.0908,p25:0.1064,p50:0.1138,p75:0.1208,max:1.0]|structure_bands[block:106,caution:0,allow:10]|targets[loss:116]|pnl_signs[negative:116/positive:0/zero:0]|quality_signs[negative:116/positive:0/zero:0]|true_negative_rows=116@1.0|avg_bias200=2.7037|missing_rows=0,exact_gate_path=final[ALLOW:14]|reason[base_allow:14]|base[ALLOW:14]|avg_structure=0.9905|structure_q[min:0.9671,p25:0.9819,p50:0.9936,p75:1.0,max:1.0]|structure_bands[block:0,caution:0,allow:14]|targets[loss:7/win:7]|pnl_signs[negative:7/positive:7/zero:0]|quality_signs[negative:7/positive:7/zero:0]|true_negative_rows=7@0.5|avg_bias200=1.5796|missing_rows=0; entry_quality_label:rows=3610,wr=0.6482,q=0.2932,dd=0.2383,tuw=0.5764,alerts=[],recent500_dominant=chop@0.78,recent500_gate_dominant=CAUTION@0.788,recent500_regime_gate_dominant=chop|CAUTION@0.78,recent500_regimes=chop:390/bull:110,recent500_gates=CAUTION:394/BLOCK:106,recent500_regime_gates=chop|CAUTION:390/bull|BLOCK:106/bull|CAUTION:4,spillover_rows=3596,spillover_share=0.9961,spillover_wr_delta=0.1482,spillover_q_delta=0.052,spillover_pnl_delta=0.0003,spillover_gate_dominant=CAUTION@0.788,spillover_regime_gate_dominant=chop|CAUTION@0.78,spillover_gates=CAUTION:394/BLOCK:106,spillover_regime_gates=chop|CAUTION:390/bull|BLOCK:106/bull|CAUTION:4,spillover_worst=bear|ALLOW(rows=1,wr=0.0,q=-0.5039,pnl=-0.0241,dd=0.5351,tuw=0.9615),spillover_feature_shift=feat_4h_dist_bb_lower(10.2643→1.5027,Δ=-8.7616)/feat_4h_dist_swing_low(12.9839→9.9286,Δ=-3.0553)/feat_4h_bb_pct_b(1.2271→0.2357,Δ=-0.9914),spillover_gate_inputs=feat_4h_bias200(1.5796→1.4857,Δ=-0.0939)/feat_4h_bb_pct_b(1.2271→0.2357,Δ=-0.9914)/feat_4h_dist_bb_lower(10.2643→1.5027,Δ=-8.7616)/feat_4h_dist_swing_low(12.9839→9.9286,Δ=-3.0553),spillover_gate_path=final[ALLOW:1]|reason[base_allow:1]|base[ALLOW:1]|avg_structure=0.4698|structure_q[min:0.4698,p25:0.4698,p50:0.4698,p75:0.4698,max:0.4698]|structure_bands[block:0,caution:0,allow:1]|targets[loss:1]|pnl_signs[negative:1/positive:0/zero:0]|quality_signs[negative:1/positive:0/zero:0]|true_negative_rows=1@1.0|avg_bias200=1.4857|missing_rows=0,exact_gate_path=final[ALLOW:14]|reason[base_allow:14]|base[ALLOW:14]|avg_structure=0.9905|structure_q[min:0.9671,p25:0.9819,p50:0.9936,p75:1.0,max:1.0]|structure_bands[block:0,caution:0,allow:14]|targets[loss:7/win:7]|pnl_signs[negative:7/positive:7/zero:0]|quality_signs[negative:7/positive:7/zero:0]|true_negative_rows=7@0.5|avg_bias200=1.5796|missing_rows=0, shared_shifts=feat_4h_dist_swing_low[x2]/feat_4h_dist_bb_lower[x2]/feat_4h_bb_pct_b[x2], worst_scope=regime_label+entry_quality_label(wr=0.0748,q=-0.2098,rows=147,dd=0.2833,tuw=0.804,recent500_dominant=bull@1.0,recent500_gate_dominant=BLOCK@0.7891,recent500_regime_gate_dominant=bull|BLOCK@0.7891,recent500_regimes=bull:147,recent500_gates=BLOCK:116/CAUTION:17/ALLOW:14,recent500_regime_gates=bull|BLOCK:116/bull|CAUTION:17/bull|ALLOW:14)",
-      "status": "resolved",
-      "created_at": "2026-04-13T17:55:58.388360",
-      "updated_at": "2026-04-14T06:08:27.176379",
+      "action": "把 hb_predict_probe 納入每輪 heartbeat 驗證，對 exact live lane、當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；優先檢查 exact lane 是否仍是 ALLOW 但 canonical true-negative share 已偏高，並交叉比對 recent same-scope / narrowed-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。 live_scope=regime_label, regime=bull/ALLOW, label=D, sample_size=200, window=100, alerts=['label_imbalance'], expected_win_rate=0.06, expected_pnl=-0.0089, expected_quality=-0.2219, layers=0→0, top_shifts=feat_4h_dist_bb_lower(4.3561→0.5515)/feat_4h_dist_swing_low(5.3349→1.7567)/feat_4h_bb_pct_b(0.5818→0.1745), exact_live_lane=(rows=14,wr=0.5,q=0.2412,dd=0.2041,tuw=0.4575,recent500_dom=bull|ALLOW@1.0,targets=loss:7/win:7,true_negative_rows=7@0.5,final_gate=ALLOW:14), scope_matrix=regime_label+regime_gate+entry_quality_label:rows=14,wr=0.5,q=0.2412,dd=0.2041,tuw=0.4575,alerts=[],recent500_dominant=bull@1.0,recent500_gate_dominant=ALLOW@1.0,recent500_regime_gate_dominant=bull|ALLOW@1.0,recent500_regimes=bull:14,recent500_gates=ALLOW:14,recent500_regime_gates=bull|ALLOW:14; regime_gate+entry_quality_label:rows=115,wr=0.2348,q=-0.0575,dd=0.3297,tuw=0.7464,alerts=[],recent500_dominant=neutral@0.8783,recent500_gate_dominant=ALLOW@1.0,recent500_regime_gate_dominant=neutral|ALLOW@0.8783,recent500_regimes=neutral:101/bull:14,recent500_gates=ALLOW:115,recent500_regime_gates=neutral|ALLOW:101/bull|ALLOW:14,spillover_rows=101,spillover_share=0.8783,spillover_wr_delta=-0.2652,spillover_q_delta=-0.2987,spillover_pnl_delta=-0.01,spillover_gate_dominant=ALLOW@1.0,spillover_regime_gate_dominant=neutral|ALLOW@1.0,spillover_gates=ALLOW:101,spillover_regime_gates=neutral|ALLOW:101,spillover_worst=neutral|ALLOW(rows=101,wr=0.198,q=-0.0989,pnl=-0.0032,dd=0.3471,tuw=0.7864),spillover_feature_shift=feat_4h_dist_swing_low(12.9839→7.0403,Δ=-5.9436)/feat_4h_dist_bb_lower(10.2643→6.69,Δ=-3.5743)/feat_4h_bias200(1.5796→1.7616,Δ=0.182),spillover_gate_inputs=feat_4h_bias200(1.5796→1.7616,Δ=0.182)/feat_4h_bb_pct_b(1.2271→1.2302,Δ=0.0031)/feat_4h_dist_bb_lower(10.2643→6.69,Δ=-3.5743)/feat_4h_dist_swing_low(12.9839→7.0403,Δ=-5.9436),spillover_gate_path=final[ALLOW:101]|reason[base_allow:101]|base[ALLOW:101]|avg_structure=0.8397|structure_q[min:0.6624,p25:0.7728,p50:0.7983,p75:0.9687,max:0.98]|structure_bands[block:0,caution:0,allow:101]|targets[loss:81/win:20]|pnl_signs[negative:81/positive:20/zero:0]|quality_signs[negative:81/positive:20/zero:0]|true_negative_rows=81@0.802|avg_bias200=1.7616|missing_rows=0,exact_gate_path=final[ALLOW:14]|reason[base_allow:14]|base[ALLOW:14]|avg_structure=0.9905|structure_q[min:0.9671,p25:0.9819,p50:0.9936,p75:1.0,max:1.0]|structure_bands[block:0,caution:0,allow:14]|targets[loss:7/win:7]|pnl_signs[negative:7/positive:7/zero:0]|quality_signs[negative:7/positive:7/zero:0]|true_negative_rows=7@0.5|avg_bias200=1.5796|missing_rows=0; regime_label+entry_quality_label:rows=153,wr=0.1111,q=-0.1746,dd=0.2772,tuw=0.7786,alerts=['label_imbalance'],recent500_dominant=bull@1.0,recent500_gate_dominant=BLOCK@0.7582,recent500_regime_gate_dominant=bull|BLOCK@0.7582,recent500_regimes=bull:153,recent500_gates=BLOCK:116/CAUTION:23/ALLOW:14,recent500_regime_gates=bull|BLOCK:116/bull|CAUTION:23/bull|ALLOW:14,spillover_rows=139,spillover_share=0.9085,spillover_wr_delta=-0.3889,spillover_q_delta=-0.4158,spillover_pnl_delta=-0.0155,spillover_gate_dominant=BLOCK@0.8345,spillover_regime_gate_dominant=bull|BLOCK@0.8345,spillover_gates=BLOCK:116/CAUTION:23,spillover_regime_gates=bull|BLOCK:116/bull|CAUTION:23,spillover_worst=bull|BLOCK(rows=116,wr=0.0,q=-0.2858,pnl=-0.0111,dd=0.2974,tuw=0.8747),spillover_feature_shift=feat_4h_dist_swing_low(12.9839→2.9611,Δ=-10.0228)/feat_4h_dist_bb_lower(10.2643→1.4677,Δ=-8.7966)/feat_4h_bias200(1.5796→2.7037,Δ=1.1241),spillover_gate_inputs=feat_4h_bias200(1.5796→2.7037,Δ=1.1241)/feat_4h_bb_pct_b(1.2271→0.2252,Δ=-1.0019)/feat_4h_dist_bb_lower(10.2643→1.4677,Δ=-8.7966)/feat_4h_dist_swing_low(12.9839→2.9611,Δ=-10.0228),spillover_gate_path=final[BLOCK:116]|reason[structure_overextended_block:10/structure_quality_block:106]|base[ALLOW:116]|avg_structure=0.1886|structure_q[min:0.0908,p25:0.1064,p50:0.1138,p75:0.1208,max:1.0]|structure_bands[block:106,caution:0,allow:10]|targets[loss:116]|pnl_signs[negative:116/positive:0/zero:0]|quality_signs[negative:116/positive:0/zero:0]|true_negative_rows=116@1.0|avg_bias200=2.7037|missing_rows=0,exact_gate_path=final[ALLOW:14]|reason[base_allow:14]|base[ALLOW:14]|avg_structure=0.9905|structure_q[min:0.9671,p25:0.9819,p50:0.9936,p75:1.0,max:1.0]|structure_bands[block:0,caution:0,allow:14]|targets[loss:7/win:7]|pnl_signs[negative:7/positive:7/zero:0]|quality_signs[negative:7/positive:7/zero:0]|true_negative_rows=7@0.5|avg_bias200=1.5796|missing_rows=0; entry_quality_label:rows=3605,wr=0.6685,q=0.3173,dd=0.2297,tuw=0.5606,alerts=[],recent500_dominant=chop@0.878,recent500_gate_dominant=CAUTION@0.898,recent500_regime_gate_dominant=chop|CAUTION@0.878,recent500_regimes=chop:439/bull:61,recent500_gates=CAUTION:449/BLOCK:51,recent500_regime_gates=chop|CAUTION:439/bull|BLOCK:51/bull|CAUTION:10,spillover_rows=3591,spillover_share=0.9961,spillover_wr_delta=0.1685,spillover_q_delta=0.0761,spillover_pnl_delta=0.0013,spillover_gate_dominant=CAUTION@0.898,spillover_regime_gate_dominant=chop|CAUTION@0.878,spillover_gates=CAUTION:449/BLOCK:51,spillover_regime_gates=chop|CAUTION:439/bull|BLOCK:51/bull|CAUTION:10,spillover_worst=bull|BLOCK(rows=116,wr=0.0,q=-0.2858,pnl=-0.0111,dd=0.2974,tuw=0.8747),spillover_feature_shift=feat_4h_dist_swing_low(12.9839→2.9611,Δ=-10.0228)/feat_4h_dist_bb_lower(10.2643→1.4677,Δ=-8.7966)/feat_4h_bias200(1.5796→2.7037,Δ=1.1241),spillover_gate_inputs=feat_4h_bias200(1.5796→2.7037,Δ=1.1241)/feat_4h_bb_pct_b(1.2271→0.2252,Δ=-1.0019)/feat_4h_dist_bb_lower(10.2643→1.4677,Δ=-8.7966)/feat_4h_dist_swing_low(12.9839→2.9611,Δ=-10.0228),spillover_gate_path=final[BLOCK:116]|reason[structure_overextended_block:10/structure_quality_block:106]|base[ALLOW:116]|avg_structure=0.1886|structure_q[min:0.0908,p25:0.1064,p50:0.1138,p75:0.1208,max:1.0]|structure_bands[block:106,caution:0,allow:10]|targets[loss:116]|pnl_signs[negative:116/positive:0/zero:0]|quality_signs[negative:116/positive:0/zero:0]|true_negative_rows=116@1.0|avg_bias200=2.7037|missing_rows=0,exact_gate_path=final[ALLOW:14]|reason[base_allow:14]|base[ALLOW:14]|avg_structure=0.9905|structure_q[min:0.9671,p25:0.9819,p50:0.9936,p75:1.0,max:1.0]|structure_bands[block:0,caution:0,allow:14]|targets[loss:7/win:7]|pnl_signs[negative:7/positive:7/zero:0]|quality_signs[negative:7/positive:7/zero:0]|true_negative_rows=7@0.5|avg_bias200=1.5796|missing_rows=0, shared_shifts=feat_4h_dist_swing_low[x2]/feat_4h_dist_bb_lower[x2]/feat_4h_bb_pct_b[x2], worst_scope=regime_label+entry_quality_label(wr=0.1111,q=-0.1746,rows=153,dd=0.2772,tuw=0.7786,recent500_dominant=bull@1.0,recent500_gate_dominant=BLOCK@0.7582,recent500_regime_gate_dominant=bull|BLOCK@0.7582,recent500_regimes=bull:153,recent500_gates=BLOCK:116/CAUTION:23/ALLOW:14,recent500_regime_gates=bull|BLOCK:116/bull|CAUTION:23/bull|ALLOW:14)",
+      "status": "open",
+      "created_at": "2026-04-14T10:06:02.477864",
+      "updated_at": "2026-04-14T15:53:18.205704",
+      "hb_detected": null
+    },
+    {
+      "id": "#H_AUTO_REGIME_DRIFT",
+      "priority": "P1",
+      "title": "TW-IC 27 vs Global IC 18 — 信號強依賴近期資料",
+      "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
+      "status": "open",
+      "created_at": "2026-04-14T10:34:38.171911",
+      "updated_at": "2026-04-14T15:53:18.205711",
       "hb_detected": null
     }
   ]
