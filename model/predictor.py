@@ -1841,6 +1841,30 @@ def _structure_bucket_support_guardrail(
     support_metrics = chosen_info.get("current_live_structure_bucket_metrics") or {}
     dominant_structure_bucket = (chosen_info.get("recent500_dominant_structure_bucket") or {}).get("structure_bucket")
 
+    fallback_scope_name = None
+    fallback_scope_rows = 0
+    fallback_scope_share = None
+    fallback_metrics = None
+    for scope_name, scope_info in (scope_diagnostics or {}).items():
+        if scope_name == "pathology_consensus" or not isinstance(scope_info, dict):
+            continue
+        candidate_rows = int(scope_info.get("current_live_structure_bucket_rows") or 0)
+        if candidate_rows <= 0:
+            continue
+        candidate_share = scope_info.get("current_live_structure_bucket_share")
+        candidate_share = float(candidate_share) if candidate_share is not None else None
+        if (
+            candidate_rows > fallback_scope_rows
+            or (
+                candidate_rows == fallback_scope_rows
+                and (candidate_share or 0.0) > (fallback_scope_share or 0.0)
+            )
+        ):
+            fallback_scope_name = scope_name
+            fallback_scope_rows = candidate_rows
+            fallback_scope_share = candidate_share
+            fallback_metrics = scope_info.get("current_live_structure_bucket_metrics") or {}
+
     apply_guardrail = support_rows < 5
     if not apply_guardrail and support_share is not None and dominant_structure_bucket:
         apply_guardrail = support_share < 0.1 and dominant_structure_bucket != live_structure_bucket
@@ -1852,23 +1876,41 @@ def _structure_bucket_support_guardrail(
     expected_quality_new = expected_quality
     expected_drawdown_penalty_new = expected_drawdown_penalty
     expected_time_underwater_new = expected_time_underwater
-    if support_rows >= 5 and support_metrics:
-        expected_win_rate_new = _min_optional(expected_win_rate_new, support_metrics.get("win_rate"))
-        expected_pnl_new = _min_optional(expected_pnl_new, support_metrics.get("avg_pnl"))
-        expected_quality_new = _min_optional(expected_quality_new, support_metrics.get("avg_quality"))
+    fallback_reason = None
+    metrics_to_apply = support_metrics if support_metrics else None
+    metrics_scope_name = chosen_scope
+    metrics_scope_rows = support_rows
+    metrics_scope_share = support_share
+    if fallback_scope_name and (not metrics_to_apply or fallback_scope_rows > metrics_scope_rows):
+        metrics_to_apply = fallback_metrics
+        metrics_scope_name = fallback_scope_name
+        metrics_scope_rows = fallback_scope_rows
+        metrics_scope_share = fallback_scope_share
+        fallback_reason = (
+            f" using broader same-bucket scope {fallback_scope_name}"
+            f" (support_rows={fallback_scope_rows}, support_share={_round_optional(fallback_scope_share)})"
+        )
+
+    if metrics_to_apply:
+        expected_win_rate_new = _min_optional(expected_win_rate_new, metrics_to_apply.get("win_rate"))
+        expected_pnl_new = _min_optional(expected_pnl_new, metrics_to_apply.get("avg_pnl"))
+        expected_quality_new = _min_optional(expected_quality_new, metrics_to_apply.get("avg_quality"))
         expected_drawdown_penalty_new = _max_optional(
             expected_drawdown_penalty_new,
-            support_metrics.get("avg_drawdown_penalty"),
+            metrics_to_apply.get("avg_drawdown_penalty"),
         )
         expected_time_underwater_new = _max_optional(
             expected_time_underwater_new,
-            support_metrics.get("avg_time_underwater"),
+            metrics_to_apply.get("avg_time_underwater"),
         )
 
     reason = (
         f"chosen scope {chosen_scope} has weak support for live structure bucket {live_structure_bucket} "
         f"(support_rows={support_rows}, support_share={_round_optional(support_share)}, "
         f"dominant_bucket={dominant_structure_bucket or 'unknown'})"
+        f"; applied bucket metrics from {metrics_scope_name}"
+        f" (rows={metrics_scope_rows}, share={_round_optional(metrics_scope_share)})"
+        f"{fallback_reason or ''}"
     )
     return {
         "applied": True,
@@ -1909,8 +1951,15 @@ def _summarize_decision_quality_contract(
                 30,
             )
         )
+    selection_lanes.append(
+        ("regime_gate+entry_quality_label", lambda row: row.get("regime_gate") == target_gate and row.get("entry_quality_label") == target_quality_label, 30)
+    )
+    if target_regime_label:
+        selection_lanes.extend([
+            ("regime_label+entry_quality_label", lambda row: row.get("regime_label") == target_regime_label and row.get("entry_quality_label") == target_quality_label, 30),
+            ("regime_label", lambda row: row.get("regime_label") == target_regime_label, 50),
+        ])
     selection_lanes.extend([
-        ("regime_gate+entry_quality_label", lambda row: row.get("regime_gate") == target_gate and row.get("entry_quality_label") == target_quality_label, 30),
         ("regime_gate", lambda row: row.get("regime_gate") == target_gate, 50),
         ("entry_quality_label", lambda row: row.get("entry_quality_label") == target_quality_label, 50),
         ("global", lambda row: True, 1),
@@ -1926,16 +1975,33 @@ def _summarize_decision_quality_contract(
         if len(scoped_rows) < min_rows:
             continue
         scope_alerts = _decision_quality_scope_alerts(scoped_rows)
+        scope_win_rate = _avg_metric(scoped_rows, "simulated_pyramid_win")
+        scope_pnl = _avg_metric(scoped_rows, "simulated_pyramid_pnl")
+        scope_quality = _avg_metric(scoped_rows, "simulated_pyramid_quality")
+        reject_scope = False
+        if "constant_target" in scope_alerts:
+            reject_scope = True
+        elif "label_imbalance" in scope_alerts:
+            reject_scope = any(
+                condition
+                for condition in (
+                    scope_win_rate is not None and float(scope_win_rate) <= 0.2,
+                    scope_pnl is not None and float(scope_pnl) < 0,
+                    scope_quality is not None and float(scope_quality) < 0,
+                )
+            )
         if enforce_scope_guardrails and scope_name != "global" and any(
             alert in scope_alerts for alert in ("constant_target", "label_imbalance")
         ):
-            scope_guardrail_applied = True
-            scope_guardrail_alerts = scope_alerts
-            scope_guardrail_reason = (
-                f"scope {scope_name} rejected via alerts={scope_alerts} "
-                f"(rows={len(scoped_rows)})"
-            )
-            continue
+            if reject_scope:
+                scope_guardrail_applied = True
+                scope_guardrail_alerts = scope_alerts
+                scope_guardrail_reason = (
+                    f"scope {scope_name} rejected via alerts={scope_alerts} "
+                    f"(rows={len(scoped_rows)}, win_rate={_round_optional(scope_win_rate)}, "
+                    f"pnl={_round_optional(scope_pnl)}, quality={_round_optional(scope_quality)})"
+                )
+                continue
         chosen_scope = scope_name
         chosen_rows = scoped_rows
         break

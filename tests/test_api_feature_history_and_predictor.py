@@ -953,6 +953,93 @@ def test_decision_quality_contract_flags_unsupported_live_structure_bucket_when_
 
 
 
+def test_decision_quality_contract_keeps_positive_same_regime_lane_and_clamps_to_bucket_support():
+    rows = []
+    for i in range(46):
+        rows.append(
+            {
+                "timestamp": f"2026-04-14T00:{i:02d}:00",
+                "symbol": "BTCUSDT",
+                "regime_label": "neutral",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "C",
+                "structure_bucket": "ALLOW|base_allow|q85",
+                "feat_4h_dist_bb_lower": 8.6,
+                "feat_4h_dist_swing_low": 9.1,
+                "feat_4h_bb_pct_b": 1.07,
+                "simulated_pyramid_win": 0.0,
+                "simulated_pyramid_pnl": -0.0035,
+                "simulated_pyramid_quality": -0.1906,
+                "simulated_pyramid_drawdown_penalty": 0.3414,
+                "simulated_pyramid_time_underwater": 0.78,
+            }
+        )
+    for i in range(46):
+        rows.append(
+            {
+                "timestamp": f"2026-04-13T01:{i:02d}:00",
+                "symbol": "BTCUSDT",
+                "regime_label": "bull",
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "C",
+                "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                "feat_4h_dist_bb_lower": 1.76,
+                "feat_4h_dist_swing_low": 1.86,
+                "feat_4h_bb_pct_b": 0.35,
+                "simulated_pyramid_win": 1.0 if i < 39 else 0.0,
+                "simulated_pyramid_pnl": 0.0015 if i < 39 else -0.001,
+                "simulated_pyramid_quality": 0.3618 if i < 39 else 0.02,
+                "simulated_pyramid_drawdown_penalty": 0.0709 if i < 39 else 0.11,
+                "simulated_pyramid_time_underwater": 0.2434 if i < 39 else 0.31,
+            }
+        )
+    for i in range(2):
+        rows.append(
+            {
+                "timestamp": f"2026-04-12T02:{i:02d}:00",
+                "symbol": "BTCUSDT",
+                "regime_label": "neutral",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "D",
+                "structure_bucket": "ALLOW|base_allow|q35",
+                "feat_4h_dist_bb_lower": 6.8,
+                "feat_4h_dist_swing_low": 7.1,
+                "feat_4h_bb_pct_b": 0.64,
+                "simulated_pyramid_win": 1.0 if i == 0 else 0.0,
+                "simulated_pyramid_pnl": 0.001 if i == 0 else -0.0048,
+                "simulated_pyramid_quality": 0.24 if i == 0 else -0.0408,
+                "simulated_pyramid_drawdown_penalty": 0.2 if i == 0 else 0.24,
+                "simulated_pyramid_time_underwater": 0.46 if i == 0 else 0.55,
+            }
+        )
+
+    contract = predictor_module._summarize_decision_quality_contract(
+        rows,
+        {
+            "regime_label": "bull",
+            "regime_gate": "ALLOW",
+            "entry_quality_label": "C",
+            "structure_bucket": "ALLOW|base_allow|q35",
+            "decision_profile_version": "phase16_baseline_v2",
+        },
+        enforce_scope_guardrails=True,
+    )
+
+    assert contract["decision_quality_scope_guardrail_applied"] is True
+    assert "scope regime_gate+entry_quality_label rejected" in contract["decision_quality_scope_guardrail_reason"]
+    assert contract["decision_quality_calibration_scope"] == "regime_label+entry_quality_label"
+    assert contract["decision_quality_sample_size"] == 46
+    assert contract["decision_quality_structure_bucket_guardrail_applied"] is True
+    assert contract["decision_quality_structure_bucket_support_rows"] == 0
+    assert "applied bucket metrics from regime_gate" in contract["decision_quality_structure_bucket_guardrail_reason"]
+    assert contract["expected_win_rate"] == 0.5
+    assert contract["expected_pyramid_pnl"] == -0.0019
+    assert contract["expected_pyramid_quality"] == 0.0996
+    assert contract["expected_drawdown_penalty"] == 0.22
+    assert contract["expected_time_underwater"] == 0.505
+
+
+
 def test_recent_scope_pathology_prefers_more_persistent_negative_window_when_scores_tie():
     def _ts(i: int) -> str:
         return f"2026-04-12T{(i // 60):02d}:{(i % 60):02d}:00"
