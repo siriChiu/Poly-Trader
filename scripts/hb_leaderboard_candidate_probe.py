@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 import sys
@@ -102,6 +103,117 @@ def _production_profile_role(train_profile_source: Any) -> str:
     return "production_profile_unspecified"
 
 
+def _load_recent_support_history(
+    *,
+    current_entry: dict[str, Any] | None = None,
+    limit: int = 5,
+    data_dir: Path | None = None,
+) -> list[dict[str, Any]]:
+    history: list[dict[str, Any]] = []
+    if current_entry and current_entry.get("live_current_structure_bucket"):
+        history.append(current_entry)
+
+    summaries_dir = data_dir or (PROJECT_ROOT / "data")
+    summary_files = sorted(
+        summaries_dir.glob("heartbeat_*_summary.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for path in summary_files:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        diag = payload.get("leaderboard_candidate_diagnostics") or {}
+        if not isinstance(diag, dict):
+            continue
+        heartbeat = str(payload.get("heartbeat") or path.stem)
+        candidate = {
+            "heartbeat": heartbeat,
+            "live_current_structure_bucket": diag.get("live_current_structure_bucket"),
+            "live_current_structure_bucket_rows": int(diag.get("live_current_structure_bucket_rows") or 0),
+            "minimum_support_rows": int(diag.get("minimum_support_rows") or 0),
+            "support_governance_route": diag.get("support_governance_route"),
+            "governance_verdict": ((diag.get("governance_contract") or {}).get("verdict")),
+        }
+        if not candidate["live_current_structure_bucket"]:
+            continue
+        if any(existing.get("heartbeat") == heartbeat for existing in history):
+            continue
+        history.append(candidate)
+        if len(history) >= limit:
+            break
+    return history
+
+
+def _summarize_support_progress(
+    *,
+    current_bucket: Any,
+    current_route: str | None,
+    live_bucket_rows: Any,
+    minimum_support_rows: int,
+    current_label: str | None,
+    data_dir: Path | None = None,
+) -> dict[str, Any]:
+    current_rows = int(live_bucket_rows or 0)
+    current_entry = {
+        "heartbeat": str(current_label or "current"),
+        "live_current_structure_bucket": current_bucket,
+        "live_current_structure_bucket_rows": current_rows,
+        "minimum_support_rows": int(minimum_support_rows or 0),
+        "support_governance_route": current_route,
+        "governance_verdict": None,
+    }
+    history = _load_recent_support_history(current_entry=current_entry, limit=5, data_dir=data_dir)
+    relevant = [
+        item for item in history
+        if item.get("live_current_structure_bucket") == current_bucket
+        and item.get("support_governance_route") == current_route
+    ]
+
+    previous = relevant[1] if len(relevant) > 1 else None
+    delta_vs_previous = None
+    if previous is not None:
+        delta_vs_previous = current_rows - int(previous.get("live_current_structure_bucket_rows") or 0)
+
+    stagnant_run_count = 1
+    for item in relevant[1:]:
+        if int(item.get("live_current_structure_bucket_rows") or 0) == current_rows:
+            stagnant_run_count += 1
+            continue
+        break
+
+    if current_route == "exact_live_bucket_supported" or current_rows >= int(minimum_support_rows or 0):
+        status = "exact_supported"
+        reason = "current live exact bucket 已達 minimum support，治理焦點可轉向 post-threshold leaderboard sync。"
+    elif previous is None:
+        status = "no_recent_comparable_history"
+        reason = "目前找不到同一 current live structure bucket + route 的最近 heartbeat 可比對；先持續累積 support。"
+    elif delta_vs_previous and delta_vs_previous > 0:
+        status = "accumulating"
+        reason = "current live exact support 仍低於 minimum，但最近 heartbeat 已持續增加。"
+    elif delta_vs_previous == 0:
+        status = "stalled_under_minimum"
+        reason = "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。"
+    else:
+        status = "regressed_under_minimum"
+        reason = "current live exact support 較上一輪回落，需檢查 lane/bucket 是否切換或 support artifact 是否退化。"
+
+    return {
+        "status": status,
+        "reason": reason,
+        "current_rows": current_rows,
+        "minimum_support_rows": int(minimum_support_rows or 0),
+        "gap_to_minimum": max(int(minimum_support_rows or 0) - current_rows, 0),
+        "delta_vs_previous": delta_vs_previous,
+        "previous_rows": None if previous is None else int(previous.get("live_current_structure_bucket_rows") or 0),
+        "stagnant_run_count": stagnant_run_count,
+        "stalled_support_accumulation": status == "stalled_under_minimum",
+        "escalate_to_blocker": status == "stalled_under_minimum" and stagnant_run_count >= 3,
+        "history": history,
+    }
+
+
 def _build_governance_contract(
     *,
     dual_profile_state: str,
@@ -109,6 +221,7 @@ def _build_governance_contract(
     support_governance_route: str | None,
     minimum_support_rows: int,
     live_bucket_rows: Any,
+    support_progress: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     live_rows = int(live_bucket_rows or 0)
     gap_to_minimum = max(int(minimum_support_rows or 0) - live_rows, 0)
@@ -117,6 +230,7 @@ def _build_governance_contract(
     production_profile = profile_split.get("production_profile")
     global_role = profile_split.get("global_profile_role")
     production_role = profile_split.get("production_profile_role")
+    support_progress = support_progress or {}
 
     if dual_profile_state == "stale_alignment_snapshot":
         return {
@@ -134,6 +248,7 @@ def _build_governance_contract(
             "minimum_support_rows": minimum_support_rows,
             "live_current_structure_bucket_rows": live_rows,
             "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
+            "support_progress": support_progress,
         }
 
     if dual_profile_state == "post_threshold_profile_governance_stalled":
@@ -152,6 +267,7 @@ def _build_governance_contract(
             "minimum_support_rows": minimum_support_rows,
             "live_current_structure_bucket_rows": live_rows,
             "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
+            "support_progress": support_progress,
         }
 
     if dual_profile_state == "leaderboard_global_winner_vs_train_support_fallback" and split_required:
@@ -160,7 +276,11 @@ def _build_governance_contract(
             "treat_as_parity_blocker": False,
             "current_closure": "global_ranking_vs_support_aware_production_split",
             "reason": "目前 global winner 與 production winner 扮演不同角色：leaderboard 保留 global shrinkage winner 作排名基線，train / runtime 則沿用 support-aware 或 exact-supported production profile 描述 current live bull lane。這是治理分工，不是 parity drift。",
-            "recommended_action": "文件與 heartbeat 應把 split 明寫為雙角色治理；在 exact support 未達標前，不要把 production profile fallback 誤報為 parity blocker。",
+            "recommended_action": (
+                "current live exact support 已連續停滯，下一輪若仍未增加應升級成 #PROFILE_GOVERNANCE_STALLED blocker。"
+                if support_progress.get("escalate_to_blocker")
+                else "文件與 heartbeat 應把 split 明寫為雙角色治理；在 exact support 未達標前，不要把 production profile fallback 誤報為 parity blocker。"
+            ),
             "global_profile": global_profile,
             "global_profile_role": global_role,
             "production_profile": production_profile,
@@ -170,6 +290,7 @@ def _build_governance_contract(
             "minimum_support_rows": minimum_support_rows,
             "live_current_structure_bucket_rows": live_rows,
             "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
+            "support_progress": support_progress,
         }
 
     if split_required:
@@ -188,6 +309,7 @@ def _build_governance_contract(
             "minimum_support_rows": minimum_support_rows,
             "live_current_structure_bucket_rows": live_rows,
             "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
+            "support_progress": support_progress,
         }
 
     return {
@@ -205,6 +327,7 @@ def _build_governance_contract(
         "minimum_support_rows": minimum_support_rows,
         "live_current_structure_bucket_rows": live_rows,
         "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
+        "support_progress": support_progress,
     }
 
 
@@ -330,12 +453,20 @@ def _build_alignment(
             else "目前 global winner 與 production winner 一致，可視為單一路徑治理。"
         ),
     }
+    support_progress = _summarize_support_progress(
+        current_bucket=live_context.get("current_live_structure_bucket"),
+        current_route=support_governance_route,
+        live_bucket_rows=live_bucket_rows,
+        minimum_support_rows=minimum_support_rows,
+        current_label=os.getenv("HB_RUN_LABEL"),
+    )
     governance_contract = _build_governance_contract(
         dual_profile_state=dual_profile_state,
         profile_split=profile_split,
         support_governance_route=support_governance_route,
         minimum_support_rows=minimum_support_rows,
         live_bucket_rows=live_bucket_rows,
+        support_progress=support_progress,
     )
 
     return {
@@ -379,6 +510,7 @@ def _build_alignment(
         "live_current_structure_bucket_rows": live_bucket_rows,
         "minimum_support_rows": minimum_support_rows,
         "live_current_structure_bucket_gap_to_minimum": live_bucket_gap_to_minimum,
+        "support_progress": support_progress,
         "exact_bucket_root_cause": support_summary.get("exact_bucket_root_cause"),
         "support_blocker_state": support_summary.get("blocker_state"),
         "proxy_boundary_verdict": support_summary.get("proxy_boundary_verdict"),

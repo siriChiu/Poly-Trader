@@ -301,8 +301,9 @@ def refresh_train_prerequisites(needs_train: bool) -> Dict[str, Any]:
     }
 
 
-def run_leaderboard_candidate_probe() -> Dict[str, Any]:
-    return _run_serial_command(LEADERBOARD_CANDIDATE_PROBE_CMD)
+def run_leaderboard_candidate_probe(run_label: str | None = None) -> Dict[str, Any]:
+    extra_env = {"HB_RUN_LABEL": str(run_label)} if run_label is not None else None
+    return _run_serial_command(LEADERBOARD_CANDIDATE_PROBE_CMD, extra_env=extra_env)
 
 
 def run_auto_propose(run_label: str | None = None) -> Dict[str, Any]:
@@ -991,6 +992,9 @@ def collect_leaderboard_candidate_diagnostics() -> Dict[str, Any]:
         "live_execution_guardrail_reason": alignment.get("live_execution_guardrail_reason"),
         "live_current_structure_bucket": alignment.get("live_current_structure_bucket"),
         "live_current_structure_bucket_rows": alignment.get("live_current_structure_bucket_rows"),
+        "minimum_support_rows": alignment.get("minimum_support_rows"),
+        "live_current_structure_bucket_gap_to_minimum": alignment.get("live_current_structure_bucket_gap_to_minimum"),
+        "support_progress": alignment.get("support_progress") or {},
         "supported_neighbor_buckets": alignment.get("supported_neighbor_buckets") or [],
         "bull_support_aware_profile": alignment.get("bull_support_aware_profile"),
         "bull_support_neighbor_rows": alignment.get("bull_support_neighbor_rows"),
@@ -1429,7 +1433,7 @@ def main(argv=None):
             f"current_bucket_rows={live_context.get('current_live_structure_bucket_rows')}"
         )
 
-    leaderboard_probe_result = run_leaderboard_candidate_probe()
+    leaderboard_probe_result = run_leaderboard_candidate_probe(run_label)
     leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
     print(
         f"🏁 Leaderboard candidate probe：{'通過' if leaderboard_probe_result['success'] else '失敗'} "

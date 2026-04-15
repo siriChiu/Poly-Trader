@@ -122,6 +122,39 @@ def test_build_alignment_surfaces_support_governance_route(tmp_path, monkeypatch
     assert alignment["governance_contract"]["current_closure"] == "global_ranking_vs_support_aware_production_split"
 
 
+def test_summarize_support_progress_detects_stalled_exact_support(tmp_path):
+    for idx in range(2):
+        (tmp_path / f"heartbeat_{700 + idx}_summary.json").write_text(
+            json.dumps(
+                {
+                    "heartbeat": str(700 + idx),
+                    "leaderboard_candidate_diagnostics": {
+                        "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                        "live_current_structure_bucket_rows": 15,
+                        "minimum_support_rows": 50,
+                        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                        "governance_contract": {"verdict": "dual_role_governance_active"},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    progress = hb_leaderboard_candidate_probe._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q35",
+        current_route="exact_live_bucket_present_but_below_minimum",
+        live_bucket_rows=15,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "stalled_under_minimum"
+    assert progress["stalled_support_accumulation"] is True
+    assert progress["stagnant_run_count"] == 3
+    assert progress["escalate_to_blocker"] is True
+    assert progress["history"][0]["heartbeat"] == "fast"
+
 
 def test_build_alignment_marks_under_supported_exact_bucket(tmp_path, monkeypatch):
     last_metrics = tmp_path / "last_metrics.json"

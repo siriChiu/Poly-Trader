@@ -1557,7 +1557,7 @@ def test_main_runs_q15_support_audit_after_leaderboard_probe(monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "collect_feature_ablation_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_bull_4h_pocket_ablation", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_bull_4h_pocket_diagnostics", lambda: {})
-    monkeypatch.setattr(hb_parallel_runner, "run_leaderboard_candidate_probe", lambda: order.append("leaderboard") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_leaderboard_candidate_probe", lambda run_label=None: order.append("leaderboard") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_q15_support_audit", lambda: order.append("q15") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_audit_diagnostics", lambda: {})
@@ -1701,6 +1701,13 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
                     "live_execution_guardrail_reason": "unsupported_exact_live_structure_bucket_blocks_trade",
                     "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
                     "live_current_structure_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_gap_to_minimum": 50,
+                    "support_progress": {
+                        "status": "stalled_under_minimum",
+                        "stagnant_run_count": 3,
+                        "escalate_to_blocker": True,
+                    },
                     "supported_neighbor_buckets": ["CAUTION|base_caution_regime_or_bias|q15"],
                     "bull_support_aware_profile": "core_plus_macro",
                     "bull_support_neighbor_rows": 84,
@@ -1729,6 +1736,10 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
     assert diag["current_alignment_recency"]["inputs_current"] is True
     assert diag["artifact_recency"]["alignment_snapshot_stale"] is True
     assert diag["live_current_structure_bucket_rows"] == 0
+    assert diag["minimum_support_rows"] == 50
+    assert diag["live_current_structure_bucket_gap_to_minimum"] == 50
+    assert diag["support_progress"]["status"] == "stalled_under_minimum"
+    assert diag["support_progress"]["escalate_to_blocker"] is True
     assert diag["blocked_candidate_profiles"][0]["blocker_reason"] == "unsupported_exact_live_structure_bucket"
 
 
