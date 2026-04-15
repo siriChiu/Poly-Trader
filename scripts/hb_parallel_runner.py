@@ -974,6 +974,7 @@ def collect_leaderboard_candidate_diagnostics() -> Dict[str, Any]:
         "selected_feature_profile_blocker_reason": top_model.get("selected_feature_profile_blocker_reason"),
         "dual_profile_state": alignment.get("dual_profile_state"),
         "profile_split": alignment.get("profile_split") or {},
+        "governance_contract": alignment.get("governance_contract") or {},
         "leaderboard_snapshot_created_at": alignment.get("leaderboard_snapshot_created_at"),
         "alignment_evaluated_at": alignment.get("alignment_evaluated_at"),
         "current_alignment_inputs_stale": alignment.get("current_alignment_inputs_stale"),
@@ -1191,53 +1192,10 @@ def main(argv=None):
             f"tail_streak={tail_streak.get('count', 0)}x{tail_streak.get('target')} since {tail_streak.get('start_timestamp')}"
         )
 
-    predict_probe_result = run_predict_probe()
-    _persist_live_predictor_probe(predict_probe_result.get("stdout", ""))
-    live_predictor_diagnostics = collect_live_predictor_diagnostics(predict_probe_result)
-    print(
-        f"🧪 Live predictor probe：{'通過' if predict_probe_result['success'] else '失敗'} "
-        f"(rc={predict_probe_result['returncode']})"
-    )
-    if predict_probe_result.get("stdout"):
-        lines = predict_probe_result["stdout"].split("\n")
-        preview = "\n".join(lines[:40])
-        if len(lines) > 40:
-            preview += "\n...\n" + "\n".join(lines[-12:])
-        print(f"\n--- hb_predict_probe ---\n{preview}")
-    if predict_probe_result.get("stderr"):
-        print(f"\n--- hb_predict_probe stderr ---\n{predict_probe_result['stderr']}")
-    if live_predictor_diagnostics:
-        consensus = live_predictor_diagnostics.get("decision_quality_pathology_consensus") or {}
-        shared = consensus.get("shared_top_shift_features") or []
-        shared_text = "/".join(
-            f"{row.get('feature')}[x{row.get('scope_count')}]"
-            for row in shared[:2]
-            if row.get("feature")
-        )
-        worst_scope = consensus.get("worst_pathology_scope") or {}
-        extra = ""
-        if shared_text:
-            extra += f" shared={shared_text}"
-        if worst_scope.get("scope"):
-            extra += (
-                f" worst_scope={worst_scope.get('scope')}"
-                f"(wr={worst_scope.get('win_rate')},q={worst_scope.get('avg_quality')})"
-            )
-        blocker_extra = ""
-        if live_predictor_diagnostics.get("deployment_blocker"):
-            blocker_extra = f" deployment_blocker={live_predictor_diagnostics.get('deployment_blocker')}"
-        print(
-            "🧪 Live 決策品質："
-            f"scope={live_predictor_diagnostics.get('decision_quality_calibration_scope')} "
-            f"win={live_predictor_diagnostics.get('expected_win_rate')} "
-            f"quality={live_predictor_diagnostics.get('expected_pyramid_quality')} "
-            f"label={live_predictor_diagnostics.get('decision_quality_label')} "
-            f"layers={live_predictor_diagnostics.get('allowed_layers_raw')}→{live_predictor_diagnostics.get('allowed_layers')} "
-            f"recent_pathology={live_predictor_diagnostics.get('decision_quality_recent_pathology_applied')}"
-            f"{blocker_extra}"
-            f"{extra}"
-        )
-
+    # Heartbeat #fast carry-forward fix:
+    # run q35 audit BEFORE the public live probe so the audit can establish the latest
+    # current-row runtime truth first. Otherwise the runner can snapshot a pre-audit
+    # probe state and leak stale q35 redesign fields into the heartbeat summary.
     q35_scaling_result = run_q35_scaling_audit()
     q35_scaling_summary: Dict[str, Any] = collect_q35_scaling_audit_diagnostics()
     print(
@@ -1306,6 +1264,53 @@ def main(argv=None):
             f"redesign_eq={redesign_best.get('current_entry_quality_after')} "
             f"redesign_gap={redesign_best.get('remaining_gap_to_floor')} "
             f"redesign_pos_gap={redesign_machine_read.get('positive_discriminative_gap')}"
+        )
+
+    predict_probe_result = run_predict_probe()
+    _persist_live_predictor_probe(predict_probe_result.get("stdout", ""))
+    live_predictor_diagnostics = collect_live_predictor_diagnostics(predict_probe_result)
+    print(
+        f"🧪 Live predictor probe：{'通過' if predict_probe_result['success'] else '失敗'} "
+        f"(rc={predict_probe_result['returncode']})"
+    )
+    if predict_probe_result.get("stdout"):
+        lines = predict_probe_result["stdout"].split("\n")
+        preview = "\n".join(lines[:40])
+        if len(lines) > 40:
+            preview += "\n...\n" + "\n".join(lines[-12:])
+        print(f"\n--- hb_predict_probe ---\n{preview}")
+    if predict_probe_result.get("stderr"):
+        print(f"\n--- hb_predict_probe stderr ---\n{predict_probe_result['stderr']}")
+    if live_predictor_diagnostics:
+        consensus = live_predictor_diagnostics.get("decision_quality_pathology_consensus") or {}
+        shared = consensus.get("shared_top_shift_features") or []
+        shared_text = "/".join(
+            f"{row.get('feature')}[x{row.get('scope_count')}]"
+            for row in shared[:2]
+            if row.get("feature")
+        )
+        worst_scope = consensus.get("worst_pathology_scope") or {}
+        extra = ""
+        if shared_text:
+            extra += f" shared={shared_text}"
+        if worst_scope.get("scope"):
+            extra += (
+                f" worst_scope={worst_scope.get('scope')}"
+                f"(wr={worst_scope.get('win_rate')},q={worst_scope.get('avg_quality')})"
+            )
+        blocker_extra = ""
+        if live_predictor_diagnostics.get("deployment_blocker"):
+            blocker_extra = f" deployment_blocker={live_predictor_diagnostics.get('deployment_blocker')}"
+        print(
+            "🧪 Live 決策品質："
+            f"scope={live_predictor_diagnostics.get('decision_quality_calibration_scope')} "
+            f"win={live_predictor_diagnostics.get('expected_win_rate')} "
+            f"quality={live_predictor_diagnostics.get('expected_pyramid_quality')} "
+            f"label={live_predictor_diagnostics.get('decision_quality_label')} "
+            f"layers={live_predictor_diagnostics.get('allowed_layers_raw')}→{live_predictor_diagnostics.get('allowed_layers')} "
+            f"recent_pathology={live_predictor_diagnostics.get('decision_quality_recent_pathology_applied')}"
+            f"{blocker_extra}"
+            f"{extra}"
         )
 
     live_drilldown_result = run_live_decision_quality_drilldown()

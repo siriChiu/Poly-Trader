@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-15 18:10 UTC — Heartbeat #1024（本輪已把 **q15 exact-supported standby route 與 current-live q35 lane** 正式拆開：q15 audit 現在會明確標示 `scope_applicability`，不再把 inactive q15 lane 誤寫成 current-live deployment closure。新的主路徑已收斂為：**current bull q35 live lane 的 discriminative redesign runtime verify**——因為 q35 audit 已證明存在保留正向 discrimination 的候選可把 current row 推到 `entry_quality=0.5505 / allowed_layers=1`，但 live predictor 目前仍停在 `0.4196 / 0 layers`。_)
+_最後更新：2026-04-15 20:41 UTC — Heartbeat #fast（本輪已把 **profile governance contract** 落地到 heartbeat 主路徑。`scripts/hb_leaderboard_candidate_probe.py` 與 `hb_parallel_runner.py` 現在會同步輸出 `governance_contract`，把 `leaderboard_global_winner_vs_train_support_fallback` 明確定義成 **雙角色治理**，不再讓 summary / docs 把它誤讀成 parity drift。）_
 
 本文件只保留**目前已落地能力、當前主目標、下一步 gate**，不保留歷史 roadmap 敘事。
 
@@ -20,208 +20,181 @@ _最後更新：2026-04-15 18:10 UTC — Heartbeat #1024（本輪已把 **q15 ex
   - `data/q15_bucket_root_cause.json`
   - `data/q15_boundary_replay.json`
   - `data/leaderboard_feature_profile_probe.json`
-  - numbered summary：`data/heartbeat_1024_summary.json`
+  - `data/heartbeat_fast_summary.json`
 
-### 本輪新完成：q15 support audit active-vs-standby lane 契約化
-- `scripts/hb_q15_support_audit.py`
-  - 新增 `scope_applicability`；
-  - 當 current live row 不在 q15 lane 時，artifact 會輸出 `current_live_not_q15_lane`；
-  - `component_experiment` 會改成 `exact_supported_component_experiment_ready_but_current_live_not_q15`，避免誤判為 current-live closure。
+### 本輪新完成：profile governance 已 machine-read 化
+- `scripts/hb_leaderboard_candidate_probe.py`
+  - 新增 `governance_contract`，統一輸出：
+    - `verdict`
+    - `current_closure`
+    - `treat_as_parity_blocker`
+    - `recommended_action`
+    - `global_profile/global_profile_role`
+    - `production_profile/production_profile_role`
+    - `support_governance_route`
 - `scripts/hb_parallel_runner.py`
-  - q15 summary 現在會打印 `scope=<status> active=<bool>`；
-  - fast heartbeat summary 可直接分辨 q15 standby route 與 active q15 lane。
-- `tests/test_q15_support_audit.py`
-  - 已補 q15-active / q35-current-live standby 的 regression tests。
-- `ARCHITECTURE.md`
-  - 已同步 q15 support audit 的 `scope_applicability` / standby-route contract。
+  - heartbeat summary 現在會持久化 `leaderboard_candidate_diagnostics.governance_contract`
+- `tests/test_hb_leaderboard_candidate_probe.py`
+  - dual-role / post-threshold stalled 治理 contract regression 已補齊
+- `tests/test_hb_parallel_runner.py`
+  - heartbeat summary 對 `governance_contract` 的持久化 regression 已補齊
 
 ### 驗證能力
-- `source venv/bin/activate && python -m pytest tests/test_q15_support_audit.py tests/test_hb_parallel_runner.py -q` → **37 passed**
-- `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast --hb 1024` → **通過**
+- `source venv/bin/activate && python -m pytest tests/test_hb_leaderboard_candidate_probe.py tests/test_hb_parallel_runner.py -q` → **40 passed**
+- `/home/kazuha/Poly-Trader/venv/bin/python scripts/hb_parallel_runner.py --fast` → **通過**
 
 ### 資料與 canonical target
-- 最新 DB 狀態（#1024）：
-  - Raw / Features / Labels = **21776 / 13205 / 43520**
-  - simulated_pyramid_win = **0.5797**
+- 最新 DB 狀態（#fast）：
+  - Raw / Features / Labels = **21784 / 13213 / 43574**
+  - simulated_pyramid_win = **0.5805**
 - label freshness 正常：
-  - 240m lag 約 **3.0h**
-  - 1440m lag 約 **23.1h**
+  - 240m = **21931 rows / target_rows 13009 / expected_horizon_lag**
+  - 1440m = **12558 rows / target_rows 12558 / expected_horizon_lag**
 - raw freshness：**約 0.5 分鐘**
+- continuity repair：**4h=0 / 1h=0 / bridge=0**
 
 ### IC / drift / live runtime
-- Global IC：**19/30**
-- TW-IC：**27/30**
-- Regime IC：**Bear 5/8 / Bull 6/8 / Chop 5/8**
+- Global IC：**18/30**
+- TW-IC：**26/30**
 - drift primary window：**250**
   - interpretation：**distribution_pathology**
   - dominant regime：**bull 100.0%**
-- live predictor：
-  - signal：**HOLD**
-  - regime：**bull**
-  - regime_gate：**CAUTION**
-  - structure_bucket：**CAUTION|structure_quality_caution|q35**
-  - entry_quality：**0.4196**
-  - entry_quality_label：**D**
-  - allowed layers：**0 → 0**
-  - decision-quality scope：**regime_label+regime_gate+entry_quality_label**
-  - expected_win_rate：**0.7059**
-  - expected_quality：**0.3988**
+  - window win_rate：**0.8920**
+- fast heartbeat current live q35 path：
+  - lane：**bull / CAUTION / q35**
+  - `q35_scaling_audit.deployment_grade_component_experiment = runtime_patch_crosses_trade_floor`
+  - `runtime_entry_quality=0.5675`
+  - `runtime_allowed_layers_raw=1`
+  - `q35_discriminative_redesign_applied=true`
+  - `live_predict_probe.allowed_layers=1`
 
-### q35 / q15 / governance 現況
-- `q35_scaling_audit`
-  - `scope_applicability.status = current_live_q35_lane_active`
-  - `deployment_grade_component_experiment.runtime_entry_quality = 0.4196`
-  - `deployment_grade_component_experiment.runtime_remaining_gap_to_floor = 0.1304`
-  - `deployment_grade_component_experiment.q35_discriminative_redesign_applied = false`
-  - `base_stack_redesign_experiment.verdict = base_stack_redesign_discriminative_reweight_crosses_trade_floor`
-  - `base_stack_redesign_experiment.best_discriminative_candidate.current_entry_quality_after = 0.5505`
-  - `base_stack_redesign_experiment.best_discriminative_candidate.allowed_layers_after = 1`
-  - **治理結論**：主問題已從「找 safe candidate」轉成「讓 runtime 真正吃到 safe candidate」。
+### q15 / governance / source blockers 現況
 - `q15_support_audit`
   - `scope_applicability.status = current_live_not_q15_lane`
-  - `scope_applicability.active_for_current_live_row = false`
-  - `support_route.verdict = exact_bucket_supported`
-  - `component_experiment.verdict = exact_supported_component_experiment_ready_but_current_live_not_q15`
-  - `preserves_positive_discrimination_status = not_applicable_current_live_not_q15_lane`
-  - **治理結論**：q15 support 已 ready，但目前只是 standby route readiness，不是當輪 current-live 主 closure。
+  - support route：`exact_bucket_present_but_below_minimum`
 - `leaderboard_feature_profile_probe`
-  - `leaderboard_selected_profile = core_plus_macro`
-  - `train_selected_profile = core_plus_macro_plus_4h_structure_shift`
-  - `global_recommended_profile = core_plus_4h`
-  - `dual_profile_state = post_threshold_profile_governance_stalled`
-  - `live_current_structure_bucket_rows = 51`
-  - **治理結論**：support 已過 threshold；profile split 仍待收斂，但排在 q35 runtime verify 之後。
-
-### Source blockers
-- `fin_netflow`：**auth_missing / coverage 0.0%**
-- 其餘 sparse sources：**history gap / archive blocker**
+  - `leaderboard = core_plus_4h`
+  - `train = core_plus_macro_plus_4h_structure_shift`
+  - `dual_profile_state = leaderboard_global_winner_vs_train_support_fallback`
+  - `governance_contract.verdict = dual_role_governance_active`
+  - `governance_contract.treat_as_parity_blocker = false`
+  - current q35 exact live bucket rows：**15 / 50**
+- source blocker
+  - `fin_netflow`：**auth_missing / coverage 0.0%**
+  - 其他 sparse features 仍以 `archive_required / snapshot_only` 為主
 
 ---
 
 ## 當前主目標
 
-### 目標 A：把 q35 discriminative redesign 從 audit candidate 推到 live runtime verify
+### 目標 A：把 dual-role profile governance 從「已解釋」推進到「可關閉或可升級」
 目前已確認：
-- current live row 仍是 **bull / CAUTION / q35**；
-- q35 audit 的 safe candidate 已可讓 current row 到 **0.5505 / 1 layer**；
-- 但 live predictor 目前仍停在 **0.4196 / 0 layers**。
+- q35 stale runtime blocker 已關閉
+- `governance_contract` 已把 profile split 明確定義為 **雙角色治理，不是 parity drift**
+- current live q35 exact support 仍只有 **15 / 50**，尚未達關閉 dual-role 的門檻
 
 下一步主目標：
-- **把 q35 discriminative base-stack candidate 做成真正的 runtime apply / verify，並確認不破壞 positive discrimination。**
+- **持續判斷 dual-role 是否仍為健康治理，或已進入 `post_threshold_governance_contract_needs_leaderboard_sync` 的條件。**
 
-### 目標 B：維持 q15 standby route 的真實語義，不讓它再 hijack current-live 主焦點
+### 目標 B：提升 current live q35 exact support readiness
 目前已確認：
-- q15 support 已達標；
-- 但 current live row 已不在 q15 lane；
-- q15 artifact 現在只能描述 standby route readiness。
+- current live row 仍在 `CAUTION|structure_quality_caution|q35`
+- `support_governance_route = exact_live_bucket_present_but_below_minimum`
+- `live_current_structure_bucket_rows = 15`，距離 `minimum_support_rows = 50` 尚差 **35**
 
 下一步主目標：
-- **保持 q15 artifact 的 truthful governance，只有在 current live row 回到 q15 lane 時才重新升級成 active verify。**
+- **把 q35 exact support readiness 當成真正的 current-live 治理 blocker，而不是繼續糾纏 profile 語義。**
 
-### 目標 C：收斂 post-threshold profile governance
+### 目標 C：維持 q15 standby route 的 truthful governance
 目前已確認：
-- leaderboard / train / global 三條 profile 語義仍分裂；
-- 但 exact support 已恢復，這已不再是「support 未達標」問題。
+- current live row 不在 q15 lane
+- q15 support route 仍是 `exact_bucket_present_but_below_minimum`
 
 下一步主目標：
-- **等 q35 runtime verify 完成後，再把 post-threshold profile governance 收斂成單一可解讀 contract。**
+- **維持 q15 standby route 語義正確；只有 current live row 回到 q15 lane 且 exact support 達標時，才重新升級成 active verify。**
 
 ---
 
 ## 接下來要做
 
-### 1. 套用並驗證 q35 discriminative runtime candidate
+### 1. 追 q35 current-live exact support
 要做：
-- 讓 live predictor 真正消費 `q35_scaling_audit.base_stack_redesign_experiment.best_discriminative_candidate`；
-- machine-read 補齊：
-  - `q35_discriminative_redesign_applied = true`
-  - `entry_quality >= 0.55`
-  - `allowed_layers > 0`
-  - `positive_discriminative_gap = true`
+- 監控 `live_current_structure_bucket_rows` 是否從 **15** 持續增長到 `minimum_support_rows=50`
+- 若 exact support 達標，立即判斷 leaderboard 是否仍需保留 global winner，或應升級成 `post_threshold_governance_contract_needs_leaderboard_sync`
 - 驗證：
-  - `live_predict_probe`
-  - `live_decision_quality_drilldown`
-  - `q35_scaling_audit`
-  - fast heartbeat summary
+  - `data/leaderboard_feature_profile_probe.json`
+  - `data/heartbeat_fast_summary.json`
+  - `data/live_predict_probe.json`
 
-### 2. 維持 q15 standby route 語義正確
+### 2. 守住 governance_contract 不回退
 要做：
-- 保持 `q15_support_audit.scope_applicability` 為單一真相來源；
-- 若 current live row 仍是 q35，文件 / heartbeat 不得再把 q15 standby route 寫成主 closure；
-- 若 current live row 回到 q15，再重新開啟 q15 deployment verify。
+- 每輪 heartbeat 確認 `leaderboard_candidate_diagnostics.governance_contract` 仍存在且與 probe 一致
+- 若 contract 消失、漏寫、或重新把 dual-role 誤標成 parity blocker，視為 regression
+- 驗證：
+  - `python -m pytest tests/test_hb_leaderboard_candidate_probe.py tests/test_hb_parallel_runner.py -q`
+  - `python scripts/hb_parallel_runner.py --fast`
 
-### 3. 收斂 post-threshold profile governance
+### 3. 維持 q15 standby route truthful governance
 要做：
-- 等 q35 runtime verify 完成後，再處理：
-  - leaderboard selected profile
-  - train selected profile
-  - global shrinkage winner
-- 目標是把 `post_threshold_profile_governance_stalled` 收斂成 machine-read 可執行結論。
+- 持續使用 `q15_support_audit.scope_applicability` 作單一真相來源
+- 若 current live row 仍是 q35，文件 / heartbeat 不得再把 q15 standby route 寫成主 closure
+- 只在 q15 exact rows 達標後，才重新升級 q15 component path
 
 ---
 
 ## 暫不優先
 
 以下本輪後仍不排最前面：
-- 再回頭把 q15 standby route 當主題重做一遍
-- 稀疏來源 auth / archive blocker 主修
-- 先做 profile governance 大重構
+- 再把 profile split 本身當成 parity drift 主 blocker
+- 把 q15 standby route 拉回主 closure
+- sparse-source auth / archive blocker 主修
 
 原因：
-> 本輪已確認 current-live 主路徑是 **q35 discriminative runtime apply / verify**；其他議題都比這條路徑更遠離 deployment closure。
+> 本輪已完成 governance contract patch；目前最近的治理缺口是 **q35 exact support readiness**，其次才是 **是否進入 post-threshold leaderboard sync**。
 
 ---
 
 ## 成功標準
 
 接下來幾輪工作的成功標準：
-1. 下一輪至少留下 1 個與 **q35 discriminative runtime apply / verify** 直接相關的 patch / run / verify。
-2. machine-read surface 必須清楚回答：
-   - `q35_scaling_audit.scope_applicability.active_for_current_live_row = true`
-   - `q35_scaling_audit.base_stack_redesign_experiment.machine_read_answer.entry_quality_ge_0_55 = true`
-   - `q35_scaling_audit.base_stack_redesign_experiment.machine_read_answer.allowed_layers_gt_0 = true`
-   - `q35_scaling_audit.base_stack_redesign_experiment.machine_read_answer.positive_discriminative_gap = true`
-   - `live_predict_probe.q35_discriminative_redesign_applied = true`
-3. q35 audit / live predictor / heartbeat summary 對同一條 current live row 必須給出一致可解讀的 deployment 結論。
+1. 下一輪至少留下 1 個與 **q35 exact support readiness** 或 **post-threshold leaderboard sync** 直接相關的 patch / artifact / verify。
+2. `leaderboard_feature_profile_probe.alignment.governance_contract` 必須持續存在，且在 support 未翻轉前維持 `treat_as_parity_blocker=false`。
+3. `python scripts/hb_parallel_runner.py --fast` 內仍必須 machine-read 顯示：
+   - `q35_scaling_audit.deployment_grade_component_experiment.entry_quality_ge_0_55 = true`
+   - `q35_scaling_audit.deployment_grade_component_experiment.allowed_layers_gt_0 = true`
+   - `live_predict_probe.allowed_layers = 1`
 4. q15 audit 若仍 inactive，必須維持 `current_live_not_q15_lane`，不能再被寫成 current-live closure。
-5. 若 q35 runtime verify 成功，下一輪再收斂 profile governance；若失敗，必須明確降級成 audit-only / no-deploy。
 
 ---
 
 ## Next gate
 
 - **Next focus:**
-  1. 驗證 q35 discriminative runtime apply；
-  2. 保持 q15 standby route truthfulness，不讓它再搶走主焦點；
-  3. 之後再收斂 post-threshold profile governance。
+  1. 追 q35 exact support readiness；
+  2. 判斷 dual-role 是否需要升級成 post-threshold leaderboard sync；
+  3. 維持 q15 standby route truthfulness。
 
 - **Success gate:**
-  1. next run 必須留下至少一個與 **q35 discriminative runtime apply / verify** 直接相關的 patch / artifact / verify；
-  2. `live_predict_probe.q35_discriminative_redesign_applied` 必須變成 `true`，且 `allowed_layers > 0`；
-  3. `live_predict_probe` / `q35_scaling_audit` / `heartbeat summary` 必須對同一條 q35 live row 給出一致結論；
-  4. `q15_support_audit.scope_applicability.active_for_current_live_row` 若仍為 `false`，docs 不得再把 q15 standby route 寫成主 closure。
+  1. next run 必須留下至少一個與 **q35 exact support** 或 **leaderboard sync** 直接相關的 patch / artifact / verify；
+  2. `governance_contract` 必須仍存在且語義正確；
+  3. `q35_scaling_audit.deployment_grade_component_experiment.entry_quality_ge_0_55` 與 `allowed_layers_gt_0` 必須持續為 `true`；
+  4. `live_predict_probe.allowed_layers = 1` 且 `q35_discriminative_redesign_applied = true`。
 
 - **Fallback if fail:**
-  - 若 q35 redesign 套用後喪失 discrimination 或引發 guardrail regression，下一輪降回 audit-only / no-deploy；
-  - 若 current live row 離開 q35，下一輪依 `scope_applicability` 重新選 active lane；
-  - 若 next run 沒有新 patch，只剩報告，升級成 governance blocker。
+  - 若 governance contract 又被誤解為 parity blocker，直接回查 probe / summary 的 contract 持久化；
+  - 若 q35 exact support 長期停在 <50，升級成專門的 support-accumulation blocker；
+  - 若 current live row 離開 q35，下一輪依 `scope_applicability` 重新選 active lane。
 
 - **Documents to update next round:**
   - `ISSUES.md`
   - `ROADMAP.md`
-  - `ARCHITECTURE.md`（若 q35 runtime contract 再擴大）
+  - `ARCHITECTURE.md`（若 governance contract 再擴充 machine-read 欄位）
 
 - **Carry-forward input for next heartbeat:**
-  1. 先讀 `data/heartbeat_1024_summary.json`
+  1. 先讀 `data/heartbeat_fast_summary.json` 的 `leaderboard_candidate_diagnostics.governance_contract`
   2. 再讀：
+     - `data/leaderboard_feature_profile_probe.json`
      - `data/live_predict_probe.json`
-     - `data/live_decision_quality_drilldown.json`
      - `data/q35_scaling_audit.json`
      - `data/q15_support_audit.json`
-     - `data/leaderboard_feature_profile_probe.json`
-  3. 若同時成立：
-     - `q35_scaling_audit.scope_applicability.active_for_current_live_row = true`
-     - `q35_scaling_audit.base_stack_redesign_experiment.machine_read_answer.entry_quality_ge_0_55 = true`
-     - `q35_scaling_audit.base_stack_redesign_experiment.machine_read_answer.allowed_layers_gt_0 = true`
-     - `q15_support_audit.scope_applicability.active_for_current_live_row = false`
-     則下一輪不得再把主焦點放回 q15 standby route；必須直接做 **q35 discriminative runtime apply + verify**。
+  3. 若 `governance_contract.verdict = dual_role_governance_active` 且 `support_governance_route = exact_live_bucket_present_but_below_minimum`，下一輪**不得再回頭把 profile split 當 parity drift**；必須直接推進 **q35 exact support readiness** 或 **post-threshold leaderboard sync 條件判定**。

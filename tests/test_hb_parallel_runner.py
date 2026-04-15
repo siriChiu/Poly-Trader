@@ -22,6 +22,13 @@ class _DictRow(dict):
         return super().keys()
 
 
+class _CompletedProcess:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
 def test_parse_args_allows_fast_without_hb():
     args = hb_parallel_runner.parse_args(["--fast"])
 
@@ -153,6 +160,193 @@ def test_q35_audit_current_row_context_uses_piecewise_bias50_calibration(tmp_pat
     )
     assert runtime_status == "piecewise_runtime_active"
     assert "實際套用" in runtime_reason
+
+
+def test_q35_audit_refreshes_stale_live_probe_for_current_row(tmp_path, monkeypatch):
+    probe_path = tmp_path / "live_predict_probe.json"
+    probe_path.write_text(
+        json.dumps(
+            {
+                "feature_timestamp": "2026-04-15 17:00:00",
+                "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                "entry_quality": 0.4196,
+                "q35_discriminative_redesign_applied": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hb_q35_scaling_audit, "PROBE_PATH", probe_path)
+    refreshed_probe = {
+        "feature_timestamp": "2026-04-15 18:04:13.096667",
+        "structure_bucket": "CAUTION|structure_quality_caution|q35",
+        "entry_quality": 0.5505,
+        "q35_discriminative_redesign_applied": True,
+        "entry_quality_components": {
+            "q35_discriminative_redesign": {"applied": True}
+        },
+    }
+    calls = []
+
+    def _fake_run(cmd, cwd=None, capture_output=None, text=None):
+        calls.append({"cmd": cmd, "cwd": cwd})
+        return _CompletedProcess(stdout=json.dumps(refreshed_probe))
+
+    monkeypatch.setattr(hb_q35_scaling_audit.subprocess, "run", _fake_run)
+
+    probe = hb_q35_scaling_audit._load_or_refresh_live_predict_probe(
+        "2026-04-15 18:04:13.096667",
+        "CAUTION|structure_quality_caution|q35",
+    )
+
+    assert len(calls) == 1
+    assert probe["q35_discriminative_redesign_applied"] is True
+    assert json.loads(probe_path.read_text(encoding="utf-8"))["entry_quality"] == 0.5505
+
+
+def test_q35_audit_main_runs_post_write_second_pass_refresh(monkeypatch, capsys):
+    call_state = {"probe_calls": 0, "write_calls": 0}
+    current = {
+        "timestamp": "2026-04-15 19:35:36.534053",
+        "symbol": "BTCUSDT",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "base_gate": "ALLOW",
+        "gate_reason": "structure_quality_caution",
+        "structure_bucket": "CAUTION|structure_quality_caution|q35",
+        "structure_quality": 0.5751,
+        "entry_quality": 0.4059,
+        "entry_quality_label": "D",
+        "allowed_layers_raw": 0,
+        "allowed_layers_reason": "entry_quality_below_trade_floor",
+        "entry_quality_components": {"trade_floor": 0.55},
+        "raw_features": {"feat_4h_bias50": 3.6719, "feat_4h_bias200": 6.2180},
+        "source": "legacy_current_live",
+        "q35_discriminative_redesign_applied": False,
+    }
+    runtime_current = {
+        **current,
+        "entry_quality": 0.4657,
+        "entry_quality_label": "D",
+        "entry_quality_components": {"trade_floor": 0.55},
+        "source": "calibration_component_runtime",
+    }
+    refreshed_runtime = {
+        **current,
+        "entry_quality": 0.6136,
+        "entry_quality_label": "C",
+        "allowed_layers_raw": 1,
+        "allowed_layers_reason": "entry_quality_C_single_layer",
+        "entry_quality_components": {
+            "trade_floor": 0.55,
+            "q35_discriminative_redesign": {"applied": True},
+        },
+        "source": "live_predict_probe",
+        "q35_discriminative_redesign_applied": True,
+    }
+
+    class _FakeConn:
+        def close(self):
+            return None
+
+    monkeypatch.setattr(hb_q35_scaling_audit.sqlite3, "connect", lambda *args, **kwargs: _FakeConn())
+    monkeypatch.setattr(hb_q35_scaling_audit, "_current_row", lambda conn: _DictRow(feat_4h_bias50=3.6719))
+
+    def _fake_build_row_context(row, *, bias50_calibration_override=None):
+        return runtime_current if bias50_calibration_override and bias50_calibration_override.get("applied") else current
+
+    monkeypatch.setattr(hb_q35_scaling_audit, "_build_row_context", _fake_build_row_context)
+
+    def _fake_load_probe(ts, bucket):
+        call_state["probe_calls"] += 1
+        if call_state["probe_calls"] == 1:
+            return {
+                "target_col": "simulated_pyramid_win",
+                "feature_timestamp": ts,
+                "structure_bucket": bucket,
+                "entry_quality": 0.4657,
+                "allowed_layers_raw": 0,
+                "allowed_layers_reason": "entry_quality_below_trade_floor",
+                "q35_discriminative_redesign_applied": False,
+                "entry_quality_components": {"trade_floor": 0.55},
+            }
+        return {
+            "target_col": "simulated_pyramid_win",
+            "feature_timestamp": ts,
+            "structure_bucket": bucket,
+            "entry_quality": 0.6136,
+            "allowed_layers_raw": 1,
+            "allowed_layers_reason": "entry_quality_C_single_layer",
+            "q35_discriminative_redesign_applied": True,
+            "entry_quality_components": {
+                "trade_floor": 0.55,
+                "q35_discriminative_redesign": {"applied": True},
+            },
+        }
+
+    monkeypatch.setattr(hb_q35_scaling_audit, "_load_or_refresh_live_predict_probe", _fake_load_probe)
+    monkeypatch.setattr(hb_q35_scaling_audit, "_historical_rows", lambda conn, use_legacy_bias50_baseline=True: [])
+    monkeypatch.setattr(hb_q35_scaling_audit, "_counterfactuals", lambda current: {
+        "gate_allow_only_changes_layers": False,
+        "entry_if_gate_allow_only": 0.44,
+        "layers_if_gate_allow_only": 0,
+        "entry_if_bias50_fully_relaxed": 0.70,
+        "layers_if_bias50_fully_relaxed": 2,
+        "required_bias50_cap_for_floor": -0.0015,
+        "current_bias50_value": 3.6719,
+    })
+    monkeypatch.setattr(hb_q35_scaling_audit, "_summarize_subset", lambda rows, current_bias50: {
+        "rows": 0,
+        "win_rate": None,
+        "current_bias50_percentile": None,
+        "bias50_distribution": {"p75": None, "p90": None},
+    })
+    monkeypatch.setattr(hb_q35_scaling_audit, "_select_segmented_reference_cohort", lambda *args, **kwargs: {})
+    monkeypatch.setattr(hb_q35_scaling_audit, "compute_piecewise_bias50_score", lambda *args, **kwargs: {
+        "applied": True,
+        "score": 0.1993,
+        "legacy_score": 0.0,
+        "score_delta_vs_legacy": 0.1993,
+        "mode": "exact_lane_formula_review",
+        "segment": "exact_lane_supported_within_p75",
+    })
+    monkeypatch.setattr(hb_q35_scaling_audit, "_build_deployed_runtime_current", lambda baseline, runtime, probe: refreshed_runtime if probe.get("q35_discriminative_redesign_applied") else runtime_current)
+    monkeypatch.setattr(hb_q35_scaling_audit, "_build_deployment_grade_component_experiment", lambda baseline, runtime, deployed, preview, counter: {
+        "verdict": "runtime_patch_crosses_trade_floor" if deployed.get("allowed_layers_raw") else "runtime_patch_improves_but_still_below_floor",
+        "baseline_entry_quality": baseline.get("entry_quality"),
+        "calibration_runtime_entry_quality": runtime.get("entry_quality"),
+        "runtime_entry_quality": deployed.get("entry_quality"),
+        "calibration_runtime_delta_vs_legacy": round(runtime.get("entry_quality") - baseline.get("entry_quality"), 4),
+        "entry_quality_delta_vs_legacy": round(deployed.get("entry_quality") - baseline.get("entry_quality"), 4),
+        "baseline_allowed_layers_raw": baseline.get("allowed_layers_raw"),
+        "calibration_runtime_allowed_layers_raw": runtime.get("allowed_layers_raw"),
+        "runtime_allowed_layers_raw": deployed.get("allowed_layers_raw"),
+        "runtime_remaining_gap_to_floor": round(0.55 - deployed.get("entry_quality"), 4),
+        "machine_read_answer": {
+            "entry_quality_ge_0_55": deployed.get("entry_quality") >= 0.55,
+            "allowed_layers_gt_0": bool(deployed.get("allowed_layers_raw")),
+        },
+        "q35_discriminative_redesign_applied": deployed.get("q35_discriminative_redesign_applied"),
+        "runtime_source": deployed.get("source"),
+    })
+    monkeypatch.setattr(hb_q35_scaling_audit, "_build_joint_component_experiment", lambda *args, **kwargs: {"verdict": "noop", "machine_read_answer": {"entry_quality_ge_0_55": False, "allowed_layers_gt_0": False}, "best_scenario": {}})
+    monkeypatch.setattr(hb_q35_scaling_audit, "_build_exact_supported_bias50_component_experiment", lambda *args, **kwargs: {"verdict": "noop", "machine_read_answer": {"entry_quality_ge_0_55": False, "allowed_layers_gt_0": False, "used_exact_supported_target": False}, "best_scenario": {}})
+    monkeypatch.setattr(hb_q35_scaling_audit, "_build_base_mix_component_experiment", lambda *args, **kwargs: {"verdict": "noop", "machine_read_answer": {"entry_quality_ge_0_55": False, "allowed_layers_gt_0": False}, "best_scenario": {}})
+    monkeypatch.setattr(hb_q35_scaling_audit, "_build_base_stack_redesign_experiment", lambda *args, **kwargs: {"verdict": "noop", "machine_read_answer": {"entry_quality_ge_0_55": True, "allowed_layers_gt_0": True, "positive_discriminative_gap": True}, "best_discriminative_candidate": {}, "best_floor_candidate": {}, "unsafe_floor_cross_candidate": None, "rows": 0, "wins": 0, "losses": 0, "reason": "ok"})
+    monkeypatch.setattr(hb_q35_scaling_audit, "_runtime_contract_state", lambda *args, **kwargs: ("piecewise_runtime_active", "ok"))
+
+    def _fake_write_outputs(*args, **kwargs):
+        call_state["write_calls"] += 1
+
+    monkeypatch.setattr(hb_q35_scaling_audit, "_write_outputs", _fake_write_outputs)
+
+    hb_q35_scaling_audit.main()
+    output = json.loads(capsys.readouterr().out)
+
+    assert call_state["probe_calls"] == 2
+    assert call_state["write_calls"] == 2
+    assert output["deployment_grade_component_experiment"]["runtime_entry_quality"] == 0.6136
+    assert output["deployment_grade_component_experiment"]["allowed_layers_gt_0"] is True
+    assert output["deployment_grade_component_experiment"]["q35_discriminative_redesign_applied"] is True
 
 
 def test_q35_runtime_contract_state_marks_runtime_ready_when_current_row_is_back_inside_exact_lane():
@@ -1376,7 +1570,7 @@ def test_main_runs_q15_support_audit_after_leaderboard_probe(monkeypatch):
 
     hb_parallel_runner.main(["--fast", "--hb", "test"])
 
-    assert order == ["predict_probe", "q35", "drilldown", "leaderboard", "q15", "q15_root", "q15_replay"]
+    assert order == ["q35", "predict_probe", "drilldown", "leaderboard", "q15", "q15_root", "q15_replay"]
 
 
 def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, monkeypatch):
@@ -1486,6 +1680,11 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
                         "production_profile": "core_plus_macro",
                         "verdict": "dual_role_required",
                     },
+                    "governance_contract": {
+                        "verdict": "dual_role_governance_active",
+                        "current_closure": "global_ranking_vs_support_aware_production_split",
+                        "treat_as_parity_blocker": False,
+                    },
                     "leaderboard_snapshot_created_at": "2026-04-14T06:51:24Z",
                     "alignment_evaluated_at": "2026-04-14T12:40:00Z",
                     "current_alignment_inputs_stale": False,
@@ -1523,6 +1722,8 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
     assert diag["selected_feature_profile"] == "core_only"
     assert diag["dual_profile_state"] == "leaderboard_global_winner_vs_train_support_fallback"
     assert diag["profile_split"]["verdict"] == "dual_role_required"
+    assert diag["governance_contract"]["verdict"] == "dual_role_governance_active"
+    assert diag["governance_contract"]["current_closure"] == "global_ranking_vs_support_aware_production_split"
     assert diag["train_selected_profile"] == "core_plus_macro"
     assert diag["current_alignment_inputs_stale"] is False
     assert diag["current_alignment_recency"]["inputs_current"] is True

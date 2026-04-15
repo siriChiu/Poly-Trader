@@ -117,6 +117,9 @@ def test_build_alignment_surfaces_support_governance_route(tmp_path, monkeypatch
     assert alignment["exact_lane_bucket_verdict"] == "no_exact_lane_rows"
     assert alignment["exact_lane_toxic_bucket"] == {}
     assert alignment["support_governance_route"] == "exact_live_bucket_proxy_available"
+    assert alignment["governance_contract"]["verdict"] == "dual_role_governance_active"
+    assert alignment["governance_contract"]["treat_as_parity_blocker"] is False
+    assert alignment["governance_contract"]["current_closure"] == "global_ranking_vs_support_aware_production_split"
 
 
 
@@ -484,6 +487,8 @@ def test_build_alignment_prefers_current_governance_state_over_old_snapshot_when
     )
 
     assert alignment["dual_profile_state"] == "post_threshold_profile_governance_stalled"
+    assert alignment["governance_contract"]["verdict"] == "post_threshold_governance_contract_needs_leaderboard_sync"
+    assert alignment["governance_contract"]["treat_as_parity_blocker"] is True
     assert alignment["artifact_recency"]["alignment_snapshot_stale"] is True
     assert alignment["current_alignment_inputs_stale"] is False
     assert alignment["current_alignment_recency"]["inputs_current"] is True
@@ -580,6 +585,8 @@ def test_build_alignment_marks_proxy_not_required_when_exact_bucket_supported(tm
     assert alignment["proxy_boundary_verdict"] == "exact_bucket_supported_proxy_not_required"
     assert alignment["support_governance_route"] == "exact_live_bucket_supported"
     assert alignment["dual_profile_state"] == "post_threshold_profile_governance_stalled"
+    assert alignment["governance_contract"]["verdict"] == "post_threshold_governance_contract_needs_leaderboard_sync"
+    assert alignment["governance_contract"]["current_closure"] == "exact_supported_but_leaderboard_not_synced"
 
 
 

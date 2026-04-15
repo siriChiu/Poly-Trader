@@ -102,6 +102,112 @@ def _production_profile_role(train_profile_source: Any) -> str:
     return "production_profile_unspecified"
 
 
+def _build_governance_contract(
+    *,
+    dual_profile_state: str,
+    profile_split: dict[str, Any],
+    support_governance_route: str | None,
+    minimum_support_rows: int,
+    live_bucket_rows: Any,
+) -> dict[str, Any]:
+    live_rows = int(live_bucket_rows or 0)
+    gap_to_minimum = max(int(minimum_support_rows or 0) - live_rows, 0)
+    split_required = bool(profile_split.get("split_required"))
+    global_profile = profile_split.get("global_profile")
+    production_profile = profile_split.get("production_profile")
+    global_role = profile_split.get("global_profile_role")
+    production_role = profile_split.get("production_profile_role")
+
+    if dual_profile_state == "stale_alignment_snapshot":
+        return {
+            "verdict": "refresh_alignment_snapshot_before_interpreting_split",
+            "treat_as_parity_blocker": False,
+            "current_closure": "alignment_snapshot_stale",
+            "reason": "leaderboard probe 的對齊快照落後於最新 train / bull pocket / feature ablation inputs；需先刷新 alignment artifact，再判讀 profile split 是否仍成立。",
+            "recommended_action": "重跑 hb_leaderboard_candidate_probe.py，確認 current inputs recency 後再解讀 profile governance。",
+            "global_profile": global_profile,
+            "global_profile_role": global_role,
+            "production_profile": production_profile,
+            "production_profile_role": production_role,
+            "support_governance_route": support_governance_route,
+            "split_required": split_required,
+            "minimum_support_rows": minimum_support_rows,
+            "live_current_structure_bucket_rows": live_rows,
+            "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
+        }
+
+    if dual_profile_state == "post_threshold_profile_governance_stalled":
+        return {
+            "verdict": "post_threshold_governance_contract_needs_leaderboard_sync",
+            "treat_as_parity_blocker": True,
+            "current_closure": "exact_supported_but_leaderboard_not_synced",
+            "reason": "exact live bucket 已達 minimum support，production profile 已升級為 exact-supported lane；若 leaderboard 仍停在 global winner，這是 post-threshold governance 未收斂，而不是健康的雙角色分工。",
+            "recommended_action": "同步 leaderboard / heartbeat summary / docs，讓 leaderboard candidate governance 接上 exact-supported production profile，避免 fallback 語義殘留。",
+            "global_profile": global_profile,
+            "global_profile_role": global_role,
+            "production_profile": production_profile,
+            "production_profile_role": production_role,
+            "support_governance_route": support_governance_route,
+            "split_required": split_required,
+            "minimum_support_rows": minimum_support_rows,
+            "live_current_structure_bucket_rows": live_rows,
+            "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
+        }
+
+    if dual_profile_state == "leaderboard_global_winner_vs_train_support_fallback" and split_required:
+        return {
+            "verdict": "dual_role_governance_active",
+            "treat_as_parity_blocker": False,
+            "current_closure": "global_ranking_vs_support_aware_production_split",
+            "reason": "目前 global winner 與 production winner 扮演不同角色：leaderboard 保留 global shrinkage winner 作排名基線，train / runtime 則沿用 support-aware 或 exact-supported production profile 描述 current live bull lane。這是治理分工，不是 parity drift。",
+            "recommended_action": "文件與 heartbeat 應把 split 明寫為雙角色治理；在 exact support 未達標前，不要把 production profile fallback 誤報為 parity blocker。",
+            "global_profile": global_profile,
+            "global_profile_role": global_role,
+            "production_profile": production_profile,
+            "production_profile_role": production_role,
+            "support_governance_route": support_governance_route,
+            "split_required": split_required,
+            "minimum_support_rows": minimum_support_rows,
+            "live_current_structure_bucket_rows": live_rows,
+            "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
+        }
+
+    if split_required:
+        return {
+            "verdict": "dual_role_governance_active",
+            "treat_as_parity_blocker": False,
+            "current_closure": "dual_role_split_but_aligned",
+            "reason": "雖然 global 與 production profile 角色不同，但當前 leaderboard / train / runtime 已對齊這個雙角色 contract，可視為健康治理狀態。",
+            "recommended_action": "持續在 heartbeat summary / docs 保留雙角色說明，避免後續被誤讀成 parity drift。",
+            "global_profile": global_profile,
+            "global_profile_role": global_role,
+            "production_profile": production_profile,
+            "production_profile_role": production_role,
+            "support_governance_route": support_governance_route,
+            "split_required": split_required,
+            "minimum_support_rows": minimum_support_rows,
+            "live_current_structure_bucket_rows": live_rows,
+            "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
+        }
+
+    return {
+        "verdict": "single_role_governance_ok",
+        "treat_as_parity_blocker": False,
+        "current_closure": "single_profile_alignment",
+        "reason": "目前 global 與 production profile 已收斂成同一路徑，leaderboard / train / runtime 不需要額外 split 治理。",
+        "recommended_action": "維持單一路徑治理，僅在 support contract 或 shrinkage winner 再次分岔時重開 split 解釋。",
+        "global_profile": global_profile,
+        "global_profile_role": global_role,
+        "production_profile": production_profile,
+        "production_profile_role": production_role,
+        "support_governance_route": support_governance_route,
+        "split_required": split_required,
+        "minimum_support_rows": minimum_support_rows,
+        "live_current_structure_bucket_rows": live_rows,
+        "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
+    }
+
+
 def _build_alignment(
     top_model: dict[str, Any],
     leaderboard_snapshot_created_at: str | None = None,
@@ -224,6 +330,13 @@ def _build_alignment(
             else "目前 global winner 與 production winner 一致，可視為單一路徑治理。"
         ),
     }
+    governance_contract = _build_governance_contract(
+        dual_profile_state=dual_profile_state,
+        profile_split=profile_split,
+        support_governance_route=support_governance_route,
+        minimum_support_rows=minimum_support_rows,
+        live_bucket_rows=live_bucket_rows,
+    )
 
     return {
         "global_recommended_profile": global_recommended,
@@ -238,6 +351,7 @@ def _build_alignment(
         "alignment_evaluated_at": alignment_evaluated_at,
         "dual_profile_state": dual_profile_state,
         "profile_split": profile_split,
+        "governance_contract": governance_contract,
         "current_alignment_inputs_stale": current_alignment_inputs_stale,
         "current_alignment_recency": {
             "inputs_current": not current_alignment_inputs_stale,
