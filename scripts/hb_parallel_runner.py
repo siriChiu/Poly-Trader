@@ -596,6 +596,9 @@ def collect_q35_scaling_audit_diagnostics() -> Dict[str, Any]:
     scope_applicability = payload.get("scope_applicability") or {}
     piecewise_preview = payload.get("piecewise_runtime_preview") or {}
     counterfactuals = payload.get("counterfactuals") or {}
+    deployment_experiment = payload.get("deployment_grade_component_experiment") or {}
+    joint_experiment = payload.get("joint_component_experiment") or {}
+    base_mix_experiment = payload.get("base_mix_component_experiment") or {}
     exact_lane = payload.get("exact_lane_summary") or {}
     broader_bull = payload.get("broader_bull_cohorts") or {}
     segmented = payload.get("segmented_calibration") or {}
@@ -663,6 +666,33 @@ def collect_q35_scaling_audit_diagnostics() -> Dict[str, Any]:
             "exact_p90": piecewise_preview.get("exact_p90"),
             "reference_p90": piecewise_preview.get("reference_p90"),
             "extension_share": piecewise_preview.get("extension_share"),
+        },
+        "deployment_grade_component_experiment": {
+            "verdict": deployment_experiment.get("verdict"),
+            "baseline_entry_quality": deployment_experiment.get("baseline_entry_quality"),
+            "runtime_entry_quality": deployment_experiment.get("runtime_entry_quality"),
+            "entry_quality_delta_vs_legacy": deployment_experiment.get("entry_quality_delta_vs_legacy"),
+            "baseline_allowed_layers_raw": deployment_experiment.get("baseline_allowed_layers_raw"),
+            "runtime_allowed_layers_raw": deployment_experiment.get("runtime_allowed_layers_raw"),
+            "runtime_trade_floor": deployment_experiment.get("runtime_trade_floor"),
+            "runtime_remaining_gap_to_floor": deployment_experiment.get("runtime_remaining_gap_to_floor"),
+            "machine_read_answer": deployment_experiment.get("machine_read_answer") or {},
+            "next_patch_target": deployment_experiment.get("next_patch_target"),
+            "verify_next": deployment_experiment.get("verify_next"),
+        },
+        "joint_component_experiment": {
+            "verdict": joint_experiment.get("verdict"),
+            "reason": joint_experiment.get("reason"),
+            "machine_read_answer": joint_experiment.get("machine_read_answer") or {},
+            "best_scenario": joint_experiment.get("best_scenario") or {},
+            "verify_next": joint_experiment.get("verify_next"),
+        },
+        "base_mix_component_experiment": {
+            "verdict": base_mix_experiment.get("verdict"),
+            "reason": base_mix_experiment.get("reason"),
+            "machine_read_answer": base_mix_experiment.get("machine_read_answer") or {},
+            "best_scenario": base_mix_experiment.get("best_scenario") or {},
+            "verify_next": base_mix_experiment.get("verify_next"),
         },
         "counterfactuals": {
             "entry_if_gate_allow_only": counterfactuals.get("entry_if_gate_allow_only"),
@@ -1122,6 +1152,11 @@ def main(argv=None):
         segmented = q35_scaling_summary.get('segmented_calibration') or {}
         reference = segmented.get('reference_cohort') or {}
         applicability = q35_scaling_summary.get('scope_applicability') or {}
+        deployment_experiment = q35_scaling_summary.get('deployment_grade_component_experiment') or {}
+        joint_experiment = q35_scaling_summary.get('joint_component_experiment') or {}
+        machine_read = deployment_experiment.get('machine_read_answer') or {}
+        joint_machine_read = joint_experiment.get('machine_read_answer') or {}
+        joint_best = joint_experiment.get('best_scenario') or {}
         print(
             "🧮 Q35 結論："
             f"verdict={q35_scaling_summary.get('overall_verdict')} "
@@ -1132,7 +1167,16 @@ def main(argv=None):
             f"reference={reference.get('cohort')} "
             f"exact_bias50_pct={((q35_scaling_summary.get('exact_lane_summary') or {}).get('current_bias50_percentile'))} "
             f"bull_all_bias50_pct={bull_all.get('current_bias50_percentile')} "
-            f"gate_only_changes_layers={((q35_scaling_summary.get('counterfactuals') or {}).get('gate_allow_only_changes_layers'))}"
+            f"gate_only_changes_layers={((q35_scaling_summary.get('counterfactuals') or {}).get('gate_allow_only_changes_layers'))} "
+            f"runtime_eq={deployment_experiment.get('runtime_entry_quality')} "
+            f"runtime_gap={deployment_experiment.get('runtime_remaining_gap_to_floor')} "
+            f"eq_ge_0.55={machine_read.get('entry_quality_ge_0_55')} "
+            f"layers_gt_0={machine_read.get('allowed_layers_gt_0')} "
+            f"joint_verdict={joint_experiment.get('verdict')} "
+            f"joint_best={joint_best.get('scenario')} "
+            f"joint_eq={joint_best.get('entry_quality_after')} "
+            f"joint_gap={joint_best.get('remaining_gap_to_floor')} "
+            f"joint_layers_gt_0={joint_machine_read.get('allowed_layers_gt_0')}"
         )
 
     predict_probe_result = run_predict_probe()

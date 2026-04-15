@@ -269,6 +269,169 @@ def test_collect_live_predictor_diagnostics_preserves_circuit_breaker_reason():
     assert result["allowed_layers"] == 0
 
 
+def test_q35_joint_component_experiment_quantifies_remaining_bias50_gap():
+    runtime_current = {
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.4919,
+        "allowed_layers_raw": 0,
+        "entry_quality_components": {
+            "base_quality": 0.5263,
+            "structure_quality": 0.3887,
+            "trade_floor": 0.55,
+            "base_components": [
+                {"feature": "feat_4h_bias50", "normalized_score": 0.2335},
+            ],
+            "structure_components": [
+                {"feature": "feat_4h_dist_swing_low", "raw_value": 4.9499, "normalized_score": 0.4950},
+            ],
+        },
+    }
+    exact_summary = {
+        "structure_feature_distributions": {
+            "feat_4h_dist_swing_low": {"distribution": {"p75": 5.4}}
+        }
+    }
+    winner_summary = {
+        "structure_feature_distributions": {
+            "feat_4h_dist_swing_low": {"distribution": {"p50": 5.6592, "p75": 6.1}}
+        }
+    }
+
+    result = hb_q35_scaling_audit._build_joint_component_experiment(runtime_current, exact_summary, winner_summary)
+
+    assert result["verdict"] == "joint_component_experiment_improves_but_still_below_floor"
+    assert result["machine_read_answer"]["entry_quality_ge_0_55"] is False
+    assert result["best_scenario"]["scenario"] == "winner_p75"
+    assert result["best_scenario"]["entry_quality_after"] > runtime_current["entry_quality"]
+    assert result["best_scenario"]["required_bias50_cap_after_swing_uplift"] > 0.2635
+
+
+def test_q35_base_mix_component_experiment_surfaces_base_stack_gap():
+    runtime_current = {
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.3275,
+        "allowed_layers_raw": 0,
+        "entry_quality_components": {
+            "base_quality": 0.3051,
+            "structure_quality": 0.3948,
+            "trade_floor": 0.55,
+            "base_components": [
+                {"feature": "feat_4h_bias50", "normalized_score": 0.2206, "weight": 0.4},
+                {"feature": "feat_nose", "normalized_score": 0.3070, "weight": 0.18},
+                {"feature": "feat_pulse", "normalized_score": 0.0489, "weight": 0.27},
+                {"feature": "feat_ear", "normalized_score": 0.9893, "weight": 0.15},
+            ],
+        },
+    }
+    exact_summary = {
+        "base_component_score_distributions": {
+            "feat_4h_bias50": {"distribution": {"p75": 0.28}},
+            "feat_pulse": {"distribution": {"p75": 0.19}},
+            "feat_nose": {"distribution": {"p75": 0.34}},
+        }
+    }
+    winner_summary = {
+        "base_component_score_distributions": {
+            "feat_4h_bias50": {"distribution": {"p50": 0.29, "p75": 0.33}},
+            "feat_pulse": {"distribution": {"p50": 0.16, "p75": 0.24}},
+            "feat_nose": {"distribution": {"p50": 0.36, "p75": 0.42}},
+        }
+    }
+
+    result = hb_q35_scaling_audit._build_base_mix_component_experiment(runtime_current, exact_summary, winner_summary)
+
+    assert result["verdict"] == "base_mix_component_experiment_improves_but_still_below_floor"
+    assert result["machine_read_answer"]["entry_quality_ge_0_55"] is False
+    assert result["best_scenario"]["scenario"] == "winner_triplet_p75"
+    assert result["best_scenario"]["entry_quality_after"] > runtime_current["entry_quality"]
+    assert result["best_scenario"]["required_bias50_cap_after_base_mix"] < 0.2206
+
+
+def test_collect_q35_scaling_audit_diagnostics_includes_deployment_component_experiment(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "q35_scaling_audit.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-15 12:00:00",
+                "target_col": "simulated_pyramid_win",
+                "overall_verdict": "bias50_formula_may_be_too_harsh",
+                "structure_scaling_verdict": "q35_structure_caution_not_root_cause",
+                "current_live": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "entry_quality": 0.4856,
+                    "entry_quality_label": "D",
+                    "allowed_layers_raw": 0,
+                    "allowed_layers_reason": "entry_quality_below_trade_floor",
+                    "raw_features": {"feat_4h_bias50": 2.9272, "feat_4h_bias200": 5.8838},
+                    "entry_quality_components": {"bias50_calibration": {"applied": True, "mode": "exact_lane_formula_review"}},
+                },
+                "scope_applicability": {"status": "current_live_q35_lane_active", "active_for_current_live_row": True},
+                "exact_lane_summary": {"rows": 124, "win_rate": 0.95, "current_bias50_percentile": 0.42},
+                "broader_bull_cohorts": {"same_gate_same_quality": {}, "same_bucket": {}, "bull_all": {}},
+                "segmented_calibration": {"status": "formula_review_required", "recommended_mode": "exact_lane_formula_review"},
+                "piecewise_runtime_preview": {"applied": True, "score": 0.2317, "legacy_score": 0.0},
+                "deployment_grade_component_experiment": {
+                    "verdict": "runtime_patch_improves_but_still_below_floor",
+                    "baseline_entry_quality": 0.4161,
+                    "runtime_entry_quality": 0.4856,
+                    "entry_quality_delta_vs_legacy": 0.0695,
+                    "baseline_allowed_layers_raw": 0,
+                    "runtime_allowed_layers_raw": 0,
+                    "runtime_trade_floor": 0.55,
+                    "runtime_remaining_gap_to_floor": 0.0644,
+                    "machine_read_answer": {"entry_quality_ge_0_55": False, "allowed_layers_gt_0": False},
+                    "next_patch_target": "feat_4h_bias50_formula",
+                    "verify_next": "entry_quality >= 0.55 and allowed_layers > 0",
+                },
+                "joint_component_experiment": {
+                    "verdict": "joint_component_experiment_improves_but_still_below_floor",
+                    "reason": "dist_swing_low uplift shrinks the gap but does not cross the floor.",
+                    "machine_read_answer": {"entry_quality_ge_0_55": False, "allowed_layers_gt_0": False},
+                    "best_scenario": {
+                        "scenario": "winner_p50",
+                        "entry_quality_after": 0.4977,
+                        "remaining_gap_to_floor": 0.0523,
+                        "required_bias50_cap_after_swing_uplift": 0.1385,
+                    },
+                    "verify_next": "summary must persist the best_scenario fields",
+                },
+                "base_mix_component_experiment": {
+                    "verdict": "base_mix_component_experiment_improves_but_still_below_floor",
+                    "reason": "bias50 + pulse + nose improves more than structure uplift but still misses the floor.",
+                    "machine_read_answer": {"entry_quality_ge_0_55": False, "allowed_layers_gt_0": False},
+                    "best_scenario": {
+                        "scenario": "winner_triplet_p75",
+                        "entry_quality_after": 0.5312,
+                        "remaining_gap_to_floor": 0.0188,
+                        "required_bias50_cap_after_base_mix": -2.105,
+                    },
+                    "verify_next": "summary must persist base-mix scenario fields",
+                },
+                "counterfactuals": {"required_bias50_cap_for_floor": 0.1685},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    summary = hb_parallel_runner.collect_q35_scaling_audit_diagnostics()
+
+    assert summary["deployment_grade_component_experiment"]["verdict"] == "runtime_patch_improves_but_still_below_floor"
+    assert summary["deployment_grade_component_experiment"]["machine_read_answer"]["entry_quality_ge_0_55"] is False
+    assert summary["deployment_grade_component_experiment"]["runtime_remaining_gap_to_floor"] == 0.0644
+    assert summary["deployment_grade_component_experiment"]["next_patch_target"] == "feat_4h_bias50_formula"
+    assert summary["joint_component_experiment"]["verdict"] == "joint_component_experiment_improves_but_still_below_floor"
+    assert summary["joint_component_experiment"]["best_scenario"]["scenario"] == "winner_p50"
+    assert summary["joint_component_experiment"]["best_scenario"]["required_bias50_cap_after_swing_uplift"] == 0.1385
+    assert summary["base_mix_component_experiment"]["verdict"] == "base_mix_component_experiment_improves_but_still_below_floor"
+    assert summary["base_mix_component_experiment"]["best_scenario"]["scenario"] == "winner_triplet_p75"
+    assert summary["base_mix_component_experiment"]["best_scenario"]["required_bias50_cap_after_base_mix"] == -2.105
+
+
 def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
 
@@ -313,6 +476,12 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
                 "status": "hold_only_confirmed",
                 "recommended_mode": "keep_hold_only",
                 "reference_cohort": {},
+            },
+            "deployment_grade_component_experiment": {
+                "verdict": "runtime_patch_improves_but_still_below_floor",
+                "machine_read_answer": {"entry_quality_ge_0_55": False, "allowed_layers_gt_0": False},
+                "runtime_entry_quality": 0.4856,
+                "runtime_remaining_gap_to_floor": 0.0644,
             },
         },
         circuit_breaker_audit={
