@@ -775,6 +775,7 @@ def collect_q15_support_audit_diagnostics() -> Dict[str, Any]:
     except Exception:
         return {}
     current_live = payload.get("current_live") or {}
+    scope_applicability = payload.get("scope_applicability") or {}
     support_route = payload.get("support_route") or {}
     floor = payload.get("floor_cross_legality") or {}
     component_experiment = payload.get("component_experiment") or {}
@@ -782,6 +783,7 @@ def collect_q15_support_audit_diagnostics() -> Dict[str, Any]:
         "generated_at": payload.get("generated_at"),
         "target_col": payload.get("target_col"),
         "current_live": current_live,
+        "scope_applicability": scope_applicability,
         "support_route": support_route,
         "floor_cross_legality": floor,
         "component_experiment": component_experiment,
@@ -1471,12 +1473,14 @@ def main(argv=None):
     if q15_support_result.get("stderr"):
         print(f"\n--- hb_q15_support_audit stderr ---\n{q15_support_result['stderr']}")
     if q15_support_summary:
+        scope = q15_support_summary.get("scope_applicability") or {}
         support = q15_support_summary.get("support_route") or {}
         floor = q15_support_summary.get("floor_cross_legality") or {}
         experiment = q15_support_summary.get("component_experiment") or {}
         experiment_answer = experiment.get("machine_read_answer") or {}
         print(
             "🧩 Q15 治理："
+            f"scope={scope.get('status')} active={scope.get('active_for_current_live_row')} "
             f"support={support.get('verdict')} deployable={support.get('deployable')} "
             f"floor={floor.get('verdict')} legal={floor.get('legal_to_relax_runtime_gate')} "
             f"best={floor.get('best_single_component')} gap={floor.get('remaining_gap_to_floor')} "

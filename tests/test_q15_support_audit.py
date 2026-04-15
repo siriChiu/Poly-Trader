@@ -106,3 +106,209 @@ def test_build_report_combines_support_route_and_floor_cross_legality():
     assert report["support_route"]["preferred_support_cohort"] == "bull_live_exact_bucket_proxy"
     assert report["floor_cross_legality"]["verdict"] == "math_cross_possible_but_illegal_without_exact_support"
     assert report["floor_cross_legality"]["best_single_component"] == "feat_4h_bias50"
+
+
+def test_build_report_prefers_probe_live_bucket_over_stale_bull_pocket_context():
+    probe = {
+        "feature_timestamp": "2026-04-15 15:48:14",
+        "target_col": "simulated_pyramid_win",
+        "signal": "HOLD",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.5091,
+        "entry_quality_label": "D",
+        "decision_quality_label": "C",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "entry_quality_below_trade_floor",
+        "execution_guardrail_reason": "unsupported_exact_live_structure_bucket_blocks_trade",
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                "current_live_structure_bucket_rows": 0,
+            }
+        },
+    }
+    drilldown = {
+        "chosen_scope_summary": {
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 0,
+        },
+        "component_gap_attribution": {
+            "remaining_gap_to_floor": 0.0409,
+            "best_single_component": {
+                "feature": "feat_4h_bias50",
+                "required_score_delta_to_cross_floor": 0.1363,
+                "can_single_component_cross_floor": True,
+            },
+        },
+    }
+    bull_pocket = {
+        "target_col": "simulated_pyramid_win",
+        "live_context": {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "execution_guardrail_reason": "bull_q35_no_deploy_governance",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "current_live_structure_bucket_rows": 51,
+        },
+        "support_pathology_summary": {
+            "minimum_support_rows": 50,
+            "exact_bucket_root_cause": "exact_bucket_supported",
+            "preferred_support_cohort": "exact_live_bucket",
+            "recommended_action": "舊 q35 snapshot，不應覆蓋目前 q15 live bucket。",
+        },
+    }
+    leaderboard_probe = {
+        "alignment": {
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "bull_exact_live_bucket_proxy_rows": 4,
+            "bull_exact_live_lane_proxy_rows": 418,
+            "bull_support_neighbor_rows": 155,
+        }
+    }
+
+    report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
+
+    assert report["current_live"]["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
+    assert report["current_live"]["current_live_structure_bucket_rows"] == 0
+    assert report["current_live"]["execution_guardrail_reason"] == "unsupported_exact_live_structure_bucket_blocks_trade"
+    assert report["support_route"]["verdict"] == "exact_bucket_missing_proxy_reference_only"
+    assert report["support_route"]["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert report["floor_cross_legality"]["verdict"] == "math_cross_possible_but_illegal_without_exact_support"
+    assert report["component_experiment"]["verdict"] == "reference_only_until_exact_support_ready"
+    assert report["component_experiment"]["machine_read_answer"]["support_ready"] is False
+
+
+def test_build_report_support_ready_exposes_component_experiment_machine_read_answer():
+    probe = {
+        "feature_timestamp": "2026-04-15 15:25:08",
+        "target_col": "simulated_pyramid_win",
+        "signal": "HOLD",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.4959,
+        "entry_quality_label": "D",
+        "decision_quality_label": "C",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "entry_quality_below_trade_floor",
+        "execution_guardrail_reason": "bull_q35_no_deploy_governance",
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                "current_live_structure_bucket_rows": 50,
+            }
+        },
+    }
+    drilldown = {
+        "component_gap_attribution": {
+            "trade_floor": 0.55,
+            "remaining_gap_to_floor": 0.0541,
+            "best_single_component": {
+                "feature": "feat_4h_bias50",
+                "required_score_delta_to_cross_floor": 0.1803,
+                "can_single_component_cross_floor": True,
+            },
+            "bias50_floor_counterfactual": {
+                "entry_if_bias50_fully_relaxed": 0.7208,
+                "layers_if_bias50_fully_relaxed": 2,
+                "required_bias50_cap_for_floor": 0.247,
+            },
+        }
+    }
+    bull_pocket = {
+        "target_col": "simulated_pyramid_win",
+        "support_pathology_summary": {
+            "minimum_support_rows": 50,
+            "exact_bucket_root_cause": "exact_bucket_supported",
+            "preferred_support_cohort": "exact_live_bucket",
+            "recommended_action": "可回到 exact live bucket 直接治理與驗證。",
+        },
+    }
+    leaderboard_probe = {
+        "alignment": {
+            "support_governance_route": "exact_live_bucket_supported",
+            "bull_exact_live_bucket_proxy_rows": 171,
+            "bull_exact_live_lane_proxy_rows": 434,
+            "bull_support_neighbor_rows": 0,
+        }
+    }
+
+    report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
+
+    assert report["scope_applicability"]["status"] == "current_live_q15_lane_active"
+    assert report["scope_applicability"]["active_for_current_live_row"] is True
+    assert report["support_route"]["verdict"] == "exact_bucket_supported"
+    assert report["floor_cross_legality"]["verdict"] == "legal_component_experiment_after_support_ready"
+    assert report["component_experiment"]["verdict"] == "exact_supported_component_experiment_ready"
+    assert report["component_experiment"]["feature"] == "feat_4h_bias50"
+    assert report["component_experiment"]["machine_read_answer"]["support_ready"] is True
+    assert report["component_experiment"]["machine_read_answer"]["entry_quality_ge_0_55"] is True
+    assert report["component_experiment"]["machine_read_answer"]["allowed_layers_gt_0"] is True
+    assert report["component_experiment"]["machine_read_answer"]["preserves_positive_discrimination_status"] == "not_measured_requires_followup_verify"
+
+
+def test_build_report_marks_q15_experiment_as_standby_when_current_live_row_is_q35():
+    probe = {
+        "feature_timestamp": "2026-04-15 17:35:54",
+        "target_col": "simulated_pyramid_win",
+        "signal": "HOLD",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.4115,
+        "entry_quality_label": "D",
+        "decision_quality_label": "C",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "entry_quality_below_trade_floor",
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                "current_live_structure_bucket_rows": 50,
+            }
+        },
+    }
+    drilldown = {
+        "component_gap_attribution": {
+            "trade_floor": 0.55,
+            "remaining_gap_to_floor": 0.1385,
+            "best_single_component": {
+                "feature": "feat_4h_bias50",
+                "required_score_delta_to_cross_floor": 0.4617,
+                "can_single_component_cross_floor": True,
+            },
+            "bias50_floor_counterfactual": {
+                "entry_if_bias50_fully_relaxed": 0.6411,
+                "layers_if_bias50_fully_relaxed": 1,
+                "required_bias50_cap_for_floor": -1.0815,
+            },
+        }
+    }
+    bull_pocket = {
+        "target_col": "simulated_pyramid_win",
+        "support_pathology_summary": {
+            "minimum_support_rows": 50,
+            "exact_bucket_root_cause": "exact_bucket_supported",
+            "preferred_support_cohort": "exact_live_bucket",
+            "recommended_action": "q15 support ready, but current live row is no longer in q15.",
+        },
+    }
+    leaderboard_probe = {
+        "alignment": {
+            "support_governance_route": "exact_live_bucket_supported",
+            "bull_exact_live_bucket_proxy_rows": 178,
+            "bull_exact_live_lane_proxy_rows": 441,
+            "bull_support_neighbor_rows": 0,
+        }
+    }
+
+    report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
+
+    assert report["scope_applicability"]["status"] == "current_live_not_q15_lane"
+    assert report["scope_applicability"]["active_for_current_live_row"] is False
+    assert report["support_route"]["verdict"] == "exact_bucket_supported"
+    assert report["component_experiment"]["verdict"] == "exact_supported_component_experiment_ready_but_current_live_not_q15"
+    assert report["component_experiment"]["machine_read_answer"]["support_ready"] is True
+    assert report["component_experiment"]["machine_read_answer"]["entry_quality_ge_0_55"] is True
+    assert report["component_experiment"]["machine_read_answer"]["allowed_layers_gt_0"] is True
+    assert report["component_experiment"]["machine_read_answer"]["preserves_positive_discrimination_status"] == "not_applicable_current_live_not_q15_lane"
+    assert "q35 current-live blocker" in report["next_action"]

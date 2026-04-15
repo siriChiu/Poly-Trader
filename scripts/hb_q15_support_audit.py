@@ -213,22 +213,204 @@ def _floor_cross_legality(
     }
 
 
+def _resolve_current_live_context(
+    probe: dict[str, Any],
+    drilldown: dict[str, Any],
+    bull_pocket: dict[str, Any],
+) -> dict[str, Any]:
+    probe_scopes = (probe.get("decision_quality_scope_diagnostics") or {}) if isinstance(probe, dict) else {}
+    exact_scope = probe_scopes.get("regime_label+regime_gate+entry_quality_label") or {}
+    chosen_scope = (drilldown.get("chosen_scope_summary") or {}) if isinstance(drilldown, dict) else {}
+    bull_live = (bull_pocket.get("live_context") or {}) if isinstance(bull_pocket, dict) else {}
+
+    current_bucket = (
+        exact_scope.get("current_live_structure_bucket")
+        or chosen_scope.get("current_live_structure_bucket")
+        or bull_live.get("current_live_structure_bucket")
+    )
+    current_bucket_rows = _as_int(
+        exact_scope.get("current_live_structure_bucket_rows"),
+        _as_int(chosen_scope.get("current_live_structure_bucket_rows"), _as_int(bull_live.get("current_live_structure_bucket_rows"), 0)),
+    )
+    execution_guardrail_reason = (
+        probe.get("execution_guardrail_reason")
+        or drilldown.get("execution_guardrail_reason")
+        or bull_live.get("execution_guardrail_reason")
+    )
+    return {
+        "regime_label": probe.get("regime_label") or bull_live.get("regime_label"),
+        "regime_gate": probe.get("regime_gate") or bull_live.get("regime_gate"),
+        "entry_quality_label": probe.get("entry_quality_label") or bull_live.get("entry_quality_label"),
+        "current_live_structure_bucket": current_bucket,
+        "current_live_structure_bucket_rows": current_bucket_rows,
+        "execution_guardrail_reason": execution_guardrail_reason,
+    }
+
+
+def _scope_applicability(live_context: dict[str, Any]) -> dict[str, Any]:
+    current_bucket = str(live_context.get("current_live_structure_bucket") or "")
+    target_bucket = "CAUTION|structure_quality_caution|q15"
+    if not current_bucket:
+        return {
+            "status": "unknown_current_live_bucket",
+            "active_for_current_live_row": False,
+            "current_structure_bucket": None,
+            "target_structure_bucket": target_bucket,
+            "reason": "無法判定 current live structure bucket，q15 support audit 只能保留為背景治理資訊。",
+        }
+    if current_bucket.endswith("|q15"):
+        return {
+            "status": "current_live_q15_lane_active",
+            "active_for_current_live_row": True,
+            "current_structure_bucket": current_bucket,
+            "target_structure_bucket": target_bucket,
+            "reason": "current live row 正位於 q15 lane；q15 support / component verify 可直接視為 current-live deployment 檢查。",
+        }
+    return {
+        "status": "current_live_not_q15_lane",
+        "active_for_current_live_row": False,
+        "current_structure_bucket": current_bucket,
+        "target_structure_bucket": target_bucket,
+        "reason": "current live row 已不在 q15 lane；q15 support audit 只能描述 standby q15 route readiness，不可當成 current-live deployment closure。",
+    }
+
+
+def _component_experiment(
+    support_route: dict[str, Any],
+    floor_legality: dict[str, Any],
+    component_gap: dict[str, Any],
+    runtime_blocker: dict[str, Any] | None,
+    scope_applicability: dict[str, Any],
+) -> dict[str, Any]:
+    best_single = component_gap.get("best_single_component") or {}
+    feature = best_single.get("feature")
+    remaining_gap = _as_float(component_gap.get("remaining_gap_to_floor"))
+    bias50_counterfactual = component_gap.get("bias50_floor_counterfactual") or {}
+    trade_floor = _as_float(component_gap.get("trade_floor"))
+    entry_after = _as_float(bias50_counterfactual.get("entry_if_bias50_fully_relaxed"))
+    layers_after = _as_int(bias50_counterfactual.get("layers_if_bias50_fully_relaxed"), 0)
+    can_cross = bool(best_single.get("can_single_component_cross_floor"))
+    required_delta = _as_float(best_single.get("required_score_delta_to_cross_floor"))
+
+    if runtime_blocker:
+        return {
+            "verdict": "runtime_blocker_preempts_component_experiment",
+            "feature": feature,
+            "reason": f"目前先被 runtime blocker 擋下（{runtime_blocker.get('reason') or runtime_blocker.get('type')}），q15 component experiment 只能保留為背景研究。",
+            "machine_read_answer": {
+                "support_ready": bool(support_route.get("deployable")),
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+                "preserves_positive_discrimination": None,
+                "preserves_positive_discrimination_status": "not_measured_runtime_blocked",
+            },
+            "verify_next": "先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。",
+        }
+
+    if not support_route.get("deployable"):
+        return {
+            "verdict": "reference_only_until_exact_support_ready",
+            "feature": feature,
+            "reason": "exact support 尚未達 deployment 門檻；component experiment 只能作 reference-only 研究。",
+            "machine_read_answer": {
+                "support_ready": False,
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+                "preserves_positive_discrimination": None,
+                "preserves_positive_discrimination_status": "not_measured_support_missing",
+            },
+            "verify_next": "先把 current q15 exact bucket rows 補到 minimum support，再回來做 component experiment。",
+        }
+
+    if not feature:
+        return {
+            "verdict": "no_component_candidate",
+            "feature": None,
+            "reason": "component_gap_attribution 未提供最佳單點 component，無法形成 exact-supported experiment。",
+            "machine_read_answer": {
+                "support_ready": True,
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+                "preserves_positive_discrimination": None,
+                "preserves_positive_discrimination_status": "not_measured_no_candidate",
+            },
+            "verify_next": "先修復 live_decision_quality_drilldown 的 component gap attribution，再重跑 q15 audit。",
+        }
+
+    if not scope_applicability.get("active_for_current_live_row"):
+        return {
+            "verdict": "exact_supported_component_experiment_ready_but_current_live_not_q15",
+            "feature": feature,
+            "mode": "standby_q15_route",
+            "remaining_gap_to_floor": remaining_gap,
+            "required_score_delta_to_cross_floor": required_delta,
+            "bias50_floor_counterfactual": bias50_counterfactual if feature == "feat_4h_bias50" else None,
+            "reason": (
+                f"exact q15 support 雖已達標，且 {feature} 仍是最佳 q15 component candidate；"
+                "但 current live row 目前停在非 q15 bucket，故本 artifact 只能描述 standby q15 route readiness，"
+                "不得當成 current-live deployment closure。"
+            ),
+            "machine_read_answer": {
+                "support_ready": True,
+                "entry_quality_ge_0_55": bool(can_cross),
+                "allowed_layers_gt_0": bool(can_cross),
+                "preserves_positive_discrimination": None,
+                "preserves_positive_discrimination_status": "not_applicable_current_live_not_q15_lane",
+                "active_for_current_live_row": False,
+            },
+            "verify_next": "若 live row 回到 q15 lane，再執行 q15 exact-supported deployment verify；目前應以 q35 current-live blocker 為主。",
+        }
+
+    entry_quality_ge_trade_floor = bool(can_cross)
+    allowed_layers_gt_0 = bool(can_cross)
+    experiment_mode = "single_component_headroom"
+    if feature == "feat_4h_bias50" and entry_after is not None:
+        if trade_floor is not None:
+            entry_quality_ge_trade_floor = entry_after >= trade_floor
+        allowed_layers_gt_0 = layers_after > 0
+        experiment_mode = "bias50_floor_counterfactual"
+
+    return {
+        "verdict": "exact_supported_component_experiment_ready",
+        "feature": feature,
+        "mode": experiment_mode,
+        "remaining_gap_to_floor": remaining_gap,
+        "required_score_delta_to_cross_floor": required_delta,
+        "bias50_floor_counterfactual": bias50_counterfactual if feature == "feat_4h_bias50" else None,
+        "reason": (
+            f"exact support 已達標，{feature} 可作為保守的 q15 component experiment；"
+            "但是否保留正向 discrimination，仍需靠 pytest / fast heartbeat / live probe 做回歸驗證。"
+        ),
+        "machine_read_answer": {
+            "support_ready": True,
+            "entry_quality_ge_0_55": bool(entry_quality_ge_trade_floor),
+            "allowed_layers_gt_0": bool(allowed_layers_gt_0),
+            "preserves_positive_discrimination": None,
+            "preserves_positive_discrimination_status": "not_measured_requires_followup_verify",
+        },
+        "verify_next": "用 exact-supported component patch + pytest + fast heartbeat 驗證 allowed_layers / execution_guardrail / live probe 是否仍一致。",
+    }
+
+
 def build_report(
     probe: dict[str, Any],
     drilldown: dict[str, Any],
     bull_pocket: dict[str, Any],
     leaderboard_probe: dict[str, Any],
 ) -> dict[str, Any]:
-    live_context = bull_pocket.get("live_context") or {}
+    live_context = _resolve_current_live_context(probe, drilldown, bull_pocket)
     support_summary = bull_pocket.get("support_pathology_summary") or {}
     alignment = leaderboard_probe.get("alignment") or {}
     component_gap = drilldown.get("component_gap_attribution") or {}
     runtime_blocker = drilldown.get("runtime_blocker") or None
     best_single = component_gap.get("best_single_component") or None
+    minimum_support_rows = _as_int(support_summary.get("minimum_support_rows"), 50)
+    current_bucket_rows = _as_int(live_context.get("current_live_structure_bucket_rows"), 0)
 
+    scope_applicability = _scope_applicability(live_context)
     support_route = _support_route_decision(
-        current_bucket_rows=_as_int(live_context.get("current_live_structure_bucket_rows"), 0),
-        minimum_support_rows=_as_int(support_summary.get("minimum_support_rows"), 50),
+        current_bucket_rows=current_bucket_rows,
+        minimum_support_rows=minimum_support_rows,
         exact_bucket_proxy_rows=_as_int(alignment.get("bull_exact_live_bucket_proxy_rows"), 0),
         exact_lane_proxy_rows=_as_int(alignment.get("bull_exact_live_lane_proxy_rows"), 0),
         supported_neighbor_rows=_as_int(alignment.get("bull_support_neighbor_rows"), 0),
@@ -241,6 +423,13 @@ def build_report(
         runtime_blocker=runtime_blocker,
         remaining_gap_to_floor=_as_float(component_gap.get("remaining_gap_to_floor")),
         best_single_component=best_single,
+    )
+    component_experiment = _component_experiment(
+        support_route=support_route,
+        floor_legality=floor_legality,
+        component_gap=component_gap,
+        runtime_blocker=runtime_blocker,
+        scope_applicability=scope_applicability,
     )
 
     remaining_gap = _as_float(component_gap.get("remaining_gap_to_floor"))
@@ -255,6 +444,11 @@ def build_report(
         next_action = (
             "exact support 已達標；下一輪可針對最佳 component 做保守 counterfactual 驗證，"
             "並以 pytest + fast heartbeat 驗證 runtime guardrail 不回歸。"
+        )
+    if not scope_applicability.get("active_for_current_live_row"):
+        next_action = (
+            "current live row 目前不在 q15 lane；q15 audit 只保留 standby route readiness。"
+            "下一輪主焦點應回到 q35 current-live blocker / deployment verify，除非 live row 再次回到 q15 bucket。"
         )
 
     return {
@@ -273,6 +467,7 @@ def build_report(
             "current_live_structure_bucket": live_context.get("current_live_structure_bucket"),
             "current_live_structure_bucket_rows": _as_int(live_context.get("current_live_structure_bucket_rows"), 0),
         },
+        "scope_applicability": scope_applicability,
         "support_route": {
             "support_governance_route": alignment.get("support_governance_route"),
             "preferred_support_cohort": support_route.get("preferred_support_cohort"),
@@ -282,10 +477,10 @@ def build_report(
             "reason": support_route.get("reason"),
             "release_condition": support_route.get("release_condition"),
             "route_hint": support_route.get("route_hint"),
-            "minimum_support_rows": _as_int(support_summary.get("minimum_support_rows"), 50),
-            "current_live_structure_bucket_gap_to_minimum": _as_int(support_summary.get("current_live_structure_bucket_gap_to_minimum"), 0),
-            "exact_bucket_root_cause": support_summary.get("exact_bucket_root_cause"),
-            "recommended_action": support_summary.get("recommended_action"),
+            "minimum_support_rows": minimum_support_rows,
+            "current_live_structure_bucket_gap_to_minimum": max(0, minimum_support_rows - current_bucket_rows),
+            "exact_bucket_root_cause": support_summary.get("exact_bucket_root_cause") or support_route.get("route_hint") or support_route.get("verdict"),
+            "recommended_action": support_summary.get("recommended_action") or support_route.get("release_condition"),
             "exact_live_bucket_proxy_rows": _as_int(alignment.get("bull_exact_live_bucket_proxy_rows"), 0),
             "exact_live_lane_proxy_rows": _as_int(alignment.get("bull_exact_live_lane_proxy_rows"), 0),
             "supported_neighbor_rows": _as_int(alignment.get("bull_support_neighbor_rows"), 0),
@@ -299,6 +494,7 @@ def build_report(
             "best_single_component_required_score_delta": required_delta,
             "best_single_component_can_cross_floor": bool((best_single or {}).get("can_single_component_cross_floor")),
         },
+        "component_experiment": component_experiment,
         "component_gap_attribution": component_gap,
         "runtime_blocker": runtime_blocker,
         "next_action": next_action,
@@ -307,8 +503,11 @@ def build_report(
 
 def _markdown(report: dict[str, Any]) -> str:
     current = report.get("current_live") or {}
+    scope = report.get("scope_applicability") or {}
     support = report.get("support_route") or {}
     floor = report.get("floor_cross_legality") or {}
+    experiment = report.get("component_experiment") or {}
+    experiment_answer = experiment.get("machine_read_answer") or {}
     return "\n".join(
         [
             "# q15 Support Audit",
@@ -323,6 +522,13 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- current_live_structure_bucket_rows: **{current.get('current_live_structure_bucket_rows')}**",
             f"- allowed_layers: **{current.get('allowed_layers')}** ({current.get('allowed_layers_reason')})",
             f"- execution_guardrail_reason: **{current.get('execution_guardrail_reason')}**",
+            "",
+            "## Scope applicability",
+            f"- status: **{scope.get('status')}**",
+            f"- active_for_current_live_row: **{scope.get('active_for_current_live_row')}**",
+            f"- current_structure_bucket: **{scope.get('current_structure_bucket')}**",
+            f"- target_structure_bucket: **{scope.get('target_structure_bucket')}**",
+            f"- reason: {scope.get('reason')}",
             "",
             "## Support route verdict",
             f"- support_governance_route: **{support.get('support_governance_route')}**",
@@ -345,6 +551,17 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- best_single_component_required_score_delta: **{floor.get('best_single_component_required_score_delta')}**",
             f"- best_single_component_can_cross_floor: **{floor.get('best_single_component_can_cross_floor')}**",
             f"- reason: {floor.get('reason')}",
+            "",
+            "## Exact-supported component experiment",
+            f"- verdict: **{experiment.get('verdict')}**",
+            f"- feature: **{experiment.get('feature')}**",
+            f"- mode: **{experiment.get('mode')}**",
+            f"- support_ready: **{experiment_answer.get('support_ready')}**",
+            f"- entry_quality_ge_0_55: **{experiment_answer.get('entry_quality_ge_0_55')}**",
+            f"- allowed_layers_gt_0: **{experiment_answer.get('allowed_layers_gt_0')}**",
+            f"- preserves_positive_discrimination: **{experiment_answer.get('preserves_positive_discrimination')}** ({experiment_answer.get('preserves_positive_discrimination_status')})",
+            f"- reason: {experiment.get('reason')}",
+            f"- verify_next: {experiment.get('verify_next')}",
             "",
             "## Next action",
             f"- {report.get('next_action')}",
@@ -379,6 +596,9 @@ def main() -> None:
                 "remaining_gap_to_floor": (report.get("floor_cross_legality") or {}).get("remaining_gap_to_floor"),
                 "best_single_component": (report.get("floor_cross_legality") or {}).get("best_single_component"),
                 "best_single_component_required_score_delta": (report.get("floor_cross_legality") or {}).get("best_single_component_required_score_delta"),
+                "component_experiment_verdict": (report.get("component_experiment") or {}).get("verdict"),
+                "component_experiment_feature": (report.get("component_experiment") or {}).get("feature"),
+                "component_experiment_machine_read_answer": (report.get("component_experiment") or {}).get("machine_read_answer"),
             },
             indent=2,
             ensure_ascii=False,
