@@ -1,6 +1,6 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-15 05:02 UTC — Heartbeat #1005（本輪把 q35/bias50 問題從「bull cohort segmented calibration 候選」正式推進到 **exact-lane formula review + runtime conservative score 已落地**：當 current `feat_4h_bias50` 已回到 exact-lane p90 內時，predictor / q35 audit 會套用 `exact_lane_elevated_within_p90` 的保守非零分數，而不是繼續把 bias50 壓成 0。）_
+_最後更新：2026-04-15 05:35 UTC — Heartbeat #1006（本輪把「剩餘 trade-floor gap 到底卡在 bias50 還是其他 component」從口頭要求變成 machine-readable artifact：`live_decision_quality_drilldown` 現在會輸出 `component_gap_attribution`，直接指出目前 live bull path 的最佳單點修補候選是 `feat_4h_bias50`。）_
 
 本文件只保留**目前仍有效的問題、證據、下一步與 carry-forward 指令**，不保留歷史流水帳。
 
@@ -8,56 +8,52 @@ _最後更新：2026-04-15 05:02 UTC — Heartbeat #1005（本輪把 q35/bias50 
 
 ## Step 0.5 承接上輪輸入
 
-### 文件中的上輪（#1004）要求本輪處理
+### 文件中的上輪（#1005）要求本輪處理
 - **Next focus**：
-  1. 以 `bull_all` 作 reference cohort，落實 `feat_4h_bias50` 的 piecewise / quantile calibration；
-  2. 維持 `q35_scaling_audit`、`profile_split`、`support_blocker_state`、`proxy_boundary_verdict` 的零漂移治理；
+  1. 量化剩餘 `0.0262` trade-floor gap 的 component root cause；
+  2. 維持 `q35_scaling_audit`、`profile_split`、`support_blocker_state`、`proxy_boundary_verdict` 零漂移；
   3. 持續把 `fin_netflow` 當外部 source auth blocker 管理。
 - **Success gate**：
-  1. 至少留下 1 個與 **bias50 piecewise / quantile calibration** 直接相關的 patch / artifact / verify；
-  2. 若 current bull q35 lane 仍是 `CAUTION / D / 0-layer`，`q35_scaling_audit` 必須再次輸出一致結論，且 docs / summary / issue 不得漂移；
-  3. 若要主張 relax runtime gate，必須先證明 current 值已回到 exact lane 可接受區間，而不是只看 broader bull cohort。
+  1. 至少留下 1 個與 `entry-quality` 剩餘 gap attribution 直接相關的 patch / artifact / verify；
+  2. 若 bull q35 lane 仍是 `CAUTION / D / 0-layer`，必須明確回答「bias50 還差多少、其他 components 是否更關鍵」；
+  3. 若要主張 relax runtime gate，必須證明 `allowed_layers=0` guardrail 沒被破壞且 `entry_quality >= 0.55`。
 - **Fallback if fail**：
-  - 若 `q35_scaling_audit` 缺 `segmented_calibration` 或 `reference_cohort`，視為 governance regression；
-  - 若有人再次直接放寬 q35 gate 或下修 `trade_floor`，卻沒有新的 calibration patch / verify，視為 contract regression；
-  - 若 `profile_split` / exact-supported 狀態再漂移，視為 blocker；
-  - 若 source auth 未修，繼續標記 blocked，不准寫成即將恢復。
+  - 不得退回只談「q35 calibration 有沒有接上」；
+  - 不得無 artifact 就放寬 q35 gate / trade_floor；
+  - 若 exact-supported / profile split 再漂移，升級為 blocker。
 
 ### 本輪承接結果
 - **已處理**：
-  - `model/q35_bias50_calibration.py`
-    - 新增 **exact-lane formula-review** 分支；
-    - 當 `overall_verdict=bias50_formula_may_be_too_harsh`、`status=formula_review_required`、且 current `bias50` 位於 exact-lane `p75~p90` 內時，改用 `segment=exact_lane_elevated_within_p90` 的保守非零 score，而不是 legacy 0 分。
-  - `scripts/hb_q35_scaling_audit.py`
-    - 當 current `bias50` 已回到 exact-lane `p90` 內時，不再繼續把它判成 broader bull segmentation；
-    - 改寫為 `overall_verdict=bias50_formula_may_be_too_harsh`、`segmented_calibration.status=formula_review_required`。
-  - `tests/test_api_feature_history_and_predictor.py`
-    - 新增 exact-lane formula-review calibration regression test。
+  - `scripts/live_decision_quality_drilldown.py`
+    - 新增 `component_gap_attribution`，machine-read：
+      - `remaining_gap_to_floor`
+      - `best_single_component`
+      - `best_single_component_required_score_delta`
+      - `single_component_floor_crossers`
+      - `bias50_floor_counterfactual`
+    - markdown 同步新增「Gap attribution（哪個 component 真正在卡 floor）」段落。
+  - `scripts/hb_parallel_runner.py`
+    - fast heartbeat summary 現在會帶出 `live_decision_drilldown.remaining_gap_to_floor / best_single_component / best_single_component_required_score_delta`。
+  - `tests/test_live_decision_quality_drilldown.py`
+    - 鎖住 gap attribution：當前案例必須辨識 `feat_4h_bias50` 為最佳單點修補候選。
   - `tests/test_hb_parallel_runner.py`
-    - 新增 formula-review runtime-active regression test。
-  - `ARCHITECTURE.md`
-    - 同步 q35 contract 的 **exact-lane formula-review** 分支。
+    - 鎖住 summary 持久化新的 drilldown 欄位。
 - **驗證已完成**：
-  - `source venv/bin/activate && python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_hb_parallel_runner.py -q` → **50 passed**
-  - `source venv/bin/activate && python scripts/hb_q35_scaling_audit.py` → **通過**
-  - `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast --hb 1005` → **通過**
+  - `source venv/bin/activate && python -m pytest tests/test_live_decision_quality_drilldown.py tests/test_hb_parallel_runner.py -q` → **18 passed**
+  - `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast --hb 1006` → **通過**
 - **本輪明確答案**：
-  - `overall_verdict = bias50_formula_may_be_too_harsh`
-  - `structure_scaling_verdict = q35_structure_caution_not_root_cause`
-  - `segmented_calibration.status = formula_review_required`
-  - `segmented_calibration.recommended_mode = exact_lane_formula_review`
-  - `segmented_calibration.runtime_contract_status = piecewise_runtime_active`
-  - `piecewise_runtime_preview.segment = exact_lane_elevated_within_p90`
-  - current `feat_4h_bias50 = 3.2478`
-  - exact lane：`p75 = 3.0207`、`p90 = 3.4106`、`current_bias50_percentile = 0.8763`
-  - live bias50 score：`0.0 → 0.1334`
-  - live entry quality：`0.4826 → 0.5238`
-  - 仍未達 trade floor：`trade_floor_gap = -0.0262`
+  - 目前 live bull path：`bull / CAUTION / D / 0-layer`
+  - current `entry_quality = 0.4658`
+  - `trade_floor_gap = -0.0842`
+  - `component_gap_attribution.remaining_gap_to_floor = 0.0842`
+  - `component_gap_attribution.best_single_component = feat_4h_bias50`
+  - `best_single_component_required_score_delta = 0.2807`
+  - `bias50 fully relaxed -> entry_quality ≈ 0.7807 / layers ≈ 2`
 - **本輪明確不做**：
   - 不直接放寬 q35 gate；
   - 不直接降低 `trade_floor`；
-  - 不把 exact-lane formula review 誤寫成「已可進場」；
-  - 不把 `fin_netflow` auth blocker 混進 q35 根因。
+  - 不把單次 `bias50` counterfactual 誤包裝成「現在可交易」；
+  - 不把 `fin_netflow` auth blocker 混入 bull live path 根因。
 
 ---
 
@@ -65,98 +61,102 @@ _最後更新：2026-04-15 05:02 UTC — Heartbeat #1005（本輪把 q35/bias50 
 
 ### 本輪 patch / 驗證
 - **Patch（已落地）**
-  - `model/q35_bias50_calibration.py`
-  - `scripts/hb_q35_scaling_audit.py`
-  - `tests/test_api_feature_history_and_predictor.py`
+  - `scripts/live_decision_quality_drilldown.py`
+  - `scripts/hb_parallel_runner.py`
+  - `tests/test_live_decision_quality_drilldown.py`
   - `tests/test_hb_parallel_runner.py`
-  - `ARCHITECTURE.md`
 - **Tests（已通過）**
-  - `source venv/bin/activate && python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_hb_parallel_runner.py -q` → **50 passed**
+  - `source venv/bin/activate && python -m pytest tests/test_live_decision_quality_drilldown.py tests/test_hb_parallel_runner.py -q` → **18 passed**
 - **Runtime verify（已通過）**
-  - `source venv/bin/activate && python scripts/hb_q35_scaling_audit.py`
-  - `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast --hb 1005`
+  - `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast --hb 1006`
 - **已刷新 artifacts**
-  - `data/heartbeat_1005_summary.json`
-  - `data/q35_scaling_audit.json`
-  - `docs/analysis/q35_scaling_audit.md`
+  - `data/heartbeat_1006_summary.json`
   - `data/live_predict_probe.json`
   - `data/live_decision_quality_drilldown.json`
-  - `data/full_ic_result.json`
-  - `data/ic_regime_analysis.json`
-  - `data/recent_drift_report.json`
+  - `docs/analysis/live_decision_quality_drilldown.md`
+  - `data/q35_scaling_audit.json`
+  - `docs/analysis/q35_scaling_audit.md`
   - `data/feature_group_ablation.json`
   - `data/bull_4h_pocket_ablation.json`
   - `data/leaderboard_feature_profile_probe.json`
+  - `data/full_ic_result.json`
+  - `data/ic_regime_analysis.json`
+  - `data/recent_drift_report.json`
   - `model/ic_signs.json`
 
 ### 資料 / 新鮮度 / canonical target
-- 來自 Heartbeat #1005：
-  - Raw / Features / Labels：**21578 / 13007 / 43185**
-  - 本輪增量：**+1 raw / +1 feature / +1 label**（summary 最終落點）
-  - canonical target `simulated_pyramid_win`：**0.5785**
-  - 240m labels：**21598 rows / target_rows 12676 / lag_vs_raw 約 3.2h**
-  - 1440m labels：**12502 rows / target_rows 12502 / lag_vs_raw 約 23.4h**
-  - recent raw age：**約 0.5 分鐘**
+- Heartbeat #1006：
+  - Raw / Features / Labels：**21580 / 13009 / 43193**
+  - 本輪增量：**+1 raw / +1 feature / +4 labels**
+  - canonical target `simulated_pyramid_win`：**0.5784**
+  - 240m labels：**21605 rows / target_rows 12683 / lag_vs_raw 約 3.0h**
+  - 1440m labels：**12503 rows / target_rows 12503 / lag_vs_raw 約 23.4h**
+  - recent raw age：**約 0.6 分鐘**
   - continuity repair：**4h=0 / 1h=0 / bridge=0**
 
 ### IC / regime / drift
 - Global IC：**19/30 pass**
 - TW-IC：**20/30 pass**
 - Regime IC：**Bear 4/8 / Bull 6/8 / Chop 6/8**
-- primary drift window：**recent 100**
+- drift primary window：**recent 100**
   - alerts：`constant_target`, `regime_concentration`, `regime_shift`
   - interpretation：**supported_extreme_trend**
   - dominant_regime：**bull 100%**
   - win_rate：**1.0000**
-  - avg_quality：**0.6796**
+  - avg_quality：**0.6800**
   - avg_pnl：**+0.0216**
-  - avg_drawdown_penalty：**0.0367**
-- 判讀：canonical recent window 仍健康；本輪主 blocker 已從「bull cohort segmented calibration 尚未實作」轉為 **exact-lane formula review 已落地，但仍差 0.0262 才跨過 trade floor**。
+  - avg_drawdown_penalty：**0.0363**
+- 判讀：canonical target 與資料新鮮度仍健康；本輪主問題不是 drift，而是 **bull live path 的 current structure bucket 從 q35 漂到 q15，導致 exact live bucket 支撐重新歸零**。
 
-### Train / leaderboard / live contract
-- `model/last_metrics.json`
-  - `feature_profile = core_plus_macro_plus_4h_structure_shift`
-  - Train=`67.5%`
-  - CV=`71.7% ± 9.9pp`
-  - `n_features = 21`
+### Live contract / gap attribution / governance
+- `data/live_predict_probe.json`
+  - signal：**HOLD**
+  - confidence：**0.5498**
+  - regime：**bull**
+  - gate：**CAUTION**
+  - entry quality：**0.4658 (D)**
+  - `allowed_layers = 0`
+  - `allowed_layers_reason = entry_quality_below_trade_floor`
+  - `execution_guardrail_reason = unsupported_exact_live_structure_bucket_blocks_trade`
+  - chosen scope：**`regime_label+entry_quality_label` / sample_size=197**
+  - expected win rate：**0.9848**
+  - expected pyramid quality：**0.6714**
+- `data/live_decision_quality_drilldown.json`
+  - `remaining_gap_to_floor = 0.0842`
+  - `best_single_component = feat_4h_bias50`
+  - `best_single_component_required_score_delta = 0.2807`
+  - `single_component_floor_crossers = [feat_4h_bias50]`
+  - `bias50 fully relaxed -> entry≈0.7807 / layers≈2`
+- 判讀：**本輪已正式回答「哪個 component 最該修」：是 `feat_4h_bias50`，不是 nose / pulse / ear，也不是單獨某一個 structure component。**
+
+### Q35 / bull lane / support 狀態
+- `data/q35_scaling_audit.json`
+  - `overall_verdict = broader_bull_cohort_recalibration_candidate`
+  - `structure_scaling_verdict = q35_structure_caution_not_root_cause`
+  - `segmented_calibration.status = segmented_calibration_required`
+  - `segmented_calibration.recommended_mode = piecewise_quantile_calibration`
+  - `segmented_calibration.runtime_contract_status = piecewise_runtime_active`
+  - `reference_cohort = same_gate_same_quality`
+  - `exact_bias50_pct = 1.0`
+  - `bull_all_bias50_pct = 0.5049`
+- `data/bull_4h_pocket_ablation.json`
+  - `current_live_structure_bucket = CAUTION|structure_quality_caution|q15`
+  - `current_live_structure_bucket_rows = 0`
+  - `support_blocker_state = exact_lane_proxy_fallback_only`
+  - `exact_bucket_root_cause = same_lane_shifted_to_neighbor_bucket`
+  - `supported_neighbor_buckets = [CAUTION|structure_quality_caution|q35]`
+- 判讀：#1005 的 `exact_live_bucket_supported` **本輪已失效**；當前 live row 漂到 `q15`，support 重新回到 proxy fallback 狀態。
+
+### Feature profile / leaderboard
 - `data/feature_group_ablation.json`
   - `recommended_profile = core_only`
   - `profile_role.role = global_shrinkage_winner`
-- `data/bull_4h_pocket_ablation.json`
-  - `bull_all.recommended_profile = core_plus_macro_plus_4h_structure_shift`
-  - `production_profile_role.role = bull_exact_supported_production_profile`
 - `data/leaderboard_feature_profile_probe.json`
-  - `train_selected_profile = leaderboard_selected_profile = core_plus_macro_plus_4h_structure_shift`
-  - `dual_profile_state = aligned`
-  - `profile_split.verdict = dual_role_required`
-  - `support_blocker_state = exact_live_bucket_supported`
-  - `proxy_boundary_verdict = exact_bucket_supported_proxy_not_required`
-- `data/live_predict_probe.json`
-  - signal：**HOLD**
-  - confidence：**0.4516**
-  - regime：**bull**
-  - gate：**CAUTION**
-  - entry quality：**0.5238 (D)**
-  - `allowed_layers_reason = entry_quality_below_trade_floor`
-  - `allowed_layers = 0`
-  - chosen scope：**`regime_label+entry_quality_label` / sample_size=197**
-  - expected win rate：**0.9848**
-  - expected pyramid quality：**0.6713**
-- 判讀：live contract、profile split、exact-supported semantics 仍穩定；**bias50 已不再是 0 分，但整體 entry quality 仍未跨 0.55 floor**。
-
-### Q35 / bias50 calibration 診斷
-- `data/q35_scaling_audit.json`
-  - `overall_verdict = bias50_formula_may_be_too_harsh`
-  - `structure_scaling_verdict = q35_structure_caution_not_root_cause`
-  - `segmented_calibration.status = formula_review_required`
-  - `segmented_calibration.recommended_mode = exact_lane_formula_review`
-  - `segmented_calibration.runtime_contract_status = piecewise_runtime_active`
-  - `piecewise_runtime_preview.segment = exact_lane_elevated_within_p90`
-  - exact lane：`current_bias50_percentile = 0.8763`、`percentile_band = elevated_but_within_p90`
-  - same-gate same-quality reference：`p90 = 3.4106`、`current_bias50_percentile = 0.8829`
-  - `gate_allow_only_changes_layers = false`
-  - `required_bias50_cap_for_floor = 1.2965`
-- 判讀：**本輪已證明 runtime 公式分支存在且生效**；剩餘問題不是「有沒有 calibration」，而是 **目前保守 score 仍不足以跨過 trade floor**。
+  - `leaderboard_selected_profile = core_only`
+  - `train_selected_profile = core_plus_macro_plus_4h_structure_shift`
+  - `dual_profile_state = leaderboard_global_winner_vs_train_support_fallback`
+  - blocked candidate：`core_plus_macro` → `unsupported_exact_live_structure_bucket`
+- 判讀：**profile split 仍存在，但已從 aligned 退回 governance split + blocker-aware fallback。**
 
 ### Source blockers
 - blocked sparse features：**8 個**
@@ -167,60 +167,59 @@ _最後更新：2026-04-15 05:02 UTC — Heartbeat #1005（本輪把 q35/bias50 
 
 ## 目前有效問題
 
-### P1. q35/bias50 已進入 **exact-lane formula review** 階段，但 current bull live path 仍差 `0.0262` 才過 floor
+### P1. bull live path 的 trade-floor gap 已明確歸因到 `feat_4h_bias50`，但 current lane 重新掉回 proxy fallback
 **現象**
-- current live row：
-  - `regime_gate = CAUTION`
-  - `entry_quality = 0.5238`
-  - `entry_quality_label = D`
-  - `allowed_layers = 0`
-  - `allowed_layers_reason = entry_quality_below_trade_floor`
-- q35 audit：
-  - `overall_verdict = bias50_formula_may_be_too_harsh`
-  - `segmented_calibration.status = formula_review_required`
-  - `segmented_calibration.runtime_contract_status = piecewise_runtime_active`
-
-**關鍵證據**
-- current `feat_4h_bias50 = 3.2478`
-- exact lane：`p75 = 3.0207`、`p90 = 3.4106`
-- runtime bias50 score：`0.0 → 0.1334`
-- `trade_floor_gap = -0.0262`
-- `required_bias50_cap_for_floor = 1.2965`
+- `entry_quality = 0.4658`
+- `trade_floor_gap = -0.0842`
+- `best_single_component = feat_4h_bias50`
+- `best_single_component_required_score_delta = 0.2807`
+- `bias50 fully relaxed -> entry≈0.7807 / layers≈2`
 
 **判讀**
-- 這題已不是「runtime 尚未吃到公式」；
-- 也不是「應直接回到 broader bull segmentation」；
-- **真正待做的是拆解剩餘 0.0262 gap：判斷下一步該繼續微調 exact-lane bias50 score，還是轉去修 nose / structure mix。**
+- 這已不是「不知道要修哪個 component」；
+- 目前最直接的 root cause 是 **bias50 分數在 current q15 lane 被壓成 0**；
+- 但因為 exact bucket 支撐是 0，不能直接把 counterfactual 視為 deployable runtime rule。
 
 ---
 
-### P1. current bull live path 的剩餘 blocker 已從 pure bias50 轉成 **entry-quality 組成拆解問題**
+### P1. live exact bucket 支撐從 supported 退回 `exact_lane_proxy_fallback_only`
 **現象**
-- `bias50_calibration.applied = true`
-- `bias50 weighted_contribution = 0.0534`
-- 但最終 `entry_quality = 0.5238 < 0.55`
-- current 組成：
-  - `feat_nose weighted_contribution = 0.0927`
-  - `feat_pulse weighted_contribution = 0.2687`
-  - `feat_ear weighted_contribution = 0.1493`
-  - `structure_quality = 0.4025`
+- `current_live_structure_bucket = CAUTION|structure_quality_caution|q15`
+- `current_live_structure_bucket_rows = 0`
+- `support_blocker_state = exact_lane_proxy_fallback_only`
+- `exact_bucket_root_cause = same_lane_shifted_to_neighbor_bucket`
+- `execution_guardrail_reason = unsupported_exact_live_structure_bucket_blocks_trade`
 
 **判讀**
-- bias50 已從 hard-zero 解除；
-- 下一輪不能再只盯 q35 audit verdict，必須直接比較 **bias50 再加多少才合理** 與 **其他 entry-quality components 是否更值得修**。
+- 這是本輪最重要的治理退步；
+- 即使 gap attribution 已完成，當前 runtime 也不能直接靠 piecewise bias50 放行，因為 **exact live bucket 根本沒有 recent support**。
 
 ---
 
-### P1. global shrinkage winner 與 production bull profile 的雙軌治理仍需維持零漂移
+### P1. q35/bias50 問題已從 exact-lane formula review 退回 `broader_bull_cohort_recalibration_candidate`
 **現象**
-- `global_recommended_profile = core_only`
-- `train_selected_profile = leaderboard_selected_profile = core_plus_macro_plus_4h_structure_shift`
-- `profile_split.verdict = dual_role_required`
-- `dual_profile_state = aligned`
+- `overall_verdict = broader_bull_cohort_recalibration_candidate`
+- `segmented_calibration.status = segmented_calibration_required`
+- `reference_cohort = same_gate_same_quality`
+- `exact_bias50_pct = 1.0`
+- `bull_all_bias50_pct = 0.5049`
 
 **判讀**
-- 這不是 parity blocker；
-- 這是**刻意保留的雙軌治理**：global winner 管 shrinkage，production winner 管 bull exact-supported live lane。
+- current row 不再是 #1005 那種「回到 exact-lane p90 內」情境；
+- 現在要做的是 **q15 lane / broader bull cohort 的 piecewise quantile calibration**，不是沿用上一輪的 exact-lane formula-review 敘事。
+
+---
+
+### P1. leaderboard / production profile split 重新進入 blocker-aware fallback
+**現象**
+- `leaderboard_selected_profile = core_only`
+- `train_selected_profile = core_plus_macro_plus_4h_structure_shift`
+- `dual_profile_state = leaderboard_global_winner_vs_train_support_fallback`
+- blocked candidate：`core_plus_macro` with `unsupported_exact_live_structure_bucket`
+
+**判讀**
+- 這不是 docs 漂移，而是 **current live bucket 支撐改變造成的真治理分裂**；
+- 需要先把 live bucket support 問題講清楚，再談 profile 統一。
 
 ---
 
@@ -228,87 +227,92 @@ _最後更新：2026-04-15 05:02 UTC — Heartbeat #1005（本輪把 q35/bias50 
 **現象**
 - `fin_netflow` coverage：**0.0%**
 - latest status：**auth_missing**
-- archive_window_coverage：**0.0% (0/1705)**
+- archive_window_coverage：**0.0% (0/1707)**
 
 **判讀**
-- 仍是**外部憑證 blocker**，不是 q35 / formula review 根因。
+- 仍是外部憑證 blocker；
+- 不可混入 bull live lane / q35 校準根因。
 
 ---
 
 ## 本輪已清掉的問題
 
-### RESOLVED. q35 runtime 仍被描述成「尚未吃到 piecewise 公式」
+### RESOLVED. 「剩餘 trade-floor gap 到底卡哪個 component」仍需人工讀圖猜測
 **修前**
-- 文件與治理語義仍把 q35 問題寫成「bull cohort segmented calibration 待落地」；
-- 但 current row 其實已回到 exact-lane p90 內，真實 blocker 是 legacy bias50 線性公式仍給 0 分。
+- #1005 已要求下一輪直接回答 component root cause；
+- 但 artifact 仍只給 entry-quality breakdown，沒有 machine-readable attribution。
 
 **本輪 patch + 證據**
-- `model/q35_bias50_calibration.py`
-  - 新增 `segment=exact_lane_elevated_within_p90`
-  - 支援 `status=formula_review_required` / `recommended_mode=exact_lane_formula_review`
-- `scripts/hb_q35_scaling_audit.py`
-  - current row 回到 exact-lane p90 內時，改寫為 `overall_verdict=bias50_formula_may_be_too_harsh`
-- `python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_hb_parallel_runner.py -q`
-  - **50 passed**
-- `python scripts/hb_q35_scaling_audit.py`
-  - `runtime_contract_status = piecewise_runtime_active`
-- `python scripts/hb_parallel_runner.py --fast --hb 1005`
-  - `data/live_predict_probe.json` 顯示：
-    - `bias50_calibration.applied = true`
-    - `bias50 score = 0.1334`
-    - `entry_quality = 0.5238`
+- `scripts/live_decision_quality_drilldown.py`
+  - 新增 `component_gap_attribution`
+- `scripts/hb_parallel_runner.py`
+  - summary 持久化 `remaining_gap_to_floor / best_single_component / best_single_component_required_score_delta`
+- `python -m pytest tests/test_live_decision_quality_drilldown.py tests/test_hb_parallel_runner.py -q`
+  - **18 passed**
+- `python scripts/hb_parallel_runner.py --fast --hb 1006`
+  - `data/live_decision_quality_drilldown.json` 明確輸出：
+    - `remaining_gap_to_floor = 0.0842`
+    - `best_single_component = feat_4h_bias50`
+    - `single_component_floor_crossers = [feat_4h_bias50]`
 
 **狀態**
-- **已修復**：runtime 現在不再把 exact-lane p90 內的高側 row 一律壓成 bias50=0；heartbeat 也不再把這題錯報成「runtime 未吃到新公式」。
+- **已修復**：heartbeat 現在可以 machine-read 回答 gap root cause，不再需要人工從 component 列表反推。
 
 ---
 
 ## 本輪決策（收斂版）
 
 ### 本輪要推進的 3 件事
-1. **把 q35/bias50 問題從 broader bull segmentation 轉成 exact-lane formula review。** ✅
-2. **讓 predictor / q35 audit 對 exact-lane 高側 row 真正套用保守非零 bias50 score。** ✅
-3. **保留 `allowed_layers = 0`，避免把 formula review 誤解為 gate 已放寬。** ✅
+1. **把剩餘 trade-floor gap 轉成 machine-readable component attribution。** ✅
+2. **確認 current live bucket 是否仍 exact-supported。** ✅（答案：否，已退回 proxy fallback）
+3. **用 fast heartbeat 重跑所有 canonical diagnostics，確認 drift / IC / support / leaderboard 沒有口徑漂移。** ✅
 
 ### 本輪不做
 - 不直接放寬 q35 gate；
-- 不直接降低 `trade_floor`；
-- 不把 `fin_netflow` auth blocker 混進 q35 根因；
-- 不把 `entry_quality = 0.5238` 誤包裝成可交易。
+- 不直接調低 `trade_floor`；
+- 不把 `bias50 fully relaxed` 當成現在可上線的 runtime 規則；
+- 不把 `fin_netflow` auth blocker 混入這輪 bull lane root cause。
 
 ---
 
 ## Next gate
 
 - **Next focus:**
-  1. 量化 `entry_quality` 剩餘 **0.0262 gap** 的來源，決定應繼續微調 exact-lane bias50 score，或轉去修 `nose / structure_quality`；
-  2. 維持 `q35_scaling_audit`、`profile_split`、`support_blocker_state`、`proxy_boundary_verdict` 的零漂移治理；
-  3. 持續把 `fin_netflow` 當外部 source auth blocker 管理。
+  1. 針對 `CAUTION|structure_quality_caution|q15` 做 **piecewise / quantile bias50 calibration** 候選分析，確認是否存在可保守上線的 q15 runtime 分段；
+  2. 補強 current live bucket support diagnostics：回答 q15 是短暫漂移、還是需要正式新增 q15 proxy/support lane；
+  3. 維持 `profile_split`、`support_blocker_state`、`proxy_boundary_verdict`、`fin_netflow auth blocker` 零漂移治理。
 
 - **Success gate:**
-  1. next run 必須留下至少一個與 **剩餘 0.0262 trade-floor gap 根因拆解** 直接相關的 patch / artifact / verify；
-  2. 若 current bull q35 lane 仍是 `CAUTION / D / 0-layer`，必須明確回答「差距主要來自 bias50 還是其他 entry-quality component」，不能再只重述 `formula_review_required`；
-  3. 若要主張 relax runtime gate，必須先證明新 patch 沒有破壞 `allowed_layers=0` 的 guardrail 語義，且 entry quality 真正越過 `0.55`。
+  1. next run 必須留下至少一個與 **q15 lane bias50 calibration 或 q15 support route** 直接相關的 patch / artifact / verify；
+  2. 若 current live bucket 仍是 `q15` 且 rows=0，必須明確回答「要走 q15 proxy、neighbor bucket、還是保持 blocker」，不能只重述 `unsupported_exact_live_structure_bucket_blocks_trade`；
+  3. 若要主張 relax runtime gate，必須先證明新 lane 有足夠 support，且 `allowed_layers=0` guardrail 沒被假放寬。
 
 - **Fallback if fail:**
-  - 若下一輪又把 q35 問題退回 `broader_bull_cohort_recalibration_candidate`，但 current 仍位於 exact-lane p90 內，視為 governance regression；
-  - 若 bias50 score 被放大到跨過 floor，卻沒有對應 artifact / verify / guardrail 證據，視為 contract regression；
-  - 若 `profile_split` / exact-supported 狀態再漂移，視為 blocker；
+  - 若下一輪又把焦點退回「gap 卡哪個 component」，視為 regression（本輪已回答）；
+  - 若無 support 證據就直接把 bias50 piecewise 套到 q15 live lane，視為 contract regression；
+  - 若 `leaderboard / train / support_blocker_state` 語義再漂移，升級 blocker；
   - 若 source auth 未修，繼續標記 blocked，不准寫成即將恢復。
 
 - **Documents to update next round:**
   - `ISSUES.md`
   - `ROADMAP.md`
-  - `ARCHITECTURE.md`（若 exact-lane formula review 再擴充成新的 runtime rule）
+  - `ARCHITECTURE.md`（若 q15 support / calibration contract 再擴充）
 
 - **Carry-forward input for next heartbeat:**
-  1. 先讀 `data/heartbeat_1005_summary.json`
+  1. 先讀 `data/heartbeat_1006_summary.json`
   2. 再讀：
      - `data/live_predict_probe.json`
      - `data/live_decision_quality_drilldown.json`
+     - `docs/analysis/live_decision_quality_drilldown.md`
      - `data/q35_scaling_audit.json`
      - `docs/analysis/q35_scaling_audit.md`
-     - `data/feature_group_ablation.json`
      - `data/bull_4h_pocket_ablation.json`
      - `data/leaderboard_feature_profile_probe.json`
-  3. 若 `q35_scaling_audit.overall_verdict = bias50_formula_may_be_too_harsh`、`segmented_calibration.status = formula_review_required`、`piecewise_runtime_preview.applied = true`、`live_predict_probe.entry_quality = 0.5238 ± 誤差`、`allowed_layers_reason = entry_quality_below_trade_floor`、`support_blocker_state = exact_live_bucket_supported` 同時成立，下一輪不得再把焦點放回「有沒有 q35 piecewise calibration」；必須直接拆解剩餘 `0.0262` gap 是 **bias50 最後一哩** 還是 **其他 entry-quality component**。
+  3. 若同時成立：
+     - `best_single_component = feat_4h_bias50`
+     - `support_blocker_state = exact_lane_proxy_fallback_only`
+     - `current_live_structure_bucket = CAUTION|structure_quality_caution|q15`
+     - `current_live_structure_bucket_rows = 0`
+     - `overall_verdict = broader_bull_cohort_recalibration_candidate`
+     - `execution_guardrail_reason = unsupported_exact_live_structure_bucket_blocks_trade`
+     則下一輪不得再把主焦點放回 generic gap attribution；必須直接處理 **q15 lane 的 bias50 calibration / support route**。

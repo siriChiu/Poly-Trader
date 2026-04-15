@@ -45,6 +45,7 @@ AUTO_PROPOSE_CMD = [PYTHON, "scripts/auto_propose_fixes.py"]
 DRIFT_REPORT_CMD = [PYTHON, "scripts/recent_drift_report.py"]
 PREDICT_PROBE_CMD = [PYTHON, "scripts/hb_predict_probe.py"]
 LIVE_DQ_DRILLDOWN_CMD = [PYTHON, "scripts/live_decision_quality_drilldown.py"]
+Q35_SCALING_AUDIT_CMD = [PYTHON, "scripts/hb_q35_scaling_audit.py"]
 FEATURE_ABLATION_CMD = [PYTHON, "scripts/feature_group_ablation.py"]
 BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
 LEADERBOARD_CANDIDATE_PROBE_CMD = [PYTHON, "scripts/hb_leaderboard_candidate_probe.py"]
@@ -246,6 +247,10 @@ def run_live_decision_quality_drilldown() -> Dict[str, Any]:
     return _run_serial_command(LIVE_DQ_DRILLDOWN_CMD)
 
 
+def run_q35_scaling_audit() -> Dict[str, Any]:
+    return _run_serial_command(Q35_SCALING_AUDIT_CMD)
+
+
 def run_feature_group_ablation() -> Dict[str, Any]:
     return _run_serial_command(FEATURE_ABLATION_CMD)
 
@@ -330,6 +335,7 @@ def save_summary(
     drift_diagnostics=None,
     live_predictor_diagnostics=None,
     live_decision_drilldown=None,
+    q35_scaling_audit=None,
     feature_ablation=None,
     bull_4h_pocket_ablation=None,
     leaderboard_candidate_diagnostics=None,
@@ -360,6 +366,7 @@ def save_summary(
         "drift_diagnostics": drift_diagnostics or {},
         "live_predictor_diagnostics": live_predictor_diagnostics or {},
         "live_decision_drilldown": live_decision_drilldown or {},
+        "q35_scaling_audit": q35_scaling_audit or {},
         "feature_ablation": feature_ablation or {},
         "bull_4h_pocket_ablation": bull_4h_pocket_ablation or {},
         "leaderboard_candidate_diagnostics": leaderboard_candidate_diagnostics or {},
@@ -533,6 +540,92 @@ def collect_feature_ablation_diagnostics() -> Dict[str, Any]:
         },
         "bull_collapse_4h_features": payload.get("bull_collapse_4h_features") or [],
         "stable_4h_features": payload.get("stable_4h_features") or [],
+    }
+
+
+def collect_q35_scaling_audit_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "q35_scaling_audit.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    current_live = payload.get("current_live") or {}
+    current_features = current_live.get("raw_features") or {}
+    current_entry_components = current_live.get("entry_quality_components") or {}
+    current_bias50_calibration = current_entry_components.get("bias50_calibration") or {}
+    piecewise_preview = payload.get("piecewise_runtime_preview") or {}
+    counterfactuals = payload.get("counterfactuals") or {}
+    exact_lane = payload.get("exact_lane_summary") or {}
+    broader_bull = payload.get("broader_bull_cohorts") or {}
+    segmented = payload.get("segmented_calibration") or {}
+    return {
+        "generated_at": payload.get("generated_at"),
+        "target_col": payload.get("target_col"),
+        "overall_verdict": payload.get("overall_verdict"),
+        "structure_scaling_verdict": payload.get("structure_scaling_verdict"),
+        "verdict_reason": payload.get("verdict_reason"),
+        "recommended_action": payload.get("recommended_action"),
+        "current_live": {
+            "regime_label": current_live.get("regime_label"),
+            "regime_gate": current_live.get("regime_gate"),
+            "base_gate": current_live.get("base_gate"),
+            "gate_reason": current_live.get("gate_reason"),
+            "structure_bucket": current_live.get("structure_bucket"),
+            "structure_quality": current_live.get("structure_quality"),
+            "entry_quality": current_live.get("entry_quality"),
+            "entry_quality_label": current_live.get("entry_quality_label"),
+            "allowed_layers_raw": current_live.get("allowed_layers_raw"),
+            "allowed_layers_reason": current_live.get("allowed_layers_reason"),
+            "feat_4h_bias50": current_features.get("feat_4h_bias50"),
+            "feat_4h_bias200": current_features.get("feat_4h_bias200"),
+            "bias50_calibration": current_bias50_calibration,
+        },
+        "exact_lane_summary": {
+            "rows": exact_lane.get("rows"),
+            "win_rate": exact_lane.get("win_rate"),
+            "current_bias50_percentile": exact_lane.get("current_bias50_percentile"),
+            "bias50_distribution": exact_lane.get("bias50_distribution") or {},
+            "structure_quality_distribution": exact_lane.get("structure_quality_distribution") or {},
+            "entry_quality_distribution": exact_lane.get("entry_quality_distribution") or {},
+        },
+        "broader_bull_cohorts": {
+            "same_gate_same_quality": broader_bull.get("same_gate_same_quality") or {},
+            "same_bucket": broader_bull.get("same_bucket") or {},
+            "bull_all": broader_bull.get("bull_all") or {},
+        },
+        "segmented_calibration": {
+            "status": segmented.get("status"),
+            "recommended_mode": segmented.get("recommended_mode"),
+            "reason": segmented.get("reason"),
+            "runtime_contract_status": segmented.get("runtime_contract_status"),
+            "runtime_contract_reason": segmented.get("runtime_contract_reason"),
+            "exact_lane": segmented.get("exact_lane") or {},
+            "reference_cohort": segmented.get("reference_cohort") or {},
+            "broader_bull_cohorts": segmented.get("broader_bull_cohorts") or {},
+        },
+        "piecewise_runtime_preview": {
+            "applied": piecewise_preview.get("applied"),
+            "score": piecewise_preview.get("score"),
+            "legacy_score": piecewise_preview.get("legacy_score"),
+            "score_delta_vs_legacy": piecewise_preview.get("score_delta_vs_legacy"),
+            "mode": piecewise_preview.get("mode"),
+            "segment": piecewise_preview.get("segment"),
+            "reference_cohort": piecewise_preview.get("reference_cohort"),
+            "reason": piecewise_preview.get("reason"),
+            "exact_p90": piecewise_preview.get("exact_p90"),
+            "reference_p90": piecewise_preview.get("reference_p90"),
+        },
+        "counterfactuals": {
+            "entry_if_gate_allow_only": counterfactuals.get("entry_if_gate_allow_only"),
+            "layers_if_gate_allow_only": counterfactuals.get("layers_if_gate_allow_only"),
+            "gate_allow_only_changes_layers": counterfactuals.get("gate_allow_only_changes_layers"),
+            "entry_if_bias50_fully_relaxed": counterfactuals.get("entry_if_bias50_fully_relaxed"),
+            "layers_if_bias50_fully_relaxed": counterfactuals.get("layers_if_bias50_fully_relaxed"),
+            "required_bias50_cap_for_floor": counterfactuals.get("required_bias50_cap_for_floor"),
+            "current_bias50_value": counterfactuals.get("current_bias50_value"),
+        },
     }
 
 
@@ -916,11 +1009,45 @@ def main(argv=None):
                 "markdown": drill_payload.get("markdown"),
                 "chosen_scope": drill_payload.get("chosen_scope"),
                 "worst_pathology_scope": drill_payload.get("worst_pathology_scope"),
+                "remaining_gap_to_floor": drill_payload.get("remaining_gap_to_floor"),
+                "best_single_component": drill_payload.get("best_single_component"),
+                "best_single_component_required_score_delta": drill_payload.get("best_single_component_required_score_delta"),
             }
         except Exception:
             live_drilldown_summary = {}
     if live_drilldown_result.get("stderr"):
         print(f"\n--- live_decision_quality_drilldown stderr ---\n{live_drilldown_result['stderr']}")
+
+    q35_scaling_result = run_q35_scaling_audit()
+    q35_scaling_summary: Dict[str, Any] = collect_q35_scaling_audit_diagnostics()
+    print(
+        f"🧮 Q35 scaling audit：{'通過' if q35_scaling_result['success'] else '失敗'} "
+        f"(rc={q35_scaling_result['returncode']})"
+    )
+    if q35_scaling_result.get("stdout"):
+        lines = q35_scaling_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- hb_q35_scaling_audit ---\n{preview}")
+    if q35_scaling_result.get("stderr"):
+        print(f"\n--- hb_q35_scaling_audit stderr ---\n{q35_scaling_result['stderr']}")
+    if q35_scaling_summary:
+        broader_bull = q35_scaling_summary.get("broader_bull_cohorts") or {}
+        bull_all = broader_bull.get("bull_all") or {}
+        segmented = q35_scaling_summary.get('segmented_calibration') or {}
+        reference = segmented.get('reference_cohort') or {}
+        print(
+            "🧮 Q35 結論："
+            f"verdict={q35_scaling_summary.get('overall_verdict')} "
+            f"structure={q35_scaling_summary.get('structure_scaling_verdict')} "
+            f"segment_status={segmented.get('status')} "
+            f"runtime_status={segmented.get('runtime_contract_status')} "
+            f"reference={reference.get('cohort')} "
+            f"exact_bias50_pct={((q35_scaling_summary.get('exact_lane_summary') or {}).get('current_bias50_percentile'))} "
+            f"bull_all_bias50_pct={bull_all.get('current_bias50_percentile')} "
+            f"gate_only_changes_layers={((q35_scaling_summary.get('counterfactuals') or {}).get('gate_allow_only_changes_layers'))}"
+        )
 
     if feature_ablation_result is None:
         feature_ablation_result = run_feature_group_ablation()
@@ -1036,6 +1163,7 @@ def main(argv=None):
         drift_diagnostics=drift_diagnostics,
         live_predictor_diagnostics=live_predictor_diagnostics,
         live_decision_drilldown=live_drilldown_summary,
+        q35_scaling_audit=q35_scaling_summary,
         feature_ablation=feature_ablation_summary,
         bull_4h_pocket_ablation=bull_pocket_summary,
         leaderboard_candidate_diagnostics=leaderboard_candidate_diagnostics,

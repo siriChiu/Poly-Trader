@@ -237,6 +237,13 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
         ic_diagnostics={"global_pass": 13, "tw_pass": 10, "total_features": 30},
         drift_diagnostics={"primary_window": "100", "primary_alerts": ["regime_concentration"]},
         live_predictor_diagnostics={"decision_quality_label": "D", "allowed_layers": 0},
+        live_decision_drilldown={
+            "json": "data/live_decision_quality_drilldown.json",
+            "chosen_scope": "regime_label+entry_quality_label",
+            "remaining_gap_to_floor": 0.051,
+            "best_single_component": "feat_4h_bias50",
+            "best_single_component_required_score_delta": 0.17,
+        },
         q35_scaling_audit={
             "overall_verdict": "hold_only_bias50_overheat_confirmed",
             "structure_scaling_verdict": "q35_structure_caution_not_root_cause",
@@ -262,6 +269,7 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert summary["ic_diagnostics"]["tw_pass"] == 10
     assert summary["drift_diagnostics"]["primary_window"] == "100"
     assert summary["live_predictor_diagnostics"]["decision_quality_label"] == "D"
+    assert summary["live_decision_drilldown"]["best_single_component"] == "feat_4h_bias50"
     assert summary["q35_scaling_audit"]["overall_verdict"] == "hold_only_bias50_overheat_confirmed"
     assert summary["q35_scaling_audit"]["segmented_calibration"]["status"] == "hold_only_confirmed"
     assert summary["feature_ablation"]["recommended_profile"] == "core_plus_macro"
@@ -280,6 +288,7 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert saved["ic_diagnostics"]["global_pass"] == 13
     assert saved["drift_diagnostics"]["primary_alerts"] == ["regime_concentration"]
     assert saved["live_predictor_diagnostics"]["allowed_layers"] == 0
+    assert saved["live_decision_drilldown"]["remaining_gap_to_floor"] == 0.051
     assert saved["q35_scaling_audit"]["structure_scaling_verdict"] == "q35_structure_caution_not_root_cause"
     assert saved["q35_scaling_audit"]["broader_bull_cohorts"]["bull_all"]["current_bias50_percentile"] == 0.99
     assert saved["q35_scaling_audit"]["segmented_calibration"]["recommended_mode"] == "keep_hold_only"

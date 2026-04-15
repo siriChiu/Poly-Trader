@@ -1,0 +1,105 @@
+import importlib.util
+from pathlib import Path
+
+MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "live_decision_quality_drilldown.py"
+spec = importlib.util.spec_from_file_location("live_decision_quality_drilldown_test_module", MODULE_PATH)
+live_drilldown = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(live_drilldown)
+
+
+def test_component_gap_attribution_identifies_best_single_component_and_bias50_counterfactual():
+    eq_components = {
+        "entry_quality": 0.499,
+        "trade_floor": 0.55,
+        "base_quality_weight": 0.75,
+        "structure_quality_weight": 0.25,
+        "base_components": [
+            {
+                "feature": "feat_4h_bias50",
+                "weight": 0.40,
+                "raw_value": 3.2128,
+                "normalized_score": 0.1416,
+                "weighted_contribution": 0.0566,
+            },
+            {
+                "feature": "feat_nose",
+                "weight": 0.18,
+                "raw_value": 0.4280,
+                "normalized_score": 0.5720,
+                "weighted_contribution": 0.1030,
+            },
+            {
+                "feature": "feat_pulse",
+                "weight": 0.27,
+                "raw_value": 0.8314,
+                "normalized_score": 0.8314,
+                "weighted_contribution": 0.2245,
+            },
+            {
+                "feature": "feat_ear",
+                "weight": 0.15,
+                "raw_value": -0.0016,
+                "normalized_score": 0.9922,
+                "weighted_contribution": 0.1488,
+            },
+        ],
+        "structure_components": [
+            {
+                "feature": "feat_4h_bb_pct_b",
+                "weight": 0.34,
+                "raw_value": 0.4827,
+                "normalized_score": 0.4827,
+                "weighted_contribution": 0.1641,
+            },
+            {
+                "feature": "feat_4h_dist_bb_lower",
+                "weight": 0.33,
+                "raw_value": 1.5502,
+                "normalized_score": 0.1938,
+                "weighted_contribution": 0.0639,
+            },
+            {
+                "feature": "feat_4h_dist_swing_low",
+                "weight": 0.33,
+                "raw_value": 5.1235,
+                "normalized_score": 0.5124,
+                "weighted_contribution": 0.1691,
+            },
+        ],
+    }
+    q35_counterfactuals = {
+        "entry_if_bias50_fully_relaxed": 0.7565,
+        "layers_if_bias50_fully_relaxed": 2,
+        "required_bias50_cap_for_floor": 2.3628,
+        "current_bias50_value": 3.2128,
+    }
+
+    result = live_drilldown._component_gap_attribution(eq_components, q35_counterfactuals)
+
+    assert result["remaining_gap_to_floor"] == 0.051
+    assert result["best_single_component"]["feature"] == "feat_4h_bias50"
+    assert result["best_single_component"]["can_single_component_cross_floor"] is True
+    assert result["best_single_component"]["required_score_delta_to_cross_floor"] == 0.17
+    assert result["single_component_floor_crossers"][0]["feature"] == "feat_4h_bias50"
+    assert result["bias50_floor_counterfactual"]["required_bias50_cap_for_floor"] == 2.3628
+    assert result["base_group_max_entry_gain"] > result["structure_group_max_entry_gain"]
+
+
+def test_component_gap_attribution_handles_zero_gap_without_required_delta():
+    eq_components = {
+        "entry_quality": 0.61,
+        "trade_floor": 0.55,
+        "base_quality_weight": 0.75,
+        "base_components": [
+            {"feature": "feat_4h_bias50", "weight": 0.40, "normalized_score": 0.6, "weighted_contribution": 0.24},
+        ],
+        "structure_quality_weight": 0.25,
+        "structure_components": [],
+    }
+
+    result = live_drilldown._component_gap_attribution(eq_components, {})
+
+    assert result["remaining_gap_to_floor"] == 0.0
+    assert result["best_single_component"] is None
+    assert result["single_component_floor_crossers"] == []

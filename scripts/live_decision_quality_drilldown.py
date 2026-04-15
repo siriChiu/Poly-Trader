@@ -14,6 +14,7 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
+Q35_AUDIT_PATH = PROJECT_ROOT / "data" / "q35_scaling_audit.json"
 OUT_JSON = PROJECT_ROOT / "data" / "live_decision_quality_drilldown.json"
 OUT_MD = PROJECT_ROOT / "docs" / "analysis" / "live_decision_quality_drilldown.md"
 
@@ -47,6 +48,115 @@ def _scope_summary(name: str, payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _safe_round(value: Any, digits: int = 4) -> Any:
+    if isinstance(value, (int, float)):
+        return round(float(value), digits)
+    return value
+
+
+def _load_q35_audit_counterfactuals() -> dict[str, Any]:
+    if not Q35_AUDIT_PATH.exists():
+        return {}
+    try:
+        payload = json.loads(Q35_AUDIT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload.get("counterfactuals") or {}
+
+
+def _component_gap_attribution(eq_components: dict[str, Any], q35_counterfactuals: dict[str, Any]) -> dict[str, Any]:
+    trade_floor = float(eq_components.get("trade_floor") or 0.55)
+    entry_quality = float(eq_components.get("entry_quality") or 0.0)
+    floor_gap = max(0.0, trade_floor - entry_quality)
+    base_outer = float(eq_components.get("base_quality_weight") or 1.0)
+    structure_outer = float(eq_components.get("structure_quality_weight") or 0.0)
+
+    components: list[dict[str, Any]] = []
+    for group_name, outer_weight, items in (
+        ("base", base_outer, eq_components.get("base_components") or []),
+        ("structure", structure_outer, eq_components.get("structure_components") or []),
+    ):
+        for item in items:
+            weight = float(item.get("weight") or 0.0)
+            score = float(item.get("normalized_score") or 0.0)
+            effective_weight = outer_weight * weight
+            max_entry_gain = max(0.0, effective_weight * (1.0 - score))
+            required_score_delta = None
+            if floor_gap > 0 and effective_weight > 0:
+                required_score_delta = floor_gap / effective_weight
+            can_single_component_cross = bool(required_score_delta is not None and required_score_delta <= (1.0 - score) + 1e-9)
+            components.append(
+                {
+                    "group": group_name,
+                    "feature": item.get("feature"),
+                    "raw_value": item.get("raw_value"),
+                    "normalized_score": _safe_round(score),
+                    "weight": _safe_round(weight),
+                    "outer_weight": _safe_round(outer_weight),
+                    "effective_weight": _safe_round(effective_weight),
+                    "weighted_contribution": item.get("weighted_contribution"),
+                    "headroom_to_perfect_score": _safe_round(1.0 - score),
+                    "max_entry_gain_if_perfect": _safe_round(max_entry_gain),
+                    "required_score_delta_to_cross_floor": _safe_round(required_score_delta) if required_score_delta is not None else None,
+                    "can_single_component_cross_floor": can_single_component_cross,
+                }
+            )
+
+    sortable = [
+        c for c in components
+        if c.get("required_score_delta_to_cross_floor") is not None
+    ]
+    best_single = None
+    if sortable:
+        best_single = sorted(
+            sortable,
+            key=lambda c: (
+                0 if c.get("can_single_component_cross_floor") else 1,
+                c.get("required_score_delta_to_cross_floor"),
+                -float(c.get("max_entry_gain_if_perfect") or 0.0),
+            ),
+        )[0]
+
+    group_headroom = {
+        "base": _safe_round(sum(float(c.get("max_entry_gain_if_perfect") or 0.0) for c in components if c.get("group") == "base")),
+        "structure": _safe_round(sum(float(c.get("max_entry_gain_if_perfect") or 0.0) for c in components if c.get("group") == "structure")),
+    }
+    components_sorted = sorted(
+        components,
+        key=lambda c: (
+            -(float(c.get("max_entry_gain_if_perfect") or 0.0)),
+            c.get("feature") or "",
+        ),
+    )
+    ordered_crossers = [
+        c for c in sorted(
+            sortable,
+            key=lambda c: (
+                0 if c.get("can_single_component_cross_floor") else 1,
+                c.get("required_score_delta_to_cross_floor"),
+            ),
+        )
+        if c.get("can_single_component_cross_floor")
+    ]
+
+    return {
+        "trade_floor": _safe_round(trade_floor),
+        "entry_quality": _safe_round(entry_quality),
+        "remaining_gap_to_floor": _safe_round(floor_gap),
+        "base_group_max_entry_gain": group_headroom["base"],
+        "structure_group_max_entry_gain": group_headroom["structure"],
+        "best_single_component": best_single,
+        "single_component_floor_crossers": ordered_crossers,
+        "components_by_headroom": components_sorted,
+        "bias50_floor_counterfactual": {
+            "entry_if_bias50_fully_relaxed": q35_counterfactuals.get("entry_if_bias50_fully_relaxed"),
+            "layers_if_bias50_fully_relaxed": q35_counterfactuals.get("layers_if_bias50_fully_relaxed"),
+            "required_bias50_cap_for_floor": q35_counterfactuals.get("required_bias50_cap_for_floor"),
+            "current_bias50_value": q35_counterfactuals.get("current_bias50_value"),
+        },
+    }
+
+
 def main() -> None:
     payload = json.loads(PROBE_PATH.read_text(encoding="utf-8"))
     diags = payload.get("decision_quality_scope_diagnostics") or {}
@@ -57,6 +167,10 @@ def main() -> None:
     narrow_scope_name = "regime_label+entry_quality_label"
     broad_scope_name = "regime_gate+entry_quality_label"
 
+    entry_quality_components = payload.get("entry_quality_components") or {}
+    q35_counterfactuals = _load_q35_audit_counterfactuals()
+    component_gap_attribution = _component_gap_attribution(entry_quality_components, q35_counterfactuals)
+
     report = {
         "generated_at": payload.get("feature_timestamp"),
         "target_col": payload.get("target_col"),
@@ -66,6 +180,8 @@ def main() -> None:
         "regime_label": payload.get("regime_label"),
         "regime_gate": payload.get("regime_gate"),
         "entry_quality_label": payload.get("entry_quality_label"),
+        "entry_quality_components": entry_quality_components,
+        "component_gap_attribution": component_gap_attribution,
         "allowed_layers_raw": payload.get("allowed_layers_raw"),
         "allowed_layers": payload.get("allowed_layers"),
         "allowed_layers_reason": payload.get("allowed_layers_reason"),
@@ -93,6 +209,25 @@ def main() -> None:
     narrow = report["narrow_same_regime_summary"]
     broad = report["broad_same_gate_summary"]
     worst = report["worst_pathology_scope"]
+    eq_components = report.get("entry_quality_components") or {}
+    gap_attr = report.get("component_gap_attribution") or {}
+    base_components = eq_components.get("base_components") or []
+    structure_components = eq_components.get("structure_components") or []
+    best_component = gap_attr.get("best_single_component") or {}
+    crossers = gap_attr.get("single_component_floor_crossers") or []
+    bias50_cf = gap_attr.get("bias50_floor_counterfactual") or {}
+    base_component_text = ", ".join(
+        f"{item.get('feature')}={item.get('normalized_score')} (w={item.get('weight')}, contrib={item.get('weighted_contribution')})"
+        for item in base_components
+    ) or "None"
+    structure_component_text = ", ".join(
+        f"{item.get('feature')}={item.get('normalized_score')} (w={item.get('weight')}, contrib={item.get('weighted_contribution')})"
+        for item in structure_components
+    ) or "None"
+    crosser_text = ", ".join(
+        f"{item.get('feature')} (Δscore≈{item.get('required_score_delta_to_cross_floor')})"
+        for item in crossers[:4]
+    ) or "None"
 
     lines = [
         "# Live Decision-Quality Drilldown",
@@ -104,6 +239,22 @@ def main() -> None:
         f"- layers: **{report['allowed_layers_raw']} → {report['allowed_layers']}**",
         f"- allowed_layers_reason: `{report['allowed_layers_reason']}`",
         f"- execution_guardrail_reason: `{report['execution_guardrail_reason']}`",
+        "",
+        "## Entry-quality component breakdown",
+        "",
+        f"- final entry_quality: **{eq_components.get('entry_quality')}** / trade_floor **{eq_components.get('trade_floor')}** / gap **{eq_components.get('trade_floor_gap')}**",
+        f"- base_quality: **{eq_components.get('base_quality')}** × weight **{eq_components.get('base_quality_weight')}**",
+        f"- structure_quality: **{eq_components.get('structure_quality')}** × weight **{eq_components.get('structure_quality_weight')}**",
+        f"- base components: {base_component_text}",
+        f"- structure components: {structure_component_text}",
+        "",
+        "## Gap attribution（哪個 component 真正在卡 floor）",
+        "",
+        f"- remaining_gap_to_floor: **{gap_attr.get('remaining_gap_to_floor')}**",
+        f"- base_group_max_entry_gain: **{gap_attr.get('base_group_max_entry_gain')}** | structure_group_max_entry_gain: **{gap_attr.get('structure_group_max_entry_gain')}**",
+        f"- best_single_component: **{best_component.get('feature')}**（group={best_component.get('group')}, Δscore≈{best_component.get('required_score_delta_to_cross_floor')}, max_gain≈{best_component.get('max_entry_gain_if_perfect')}）",
+        f"- single-component floor crossers: {crosser_text}",
+        f"- bias50 fully relaxed: entry≈**{bias50_cf.get('entry_if_bias50_fully_relaxed')}** / layers≈**{bias50_cf.get('layers_if_bias50_fully_relaxed')}** / required_bias50_cap≈**{bias50_cf.get('required_bias50_cap_for_floor')}**",
         "",
         "## Scope comparison",
         "",
@@ -133,6 +284,9 @@ def main() -> None:
         "markdown": str(OUT_MD),
         "chosen_scope": chosen_scope,
         "worst_pathology_scope": worst.get("scope"),
+        "remaining_gap_to_floor": gap_attr.get("remaining_gap_to_floor"),
+        "best_single_component": (best_component.get("feature") if best_component else None),
+        "best_single_component_required_score_delta": (best_component.get("required_score_delta_to_cross_floor") if best_component else None),
     }, indent=2, ensure_ascii=False))
 
 
