@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-04-15 08:52:44.395010",
+  "generated_at": "2026-04-15 11:50:55.689653",
   "target_col": "simulated_pyramid_win",
   "current_live": {
     "regime_label": "bull",
     "regime_gate": "CAUTION",
     "entry_quality_label": "D",
     "structure_bucket": "CAUTION|structure_quality_caution|q35",
-    "structure_quality": 0.3671,
+    "structure_quality": 0.3887,
     "q15_threshold": 0.15,
     "q35_threshold": 0.35,
     "gap_to_q35_boundary": 0.0,
@@ -14,9 +14,9 @@
     "execution_guardrail_reason": null
   },
   "exact_live_lane": {
-    "rows": 424,
+    "rows": 432,
     "bucket_counts": {
-      "CAUTION|structure_quality_caution|q35": 161,
+      "CAUTION|structure_quality_caution|q35": 169,
       "CAUTION|base_caution_regime_or_bias|q35": 114,
       "CAUTION|base_caution_regime_or_bias|q15": 67,
       "CAUTION|base_caution_regime_or_bias|q00": 47,
@@ -27,71 +27,71 @@
     "dominant_neighbor_bucket": "CAUTION|base_caution_regime_or_bias|q35",
     "dominant_neighbor_rows": 114,
     "near_boundary_window": {
-      "lower": 0.3671,
+      "lower": 0.3887,
       "upper": 0.35
     },
     "near_boundary_rows": 0
   },
   "verdict": "current_row_already_above_q35_boundary",
   "candidate_patch_type": "support_accumulation",
-  "candidate_patch_feature": "feat_4h_bb_pct_b",
+  "candidate_patch_feature": "feat_4h_dist_swing_low",
   "reason": "目前 live row 已不在 q15/q35 邊界下方，問題改成 exact support 累積，不是 bucket repair。",
   "candidate_patch": {
     "type": "support_accumulation",
-    "feature": "feat_4h_bb_pct_b",
-    "current_raw": 0.4427,
-    "current_normalized": 0.4427,
+    "feature": "feat_4h_dist_swing_low",
+    "current_raw": 4.9499,
+    "current_normalized": 0.495,
     "needed_raw_delta_to_cross_q35": 0.0,
-    "target_bucket_p25": 0.2585,
-    "target_bucket_median": 0.4447,
-    "needed_raw_delta_to_target_p25": -0.1842,
-    "needed_raw_delta_to_target_median": 0.002
+    "target_bucket_p25": 5.0388,
+    "target_bucket_median": 5.6592,
+    "needed_raw_delta_to_target_p25": 0.0889,
+    "needed_raw_delta_to_target_median": 0.7093
   },
   "component_deltas": {
     "feat_4h_bb_pct_b": {
-      "current_raw": 0.4427,
-      "current_normalized": 0.4427,
+      "current_raw": 0.4788,
+      "current_normalized": 0.4788,
       "target_bucket_rows": 114,
       "target_bucket_mean": 0.423,
       "target_bucket_median": 0.4447,
       "target_bucket_p25": 0.2585,
       "target_bucket_p75": 0.5478,
-      "delta_vs_target_median": -0.002,
-      "delta_vs_target_p25": 0.1842,
-      "needed_raw_delta_to_target_p25": -0.1842,
-      "needed_raw_delta_to_target_median": 0.002,
+      "delta_vs_target_median": 0.0341,
+      "delta_vs_target_p25": 0.2203,
+      "needed_raw_delta_to_target_p25": -0.2203,
+      "needed_raw_delta_to_target_median": -0.0341,
       "needed_raw_delta_to_cross_q35": 0.0,
-      "weighted_contribution": 0.1505
+      "weighted_contribution": 0.1628
     },
     "feat_4h_dist_bb_lower": {
-      "current_raw": 1.3973,
-      "current_normalized": 0.1747,
+      "current_raw": 1.5156,
+      "current_normalized": 0.1895,
       "target_bucket_rows": 114,
       "target_bucket_mean": 3.6275,
       "target_bucket_median": 3.673,
       "target_bucket_p25": 2.8009,
       "target_bucket_p75": 4.4681,
-      "delta_vs_target_median": -2.2757,
-      "delta_vs_target_p25": -1.4036,
-      "needed_raw_delta_to_target_p25": 1.4036,
-      "needed_raw_delta_to_target_median": 2.2757,
+      "delta_vs_target_median": -2.1574,
+      "delta_vs_target_p25": -1.2853,
+      "needed_raw_delta_to_target_p25": 1.2853,
+      "needed_raw_delta_to_target_median": 2.1574,
       "needed_raw_delta_to_cross_q35": 0.0,
-      "weighted_contribution": 0.0576
+      "weighted_contribution": 0.0625
     },
     "feat_4h_dist_swing_low": {
-      "current_raw": 4.8179,
-      "current_normalized": 0.4818,
+      "current_raw": 4.9499,
+      "current_normalized": 0.495,
       "target_bucket_rows": 114,
       "target_bucket_mean": 5.7903,
       "target_bucket_median": 5.6592,
       "target_bucket_p25": 5.0388,
       "target_bucket_p75": 6.5331,
-      "delta_vs_target_median": -0.8413,
-      "delta_vs_target_p25": -0.2209,
-      "needed_raw_delta_to_target_p25": 0.2209,
-      "needed_raw_delta_to_target_median": 0.8413,
+      "delta_vs_target_median": -0.7093,
+      "delta_vs_target_p25": -0.0889,
+      "needed_raw_delta_to_target_p25": 0.0889,
+      "needed_raw_delta_to_target_median": 0.7093,
       "needed_raw_delta_to_cross_q35": 0.0,
-      "weighted_contribution": 0.159
+      "weighted_contribution": 0.1633
     }
   },
   "verify_next": "確認 current_live_structure_bucket_rows 是否增加到 minimum_support_rows。",

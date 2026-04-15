@@ -1,6 +1,6 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-04-15 08:52:44.395010**
+- generated_at: **2026-04-15 11:50:55.689653**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_replay_not_applicable**
 - reason: 目前 q15 root-cause verdict 不是 boundary_sensitivity_candidate，boundary replay 不是本輪主路徑。
@@ -9,13 +9,13 @@
 - signal: **HOLD**
 - regime/gate: **bull / CAUTION**
 - structure bucket: **CAUTION|structure_quality_caution|q35**
-- structure_quality: **0.3671**
-- entry_quality: **0.3582** (trade_floor_gap=-0.1918)
+- structure_quality: **0.3887**
+- entry_quality: **0.4919** (trade_floor_gap=-0.0581)
 - support_route: **exact_bucket_supported**
 - floor_cross_legality: **legal_component_experiment_after_support_ready**
 
 ## Boundary replay
-- legacy bucket rows: **76**
+- legacy bucket rows: **55**
 - replay bucket: **CAUTION|base_caution_regime_or_bias|q35**
 - replay bucket rows: **0**
 - generated_rows_via_boundary_only: **0**
@@ -24,11 +24,11 @@
 - dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q35** rows=114
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.4427 → 0.4427**
-- structure_quality: **0.3671 → 0.3671**
+- raw before/after: **0.4788 → 0.4788**
+- structure_quality: **0.3887 → 0.3887**
 - bucket_after: **CAUTION|base_caution_regime_or_bias|q35**
-- entry_quality: **0.3582 → 0.3582**
-- trade_floor_gap_after: **-0.1918**
+- entry_quality: **0.4919 → 0.4919**
+- trade_floor_gap_after: **-0.0581**
 - allowed_layers_after: **0** (entry_quality_below_trade_floor)
 - counterfactual verdict: **bucket_proxy_only_not_trade_floor_fix**
 - counterfactual reason: 只把 feat_4h_bb_pct_b 補到剛好跨 q35，只會把結構 bucket 從 q15 改成 q35；entry_quality 仍低於 trade floor，allowed_layers 仍是 0，表示它更像 bucket proxy，而不是 deployable floor fix。

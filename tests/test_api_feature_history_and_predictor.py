@@ -13,9 +13,15 @@ from model import q35_bias50_calibration as q35_calibration_module
 
 class _FakeQuery:
     def __init__(self, rows):
-        self._rows = rows
+        self._rows = list(rows)
 
     def filter(self, *args, **kwargs):
+        filtered = list(self._rows)
+        for arg in args:
+            expr = str(arg)
+            if "horizon_minutes" in expr:
+                filtered = [row for row in filtered if getattr(row, "horizon_minutes", 1440) == 1440]
+        self._rows = filtered
         return self
 
     def order_by(self, *args, **kwargs):
@@ -23,6 +29,17 @@ class _FakeQuery:
 
     def all(self):
         return self._rows
+
+
+class _FakeLabelRow:
+    def __init__(self, target, horizon_minutes=1440):
+        self.target = target
+        self.horizon_minutes = horizon_minutes
+
+    def __getitem__(self, idx):
+        if idx == 0:
+            return self.target
+        raise IndexError(idx)
 
 
 class _FakeSession:
@@ -159,12 +176,23 @@ def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
 
 
 def test_circuit_breaker_uses_simulated_target_column():
-    rows = [(0,), (0,), (0,)] * 20
+    rows = [_FakeLabelRow(0, 1440) for _ in range(60)]
     result = predictor_module._check_circuit_breaker(_FakeSession(rows))
 
     assert result is not None
     assert result["signal"] == "CIRCUIT_BREAKER"
     assert "Consecutive loss streak" in result["reason"]
+    assert result["horizon_minutes"] == 1440
+    assert result["triggered_by"] == ["streak", "recent_win_rate"]
+    assert result["recent_window_win_rate"] == 0.0
+
+
+def test_circuit_breaker_ignores_noncanonical_240m_tail_when_1440m_is_healthy():
+    rows = [_FakeLabelRow(0, 240) for _ in range(60)] + [_FakeLabelRow(1, 1440) for _ in range(60)]
+
+    result = predictor_module._check_circuit_breaker(_FakeSession(rows))
+
+    assert result is None
 
 
 def test_predictor_applies_legacy_isotonic_calibration_payload_keys():
@@ -393,6 +421,98 @@ def test_piecewise_q35_bias50_calibration_supports_exact_lane_formula_review(tmp
     assert result["segment"] == "exact_lane_elevated_within_p90"
     assert result["score"] > result["legacy_score"]
     assert result["score"] < 0.18
+    assert result["reference_cohort"] == "same_gate_same_quality"
+
+
+
+def test_piecewise_q35_bias50_calibration_supports_exact_lane_core_band_formula_review(tmp_path, monkeypatch):
+    audit_path = tmp_path / "q35_scaling_audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "overall_verdict": "bias50_formula_may_be_too_harsh",
+                "current_live": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                },
+                "segmented_calibration": {
+                    "status": "formula_review_required",
+                    "recommended_mode": "exact_lane_formula_review",
+                    "exact_lane": {
+                        "bias50_distribution": {"p25": 2.7164, "p75": 3.4106, "p90": 4.2204},
+                    },
+                    "reference_cohort": {
+                        "cohort": "same_bucket",
+                        "bias50_distribution": {"p90": 4.2197},
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(q35_calibration_module, "DEFAULT_Q35_AUDIT_PATH", audit_path)
+    q35_calibration_module._AUDIT_CACHE.update({"path": None, "mtime": None, "data": None})
+
+    result = q35_calibration_module.compute_piecewise_bias50_score(
+        2.7468,
+        regime_label="bull",
+        regime_gate="CAUTION",
+        structure_bucket="CAUTION|structure_quality_caution|q35",
+    )
+
+    assert result["applied"] is True
+    assert result["mode"] == "exact_lane_formula_review"
+    assert result["segment"] == "exact_lane_supported_within_p75"
+    assert result["score"] > result["legacy_score"]
+    assert 0.18 <= result["score"] <= 0.24
+    assert result["reference_cohort"] == "same_bucket"
+
+
+
+def test_piecewise_q35_bias50_calibration_supports_exact_lane_core_normal_below_p25_formula_review(tmp_path, monkeypatch):
+    audit_path = tmp_path / "q35_scaling_audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "overall_verdict": "bias50_formula_may_be_too_harsh",
+                "current_live": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                },
+                "segmented_calibration": {
+                    "status": "formula_review_required",
+                    "recommended_mode": "exact_lane_formula_review",
+                    "exact_lane": {
+                        "bias50_distribution": {"min": 1.6545, "p25": 2.7464, "p75": 4.0464, "p90": 4.2197},
+                    },
+                    "reference_cohort": {
+                        "cohort": "same_gate_same_quality",
+                        "bias50_distribution": {"p90": 4.2124},
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(q35_calibration_module, "DEFAULT_Q35_AUDIT_PATH", audit_path)
+    q35_calibration_module._AUDIT_CACHE.update({"path": None, "mtime": None, "data": None})
+
+    result = q35_calibration_module.compute_piecewise_bias50_score(
+        2.6826,
+        regime_label="bull",
+        regime_gate="CAUTION",
+        structure_bucket="CAUTION|structure_quality_caution|q35",
+    )
+
+    assert result["applied"] is True
+    assert result["mode"] == "exact_lane_formula_review"
+    assert result["segment"] == "exact_lane_core_band_below_p25"
+    assert result["score"] > result["legacy_score"]
+    assert 0.22 <= result["score"] <= 0.28
     assert result["reference_cohort"] == "same_gate_same_quality"
 
 

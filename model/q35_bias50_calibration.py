@@ -129,6 +129,7 @@ def compute_piecewise_bias50_score(
     reference = segmented.get("reference_cohort") or {}
     reference_dist = reference.get("bias50_distribution") or {}
     exact_dist = exact_lane.get("bias50_distribution") or {}
+    exact_p25 = _safe_float(exact_dist.get("p25"))
     exact_p75 = _safe_float(exact_dist.get("p75"))
     exact_p90 = _safe_float(exact_dist.get("p90"))
     reference_p90 = _safe_float(reference_dist.get("p90"))
@@ -137,34 +138,94 @@ def compute_piecewise_bias50_score(
     if exact_p90 is None:
         return fallback
 
-    if (
-        status == "formula_review_required"
-        and recommended_mode == "exact_lane_formula_review"
-        and exact_p75 is not None
-        and exact_p75 < exact_p90
-        and exact_p75 <= current_value <= exact_p90
-    ):
-        elevated_share = (current_value - exact_p75) / (exact_p90 - exact_p75)
-        elevated_share = _clamp01(elevated_share)
-        calibrated_score = 0.18 + (0.10 - 0.18) * elevated_share
-        calibrated_score = round(_clamp01(calibrated_score), 4)
-        return {
-            "applied": True,
-            "score": calibrated_score,
-            "legacy_score": round(legacy_score, 4),
-            "score_delta_vs_legacy": round(calibrated_score - legacy_score, 4),
-            "mode": "exact_lane_formula_review",
-            "segment": "exact_lane_elevated_within_p90",
-            "reference_cohort": reference_cohort,
-            "reason": (
-                "bias50 已回到 exact-lane p90 內、但仍位於高側 elevated 區；"
-                "用保守的非零 score 取代 legacy 0 分，避免把仍受 exact lane 支持的 row 誤判成完全不可交易。"
-            ),
-            "exact_p75": round(exact_p75, 4),
-            "exact_p90": round(exact_p90, 4),
-            "reference_p90": round(reference_p90, 4) if reference_p90 is not None else None,
-            "elevated_share": round(elevated_share, 4),
-        }
+    if status == "formula_review_required" and recommended_mode == "exact_lane_formula_review":
+        exact_min = _safe_float(exact_dist.get("min"))
+        if (
+            exact_min is not None
+            and exact_p25 is not None
+            and exact_min < exact_p25
+            and exact_min <= current_value < exact_p25
+            and legacy_score <= 0.0
+        ):
+            core_share = (current_value - exact_min) / (exact_p25 - exact_min)
+            core_share = _clamp01(core_share)
+            calibrated_score = 0.28 + (0.22 - 0.28) * core_share
+            calibrated_score = round(_clamp01(calibrated_score), 4)
+            return {
+                "applied": True,
+                "score": calibrated_score,
+                "legacy_score": round(legacy_score, 4),
+                "score_delta_vs_legacy": round(calibrated_score - legacy_score, 4),
+                "mode": "exact_lane_formula_review",
+                "segment": "exact_lane_core_band_below_p25",
+                "reference_cohort": reference_cohort,
+                "reason": (
+                    "bias50 已位於 exact-lane 支持分布的 core-normal 低側區間；"
+                    "若 legacy 線性公式仍給 0 分，會把仍受 exact lane 支持的 row 誤殺成完全不可交易，"
+                    "因此改用保守的非零 score。"
+                ),
+                "exact_min": round(exact_min, 4),
+                "exact_p25": round(exact_p25, 4),
+                "exact_p75": round(exact_p75, 4) if exact_p75 is not None else None,
+                "exact_p90": round(exact_p90, 4),
+                "reference_p90": round(reference_p90, 4) if reference_p90 is not None else None,
+                "core_share": round(core_share, 4),
+            }
+        if (
+            exact_p25 is not None
+            and exact_p75 is not None
+            and exact_p25 < exact_p75
+            and exact_p25 <= current_value < exact_p75
+            and legacy_score <= 0.0
+        ):
+            supported_share = (current_value - exact_p25) / (exact_p75 - exact_p25)
+            supported_share = _clamp01(supported_share)
+            calibrated_score = 0.24 + (0.18 - 0.24) * supported_share
+            calibrated_score = round(_clamp01(calibrated_score), 4)
+            return {
+                "applied": True,
+                "score": calibrated_score,
+                "legacy_score": round(legacy_score, 4),
+                "score_delta_vs_legacy": round(calibrated_score - legacy_score, 4),
+                "mode": "exact_lane_formula_review",
+                "segment": "exact_lane_supported_within_p75",
+                "reference_cohort": reference_cohort,
+                "reason": (
+                    "bias50 雖未進入 exact-lane elevated 區，但已位於 exact-lane 支持分布的 core band；"
+                    "legacy 線性公式把這段 supported 區間壓成 0 分過於嚴苛，因此改用保守的非零 score。"
+                ),
+                "exact_p25": round(exact_p25, 4),
+                "exact_p75": round(exact_p75, 4),
+                "exact_p90": round(exact_p90, 4),
+                "reference_p90": round(reference_p90, 4) if reference_p90 is not None else None,
+                "supported_share": round(supported_share, 4),
+            }
+        if (
+            exact_p75 is not None
+            and exact_p75 < exact_p90
+            and exact_p75 <= current_value <= exact_p90
+        ):
+            elevated_share = (current_value - exact_p75) / (exact_p90 - exact_p75)
+            elevated_share = _clamp01(elevated_share)
+            calibrated_score = 0.18 + (0.10 - 0.18) * elevated_share
+            calibrated_score = round(_clamp01(calibrated_score), 4)
+            return {
+                "applied": True,
+                "score": calibrated_score,
+                "legacy_score": round(legacy_score, 4),
+                "score_delta_vs_legacy": round(calibrated_score - legacy_score, 4),
+                "mode": "exact_lane_formula_review",
+                "segment": "exact_lane_elevated_within_p90",
+                "reference_cohort": reference_cohort,
+                "reason": (
+                    "bias50 已回到 exact-lane p90 內、但仍位於高側 elevated 區；"
+                    "用保守的非零 score 取代 legacy 0 分，避免把仍受 exact lane 支持的 row 誤判成完全不可交易。"
+                ),
+                "exact_p75": round(exact_p75, 4),
+                "exact_p90": round(exact_p90, 4),
+                "reference_p90": round(reference_p90, 4) if reference_p90 is not None else None,
+                "elevated_share": round(elevated_share, 4),
+            }
 
     if not reference_cohort or reference_p90 is None or reference_p90 <= exact_p90:
         return fallback
