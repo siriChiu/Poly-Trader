@@ -593,6 +593,7 @@ def collect_q35_scaling_audit_diagnostics() -> Dict[str, Any]:
     current_features = current_live.get("raw_features") or {}
     current_entry_components = current_live.get("entry_quality_components") or {}
     current_bias50_calibration = current_entry_components.get("bias50_calibration") or {}
+    scope_applicability = payload.get("scope_applicability") or {}
     piecewise_preview = payload.get("piecewise_runtime_preview") or {}
     counterfactuals = payload.get("counterfactuals") or {}
     exact_lane = payload.get("exact_lane_summary") or {}
@@ -619,6 +620,13 @@ def collect_q35_scaling_audit_diagnostics() -> Dict[str, Any]:
             "feat_4h_bias50": current_features.get("feat_4h_bias50"),
             "feat_4h_bias200": current_features.get("feat_4h_bias200"),
             "bias50_calibration": current_bias50_calibration,
+        },
+        "scope_applicability": {
+            "status": scope_applicability.get("status"),
+            "active_for_current_live_row": scope_applicability.get("active_for_current_live_row"),
+            "current_structure_bucket": scope_applicability.get("current_structure_bucket"),
+            "target_structure_bucket": scope_applicability.get("target_structure_bucket"),
+            "reason": scope_applicability.get("reason"),
         },
         "exact_lane_summary": {
             "rows": exact_lane.get("rows"),
@@ -1094,6 +1102,39 @@ def main(argv=None):
             f"tail_streak={tail_streak.get('count', 0)}x{tail_streak.get('target')} since {tail_streak.get('start_timestamp')}"
         )
 
+    q35_scaling_result = run_q35_scaling_audit()
+    q35_scaling_summary: Dict[str, Any] = collect_q35_scaling_audit_diagnostics()
+    print(
+        f"🧮 Q35 scaling audit：{'通過' if q35_scaling_result['success'] else '失敗'} "
+        f"(rc={q35_scaling_result['returncode']})"
+    )
+    if q35_scaling_result.get("stdout"):
+        lines = q35_scaling_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- hb_q35_scaling_audit ---\n{preview}")
+    if q35_scaling_result.get("stderr"):
+        print(f"\n--- hb_q35_scaling_audit stderr ---\n{q35_scaling_result['stderr']}")
+    if q35_scaling_summary:
+        broader_bull = q35_scaling_summary.get("broader_bull_cohorts") or {}
+        bull_all = broader_bull.get("bull_all") or {}
+        segmented = q35_scaling_summary.get('segmented_calibration') or {}
+        reference = segmented.get('reference_cohort') or {}
+        applicability = q35_scaling_summary.get('scope_applicability') or {}
+        print(
+            "🧮 Q35 結論："
+            f"verdict={q35_scaling_summary.get('overall_verdict')} "
+            f"structure={q35_scaling_summary.get('structure_scaling_verdict')} "
+            f"applicability={applicability.get('status')} "
+            f"segment_status={segmented.get('status')} "
+            f"runtime_status={segmented.get('runtime_contract_status')} "
+            f"reference={reference.get('cohort')} "
+            f"exact_bias50_pct={((q35_scaling_summary.get('exact_lane_summary') or {}).get('current_bias50_percentile'))} "
+            f"bull_all_bias50_pct={bull_all.get('current_bias50_percentile')} "
+            f"gate_only_changes_layers={((q35_scaling_summary.get('counterfactuals') or {}).get('gate_allow_only_changes_layers'))}"
+        )
+
     predict_probe_result = run_predict_probe()
     _persist_live_predictor_probe(predict_probe_result.get("stdout", ""))
     live_predictor_diagnostics = collect_live_predictor_diagnostics(predict_probe_result)
@@ -1164,37 +1205,6 @@ def main(argv=None):
             live_drilldown_summary = {}
     if live_drilldown_result.get("stderr"):
         print(f"\n--- live_decision_quality_drilldown stderr ---\n{live_drilldown_result['stderr']}")
-
-    q35_scaling_result = run_q35_scaling_audit()
-    q35_scaling_summary: Dict[str, Any] = collect_q35_scaling_audit_diagnostics()
-    print(
-        f"🧮 Q35 scaling audit：{'通過' if q35_scaling_result['success'] else '失敗'} "
-        f"(rc={q35_scaling_result['returncode']})"
-    )
-    if q35_scaling_result.get("stdout"):
-        lines = q35_scaling_result["stdout"].split("\n")
-        preview = "\n".join(lines[:20])
-        if len(lines) > 20:
-            preview += "\n...\n" + "\n".join(lines[-8:])
-        print(f"\n--- hb_q35_scaling_audit ---\n{preview}")
-    if q35_scaling_result.get("stderr"):
-        print(f"\n--- hb_q35_scaling_audit stderr ---\n{q35_scaling_result['stderr']}")
-    if q35_scaling_summary:
-        broader_bull = q35_scaling_summary.get("broader_bull_cohorts") or {}
-        bull_all = broader_bull.get("bull_all") or {}
-        segmented = q35_scaling_summary.get('segmented_calibration') or {}
-        reference = segmented.get('reference_cohort') or {}
-        print(
-            "🧮 Q35 結論："
-            f"verdict={q35_scaling_summary.get('overall_verdict')} "
-            f"structure={q35_scaling_summary.get('structure_scaling_verdict')} "
-            f"segment_status={segmented.get('status')} "
-            f"runtime_status={segmented.get('runtime_contract_status')} "
-            f"reference={reference.get('cohort')} "
-            f"exact_bias50_pct={((q35_scaling_summary.get('exact_lane_summary') or {}).get('current_bias50_percentile'))} "
-            f"bull_all_bias50_pct={bull_all.get('current_bias50_percentile')} "
-            f"gate_only_changes_layers={((q35_scaling_summary.get('counterfactuals') or {}).get('gate_allow_only_changes_layers'))}"
-        )
 
     q15_support_result: Dict[str, Any] = {}
     q15_support_summary: Dict[str, Any] = {}

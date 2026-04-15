@@ -191,6 +191,23 @@ def test_q35_runtime_contract_state_marks_formula_review_active_when_exact_lane_
     assert "實際套用" in runtime_reason
 
 
+def test_q35_runtime_contract_state_marks_formula_review_active_when_core_band_score_is_applied():
+    runtime_status, runtime_reason = hb_q35_scaling_audit._runtime_contract_state(
+        {
+            "status": "formula_review_required",
+            "exact_lane": {"percentile_band": "core_normal"},
+        },
+        {
+            "applied": True,
+            "mode": "exact_lane_formula_review",
+            "segment": "exact_lane_supported_within_p75",
+        },
+    )
+
+    assert runtime_status == "piecewise_runtime_active"
+    assert "實際套用" in runtime_reason
+
+
 def test_q35_runtime_contract_state_marks_hold_only_when_reference_band_is_still_overheat():
     runtime_status, runtime_reason = hb_q35_scaling_audit._runtime_contract_state(
         {
@@ -206,6 +223,17 @@ def test_q35_runtime_contract_state_marks_hold_only_when_reference_band_is_still
 
     assert runtime_status == "piecewise_runtime_ready_hold_only_current_row"
     assert "hold-only" in runtime_reason
+
+
+def test_q35_scope_applicability_marks_non_q35_rows_reference_only():
+    applicability = hb_q35_scaling_audit._q35_scope_applicability(
+        {"structure_bucket": "CAUTION|structure_quality_caution|q15"}
+    )
+
+    assert applicability["status"] == "reference_only_current_bucket_outside_q35"
+    assert applicability["active_for_current_live_row"] is False
+    assert applicability["target_structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert "reference-only" in applicability["reason"]
 
 
 def test_collect_live_predictor_diagnostics_preserves_circuit_breaker_reason():
@@ -493,7 +521,7 @@ def test_collect_q35_scaling_audit_diagnostics_reads_hold_only_verdict(tmp_path,
                     "regime_gate": "CAUTION",
                     "base_gate": "ALLOW",
                     "gate_reason": "structure_quality_caution",
-                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q15",
                     "structure_quality": 0.4553,
                     "entry_quality": 0.5341,
                     "entry_quality_label": "D",
@@ -514,6 +542,13 @@ def test_collect_q35_scaling_audit_diagnostics_reads_hold_only_verdict(tmp_path,
                         "feat_4h_bias50": 3.7318,
                         "feat_4h_bias200": 6.4571
                     }
+                },
+                "scope_applicability": {
+                    "status": "reference_only_current_bucket_outside_q35",
+                    "active_for_current_live_row": False,
+                    "current_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                    "target_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "reason": "current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。"
                 },
                 "exact_lane_summary": {
                     "rows": 90,
@@ -591,6 +626,8 @@ def test_collect_q35_scaling_audit_diagnostics_reads_hold_only_verdict(tmp_path,
 
     assert diag["overall_verdict"] == "hold_only_bias50_overheat_confirmed"
     assert diag["structure_scaling_verdict"] == "q35_structure_caution_not_root_cause"
+    assert diag["scope_applicability"]["status"] == "reference_only_current_bucket_outside_q35"
+    assert diag["scope_applicability"]["active_for_current_live_row"] is False
     assert diag["segmented_calibration"]["status"] == "hold_only_confirmed"
     assert diag["segmented_calibration"]["runtime_contract_status"] == "piecewise_runtime_active"
     assert "實際套用" in diag["segmented_calibration"]["runtime_contract_reason"]
@@ -852,12 +889,12 @@ def test_main_runs_q15_support_audit_after_leaderboard_probe(monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "collect_ic_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_recent_drift_report", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_recent_drift_diagnostics", lambda: {})
-    monkeypatch.setattr(hb_parallel_runner, "run_predict_probe", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_q35_scaling_audit", lambda: order.append("q35") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q35_scaling_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_predict_probe", lambda: order.append("predict_probe") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "_persist_live_predictor_probe", lambda stdout: None)
     monkeypatch.setattr(hb_parallel_runner, "collect_live_predictor_diagnostics", lambda result: {})
-    monkeypatch.setattr(hb_parallel_runner, "run_live_decision_quality_drilldown", lambda: _ok())
-    monkeypatch.setattr(hb_parallel_runner, "run_q35_scaling_audit", lambda: _ok())
-    monkeypatch.setattr(hb_parallel_runner, "collect_q35_scaling_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_live_decision_quality_drilldown", lambda: order.append("drilldown") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "run_circuit_breaker_audit", lambda run_label: _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_circuit_breaker_audit_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_feature_group_ablation", lambda: _ok())
@@ -877,7 +914,7 @@ def test_main_runs_q15_support_audit_after_leaderboard_probe(monkeypatch):
 
     hb_parallel_runner.main(["--fast", "--hb", "test"])
 
-    assert order == ["leaderboard", "q15", "q15_root", "q15_replay"]
+    assert order == ["q35", "predict_probe", "drilldown", "leaderboard", "q15", "q15_root", "q15_replay"]
 
 
 def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, monkeypatch):
