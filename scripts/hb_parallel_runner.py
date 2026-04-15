@@ -46,6 +46,8 @@ DRIFT_REPORT_CMD = [PYTHON, "scripts/recent_drift_report.py"]
 PREDICT_PROBE_CMD = [PYTHON, "scripts/hb_predict_probe.py"]
 LIVE_DQ_DRILLDOWN_CMD = [PYTHON, "scripts/live_decision_quality_drilldown.py"]
 Q35_SCALING_AUDIT_CMD = [PYTHON, "scripts/hb_q35_scaling_audit.py"]
+Q15_SUPPORT_AUDIT_CMD = [PYTHON, "scripts/hb_q15_support_audit.py"]
+CIRCUIT_BREAKER_AUDIT_CMD = [PYTHON, "scripts/hb_circuit_breaker_audit.py"]
 FEATURE_ABLATION_CMD = [PYTHON, "scripts/feature_group_ablation.py"]
 BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
 LEADERBOARD_CANDIDATE_PROBE_CMD = [PYTHON, "scripts/hb_leaderboard_candidate_probe.py"]
@@ -251,6 +253,14 @@ def run_q35_scaling_audit() -> Dict[str, Any]:
     return _run_serial_command(Q35_SCALING_AUDIT_CMD)
 
 
+def run_q15_support_audit() -> Dict[str, Any]:
+    return _run_serial_command(Q15_SUPPORT_AUDIT_CMD)
+
+
+def run_circuit_breaker_audit(run_label: str) -> Dict[str, Any]:
+    return _run_serial_command(CIRCUIT_BREAKER_AUDIT_CMD + [run_label])
+
+
 def run_feature_group_ablation() -> Dict[str, Any]:
     return _run_serial_command(FEATURE_ABLATION_CMD)
 
@@ -336,6 +346,8 @@ def save_summary(
     live_predictor_diagnostics=None,
     live_decision_drilldown=None,
     q35_scaling_audit=None,
+    q15_support_audit=None,
+    circuit_breaker_audit=None,
     feature_ablation=None,
     bull_4h_pocket_ablation=None,
     leaderboard_candidate_diagnostics=None,
@@ -367,6 +379,8 @@ def save_summary(
         "live_predictor_diagnostics": live_predictor_diagnostics or {},
         "live_decision_drilldown": live_decision_drilldown or {},
         "q35_scaling_audit": q35_scaling_audit or {},
+        "q15_support_audit": q15_support_audit or {},
+        "circuit_breaker_audit": circuit_breaker_audit or {},
         "feature_ablation": feature_ablation or {},
         "bull_4h_pocket_ablation": bull_4h_pocket_ablation or {},
         "leaderboard_candidate_diagnostics": leaderboard_candidate_diagnostics or {},
@@ -479,6 +493,11 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "reason": payload.get("reason"),
         "streak": payload.get("streak"),
         "win_rate": payload.get("win_rate"),
+        "recent_window_win_rate": payload.get("recent_window_win_rate"),
+        "recent_window_wins": payload.get("recent_window_wins"),
+        "window_size": payload.get("window_size"),
+        "triggered_by": payload.get("triggered_by") or [],
+        "horizon_minutes": payload.get("horizon_minutes"),
         "runtime_blocker": "circuit_breaker" if payload.get("signal") == "CIRCUIT_BREAKER" or payload.get("model_type") == "circuit_breaker" else None,
         "regime_label": payload.get("regime_label"),
         "model_route_regime": payload.get("model_route_regime"),
@@ -621,6 +640,7 @@ def collect_q35_scaling_audit_diagnostics() -> Dict[str, Any]:
             "reason": piecewise_preview.get("reason"),
             "exact_p90": piecewise_preview.get("exact_p90"),
             "reference_p90": piecewise_preview.get("reference_p90"),
+            "extension_share": piecewise_preview.get("extension_share"),
         },
         "counterfactuals": {
             "entry_if_gate_allow_only": counterfactuals.get("entry_if_gate_allow_only"),
@@ -628,10 +648,73 @@ def collect_q35_scaling_audit_diagnostics() -> Dict[str, Any]:
             "gate_allow_only_changes_layers": counterfactuals.get("gate_allow_only_changes_layers"),
             "entry_if_bias50_fully_relaxed": counterfactuals.get("entry_if_bias50_fully_relaxed"),
             "layers_if_bias50_fully_relaxed": counterfactuals.get("layers_if_bias50_fully_relaxed"),
+            "bias50_score_current": counterfactuals.get("bias50_score_current"),
+            "trade_floor": counterfactuals.get("trade_floor"),
+            "needed_entry_gain_to_cross_floor": counterfactuals.get("needed_entry_gain_to_cross_floor"),
+            "needed_base_gain_to_cross_floor": counterfactuals.get("needed_base_gain_to_cross_floor"),
+            "needed_bias50_score_for_floor": counterfactuals.get("needed_bias50_score_for_floor"),
             "required_bias50_cap_for_floor": counterfactuals.get("required_bias50_cap_for_floor"),
             "current_bias50_value": counterfactuals.get("current_bias50_value"),
         },
     }
+
+
+def collect_q15_support_audit_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "q15_support_audit.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    current_live = payload.get("current_live") or {}
+    support_route = payload.get("support_route") or {}
+    floor = payload.get("floor_cross_legality") or {}
+    return {
+        "generated_at": payload.get("generated_at"),
+        "target_col": payload.get("target_col"),
+        "current_live": current_live,
+        "support_route": support_route,
+        "floor_cross_legality": floor,
+        "next_action": payload.get("next_action"),
+    }
+
+
+def collect_circuit_breaker_audit_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "circuit_breaker_audit.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    mixed = payload.get("mixed_scope") or {}
+    aligned = payload.get("aligned_scope") or {}
+    thresholds = payload.get("trigger_thresholds") or {}
+    root = payload.get("root_cause") or {}
+    return {
+        "target_col": payload.get("target_col"),
+        "trigger_thresholds": thresholds,
+        "root_cause": root,
+        "mixed_scope": {
+            "triggered": mixed.get("triggered"),
+            "triggered_by": mixed.get("triggered_by") or [],
+            "rows_available": mixed.get("rows_available"),
+            "latest_timestamp": mixed.get("latest_timestamp"),
+            "streak": mixed.get("streak") or {},
+            "recent_window": mixed.get("recent_window") or {},
+        },
+        "aligned_scope": {
+            "triggered": aligned.get("triggered"),
+            "triggered_by": aligned.get("triggered_by") or [],
+            "release_ready": aligned.get("release_ready"),
+            "rows_available": aligned.get("rows_available"),
+            "latest_timestamp": aligned.get("latest_timestamp"),
+            "streak": aligned.get("streak") or {},
+            "recent_window": aligned.get("recent_window") or {},
+        },
+    }
+
 
 
 def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
@@ -1054,6 +1137,34 @@ def main(argv=None):
             f"gate_only_changes_layers={((q35_scaling_summary.get('counterfactuals') or {}).get('gate_allow_only_changes_layers'))}"
         )
 
+    q15_support_result: Dict[str, Any] = {}
+    q15_support_summary: Dict[str, Any] = {}
+
+    circuit_breaker_audit_result = run_circuit_breaker_audit(run_label)
+    circuit_breaker_audit_summary: Dict[str, Any] = collect_circuit_breaker_audit_diagnostics()
+    print(
+        f"🛑 Circuit breaker audit：{'通過' if circuit_breaker_audit_result['success'] else '失敗'} "
+        f"(rc={circuit_breaker_audit_result['returncode']})"
+    )
+    if circuit_breaker_audit_result.get("stdout"):
+        lines = circuit_breaker_audit_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- hb_circuit_breaker_audit ---\n{preview}")
+    if circuit_breaker_audit_result.get("stderr"):
+        print(f"\n--- hb_circuit_breaker_audit stderr ---\n{circuit_breaker_audit_result['stderr']}")
+    if circuit_breaker_audit_summary:
+        root = circuit_breaker_audit_summary.get("root_cause") or {}
+        mixed_scope = circuit_breaker_audit_summary.get("mixed_scope") or {}
+        aligned_scope = circuit_breaker_audit_summary.get("aligned_scope") or {}
+        print(
+            "🛑 Breaker 根因："
+            f"verdict={root.get('verdict')} "
+            f"mixed={mixed_scope.get('triggered_by')} streak={((mixed_scope.get('streak') or {}).get('count'))} "
+            f"aligned={aligned_scope.get('triggered_by')} release_ready={aligned_scope.get('release_ready')}"
+        )
+
     if feature_ablation_result is None:
         feature_ablation_result = run_feature_group_ablation()
         feature_ablation_summary = collect_feature_ablation_diagnostics()
@@ -1142,6 +1253,30 @@ def main(argv=None):
             f" blocked={blocked_text or 'none'}"
         )
 
+    q15_support_result = run_q15_support_audit()
+    q15_support_summary = collect_q15_support_audit_diagnostics()
+    print(
+        f"🧩 Q15 support audit：{'通過' if q15_support_result['success'] else '失敗'} "
+        f"(rc={q15_support_result['returncode']})"
+    )
+    if q15_support_result.get("stdout"):
+        lines = q15_support_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- hb_q15_support_audit ---\n{preview}")
+    if q15_support_result.get("stderr"):
+        print(f"\n--- hb_q15_support_audit stderr ---\n{q15_support_result['stderr']}")
+    if q15_support_summary:
+        support = q15_support_summary.get("support_route") or {}
+        floor = q15_support_summary.get("floor_cross_legality") or {}
+        print(
+            "🧩 Q15 治理："
+            f"support={support.get('verdict')} deployable={support.get('deployable')} "
+            f"floor={floor.get('verdict')} legal={floor.get('legal_to_relax_runtime_gate')} "
+            f"best={floor.get('best_single_component')} gap={floor.get('remaining_gap_to_floor')}"
+        )
+
     auto_propose_result = run_auto_propose(run_label)
     print(
         f"🛠️  自動修復建議：{'通過' if auto_propose_result['success'] else '失敗'} "
@@ -1169,6 +1304,8 @@ def main(argv=None):
         live_predictor_diagnostics=live_predictor_diagnostics,
         live_decision_drilldown=live_drilldown_summary,
         q35_scaling_audit=q35_scaling_summary,
+        q15_support_audit=q15_support_summary,
+        circuit_breaker_audit=circuit_breaker_audit_summary,
         feature_ablation=feature_ablation_summary,
         bull_4h_pocket_ablation=bull_pocket_summary,
         leaderboard_candidate_diagnostics=leaderboard_candidate_diagnostics,
