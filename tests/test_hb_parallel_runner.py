@@ -766,6 +766,42 @@ def test_collect_q15_bucket_root_cause_diagnostics_reads_verdict_and_candidate_p
     assert diag["carry_forward"] == ["先讀 data/q15_bucket_root_cause.json"]
 
 
+def test_collect_q15_boundary_replay_diagnostics_reads_replay_and_counterfactual(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "q15_boundary_replay.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-15T08:12:00Z",
+                "target_col": "simulated_pyramid_win",
+                "current_live": {"structure_bucket": "CAUTION|structure_quality_caution|q15"},
+                "boundary_replay": {
+                    "replay_bucket": "CAUTION|structure_quality_caution|q35",
+                    "replay_scope_bucket_rows": 76,
+                    "generated_rows_via_boundary_only": 2,
+                },
+                "component_counterfactual": {
+                    "verdict": "bucket_proxy_only_not_trade_floor_fix",
+                    "allowed_layers_after": 0,
+                },
+                "verdict": "boundary_relabels_into_existing_q35_support",
+                "reason": "mostly relabel",
+                "next_action": "keep blocker",
+                "verify_next": "check floor",
+                "carry_forward": ["先讀 data/q15_boundary_replay.json"],
+            }
+        )
+    )
+
+    diag = hb_parallel_runner.collect_q15_boundary_replay_diagnostics()
+
+    assert diag["verdict"] == "boundary_relabels_into_existing_q35_support"
+    assert diag["boundary_replay"]["replay_scope_bucket_rows"] == 76
+    assert diag["component_counterfactual"]["verdict"] == "bucket_proxy_only_not_trade_floor_fix"
+    assert diag["carry_forward"] == ["先讀 data/q15_boundary_replay.json"]
+
+
 def test_main_runs_q15_support_audit_after_leaderboard_probe(monkeypatch):
     order = []
 
@@ -834,12 +870,14 @@ def test_main_runs_q15_support_audit_after_leaderboard_probe(monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_audit_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_q15_bucket_root_cause", lambda: order.append("q15_root") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_bucket_root_cause_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_boundary_replay", lambda: order.append("q15_replay") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_boundary_replay_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_auto_propose", lambda run_label=None: _ok())
     monkeypatch.setattr(hb_parallel_runner, "save_summary", lambda *args, **kwargs: ({}, "/tmp/heartbeat_test_summary.json"))
 
     hb_parallel_runner.main(["--fast", "--hb", "test"])
 
-    assert order == ["leaderboard", "q15", "q15_root"]
+    assert order == ["leaderboard", "q15", "q15_root", "q15_replay"]
 
 
 def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, monkeypatch):

@@ -48,6 +48,7 @@ LIVE_DQ_DRILLDOWN_CMD = [PYTHON, "scripts/live_decision_quality_drilldown.py"]
 Q35_SCALING_AUDIT_CMD = [PYTHON, "scripts/hb_q35_scaling_audit.py"]
 Q15_SUPPORT_AUDIT_CMD = [PYTHON, "scripts/hb_q15_support_audit.py"]
 Q15_BUCKET_ROOT_CAUSE_CMD = [PYTHON, "scripts/hb_q15_bucket_root_cause.py"]
+Q15_BOUNDARY_REPLAY_CMD = [PYTHON, "scripts/hb_q15_boundary_replay.py"]
 CIRCUIT_BREAKER_AUDIT_CMD = [PYTHON, "scripts/hb_circuit_breaker_audit.py"]
 FEATURE_ABLATION_CMD = [PYTHON, "scripts/feature_group_ablation.py"]
 BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
@@ -262,6 +263,10 @@ def run_q15_bucket_root_cause() -> Dict[str, Any]:
     return _run_serial_command(Q15_BUCKET_ROOT_CAUSE_CMD)
 
 
+def run_q15_boundary_replay() -> Dict[str, Any]:
+    return _run_serial_command(Q15_BOUNDARY_REPLAY_CMD)
+
+
 def run_circuit_breaker_audit(run_label: str) -> Dict[str, Any]:
     return _run_serial_command(CIRCUIT_BREAKER_AUDIT_CMD + [run_label])
 
@@ -353,6 +358,7 @@ def save_summary(
     q35_scaling_audit=None,
     q15_support_audit=None,
     q15_bucket_root_cause=None,
+    q15_boundary_replay=None,
     circuit_breaker_audit=None,
     feature_ablation=None,
     bull_4h_pocket_ablation=None,
@@ -387,6 +393,7 @@ def save_summary(
         "q35_scaling_audit": q35_scaling_audit or {},
         "q15_support_audit": q15_support_audit or {},
         "q15_bucket_root_cause": q15_bucket_root_cause or {},
+        "q15_boundary_replay": q15_boundary_replay or {},
         "circuit_breaker_audit": circuit_breaker_audit or {},
         "feature_ablation": feature_ablation or {},
         "bull_4h_pocket_ablation": bull_4h_pocket_ablation or {},
@@ -705,6 +712,28 @@ def collect_q15_bucket_root_cause_diagnostics() -> Dict[str, Any]:
         "candidate_patch_feature": payload.get("candidate_patch_feature"),
         "candidate_patch": payload.get("candidate_patch") or {},
         "reason": payload.get("reason"),
+        "verify_next": payload.get("verify_next"),
+        "carry_forward": payload.get("carry_forward") or [],
+    }
+
+
+def collect_q15_boundary_replay_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "q15_boundary_replay.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    return {
+        "generated_at": payload.get("generated_at"),
+        "target_col": payload.get("target_col"),
+        "current_live": payload.get("current_live") or {},
+        "boundary_replay": payload.get("boundary_replay") or {},
+        "component_counterfactual": payload.get("component_counterfactual") or {},
+        "verdict": payload.get("verdict"),
+        "reason": payload.get("reason"),
+        "next_action": payload.get("next_action"),
         "verify_next": payload.get("verify_next"),
         "carry_forward": payload.get("carry_forward") or [],
     }
@@ -1169,6 +1198,8 @@ def main(argv=None):
 
     q15_support_result: Dict[str, Any] = {}
     q15_support_summary: Dict[str, Any] = {}
+    q15_boundary_replay_result: Dict[str, Any] = {}
+    q15_boundary_replay_summary: Dict[str, Any] = {}
 
     circuit_breaker_audit_result = run_circuit_breaker_audit(run_label)
     circuit_breaker_audit_summary: Dict[str, Any] = collect_circuit_breaker_audit_diagnostics()
@@ -1331,6 +1362,32 @@ def main(argv=None):
             f"near_boundary_rows={lane.get('near_boundary_rows')}"
         )
 
+    q15_boundary_replay_result = run_q15_boundary_replay()
+    q15_boundary_replay_summary = collect_q15_boundary_replay_diagnostics()
+    print(
+        f"🔁 Q15 boundary replay：{'通過' if q15_boundary_replay_result['success'] else '失敗'} "
+        f"(rc={q15_boundary_replay_result['returncode']})"
+    )
+    if q15_boundary_replay_result.get("stdout"):
+        lines = q15_boundary_replay_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- hb_q15_boundary_replay ---\n{preview}")
+    if q15_boundary_replay_result.get("stderr"):
+        print(f"\n--- hb_q15_boundary_replay stderr ---\n{q15_boundary_replay_result['stderr']}")
+    if q15_boundary_replay_summary:
+        replay = q15_boundary_replay_summary.get("boundary_replay") or {}
+        counterfactual = q15_boundary_replay_summary.get("component_counterfactual") or {}
+        print(
+            "🔁 Q15 replay："
+            f"verdict={q15_boundary_replay_summary.get('verdict')} "
+            f"replay_bucket={replay.get('replay_bucket')} rows={replay.get('replay_scope_bucket_rows')} "
+            f"generated_only={replay.get('generated_rows_via_boundary_only')} "
+            f"counterfactual={counterfactual.get('verdict')} "
+            f"layers_after={counterfactual.get('allowed_layers_after')}"
+        )
+
     auto_propose_result = run_auto_propose(run_label)
     print(
         f"🛠️  自動修復建議：{'通過' if auto_propose_result['success'] else '失敗'} "
@@ -1360,6 +1417,7 @@ def main(argv=None):
         q35_scaling_audit=q35_scaling_summary,
         q15_support_audit=q15_support_summary,
         q15_bucket_root_cause=q15_bucket_root_cause_summary,
+        q15_boundary_replay=q15_boundary_replay_summary,
         circuit_breaker_audit=circuit_breaker_audit_summary,
         feature_ablation=feature_ablation_summary,
         bull_4h_pocket_ablation=bull_pocket_summary,
