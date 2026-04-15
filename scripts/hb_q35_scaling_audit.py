@@ -736,6 +736,186 @@ def _build_base_mix_component_experiment(
     }
 
 
+def _build_base_stack_redesign_experiment(
+    runtime_current: dict[str, Any],
+    runtime_exact_lane: list[dict[str, Any]],
+) -> dict[str, Any]:
+    eq = runtime_current.get("entry_quality_components") or {}
+    trade_floor = float(eq.get("trade_floor") or 0.55)
+    structure_quality = float(eq.get("structure_quality") or 0.0)
+    current_entry_quality = float(runtime_current.get("entry_quality") or 0.0)
+    current_layers = int(runtime_current.get("allowed_layers_raw") or 0)
+    feature_names = ["feat_4h_bias50", "feat_nose", "feat_pulse", "feat_ear"]
+    current_components = {
+        feature_name: float(
+            (_extract_component(eq.get("base_components") or [], feature_name) or {}).get("normalized_score") or 0.0
+        )
+        for feature_name in feature_names
+    }
+
+    if not runtime_exact_lane:
+        return {
+            "verdict": "base_stack_redesign_no_runtime_exact_lane_rows",
+            "reason": "runtime calibrated exact lane 沒有可用 rows，無法做 base-stack redesign grid search。",
+            "rows": 0,
+            "wins": 0,
+            "losses": 0,
+            "current_entry_quality": round(current_entry_quality, 4),
+            "trade_floor": round(trade_floor, 4),
+            "current_allowed_layers": current_layers,
+            "current_component_scores": {k: _round(v) for k, v in current_components.items()},
+            "best_discriminative_candidate": None,
+            "best_floor_candidate": None,
+            "unsafe_floor_cross_candidate": None,
+            "machine_read_answer": {
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+                "positive_discriminative_gap": False,
+            },
+            "verify_next": "若 runtime exact lane rows 仍為 0，先修 cohort/support gathering，再重跑 q35 audit。",
+        }
+
+    def _component_score(row: dict[str, Any], feature_name: str) -> float:
+        component = _extract_component((row.get("entry_quality_components") or {}).get("base_components") or [], feature_name) or {}
+        return float(component.get("normalized_score") or 0.0)
+
+    lane_rows: list[dict[str, Any]] = []
+    wins = 0
+    losses = 0
+    for row in runtime_exact_lane:
+        label = int(row.get("simulated_pyramid_win") or 0)
+        wins += int(label == 1)
+        losses += int(label == 0)
+        lane_rows.append(
+            {
+                "label": label,
+                **{feature_name: _component_score(row, feature_name) for feature_name in feature_names},
+            }
+        )
+
+    steps = [i / 20 for i in range(0, 21)]
+    candidates: list[dict[str, Any]] = []
+    for bias_w in steps:
+        for nose_w in steps:
+            for pulse_w in steps:
+                ear_w = round(1.0 - bias_w - nose_w - pulse_w, 10)
+                if ear_w < -1e-9 or ear_w > 1.0:
+                    continue
+                weights = {
+                    "feat_4h_bias50": bias_w,
+                    "feat_nose": nose_w,
+                    "feat_pulse": pulse_w,
+                    "feat_ear": ear_w,
+                }
+                win_scores: list[float] = []
+                loss_scores: list[float] = []
+                for row in lane_rows:
+                    base_score = sum(weights[name] * float(row[name]) for name in feature_names)
+                    if row["label"] == 1:
+                        win_scores.append(base_score)
+                    else:
+                        loss_scores.append(base_score)
+                if not win_scores or not loss_scores:
+                    continue
+                win_mean = sum(win_scores) / len(win_scores)
+                loss_mean = sum(loss_scores) / len(loss_scores)
+                mean_gap = win_mean - loss_mean
+                current_base_quality = sum(weights[name] * current_components[name] for name in feature_names)
+                current_entry = round(0.75 * current_base_quality + 0.25 * structure_quality, 4)
+                current_layers_after = live_predictor._allowed_layers_for_live_signal(
+                    runtime_current.get("regime_gate") or "BLOCK",
+                    current_entry,
+                )
+                candidates.append(
+                    {
+                        "weights": {name: _round(value) for name, value in weights.items()},
+                        "winner_mean_base_quality": _round(win_mean),
+                        "loss_mean_base_quality": _round(loss_mean),
+                        "mean_gap": _round(mean_gap),
+                        "current_base_quality": _round(current_base_quality),
+                        "current_entry_quality_after": current_entry,
+                        "remaining_gap_to_floor": _round(max(0.0, trade_floor - current_entry)),
+                        "allowed_layers_after": current_layers_after,
+                        "entry_quality_ge_trade_floor": current_entry >= trade_floor,
+                        "allowed_layers_gt_0": current_layers_after > 0,
+                        "positive_discriminative_gap": mean_gap > 0,
+                    }
+                )
+
+    if not candidates:
+        return {
+            "verdict": "base_stack_redesign_candidate_grid_empty",
+            "reason": "runtime exact lane grid search 沒有產生任何可比較候選。",
+            "rows": len(runtime_exact_lane),
+            "wins": wins,
+            "losses": losses,
+            "current_entry_quality": round(current_entry_quality, 4),
+            "trade_floor": round(trade_floor, 4),
+            "current_allowed_layers": current_layers,
+            "current_component_scores": {k: _round(v) for k, v in current_components.items()},
+            "best_discriminative_candidate": None,
+            "best_floor_candidate": None,
+            "unsafe_floor_cross_candidate": None,
+            "machine_read_answer": {
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+                "positive_discriminative_gap": False,
+            },
+            "verify_next": "若候選 grid 仍為空，先檢查 runtime exact lane component scores 是否成功持久化。",
+        }
+
+    best_discriminative = sorted(
+        candidates,
+        key=lambda item: (
+            -(float(item.get("mean_gap") or 0.0)),
+            -(float(item.get("current_entry_quality_after") or 0.0)),
+        ),
+    )[0]
+    best_floor = sorted(
+        candidates,
+        key=lambda item: (
+            -(float(item.get("current_entry_quality_after") or 0.0)),
+            -(float(item.get("mean_gap") or 0.0)),
+        ),
+    )[0]
+    unsafe_floor_cross = (
+        best_floor
+        if best_floor.get("entry_quality_ge_trade_floor") and not best_floor.get("positive_discriminative_gap")
+        else None
+    )
+
+    if best_discriminative.get("entry_quality_ge_trade_floor") and best_discriminative.get("allowed_layers_gt_0"):
+        verdict = "base_stack_redesign_discriminative_reweight_crosses_trade_floor"
+        reason = "在 runtime exact lane 內，以正向 discrimination 為約束的 base-stack reweight 已足以讓 current live row 跨過 trade floor。"
+    elif unsafe_floor_cross is not None:
+        verdict = "base_stack_redesign_floor_cross_requires_non_discriminative_reweight"
+        reason = "只有把權重大幅壓向低 discrimination component（主要是 ear）才會讓 current live row 跨過 trade floor；這會破壞 exact-lane 正負樣本分離，不能當成可部署 redesign。"
+    else:
+        verdict = "base_stack_redesign_discriminative_reweight_still_below_floor"
+        reason = "即使在 runtime exact lane 內做 support-aware / discriminative reweight，最佳候選仍無法讓 current live row 跨過 trade floor；bull q35 lane 應升級為 no-deploy governance blocker，而不是再追單純 base-stack 權重微調。"
+
+    return {
+        "verdict": verdict,
+        "reason": reason,
+        "rows": len(runtime_exact_lane),
+        "wins": wins,
+        "losses": losses,
+        "current_entry_quality": round(current_entry_quality, 4),
+        "trade_floor": round(trade_floor, 4),
+        "current_allowed_layers": current_layers,
+        "current_component_scores": {k: _round(v) for k, v in current_components.items()},
+        "best_discriminative_candidate": best_discriminative,
+        "best_floor_candidate": best_floor,
+        "unsafe_floor_cross_candidate": unsafe_floor_cross,
+        "machine_read_answer": {
+            "entry_quality_ge_0_55": bool(best_discriminative.get("entry_quality_ge_trade_floor")),
+            "allowed_layers_gt_0": bool(best_discriminative.get("allowed_layers_gt_0")),
+            "positive_discriminative_gap": bool(best_discriminative.get("positive_discriminative_gap")),
+        },
+        "verify_next": "確認 heartbeat summary / ISSUES / ROADMAP 已同步 discriminative vs unsafe floor-cross 候選，避免下一輪再把 ear-heavy 權重假裝成可部署 redesign。",
+    }
+
+
 def _build_deployment_grade_component_experiment(
     baseline_current: dict[str, Any],
     runtime_current: dict[str, Any],
@@ -808,6 +988,7 @@ def main() -> None:
         bias50_calibration_override=_legacy_bias50_calibration_preview(current_row["feat_4h_bias50"] or 0.0),
     )
     history = _historical_rows(conn, use_legacy_bias50_baseline=True)
+    runtime_history = _historical_rows(conn, use_legacy_bias50_baseline=False)
     conn.close()
 
     current_bias50 = float(current["raw_features"]["feat_4h_bias50"] or 0.0)
@@ -954,6 +1135,17 @@ def main() -> None:
         exact_summary,
         winner_summary,
     )
+    runtime_exact_lane = [
+        r for r in runtime_history
+        if r["regime_label"] == runtime_current["regime_label"]
+        and r["regime_gate"] == runtime_current["regime_gate"]
+        and r["entry_quality_label"] == runtime_current["entry_quality_label"]
+        and r["structure_bucket"] == runtime_current["structure_bucket"]
+    ]
+    base_stack_redesign_experiment = _build_base_stack_redesign_experiment(
+        runtime_current,
+        runtime_exact_lane,
+    )
     runtime_contract_status, runtime_contract_reason = _runtime_contract_state(
         segmented_calibration,
         piecewise_runtime_preview,
@@ -976,25 +1168,36 @@ def main() -> None:
         "deployment_grade_component_experiment": deployment_grade_component_experiment,
         "joint_component_experiment": joint_component_experiment,
         "base_mix_component_experiment": base_mix_component_experiment,
+        "base_stack_redesign_experiment": base_stack_redesign_experiment,
         "counterfactuals": counterfactuals,
         "structure_scaling_verdict": structure_verdict,
         "overall_verdict": overall_verdict,
         "verdict_reason": verdict_reason,
         "recommended_action": (
-            "base-mix experiment 已證明 bias50 + pulse (+ nose) uplift 仍未跨過 trade floor；下一輪必須升級成 base-stack redesign blocker，禁止再把結構 uplift 或單點 bias50 當成主 closure。"
+            "base-stack redesign grid search 已證明：只有非 discriminative 的 ear-heavy 權重才會讓 current row 假性跨過 floor；下一輪必須升級為 bull q35 no-deploy governance blocker，停止再把 base-stack 權重微調包裝成可部署 closure。"
             if scope_applicability["active_for_current_live_row"]
-            and base_mix_component_experiment.get("verdict") == "base_mix_component_experiment_improves_but_still_below_floor"
+            and base_stack_redesign_experiment.get("verdict") == "base_stack_redesign_floor_cross_requires_non_discriminative_reweight"
             else (
-                "維持 q35=CAUTION；把本輪焦點放在 bias50 正規化是否應改成分段/分位數縮放，只有當 current bias50 落在 exact-lane 常見區間時才放寬。"
+                "即使做 support-aware / discriminative base-stack redesign，current row 仍無法跨過 trade floor；下一輪必須升級為 bull q35 no-deploy governance blocker，禁止再把結構 uplift、單點 bias50 或 base-stack 權重微調當成主 closure。"
                 if scope_applicability["active_for_current_live_row"]
-                and overall_verdict in {"bias50_formula_may_be_too_harsh", "broader_bull_cohort_recalibration_candidate"}
+                and base_stack_redesign_experiment.get("verdict") == "base_stack_redesign_discriminative_reweight_still_below_floor"
                 else (
-                    "current live row 已離開 q35 lane；本輪 q35 audit 僅保留為 reference-only。"
-                    "下一步應優先處理 current bucket 的 exact support / structure component blocker，"
-                    "不得把 q35 bias50 calibration 誤當成可直接放行 current live row 的 patch。"
+                    "base-mix experiment 已證明 bias50 + pulse (+ nose) uplift 仍未跨過 trade floor；下一輪必須升級成 base-stack redesign blocker，禁止再把結構 uplift 或單點 bias50 當成主 closure。"
+                    if scope_applicability["active_for_current_live_row"]
+                    and base_mix_component_experiment.get("verdict") == "base_mix_component_experiment_improves_but_still_below_floor"
+                    else (
+                        "維持 q35=CAUTION；把本輪焦點放在 bias50 正規化是否應改成分段/分位數縮放，只有當 current bias50 落在 exact-lane 常見區間時才放寬。"
+                        if scope_applicability["active_for_current_live_row"]
+                        and overall_verdict in {"bias50_formula_may_be_too_harsh", "broader_bull_cohort_recalibration_candidate"}
+                        else (
+                            "current live row 已離開 q35 lane；本輪 q35 audit 僅保留為 reference-only。"
+                            "下一步應優先處理 current bucket 的 exact support / structure component blocker，"
+                            "不得把 q35 bias50 calibration 誤當成可直接放行 current live row 的 patch。"
+                        )
+                        if not scope_applicability["active_for_current_live_row"]
+                        else "把這條 current bull q35 lane 正式治理成 hold-only 候選；除非 bias50 校準審計證明 current 值屬於 exact-lane 常態，否則不要直接放寬 trade floor 或 q35 gate。"
+                    )
                 )
-                if not scope_applicability["active_for_current_live_row"]
-                else "把這條 current bull q35 lane 正式治理成 hold-only 候選；除非 bias50 校準審計證明 current 值屬於 exact-lane 常態，否則不要直接放寬 trade floor 或 q35 gate。"
             )
         ),
     }
@@ -1076,6 +1279,16 @@ def main() -> None:
         f"- required_bias50_cap_after_best_scenario: **{((base_mix_component_experiment.get('best_scenario') or {}).get('required_bias50_cap_after_base_mix'))}**",
         f"- note: {base_mix_component_experiment['reason']}",
         "",
+        "## Base-stack redesign experiment（support-aware discriminative reweight）",
+        "",
+        f"- verdict: **{base_stack_redesign_experiment['verdict']}**",
+        f"- machine_read: entry_quality>=0.55=**{base_stack_redesign_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{base_stack_redesign_experiment['machine_read_answer']['allowed_layers_gt_0']}** | positive_gap=**{base_stack_redesign_experiment['machine_read_answer']['positive_discriminative_gap']}**",
+        f"- rows / wins / losses: **{base_stack_redesign_experiment['rows']} / {base_stack_redesign_experiment['wins']} / {base_stack_redesign_experiment['losses']}**",
+        f"- best discriminative candidate: weights=**{(base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('weights')}** → entry_quality **{((base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('current_entry_quality_after'))}** / gap **{((base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('remaining_gap_to_floor'))}** / mean_gap **{((base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('mean_gap'))}**",
+        f"- best floor candidate: weights=**{(base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('weights')}** → entry_quality **{((base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('current_entry_quality_after'))}** / gap **{((base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('remaining_gap_to_floor'))}** / mean_gap **{((base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('mean_gap'))}**",
+        f"- unsafe floor-cross candidate: **{(base_stack_redesign_experiment.get('unsafe_floor_cross_candidate') or {}).get('weights')}**",
+        f"- note: {base_stack_redesign_experiment['reason']}",
+        "",
         "## Recommended action",
         "",
         f"- {report['recommended_action']}",
@@ -1110,6 +1323,16 @@ def main() -> None:
             "best_scenario": (base_mix_component_experiment.get("best_scenario") or {}).get("scenario"),
             "best_entry_quality": (base_mix_component_experiment.get("best_scenario") or {}).get("entry_quality_after"),
             "best_remaining_gap_to_floor": (base_mix_component_experiment.get("best_scenario") or {}).get("remaining_gap_to_floor"),
+        },
+        "base_stack_redesign_experiment": {
+            "verdict": base_stack_redesign_experiment["verdict"],
+            "entry_quality_ge_0_55": base_stack_redesign_experiment["machine_read_answer"]["entry_quality_ge_0_55"],
+            "allowed_layers_gt_0": base_stack_redesign_experiment["machine_read_answer"]["allowed_layers_gt_0"],
+            "positive_discriminative_gap": base_stack_redesign_experiment["machine_read_answer"]["positive_discriminative_gap"],
+            "best_discriminative_entry_quality": ((base_stack_redesign_experiment.get("best_discriminative_candidate") or {}).get("current_entry_quality_after")),
+            "best_discriminative_gap_to_floor": ((base_stack_redesign_experiment.get("best_discriminative_candidate") or {}).get("remaining_gap_to_floor")),
+            "best_floor_entry_quality": ((base_stack_redesign_experiment.get("best_floor_candidate") or {}).get("current_entry_quality_after")),
+            "unsafe_floor_cross": base_stack_redesign_experiment.get("unsafe_floor_cross_candidate") is not None,
         },
     }, indent=2, ensure_ascii=False))
 

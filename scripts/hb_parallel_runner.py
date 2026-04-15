@@ -599,6 +599,7 @@ def collect_q35_scaling_audit_diagnostics() -> Dict[str, Any]:
     deployment_experiment = payload.get("deployment_grade_component_experiment") or {}
     joint_experiment = payload.get("joint_component_experiment") or {}
     base_mix_experiment = payload.get("base_mix_component_experiment") or {}
+    redesign_experiment = payload.get("base_stack_redesign_experiment") or {}
     exact_lane = payload.get("exact_lane_summary") or {}
     broader_bull = payload.get("broader_bull_cohorts") or {}
     segmented = payload.get("segmented_calibration") or {}
@@ -693,6 +694,18 @@ def collect_q35_scaling_audit_diagnostics() -> Dict[str, Any]:
             "machine_read_answer": base_mix_experiment.get("machine_read_answer") or {},
             "best_scenario": base_mix_experiment.get("best_scenario") or {},
             "verify_next": base_mix_experiment.get("verify_next"),
+        },
+        "base_stack_redesign_experiment": {
+            "verdict": redesign_experiment.get("verdict"),
+            "reason": redesign_experiment.get("reason"),
+            "rows": redesign_experiment.get("rows"),
+            "wins": redesign_experiment.get("wins"),
+            "losses": redesign_experiment.get("losses"),
+            "machine_read_answer": redesign_experiment.get("machine_read_answer") or {},
+            "best_discriminative_candidate": redesign_experiment.get("best_discriminative_candidate") or {},
+            "best_floor_candidate": redesign_experiment.get("best_floor_candidate") or {},
+            "unsafe_floor_cross_candidate": redesign_experiment.get("unsafe_floor_cross_candidate"),
+            "verify_next": redesign_experiment.get("verify_next"),
         },
         "counterfactuals": {
             "entry_if_gate_allow_only": counterfactuals.get("entry_if_gate_allow_only"),
@@ -1154,9 +1167,12 @@ def main(argv=None):
         applicability = q35_scaling_summary.get('scope_applicability') or {}
         deployment_experiment = q35_scaling_summary.get('deployment_grade_component_experiment') or {}
         joint_experiment = q35_scaling_summary.get('joint_component_experiment') or {}
+        redesign_experiment = q35_scaling_summary.get('base_stack_redesign_experiment') or {}
         machine_read = deployment_experiment.get('machine_read_answer') or {}
         joint_machine_read = joint_experiment.get('machine_read_answer') or {}
+        redesign_machine_read = redesign_experiment.get('machine_read_answer') or {}
         joint_best = joint_experiment.get('best_scenario') or {}
+        redesign_best = redesign_experiment.get('best_discriminative_candidate') or {}
         print(
             "🧮 Q35 結論："
             f"verdict={q35_scaling_summary.get('overall_verdict')} "
@@ -1176,7 +1192,11 @@ def main(argv=None):
             f"joint_best={joint_best.get('scenario')} "
             f"joint_eq={joint_best.get('entry_quality_after')} "
             f"joint_gap={joint_best.get('remaining_gap_to_floor')} "
-            f"joint_layers_gt_0={joint_machine_read.get('allowed_layers_gt_0')}"
+            f"joint_layers_gt_0={joint_machine_read.get('allowed_layers_gt_0')} "
+            f"redesign_verdict={redesign_experiment.get('verdict')} "
+            f"redesign_eq={redesign_best.get('current_entry_quality_after')} "
+            f"redesign_gap={redesign_best.get('remaining_gap_to_floor')} "
+            f"redesign_pos_gap={redesign_machine_read.get('positive_discriminative_gap')}"
         )
 
     predict_probe_result = run_predict_probe()

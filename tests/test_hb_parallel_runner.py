@@ -347,6 +347,79 @@ def test_q35_base_mix_component_experiment_surfaces_base_stack_gap():
     assert result["best_scenario"]["required_bias50_cap_after_base_mix"] < 0.2206
 
 
+def test_q35_base_stack_redesign_experiment_flags_unsafe_ear_heavy_floor_cross():
+    runtime_current = {
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.3725,
+        "allowed_layers_raw": 0,
+        "entry_quality_components": {
+            "structure_quality": 0.4246,
+            "trade_floor": 0.55,
+            "base_components": [
+                {"feature": "feat_4h_bias50", "normalized_score": 0.2314},
+                {"feature": "feat_nose", "normalized_score": 0.2696},
+                {"feature": "feat_pulse", "normalized_score": 0.2499},
+                {"feature": "feat_ear", "normalized_score": 0.9772},
+            ],
+        },
+    }
+    runtime_exact_lane = [
+        {
+            "simulated_pyramid_win": 1,
+            "entry_quality_components": {
+                "base_components": [
+                    {"feature": "feat_4h_bias50", "normalized_score": 0.22},
+                    {"feature": "feat_nose", "normalized_score": 0.35},
+                    {"feature": "feat_pulse", "normalized_score": 0.82},
+                    {"feature": "feat_ear", "normalized_score": 0.30},
+                ]
+            },
+        },
+        {
+            "simulated_pyramid_win": 1,
+            "entry_quality_components": {
+                "base_components": [
+                    {"feature": "feat_4h_bias50", "normalized_score": 0.24},
+                    {"feature": "feat_nose", "normalized_score": 0.33},
+                    {"feature": "feat_pulse", "normalized_score": 0.78},
+                    {"feature": "feat_ear", "normalized_score": 0.28},
+                ]
+            },
+        },
+        {
+            "simulated_pyramid_win": 0,
+            "entry_quality_components": {
+                "base_components": [
+                    {"feature": "feat_4h_bias50", "normalized_score": 0.12},
+                    {"feature": "feat_nose", "normalized_score": 0.42},
+                    {"feature": "feat_pulse", "normalized_score": 0.11},
+                    {"feature": "feat_ear", "normalized_score": 0.98},
+                ]
+            },
+        },
+        {
+            "simulated_pyramid_win": 0,
+            "entry_quality_components": {
+                "base_components": [
+                    {"feature": "feat_4h_bias50", "normalized_score": 0.08},
+                    {"feature": "feat_nose", "normalized_score": 0.40},
+                    {"feature": "feat_pulse", "normalized_score": 0.15},
+                    {"feature": "feat_ear", "normalized_score": 0.96},
+                ]
+            },
+        },
+    ]
+
+    result = hb_q35_scaling_audit._build_base_stack_redesign_experiment(runtime_current, runtime_exact_lane)
+
+    assert result["verdict"] == "base_stack_redesign_floor_cross_requires_non_discriminative_reweight"
+    assert result["machine_read_answer"]["entry_quality_ge_0_55"] is False
+    assert result["machine_read_answer"]["positive_discriminative_gap"] is True
+    assert result["best_discriminative_candidate"]["current_entry_quality_after"] < 0.55
+    assert result["best_floor_candidate"]["current_entry_quality_after"] > 0.55
+    assert result["unsafe_floor_cross_candidate"] is not None
+
+
 def test_collect_q35_scaling_audit_diagnostics_includes_deployment_component_experiment(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
@@ -411,6 +484,34 @@ def test_collect_q35_scaling_audit_diagnostics_includes_deployment_component_exp
                     },
                     "verify_next": "summary must persist base-mix scenario fields",
                 },
+                "base_stack_redesign_experiment": {
+                    "verdict": "base_stack_redesign_floor_cross_requires_non_discriminative_reweight",
+                    "reason": "only ear-heavy weights cross the floor and they destroy discrimination.",
+                    "rows": 107,
+                    "wins": 99,
+                    "losses": 8,
+                    "machine_read_answer": {
+                        "entry_quality_ge_0_55": False,
+                        "allowed_layers_gt_0": False,
+                        "positive_discriminative_gap": True,
+                    },
+                    "best_discriminative_candidate": {
+                        "weights": {"feat_4h_bias50": 0.05, "feat_nose": 0.0, "feat_pulse": 0.95, "feat_ear": 0.0},
+                        "current_entry_quality_after": 0.2929,
+                        "remaining_gap_to_floor": 0.2571,
+                        "mean_gap": 0.2247,
+                    },
+                    "best_floor_candidate": {
+                        "weights": {"feat_4h_bias50": 0.0, "feat_nose": 0.0, "feat_pulse": 0.0, "feat_ear": 1.0},
+                        "current_entry_quality_after": 0.839,
+                        "remaining_gap_to_floor": 0.0,
+                        "mean_gap": -0.0109,
+                    },
+                    "unsafe_floor_cross_candidate": {
+                        "weights": {"feat_4h_bias50": 0.0, "feat_nose": 0.0, "feat_pulse": 0.0, "feat_ear": 1.0}
+                    },
+                    "verify_next": "summary must persist redesign candidate diagnostics",
+                },
                 "counterfactuals": {"required_bias50_cap_for_floor": 0.1685},
             },
             ensure_ascii=False,
@@ -430,6 +531,9 @@ def test_collect_q35_scaling_audit_diagnostics_includes_deployment_component_exp
     assert summary["base_mix_component_experiment"]["verdict"] == "base_mix_component_experiment_improves_but_still_below_floor"
     assert summary["base_mix_component_experiment"]["best_scenario"]["scenario"] == "winner_triplet_p75"
     assert summary["base_mix_component_experiment"]["best_scenario"]["required_bias50_cap_after_base_mix"] == -2.105
+    assert summary["base_stack_redesign_experiment"]["verdict"] == "base_stack_redesign_floor_cross_requires_non_discriminative_reweight"
+    assert summary["base_stack_redesign_experiment"]["machine_read_answer"]["positive_discriminative_gap"] is True
+    assert summary["base_stack_redesign_experiment"]["best_floor_candidate"]["current_entry_quality_after"] == 0.839
 
 
 def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monkeypatch):
