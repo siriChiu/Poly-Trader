@@ -472,6 +472,7 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "model_route_regime": payload.get("model_route_regime"),
         "regime_gate": payload.get("regime_gate"),
         "entry_quality_label": payload.get("entry_quality_label"),
+        "entry_quality_components": payload.get("entry_quality_components") or {},
         "allowed_layers_raw": payload.get("allowed_layers_raw"),
         "allowed_layers": payload.get("allowed_layers"),
         "allowed_layers_reason": payload.get("allowed_layers_reason"),
@@ -524,6 +525,12 @@ def collect_feature_ablation_diagnostics() -> Dict[str, Any]:
         "recommended_profile": recommended,
         "recommended_metrics": recommended_metrics,
         "current_full_metrics": current_full,
+        "profile_role": {
+            "profile": recommended,
+            "role": "global_shrinkage_winner" if recommended else None,
+            "source": "feature_group_ablation.recommended_profile" if recommended else None,
+            "reason": "global 最近視窗的 shrinkage / CV 穩定度最佳 profile。" if recommended else None,
+        },
         "bull_collapse_4h_features": payload.get("bull_collapse_4h_features") or [],
         "stable_4h_features": payload.get("stable_4h_features") or [],
     }
@@ -583,6 +590,23 @@ def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
             "exact_lane_bucket_diagnostics": support_summary.get("exact_lane_bucket_diagnostics") or {},
             "recommended_action": support_summary.get("recommended_action"),
         },
+        "production_profile_role": {
+            "profile": (cohorts.get("bull_all") or {}).get("recommended_profile"),
+            "role": "bull_exact_supported_production_profile" if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported" else "support_aware_production_profile",
+            "source": (
+                "bull_4h_pocket_ablation.exact_supported_profile"
+                if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported"
+                else "bull_4h_pocket_ablation.support_aware_profile"
+            ),
+            "support_cohort": "bull_all" if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported" else support_summary.get("preferred_support_cohort"),
+            "support_rows": (cohorts.get("bull_all") or {}).get("rows") if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported" else ((cohorts.get(support_summary.get("preferred_support_cohort") or "") or {}).get("rows")),
+            "exact_live_bucket_rows": live_context.get("current_live_structure_bucket_rows"),
+            "reason": (
+                "exact live bucket 已達 minimum support，production 應以 bull exact-supported lane 作為治理與訓練語義。"
+                if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported"
+                else "exact bucket 尚未充分支持，production 仍需保留 support-aware lane 作為治理語義。"
+            ),
+        },
         "bull_all": _cohort_summary("bull_all"),
         "bull_collapse_q35": _cohort_summary("bull_collapse_q35"),
         "bull_exact_live_lane_proxy": _cohort_summary("bull_exact_live_lane_proxy"),
@@ -612,6 +636,7 @@ def collect_leaderboard_candidate_diagnostics() -> Dict[str, Any]:
         "selected_feature_profile_blocker_applied": top_model.get("selected_feature_profile_blocker_applied"),
         "selected_feature_profile_blocker_reason": top_model.get("selected_feature_profile_blocker_reason"),
         "dual_profile_state": alignment.get("dual_profile_state"),
+        "profile_split": alignment.get("profile_split") or {},
         "leaderboard_snapshot_created_at": alignment.get("leaderboard_snapshot_created_at"),
         "alignment_evaluated_at": alignment.get("alignment_evaluated_at"),
         "current_alignment_inputs_stale": alignment.get("current_alignment_inputs_stale"),

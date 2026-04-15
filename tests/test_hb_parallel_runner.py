@@ -66,9 +66,9 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
         ic_diagnostics={"global_pass": 13, "tw_pass": 10, "total_features": 30},
         drift_diagnostics={"primary_window": "100", "primary_alerts": ["regime_concentration"]},
         live_predictor_diagnostics={"decision_quality_label": "D", "allowed_layers": 0},
-        feature_ablation={"recommended_profile": "core_plus_macro"},
-        bull_4h_pocket_ablation={"bull_collapse_q35": {"recommended_profile": "core_plus_macro"}},
-        leaderboard_candidate_diagnostics={"selected_feature_profile": "core_only", "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"},
+        feature_ablation={"recommended_profile": "core_plus_macro", "profile_role": {"role": "global_shrinkage_winner"}},
+        bull_4h_pocket_ablation={"bull_collapse_q35": {"recommended_profile": "core_plus_macro"}, "production_profile_role": {"role": "support_aware_production_profile"}},
+        leaderboard_candidate_diagnostics={"selected_feature_profile": "core_only", "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback", "profile_split": {"verdict": "dual_role_required"}},
         auto_propose_result={"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""},
     )
 
@@ -82,8 +82,11 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert summary["drift_diagnostics"]["primary_window"] == "100"
     assert summary["live_predictor_diagnostics"]["decision_quality_label"] == "D"
     assert summary["feature_ablation"]["recommended_profile"] == "core_plus_macro"
+    assert summary["feature_ablation"]["profile_role"]["role"] == "global_shrinkage_winner"
     assert summary["bull_4h_pocket_ablation"]["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
+    assert summary["bull_4h_pocket_ablation"]["production_profile_role"]["role"] == "support_aware_production_profile"
     assert summary["leaderboard_candidate_diagnostics"]["selected_feature_profile"] == "core_only"
+    assert summary["leaderboard_candidate_diagnostics"]["profile_split"]["verdict"] == "dual_role_required"
     assert summary["auto_propose"]["success"] is True
     assert summary_path.endswith("heartbeat_fast_summary.json")
 
@@ -95,8 +98,11 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert saved["drift_diagnostics"]["primary_alerts"] == ["regime_concentration"]
     assert saved["live_predictor_diagnostics"]["allowed_layers"] == 0
     assert saved["feature_ablation"]["recommended_profile"] == "core_plus_macro"
+    assert saved["feature_ablation"]["profile_role"]["role"] == "global_shrinkage_winner"
     assert saved["bull_4h_pocket_ablation"]["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
+    assert saved["bull_4h_pocket_ablation"]["production_profile_role"]["role"] == "support_aware_production_profile"
     assert saved["leaderboard_candidate_diagnostics"]["dual_profile_state"] == "leaderboard_global_winner_vs_train_support_fallback"
+    assert saved["leaderboard_candidate_diagnostics"]["profile_split"]["verdict"] == "dual_role_required"
     assert saved["auto_propose"]["stdout_preview"] == "ok"
 
 
@@ -173,6 +179,13 @@ def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypat
                 "model_route_regime": "bull",
                 "regime_gate": "ALLOW",
                 "entry_quality_label": "D",
+                "entry_quality_components": {
+                    "entry_quality": 0.3861,
+                    "trade_floor": 0.55,
+                    "trade_floor_gap": -0.1639,
+                    "base_components": [{"feature": "feat_4h_bias50"}],
+                    "structure_components": [{"feature": "feat_4h_bb_pct_b"}],
+                },
                 "allowed_layers_raw": 0,
                 "allowed_layers": 0,
                 "allowed_layers_reason": "entry_quality_below_trade_floor",
@@ -218,6 +231,8 @@ def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypat
     assert diag["decision_quality_exact_live_lane_bucket_verdict"] == "toxic_sub_bucket_identified"
     assert diag["decision_quality_exact_live_lane_toxic_bucket"]["bucket"] == "CAUTION|structure_quality_caution|q15"
     assert diag["allowed_layers_reason"] == "entry_quality_below_trade_floor"
+    assert diag["entry_quality_components"]["trade_floor_gap"] == -0.1639
+    assert diag["entry_quality_components"]["base_components"][0]["feature"] == "feat_4h_bias50"
     assert diag["decision_quality_label"] == "D"
     assert diag["non_null_4h_lag_count"] == 30
     assert diag["decision_quality_scope_diagnostics"]["entry_quality_label"]["rows"] == 3186
@@ -249,6 +264,7 @@ def test_collect_feature_ablation_diagnostics_reads_recommended_profile(tmp_path
     assert diag["recommended_profile"] == "core_plus_macro"
     assert diag["recommended_metrics"]["cv_mean_accuracy"] == 0.73
     assert diag["current_full_metrics"]["cv_mean_accuracy"] == 0.65
+    assert diag["profile_role"]["role"] == "global_shrinkage_winner"
     assert diag["bull_collapse_4h_features"] == ["feat_4h_dist_bb_lower"]
 
 
@@ -330,6 +346,7 @@ def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, 
     assert diag["support_pathology_summary"]["exact_lane_bucket_verdict"] == "toxic_sub_bucket_identified"
     assert diag["support_pathology_summary"]["exact_lane_toxic_bucket"]["bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
     assert diag["support_pathology_summary"]["exact_lane_bucket_diagnostics"]["buckets"]["CAUTION|base_caution_regime_or_bias|q15"]["rows"] == 7
+    assert diag["production_profile_role"]["role"] == "support_aware_production_profile"
     assert diag["bull_all"]["recommended_profile"] == "core_plus_macro_plus_all_4h"
     assert diag["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
     assert diag["bull_live_exact_lane_bucket_proxy"]["rows"] == 8
@@ -353,6 +370,11 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
                 },
                 "alignment": {
                     "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
+                    "profile_split": {
+                        "global_profile": "core_only",
+                        "production_profile": "core_plus_macro",
+                        "verdict": "dual_role_required",
+                    },
                     "leaderboard_snapshot_created_at": "2026-04-14T06:51:24Z",
                     "alignment_evaluated_at": "2026-04-14T12:40:00Z",
                     "current_alignment_inputs_stale": False,
@@ -389,6 +411,7 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
 
     assert diag["selected_feature_profile"] == "core_only"
     assert diag["dual_profile_state"] == "leaderboard_global_winner_vs_train_support_fallback"
+    assert diag["profile_split"]["verdict"] == "dual_role_required"
     assert diag["train_selected_profile"] == "core_plus_macro"
     assert diag["current_alignment_inputs_stale"] is False
     assert diag["current_alignment_recency"]["inputs_current"] is True

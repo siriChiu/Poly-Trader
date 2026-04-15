@@ -91,6 +91,17 @@ def _top_model_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _production_profile_role(train_profile_source: Any) -> str:
+    source = str(train_profile_source or "")
+    if source == "bull_4h_pocket_ablation.exact_supported_profile":
+        return "bull_exact_supported_production_profile"
+    if source == "bull_4h_pocket_ablation.support_aware_profile":
+        return "support_aware_production_profile"
+    if source == "feature_group_ablation.recommended_profile":
+        return "global_shrinkage_winner"
+    return "production_profile_unspecified"
+
+
 def _build_alignment(
     top_model: dict[str, Any],
     leaderboard_snapshot_created_at: str | None = None,
@@ -131,6 +142,7 @@ def _build_alignment(
     train_profile_source = last_metrics.get("feature_profile_source") or last_metrics.get("feature_profile_meta", {}).get("source")
     global_recommended = feature_ablation.get("recommended_profile")
     leaderboard_selected = top_model.get("selected_feature_profile")
+    production_profile = train_profile or leaderboard_selected
 
     leaderboard_snapshot_dt = _parse_iso_datetime(leaderboard_snapshot_created_at)
     alignment_evaluated_dt = _parse_iso_datetime(alignment_evaluated_at)
@@ -196,6 +208,23 @@ def _build_alignment(
         # current alignment as healthy unless train and leaderboard actually diverge.
         dual_profile_state = "aligned"
 
+    profile_split_required = bool(global_recommended and production_profile and global_recommended != production_profile)
+    profile_split = {
+        "global_profile": global_recommended,
+        "global_profile_role": "global_shrinkage_winner",
+        "global_profile_source": "feature_group_ablation.recommended_profile" if global_recommended else None,
+        "production_profile": production_profile,
+        "production_profile_role": _production_profile_role(train_profile_source),
+        "production_profile_source": train_profile_source,
+        "split_required": profile_split_required,
+        "verdict": "dual_role_required" if profile_split_required else "single_role_ok",
+        "reason": (
+            "global winner 代表 recent global shrinkage / CV 穩定度；production winner 代表 current live bull lane 的支撐與治理語義，兩者不應再被混成同一個 profile。"
+            if profile_split_required
+            else "目前 global winner 與 production winner 一致，可視為單一路徑治理。"
+        ),
+    }
+
     return {
         "global_recommended_profile": global_recommended,
         "train_selected_profile": train_profile,
@@ -208,6 +237,7 @@ def _build_alignment(
         "leaderboard_snapshot_created_at": leaderboard_snapshot_created_at,
         "alignment_evaluated_at": alignment_evaluated_at,
         "dual_profile_state": dual_profile_state,
+        "profile_split": profile_split,
         "current_alignment_inputs_stale": current_alignment_inputs_stale,
         "current_alignment_recency": {
             "inputs_current": not current_alignment_inputs_stale,

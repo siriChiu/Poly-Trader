@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-14T23:39:03.892734Z",
+  "generated_at": "2026-04-15T00:36:08.340116Z",
   "leaderboard_snapshot_created_at": "2026-04-14T06:51:24.661958Z",
   "target_col": "simulated_pyramid_win",
   "leaderboard_count": 8,
@@ -22,7 +22,7 @@
     "selected_feature_profile_blocker_applied": false,
     "selected_feature_profile_blocker_reason": null,
     "feature_profile_support_cohort": "bull_all",
-    "feature_profile_support_rows": 763,
+    "feature_profile_support_rows": 766,
     "feature_profile_exact_live_bucket_rows": 90,
     "feature_profile_candidate_diagnostics": [
       {
@@ -32,7 +32,7 @@
         "feature_profile": "core_plus_macro_plus_4h_structure_shift",
         "feature_profile_source": "bull_4h_pocket_ablation.exact_supported_profile",
         "support_cohort": "bull_all",
-        "support_rows": 763,
+        "support_rows": 766,
         "exact_live_bucket_rows": 90,
         "minimum_support_rows": 50,
         "blocker_applied": false,
@@ -107,8 +107,19 @@
     "leaderboard_selected_profile": "core_plus_macro_plus_4h_structure_shift",
     "leaderboard_selected_profile_source": "bull_4h_pocket_ablation.exact_supported_profile",
     "leaderboard_snapshot_created_at": "2026-04-14T06:51:24.661958Z",
-    "alignment_evaluated_at": "2026-04-14T23:39:03.892734Z",
+    "alignment_evaluated_at": "2026-04-15T00:36:08.340116Z",
     "dual_profile_state": "aligned",
+    "profile_split": {
+      "global_profile": "core_only",
+      "global_profile_role": "global_shrinkage_winner",
+      "global_profile_source": "feature_group_ablation.recommended_profile",
+      "production_profile": "core_plus_macro_plus_4h_structure_shift",
+      "production_profile_role": "bull_exact_supported_production_profile",
+      "production_profile_source": "bull_4h_pocket_ablation.exact_supported_profile",
+      "split_required": true,
+      "verdict": "dual_role_required",
+      "reason": "global winner 代表 recent global shrinkage / CV 穩定度；production winner 代表 current live bull lane 的支撐與治理語義，兩者不應再被混成同一個 profile。"
+    },
     "current_alignment_inputs_stale": false,
     "current_alignment_recency": {
       "inputs_current": true,
@@ -116,8 +127,8 @@
       "evaluated_before_bull_pocket": false,
       "evaluated_before_feature_ablation": false,
       "train_trained_at": "2026-04-14T23:10:39.590377",
-      "bull_pocket_generated_at": "2026-04-14 23:35:28",
-      "feature_ablation_generated_at": "2026-04-14 23:35:26"
+      "bull_pocket_generated_at": "2026-04-15 00:32:30",
+      "feature_ablation_generated_at": "2026-04-15 00:32:28"
     },
     "artifact_recency": {
       "alignment_snapshot_stale": true,
@@ -125,8 +136,8 @@
       "stale_against_bull_pocket": true,
       "stale_against_feature_ablation": true,
       "train_trained_at": "2026-04-14T23:10:39.590377",
-      "bull_pocket_generated_at": "2026-04-14 23:35:28",
-      "feature_ablation_generated_at": "2026-04-14 23:35:26"
+      "bull_pocket_generated_at": "2026-04-15 00:32:30",
+      "feature_ablation_generated_at": "2026-04-15 00:32:28"
     },
     "blocked_candidate_profiles": [],
     "live_regime_gate": "CAUTION",
