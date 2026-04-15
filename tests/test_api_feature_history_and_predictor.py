@@ -195,6 +195,215 @@ def test_circuit_breaker_ignores_noncanonical_240m_tail_when_1440m_is_healthy():
     assert result is None
 
 
+def test_infer_deployment_blocker_flags_bull_q35_no_deploy_governance(tmp_path, monkeypatch):
+    q35_path = tmp_path / "q35_scaling_audit.json"
+    q15_path = tmp_path / "q15_support_audit.json"
+    q35_path.write_text(
+        json.dumps(
+            {
+                "scope_applicability": {"status": "current_live_q35_lane_active"},
+                "current_live": {
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                },
+                "base_stack_redesign_experiment": {
+                    "verdict": "base_stack_redesign_floor_cross_requires_non_discriminative_reweight",
+                    "machine_read_answer": {
+                        "entry_quality_ge_0_55": False,
+                        "allowed_layers_gt_zero": False,
+                    },
+                    "best_discriminative_candidate": {
+                        "entry_quality_after": 0.3767,
+                    },
+                    "best_floor_candidate": {
+                        "entry_quality_after": 0.8375,
+                    },
+                    "unsafe_floor_cross_candidate": {
+                        "weights": {"feat_ear": 1.0},
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    q15_path.write_text(
+        json.dumps(
+            {
+                "support_route": {"verdict": "exact_bucket_supported"},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(predictor_module, "Q35_AUDIT_PATH", q35_path)
+    monkeypatch.setattr(predictor_module, "Q15_SUPPORT_AUDIT_PATH", q15_path)
+
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+        }
+    )
+    guarded = predictor_module._apply_deployment_blocker_to_execution_profile(
+        {
+            "allowed_layers": 1,
+            "allowed_layers_raw": 1,
+            "execution_guardrail_applied": False,
+            "execution_guardrail_reason": None,
+        },
+        blocker,
+    )
+
+    assert blocker is not None
+    assert blocker["type"] == "bull_q35_no_deploy_governance"
+    assert blocker["support_route_verdict"] == "exact_bucket_supported"
+    assert blocker["unsafe_floor_cross_candidate"]["weights"] == {"feat_ear": 1.0}
+    assert guarded["allowed_layers"] == 0
+    assert guarded["deployment_blocker"] == "bull_q35_no_deploy_governance"
+    assert "bull_q35_no_deploy_governance" in guarded["execution_guardrail_reason"]
+
+
+def test_live_decision_profile_applies_q35_discriminative_redesign_when_current_row_matches_audit(tmp_path, monkeypatch):
+    q35_path = tmp_path / "q35_scaling_audit.json"
+    q35_path.write_text(
+        json.dumps(
+            {
+                "scope_applicability": {"status": "current_live_q35_lane_active"},
+                "current_live": {
+                    "timestamp": "2026-04-15 16:21:27.341550",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "raw_features": {
+                        "feat_4h_bias50": 2.5104,
+                        "feat_nose": 0.6998,
+                        "feat_pulse": 0.0,
+                        "feat_ear": 0.0014,
+                    },
+                },
+                "base_stack_redesign_experiment": {
+                    "verdict": "base_stack_redesign_discriminative_reweight_crosses_trade_floor",
+                    "machine_read_answer": {
+                        "entry_quality_ge_0_55": True,
+                        "allowed_layers_gt_0": True,
+                        "positive_discriminative_gap": True,
+                    },
+                    "best_discriminative_candidate": {
+                        "weights": {
+                            "feat_4h_bias50": 0.05,
+                            "feat_nose": 0.0,
+                            "feat_pulse": 0.35,
+                            "feat_ear": 0.6,
+                        },
+                        "current_entry_quality_after": 0.5553,
+                        "allowed_layers_after": 1,
+                        "entry_quality_ge_trade_floor": True,
+                        "allowed_layers_gt_0": True,
+                        "positive_discriminative_gap": True,
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(predictor_module, "Q35_AUDIT_PATH", q35_path)
+
+    features = {
+        "timestamp": "2026-04-15 16:21:27.341550",
+        "regime_label": "bull",
+        "feat_4h_bias200": 5.7456,
+        "feat_4h_bias50": 2.5104,
+        "feat_nose": 0.6998,
+        "feat_pulse": 0.0,
+        "feat_ear": 0.0014,
+        "feat_4h_bb_pct_b": 0.5041,
+        "feat_4h_dist_bb_lower": 1.5948,
+        "feat_4h_dist_swing_low": 4.892,
+    }
+
+    profile = predictor_module._build_live_decision_profile(features)
+
+    assert profile["q35_discriminative_redesign_applied"] is True
+    assert profile["q35_discriminative_redesign"]["weights"] == {
+        "feat_4h_bias50": 0.05,
+        "feat_nose": 0.0,
+        "feat_pulse": 0.35,
+        "feat_ear": 0.6,
+    }
+    assert profile["entry_quality"] == pytest.approx(0.5553)
+    assert profile["allowed_layers"] == 1
+    assert profile["allowed_layers_reason"] == "entry_quality_C_single_layer"
+    assert profile["entry_quality_components"]["q35_discriminative_redesign"]["applied"] is True
+    assert [
+        component["weight"] for component in profile["entry_quality_components"]["base_components"]
+    ] == [0.05, 0.0, 0.35, 0.6]
+
+
+def test_live_decision_profile_skips_q35_discriminative_redesign_when_audit_row_is_stale(tmp_path, monkeypatch):
+    q35_path = tmp_path / "q35_scaling_audit.json"
+    q35_path.write_text(
+        json.dumps(
+            {
+                "scope_applicability": {"status": "current_live_q35_lane_active"},
+                "current_live": {
+                    "timestamp": "2026-04-15 12:00:00",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "raw_features": {
+                        "feat_4h_bias50": 2.5104,
+                        "feat_nose": 0.6998,
+                        "feat_pulse": 0.0,
+                        "feat_ear": 0.0014,
+                    },
+                },
+                "base_stack_redesign_experiment": {
+                    "verdict": "base_stack_redesign_discriminative_reweight_crosses_trade_floor",
+                    "machine_read_answer": {
+                        "entry_quality_ge_0_55": True,
+                        "allowed_layers_gt_0": True,
+                        "positive_discriminative_gap": True,
+                    },
+                    "best_discriminative_candidate": {
+                        "weights": {
+                            "feat_4h_bias50": 0.05,
+                            "feat_nose": 0.0,
+                            "feat_pulse": 0.35,
+                            "feat_ear": 0.6,
+                        },
+                        "current_entry_quality_after": 0.5553,
+                        "allowed_layers_after": 1,
+                        "entry_quality_ge_trade_floor": True,
+                        "allowed_layers_gt_0": True,
+                        "positive_discriminative_gap": True,
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(predictor_module, "Q35_AUDIT_PATH", q35_path)
+
+    features = {
+        "timestamp": "2026-04-15 16:21:27.341550",
+        "regime_label": "bull",
+        "feat_4h_bias200": 1.8,
+        "feat_4h_bias50": 0.9,
+        "feat_nose": 0.22,
+        "feat_pulse": 0.35,
+        "feat_ear": 0.01,
+        "feat_4h_bb_pct_b": 0.45,
+        "feat_4h_dist_bb_lower": 5.0,
+        "feat_4h_dist_swing_low": 6.0,
+    }
+
+    profile = predictor_module._build_live_decision_profile(features)
+
+    assert profile["q35_discriminative_redesign_applied"] is False
+    assert profile["q35_discriminative_redesign"] is None
+    assert profile["allowed_layers"] == 0
+    assert profile["allowed_layers_reason"] == "entry_quality_below_trade_floor"
+
+
 def test_predictor_applies_legacy_isotonic_calibration_payload_keys():
     predictor = predictor_module.XGBoostPredictor({
         "clf": None,

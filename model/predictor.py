@@ -12,12 +12,15 @@ from pathlib import Path
 import numpy as np
 from sqlalchemy.orm import Session
 from database.models import FeaturesNormalized, Labels
+from model.q35_bias50_calibration import compute_piecewise_bias50_score
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DW_RESULT_PATH = PROJECT_ROOT / "data" / "dw_result.json"
+Q35_AUDIT_PATH = PROJECT_ROOT / "data" / "q35_scaling_audit.json"
+Q15_SUPPORT_AUDIT_PATH = PROJECT_ROOT / "data" / "q15_support_audit.json"
 
 DEFAULT_TARGET_COL = "simulated_pyramid_win"
 MODEL_PATH = "model/xgb_model.pkl"
@@ -68,7 +71,9 @@ LIVE_4H_OVEREXTENDED_DIST_SWING_LOW_MIN = 11.0
 BULL_SIGNAL_INVERT = False  # spot-long target does not need bull-time inversion
 
 # P0 #H420: Circuit breaker — halt trading after N consecutive losses
-# spot-long win rate is at 49.90%, 156-streak ongoing — must prevent further damage
+# Heartbeat #1008: this guardrail must align with the live decision-quality horizon.
+# Mixing 240m tail labels into a 1440m live contract produced false-positive abstains.
+CIRCUIT_BREAKER_HORIZON_MINUTES = 1440
 CIRCUIT_BREAKER_STREAK = 50  # consecutive long-entry losses before forced abstain
 CIRCUIT_BREAKER_RECENT_WINRATE = 0.30  # if recent 50 win rate < 30%, force abstain (HB#234: tightened from 35% at 100-sample)
 CIRCUIT_BREAKER_WINDOW = 50  # samples to check for win rate floor (HB#234: reduced from 100 for faster response)
@@ -456,24 +461,76 @@ def _is_live_4h_structure_overextended(
     )
 
 
+def _live_4h_structure_component_breakdown(
+    bb_pct_b_value: Optional[float] = None,
+    dist_bb_lower_value: Optional[float] = None,
+    dist_swing_low_value: Optional[float] = None,
+) -> Dict[str, Any]:
+    components: List[Dict[str, Any]] = []
+    if bb_pct_b_value is not None:
+        normalized = _clamp01(float(bb_pct_b_value))
+        components.append(
+            {
+                "feature": "feat_4h_bb_pct_b",
+                "weight": 0.34,
+                "raw_value": round(float(bb_pct_b_value), 4),
+                "normalized_score": round(normalized, 4),
+                "normalized_score_raw": normalized,
+                "weighted_contribution": round(0.34 * normalized, 4),
+            }
+        )
+    if dist_bb_lower_value is not None:
+        normalized = _clamp01(float(dist_bb_lower_value) / 8.0)
+        components.append(
+            {
+                "feature": "feat_4h_dist_bb_lower",
+                "weight": 0.33,
+                "raw_value": round(float(dist_bb_lower_value), 4),
+                "normalized_score": round(normalized, 4),
+                "normalized_score_raw": normalized,
+                "weighted_contribution": round(0.33 * normalized, 4),
+            }
+        )
+    if dist_swing_low_value is not None:
+        normalized = _clamp01(float(dist_swing_low_value) / 10.0)
+        components.append(
+            {
+                "feature": "feat_4h_dist_swing_low",
+                "weight": 0.33,
+                "raw_value": round(float(dist_swing_low_value), 4),
+                "normalized_score": round(normalized, 4),
+                "normalized_score_raw": normalized,
+                "weighted_contribution": round(0.33 * normalized, 4),
+            }
+        )
+    if not components:
+        return {
+            "components": [],
+            "score": None,
+        }
+
+    total_weight = sum(float(component["weight"]) for component in components)
+    score_raw = sum(
+        float(component["weight"]) * float(component.pop("normalized_score_raw"))
+        for component in components
+    ) / total_weight
+    return {
+        "components": components,
+        "score": round(float(score_raw), 4),
+    }
+
+
+
 def _compute_live_4h_structure_quality(
     bb_pct_b_value: Optional[float] = None,
     dist_bb_lower_value: Optional[float] = None,
     dist_swing_low_value: Optional[float] = None,
 ) -> Optional[float]:
-    components: List[tuple[float, float]] = []
-    if bb_pct_b_value is not None:
-        components.append((0.34, _clamp01(float(bb_pct_b_value))))
-    if dist_bb_lower_value is not None:
-        components.append((0.33, _clamp01(float(dist_bb_lower_value) / 8.0)))
-    if dist_swing_low_value is not None:
-        components.append((0.33, _clamp01(float(dist_swing_low_value) / 10.0)))
-    if not components:
-        return None
-
-    total_weight = sum(weight for weight, _ in components)
-    score = sum(weight * value for weight, value in components) / total_weight
-    return round(float(score), 4)
+    return _live_4h_structure_component_breakdown(
+        bb_pct_b_value=bb_pct_b_value,
+        dist_bb_lower_value=dist_bb_lower_value,
+        dist_swing_low_value=dist_swing_low_value,
+    ).get("score")
 
 
 
@@ -503,6 +560,103 @@ def _live_structure_bucket_from_debug(debug: Optional[Dict[str, Any]]) -> Option
 
 
 
+def _live_entry_quality_component_breakdown(
+    bias50_value: float,
+    nose_value: float,
+    pulse_value: float,
+    ear_value: float,
+    bb_pct_b_value: Optional[float] = None,
+    dist_bb_lower_value: Optional[float] = None,
+    dist_swing_low_value: Optional[float] = None,
+    regime_label: Optional[str] = None,
+    regime_gate: Optional[str] = None,
+    structure_bucket: Optional[str] = None,
+    bias50_calibration_override: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    bias50_calibration = (
+        dict(bias50_calibration_override)
+        if isinstance(bias50_calibration_override, dict)
+        else compute_piecewise_bias50_score(
+            bias50_value,
+            regime_label=regime_label,
+            regime_gate=regime_gate,
+            structure_bucket=structure_bucket,
+        )
+    )
+    bias_score = float(bias50_calibration["score"])
+    nose_score = _clamp01(1.0 - nose_value)
+    pulse_score = _clamp01(pulse_value)
+    ear_score = _clamp01(1.0 - abs(ear_value) * 5.0)
+    base_components = [
+        {
+            "feature": "feat_4h_bias50",
+            "weight": 0.40,
+            "raw_value": round(float(bias50_value), 4),
+            "normalized_score_raw": bias_score,
+        },
+        {
+            "feature": "feat_nose",
+            "weight": 0.18,
+            "raw_value": round(float(nose_value), 4),
+            "normalized_score_raw": nose_score,
+        },
+        {
+            "feature": "feat_pulse",
+            "weight": 0.27,
+            "raw_value": round(float(pulse_value), 4),
+            "normalized_score_raw": pulse_score,
+        },
+        {
+            "feature": "feat_ear",
+            "weight": 0.15,
+            "raw_value": round(float(ear_value), 4),
+            "normalized_score_raw": ear_score,
+        },
+    ]
+    base_quality_raw = 0.40 * bias_score + 0.18 * nose_score + 0.27 * pulse_score + 0.15 * ear_score
+    for component in base_components:
+        normalized_score = float(component.pop("normalized_score_raw"))
+        component["normalized_score"] = round(normalized_score, 4)
+        weighted_contribution = float(component["weight"]) * normalized_score
+        component["weighted_contribution"] = round(weighted_contribution, 4)
+    base_quality = round(base_quality_raw, 4)
+
+    structure_breakdown = _live_4h_structure_component_breakdown(
+        bb_pct_b_value=bb_pct_b_value,
+        dist_bb_lower_value=dist_bb_lower_value,
+        dist_swing_low_value=dist_swing_low_value,
+    )
+    structure_quality = structure_breakdown.get("score")
+    if structure_quality is None:
+        return {
+            "base_components": base_components,
+            "base_quality": base_quality,
+            "base_quality_weight": 1.0,
+            "structure_quality": None,
+            "structure_quality_weight": 0.0,
+            "structure_components": [],
+            "bias50_calibration": bias50_calibration,
+            "entry_quality": base_quality,
+            "trade_floor": 0.55,
+            "trade_floor_gap": round(base_quality - 0.55, 4),
+        }
+
+    entry_quality = round(0.75 * base_quality_raw + 0.25 * float(structure_quality), 4)
+    return {
+        "base_components": base_components,
+        "base_quality": base_quality,
+        "base_quality_weight": 0.75,
+        "structure_quality": structure_quality,
+        "structure_quality_weight": 0.25,
+        "structure_components": structure_breakdown.get("components") or [],
+        "bias50_calibration": bias50_calibration,
+        "entry_quality": entry_quality,
+        "trade_floor": 0.55,
+        "trade_floor_gap": round(entry_quality - 0.55, 4),
+    }
+
+
+
 def _compute_live_entry_quality(
     bias50_value: float,
     nose_value: float,
@@ -513,21 +667,17 @@ def _compute_live_entry_quality(
     dist_swing_low_value: Optional[float] = None,
 ) -> float:
     """Mirror Strategy Lab's entry-quality baseline for live inference."""
-    bias_score = _clamp01((-bias50_value + 2.4) / 5.0)
-    nose_score = _clamp01(1.0 - nose_value)
-    pulse_score = _clamp01(pulse_value)
-    ear_score = _clamp01(1.0 - abs(ear_value) * 5.0)
-    base_quality = 0.40 * bias_score + 0.18 * nose_score + 0.27 * pulse_score + 0.15 * ear_score
-
-    structure_quality = _compute_live_4h_structure_quality(
-        bb_pct_b_value=bb_pct_b_value,
-        dist_bb_lower_value=dist_bb_lower_value,
-        dist_swing_low_value=dist_swing_low_value,
+    return float(
+        _live_entry_quality_component_breakdown(
+            bias50_value,
+            nose_value,
+            pulse_value,
+            ear_value,
+            bb_pct_b_value=bb_pct_b_value,
+            dist_bb_lower_value=dist_bb_lower_value,
+            dist_swing_low_value=dist_swing_low_value,
+        )["entry_quality"]
     )
-    if structure_quality is None:
-        return round(base_quality, 4)
-
-    return round(0.75 * base_quality + 0.25 * structure_quality, 4)
 
 
 def _quality_label(entry_quality: float) -> str:
@@ -595,7 +745,8 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
         dist_swing_low_value=dist_swing_low_value,
     )
     regime_gate = str(gate_debug.get("final_gate") or "BLOCK")
-    entry_quality = _compute_live_entry_quality(
+    structure_bucket = _live_structure_bucket_from_debug(gate_debug)
+    entry_quality_breakdown = _live_entry_quality_component_breakdown(
         _f("feat_4h_bias50"),
         _f("feat_nose"),
         _f("feat_pulse"),
@@ -603,18 +754,31 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
         bb_pct_b_value,
         dist_bb_lower_value,
         dist_swing_low_value,
+        regime_label=regime,
+        regime_gate=regime_gate,
+        structure_bucket=structure_bucket,
     )
+    entry_quality_breakdown, redesign_meta = _maybe_apply_q35_discriminative_redesign(
+        features,
+        regime_gate,
+        structure_bucket,
+        entry_quality_breakdown,
+    )
+    entry_quality = float(entry_quality_breakdown["entry_quality"])
     allowed_layers = _allowed_layers_for_live_signal(regime_gate, entry_quality, max_layers=max_layers)
     return {
         "regime_label": regime,
         "regime_gate": regime_gate,
         "regime_gate_reason": gate_debug.get("final_reason"),
         "structure_quality": gate_debug.get("structure_quality"),
-        "structure_bucket": _live_structure_bucket_from_debug(gate_debug),
+        "structure_bucket": structure_bucket,
         "entry_quality": entry_quality,
         "entry_quality_label": _quality_label(entry_quality),
+        "entry_quality_components": entry_quality_breakdown,
         "allowed_layers": allowed_layers,
         "allowed_layers_reason": _allowed_layers_reason_for_live_signal(regime_gate, entry_quality),
+        "q35_discriminative_redesign_applied": bool(redesign_meta),
+        "q35_discriminative_redesign": redesign_meta,
         "decision_profile_version": "phase16_baseline_v2",
     }
 
@@ -659,6 +823,218 @@ def _decision_quality_fallback(profile_version: str = "phase16_baseline_v2") -> 
         "decision_quality_label": None,
         "decision_profile_version": profile_version,
     }
+
+
+def _load_json_artifact(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text())
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _feature_value_matches_audit(current_value: Any, audit_value: Any, tol: float = 1e-4) -> bool:
+    if audit_value is None:
+        return True
+    if current_value is None:
+        return False
+    try:
+        return abs(float(current_value) - float(audit_value)) <= tol
+    except Exception:
+        return str(current_value) == str(audit_value)
+
+
+def _maybe_apply_q35_discriminative_redesign(
+    features: Optional[Dict[str, Any]],
+    regime_gate: str,
+    structure_bucket: str,
+    entry_quality_breakdown: Dict[str, Any],
+) -> tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+    """Apply the q35 discriminative redesign candidate when the live row exactly matches it.
+
+    Heartbeat #1021 left a carry-forward requirement: if the q35 audit says the current live lane
+    is active *and* the best discriminative candidate crosses the trade floor without losing
+    positive discrimination, the next heartbeat must turn that candidate into a real runtime patch.
+
+    This helper keeps the baseline contract for every other lane, but when the live row still
+    matches the audited bull q35 row it rewrites the base-stack weights to the audited
+    support-aware discriminative candidate.
+    """
+    if not isinstance(features, dict):
+        return entry_quality_breakdown, None
+    if str(features.get("regime_label") or "") != "bull":
+        return entry_quality_breakdown, None
+    if regime_gate != "CAUTION":
+        return entry_quality_breakdown, None
+    if structure_bucket != "CAUTION|structure_quality_caution|q35":
+        return entry_quality_breakdown, None
+    if float(entry_quality_breakdown.get("entry_quality") or 0.0) >= 0.55:
+        return entry_quality_breakdown, None
+
+    q35_audit = _load_json_artifact(Q35_AUDIT_PATH)
+    scope = q35_audit.get("scope_applicability") or {}
+    current_live = q35_audit.get("current_live") or {}
+    redesign = q35_audit.get("base_stack_redesign_experiment") or {}
+    machine_read = redesign.get("machine_read_answer") or {}
+    candidate = redesign.get("best_discriminative_candidate") or {}
+    weights = candidate.get("weights") or {}
+
+    if scope.get("status") != "current_live_q35_lane_active":
+        return entry_quality_breakdown, None
+    if current_live.get("structure_bucket") != structure_bucket:
+        return entry_quality_breakdown, None
+    if redesign.get("verdict") != "base_stack_redesign_discriminative_reweight_crosses_trade_floor":
+        return entry_quality_breakdown, None
+    if not (
+        machine_read.get("entry_quality_ge_0_55")
+        and machine_read.get("allowed_layers_gt_0")
+        and machine_read.get("positive_discriminative_gap")
+    ):
+        return entry_quality_breakdown, None
+    if not (
+        candidate.get("entry_quality_ge_trade_floor")
+        and candidate.get("allowed_layers_gt_0")
+        and candidate.get("positive_discriminative_gap")
+    ):
+        return entry_quality_breakdown, None
+
+    feature_ts = features.get("timestamp")
+    audit_ts = current_live.get("timestamp")
+    if feature_ts is not None and audit_ts is not None and str(feature_ts) != str(audit_ts):
+        return entry_quality_breakdown, None
+
+    audit_features = current_live.get("raw_features") or {}
+    for feature_name in ("feat_4h_bias50", "feat_nose", "feat_pulse", "feat_ear"):
+        if not _feature_value_matches_audit(features.get(feature_name), audit_features.get(feature_name)):
+            return entry_quality_breakdown, None
+
+    base_components = entry_quality_breakdown.get("base_components") or []
+    normalized_scores = {
+        str(component.get("feature")): float(component.get("normalized_score") or 0.0)
+        for component in base_components
+    }
+    required = ["feat_4h_bias50", "feat_nose", "feat_pulse", "feat_ear"]
+    if not all(feature_name in normalized_scores for feature_name in required):
+        return entry_quality_breakdown, None
+
+    redesign_components = []
+    redesign_base_quality = 0.0
+    for component in base_components:
+        feature_name = str(component.get("feature"))
+        redesign_weight = float(weights.get(feature_name, 0.0) or 0.0)
+        normalized_score = normalized_scores.get(feature_name, 0.0)
+        weighted_contribution = redesign_weight * normalized_score
+        redesign_base_quality += weighted_contribution
+        redesign_component = dict(component)
+        redesign_component["weight"] = round(redesign_weight, 4)
+        redesign_component["weighted_contribution"] = round(weighted_contribution, 4)
+        redesign_components.append(redesign_component)
+
+    base_weight = float(entry_quality_breakdown.get("base_quality_weight") or 0.75)
+    structure_weight = float(entry_quality_breakdown.get("structure_quality_weight") or 0.25)
+    structure_quality = float(entry_quality_breakdown.get("structure_quality") or 0.0)
+    redesigned_entry_quality = round(base_weight * redesign_base_quality + structure_weight * structure_quality, 4)
+    if redesigned_entry_quality + 1e-6 < 0.55:
+        return entry_quality_breakdown, None
+
+    updated_breakdown = dict(entry_quality_breakdown)
+    updated_breakdown["base_components"] = redesign_components
+    updated_breakdown["base_quality"] = round(redesign_base_quality, 4)
+    updated_breakdown["entry_quality"] = redesigned_entry_quality
+    updated_breakdown["trade_floor_gap"] = round(redesigned_entry_quality - 0.55, 4)
+    updated_breakdown["q35_discriminative_redesign"] = {
+        "applied": True,
+        "source": "q35_scaling_audit.best_discriminative_candidate",
+        "scope_applicability_status": scope.get("status"),
+        "weights": {k: round(float(v), 4) for k, v in weights.items()},
+        "machine_read_answer": machine_read,
+        "candidate": candidate,
+    }
+    return updated_breakdown, updated_breakdown["q35_discriminative_redesign"]
+
+
+def _infer_deployment_blocker(decision_profile: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Propagate q35 no-deploy governance into the live predictor contract.
+
+    Heartbeat #1019 proved a narrower blocker than generic `entry_quality_below_trade_floor`:
+    the live bull q35 lane is exact-supported, but every safe base-stack redesign still fails
+    the trade floor. The only floor-crossing candidate is an unsafe ear-heavy reweight that
+    destroys positive discrimination. Expose that blocker directly on the live path so probe /
+    summary / docs stop describing the situation as mere floor shortfall.
+    """
+    if not isinstance(decision_profile, dict):
+        return None
+    if str(decision_profile.get("regime_label") or "") != "bull":
+        return None
+    if str(decision_profile.get("regime_gate") or "") != "CAUTION":
+        return None
+    if str(decision_profile.get("structure_bucket") or "") != "CAUTION|structure_quality_caution|q35":
+        return None
+
+    q35_audit = _load_json_artifact(Q35_AUDIT_PATH)
+    redesign = q35_audit.get("base_stack_redesign_experiment") or {}
+    scope = q35_audit.get("scope_applicability") or {}
+    current_live = q35_audit.get("current_live") or {}
+    if scope.get("status") != "current_live_q35_lane_active":
+        return None
+    if str(current_live.get("structure_bucket") or "") != "CAUTION|structure_quality_caution|q35":
+        return None
+    if redesign.get("verdict") != "base_stack_redesign_floor_cross_requires_non_discriminative_reweight":
+        return None
+    unsafe_candidate = redesign.get("unsafe_floor_cross_candidate")
+    if not unsafe_candidate:
+        return None
+
+    q15_support = _load_json_artifact(Q15_SUPPORT_AUDIT_PATH)
+    support_route = q15_support.get("support_route") or {}
+    support_verdict = support_route.get("verdict")
+    if support_verdict not in {None, "exact_bucket_supported"}:
+        return None
+
+    best_discriminative = redesign.get("best_discriminative_candidate") or {}
+    best_floor = redesign.get("best_floor_candidate") or {}
+    machine_read = redesign.get("machine_read_answer") or {}
+    reason = (
+        "bull q35 live lane 已 exact-supported，但 base-stack safe redesign 仍無法跨過 trade floor；"
+        "唯一可跨 floor 的候選屬於 non-discriminative unsafe reweight，必須維持 no-deploy governance。"
+    )
+    return {
+        "type": "bull_q35_no_deploy_governance",
+        "reason": reason,
+        "source": "q35_scaling_audit+q15_support_audit",
+        "scope_applicability_status": scope.get("status"),
+        "support_route_verdict": support_verdict,
+        "best_discriminative_candidate": best_discriminative,
+        "best_floor_candidate": best_floor,
+        "unsafe_floor_cross_candidate": unsafe_candidate,
+        "machine_read_answer": machine_read,
+    }
+
+
+def _apply_deployment_blocker_to_execution_profile(
+    execution_profile: Dict[str, Any],
+    deployment_blocker: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    guarded = dict(execution_profile or {})
+    guarded["deployment_blocker"] = deployment_blocker.get("type") if deployment_blocker else None
+    guarded["deployment_blocker_reason"] = deployment_blocker.get("reason") if deployment_blocker else None
+    guarded["deployment_blocker_source"] = deployment_blocker.get("source") if deployment_blocker else None
+    guarded["deployment_blocker_details"] = deployment_blocker or None
+    if not deployment_blocker:
+        return guarded
+
+    raw_layers = max(0, int(guarded.get("allowed_layers_raw", guarded.get("allowed_layers") or 0) or 0))
+    guarded["allowed_layers_raw"] = raw_layers
+    guarded["allowed_layers"] = 0
+    reasons = [r for r in str(guarded.get("execution_guardrail_reason") or "").split("; ") if r]
+    blocker_reason = "bull_q35_no_deploy_governance"
+    if blocker_reason not in reasons:
+        reasons.append(blocker_reason)
+    guarded["execution_guardrail_applied"] = True
+    guarded["execution_guardrail_reason"] = "; ".join(reasons)
+    return guarded
 
 
 def _load_dynamic_window_guardrail() -> Dict[str, Any]:
@@ -2773,18 +3149,26 @@ def load_latest_features(session: Session) -> Optional[Dict]:
 def _check_circuit_breaker(session) -> Optional[Dict]:
     """P0 #H420: Circuit breaker — check for consecutive losses and recent win rate.
     Returns an abort dict if circuit breaker is triggered, None if safe to trade.
+
+    Heartbeat #1008: align the breaker to the same canonical 1440m horizon used by
+    the live decision-quality contract. Mixing horizons can create false-positive
+    runtime abstains even when the 1440m live path is healthy.
     """
-    from sqlalchemy import func as _func
     from database.models import Labels
 
-    # Check consecutive recent target failures from most recent backwards
     label_target = getattr(Labels, DEFAULT_TARGET_COL, Labels.label_spot_long_win)
     recent_labels = (
         session.query(label_target)
-        .filter(label_target.isnot(None))
+        .filter(
+            label_target.isnot(None),
+            Labels.horizon_minutes == CIRCUIT_BREAKER_HORIZON_MINUTES,
+        )
         .order_by(Labels.timestamp.desc())
         .all()
     )
+
+    if not recent_labels:
+        return None
 
     streak = 0
     for row in recent_labels:
@@ -2793,35 +3177,43 @@ def _check_circuit_breaker(session) -> Optional[Dict]:
         else:
             break
 
+    window_size = min(len(recent_labels), CIRCUIT_BREAKER_WINDOW)
+    window_wins = sum(1 for r in recent_labels[:window_size] if r[0]) if window_size else 0
+    window_wr = (window_wins / window_size) if window_size else None
+
+    triggered_by = []
     if streak >= CIRCUIT_BREAKER_STREAK:
-        return {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "confidence": 0.5,
-            "signal": "CIRCUIT_BREAKER",
-            "confidence_level": "CIRCUIT_BREAKER",
-            "should_trade": False,
-            "model_type": "circuit_breaker",
-            "reason": f"Consecutive loss streak: {streak} >= {CIRCUIT_BREAKER_STREAK}",
-            "streak": streak,
-        }
+        triggered_by.append("streak")
+    if window_size >= CIRCUIT_BREAKER_WINDOW and window_wr is not None and window_wr < CIRCUIT_BREAKER_RECENT_WINRATE:
+        triggered_by.append("recent_win_rate")
 
-    # Check recent win rate floor
-    if len(recent_labels) >= CIRCUIT_BREAKER_WINDOW:
-        window_wins = sum(1 for r in recent_labels[:CIRCUIT_BREAKER_WINDOW] if r[0])
-        window_wr = window_wins / CIRCUIT_BREAKER_WINDOW
-        if window_wr < CIRCUIT_BREAKER_RECENT_WINRATE:
-            return {
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-                "confidence": 0.5,
-                "signal": "CIRCUIT_BREAKER",
-                "confidence_level": "CIRCUIT_BREAKER",
-                "should_trade": False,
-                "model_type": "circuit_breaker",
-                "reason": f"Recent {CIRCUIT_BREAKER_WINDOW}-sample win rate: {window_wr:.2%} < {CIRCUIT_BREAKER_RECENT_WINRATE:.0%}",
-                "win_rate": window_wr,
-            }
+    if not triggered_by:
+        return None
 
-    return None
+    reason_parts = []
+    if "streak" in triggered_by:
+        reason_parts.append(f"Consecutive loss streak: {streak} >= {CIRCUIT_BREAKER_STREAK}")
+    if "recent_win_rate" in triggered_by and window_wr is not None:
+        reason_parts.append(
+            f"Recent {CIRCUIT_BREAKER_WINDOW}-sample win rate: {window_wr:.2%} < {CIRCUIT_BREAKER_RECENT_WINRATE:.0%}"
+        )
+
+    return {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "confidence": 0.5,
+        "signal": "CIRCUIT_BREAKER",
+        "confidence_level": "CIRCUIT_BREAKER",
+        "should_trade": False,
+        "model_type": "circuit_breaker",
+        "reason": "; ".join(reason_parts),
+        "streak": streak,
+        "win_rate": window_wr,
+        "recent_window_win_rate": window_wr,
+        "recent_window_wins": window_wins,
+        "window_size": window_size,
+        "triggered_by": triggered_by,
+        "horizon_minutes": CIRCUIT_BREAKER_HORIZON_MINUTES,
+    }
 
 
 def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -> Optional[Dict]:
@@ -2970,6 +3362,10 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
             "entry_quality": None,
             "entry_quality_label": None,
             "allowed_layers": 0,
+            "deployment_blocker": None,
+            "deployment_blocker_reason": None,
+            "deployment_blocker_source": None,
+            "deployment_blocker_details": None,
         }
     features = load_latest_features(session)
     if not features:
@@ -2979,7 +3375,9 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
 
     decision_profile = _build_live_decision_profile(features)
     decision_quality_contract = _infer_live_decision_quality_contract(session, decision_profile)
+    deployment_blocker = _infer_deployment_blocker(decision_profile)
     execution_profile = _apply_live_execution_guardrails(decision_profile, decision_quality_contract)
+    execution_profile = _apply_deployment_blocker_to_execution_profile(execution_profile, deployment_blocker)
 
     # Per-regime model routing (H145-fix + #H122 chop-abstain ensemble)
     used_model = "global"
