@@ -128,6 +128,7 @@ def test_summarize_support_progress_detects_stalled_exact_support(tmp_path):
             json.dumps(
                 {
                     "heartbeat": str(700 + idx),
+                    "timestamp": f"2026-04-15T21:0{idx}:00+00:00",
                     "leaderboard_candidate_diagnostics": {
                         "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
                         "live_current_structure_bucket_rows": 15,
@@ -154,6 +155,41 @@ def test_summarize_support_progress_detects_stalled_exact_support(tmp_path):
     assert progress["stagnant_run_count"] == 3
     assert progress["escalate_to_blocker"] is True
     assert progress["history"][0]["heartbeat"] == "fast"
+
+
+def test_summarize_support_progress_reuses_previous_fast_summary(tmp_path):
+    (tmp_path / "heartbeat_fast_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "fast",
+                "timestamp": "2026-04-15T21:00:00+00:00",
+                "leaderboard_candidate_diagnostics": {
+                    "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "live_current_structure_bucket_rows": 13,
+                    "governance_contract": {
+                        "verdict": "dual_role_governance_active",
+                        "minimum_support_rows": 50,
+                        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    progress = hb_leaderboard_candidate_probe._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q35",
+        current_route="exact_live_bucket_present_but_below_minimum",
+        live_bucket_rows=13,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "stalled_under_minimum"
+    assert progress["previous_rows"] == 13
+    assert progress["delta_vs_previous"] == 0
+    assert any(item["heartbeat"] == "fast" and item["live_current_structure_bucket_rows"] == 13 for item in progress["history"][1:])
 
 
 def test_build_alignment_marks_under_supported_exact_bucket(tmp_path, monkeypatch):

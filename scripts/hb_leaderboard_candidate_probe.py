@@ -110,8 +110,12 @@ def _load_recent_support_history(
     data_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
     history: list[dict[str, Any]] = []
+    current_observed_at = None
+    current_heartbeat = None
     if current_entry and current_entry.get("live_current_structure_bucket"):
-        history.append(current_entry)
+        current_observed_at = current_entry.get("observed_at")
+        current_heartbeat = current_entry.get("heartbeat")
+        history.append({k: v for k, v in current_entry.items() if k != "observed_at"})
 
     summaries_dir = data_dir or (PROJECT_ROOT / "data")
     summary_files = sorted(
@@ -128,17 +132,26 @@ def _load_recent_support_history(
         if not isinstance(diag, dict):
             continue
         heartbeat = str(payload.get("heartbeat") or path.stem)
+        payload_timestamp = payload.get("timestamp")
+        payload_dt = _parse_iso_datetime(payload_timestamp)
+        if (
+            current_observed_at is not None
+            and current_heartbeat == heartbeat
+            and payload_dt is not None
+            and abs((current_observed_at - payload_dt).total_seconds()) < 120
+        ):
+            continue
+        governance_contract = diag.get("governance_contract") or {}
         candidate = {
             "heartbeat": heartbeat,
+            "timestamp": payload_timestamp,
             "live_current_structure_bucket": diag.get("live_current_structure_bucket"),
             "live_current_structure_bucket_rows": int(diag.get("live_current_structure_bucket_rows") or 0),
-            "minimum_support_rows": int(diag.get("minimum_support_rows") or 0),
-            "support_governance_route": diag.get("support_governance_route"),
-            "governance_verdict": ((diag.get("governance_contract") or {}).get("verdict")),
+            "minimum_support_rows": int(diag.get("minimum_support_rows") or governance_contract.get("minimum_support_rows") or 0),
+            "support_governance_route": diag.get("support_governance_route") or governance_contract.get("support_governance_route"),
+            "governance_verdict": governance_contract.get("verdict"),
         }
         if not candidate["live_current_structure_bucket"]:
-            continue
-        if any(existing.get("heartbeat") == heartbeat for existing in history):
             continue
         history.append(candidate)
         if len(history) >= limit:
@@ -156,8 +169,11 @@ def _summarize_support_progress(
     data_dir: Path | None = None,
 ) -> dict[str, Any]:
     current_rows = int(live_bucket_rows or 0)
+    observed_at = datetime.now(timezone.utc)
     current_entry = {
         "heartbeat": str(current_label or "current"),
+        "timestamp": observed_at.isoformat(),
+        "observed_at": observed_at,
         "live_current_structure_bucket": current_bucket,
         "live_current_structure_bucket_rows": current_rows,
         "minimum_support_rows": int(minimum_support_rows or 0),
