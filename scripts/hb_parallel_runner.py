@@ -47,6 +47,7 @@ PREDICT_PROBE_CMD = [PYTHON, "scripts/hb_predict_probe.py"]
 LIVE_DQ_DRILLDOWN_CMD = [PYTHON, "scripts/live_decision_quality_drilldown.py"]
 Q35_SCALING_AUDIT_CMD = [PYTHON, "scripts/hb_q35_scaling_audit.py"]
 Q15_SUPPORT_AUDIT_CMD = [PYTHON, "scripts/hb_q15_support_audit.py"]
+Q15_BUCKET_ROOT_CAUSE_CMD = [PYTHON, "scripts/hb_q15_bucket_root_cause.py"]
 CIRCUIT_BREAKER_AUDIT_CMD = [PYTHON, "scripts/hb_circuit_breaker_audit.py"]
 FEATURE_ABLATION_CMD = [PYTHON, "scripts/feature_group_ablation.py"]
 BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
@@ -257,6 +258,10 @@ def run_q15_support_audit() -> Dict[str, Any]:
     return _run_serial_command(Q15_SUPPORT_AUDIT_CMD)
 
 
+def run_q15_bucket_root_cause() -> Dict[str, Any]:
+    return _run_serial_command(Q15_BUCKET_ROOT_CAUSE_CMD)
+
+
 def run_circuit_breaker_audit(run_label: str) -> Dict[str, Any]:
     return _run_serial_command(CIRCUIT_BREAKER_AUDIT_CMD + [run_label])
 
@@ -347,6 +352,7 @@ def save_summary(
     live_decision_drilldown=None,
     q35_scaling_audit=None,
     q15_support_audit=None,
+    q15_bucket_root_cause=None,
     circuit_breaker_audit=None,
     feature_ablation=None,
     bull_4h_pocket_ablation=None,
@@ -380,6 +386,7 @@ def save_summary(
         "live_decision_drilldown": live_decision_drilldown or {},
         "q35_scaling_audit": q35_scaling_audit or {},
         "q15_support_audit": q15_support_audit or {},
+        "q15_bucket_root_cause": q15_bucket_root_cause or {},
         "circuit_breaker_audit": circuit_breaker_audit or {},
         "feature_ablation": feature_ablation or {},
         "bull_4h_pocket_ablation": bull_4h_pocket_ablation or {},
@@ -677,6 +684,29 @@ def collect_q15_support_audit_diagnostics() -> Dict[str, Any]:
         "support_route": support_route,
         "floor_cross_legality": floor,
         "next_action": payload.get("next_action"),
+    }
+
+
+def collect_q15_bucket_root_cause_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "q15_bucket_root_cause.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    return {
+        "generated_at": payload.get("generated_at"),
+        "target_col": payload.get("target_col"),
+        "current_live": payload.get("current_live") or {},
+        "exact_live_lane": payload.get("exact_live_lane") or {},
+        "verdict": payload.get("verdict"),
+        "candidate_patch_type": payload.get("candidate_patch_type"),
+        "candidate_patch_feature": payload.get("candidate_patch_feature"),
+        "candidate_patch": payload.get("candidate_patch") or {},
+        "reason": payload.get("reason"),
+        "verify_next": payload.get("verify_next"),
+        "carry_forward": payload.get("carry_forward") or [],
     }
 
 
@@ -1277,6 +1307,30 @@ def main(argv=None):
             f"best={floor.get('best_single_component')} gap={floor.get('remaining_gap_to_floor')}"
         )
 
+    q15_bucket_root_cause_result = run_q15_bucket_root_cause()
+    q15_bucket_root_cause_summary = collect_q15_bucket_root_cause_diagnostics()
+    print(
+        f"🪣 Q15 root-cause：{'通過' if q15_bucket_root_cause_result['success'] else '失敗'} "
+        f"(rc={q15_bucket_root_cause_result['returncode']})"
+    )
+    if q15_bucket_root_cause_result.get("stdout"):
+        lines = q15_bucket_root_cause_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- hb_q15_bucket_root_cause ---\n{preview}")
+    if q15_bucket_root_cause_result.get("stderr"):
+        print(f"\n--- hb_q15_bucket_root_cause stderr ---\n{q15_bucket_root_cause_result['stderr']}")
+    if q15_bucket_root_cause_summary:
+        lane = q15_bucket_root_cause_summary.get("exact_live_lane") or {}
+        print(
+            "🪣 Q15 根因："
+            f"verdict={q15_bucket_root_cause_summary.get('verdict')} "
+            f"patch={q15_bucket_root_cause_summary.get('candidate_patch_type')}:{q15_bucket_root_cause_summary.get('candidate_patch_feature')} "
+            f"neighbor={lane.get('dominant_neighbor_bucket')} rows={lane.get('dominant_neighbor_rows')} "
+            f"near_boundary_rows={lane.get('near_boundary_rows')}"
+        )
+
     auto_propose_result = run_auto_propose(run_label)
     print(
         f"🛠️  自動修復建議：{'通過' if auto_propose_result['success'] else '失敗'} "
@@ -1305,6 +1359,7 @@ def main(argv=None):
         live_decision_drilldown=live_drilldown_summary,
         q35_scaling_audit=q35_scaling_summary,
         q15_support_audit=q15_support_summary,
+        q15_bucket_root_cause=q15_bucket_root_cause_summary,
         circuit_breaker_audit=circuit_breaker_audit_summary,
         feature_ablation=feature_ablation_summary,
         bull_4h_pocket_ablation=bull_pocket_summary,

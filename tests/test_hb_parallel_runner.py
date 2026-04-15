@@ -724,6 +724,48 @@ def test_collect_q15_support_audit_diagnostics_reads_support_and_floor_verdicts(
     assert diag["next_action"] == "先補 exact bucket 真樣本。"
 
 
+def test_collect_q15_bucket_root_cause_diagnostics_reads_verdict_and_candidate_patch(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "q15_bucket_root_cause.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-15T08:10:00Z",
+                "target_col": "simulated_pyramid_win",
+                "current_live": {
+                    "structure_bucket": "CAUTION|structure_quality_caution|q15",
+                    "structure_quality": 0.2813,
+                },
+                "exact_live_lane": {
+                    "rows": 76,
+                    "dominant_neighbor_bucket": "CAUTION|structure_quality_caution|q35",
+                    "dominant_neighbor_rows": 76,
+                    "near_boundary_rows": 0,
+                },
+                "verdict": "structure_scoring_gap_not_boundary",
+                "candidate_patch_type": "structure_component_scoring",
+                "candidate_patch_feature": "feat_4h_dist_bb_lower",
+                "candidate_patch": {
+                    "feature": "feat_4h_dist_bb_lower",
+                    "needed_raw_delta_to_cross_q35": 1.6655,
+                },
+                "reason": "單純調整 boundary 無法生成 exact rows。",
+                "verify_next": "做 structure component counterfactual。",
+                "carry_forward": ["先讀 data/q15_bucket_root_cause.json"],
+            }
+        )
+    )
+
+    diag = hb_parallel_runner.collect_q15_bucket_root_cause_diagnostics()
+
+    assert diag["verdict"] == "structure_scoring_gap_not_boundary"
+    assert diag["candidate_patch_type"] == "structure_component_scoring"
+    assert diag["candidate_patch_feature"] == "feat_4h_dist_bb_lower"
+    assert diag["exact_live_lane"]["dominant_neighbor_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert diag["carry_forward"] == ["先讀 data/q15_bucket_root_cause.json"]
+
+
 def test_main_runs_q15_support_audit_after_leaderboard_probe(monkeypatch):
     order = []
 
@@ -790,12 +832,14 @@ def test_main_runs_q15_support_audit_after_leaderboard_probe(monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_q15_support_audit", lambda: order.append("q15") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_bucket_root_cause", lambda: order.append("q15_root") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_bucket_root_cause_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_auto_propose", lambda run_label=None: _ok())
     monkeypatch.setattr(hb_parallel_runner, "save_summary", lambda *args, **kwargs: ({}, "/tmp/heartbeat_test_summary.json"))
 
     hb_parallel_runner.main(["--fast", "--hb", "test"])
 
-    assert order == ["leaderboard", "q15"]
+    assert order == ["leaderboard", "q15", "q15_root"]
 
 
 def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, monkeypatch):
