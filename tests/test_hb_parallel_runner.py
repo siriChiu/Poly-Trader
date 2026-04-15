@@ -269,6 +269,35 @@ def test_collect_live_predictor_diagnostics_preserves_circuit_breaker_reason():
     assert result["allowed_layers"] == 0
 
 
+def test_collect_live_predictor_diagnostics_preserves_deployment_blocker_fields():
+    payload = {
+        "target_col": "simulated_pyramid_win",
+        "used_model": "regime_bull_ensemble",
+        "model_type": "RegimeAwarePredictor",
+        "signal": "HOLD",
+        "confidence": 0.23,
+        "should_trade": False,
+        "regime_label": "bull",
+        "allowed_layers_raw": 0,
+        "allowed_layers": 0,
+        "deployment_blocker": "bull_q35_no_deploy_governance",
+        "deployment_blocker_reason": "safe redesign 失敗，只剩 unsafe floor cross",
+        "deployment_blocker_source": "q35_scaling_audit+q15_support_audit",
+        "deployment_blocker_details": {
+            "support_route_verdict": "exact_bucket_supported",
+            "unsafe_floor_cross_candidate": {"weights": {"feat_ear": 1.0}},
+        },
+    }
+
+    result = hb_parallel_runner.collect_live_predictor_diagnostics({"stdout": json.dumps(payload)})
+
+    assert result["runtime_blocker"] is None
+    assert result["deployment_blocker"] == "bull_q35_no_deploy_governance"
+    assert result["deployment_blocker_reason"] == "safe redesign 失敗，只剩 unsafe floor cross"
+    assert result["deployment_blocker_source"] == "q35_scaling_audit+q15_support_audit"
+    assert result["deployment_blocker_details"]["support_route_verdict"] == "exact_bucket_supported"
+
+
 def test_q35_joint_component_experiment_quantifies_remaining_bias50_gap():
     runtime_current = {
         "regime_gate": "CAUTION",
@@ -304,6 +333,45 @@ def test_q35_joint_component_experiment_quantifies_remaining_bias50_gap():
     assert result["best_scenario"]["scenario"] == "winner_p75"
     assert result["best_scenario"]["entry_quality_after"] > runtime_current["entry_quality"]
     assert result["best_scenario"]["required_bias50_cap_after_swing_uplift"] > 0.2635
+
+
+def test_q35_exact_supported_bias50_component_experiment_surfaces_remaining_floor_gap():
+    runtime_current = {
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.4332,
+        "allowed_layers_raw": 0,
+        "entry_quality_components": {
+            "base_quality": 0.4593,
+            "structure_quality": 0.3551,
+            "trade_floor": 0.55,
+            "base_components": [
+                {"feature": "feat_4h_bias50", "normalized_score": 0.2347, "weight": 0.4},
+            ],
+        },
+    }
+    runtime_exact_summary = {
+        "base_component_score_distributions": {
+            "feat_4h_bias50": {"distribution": {"p75": 0.30, "p90": 0.35}},
+        }
+    }
+    runtime_winner_summary = {
+        "base_component_score_distributions": {
+            "feat_4h_bias50": {"distribution": {"p50": 0.31, "p75": 0.34}},
+        }
+    }
+
+    result = hb_q35_scaling_audit._build_exact_supported_bias50_component_experiment(
+        runtime_current,
+        runtime_exact_summary,
+        runtime_winner_summary,
+    )
+
+    assert result["verdict"] == "exact_supported_bias50_component_improves_but_still_below_floor"
+    assert result["machine_read_answer"]["entry_quality_ge_0_55"] is False
+    assert result["machine_read_answer"]["used_exact_supported_target"] is True
+    assert result["best_scenario"]["scenario"] == "exact_runtime_p90"
+    assert result["best_scenario"]["entry_quality_after"] > runtime_current["entry_quality"]
+    assert result["best_scenario"]["remaining_gap_to_floor"] > 0
 
 
 def test_q35_base_mix_component_experiment_surfaces_base_stack_gap():
@@ -420,6 +488,80 @@ def test_q35_base_stack_redesign_experiment_flags_unsafe_ear_heavy_floor_cross()
     assert result["unsafe_floor_cross_candidate"] is not None
 
 
+def test_q35_base_stack_redesign_does_not_treat_zero_gap_floor_cross_as_discriminative():
+    runtime_current = {
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.3413,
+        "allowed_layers_raw": 0,
+        "entry_quality_components": {
+            "structure_quality": 0.3814,
+            "trade_floor": 0.55,
+            "base_components": [
+                {"feature": "feat_4h_bias50", "normalized_score": 0.12},
+                {"feature": "feat_nose", "normalized_score": 0.18},
+                {"feature": "feat_pulse", "normalized_score": 0.21},
+                {"feature": "feat_ear", "normalized_score": 0.9949},
+            ],
+        },
+    }
+    runtime_exact_lane = [
+        {
+            "simulated_pyramid_win": 1,
+            "entry_quality_components": {
+                "base_components": [
+                    {"feature": "feat_4h_bias50", "normalized_score": 0.32},
+                    {"feature": "feat_nose", "normalized_score": 0.66},
+                    {"feature": "feat_pulse", "normalized_score": 0.79},
+                    {"feature": "feat_ear", "normalized_score": 0.20},
+                ]
+            },
+        },
+        {
+            "simulated_pyramid_win": 1,
+            "entry_quality_components": {
+                "base_components": [
+                    {"feature": "feat_4h_bias50", "normalized_score": 0.30},
+                    {"feature": "feat_nose", "normalized_score": 0.64},
+                    {"feature": "feat_pulse", "normalized_score": 0.77},
+                    {"feature": "feat_ear", "normalized_score": 0.18},
+                ]
+            },
+        },
+        {
+            "simulated_pyramid_win": 0,
+            "entry_quality_components": {
+                "base_components": [
+                    {"feature": "feat_4h_bias50", "normalized_score": 0.08},
+                    {"feature": "feat_nose", "normalized_score": 0.52},
+                    {"feature": "feat_pulse", "normalized_score": 0.18},
+                    {"feature": "feat_ear", "normalized_score": 0.98},
+                ]
+            },
+        },
+        {
+            "simulated_pyramid_win": 0,
+            "entry_quality_components": {
+                "base_components": [
+                    {"feature": "feat_4h_bias50", "normalized_score": 0.09},
+                    {"feature": "feat_nose", "normalized_score": 0.50},
+                    {"feature": "feat_pulse", "normalized_score": 0.21},
+                    {"feature": "feat_ear", "normalized_score": 0.97},
+                ]
+            },
+        },
+    ]
+
+    result = hb_q35_scaling_audit._build_base_stack_redesign_experiment(runtime_current, runtime_exact_lane)
+
+    assert result["verdict"] == "base_stack_redesign_floor_cross_requires_non_discriminative_reweight"
+    assert result["machine_read_answer"]["entry_quality_ge_0_55"] is False
+    assert result["machine_read_answer"]["positive_discriminative_gap"] is True
+    assert result["best_discriminative_candidate"]["current_entry_quality_after"] < 0.55
+    assert result["best_floor_candidate"]["current_entry_quality_after"] > 0.55
+    assert result["best_floor_candidate"]["positive_discriminative_gap"] is False
+    assert result["unsafe_floor_cross_candidate"] == result["best_floor_candidate"]
+
+
 def test_collect_q35_scaling_audit_diagnostics_includes_deployment_component_experiment(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
@@ -435,12 +577,32 @@ def test_collect_q35_scaling_audit_diagnostics_includes_deployment_component_exp
                     "regime_label": "bull",
                     "regime_gate": "CAUTION",
                     "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "entry_quality": 0.5667,
+                    "entry_quality_label": "C",
+                    "allowed_layers_raw": 1,
+                    "allowed_layers_reason": "entry_quality_C_single_layer",
+                    "raw_features": {"feat_4h_bias50": 2.9272, "feat_4h_bias200": 5.8838},
+                    "entry_quality_components": {"bias50_calibration": {"applied": True, "mode": "exact_lane_formula_review"}},
+                    "q35_discriminative_redesign_applied": True,
+                    "source": "live_predict_probe",
+                    "probe_alignment": {"used_live_predict_probe": True},
+                },
+                "baseline_current_live": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "entry_quality": 0.4161,
+                    "entry_quality_label": "D",
+                    "allowed_layers_raw": 0,
+                    "allowed_layers_reason": "entry_quality_below_trade_floor",
+                    "raw_features": {"feat_4h_bias50": 2.9272, "feat_4h_bias200": 5.8838}
+                },
+                "calibration_runtime_current": {
                     "entry_quality": 0.4856,
                     "entry_quality_label": "D",
                     "allowed_layers_raw": 0,
                     "allowed_layers_reason": "entry_quality_below_trade_floor",
-                    "raw_features": {"feat_4h_bias50": 2.9272, "feat_4h_bias200": 5.8838},
-                    "entry_quality_components": {"bias50_calibration": {"applied": True, "mode": "exact_lane_formula_review"}},
+                    "source": "calibration_component_runtime"
                 },
                 "scope_applicability": {"status": "current_live_q35_lane_active", "active_for_current_live_row": True},
                 "exact_lane_summary": {"rows": 124, "win_rate": 0.95, "current_bias50_percentile": 0.42},
@@ -448,16 +610,22 @@ def test_collect_q35_scaling_audit_diagnostics_includes_deployment_component_exp
                 "segmented_calibration": {"status": "formula_review_required", "recommended_mode": "exact_lane_formula_review"},
                 "piecewise_runtime_preview": {"applied": True, "score": 0.2317, "legacy_score": 0.0},
                 "deployment_grade_component_experiment": {
-                    "verdict": "runtime_patch_improves_but_still_below_floor",
+                    "verdict": "runtime_patch_crosses_trade_floor",
                     "baseline_entry_quality": 0.4161,
-                    "runtime_entry_quality": 0.4856,
-                    "entry_quality_delta_vs_legacy": 0.0695,
+                    "calibration_runtime_entry_quality": 0.4856,
+                    "runtime_entry_quality": 0.5667,
+                    "calibration_runtime_delta_vs_legacy": 0.0695,
+                    "entry_quality_delta_vs_legacy": 0.1506,
                     "baseline_allowed_layers_raw": 0,
-                    "runtime_allowed_layers_raw": 0,
+                    "calibration_runtime_allowed_layers_raw": 0,
+                    "runtime_allowed_layers_raw": 1,
                     "runtime_trade_floor": 0.55,
-                    "runtime_remaining_gap_to_floor": 0.0644,
-                    "machine_read_answer": {"entry_quality_ge_0_55": False, "allowed_layers_gt_0": False},
-                    "next_patch_target": "feat_4h_bias50_formula",
+                    "runtime_remaining_gap_to_floor": -0.0167,
+                    "machine_read_answer": {"entry_quality_ge_0_55": True, "allowed_layers_gt_0": True},
+                    "runtime_source": "live_predict_probe",
+                    "q35_discriminative_redesign_applied": True,
+                    "probe_alignment": {"used_live_predict_probe": True},
+                    "next_patch_target": "verify_runtime_guardrails",
                     "verify_next": "entry_quality >= 0.55 and allowed_layers > 0",
                 },
                 "joint_component_experiment": {
@@ -471,6 +639,18 @@ def test_collect_q35_scaling_audit_diagnostics_includes_deployment_component_exp
                         "required_bias50_cap_after_swing_uplift": 0.1385,
                     },
                     "verify_next": "summary must persist the best_scenario fields",
+                },
+                "exact_supported_bias50_component_experiment": {
+                    "verdict": "exact_supported_bias50_component_improves_but_still_below_floor",
+                    "reason": "exact-supported bias50 uplift still misses the floor.",
+                    "machine_read_answer": {"entry_quality_ge_0_55": False, "allowed_layers_gt_0": False, "used_exact_supported_target": True},
+                    "best_scenario": {
+                        "scenario": "exact_runtime_p90",
+                        "entry_quality_after": 0.5124,
+                        "remaining_gap_to_floor": 0.0376,
+                        "target_score": 0.35,
+                    },
+                    "verify_next": "summary must persist exact-supported bias50 scenario fields",
                 },
                 "base_mix_component_experiment": {
                     "verdict": "base_mix_component_experiment_improves_but_still_below_floor",
@@ -521,13 +701,22 @@ def test_collect_q35_scaling_audit_diagnostics_includes_deployment_component_exp
 
     summary = hb_parallel_runner.collect_q35_scaling_audit_diagnostics()
 
-    assert summary["deployment_grade_component_experiment"]["verdict"] == "runtime_patch_improves_but_still_below_floor"
-    assert summary["deployment_grade_component_experiment"]["machine_read_answer"]["entry_quality_ge_0_55"] is False
-    assert summary["deployment_grade_component_experiment"]["runtime_remaining_gap_to_floor"] == 0.0644
-    assert summary["deployment_grade_component_experiment"]["next_patch_target"] == "feat_4h_bias50_formula"
+    assert summary["deployment_grade_component_experiment"]["verdict"] == "runtime_patch_crosses_trade_floor"
+    assert summary["deployment_grade_component_experiment"]["machine_read_answer"]["entry_quality_ge_0_55"] is True
+    assert summary["deployment_grade_component_experiment"]["runtime_remaining_gap_to_floor"] == -0.0167
+    assert summary["deployment_grade_component_experiment"]["runtime_source"] == "live_predict_probe"
+    assert summary["deployment_grade_component_experiment"]["q35_discriminative_redesign_applied"] is True
+    assert summary["deployment_grade_component_experiment"]["next_patch_target"] == "verify_runtime_guardrails"
+    assert summary["baseline_current_live"]["entry_quality"] == 0.4161
+    assert summary["calibration_runtime_current"]["entry_quality"] == 0.4856
+    assert summary["current_live"]["entry_quality"] == 0.5667
     assert summary["joint_component_experiment"]["verdict"] == "joint_component_experiment_improves_but_still_below_floor"
     assert summary["joint_component_experiment"]["best_scenario"]["scenario"] == "winner_p50"
     assert summary["joint_component_experiment"]["best_scenario"]["required_bias50_cap_after_swing_uplift"] == 0.1385
+    assert summary["exact_supported_bias50_component_experiment"]["verdict"] == "exact_supported_bias50_component_improves_but_still_below_floor"
+    assert summary["exact_supported_bias50_component_experiment"]["machine_read_answer"]["used_exact_supported_target"] is True
+    assert summary["exact_supported_bias50_component_experiment"]["best_scenario"]["scenario"] == "exact_runtime_p90"
+    assert summary["exact_supported_bias50_component_experiment"]["best_scenario"]["target_score"] == 0.35
     assert summary["base_mix_component_experiment"]["verdict"] == "base_mix_component_experiment_improves_but_still_below_floor"
     assert summary["base_mix_component_experiment"]["best_scenario"]["scenario"] == "winner_triplet_p75"
     assert summary["base_mix_component_experiment"]["best_scenario"]["required_bias50_cap_after_base_mix"] == -2.105
@@ -1187,7 +1376,7 @@ def test_main_runs_q15_support_audit_after_leaderboard_probe(monkeypatch):
 
     hb_parallel_runner.main(["--fast", "--hb", "test"])
 
-    assert order == ["q35", "predict_probe", "drilldown", "leaderboard", "q15", "q15_root", "q15_replay"]
+    assert order == ["predict_probe", "q35", "drilldown", "leaderboard", "q15", "q15_root", "q15_replay"]
 
 
 def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, monkeypatch):

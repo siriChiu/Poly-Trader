@@ -238,6 +238,74 @@ def _legacy_bias50_calibration_preview(bias50_value: float) -> dict[str, Any]:
     }
 
 
+def _build_deployed_runtime_current(
+    baseline_current: dict[str, Any],
+    calibration_runtime_current: dict[str, Any],
+    probe: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the actual deployed runtime view from live_predict_probe when it matches the current row."""
+
+    current_ts = str(baseline_current.get("timestamp") or "")
+    probe_ts = str(probe.get("feature_timestamp") or "")
+    probe_bucket = str(
+        probe.get("structure_bucket")
+        or probe.get("current_live_structure_bucket")
+        or (((probe.get("decision_quality_scope_diagnostics") or {}).get("regime_label+regime_gate+entry_quality_label") or {}).get("current_live_structure_bucket"))
+        or ""
+    )
+    current_bucket = str(baseline_current.get("structure_bucket") or "")
+    timestamps_match = bool(current_ts and probe_ts and current_ts == probe_ts)
+    bucket_matches = bool(current_bucket and probe_bucket and current_bucket == probe_bucket)
+    runtime = dict(calibration_runtime_current)
+    runtime["source"] = "calibration_component_runtime"
+    runtime["q35_discriminative_redesign_applied"] = False
+    runtime["probe_alignment"] = {
+        "probe_feature_timestamp": probe_ts or None,
+        "current_feature_timestamp": current_ts or None,
+        "timestamps_match": timestamps_match,
+        "probe_structure_bucket": probe_bucket or None,
+        "current_structure_bucket": current_bucket or None,
+        "structure_bucket_match": bucket_matches,
+        "used_live_predict_probe": False,
+        "reason": "live_predict_probe row mismatch or missing; fallback to calibration-only runtime view.",
+    }
+
+    if not (timestamps_match and bucket_matches):
+        return runtime
+
+    runtime.update(
+        {
+            "entry_quality": _round(probe.get("entry_quality")),
+            "entry_quality_label": probe.get("entry_quality_label"),
+            "allowed_layers_raw": probe.get("allowed_layers_raw"),
+            "allowed_layers_reason": probe.get("allowed_layers_reason"),
+            "entry_quality_components": probe.get("entry_quality_components") or runtime.get("entry_quality_components") or {},
+            "decision_quality_label": probe.get("decision_quality_label"),
+            "signal": probe.get("signal"),
+            "q35_discriminative_redesign_applied": bool(
+                ((probe.get("entry_quality_components") or {}).get("q35_discriminative_redesign") or {}).get("applied")
+                or probe.get("q35_discriminative_redesign_applied")
+            ),
+            "q35_discriminative_redesign": (
+                (probe.get("entry_quality_components") or {}).get("q35_discriminative_redesign")
+                or probe.get("q35_discriminative_redesign")
+            ),
+            "source": "live_predict_probe",
+            "probe_alignment": {
+                "probe_feature_timestamp": probe_ts,
+                "current_feature_timestamp": current_ts,
+                "timestamps_match": True,
+                "probe_structure_bucket": probe_bucket,
+                "current_structure_bucket": current_bucket,
+                "structure_bucket_match": True,
+                "used_live_predict_probe": True,
+                "reason": "live_predict_probe 與 q35 audit current row 完全對齊；deployment-grade runtime 直接沿用 live predictor output。",
+            },
+        }
+    )
+    return runtime
+
+
 def _current_row(conn: sqlite3.Connection) -> sqlite3.Row:
     row = conn.execute(
         """
@@ -587,6 +655,97 @@ def _build_joint_component_experiment(
     }
 
 
+def _build_exact_supported_bias50_component_experiment(
+    runtime_current: dict[str, Any],
+    runtime_exact_summary: dict[str, Any],
+    runtime_winner_summary: dict[str, Any],
+) -> dict[str, Any]:
+    eq = runtime_current.get("entry_quality_components") or {}
+    trade_floor = float(eq.get("trade_floor") or 0.55)
+    base_quality = float(eq.get("base_quality") or 0.0)
+    structure_quality = float(eq.get("structure_quality") or 0.0)
+    current_entry_quality = float(runtime_current.get("entry_quality") or 0.0)
+    current_layers = int(runtime_current.get("allowed_layers_raw") or 0)
+    bias_component = _extract_component(eq.get("base_components") or [], "feat_4h_bias50") or {}
+    current_bias_score = float(bias_component.get("normalized_score") or 0.0)
+    bias_weight = float(bias_component.get("weight") or 0.0)
+
+    exact_dist = (((runtime_exact_summary.get("base_component_score_distributions") or {}).get("feat_4h_bias50") or {}).get("distribution") or {})
+    winner_dist = (((runtime_winner_summary.get("base_component_score_distributions") or {}).get("feat_4h_bias50") or {}).get("distribution") or {})
+
+    target_candidates = [
+        ("winner_runtime_p50", winner_dist.get("p50"), "winner_exact_supported"),
+        ("winner_runtime_p75", winner_dist.get("p75"), "winner_exact_supported"),
+        ("exact_runtime_p75", exact_dist.get("p75"), "exact_supported"),
+        ("exact_runtime_p90", exact_dist.get("p90"), "exact_supported"),
+    ]
+
+    scenarios: list[dict[str, Any]] = []
+    for label, target_score, target_type in target_candidates:
+        if target_score is None:
+            continue
+        target_score = max(current_bias_score, min(1.0, float(target_score)))
+        gain = max(0.0, target_score - current_bias_score)
+        if gain <= 0.0:
+            continue
+        scenario_base_quality = min(1.0, base_quality + bias_weight * gain)
+        scenario_entry_quality = round(0.75 * scenario_base_quality + 0.25 * structure_quality, 4)
+        scenario_layers = live_predictor._allowed_layers_for_live_signal(runtime_current.get("regime_gate") or "BLOCK", scenario_entry_quality)
+        remaining_gap = max(0.0, trade_floor - scenario_entry_quality)
+        scenarios.append(
+            {
+                "scenario": label,
+                "target_type": target_type,
+                "target_score": round(target_score, 4),
+                "score_delta": round(gain, 4),
+                "base_quality_after": round(scenario_base_quality, 4),
+                "entry_quality_after": scenario_entry_quality,
+                "remaining_gap_to_floor": round(remaining_gap, 4),
+                "allowed_layers_after": scenario_layers,
+                "entry_quality_ge_trade_floor": scenario_entry_quality >= trade_floor,
+                "allowed_layers_gt_0": scenario_layers > 0,
+                "within_exact_supported_distribution": target_type in {"exact_supported", "winner_exact_supported"},
+            }
+        )
+
+    best = None
+    if scenarios:
+        best = sorted(
+            scenarios,
+            key=lambda item: (
+                -(float(item.get("entry_quality_after") or 0.0)),
+                -(float(item.get("allowed_layers_after") or 0.0)),
+            ),
+        )[0]
+
+    if best and best.get("entry_quality_ge_trade_floor") and best.get("allowed_layers_gt_0"):
+        verdict = "exact_supported_bias50_component_crosses_trade_floor"
+        reason = "只把 feat_4h_bias50 拉到 exact-supported / winner-supported runtime 分位，就足以跨過 trade floor。"
+    elif best:
+        verdict = "exact_supported_bias50_component_improves_but_still_below_floor"
+        reason = "即使只用 exact-supported / winner-supported 的 bias50 runtime 目標做單點 component experiment，entry_quality 仍未跨過 trade floor；這表示 blocker 不再是『少一點點 bias50 support』。"
+    else:
+        verdict = "exact_supported_bias50_component_no_higher_supported_target"
+        reason = "runtime exact-supported lane 裡找不到比 current bias50 score 更高、且仍屬 exact-supported / winner-supported 的單點目標；本輪無法形成更強的 bias50 component uplift。"
+
+    return {
+        "verdict": verdict,
+        "reason": reason,
+        "current_entry_quality": round(current_entry_quality, 4),
+        "trade_floor": round(trade_floor, 4),
+        "current_allowed_layers": current_layers,
+        "current_bias50_score": round(current_bias_score, 4),
+        "best_scenario": best,
+        "scenarios": scenarios,
+        "machine_read_answer": {
+            "entry_quality_ge_0_55": bool(best and best.get("entry_quality_ge_trade_floor")),
+            "allowed_layers_gt_0": bool(best and best.get("allowed_layers_gt_0")),
+            "used_exact_supported_target": bool(best and best.get("within_exact_supported_distribution")),
+        },
+        "verify_next": "確認 heartbeat summary / ISSUES / ROADMAP 已同步 exact-supported bias50 單點 experiment 的 best_scenario 與 remaining_gap_to_floor。",
+    }
+
+
 def _build_base_mix_component_experiment(
     runtime_current: dict[str, Any],
     exact_summary: dict[str, Any],
@@ -864,13 +1023,23 @@ def _build_base_stack_redesign_experiment(
             "verify_next": "若候選 grid 仍為空，先檢查 runtime exact lane component scores 是否成功持久化。",
         }
 
-    best_discriminative = sorted(
-        candidates,
-        key=lambda item: (
-            -(float(item.get("mean_gap") or 0.0)),
-            -(float(item.get("current_entry_quality_after") or 0.0)),
-        ),
-    )[0]
+    positive_gap_candidates = [
+        item for item in candidates
+        if item.get("positive_discriminative_gap")
+    ]
+    best_discriminative = None
+    if positive_gap_candidates:
+        best_discriminative = sorted(
+            positive_gap_candidates,
+            key=lambda item: (
+                int(bool(item.get("entry_quality_ge_trade_floor"))),
+                int(bool(item.get("allowed_layers_gt_0"))),
+                float(item.get("mean_gap") or 0.0),
+                float(item.get("current_entry_quality_after") or 0.0),
+            ),
+            reverse=True,
+        )[0]
+
     best_floor = sorted(
         candidates,
         key=lambda item: (
@@ -878,13 +1047,27 @@ def _build_base_stack_redesign_experiment(
             -(float(item.get("mean_gap") or 0.0)),
         ),
     )[0]
-    unsafe_floor_cross = (
-        best_floor
-        if best_floor.get("entry_quality_ge_trade_floor") and not best_floor.get("positive_discriminative_gap")
-        else None
-    )
+    unsafe_floor_cross = None
+    floor_cross_candidates = [
+        item for item in candidates
+        if item.get("entry_quality_ge_trade_floor") and item.get("allowed_layers_gt_0")
+    ]
+    if floor_cross_candidates:
+        best_floor_cross = sorted(
+            floor_cross_candidates,
+            key=lambda item: (
+                -(float(item.get("current_entry_quality_after") or 0.0)),
+                -(float(item.get("mean_gap") or 0.0)),
+            ),
+        )[0]
+        if not best_floor_cross.get("positive_discriminative_gap"):
+            unsafe_floor_cross = best_floor_cross
 
-    if best_discriminative.get("entry_quality_ge_trade_floor") and best_discriminative.get("allowed_layers_gt_0"):
+    if (
+        best_discriminative
+        and best_discriminative.get("entry_quality_ge_trade_floor")
+        and best_discriminative.get("allowed_layers_gt_0")
+    ):
         verdict = "base_stack_redesign_discriminative_reweight_crosses_trade_floor"
         reason = "在 runtime exact lane 內，以正向 discrimination 為約束的 base-stack reweight 已足以讓 current live row 跨過 trade floor。"
     elif unsafe_floor_cross is not None:
@@ -908,9 +1091,9 @@ def _build_base_stack_redesign_experiment(
         "best_floor_candidate": best_floor,
         "unsafe_floor_cross_candidate": unsafe_floor_cross,
         "machine_read_answer": {
-            "entry_quality_ge_0_55": bool(best_discriminative.get("entry_quality_ge_trade_floor")),
-            "allowed_layers_gt_0": bool(best_discriminative.get("allowed_layers_gt_0")),
-            "positive_discriminative_gap": bool(best_discriminative.get("positive_discriminative_gap")),
+            "entry_quality_ge_0_55": bool(best_discriminative and best_discriminative.get("entry_quality_ge_trade_floor")),
+            "allowed_layers_gt_0": bool(best_discriminative and best_discriminative.get("allowed_layers_gt_0")),
+            "positive_discriminative_gap": bool(best_discriminative and best_discriminative.get("positive_discriminative_gap")),
         },
         "verify_next": "確認 heartbeat summary / ISSUES / ROADMAP 已同步 discriminative vs unsafe floor-cross 候選，避免下一輪再把 ear-heavy 權重假裝成可部署 redesign。",
     }
@@ -918,17 +1101,19 @@ def _build_base_stack_redesign_experiment(
 
 def _build_deployment_grade_component_experiment(
     baseline_current: dict[str, Any],
-    runtime_current: dict[str, Any],
+    calibration_runtime_current: dict[str, Any],
+    deployed_runtime_current: dict[str, Any],
     piecewise_runtime_preview: dict[str, Any],
     counterfactuals: dict[str, Any],
 ) -> dict[str, Any]:
     baseline_eq = float((baseline_current.get("entry_quality") or 0.0))
-    runtime_eq = float((runtime_current.get("entry_quality") or 0.0))
-    trade_floor = float(((runtime_current.get("entry_quality_components") or {}).get("trade_floor") or 0.55))
+    calibration_runtime_eq = float((calibration_runtime_current.get("entry_quality") or 0.0))
+    runtime_eq = float((deployed_runtime_current.get("entry_quality") or 0.0))
+    trade_floor = float(((deployed_runtime_current.get("entry_quality_components") or {}).get("trade_floor") or 0.55))
     runtime_gap = round(trade_floor - runtime_eq, 4)
     machine_read = {
         "entry_quality_ge_0_55": runtime_eq >= trade_floor,
-        "allowed_layers_gt_0": int(runtime_current.get("allowed_layers_raw") or 0) > 0,
+        "allowed_layers_gt_0": int(deployed_runtime_current.get("allowed_layers_raw") or 0) > 0,
     }
     if machine_read["entry_quality_ge_0_55"] and machine_read["allowed_layers_gt_0"]:
         verdict = "runtime_patch_crosses_trade_floor"
@@ -939,13 +1124,19 @@ def _build_deployment_grade_component_experiment(
     return {
         "verdict": verdict,
         "baseline_entry_quality": round(baseline_eq, 4),
+        "calibration_runtime_entry_quality": round(calibration_runtime_eq, 4),
         "runtime_entry_quality": round(runtime_eq, 4),
+        "calibration_runtime_delta_vs_legacy": round(calibration_runtime_eq - baseline_eq, 4),
         "entry_quality_delta_vs_legacy": round(runtime_eq - baseline_eq, 4),
         "baseline_allowed_layers_raw": baseline_current.get("allowed_layers_raw"),
-        "runtime_allowed_layers_raw": runtime_current.get("allowed_layers_raw"),
+        "calibration_runtime_allowed_layers_raw": calibration_runtime_current.get("allowed_layers_raw"),
+        "runtime_allowed_layers_raw": deployed_runtime_current.get("allowed_layers_raw"),
         "runtime_trade_floor": trade_floor,
         "runtime_remaining_gap_to_floor": runtime_gap,
         "machine_read_answer": machine_read,
+        "runtime_source": deployed_runtime_current.get("source"),
+        "q35_discriminative_redesign_applied": deployed_runtime_current.get("q35_discriminative_redesign_applied"),
+        "probe_alignment": deployed_runtime_current.get("probe_alignment") or {},
         "piecewise_runtime_applied": piecewise_runtime_preview.get("applied"),
         "piecewise_runtime_mode": piecewise_runtime_preview.get("mode"),
         "piecewise_runtime_segment": piecewise_runtime_preview.get("segment"),
@@ -1119,18 +1310,19 @@ def main() -> None:
         current_row,
         bias50_calibration_override=piecewise_runtime_preview,
     )
+    deployed_runtime_current = _build_deployed_runtime_current(
+        current,
+        runtime_current,
+        probe,
+    )
     deployment_grade_component_experiment = _build_deployment_grade_component_experiment(
         current,
         runtime_current,
+        deployed_runtime_current,
         piecewise_runtime_preview,
         counterfactuals,
     )
     joint_component_experiment = _build_joint_component_experiment(
-        runtime_current,
-        exact_summary,
-        winner_summary,
-    )
-    base_mix_component_experiment = _build_base_mix_component_experiment(
         runtime_current,
         exact_summary,
         winner_summary,
@@ -1142,6 +1334,19 @@ def main() -> None:
         and r["entry_quality_label"] == runtime_current["entry_quality_label"]
         and r["structure_bucket"] == runtime_current["structure_bucket"]
     ]
+    runtime_exact_lane_winners = [r for r in runtime_exact_lane if int(r.get("simulated_pyramid_win") or 0) == 1]
+    runtime_exact_summary = _summarize_subset(runtime_exact_lane, current_bias50)
+    runtime_winner_summary = _summarize_subset(runtime_exact_lane_winners, current_bias50)
+    exact_supported_bias50_component_experiment = _build_exact_supported_bias50_component_experiment(
+        runtime_current,
+        runtime_exact_summary,
+        runtime_winner_summary,
+    )
+    base_mix_component_experiment = _build_base_mix_component_experiment(
+        runtime_current,
+        exact_summary,
+        winner_summary,
+    )
     base_stack_redesign_experiment = _build_base_stack_redesign_experiment(
         runtime_current,
         runtime_exact_lane,
@@ -1156,8 +1361,11 @@ def main() -> None:
     report = {
         "generated_at": current["timestamp"],
         "target_col": probe.get("target_col", "simulated_pyramid_win"),
-        "current_live": runtime_current,
+        "current_live": deployed_runtime_current,
         "legacy_current_live": current,
+        "baseline_current_live": current,
+        "calibration_runtime_current": runtime_current,
+        "deployed_runtime_current": deployed_runtime_current,
         "scope_applicability": scope_applicability,
         "exact_lane_summary": exact_summary,
         "exact_lane_winner_summary": winner_summary,
@@ -1167,6 +1375,7 @@ def main() -> None:
         "piecewise_runtime_preview": piecewise_runtime_preview,
         "deployment_grade_component_experiment": deployment_grade_component_experiment,
         "joint_component_experiment": joint_component_experiment,
+        "exact_supported_bias50_component_experiment": exact_supported_bias50_component_experiment,
         "base_mix_component_experiment": base_mix_component_experiment,
         "base_stack_redesign_experiment": base_stack_redesign_experiment,
         "counterfactuals": counterfactuals,
@@ -1219,7 +1428,9 @@ def main() -> None:
         f"- regime/gate/quality: **{current['regime_label']} / {current['regime_gate']} / {current['entry_quality_label']}**",
         f"- structure_bucket: **{current['structure_bucket']}**",
         f"- legacy_entry_quality: **{current['entry_quality']}** (reason=`{current['allowed_layers_reason']}`)",
-        f"- runtime_entry_quality: **{runtime_current['entry_quality']}** (reason=`{runtime_current['allowed_layers_reason']}`)",
+        f"- calibration_runtime_entry_quality: **{runtime_current['entry_quality']}** (reason=`{runtime_current['allowed_layers_reason']}`)",
+        f"- deployed_runtime_entry_quality: **{deployed_runtime_current['entry_quality']}** (reason=`{deployed_runtime_current['allowed_layers_reason']}`)",
+        f"- q35_discriminative_redesign_applied: **{deployed_runtime_current.get('q35_discriminative_redesign_applied')}**",
         f"- feat_4h_bias50: **{current['raw_features']['feat_4h_bias50']}**",
         f"- structure_quality: **{current['structure_quality']}**",
         "",
@@ -1251,9 +1462,11 @@ def main() -> None:
         "## Deployment-grade component experiment",
         "",
         f"- verdict: **{deployment_grade_component_experiment['verdict']}**",
-        f"- baseline -> runtime entry_quality: **{deployment_grade_component_experiment['baseline_entry_quality']} → {deployment_grade_component_experiment['runtime_entry_quality']}** (Δ=**{deployment_grade_component_experiment['entry_quality_delta_vs_legacy']}**)",
-        f"- baseline -> runtime layers: **{deployment_grade_component_experiment['baseline_allowed_layers_raw']} → {deployment_grade_component_experiment['runtime_allowed_layers_raw']}**",
+        f"- baseline -> calibration runtime entry_quality: **{deployment_grade_component_experiment['baseline_entry_quality']} → {deployment_grade_component_experiment['calibration_runtime_entry_quality']}** (Δ=**{deployment_grade_component_experiment['calibration_runtime_delta_vs_legacy']}**)",
+        f"- baseline -> deployed runtime entry_quality: **{deployment_grade_component_experiment['baseline_entry_quality']} → {deployment_grade_component_experiment['runtime_entry_quality']}** (Δ=**{deployment_grade_component_experiment['entry_quality_delta_vs_legacy']}**)",
+        f"- baseline -> calibration -> deployed layers: **{deployment_grade_component_experiment['baseline_allowed_layers_raw']} → {deployment_grade_component_experiment['calibration_runtime_allowed_layers_raw']} → {deployment_grade_component_experiment['runtime_allowed_layers_raw']}**",
         f"- machine_read: entry_quality>=0.55=**{deployment_grade_component_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{deployment_grade_component_experiment['machine_read_answer']['allowed_layers_gt_0']}**",
+        f"- runtime_source: **{deployment_grade_component_experiment['runtime_source']}** | q35_discriminative_redesign_applied=**{deployment_grade_component_experiment['q35_discriminative_redesign_applied']}**",
         f"- runtime gap to floor: **{deployment_grade_component_experiment['runtime_remaining_gap_to_floor']}**",
         f"- next patch target: **{deployment_grade_component_experiment['next_patch_target']}**",
         "",
@@ -1270,6 +1483,13 @@ def main() -> None:
         f"- best scenario: **{(joint_component_experiment.get('best_scenario') or {}).get('scenario')}** → entry_quality **{((joint_component_experiment.get('best_scenario') or {}).get('entry_quality_after'))}** / layers **{((joint_component_experiment.get('best_scenario') or {}).get('allowed_layers_after'))}** / gap **{((joint_component_experiment.get('best_scenario') or {}).get('remaining_gap_to_floor'))}**",
         f"- required_bias50_cap_after_best_scenario: **{((joint_component_experiment.get('best_scenario') or {}).get('required_bias50_cap_after_swing_uplift'))}**",
         f"- note: {joint_component_experiment['reason']}",
+        "",
+        "## Exact-supported bias50 component experiment",
+        "",
+        f"- verdict: **{exact_supported_bias50_component_experiment['verdict']}**",
+        f"- machine_read: entry_quality>=0.55=**{exact_supported_bias50_component_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{exact_supported_bias50_component_experiment['machine_read_answer']['allowed_layers_gt_0']}** | used_exact_supported_target=**{exact_supported_bias50_component_experiment['machine_read_answer']['used_exact_supported_target']}**",
+        f"- best scenario: **{(exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('scenario')}** → entry_quality **{((exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('entry_quality_after'))}** / layers **{((exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('allowed_layers_after'))}** / gap **{((exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('remaining_gap_to_floor'))}** / target_score **{((exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('target_score'))}**",
+        f"- note: {exact_supported_bias50_component_experiment['reason']}",
         "",
         "## Base-mix component experiment（bias50 + pulse + nose）",
         "",
@@ -1305,8 +1525,11 @@ def main() -> None:
             "verdict": deployment_grade_component_experiment["verdict"],
             "entry_quality_ge_0_55": deployment_grade_component_experiment["machine_read_answer"]["entry_quality_ge_0_55"],
             "allowed_layers_gt_0": deployment_grade_component_experiment["machine_read_answer"]["allowed_layers_gt_0"],
+            "calibration_runtime_entry_quality": deployment_grade_component_experiment["calibration_runtime_entry_quality"],
             "runtime_entry_quality": deployment_grade_component_experiment["runtime_entry_quality"],
             "runtime_remaining_gap_to_floor": deployment_grade_component_experiment["runtime_remaining_gap_to_floor"],
+            "q35_discriminative_redesign_applied": deployment_grade_component_experiment["q35_discriminative_redesign_applied"],
+            "runtime_source": deployment_grade_component_experiment["runtime_source"],
         },
         "joint_component_experiment": {
             "verdict": joint_component_experiment["verdict"],
@@ -1315,6 +1538,16 @@ def main() -> None:
             "best_scenario": (joint_component_experiment.get("best_scenario") or {}).get("scenario"),
             "best_entry_quality": (joint_component_experiment.get("best_scenario") or {}).get("entry_quality_after"),
             "best_remaining_gap_to_floor": (joint_component_experiment.get("best_scenario") or {}).get("remaining_gap_to_floor"),
+        },
+        "exact_supported_bias50_component_experiment": {
+            "verdict": exact_supported_bias50_component_experiment["verdict"],
+            "entry_quality_ge_0_55": exact_supported_bias50_component_experiment["machine_read_answer"]["entry_quality_ge_0_55"],
+            "allowed_layers_gt_0": exact_supported_bias50_component_experiment["machine_read_answer"]["allowed_layers_gt_0"],
+            "used_exact_supported_target": exact_supported_bias50_component_experiment["machine_read_answer"]["used_exact_supported_target"],
+            "best_scenario": (exact_supported_bias50_component_experiment.get("best_scenario") or {}).get("scenario"),
+            "best_entry_quality": (exact_supported_bias50_component_experiment.get("best_scenario") or {}).get("entry_quality_after"),
+            "best_remaining_gap_to_floor": (exact_supported_bias50_component_experiment.get("best_scenario") or {}).get("remaining_gap_to_floor"),
+            "best_target_score": (exact_supported_bias50_component_experiment.get("best_scenario") or {}).get("target_score"),
         },
         "base_mix_component_experiment": {
             "verdict": base_mix_component_experiment["verdict"],
