@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from backtesting import strategy_lab
 from server.routes import api as api_module
 from model import predictor as predictor_module
+from model import q35_bias50_calibration as q35_calibration_module
 
 
 class _FakeQuery:
@@ -33,7 +35,7 @@ class _FakeSession:
 
 def test_api_features_exposes_extended_feature_history_keys(monkeypatch):
     row = SimpleNamespace(
-        timestamp=SimpleNamespace(isoformat=lambda: "2026-04-08T12:00:00"),
+        timestamp=datetime(2026, 4, 8, 12, 0, 0),
         feat_eye=0.1,
         feat_ear=0.2,
         feat_nose=0.3,
@@ -95,6 +97,10 @@ def test_api_features_exposes_extended_feature_history_keys(monkeypatch):
     ]:
         assert key in payload
         assert payload[key] is not None
+        assert f"raw_{key}" in payload
+    assert payload["timestamp"] == "2026-04-08T12:00:00Z"
+    assert payload["raw_fang_pcr"] == pytest.approx(0.5)
+    assert payload["raw_claw"] == pytest.approx(0.3)
 
 
 def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
@@ -206,6 +212,11 @@ def test_live_decision_profile_matches_strategy_lab_baseline():
     assert profile["allowed_layers"] == expected_layers
     assert profile["allowed_layers_reason"] == "full_three_layers_allowed"
     assert profile["entry_quality_label"] == "A"
+    assert profile["entry_quality_components"]["entry_quality"] == expected_quality
+    assert profile["entry_quality_components"]["trade_floor"] == 0.55
+    assert profile["entry_quality_components"]["trade_floor_gap"] == round(expected_quality - 0.55, 4)
+    assert profile["entry_quality_components"]["base_components"][0]["feature"] == "feat_4h_bias50"
+    assert profile["entry_quality_components"]["structure_components"][0]["feature"] == "feat_4h_bb_pct_b"
     assert profile["decision_profile_version"] == "phase16_baseline_v2"
 
 
@@ -288,7 +299,172 @@ def test_live_decision_profile_downgrades_borderline_allow_q35_to_caution():
     assert profile["structure_bucket"] == "CAUTION|structure_quality_caution|q35"
     assert profile["allowed_layers"] == 0
     assert profile["allowed_layers_reason"] == "entry_quality_below_trade_floor"
+    assert profile["entry_quality_components"]["trade_floor_gap"] < 0
+    assert profile["entry_quality_components"]["structure_quality"] == debug["structure_quality"]
     assert expected_gate == "CAUTION"
+
+
+def test_piecewise_q35_bias50_calibration_uses_bull_reference_extension(tmp_path, monkeypatch):
+    audit_path = tmp_path / "q35_scaling_audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "overall_verdict": "broader_bull_cohort_recalibration_candidate",
+                "current_live": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                },
+                "segmented_calibration": {
+                    "status": "segmented_calibration_required",
+                    "recommended_mode": "piecewise_quantile_calibration",
+                    "exact_lane": {
+                        "bias50_distribution": {"p90": 3.1054},
+                    },
+                    "reference_cohort": {
+                        "cohort": "bull_all",
+                        "bias50_distribution": {"p90": 4.4607},
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(q35_calibration_module, "DEFAULT_Q35_AUDIT_PATH", audit_path)
+    q35_calibration_module._AUDIT_CACHE.update({"path": None, "mtime": None, "data": None})
+
+    result = q35_calibration_module.compute_piecewise_bias50_score(
+        3.7867,
+        regime_label="bull",
+        regime_gate="CAUTION",
+        structure_bucket="CAUTION|structure_quality_caution|q35",
+    )
+
+    assert result["applied"] is True
+    assert result["mode"] == "piecewise_quantile_calibration"
+    assert result["reference_cohort"] == "bull_all"
+    assert result["segment"] == "bull_reference_extension"
+    assert result["legacy_score"] == 0.0
+    assert 0.05 < result["score"] < 0.35
+    assert result["score_delta_vs_legacy"] > 0
+
+
+
+def test_piecewise_q35_bias50_calibration_supports_exact_lane_formula_review(tmp_path, monkeypatch):
+    audit_path = tmp_path / "q35_scaling_audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "overall_verdict": "bias50_formula_may_be_too_harsh",
+                "current_live": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                },
+                "segmented_calibration": {
+                    "status": "formula_review_required",
+                    "recommended_mode": "exact_lane_formula_review",
+                    "exact_lane": {
+                        "bias50_distribution": {"p75": 3.0207, "p90": 3.4106},
+                    },
+                    "reference_cohort": {
+                        "cohort": "same_gate_same_quality",
+                        "bias50_distribution": {"p90": 3.3233},
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(q35_calibration_module, "DEFAULT_Q35_AUDIT_PATH", audit_path)
+    q35_calibration_module._AUDIT_CACHE.update({"path": None, "mtime": None, "data": None})
+
+    result = q35_calibration_module.compute_piecewise_bias50_score(
+        3.2357,
+        regime_label="bull",
+        regime_gate="CAUTION",
+        structure_bucket="CAUTION|structure_quality_caution|q35",
+    )
+
+    assert result["applied"] is True
+    assert result["mode"] == "exact_lane_formula_review"
+    assert result["segment"] == "exact_lane_elevated_within_p90"
+    assert result["score"] > result["legacy_score"]
+    assert result["score"] < 0.18
+    assert result["reference_cohort"] == "same_gate_same_quality"
+
+
+
+def test_live_decision_profile_exposes_bias50_piecewise_calibration_diagnostics(tmp_path, monkeypatch):
+    audit_path = tmp_path / "q35_scaling_audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "overall_verdict": "broader_bull_cohort_recalibration_candidate",
+                "current_live": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                },
+                "segmented_calibration": {
+                    "status": "segmented_calibration_required",
+                    "recommended_mode": "piecewise_quantile_calibration",
+                    "exact_lane": {
+                        "bias50_distribution": {"p90": 3.1054},
+                    },
+                    "reference_cohort": {
+                        "cohort": "bull_all",
+                        "bias50_distribution": {"p90": 4.4607},
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(q35_calibration_module, "DEFAULT_Q35_AUDIT_PATH", audit_path)
+    q35_calibration_module._AUDIT_CACHE.update({"path": None, "mtime": None, "data": None})
+
+    features = {
+        "regime_label": "bull",
+        "feat_4h_bias200": 1.8,
+        "feat_4h_bias50": 3.7867,
+        "feat_nose": 0.5839,
+        "feat_pulse": 0.6049,
+        "feat_ear": -0.0084,
+        "feat_4h_bb_pct_b": 0.6002,
+        "feat_4h_dist_bb_lower": 1.8799,
+        "feat_4h_dist_swing_low": 5.512,
+    }
+
+    profile = predictor_module._build_live_decision_profile(features)
+    strategy_quality = strategy_lab._compute_entry_quality(
+        3.7867,
+        0.5839,
+        0.6049,
+        -0.0084,
+        0.6002,
+        1.8799,
+        5.512,
+        regime_label="bull",
+        regime_gate="CAUTION",
+        structure_bucket="CAUTION|structure_quality_caution|q35",
+    )
+
+    calibration = profile["entry_quality_components"]["bias50_calibration"]
+    assert profile["regime_gate"] == "CAUTION"
+    assert profile["structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert calibration["applied"] is True
+    assert calibration["mode"] == "piecewise_quantile_calibration"
+    assert calibration["segment"] == "bull_reference_extension"
+    assert calibration["score"] > calibration["legacy_score"]
+    assert profile["entry_quality"] == strategy_quality
+    assert profile["allowed_layers"] == 0
+    assert profile["allowed_layers_reason"] == "entry_quality_below_trade_floor"
+    assert profile["entry_quality_components"]["trade_floor_gap"] < 0
+
 
 
 def test_exact_live_lane_bucket_diagnostics_treats_single_bucket_as_no_split():

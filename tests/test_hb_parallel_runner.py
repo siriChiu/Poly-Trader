@@ -2,11 +2,24 @@ import importlib.util
 import json
 from pathlib import Path
 
+from model import q35_bias50_calibration as q35_calibration_module
+
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "hb_parallel_runner.py"
 spec = importlib.util.spec_from_file_location("hb_parallel_runner_test_module", MODULE_PATH)
 hb_parallel_runner = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 spec.loader.exec_module(hb_parallel_runner)
+
+Q35_AUDIT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "hb_q35_scaling_audit.py"
+q35_spec = importlib.util.spec_from_file_location("hb_q35_scaling_audit_test_module", Q35_AUDIT_PATH)
+hb_q35_scaling_audit = importlib.util.module_from_spec(q35_spec)
+assert q35_spec.loader is not None
+q35_spec.loader.exec_module(hb_q35_scaling_audit)
+
+
+class _DictRow(dict):
+    def keys(self):
+        return super().keys()
 
 
 def test_parse_args_allows_fast_without_hb():
@@ -35,6 +48,164 @@ def test_parse_collect_metadata_extracts_continuity_repair_json():
     assert parsed["inserted_total"] == 3
     assert parsed["bridge_inserted"] == 1
     assert parsed["used_bridge"] is True
+
+
+def test_q35_audit_current_row_context_uses_piecewise_bias50_calibration(tmp_path, monkeypatch):
+    audit_path = tmp_path / "q35_scaling_audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "overall_verdict": "broader_bull_cohort_recalibration_candidate",
+                "current_live": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                },
+                "segmented_calibration": {
+                    "status": "segmented_calibration_required",
+                    "recommended_mode": "piecewise_quantile_calibration",
+                    "exact_lane": {
+                        "bias50_distribution": {"p90": 3.1054},
+                    },
+                    "reference_cohort": {
+                        "cohort": "bull_all",
+                        "bias50_distribution": {"p90": 4.4607},
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(q35_calibration_module, "DEFAULT_Q35_AUDIT_PATH", audit_path)
+    q35_calibration_module._AUDIT_CACHE.update({"path": None, "mtime": None, "data": None})
+    monkeypatch.setattr(hb_q35_scaling_audit.live_predictor, "_compute_live_regime_gate_debug", lambda *args, **kwargs: {
+        "final_gate": "CAUTION",
+        "base_gate": "ALLOW",
+        "final_reason": "structure_quality_caution",
+        "structure_quality": 0.3804,
+    })
+    monkeypatch.setattr(
+        hb_q35_scaling_audit.live_predictor,
+        "_live_structure_bucket_from_debug",
+        lambda debug: "CAUTION|structure_quality_caution|q35",
+    )
+    row = _DictRow(
+        timestamp="2026-04-15 02:39:05.273899",
+        symbol="BTCUSDT",
+        regime_label="bull",
+        feat_4h_bias50=3.23,
+        feat_4h_bias200=5.934,
+        feat_nose=0.417,
+        feat_pulse=0.7533,
+        feat_ear=-0.0026,
+        feat_4h_bb_pct_b=0.4575,
+        feat_4h_dist_bb_lower=1.4566,
+        feat_4h_dist_swing_low=4.9917,
+    )
+
+    current = hb_q35_scaling_audit._build_row_context(row)
+    preview = hb_q35_scaling_audit.compute_piecewise_bias50_score(
+        row["feat_4h_bias50"],
+        regime_label="bull",
+        regime_gate="CAUTION",
+        structure_bucket="CAUTION|structure_quality_caution|q35",
+        audit=json.loads(audit_path.read_text(encoding="utf-8")),
+    )
+
+    calibration = current["entry_quality_components"]["bias50_calibration"]
+    assert current["regime_gate"] == "CAUTION"
+    assert current["structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert calibration["applied"] is True
+    assert calibration["segment"] == "bull_reference_extension"
+    assert calibration["score"] == preview["score"]
+    assert calibration["reference_cohort"] == "bull_all"
+    assert current["entry_quality"] > 0.5
+
+    segmented = {
+        "status": "segmented_calibration_required",
+        "recommended_mode": "piecewise_quantile_calibration",
+        "exact_lane": {"bias50_distribution": {"p90": 3.1054}},
+        "reference_cohort": {"cohort": "bull_all", "bias50_distribution": {"p90": 4.4607}},
+    }
+    preview_with_context = hb_q35_scaling_audit.compute_piecewise_bias50_score(
+        row["feat_4h_bias50"],
+        regime_label="bull",
+        regime_gate="CAUTION",
+        structure_bucket="CAUTION|structure_quality_caution|q35",
+        audit={
+            "overall_verdict": "broader_bull_cohort_recalibration_candidate",
+            "segmented_calibration": segmented,
+            "current_live": {
+                "regime_label": "bull",
+                "regime_gate": "CAUTION",
+                "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            },
+        },
+    )
+    runtime_status, runtime_reason = hb_q35_scaling_audit._runtime_contract_state(
+        {
+            **segmented,
+            "status": "segmented_calibration_required",
+            "exact_lane": {"percentile_band": "overheat", "bias50_distribution": {"p90": 3.1054}},
+        },
+        preview_with_context,
+    )
+    assert runtime_status == "piecewise_runtime_active"
+    assert "實際套用" in runtime_reason
+
+
+def test_q35_runtime_contract_state_marks_runtime_ready_when_current_row_is_back_inside_exact_lane():
+    runtime_status, runtime_reason = hb_q35_scaling_audit._runtime_contract_state(
+        {
+            "status": "segmented_calibration_required",
+            "exact_lane": {"percentile_band": "elevated_but_within_p90"},
+        },
+        {
+            "applied": False,
+            "mode": "legacy_linear",
+            "segment": None,
+        },
+    )
+
+    assert runtime_status == "piecewise_runtime_ready_current_row_outside_extension"
+    assert "已經實作" in runtime_reason
+    assert "不需要套用" in runtime_reason
+
+
+
+def test_q35_runtime_contract_state_marks_formula_review_active_when_exact_lane_score_is_applied():
+    runtime_status, runtime_reason = hb_q35_scaling_audit._runtime_contract_state(
+        {
+            "status": "formula_review_required",
+            "exact_lane": {"percentile_band": "elevated_but_within_p90"},
+        },
+        {
+            "applied": True,
+            "mode": "exact_lane_formula_review",
+            "segment": "exact_lane_elevated_within_p90",
+        },
+    )
+
+    assert runtime_status == "piecewise_runtime_active"
+    assert "實際套用" in runtime_reason
+
+
+def test_q35_runtime_contract_state_marks_hold_only_when_reference_band_is_still_overheat():
+    runtime_status, runtime_reason = hb_q35_scaling_audit._runtime_contract_state(
+        {
+            "status": "segmented_calibration_required",
+            "exact_lane": {"percentile_band": "overheat"},
+        },
+        {
+            "applied": False,
+            "mode": "piecewise_quantile_calibration",
+            "segment": "reference_overheat",
+        },
+    )
+
+    assert runtime_status == "piecewise_runtime_ready_hold_only_current_row"
+    assert "hold-only" in runtime_reason
 
 
 def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monkeypatch):
@@ -66,6 +237,16 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
         ic_diagnostics={"global_pass": 13, "tw_pass": 10, "total_features": 30},
         drift_diagnostics={"primary_window": "100", "primary_alerts": ["regime_concentration"]},
         live_predictor_diagnostics={"decision_quality_label": "D", "allowed_layers": 0},
+        q35_scaling_audit={
+            "overall_verdict": "hold_only_bias50_overheat_confirmed",
+            "structure_scaling_verdict": "q35_structure_caution_not_root_cause",
+            "broader_bull_cohorts": {"bull_all": {"current_bias50_percentile": 0.99}},
+            "segmented_calibration": {
+                "status": "hold_only_confirmed",
+                "recommended_mode": "keep_hold_only",
+                "reference_cohort": {},
+            },
+        },
         feature_ablation={"recommended_profile": "core_plus_macro", "profile_role": {"role": "global_shrinkage_winner"}},
         bull_4h_pocket_ablation={"bull_collapse_q35": {"recommended_profile": "core_plus_macro"}, "production_profile_role": {"role": "support_aware_production_profile"}},
         leaderboard_candidate_diagnostics={"selected_feature_profile": "core_only", "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback", "profile_split": {"verdict": "dual_role_required"}},
@@ -81,6 +262,8 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert summary["ic_diagnostics"]["tw_pass"] == 10
     assert summary["drift_diagnostics"]["primary_window"] == "100"
     assert summary["live_predictor_diagnostics"]["decision_quality_label"] == "D"
+    assert summary["q35_scaling_audit"]["overall_verdict"] == "hold_only_bias50_overheat_confirmed"
+    assert summary["q35_scaling_audit"]["segmented_calibration"]["status"] == "hold_only_confirmed"
     assert summary["feature_ablation"]["recommended_profile"] == "core_plus_macro"
     assert summary["feature_ablation"]["profile_role"]["role"] == "global_shrinkage_winner"
     assert summary["bull_4h_pocket_ablation"]["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
@@ -97,6 +280,9 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert saved["ic_diagnostics"]["global_pass"] == 13
     assert saved["drift_diagnostics"]["primary_alerts"] == ["regime_concentration"]
     assert saved["live_predictor_diagnostics"]["allowed_layers"] == 0
+    assert saved["q35_scaling_audit"]["structure_scaling_verdict"] == "q35_structure_caution_not_root_cause"
+    assert saved["q35_scaling_audit"]["broader_bull_cohorts"]["bull_all"]["current_bias50_percentile"] == 0.99
+    assert saved["q35_scaling_audit"]["segmented_calibration"]["recommended_mode"] == "keep_hold_only"
     assert saved["feature_ablation"]["recommended_profile"] == "core_plus_macro"
     assert saved["feature_ablation"]["profile_role"]["role"] == "global_shrinkage_winner"
     assert saved["bull_4h_pocket_ablation"]["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
@@ -236,6 +422,138 @@ def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypat
     assert diag["decision_quality_label"] == "D"
     assert diag["non_null_4h_lag_count"] == 30
     assert diag["decision_quality_scope_diagnostics"]["entry_quality_label"]["rows"] == 3186
+
+
+def test_collect_q35_scaling_audit_diagnostics_reads_hold_only_verdict(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "q35_scaling_audit.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-15 00:31:10",
+                "target_col": "simulated_pyramid_win",
+                "overall_verdict": "hold_only_bias50_overheat_confirmed",
+                "structure_scaling_verdict": "q35_structure_caution_not_root_cause",
+                "verdict_reason": "gate alone does not change layers",
+                "recommended_action": "keep hold-only",
+                "current_live": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "base_gate": "ALLOW",
+                    "gate_reason": "structure_quality_caution",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "structure_quality": 0.4553,
+                    "entry_quality": 0.5341,
+                    "entry_quality_label": "D",
+                    "allowed_layers_raw": 0,
+                    "allowed_layers_reason": "entry_quality_below_trade_floor",
+                    "entry_quality_components": {
+                        "bias50_calibration": {
+                            "applied": True,
+                            "score": 0.3224,
+                            "legacy_score": 0.0,
+                            "score_delta_vs_legacy": 0.3224,
+                            "mode": "piecewise_quantile_calibration",
+                            "segment": "bull_reference_extension",
+                            "reference_cohort": "bull_all"
+                        }
+                    },
+                    "raw_features": {
+                        "feat_4h_bias50": 3.7318,
+                        "feat_4h_bias200": 6.4571
+                    }
+                },
+                "exact_lane_summary": {
+                    "rows": 90,
+                    "win_rate": 1.0,
+                    "current_bias50_percentile": 1.0,
+                    "bias50_distribution": {"p90": 3.1054},
+                    "structure_quality_distribution": {"p50": 0.5996},
+                    "entry_quality_distribution": {"p90": 0.4944}
+                },
+                "broader_bull_cohorts": {
+                    "same_gate_same_quality": {
+                        "rows": 105,
+                        "win_rate": 0.9714,
+                        "current_bias50_percentile": 0.98,
+                        "bias50_distribution": {"p90": 3.55}
+                    },
+                    "same_bucket": {
+                        "rows": 90,
+                        "win_rate": 1.0,
+                        "current_bias50_percentile": 1.0,
+                        "bias50_distribution": {"p90": 3.11}
+                    },
+                    "bull_all": {
+                        "rows": 768,
+                        "win_rate": 0.7057,
+                        "current_bias50_percentile": 0.99,
+                        "bias50_distribution": {"p90": 3.4}
+                    }
+                },
+                "segmented_calibration": {
+                    "status": "hold_only_confirmed",
+                    "recommended_mode": "keep_hold_only",
+                    "reason": "current bias50 高於所有候選 cohorts 的 p90",
+                    "runtime_contract_status": "piecewise_runtime_active",
+                    "runtime_contract_reason": "piecewise bias50 calibration 已由 predictor / q35 audit 實際套用到 current bull q35 lane；後續 heartbeat 不得再把這題描述成 runtime 尚未吃到新公式。",
+                    "exact_lane": {
+                        "current_bias50_percentile": 1.0,
+                        "percentile_band": "overheat",
+                        "delta_vs_p90": 0.6264
+                    },
+                    "reference_cohort": {},
+                    "broader_bull_cohorts": {
+                        "bull_all": {
+                            "current_bias50_percentile": 0.99,
+                            "percentile_band": "overheat"
+                        }
+                    }
+                },
+                "piecewise_runtime_preview": {
+                    "applied": True,
+                    "score": 0.3224,
+                    "legacy_score": 0.0,
+                    "score_delta_vs_legacy": 0.3224,
+                    "mode": "piecewise_quantile_calibration",
+                    "segment": "bull_reference_extension",
+                    "reference_cohort": "bull_all",
+                    "reason": "bias50 is above the exact-lane p90 but still inside the broader bull reference p90; use a decaying extension score instead of forcing a zero score.",
+                    "exact_p90": 3.1054,
+                    "reference_p90": 4.4607
+                },
+                "counterfactuals": {
+                    "entry_if_gate_allow_only": 0.3726,
+                    "layers_if_gate_allow_only": 0,
+                    "gate_allow_only_changes_layers": False,
+                    "entry_if_bias50_fully_relaxed": 0.6726,
+                    "layers_if_bias50_fully_relaxed": 1,
+                    "required_bias50_cap_for_floor": -0.5565,
+                    "current_bias50_value": 3.7318
+                }
+            }
+        )
+    )
+
+    diag = hb_parallel_runner.collect_q35_scaling_audit_diagnostics()
+
+    assert diag["overall_verdict"] == "hold_only_bias50_overheat_confirmed"
+    assert diag["structure_scaling_verdict"] == "q35_structure_caution_not_root_cause"
+    assert diag["segmented_calibration"]["status"] == "hold_only_confirmed"
+    assert diag["segmented_calibration"]["runtime_contract_status"] == "piecewise_runtime_active"
+    assert "實際套用" in diag["segmented_calibration"]["runtime_contract_reason"]
+    assert diag["segmented_calibration"]["exact_lane"]["percentile_band"] == "overheat"
+    assert diag["current_live"]["feat_4h_bias50"] == 3.7318
+    assert diag["current_live"]["bias50_calibration"]["applied"] is True
+    assert diag["current_live"]["bias50_calibration"]["segment"] == "bull_reference_extension"
+    assert diag["exact_lane_summary"]["current_bias50_percentile"] == 1.0
+    assert diag["broader_bull_cohorts"]["same_gate_same_quality"]["rows"] == 105
+    assert diag["broader_bull_cohorts"]["bull_all"]["current_bias50_percentile"] == 0.99
+    assert diag["piecewise_runtime_preview"]["applied"] is True
+    assert diag["piecewise_runtime_preview"]["reference_cohort"] == "bull_all"
+    assert diag["counterfactuals"]["gate_allow_only_changes_layers"] is False
+    assert diag["counterfactuals"]["layers_if_bias50_fully_relaxed"] == 1
 
 
 def test_collect_feature_ablation_diagnostics_reads_recommended_profile(tmp_path, monkeypatch):
