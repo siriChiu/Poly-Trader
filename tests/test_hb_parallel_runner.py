@@ -208,6 +208,31 @@ def test_q35_runtime_contract_state_marks_hold_only_when_reference_band_is_still
     assert "hold-only" in runtime_reason
 
 
+def test_collect_live_predictor_diagnostics_preserves_circuit_breaker_reason():
+    payload = {
+        "target_col": "simulated_pyramid_win",
+        "used_model": "circuit_breaker",
+        "model_type": "circuit_breaker",
+        "signal": "CIRCUIT_BREAKER",
+        "confidence": 0.5,
+        "should_trade": False,
+        "reason": "Consecutive loss streak: 50 >= 50",
+        "streak": 50,
+        "win_rate": None,
+        "regime_label": "bull",
+        "allowed_layers": 0,
+    }
+
+    result = hb_parallel_runner.collect_live_predictor_diagnostics({"stdout": json.dumps(payload)})
+
+    assert result["model_type"] == "circuit_breaker"
+    assert result["signal"] == "CIRCUIT_BREAKER"
+    assert result["runtime_blocker"] == "circuit_breaker"
+    assert result["reason"] == "Consecutive loss streak: 50 >= 50"
+    assert result["streak"] == 50
+    assert result["allowed_layers"] == 0
+
+
 def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
 

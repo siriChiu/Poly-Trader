@@ -64,6 +64,43 @@ def _load_q35_audit_counterfactuals() -> dict[str, Any]:
     return payload.get("counterfactuals") or {}
 
 
+def _runtime_blocker_summary(payload: dict[str, Any]) -> dict[str, Any] | None:
+    signal = str(payload.get("signal") or "")
+    model_type = str(payload.get("model_type") or "")
+    if signal != "CIRCUIT_BREAKER" and model_type != "circuit_breaker":
+        return None
+    return {
+        "type": "circuit_breaker",
+        "signal": signal or "CIRCUIT_BREAKER",
+        "model_type": model_type or "circuit_breaker",
+        "reason": payload.get("reason"),
+        "streak": payload.get("streak"),
+        "win_rate": payload.get("win_rate"),
+        "allowed_layers": payload.get("allowed_layers"),
+    }
+
+
+def _unavailable_component_gap_attribution(reason: str | None, blocker: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "trade_floor": None,
+        "entry_quality": None,
+        "remaining_gap_to_floor": None,
+        "base_group_max_entry_gain": None,
+        "structure_group_max_entry_gain": None,
+        "best_single_component": None,
+        "single_component_floor_crossers": [],
+        "components_by_headroom": [],
+        "bias50_floor_counterfactual": {
+            "entry_if_bias50_fully_relaxed": None,
+            "layers_if_bias50_fully_relaxed": None,
+            "required_bias50_cap_for_floor": None,
+            "current_bias50_value": None,
+        },
+        "unavailable_reason": reason,
+        "runtime_blocker": blocker or None,
+    }
+
+
 def _component_gap_attribution(eq_components: dict[str, Any], q35_counterfactuals: dict[str, Any]) -> dict[str, Any]:
     trade_floor = float(eq_components.get("trade_floor") or 0.55)
     entry_quality = float(eq_components.get("entry_quality") or 0.0)
@@ -161,6 +198,7 @@ def main() -> None:
     payload = json.loads(PROBE_PATH.read_text(encoding="utf-8"))
     diags = payload.get("decision_quality_scope_diagnostics") or {}
     consensus = diags.get("pathology_consensus") or {}
+    runtime_blocker = _runtime_blocker_summary(payload)
 
     chosen_scope = str(payload.get("decision_quality_calibration_scope") or "unknown")
     exact_scope_name = "regime_label+regime_gate+entry_quality_label"
@@ -169,7 +207,13 @@ def main() -> None:
 
     entry_quality_components = payload.get("entry_quality_components") or {}
     q35_counterfactuals = _load_q35_audit_counterfactuals()
-    component_gap_attribution = _component_gap_attribution(entry_quality_components, q35_counterfactuals)
+    if entry_quality_components:
+        component_gap_attribution = _component_gap_attribution(entry_quality_components, q35_counterfactuals)
+    else:
+        component_gap_attribution = _unavailable_component_gap_attribution(
+            (runtime_blocker or {}).get("reason") or "entry_quality_components unavailable for current live row",
+            blocker=runtime_blocker,
+        )
 
     report = {
         "generated_at": payload.get("feature_timestamp"),
@@ -182,6 +226,7 @@ def main() -> None:
         "entry_quality_label": payload.get("entry_quality_label"),
         "entry_quality_components": entry_quality_components,
         "component_gap_attribution": component_gap_attribution,
+        "runtime_blocker": runtime_blocker,
         "allowed_layers_raw": payload.get("allowed_layers_raw"),
         "allowed_layers": payload.get("allowed_layers"),
         "allowed_layers_reason": payload.get("allowed_layers_reason"),
@@ -239,6 +284,7 @@ def main() -> None:
         f"- layers: **{report['allowed_layers_raw']} → {report['allowed_layers']}**",
         f"- allowed_layers_reason: `{report['allowed_layers_reason']}`",
         f"- execution_guardrail_reason: `{report['execution_guardrail_reason']}`",
+        f"- runtime_blocker: `{(runtime_blocker or {}).get('type')}` | reason: `{(runtime_blocker or {}).get('reason')}`",
         "",
         "## Entry-quality component breakdown",
         "",
@@ -255,6 +301,7 @@ def main() -> None:
         f"- best_single_component: **{best_component.get('feature')}**（group={best_component.get('group')}, Δscore≈{best_component.get('required_score_delta_to_cross_floor')}, max_gain≈{best_component.get('max_entry_gain_if_perfect')}）",
         f"- single-component floor crossers: {crosser_text}",
         f"- bias50 fully relaxed: entry≈**{bias50_cf.get('entry_if_bias50_fully_relaxed')}** / layers≈**{bias50_cf.get('layers_if_bias50_fully_relaxed')}** / required_bias50_cap≈**{bias50_cf.get('required_bias50_cap_for_floor')}**",
+        f"- unavailable_reason: `{gap_attr.get('unavailable_reason')}`",
         "",
         "## Scope comparison",
         "",
@@ -272,6 +319,7 @@ def main() -> None:
         "",
         "## Interpretation",
         "",
+        "- if `runtime_blocker.type=circuit_breaker`, the current live row is blocked before the decision-quality contract is evaluated; treat q35/q15 diagnostics as background research, not deployable live routing.",
         "- exact live lane and chosen scope are separated on purpose: if exact lane is tiny or lacks current structure-bucket support, runtime must not trust it blindly.",
         "- broader same-gate scope is still useful only as a structure-bucket fallback, not as the primary semantic representative of the live bull path.",
         "- if the shared shift set remains dominated by `feat_4h_dist_swing_low / feat_4h_dist_bb_lower / feat_4h_bb_pct_b`, the next fix should stay on 4H structure collapse rather than generic calibration tuning.",
@@ -284,6 +332,8 @@ def main() -> None:
         "markdown": str(OUT_MD),
         "chosen_scope": chosen_scope,
         "worst_pathology_scope": worst.get("scope"),
+        "runtime_blocker": (runtime_blocker or {}).get("type"),
+        "runtime_blocker_reason": (runtime_blocker or {}).get("reason"),
         "remaining_gap_to_floor": gap_attr.get("remaining_gap_to_floor"),
         "best_single_component": (best_component.get("feature") if best_component else None),
         "best_single_component_required_score_delta": (best_component.get("required_score_delta_to_cross_floor") if best_component else None),

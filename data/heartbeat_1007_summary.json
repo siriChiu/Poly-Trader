@@ -1,0 +1,1696 @@
+{
+  "heartbeat": "1007",
+  "mode": "fast",
+  "timestamp": "2026-04-15T06:09:18.973123+00:00",
+  "collect_result": {
+    "attempted": true,
+    "success": true,
+    "returncode": 0,
+    "stdout_preview": "============================================================\n  \u6578\u64da\u6536\u96c6\u7ba1\u7dda v1 \u555f\u52d5\u65bc 2026-04-15 06:04:30 UTC\n============================================================\n\n\ud83d\udcca \u57f7\u884c\u524d\uff1aRaw=21581, Features=13010, Labels=43241\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Step 1: Data Collection \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nCONTINUITY_REPAIR_META: {\"bridge_inserted\": 0, \"coarse_inserted\": 0, \"coarse_interval\": \"4h\", \"fine_inserted\": 0, \"fine_interval\": \"1h\", \"inserted_total\": 0, \"lookback_days\": 7, \"skipped_no_klines\": false, \"symbol\": \"BTCUSDT\", \"used_bridge\": false, \"used_fine_grain\": false}\n\u2705 Raw \u6578\u64da\u6536\u96c6\u6210\u529f\uff08\u7e3d\u7b46\u6578=21582\uff09\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Step 2: Feature Engineering \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\u2705 \u7279\u5fb5\u5de5\u7a0b\u6210\u529f\uff08\u7e3d\u7b46\u6578=13011\uff09\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Step 3: Regime Assignment \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n\ud83c\udfdb\ufe0f  \u6b63\u5728\u88dc\u9f4a regime labels...\n  \u2705 \u6240\u6709 features \u90fd\u5df2\u5177\u5099 regime labels\uff08\u7e3d\u7b46\u6578=13011\uff09\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Step 4: Label Generation \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\u2705 Label horizon 4h \u5df2\u5b8c\u6210 \uff08generated=12730, db_rows=21652, delta=+15\uff09\n\u2705 Label horizon 24h \u5df2\u5b8c\u6210 \uff08generated=12519, db_rows=12519, delta=+0\uff09\n\u2705 Label \u7ba1\u7dda\u5b8c\u6210\uff08\u7e3d\u7b46\u6578=43256\uff09\n\n\ud83d\udcca \u57f7\u884c\u5f8c\uff1aRaw=21582 (+1), Features=13011 (+1), Labels=43256 (+15)\n\n\u2705 \u7ba1\u7dda\u6062\u5fa9\uff1a+1 raw, +1 features, +15 labels\n\n\ud83c\udfdb\ufe0f  Regime distribution:\n  bear: 1440\n  bull: 707\n  chop: 10716\n  neutral: 148\n\n\ud83c\udff7\ufe0f  Label horizon freshness:\n  h= 240m | rows=21652  target_rows=12730  latest_target=2026-04-15 03:04:33.264322 lag_vs_raw=3.0h raw_gap=0.5h | expected due to lookahead horizon\n  h= 720m | rows=9085   target_rows=0      latest_target=N/A lag_vs_raw=n/a raw_gap=n/a | legacy horizon present in DB but not maintained by heartbeat\n  h=1440m | rows=12519  target_rows=12519  latest_target=2026-04-14 06:49:03.966465 lag_vs_raw=23.3h raw_gap=0.7h | expected due to lookahead horizon\n\n============================================================\n  \u6578\u64da\u6536\u96c6\u7ba1\u7dda\u5b8c\u6210\u65bc 2026-04-15 06:05:07 UTC\n=============================================",
+    "stderr_preview": "",
+    "continuity_repair": {
+      "bridge_inserted": 0,
+      "coarse_inserted": 0,
+      "coarse_interval": "4h",
+      "fine_inserted": 0,
+      "fine_interval": "1h",
+      "inserted_total": 0,
+      "lookback_days": 7,
+      "skipped_no_klines": false,
+      "symbol": "BTCUSDT",
+      "used_bridge": false,
+      "used_fine_grain": false,
+      "heartbeat": "1007",
+      "bridge_fallback_streak": 0
+    }
+  },
+  "db_counts": {
+    "raw_market_data": 21582,
+    "features_normalized": 13011,
+    "labels": 43256,
+    "simulated_pyramid_win_rate": 0.5776,
+    "latest_raw_timestamp": "2026-04-15 06:04:36.514999",
+    "label_horizons": [
+      {
+        "horizon_minutes": 240,
+        "rows": 21652,
+        "target_rows": 12730,
+        "latest_target_timestamp": "2026-04-15 03:04:33.264322",
+        "freshness": "expected_horizon_lag",
+        "is_active": true,
+        "latest_raw_gap_hours": 0.48
+      },
+      {
+        "horizon_minutes": 720,
+        "rows": 9085,
+        "target_rows": 0,
+        "latest_target_timestamp": null,
+        "freshness": "inactive_horizon",
+        "is_active": false,
+        "latest_raw_gap_hours": null
+      },
+      {
+        "horizon_minutes": 1440,
+        "rows": 12519,
+        "target_rows": 12519,
+        "latest_target_timestamp": "2026-04-14 06:49:03.966465",
+        "freshness": "expected_horizon_lag",
+        "is_active": true,
+        "latest_raw_gap_hours": 0.73
+      }
+    ]
+  },
+  "source_blockers": {
+    "blocked_count": 8,
+    "counts_by_history_class": {
+      "archive_required": 3,
+      "snapshot_only": 4,
+      "short_window_public_api": 1
+    },
+    "blocked_features": [
+      {
+        "key": "fin_netflow",
+        "coverage_pct": 0.0,
+        "history_class": "archive_required",
+        "quality_flag": "source_auth_blocked",
+        "backfill_blocker": "ETF flow collector only reads the current CoinGlass flow payload; no historical day-by-day ETF archive has been persisted. Forward raw snapshot archive is ready (1738/10 stored event(s) across fin_snapshot), but historical rows before the archive cutoff are still missing. Latest snapshot status=auth_missing. Detail: COINGLASS_API_KEY is missing; ETF flow endpoint requires CoinGlass v4 auth.",
+        "recommended_action": "Configure COINGLASS_API_KEY for the CoinGlass-backed source first; forward archive events are being logged, but they currently contain auth_missing snapshots so feature coverage cannot improve until credentials work. After auth is fixed, keep running heartbeat collection until at least 10 successful forward snapshots accumulate, then evaluate whether historical export/backfill is still needed.",
+        "raw_snapshot_events": 1738,
+        "raw_snapshot_latest_ts": "2026-04-15T06:04:38.095934+00:00",
+        "raw_snapshot_oldest_ts": "2026-04-08T19:15:35.068026+00:00",
+        "raw_snapshot_span_hours": 154.82,
+        "raw_snapshot_latest_age_min": 0.5,
+        "raw_snapshot_latest_status": "auth_missing",
+        "raw_snapshot_latest_message": "COINGLASS_API_KEY is missing; ETF flow endpoint requires CoinGlass v4 auth.",
+        "forward_archive_started": true,
+        "forward_archive_ready": true,
+        "forward_archive_stale": false,
+        "forward_archive_status": "ready",
+        "forward_archive_ready_min_events": 10,
+        "forward_archive_stale_after_min": 60,
+        "forward_archive_progress_pct": 100.0,
+        "archive_window_started": true,
+        "archive_window_start_ts": "2026-04-08T19:15:35.068026+00:00",
+        "archive_window_rows": 1709,
+        "archive_window_non_null": 0,
+        "archive_window_coverage_pct": 0.0
+      },
+      {
+        "key": "claw",
+        "coverage_pct": 10.29,
+        "history_class": "archive_required",
+        "quality_flag": "source_history_gap",
+        "backfill_blocker": "CoinGlass liquidation integration only saves recent live windows; no historical liquidation archive is wired into raw_market_data. Forward raw snapshot archive is ready (1738/10 stored event(s) across claw_snapshot), but historical rows before the archive cutoff are still missing.",
+        "recommended_action": "Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap.",
+        "raw_snapshot_events": 1738,
+        "raw_snapshot_latest_ts": "2026-04-15T06:04:38.095889+00:00",
+        "raw_snapshot_oldest_ts": "2026-04-08T19:15:35.067982+00:00",
+        "raw_snapshot_span_hours": 154.82,
+        "raw_snapshot_latest_age_min": 0.5,
+        "raw_snapshot_latest_status": "ok",
+        "raw_snapshot_latest_message": null,
+        "forward_archive_started": true,
+        "forward_archive_ready": true,
+        "forward_archive_stale": false,
+        "forward_archive_status": "ready",
+        "forward_archive_ready_min_events": 10,
+        "forward_archive_stale_after_min": 60,
+        "forward_archive_progress_pct": 100.0,
+        "archive_window_started": true,
+        "archive_window_start_ts": "2026-04-08T19:15:35.067982+00:00",
+        "archive_window_rows": 1709,
+        "archive_window_non_null": 1310,
+        "archive_window_coverage_pct": 76.65
+      },
+      {
+        "key": "claw_intensity",
+        "coverage_pct": 10.29,
+        "history_class": "archive_required",
+        "quality_flag": "source_history_gap",
+        "backfill_blocker": "Claw intensity is derived from CoinGlass liquidation history, but the project only stores live windows and has no historical archive loader. Forward raw snapshot archive is ready (1738/10 stored event(s) across claw_snapshot), but historical rows before the archive cutoff are still missing.",
+        "recommended_action": "Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap.",
+        "raw_snapshot_events": 1738,
+        "raw_snapshot_latest_ts": "2026-04-15T06:04:38.095889+00:00",
+        "raw_snapshot_oldest_ts": "2026-04-08T19:15:35.067982+00:00",
+        "raw_snapshot_span_hours": 154.82,
+        "raw_snapshot_latest_age_min": 0.5,
+        "raw_snapshot_latest_status": "ok",
+        "raw_snapshot_latest_message": null,
+        "forward_archive_started": true,
+        "forward_archive_ready": true,
+        "forward_archive_stale": false,
+        "forward_archive_status": "ready",
+        "forward_archive_ready_min_events": 10,
+        "forward_archive_stale_after_min": 60,
+        "forward_archive_progress_pct": 100.0,
+        "archive_window_started": true,
+        "archive_window_start_ts": "2026-04-08T19:15:35.067982+00:00",
+        "archive_window_rows": 1709,
+        "archive_window_non_null": 1310,
+        "archive_window_coverage_pct": 76.65
+      },
+      {
+        "key": "nest_pred",
+        "coverage_pct": 13.27,
+        "history_class": "snapshot_only",
+        "quality_flag": "source_history_gap",
+        "backfill_blocker": "Polymarket integration searches current active markets only; past market probabilities were not archived into raw_market_data. Forward raw snapshot archive is ready (1738/10 stored event(s) across nest_snapshot), but historical rows before the archive cutoff are still missing.",
+        "recommended_action": "Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap.",
+        "raw_snapshot_events": 1738,
+        "raw_snapshot_latest_ts": "2026-04-15T06:04:38.095976+00:00",
+        "raw_snapshot_oldest_ts": "2026-04-08T19:15:35.068067+00:00",
+        "raw_snapshot_span_hours": 154.82,
+        "raw_snapshot_latest_age_min": 0.5,
+        "raw_snapshot_latest_status": "ok",
+        "raw_snapshot_latest_message": null,
+        "forward_archive_started": true,
+        "forward_archive_ready": true,
+        "forward_archive_stale": false,
+        "forward_archive_status": "ready",
+        "forward_archive_ready_min_events": 10,
+        "forward_archive_stale_after_min": 60,
+        "forward_archive_progress_pct": 100.0,
+        "archive_window_started": true,
+        "archive_window_start_ts": "2026-04-08T19:15:35.068067+00:00",
+        "archive_window_rows": 1709,
+        "archive_window_non_null": 1694,
+        "archive_window_coverage_pct": 99.12
+      },
+      {
+        "key": "scales_ssr",
+        "coverage_pct": 26.65,
+        "history_class": "snapshot_only",
+        "quality_flag": "source_history_gap",
+        "backfill_blocker": "Scales SSR currently uses a live CoinGecko stablecoin market-cap snapshot, not a stored historical time series. Forward raw snapshot archive is ready (1738/10 stored event(s) across scales_snapshot), but historical rows before the archive cutoff are still missing.",
+        "recommended_action": "Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap.",
+        "raw_snapshot_events": 1738,
+        "raw_snapshot_latest_ts": "2026-04-15T06:04:38.095963+00:00",
+        "raw_snapshot_oldest_ts": "2026-04-08T19:15:35.068054+00:00",
+        "raw_snapshot_span_hours": 154.82,
+        "raw_snapshot_latest_age_min": 0.5,
+        "raw_snapshot_latest_status": "ok",
+        "raw_snapshot_latest_message": null,
+        "forward_archive_started": true,
+        "forward_archive_ready": true,
+        "forward_archive_stale": false,
+        "forward_archive_status": "ready",
+        "forward_archive_ready_min_events": 10,
+        "forward_archive_stale_after_min": 60,
+        "forward_archive_progress_pct": 100.0,
+        "archive_window_started": true,
+        "archive_window_start_ts": "2026-04-08T19:15:35.068054+00:00",
+        "archive_window_rows": 1709,
+        "archive_window_non_null": 1681,
+        "archive_window_coverage_pct": 98.36
+      },
+      {
+        "key": "fang_skew",
+        "coverage_pct": 26.92,
+        "history_class": "snapshot_only",
+        "quality_flag": "source_history_gap",
+        "backfill_blocker": "Fang skew depends on latest Deribit option-book snapshot; there is no historical snapshot archive in the current pipeline. Forward raw snapshot archive is ready (1738/10 stored event(s) across fang_snapshot), but historical rows before the archive cutoff are still missing.",
+        "recommended_action": "Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap.",
+        "raw_snapshot_events": 1738,
+        "raw_snapshot_latest_ts": "2026-04-15T06:04:38.095915+00:00",
+        "raw_snapshot_oldest_ts": "2026-04-08T19:15:35.068005+00:00",
+        "raw_snapshot_span_hours": 154.82,
+        "raw_snapshot_latest_age_min": 0.5,
+        "raw_snapshot_latest_status": "ok",
+        "raw_snapshot_latest_message": null,
+        "forward_archive_started": true,
+        "forward_archive_ready": true,
+        "forward_archive_stale": false,
+        "forward_archive_status": "ready",
+        "forward_archive_ready_min_events": 10,
+        "forward_archive_stale_after_min": 60,
+        "forward_archive_progress_pct": 100.0,
+        "archive_window_started": true,
+        "archive_window_start_ts": "2026-04-08T19:15:35.068005+00:00",
+        "archive_window_rows": 1709,
+        "archive_window_non_null": 1706,
+        "archive_window_coverage_pct": 99.82
+      },
+      {
+        "key": "fang_pcr",
+        "coverage_pct": 26.92,
+        "history_class": "snapshot_only",
+        "quality_flag": "source_history_gap",
+        "backfill_blocker": "Deribit options summary integration is a latest snapshot fetch; historical option-chain snapshots were never archived. Forward raw snapshot archive is ready (1738/10 stored event(s) across fang_snapshot), but historical rows before the archive cutoff are still missing.",
+        "recommended_action": "Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap.",
+        "raw_snapshot_events": 1738,
+        "raw_snapshot_latest_ts": "2026-04-15T06:04:38.095915+00:00",
+        "raw_snapshot_oldest_ts": "2026-04-08T19:15:35.068005+00:00",
+        "raw_snapshot_span_hours": 154.82,
+        "raw_snapshot_latest_age_min": 0.5,
+        "raw_snapshot_latest_status": "ok",
+        "raw_snapshot_latest_message": null,
+        "forward_archive_started": true,
+        "forward_archive_ready": true,
+        "forward_archive_stale": false,
+        "forward_archive_status": "ready",
+        "forward_archive_ready_min_events": 10,
+        "forward_archive_stale_after_min": 60,
+        "forward_archive_progress_pct": 100.0,
+        "archive_window_started": true,
+        "archive_window_start_ts": "2026-04-08T19:15:35.068005+00:00",
+        "archive_window_rows": 1709,
+        "archive_window_non_null": 1706,
+        "archive_window_coverage_pct": 99.82
+      },
+      {
+        "key": "web_whale",
+        "coverage_pct": 26.94,
+        "history_class": "short_window_public_api",
+        "quality_flag": "source_history_gap",
+        "backfill_blocker": "Binance aggTrades endpoint only exposes a short recent trade window in the current implementation; no historical whale snapshot archive exists. Forward raw snapshot archive is ready (1738/10 stored event(s) across web_snapshot), but historical rows before the archive cutoff are still missing.",
+        "recommended_action": "Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap.",
+        "raw_snapshot_events": 1738,
+        "raw_snapshot_latest_ts": "2026-04-15T06:04:38.095950+00:00",
+        "raw_snapshot_oldest_ts": "2026-04-08T19:15:35.068040+00:00",
+        "raw_snapshot_span_hours": 154.82,
+        "raw_snapshot_latest_age_min": 0.5,
+        "raw_snapshot_latest_status": "ok",
+        "raw_snapshot_latest_message": null,
+        "forward_archive_started": true,
+        "forward_archive_ready": true,
+        "forward_archive_stale": false,
+        "forward_archive_status": "ready",
+        "forward_archive_ready_min_events": 10,
+        "forward_archive_stale_after_min": 60,
+        "forward_archive_progress_pct": 100.0,
+        "archive_window_started": true,
+        "archive_window_start_ts": "2026-04-08T19:15:35.068040+00:00",
+        "archive_window_rows": 1709,
+        "archive_window_non_null": 1708,
+        "archive_window_coverage_pct": 99.94
+      }
+    ],
+    "coverage_rows_total": 13011,
+    "coverage_hidden_count": 16,
+    "coverage_usable_count": 24
+  },
+  "ic_diagnostics": {
+    "n": 12390,
+    "global_pass": 19,
+    "tw_pass": 20,
+    "total_features": 30
+  },
+  "drift_diagnostics": {
+    "target_col": "simulated_pyramid_win",
+    "horizon_minutes": 1440,
+    "full_sample": {
+      "rows": 12519,
+      "win_rate": 0.6413,
+      "feature_count": 49,
+      "regime_counts": {
+        "chop": 10508,
+        "bull": 490,
+        "bear": 1373,
+        "neutral": 148
+      },
+      "regime_pct": {
+        "chop": 0.8394,
+        "bull": 0.0391,
+        "bear": 0.1097,
+        "neutral": 0.0118
+      }
+    },
+    "primary_window": "100",
+    "primary_alerts": [
+      "constant_target",
+      "regime_concentration",
+      "regime_shift"
+    ],
+    "primary_summary": {
+      "rows": 100,
+      "win_rate": 1.0,
+      "win_rate_delta_vs_full": 0.3587,
+      "dominant_regime": "bull",
+      "dominant_regime_share": 1.0,
+      "drift_interpretation": "supported_extreme_trend",
+      "feature_diagnostics": {
+        "feature_count": 49,
+        "window_rows": 100,
+        "time_context": {
+          "parsed_timestamps": 100,
+          "weekend_count": 0,
+          "weekend_share": 0.0,
+          "weekend_dominant": false
+        },
+        "low_variance_count": 24,
+        "low_distinct_count": 12,
+        "frozen_count": 2,
+        "compressed_count": 22,
+        "expected_static_count": 1,
+        "overlay_only_count": 4,
+        "unexpected_frozen_count": 1,
+        "unexpected_compressed_count": 18,
+        "null_heavy_count": 10,
+        "low_variance_examples": [
+          {
+            "feature": "feat_4h_ma_order",
+            "recent_std": 0.0,
+            "baseline_std": 0.6291,
+            "std_ratio": 0.0,
+            "recent_range": 0.0,
+            "baseline_range": 2.0,
+            "recent_distinct": 1,
+            "baseline_distinct": 3,
+            "distinct_ratio": 0.3333,
+            "expected_static_reason": "discrete_regime_feature",
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_body",
+            "recent_std": 0.5216,
+            "baseline_std": 22930.2202,
+            "std_ratio": 0.0,
+            "recent_range": 2.1632,
+            "baseline_range": 1228490.3549,
+            "recent_distinct": 100,
+            "baseline_distinct": 4069,
+            "distinct_ratio": 0.0246,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_vix",
+            "recent_std": 0.0,
+            "baseline_std": 5.2262,
+            "std_ratio": 0.0,
+            "recent_range": 0.0,
+            "baseline_range": 42.59,
+            "recent_distinct": 1,
+            "baseline_distinct": 1431,
+            "distinct_ratio": 0.0007,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_ear",
+            "recent_std": 0.0011,
+            "baseline_std": 0.9144,
+            "std_ratio": 0.0012,
+            "recent_range": 0.0055,
+            "baseline_range": 10.9755,
+            "recent_distinct": 100,
+            "baseline_distinct": 12346,
+            "distinct_ratio": 0.0081,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_tongue",
+            "recent_std": 0.0006,
+            "baseline_std": 0.2674,
+            "std_ratio": 0.0024,
+            "recent_range": 0.0042,
+            "baseline_range": 0.8497,
+            "recent_distinct": 100,
+            "baseline_distinct": 4151,
+            "distinct_ratio": 0.0241,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          }
+        ],
+        "low_distinct_examples": [
+          {
+            "feature": "feat_vix",
+            "recent_distinct": 1,
+            "baseline_distinct": 1431,
+            "distinct_ratio": 0.0007,
+            "recent_std": 0.0,
+            "baseline_std": 5.2262,
+            "std_ratio": 0.0,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_4h_ma_order",
+            "recent_distinct": 1,
+            "baseline_distinct": 3,
+            "distinct_ratio": 0.3333,
+            "recent_std": 0.0,
+            "baseline_std": 0.6291,
+            "std_ratio": 0.0,
+            "expected_static_reason": "discrete_regime_feature",
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_4h_dist_swing_high",
+            "recent_distinct": 0,
+            "baseline_distinct": 0,
+            "distinct_ratio": null,
+            "recent_std": null,
+            "baseline_std": null,
+            "std_ratio": null,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_chorus",
+            "recent_distinct": 0,
+            "baseline_distinct": 0,
+            "distinct_ratio": null,
+            "recent_std": null,
+            "baseline_std": null,
+            "std_ratio": null,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_fin_netflow",
+            "recent_distinct": 0,
+            "baseline_distinct": 0,
+            "distinct_ratio": null,
+            "recent_std": null,
+            "baseline_std": null,
+            "std_ratio": null,
+            "expected_static_reason": null,
+            "overlay_only_reason": "research_sparse_source"
+          }
+        ],
+        "frozen_examples": [
+          {
+            "feature": "feat_4h_ma_order",
+            "recent_std": 0.0,
+            "baseline_std": 0.6291,
+            "std_ratio": 0.0,
+            "recent_range": 0.0,
+            "baseline_range": 2.0,
+            "recent_distinct": 1,
+            "baseline_distinct": 3,
+            "distinct_ratio": 0.3333,
+            "expected_static_reason": "discrete_regime_feature",
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_vix",
+            "recent_std": 0.0,
+            "baseline_std": 5.2262,
+            "std_ratio": 0.0,
+            "recent_range": 0.0,
+            "baseline_range": 42.59,
+            "recent_distinct": 1,
+            "baseline_distinct": 1431,
+            "distinct_ratio": 0.0007,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          }
+        ],
+        "compressed_examples": [
+          {
+            "feature": "feat_body",
+            "recent_std": 0.5216,
+            "baseline_std": 22930.2202,
+            "std_ratio": 0.0,
+            "recent_range": 2.1632,
+            "baseline_range": 1228490.3549,
+            "recent_distinct": 100,
+            "baseline_distinct": 4069,
+            "distinct_ratio": 0.0246,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_ear",
+            "recent_std": 0.0011,
+            "baseline_std": 0.9144,
+            "std_ratio": 0.0012,
+            "recent_range": 0.0055,
+            "baseline_range": 10.9755,
+            "recent_distinct": 100,
+            "baseline_distinct": 12346,
+            "distinct_ratio": 0.0081,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_tongue",
+            "recent_std": 0.0006,
+            "baseline_std": 0.2674,
+            "std_ratio": 0.0024,
+            "recent_range": 0.0042,
+            "baseline_range": 0.8497,
+            "recent_distinct": 100,
+            "baseline_distinct": 4151,
+            "distinct_ratio": 0.0241,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_scales_ssr",
+            "recent_std": 0.0,
+            "baseline_std": 0.0042,
+            "std_ratio": 0.0026,
+            "recent_range": 0.0,
+            "baseline_range": 0.135,
+            "recent_distinct": 64,
+            "baseline_distinct": 2161,
+            "distinct_ratio": 0.0296,
+            "expected_static_reason": null,
+            "overlay_only_reason": "research_sparse_source"
+          },
+          {
+            "feature": "feat_vwap_dev",
+            "recent_std": 0.0011,
+            "baseline_std": 0.2241,
+            "std_ratio": 0.0047,
+            "recent_range": 0.0044,
+            "baseline_range": 0.8109,
+            "recent_distinct": 96,
+            "baseline_distinct": 12181,
+            "distinct_ratio": 0.0079,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          }
+        ],
+        "expected_static_examples": [
+          {
+            "feature": "feat_4h_ma_order",
+            "recent_std": 0.0,
+            "baseline_std": 0.6291,
+            "std_ratio": 0.0,
+            "recent_range": 0.0,
+            "baseline_range": 2.0,
+            "recent_distinct": 1,
+            "baseline_distinct": 3,
+            "distinct_ratio": 0.3333,
+            "expected_static_reason": "discrete_regime_feature",
+            "overlay_only_reason": null
+          }
+        ],
+        "overlay_only_examples": [
+          {
+            "feature": "feat_claw",
+            "recent_std": 0.0454,
+            "baseline_std": 0.3482,
+            "std_ratio": 0.1305,
+            "recent_range": 0.0972,
+            "baseline_range": 1.5166,
+            "recent_distinct": 23,
+            "baseline_distinct": 338,
+            "distinct_ratio": 0.068,
+            "expected_static_reason": null,
+            "overlay_only_reason": "research_sparse_source"
+          },
+          {
+            "feature": "feat_claw_intensity",
+            "recent_std": 0.0102,
+            "baseline_std": 0.1957,
+            "std_ratio": 0.0519,
+            "recent_range": 0.0217,
+            "baseline_range": 0.9355,
+            "recent_distinct": 23,
+            "baseline_distinct": 338,
+            "distinct_ratio": 0.068,
+            "expected_static_reason": null,
+            "overlay_only_reason": "research_sparse_source"
+          },
+          {
+            "feature": "feat_fang_pcr",
+            "recent_std": 0.0006,
+            "baseline_std": 0.0088,
+            "std_ratio": 0.0739,
+            "recent_range": 0.0029,
+            "baseline_range": 0.0352,
+            "recent_distinct": 78,
+            "baseline_distinct": 2575,
+            "distinct_ratio": 0.0303,
+            "expected_static_reason": null,
+            "overlay_only_reason": "research_sparse_source"
+          },
+          {
+            "feature": "feat_scales_ssr",
+            "recent_std": 0.0,
+            "baseline_std": 0.0042,
+            "std_ratio": 0.0026,
+            "recent_range": 0.0,
+            "baseline_range": 0.135,
+            "recent_distinct": 64,
+            "baseline_distinct": 2161,
+            "distinct_ratio": 0.0296,
+            "expected_static_reason": null,
+            "overlay_only_reason": "research_sparse_source"
+          }
+        ],
+        "unexpected_frozen_examples": [
+          {
+            "feature": "feat_vix",
+            "recent_std": 0.0,
+            "baseline_std": 5.2262,
+            "std_ratio": 0.0,
+            "recent_range": 0.0,
+            "baseline_range": 42.59,
+            "recent_distinct": 1,
+            "baseline_distinct": 1431,
+            "distinct_ratio": 0.0007,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          }
+        ],
+        "unexpected_compressed_examples": [
+          {
+            "feature": "feat_body",
+            "recent_std": 0.5216,
+            "baseline_std": 22930.2202,
+            "std_ratio": 0.0,
+            "recent_range": 2.1632,
+            "baseline_range": 1228490.3549,
+            "recent_distinct": 100,
+            "baseline_distinct": 4069,
+            "distinct_ratio": 0.0246,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_ear",
+            "recent_std": 0.0011,
+            "baseline_std": 0.9144,
+            "std_ratio": 0.0012,
+            "recent_range": 0.0055,
+            "baseline_range": 10.9755,
+            "recent_distinct": 100,
+            "baseline_distinct": 12346,
+            "distinct_ratio": 0.0081,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_tongue",
+            "recent_std": 0.0006,
+            "baseline_std": 0.2674,
+            "std_ratio": 0.0024,
+            "recent_range": 0.0042,
+            "baseline_range": 0.8497,
+            "recent_distinct": 100,
+            "baseline_distinct": 4151,
+            "distinct_ratio": 0.0241,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_vwap_dev",
+            "recent_std": 0.0011,
+            "baseline_std": 0.2241,
+            "std_ratio": 0.0047,
+            "recent_range": 0.0044,
+            "baseline_range": 0.8109,
+            "recent_distinct": 96,
+            "baseline_distinct": 12181,
+            "distinct_ratio": 0.0079,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_atr_pct",
+            "recent_std": 0.0,
+            "baseline_std": 0.0008,
+            "std_ratio": 0.0078,
+            "recent_range": 0.0,
+            "baseline_range": 0.0156,
+            "recent_distinct": 98,
+            "baseline_distinct": 10023,
+            "distinct_ratio": 0.0098,
+            "expected_static_reason": null,
+            "overlay_only_reason": null
+          }
+        ],
+        "null_heavy_examples": [
+          {
+            "feature": "feat_4h_dist_swing_high",
+            "non_null_ratio": 0.0,
+            "non_null": 0,
+            "window_rows": 100
+          },
+          {
+            "feature": "feat_chorus",
+            "non_null_ratio": 0.0,
+            "non_null": 0,
+            "window_rows": 100
+          },
+          {
+            "feature": "feat_fin_netflow",
+            "non_null_ratio": 0.0,
+            "non_null": 0,
+            "window_rows": 100
+          },
+          {
+            "feature": "feat_hype",
+            "non_null_ratio": 0.0,
+            "non_null": 0,
+            "window_rows": 100
+          },
+          {
+            "feature": "feat_oracle",
+            "non_null_ratio": 0.0,
+            "non_null": 0,
+            "window_rows": 100
+          }
+        ]
+      },
+      "target_path_diagnostics": {
+        "window_start_timestamp": "2026-04-14 02:57:35.042121",
+        "window_end_timestamp": "2026-04-14 06:49:03.966465",
+        "latest_target": 1,
+        "tail_target_streak": {
+          "target": 1,
+          "count": 100,
+          "start_timestamp": "2026-04-14 02:57:35.042121",
+          "end_timestamp": "2026-04-14 06:49:03.966465",
+          "regime_counts": {
+            "bull": 100
+          }
+        },
+        "target_regime_breakdown": {
+          "bull:1": 100
+        },
+        "recent_examples": [
+          {
+            "label_id": 52368,
+            "timestamp": "2026-04-14 06:46:14.729321",
+            "symbol": "BTCUSDT",
+            "target": 1,
+            "regime": "bull",
+            "spot_long_win": 1.0,
+            "simulated_pyramid_pnl": 0.0215,
+            "simulated_pyramid_quality": 0.697,
+            "simulated_pyramid_drawdown_penalty": 0.0145,
+            "simulated_pyramid_time_underwater": 0.1852,
+            "future_return_pct": -0.0053,
+            "future_max_drawdown": -0.0053,
+            "future_max_runup": 0.0215
+          },
+          {
+            "label_id": 52369,
+            "timestamp": "2026-04-14 06:46:50.473798",
+            "symbol": "BTCUSDT",
+            "target": 1,
+            "regime": "bull",
+            "spot_long_win": 1.0,
+            "simulated_pyramid_pnl": 0.0213,
+            "simulated_pyramid_quality": 0.6858,
+            "simulated_pyramid_drawdown_penalty": 0.0178,
+            "simulated_pyramid_time_underwater": 0.2692,
+            "future_return_pct": -0.0055,
+            "future_max_drawdown": -0.0055,
+            "future_max_runup": 0.0213
+          },
+          {
+            "label_id": 52370,
+            "timestamp": "2026-04-14 06:47:26.446113",
+            "symbol": "BTCUSDT",
+            "target": 1,
+            "regime": "bull",
+            "spot_long_win": 1.0,
+            "simulated_pyramid_pnl": 0.0212,
+            "simulated_pyramid_quality": 0.6786,
+            "simulated_pyramid_drawdown_penalty": 0.0203,
+            "simulated_pyramid_time_underwater": 0.32,
+            "future_return_pct": -0.0056,
+            "future_max_drawdown": -0.0056,
+            "future_max_runup": 0.0212
+          },
+          {
+            "label_id": 52371,
+            "timestamp": "2026-04-14 06:47:39.944835",
+            "symbol": "BTCUSDT",
+            "target": 1,
+            "regime": "bull",
+            "spot_long_win": 1.0,
+            "simulated_pyramid_pnl": 0.0212,
+            "simulated_pyramid_quality": 0.6823,
+            "simulated_pyramid_drawdown_penalty": 0.0193,
+            "simulated_pyramid_time_underwater": 0.2917,
+            "future_return_pct": -0.0056,
+            "future_max_drawdown": -0.0056,
+            "future_max_runup": 0.0212
+          },
+          {
+            "label_id": 52372,
+            "timestamp": "2026-04-14 06:49:03.966465",
+            "symbol": "BTCUSDT",
+            "target": 1,
+            "regime": "bull",
+            "spot_long_win": 1.0,
+            "simulated_pyramid_pnl": 0.0215,
+            "simulated_pyramid_quality": 0.6934,
+            "simulated_pyramid_drawdown_penalty": 0.0149,
+            "simulated_pyramid_time_underwater": 0.2174,
+            "future_return_pct": -0.0053,
+            "future_max_drawdown": -0.0054,
+            "future_max_runup": 0.0215
+          }
+        ]
+      }
+    }
+  },
+  "live_predictor_diagnostics": {
+    "target_col": "simulated_pyramid_win",
+    "used_model": "circuit_breaker",
+    "model_type": "circuit_breaker",
+    "signal": "CIRCUIT_BREAKER",
+    "confidence": 0.5,
+    "should_trade": false,
+    "reason": "Consecutive loss streak: 59 >= 50",
+    "streak": 59,
+    "win_rate": null,
+    "runtime_blocker": "circuit_breaker",
+    "regime_label": "bull",
+    "model_route_regime": null,
+    "regime_gate": null,
+    "entry_quality_label": null,
+    "entry_quality_components": {},
+    "allowed_layers_raw": null,
+    "allowed_layers": 0,
+    "allowed_layers_reason": null,
+    "execution_guardrail_applied": null,
+    "execution_guardrail_reason": null,
+    "decision_quality_calibration_scope": null,
+    "decision_quality_calibration_window": null,
+    "decision_quality_sample_size": 0,
+    "decision_quality_scope_diagnostics": {},
+    "decision_quality_guardrail_applied": false,
+    "decision_quality_guardrail_reason": null,
+    "decision_quality_recent_pathology_applied": false,
+    "decision_quality_recent_pathology_window": 0,
+    "decision_quality_recent_pathology_alerts": [],
+    "decision_quality_recent_pathology_reason": null,
+    "decision_quality_exact_live_lane_bucket_verdict": null,
+    "decision_quality_exact_live_lane_bucket_reason": null,
+    "decision_quality_exact_live_lane_toxic_bucket": {},
+    "decision_quality_exact_live_lane_bucket_diagnostics": {},
+    "decision_quality_label": null,
+    "decision_quality_score": null,
+    "expected_win_rate": null,
+    "expected_pyramid_pnl": null,
+    "expected_pyramid_quality": null,
+    "expected_drawdown_penalty": null,
+    "expected_time_underwater": null,
+    "non_null_4h_feature_count": 10,
+    "non_null_4h_lag_count": 30,
+    "decision_quality_recent_pathology_summary": {},
+    "decision_quality_pathology_consensus": {}
+  },
+  "live_decision_drilldown": {
+    "json": "/home/kazuha/Poly-Trader/data/live_decision_quality_drilldown.json",
+    "markdown": "/home/kazuha/Poly-Trader/docs/analysis/live_decision_quality_drilldown.md",
+    "chosen_scope": "unknown",
+    "worst_pathology_scope": null,
+    "remaining_gap_to_floor": null,
+    "best_single_component": null,
+    "best_single_component_required_score_delta": null
+  },
+  "q35_scaling_audit": {
+    "generated_at": "2026-04-15 06:04:36.514999",
+    "target_col": "simulated_pyramid_win",
+    "overall_verdict": "broader_bull_cohort_recalibration_candidate",
+    "structure_scaling_verdict": "q35_structure_caution_not_root_cause",
+    "verdict_reason": "current bias50 \u5df2\u8d85\u51fa exact-lane p90\uff0c\u4f46\u4ecd\u843d\u5728\u81f3\u5c11\u4e00\u500b\u66f4\u5ee3 bull cohort \u7684 p90 \u5167\uff0c\u8868\u793a\u73fe\u5728\u66f4\u50cf\u300ebull cohort segmentation / calibration \u554f\u984c\u300f\uff0c\u4e0d\u80fd\u76f4\u63a5\u628a q35 lane \u8996\u70ba\u53ef\u653e\u5bec\uff0c\u4e5f\u4e0d\u80fd\u53ea\u6cbf\u7528\u55ae\u4e00 exact-lane percentile \u505a\u7d50\u8ad6\u3002",
+    "recommended_action": "\u7dad\u6301 q35=CAUTION\uff1b\u628a\u672c\u8f2a\u7126\u9ede\u653e\u5728 bias50 \u6b63\u898f\u5316\u662f\u5426\u61c9\u6539\u6210\u5206\u6bb5/\u5206\u4f4d\u6578\u7e2e\u653e\uff0c\u53ea\u6709\u7576 current bias50 \u843d\u5728 exact-lane \u5e38\u898b\u5340\u9593\u6642\u624d\u653e\u5bec\u3002",
+    "current_live": {
+      "regime_label": "bull",
+      "regime_gate": "CAUTION",
+      "base_gate": "ALLOW",
+      "gate_reason": "structure_quality_caution",
+      "structure_bucket": "CAUTION|structure_quality_caution|q15",
+      "structure_quality": 0.3187,
+      "entry_quality": 0.5336,
+      "entry_quality_label": "D",
+      "allowed_layers_raw": 0,
+      "allowed_layers_reason": "entry_quality_below_trade_floor",
+      "feat_4h_bias50": 2.6995,
+      "feat_4h_bias200": 5.516,
+      "bias50_calibration": {
+        "applied": true,
+        "score": 0.2601,
+        "legacy_score": 0.0,
+        "score_delta_vs_legacy": 0.2601,
+        "mode": "piecewise_quantile_calibration",
+        "segment": "bull_reference_extension",
+        "reference_cohort": "same_gate_same_quality",
+        "reason": "bias50 is above the exact-lane p90 but still inside the broader bull reference p90; use a decaying extension score instead of forcing a zero score.",
+        "exact_p90": 2.0543,
+        "reference_p90": 4.2082,
+        "extension_share": 0.2995
+      }
+    },
+    "exact_lane_summary": {
+      "rows": 4,
+      "win_rate": 0.0,
+      "current_bias50_percentile": 1.0,
+      "bias50_distribution": {
+        "min": 2.0074,
+        "p25": 2.0166,
+        "p50": 2.0306,
+        "p75": 2.0306,
+        "p90": 2.0543,
+        "p95": 2.0543,
+        "max": 2.0543,
+        "mean": 2.0272
+      },
+      "structure_quality_distribution": {
+        "min": 0.1677,
+        "p25": 0.1691,
+        "p50": 0.1713,
+        "p75": 0.1713,
+        "p90": 0.1749,
+        "p95": 0.1749,
+        "max": 0.1749,
+        "mean": 0.1708
+      },
+      "entry_quality_distribution": {
+        "min": 0.3807,
+        "p25": 0.3878,
+        "p50": 0.3955,
+        "p75": 0.3955,
+        "p90": 0.4239,
+        "p95": 0.4239,
+        "max": 0.4239,
+        "mean": 0.397
+      }
+    },
+    "broader_bull_cohorts": {
+      "same_gate_same_quality": {
+        "rows": 126,
+        "win_rate": 0.9206,
+        "bias50_distribution": {
+          "min": -1.1489,
+          "p25": 2.2383,
+          "p50": 2.9087,
+          "p75": 3.132,
+          "p90": 4.2082,
+          "p95": 4.2231,
+          "max": 4.2354,
+          "mean": 2.7328
+        },
+        "structure_quality_distribution": {
+          "min": 0.1677,
+          "p25": 0.5633,
+          "p50": 0.6035,
+          "p75": 0.6271,
+          "p90": 0.6465,
+          "p95": 0.6485,
+          "max": 1.0,
+          "mean": 0.5732
+        },
+        "entry_quality_distribution": {
+          "min": 0.3082,
+          "p25": 0.4293,
+          "p50": 0.45,
+          "p75": 0.4867,
+          "p90": 0.5173,
+          "p95": 0.5425,
+          "max": 0.5499,
+          "mean": 0.4552
+        },
+        "current_bias50_percentile": 0.3175
+      },
+      "same_bucket": {
+        "rows": 4,
+        "win_rate": 0.0,
+        "bias50_distribution": {
+          "min": 2.0074,
+          "p25": 2.0166,
+          "p50": 2.0306,
+          "p75": 2.0306,
+          "p90": 2.0543,
+          "p95": 2.0543,
+          "max": 2.0543,
+          "mean": 2.0272
+        },
+        "structure_quality_distribution": {
+          "min": 0.1677,
+          "p25": 0.1691,
+          "p50": 0.1713,
+          "p75": 0.1713,
+          "p90": 0.1749,
+          "p95": 0.1749,
+          "max": 0.1749,
+          "mean": 0.1708
+        },
+        "entry_quality_distribution": {
+          "min": 0.3807,
+          "p25": 0.3878,
+          "p50": 0.3955,
+          "p75": 0.3955,
+          "p90": 0.4239,
+          "p95": 0.4239,
+          "max": 0.4239,
+          "mean": 0.397
+        },
+        "current_bias50_percentile": 1.0
+      },
+      "bull_all": {
+        "rows": 424,
+        "win_rate": 0.6675,
+        "bias50_distribution": {
+          "min": -1.1554,
+          "p25": 2.0366,
+          "p50": 2.8687,
+          "p75": 4.2782,
+          "p90": 4.4277,
+          "p95": 5.189,
+          "max": 9.36,
+          "mean": 2.903
+        },
+        "structure_quality_distribution": {
+          "min": 0.0908,
+          "p25": 0.1677,
+          "p50": 0.6028,
+          "p75": 0.6723,
+          "p90": 0.6856,
+          "p95": 0.9671,
+          "max": 1.0,
+          "mean": 0.4749
+        },
+        "entry_quality_distribution": {
+          "min": 0.296,
+          "p25": 0.385,
+          "p50": 0.4579,
+          "p75": 0.497,
+          "p90": 0.5546,
+          "p95": 0.5835,
+          "max": 0.6843,
+          "mean": 0.4521
+        },
+        "current_bias50_percentile": 0.4552
+      }
+    },
+    "segmented_calibration": {
+      "status": "segmented_calibration_required",
+      "recommended_mode": "piecewise_quantile_calibration",
+      "reason": "exact lane \u986f\u793a\u904e\u71b1\uff0c\u4f46\u81f3\u5c11\u4e00\u500b\u66f4\u5ee3 bull cohort \u4ecd\u628a current bias50 \u8996\u70ba p90 \u5167\uff1b\u61c9\u6539\u505a bull cohort segmentation / piecewise quantile calibration\uff0c\u800c\u4e0d\u662f\u76f4\u63a5 relax runtime gate\u3002",
+      "runtime_contract_status": "piecewise_runtime_active",
+      "runtime_contract_reason": "piecewise bias50 calibration \u5df2\u7531 predictor / q35 audit \u5be6\u969b\u5957\u7528\u5230 current bull q35 lane\uff1b\u5f8c\u7e8c heartbeat \u4e0d\u5f97\u518d\u628a\u9019\u984c\u63cf\u8ff0\u6210 runtime \u5c1a\u672a\u5403\u5230\u65b0\u516c\u5f0f\u3002",
+      "exact_lane": {
+        "rows": 4,
+        "current_bias50_percentile": 1.0,
+        "percentile_band": "overheat",
+        "delta_vs_p50": 0.6689,
+        "delta_vs_p75": 0.6689,
+        "delta_vs_p90": 0.6452,
+        "delta_vs_p95": 0.6452,
+        "bias50_distribution": {
+          "min": 2.0074,
+          "p25": 2.0166,
+          "p50": 2.0306,
+          "p75": 2.0306,
+          "p90": 2.0543,
+          "p95": 2.0543,
+          "max": 2.0543,
+          "mean": 2.0272
+        }
+      },
+      "reference_cohort": {
+        "cohort": "same_gate_same_quality",
+        "label": "\u540c bull gate + \u540c quality lane",
+        "rows": 126,
+        "current_bias50_percentile": 0.3175,
+        "percentile_band": "core_normal",
+        "bias50_distribution": {
+          "min": -1.1489,
+          "p25": 2.2383,
+          "p50": 2.9087,
+          "p75": 3.132,
+          "p90": 4.2082,
+          "p95": 4.2231,
+          "max": 4.2354,
+          "mean": 2.7328
+        },
+        "delta_vs_exact_p90": 2.1539,
+        "delta_vs_exact_p95": 2.1539,
+        "status": "viable_reference_cohort",
+        "reason": "current bias50 \u5df2\u8d85\u51fa exact lane \u5e38\u614b\u5340\uff0c\u4f46\u4ecd\u843d\u5728\u66f4\u5ee3 bull cohort \u7684 p90 \u5167\uff1b\u4e0b\u4e00\u6b65\u61c9\u4ee5\u9019\u500b cohort \u505a segmented / piecewise calibration \u7814\u7a76\uff0c\u800c\u4e0d\u662f\u76f4\u63a5 relax q35 gate\u3002"
+      },
+      "broader_bull_cohorts": {
+        "same_gate_same_quality": {
+          "rows": 126,
+          "current_bias50_percentile": 0.3175,
+          "percentile_band": "core_normal",
+          "delta_vs_p50": -0.2092,
+          "delta_vs_p75": -0.4325,
+          "delta_vs_p90": -1.5087,
+          "delta_vs_p95": -1.5236,
+          "bias50_distribution": {
+            "min": -1.1489,
+            "p25": 2.2383,
+            "p50": 2.9087,
+            "p75": 3.132,
+            "p90": 4.2082,
+            "p95": 4.2231,
+            "max": 4.2354,
+            "mean": 2.7328
+          }
+        },
+        "same_bucket": {
+          "rows": 4,
+          "current_bias50_percentile": 1.0,
+          "percentile_band": "overheat",
+          "delta_vs_p50": 0.6689,
+          "delta_vs_p75": 0.6689,
+          "delta_vs_p90": 0.6452,
+          "delta_vs_p95": 0.6452,
+          "bias50_distribution": {
+            "min": 2.0074,
+            "p25": 2.0166,
+            "p50": 2.0306,
+            "p75": 2.0306,
+            "p90": 2.0543,
+            "p95": 2.0543,
+            "max": 2.0543,
+            "mean": 2.0272
+          }
+        },
+        "bull_all": {
+          "rows": 424,
+          "current_bias50_percentile": 0.4552,
+          "percentile_band": "core_normal",
+          "delta_vs_p50": -0.1692,
+          "delta_vs_p75": -1.5787,
+          "delta_vs_p90": -1.7282,
+          "delta_vs_p95": -2.4895,
+          "bias50_distribution": {
+            "min": -1.1554,
+            "p25": 2.0366,
+            "p50": 2.8687,
+            "p75": 4.2782,
+            "p90": 4.4277,
+            "p95": 5.189,
+            "max": 9.36,
+            "mean": 2.903
+          }
+        }
+      }
+    },
+    "piecewise_runtime_preview": {
+      "applied": true,
+      "score": 0.2601,
+      "legacy_score": 0.0,
+      "score_delta_vs_legacy": 0.2601,
+      "mode": "piecewise_quantile_calibration",
+      "segment": "bull_reference_extension",
+      "reference_cohort": "same_gate_same_quality",
+      "reason": "bias50 is above the exact-lane p90 but still inside the broader bull reference p90; use a decaying extension score instead of forcing a zero score.",
+      "exact_p90": 2.0543,
+      "reference_p90": 4.2082
+    },
+    "counterfactuals": {
+      "entry_if_gate_allow_only": 0.5336,
+      "layers_if_gate_allow_only": 0,
+      "gate_allow_only_changes_layers": false,
+      "entry_if_bias50_fully_relaxed": 0.7556,
+      "layers_if_bias50_fully_relaxed": 2,
+      "required_bias50_cap_for_floor": 0.826,
+      "current_bias50_value": 2.6995
+    }
+  },
+  "feature_ablation": {
+    "generated_at": "2026-04-15 06:06:22",
+    "target_col": "simulated_pyramid_win",
+    "recent_rows": 5000,
+    "recommended_profile": "core_only",
+    "recommended_metrics": {
+      "feature_count": 8,
+      "cv_mean_accuracy": 0.7596638655462185,
+      "cv_std_accuracy": 0.1021957724648706,
+      "cv_worst_accuracy": 0.6458583433373349,
+      "cv_mean_brier": 0.21296344101428985,
+      "top10_win_rate_mean": 0.6857142857142857,
+      "bear_top10_win_rate_mean": 0.4166666666666667,
+      "bull_top10_win_rate_mean": 0.25,
+      "folds": [
+        {
+          "accuracy": 0.7491,
+          "brier": 0.228,
+          "top10_win_rate": 0.6667,
+          "top10_rows": 84,
+          "bear_top10_win_rate": 0.4167,
+          "bear_top10_rows": 24,
+          "bull_top10_win_rate": 1.0,
+          "bull_top10_rows": 14
+        },
+        {
+          "accuracy": 0.9448,
+          "brier": 0.0429,
+          "top10_win_rate": 1.0,
+          "top10_rows": 84,
+          "bear_top10_win_rate": null,
+          "bear_top10_rows": 0,
+          "bull_top10_win_rate": null,
+          "bull_top10_rows": 0
+        },
+        {
+          "accuracy": 0.6903,
+          "brier": 0.2758,
+          "top10_win_rate": 0.8095,
+          "top10_rows": 84,
+          "bear_top10_win_rate": null,
+          "bear_top10_rows": 0,
+          "bull_top10_win_rate": 0.0,
+          "bull_top10_rows": 1
+        },
+        {
+          "accuracy": 0.7683,
+          "brier": 0.2022,
+          "top10_win_rate": 0.9286,
+          "top10_rows": 84,
+          "bear_top10_win_rate": null,
+          "bear_top10_rows": 0,
+          "bull_top10_win_rate": 0.0,
+          "bull_top10_rows": 1
+        },
+        {
+          "accuracy": 0.6459,
+          "brier": 0.3159,
+          "top10_win_rate": 0.0238,
+          "top10_rows": 84,
+          "bear_top10_win_rate": null,
+          "bear_top10_rows": 0,
+          "bull_top10_win_rate": 0.0,
+          "bull_top10_rows": 34
+        }
+      ]
+    },
+    "current_full_metrics": {
+      "feature_count": 131,
+      "cv_mean_accuracy": 0.5795918367346939,
+      "cv_std_accuracy": 0.2311794476128208,
+      "cv_worst_accuracy": 0.20168067226890757,
+      "cv_mean_brier": 0.269704607129097,
+      "top10_win_rate_mean": 0.8761904761904763,
+      "bear_top10_win_rate_mean": 0.5416666666666666,
+      "bull_top10_win_rate_mean": 0.14285714285714285,
+      "folds": [
+        {
+          "accuracy": 0.7983,
+          "brier": 0.1647,
+          "top10_win_rate": 0.4762,
+          "top10_rows": 84,
+          "bear_top10_win_rate": 0.5417,
+          "bear_top10_rows": 24,
+          "bull_top10_win_rate": 0.5714,
+          "bull_top10_rows": 14
+        },
+        {
+          "accuracy": 0.2017,
+          "brier": 0.3882,
+          "top10_win_rate": 0.9048,
+          "top10_rows": 84,
+          "bear_top10_win_rate": null,
+          "bear_top10_rows": 0,
+          "bull_top10_win_rate": null,
+          "bull_top10_rows": 0
+        },
+        {
+          "accuracy": 0.7143,
+          "brier": 0.2128,
+          "top10_win_rate": 1.0,
+          "top10_rows": 84,
+          "bear_top10_win_rate": null,
+          "bear_top10_rows": 0,
+          "bull_top10_win_rate": 0.0,
+          "bull_top10_rows": 1
+        },
+        {
+          "accuracy": 0.7623,
+          "brier": 0.2193,
+          "top10_win_rate": 1.0,
+          "top10_rows": 84,
+          "bear_top10_win_rate": null,
+          "bear_top10_rows": 0,
+          "bull_top10_win_rate": 0.0,
+          "bull_top10_rows": 1
+        },
+        {
+          "accuracy": 0.4214,
+          "brier": 0.3636,
+          "top10_win_rate": 1.0,
+          "top10_rows": 84,
+          "bear_top10_win_rate": null,
+          "bear_top10_rows": 0,
+          "bull_top10_win_rate": 0.0,
+          "bull_top10_rows": 34
+        }
+      ]
+    },
+    "profile_role": {
+      "profile": "core_only",
+      "role": "global_shrinkage_winner",
+      "source": "feature_group_ablation.recommended_profile",
+      "reason": "global \u6700\u8fd1\u8996\u7a97\u7684 shrinkage / CV \u7a69\u5b9a\u5ea6\u6700\u4f73 profile\u3002"
+    },
+    "bull_collapse_4h_features": [
+      "feat_4h_bb_pct_b",
+      "feat_4h_dist_bb_lower",
+      "feat_4h_dist_swing_low"
+    ],
+    "stable_4h_features": [
+      "feat_4h_bias50",
+      "feat_4h_bias20",
+      "feat_4h_bias200",
+      "feat_4h_rsi14",
+      "feat_4h_macd_hist",
+      "feat_4h_ma_order",
+      "feat_4h_vol_ratio"
+    ]
+  },
+  "bull_4h_pocket_ablation": {
+    "generated_at": "2026-04-15 06:06:24",
+    "target_col": "simulated_pyramid_win",
+    "collapse_features": [
+      "feat_4h_dist_swing_low",
+      "feat_4h_dist_bb_lower",
+      "feat_4h_bb_pct_b"
+    ],
+    "collapse_thresholds": {
+      "feat_4h_dist_swing_low": 1.9892,
+      "feat_4h_dist_bb_lower": 1.6912,
+      "feat_4h_bb_pct_b": 0.2244
+    },
+    "live_context": {
+      "regime_label": "bull",
+      "regime_gate": null,
+      "entry_quality_label": null,
+      "execution_guardrail_reason": null,
+      "current_live_structure_bucket": null,
+      "current_live_structure_bucket_rows": null,
+      "supported_neighbor_buckets": [],
+      "collapse_feature_snapshot": {}
+    },
+    "support_pathology_summary": {
+      "blocker_state": "insufficient_support_everywhere",
+      "preferred_support_cohort": null,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 50,
+      "exact_bucket_root_cause": "insufficient_scope_data",
+      "bucket_comparison_takeaway": "support_gap_unresolved",
+      "proxy_boundary_verdict": "insufficient_recent_exact_bucket_rows",
+      "proxy_boundary_reason": "current live structure bucket \u6c92\u6709 recent exact rows\uff0c\u7121\u6cd5\u5224\u65b7 proxy cohort \u908a\u754c\u3002",
+      "proxy_boundary_diagnostics": {
+        "feature_columns": [
+          "feat_4h_bias200",
+          "feat_4h_dist_swing_low",
+          "feat_4h_dist_bb_lower",
+          "feat_4h_bb_pct_b"
+        ],
+        "recent_exact_current_bucket": {
+          "rows": 0,
+          "win_rate": null,
+          "regime_counts": {},
+          "dominant_regime": null,
+          "feature_means": {
+            "feat_4h_bias200": null,
+            "feat_4h_dist_swing_low": null,
+            "feat_4h_dist_bb_lower": null,
+            "feat_4h_bb_pct_b": null
+          }
+        },
+        "recent_exact_live_lane": {
+          "rows": 0,
+          "win_rate": null,
+          "regime_counts": {},
+          "dominant_regime": null,
+          "feature_means": {
+            "feat_4h_bias200": null,
+            "feat_4h_dist_swing_low": null,
+            "feat_4h_dist_bb_lower": null,
+            "feat_4h_bb_pct_b": null
+          }
+        },
+        "historical_exact_bucket_proxy": {
+          "rows": 0,
+          "win_rate": null,
+          "regime_counts": {},
+          "dominant_regime": null,
+          "feature_means": {
+            "feat_4h_bias200": null,
+            "feat_4h_dist_swing_low": null,
+            "feat_4h_dist_bb_lower": null,
+            "feat_4h_bb_pct_b": null
+          }
+        },
+        "recent_broader_same_bucket": {
+          "rows": 0,
+          "win_rate": null,
+          "regime_counts": {},
+          "dominant_regime": null,
+          "feature_means": {
+            "feat_4h_bias200": null,
+            "feat_4h_dist_swing_low": null,
+            "feat_4h_dist_bb_lower": null,
+            "feat_4h_bb_pct_b": null
+          }
+        },
+        "proxy_vs_current_live_bucket": {
+          "win_rate_delta": null,
+          "row_ratio": null,
+          "feature_mean_deltas": {
+            "feat_4h_bias200": null,
+            "feat_4h_dist_swing_low": null,
+            "feat_4h_dist_bb_lower": null,
+            "feat_4h_bb_pct_b": null
+          }
+        },
+        "exact_live_lane_vs_current_live_bucket": {
+          "win_rate_delta": null,
+          "quality_delta": null,
+          "row_ratio": null,
+          "feature_mean_deltas": {
+            "feat_4h_bias200": null,
+            "feat_4h_dist_swing_low": null,
+            "feat_4h_dist_bb_lower": null,
+            "feat_4h_bb_pct_b": null
+          }
+        },
+        "broader_same_bucket_vs_current_live_bucket": {
+          "win_rate_delta": null,
+          "quality_delta": null,
+          "row_ratio": null,
+          "feature_mean_deltas": {
+            "feat_4h_bias200": null,
+            "feat_4h_dist_swing_low": null,
+            "feat_4h_dist_bb_lower": null,
+            "feat_4h_bb_pct_b": null
+          }
+        },
+        "proxy_boundary_verdict": "insufficient_recent_exact_bucket_rows",
+        "proxy_boundary_reason": "current live structure bucket \u6c92\u6709 recent exact rows\uff0c\u7121\u6cd5\u5224\u65b7 proxy cohort \u908a\u754c\u3002"
+      },
+      "bucket_evidence_comparison": {
+        "current_live_bucket": null,
+        "exact_live_lane": {
+          "bucket": null,
+          "rows": 0,
+          "current_live_bucket_rows": 0,
+          "win_rate": null,
+          "avg_pnl": null,
+          "avg_quality": null,
+          "avg_drawdown_penalty": null,
+          "avg_time_underwater": null
+        },
+        "exact_bucket_proxy": {
+          "bucket": null,
+          "rows": 0,
+          "base_win_rate": 0.0,
+          "recommended_profile": null,
+          "recommended_metrics": {}
+        },
+        "exact_lane_proxy": {
+          "bucket": null,
+          "rows": 0,
+          "base_win_rate": 0.0,
+          "recommended_profile": null,
+          "recommended_metrics": {}
+        },
+        "broader_same_bucket": {
+          "bucket": null,
+          "rows": 0,
+          "dominant_regime": null,
+          "dominant_regime_share": 0.0,
+          "win_rate": null,
+          "avg_pnl": null,
+          "avg_quality": null,
+          "avg_drawdown_penalty": null,
+          "avg_time_underwater": null
+        },
+        "proxy_vs_broader_same_bucket": {
+          "win_rate_delta": null,
+          "proxy_cv_mean_accuracy": null,
+          "row_delta": 0
+        },
+        "exact_live_lane_vs_broader_same_bucket": {
+          "win_rate_delta": null,
+          "quality_delta": null,
+          "row_delta": 0
+        }
+      },
+      "exact_lane_bucket_verdict": "no_exact_lane_sub_bucket_split",
+      "exact_lane_bucket_reason": "exact live lane \u6c92\u6709\u53ef\u6bd4\u8f03\u7684\u975e current bucket \u5b50 bucket\u3002",
+      "exact_lane_toxic_bucket": {},
+      "exact_lane_bucket_diagnostics": {
+        "feature_columns": [
+          "feat_4h_bias200",
+          "feat_4h_dist_swing_low",
+          "feat_4h_dist_bb_lower",
+          "feat_4h_bb_pct_b"
+        ],
+        "current_bucket": null,
+        "bucket_count": 0,
+        "buckets": {},
+        "toxic_bucket": null,
+        "verdict": "no_exact_lane_sub_bucket_split",
+        "reason": "exact live lane \u6c92\u6709\u53ef\u6bd4\u8f03\u7684\u975e current bucket \u5b50 bucket\u3002"
+      },
+      "recommended_action": "support \u5168\u9762\u4e0d\u8db3\uff1b\u4e0b\u4e00\u8f2a\u9700\u512a\u5148\u64f4\u5145\u6a23\u672c\u6216\u7e2e\u5c0f\u6cbb\u7406\u7bc4\u570d\u3002"
+    },
+    "production_profile_role": {
+      "profile": "core_plus_macro_plus_4h_structure_shift",
+      "role": "support_aware_production_profile",
+      "source": "bull_4h_pocket_ablation.support_aware_profile",
+      "support_cohort": null,
+      "support_rows": null,
+      "exact_live_bucket_rows": null,
+      "reason": "exact bucket \u5c1a\u672a\u5145\u5206\u652f\u6301\uff0cproduction \u4ecd\u9700\u4fdd\u7559 support-aware lane \u4f5c\u70ba\u6cbb\u7406\u8a9e\u7fa9\u3002"
+    },
+    "bull_all": {
+      "rows": 865,
+      "base_win_rate": 0.7479768786127168,
+      "recommended_profile": "core_plus_macro_plus_4h_structure_shift",
+      "recommended_metrics": {
+        "feature_count": 13,
+        "n_splits": 5,
+        "evaluation_mode": "timeseries_split",
+        "cv_mean_accuracy": 0.7972222222222222,
+        "cv_std_accuracy": 0.17438162350799452,
+        "cv_worst_accuracy": 0.4861111111111111,
+        "cv_mean_brier": 0.17882452458143233,
+        "top10_win_rate_mean": 0.8933333333333333
+      }
+    },
+    "bull_collapse_q35": {
+      "rows": 305,
+      "base_win_rate": 0.5081967213114754,
+      "recommended_profile": "core_plus_macro",
+      "recommended_metrics": {
+        "feature_count": 10,
+        "n_splits": 3,
+        "evaluation_mode": "timeseries_split",
+        "cv_mean_accuracy": 0.7466666666666667,
+        "cv_std_accuracy": 0.009428090415820642,
+        "cv_worst_accuracy": 0.74,
+        "cv_mean_brier": 0.18970569471518198,
+        "top10_win_rate_mean": 0.39999999999999997
+      }
+    },
+    "bull_exact_live_lane_proxy": {
+      "rows": 0,
+      "base_win_rate": 0.0,
+      "recommended_profile": null,
+      "recommended_metrics": {}
+    },
+    "bull_live_exact_lane_bucket_proxy": {
+      "rows": 0,
+      "base_win_rate": 0.0,
+      "recommended_profile": null,
+      "recommended_metrics": {}
+    },
+    "bull_supported_neighbor_buckets_proxy": {
+      "rows": 0,
+      "base_win_rate": 0.0,
+      "recommended_profile": null,
+      "recommended_metrics": {}
+    }
+  },
+  "leaderboard_candidate_diagnostics": {
+    "generated_at": "2026-04-15T06:09:18.599395Z",
+    "target_col": "simulated_pyramid_win",
+    "leaderboard_count": 8,
+    "selected_feature_profile": "core_only",
+    "selected_feature_profile_source": "feature_group_ablation.recommended_profile",
+    "selected_feature_profile_blocker_applied": false,
+    "selected_feature_profile_blocker_reason": null,
+    "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
+    "profile_split": {
+      "global_profile": "core_only",
+      "global_profile_role": "global_shrinkage_winner",
+      "global_profile_source": "feature_group_ablation.recommended_profile",
+      "production_profile": "core_plus_macro_plus_4h_structure_shift",
+      "production_profile_role": "bull_exact_supported_production_profile",
+      "production_profile_source": "bull_4h_pocket_ablation.exact_supported_profile",
+      "split_required": true,
+      "verdict": "dual_role_required",
+      "reason": "global winner \u4ee3\u8868 recent global shrinkage / CV \u7a69\u5b9a\u5ea6\uff1bproduction winner \u4ee3\u8868 current live bull lane \u7684\u652f\u6490\u8207\u6cbb\u7406\u8a9e\u7fa9\uff0c\u5169\u8005\u4e0d\u61c9\u518d\u88ab\u6df7\u6210\u540c\u4e00\u500b profile\u3002"
+    },
+    "leaderboard_snapshot_created_at": "2026-04-15T04:31:22.119174Z",
+    "alignment_evaluated_at": "2026-04-15T06:09:18.599395Z",
+    "current_alignment_inputs_stale": false,
+    "current_alignment_recency": {
+      "inputs_current": true,
+      "evaluated_before_train": false,
+      "evaluated_before_bull_pocket": false,
+      "evaluated_before_feature_ablation": false,
+      "train_trained_at": "2026-04-14T23:10:39.590377",
+      "bull_pocket_generated_at": "2026-04-15 06:06:24",
+      "feature_ablation_generated_at": "2026-04-15 06:06:22"
+    },
+    "artifact_recency": {
+      "alignment_snapshot_stale": true,
+      "stale_against_train": false,
+      "stale_against_bull_pocket": true,
+      "stale_against_feature_ablation": true,
+      "train_trained_at": "2026-04-14T23:10:39.590377",
+      "bull_pocket_generated_at": "2026-04-15 06:06:24",
+      "feature_ablation_generated_at": "2026-04-15 06:06:22"
+    },
+    "global_recommended_profile": "core_only",
+    "train_selected_profile": "core_plus_macro_plus_4h_structure_shift",
+    "train_selected_profile_source": "bull_4h_pocket_ablation.exact_supported_profile",
+    "train_support_cohort": "bull_all",
+    "train_support_rows": 761,
+    "train_exact_live_bucket_rows": 90,
+    "live_regime_gate": null,
+    "live_entry_quality_label": null,
+    "live_execution_guardrail_reason": null,
+    "live_current_structure_bucket": null,
+    "live_current_structure_bucket_rows": null,
+    "supported_neighbor_buckets": [],
+    "bull_support_aware_profile": null,
+    "bull_support_neighbor_rows": 0,
+    "bull_exact_live_bucket_proxy_rows": 0,
+    "blocked_candidate_profiles": [
+      {
+        "feature_profile": "core_plus_macro",
+        "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+        "support_cohort": "bull_collapse_q35",
+        "support_rows": 305,
+        "exact_live_bucket_rows": 0,
+        "blocker_reason": "unsupported_exact_live_structure_bucket"
+      }
+    ]
+  },
+  "auto_propose": {
+    "attempted": true,
+    "success": true,
+    "returncode": 0,
+    "stdout_preview": "============================================================\n\ud83d\udd27 \u81ea\u52d5\u4fee\u5fa9\u5efa\u8b70\u5831\u544a \u2014 2026-04-15 06:09\n============================================================\n\nP1 \u554f\u984c\uff1a\n  P1_live_bull_4h_collapse: bull live decision-quality path is still blocked by weak 4H structure pockets\n    \u2192 \n  P1_feature_stack_variance: current_full feature stack is weaker than the shrinkage-selected baseline\n    \u2192 \n\nP2 \u554f\u984c\uff1a\n  P2_leaderboard_lane_selection: leaderboard deployment_profile is still evidence-driven and hand-tuned rather than auto-learned\n    \u2192 \n\n\ud83d\udcca \u8cc7\u6599\u5eab\uff1asimulated_win=0.5776, streak=15, age=4.7\n\ud83d\udcca IC \u6982\u6cc1\uff1aglobal=19/30, tw=20/30\n\ud83d\udcca TW \u6b77\u53f2\uff1a#1007=20/30, #1006=20/30, #1005=20/30\n\ud83d\udcca \u6f02\u79fb\u6458\u8981\uff1arecent_window=100, alerts=['constant_target', 'regime_concentration', 'regime_shift'], win_rate=1.0000, delta_vs_full=+0.3587, dominant_regime=bull(100.00%), interpretation=supported_extreme_trend, avg_pnl=+0.0215, avg_quality=0.6810, avg_dd_penalty=0.0337, spot_long_win_rate=1.0000, feature_diag=variance:24/49, frozen:2, compressed:22, expected_static:1, overlay_only:4, unexpected_frozen:1, distinct:12, null_heavy:10, tail_streak=100x1 since 2026-04-14 02:57:35.042121 -> 2026-04-14 06:49:03.966465, adverse_streak=100x1 since 2026-04-14 02:57:35.042121 -> 2026-04-14 06:49:03.966465, prev_win_rate=0.97, delta_vs_prev=0.03, prev_quality=0.6558, quality_delta_vs_prev=0.0252, prev_pnl=0.0209, pnl_delta_vs_prev=0.0006, top_shift_examples=feat_eye(3.5858\u21920.338,\u0394\u03c3=1.194)/feat_aura(0.0198\u21920.0064,\u0394\u03c3=1.1123)/feat_nw_width(0.0068\u21920.0035,\u0394\u03c3=0.9233), new_frozen=feat_vix, new_compressed=feat_atr_pct/feat_vwap_dev, frozen_examples=feat_4h_ma_order(0.0/1)/feat_vix(0.0/1), compressed_examples=feat_body(0.0/100)/feat_ear(0.0012/100)/feat_tongue(0.0024/100), expected_static_examples=feat_4h_ma_order[discrete_regime_feature], overlay_only_examples=feat_claw[research_sparse_source]/feat_claw_intensity[research_sparse_source]/feat_fang_pcr[research_sparse_source], unexpected_frozen_examples=feat_vix(0.0/1), distinct_examples=feat_vix(1/1431)",
+    "stderr_preview": ""
+  },
+  "parallel_results": {
+    "regime_ic": {
+      "success": true,
+      "stdout_preview": "Regime-Aware IC Analysis \u2014 n=12390\n======================================================================\nRegime distribution (mind_tertiles_with_feature_regime_fallback): {'chop': 8363, 'bull': 1420, 'bear': 2586, 'neutral': 21}\n  \u21b3 fallback rows using features.regime_label: 8283 / 12390\n\nBEAR (n=2586)\n  eye     : IC=+0.0106 \u274c\n  ear     : IC=+0.0429 \u274c\n  nose    : IC=+0.0931 \u2705\n  tongue  : IC=-0.1634 \u2705\n  body    : IC=-0.0305 \u274c\n  pulse   : IC=+0.0427 \u274c\n  aura    : IC=+0.1435 \u2705\n  mind    : IC=+0.2398 \u2705\n  \u2192 4/8 passing\n\nBULL (n=1420)\n  eye     : IC=+0.0355 \u274c\n  ear     : IC=-0.0662 \u2705\n  nose    : IC=+0.0119 \u274c\n  tongue  : IC=-0.1050 \u2705\n  body    : IC=-0.0833 \u2705\n  pulse   : IC=+0.0898 \u2705\n  aura    : IC=-0.1189 \u2705\n  mind    : IC=-0.2057 \u2705\n  \u2192 6/8 passing\n\nCHOP (n=8363)\n  eye     : IC=-0.0020 \u274c\n  ear     : IC=+0.0040 \u274c\n  nose    : IC=+0.0923 \u2705\n  tongue  : IC=-0.1761 \u2705\n  body    : IC=-0.1010 \u2705\n  pulse   : IC=+0.1362 \u2705\n  aura    : IC=+0.0643 \u2705\n  mind    : IC=+0.0894 \u2705\n  \u2192 6/8 passing\n\nNEUTRAL (n=21)\n  eye     : IC=+0.2922 \u2705\n  ear     : IC=+0.1573 \u2705\n  nose    : IC=-0.0954 \u2705\n  tongue  : IC=+0.0786 \u2705\n  body    : IC=+0.0000 \u26a0\ufe0f (constant_feature)\n  pulse   : IC=+0.0000 \u26a0\ufe0f (too_few_samples)\n  aura    : IC=+0.0000 \u26a0\ufe0f (too_few_samples)\n  mind    : IC=+0.0000 \u26a0\ufe0f (too_few_samples)\n  \u2192 4/8 passing\n\n=== simulated_pyramid_win Rate by Regime ===\n  bear    : simulated_pyramid_win=0.7475 (n=2586)\n  bull    : simulated_pyramid_win=0.7007 (n=1420)\n  chop    : simulated_pyramid_win=0.6048 (n=8363)\n  neutral : simulated_pyramid_win=0.1429 (n=21)\n\nOverall: simulated_pyramid_win=0.6448 (n=12390)\n\nSaved to data/ic_regime_analysis.json",
+      "stderr_preview": ""
+    },
+    "full_ic": {
+      "success": true,
+      "stdout_preview": "Full IC Analysis (v5) \u2014 n=12390\n======================================================================\n\n=== Global IC (Spearman, n=12390) ===\n  feat_eye            : IC=+0.0183 \u274c FAIL\n  feat_ear            : IC=+0.0019 \u274c FAIL\n  feat_nose           : IC=+0.1111 \u2705 PASS\n  feat_tongue         : IC=-0.2091 \u2705 PASS\n  feat_body           : IC=-0.0698 \u2705 PASS\n  feat_pulse          : IC=+0.1026 \u2705 PASS\n  feat_aura           : IC=-0.0825 \u2705 PASS\n  feat_mind           : IC=-0.0941 \u2705 PASS\n  feat_vix            : IC=+0.1899 \u2705 PASS\n  feat_dxy            : IC=+0.1405 \u2705 PASS\n  feat_rsi14          : IC=-0.0223 \u274c FAIL\n  feat_macd_hist      : IC=-0.0098 \u274c FAIL\n  feat_atr_pct        : IC=-0.1280 \u2705 PASS\n  feat_vwap_dev       : IC=-0.1994 \u2705 PASS\n  feat_bb_pct_b       : IC=-0.0272 \u274c FAIL\n  feat_nw_width       : IC=+0.3747 \u2705 PASS\n  feat_nw_slope       : IC=+0.0919 \u2705 PASS\n  feat_adx            : IC=+0.3621 \u2705 PASS\n  feat_choppiness     : IC=+0.0725 \u2705 PASS\n  feat_donchian_pos   : IC=+0.1508 \u2705 PASS\n  feat_4h_bias50      : IC=-0.0574 \u2705 PASS\n  feat_4h_bias20      : IC=-0.0178 \u274c FAIL\n  feat_4h_bias200     : IC=-0.0966 \u2705 PASS\n  feat_4h_rsi14       : IC=-0.0117 \u274c FAIL\n  feat_4h_macd_hist   : IC=+0.0466 \u274c FAIL\n  feat_4h_bb_pct_b    : IC=-0.0145 \u274c FAIL\n  feat_4h_dist_bb_lower: IC=+0.0353 \u274c FAIL\n  feat_4h_ma_order    : IC=-0.0881 \u2705 PASS\n  feat_4h_dist_swing_low: IC=+0.0135 \u274c FAIL\n  feat_4h_vol_ratio   : IC=-0.0884 \u2705 PASS\n\nGlobal IC: 19/30 passing\n\n=== Time-Weighted IC (tau=200, n=12390) ===\n  feat_eye            : TW-IC=+0.0364 \u274c FAIL\n  feat_ear            : TW-IC=+0.0420 \u274c FAIL\n  feat_nose           : TW-IC=+0.0440 \u274c FAIL\n  feat_tongue         : TW-IC=+0.0326 \u274c FAIL\n  feat_body           : TW-IC=+0.0050 \u274c FAIL\n  feat_pulse          : TW-IC=-0.0481 \u274c FAIL\n  feat_aura           : TW-IC=+0.3337 \u2705 PASS\n  feat_mind           : TW-IC=+0.3431 \u2705 PASS\n  feat_vix            : TW-IC=+0.0536 \u2705 PASS\n  feat_dxy            : TW-IC=-0.0846 \u2705 PASS\n  feat_rsi14          : TW-IC=+0.0951 \u2705 PASS\n  feat_macd_hist      : TW-IC",
+      "stderr_preview": ""
+    }
+  },
+  "stats": {
+    "passed": 2,
+    "total": 2,
+    "elapsed_seconds": 1.0
+  }
+}

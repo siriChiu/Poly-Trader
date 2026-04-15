@@ -103,3 +103,30 @@ def test_component_gap_attribution_handles_zero_gap_without_required_delta():
     assert result["remaining_gap_to_floor"] == 0.0
     assert result["best_single_component"] is None
     assert result["single_component_floor_crossers"] == []
+
+
+def test_runtime_blocker_summary_and_unavailable_gap_attribution_for_circuit_breaker():
+    payload = {
+        "signal": "CIRCUIT_BREAKER",
+        "model_type": "circuit_breaker",
+        "reason": "Consecutive loss streak: 50 >= 50",
+        "streak": 50,
+        "allowed_layers": 0,
+    }
+
+    blocker = live_drilldown._runtime_blocker_summary(payload)
+    result = live_drilldown._unavailable_component_gap_attribution(payload["reason"], blocker=blocker)
+
+    assert blocker == {
+        "type": "circuit_breaker",
+        "signal": "CIRCUIT_BREAKER",
+        "model_type": "circuit_breaker",
+        "reason": "Consecutive loss streak: 50 >= 50",
+        "streak": 50,
+        "win_rate": None,
+        "allowed_layers": 0,
+    }
+    assert result["remaining_gap_to_floor"] is None
+    assert result["best_single_component"] is None
+    assert result["runtime_blocker"]["type"] == "circuit_breaker"
+    assert result["unavailable_reason"] == "Consecutive loss streak: 50 >= 50"

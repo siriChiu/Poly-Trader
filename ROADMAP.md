@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-15 05:35 UTC — Heartbeat #1006（本輪已把「trade-floor gap 根因拆解」正式落地成 machine-readable contract：`live_decision_quality_drilldown` 現在會直接輸出 `component_gap_attribution`。同時也確認 current live bull bucket 已從 q35 漂到 q15，exact support 重新歸零，治理焦點必須轉向 q15 lane support / calibration，而不是繼續停在 generic gap 問題。）_
+_最後更新：2026-04-15 06:09 UTC — Heartbeat #1007（本輪已把 live `CIRCUIT_BREAKER` 正式接進 probe / drilldown / heartbeat summary contract。現在 heartbeat 不會再把 breaker 擋下的 live row誤判成 q15/q35 gap；當前主治理目標已切到 breaker root cause / release condition，而 q15/q35 calibration 降級成 background research。）_
 
 本文件只保留**目前已落地能力、當前主目標、下一步 gate**，不保留歷史 roadmap 敘事。
 
@@ -20,41 +20,33 @@ _最後更新：2026-04-15 05:35 UTC — Heartbeat #1006（本輪已把「trade-
   - `data/bull_4h_pocket_ablation.json`
   - `data/leaderboard_feature_profile_probe.json`
   - `issues.json`
-  - numbered summary：`data/heartbeat_1006_summary.json`
+  - numbered summary：`data/heartbeat_1007_summary.json`
 
-### 本輪新完成：entry-quality gap attribution contract 已落地
+### 本輪新完成：circuit-breaker propagation contract 已落地
+- `scripts/hb_predict_probe.py`
+  - 新增輸出：`reason / streak / win_rate`
 - `scripts/live_decision_quality_drilldown.py`
-  - 新增 `component_gap_attribution`
-  - 會輸出：
-    - `remaining_gap_to_floor`
-    - `best_single_component`
-    - `best_single_component_required_score_delta`
-    - `single_component_floor_crossers`
-    - `bias50_floor_counterfactual`
+  - 新增 `runtime_blocker`
+  - 新增 `component_gap_attribution.unavailable_reason`
+  - breaker 情境下不再偽造 `trade_floor_gap=0.55`
 - `scripts/hb_parallel_runner.py`
-  - fast heartbeat summary 現在會同步保存：
-    - `live_decision_drilldown.remaining_gap_to_floor`
-    - `live_decision_drilldown.best_single_component`
-    - `live_decision_drilldown.best_single_component_required_score_delta`
-- `tests/test_live_decision_quality_drilldown.py`
-  - 鎖住 `feat_4h_bias50` 必須被辨識為最佳單點修補候選
-- `tests/test_hb_parallel_runner.py`
-  - 鎖住 summary 持久化新的 gap attribution 欄位
+  - `live_predictor_diagnostics` 新增 `model_type / reason / streak / win_rate / runtime_blocker`
+- `ARCHITECTURE.md`
+  - 補上 probe / drilldown 的 circuit-breaker propagation contract
 
 ### 驗證能力
-- `source venv/bin/activate && python -m pytest tests/test_live_decision_quality_drilldown.py tests/test_hb_parallel_runner.py -q` → **18 passed**
-- `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast --hb 1006` → **通過**
+- `source venv/bin/activate && python -m pytest tests/test_live_decision_quality_drilldown.py tests/test_hb_parallel_runner.py -q` → **20 passed**
+- `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast --hb 1007` → **通過**
 
 ### 資料與 canonical target
-- canonical target 仍統一為 **`simulated_pyramid_win`**
-- 最新 DB 狀態（#1006）：
-  - Raw / Features / Labels = **21580 / 13009 / 43193**
-  - simulated_pyramid_win = **0.5784**
+- 最新 DB 狀態（#1007）：
+  - Raw / Features / Labels = **21582 / 13011 / 43256**
+  - simulated_pyramid_win = **0.5776**
 - label freshness 正常：
   - 240m lag 約 **3.0h**
-  - 1440m lag 約 **23.4h**
+  - 1440m lag 約 **23.3h**
 
-### IC / drift / live contract
+### IC / drift / live runtime
 - Global IC：**19/30**
 - TW-IC：**20/30**
 - Regime IC：**Bear 4/8 / Bull 6/8 / Chop 6/8**
@@ -62,144 +54,121 @@ _最後更新：2026-04-15 05:35 UTC — Heartbeat #1006（本輪已把「trade-
   - interpretation：**supported_extreme_trend**
   - dominant regime：**bull 100%**
 - live predictor：
+  - signal：**CIRCUIT_BREAKER**
   - regime：**bull**
-  - gate：**CAUTION**
-  - entry quality：**0.4658 (D)**
+  - reason：**Consecutive loss streak: 59 >= 50**
   - allowed layers：**0**
-  - `allowed_layers_reason = entry_quality_below_trade_floor`
-  - `execution_guardrail_reason = unsupported_exact_live_structure_bucket_blocks_trade`
-  - chosen scope：**`regime_label+entry_quality_label`**（sample_size=197）
-  - expected win rate：**0.9848**
-  - expected pyramid quality：**0.6714**
+  - decision-quality scope：**None**
+- live drilldown：
+  - `runtime_blocker.type = circuit_breaker`
+  - `component_gap_attribution.unavailable_reason = Consecutive loss streak: 59 >= 50`
+  - `remaining_gap_to_floor = null`
 
-### 本輪新結論：gap root cause 已回答，但 current live lane 支撐惡化
-- `data/live_decision_quality_drilldown.json`
-  - `remaining_gap_to_floor = 0.0842`
-  - `best_single_component = feat_4h_bias50`
-  - `best_single_component_required_score_delta = 0.2807`
-  - `single_component_floor_crossers = [feat_4h_bias50]`
-  - `bias50 fully relaxed -> entry≈0.7807 / layers≈2`
-- `data/q35_scaling_audit.json`
-  - `overall_verdict = broader_bull_cohort_recalibration_candidate`
-  - `segmented_calibration.status = segmented_calibration_required`
-  - `reference_cohort = same_gate_same_quality`
-- `data/bull_4h_pocket_ablation.json`
-  - `current_live_structure_bucket = CAUTION|structure_quality_caution|q15`
-  - `current_live_structure_bucket_rows = 0`
-  - `support_blocker_state = exact_lane_proxy_fallback_only`
-- **治理結論**：
-  - generic gap attribution 已完成；
-  - 但 current live lane 不再是 #1005 的 q35 exact-supported 狀態；
-  - 下一步必須轉成 **q15 lane support + q15 piecewise calibration** 治理。
+### Calibration / support / profile 現況
+- q35 audit 仍顯示：`broader_bull_cohort_recalibration_candidate`
+- bull support route：`no_support_proxy`
+- global shrinkage winner：`core_only`
+- production train profile：`core_plus_macro_plus_4h_structure_shift`
+- leaderboard state：`leaderboard_global_winner_vs_train_support_fallback`
 
-### 模型 / shrinkage / bull support 對齊
-- global recommended profile：**`core_only`**
-- production train profile：**`core_plus_macro_plus_4h_structure_shift`**
-- leaderboard selected profile：**`core_only`**
-- dual profile state：**`leaderboard_global_winner_vs_train_support_fallback`**
-- blocked candidate：`core_plus_macro` → `unsupported_exact_live_structure_bucket`
-
-### Source blocker
-- `fin_netflow` 仍是 **auth_missing**
-- 未補 `COINGLASS_API_KEY` 前，不會進入主決策成熟特徵
+### 治理結論
+- **已完成**：heartbeat 現在能 machine-read 看出「當前沒有 live scope 是因為 circuit breaker」，不是 artifact 壞掉。
+- **未完成**：circuit breaker 為何在 canonical target 仍 57.8% 時觸發、解除條件應如何定義，還沒有 root-cause artifact。
+- **降級處理**：q15/q35 calibration 與 bull support route 先視為 background research；在 breaker 未解除前，不可當成當前 live deploy blocker。
 
 ---
 
 ## 當前主目標
 
-### 目標 A：從 generic gap attribution 轉進 **q15 lane bias50 calibration**
+### 目標 A：釐清 circuit breaker root cause / release condition
 目前已確認：
-- 問題最直接卡在 `feat_4h_bias50`；
-- `feat_4h_bias50` 是唯一 single-component floor crosser；
-- 但 current lane 已變成 `CAUTION|structure_quality_caution|q15`，不再是 q35 exact-supported。
+- live predictor 在 decision-quality contract 之前就被 breaker 擋下；
+- breaker 原因已可 machine-read（本輪為 `Consecutive loss streak: 59 >= 50`）；
+- 但 heartbeat 還沒有 artifact 回答：
+  - 這 59-streak 對應哪段 canonical target tail？
+  - breaker 是否也同時被 recent win-rate floor 觸發？
+  - 解除條件應看 streak、rolling win-rate、還是兩者並用？
 
 下一步主目標：
-- **釐清 q15 lane 是否存在可保守上線的 piecewise / quantile bias50 calibration**；
-- 不能直接把 #1005 的 exact-lane formula-review 套回來。
+- **把 breaker 從「一個警報」升級成可驗證的治理 contract**。
 
-### 目標 B：把 q15 live bucket support route machine-readable 化
+### 目標 B：breaker 未解除前，把 q15/q35 calibration 明確降級成研究層
 目前已確認：
-- `current_live_structure_bucket_rows = 0`
-- `support_blocker_state = exact_lane_proxy_fallback_only`
-- `exact_bucket_root_cause = same_lane_shifted_to_neighbor_bucket`
-- `supported_neighbor_buckets = [CAUTION|structure_quality_caution|q35]`
+- q35 audit 仍有研究價值；
+- 但 live probe / drilldown 都顯示當前沒有可部署的 decision-quality scope。
 
 下一步主目標：
-- heartbeat / probe / ablation / docs 必須明確回答：
-  - q15 是短暫漂移還是穩定新 lane？
-  - 應採 exact-bucket proxy、exact-lane proxy、neighbor bucket，還是保持 blocker？
+- **確保所有 heartbeat / docs / summaries 都把 q15/q35 表述為 research，不再當成當前 live root cause。**
 
-### 目標 C：維持 profile split 與 blocker-aware ranking 語義
+### 目標 C：維持 profile split 與 bull support route 的治理語義
 目前已確認：
-- global best：`core_only`
-- production train best：`core_plus_macro_plus_4h_structure_shift`
-- leaderboard 現在因 live bucket 無 support 而退回 global winner
+- `core_only` 仍是 global shrinkage winner；
+- `core_plus_macro_plus_4h_structure_shift` 仍是 production support-aware profile；
+- bull lane `support_governance_route = no_support_proxy`。
 
 下一步主目標：
-- **確保這組 split 是治理結果，不是 artifact 漂移**；
-- 若 q15 support 補回，才重新檢查 leaderboard / production 是否該重新靠攏。
+- breaker 問題釐清前，持續把這些資訊當作**次級治理背景**，避免語義漂移。
 
-### 目標 D：維持 source auth blocker 與 live bull lane 分離治理
+### 目標 D：維持 source auth blocker 顯式治理
 - `fin_netflow` 仍是 **auth_missing**
-- 這是外部 source blocker，不可混進 q15 / bias50 / support route 敘事
+- 這是外部 source blocker，不可混進 breaker / q15 / q35 敘事
 
 ---
 
 ## 接下來要做
 
-### 1. 做 q15 lane 的 bias50 piecewise / quantile calibration 候選
+### 1. 做 circuit-breaker 根因 artifact
 要做：
-- 用 `same_gate_same_quality` / q15 相關 cohort 比較當前 `bias50` 所處分位；
-- 確認是否有保守但可驗證的 q15 bias50 score extension；
-- 保留 `allowed_layers=0` guardrail，除非 support 與 calibration 同時成立。
+- 明確對應最近 canonical labels：
+  - 最長連敗段起訖時間
+  - breaker trigger 類型（streak / win-rate / both）
+  - release condition 候選
+- 產出 machine-readable JSON + markdown
+- 驗證該 artifact 能被 heartbeat summary 正確摘取
 
-### 2. 做 q15 support route 決策
+### 2. 把 q15/q35 研究與 live blocker 明確分層
 要做：
-- 明確比較：
-  - `exact_live_bucket`
-  - `bull_live_exact_lane_bucket_proxy`
-  - `bull_exact_live_lane_proxy`
-  - `supported_neighbor_buckets`
-- 目標不是強行放行，而是**正式決定 q15 應該如何治理**。
+- 在 breaker 仍啟動時，所有 summary 必須顯示：
+  - live blocker = circuit breaker
+  - q15/q35 = background research
+- 不再讓 q35 audit 的研究結論誤導成當前 deploy 建議
 
-### 3. 維持 blocker-aware feature-profile governance
+### 3. 維持 blocker-aware profile governance
 要做：
 - 持續檢查：
   - `leaderboard_selected_profile`
   - `train_selected_profile`
-  - `blocked_candidate_profiles`
-  - `support_blocker_state`
-  - `proxy_boundary_verdict`
-- 若 q15 support 未恢復，leaderboard fallback 到 `core_only` 不視為 bug；
-  但 docs / summary 必須講清楚原因。
+  - `dual_profile_state`
+  - `support_governance_route`
+- 但在 breaker 未解除前，不把 profile 收斂當成第一優先
 
 ### 4. 維持 source blocker 顯式治理
 要做：
 - 在 `COINGLASS_API_KEY` 未補前，持續把 `fin_netflow` 保持為 blocked source；
-- 不把它重包裝成 q15 live path 問題
+- 不把它重包裝成 breaker 或 bull live lane 問題
 
 ---
 
 ## 暫不優先
 
 以下本輪後仍不排最前面：
-- 直接放寬 q35/q15 runtime gate
-- 直接調低 `trade_floor`
-- 重新追已回答的 generic component attribution
-- 新增更多 feature family
+- 直接 relax circuit breaker
+- 直接放寬 q15/q35 runtime gate
+- 重新追 generic gap attribution
+- 強行統一 leaderboard / production profile
 - UI 美化與 fancy controls
 
 原因：
-> 現在真正的瓶頸已不是「不知道 gap 卡哪個 component」，而是 **current q15 lane 沒 support，且 bias50 需要新的 cohort-aware calibration**。
+> 當前真正的 live blocker 已經明確是 **circuit breaker**；在 release condition 沒釐清前，其他 calibration/support/profile 工作都只屬背景研究。
 
 ---
 
 ## 成功標準
 
 接下來幾輪工作的成功標準：
-1. next run 必須留下至少一個與 **q15 lane bias50 calibration 或 q15 support route** 直接相關的真 patch / run / verify。
-2. `live_decision_quality_drilldown / q35_scaling_audit / bull_4h_pocket_ablation / leaderboard_feature_profile_probe` 對 `q15` 狀態的描述必須零漂移。
-3. 若 current live bucket 仍 rows=0，必須再次明確回答該 lane 的治理路徑，而不是只重述 blocker 名稱。
+1. next run 必須留下至少一個與 **circuit breaker root cause / release condition** 直接相關的真 patch / run / verify。
+2. `live_predict_probe / live_decision_quality_drilldown / heartbeat summary` 對 breaker 的描述必須零漂移。
+3. 若 breaker 仍啟動，q15/q35 surfaces 不得再被寫成當前 live blocker。
 4. `fin_netflow` 繼續被正確標成 source auth blocker。
 
 ---
@@ -207,40 +176,37 @@ _最後更新：2026-04-15 05:35 UTC — Heartbeat #1006（本輪已把「trade-
 ## Next gate
 
 - **Next focus:**
-  1. 針對 `q15` live lane 做 bias50 calibration 候選分析；
-  2. 明確決定 q15 support route（proxy / neighbor / blocker）；
-  3. 維持 `profile_split`、`support_blocker_state`、`proxy_boundary_verdict`、`fin_netflow auth blocker` 零漂移治理。
+  1. 做 circuit breaker root-cause / release-condition artifact；
+  2. breaker 未解除前，維持 q15/q35 為 background research 的治理分層；
+  3. 維持 `profile_split / support_governance_route / fin_netflow auth blocker` 零漂移治理。
 
 - **Success gate:**
-  1. next run 必須留下至少一個與 **q15 lane bias50 calibration 或 q15 support route** 直接相關的 patch / artifact / verify；
-  2. 若 current live bucket 仍是 `CAUTION|structure_quality_caution|q15` 且 rows=0，必須明確回答治理路徑；
-  3. 若要主張 relax runtime gate，必須先證明新 lane 有 support 且沒有破壞 `allowed_layers=0` guardrail。
+  1. next run 必須留下至少一個與 **breaker root cause / release condition** 直接相關的 patch / artifact / verify；
+  2. 必須 machine-read 回答 breaker 目前是由 `streak`、`recent win-rate`、還是兩者共同觸發；
+  3. 若 breaker 仍在，live summary 不得再把 q15/q35 calibration 寫成當前 deploy blocker。
 
 - **Fallback if fail:**
-  - 若 heartbeat 又把焦點退回 generic gap attribution，視為 regression；
-  - 若無 support 證據就直接把 bias50 piecewise 套到 q15 live lane，視為 contract regression；
-  - 若 leaderboard / train / support 語義再漂移，視為 blocker；
-  - 若 source auth 未修，繼續標記 blocked，不准寫成即將恢復。
+  - 若 heartbeat 又把焦點退回 generic q15 calibration，視為 regression；
+  - 若無 release evidence 就直接 relax breaker，視為風控 regression；
+  - 若 probe / drilldown 再次丟失 breaker reason，視為 blocker。
 
 - **Documents to update next round:**
   - `ISSUES.md`
   - `ROADMAP.md`
-  - `ARCHITECTURE.md`（若 q15 support / calibration contract 再擴充）
+  - `ARCHITECTURE.md`（若 breaker release contract 再擴充）
 
 - **Carry-forward input for next heartbeat:**
-  1. 先讀 `data/heartbeat_1006_summary.json`
+  1. 先讀 `data/heartbeat_1007_summary.json`
   2. 再讀：
      - `data/live_predict_probe.json`
      - `data/live_decision_quality_drilldown.json`
      - `docs/analysis/live_decision_quality_drilldown.md`
      - `data/q35_scaling_audit.json`
-     - `docs/analysis/q35_scaling_audit.md`
      - `data/bull_4h_pocket_ablation.json`
      - `data/leaderboard_feature_profile_probe.json`
   3. 若同時成立：
-     - `best_single_component = feat_4h_bias50`
-     - `current_live_structure_bucket = CAUTION|structure_quality_caution|q15`
-     - `current_live_structure_bucket_rows = 0`
-     - `support_blocker_state = exact_lane_proxy_fallback_only`
-     - `overall_verdict = broader_bull_cohort_recalibration_candidate`
-     則下一輪不得再把焦點放回 generic gap attribution；必須直接處理 **q15 lane support + bias50 calibration**。
+     - `signal = CIRCUIT_BREAKER`
+     - `runtime_blocker.type = circuit_breaker`
+     - `reason/streak` 已持久化
+     - `component_gap_attribution.unavailable_reason` 非空
+     則下一輪不得再把主焦點放回 q15 generic gap；必須直接處理 **breaker root cause / release condition**。
