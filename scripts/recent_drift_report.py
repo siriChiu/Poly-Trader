@@ -34,6 +34,11 @@ NULL_HEAVY_NON_NULL_RATIO_THRESHOLD = 0.70
 FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT = 5
 TARGET_PATH_EXAMPLE_LIMIT = 5
 WEEKEND_DOMINANT_SHARE_THRESHOLD = 0.5
+US_MACRO_MARKET_OPEN_HOUR_UTC = 13
+US_MACRO_MARKET_OPEN_MINUTE_UTC = 30
+US_MACRO_MARKET_CLOSE_HOUR_UTC = 20
+US_MACRO_MARKET_CLOSE_MINUTE_UTC = 0
+WEEKDAY_MACRO_CLOSED_SHARE_THRESHOLD = 0.9
 
 EXPECTED_STATIC_FEATURE_RULES = {
     "feat_4h_ma_order": "discrete_regime_feature",
@@ -41,6 +46,13 @@ EXPECTED_STATIC_FEATURE_RULES = {
     "feat_dxy": "market_hours_macro",
     "feat_nq_return_1h": "market_hours_macro",
     "feat_nq_return_24h": "market_hours_macro",
+}
+
+EXPECTED_COMPRESSED_FEATURE_RULES = {
+    "feat_atr_pct": {
+        "proxy_col": "raw_volatility",
+        "reason": "underlying_raw_volatility_compression",
+    },
 }
 
 
@@ -58,6 +70,14 @@ def _round(value: float | None) -> float | None:
 
 def _counter_to_dict(counter: Counter) -> dict[str, int]:
     return {str(k): int(v) for k, v in counter.items()}
+
+
+def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+        (table_name,),
+    ).fetchone()
+    return row is not None
 
 
 def _avg(rows: list[sqlite3.Row], key: str) -> float | None:
@@ -94,17 +114,39 @@ def _parse_timestamp(value: Any) -> datetime | None:
             return None
 
 
+def _is_us_macro_market_open(ts: datetime) -> bool:
+    hour = ts.hour
+    minute = ts.minute
+    if ts.weekday() >= 5:
+        return False
+    after_open = (hour, minute) >= (US_MACRO_MARKET_OPEN_HOUR_UTC, US_MACRO_MARKET_OPEN_MINUTE_UTC)
+    before_close = (hour, minute) < (US_MACRO_MARKET_CLOSE_HOUR_UTC, US_MACRO_MARKET_CLOSE_MINUTE_UTC)
+    return after_open and before_close
+
+
 def _window_time_context(rows: list[sqlite3.Row]) -> dict[str, Any]:
     timestamps = [_parse_timestamp(row["timestamp"]) for row in rows if row["timestamp"] is not None]
     timestamps = [ts for ts in timestamps if ts is not None]
     total = len(timestamps)
     weekend_count = sum(1 for ts in timestamps if ts.weekday() >= 5)
     weekend_share = (weekend_count / total) if total else None
+    weekday_count = sum(1 for ts in timestamps if ts.weekday() < 5)
+    weekday_market_open_count = sum(1 for ts in timestamps if _is_us_macro_market_open(ts))
+    weekday_market_closed_count = max(0, weekday_count - weekday_market_open_count)
+    weekday_market_closed_share = (weekday_market_closed_count / weekday_count) if weekday_count else None
     return {
         "parsed_timestamps": total,
         "weekend_count": weekend_count,
         "weekend_share": _round(weekend_share),
         "weekend_dominant": bool(weekend_share is not None and weekend_share >= WEEKEND_DOMINANT_SHARE_THRESHOLD),
+        "weekday_count": weekday_count,
+        "weekday_market_open_count": weekday_market_open_count,
+        "weekday_market_closed_count": weekday_market_closed_count,
+        "weekday_market_closed_share": _round(weekday_market_closed_share),
+        "weekday_market_closed_dominant": bool(
+            weekday_market_closed_share is not None
+            and weekday_market_closed_share >= WEEKDAY_MACRO_CLOSED_SHARE_THRESHOLD
+        ),
     }
 
 
@@ -112,9 +154,46 @@ def _expected_static_reason(feature_col: str, window_context: dict[str, Any]) ->
     rule = EXPECTED_STATIC_FEATURE_RULES.get(feature_col)
     if rule == "discrete_regime_feature":
         return "discrete_regime_feature"
-    if rule == "market_hours_macro" and window_context.get("weekend_dominant"):
-        return "weekend_macro_market_closed"
+    if rule == "market_hours_macro":
+        if window_context.get("weekend_dominant"):
+            return "weekend_macro_market_closed"
+        if window_context.get("weekday_market_closed_dominant"):
+            return "weekday_macro_market_closed"
     return None
+
+
+def _expected_compressed_reason(
+    feature_col: str,
+    current_rows: list[sqlite3.Row],
+    baseline_feature_stats: dict[str, dict[str, Any]],
+) -> str | None:
+    rule = EXPECTED_COMPRESSED_FEATURE_RULES.get(feature_col)
+    if not rule:
+        return None
+
+    proxy_col = rule.get("proxy_col")
+    if not proxy_col:
+        return None
+
+    proxy_recent = _feature_stats(current_rows, str(proxy_col))
+    proxy_baseline = baseline_feature_stats.get(str(proxy_col)) or {}
+    proxy_recent_std = proxy_recent.get("std")
+    proxy_baseline_std = proxy_baseline.get("std")
+    proxy_recent_mean = proxy_recent.get("mean")
+    proxy_baseline_mean = proxy_baseline.get("mean")
+
+    if not isinstance(proxy_recent_std, (int, float)) or not isinstance(proxy_baseline_std, (int, float)):
+        return None
+    if proxy_baseline_std <= 0:
+        return None
+    proxy_std_ratio = proxy_recent_std / proxy_baseline_std
+    if proxy_std_ratio > LOW_VARIANCE_STD_RATIO_THRESHOLD:
+        return None
+    if not isinstance(proxy_recent_mean, (int, float)) or not isinstance(proxy_baseline_mean, (int, float)):
+        return None
+    if proxy_recent_mean > proxy_baseline_mean:
+        return None
+    return str(rule.get("reason") or "expected_underlying_compression")
 
 
 def _overlay_only_reason(feature_col: str) -> str | None:
@@ -255,6 +334,7 @@ def _compute_feature_diagnostics(
             )
 
         expected_static_reason = _expected_static_reason(feature_col, window_context)
+        expected_compressed_reason = _expected_compressed_reason(feature_col, rows, baseline_feature_stats)
         overlay_only_reason = _overlay_only_reason(feature_col)
 
         if std_ratio is not None and std_ratio <= LOW_VARIANCE_STD_RATIO_THRESHOLD:
@@ -269,6 +349,7 @@ def _compute_feature_diagnostics(
                 "baseline_distinct": baseline_distinct,
                 "distinct_ratio": _round(distinct_ratio),
                 "expected_static_reason": expected_static_reason,
+                "expected_compressed_reason": expected_compressed_reason,
                 "overlay_only_reason": overlay_only_reason,
             }
             low_variance_examples.append(row)
@@ -288,6 +369,7 @@ def _compute_feature_diagnostics(
                 "baseline_std": _round(baseline_std),
                 "std_ratio": _round(std_ratio),
                 "expected_static_reason": expected_static_reason,
+                "expected_compressed_reason": expected_compressed_reason,
                 "overlay_only_reason": overlay_only_reason,
             }
             low_distinct_examples.append(row)
@@ -312,6 +394,9 @@ def _compute_feature_diagnostics(
     expected_static_examples = [
         row for row in (frozen_examples + compressed_examples) if row.get("expected_static_reason")
     ]
+    expected_compressed_examples = [
+        row for row in compressed_examples if row.get("expected_compressed_reason")
+    ]
     overlay_only_examples = [
         row for row in (frozen_examples + compressed_examples) if row.get("overlay_only_reason")
     ]
@@ -319,7 +404,11 @@ def _compute_feature_diagnostics(
         row for row in frozen_examples if not row.get("expected_static_reason") and not row.get("overlay_only_reason")
     ]
     unexpected_compressed_examples = [
-        row for row in compressed_examples if not row.get("expected_static_reason") and not row.get("overlay_only_reason")
+        row
+        for row in compressed_examples
+        if not row.get("expected_static_reason")
+        and not row.get("expected_compressed_reason")
+        and not row.get("overlay_only_reason")
     ]
 
     low_variance_examples.sort(key=lambda row: (row.get("std_ratio") is None, row.get("std_ratio", 1e9), row["feature"]))
@@ -327,6 +416,7 @@ def _compute_feature_diagnostics(
     frozen_examples.sort(key=lambda row: (row.get("std_ratio") is None, row.get("std_ratio", 1e9), row["feature"]))
     compressed_examples.sort(key=lambda row: (row.get("std_ratio") is None, row.get("std_ratio", 1e9), row["feature"]))
     expected_static_examples.sort(key=lambda row: (row.get("expected_static_reason") or "", row["feature"]))
+    expected_compressed_examples.sort(key=lambda row: (row.get("expected_compressed_reason") or "", row["feature"]))
     overlay_only_examples.sort(key=lambda row: (row.get("overlay_only_reason") or "", row["feature"]))
     unexpected_frozen_examples.sort(key=lambda row: (row.get("std_ratio") is None, row.get("std_ratio", 1e9), row["feature"]))
     unexpected_compressed_examples.sort(key=lambda row: (row.get("std_ratio") is None, row.get("std_ratio", 1e9), row["feature"]))
@@ -341,6 +431,7 @@ def _compute_feature_diagnostics(
         "frozen_count": len(frozen_examples),
         "compressed_count": len(compressed_examples),
         "expected_static_count": len(expected_static_examples),
+        "expected_compressed_count": len(expected_compressed_examples),
         "overlay_only_count": len(overlay_only_examples),
         "unexpected_frozen_count": len(unexpected_frozen_examples),
         "unexpected_compressed_count": len(unexpected_compressed_examples),
@@ -350,6 +441,7 @@ def _compute_feature_diagnostics(
         "frozen_examples": frozen_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
         "compressed_examples": compressed_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
         "expected_static_examples": expected_static_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
+        "expected_compressed_examples": expected_compressed_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
         "overlay_only_examples": overlay_only_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
         "unexpected_frozen_examples": unexpected_frozen_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
         "unexpected_compressed_examples": unexpected_compressed_examples[:FEATURE_DIAGNOSTIC_EXAMPLE_LIMIT],
@@ -708,8 +800,14 @@ def build_report() -> dict[str, Any]:
         for row in conn.execute("PRAGMA table_info(features_normalized)").fetchall()
         if isinstance(row[1], str) and row[1].startswith("feat_")
     ]
+    has_raw_market_data = _table_exists(conn, "raw_market_data")
     feature_select = ",\n            ".join(f"f.{col}" for col in feature_cols)
     feature_select_sql = f",\n            {feature_select}" if feature_select else ""
+    raw_select_sql = ",\n            r.volatility AS raw_volatility" if has_raw_market_data else ",\n            NULL AS raw_volatility"
+    raw_join_sql = (
+        "\n        LEFT JOIN raw_market_data r\n          ON r.timestamp = l.timestamp AND r.symbol = l.symbol"
+        if has_raw_market_data else ""
+    )
     rows = conn.execute(
         f"""
         SELECT
@@ -725,10 +823,10 @@ def build_report() -> dict[str, Any]:
             l.future_return_pct,
             l.future_max_drawdown,
             l.future_max_runup,
-            COALESCE(NULLIF(f.regime_label, ''), NULLIF(l.regime_label, ''), 'unknown') AS regime{feature_select_sql}
+            COALESCE(NULLIF(f.regime_label, ''), NULLIF(l.regime_label, ''), 'unknown') AS regime{feature_select_sql}{raw_select_sql}
         FROM labels l
         LEFT JOIN features_normalized f
-          ON f.timestamp = l.timestamp AND f.symbol = l.symbol
+          ON f.timestamp = l.timestamp AND f.symbol = l.symbol{raw_join_sql}
         WHERE l.horizon_minutes = ?
           AND l.{TARGET_COL} IS NOT NULL
         ORDER BY l.timestamp
@@ -740,7 +838,10 @@ def build_report() -> dict[str, Any]:
     total = len(rows)
     baseline_regimes = Counter((r["regime"] or "unknown") for r in rows)
     baseline_win_rate = (sum(int(r["target"]) for r in rows) / total) if total else 0.0
-    baseline_feature_stats = {col: _feature_stats(rows, col) for col in feature_cols}
+    diagnostic_cols = list(feature_cols)
+    if has_raw_market_data:
+        diagnostic_cols.append("raw_volatility")
+    baseline_feature_stats = {col: _feature_stats(rows, col) for col in diagnostic_cols}
 
     window_summaries: dict[str, dict[str, Any]] = {}
     for window in WINDOWS:
@@ -808,6 +909,7 @@ def main() -> int:
             f"avg_quality={quality.get('avg_simulated_quality')} avg_dd_penalty={quality.get('avg_drawdown_penalty')} "
             f"feature_diag=variance:{feature_diag.get('low_variance_count', 0)}/{feature_diag.get('feature_count', 0)} "
             f"expected_static:{feature_diag.get('expected_static_count', 0)} "
+            f"expected_compressed:{feature_diag.get('expected_compressed_count', 0)} "
             f"overlay_only:{feature_diag.get('overlay_only_count', 0)} "
             f"unexpected_frozen:{feature_diag.get('unexpected_frozen_count', 0)} "
             f"distinct:{feature_diag.get('low_distinct_count', 0)} null_heavy:{feature_diag.get('null_heavy_count', 0)}"
@@ -832,6 +934,7 @@ def main() -> int:
             f"avg_dd_penalty={quality.get('avg_drawdown_penalty')} "
             f"feature_diag=variance:{feature_diag.get('low_variance_count', 0)}/{feature_diag.get('feature_count', 0)} "
             f"expected_static:{feature_diag.get('expected_static_count', 0)} "
+            f"expected_compressed:{feature_diag.get('expected_compressed_count', 0)} "
             f"overlay_only:{feature_diag.get('overlay_only_count', 0)} "
             f"unexpected_frozen:{feature_diag.get('unexpected_frozen_count', 0)} "
             f"distinct:{feature_diag.get('low_distinct_count', 0)} null_heavy:{feature_diag.get('null_heavy_count', 0)} "
