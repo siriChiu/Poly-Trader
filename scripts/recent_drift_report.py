@@ -53,6 +53,53 @@ EXPECTED_COMPRESSED_FEATURE_RULES = {
         "proxy_col": "raw_volatility",
         "reason": "underlying_raw_volatility_compression",
     },
+    "feat_4h_bias200": {
+        "proxy_cols": ("raw_close_price", "raw_volatility"),
+        "min_required_proxies": 2,
+        "reason": "underlying_price_and_volatility_compression",
+    },
+    "feat_4h_bias50": {
+        "proxy_cols": (
+            "raw_close_price",
+            "raw_volatility",
+            "feat_4h_rsi14",
+            "feat_4h_bb_pct_b",
+            "feat_4h_macd_hist",
+        ),
+        "min_required_proxies": 4,
+        "reason": "coherent_4h_trend_compression",
+    },
+    "feat_4h_macd_hist": {
+        "proxy_cols": (
+            "raw_close_price",
+            "raw_volatility",
+            "feat_4h_bias50",
+            "feat_4h_rsi14",
+            "feat_4h_bb_pct_b",
+        ),
+        "min_required_proxies": 4,
+        "reason": "coherent_4h_momentum_compression",
+    },
+    "feat_4h_dist_bb_lower": {
+        "proxy_cols": (
+            "raw_close_price",
+            "raw_volatility",
+            "feat_4h_bb_pct_b",
+            "feat_4h_dist_swing_low",
+        ),
+        "min_required_proxies": 3,
+        "reason": "coherent_4h_band_floor_compression",
+    },
+    "feat_4h_dist_swing_low": {
+        "proxy_cols": (
+            "raw_close_price",
+            "raw_volatility",
+            "feat_4h_dist_bb_lower",
+            "feat_4h_bb_pct_b",
+        ),
+        "min_required_proxies": 3,
+        "reason": "coherent_4h_support_cluster_compression",
+    },
 }
 
 
@@ -162,38 +209,89 @@ def _expected_static_reason(feature_col: str, window_context: dict[str, Any]) ->
     return None
 
 
-def _expected_compressed_reason(
+def _expected_compressed_details(
     feature_col: str,
     current_rows: list[sqlite3.Row],
     baseline_feature_stats: dict[str, dict[str, Any]],
-) -> str | None:
+) -> dict[str, Any] | None:
     rule = EXPECTED_COMPRESSED_FEATURE_RULES.get(feature_col)
     if not rule:
         return None
 
-    proxy_col = rule.get("proxy_col")
-    if not proxy_col:
+    proxy_cols = rule.get("proxy_cols")
+    if not proxy_cols:
+        proxy_col = rule.get("proxy_col")
+        proxy_cols = (proxy_col,) if proxy_col else ()
+    proxy_cols = tuple(str(col) for col in proxy_cols if col)
+    if not proxy_cols:
         return None
 
-    proxy_recent = _feature_stats(current_rows, str(proxy_col))
-    proxy_baseline = baseline_feature_stats.get(str(proxy_col)) or {}
-    proxy_recent_std = proxy_recent.get("std")
-    proxy_baseline_std = proxy_baseline.get("std")
+    proxy_stats: dict[str, Any] = {}
+    compressed_proxy_count = 0
+    for proxy_col in proxy_cols:
+        proxy_recent = _feature_stats(current_rows, proxy_col)
+        proxy_baseline = baseline_feature_stats.get(proxy_col) or {}
+        proxy_recent_std = proxy_recent.get("std")
+        proxy_baseline_std = proxy_baseline.get("std")
+        if not isinstance(proxy_recent_std, (int, float)) or not isinstance(proxy_baseline_std, (int, float)):
+            return None
+        if proxy_baseline_std <= 0:
+            return None
 
-    if not isinstance(proxy_recent_std, (int, float)) or not isinstance(proxy_baseline_std, (int, float)):
-        return None
-    if proxy_baseline_std <= 0:
-        return None
+        proxy_std_ratio = proxy_recent_std / proxy_baseline_std
+        proxy_details = {
+            "recent_std": _round(proxy_recent_std),
+            "baseline_std": _round(proxy_baseline_std),
+            "std_ratio": _round(proxy_std_ratio),
+            "recent_mean": _round(proxy_recent.get("mean")),
+            "baseline_mean": _round(proxy_baseline.get("mean")),
+            "mean_delta": _round((proxy_recent.get("mean") or 0.0) - (proxy_baseline.get("mean") or 0.0)),
+        }
+        proxy_stats[proxy_col] = proxy_details
+        if proxy_std_ratio <= LOW_VARIANCE_STD_RATIO_THRESHOLD:
+            compressed_proxy_count += 1
 
-    proxy_std_ratio = proxy_recent_std / proxy_baseline_std
-    if proxy_std_ratio > LOW_VARIANCE_STD_RATIO_THRESHOLD:
+    min_required = int(rule.get("min_required_proxies") or len(proxy_cols))
+    if compressed_proxy_count < min_required:
         return None
 
     # Heartbeat #1025 contract: ATR compression is expected whenever the underlying raw
     # volatility series compresses too. The proxy mean can rise during a strong bull pocket
     # even while dispersion collapses, so gating on mean direction misclassifies genuine
     # volatility contraction as a feature-pathology blocker.
-    return str(rule.get("reason") or "expected_underlying_compression")
+    # Heartbeat #1026: feat_4h_bias200 should also downgrade to expected compression when
+    # BOTH raw price dispersion and raw volatility dispersion collapse together. That keeps
+    # recent drift focused on true projection bugs instead of a healthy bull-pocket squeeze.
+    # Heartbeat #2026-04-16: feat_4h_macd_hist should likewise downgrade when the broader
+    # 4H momentum cluster cools coherently (price + volatility + bias50 + RSI14 + BB%B all
+    # compress together). Without this provenance layer, healthy bull-pocket momentum cooling
+    # is misreported as a standalone MACD projection blocker.
+    # Heartbeat #1027: feat_4h_dist_swing_low is also allowed to downgrade when the broader
+    # 4H support cluster compresses coherently (raw price + raw volatility + sibling support
+    # distances / BB position). This avoids treating a healthy support squeeze as an isolated
+    # swing-low projection failure.
+    # Heartbeat #1028: feat_4h_dist_bb_lower follows the same logic. When lower-band distance
+    # compression occurs together with raw price/volatility and sibling 4H support proxies,
+    # treat it as coherent band-floor compression instead of a standalone projection blocker.
+    return {
+        "reason": str(rule.get("reason") or "expected_underlying_compression"),
+        "proxy_cols": list(proxy_cols),
+        "compressed_proxy_count": compressed_proxy_count,
+        "min_required_proxies": min_required,
+        "proxy_stats": proxy_stats,
+    }
+
+
+
+def _expected_compressed_reason(
+    feature_col: str,
+    current_rows: list[sqlite3.Row],
+    baseline_feature_stats: dict[str, dict[str, Any]],
+) -> str | None:
+    details = _expected_compressed_details(feature_col, current_rows, baseline_feature_stats)
+    if not details:
+        return None
+    return str(details.get("reason") or "expected_underlying_compression")
 
 
 def _overlay_only_reason(feature_col: str) -> str | None:
@@ -334,7 +432,10 @@ def _compute_feature_diagnostics(
             )
 
         expected_static_reason = _expected_static_reason(feature_col, window_context)
-        expected_compressed_reason = _expected_compressed_reason(feature_col, rows, baseline_feature_stats)
+        expected_compressed_details = _expected_compressed_details(feature_col, rows, baseline_feature_stats)
+        expected_compressed_reason = (
+            str(expected_compressed_details.get("reason")) if expected_compressed_details else None
+        )
         overlay_only_reason = _overlay_only_reason(feature_col)
 
         if std_ratio is not None and std_ratio <= LOW_VARIANCE_STD_RATIO_THRESHOLD:
@@ -350,6 +451,7 @@ def _compute_feature_diagnostics(
                 "distinct_ratio": _round(distinct_ratio),
                 "expected_static_reason": expected_static_reason,
                 "expected_compressed_reason": expected_compressed_reason,
+                "expected_compressed_details": expected_compressed_details,
                 "overlay_only_reason": overlay_only_reason,
             }
             low_variance_examples.append(row)
@@ -370,6 +472,7 @@ def _compute_feature_diagnostics(
                 "std_ratio": _round(std_ratio),
                 "expected_static_reason": expected_static_reason,
                 "expected_compressed_reason": expected_compressed_reason,
+                "expected_compressed_details": expected_compressed_details,
                 "overlay_only_reason": overlay_only_reason,
             }
             low_distinct_examples.append(row)
@@ -801,9 +904,21 @@ def build_report() -> dict[str, Any]:
         if isinstance(row[1], str) and row[1].startswith("feat_")
     ]
     has_raw_market_data = _table_exists(conn, "raw_market_data")
+    raw_market_cols = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(raw_market_data)").fetchall()
+        if has_raw_market_data and isinstance(row[1], str)
+    }
     feature_select = ",\n            ".join(f"f.{col}" for col in feature_cols)
     feature_select_sql = f",\n            {feature_select}" if feature_select else ""
-    raw_select_sql = ",\n            r.volatility AS raw_volatility" if has_raw_market_data else ",\n            NULL AS raw_volatility"
+    raw_select_parts = []
+    raw_select_parts.append(
+        "r.volatility AS raw_volatility" if "volatility" in raw_market_cols else "NULL AS raw_volatility"
+    )
+    raw_select_parts.append(
+        "r.close_price AS raw_close_price" if "close_price" in raw_market_cols else "NULL AS raw_close_price"
+    )
+    raw_select_sql = ",\n            " + ",\n            ".join(raw_select_parts)
     raw_join_sql = (
         "\n        LEFT JOIN raw_market_data r\n          ON r.timestamp = l.timestamp AND r.symbol = l.symbol"
         if has_raw_market_data else ""
@@ -840,7 +955,7 @@ def build_report() -> dict[str, Any]:
     baseline_win_rate = (sum(int(r["target"]) for r in rows) / total) if total else 0.0
     diagnostic_cols = list(feature_cols)
     if has_raw_market_data:
-        diagnostic_cols.append("raw_volatility")
+        diagnostic_cols.extend(["raw_volatility", "raw_close_price"])
     baseline_feature_stats = {col: _feature_stats(rows, col) for col in diagnostic_cols}
 
     window_summaries: dict[str, dict[str, Any]] = {}
