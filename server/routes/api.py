@@ -51,7 +51,9 @@ _BENCHMARK_PROCESS_EXECUTOR = ProcessPoolExecutor(max_workers=1)
 _HYBRID_MODEL_LOCK = threading.Lock()
 _HYBRID_MODEL_CACHE: Dict[str, Dict[str, Any]] = {}
 _EXECUTION_METADATA_SMOKE_PATH = Path(__file__).resolve().parents[2] / "data" / "execution_metadata_smoke.json"
+_EXECUTION_METADATA_EXTERNAL_MONITOR_PATH = Path(__file__).resolve().parents[2] / "data" / "execution_metadata_external_monitor.json"
 _EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES = 30.0
+_EXECUTION_METADATA_EXTERNAL_MONITOR_STALE_AFTER_MINUTES = 15.0
 _EXECUTION_METADATA_SMOKE_AUTO_REFRESH_COOLDOWN_SECONDS = 300.0
 _EXECUTION_METADATA_SMOKE_REFRESH_LOCK = threading.Lock()
 _EXECUTION_METADATA_SMOKE_REFRESH_STATE: Dict[str, Any] = {
@@ -165,29 +167,33 @@ def _parse_utc_datetime(value: Any) -> Optional[datetime]:
 
 
 
-def _build_execution_metadata_smoke_freshness(generated_at: Any) -> Dict[str, Any]:
+def _build_execution_metadata_smoke_freshness(
+    generated_at: Any,
+    *,
+    stale_after_minutes: float = _EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES,
+) -> Dict[str, Any]:
     freshness = {
         "status": "unavailable",
         "label": "unavailable",
-        "reason": "missing_generated_at",
+        "reason": "artifact_missing",
         "age_minutes": None,
-        "stale_after_minutes": _EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES,
+        "stale_after_minutes": stale_after_minutes,
     }
-    parsed = _parse_utc_datetime(generated_at)
-    if parsed is None:
-        freshness["reason"] = "invalid_generated_at"
+    dt = _parse_utc_datetime(generated_at)
+    if not dt:
+        if generated_at:
+            freshness["reason"] = "invalid_generated_at"
         return freshness
-    age_minutes = max((datetime.now(timezone.utc) - parsed).total_seconds() / 60.0, 0.0)
-    status = "fresh" if age_minutes <= _EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES else "stale"
+    age_minutes = max((datetime.now(timezone.utc) - dt).total_seconds() / 60.0, 0.0)
+    status = "fresh" if age_minutes <= stale_after_minutes else "stale"
     freshness.update({
         "status": status,
         "label": status,
-        "reason": "within_freshness_window" if status == "fresh" else "artifact_older_than_policy",
-        "age_minutes": round(age_minutes, 2),
+        "reason": "artifact_within_policy" if status == "fresh" else "artifact_older_than_policy",
+        "age_minutes": age_minutes,
+        "stale_after_minutes": stale_after_minutes,
     })
     return freshness
-
-
 
 def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
     if not _EXECUTION_METADATA_SMOKE_PATH.exists():
@@ -244,6 +250,70 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
         "venues_checked": payload.get("venues_checked"),
         "freshness": _build_execution_metadata_smoke_freshness(generated_at),
         "venues": venues,
+    }
+
+
+def _load_execution_metadata_external_monitor_state(symbol: str = "BTCUSDT") -> Dict[str, Any]:
+    base = {
+        "available": False,
+        "artifact_path": str(_EXECUTION_METADATA_EXTERNAL_MONITOR_PATH),
+        "source": "external_process",
+        "status": "unavailable",
+        "reason": "artifact_missing",
+        "checked_at": None,
+        "freshness_status": None,
+        "governance_status": None,
+        "error": None,
+        "interval_seconds": None,
+        "command": f"source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol {symbol}",
+        "freshness": {
+            "status": "unavailable",
+            "label": "unavailable",
+            "reason": "artifact_missing",
+            "age_minutes": None,
+            "stale_after_minutes": _EXECUTION_METADATA_EXTERNAL_MONITOR_STALE_AFTER_MINUTES,
+        },
+    }
+    if not _EXECUTION_METADATA_EXTERNAL_MONITOR_PATH.exists():
+        return base
+    try:
+        payload = json.loads(_EXECUTION_METADATA_EXTERNAL_MONITOR_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {
+            **base,
+            "reason": "artifact_parse_failed",
+            "error": "external monitor artifact parse failed",
+            "freshness": {
+                "status": "unavailable",
+                "label": "unavailable",
+                "reason": "artifact_parse_failed",
+                "age_minutes": None,
+                "stale_after_minutes": _EXECUTION_METADATA_EXTERNAL_MONITOR_STALE_AFTER_MINUTES,
+            },
+        }
+
+    checked_at = payload.get("checked_at") or payload.get("generated_at")
+    interval_seconds = payload.get("interval_seconds")
+    stale_after_minutes = _EXECUTION_METADATA_EXTERNAL_MONITOR_STALE_AFTER_MINUTES
+    if isinstance(interval_seconds, (int, float)) and interval_seconds > 0:
+        stale_after_minutes = max(interval_seconds / 60.0 * 3.0, stale_after_minutes)
+    freshness = _build_execution_metadata_smoke_freshness(
+        checked_at,
+        stale_after_minutes=stale_after_minutes,
+    )
+    return {
+        **base,
+        "available": True,
+        "source": str(payload.get("source") or "external_process"),
+        "status": str(payload.get("status") or "unknown"),
+        "reason": str(payload.get("reason") or "external_monitor_tick"),
+        "checked_at": checked_at,
+        "freshness_status": payload.get("freshness_status"),
+        "governance_status": payload.get("governance_status"),
+        "error": payload.get("error"),
+        "interval_seconds": interval_seconds,
+        "command": payload.get("command") or base["command"],
+        "freshness": freshness,
     }
 
 
@@ -363,6 +433,7 @@ def _build_execution_metadata_smoke_governance(summary: Optional[Dict[str, Any]]
     freshness_status = freshness.get("status") if isinstance(freshness, dict) else "unavailable"
     refresh_state = _build_execution_metadata_smoke_refresh_state()
     background_state = _build_execution_metadata_smoke_background_state()
+    external_state = _load_execution_metadata_external_monitor_state(symbol)
     command = f"source venv/bin/activate && python scripts/execution_metadata_smoke.py --symbol {symbol}"
     if freshness_status == "fresh":
         return {
@@ -373,9 +444,10 @@ def _build_execution_metadata_smoke_governance(summary: Optional[Dict[str, Any]]
             "escalation_message": None,
             "auto_refresh": refresh_state,
             "background_monitor": background_state,
+            "external_monitor": external_state,
         }
     if freshness_status == "stale":
-        escalation = "若自動 refresh 連續失敗或長時間維持 stale，背景監看器需升級為 execution metadata blocker。"
+        escalation = "若自動 refresh 連續失敗或長時間維持 stale，背景監看器需升級為 execution metadata blocker；若 API process 不在場，請改看 external monitor lane。"
         return {
             "status": "refresh_required",
             "operator_action": "rerun_metadata_smoke",
@@ -384,8 +456,9 @@ def _build_execution_metadata_smoke_governance(summary: Optional[Dict[str, Any]]
             "escalation_message": escalation,
             "auto_refresh": refresh_state,
             "background_monitor": background_state,
+            "external_monitor": external_state,
         }
-    escalation = "artifact 缺失或無法解析；若自動 refresh 與背景監看器都無法恢復，需升級為 execution metadata blocker 並檢查腳本 / 檔案權限 / venue metadata lane。"
+    escalation = "artifact 缺失或無法解析；若自動 refresh、背景監看器與 external monitor 都無法恢復，需升級為 execution metadata blocker 並檢查腳本 / 檔案權限 / venue metadata lane。"
     return {
         "status": "artifact_unavailable",
         "operator_action": "rebuild_artifact",
@@ -394,6 +467,7 @@ def _build_execution_metadata_smoke_governance(summary: Optional[Dict[str, Any]]
         "escalation_message": escalation,
         "auto_refresh": refresh_state,
         "background_monitor": background_state,
+        "external_monitor": external_state,
     }
 
 

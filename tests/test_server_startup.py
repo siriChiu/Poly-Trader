@@ -358,3 +358,50 @@ def test_execution_metadata_background_monitor_loop_runs_one_tick(monkeypatch):
         "reason": "server_background_monitor",
         "interval_seconds": 7.0,
     }]
+
+
+def test_load_execution_metadata_external_monitor_state_reports_freshness(tmp_path, monkeypatch):
+    artifact = tmp_path / "execution_metadata_external_monitor.json"
+    artifact.write_text(json.dumps({
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "checked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "source": "external_process",
+        "status": "healthy",
+        "reason": "external_cron_monitor",
+        "freshness_status": "fresh",
+        "governance_status": "healthy",
+        "error": None,
+        "interval_seconds": 300,
+        "command": "source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT",
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_EXTERNAL_MONITOR_PATH", artifact)
+
+    state = api_module._load_execution_metadata_external_monitor_state()
+
+    assert state["available"] is True
+    assert state["status"] == "healthy"
+    assert state["freshness"]["status"] == "fresh"
+    assert state["command"].endswith("python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT")
+
+
+
+def test_build_execution_metadata_smoke_governance_includes_external_monitor(monkeypatch):
+    monkeypatch.setattr(api_module, "_load_execution_metadata_external_monitor_state", lambda symbol="BTCUSDT": {
+        "available": True,
+        "status": "healthy",
+        "reason": "external_cron_monitor",
+        "checked_at": "2026-04-16T16:00:00Z",
+        "freshness": {"status": "fresh"},
+        "command": "source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT",
+    })
+    monkeypatch.setattr(api_module, "_build_execution_metadata_smoke_refresh_state", lambda: {"status": "idle"})
+    monkeypatch.setattr(api_module, "_build_execution_metadata_smoke_background_state", lambda: {"status": "healthy"})
+
+    governance = api_module._build_execution_metadata_smoke_governance(
+        {"freshness": {"status": "fresh"}},
+        "BTCUSDT",
+    )
+
+    assert governance["status"] == "healthy"
+    assert governance["external_monitor"]["status"] == "healthy"
+    assert governance["external_monitor"]["freshness"]["status"] == "fresh"

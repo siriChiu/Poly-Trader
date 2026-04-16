@@ -86,6 +86,26 @@ interface RuntimeStatusResponse {
         error?: string | null;
         interval_seconds?: number | null;
       } | null;
+      external_monitor?: {
+        available?: boolean;
+        artifact_path?: string;
+        source?: string;
+        status?: string;
+        reason?: string;
+        checked_at?: string | null;
+        freshness_status?: string | null;
+        governance_status?: string | null;
+        error?: string | null;
+        interval_seconds?: number | null;
+        command?: string | null;
+        freshness?: {
+          status?: "fresh" | "stale" | "unavailable" | string;
+          label?: string;
+          reason?: string;
+          age_minutes?: number | null;
+          stale_after_minutes?: number | null;
+        } | null;
+      } | null;
     } | null;
     venues?: Array<{
       venue?: string;
@@ -414,6 +434,7 @@ export default function Dashboard() {
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
   const metadataSmokeAutoRefresh = metadataSmokeGovernance?.auto_refresh ?? null;
   const metadataSmokeBackgroundMonitor = metadataSmokeGovernance?.background_monitor ?? null;
+  const metadataSmokeExternalMonitor = metadataSmokeGovernance?.external_monitor ?? null;
   const metadataSmokeFreshnessTone = getSmokeFreshnessTone(metadataSmokeFreshness?.status);
   const metadataSmokeFreshnessLabel = getSmokeFreshnessLabel(metadataSmokeFreshness?.status);
   const metadataSmokeGovernanceTone = getSmokeGovernanceTone(metadataSmokeGovernance?.status);
@@ -686,6 +707,14 @@ export default function Dashboard() {
                     {metadataSmokeBackgroundMonitor.interval_seconds != null ? ` · every ${metadataSmokeBackgroundMonitor.interval_seconds}s` : ""}
                   </div>
                 )}
+                {metadataSmokeExternalMonitor?.status && (
+                  <div className="mt-2 opacity-85">
+                    external monitor {metadataSmokeExternalMonitor.status}
+                    {metadataSmokeExternalMonitor.checked_at ? ` · checked ${new Date(metadataSmokeExternalMonitor.checked_at).toLocaleString("zh-TW")}` : ""}
+                    {metadataSmokeExternalMonitor.freshness?.status ? ` · freshness ${metadataSmokeExternalMonitor.freshness.status}` : ""}
+                    {metadataSmokeExternalMonitor.interval_seconds != null ? ` · every ${metadataSmokeExternalMonitor.interval_seconds}s` : ""}
+                  </div>
+                )}
                 {metadataSmokeGovernance?.refresh_command && (
                   <div className="mt-2 font-mono opacity-85 break-all">refresh command: {metadataSmokeGovernance.refresh_command}</div>
                 )}
@@ -694,6 +723,12 @@ export default function Dashboard() {
                 )}
                 {metadataSmokeAutoRefresh?.error && (
                   <div className="mt-2 text-red-200">auto refresh error: {metadataSmokeAutoRefresh.error}</div>
+                )}
+                {metadataSmokeExternalMonitor?.command && (
+                  <div className="mt-2 font-mono opacity-85 break-all">external monitor command: {metadataSmokeExternalMonitor.command}</div>
+                )}
+                {metadataSmokeExternalMonitor?.error && (
+                  <div className="mt-2 text-red-200">external monitor error: {metadataSmokeExternalMonitor.error}</div>
                 )}
               </div>
               <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
