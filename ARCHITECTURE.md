@@ -230,6 +230,20 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 
 **Manual trade success contract（Heartbeat 2026-04-16）**：`/api/trade` 成功回應必須帶回 `guardrails` snapshot，讓 manual trade call site 與 Dashboard/status 面板使用同一組 runtime safety semantics，而不是一邊只看到 order id、另一邊才知道 halt/reject 狀態。
 
+**Execution market-rules contract（Heartbeat 2026-04-16 13:00 UTC）**：`execution/exchanges/binance_adapter.py`、`execution/exchanges/okx_adapter.py`、`execution/execution_service.py` 必須共享同一套 venue granularity semantics。adapter `market_rules()` 現在不只回傳 `min_qty / min_cost / amount_precision / price_precision`，還必須回傳：
+- `step_size`
+- `tick_size`
+- `qty_contract`
+- `price_contract`
+
+`ExecutionService._validate_order_request()` 不得再只「先 round 再送單」；只要使用者輸入的 `qty/price` 與 `step_size / tick_size / precision` 不一致，就必須在 pre-trade lane 直接結構化拒絕，至少覆蓋：
+- `qty_step_mismatch`
+- `qty_precision_mismatch`
+- `price_tick_mismatch`
+- `price_precision_mismatch`
+
+reject context 也必須保留 `raw_value / adjusted_value / delta / rules`，讓上層 API / UI 能把「原始值 → 合法值 → 差額 → 規則來源」完整暴露給操作者，而不是等 exchange runtime rejection 才知道 granularity 不合法。
+
 ---
 
 ## 目錄結構

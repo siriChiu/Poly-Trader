@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-16 12:42 UTC_
+_最後更新：2026-04-16 13:00 UTC_
 
 只保留目前計畫，不保留舊 roadmap。
 
@@ -13,46 +13,42 @@ _最後更新：2026-04-16 12:42 UTC_
   - `execution/exchanges/okx_adapter.py`
   - `execution/execution_service.py`
   - `execution/account_sync.py`
-- 已將 `/api/trade` 接到 execution layer
-- 已將 `/api/status` 補成 runtime 狀態聚合面，並在本輪修正為 **帶 DB session** 計算 execution guardrails：
-  - `execution`
-  - `account`
-  - `raw_continuity`
-  - `feature_continuity`
-- 已在 Dashboard 補上 execution/account 狀態面板：
-  - mode
-  - venue
-  - balance
-  - positions / open orders
-  - recent reject / recent failure / recent order
-  - continuity 狀態
-- 本輪已讓 manual trade reject 走到前端時保留可讀的 structured code/message，而不是 `[object Object]`
-- 本輪已讓 `/api/trade` 成功回應帶回 `guardrails`
+- `/api/status` 已用 DB session 計算 execution guardrails
+- `/api/trade` structured reject 已能被前端以 human-readable code/message 顯示
+- `/api/trade` 成功回應已帶回 `guardrails`
+- **本輪新增：market-rules pre-trade contract 已落地**
+  - `ExecutionService` 會在送單前拒絕：
+    - `qty_step_mismatch`
+    - `qty_precision_mismatch`
+    - `price_tick_mismatch`
+    - `price_precision_mismatch`
+  - Binance market rules 會萃取 `LOT_SIZE.stepSize` / `PRICE_FILTER.tickSize`
+  - OKX market rules 會萃取 `lotSz/minSz` / `tickSz`
+  - reject context 會保留 `raw_value / adjusted_value / delta / rules`
 - 驗證已通過：
-  - `python -m pytest tests/test_execution_service.py tests/test_server_startup.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q`
-  - `cd web && npm run build`
+  - `python -m pytest tests/test_execution_service.py tests/test_server_startup.py tests/test_strategy_lab.py -q` → **53 passed**
 
 ---
 
 ## 目前主目標
 
-### 目標 A：把 execution market-rules guardrail 補到可安全 canary
+### 目標 A：把 operator-facing execution runtime 閉環補完整
 重點：
-- `step-size / tick-size / venue-specific precision` contract
-- pre-trade 層直接攔下 precision / lot-size / notional 類錯誤
-- 回傳 `原始值 → 調整值 → 拒單原因` 的結構化結果
+- manual trade 成功/失敗後主動 refresh `/api/status`
+- Dashboard 直接顯示 `raw -> adjusted -> delta -> rules` guardrail context
+- recent reject / recent order / halt 狀態在一次操作後立即可見
 
-### 目標 B：把 execution 狀態卡升級成真正的 readiness panel
+### 目標 B：把 execution market-rules contract 從單元測試推進到 canary-safe verification
 重點：
-- manual trade 後主動刷新 status
-- recent reject 顯示更完整 context
-- 明確回答「目前是否具備 canary-safe 下單能力」
+- Binance / OKX 真實 metadata smoke verification
+- 驗證 live/canary config 讀到的 market rules 與 contract 欄位一致
+- 明確回答目前 readiness 是「可觀測」還是「可安全嘗試」
 
-### 目標 C：分階段驗證交易所
+### 目標 C：補齊成功下單路徑的 normalized contract 回饋
 重點：
-- Binance 先完成完整 guardrail regression
-- OKX 再做 metadata / precision / reduceOnly 驗證
-- 維持 spot BTC/USDT，不擴 scope
+- 評估成功 payload 是否應同時回傳 normalized qty/price
+- 若不走 success payload，至少要在 preview/readiness surface 暴露相同資訊
+- 讓操作面能回答「如果被 venue granularity 修剪，結果會變成多少」
 
 ---
 
@@ -60,41 +56,40 @@ _最後更新：2026-04-16 12:42 UTC_
 
 | 策略 | 好處 | 風險／代價 | 治標/治本 | 適用條件 | 建議 |
 |---|---|---|---|---|---|
-| 先修 `/api/status` DB session 與 structured reject serialization | 直接修掉「guardrail 已存在但 UI/API 看起來像沒作用」的假可見性 root cause；立即提高排障品質 | 尚未補齊 venue-specific precision contract | 治本（execution surface 真實化） | 已有 execution layer，但 runtime status / reject 顯示失真 | ✅ 本輪採用 |
-| 直接做完整 step-size / tick-size guardrail | 最接近 canary-safe 下單能力 | 範圍較大，若 execution surface 仍失真，除錯效率低 | 治本 | execution surface 已可正確回報 guardrails/reject | ✅ 下一輪主線 |
-| 先做 OKX 實場驗證 | 可提早擴 venue | 在共用 market-rules contract 未鎖定前，容易放大 venue-specific 假象 | 治標 | Binance 路徑已完成 contract | ❌ 本輪不做 |
+| 先補 `step_size / tick_size / precision delta` pre-trade contract | 直接堵住 precision 類錯誤在 exchange runtime 才失敗的缺口；讓 reject 有可讀根因 | 仍未解決 operator-facing refresh / UI context | 治本（execution lane 正確化） | 上輪已確認 execution surface 本身可觀測 | ✅ 本輪採用 |
+| 直接做 manual trade UI refresh / context 面板 | 操作者體感最好 | 若底層 market-rules contract 未先正確化，UI 只會包裝假資訊 | 治標（治本需先有正確 contract） | pre-trade contract 已存在且可驗證 | ✅ 下一輪主線 |
+| 直接擴 live venue/canary 敘事 | 可更快接近真實下單 | 若 smoke verification 未完成，容易把 partial contract 誤說成 readiness | 治標 | market-rules contract 與 operator closure 都已完成 | ❌ 本輪不做 |
 
 ### 效益前提驗證
-- 前提 1：execution guardrail 是否已能被狀態面板真實觀測 → **成立（/api/status 已帶 DB session）**
-- 前提 2：manual reject 是否已能讓使用者看到真實 code/message → **成立（前端不再顯示 `[object Object]`）**
-- 前提 3：在共用 precision/step-size contract 未完成前，是否應擴 venue 驗證 → **不成立，因此暫不擴 OKX readiness 敘事**
+- 前提 1：precision / step-size root cause 是否已能在 pre-trade 層被正確攔下 → **成立**
+- 前提 2：Binance / OKX 是否都能提供 `step_size / tick_size` 給上層 contract → **成立（已有 regression tests）**
+- 前提 3：operator 是否已能在一次 manual trade 後立刻理解最新 runtime 狀態與調整建議 → **不成立，因此下一輪先補 UI/runtime closure，不擴 readiness 敘事**
 
 ---
 
 ## Next focus
-1. 在 `ExecutionService` / adapters 補齊 **step-size / tick-size / precision delta** contract
-2. 讓 `manual trade -> /api/trade -> Dashboard status` 形成立即更新的 recent outcome 閉環
-3. 為 Binance / OKX 各補至少一條 market-rules regression test
+1. 在 manual trade 成功/失敗後主動 refresh `/api/status`，完成 recent outcome 閉環
+2. 把 reject context 的 `raw_value / adjusted_value / delta / rules` 變成 Dashboard 可讀資訊
+3. 補一條 canary-safe exchange metadata smoke verification，確認 Binance / OKX 真實 metadata 與 contract 一致
 
 ## Success gate
-- 至少一條 `step-size / precision` 類錯誤可在送單前被結構化拒絕
-- `/api/trade` reject 對前端顯示為可讀 code/message，不再出現 `[object Object]`
-- `/api/status` 能穩定反映真實 `daily_loss_ratio / daily_loss_halt / recent reject`
-- pytest 覆蓋至少一條成功委託與一條 precision/step-size guardrail 拒單路徑
+- manual trade 後不用等輪詢，也能立即看到最新 `guardrails / recent reject / recent order`
+- reject context 能清楚顯示「原始值、合法值、差額、依據規則」
+- 至少一條 smoke verification 證明實際 venue metadata 可產出與單元測試一致的 market-rules contract
 
 ## Fallback if fail
-- 若下一輪無法補齊 venue-specific precision contract，升級為 blocker
-- 文件必須明確標示：`execution surface 已可觀測，但 live_canary 仍非安全下單 readiness`
-- 暫停 OKX readiness / live 擴張敘事
+- 若下一輪無法補齊 post-trade refresh / context 展示，升級為 blocker
+- 文件必須明確標示：`execution pre-trade guardrail 已正確，但 operator-facing runtime closure 仍未完成，尚不可宣稱 canary-safe readiness`
+- 暫停任何擴 live / 擴 venue 的產品敘事
 
 ## Documents to update next round
 - `ISSUES.md`
 - `ROADMAP.md`
-- `ARCHITECTURE.md`（若新增 step-size / tick-size / reject-context contract）
-- `server/routes/api.py` / `execution/execution_service.py` / `web/src/hooks/useApi.ts` 若 execution surface 再擴充
+- `ARCHITECTURE.md`（若新增 post-trade refresh 或 normalized success contract）
+- `server/routes/api.py` / `web/src/pages/Dashboard.tsx` / `web/src/hooks/useApi.ts`（若 runtime closure 擴充）
 
 ## Carry-forward input for next heartbeat
-- 先檢查 `ExecutionService` 與 adapters 是否已明確提供 `step_size / tick_size / precision delta` contract；若沒有，先做這件事
-- 驗證 `/api/status` 是否仍以 DB session 計算 execution guardrails，而不是退回 blind summary
-- 驗證 `/api/trade` structured reject 在前端仍顯示為 human-readable code/message
-- 若 precision contract 已落地，下一輪必須追加 Binance/OKX regression tests；若沒落地，直接標 blocker
+- 先檢查 manual trade 之後是否已主動 refresh `/api/status`；若沒有，先做這件事
+- 驗證 Dashboard 是否已把 reject context 的 `raw -> adjusted -> delta -> rules` 顯示成可讀資訊，而不是只留在錯誤字串或 JSON
+- 驗證本輪新增的 `qty_step_mismatch / price_tick_mismatch` guardrail 仍在，沒有被後續改動繞過
+- 若 operator-facing runtime closure 已完成，再做 Binance / OKX canary-safe metadata smoke verification；若沒完成，不要擴 readiness 敘事

@@ -1,101 +1,126 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-16 12:42 UTC_
+_最後更新：2026-04-16 13:00 UTC_
 
 只保留目前有效問題，不保留舊流水帳。
 
 ---
 
 ## 目前主線
-Poly-Trader 的 execution foundation 已可走 `ExecutionService`，而本輪進一步補上 **runtime guardrail 可見性與 manual trade 拒單語義**：`/api/status` 現在會帶著 DB session 計算真實的 daily loss halt / recent reject 狀態，`/api/trade` 成功回應會帶回 guardrails，前端也不再把結構化拒單 payload 顯示成 `[object Object]`。目前最大的剩餘缺口已收斂到 **交易所 market-rules guardrail 仍未完整覆蓋 step-size / tick-size / venue-specific precision contract**，因此 live_canary 仍不可視為安全可放量。
+本輪依 Step 0.5 直接承接上輪要求，先處理 **execution market-rules pre-trade guardrail contract**。本輪已把 `step_size / tick_size / precision delta` 正式拉進 `ExecutionService + Binance/OKX adapters`：下單前若 `qty` 不符合 step-size，或 `price` 不符合 tick-size，就會在送單前以結構化 reject 擋下，避免把 precision 類錯誤拖到 exchange runtime 才爆。剩餘主缺口已收斂到 **manual trade 後的即時刷新與 richer guardrail context 仍不足**，以及 **尚未做真實 venue/canary 層級的 exchange metadata smoke verification**。
+
+---
+
+## Step 0.5 承接結果
+- 上輪最高優先：`Exchange market-rules guardrail 仍未完整覆蓋 step-size / tick-size / venue-specific precision`
+- 上輪要求本輪先做：`把 step_size / tick_size / precision delta 納入統一 pre-trade guardrail contract，並補 Binance/OKX regression tests`
+- 本輪實際處理：
+  1. `ExecutionService` 在 pre-trade lane 直接拒絕 `qty_step_mismatch / qty_precision_mismatch / price_tick_mismatch / price_precision_mismatch`
+  2. `BinanceAdapter.market_rules()` / `OKXAdapter.market_rules()` 補出 `step_size / tick_size / qty_contract / price_contract`
+  3. 補齊 Binance / OKX 對應 regression tests
+- 本輪明確不做：
+  - 不擴 live 下單範圍
+  - 不做 UI 美化
+  - 不做與本輪 P0 無關的模型 / label / leaderboard 調整
 
 ---
 
 ## 本輪事實摘要
-- Step 0.5 carry-forward 已對照上輪要求：
-  - 上輪要求先處理 `ExecutionService 前置 market-rules / risk-halt guardrail`。
-  - 本輪先修兩個會讓 guardrail 變成假可見性的 root cause：
-    1. `/api/status` 建立 `ExecutionService` 時沒有傳入 DB session，導致 `daily_loss_ratio / daily_loss_halt` 在狀態面板上可能是盲的。
-    2. `/api/trade` 拒單 payload 雖然後端已結構化，但前端 `fetchApi()` 會把 object detail 直接塞進 `Error()`，實際顯示成 `[object Object]`，使用者看不到真正 reject code/message。
-- 本輪 patch：
-  - `server/routes/api.py`
-    - `/api/status` 改成 `ExecutionService(cfg, db_session=get_db())`
-    - `/api/trade` 成功 payload 回傳 `guardrails`
-  - `web/src/hooks/useApi.ts`
-    - 新增 `formatApiErrorDetail()`，把結構化 reject payload 格式化成可讀訊息（如 `[min_notional] Order notional is below exchange minimum`）
-- 驗證：
-  - `source venv/bin/activate && python -m pytest tests/test_execution_service.py tests/test_server_startup.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q` → **53 passed**
-  - `cd web && npm run build` → **PASS**
-- 額外觀察：
-  - repo 內 graphify rebuild 指令無法執行：`ModuleNotFoundError: No module named 'graphify'`，本輪未能刷新 graph artifact。
+### 已改善
+- `execution/execution_service.py`
+  - pre-trade validation 現在不只檢查 `min_qty / min_notional`，也會檢查：
+    - `qty_step_mismatch`
+    - `qty_precision_mismatch`
+    - `price_tick_mismatch`
+    - `price_precision_mismatch`
+  - reject context 會保留 `raw_value -> adjusted_value -> delta -> rules`
+- `execution/exchanges/binance_adapter.py`
+  - 會從 Binance market filters 萃取 `LOT_SIZE.stepSize` 與 `PRICE_FILTER.tickSize`
+- `execution/exchanges/okx_adapter.py`
+  - 會從 OKX market info 萃取 `lotSz/minSz` 與 `tickSz`
+- 驗證已通過：
+  - `source venv/bin/activate && python -m pytest tests/test_execution_service.py tests/test_server_startup.py tests/test_strategy_lab.py -q` → **53 passed**
+
+### 卡住不動
+- manual trade 完成後，Dashboard 仍主要依賴輪詢更新 `/api/status`；沒有明確的 post-trade 主動 refresh 閉環
+- guardrail context 雖已存在於 reject payload，但 UI 尚未展成易讀的 rules/context 面板
+- 尚未做真實 exchange metadata / live-canary smoke 驗證，因此不能把 readiness 敘事升級為「可安全放量」
+
+### 本輪未量測（明確不報）
+- Raw / Features / Labels row counts
+- coverage / IC / CV / ROI / canonical target drift
+- predictor / leaderboard / Strategy Lab 的模型面主指標
+
+本輪聚焦的是 Step 0.5 指定的 execution P0，不對未重跑的模型數字做假更新。
 
 ---
 
 ## Open Issues
 
-### P0. Exchange market-rules guardrail 仍未完整覆蓋 step-size / tick-size / venue-specific precision
+### P0. Manual trade runtime 閉環仍缺「即時刷新 + 可讀 context 面板」
 **現況**
-- 已有 pre-trade guardrails：`kill_switch`、`daily_loss_halt`、`failure_halt`、`min_qty`、`min_notional`
-- `/api/status` 現在能顯示真實 guardrail 狀態；`/api/trade` reject 也已能被前端正確讀出 code/message
+- `/api/trade` 已可在送單前攔下 step-size / tick-size / precision 類錯誤
+- reject payload 已保留 `raw_value / adjusted_value / delta / rules`
 
 **缺口**
-- adapter `market_rules()` 目前仍以 `min_qty / min_cost / amount_precision / price_precision` 為主，尚未把 `step-size / tick-size` 明確拉成統一 contract
-- venue-specific rounding / precision 規則還沒有獨立 regression tests 鎖住 Binance / OKX 差異
-- 目前仍偏向「先 round、再送單」；尚未把「原始值 → 調整值 → 拒單/接受理由」完整結構化回傳給上層
+- manual trade 成功/失敗後尚未保證立即刷新 `/api/status`
+- Dashboard 尚未把 reject `context.rules` 展成可讀區塊；操作者仍需自己拆 JSON
 
 **風險**
-- live_canary 仍可能在某些交易對或 venue 上碰到 exchange-level precision rejection，而不是在 pre-trade lane 被穩定攔下
-- readiness panel 現在看得到 halt / reject，但對「為何這個 qty/price 不合法」仍缺乏完整 contract
+- guardrail 雖已正確執行，但可觀測性仍偏工程向，不夠操作向
+- 使用者可能知道「被拒單」，但仍看不出「該改成多少 qty/price」
 
 **下一步**
-- 補齊 `step_size / tick_size / precision delta` 的統一 market-rules contract
-- 針對 Binance / OKX 各加至少一條 pre-trade regression test，證明 exchange rejection 會在送單前被攔下
+- 在 manual trade 成功/失敗後主動 refresh runtime status
+- 把 `raw_value -> adjusted_value -> delta -> rules` 顯示成 UI context 面板
 
-### P1. Dashboard execution panel 已可顯示最近 reject / failure / order，但 manual trade 後的即時 refresh 與 richer context 仍有限
+### P1. Venue-specific regression 已有單元測試，但仍缺 exchange metadata / canary smoke verification
 **現況**
-- Dashboard 已有 execution/account 狀態卡
-- `fetchApi()` 現在能把結構化 reject 顯示成可讀文字，而不是 `[object Object]`
+- 已有 Binance / OKX 單元測試，證明 market-rules contract 會攜帶 `step_size / tick_size`
+- 已有 pre-trade regression，證明 precision 類錯誤會在送單前被擋下
 
 **缺口**
-- manual trade 後尚未主動刷新 `/api/status`，最近 reject / recent order outcome 主要仍依賴輪詢更新
-- reject `context` 尚未在 UI 展開顯示（例如 min_notional/min_qty 所對應的 rules）
+- 尚未驗證真實 exchange metadata 在 live config / canary mode 下是否完全符合目前 contract
+- 尚未有「真實 market metadata → 預期 reject code」的 smoke lane
+
+**風險**
+- 若真實 venue metadata 結構有差異，仍可能留下 edge-case precision rejection
 
 **下一步**
-- 在 manual trade 成功/失敗後觸發 runtime status refresh
-- 若 guardrail context 有值，將其整理成可讀 UI 區塊而非只停在 alert 字串
+- 補一條 canary-safe metadata smoke 檢查（只讀 market rules，不實際下單）
+- 對 Binance / OKX 各保留一條 runtime-level verification 腳本或測試
 
-### P1. OKX adapter 已存在，但 guardrail contract 仍未完成實場規則驗證
+### P1. 成功下單路徑仍缺乏 operator-friendly 的 normalized order 回饋
 **現況**
-- Binance / OKX adapter 都已存在
-- 本輪修的是共用 execution surface，不是 venue-specific 細節
+- 目前成功路徑會回傳 `guardrails` 與 order payload
 
 **缺口**
-- 尚未確認 OKX spot-only `precision / lot size / reduceOnly` 行為是否完全符合目前 guardrail 假設
-- 尚未有 OKX-specific guardrail regression 證據
+- 成功路徑沒有明確回傳 normalized qty/price 與 market-rules contract 摘要
+- 操作者無法直接確認「本次下單是否已符合 venue granularity」
 
 **下一步**
-- 先完成 Binance / OKX 共用 market-rules contract
-- 再做 OKX-specific metadata / order param 驗證
+- 評估是否在成功 payload 中加入 normalized qty/price 與 contract 摘要
+- 若不加入，至少在 preview/readiness surface 提供對應資訊
 
 ---
 
 ## 本輪已處理
-- 修復 `/api/status` 沒有把 DB session 傳進 `ExecutionService` 的 root cause，讓 daily halt / recent reject 狀態不再是盲的
-- 修復 `/api/trade` structured reject 在前端被序列化成 `[object Object]` 的 root cause
-- 補齊 `/api/trade` 成功 payload 的 `guardrails`，讓 manual trade 回應可直接攜帶當下 guardrail snapshot
+- 修復 `ExecutionService` 缺少 `step_size / tick_size / precision delta` pre-trade guardrail 的 root cause
+- 修復 Binance / OKX adapter 的 market-rules contract，讓上層能拿到 venue-specific granularity 規則
+- 新增 Binance / OKX regression tests，鎖住 pre-trade precision rejection 路徑
 
 ---
 
 ## Current Priority
-1. **P0：補齊 step-size / tick-size / venue-specific precision 的 pre-trade guardrail contract**
-2. **P1：manual trade 後主動刷新 runtime status，讓 Dashboard 立即反映 recent outcome**
-3. **P1：完成 Binance / OKX venue-specific guardrail regression tests**
+1. **P0：manual trade 後建立即時 status refresh + guardrail context 展示閉環**
+2. **P1：補 canary-safe exchange metadata smoke verification，確認 live metadata 與 contract 一致**
+3. **P1：決定成功下單路徑是否也要回傳 normalized qty/price contract**
 
 ---
 
 ## Carry-forward（供下一輪 Step 0.5 直接讀入）
-- 最高優先問題：`Exchange market-rules guardrail 仍未完整覆蓋 step-size / tick-size / venue-specific precision`
-- 本輪已完成：`/api/status` 改為用 DB session 計算 execution guardrails；前端可正確顯示 structured reject code/message；/api/trade 成功回傳 guardrails`
-- 下一輪必須先處理：`將 step_size / tick_size / precision delta 納入統一 pre-trade guardrail contract，並補 Binance/OKX regression tests`
-- 成功門檻：`至少一條 precision/step-size 類錯誤能在送單前被結構化拒絕，且 pytest 證明不是 exchange runtime 才失敗`
-- 若失敗：`升級為 blocker，文件明確標示 live_canary 僅具觀測能力，不具安全下單 readiness`
+- 最高優先問題：`manual trade runtime 閉環仍缺即時刷新與可讀 guardrail context 面板`
+- 本輪已完成：`ExecutionService 已能在送單前拒絕 qty_step/price_tick/precision mismatch；Binance/OKX market-rules contract 已帶 step_size/tick_size；53 tests 通過`
+- 下一輪必須先處理：`manual trade success/failure 後主動 refresh /api/status，並把 reject context 的 raw->adjusted->delta->rules 變成 UI 可讀資訊`
+- 成功門檻：`manual trade 後無論成功或拒單，Dashboard 都能立即看到最新 guardrail / recent outcome，且使用者能讀懂要調整的 qty/price 規則`
+- 若失敗：`升級為 blocker，文件明確標示 execution guardrail 已正確執行，但 operator-facing runtime closure 仍未完成，不可宣稱 canary-safe readiness`
