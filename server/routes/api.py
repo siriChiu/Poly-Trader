@@ -22,6 +22,7 @@ from server.dependencies import (
     get_runtime_status,
     is_automation_enabled,
     set_automation_enabled,
+    set_runtime_status,
 )
 from server.features_engine import get_engine
 from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized
@@ -60,6 +61,15 @@ _EXECUTION_METADATA_SMOKE_REFRESH_STATE: Dict[str, Any] = {
     "reason": "not_attempted",
     "next_retry_at": None,
     "error": None,
+}
+_EXECUTION_METADATA_SMOKE_BACKGROUND_STATE: Dict[str, Any] = {
+    "status": "idle",
+    "reason": "not_started",
+    "checked_at": None,
+    "freshness_status": None,
+    "governance_status": None,
+    "error": None,
+    "interval_seconds": 60.0,
 }
 
 _STRATEGY_STAGE_LABELS = {
@@ -249,6 +259,25 @@ def _build_execution_metadata_smoke_refresh_state() -> Dict[str, Any]:
     }
 
 
+def _build_execution_metadata_smoke_background_state() -> Dict[str, Any]:
+    return {
+        "status": _EXECUTION_METADATA_SMOKE_BACKGROUND_STATE.get("status", "idle"),
+        "reason": _EXECUTION_METADATA_SMOKE_BACKGROUND_STATE.get("reason", "not_started"),
+        "checked_at": _EXECUTION_METADATA_SMOKE_BACKGROUND_STATE.get("checked_at"),
+        "freshness_status": _EXECUTION_METADATA_SMOKE_BACKGROUND_STATE.get("freshness_status"),
+        "governance_status": _EXECUTION_METADATA_SMOKE_BACKGROUND_STATE.get("governance_status"),
+        "error": _EXECUTION_METADATA_SMOKE_BACKGROUND_STATE.get("error"),
+        "interval_seconds": _EXECUTION_METADATA_SMOKE_BACKGROUND_STATE.get("interval_seconds", 60.0),
+    }
+
+
+def _record_execution_metadata_smoke_background_state(payload: Dict[str, Any]) -> Dict[str, Any]:
+    _EXECUTION_METADATA_SMOKE_BACKGROUND_STATE.update(payload or {})
+    snapshot = _build_execution_metadata_smoke_background_state()
+    set_runtime_status("execution_metadata_smoke_background", snapshot)
+    return snapshot
+
+
 def _refresh_execution_metadata_smoke_artifact(cfg: Dict[str, Any], symbol: str) -> Dict[str, Any]:
     attempted_at = datetime.now(timezone.utc)
     attempted_at_iso = attempted_at.isoformat().replace("+00:00", "Z")
@@ -333,6 +362,7 @@ def _build_execution_metadata_smoke_governance(summary: Optional[Dict[str, Any]]
     freshness = (summary or {}).get("freshness") if isinstance(summary, dict) else None
     freshness_status = freshness.get("status") if isinstance(freshness, dict) else "unavailable"
     refresh_state = _build_execution_metadata_smoke_refresh_state()
+    background_state = _build_execution_metadata_smoke_background_state()
     command = f"source venv/bin/activate && python scripts/execution_metadata_smoke.py --symbol {symbol}"
     if freshness_status == "fresh":
         return {
@@ -342,25 +372,28 @@ def _build_execution_metadata_smoke_governance(summary: Optional[Dict[str, Any]]
             "refresh_command": command,
             "escalation_message": None,
             "auto_refresh": refresh_state,
+            "background_monitor": background_state,
         }
     if freshness_status == "stale":
-        escalation = "若自動 refresh 連續失敗或長時間維持 stale，升級為 execution metadata blocker。"
+        escalation = "若自動 refresh 連續失敗或長時間維持 stale，背景監看器需升級為 execution metadata blocker。"
         return {
             "status": "refresh_required",
             "operator_action": "rerun_metadata_smoke",
-            "operator_message": "metadata smoke artifact 已過 stale policy；API 會嘗試自動 refresh，operator 需確認 refresh 結果與 Dashboard badge 是否回到 FRESH。",
+            "operator_message": "metadata smoke artifact 已過 stale policy；API 與背景監看器都會嘗試自動 refresh，operator 需確認 refresh 結果與 Dashboard badge 是否回到 FRESH。",
             "refresh_command": command,
             "escalation_message": escalation,
             "auto_refresh": refresh_state,
+            "background_monitor": background_state,
         }
-    escalation = "artifact 缺失或無法解析；若自動 refresh 後仍 unavailable，需升級為 execution metadata blocker 並檢查腳本 / 檔案權限 / venue metadata lane。"
+    escalation = "artifact 缺失或無法解析；若自動 refresh 與背景監看器都無法恢復，需升級為 execution metadata blocker 並檢查腳本 / 檔案權限 / venue metadata lane。"
     return {
         "status": "artifact_unavailable",
         "operator_action": "rebuild_artifact",
-        "operator_message": "metadata smoke artifact 不可用；API 會優先嘗試自動重建，若失敗需立刻檢查 artifact lane。",
+        "operator_message": "metadata smoke artifact 不可用；API 會優先嘗試自動重建，背景監看器也會持續檢查，若失敗需立刻檢查 artifact lane。",
         "refresh_command": command,
         "escalation_message": escalation,
         "auto_refresh": refresh_state,
+        "background_monitor": background_state,
     }
 
 
@@ -385,6 +418,53 @@ def _ensure_execution_metadata_smoke_governance(cfg: Dict[str, Any], symbol: str
     }
     summary_payload["governance"] = _build_execution_metadata_smoke_governance(summary_payload, symbol)
     return summary_payload
+
+
+def run_execution_metadata_smoke_background_governance(
+    cfg: Dict[str, Any],
+    symbol: str,
+    *,
+    reason: str = "background_monitor_tick",
+    interval_seconds: float = 60.0,
+) -> Optional[Dict[str, Any]]:
+    checked_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    _record_execution_metadata_smoke_background_state({
+        "status": "running",
+        "reason": reason,
+        "checked_at": checked_at,
+        "freshness_status": None,
+        "governance_status": None,
+        "error": None,
+        "interval_seconds": interval_seconds,
+    })
+    try:
+        summary = _ensure_execution_metadata_smoke_governance(cfg, symbol)
+        governance = summary.get("governance") if isinstance(summary, dict) else {}
+        freshness = summary.get("freshness") if isinstance(summary, dict) else {}
+        freshness_status = freshness.get("status") if isinstance(freshness, dict) else None
+        governance_status = governance.get("status") if isinstance(governance, dict) else None
+        monitor_status = "healthy" if freshness_status == "fresh" else "attention_required"
+        _record_execution_metadata_smoke_background_state({
+            "status": monitor_status,
+            "reason": reason,
+            "checked_at": checked_at,
+            "freshness_status": freshness_status,
+            "governance_status": governance_status,
+            "error": None,
+            "interval_seconds": interval_seconds,
+        })
+        return summary
+    except Exception as exc:
+        _record_execution_metadata_smoke_background_state({
+            "status": "failed",
+            "reason": reason,
+            "checked_at": checked_at,
+            "freshness_status": None,
+            "governance_status": None,
+            "error": str(exc),
+            "interval_seconds": interval_seconds,
+        })
+        raise
 
 
 def _strategy_job_stage_plan(body: Dict[str, Any]) -> List[Dict[str, Any]]:

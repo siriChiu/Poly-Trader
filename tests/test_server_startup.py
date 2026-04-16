@@ -296,3 +296,65 @@ def test_ensure_execution_metadata_smoke_governance_marks_unavailable_refresh_fa
     assert summary["governance"]["status"] == "artifact_unavailable"
     assert summary["governance"]["auto_refresh"]["status"] == "failed"
     assert "smoke boom" in summary["governance"]["auto_refresh"]["error"]
+
+
+def test_run_execution_metadata_smoke_background_governance_records_runtime_state(monkeypatch):
+    monkeypatch.setattr(api_module, "_ensure_execution_metadata_smoke_governance", lambda cfg, symbol: {
+        "freshness": {"status": "fresh"},
+        "governance": {"status": "healthy"},
+    })
+    captured = {}
+    monkeypatch.setattr(api_module, "set_runtime_status", lambda key, payload: captured.__setitem__(key, payload))
+    api_module._EXECUTION_METADATA_SMOKE_BACKGROUND_STATE.update({
+        "status": "idle",
+        "reason": "not_started",
+        "checked_at": None,
+        "freshness_status": None,
+        "governance_status": None,
+        "error": None,
+        "interval_seconds": 60.0,
+    })
+
+    summary = api_module.run_execution_metadata_smoke_background_governance(
+        {"trading": {"symbol": "BTCUSDT"}},
+        "BTCUSDT",
+        reason="test_tick",
+        interval_seconds=42.0,
+    )
+
+    assert summary is not None
+    assert summary["freshness"]["status"] == "fresh"
+    assert api_module._EXECUTION_METADATA_SMOKE_BACKGROUND_STATE["status"] == "healthy"
+    assert api_module._EXECUTION_METADATA_SMOKE_BACKGROUND_STATE["governance_status"] == "healthy"
+    assert api_module._EXECUTION_METADATA_SMOKE_BACKGROUND_STATE["interval_seconds"] == 42.0
+    assert captured["execution_metadata_smoke_background"]["status"] == "healthy"
+
+
+def test_execution_metadata_background_monitor_loop_runs_one_tick(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        server_main,
+        "run_execution_metadata_smoke_background_governance",
+        lambda cfg, symbol, reason, interval_seconds: calls.append({
+            "cfg": cfg,
+            "symbol": symbol,
+            "reason": reason,
+            "interval_seconds": interval_seconds,
+        }),
+    )
+
+    stop_event = SimpleNamespace(is_set=lambda: False, wait=lambda timeout: False)
+    server_main._execution_metadata_background_monitor_loop(
+        stop_event,
+        {"trading": {"symbol": "BTCUSDT"}},
+        "BTCUSDT",
+        interval_seconds=7.0,
+        run_once=True,
+    )
+
+    assert calls == [{
+        "cfg": {"trading": {"symbol": "BTCUSDT"}},
+        "symbol": "BTCUSDT",
+        "reason": "server_background_monitor",
+        "interval_seconds": 7.0,
+    }]

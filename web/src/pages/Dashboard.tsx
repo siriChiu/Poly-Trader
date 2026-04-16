@@ -77,6 +77,15 @@ interface RuntimeStatusResponse {
         error?: string | null;
         cooldown_seconds?: number | null;
       } | null;
+      background_monitor?: {
+        status?: string;
+        reason?: string;
+        checked_at?: string | null;
+        freshness_status?: string | null;
+        governance_status?: string | null;
+        error?: string | null;
+        interval_seconds?: number | null;
+      } | null;
     } | null;
     venues?: Array<{
       venue?: string;
@@ -404,6 +413,7 @@ export default function Dashboard() {
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
   const metadataSmokeAutoRefresh = metadataSmokeGovernance?.auto_refresh ?? null;
+  const metadataSmokeBackgroundMonitor = metadataSmokeGovernance?.background_monitor ?? null;
   const metadataSmokeFreshnessTone = getSmokeFreshnessTone(metadataSmokeFreshness?.status);
   const metadataSmokeFreshnessLabel = getSmokeFreshnessLabel(metadataSmokeFreshness?.status);
   const metadataSmokeGovernanceTone = getSmokeGovernanceTone(metadataSmokeGovernance?.status);
@@ -666,6 +676,14 @@ export default function Dashboard() {
                     auto refresh {metadataSmokeAutoRefresh.status}
                     {metadataSmokeAutoRefresh.completed_at ? ` · completed ${new Date(metadataSmokeAutoRefresh.completed_at).toLocaleString("zh-TW")}` : ""}
                     {metadataSmokeAutoRefresh.next_retry_at ? ` · next retry ${new Date(metadataSmokeAutoRefresh.next_retry_at).toLocaleString("zh-TW")}` : ""}
+                  </div>
+                )}
+                {metadataSmokeBackgroundMonitor?.status && (
+                  <div className="mt-2 opacity-85">
+                    background monitor {metadataSmokeBackgroundMonitor.status}
+                    {metadataSmokeBackgroundMonitor.checked_at ? ` · checked ${new Date(metadataSmokeBackgroundMonitor.checked_at).toLocaleString("zh-TW")}` : ""}
+                    {metadataSmokeBackgroundMonitor.freshness_status ? ` · freshness ${metadataSmokeBackgroundMonitor.freshness_status}` : ""}
+                    {metadataSmokeBackgroundMonitor.interval_seconds != null ? ` · every ${metadataSmokeBackgroundMonitor.interval_seconds}s` : ""}
                   </div>
                 )}
                 {metadataSmokeGovernance?.refresh_command && (
