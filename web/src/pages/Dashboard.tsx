@@ -62,6 +62,22 @@ interface RuntimeStatusResponse {
       age_minutes?: number | null;
       stale_after_minutes?: number | null;
     } | null;
+    governance?: {
+      status?: string;
+      operator_action?: string;
+      operator_message?: string;
+      refresh_command?: string;
+      escalation_message?: string | null;
+      auto_refresh?: {
+        attempted_at?: string | null;
+        completed_at?: string | null;
+        status?: string;
+        reason?: string;
+        next_retry_at?: string | null;
+        error?: string | null;
+        cooldown_seconds?: number | null;
+      } | null;
+    } | null;
     venues?: Array<{
       venue?: string;
       ok?: boolean;
@@ -278,6 +294,12 @@ function getSmokeFreshnessLabel(status: string | undefined | null): string {
   return "UNAVAILABLE";
 }
 
+function getSmokeGovernanceTone(status: string | undefined | null): string {
+  if (status === "healthy") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
+  if (status === "refresh_required") return "border-amber-700/40 bg-amber-950/20 text-amber-200";
+  return "border-red-700/40 bg-red-950/20 text-red-200";
+}
+
 export default function Dashboard() {
   const [interval, setInterval] = useState("4h");
   const [days, setDays] = useState(14);
@@ -380,8 +402,11 @@ export default function Dashboard() {
   const accountSummary = runtimeStatus?.account ?? null;
   const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
+  const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
+  const metadataSmokeAutoRefresh = metadataSmokeGovernance?.auto_refresh ?? null;
   const metadataSmokeFreshnessTone = getSmokeFreshnessTone(metadataSmokeFreshness?.status);
   const metadataSmokeFreshnessLabel = getSmokeFreshnessLabel(metadataSmokeFreshness?.status);
+  const metadataSmokeGovernanceTone = getSmokeGovernanceTone(metadataSmokeGovernance?.status);
   const rawContinuity = runtimeStatus?.raw_continuity ?? null;
   const featureContinuity = runtimeStatus?.feature_continuity ?? null;
   const executionModeLabel = executionSummary?.mode || accountSummary?.mode || "unknown";
@@ -629,6 +654,29 @@ export default function Dashboard() {
                 {metadataSmokeFreshness?.age_minutes != null
                   ? `artifact age ${metadataSmokeFreshness.age_minutes.toFixed(1)}m · stale after ${formatGuardrailValue(metadataSmokeFreshness.stale_after_minutes, 1)}m`
                   : "artifact age unavailable · stale/unavailable policy 已啟用"}
+              </div>
+              <div className={`mt-3 rounded-lg border p-3 text-[11px] leading-5 ${metadataSmokeGovernanceTone}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-semibold">stale governance</div>
+                  <div className="opacity-80">{metadataSmokeGovernance?.status || "unknown"}</div>
+                </div>
+                <div className="mt-2 opacity-90">{metadataSmokeGovernance?.operator_message || "尚未收到治理訊息"}</div>
+                {metadataSmokeAutoRefresh?.status && (
+                  <div className="mt-2 opacity-85">
+                    auto refresh {metadataSmokeAutoRefresh.status}
+                    {metadataSmokeAutoRefresh.completed_at ? ` · completed ${new Date(metadataSmokeAutoRefresh.completed_at).toLocaleString("zh-TW")}` : ""}
+                    {metadataSmokeAutoRefresh.next_retry_at ? ` · next retry ${new Date(metadataSmokeAutoRefresh.next_retry_at).toLocaleString("zh-TW")}` : ""}
+                  </div>
+                )}
+                {metadataSmokeGovernance?.refresh_command && (
+                  <div className="mt-2 font-mono opacity-85 break-all">refresh command: {metadataSmokeGovernance.refresh_command}</div>
+                )}
+                {metadataSmokeGovernance?.escalation_message && (
+                  <div className="mt-2 opacity-90">escalation: {metadataSmokeGovernance.escalation_message}</div>
+                )}
+                {metadataSmokeAutoRefresh?.error && (
+                  <div className="mt-2 text-red-200">auto refresh error: {metadataSmokeAutoRefresh.error}</div>
+                )}
               </div>
               <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {(metadataSmoke.venues || []).map((item) => (

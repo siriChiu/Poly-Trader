@@ -129,7 +129,7 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     }.get(key, default))
     monkeypatch.setattr(api_module, "is_automation_enabled", lambda: True)
     monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "binance"}, "execution": {"mode": "paper", "venue": "binance", "venues": {"binance": {"enabled": True}}}})
-    monkeypatch.setattr(api_module, "_load_execution_metadata_smoke_summary", lambda: {"all_ok": True, "ok_count": 2, "venues_checked": 2, "venues": [{"venue": "binance", "ok": True}]})
+    monkeypatch.setattr(api_module, "_ensure_execution_metadata_smoke_governance", lambda cfg, symbol: {"all_ok": True, "ok_count": 2, "venues_checked": 2, "venues": [{"venue": "binance", "ok": True}], "governance": {"status": "healthy"}})
 
     import asyncio
     payload = asyncio.run(api_module.api_status())
@@ -166,7 +166,7 @@ def test_api_status_passes_db_session_into_execution_service(monkeypatch):
     monkeypatch.setattr(api_module, "AccountSyncService", DummyAccountSyncService)
     monkeypatch.setattr(api_module, "get_db", lambda: db_session)
     monkeypatch.setattr(api_module, "get_runtime_status", lambda key, default=None: default)
-    monkeypatch.setattr(api_module, "_load_execution_metadata_smoke_summary", lambda: None)
+    monkeypatch.setattr(api_module, "_ensure_execution_metadata_smoke_governance", lambda cfg, symbol: None)
     monkeypatch.setattr(api_module, "is_automation_enabled", lambda: False)
     monkeypatch.setattr(api_module, "get_config", lambda: {
         "trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "binance"},
@@ -235,3 +235,64 @@ def test_load_execution_metadata_smoke_summary_marks_stale_and_invalid_timestamp
     assert invalid_summary is not None
     assert invalid_summary["freshness"]["status"] == "unavailable"
     assert invalid_summary["freshness"]["reason"] == "invalid_generated_at"
+
+
+def test_ensure_execution_metadata_smoke_governance_auto_refreshes_stale_artifact(tmp_path, monkeypatch):
+    stale_path = tmp_path / "execution_metadata_smoke_stale.json"
+    stale_path.write_text(json.dumps({
+        "generated_at": (datetime.now(timezone.utc) - timedelta(minutes=91)).isoformat().replace("+00:00", "Z"),
+        "symbol": "BTC/USDT",
+        "all_ok": False,
+        "ok_count": 0,
+        "venues_checked": 1,
+        "results": {},
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_SMOKE_PATH", stale_path)
+    monkeypatch.setattr(api_module, "run_metadata_smoke", lambda cfg, symbol: {
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "symbol": symbol,
+        "all_ok": True,
+        "ok_count": 1,
+        "venues_checked": 1,
+        "results": {
+            "binance": {"ok": True, "enabled_in_config": True, "credentials_configured": False, "contract": {"step_size": "0.001", "tick_size": "0.1"}},
+        },
+    })
+    api_module._EXECUTION_METADATA_SMOKE_REFRESH_STATE.update({
+        "attempted_at": None,
+        "completed_at": None,
+        "status": "idle",
+        "reason": "not_attempted",
+        "next_retry_at": None,
+        "error": None,
+    })
+
+    summary = api_module._ensure_execution_metadata_smoke_governance({"trading": {"symbol": "BTCUSDT"}}, "BTCUSDT")
+
+    assert summary is not None
+    assert summary["freshness"]["status"] == "fresh"
+    assert summary["governance"]["status"] == "healthy"
+    assert summary["governance"]["auto_refresh"]["status"] == "succeeded"
+    assert summary["governance"]["refresh_command"].endswith("python scripts/execution_metadata_smoke.py --symbol BTCUSDT")
+
+
+def test_ensure_execution_metadata_smoke_governance_marks_unavailable_refresh_failures(tmp_path, monkeypatch):
+    missing_path = tmp_path / "missing_execution_metadata_smoke.json"
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_SMOKE_PATH", missing_path)
+    monkeypatch.setattr(api_module, "run_metadata_smoke", lambda cfg, symbol: (_ for _ in ()).throw(RuntimeError("smoke boom")))
+    api_module._EXECUTION_METADATA_SMOKE_REFRESH_STATE.update({
+        "attempted_at": None,
+        "completed_at": None,
+        "status": "idle",
+        "reason": "not_attempted",
+        "next_retry_at": None,
+        "error": None,
+    })
+
+    summary = api_module._ensure_execution_metadata_smoke_governance({"trading": {"symbol": "BTCUSDT"}}, "BTCUSDT")
+
+    assert summary is not None
+    assert summary["freshness"]["status"] == "unavailable"
+    assert summary["governance"]["status"] == "artifact_unavailable"
+    assert summary["governance"]["auto_refresh"]["status"] == "failed"
+    assert "smoke boom" in summary["governance"]["auto_refresh"]["error"]

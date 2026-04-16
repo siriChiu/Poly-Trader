@@ -34,6 +34,7 @@ from feature_engine.feature_history_policy import (
 )
 from execution.account_sync import AccountSyncService
 from execution.execution_service import ExecutionService
+from execution.metadata_smoke import run_metadata_smoke
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -50,6 +51,16 @@ _HYBRID_MODEL_LOCK = threading.Lock()
 _HYBRID_MODEL_CACHE: Dict[str, Dict[str, Any]] = {}
 _EXECUTION_METADATA_SMOKE_PATH = Path(__file__).resolve().parents[2] / "data" / "execution_metadata_smoke.json"
 _EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES = 30.0
+_EXECUTION_METADATA_SMOKE_AUTO_REFRESH_COOLDOWN_SECONDS = 300.0
+_EXECUTION_METADATA_SMOKE_REFRESH_LOCK = threading.Lock()
+_EXECUTION_METADATA_SMOKE_REFRESH_STATE: Dict[str, Any] = {
+    "attempted_at": None,
+    "completed_at": None,
+    "status": "idle",
+    "reason": "not_attempted",
+    "next_retry_at": None,
+    "error": None,
+}
 
 _STRATEGY_STAGE_LABELS = {
     "queued": "任務排隊",
@@ -224,6 +235,156 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
         "freshness": _build_execution_metadata_smoke_freshness(generated_at),
         "venues": venues,
     }
+
+
+def _build_execution_metadata_smoke_refresh_state() -> Dict[str, Any]:
+    return {
+        "attempted_at": _EXECUTION_METADATA_SMOKE_REFRESH_STATE.get("attempted_at"),
+        "completed_at": _EXECUTION_METADATA_SMOKE_REFRESH_STATE.get("completed_at"),
+        "status": _EXECUTION_METADATA_SMOKE_REFRESH_STATE.get("status", "idle"),
+        "reason": _EXECUTION_METADATA_SMOKE_REFRESH_STATE.get("reason", "not_attempted"),
+        "next_retry_at": _EXECUTION_METADATA_SMOKE_REFRESH_STATE.get("next_retry_at"),
+        "error": _EXECUTION_METADATA_SMOKE_REFRESH_STATE.get("error"),
+        "cooldown_seconds": _EXECUTION_METADATA_SMOKE_AUTO_REFRESH_COOLDOWN_SECONDS,
+    }
+
+
+def _refresh_execution_metadata_smoke_artifact(cfg: Dict[str, Any], symbol: str) -> Dict[str, Any]:
+    attempted_at = datetime.now(timezone.utc)
+    attempted_at_iso = attempted_at.isoformat().replace("+00:00", "Z")
+    with _EXECUTION_METADATA_SMOKE_REFRESH_LOCK:
+        next_retry_at = _EXECUTION_METADATA_SMOKE_REFRESH_STATE.get("next_retry_at")
+        next_retry_dt = _parse_utc_datetime(next_retry_at)
+        if next_retry_dt and attempted_at < next_retry_dt:
+            _EXECUTION_METADATA_SMOKE_REFRESH_STATE.update({
+                "attempted_at": attempted_at_iso,
+                "completed_at": _EXECUTION_METADATA_SMOKE_REFRESH_STATE.get("completed_at"),
+                "status": "cooldown",
+                "reason": "cooldown_active",
+                "next_retry_at": next_retry_dt.isoformat().replace("+00:00", "Z"),
+                "error": None,
+            })
+            return {
+                "attempted": False,
+                "status": "cooldown",
+                "reason": "cooldown_active",
+                "attempted_at": attempted_at_iso,
+                "completed_at": _EXECUTION_METADATA_SMOKE_REFRESH_STATE.get("completed_at"),
+                "next_retry_at": _EXECUTION_METADATA_SMOKE_REFRESH_STATE.get("next_retry_at"),
+                "error": None,
+                "cooldown_seconds": _EXECUTION_METADATA_SMOKE_AUTO_REFRESH_COOLDOWN_SECONDS,
+            }
+
+        _EXECUTION_METADATA_SMOKE_REFRESH_STATE.update({
+            "attempted_at": attempted_at_iso,
+            "completed_at": None,
+            "status": "running",
+            "reason": "refresh_started",
+            "next_retry_at": None,
+            "error": None,
+        })
+        try:
+            payload = run_metadata_smoke(cfg, symbol=symbol)
+            _EXECUTION_METADATA_SMOKE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            _EXECUTION_METADATA_SMOKE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            completed_at_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            _EXECUTION_METADATA_SMOKE_REFRESH_STATE.update({
+                "attempted_at": attempted_at_iso,
+                "completed_at": completed_at_iso,
+                "status": "succeeded",
+                "reason": "refresh_completed",
+                "next_retry_at": None,
+                "error": None,
+            })
+            return {
+                "attempted": True,
+                "status": "succeeded",
+                "reason": "refresh_completed",
+                "attempted_at": attempted_at_iso,
+                "completed_at": completed_at_iso,
+                "next_retry_at": None,
+                "error": None,
+                "cooldown_seconds": _EXECUTION_METADATA_SMOKE_AUTO_REFRESH_COOLDOWN_SECONDS,
+            }
+        except Exception as exc:
+            completed_at_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            next_retry_iso = (datetime.now(timezone.utc) + timedelta(seconds=_EXECUTION_METADATA_SMOKE_AUTO_REFRESH_COOLDOWN_SECONDS)).isoformat().replace("+00:00", "Z")
+            _EXECUTION_METADATA_SMOKE_REFRESH_STATE.update({
+                "attempted_at": attempted_at_iso,
+                "completed_at": completed_at_iso,
+                "status": "failed",
+                "reason": "refresh_failed",
+                "next_retry_at": next_retry_iso,
+                "error": str(exc),
+            })
+            return {
+                "attempted": True,
+                "status": "failed",
+                "reason": "refresh_failed",
+                "attempted_at": attempted_at_iso,
+                "completed_at": completed_at_iso,
+                "next_retry_at": next_retry_iso,
+                "error": str(exc),
+                "cooldown_seconds": _EXECUTION_METADATA_SMOKE_AUTO_REFRESH_COOLDOWN_SECONDS,
+            }
+
+
+def _build_execution_metadata_smoke_governance(summary: Optional[Dict[str, Any]], symbol: str) -> Dict[str, Any]:
+    freshness = (summary or {}).get("freshness") if isinstance(summary, dict) else None
+    freshness_status = freshness.get("status") if isinstance(freshness, dict) else "unavailable"
+    refresh_state = _build_execution_metadata_smoke_refresh_state()
+    command = f"source venv/bin/activate && python scripts/execution_metadata_smoke.py --symbol {symbol}"
+    if freshness_status == "fresh":
+        return {
+            "status": "healthy",
+            "operator_action": "none",
+            "operator_message": "metadata smoke artifact 在 freshness policy 內，無需額外治理動作。",
+            "refresh_command": command,
+            "escalation_message": None,
+            "auto_refresh": refresh_state,
+        }
+    if freshness_status == "stale":
+        escalation = "若自動 refresh 連續失敗或長時間維持 stale，升級為 execution metadata blocker。"
+        return {
+            "status": "refresh_required",
+            "operator_action": "rerun_metadata_smoke",
+            "operator_message": "metadata smoke artifact 已過 stale policy；API 會嘗試自動 refresh，operator 需確認 refresh 結果與 Dashboard badge 是否回到 FRESH。",
+            "refresh_command": command,
+            "escalation_message": escalation,
+            "auto_refresh": refresh_state,
+        }
+    escalation = "artifact 缺失或無法解析；若自動 refresh 後仍 unavailable，需升級為 execution metadata blocker 並檢查腳本 / 檔案權限 / venue metadata lane。"
+    return {
+        "status": "artifact_unavailable",
+        "operator_action": "rebuild_artifact",
+        "operator_message": "metadata smoke artifact 不可用；API 會優先嘗試自動重建，若失敗需立刻檢查 artifact lane。",
+        "refresh_command": command,
+        "escalation_message": escalation,
+        "auto_refresh": refresh_state,
+    }
+
+
+def _ensure_execution_metadata_smoke_governance(cfg: Dict[str, Any], symbol: str) -> Optional[Dict[str, Any]]:
+    summary = _load_execution_metadata_smoke_summary()
+    freshness = summary.get("freshness") if isinstance(summary, dict) else None
+    freshness_status = freshness.get("status") if isinstance(freshness, dict) else "unavailable"
+    if freshness_status in {"stale", "unavailable"}:
+        refresh_info = _refresh_execution_metadata_smoke_artifact(cfg, symbol)
+        if refresh_info.get("status") == "succeeded":
+            summary = _load_execution_metadata_smoke_summary()
+    summary_payload = summary or {
+        "available": False,
+        "artifact_path": str(_EXECUTION_METADATA_SMOKE_PATH),
+        "freshness": {
+            "status": "unavailable",
+            "label": "unavailable",
+            "reason": "artifact_missing",
+            "age_minutes": None,
+            "stale_after_minutes": _EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES,
+        },
+    }
+    summary_payload["governance"] = _build_execution_metadata_smoke_governance(summary_payload, symbol)
+    return summary_payload
 
 
 def _strategy_job_stage_plan(body: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -510,16 +671,17 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
 async def api_status():
     cfg = get_config()
     db = get_db()
+    symbol = cfg.get("trading", {}).get("symbol", "BTCUSDT")
     execution = ExecutionService(cfg, db_session=db)
-    account_snapshot = AccountSyncService(cfg).snapshot(symbol=cfg.get("trading", {}).get("symbol", "BTCUSDT"))
+    account_snapshot = AccountSyncService(cfg).snapshot(symbol=symbol)
     return {
         "automation": is_automation_enabled(),
         "dry_run": cfg.get("trading", {}).get("dry_run", True),
-        "symbol": cfg.get("trading", {}).get("symbol", "BTCUSDT"),
+        "symbol": symbol,
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "execution": execution.execution_summary(),
         "account": account_snapshot,
-        "execution_metadata_smoke": _load_execution_metadata_smoke_summary(),
+        "execution_metadata_smoke": _ensure_execution_metadata_smoke_governance(cfg, symbol),
         "raw_continuity": get_runtime_status("raw_continuity", None),
         "feature_continuity": get_runtime_status("feature_continuity", None),
     }
