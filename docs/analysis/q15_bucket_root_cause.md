@@ -1,35 +1,35 @@
 # q15 Bucket Root Cause
 
-- generated_at: **2026-04-15 13:22:43.755638**
+- generated_at: **2026-04-16 10:49:08.303092**
 - target_col: **simulated_pyramid_win**
-- verdict: **current_row_already_above_q35_boundary**
-- candidate_patch_type: **support_accumulation**
-- candidate_patch_feature: **feat_4h_dist_swing_low**
+- verdict: **same_lane_neighbor_bucket_dominates**
+- candidate_patch_type: **structure_component_scoring**
+- candidate_patch_feature: **feat_4h_bb_pct_b**
 
 ## Current live
 - live path: **bull / CAUTION / D**
-- structure_bucket: `CAUTION|structure_quality_caution|q35`
-- structure_quality: **0.4138**
-- gap_to_q35_boundary: **0.0**
+- structure_bucket: `CAUTION|structure_quality_caution|q15`
+- structure_quality: **0.2218**
+- gap_to_q35_boundary: **0.1282**
 - non_null_4h_feature_count: **10**
-- execution_guardrail_reason: `None`
+- execution_guardrail_reason: `unsupported_live_structure_bucket_blocks_trade; under_minimum_exact_live_structure_bucket`
 
 ## Exact live lane
-- rows: **434**
-- bucket_counts: `{'CAUTION|structure_quality_caution|q35': 171, 'CAUTION|base_caution_regime_or_bias|q35': 114, 'CAUTION|base_caution_regime_or_bias|q15': 67, 'CAUTION|base_caution_regime_or_bias|q00': 47, 'CAUTION|base_caution_regime_or_bias|q65': 18, 'CAUTION|base_caution_regime_or_bias|q85': 13, 'CAUTION|structure_quality_caution|q15': 4}`
-- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q35** (114 rows)
-- near_boundary_window: `{'lower': 0.4138, 'upper': 0.35}`
-- near_boundary_rows: **0**
+- rows: **626**
+- bucket_counts: `{'CAUTION|structure_quality_caution|q35': 364, 'CAUTION|base_caution_regime_or_bias|q35': 114, 'CAUTION|base_caution_regime_or_bias|q15': 62, 'CAUTION|base_caution_regime_or_bias|q00': 47, 'CAUTION|base_caution_regime_or_bias|q65': 18, 'CAUTION|base_caution_regime_or_bias|q85': 13, 'CAUTION|structure_quality_caution|q15': 8}`
+- dominant_neighbor_bucket: **CAUTION|structure_quality_caution|q35** (364 rows)
+- near_boundary_window: `{'lower': 0.2218, 'upper': 0.35}`
+- near_boundary_rows: **58**
 
 ## Decision
-- reason: 目前 live row 已不在 q15/q35 邊界下方，問題改成 exact support 累積，不是 bucket repair。
-- candidate_patch: `{'type': 'support_accumulation', 'feature': 'feat_4h_dist_swing_low', 'current_raw': 5.0839, 'current_normalized': 0.5084, 'needed_raw_delta_to_cross_q35': 0.0, 'target_bucket_p25': 5.0388, 'target_bucket_median': 5.6592, 'needed_raw_delta_to_target_p25': -0.0451, 'needed_raw_delta_to_target_median': 0.5753}`
-- verify_next: 確認 current_live_structure_bucket_rows 是否增加到 minimum_support_rows。
+- reason: same exact lane 有明顯鄰近 bucket 樣本，current row 與 q35 support 的差距主要來自結構 component，不是 generic breaker / q35 總體治理。
+- candidate_patch: `{'type': 'structure_component_scoring', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.3974, 'current_normalized': 0.3974, 'needed_raw_delta_to_cross_q35': 0.3771, 'target_bucket_p25': 0.4869, 'target_bucket_median': 0.6228, 'needed_raw_delta_to_target_p25': 0.0895, 'needed_raw_delta_to_target_median': 0.2254}`
+- verify_next: 比較 current row 與 dominant neighbor bucket 的 4H component 差值，再做最小 counterfactual。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.5235 / norm=0.5235 / Δto_cross_q35=0.0 / target_p25=0.2585 / target_median=0.4447
-- `feat_4h_dist_bb_lower`: current=1.65 / norm=0.2062 / Δto_cross_q35=0.0 / target_p25=2.8009 / target_median=3.673
-- `feat_4h_dist_swing_low`: current=5.0839 / norm=0.5084 / Δto_cross_q35=0.0 / target_p25=5.0388 / target_median=5.6592
+- `feat_4h_bb_pct_b`: current=0.3974 / norm=0.3974 / Δto_cross_q35=0.3771 / target_p25=0.4869 / target_median=0.6228
+- `feat_4h_dist_bb_lower`: current=1.2417 / norm=0.1552 / Δto_cross_q35=3.1079 / target_p25=1.5536 / target_median=2.1146
+- `feat_4h_dist_swing_low`: current=1.0761 / norm=0.1076 / Δto_cross_q35=3.8848 / target_p25=3.6426 / target_median=5.0453
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 verdict 與 candidate_patch_feature。

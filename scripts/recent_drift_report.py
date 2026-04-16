@@ -69,6 +69,26 @@ EXPECTED_COMPRESSED_FEATURE_RULES = {
         "min_required_proxies": 4,
         "reason": "coherent_4h_trend_compression",
     },
+    "feat_4h_bias20": {
+        "proxy_cols": (
+            "feat_4h_rsi14",
+            "feat_4h_bb_pct_b",
+            "feat_4h_macd_hist",
+        ),
+        "min_required_proxies": 3,
+        "reason": "coherent_4h_short_trend_compression",
+    },
+    "feat_4h_rsi14": {
+        "proxy_cols": (
+            "raw_close_price",
+            "raw_volatility",
+            "feat_4h_bias20",
+            "feat_4h_bb_pct_b",
+            "feat_4h_macd_hist",
+        ),
+        "min_required_proxies": 4,
+        "reason": "coherent_4h_short_trend_oscillator_compression",
+    },
     "feat_4h_macd_hist": {
         "proxy_cols": (
             "raw_close_price",
@@ -224,6 +244,10 @@ def _expected_compressed_details(
         proxy_cols = (proxy_col,) if proxy_col else ()
     proxy_cols = tuple(str(col) for col in proxy_cols if col)
     if not proxy_cols:
+        return None
+
+    row_keys = set(current_rows[0].keys()) if current_rows else set()
+    if not all(proxy_col in row_keys for proxy_col in proxy_cols):
         return None
 
     proxy_stats: dict[str, Any] = {}

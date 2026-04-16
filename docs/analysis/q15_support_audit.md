@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-16 08:35:24.573669**
+- generated_at: **2026-04-16 10:49:08.303092**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
@@ -30,22 +30,22 @@
 - supported neighbor rows: **0**
 - reason: current q15 exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
-- support_progress.status: **no_recent_comparable_history**
+- support_progress.status: **accumulating**
 - support_progress.current_rows / minimum: **4 / 50**
-- support_progress.previous_rows: **None**
-- support_progress.delta_vs_previous: **None**
+- support_progress.previous_rows: **0**
+- support_progress.delta_vs_previous: **4**
 - support_progress.stagnant_run_count: **1**
 - support_progress.escalate_to_blocker: **False**
-- support_progress.reason: 目前找不到同一 q15 bucket + support route 的最近 heartbeat 可比較；先持續累積 exact support。
+- support_progress.reason: current q15 exact support 仍低於 minimum，但同 bucket rows 較上一輪增加。 route 已切換，代表 support pathology 正在從缺樣本轉向 exact rows 累積。
 
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.1174**
+- remaining_gap_to_floor: **0.1273**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.3913**
+- best_single_component_required_score_delta: **0.4243**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.3913），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.4243），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**

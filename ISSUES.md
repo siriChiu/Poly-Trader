@@ -1,26 +1,26 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-16 09:33 UTC_
+_最後更新：2026-04-16 11:18 UTC_
 
 只保留目前仍有效的問題；不保留歷史敘事。
 
 ---
 
 ## Step 0.5 承接（把上輪結論當本輪輸入）
-- 上輪 carry-forward 主軸：`feat_4h_bias20 recent-window unexpected compression root cause`、`q15 exact support accumulation / replay`、`keep q35 reference-only until current live returns to q35`。
+- 上輪 carry-forward 主軸：`feat_4h_bias20 recent-window unexpected compression root cause`、`q15 support_progress history + accumulation`、`q15 same-lane neighbor dominance minimal component counterfactual`。
 - 本輪逐條對照結果：
-  1. **`feat_4h_bias20` 仍是 primary recent blocker**：`recent_drift_report.py` 重新確認 sibling-window `new_compressed = feat_4h_bias20`，本輪尚未完成 root-cause patch，仍停留在待拆解狀態。
-  2. **q15 support accumulation 已從口頭要求變成 machine-readable artifact**：本輪補上 `scripts/hb_q15_support_audit.py` 的 `support_progress` contract，能直接輸出 `status / gap_to_minimum / previous_rows / delta_vs_previous / stagnant_run_count / escalate_to_blocker / history`。但目前 current q15 exact rows 仍只有 **4 / 50**，`support_progress.status = no_recent_comparable_history`，代表還沒有足夠同路徑 heartbeat 歷史可判定「累積」或「停滯」。
-  3. **q35 仍是 reference-only，不可搶回主線**：`hb_q35_scaling_audit.py` 相關舊敘事仍不能覆蓋 current q15 blocker；本輪沒有把 q35 重新升級成 current-live closure。
-  4. **q15 replay 路徑更清楚，但仍未進入 deployable**：`hb_q15_bucket_root_cause.py` 指向 `same_lane_neighbor_bucket_dominates`，候選 patch feature 為 `feat_4h_bb_pct_b`；`hb_q15_boundary_replay.py` 仍回報 `boundary_replay_not_applicable`，表示現階段不能把 boundary replay 當 deployment 解法。
+  1. **`feat_4h_bias20` 已不再是 primary recent blocker**：重跑 `scripts/recent_drift_report.py` 後，primary window 仍是 recent 100 bull pocket，但 sibling-window `new_compressed` 已從上一輪文件中的 `feat_4h_bias20` 改為 **`feat_4h_bb_pct_b`**。表示上輪要求追的 bias20 已不是 current-live 需要先拆的主病灶。
+  2. **q15 support_progress 已從「無可比歷史」進入「累積中」**：`scripts/hb_q15_support_audit.py` 現在回報 `support_progress.status = accumulating`、`current_rows = 4`、`delta_vs_previous = +4`，上輪要求的歷史鏈已成立，不再是 `no_recent_comparable_history`。
+  3. **q15 same-lane neighbor dominance 仍成立，且焦點已收斂到同一個 component**：`scripts/hb_q15_bucket_root_cause.py` 仍回報 `same_lane_neighbor_bucket_dominates`，候選 patch feature 仍是 **`feat_4h_bb_pct_b`**；這次又與 recent drift 的 `new_compressed=feat_4h_bb_pct_b` 收斂到同一個結構欄位，代表下一輪不能再回退到 generic q35/bias50 敘事。
+  4. **q35 仍是 reference-only**：current live row 仍是 `bull / CAUTION / q15`；`feat_4h_bias50` 雖然在 floor-cross 數學上可跨門檻，但 `support_route` 仍是 `exact_bucket_present_but_below_minimum`，因此 q35 / bias50 不能接管當前 blocker。
 
 ---
 
 ## 系統現況
-- 本輪最新 DB：**Raw / Features / Labels = 30524 / 16750 / 43750**
+- 本輪最新 DB：**Raw / Features / Labels = 30527 / 18664 / 43750**
 - 最新時間：
-  - Raw：`2026-04-16 08:35:24.573669`
-  - Features：`2026-04-16 08:35:24.573669`
+  - Raw：`2026-04-16 10:49:08.303092`
+  - Features：`2026-04-16 10:49:08.303092`
   - Labels：`2026-04-16 01:43:50.141947`
   - Canonical 1440m labels：`2026-04-15 05:53:35.506756`
 - canonical 1440m：**12709 rows / simulated_pyramid_win = 0.6470**
@@ -32,10 +32,10 @@ _最後更新：2026-04-16 09:33 UTC_
   - interpretation = `distribution_pathology`
   - `wins = 100 / losses = 0`
   - `dominant_regime = bull (100%)`
-  - sibling-window `new_compressed = feat_4h_bias20`
+  - sibling-window `new_compressed = feat_4h_bb_pct_b`
 - current live probe：
   - regime / gate / bucket：**bull / CAUTION / q15**
-  - `entry_quality = 0.4326`
+  - `entry_quality = 0.4227`
   - `entry_quality_label = D`
   - `allowed_layers_raw = 0`
   - `allowed_layers = 0`
@@ -43,19 +43,21 @@ _最後更新：2026-04-16 09:33 UTC_
   - exact current-bucket rows = **4**
 - q15 support audit：
   - `support_route.verdict = exact_bucket_present_but_below_minimum`
-  - `support_progress.status = no_recent_comparable_history`
+  - `support_progress.status = accumulating`
   - `support_progress.current_rows / minimum = 4 / 50`
+  - `support_progress.delta_vs_previous = +4`
   - `support_progress.gap_to_minimum = 46`
   - `floor_cross_legality.verdict = math_cross_possible_but_illegal_without_exact_support`
   - `best_single_component = feat_4h_bias50`
-  - `best_single_component_required_score_delta = 0.3913`
+  - `best_single_component_required_score_delta = 0.4243`
   - `component_experiment.verdict = reference_only_until_exact_support_ready`
 - q15 root-cause artifact：
   - `verdict = same_lane_neighbor_bucket_dominates`
   - `candidate_patch_type = structure_component_scoring`
   - `candidate_patch_feature = feat_4h_bb_pct_b`
-  - `gap_to_q35_boundary = 0.0476`
-  - `near_boundary_rows = 21`
+  - `gap_to_q35_boundary = 0.1282`
+  - `dominant_neighbor_bucket = CAUTION|structure_quality_caution|q35`
+  - `near_boundary_rows = 58`
 - q15 boundary replay：`boundary_replay_not_applicable`
 - comprehensive test：**6/6 PASS**
 
@@ -64,11 +66,15 @@ _最後更新：2026-04-16 09:33 UTC_
 ## Step 1 事實分類
 
 ### 已改善
-1. **q15 support blocker 終於有進度語義**：本輪不是只重述「rows=4」。`hb_q15_support_audit.py` 現在會持久化 `support_progress`，能直接分辨 `accumulating / stalled_under_minimum / regressed_under_minimum / exact_supported / no_recent_comparable_history`。
-2. **q15 support contract 已落到測試**：`tests/test_q15_support_audit.py` 新增 support-progress 回歸，驗證停滯狀態會正確升級 `stalled_under_minimum + escalate_to_blocker`。
-3. **文件 contract 已同步**：`ARCHITECTURE.md` 已把 q15 support audit 的 `support_progress` 納入 machine-read contract，避免下一輪又回到只看 rows 的報告式心跳。
-4. **閉環驗證完整**：
-   - `python -m pytest tests/test_q15_support_audit.py -q` → **7 passed**
+1. **上輪要求追的 `feat_4h_bias20` 已退出 primary unexpected-compressed 主病灶**：本輪 `recent_drift_report.py` 顯示 sibling-window `new_compressed` 已轉成 `feat_4h_bb_pct_b`。
+2. **q15 support history 鏈已正式成立**：`support_progress.status` 從上一輪文件中的 `no_recent_comparable_history` 變成 **`accumulating`**，而且 `delta_vs_previous = +4`。
+3. **本輪留下真實 patch 而不是只重跑**：
+   - `scripts/recent_drift_report.py` 新增 **`feat_4h_rsi14` expected-compression provenance**，避免把 short-trend oscillator 的一致性壓縮誤判成單點 projection blocker。
+   - 同步補上缺 proxy 欄位時的 guard，避免測試／精簡資料集因缺欄崩潰。
+   - `tests/test_recent_drift_report.py` 新增對 `feat_4h_rsi14` provenance 的回歸測試。
+   - `ARCHITECTURE.md` 已同步 4H RSI14 provenance contract。
+4. **驗證閉環完整**：
+   - `python -m pytest tests/test_recent_drift_report.py -q` → **17 passed**
    - `python scripts/recent_drift_report.py`
    - `python scripts/hb_predict_probe.py > data/live_predict_probe.json`
    - `python scripts/live_decision_quality_drilldown.py`
@@ -80,120 +86,117 @@ _最後更新：2026-04-16 09:33 UTC_
    - `python tests/comprehensive_test.py` → **6/6 PASS**
 
 ### 惡化
-1. **recent canonical pathology 沒有解除**：recent 100 仍是 `100x1 bull pocket`，`new_compressed` 仍停在 `feat_4h_bias20`，代表主病灶還沒被 patch 掉。
-2. **current live blocker 仍未進入累積態**：q15 exact rows 雖存在，但 `support_progress` 還是 `no_recent_comparable_history`，代表 heartbeat summary 尚未形成可比較的同 bucket / 同 route 歷史鏈。
+1. **recent canonical pathology 仍未解除**：recent 100 仍是 `100x1 bull pocket`，primary interpretation 仍是 `distribution_pathology`。
+2. **主病灶已收斂到 `feat_4h_bb_pct_b`**：這比上一輪更聚焦，但也代表下一輪若還不碰 `feat_4h_bb_pct_b` counterfactual，就會再次變成報告式空轉。
 
 ### 卡住不動
-1. **q15 exact support 仍卡在 deployment-grade minimum 之外**：當前只有 **4 / 50**，`feat_4h_bias50` 雖然在數學上可補 floor gap，但依 contract 仍屬非法放行。
-2. **boundary replay 仍不能用**：`boundary_replay_not_applicable` 表示本輪不能用 bucket boundary 重標路徑掩蓋 exact support 缺口。
-3. **dual-role governance 仍不是本輪主線**：current blocker 仍是 `feat_4h_bias20` + q15 exact support，不應回退到 q35/leaderboard 敘事。
+1. **q15 exact support 仍遠低於 deployment minimum**：當前仍只有 **4 / 50**，runtime 必須維持 `allowed_layers = 0`。
+2. **boundary replay 仍不能用**：`boundary_replay_not_applicable`，表示不能用 bucket 邊界重標來掩蓋 exact support 缺口。
+3. **bias50 仍只能當 reference-only floor-cross 候選**：雖然 `feat_4h_bias50` 在數學上能跨 floor，但在 q15 support 未達標前仍不得直接放行。
 
 ---
 
 ## Open Issues
 
-### P0. `feat_4h_bias20` 仍是 recent bull pocket 的主病灶
+### P0. `feat_4h_bb_pct_b` 已成為 recent drift 與 q15 root-cause 的共同主病灶
 **現象**
-- `recent_drift_report.py` 仍顯示 recent 100 = `100x1 bull pocket`
-- sibling-window `new_compressed = feat_4h_bias20`
-- `feat_4h_bias50` 已不是 primary blocker，但 `feat_4h_bias20` 還沒有 root-cause patch
+- `recent_drift_report.py`：primary window sibling 比較的 `new_compressed = feat_4h_bb_pct_b`
+- `hb_q15_bucket_root_cause.py`：`candidate_patch_feature = feat_4h_bb_pct_b`
+- current live row 與 dominant q35 neighbor 的最小差距也落在 `feat_4h_bb_pct_b`
 
 **影響**
-- recent calibration 與 drift triage 仍被 bull pocket pathology 污染
-- 若下一輪仍只重跑 artifact 而不拆 `feat_4h_bias20`，就是報告式空轉
+- drift 診斷與 q15 structure gap 現在指向同一個 component；若不做 `feat_4h_bb_pct_b` 最小 counterfactual，下一輪就沒有理由再重跑相同 artifact
 
 **本輪證據**
 - `python scripts/recent_drift_report.py`
+- `python scripts/hb_q15_bucket_root_cause.py`
 - `data/recent_drift_report.json`
+- `data/q15_bucket_root_cause.json`
 
 **下一步**
-- 直接拆 `feat_4h_bias20`：先判斷是 4H projection 過平滑、短週期對齊問題，還是 underlying market-state 真壓縮
+- 直接比較 current row 與 `CAUTION|structure_quality_caution|q35` neighbor bucket 的 `feat_4h_bb_pct_b` 分布差值
+- 做最小 counterfactual，驗證只調整 `feat_4h_bb_pct_b` 是否能把 current row 推近 q35，且不越權解除 exact-support blocker
 
-### P1. q15 exact support 仍只有 4/50；但本輪已補齊 support-progress contract
+### P1. q15 support 已開始累積，但仍只有 4/50
 **現象**
-- current live = `bull / CAUTION / q15`
-- `deployment_blocker = under_minimum_exact_live_structure_bucket`
-- `support_route.verdict = exact_bucket_present_but_below_minimum`
-- `support_progress.status = no_recent_comparable_history`
+- `support_progress.status = accumulating`
+- `current_rows = 4`
+- `delta_vs_previous = +4`
 - `gap_to_minimum = 46`
 
 **影響**
+- 這不再是「沒有歷史」問題，而是明確的 exact-support 累積問題
 - runtime 仍必須維持 `allowed_layers = 0`
-- 雖然 blocker 沒解除，但現在至少能 machine-read support 是否在累積、停滯或回退；下輪不能再只寫「rows 不足」
 
 **本輪 patch / 證據**
-- `scripts/hb_q15_support_audit.py`：新增 `support_progress` 歷史/狀態輸出
-- `tests/test_q15_support_audit.py`：新增 q15 support-progress 回歸測試
-- `ARCHITECTURE.md`：同步新增 q15 support-progress contract
-- 驗證：`python -m pytest tests/test_q15_support_audit.py -q` → **7 passed**
+- `scripts/hb_q15_support_audit.py` 產出的歷史鏈已被本輪重跑驗證
+- `data/q15_support_audit.json` 明確留下 `accumulating` 狀態與歷史比較
 
 **下一步**
-- 先把 `q15_support_audit` 訊號帶進 heartbeat summary，讓後續 run 能形成同 bucket / 同 route 歷史鏈
-- 若下輪 rows 仍停在 4 且 status 轉成 `stalled_under_minimum`，直接升級成 blocker，不得再寫成 generic support 不足
+- 下一輪必須持續保留同一 bucket 的 support history
+- 若 rows 停在 4 且 `stagnant_run_count` 持續上升，直接升級成 stalled blocker
 
-### P1. q15 root cause 已指向同 lane neighbor dominance，但仍只屬 reference-only
+### P1. recent drift 的 oscillator 誤報已被修正，但 bull pocket pathology 還在
 **現象**
-- `hb_q15_bucket_root_cause.py`：`same_lane_neighbor_bucket_dominates`
-- candidate patch = `feat_4h_bb_pct_b`
-- `gap_to_q35_boundary = 0.0476`
-- `near_boundary_rows = 21`
-- `hb_q15_boundary_replay.py`：`boundary_replay_not_applicable`
+- 本輪 patch 後，`feat_4h_rsi14` 不再是 sibling-window 的新 unexpected compression
+- 但 primary window 仍是 `100x1 bull pocket`
 
 **影響**
-- 當前最小 patch 候選已縮到 `feat_4h_bb_pct_b`，但仍不能拿來繞過 exact support minimum
-- 代表下一輪該做的是 q15 同 lane neighbor 對照 / component 差異驗證，而不是回到 q35 formula review
+- 代表 recent pathology 的核心不再是 RSI14 診斷誤報，而是更聚焦的 4H 結構壓縮 / bucket 組成問題
+
+**本輪 patch / 證據**
+- `scripts/recent_drift_report.py`
+- `tests/test_recent_drift_report.py` → **17 passed**
+- `ARCHITECTURE.md` 4H RSI14 provenance contract
 
 **下一步**
-- 比較 current row 與 dominant q35 neighbor bucket 的 `feat_4h_bb_pct_b / feat_4h_bias50 / feat_4h_dist_bb_lower / feat_4h_dist_swing_low` 差值
-- 先做最小 counterfactual，驗證是否只是 structure component scoring 就能把 q15 row 推向可比較 lane
+- 不要再把 focus 放回 `feat_4h_rsi14`；下一輪直接做 `feat_4h_bb_pct_b` counterfactual / structure scoring 檢查
 
 ### P2. q35 保持 reference-only，不得重回 current-live 主敘事
 **現象**
 - current live bucket 仍是 q15
-- q35 相關 audit 只可保留 calibration / reference value
+- dominant neighbor bucket 雖是 q35，但目前只是 comparison lane
 
 **影響**
-- 若下輪重新把 q35 當 current blocker，文件又會失真
+- q35 只能作 reference neighbor，不得重寫成當前 deployment closure
 
 **下一步**
-- 只有在 current live row 回到 q35 時，才重啟 q35 deployment closure
+- 只有在 current live row 真正回到 q35 時，才重啟 q35 scaling / deployment 主線
 
 ---
 
 ## Not Issues
-- **`feat_4h_bias50` 仍是 primary recent blocker**：不是。它已退居 q15 floor-cross 的單點 component 候選，recent pathology 主病灶仍是 `feat_4h_bias20`。
-- **`feat_4h_bias50` 單點可跨 floor = 現在就能放行**：不是。`floor_cross_legality` 明確是 `math_cross_possible_but_illegal_without_exact_support`。
-- **boundary replay 已可當 current-live closure**：不是。`boundary_replay_not_applicable`。
+- **`feat_4h_bias20` 仍是 primary recent blocker**：不是。本輪 `new_compressed` 已變成 `feat_4h_bb_pct_b`。
+- **`feat_4h_rsi14` 是新的單點 projection blocker**：不是。本輪已補 provenance，現在它屬於 coherent short-trend oscillator compression，不是 current priority。
+- **`feat_4h_bias50` 可以直接解除 q15 blocker**：不是。`floor_cross_legality` 仍是 `math_cross_possible_but_illegal_without_exact_support`。
 - **q35 應回來接管本輪主線**：不是。current live 仍在 q15。
 
 ---
 
 ## Current Priority
-1. **直接處理 `feat_4h_bias20` recent-window root cause**
-2. **讓 q15 support-progress 正式進入 heartbeat summary 歷史鏈，並持續監看 4/50 → 是否累積 / 停滯 / 回退**
-3. **沿 q15 neighbor-dominance 線追最小 component patch（優先 `feat_4h_bb_pct_b`），但不得越權解除 exact-support blocker**
+1. **直接處理 `feat_4h_bb_pct_b` 的 q15→q35 最小 component counterfactual**
+2. **持續監看 q15 support accumulation（4/50 是否繼續增加）**
+3. **維持 q35 / bias50 為 reference-only，直到 exact support 達標**
 
 ---
 
 ## Next Gate Input
-- **Next focus**：`feat_4h_bias20 recent-window unexpected compression root cause`、`q15 support_progress history + accumulation`、`q15 same-lane neighbor dominance minimal component counterfactual`
+- **Next focus**：`feat_4h_bb_pct_b minimal component counterfactual`、`q15 support accumulation 4→?`、`keep bias50/q35 reference-only until exact support ready`
 - **Success gate**：
-  - `recent_drift_report.json` 的 sibling-window `new_compressed` 不再是 `feat_4h_bias20`，或至少留下 1 個針對 `feat_4h_bias20` 的 root-cause patch + verify
-  - `q15_support_audit.json` 的 `support_progress.status` 不再只是 `no_recent_comparable_history`，至少能進入 `accumulating / stalled_under_minimum / regressed_under_minimum` 之一
-  - current q15 exact rows 明確增加，或至少 heartbeat summary 已保留可比較的 support-progress 歷史鏈
-  - 若做 q15 component counterfactual，必須明確證明它仍是 **reference-only until exact support ready**
+  - 產出 1 個針對 `feat_4h_bb_pct_b` 的最小 counterfactual artifact 或 patch，明確回答它是否足以把 current row 推近 q35
+  - `data/q15_support_audit.json` 仍保留同 bucket 歷史，且 `support_progress.current_rows` 相比本輪 **不下降**
+  - 若 counterfactual 只改 bucket、不足以合法放行，文件必須明確保留 `reference_only_until_exact_support_ready`
 - **Fallback if fail**：
-  - 若 `feat_4h_bias20` 仍無 patch，下輪只能做這件事，不再接受重跑式 heartbeat
-  - 若 q15 support-progress 仍未進入 summary 歷史鏈，下輪把這件事升級成 heartbeat governance blocker
-  - 若 current live bucket 再切換，先重寫 current-state docs，再決定是否回到 q35 或其他 lane
+  - 若下一輪仍未對 `feat_4h_bb_pct_b` 動手，直接升級成 `#HEARTBEAT_EMPTY_PROGRESS` 類 blocker
+  - 若 q15 rows 停在 4 且 `support_progress` 轉成 stalled/regressed，升級成 support accumulation blocker
+  - 若 current live bucket 切換，先重寫 current-state docs，再決定是否切回 q35 或其他 lane
 - **Carry-forward input for next heartbeat**：
-  1. 先讀最新 `data/recent_drift_report.json`，確認 sibling-window `new_compressed` 是否仍為 `feat_4h_bias20`。
-  2. 再讀最新 `data/q15_support_audit.json`，逐條檢查：
+  1. 先讀最新 `data/recent_drift_report.json`，確認 primary window 的 sibling `new_compressed` 是否仍是 `feat_4h_bb_pct_b`。
+  2. 先讀最新 `data/q15_support_audit.json`，逐條檢查：
      - `support_progress.status`
      - `support_progress.current_rows`
-     - `support_progress.minimum_support_rows`
      - `support_progress.delta_vs_previous`
      - `support_progress.stagnant_run_count`
      - `support_progress.escalate_to_blocker`
-  3. 若 q15 rows 仍低於 50，禁止把 `feat_4h_bias50` 單點 floor-cross 敘事寫成可 deploy；必須保持 `reference_only_until_exact_support_ready`。
-  4. 再讀 `data/q15_bucket_root_cause.json`；若 verdict 仍是 `same_lane_neighbor_bucket_dominates`，下一輪只能做 current row vs dominant q35 neighbor 的最小 component counterfactual，優先檢查 `feat_4h_bb_pct_b`。
+  3. 再讀 `data/q15_bucket_root_cause.json`；若 `candidate_patch_feature` 仍是 `feat_4h_bb_pct_b`，下一輪只能做它的最小 counterfactual / scoring verify，不得回退到 generic q35/bias50 討論。
+  4. 若 q15 rows 仍低於 50，禁止把 bias50 單點 floor-cross 敘事寫成可 deploy；必須維持 `reference_only_until_exact_support_ready`。

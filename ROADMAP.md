@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-16 09:33 UTC_
+_最後更新：2026-04-16 11:18 UTC_
 
 只保留目前計畫，不保留歷史 roadmap。
 
@@ -18,30 +18,22 @@ _最後更新：2026-04-16 09:33 UTC_
   - `python scripts/regime_aware_ic.py`
   - `python tests/comprehensive_test.py`
 - 已確認本輪 canonical 基線：
+  - Raw / Features / Labels = **30527 / 18664 / 43750**
   - 1440m canonical rows = **12709**
   - `simulated_pyramid_win = 0.6470`
   - Global IC = **17 / 30**
   - TW-IC = **26 / 30**
   - regime-aware IC = **Bear 5/8 / Bull 6/8 / Chop 4/8**
 - 已完成本輪 real forward-progress patch：
-  - `scripts/hb_q15_support_audit.py` 新增 **support_progress contract**
-  - `support_progress` 現在會持久化：
-    - `status`
-    - `current_rows`
-    - `minimum_support_rows`
-    - `gap_to_minimum`
-    - `previous_rows`
-    - `delta_vs_previous`
-    - `stagnant_run_count`
-    - `escalate_to_blocker`
-    - `history`
-  - `tests/test_q15_support_audit.py` 新增 q15 support-progress 回歸測試
-  - `ARCHITECTURE.md` 新增 q15 support-progress machine-read contract
+  - `scripts/recent_drift_report.py` 新增 **`feat_4h_rsi14` expected-compression provenance**
+  - `scripts/recent_drift_report.py` 補上 proxy 欄位缺失時的 safe guard，避免精簡測試資料集直接崩潰
+  - `tests/test_recent_drift_report.py` 新增 `feat_4h_rsi14` provenance regression
+  - `ARCHITECTURE.md` 同步新增 4H RSI14 provenance contract
 - 已完成驗證：
-  - `python -m pytest tests/test_q15_support_audit.py -q` → **7 passed**
+  - `python -m pytest tests/test_recent_drift_report.py -q` → **17 passed**
+  - `python scripts/recent_drift_report.py`
   - `python scripts/hb_q15_support_audit.py`
   - `python scripts/hb_q15_bucket_root_cause.py`
-  - `python scripts/hb_q15_boundary_replay.py`
   - `python tests/comprehensive_test.py` → **6/6 PASS**
 - 已刷新本輪 artifact：
   - `data/recent_drift_report.json`
@@ -55,82 +47,67 @@ _最後更新：2026-04-16 09:33 UTC_
   - `docs/analysis/q15_boundary_replay.md`
   - `data/full_ic_result.json`
   - `data/ic_regime_analysis.json`
-- 已確認 q15 current blocker 的最新語義：
-  - current live row = **`bull / CAUTION / q15`**
-  - `deployment_blocker = under_minimum_exact_live_structure_bucket`
-  - `current_live_structure_bucket_rows = 4`
-  - `minimum_support_rows = 50`
-  - `support_progress.status = no_recent_comparable_history`
-  - `gap_to_minimum = 46`
-  - `floor_cross_verdict = math_cross_possible_but_illegal_without_exact_support`
-  - `best_single_component = feat_4h_bias50`
-- 已確認 q15 replay / root-cause 線索：
-  - `q15_bucket_root_cause.verdict = same_lane_neighbor_bucket_dominates`
-  - `candidate_patch_feature = feat_4h_bb_pct_b`
-  - `gap_to_q35_boundary = 0.0476`
-  - `near_boundary_rows = 21`
-  - `q15_boundary_replay.verdict = boundary_replay_not_applicable`
-- 已確認 recent pathology 未解除：
-  - recent 100 仍是 `100x1 bull pocket`
-  - sibling-window `new_compressed = feat_4h_bias20`
+- 已確認上輪 carry-forward 的落地結果：
+  - `feat_4h_bias20` **不再是 current primary unexpected-compressed blocker**
+  - q15 `support_progress` **已從 no_recent_comparable_history → accumulating**
+  - q15 current blocker 與 recent drift 已共同收斂到 **`feat_4h_bb_pct_b`**
 
 ---
 
 ## 主目標
 
-### 目標 A：把 recent bull pocket 主病灶收斂到 `feat_4h_bias20` root cause
+### 目標 A：直接處理 `feat_4h_bb_pct_b` 的 q15→q35 結構差距
 重點：
-- `feat_4h_bias50` 已不再是 primary blocker
-- current primary pathology 仍是 `recent 100 = 100x1 bull pocket`
-- 下一輪必須直接追 `feat_4h_bias20` 為何成為新的 sibling-window `new_compressed`
+- recent drift primary window 的 sibling `new_compressed = feat_4h_bb_pct_b`
+- q15 root-cause 的 `candidate_patch_feature = feat_4h_bb_pct_b`
+- 這表示下一輪主線不能再分散到 bias20 / rsi14 / q35 舊敘事
 
-### 目標 B：把 q15 support accumulation 從「現在有幾筆」升級成「正在增加 / 停滯 / 回退」
+### 目標 B：讓 q15 support accumulation 持續可比較
 重點：
-- 本輪已補 `support_progress` contract
-- 目前 exact q15 rows = **4 / 50**，但 `status = no_recent_comparable_history`
-- 下一輪必須讓 heartbeat summary 保留可比較歷史，否則無法判定 support 是不是卡死
+- 目前 exact q15 rows = **4 / 50**
+- `support_progress.status = accumulating`
+- 下一輪必須持續保留同一 bucket 歷史，確認是繼續增加、停滯，或回退
 
-### 目標 C：沿 q15 same-lane neighbor dominance 做最小 component 驗證
+### 目標 C：維持 bias50 / q35 的 reference-only 合法性邊界
 重點：
-- `hb_q15_bucket_root_cause.py` 已把候選 patch 收斂到 `feat_4h_bb_pct_b`
-- 但 `q15_boundary_replay` 仍不適用
-- 下一輪若做 q15 patch，只能走 **current row vs dominant q35 neighbor bucket 的最小 counterfactual**，不可回到 q35 舊敘事
+- `feat_4h_bias50` 雖然數學上可跨 floor，但仍非法放行
+- q35 只是 dominant neighbor bucket，不是 current-live closure
+- 任何 component / bucket 實驗都不得越權解除 exact-support blocker
 
 ---
 
 ## 下一步
 1. 下一輪先讀 `data/recent_drift_report.json`：
-   - 確認 sibling-window `new_compressed` 是否仍為 `feat_4h_bias20`
-   - 若仍是，直接做 `feat_4h_bias20` root-cause patch
+   - 確認 primary window 的 sibling `new_compressed` 是否仍為 `feat_4h_bb_pct_b`
+   - 若仍是，直接做 `feat_4h_bb_pct_b` 最小 counterfactual / scoring 檢查
 2. 再讀 `data/q15_support_audit.json`：
    - 檢查 `support_progress.status`
    - 檢查 `support_progress.current_rows / minimum_support_rows`
    - 檢查 `support_progress.delta_vs_previous`
    - 檢查 `support_progress.stagnant_run_count`
    - 檢查 `support_progress.escalate_to_blocker`
-3. 若 q15 rows 仍低於 50：
+3. 再讀 `data/q15_bucket_root_cause.json`：
+   - 若 `candidate_patch_feature` 仍是 `feat_4h_bb_pct_b`
+   - 對 current row vs dominant q35 neighbor 做最小 component counterfactual
+4. 若 q15 rows 仍低於 50：
    - 維持 `reference_only_until_exact_support_ready`
-   - 禁止把 `feat_4h_bias50` 的數學 floor-cross 當成 deploy 放行
-4. 讀 `data/q15_bucket_root_cause.json`：
-   - 若 verdict 仍為 `same_lane_neighbor_bucket_dominates`
-   - 對 `feat_4h_bb_pct_b / feat_4h_bias50 / feat_4h_dist_bb_lower / feat_4h_dist_swing_low` 做 current row vs dominant q35 neighbor 差值檢查
-5. 只有在 A/B/C 主線清楚後，才回頭看 q35 reference artifact 或 dual-role governance
+   - 禁止把 `feat_4h_bias50` floor-cross 寫成 deploy 放行
+5. 只有在 A/B/C 三條線明確後，才回頭看 q35 reference artifact 或其他 side quest
 
 ---
 
 ## 成功標準
-- `data/recent_drift_report.json` 的 sibling-window `new_compressed` 不再是 `feat_4h_bias20`，或至少已留下 1 個對應 patch + verify
-- `data/q15_support_audit.json` 的 `support_progress.status` 不再只是 `no_recent_comparable_history`
-- q15 exact rows 明確增加，或 heartbeat summary 已能持續累積同 bucket / 同 route 歷史
-- 若做 q15 component counterfactual，artifact 必須明確保留 `reference_only_until_exact_support_ready`，不可誤寫成 deployment closure
-- `ISSUES.md` / `ROADMAP.md` / `ARCHITECTURE.md` / `data/q15_support_audit.json` 對 q15 blocker 語義一致
+- 已留下 1 個針對 `feat_4h_bb_pct_b` 的最小 counterfactual artifact 或 patch，能回答它是否足以把 current row 推近 q35
+- `data/q15_support_audit.json` 的 `support_progress.current_rows` 相比本輪 **不下降**，且歷史鏈持續存在
+- 若 component 實驗仍只具 reference value，artifact / ISSUES / ROADMAP / probe 都一致保留 `reference_only_until_exact_support_ready`
+- `ISSUES.md` / `ROADMAP.md` / `ARCHITECTURE.md` / 最新 artifact 對 current blocker 的描述一致：**現在主線是 `feat_4h_bb_pct_b + q15 support accumulation`**
 
 ---
 
 ## Fallback if fail
-- 若 `feat_4h_bias20` 仍無 patch：下一輪只能做這件事，不再接受報告式心跳
-- 若 q15 support-progress 仍無法進入可比較歷史：下一輪升級成 heartbeat governance blocker
-- 若 current live bucket 再切換：先重寫 current-state docs，再評估是否回到 q35 或其他 lane
+- 若下一輪沒有真正碰 `feat_4h_bb_pct_b`：升級為 heartbeat empty-progress blocker
+- 若 q15 rows 停在 4 且 `support_progress` 轉 stalled/regressed：升級為 support accumulation blocker
+- 若 current live bucket 再切換：先重寫 current-state docs，再決定是否切回 q35 或其他 lane
 
 ---
 
@@ -151,16 +128,18 @@ _最後更新：2026-04-16 09:33 UTC_
 ---
 
 ## Carry-forward input for next heartbeat
-1. Step 0.5 先讀 `ISSUES.md` / `ROADMAP.md`，確認本輪已新增 q15 `support_progress` contract，且它不是 abstract TODO。
+1. Step 0.5 先讀 `ISSUES.md` / `ROADMAP.md`，確認本輪已把主病灶收斂到 `feat_4h_bb_pct_b`，且 `feat_4h_bias20` 已退出 current primary blocker。
 2. 先讀最新 `data/recent_drift_report.json`：
-   - sibling-window `new_compressed` 是否仍為 `feat_4h_bias20`
+   - sibling-window `new_compressed` 是否仍為 `feat_4h_bb_pct_b`
    - recent 100 是否仍為 `100x1 bull pocket`
 3. 再讀最新 `data/q15_support_audit.json`：
    - `support_progress.status`
    - `support_progress.current_rows`
-   - `support_progress.minimum_support_rows`
    - `support_progress.delta_vs_previous`
    - `support_progress.stagnant_run_count`
    - `support_progress.escalate_to_blocker`
-4. 若 q15 support 仍未達標，禁止把 `feat_4h_bias50` floor-cross 敘事寫成可 deploy；必須保留 `reference_only_until_exact_support_ready`。
-5. 再讀 `data/q15_bucket_root_cause.json`；若 verdict 仍為 `same_lane_neighbor_bucket_dominates`，下一輪只能做最小 component counterfactual，優先檢查 `feat_4h_bb_pct_b`。
+4. 再讀 `data/q15_bucket_root_cause.json`：
+   - `candidate_patch_feature`
+   - `needed_raw_delta_to_target_p25`
+   - `needed_raw_delta_to_cross_q35`
+5. 若 q15 support 仍未達標，禁止把 bias50 / q35 敘事寫成 current deploy closure；必須維持 `reference_only_until_exact_support_ready`。

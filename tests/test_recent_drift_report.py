@@ -868,6 +868,222 @@ def test_build_report_marks_4h_bias50_as_expected_compression_when_trend_proxies
     assert "feat_4h_bias50" not in unexpected
 
 
+def test_build_report_marks_4h_bias20_as_expected_compression_when_short_trend_cluster_compresses(tmp_path, monkeypatch):
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE labels (
+            id INTEGER PRIMARY KEY,
+            timestamp TEXT,
+            symbol TEXT,
+            horizon_minutes INTEGER,
+            simulated_pyramid_win INTEGER,
+            label_spot_long_win REAL,
+            simulated_pyramid_pnl REAL,
+            simulated_pyramid_quality REAL,
+            simulated_pyramid_drawdown_penalty REAL,
+            simulated_pyramid_time_underwater REAL,
+            future_return_pct REAL,
+            future_max_drawdown REAL,
+            future_max_runup REAL,
+            regime_label TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE features_normalized (
+            timestamp TEXT,
+            symbol TEXT,
+            regime_label TEXT,
+            feat_4h_bias20 REAL,
+            feat_4h_rsi14 REAL,
+            feat_4h_bb_pct_b REAL,
+            feat_4h_macd_hist REAL,
+            feat_eye REAL
+        )
+        """
+    )
+
+    baseline_bias20 = [0.1, 1.8, -1.4, 2.2, -2.0]
+    recent_bias20 = [2.84, 2.88, 2.91, 2.89, 2.9]
+    baseline_rsi14 = [42.0, 47.0, 54.0, 60.0, 39.0]
+    recent_rsi14 = [61.8, 61.9, 62.1, 62.0, 61.9]
+    baseline_bb_pct_b = [0.18, 0.31, 0.65, 0.82, 0.44]
+    recent_bb_pct_b = [0.46, 0.47, 0.49, 0.48, 0.47]
+    baseline_macd = [-140.0, 70.0, -55.0, 130.0, -20.0]
+    recent_macd = [138.0, 139.5, 141.0, 140.2, 139.0]
+
+    label_rows = []
+    feature_rows = []
+    for i in range(10):
+        ts = f"2026-04-15 02:0{i}:00"
+        label_rows.append((i + 1, ts, "BTCUSDT", 1440, 1, 0.0, 0.01, 0.5, 0.1, 0.4, 0.01, -0.01, 0.02, "bull"))
+        if i < 5:
+            idx = i
+            bias20 = baseline_bias20[idx]
+            rsi14 = baseline_rsi14[idx]
+            bb_pct_b = baseline_bb_pct_b[idx]
+            macd = baseline_macd[idx]
+        else:
+            idx = i - 5
+            bias20 = recent_bias20[idx]
+            rsi14 = recent_rsi14[idx]
+            bb_pct_b = recent_bb_pct_b[idx]
+            macd = recent_macd[idx]
+        feature_rows.append((ts, "BTCUSDT", "bull", bias20, rsi14, bb_pct_b, macd, float(i)))
+
+    conn.executemany(
+        "INSERT INTO labels VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        label_rows,
+    )
+    conn.executemany(
+        "INSERT INTO features_normalized VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        feature_rows,
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(recent_drift_report, "DB_PATH", db_path)
+    monkeypatch.setattr(recent_drift_report, "WINDOWS", [5])
+
+    report = recent_drift_report.build_report()
+    feature_diag = report["windows"]["5"]["feature_diagnostics"]
+
+    expected = {row["feature"]: row for row in feature_diag["expected_compressed_examples"]}
+    assert expected["feat_4h_bias20"]["expected_compressed_reason"] == "coherent_4h_short_trend_compression"
+    details = expected["feat_4h_bias20"]["expected_compressed_details"]
+    assert details["compressed_proxy_count"] >= 3
+    assert details["min_required_proxies"] == 3
+    assert details["proxy_stats"]["feat_4h_rsi14"]["std_ratio"] <= recent_drift_report.LOW_VARIANCE_STD_RATIO_THRESHOLD
+    assert details["proxy_stats"]["feat_4h_bb_pct_b"]["std_ratio"] <= recent_drift_report.LOW_VARIANCE_STD_RATIO_THRESHOLD
+    assert details["proxy_stats"]["feat_4h_macd_hist"]["std_ratio"] <= recent_drift_report.LOW_VARIANCE_STD_RATIO_THRESHOLD
+    unexpected = {row["feature"] for row in feature_diag["unexpected_compressed_examples"]}
+    assert "feat_4h_bias20" not in unexpected
+
+
+def test_build_report_marks_4h_rsi14_as_expected_compression_when_short_trend_cluster_compresses(tmp_path, monkeypatch):
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE labels (
+            id INTEGER PRIMARY KEY,
+            timestamp TEXT,
+            symbol TEXT,
+            horizon_minutes INTEGER,
+            simulated_pyramid_win INTEGER,
+            label_spot_long_win REAL,
+            simulated_pyramid_pnl REAL,
+            simulated_pyramid_quality REAL,
+            simulated_pyramid_drawdown_penalty REAL,
+            simulated_pyramid_time_underwater REAL,
+            future_return_pct REAL,
+            future_max_drawdown REAL,
+            future_max_runup REAL,
+            regime_label TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE raw_market_data (
+            timestamp TEXT,
+            symbol TEXT,
+            close_price REAL,
+            volatility REAL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE features_normalized (
+            timestamp TEXT,
+            symbol TEXT,
+            regime_label TEXT,
+            feat_4h_bias20 REAL,
+            feat_4h_rsi14 REAL,
+            feat_4h_bb_pct_b REAL,
+            feat_4h_macd_hist REAL,
+            feat_eye REAL
+        )
+        """
+    )
+
+    baseline_bias20 = [-2.4, -1.8, 0.2, 1.6, 2.3]
+    recent_bias20 = [2.86, 2.88, 2.91, 2.89, 2.9]
+    baseline_rsi14 = [33.0, 41.0, 52.0, 64.0, 71.0]
+    recent_rsi14 = [62.0, 62.2, 62.1, 61.9, 62.05]
+    baseline_bb_pct_b = [0.12, 0.28, 0.51, 0.76, 0.91]
+    recent_bb_pct_b = [0.46, 0.47, 0.48, 0.49, 0.48]
+    baseline_macd = [-180.0, -75.0, 10.0, 105.0, 190.0]
+    recent_macd = [139.0, 140.2, 141.1, 140.5, 139.8]
+    baseline_close = [68100.0, 69450.0, 70820.0, 72130.0, 73420.0]
+    recent_close = [74210.0, 74255.0, 74295.0, 74260.0, 74235.0]
+    baseline_vol = [0.0014, 0.0022, 0.0031, 0.0028, 0.0019]
+    recent_vol = [0.00482, 0.00486, 0.00488, 0.00485, 0.00484]
+
+    label_rows = []
+    raw_rows = []
+    feature_rows = []
+    for i in range(10):
+        ts = f"2026-04-15 03:0{i}:00"
+        label_rows.append((i + 1, ts, "BTCUSDT", 1440, 1, 0.0, 0.01, 0.5, 0.1, 0.4, 0.01, -0.01, 0.02, "bull"))
+        if i < 5:
+            idx = i
+            bias20 = baseline_bias20[idx]
+            rsi14 = baseline_rsi14[idx]
+            bb_pct_b = baseline_bb_pct_b[idx]
+            macd = baseline_macd[idx]
+            close = baseline_close[idx]
+            vol = baseline_vol[idx]
+        else:
+            idx = i - 5
+            bias20 = recent_bias20[idx]
+            rsi14 = recent_rsi14[idx]
+            bb_pct_b = recent_bb_pct_b[idx]
+            macd = recent_macd[idx]
+            close = recent_close[idx]
+            vol = recent_vol[idx]
+        feature_rows.append((ts, "BTCUSDT", "bull", bias20, rsi14, bb_pct_b, macd, float(i)))
+        raw_rows.append((ts, "BTCUSDT", close, vol))
+
+    conn.executemany(
+        "INSERT INTO labels VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        label_rows,
+    )
+    conn.executemany(
+        "INSERT INTO raw_market_data VALUES (?, ?, ?, ?)",
+        raw_rows,
+    )
+    conn.executemany(
+        "INSERT INTO features_normalized VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        feature_rows,
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(recent_drift_report, "DB_PATH", db_path)
+    monkeypatch.setattr(recent_drift_report, "WINDOWS", [5])
+
+    report = recent_drift_report.build_report()
+    feature_diag = report["windows"]["5"]["feature_diagnostics"]
+
+    expected = {row["feature"]: row for row in feature_diag["expected_compressed_examples"]}
+    assert expected["feat_4h_rsi14"]["expected_compressed_reason"] == "coherent_4h_short_trend_oscillator_compression"
+    details = expected["feat_4h_rsi14"]["expected_compressed_details"]
+    assert details["compressed_proxy_count"] >= 4
+    assert details["min_required_proxies"] == 4
+    assert details["proxy_stats"]["raw_close_price"]["std_ratio"] <= recent_drift_report.LOW_VARIANCE_STD_RATIO_THRESHOLD
+    assert details["proxy_stats"]["raw_volatility"]["std_ratio"] <= recent_drift_report.LOW_VARIANCE_STD_RATIO_THRESHOLD
+    assert details["proxy_stats"]["feat_4h_bias20"]["std_ratio"] <= recent_drift_report.LOW_VARIANCE_STD_RATIO_THRESHOLD
+    assert details["proxy_stats"]["feat_4h_bb_pct_b"]["std_ratio"] <= recent_drift_report.LOW_VARIANCE_STD_RATIO_THRESHOLD
+    assert details["proxy_stats"]["feat_4h_macd_hist"]["std_ratio"] <= recent_drift_report.LOW_VARIANCE_STD_RATIO_THRESHOLD
+    unexpected = {row["feature"] for row in feature_diag["unexpected_compressed_examples"]}
+    assert "feat_4h_rsi14" not in unexpected
+
+
 def test_build_report_marks_4h_dist_bb_lower_as_expected_compression_when_band_floor_cluster_compresses(tmp_path, monkeypatch):
     db_path = tmp_path / "poly_trader.db"
     conn = sqlite3.connect(db_path)

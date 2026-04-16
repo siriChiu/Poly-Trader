@@ -1,7 +1,7 @@
 {
   "target_col": "simulated_pyramid_win",
   "horizon_minutes": 1440,
-  "generated_at": "2026-04-16T09:04:06.986220+00:00",
+  "generated_at": "2026-04-16T11:17:35.659612+00:00",
   "full_sample": {
     "rows": 12709,
     "win_rate": 0.647,
@@ -69,10 +69,10 @@
         "frozen_count": 3,
         "compressed_count": 26,
         "expected_static_count": 4,
-        "expected_compressed_count": 6,
+        "expected_compressed_count": 8,
         "overlay_only_count": 5,
         "unexpected_frozen_count": 0,
-        "unexpected_compressed_count": 14,
+        "unexpected_compressed_count": 12,
         "null_heavy_count": 10,
         "low_variance_examples": [
           {
@@ -533,6 +533,124 @@
             "overlay_only_reason": null
           },
           {
+            "feature": "feat_4h_bias20",
+            "recent_std": 0.0827,
+            "baseline_std": 2.0456,
+            "std_ratio": 0.0404,
+            "recent_range": 0.5805,
+            "baseline_range": 24.0466,
+            "recent_distinct": 89,
+            "baseline_distinct": 12024,
+            "distinct_ratio": 0.0074,
+            "expected_static_reason": null,
+            "expected_compressed_reason": "coherent_4h_short_trend_compression",
+            "expected_compressed_details": {
+              "reason": "coherent_4h_short_trend_compression",
+              "proxy_cols": [
+                "feat_4h_rsi14",
+                "feat_4h_bb_pct_b",
+                "feat_4h_macd_hist"
+              ],
+              "compressed_proxy_count": 3,
+              "min_required_proxies": 3,
+              "proxy_stats": {
+                "feat_4h_rsi14": {
+                  "recent_std": 0.5585,
+                  "baseline_std": 11.8426,
+                  "std_ratio": 0.0472,
+                  "recent_mean": 61.7559,
+                  "baseline_mean": 52.2717,
+                  "mean_delta": 9.4842
+                },
+                "feat_4h_bb_pct_b": {
+                  "recent_std": 0.0224,
+                  "baseline_std": 0.4118,
+                  "std_ratio": 0.0543,
+                  "recent_mean": 0.4807,
+                  "baseline_mean": 0.5489,
+                  "mean_delta": -0.0682
+                },
+                "feat_4h_macd_hist": {
+                  "recent_std": 17.7343,
+                  "baseline_std": 652.2926,
+                  "std_ratio": 0.0272,
+                  "recent_mean": 143.6407,
+                  "baseline_mean": 71.4648,
+                  "mean_delta": 72.1759
+                }
+              }
+            },
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_4h_rsi14",
+            "recent_std": 0.5585,
+            "baseline_std": 11.8426,
+            "std_ratio": 0.0472,
+            "recent_range": 3.9802,
+            "baseline_range": 73.7753,
+            "recent_distinct": 89,
+            "baseline_distinct": 3333,
+            "distinct_ratio": 0.0267,
+            "expected_static_reason": null,
+            "expected_compressed_reason": "coherent_4h_short_trend_oscillator_compression",
+            "expected_compressed_details": {
+              "reason": "coherent_4h_short_trend_oscillator_compression",
+              "proxy_cols": [
+                "raw_close_price",
+                "raw_volatility",
+                "feat_4h_bias20",
+                "feat_4h_bb_pct_b",
+                "feat_4h_macd_hist"
+              ],
+              "compressed_proxy_count": 5,
+              "min_required_proxies": 4,
+              "proxy_stats": {
+                "raw_close_price": {
+                  "recent_std": 69.1953,
+                  "baseline_std": 18685.5079,
+                  "std_ratio": 0.0037,
+                  "recent_mean": 74288.7893,
+                  "baseline_mean": 89080.209,
+                  "mean_delta": -14791.4197
+                },
+                "raw_volatility": {
+                  "recent_std": 0.0,
+                  "baseline_std": 0.0013,
+                  "std_ratio": 0.0108,
+                  "recent_mean": 0.0049,
+                  "baseline_mean": 0.0042,
+                  "mean_delta": 0.0007
+                },
+                "feat_4h_bias20": {
+                  "recent_std": 0.0827,
+                  "baseline_std": 2.0456,
+                  "std_ratio": 0.0404,
+                  "recent_mean": 2.1449,
+                  "baseline_mean": 0.1873,
+                  "mean_delta": 1.9576
+                },
+                "feat_4h_bb_pct_b": {
+                  "recent_std": 0.0224,
+                  "baseline_std": 0.4118,
+                  "std_ratio": 0.0543,
+                  "recent_mean": 0.4807,
+                  "baseline_mean": 0.5489,
+                  "mean_delta": -0.0682
+                },
+                "feat_4h_macd_hist": {
+                  "recent_std": 17.7343,
+                  "baseline_std": 652.2926,
+                  "std_ratio": 0.0272,
+                  "recent_mean": 143.6407,
+                  "baseline_mean": 71.4648,
+                  "mean_delta": 72.1759
+                }
+              }
+            },
+            "overlay_only_reason": null
+          },
+          {
             "feature": "feat_4h_dist_swing_low",
             "recent_std": 0.088,
             "baseline_std": 4.4139,
@@ -586,115 +704,6 @@
                   "recent_mean": 0.4807,
                   "baseline_mean": 0.5489,
                   "mean_delta": -0.0682
-                }
-              }
-            },
-            "overlay_only_reason": null
-          },
-          {
-            "feature": "feat_4h_bias50",
-            "recent_std": 0.093,
-            "baseline_std": 2.9938,
-            "std_ratio": 0.0311,
-            "recent_range": 0.6678,
-            "baseline_range": 29.659,
-            "recent_distinct": 89,
-            "baseline_distinct": 12024,
-            "distinct_ratio": 0.0074,
-            "expected_static_reason": null,
-            "expected_compressed_reason": "coherent_4h_trend_compression",
-            "expected_compressed_details": {
-              "reason": "coherent_4h_trend_compression",
-              "proxy_cols": [
-                "raw_close_price",
-                "raw_volatility",
-                "feat_4h_rsi14",
-                "feat_4h_bb_pct_b",
-                "feat_4h_macd_hist"
-              ],
-              "compressed_proxy_count": 5,
-              "min_required_proxies": 4,
-              "proxy_stats": {
-                "raw_close_price": {
-                  "recent_std": 69.1953,
-                  "baseline_std": 18685.5079,
-                  "std_ratio": 0.0037,
-                  "recent_mean": 74288.7893,
-                  "baseline_mean": 89080.209,
-                  "mean_delta": -14791.4197
-                },
-                "raw_volatility": {
-                  "recent_std": 0.0,
-                  "baseline_std": 0.0013,
-                  "std_ratio": 0.0108,
-                  "recent_mean": 0.0049,
-                  "baseline_mean": 0.0042,
-                  "mean_delta": 0.0007
-                },
-                "feat_4h_rsi14": {
-                  "recent_std": 0.5585,
-                  "baseline_std": 11.8426,
-                  "std_ratio": 0.0472,
-                  "recent_mean": 61.7559,
-                  "baseline_mean": 52.2717,
-                  "mean_delta": 9.4842
-                },
-                "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0224,
-                  "baseline_std": 0.4118,
-                  "std_ratio": 0.0543,
-                  "recent_mean": 0.4807,
-                  "baseline_mean": 0.5489,
-                  "mean_delta": -0.0682
-                },
-                "feat_4h_macd_hist": {
-                  "recent_std": 17.7343,
-                  "baseline_std": 652.2926,
-                  "std_ratio": 0.0272,
-                  "recent_mean": 143.6407,
-                  "baseline_mean": 71.4648,
-                  "mean_delta": 72.1759
-                }
-              }
-            },
-            "overlay_only_reason": null
-          },
-          {
-            "feature": "feat_4h_bias200",
-            "recent_std": 0.0933,
-            "baseline_std": 5.6226,
-            "std_ratio": 0.0166,
-            "recent_range": 0.6223,
-            "baseline_range": 40.7284,
-            "recent_distinct": 89,
-            "baseline_distinct": 12023,
-            "distinct_ratio": 0.0074,
-            "expected_static_reason": null,
-            "expected_compressed_reason": "underlying_price_and_volatility_compression",
-            "expected_compressed_details": {
-              "reason": "underlying_price_and_volatility_compression",
-              "proxy_cols": [
-                "raw_close_price",
-                "raw_volatility"
-              ],
-              "compressed_proxy_count": 2,
-              "min_required_proxies": 2,
-              "proxy_stats": {
-                "raw_close_price": {
-                  "recent_std": 69.1953,
-                  "baseline_std": 18685.5079,
-                  "std_ratio": 0.0037,
-                  "recent_mean": 74288.7893,
-                  "baseline_mean": 89080.209,
-                  "mean_delta": -14791.4197
-                },
-                "raw_volatility": {
-                  "recent_std": 0.0,
-                  "baseline_std": 0.0013,
-                  "std_ratio": 0.0108,
-                  "recent_mean": 0.0049,
-                  "baseline_mean": 0.0042,
-                  "mean_delta": 0.0007
                 }
               }
             },
@@ -841,12 +850,12 @@
             "overlay_only_reason": null
           },
           {
-            "feature": "feat_4h_bias20",
-            "recent_std": 0.0827,
-            "baseline_std": 2.0456,
-            "std_ratio": 0.0404,
-            "recent_range": 0.5805,
-            "baseline_range": 24.0466,
+            "feature": "feat_4h_bb_pct_b",
+            "recent_std": 0.0224,
+            "baseline_std": 0.4118,
+            "std_ratio": 0.0543,
+            "recent_range": 0.152,
+            "baseline_range": 5.6034,
             "recent_distinct": 89,
             "baseline_distinct": 12024,
             "distinct_ratio": 0.0074,
@@ -1190,7 +1199,7 @@
         },
         "new_unexpected_frozen_features": [],
         "new_unexpected_compressed_features": [
-          "feat_4h_bias20"
+          "feat_4h_bb_pct_b"
         ],
         "new_null_heavy_features": [],
         "top_mean_shift_features": [
@@ -3818,10 +3827,10 @@
         "frozen_count": 3,
         "compressed_count": 26,
         "expected_static_count": 4,
-        "expected_compressed_count": 6,
+        "expected_compressed_count": 8,
         "overlay_only_count": 5,
         "unexpected_frozen_count": 0,
-        "unexpected_compressed_count": 14,
+        "unexpected_compressed_count": 12,
         "null_heavy_count": 10,
         "low_variance_examples": [
           {
@@ -4282,6 +4291,124 @@
             "overlay_only_reason": null
           },
           {
+            "feature": "feat_4h_bias20",
+            "recent_std": 0.0827,
+            "baseline_std": 2.0456,
+            "std_ratio": 0.0404,
+            "recent_range": 0.5805,
+            "baseline_range": 24.0466,
+            "recent_distinct": 89,
+            "baseline_distinct": 12024,
+            "distinct_ratio": 0.0074,
+            "expected_static_reason": null,
+            "expected_compressed_reason": "coherent_4h_short_trend_compression",
+            "expected_compressed_details": {
+              "reason": "coherent_4h_short_trend_compression",
+              "proxy_cols": [
+                "feat_4h_rsi14",
+                "feat_4h_bb_pct_b",
+                "feat_4h_macd_hist"
+              ],
+              "compressed_proxy_count": 3,
+              "min_required_proxies": 3,
+              "proxy_stats": {
+                "feat_4h_rsi14": {
+                  "recent_std": 0.5585,
+                  "baseline_std": 11.8426,
+                  "std_ratio": 0.0472,
+                  "recent_mean": 61.7559,
+                  "baseline_mean": 52.2717,
+                  "mean_delta": 9.4842
+                },
+                "feat_4h_bb_pct_b": {
+                  "recent_std": 0.0224,
+                  "baseline_std": 0.4118,
+                  "std_ratio": 0.0543,
+                  "recent_mean": 0.4807,
+                  "baseline_mean": 0.5489,
+                  "mean_delta": -0.0682
+                },
+                "feat_4h_macd_hist": {
+                  "recent_std": 17.7343,
+                  "baseline_std": 652.2926,
+                  "std_ratio": 0.0272,
+                  "recent_mean": 143.6407,
+                  "baseline_mean": 71.4648,
+                  "mean_delta": 72.1759
+                }
+              }
+            },
+            "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_4h_rsi14",
+            "recent_std": 0.5585,
+            "baseline_std": 11.8426,
+            "std_ratio": 0.0472,
+            "recent_range": 3.9802,
+            "baseline_range": 73.7753,
+            "recent_distinct": 89,
+            "baseline_distinct": 3333,
+            "distinct_ratio": 0.0267,
+            "expected_static_reason": null,
+            "expected_compressed_reason": "coherent_4h_short_trend_oscillator_compression",
+            "expected_compressed_details": {
+              "reason": "coherent_4h_short_trend_oscillator_compression",
+              "proxy_cols": [
+                "raw_close_price",
+                "raw_volatility",
+                "feat_4h_bias20",
+                "feat_4h_bb_pct_b",
+                "feat_4h_macd_hist"
+              ],
+              "compressed_proxy_count": 5,
+              "min_required_proxies": 4,
+              "proxy_stats": {
+                "raw_close_price": {
+                  "recent_std": 69.1953,
+                  "baseline_std": 18685.5079,
+                  "std_ratio": 0.0037,
+                  "recent_mean": 74288.7893,
+                  "baseline_mean": 89080.209,
+                  "mean_delta": -14791.4197
+                },
+                "raw_volatility": {
+                  "recent_std": 0.0,
+                  "baseline_std": 0.0013,
+                  "std_ratio": 0.0108,
+                  "recent_mean": 0.0049,
+                  "baseline_mean": 0.0042,
+                  "mean_delta": 0.0007
+                },
+                "feat_4h_bias20": {
+                  "recent_std": 0.0827,
+                  "baseline_std": 2.0456,
+                  "std_ratio": 0.0404,
+                  "recent_mean": 2.1449,
+                  "baseline_mean": 0.1873,
+                  "mean_delta": 1.9576
+                },
+                "feat_4h_bb_pct_b": {
+                  "recent_std": 0.0224,
+                  "baseline_std": 0.4118,
+                  "std_ratio": 0.0543,
+                  "recent_mean": 0.4807,
+                  "baseline_mean": 0.5489,
+                  "mean_delta": -0.0682
+                },
+                "feat_4h_macd_hist": {
+                  "recent_std": 17.7343,
+                  "baseline_std": 652.2926,
+                  "std_ratio": 0.0272,
+                  "recent_mean": 143.6407,
+                  "baseline_mean": 71.4648,
+                  "mean_delta": 72.1759
+                }
+              }
+            },
+            "overlay_only_reason": null
+          },
+          {
             "feature": "feat_4h_dist_swing_low",
             "recent_std": 0.088,
             "baseline_std": 4.4139,
@@ -4335,115 +4462,6 @@
                   "recent_mean": 0.4807,
                   "baseline_mean": 0.5489,
                   "mean_delta": -0.0682
-                }
-              }
-            },
-            "overlay_only_reason": null
-          },
-          {
-            "feature": "feat_4h_bias50",
-            "recent_std": 0.093,
-            "baseline_std": 2.9938,
-            "std_ratio": 0.0311,
-            "recent_range": 0.6678,
-            "baseline_range": 29.659,
-            "recent_distinct": 89,
-            "baseline_distinct": 12024,
-            "distinct_ratio": 0.0074,
-            "expected_static_reason": null,
-            "expected_compressed_reason": "coherent_4h_trend_compression",
-            "expected_compressed_details": {
-              "reason": "coherent_4h_trend_compression",
-              "proxy_cols": [
-                "raw_close_price",
-                "raw_volatility",
-                "feat_4h_rsi14",
-                "feat_4h_bb_pct_b",
-                "feat_4h_macd_hist"
-              ],
-              "compressed_proxy_count": 5,
-              "min_required_proxies": 4,
-              "proxy_stats": {
-                "raw_close_price": {
-                  "recent_std": 69.1953,
-                  "baseline_std": 18685.5079,
-                  "std_ratio": 0.0037,
-                  "recent_mean": 74288.7893,
-                  "baseline_mean": 89080.209,
-                  "mean_delta": -14791.4197
-                },
-                "raw_volatility": {
-                  "recent_std": 0.0,
-                  "baseline_std": 0.0013,
-                  "std_ratio": 0.0108,
-                  "recent_mean": 0.0049,
-                  "baseline_mean": 0.0042,
-                  "mean_delta": 0.0007
-                },
-                "feat_4h_rsi14": {
-                  "recent_std": 0.5585,
-                  "baseline_std": 11.8426,
-                  "std_ratio": 0.0472,
-                  "recent_mean": 61.7559,
-                  "baseline_mean": 52.2717,
-                  "mean_delta": 9.4842
-                },
-                "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0224,
-                  "baseline_std": 0.4118,
-                  "std_ratio": 0.0543,
-                  "recent_mean": 0.4807,
-                  "baseline_mean": 0.5489,
-                  "mean_delta": -0.0682
-                },
-                "feat_4h_macd_hist": {
-                  "recent_std": 17.7343,
-                  "baseline_std": 652.2926,
-                  "std_ratio": 0.0272,
-                  "recent_mean": 143.6407,
-                  "baseline_mean": 71.4648,
-                  "mean_delta": 72.1759
-                }
-              }
-            },
-            "overlay_only_reason": null
-          },
-          {
-            "feature": "feat_4h_bias200",
-            "recent_std": 0.0933,
-            "baseline_std": 5.6226,
-            "std_ratio": 0.0166,
-            "recent_range": 0.6223,
-            "baseline_range": 40.7284,
-            "recent_distinct": 89,
-            "baseline_distinct": 12023,
-            "distinct_ratio": 0.0074,
-            "expected_static_reason": null,
-            "expected_compressed_reason": "underlying_price_and_volatility_compression",
-            "expected_compressed_details": {
-              "reason": "underlying_price_and_volatility_compression",
-              "proxy_cols": [
-                "raw_close_price",
-                "raw_volatility"
-              ],
-              "compressed_proxy_count": 2,
-              "min_required_proxies": 2,
-              "proxy_stats": {
-                "raw_close_price": {
-                  "recent_std": 69.1953,
-                  "baseline_std": 18685.5079,
-                  "std_ratio": 0.0037,
-                  "recent_mean": 74288.7893,
-                  "baseline_mean": 89080.209,
-                  "mean_delta": -14791.4197
-                },
-                "raw_volatility": {
-                  "recent_std": 0.0,
-                  "baseline_std": 0.0013,
-                  "std_ratio": 0.0108,
-                  "recent_mean": 0.0049,
-                  "baseline_mean": 0.0042,
-                  "mean_delta": 0.0007
                 }
               }
             },
@@ -4590,12 +4608,12 @@
             "overlay_only_reason": null
           },
           {
-            "feature": "feat_4h_bias20",
-            "recent_std": 0.0827,
-            "baseline_std": 2.0456,
-            "std_ratio": 0.0404,
-            "recent_range": 0.5805,
-            "baseline_range": 24.0466,
+            "feature": "feat_4h_bb_pct_b",
+            "recent_std": 0.0224,
+            "baseline_std": 0.4118,
+            "std_ratio": 0.0543,
+            "recent_range": 0.152,
+            "baseline_range": 5.6034,
             "recent_distinct": 89,
             "baseline_distinct": 12024,
             "distinct_ratio": 0.0074,
@@ -4939,7 +4957,7 @@
         },
         "new_unexpected_frozen_features": [],
         "new_unexpected_compressed_features": [
-          "feat_4h_bias20"
+          "feat_4h_bb_pct_b"
         ],
         "new_null_heavy_features": [],
         "top_mean_shift_features": [
