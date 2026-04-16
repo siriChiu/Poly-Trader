@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "hb_q15_support_audit.py"
@@ -6,6 +7,46 @@ spec = importlib.util.spec_from_file_location("hb_q15_support_audit_test_module"
 q15_support_audit = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 spec.loader.exec_module(q15_support_audit)
+
+
+def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
+    for idx in range(2):
+        (tmp_path / f"heartbeat_{900 + idx}_summary.json").write_text(
+            json.dumps(
+                {
+                    "heartbeat": str(900 + idx),
+                    "timestamp": f"2026-04-16T08:0{idx}:00+00:00",
+                    "q15_support_audit_diagnostics": {
+                        "current_live": {
+                            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                            "current_live_structure_bucket_rows": 4,
+                        },
+                        "support_route": {
+                            "verdict": "exact_bucket_present_but_below_minimum",
+                            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                            "minimum_support_rows": 50,
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    progress = q15_support_audit._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q15",
+        support_route_verdict="exact_bucket_present_but_below_minimum",
+        support_governance_route="exact_live_bucket_present_but_below_minimum",
+        live_bucket_rows=4,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "stalled_under_minimum"
+    assert progress["previous_rows"] == 4
+    assert progress["delta_vs_previous"] == 0
+    assert progress["stagnant_run_count"] == 3
+    assert progress["escalate_to_blocker"] is True
 
 
 def test_support_route_decision_marks_proxy_reference_only_when_exact_bucket_missing():
@@ -104,6 +145,8 @@ def test_build_report_combines_support_route_and_floor_cross_legality():
     assert report["support_route"]["verdict"] == "exact_bucket_missing_proxy_reference_only"
     assert report["support_route"]["deployable"] is False
     assert report["support_route"]["preferred_support_cohort"] == "bull_live_exact_bucket_proxy"
+    assert report["support_route"]["support_progress"]["status"] == "no_recent_comparable_history"
+    assert report["support_route"]["support_progress"]["gap_to_minimum"] == 50
     assert report["floor_cross_legality"]["verdict"] == "math_cross_possible_but_illegal_without_exact_support"
     assert report["floor_cross_legality"]["best_single_component"] == "feat_4h_bias50"
 

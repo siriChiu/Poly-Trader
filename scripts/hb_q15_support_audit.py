@@ -22,6 +22,8 @@ Outputs:
 from __future__ import annotations
 
 import json
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +61,142 @@ def _as_float(value: Any, default: float | None = None) -> float | None:
         return float(value)
     except Exception:
         return default
+
+
+def _load_recent_q15_support_history(
+    *,
+    current_entry: dict[str, Any],
+    limit: int = 5,
+    data_dir: Path | None = None,
+) -> list[dict[str, Any]]:
+    summaries_dir = data_dir or (PROJECT_ROOT / "data")
+    summary_files = sorted(
+        summaries_dir.glob("heartbeat_*_summary.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    history = [current_entry]
+    current_timestamp = current_entry.get("observed_at")
+    if isinstance(current_timestamp, datetime):
+        current_observed_at = current_timestamp
+    else:
+        current_observed_at = None
+
+    for path in summary_files:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        diag = payload.get("q15_support_audit_diagnostics") or {}
+        current_live = diag.get("current_live") or {}
+        support_route = diag.get("support_route") or {}
+        payload_timestamp = payload.get("timestamp") or diag.get("generated_at")
+        payload_dt = None
+        if payload_timestamp:
+            try:
+                payload_dt = datetime.fromisoformat(str(payload_timestamp).replace("Z", "+00:00"))
+                if payload_dt.tzinfo is None:
+                    payload_dt = payload_dt.replace(tzinfo=timezone.utc)
+            except ValueError:
+                payload_dt = None
+        if (
+            current_observed_at is not None
+            and payload_dt is not None
+            and abs((current_observed_at - payload_dt).total_seconds()) < 120
+        ):
+            continue
+        candidate = {
+            "heartbeat": str(payload.get("heartbeat") or path.stem),
+            "timestamp": payload_timestamp,
+            "live_current_structure_bucket": current_live.get("current_live_structure_bucket"),
+            "live_current_structure_bucket_rows": int(current_live.get("current_live_structure_bucket_rows") or 0),
+            "minimum_support_rows": int(support_route.get("minimum_support_rows") or 0),
+            "support_route_verdict": support_route.get("verdict"),
+            "support_governance_route": support_route.get("support_governance_route"),
+        }
+        if not candidate["live_current_structure_bucket"]:
+            continue
+        history.append(candidate)
+        if len(history) >= limit:
+            break
+    return [
+        {key: value for key, value in item.items() if key != "observed_at"}
+        for item in history
+    ]
+
+
+def _summarize_support_progress(
+    *,
+    current_bucket: Any,
+    support_route_verdict: str | None,
+    support_governance_route: str | None,
+    live_bucket_rows: Any,
+    minimum_support_rows: int,
+    current_label: str | None,
+    data_dir: Path | None = None,
+) -> dict[str, Any]:
+    current_rows = int(live_bucket_rows or 0)
+    observed_at = datetime.now(timezone.utc)
+    current_entry = {
+        "heartbeat": str(current_label or "current"),
+        "timestamp": observed_at.isoformat(),
+        "observed_at": observed_at,
+        "live_current_structure_bucket": current_bucket,
+        "live_current_structure_bucket_rows": current_rows,
+        "minimum_support_rows": int(minimum_support_rows or 0),
+        "support_route_verdict": support_route_verdict,
+        "support_governance_route": support_governance_route,
+    }
+    history = _load_recent_q15_support_history(current_entry=current_entry, limit=5, data_dir=data_dir)
+    relevant = [
+        item
+        for item in history
+        if item.get("live_current_structure_bucket") == current_bucket
+        and item.get("support_route_verdict") == support_route_verdict
+        and item.get("support_governance_route") == support_governance_route
+    ]
+    previous = relevant[1] if len(relevant) > 1 else None
+    delta_vs_previous = None
+    if previous is not None:
+        delta_vs_previous = current_rows - int(previous.get("live_current_structure_bucket_rows") or 0)
+
+    stagnant_run_count = 1
+    for item in relevant[1:]:
+        if int(item.get("live_current_structure_bucket_rows") or 0) == current_rows:
+            stagnant_run_count += 1
+            continue
+        break
+
+    minimum = int(minimum_support_rows or 0)
+    if current_rows >= minimum:
+        status = "exact_supported"
+        reason = "current q15 exact bucket 已達 minimum support，可轉向 exact-supported deployment verify。"
+    elif previous is None:
+        status = "no_recent_comparable_history"
+        reason = "目前找不到同一 q15 bucket + support route 的最近 heartbeat 可比較；先持續累積 exact support。"
+    elif delta_vs_previous and delta_vs_previous > 0:
+        status = "accumulating"
+        reason = "current q15 exact support 仍低於 minimum，但最近 heartbeat 已持續增加。"
+    elif delta_vs_previous == 0:
+        status = "stalled_under_minimum"
+        reason = "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。"
+    else:
+        status = "regressed_under_minimum"
+        reason = "current q15 exact support 較上一輪回落，需檢查 current bucket / support artifact 是否切換或退化。"
+
+    return {
+        "status": status,
+        "reason": reason,
+        "current_rows": current_rows,
+        "minimum_support_rows": minimum,
+        "gap_to_minimum": max(minimum - current_rows, 0),
+        "delta_vs_previous": delta_vs_previous,
+        "previous_rows": None if previous is None else int(previous.get("live_current_structure_bucket_rows") or 0),
+        "stagnant_run_count": stagnant_run_count,
+        "stalled_support_accumulation": status == "stalled_under_minimum",
+        "escalate_to_blocker": status == "stalled_under_minimum" and stagnant_run_count >= 3,
+        "history": history,
+    }
 
 
 def _support_route_decision(
@@ -418,6 +556,14 @@ def build_report(
         preferred_support_cohort=support_summary.get("preferred_support_cohort"),
         support_governance_route=alignment.get("support_governance_route"),
     )
+    support_progress = _summarize_support_progress(
+        current_bucket=live_context.get("current_live_structure_bucket"),
+        support_route_verdict=support_route.get("verdict"),
+        support_governance_route=alignment.get("support_governance_route"),
+        live_bucket_rows=current_bucket_rows,
+        minimum_support_rows=minimum_support_rows,
+        current_label=os.getenv("HB_RUN_LABEL"),
+    )
     floor_legality = _floor_cross_legality(
         support_route=support_route,
         runtime_blocker=runtime_blocker,
@@ -484,6 +630,7 @@ def build_report(
             "exact_live_bucket_proxy_rows": _as_int(alignment.get("bull_exact_live_bucket_proxy_rows"), 0),
             "exact_live_lane_proxy_rows": _as_int(alignment.get("bull_exact_live_lane_proxy_rows"), 0),
             "supported_neighbor_rows": _as_int(alignment.get("bull_support_neighbor_rows"), 0),
+            "support_progress": support_progress,
         },
         "floor_cross_legality": {
             "verdict": floor_legality.get("verdict"),
@@ -505,6 +652,7 @@ def _markdown(report: dict[str, Any]) -> str:
     current = report.get("current_live") or {}
     scope = report.get("scope_applicability") or {}
     support = report.get("support_route") or {}
+    support_progress = support.get("support_progress") or {}
     floor = report.get("floor_cross_legality") or {}
     experiment = report.get("component_experiment") or {}
     experiment_answer = experiment.get("machine_read_answer") or {}
@@ -542,6 +690,13 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- supported neighbor rows: **{support.get('supported_neighbor_rows')}**",
             f"- reason: {support.get('reason')}",
             f"- release_condition: {support.get('release_condition')}",
+            f"- support_progress.status: **{support_progress.get('status')}**",
+            f"- support_progress.current_rows / minimum: **{support_progress.get('current_rows')} / {support_progress.get('minimum_support_rows')}**",
+            f"- support_progress.previous_rows: **{support_progress.get('previous_rows')}**",
+            f"- support_progress.delta_vs_previous: **{support_progress.get('delta_vs_previous')}**",
+            f"- support_progress.stagnant_run_count: **{support_progress.get('stagnant_run_count')}**",
+            f"- support_progress.escalate_to_blocker: **{support_progress.get('escalate_to_blocker')}**",
+            f"- support_progress.reason: {support_progress.get('reason')}",
             "",
             "## Floor-cross legality",
             f"- verdict: **{floor.get('verdict')}**",
@@ -599,6 +754,7 @@ def main() -> None:
                 "component_experiment_verdict": (report.get("component_experiment") or {}).get("verdict"),
                 "component_experiment_feature": (report.get("component_experiment") or {}).get("feature"),
                 "component_experiment_machine_read_answer": (report.get("component_experiment") or {}).get("machine_read_answer"),
+                "support_progress": (report.get("support_route") or {}).get("support_progress"),
             },
             indent=2,
             ensure_ascii=False,
