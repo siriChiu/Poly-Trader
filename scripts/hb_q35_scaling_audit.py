@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import subprocess
 from pathlib import Path
 from statistics import mean
 from typing import Any
@@ -278,6 +279,7 @@ def _build_deployed_runtime_current(
             "entry_quality": _round(probe.get("entry_quality")),
             "entry_quality_label": probe.get("entry_quality_label"),
             "allowed_layers_raw": probe.get("allowed_layers_raw"),
+            "allowed_layers_raw_reason": probe.get("allowed_layers_raw_reason") or probe.get("allowed_layers_reason"),
             "allowed_layers_reason": probe.get("allowed_layers_reason"),
             "entry_quality_components": probe.get("entry_quality_components") or runtime.get("entry_quality_components") or {},
             "decision_quality_label": probe.get("decision_quality_label"),
@@ -304,6 +306,47 @@ def _build_deployed_runtime_current(
         }
     )
     return runtime
+
+
+def _probe_matches_current_row(probe: dict[str, Any], current_ts: str, current_bucket: str) -> bool:
+    probe_ts = str(probe.get("feature_timestamp") or "")
+    probe_bucket = str(
+        probe.get("structure_bucket")
+        or probe.get("current_live_structure_bucket")
+        or (((probe.get("decision_quality_scope_diagnostics") or {}).get("regime_label+regime_gate+entry_quality_label") or {}).get("current_live_structure_bucket"))
+        or ""
+    )
+    return bool(current_ts and current_bucket and probe_ts == current_ts and probe_bucket == current_bucket)
+
+
+def _load_or_refresh_live_predict_probe(current_ts: str, current_bucket: str) -> dict[str, Any]:
+    probe: dict[str, Any] = {}
+    if PROBE_PATH.exists():
+        try:
+            loaded = json.loads(PROBE_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            loaded = {}
+        if isinstance(loaded, dict):
+            probe = loaded
+
+    cmd = [sys.executable, str(PROJECT_ROOT / "scripts" / "hb_predict_probe.py")]
+    result = subprocess.run(
+        cmd,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        try:
+            refreshed = json.loads(result.stdout)
+        except Exception:
+            refreshed = {}
+        if isinstance(refreshed, dict) and refreshed and _probe_matches_current_row(refreshed, current_ts, current_bucket):
+            PROBE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            PROBE_PATH.write_text(json.dumps(refreshed, ensure_ascii=False, indent=2), encoding="utf-8")
+            return refreshed
+
+    return probe
 
 
 def _current_row(conn: sqlite3.Connection) -> sqlite3.Row:
@@ -1169,14 +1212,155 @@ def _q35_scope_applicability(current: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _deployment_runtime_signature(runtime: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        _round(runtime.get("entry_quality")),
+        runtime.get("allowed_layers_raw"),
+        runtime.get("allowed_layers_reason"),
+        bool(runtime.get("q35_discriminative_redesign_applied")),
+        runtime.get("source"),
+    )
+
+
+def _write_outputs(
+    report: dict[str, Any],
+    *,
+    overall_verdict: str,
+    structure_verdict: str,
+    scope_applicability: dict[str, Any],
+    verdict_reason: str,
+    current: dict[str, Any],
+    runtime_current: dict[str, Any],
+    deployed_runtime_current: dict[str, Any],
+    exact_summary: dict[str, Any],
+    winner_summary: dict[str, Any],
+    broader_bull_summary: dict[str, Any],
+    segmented_calibration: dict[str, Any],
+    piecewise_runtime_preview: dict[str, Any],
+    deployment_grade_component_experiment: dict[str, Any],
+    counterfactuals: dict[str, Any],
+    joint_component_experiment: dict[str, Any],
+    exact_supported_bias50_component_experiment: dict[str, Any],
+    base_mix_component_experiment: dict[str, Any],
+    base_stack_redesign_experiment: dict[str, Any],
+) -> None:
+    OUT_JSON.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    md = [
+        "# Q35 Scaling Audit",
+        "",
+        f"- generated_at: **{report['generated_at']}**",
+        f"- overall_verdict: **{overall_verdict}**",
+        f"- structure_scaling_verdict: **{structure_verdict}**",
+        f"- scope_applicability: **{scope_applicability['status']}**",
+        f"- reason: {verdict_reason}",
+        f"- applicability_note: {scope_applicability['reason']}",
+        "",
+        "## Current live row",
+        "",
+        f"- regime/gate/quality: **{current['regime_label']} / {current['regime_gate']} / {current['entry_quality_label']}**",
+        f"- structure_bucket: **{current['structure_bucket']}**",
+        f"- legacy_entry_quality: **{current['entry_quality']}** (raw_reason=`{current.get('allowed_layers_raw_reason') or current['allowed_layers_reason']}`)",
+        f"- calibration_runtime_entry_quality: **{runtime_current['entry_quality']}** (raw_reason=`{runtime_current.get('allowed_layers_raw_reason') or runtime_current['allowed_layers_reason']}`)",
+        f"- deployed_runtime_entry_quality: **{deployed_runtime_current['entry_quality']}** (raw_reason=`{deployed_runtime_current.get('allowed_layers_raw_reason') or deployed_runtime_current['allowed_layers_reason']}`, effective_reason=`{deployed_runtime_current['allowed_layers_reason']}`)",
+        f"- q35_discriminative_redesign_applied: **{deployed_runtime_current.get('q35_discriminative_redesign_applied')}**",
+        f"- feat_4h_bias50: **{current['raw_features']['feat_4h_bias50']}**",
+        f"- structure_quality: **{current['structure_quality']}**",
+        "",
+        "## Exact lane summary",
+        "",
+        f"- rows: **{exact_summary['rows']}** | win_rate: **{exact_summary['win_rate']}**",
+        f"- bias50 distribution: {exact_summary['bias50_distribution']}",
+        f"- current bias50 percentile in exact lane: **{exact_summary['current_bias50_percentile']}**",
+        f"- winner-only bias50 distribution: {winner_summary['bias50_distribution']}",
+        "",
+        "## Broader bull cohorts",
+        "",
+        f"- same_gate_same_quality: rows=**{broader_bull_summary['same_gate_same_quality']['rows']}** | win_rate=**{broader_bull_summary['same_gate_same_quality']['win_rate']}** | bias50_pct=**{broader_bull_summary['same_gate_same_quality']['current_bias50_percentile']}** | dist={broader_bull_summary['same_gate_same_quality']['bias50_distribution']}",
+        f"- same_bucket: rows=**{broader_bull_summary['same_bucket']['rows']}** | win_rate=**{broader_bull_summary['same_bucket']['win_rate']}** | bias50_pct=**{broader_bull_summary['same_bucket']['current_bias50_percentile']}** | dist={broader_bull_summary['same_bucket']['bias50_distribution']}",
+        f"- bull_all: rows=**{broader_bull_summary['bull_all']['rows']}** | win_rate=**{broader_bull_summary['bull_all']['win_rate']}** | bias50_pct=**{broader_bull_summary['bull_all']['current_bias50_percentile']}** | dist={broader_bull_summary['bull_all']['bias50_distribution']}",
+        "",
+        "## Segmented calibration",
+        "",
+        f"- status: **{segmented_calibration['status']}** | mode: **{segmented_calibration['recommended_mode']}**",
+        f"- runtime contract: **{segmented_calibration['runtime_contract_status']}** — {segmented_calibration['runtime_contract_reason']}",
+        f"- exact lane band: **{segmented_calibration['exact_lane']['percentile_band']}** (pct={segmented_calibration['exact_lane']['current_bias50_percentile']}, Δp90={segmented_calibration['exact_lane']['delta_vs_p90']})",
+        f"- same_gate_same_quality band: **{segmented_calibration['broader_bull_cohorts']['same_gate_same_quality']['percentile_band']}** (pct={segmented_calibration['broader_bull_cohorts']['same_gate_same_quality']['current_bias50_percentile']}, Δp90={segmented_calibration['broader_bull_cohorts']['same_gate_same_quality']['delta_vs_p90']})",
+        f"- same_bucket band: **{segmented_calibration['broader_bull_cohorts']['same_bucket']['percentile_band']}** (pct={segmented_calibration['broader_bull_cohorts']['same_bucket']['current_bias50_percentile']}, Δp90={segmented_calibration['broader_bull_cohorts']['same_bucket']['delta_vs_p90']})",
+        f"- bull_all band: **{segmented_calibration['broader_bull_cohorts']['bull_all']['percentile_band']}** (pct={segmented_calibration['broader_bull_cohorts']['bull_all']['current_bias50_percentile']}, Δp90={segmented_calibration['broader_bull_cohorts']['bull_all']['delta_vs_p90']})",
+        f"- reference cohort: **{(segmented_calibration['reference_cohort'] or {}).get('cohort')}** / label={((segmented_calibration['reference_cohort'] or {}).get('label'))} / pct={((segmented_calibration['reference_cohort'] or {}).get('current_bias50_percentile'))}",
+        f"- note: {segmented_calibration['reason']}",
+        f"- runtime preview: applied=**{piecewise_runtime_preview['applied']}** | score=**{piecewise_runtime_preview['score']}** | legacy=**{piecewise_runtime_preview['legacy_score']}** | Δ=**{piecewise_runtime_preview['score_delta_vs_legacy']}** | segment=**{piecewise_runtime_preview['segment']}**",
+        "",
+        "## Deployment-grade component experiment",
+        "",
+        f"- verdict: **{deployment_grade_component_experiment['verdict']}**",
+        f"- baseline -> calibration runtime entry_quality: **{deployment_grade_component_experiment['baseline_entry_quality']} → {deployment_grade_component_experiment['calibration_runtime_entry_quality']}** (Δ=**{deployment_grade_component_experiment['calibration_runtime_delta_vs_legacy']}**)",
+        f"- baseline -> deployed runtime entry_quality: **{deployment_grade_component_experiment['baseline_entry_quality']} → {deployment_grade_component_experiment['runtime_entry_quality']}** (Δ=**{deployment_grade_component_experiment['entry_quality_delta_vs_legacy']}**)",
+        f"- baseline -> calibration -> deployed layers: **{deployment_grade_component_experiment['baseline_allowed_layers_raw']} → {deployment_grade_component_experiment['calibration_runtime_allowed_layers_raw']} → {deployment_grade_component_experiment['runtime_allowed_layers_raw']}**",
+        f"- machine_read: entry_quality>=0.55=**{deployment_grade_component_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{deployment_grade_component_experiment['machine_read_answer']['allowed_layers_gt_0']}**",
+        f"- runtime_source: **{deployment_grade_component_experiment['runtime_source']}** | q35_discriminative_redesign_applied=**{deployment_grade_component_experiment['q35_discriminative_redesign_applied']}**",
+        f"- runtime gap to floor: **{deployment_grade_component_experiment['runtime_remaining_gap_to_floor']}**",
+        f"- next patch target: **{deployment_grade_component_experiment['next_patch_target']}**",
+        "",
+        "## Counterfactuals",
+        "",
+        f"- gate -> ALLOW only: entry_quality **{counterfactuals['entry_if_gate_allow_only']}**, layers **{counterfactuals['layers_if_gate_allow_only']}**",
+        f"- fully relax bias50 penalty: entry_quality **{counterfactuals['entry_if_bias50_fully_relaxed']}**, layers **{counterfactuals['layers_if_bias50_fully_relaxed']}**",
+        f"- required bias50 cap to cross trade floor: **{counterfactuals['required_bias50_cap_for_floor']}** (current={counterfactuals['current_bias50_value']})",
+        "",
+        "## Joint component experiment（bias50 runtime patch + feat_4h_dist_swing_low uplift）",
+        "",
+        f"- verdict: **{joint_component_experiment['verdict']}**",
+        f"- machine_read: entry_quality>=0.55=**{joint_component_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{joint_component_experiment['machine_read_answer']['allowed_layers_gt_0']}**",
+        f"- best scenario: **{(joint_component_experiment.get('best_scenario') or {}).get('scenario')}** → entry_quality **{((joint_component_experiment.get('best_scenario') or {}).get('entry_quality_after'))}** / layers **{((joint_component_experiment.get('best_scenario') or {}).get('allowed_layers_after'))}** / gap **{((joint_component_experiment.get('best_scenario') or {}).get('remaining_gap_to_floor'))}**",
+        f"- required_bias50_cap_after_best_scenario: **{((joint_component_experiment.get('best_scenario') or {}).get('required_bias50_cap_after_swing_uplift'))}**",
+        f"- note: {joint_component_experiment['reason']}",
+        "",
+        "## Exact-supported bias50 component experiment",
+        "",
+        f"- verdict: **{exact_supported_bias50_component_experiment['verdict']}**",
+        f"- machine_read: entry_quality>=0.55=**{exact_supported_bias50_component_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{exact_supported_bias50_component_experiment['machine_read_answer']['allowed_layers_gt_0']}** | used_exact_supported_target=**{exact_supported_bias50_component_experiment['machine_read_answer']['used_exact_supported_target']}**",
+        f"- best scenario: **{(exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('scenario')}** → entry_quality **{((exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('entry_quality_after'))}** / layers **{((exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('allowed_layers_after'))}** / gap **{((exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('remaining_gap_to_floor'))}** / target_score **{((exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('target_score'))}**",
+        f"- note: {exact_supported_bias50_component_experiment['reason']}",
+        "",
+        "## Base-mix component experiment（bias50 + pulse + nose）",
+        "",
+        f"- verdict: **{base_mix_component_experiment['verdict']}**",
+        f"- machine_read: entry_quality>=0.55=**{base_mix_component_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{base_mix_component_experiment['machine_read_answer']['allowed_layers_gt_0']}**",
+        f"- best scenario: **{(base_mix_component_experiment.get('best_scenario') or {}).get('scenario')}** → entry_quality **{((base_mix_component_experiment.get('best_scenario') or {}).get('entry_quality_after'))}** / layers **{((base_mix_component_experiment.get('best_scenario') or {}).get('allowed_layers_after'))}** / gap **{((base_mix_component_experiment.get('best_scenario') or {}).get('remaining_gap_to_floor'))}**",
+        f"- required_bias50_cap_after_best_scenario: **{((base_mix_component_experiment.get('best_scenario') or {}).get('required_bias50_cap_after_base_mix'))}**",
+        f"- note: {base_mix_component_experiment['reason']}",
+        "",
+        "## Base-stack redesign experiment（support-aware discriminative reweight）",
+        "",
+        f"- verdict: **{base_stack_redesign_experiment['verdict']}**",
+        f"- machine_read: entry_quality>=0.55=**{base_stack_redesign_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{base_stack_redesign_experiment['machine_read_answer']['allowed_layers_gt_0']}** | positive_gap=**{base_stack_redesign_experiment['machine_read_answer']['positive_discriminative_gap']}**",
+        f"- rows / wins / losses: **{base_stack_redesign_experiment['rows']} / {base_stack_redesign_experiment['wins']} / {base_stack_redesign_experiment['losses']}**",
+        f"- best discriminative candidate: weights=**{(base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('weights')}** → entry_quality **{((base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('current_entry_quality_after'))}** / gap **{((base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('remaining_gap_to_floor'))}** / mean_gap **{((base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('mean_gap'))}**",
+        f"- best floor candidate: weights=**{(base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('weights')}** → entry_quality **{((base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('current_entry_quality_after'))}** / gap **{((base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('remaining_gap_to_floor'))}** / mean_gap **{((base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('mean_gap'))}**",
+        f"- unsafe floor-cross candidate: **{(base_stack_redesign_experiment.get('unsafe_floor_cross_candidate') or {}).get('weights')}**",
+        f"- note: {base_stack_redesign_experiment['reason']}",
+        "",
+        "## Recommended action",
+        "",
+        f"- {report['recommended_action']}",
+    ]
+    OUT_MD.parent.mkdir(parents=True, exist_ok=True)
+    OUT_MD.write_text("\n".join(md) + "\n", encoding="utf-8")
+
+
 def main() -> None:
-    probe = json.loads(PROBE_PATH.read_text(encoding="utf-8")) if PROBE_PATH.exists() else {}
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     current_row = _current_row(conn)
     current = _build_row_context(
         current_row,
         bias50_calibration_override=_legacy_bias50_calibration_preview(current_row["feat_4h_bias50"] or 0.0),
+    )
+    probe = _load_or_refresh_live_predict_probe(
+        str(current.get("timestamp") or ""),
+        str(current.get("structure_bucket") or ""),
     )
     history = _historical_rows(conn, use_legacy_bias50_baseline=True)
     runtime_history = _historical_rows(conn, use_legacy_bias50_baseline=False)
@@ -1411,110 +1595,68 @@ def main() -> None:
         ),
     }
 
-    OUT_JSON.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    _write_outputs(
+        report,
+        overall_verdict=overall_verdict,
+        structure_verdict=structure_verdict,
+        scope_applicability=scope_applicability,
+        verdict_reason=verdict_reason,
+        current=current,
+        runtime_current=runtime_current,
+        deployed_runtime_current=deployed_runtime_current,
+        exact_summary=exact_summary,
+        winner_summary=winner_summary,
+        broader_bull_summary=broader_bull_summary,
+        segmented_calibration=segmented_calibration,
+        piecewise_runtime_preview=piecewise_runtime_preview,
+        deployment_grade_component_experiment=deployment_grade_component_experiment,
+        counterfactuals=counterfactuals,
+        joint_component_experiment=joint_component_experiment,
+        exact_supported_bias50_component_experiment=exact_supported_bias50_component_experiment,
+        base_mix_component_experiment=base_mix_component_experiment,
+        base_stack_redesign_experiment=base_stack_redesign_experiment,
+    )
 
-    md = [
-        "# Q35 Scaling Audit",
-        "",
-        f"- generated_at: **{report['generated_at']}**",
-        f"- overall_verdict: **{overall_verdict}**",
-        f"- structure_scaling_verdict: **{structure_verdict}**",
-        f"- scope_applicability: **{scope_applicability['status']}**",
-        f"- reason: {verdict_reason}",
-        f"- applicability_note: {scope_applicability['reason']}",
-        "",
-        "## Current live row",
-        "",
-        f"- regime/gate/quality: **{current['regime_label']} / {current['regime_gate']} / {current['entry_quality_label']}**",
-        f"- structure_bucket: **{current['structure_bucket']}**",
-        f"- legacy_entry_quality: **{current['entry_quality']}** (reason=`{current['allowed_layers_reason']}`)",
-        f"- calibration_runtime_entry_quality: **{runtime_current['entry_quality']}** (reason=`{runtime_current['allowed_layers_reason']}`)",
-        f"- deployed_runtime_entry_quality: **{deployed_runtime_current['entry_quality']}** (reason=`{deployed_runtime_current['allowed_layers_reason']}`)",
-        f"- q35_discriminative_redesign_applied: **{deployed_runtime_current.get('q35_discriminative_redesign_applied')}**",
-        f"- feat_4h_bias50: **{current['raw_features']['feat_4h_bias50']}**",
-        f"- structure_quality: **{current['structure_quality']}**",
-        "",
-        "## Exact lane summary",
-        "",
-        f"- rows: **{exact_summary['rows']}** | win_rate: **{exact_summary['win_rate']}**",
-        f"- bias50 distribution: {exact_summary['bias50_distribution']}",
-        f"- current bias50 percentile in exact lane: **{exact_summary['current_bias50_percentile']}**",
-        f"- winner-only bias50 distribution: {winner_summary['bias50_distribution']}",
-        "",
-        "## Broader bull cohorts",
-        "",
-        f"- same_gate_same_quality: rows=**{broader_bull_summary['same_gate_same_quality']['rows']}** | win_rate=**{broader_bull_summary['same_gate_same_quality']['win_rate']}** | bias50_pct=**{broader_bull_summary['same_gate_same_quality']['current_bias50_percentile']}** | dist={broader_bull_summary['same_gate_same_quality']['bias50_distribution']}",
-        f"- same_bucket: rows=**{broader_bull_summary['same_bucket']['rows']}** | win_rate=**{broader_bull_summary['same_bucket']['win_rate']}** | bias50_pct=**{broader_bull_summary['same_bucket']['current_bias50_percentile']}** | dist={broader_bull_summary['same_bucket']['bias50_distribution']}",
-        f"- bull_all: rows=**{broader_bull_summary['bull_all']['rows']}** | win_rate=**{broader_bull_summary['bull_all']['win_rate']}** | bias50_pct=**{broader_bull_summary['bull_all']['current_bias50_percentile']}** | dist={broader_bull_summary['bull_all']['bias50_distribution']}",
-        "",
-        "## Segmented calibration",
-        "",
-        f"- status: **{segmented_calibration['status']}** | mode: **{segmented_calibration['recommended_mode']}**",
-        f"- runtime contract: **{segmented_calibration['runtime_contract_status']}** — {segmented_calibration['runtime_contract_reason']}",
-        f"- exact lane band: **{segmented_calibration['exact_lane']['percentile_band']}** (pct={segmented_calibration['exact_lane']['current_bias50_percentile']}, Δp90={segmented_calibration['exact_lane']['delta_vs_p90']})",
-        f"- same_gate_same_quality band: **{segmented_calibration['broader_bull_cohorts']['same_gate_same_quality']['percentile_band']}** (pct={segmented_calibration['broader_bull_cohorts']['same_gate_same_quality']['current_bias50_percentile']}, Δp90={segmented_calibration['broader_bull_cohorts']['same_gate_same_quality']['delta_vs_p90']})",
-        f"- same_bucket band: **{segmented_calibration['broader_bull_cohorts']['same_bucket']['percentile_band']}** (pct={segmented_calibration['broader_bull_cohorts']['same_bucket']['current_bias50_percentile']}, Δp90={segmented_calibration['broader_bull_cohorts']['same_bucket']['delta_vs_p90']})",
-        f"- bull_all band: **{segmented_calibration['broader_bull_cohorts']['bull_all']['percentile_band']}** (pct={segmented_calibration['broader_bull_cohorts']['bull_all']['current_bias50_percentile']}, Δp90={segmented_calibration['broader_bull_cohorts']['bull_all']['delta_vs_p90']})",
-        f"- reference cohort: **{(segmented_calibration['reference_cohort'] or {}).get('cohort')}** / label={((segmented_calibration['reference_cohort'] or {}).get('label'))} / pct={((segmented_calibration['reference_cohort'] or {}).get('current_bias50_percentile'))}",
-        f"- note: {segmented_calibration['reason']}",
-        f"- runtime preview: applied=**{piecewise_runtime_preview['applied']}** | score=**{piecewise_runtime_preview['score']}** | legacy=**{piecewise_runtime_preview['legacy_score']}** | Δ=**{piecewise_runtime_preview['score_delta_vs_legacy']}** | segment=**{piecewise_runtime_preview['segment']}**",
-        "",
-        "## Deployment-grade component experiment",
-        "",
-        f"- verdict: **{deployment_grade_component_experiment['verdict']}**",
-        f"- baseline -> calibration runtime entry_quality: **{deployment_grade_component_experiment['baseline_entry_quality']} → {deployment_grade_component_experiment['calibration_runtime_entry_quality']}** (Δ=**{deployment_grade_component_experiment['calibration_runtime_delta_vs_legacy']}**)",
-        f"- baseline -> deployed runtime entry_quality: **{deployment_grade_component_experiment['baseline_entry_quality']} → {deployment_grade_component_experiment['runtime_entry_quality']}** (Δ=**{deployment_grade_component_experiment['entry_quality_delta_vs_legacy']}**)",
-        f"- baseline -> calibration -> deployed layers: **{deployment_grade_component_experiment['baseline_allowed_layers_raw']} → {deployment_grade_component_experiment['calibration_runtime_allowed_layers_raw']} → {deployment_grade_component_experiment['runtime_allowed_layers_raw']}**",
-        f"- machine_read: entry_quality>=0.55=**{deployment_grade_component_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{deployment_grade_component_experiment['machine_read_answer']['allowed_layers_gt_0']}**",
-        f"- runtime_source: **{deployment_grade_component_experiment['runtime_source']}** | q35_discriminative_redesign_applied=**{deployment_grade_component_experiment['q35_discriminative_redesign_applied']}**",
-        f"- runtime gap to floor: **{deployment_grade_component_experiment['runtime_remaining_gap_to_floor']}**",
-        f"- next patch target: **{deployment_grade_component_experiment['next_patch_target']}**",
-        "",
-        "## Counterfactuals",
-        "",
-        f"- gate -> ALLOW only: entry_quality **{counterfactuals['entry_if_gate_allow_only']}**, layers **{counterfactuals['layers_if_gate_allow_only']}**",
-        f"- fully relax bias50 penalty: entry_quality **{counterfactuals['entry_if_bias50_fully_relaxed']}**, layers **{counterfactuals['layers_if_bias50_fully_relaxed']}**",
-        f"- required bias50 cap to cross trade floor: **{counterfactuals['required_bias50_cap_for_floor']}** (current={counterfactuals['current_bias50_value']})",
-        "",
-        "## Joint component experiment（bias50 runtime patch + feat_4h_dist_swing_low uplift）",
-        "",
-        f"- verdict: **{joint_component_experiment['verdict']}**",
-        f"- machine_read: entry_quality>=0.55=**{joint_component_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{joint_component_experiment['machine_read_answer']['allowed_layers_gt_0']}**",
-        f"- best scenario: **{(joint_component_experiment.get('best_scenario') or {}).get('scenario')}** → entry_quality **{((joint_component_experiment.get('best_scenario') or {}).get('entry_quality_after'))}** / layers **{((joint_component_experiment.get('best_scenario') or {}).get('allowed_layers_after'))}** / gap **{((joint_component_experiment.get('best_scenario') or {}).get('remaining_gap_to_floor'))}**",
-        f"- required_bias50_cap_after_best_scenario: **{((joint_component_experiment.get('best_scenario') or {}).get('required_bias50_cap_after_swing_uplift'))}**",
-        f"- note: {joint_component_experiment['reason']}",
-        "",
-        "## Exact-supported bias50 component experiment",
-        "",
-        f"- verdict: **{exact_supported_bias50_component_experiment['verdict']}**",
-        f"- machine_read: entry_quality>=0.55=**{exact_supported_bias50_component_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{exact_supported_bias50_component_experiment['machine_read_answer']['allowed_layers_gt_0']}** | used_exact_supported_target=**{exact_supported_bias50_component_experiment['machine_read_answer']['used_exact_supported_target']}**",
-        f"- best scenario: **{(exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('scenario')}** → entry_quality **{((exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('entry_quality_after'))}** / layers **{((exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('allowed_layers_after'))}** / gap **{((exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('remaining_gap_to_floor'))}** / target_score **{((exact_supported_bias50_component_experiment.get('best_scenario') or {}).get('target_score'))}**",
-        f"- note: {exact_supported_bias50_component_experiment['reason']}",
-        "",
-        "## Base-mix component experiment（bias50 + pulse + nose）",
-        "",
-        f"- verdict: **{base_mix_component_experiment['verdict']}**",
-        f"- machine_read: entry_quality>=0.55=**{base_mix_component_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{base_mix_component_experiment['machine_read_answer']['allowed_layers_gt_0']}**",
-        f"- best scenario: **{(base_mix_component_experiment.get('best_scenario') or {}).get('scenario')}** → entry_quality **{((base_mix_component_experiment.get('best_scenario') or {}).get('entry_quality_after'))}** / layers **{((base_mix_component_experiment.get('best_scenario') or {}).get('allowed_layers_after'))}** / gap **{((base_mix_component_experiment.get('best_scenario') or {}).get('remaining_gap_to_floor'))}**",
-        f"- required_bias50_cap_after_best_scenario: **{((base_mix_component_experiment.get('best_scenario') or {}).get('required_bias50_cap_after_base_mix'))}**",
-        f"- note: {base_mix_component_experiment['reason']}",
-        "",
-        "## Base-stack redesign experiment（support-aware discriminative reweight）",
-        "",
-        f"- verdict: **{base_stack_redesign_experiment['verdict']}**",
-        f"- machine_read: entry_quality>=0.55=**{base_stack_redesign_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{base_stack_redesign_experiment['machine_read_answer']['allowed_layers_gt_0']}** | positive_gap=**{base_stack_redesign_experiment['machine_read_answer']['positive_discriminative_gap']}**",
-        f"- rows / wins / losses: **{base_stack_redesign_experiment['rows']} / {base_stack_redesign_experiment['wins']} / {base_stack_redesign_experiment['losses']}**",
-        f"- best discriminative candidate: weights=**{(base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('weights')}** → entry_quality **{((base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('current_entry_quality_after'))}** / gap **{((base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('remaining_gap_to_floor'))}** / mean_gap **{((base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('mean_gap'))}**",
-        f"- best floor candidate: weights=**{(base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('weights')}** → entry_quality **{((base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('current_entry_quality_after'))}** / gap **{((base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('remaining_gap_to_floor'))}** / mean_gap **{((base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('mean_gap'))}**",
-        f"- unsafe floor-cross candidate: **{(base_stack_redesign_experiment.get('unsafe_floor_cross_candidate') or {}).get('weights')}**",
-        f"- note: {base_stack_redesign_experiment['reason']}",
-        "",
-        "## Recommended action",
-        "",
-        f"- {report['recommended_action']}",
-    ]
-    OUT_MD.parent.mkdir(parents=True, exist_ok=True)
-    OUT_MD.write_text("\n".join(md) + "\n", encoding="utf-8")
+    refreshed_probe = _load_or_refresh_live_predict_probe(
+        str(current.get("timestamp") or ""),
+        str(current.get("structure_bucket") or ""),
+    )
+    refreshed_runtime = _build_deployed_runtime_current(current, runtime_current, refreshed_probe)
+    if _deployment_runtime_signature(refreshed_runtime) != _deployment_runtime_signature(deployed_runtime_current):
+        deployed_runtime_current = refreshed_runtime
+        report["target_col"] = refreshed_probe.get("target_col", report.get("target_col", "simulated_pyramid_win"))
+        report["current_live"] = refreshed_runtime
+        report["deployed_runtime_current"] = refreshed_runtime
+        deployment_grade_component_experiment = _build_deployment_grade_component_experiment(
+            current,
+            runtime_current,
+            refreshed_runtime,
+            piecewise_runtime_preview,
+            counterfactuals,
+        )
+        report["deployment_grade_component_experiment"] = deployment_grade_component_experiment
+        _write_outputs(
+            report,
+            overall_verdict=overall_verdict,
+            structure_verdict=structure_verdict,
+            scope_applicability=scope_applicability,
+            verdict_reason=verdict_reason,
+            current=current,
+            runtime_current=runtime_current,
+            deployed_runtime_current=deployed_runtime_current,
+            exact_summary=exact_summary,
+            winner_summary=winner_summary,
+            broader_bull_summary=broader_bull_summary,
+            segmented_calibration=segmented_calibration,
+            piecewise_runtime_preview=piecewise_runtime_preview,
+            deployment_grade_component_experiment=deployment_grade_component_experiment,
+            counterfactuals=counterfactuals,
+            joint_component_experiment=joint_component_experiment,
+            exact_supported_bias50_component_experiment=exact_supported_bias50_component_experiment,
+            base_mix_component_experiment=base_mix_component_experiment,
+            base_stack_redesign_experiment=base_stack_redesign_experiment,
+        )
+
     print(json.dumps({
         "json": str(OUT_JSON),
         "markdown": str(OUT_MD),
@@ -1547,7 +1689,6 @@ def main() -> None:
             "best_scenario": (exact_supported_bias50_component_experiment.get("best_scenario") or {}).get("scenario"),
             "best_entry_quality": (exact_supported_bias50_component_experiment.get("best_scenario") or {}).get("entry_quality_after"),
             "best_remaining_gap_to_floor": (exact_supported_bias50_component_experiment.get("best_scenario") or {}).get("remaining_gap_to_floor"),
-            "best_target_score": (exact_supported_bias50_component_experiment.get("best_scenario") or {}).get("target_score"),
         },
         "base_mix_component_experiment": {
             "verdict": base_mix_component_experiment["verdict"],
@@ -1562,11 +1703,11 @@ def main() -> None:
             "entry_quality_ge_0_55": base_stack_redesign_experiment["machine_read_answer"]["entry_quality_ge_0_55"],
             "allowed_layers_gt_0": base_stack_redesign_experiment["machine_read_answer"]["allowed_layers_gt_0"],
             "positive_discriminative_gap": base_stack_redesign_experiment["machine_read_answer"]["positive_discriminative_gap"],
-            "best_discriminative_entry_quality": ((base_stack_redesign_experiment.get("best_discriminative_candidate") or {}).get("current_entry_quality_after")),
-            "best_discriminative_gap_to_floor": ((base_stack_redesign_experiment.get("best_discriminative_candidate") or {}).get("remaining_gap_to_floor")),
-            "best_floor_entry_quality": ((base_stack_redesign_experiment.get("best_floor_candidate") or {}).get("current_entry_quality_after")),
-            "unsafe_floor_cross": base_stack_redesign_experiment.get("unsafe_floor_cross_candidate") is not None,
+            "best_discriminative_candidate": base_stack_redesign_experiment.get("best_discriminative_candidate"),
+            "best_floor_candidate": base_stack_redesign_experiment.get("best_floor_candidate"),
+            "unsafe_floor_cross_candidate": base_stack_redesign_experiment.get("unsafe_floor_cross_candidate"),
         },
+        "recommended_action": report["recommended_action"],
     }, indent=2, ensure_ascii=False))
 
 

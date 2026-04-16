@@ -243,7 +243,12 @@ def test_infer_deployment_blocker_flags_bull_q35_no_deploy_governance(tmp_path, 
             "regime_label": "bull",
             "regime_gate": "CAUTION",
             "structure_bucket": "CAUTION|structure_quality_caution|q35",
-        }
+        },
+        {
+            "decision_quality_structure_bucket_support_rows": 7,
+            "decision_quality_exact_live_structure_bucket_support_rows": 7,
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_supported",
+        },
     )
     guarded = predictor_module._apply_deployment_blocker_to_execution_profile(
         {
@@ -262,6 +267,72 @@ def test_infer_deployment_blocker_flags_bull_q35_no_deploy_governance(tmp_path, 
     assert guarded["allowed_layers"] == 0
     assert guarded["deployment_blocker"] == "bull_q35_no_deploy_governance"
     assert "bull_q35_no_deploy_governance" in guarded["execution_guardrail_reason"]
+
+
+def test_infer_deployment_blocker_flags_under_minimum_exact_live_structure_bucket():
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+        },
+        {
+            "decision_quality_structure_bucket_support_rows": 2,
+            "decision_quality_exact_live_structure_bucket_support_rows": 2,
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_supported",
+            "decision_quality_structure_bucket_guardrail_reason": "chosen scope support is still too small",
+        },
+    )
+    guarded = predictor_module._apply_deployment_blocker_to_execution_profile(
+        {
+            "allowed_layers": 0,
+            "allowed_layers_raw": 0,
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "unsupported_exact_live_structure_bucket_blocks_trade",
+        },
+        blocker,
+    )
+
+    assert blocker is not None
+    assert blocker["type"] == "under_minimum_exact_live_structure_bucket"
+    assert blocker["source"] == "decision_quality_contract"
+    assert blocker["current_live_structure_bucket_rows"] == 2
+    assert blocker["exact_live_structure_bucket_rows"] == 2
+    assert guarded["deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
+    assert guarded["allowed_layers"] == 0
+    assert guarded["allowed_layers_reason"] == (
+        "unsupported_exact_live_structure_bucket_blocks_trade; under_minimum_exact_live_structure_bucket"
+    )
+    assert "under_minimum_exact_live_structure_bucket" in guarded["execution_guardrail_reason"]
+
+
+def test_infer_deployment_blocker_uses_scope_diagnostics_fallback_for_exact_rows():
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+        },
+        {
+            "decision_quality_calibration_scope": "regime_label",
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 4,
+                },
+                "regime_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 142,
+                },
+            },
+        },
+    )
+
+    assert blocker is not None
+    assert blocker["type"] == "under_minimum_exact_live_structure_bucket"
+    assert blocker["current_live_structure_bucket_rows"] == 4
+    assert blocker["exact_live_structure_bucket_rows"] == 4
+    assert blocker["support_mode"] == "exact_bucket_present_but_below_minimum"
 
 
 def test_live_decision_profile_applies_q35_discriminative_redesign_when_current_row_matches_audit(tmp_path, monkeypatch):
@@ -289,12 +360,12 @@ def test_live_decision_profile_applies_q35_discriminative_redesign_when_current_
                     },
                     "best_discriminative_candidate": {
                         "weights": {
-                            "feat_4h_bias50": 0.05,
+                            "feat_4h_bias50": 0.0,
                             "feat_nose": 0.0,
-                            "feat_pulse": 0.35,
-                            "feat_ear": 0.6,
+                            "feat_pulse": 0.0,
+                            "feat_ear": 1.0,
                         },
-                        "current_entry_quality_after": 0.5553,
+                        "current_entry_quality_after": 0.8444,
                         "allowed_layers_after": 1,
                         "entry_quality_ge_trade_floor": True,
                         "allowed_layers_gt_0": True,
@@ -325,18 +396,18 @@ def test_live_decision_profile_applies_q35_discriminative_redesign_when_current_
 
     assert profile["q35_discriminative_redesign_applied"] is True
     assert profile["q35_discriminative_redesign"]["weights"] == {
-        "feat_4h_bias50": 0.05,
+        "feat_4h_bias50": 0.0,
         "feat_nose": 0.0,
-        "feat_pulse": 0.35,
-        "feat_ear": 0.6,
+        "feat_pulse": 0.0,
+        "feat_ear": 1.0,
     }
-    assert profile["entry_quality"] == pytest.approx(0.5553)
-    assert profile["allowed_layers"] == 1
-    assert profile["allowed_layers_reason"] == "entry_quality_C_single_layer"
+    assert profile["entry_quality"] == pytest.approx(0.8444)
+    assert profile["allowed_layers"] == 2
+    assert profile["allowed_layers_reason"] == "caution_gate_caps_two_layers"
     assert profile["entry_quality_components"]["q35_discriminative_redesign"]["applied"] is True
     assert [
         component["weight"] for component in profile["entry_quality_components"]["base_components"]
-    ] == [0.05, 0.0, 0.35, 0.6]
+    ] == [0.0, 0.0, 0.0, 1.0]
 
 
 def test_live_decision_profile_skips_q35_discriminative_redesign_when_audit_row_is_stale(tmp_path, monkeypatch):
@@ -364,12 +435,12 @@ def test_live_decision_profile_skips_q35_discriminative_redesign_when_audit_row_
                     },
                     "best_discriminative_candidate": {
                         "weights": {
-                            "feat_4h_bias50": 0.05,
+                            "feat_4h_bias50": 0.0,
                             "feat_nose": 0.0,
-                            "feat_pulse": 0.35,
-                            "feat_ear": 0.6,
+                            "feat_pulse": 0.0,
+                            "feat_ear": 1.0,
                         },
-                        "current_entry_quality_after": 0.5553,
+                        "current_entry_quality_after": 0.8444,
                         "allowed_layers_after": 1,
                         "entry_quality_ge_trade_floor": True,
                         "allowed_layers_gt_0": True,
@@ -402,6 +473,96 @@ def test_live_decision_profile_skips_q35_discriminative_redesign_when_audit_row_
     assert profile["q35_discriminative_redesign"] is None
     assert profile["allowed_layers"] == 0
     assert profile["allowed_layers_reason"] == "entry_quality_below_trade_floor"
+
+
+def test_structure_bucket_support_guardrail_replays_q35_runtime_redesign_support(tmp_path, monkeypatch):
+    q35_path = tmp_path / "q35_scaling_audit.json"
+    q35_path.write_text(
+        json.dumps(
+            {
+                "scope_applicability": {"status": "current_live_q35_lane_active"},
+                "current_live": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "entry_quality_label": "B",
+                    "q35_discriminative_redesign_applied": True,
+                    "q35_discriminative_redesign": {
+                        "weights": {
+                            "feat_4h_bias50": 0.0,
+                            "feat_nose": 0.0,
+                            "feat_pulse": 1.0,
+                            "feat_ear": 0.0,
+                        }
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(predictor_module, "Q35_AUDIT_PATH", q35_path)
+
+    decision_profile = {
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "structure_bucket": "CAUTION|structure_quality_caution|q35",
+        "entry_quality_label": "B",
+        "q35_discriminative_redesign_applied": True,
+        "q35_discriminative_redesign": {
+            "weights": {
+                "feat_4h_bias50": 0.0,
+                "feat_nose": 0.0,
+                "feat_pulse": 1.0,
+                "feat_ear": 0.0,
+            }
+        },
+    }
+    scope_diagnostics = {
+        "regime_label+regime_gate+entry_quality_label": {
+            "current_live_structure_bucket_rows": 0,
+            "current_live_structure_bucket_share": None,
+            "current_live_structure_bucket_metrics": None,
+            "recent500_structure_bucket_counts": {},
+        },
+        "regime_gate": {
+            "current_live_structure_bucket_rows": 187,
+            "current_live_structure_bucket_share": 0.9791,
+            "current_live_structure_bucket_metrics": {
+                "win_rate": 0.9091,
+                "avg_pnl": 0.0072,
+                "avg_quality": 0.3974,
+                "avg_drawdown_penalty": 0.1695,
+                "avg_time_underwater": 0.6795,
+            },
+            "recent500_structure_bucket_counts": {
+                "CAUTION|structure_quality_caution|q15": 4,
+                "CAUTION|structure_quality_caution|q35": 187,
+            },
+        },
+    }
+
+    guarded = predictor_module._structure_bucket_support_guardrail(
+        decision_profile,
+        "regime_gate",
+        scope_diagnostics,
+        expected_win_rate=0.95,
+        expected_pnl=0.01,
+        expected_quality=0.5,
+        expected_drawdown_penalty=0.15,
+        expected_time_underwater=0.6,
+    )
+
+    assert guarded["applied"] is True
+    assert guarded["support_mode"] == "exact_bucket_supported_via_q35_runtime_redesign"
+    assert guarded["support_rows"] == 187
+    assert guarded["exact_support_rows"] == 187
+    assert guarded["supported_neighbor_buckets"] == ["CAUTION|structure_quality_caution|q15"]
+    assert guarded["expected_win_rate"] == pytest.approx(0.9091)
+    assert guarded["expected_pnl"] == pytest.approx(0.0072)
+    assert guarded["expected_quality"] == pytest.approx(0.3974)
+    assert guarded["expected_drawdown_penalty"] == pytest.approx(0.1695)
+    assert guarded["expected_time_underwater"] == pytest.approx(0.6795)
 
 
 def test_predictor_applies_legacy_isotonic_calibration_payload_keys():
@@ -1782,7 +1943,9 @@ def test_apply_live_execution_guardrails_caps_layers_for_c_quality_and_guardrail
     guarded = predictor_module._apply_live_execution_guardrails(profile, contract)
 
     assert guarded["allowed_layers_raw"] == 2
+    assert guarded["allowed_layers_raw_reason"] == "caution_gate_caps_two_layers"
     assert guarded["allowed_layers"] == 1
+    assert guarded["allowed_layers_reason"] == "decision_quality_label_C_caps_layers"
     assert guarded["execution_guardrail_applied"] is True
     assert "decision_quality_label_C_caps_layers" in guarded["execution_guardrail_reason"]
 

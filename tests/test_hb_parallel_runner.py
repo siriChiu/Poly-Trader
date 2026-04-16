@@ -1151,6 +1151,7 @@ def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypat
     assert diag["decision_quality_recent_pathology_window"] == 500
     assert diag["decision_quality_exact_live_lane_bucket_verdict"] == "toxic_sub_bucket_identified"
     assert diag["decision_quality_exact_live_lane_toxic_bucket"]["bucket"] == "CAUTION|structure_quality_caution|q15"
+    assert diag["allowed_layers_raw_reason"] == "entry_quality_below_trade_floor"
     assert diag["allowed_layers_reason"] == "entry_quality_below_trade_floor"
     assert diag["entry_quality_components"]["trade_floor_gap"] == -0.1639
     assert diag["entry_quality_components"]["base_components"][0]["feature"] == "feat_4h_bias50"
@@ -1573,6 +1574,236 @@ def test_main_runs_q15_support_audit_after_leaderboard_probe(monkeypatch):
     assert order == ["q35", "predict_probe", "drilldown", "leaderboard", "q15", "q15_root", "q15_replay"]
 
 
+def test_write_progress_persists_machine_readable_artifact(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+
+    progress_path = hb_parallel_runner.write_progress(
+        "watchdog",
+        "parallel_tasks",
+        status="running",
+        details={"completed": ["full_ic"], "pending": ["regime_ic"]},
+    )
+
+    payload = json.loads(progress_path.read_text())
+    assert payload["heartbeat"] == "watchdog"
+    assert payload["stage"] == "parallel_tasks"
+    assert payload["status"] == "running"
+    assert payload["details"]["completed"] == ["full_ic"]
+    assert payload["details"]["pending"] == ["regime_ic"]
+
+
+def test_run_serial_command_uses_global_run_label_for_watchdog(monkeypatch):
+    captured = {}
+
+    def _fake_watchdog(cmd, *, timeout=600, extra_env=None, progress=None):
+        captured["cmd"] = cmd
+        captured["timeout"] = timeout
+        captured["extra_env"] = extra_env
+        captured["progress"] = progress
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": "", "command": cmd}
+
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_RUN_LABEL", "hb-watchdog")
+    monkeypatch.setattr(hb_parallel_runner, "_run_command_with_watchdog", _fake_watchdog)
+
+    result = hb_parallel_runner._run_serial_command(["python", "scripts/recent_drift_report.py"], timeout=321)
+
+    assert result["success"] is True
+    assert captured["timeout"] == 321
+    assert captured["progress"]["run_label"] == "hb-watchdog"
+    assert captured["progress"]["stage"] == "recent_drift_report"
+    assert captured["progress"]["details"]["command_kind"] == "serial_command"
+
+
+
+def test_main_writes_final_progress_artifact(tmp_path, monkeypatch):
+    class Args:
+        fast = True
+        hb = "progress"
+        no_collect = True
+        no_train = True
+        no_dw = True
+
+    class FakeExecutor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def submit(self, fn, task):
+            raise AssertionError("submit() should not be called when TASKS is empty in this test")
+
+    def _ok(stdout: str = ""):
+        return {"success": True, "returncode": 0, "stdout": stdout, "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    monkeypatch.setattr(hb_parallel_runner, "TASKS", [])
+    monkeypatch.setattr(hb_parallel_runner, "parse_args", lambda argv=None: Args())
+    monkeypatch.setattr(hb_parallel_runner, "resolve_run_label", lambda args: "progress")
+    monkeypatch.setattr(hb_parallel_runner, "run_collect_step", lambda skip=False: {"attempted": False, "success": True, "returncode": 0, "stdout": "", "stderr": ""})
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "quick_counts",
+        lambda: {
+            "raw_market_data": 1,
+            "features_normalized": 1,
+            "labels": 1,
+            "simulated_pyramid_win_rate": 0.5,
+            "latest_raw_timestamp": "2026-04-15 00:00:00",
+            "label_horizons": [],
+        },
+    )
+    monkeypatch.setattr(hb_parallel_runner, "collect_source_blockers", lambda: {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []})
+    monkeypatch.setattr(hb_parallel_runner, "print_source_blockers", lambda payload: None)
+    monkeypatch.setattr(hb_parallel_runner, "refresh_train_prerequisites", lambda needs_train: {})
+    monkeypatch.setattr(hb_parallel_runner.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
+    monkeypatch.setattr(hb_parallel_runner.concurrent.futures, "as_completed", lambda future_to_name: [])
+    monkeypatch.setattr(hb_parallel_runner, "collect_ic_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_recent_drift_report", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_recent_drift_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q35_scaling_audit", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q35_scaling_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_predict_probe", lambda: _ok("{}"))
+    monkeypatch.setattr(hb_parallel_runner, "_persist_live_predictor_probe", lambda stdout: None)
+    monkeypatch.setattr(hb_parallel_runner, "collect_live_predictor_diagnostics", lambda result: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_live_decision_quality_drilldown", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_circuit_breaker_audit", lambda run_label: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_circuit_breaker_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_leaderboard_candidate_probe", lambda run_label=None: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_support_audit", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_bucket_root_cause", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_bucket_root_cause_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_boundary_replay", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_boundary_replay_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_auto_propose", lambda run_label=None: _ok())
+
+    hb_parallel_runner.main(["--fast", "--hb", "progress"])
+
+    progress_path = tmp_path / "data" / "heartbeat_progress_progress.json"
+    summary_path = tmp_path / "data" / "heartbeat_progress_summary.json"
+    progress = json.loads(progress_path.read_text())
+    summary = json.loads(summary_path.read_text())
+
+    assert progress["stage"] == "finished"
+    assert progress["status"] == "success"
+    assert progress["details"]["summary_path"] == str(summary_path)
+    assert summary["runtime_progress"]["path"] == str(progress_path)
+    assert summary["runtime_progress"]["snapshot"]["stage"] == "auto_propose"
+
+
+
+def test_main_parallel_watchdog_writes_pending_tasks_to_progress(tmp_path, monkeypatch):
+    class Args:
+        fast = True
+        hb = "watchdog"
+        no_collect = True
+        no_train = True
+        no_dw = True
+
+    class FakeFuture:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def result(self):
+            return self._payload
+
+    class FakeExecutor:
+        def __init__(self, *args, **kwargs):
+            self.future = FakeFuture(("full_ic", True, "ok", ""))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def submit(self, fn, task):
+            return self.future
+
+    def _ok(stdout: str = ""):
+        return {"success": True, "returncode": 0, "stdout": stdout, "stderr": ""}
+
+    wait_calls = {"count": 0}
+
+    def _fake_wait(pending, timeout=None, return_when=None):
+        wait_calls["count"] += 1
+        if wait_calls["count"] == 1:
+            return set(), set(pending)
+        return set(pending), set()
+
+    watchdog_snapshots = []
+    original_write_progress = hb_parallel_runner.write_progress
+
+    def _capturing_write_progress(*args, **kwargs):
+        path = original_write_progress(*args, **kwargs)
+        if len(args) >= 2 and args[1] == "parallel_tasks":
+            payload = json.loads(Path(path).read_text())
+            if (payload.get("details") or {}).get("watchdog"):
+                watchdog_snapshots.append(payload)
+        return path
+
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    monkeypatch.setattr(hb_parallel_runner, "write_progress", _capturing_write_progress)
+    monkeypatch.setattr(hb_parallel_runner, "TASKS", [{"name": "full_ic", "label": "Full IC", "cmd": ["python", "scripts/full_ic.py"]}])
+    monkeypatch.setattr(hb_parallel_runner, "parse_args", lambda argv=None: Args())
+    monkeypatch.setattr(hb_parallel_runner, "resolve_run_label", lambda args: "watchdog")
+    monkeypatch.setattr(hb_parallel_runner, "run_collect_step", lambda skip=False: {"attempted": False, "success": True, "returncode": 0, "stdout": "", "stderr": ""})
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "quick_counts",
+        lambda: {
+            "raw_market_data": 1,
+            "features_normalized": 1,
+            "labels": 1,
+            "simulated_pyramid_win_rate": 0.5,
+            "latest_raw_timestamp": "2026-04-15 00:00:00",
+            "label_horizons": [],
+        },
+    )
+    monkeypatch.setattr(hb_parallel_runner, "collect_source_blockers", lambda: {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []})
+    monkeypatch.setattr(hb_parallel_runner, "print_source_blockers", lambda payload: None)
+    monkeypatch.setattr(hb_parallel_runner, "refresh_train_prerequisites", lambda needs_train: {})
+    monkeypatch.setattr(hb_parallel_runner.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
+    monkeypatch.setattr(hb_parallel_runner.concurrent.futures, "wait", _fake_wait)
+    monkeypatch.setattr(hb_parallel_runner, "collect_ic_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_recent_drift_report", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_recent_drift_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q35_scaling_audit", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q35_scaling_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_predict_probe", lambda: _ok("{}"))
+    monkeypatch.setattr(hb_parallel_runner, "_persist_live_predictor_probe", lambda stdout: None)
+    monkeypatch.setattr(hb_parallel_runner, "collect_live_predictor_diagnostics", lambda result: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_live_decision_quality_drilldown", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_circuit_breaker_audit", lambda run_label: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_circuit_breaker_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_feature_group_ablation", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_feature_ablation_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_bull_4h_pocket_ablation", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_bull_4h_pocket_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_leaderboard_candidate_probe", lambda run_label=None: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_support_audit", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_bucket_root_cause", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_bucket_root_cause_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_boundary_replay", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_boundary_replay_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_auto_propose", lambda run_label=None: _ok())
+
+    hb_parallel_runner.main(["--fast", "--hb", "watchdog"])
+
+    assert watchdog_snapshots, "expected at least one parallel watchdog snapshot"
+    watchdog = watchdog_snapshots[0]["details"]["watchdog"]
+    assert watchdog["heartbeat_count"] == 1
+    assert watchdog["pending_tasks"] == ["full_ic"]
+
+
+
 def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
@@ -1684,6 +1915,7 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
                         "verdict": "dual_role_governance_active",
                         "current_closure": "global_ranking_vs_support_aware_production_split",
                         "treat_as_parity_blocker": False,
+                        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
                     },
                     "leaderboard_snapshot_created_at": "2026-04-14T06:51:24Z",
                     "alignment_evaluated_at": "2026-04-14T12:40:00Z",
@@ -1731,6 +1963,8 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
     assert diag["profile_split"]["verdict"] == "dual_role_required"
     assert diag["governance_contract"]["verdict"] == "dual_role_governance_active"
     assert diag["governance_contract"]["current_closure"] == "global_ranking_vs_support_aware_production_split"
+    assert diag["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
+    assert diag["governance_current_closure"] == "global_ranking_vs_support_aware_production_split"
     assert diag["train_selected_profile"] == "core_plus_macro"
     assert diag["current_alignment_inputs_stale"] is False
     assert diag["current_alignment_recency"]["inputs_current"] is True
@@ -1741,6 +1975,73 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
     assert diag["support_progress"]["status"] == "stalled_under_minimum"
     assert diag["support_progress"]["escalate_to_blocker"] is True
     assert diag["blocked_candidate_profiles"][0]["blocker_reason"] == "unsupported_exact_live_structure_bucket"
+
+
+def test_collect_leaderboard_candidate_diagnostics_surfaces_train_contract_stale_state(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "leaderboard_feature_profile_probe.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-15T23:02:01Z",
+                "target_col": "simulated_pyramid_win",
+                "leaderboard_count": 8,
+                "top_model": {
+                    "selected_feature_profile": "core_plus_4h",
+                    "selected_feature_profile_source": "feature_group_ablation.recommended_profile",
+                    "selected_feature_profile_blocker_applied": False,
+                    "selected_feature_profile_blocker_reason": None,
+                },
+                "alignment": {
+                    "dual_profile_state": "train_exact_supported_profile_stale_under_minimum",
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "profile_split": {
+                        "global_profile": "core_plus_4h",
+                        "production_profile": "core_plus_macro_plus_4h_structure_shift",
+                        "verdict": "dual_role_required",
+                    },
+                    "governance_contract": {
+                        "verdict": "train_profile_contract_stale_against_current_support",
+                        "current_closure": "train_still_claims_exact_supported_profile_but_live_bucket_under_minimum",
+                        "recommended_action": "rerun train",
+                        "treat_as_parity_blocker": False,
+                        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    },
+                    "current_alignment_recency": {"inputs_current": True},
+                    "artifact_recency": {"alignment_snapshot_stale": False},
+                    "global_recommended_profile": "core_plus_4h",
+                    "train_selected_profile": "core_plus_macro_plus_4h_structure_shift",
+                    "train_selected_profile_source": "bull_4h_pocket_ablation.exact_supported_profile",
+                    "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "live_current_structure_bucket_rows": 9,
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_gap_to_minimum": 41,
+                    "support_progress": {
+                        "status": "regressed_under_minimum",
+                        "delta_vs_previous": -1,
+                    },
+                    "exact_bucket_root_cause": "exact_bucket_present_but_below_minimum",
+                    "support_blocker_state": "exact_lane_proxy_fallback_only",
+                    "proxy_boundary_verdict": "proxy_governance_reference_only_exact_support_blocked",
+                    "blocked_candidate_profiles": [],
+                },
+            }
+        )
+    )
+
+    diag = hb_parallel_runner.collect_leaderboard_candidate_diagnostics()
+
+    assert diag["dual_profile_state"] == "train_exact_supported_profile_stale_under_minimum"
+    assert diag["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
+    assert diag["governance_contract"]["verdict"] == "train_profile_contract_stale_against_current_support"
+    assert diag["governance_current_closure"] == "train_still_claims_exact_supported_profile_but_live_bucket_under_minimum"
+    assert diag["governance_recommended_action"] == "rerun train"
+    assert diag["exact_bucket_root_cause"] == "exact_bucket_present_but_below_minimum"
+    assert diag["support_blocker_state"] == "exact_lane_proxy_fallback_only"
+    assert diag["proxy_boundary_verdict"] == "proxy_governance_reference_only_exact_support_blocked"
+    assert diag["support_progress"]["status"] == "regressed_under_minimum"
+    assert diag["support_progress"]["delta_vs_previous"] == -1
 
 
 def test_refresh_train_prerequisites_runs_both_artifacts_when_train_is_needed(monkeypatch):

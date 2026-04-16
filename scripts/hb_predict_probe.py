@@ -52,6 +52,21 @@ def main() -> None:
             for lag in LAG_STEPS
             if latest.get(f"{col}_lag{lag}") is not None
         }
+        scope_diagnostics = result.get("decision_quality_scope_diagnostics") or {}
+        exact_scope = scope_diagnostics.get("regime_label+regime_gate+entry_quality_label") or {}
+        blocker_details = result.get("deployment_blocker_details") or {}
+        current_live_structure_bucket = (
+            result.get("decision_quality_live_structure_bucket")
+            or exact_scope.get("current_live_structure_bucket")
+            or result.get("structure_bucket")
+        )
+        current_live_structure_bucket_rows = (
+            result.get("decision_quality_exact_live_structure_bucket_support_rows")
+            or blocker_details.get("exact_live_structure_bucket_rows")
+            or blocker_details.get("current_live_structure_bucket_rows")
+            or exact_scope.get("current_live_structure_bucket_rows")
+        )
+
         probe = {
             "db_url": DB_URL,
             "feature_timestamp": str(latest.get("timestamp")),
@@ -64,17 +79,32 @@ def main() -> None:
             "reason": result.get("reason"),
             "streak": result.get("streak"),
             "win_rate": result.get("win_rate"),
+            "recent_window_win_rate": result.get("recent_window_win_rate"),
+            "recent_window_wins": result.get("recent_window_wins"),
+            "window_size": result.get("window_size"),
+            "triggered_by": result.get("triggered_by"),
+            "horizon_minutes": result.get("horizon_minutes"),
             "regime_label": result.get("regime_label") or latest.get("regime_label"),
             "model_route_regime": result.get("model_route_regime"),
             "regime_gate": result.get("regime_gate"),
+            "structure_bucket": result.get("structure_bucket"),
+            "current_live_structure_bucket": current_live_structure_bucket,
+            "current_live_structure_bucket_rows": current_live_structure_bucket_rows,
             "entry_quality": result.get("entry_quality"),
             "entry_quality_label": result.get("entry_quality_label"),
             "entry_quality_components": result.get("entry_quality_components"),
+            "q35_discriminative_redesign_applied": result.get("q35_discriminative_redesign_applied"),
+            "q35_discriminative_redesign": result.get("q35_discriminative_redesign"),
             "allowed_layers_raw": result.get("allowed_layers_raw"),
+            "allowed_layers_raw_reason": result.get("allowed_layers_raw_reason"),
             "allowed_layers": result.get("allowed_layers"),
             "allowed_layers_reason": result.get("allowed_layers_reason"),
             "execution_guardrail_applied": result.get("execution_guardrail_applied"),
             "execution_guardrail_reason": result.get("execution_guardrail_reason"),
+            "deployment_blocker": result.get("deployment_blocker"),
+            "deployment_blocker_reason": result.get("deployment_blocker_reason"),
+            "deployment_blocker_source": result.get("deployment_blocker_source"),
+            "deployment_blocker_details": result.get("deployment_blocker_details"),
             "decision_quality_horizon_minutes": result.get("decision_quality_horizon_minutes"),
             "decision_quality_calibration_scope": result.get("decision_quality_calibration_scope"),
             "decision_quality_calibration_window": result.get("decision_quality_calibration_window"),

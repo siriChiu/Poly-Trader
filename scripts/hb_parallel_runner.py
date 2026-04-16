@@ -16,6 +16,8 @@ import re
 import sqlite3
 import subprocess
 import sys
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
@@ -32,6 +34,7 @@ from scripts.hb_collect import summarize_label_horizons
 
 PYTHON = os.path.join(PROJECT_ROOT, 'venv', 'bin', 'python')
 DB_PATH = os.path.join(PROJECT_ROOT, 'poly_trader.db')
+_CURRENT_HEARTBEAT_RUN_LABEL: str | None = None
 
 TASKS = [
     {"name": "full_ic", "label": "🔍 Full IC", "cmd": [PYTHON, "scripts/full_ic.py"]},
@@ -72,20 +75,144 @@ def resolve_run_label(args) -> str:
     return args.hb or "fast"
 
 
+def _tail_lines(lines: list[str], limit: int = 5) -> list[str]:
+    if limit <= 0:
+        return []
+    return [line for line in lines[-limit:] if line.strip()]
+
+
+class _StreamCollector(threading.Thread):
+    def __init__(self, stream, sink: list[str]):
+        super().__init__(daemon=True)
+        self._stream = stream
+        self._sink = sink
+
+    def run(self) -> None:
+        try:
+            for line in iter(self._stream.readline, ""):
+                if line == "":
+                    break
+                self._sink.append(line)
+        finally:
+            try:
+                self._stream.close()
+            except Exception:
+                pass
+
+
+def _run_command_with_watchdog(
+    cmd: list[str],
+    *,
+    timeout: int = 600,
+    extra_env: Dict[str, str] | None = None,
+    progress: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    env = {**os.environ, "PYTHONPATH": PROJECT_ROOT}
+    if extra_env:
+        env.update(extra_env)
+
+    heartbeat_interval = int((progress or {}).get("heartbeat_interval_seconds", 15))
+    poll_interval = float((progress or {}).get("poll_interval_seconds", 1.0))
+    stdout_lines: list[str] = []
+    stderr_lines: list[str] = []
+    start_monotonic = time.monotonic()
+    next_heartbeat_at = start_monotonic + heartbeat_interval
+    last_output_timestamp = start_monotonic
+    last_output_count = 0
+    heartbeat_count = 0
+
+    process = subprocess.Popen(
+        cmd,
+        cwd=PROJECT_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        bufsize=1,
+    )
+    stdout_thread = _StreamCollector(process.stdout, stdout_lines)
+    stderr_thread = _StreamCollector(process.stderr, stderr_lines)
+    stdout_thread.start()
+    stderr_thread.start()
+
+    try:
+        while True:
+            now = time.monotonic()
+            returncode = process.poll()
+            elapsed = round(now - start_monotonic, 1)
+            total_output_count = len(stdout_lines) + len(stderr_lines)
+            if total_output_count > last_output_count:
+                last_output_timestamp = now
+                last_output_count = total_output_count
+            if returncode is not None:
+                break
+            if elapsed >= timeout:
+                process.kill()
+                stdout_thread.join(timeout=1)
+                stderr_thread.join(timeout=1)
+                stdout = "".join(stdout_lines).strip()
+                stderr = "".join(stderr_lines).strip()
+                return {
+                    "attempted": True,
+                    "success": False,
+                    "returncode": -1,
+                    "stdout": stdout,
+                    "stderr": (stderr + "\n" if stderr else "") + f"TIMEOUT after {timeout}s",
+                    "command": cmd,
+                }
+
+            if progress and now >= next_heartbeat_at:
+                heartbeat_count += 1
+                seconds_since_output = round(max(0.0, now - last_output_timestamp), 1)
+                write_progress(
+                    progress["run_label"],
+                    progress["stage"],
+                    details={
+                        **(progress.get("details") or {}),
+                        "command": cmd,
+                        "pid": process.pid,
+                        "elapsed_seconds": elapsed,
+                        "heartbeat_count": heartbeat_count,
+                        "stdout_line_count": len(stdout_lines),
+                        "stderr_line_count": len(stderr_lines),
+                        "stdout_tail": _tail_lines(stdout_lines),
+                        "stderr_tail": _tail_lines(stderr_lines),
+                        "seconds_since_new_output": seconds_since_output,
+                    },
+                )
+                print(
+                    f"⏱️  {progress.get('label', progress['stage'])} 執行中："
+                    f"elapsed={elapsed}s pid={process.pid} "
+                    f"stdout={len(stdout_lines)} stderr={len(stderr_lines)} "
+                    f"silence={seconds_since_output}s"
+                )
+                next_heartbeat_at = now + heartbeat_interval
+            time.sleep(poll_interval)
+    finally:
+        stdout_thread.join(timeout=1)
+        stderr_thread.join(timeout=1)
+
+    stdout = "".join(stdout_lines).strip()
+    stderr = "".join(stderr_lines).strip()
+    return {
+        "attempted": True,
+        "success": process.returncode == 0,
+        "returncode": process.returncode,
+        "stdout": stdout,
+        "stderr": stderr,
+        "command": cmd,
+    }
+
+
 def run_task(task):
     try:
-        env = {**os.environ, "PYTHONPATH": PROJECT_ROOT}
-        result = subprocess.run(
-            task["cmd"],
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=600,
-            env=env,
+        result = _run_command_with_watchdog(task["cmd"], timeout=600)
+        return (
+            task["name"],
+            result["success"],
+            (result.get("stdout") or "").strip(),
+            (result.get("stderr") or "").strip(),
         )
-        return (task["name"], result.returncode == 0, result.stdout.strip(), result.stderr.strip())
-    except subprocess.TimeoutExpired:
-        return (task["name"], False, "", "TIMEOUT after 600s")
     except Exception as e:
         return (task["name"], False, "", str(e))
 
@@ -124,7 +251,7 @@ def quick_counts():
     return results
 
 
-def run_collect_step(skip: bool = False) -> Dict[str, Any]:
+def run_collect_step(skip: bool = False, run_label: str | None = None) -> Dict[str, Any]:
     if skip:
         return {
             "attempted": False,
@@ -135,33 +262,18 @@ def run_collect_step(skip: bool = False) -> Dict[str, Any]:
             "command": COLLECT_CMD,
         }
 
-    env = {**os.environ, "PYTHONPATH": PROJECT_ROOT}
     try:
-        result = subprocess.run(
+        effective_run_label = run_label or _CURRENT_HEARTBEAT_RUN_LABEL or "adhoc"
+        return _run_command_with_watchdog(
             COLLECT_CMD,
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True,
             timeout=600,
-            env=env,
+            progress={
+                "run_label": effective_run_label,
+                "stage": "collect",
+                "label": "hb_collect",
+                "details": {"command_kind": "collect"},
+            },
         )
-        return {
-            "attempted": True,
-            "success": result.returncode == 0,
-            "stdout": result.stdout.strip(),
-            "stderr": result.stderr.strip(),
-            "returncode": result.returncode,
-            "command": COLLECT_CMD,
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            "attempted": True,
-            "success": False,
-            "stdout": "",
-            "stderr": "TIMEOUT after 600s",
-            "returncode": -1,
-            "command": COLLECT_CMD,
-        }
     except Exception as exc:
         return {
             "attempted": True,
@@ -198,36 +310,29 @@ def collect_ic_diagnostics() -> Dict[str, Any]:
     }
 
 
-def _run_serial_command(cmd: list[str], timeout: int = 600, extra_env: Dict[str, str] | None = None) -> Dict[str, Any]:
-    env = {**os.environ, "PYTHONPATH": PROJECT_ROOT}
-    if extra_env:
-        env.update(extra_env)
+def _run_serial_command(
+    cmd: list[str],
+    timeout: int = 600,
+    extra_env: Dict[str, str] | None = None,
+    *,
+    progress: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    effective_progress = progress
+    if effective_progress is None and _CURRENT_HEARTBEAT_RUN_LABEL:
+        command_name = Path(cmd[1]).stem if len(cmd) > 1 else Path(cmd[0]).stem
+        effective_progress = {
+            "run_label": _CURRENT_HEARTBEAT_RUN_LABEL,
+            "stage": command_name,
+            "label": command_name,
+            "details": {"command_kind": "serial_command"},
+        }
     try:
-        result = subprocess.run(
+        return _run_command_with_watchdog(
             cmd,
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True,
             timeout=timeout,
-            env=env,
+            extra_env=extra_env,
+            progress=effective_progress,
         )
-        return {
-            "attempted": True,
-            "success": result.returncode == 0,
-            "returncode": result.returncode,
-            "stdout": result.stdout.strip(),
-            "stderr": result.stderr.strip(),
-            "command": cmd,
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            "attempted": True,
-            "success": False,
-            "returncode": -1,
-            "stdout": "",
-            "stderr": f"TIMEOUT after {timeout}s",
-            "command": cmd,
-        }
     except Exception as exc:
         return {
             "attempted": True,
@@ -344,6 +449,31 @@ def compute_bridge_fallback_streak(current_meta: Dict[str, Any], summaries_dir: 
     return streak
 
 
+def progress_artifact_path(run_label: str) -> Path:
+    return Path(PROJECT_ROOT) / "data" / f"heartbeat_{run_label}_progress.json"
+
+
+def write_progress(
+    run_label: str,
+    stage: str,
+    *,
+    status: str = "running",
+    details: Dict[str, Any] | None = None,
+) -> Path:
+    path = progress_artifact_path(run_label)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "heartbeat": run_label,
+        "stage": stage,
+        "status": status,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "pid": os.getpid(),
+        "details": details or {},
+    }
+    path.write_text(json.dumps(payload, indent=2, default=str))
+    return path
+
+
 def save_summary(
     run_label,
     counts,
@@ -365,6 +495,7 @@ def save_summary(
     bull_4h_pocket_ablation=None,
     leaderboard_candidate_diagnostics=None,
     auto_propose_result=None,
+    progress_path=None,
 ):
     passed = sum(1 for r in results.values() if r["success"])
     total = len(results)
@@ -372,6 +503,13 @@ def save_summary(
     if continuity_repair:
         continuity_repair = {**continuity_repair, "heartbeat": run_label}
         continuity_repair["bridge_fallback_streak"] = compute_bridge_fallback_streak(continuity_repair)
+
+    runtime_progress_snapshot = {}
+    if progress_path:
+        try:
+            runtime_progress_snapshot = json.loads(Path(progress_path).read_text())
+        except Exception:
+            runtime_progress_snapshot = {}
 
     summary = {
         "heartbeat": run_label,
@@ -405,6 +543,10 @@ def save_summary(
             "returncode": (auto_propose_result or {}).get("returncode", 0),
             "stdout_preview": (auto_propose_result or {}).get("stdout", "")[:2000],
             "stderr_preview": (auto_propose_result or {}).get("stderr", "")[:1000],
+        },
+        "runtime_progress": {
+            "path": str(progress_path) if progress_path else None,
+            "snapshot": runtime_progress_snapshot,
         },
         "parallel_results": {},
         "stats": {"passed": passed, "total": total, "elapsed_seconds": round(elapsed, 1)},
@@ -520,6 +662,7 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "entry_quality_label": payload.get("entry_quality_label"),
         "entry_quality_components": payload.get("entry_quality_components") or {},
         "allowed_layers_raw": payload.get("allowed_layers_raw"),
+        "allowed_layers_raw_reason": payload.get("allowed_layers_raw_reason") or payload.get("allowed_layers_reason"),
         "allowed_layers": payload.get("allowed_layers"),
         "allowed_layers_reason": payload.get("allowed_layers_reason"),
         "execution_guardrail_applied": payload.get("execution_guardrail_applied"),
@@ -965,6 +1108,7 @@ def collect_leaderboard_candidate_diagnostics() -> Dict[str, Any]:
     top_model = payload.get("top_model") or {}
     alignment = payload.get("alignment") or {}
     blocked_candidates = alignment.get("blocked_candidate_profiles") or []
+    governance_contract = alignment.get("governance_contract") or {}
     return {
         "generated_at": payload.get("generated_at"),
         "target_col": payload.get("target_col"),
@@ -975,7 +1119,13 @@ def collect_leaderboard_candidate_diagnostics() -> Dict[str, Any]:
         "selected_feature_profile_blocker_reason": top_model.get("selected_feature_profile_blocker_reason"),
         "dual_profile_state": alignment.get("dual_profile_state"),
         "profile_split": alignment.get("profile_split") or {},
-        "governance_contract": alignment.get("governance_contract") or {},
+        "governance_contract": governance_contract,
+        "support_governance_route": alignment.get("support_governance_route") or governance_contract.get("support_governance_route"),
+        "governance_current_closure": governance_contract.get("current_closure"),
+        "governance_recommended_action": governance_contract.get("recommended_action"),
+        "exact_bucket_root_cause": alignment.get("exact_bucket_root_cause"),
+        "support_blocker_state": alignment.get("support_blocker_state"),
+        "proxy_boundary_verdict": alignment.get("proxy_boundary_verdict"),
         "leaderboard_snapshot_created_at": alignment.get("leaderboard_snapshot_created_at"),
         "alignment_evaluated_at": alignment.get("alignment_evaluated_at"),
         "current_alignment_inputs_stale": alignment.get("current_alignment_inputs_stale"),
@@ -1044,8 +1194,22 @@ def print_source_blockers(source_blockers: Dict[str, Any]) -> None:
 
 
 def main(argv=None):
+    global _CURRENT_HEARTBEAT_RUN_LABEL
     args = parse_args(argv)
     run_label = resolve_run_label(args)
+    _CURRENT_HEARTBEAT_RUN_LABEL = run_label
+    progress_path = write_progress(
+        run_label,
+        "collect",
+        details={
+            "mode": "fast" if args.fast else "full",
+            "tasks_requested": [task["name"] for task in TASKS],
+            "fast": bool(args.fast),
+            "no_collect": bool(args.no_collect),
+            "no_train": bool(args.no_train),
+            "no_dw": bool(args.no_dw),
+        },
+    )
 
     collect_result = run_collect_step(skip=args.no_collect)
     if collect_result.get("attempted"):
@@ -1072,6 +1236,14 @@ def main(argv=None):
             if continuity_repair.get("used_bridge"):
                 print("⚠️  本輪 collect 觸發了插值 bridge fallback")
 
+    write_progress(
+        run_label,
+        "counts_and_source_blockers",
+        details={
+            "collect_attempted": collect_result.get("attempted", False),
+            "collect_success": collect_result.get("success", False),
+        },
+    )
     counts = quick_counts()
     source_blockers = collect_source_blockers()
     print(
@@ -1095,6 +1267,14 @@ def main(argv=None):
         tasks = [t for t in tasks if t["name"] in ["full_ic", "regime_ic"]]
 
     needs_train = any(t["name"] == "train" for t in tasks)
+    write_progress(
+        run_label,
+        "preflight",
+        details={
+            "task_names": [task["name"] for task in tasks],
+            "needs_train": needs_train,
+        },
+    )
     preflight = refresh_train_prerequisites(needs_train)
     feature_ablation_result = preflight.get("feature_ablation_result")
     feature_ablation_summary = preflight.get("feature_ablation_summary") or {}
@@ -1128,14 +1308,85 @@ def main(argv=None):
 
     print(f"心跳 #{run_label} 平行執行 — {len(tasks)} 個 tasks（{'fast' if args.fast else 'full'} 模式）")
     start = datetime.now()
+    start_monotonic = time.monotonic()
     results = {}
+    task_names = [task["name"] for task in tasks]
+    write_progress(
+        run_label,
+        "parallel_tasks",
+        details={
+            "task_names": task_names,
+            "completed": [],
+            "pending": task_names,
+            "passed": 0,
+            "failed": 0,
+            "elapsed_seconds": 0.0,
+        },
+    )
     with concurrent.futures.ProcessPoolExecutor(max_workers=min(len(tasks), 5)) as ex:
         future_to_name = {ex.submit(run_task, t): t["name"] for t in tasks}
-        for future in concurrent.futures.as_completed(future_to_name):
-            name = future_to_name[future]
-            _, ok, out, err = future.result()
-            results[name] = {"success": ok, "stdout": out, "stderr": err}
-            print(f"  [{'✅' if ok else '❌'}] {name}")
+        pending_futures = set(future_to_name)
+        last_completion_at = start_monotonic
+        watchdog_heartbeats = 0
+        while pending_futures:
+            done, pending_futures = concurrent.futures.wait(
+                pending_futures,
+                timeout=15,
+                return_when=concurrent.futures.FIRST_COMPLETED,
+            )
+            if not done:
+                watchdog_heartbeats += 1
+                elapsed_seconds = round(time.monotonic() - start_monotonic, 1)
+                since_last_completion = round(time.monotonic() - last_completion_at, 1)
+                pending_names = [future_to_name[future] for future in pending_futures]
+                write_progress(
+                    run_label,
+                    "parallel_tasks",
+                    details={
+                        "task_names": task_names,
+                        "completed": list(results.keys()),
+                        "pending": pending_names,
+                        "passed": sum(1 for result in results.values() if result["success"]),
+                        "failed": sum(1 for result in results.values() if not result["success"]),
+                        "elapsed_seconds": elapsed_seconds,
+                        "watchdog": {
+                            "heartbeat_count": watchdog_heartbeats,
+                            "seconds_since_last_completion": since_last_completion,
+                            "pending_tasks": pending_names,
+                        },
+                    },
+                )
+                print(
+                    "⏱️  parallel watchdog："
+                    f"elapsed={elapsed_seconds}s pending={','.join(pending_names)} "
+                    f"since_last_completion={since_last_completion}s"
+                )
+                continue
+            for future in done:
+                name = future_to_name[future]
+                _, ok, out, err = future.result()
+                results[name] = {"success": ok, "stdout": out, "stderr": err}
+                last_completion_at = time.monotonic()
+                completed = list(results.keys())
+                write_progress(
+                    run_label,
+                    "parallel_tasks",
+                    details={
+                        "task_names": task_names,
+                        "completed": completed,
+                        "pending": [future_to_name[pending] for pending in pending_futures],
+                        "passed": sum(1 for result in results.values() if result["success"]),
+                        "failed": sum(1 for result in results.values() if not result["success"]),
+                        "last_completed_task": name,
+                        "last_completed_success": ok,
+                        "elapsed_seconds": round(time.monotonic() - start_monotonic, 1),
+                        "watchdog": {
+                            "heartbeat_count": watchdog_heartbeats,
+                            "seconds_since_last_completion": 0.0,
+                        },
+                    },
+                )
+                print(f"  [{'✅' if ok else '❌'}] {name}")
 
     elapsed = (datetime.now() - start).total_seconds()
     passed = sum(1 for r in results.values() if r["success"])
@@ -1165,6 +1416,7 @@ def main(argv=None):
             f"TW-IC={ic_diagnostics.get('tw_pass')}/{ic_diagnostics.get('total_features')}"
         )
 
+    write_progress(run_label, "recent_drift_report")
     drift_report_result = run_recent_drift_report()
     drift_diagnostics = collect_recent_drift_diagnostics()
     print(
@@ -1200,6 +1452,7 @@ def main(argv=None):
     # run q35 audit BEFORE the public live probe so the audit can establish the latest
     # current-row runtime truth first. Otherwise the runner can snapshot a pre-audit
     # probe state and leak stale q35 redesign fields into the heartbeat summary.
+    write_progress(run_label, "q35_scaling_audit")
     q35_scaling_result = run_q35_scaling_audit()
     q35_scaling_summary: Dict[str, Any] = collect_q35_scaling_audit_diagnostics()
     print(
@@ -1270,6 +1523,7 @@ def main(argv=None):
             f"redesign_pos_gap={redesign_machine_read.get('positive_discriminative_gap')}"
         )
 
+    write_progress(run_label, "live_predict_probe")
     predict_probe_result = run_predict_probe()
     _persist_live_predictor_probe(predict_probe_result.get("stdout", ""))
     live_predictor_diagnostics = collect_live_predictor_diagnostics(predict_probe_result)
@@ -1317,6 +1571,7 @@ def main(argv=None):
             f"{extra}"
         )
 
+    write_progress(run_label, "live_decision_drilldown")
     live_drilldown_result = run_live_decision_quality_drilldown()
     live_drilldown_summary: Dict[str, Any] = {}
     print(
@@ -1354,6 +1609,7 @@ def main(argv=None):
     q15_boundary_replay_result: Dict[str, Any] = {}
     q15_boundary_replay_summary: Dict[str, Any] = {}
 
+    write_progress(run_label, "circuit_breaker_audit")
     circuit_breaker_audit_result = run_circuit_breaker_audit(run_label)
     circuit_breaker_audit_summary: Dict[str, Any] = collect_circuit_breaker_audit_diagnostics()
     print(
@@ -1433,6 +1689,7 @@ def main(argv=None):
             f"current_bucket_rows={live_context.get('current_live_structure_bucket_rows')}"
         )
 
+    write_progress(run_label, "leaderboard_candidate_probe")
     leaderboard_probe_result = run_leaderboard_candidate_probe(run_label)
     leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
     print(
@@ -1455,18 +1712,24 @@ def main(argv=None):
             if row.get("feature_profile")
         )
         current_alignment = leaderboard_candidate_diagnostics.get("current_alignment_recency") or {}
+        support_progress = leaderboard_candidate_diagnostics.get("support_progress") or {}
         print(
             "🏁 Candidate 對齊："
             f"leaderboard={leaderboard_candidate_diagnostics.get('selected_feature_profile')} "
             f"train={leaderboard_candidate_diagnostics.get('train_selected_profile')} "
             f"global={leaderboard_candidate_diagnostics.get('global_recommended_profile')} "
             f"state={leaderboard_candidate_diagnostics.get('dual_profile_state')} "
+            f"route={leaderboard_candidate_diagnostics.get('support_governance_route')} "
+            f"governance={((leaderboard_candidate_diagnostics.get('governance_contract') or {}).get('verdict'))} "
+            f"closure={leaderboard_candidate_diagnostics.get('governance_current_closure')} "
+            f"support={support_progress.get('status')} Δ={support_progress.get('delta_vs_previous')} "
             f"runtime_inputs_current={current_alignment.get('inputs_current')} "
             f"snapshot_stale={(leaderboard_candidate_diagnostics.get('artifact_recency') or {}).get('alignment_snapshot_stale')} "
             f"live_bucket_rows={leaderboard_candidate_diagnostics.get('live_current_structure_bucket_rows')}"
             f" blocked={blocked_text or 'none'}"
         )
 
+    write_progress(run_label, "q15_support_audit")
     q15_support_result = run_q15_support_audit()
     q15_support_summary = collect_q15_support_audit_diagnostics()
     print(
@@ -1498,6 +1761,7 @@ def main(argv=None):
             f"layers>0={experiment_answer.get('allowed_layers_gt_0')}"
         )
 
+    write_progress(run_label, "q15_bucket_root_cause")
     q15_bucket_root_cause_result = run_q15_bucket_root_cause()
     q15_bucket_root_cause_summary = collect_q15_bucket_root_cause_diagnostics()
     print(
@@ -1522,6 +1786,7 @@ def main(argv=None):
             f"near_boundary_rows={lane.get('near_boundary_rows')}"
         )
 
+    write_progress(run_label, "q15_boundary_replay")
     q15_boundary_replay_result = run_q15_boundary_replay()
     q15_boundary_replay_summary = collect_q15_boundary_replay_diagnostics()
     print(
@@ -1548,6 +1813,7 @@ def main(argv=None):
             f"layers_after={counterfactual.get('allowed_layers_after')}"
         )
 
+    write_progress(run_label, "auto_propose")
     auto_propose_result = run_auto_propose(run_label)
     print(
         f"🛠️  自動修復建議：{'通過' if auto_propose_result['success'] else '失敗'} "
@@ -1562,7 +1828,7 @@ def main(argv=None):
     if auto_propose_result.get("stderr"):
         print(f"\n--- auto_propose_fixes stderr ---\n{auto_propose_result['stderr']}")
 
-    _, summary_path = save_summary(
+    summary, summary_path = save_summary(
         run_label,
         counts,
         source_blockers,
@@ -1583,7 +1849,39 @@ def main(argv=None):
         bull_4h_pocket_ablation=bull_pocket_summary,
         leaderboard_candidate_diagnostics=leaderboard_candidate_diagnostics,
         auto_propose_result=auto_propose_result,
+        progress_path=progress_path,
     )
+    final_status = "success"
+    serial_results = [
+        drift_report_result,
+        q35_scaling_result,
+        predict_probe_result,
+        live_drilldown_result,
+        circuit_breaker_audit_result,
+        leaderboard_probe_result,
+        q15_support_result,
+        q15_bucket_root_cause_result,
+        q15_boundary_replay_result,
+        auto_propose_result,
+    ]
+    if not collect_result.get("success", True):
+        final_status = "failed"
+    elif any(not result.get("success") for result in results.values()):
+        final_status = "completed_with_failures"
+    elif any(not result.get("success", True) for result in serial_results if result is not None):
+        final_status = "completed_with_failures"
+    write_progress(
+        run_label,
+        "finished",
+        status=final_status,
+        details={
+            "summary_path": str(summary_path),
+            "mode": summary.get("mode"),
+            "stats": summary.get("stats") or {},
+            "collect_success": collect_result.get("success", False),
+        },
+    )
+    _CURRENT_HEARTBEAT_RUN_LABEL = None
     print(f"\n📄 摘要已儲存：{os.path.relpath(summary_path, PROJECT_ROOT)}")
 
 

@@ -76,7 +76,24 @@ def _runtime_blocker_summary(payload: dict[str, Any]) -> dict[str, Any] | None:
         "reason": payload.get("reason"),
         "streak": payload.get("streak"),
         "win_rate": payload.get("win_rate"),
+        "recent_window_win_rate": payload.get("recent_window_win_rate"),
+        "recent_window_wins": payload.get("recent_window_wins"),
+        "window_size": payload.get("window_size"),
+        "triggered_by": payload.get("triggered_by") or [],
+        "horizon_minutes": payload.get("horizon_minutes"),
         "allowed_layers": payload.get("allowed_layers"),
+    }
+
+
+def _deployment_blocker_summary(payload: dict[str, Any]) -> dict[str, Any] | None:
+    blocker_type = payload.get("deployment_blocker")
+    if not blocker_type:
+        return None
+    return {
+        "type": blocker_type,
+        "reason": payload.get("deployment_blocker_reason"),
+        "source": payload.get("deployment_blocker_source"),
+        "details": payload.get("deployment_blocker_details") or {},
     }
 
 
@@ -199,6 +216,7 @@ def main() -> None:
     diags = payload.get("decision_quality_scope_diagnostics") or {}
     consensus = diags.get("pathology_consensus") or {}
     runtime_blocker = _runtime_blocker_summary(payload)
+    deployment_blocker = _deployment_blocker_summary(payload)
 
     chosen_scope = str(payload.get("decision_quality_calibration_scope") or "unknown")
     exact_scope_name = "regime_label+regime_gate+entry_quality_label"
@@ -227,7 +245,9 @@ def main() -> None:
         "entry_quality_components": entry_quality_components,
         "component_gap_attribution": component_gap_attribution,
         "runtime_blocker": runtime_blocker,
+        "deployment_blocker": deployment_blocker,
         "allowed_layers_raw": payload.get("allowed_layers_raw"),
+        "allowed_layers_raw_reason": payload.get("allowed_layers_raw_reason"),
         "allowed_layers": payload.get("allowed_layers"),
         "allowed_layers_reason": payload.get("allowed_layers_reason"),
         "execution_guardrail_reason": payload.get("execution_guardrail_reason"),
@@ -282,9 +302,11 @@ def main() -> None:
         f"- live path: **{report['regime_label']} / {report['regime_gate']} / {report['entry_quality_label']}**",
         f"- signal: **{report['signal']}** @ confidence **{report['confidence']:.4f}**",
         f"- layers: **{report['allowed_layers_raw']} → {report['allowed_layers']}**",
+        f"- allowed_layers_raw_reason: `{report['allowed_layers_raw_reason']}`",
         f"- allowed_layers_reason: `{report['allowed_layers_reason']}`",
         f"- execution_guardrail_reason: `{report['execution_guardrail_reason']}`",
         f"- runtime_blocker: `{(runtime_blocker or {}).get('type')}` | reason: `{(runtime_blocker or {}).get('reason')}`",
+        f"- deployment_blocker: `{(deployment_blocker or {}).get('type')}` | reason: `{(deployment_blocker or {}).get('reason')}`",
         "",
         "## Entry-quality component breakdown",
         "",
@@ -320,6 +342,7 @@ def main() -> None:
         "## Interpretation",
         "",
         "- if `runtime_blocker.type=circuit_breaker`, the current live row is blocked before the decision-quality contract is evaluated; treat q35/q15 diagnostics as background research, not deployable live routing.",
+        "- if `deployment_blocker.type=bull_q35_no_deploy_governance`, the current bull q35 lane is exact-supported but still not deployable because only non-discriminative unsafe reweight can cross the floor; do not describe it as simple support shortage or generic floor gap.",
         "- exact live lane and chosen scope are separated on purpose: if exact lane is tiny or lacks current structure-bucket support, runtime must not trust it blindly.",
         "- broader same-gate scope is still useful only as a structure-bucket fallback, not as the primary semantic representative of the live bull path.",
         "- if the shared shift set remains dominated by `feat_4h_dist_swing_low / feat_4h_dist_bb_lower / feat_4h_bb_pct_b`, the next fix should stay on 4H structure collapse rather than generic calibration tuning.",
@@ -334,6 +357,8 @@ def main() -> None:
         "worst_pathology_scope": worst.get("scope"),
         "runtime_blocker": (runtime_blocker or {}).get("type"),
         "runtime_blocker_reason": (runtime_blocker or {}).get("reason"),
+        "deployment_blocker": (deployment_blocker or {}).get("type"),
+        "deployment_blocker_reason": (deployment_blocker or {}).get("reason"),
         "remaining_gap_to_floor": gap_attr.get("remaining_gap_to_floor"),
         "best_single_component": (best_component.get("feature") if best_component else None),
         "best_single_component_required_score_delta": (best_component.get("required_score_delta_to_cross_floor") if best_component else None),
