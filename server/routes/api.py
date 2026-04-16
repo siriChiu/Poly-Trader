@@ -25,7 +25,7 @@ from server.dependencies import (
     set_runtime_status,
 )
 from server.features_engine import get_engine
-from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized
+from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized, OrderLifecycleEvent
 from feature_engine.feature_history_policy import (
     FEATURE_KEY_MAP,
     assess_feature_quality,
@@ -55,6 +55,7 @@ _EXECUTION_METADATA_EXTERNAL_MONITOR_PATH = Path(__file__).resolve().parents[2] 
 _EXECUTION_METADATA_EXTERNAL_MONITOR_INSTALL_CONTRACT_PATH = (
     Path(__file__).resolve().parents[2] / "data" / "execution_metadata_external_monitor_install_contract.json"
 )
+_Q15_SUPPORT_AUDIT_PATH = Path(__file__).resolve().parents[2] / "data" / "q15_support_audit.json"
 _EXECUTION_METADATA_EXTERNAL_MONITOR_COMMAND = (
     f"cd {Path(__file__).resolve().parents[2]} && "
     f"{Path(__file__).resolve().parents[2] / 'venv' / 'bin' / 'python'} "
@@ -115,9 +116,10 @@ def _interval_ms(interval: str) -> int:
 def _iso_utc_timestamp(value: Any) -> Optional[str]:
     if value is None:
         return None
-    if isinstance(value, datetime):
-        dt = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    if isinstance(value, (datetime, int, float)):
+        dt = _parse_utc_datetime(value)
+        if dt is not None:
+            return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     text = str(value).strip()
     if not text:
         return None
@@ -154,11 +156,138 @@ def _build_cache_key(*parts: Any) -> str:
     return "::".join(str(part) for part in parts)
 
 
+def _strategy_decision_contract_meta(*, horizon_minutes: int = 1440) -> Dict[str, Any]:
+    return {
+        "target_col": "simulated_pyramid_win",
+        "target_label": "Simulated Pyramid Win",
+        "sort_semantics": "higher_decision_quality_is_better",
+        "decision_quality_horizon_minutes": int(horizon_minutes),
+    }
+
+
+def _compute_decision_profile(trades: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if not trades:
+        return {
+            "avg_entry_quality": None,
+            "avg_allowed_layers": 0.0,
+            "avg_trade_quality": None,
+            "dominant_regime_gate": None,
+        }
+
+    entry_quality_vals = [
+        float(t["entry_quality"])
+        for t in trades
+        if t.get("entry_quality") is not None
+    ]
+    allowed_layers_vals = [
+        float(t["allowed_layers"])
+        for t in trades
+        if t.get("allowed_layers") is not None
+    ]
+    pnl_vals = [float(t.get("pnl") or 0.0) for t in trades]
+    pnl_scale = max(max((abs(v) for v in pnl_vals), default=0.0), 1e-9)
+    trade_quality_vals = [0.5 + 0.5 * max(-1.0, min(1.0, pnl / pnl_scale)) for pnl in pnl_vals]
+
+    gate_counts: Dict[str, int] = {}
+    for trade in trades:
+        gate = trade.get("regime_gate")
+        if gate is None:
+            continue
+        gate_counts[str(gate)] = gate_counts.get(str(gate), 0) + 1
+    dominant_regime_gate = None
+    if gate_counts:
+        dominant_regime_gate = max(gate_counts.items(), key=lambda item: (item[1], item[0]))[0]
+
+    return {
+        "avg_entry_quality": None if not entry_quality_vals else round(sum(entry_quality_vals) / len(entry_quality_vals), 4),
+        "avg_allowed_layers": round(sum(allowed_layers_vals) / len(allowed_layers_vals), 4) if allowed_layers_vals else 0.0,
+        "avg_trade_quality": None if not trade_quality_vals else round(sum(trade_quality_vals) / len(trade_quality_vals), 4),
+        "dominant_regime_gate": dominant_regime_gate,
+    }
+
+
+
+def _compute_strategy_decision_quality_profile(
+    trades: List[Dict[str, Any]],
+    db=None,
+    horizon_minutes: int = 1440,
+) -> Dict[str, Any]:
+    if not trades:
+        return {
+            **_strategy_decision_contract_meta(horizon_minutes=horizon_minutes),
+            "avg_expected_win_rate": None,
+            "avg_expected_pyramid_pnl": None,
+            "avg_expected_pyramid_quality": None,
+            "avg_expected_drawdown_penalty": None,
+            "avg_expected_time_underwater": None,
+            "avg_decision_quality_score": None,
+            "decision_quality_label": None,
+            "decision_quality_sample_size": 0,
+        }
+
+    pnl_vals = [float(t.get("pnl") or 0.0) for t in trades]
+    wins = [1.0 if pnl > 0 else 0.0 for pnl in pnl_vals]
+    abs_pnls = [abs(v) for v in pnl_vals]
+    pnl_scale = max(max(abs_pnls, default=0.0), 1e-9)
+    positive_scale = max(max((v for v in pnl_vals if v > 0), default=0.0), 1e-9)
+    negative_scale = max(max((abs(v) for v in pnl_vals if v < 0), default=0.0), 1e-9)
+
+    expected_win_rate = sum(wins) / len(wins)
+    expected_pyramid_pnl = sum(pnl_vals) / len(pnl_vals)
+    expected_pyramid_quality = sum(max(-1.0, min(1.0, pnl / pnl_scale)) for pnl in pnl_vals) / len(pnl_vals)
+    drawdown_penalties = [
+        0.0 if pnl >= 0 else min(abs(pnl) / negative_scale, 1.0)
+        for pnl in pnl_vals
+    ]
+    time_underwater = [
+        max(0.0, min(1.0, 1.0 - float(t.get("entry_quality") or 0.0)))
+        for t in trades
+    ]
+    decision_quality_score = (
+        expected_win_rate * 0.45
+        + max(min(expected_pyramid_quality, 1.0), -1.0) * 0.25
+        + max(min(expected_pyramid_pnl / positive_scale, 1.0), -1.0) * 0.15
+        - (sum(drawdown_penalties) / len(drawdown_penalties)) * 0.10
+        - (sum(time_underwater) / len(time_underwater)) * 0.05
+    )
+
+    if decision_quality_score >= 0.65:
+        quality_label = "A"
+    elif decision_quality_score >= 0.50:
+        quality_label = "B"
+    elif decision_quality_score >= 0.35:
+        quality_label = "C"
+    else:
+        quality_label = "D"
+
+    return {
+        **_strategy_decision_contract_meta(horizon_minutes=horizon_minutes),
+        "avg_expected_win_rate": round(expected_win_rate, 4),
+        "avg_expected_pyramid_pnl": round(expected_pyramid_pnl, 4),
+        "avg_expected_pyramid_quality": round(expected_pyramid_quality, 4),
+        "avg_expected_drawdown_penalty": round(sum(drawdown_penalties) / len(drawdown_penalties), 4),
+        "avg_expected_time_underwater": round(sum(time_underwater) / len(time_underwater), 4),
+        "avg_decision_quality_score": round(decision_quality_score, 4),
+        "decision_quality_label": quality_label,
+        "decision_quality_sample_size": len(trades),
+    }
+
+
 def _parse_utc_datetime(value: Any) -> Optional[datetime]:
     if value is None:
         return None
     if isinstance(value, datetime):
         dt = value
+    elif isinstance(value, (int, float)):
+        raw = float(value)
+        if not math.isfinite(raw):
+            return None
+        if abs(raw) >= 1_000_000_000_000:
+            raw = raw / 1000.0
+        try:
+            dt = datetime.fromtimestamp(raw, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
     else:
         text = str(value).strip()
         if not text:
@@ -259,6 +388,113 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
         "freshness": _build_execution_metadata_smoke_freshness(generated_at),
         "venues": venues,
     }
+
+
+def _load_q15_support_audit_summary(current_structure_bucket: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    if not _Q15_SUPPORT_AUDIT_PATH.exists():
+        return None
+    try:
+        payload = json.loads(_Q15_SUPPORT_AUDIT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    applicability = payload.get("scope_applicability") if isinstance(payload.get("scope_applicability"), dict) else {}
+    current_live = payload.get("current_live") if isinstance(payload.get("current_live"), dict) else {}
+    support_route = payload.get("support_route") if isinstance(payload.get("support_route"), dict) else {}
+    floor_cross = payload.get("floor_cross_legality") if isinstance(payload.get("floor_cross_legality"), dict) else {}
+    component_experiment = payload.get("component_experiment") if isinstance(payload.get("component_experiment"), dict) else {}
+    support_progress = support_route.get("support_progress") if isinstance(support_route.get("support_progress"), dict) else {}
+
+    active_for_current_live_row = bool(applicability.get("active_for_current_live_row"))
+    audit_bucket = (
+        applicability.get("current_structure_bucket")
+        or current_live.get("current_live_structure_bucket")
+        or current_live.get("structure_bucket")
+    )
+    if current_structure_bucket and audit_bucket and str(current_structure_bucket) != str(audit_bucket):
+        return None
+    if current_structure_bucket and "q15" not in str(current_structure_bucket):
+        return None
+    if audit_bucket and "q15" not in str(audit_bucket):
+        return None
+    if not active_for_current_live_row:
+        return None
+
+    return {
+        "generated_at": payload.get("generated_at"),
+        "current_structure_bucket": audit_bucket,
+        "scope_applicability": applicability,
+        "support_route_verdict": support_route.get("verdict"),
+        "support_route_deployable": support_route.get("deployable"),
+        "support_governance_route": support_route.get("support_governance_route"),
+        "minimum_support_rows": support_route.get("minimum_support_rows"),
+        "current_live_structure_bucket_gap_to_minimum": support_route.get("current_live_structure_bucket_gap_to_minimum"),
+        "support_progress": support_progress,
+        "floor_cross_legality": floor_cross,
+        "component_experiment": component_experiment,
+        "current_live": current_live,
+    }
+
+
+def _enrich_confidence_with_q15_support_audit(result: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return result
+
+    blocker = str(result.get("deployment_blocker") or "")
+    if blocker not in {
+        "under_minimum_exact_live_structure_bucket",
+        "unsupported_exact_live_structure_bucket",
+    }:
+        return result
+
+    blocker_details = result.get("deployment_blocker_details") if isinstance(result.get("deployment_blocker_details"), dict) else {}
+    scope_diagnostics = result.get("decision_quality_scope_diagnostics") if isinstance(result.get("decision_quality_scope_diagnostics"), dict) else {}
+    exact_scope = scope_diagnostics.get("regime_label+regime_gate+entry_quality_label") if isinstance(scope_diagnostics.get("regime_label+regime_gate+entry_quality_label"), dict) else {}
+    current_structure_bucket = (
+        result.get("current_live_structure_bucket")
+        or result.get("decision_quality_live_structure_bucket")
+        or blocker_details.get("current_live_structure_bucket")
+        or result.get("structure_bucket")
+        or exact_scope.get("current_live_structure_bucket")
+    )
+    audit_summary = _load_q15_support_audit_summary(str(current_structure_bucket) if current_structure_bucket is not None else None)
+    if not audit_summary:
+        return result
+
+    enriched = dict(result)
+    support_progress = audit_summary.get("support_progress") if isinstance(audit_summary.get("support_progress"), dict) else {}
+    floor_cross = audit_summary.get("floor_cross_legality") if isinstance(audit_summary.get("floor_cross_legality"), dict) else {}
+    component_experiment = audit_summary.get("component_experiment") if isinstance(audit_summary.get("component_experiment"), dict) else {}
+
+    details = dict(blocker_details)
+    if support_progress:
+        details.setdefault("support_progress", support_progress)
+        details.setdefault("current_live_structure_bucket_rows", support_progress.get("current_rows"))
+        details.setdefault("minimum_support_rows", support_progress.get("minimum_support_rows"))
+        details.setdefault("current_live_structure_bucket_gap_to_minimum", support_progress.get("gap_to_minimum"))
+    if floor_cross:
+        details.setdefault("floor_cross_legality", floor_cross)
+    if component_experiment:
+        details.setdefault("component_experiment", component_experiment)
+
+    enriched["deployment_blocker_details"] = details
+    enriched["q15_support_audit"] = audit_summary
+    enriched["support_progress"] = support_progress or enriched.get("support_progress")
+    enriched["support_route_verdict"] = audit_summary.get("support_route_verdict")
+    enriched["support_route_deployable"] = audit_summary.get("support_route_deployable")
+    enriched["support_governance_route"] = audit_summary.get("support_governance_route")
+    enriched["minimum_support_rows"] = audit_summary.get("minimum_support_rows")
+    enriched["current_live_structure_bucket_gap_to_minimum"] = audit_summary.get("current_live_structure_bucket_gap_to_minimum")
+    enriched["floor_cross_verdict"] = floor_cross.get("verdict")
+    enriched["legal_to_relax_runtime_gate"] = floor_cross.get("legal_to_relax_runtime_gate")
+    enriched["remaining_gap_to_floor"] = floor_cross.get("remaining_gap_to_floor")
+    enriched["best_single_component"] = floor_cross.get("best_single_component")
+    enriched["best_single_component_required_score_delta"] = floor_cross.get("best_single_component_required_score_delta")
+    enriched["component_experiment_verdict"] = component_experiment.get("verdict")
+    return enriched
 
 
 def _load_execution_metadata_external_monitor_install_contract() -> Optional[Dict[str, Any]]:
@@ -513,6 +749,206 @@ def _latest_trade_history_row(db) -> Optional[TradeHistory]:
         return None
 
 
+def _latest_order_lifecycle_events(
+    db,
+    *,
+    last_order: Optional[Dict[str, Any]],
+    latest_trade: Optional[TradeHistory],
+    limit: int = 8,
+) -> List[OrderLifecycleEvent]:
+    if db is None:
+        return []
+    order_ids = set(_extract_runtime_order_ids(last_order))
+    if latest_trade is not None:
+        for value in (getattr(latest_trade, "order_id", None), getattr(latest_trade, "client_order_id", None)):
+            if value is not None and str(value).strip():
+                order_ids.add(str(value).strip())
+    if not order_ids:
+        return []
+    try:
+        query = db.query(OrderLifecycleEvent).order_by(OrderLifecycleEvent.timestamp.desc())
+        events = query.all()
+    except Exception:
+        return []
+    matched: List[OrderLifecycleEvent] = []
+    for event in events:
+        event_ids = {
+            value.strip()
+            for value in [getattr(event, "order_id", None), getattr(event, "client_order_id", None)]
+            if isinstance(value, str) and value.strip()
+        }
+        if event_ids.intersection(order_ids):
+            matched.append(event)
+    matched.sort(key=lambda event: _parse_utc_datetime(getattr(event, "timestamp", None)) or datetime.min.replace(tzinfo=timezone.utc))
+    if limit > 0:
+        matched = matched[-limit:]
+    return matched
+
+
+def _parse_lifecycle_payload(payload_json: Any) -> Optional[Dict[str, Any]]:
+    text = str(payload_json or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = json.loads(text)
+    except Exception:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _normalize_order_state(value: Any) -> str:
+    text = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if not text:
+        return "unknown"
+    aliases = {
+        "partiallyfilled": "partially_filled",
+        "partialfilled": "partially_filled",
+        "partial_fill": "partially_filled",
+        "partially_filled": "partially_filled",
+        "new": "open",
+        "filled": "closed",
+        "cancelled": "canceled",
+    }
+    return aliases.get(text, text)
+
+
+def _build_execution_lifecycle_audit(
+    *,
+    account_degraded: bool,
+    freshness_status: str,
+    last_order: Optional[Dict[str, Any]],
+    latest_trade: Optional[TradeHistory],
+    trade_alignment_status: str,
+    open_order_alignment_status: str,
+    matched_account_order: Optional[Any],
+) -> Dict[str, Any]:
+    runtime_state = _normalize_order_state(_record_text(last_order, "status")) if last_order else "absent"
+    trade_state = _normalize_order_state(getattr(latest_trade, "order_status", None)) if latest_trade is not None else "absent"
+    matched_open_order_state = _normalize_order_state(_record_text(matched_account_order, "status") or _record_text(matched_account_order, "state")) if matched_account_order is not None else "absent"
+    runtime_timestamp = _iso_utc_timestamp(_record_value(last_order, "timestamp")) if last_order else None
+    trade_timestamp = _iso_utc_timestamp(getattr(latest_trade, "timestamp", None)) if latest_trade is not None else None
+
+    if account_degraded:
+        stage = "snapshot_degraded"
+        reason = "account_snapshot_degraded_blocks_lifecycle_replay"
+        restart_replay_required = True
+        recovery_status = "degraded"
+        operator_action = "先修復 account snapshot / venue 連線，再重新對帳 open orders、positions 與最新委託狀態。"
+    elif last_order is None:
+        stage = "no_runtime_order"
+        reason = "runtime_has_not_recorded_an_order_yet"
+        restart_replay_required = False
+        recovery_status = "idle"
+        operator_action = "目前尚無 runtime order 需要 replay；若預期已有委託，先檢查 execution service 是否真的送出單。"
+    elif freshness_status != "fresh":
+        stage = "snapshot_refresh_required"
+        reason = "account_snapshot_not_fresh_enough_for_restart_replay"
+        restart_replay_required = True
+        recovery_status = "needs_snapshot_refresh"
+        operator_action = "先刷新 account snapshot，再確認 open orders / positions / trade history 是否與 runtime last order 一致。"
+    elif runtime_state in {"open", "partially_filled"}:
+        if open_order_alignment_status == "matched" and trade_alignment_status in {"matched", "symbol_only_match"}:
+            stage = "open_reconciled"
+            reason = "runtime_open_order_is_visible_in_account_snapshot_and_trade_history"
+            restart_replay_required = False
+            recovery_status = "ready"
+            operator_action = "目前 open order 已可對帳；若發生重啟，可依 order_id / client_order_id 重放 venue open orders。"
+        elif open_order_alignment_status == "matched":
+            stage = "open_missing_trade_history"
+            reason = "account_snapshot_can_see_open_order_but_trade_history_is_missing_or_mismatched"
+            restart_replay_required = True
+            recovery_status = "needs_trade_history_replay"
+            operator_action = "open order 還在，但 trade_history 缺 replay；需補寫 ack/open audit trail。"
+        else:
+            stage = "open_missing_from_snapshot"
+            reason = "runtime_last_order_is_open_but_snapshot_cannot_replay_it"
+            restart_replay_required = True
+            recovery_status = "needs_open_order_replay"
+            operator_action = "runtime 顯示仍有 open order，但 snapshot 沒看到；需重新抓 venue open orders 並驗證 restart replay。"
+    elif runtime_state in {"closed", "canceled", "rejected", "expired"}:
+        if trade_alignment_status in {"matched", "symbol_only_match"}:
+            stage = "terminal_reconciled"
+            reason = "terminal_order_is_persisted_in_trade_history"
+            restart_replay_required = False
+            recovery_status = "ready"
+            operator_action = "terminal lifecycle 已落地；下一步應補 partial fill / cancel 細節與 restart replay 證據。"
+        else:
+            stage = "terminal_missing_trade_history"
+            reason = "runtime_terminal_order_missing_trade_history_replay"
+            restart_replay_required = True
+            recovery_status = "needs_trade_history_replay"
+            operator_action = "runtime 已進 terminal state，但 trade_history 沒對上；需補寫 fill/cancel replay artifact。"
+    else:
+        stage = "runtime_state_unknown"
+        reason = "runtime_last_order_state_not_classified"
+        restart_replay_required = True
+        recovery_status = "manual_review"
+        operator_action = "runtime last order 狀態未知；需人工檢查 exchange 回傳 payload 與 lifecycle mapping。"
+
+    return {
+        "stage": stage,
+        "reason": reason,
+        "runtime_state": runtime_state,
+        "trade_history_state": trade_state,
+        "matched_open_order_state": matched_open_order_state,
+        "restart_replay_required": restart_replay_required,
+        "recovery_status": recovery_status,
+        "operator_action": operator_action,
+        "evidence": {
+            "runtime_order_timestamp": runtime_timestamp,
+            "trade_history_timestamp": trade_timestamp,
+            "trade_alignment_status": trade_alignment_status,
+            "open_order_alignment_status": open_order_alignment_status,
+        },
+    }
+
+
+def _build_execution_recovery_state(
+    *,
+    lifecycle_audit: Dict[str, Any],
+    account_degraded: bool,
+    freshness_status: str,
+    trade_alignment_status: str,
+    open_order_alignment_status: str,
+) -> Dict[str, Any]:
+    if account_degraded:
+        status = "degraded"
+        reason = "account_snapshot_degraded"
+        summary = "account snapshot 退化；目前不能把 execution surface 視為可 replay 真相。"
+    elif freshness_status != "fresh":
+        status = "needs_snapshot_refresh"
+        reason = "account_snapshot_not_fresh"
+        summary = "snapshot 不夠新，restart reconciliation 仍缺少可驗證基礎。"
+    elif lifecycle_audit.get("recovery_status") == "idle":
+        status = "idle"
+        reason = "no_runtime_order_to_replay"
+        summary = "目前沒有可回放的 runtime order；若預期已有委託，需先確認 execution lane 是否真的送單。"
+    elif lifecycle_audit.get("recovery_status") == "needs_open_order_replay":
+        status = "needs_open_order_replay"
+        reason = "runtime_open_order_missing_from_snapshot"
+        summary = "runtime 顯示尚有 open order，但 account snapshot 無法重播它。"
+    elif lifecycle_audit.get("recovery_status") == "needs_trade_history_replay":
+        status = "needs_trade_history_replay"
+        reason = "trade_history_not_persisted"
+        summary = "最新 order lifecycle 尚未完整落到 trade_history，重啟後無法證明已可回放。"
+    elif trade_alignment_status in {"matched", "symbol_only_match"} and open_order_alignment_status in {"matched", "not_open", "not_applicable"}:
+        status = "ready_for_next_audit"
+        reason = "summary_reconciliation_healthy"
+        summary = "summary-level reconciliation 已對上；下一步應補 partial fill / cancel / restart replay artifact。"
+    else:
+        status = "manual_review"
+        reason = "reconciliation_signals_mixed"
+        summary = "reconciliation 訊號混雜，需人工檢查 lifecycle mapping 與 recovery lane。"
+
+    return {
+        "status": status,
+        "reason": reason,
+        "summary": summary,
+        "operator_action": lifecycle_audit.get("operator_action"),
+        "restart_replay_required": bool(lifecycle_audit.get("restart_replay_required")),
+    }
+
+
 def _build_execution_reconciliation_summary(
     db,
     symbol: str,
@@ -542,6 +978,7 @@ def _build_execution_reconciliation_summary(
             freshness_reason = "snapshot_older_than_policy"
 
     latest_trade = _latest_trade_history_row(db)
+    lifecycle_events = _latest_order_lifecycle_events(db, last_order=last_order, latest_trade=latest_trade)
     runtime_order_ids = _extract_runtime_order_ids(last_order)
     latest_trade_order_ids = []
     if latest_trade is not None:
@@ -619,6 +1056,23 @@ def _build_execution_reconciliation_summary(
     if symbol_alignment_status != "matched":
         issues.append(symbol_alignment_status)
 
+    lifecycle_audit = _build_execution_lifecycle_audit(
+        account_degraded=account_degraded,
+        freshness_status=freshness_status,
+        last_order=last_order,
+        latest_trade=latest_trade,
+        trade_alignment_status=trade_alignment_status,
+        open_order_alignment_status=open_order_alignment_status,
+        matched_account_order=matched_account_order,
+    )
+    recovery_state = _build_execution_recovery_state(
+        lifecycle_audit=lifecycle_audit,
+        account_degraded=account_degraded,
+        freshness_status=freshness_status,
+        trade_alignment_status=trade_alignment_status,
+        open_order_alignment_status=open_order_alignment_status,
+    )
+
     if account_degraded:
         status = "degraded"
         summary = "account snapshot 退化，暫時不能把 UI 上的倉位 / 掛單列表當成已對帳真相。"
@@ -634,6 +1088,38 @@ def _build_execution_reconciliation_summary(
         "summary": summary,
         "checked_at": checked_at,
         "issues": issues,
+        "lifecycle_audit": lifecycle_audit,
+        "recovery_state": recovery_state,
+        "lifecycle_timeline": {
+            "status": "available" if lifecycle_events else "absent",
+            "replay_key": {
+                "order_id": _record_text(last_order, "order_id") or getattr(latest_trade, "order_id", None),
+                "client_order_id": _record_text(last_order, "client_order_id") or getattr(latest_trade, "client_order_id", None),
+            },
+            "total_events": len(lifecycle_events),
+            "latest_event": {
+                "timestamp": _iso_utc_timestamp(lifecycle_events[-1].timestamp),
+                "event_type": lifecycle_events[-1].event_type,
+                "order_state": lifecycle_events[-1].order_state,
+                "summary": lifecycle_events[-1].summary,
+            } if lifecycle_events else None,
+            "events": [
+                {
+                    "timestamp": _iso_utc_timestamp(event.timestamp),
+                    "event_type": event.event_type,
+                    "order_state": event.order_state,
+                    "source": event.source,
+                    "summary": event.summary,
+                    "order_id": event.order_id,
+                    "client_order_id": event.client_order_id,
+                    "exchange": event.exchange,
+                    "symbol": event.symbol,
+                    "is_dry_run": bool(event.is_dry_run) if event.is_dry_run is not None else None,
+                    "payload": _parse_lifecycle_payload(event.payload_json),
+                }
+                for event in lifecycle_events
+            ],
+        },
         "account_snapshot": {
             "captured_at": account_snapshot.get("captured_at"),
             "freshness": {
@@ -1565,10 +2051,11 @@ async def api_features(days: int = Query(default=7, ge=1, le=90)):
     )
     result = []
     for r in rows:
-        obj = {"timestamp": r.timestamp.isoformat() if r.timestamp else None}
+        obj = {"timestamp": _iso_utc_timestamp(r.timestamp)}
         for db_key, clean_key in FEATURE_KEY_MAP.items():
             raw_val = getattr(r, db_key, None)
             obj[clean_key] = normalize_for_api(raw_val, db_key)
+            obj[f"raw_{clean_key}"] = raw_val
         result.append(obj)
     return result
 
@@ -1681,7 +2168,7 @@ async def get_confidence_prediction():
             "decision_quality_label": None,
             "decision_profile_version": "phase16_baseline_v2",
         }
-    return result
+    return _enrich_confidence_with_q15_support_audit(result)
 
 
 # ═══════════════════════════════════════════════
@@ -1692,6 +2179,8 @@ DB_PATH = '/home/kazuha/Poly-Trader/poly_trader.db'
 MODEL_LB_CACHE_PATH = Path('/tmp/polytrader_model_leaderboard_cache.json')
 MODEL_LB_CACHE_TTL_SEC = 60 * 15
 MODEL_LB_STALE_SEC = 60 * 60 * 6
+MODEL_LB_OVERFIT_GAP_THRESHOLD = 0.12
+MODEL_LB_HARD_TRAIN_ACC_CAP = 0.85
 _MODEL_LB_LOCK = threading.Lock()
 _MODEL_LB_CACHE: Dict[str, Any] = {
     "payload": None,
@@ -1840,6 +2329,200 @@ def _summarize_target_candidates(df, overfit_gap_threshold: float, hard_train_ac
         })
     summaries.sort(key=lambda row: (not row.get("is_canonical", False), row["target_col"]))
     return summaries
+
+
+def _load_model_leaderboard_cache_payload() -> Optional[Dict[str, Any]]:
+    if not MODEL_LB_CACHE_PATH.exists():
+        return None
+    try:
+        payload = json.loads(MODEL_LB_CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _write_model_leaderboard_cache_payload(payload: Dict[str, Any]) -> None:
+    try:
+        MODEL_LB_CACHE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as exc:
+        logger.warning(f"failed to write model leaderboard cache: {exc}")
+
+
+def _compute_rank_deltas(current_rows: List[Dict[str, Any]], previous_rows: List[Dict[str, Any]]) -> None:
+    previous_rank_by_model = {
+        str(row.get("model_name")): idx
+        for idx, row in enumerate(previous_rows or [], start=1)
+        if row.get("model_name")
+    }
+    for idx, row in enumerate(current_rows or [], start=1):
+        model_name = str(row.get("model_name") or "")
+        previous_rank = previous_rank_by_model.get(model_name)
+        row["rank"] = idx
+        row["previous_rank"] = previous_rank
+        row["rank_delta"] = 0 if previous_rank is None else int(previous_rank - idx)
+
+
+def _snapshot_history_from_payload(payload: Optional[Dict[str, Any]], limit: int = 10) -> List[Dict[str, Any]]:
+    if not isinstance(payload, dict):
+        return []
+    history = payload.get("snapshot_history")
+    if isinstance(history, list):
+        return [item for item in history if isinstance(item, dict)][:limit]
+    return []
+
+
+def _build_model_leaderboard_payload(force_refresh: bool = False) -> Dict[str, Any]:
+    cached_payload = None
+    cached_updated_at = 0.0
+    with _MODEL_LB_LOCK:
+        if not force_refresh and isinstance(_MODEL_LB_CACHE.get("payload"), dict):
+            cached_payload = _MODEL_LB_CACHE.get("payload")
+            cached_updated_at = float(_MODEL_LB_CACHE.get("updated_at") or 0.0)
+            if time.time() - cached_updated_at <= MODEL_LB_CACHE_TTL_SEC:
+                return cached_payload
+
+    file_cache_payload = _load_model_leaderboard_cache_payload()
+    if file_cache_payload is not None:
+        try:
+            cache_age = max(time.time() - MODEL_LB_CACHE_PATH.stat().st_mtime, 0.0)
+        except Exception:
+            cache_age = float("inf")
+        if not force_refresh and cache_age <= MODEL_LB_CACHE_TTL_SEC:
+            with _MODEL_LB_LOCK:
+                _MODEL_LB_CACHE["payload"] = file_cache_payload
+                _MODEL_LB_CACHE["updated_at"] = time.time()
+                _MODEL_LB_CACHE["error"] = None
+            return file_cache_payload
+
+    previous_payload = cached_payload or file_cache_payload or {}
+    previous_rows = previous_payload.get("leaderboard") if isinstance(previous_payload, dict) else []
+    previous_rows = previous_rows if isinstance(previous_rows, list) else []
+    previous_history = _snapshot_history_from_payload(previous_payload)
+
+    generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    target_col = "simulated_pyramid_win"
+    leaderboard: List[Dict[str, Any]] = []
+    quadrant_points: List[Dict[str, Any]] = []
+    skipped_models: List[Dict[str, Any]] = []
+    target_candidates: List[Dict[str, Any]] = []
+
+    try:
+        df = load_model_leaderboard_frame(DB_PATH)
+        if not df.empty:
+            if target_col not in df.columns and "label_spot_long_win" in df.columns:
+                target_col = "label_spot_long_win"
+            target_df = df.dropna(subset=[target_col]).copy() if target_col in df.columns else df.copy()
+            if target_col in target_df.columns:
+                target_df[target_col] = target_df[target_col].fillna(0).astype(int)
+
+            from backtesting.model_leaderboard import ModelLeaderboard
+
+            leaderboard_runner = ModelLeaderboard(target_df, target_col=target_col)
+            model_names = list(getattr(leaderboard_runner, "SUPPORTED_MODELS", []) or [])
+            results = leaderboard_runner.run_all_models(model_names or None)
+            leaderboard = _serialize_model_scores(
+                results,
+                MODEL_LB_OVERFIT_GAP_THRESHOLD,
+                MODEL_LB_HARD_TRAIN_ACC_CAP,
+            )
+
+            model_statuses = getattr(leaderboard_runner, "last_model_statuses", {}) or {}
+            for row in leaderboard:
+                status = model_statuses.get(row.get("model_name"), {}) if isinstance(model_statuses, dict) else {}
+                row["selected_deployment_profile"] = status.get("selected_deployment_profile", row.get("deployment_profile"))
+                row["selected_feature_profile"] = status.get("selected_feature_profile", row.get("feature_profile"))
+                row["selected_feature_profile_source"] = status.get("selected_feature_profile_source", row.get("feature_profile_source"))
+                row["selected_feature_profile_blocker_applied"] = bool(status.get("selected_feature_profile_blocker_applied", False))
+                row["selected_feature_profile_blocker_reason"] = status.get("selected_feature_profile_blocker_reason")
+                row["deployment_profiles_evaluated"] = list(status.get("deployment_profiles_evaluated") or [row.get("deployment_profile")])
+                row["feature_profiles_evaluated"] = list(status.get("feature_profiles_evaluated") or [row.get("feature_profile")])
+                row["feature_profile_candidate_diagnostics"] = list(status.get("feature_profile_candidate_diagnostics") or [])
+
+            _compute_rank_deltas(leaderboard, previous_rows)
+            quadrant_points = [
+                {
+                    "model_name": row.get("model_name"),
+                    "x": row.get("avg_roi"),
+                    "y": row.get("avg_decision_quality_score"),
+                    "overall_score": row.get("overall_score"),
+                    "model_tier": row.get("model_tier"),
+                }
+                for row in leaderboard
+            ]
+
+            if isinstance(model_statuses, dict):
+                skipped_models = [
+                    {
+                        "model_name": model_name,
+                        "status": status.get("status"),
+                        "reason": status.get("reason"),
+                        "detail": status.get("detail"),
+                    }
+                    for model_name, status in model_statuses.items()
+                    if isinstance(status, dict) and status.get("status") != "ok"
+                ]
+
+            target_candidates = _summarize_target_candidates(
+                df,
+                MODEL_LB_OVERFIT_GAP_THRESHOLD,
+                MODEL_LB_HARD_TRAIN_ACC_CAP,
+            )
+    except Exception as exc:
+        logger.exception("failed_to_build_model_leaderboard_payload")
+        if isinstance(previous_payload, dict) and previous_payload.get("leaderboard"):
+            fallback_payload = dict(previous_payload)
+            fallback_payload["generated_at"] = generated_at
+            fallback_payload["cache_status"] = "stale_fallback_after_refresh_error"
+            fallback_payload["error"] = str(exc)
+            with _MODEL_LB_LOCK:
+                _MODEL_LB_CACHE["payload"] = fallback_payload
+                _MODEL_LB_CACHE["updated_at"] = time.time()
+                _MODEL_LB_CACHE["error"] = str(exc)
+            return fallback_payload
+        raise
+
+    snapshot_entry = {
+        "created_at": generated_at,
+        "target_col": target_col,
+        "count": len(leaderboard),
+        "top_model": leaderboard[0].get("model_name") if leaderboard else None,
+        "selected_feature_profile": leaderboard[0].get("selected_feature_profile") if leaderboard else None,
+        "selected_feature_profile_source": leaderboard[0].get("selected_feature_profile_source") if leaderboard else None,
+    }
+    snapshot_history = [snapshot_entry]
+    snapshot_history.extend(
+        item for item in previous_history
+        if item.get("created_at") != generated_at
+    )
+    snapshot_history = snapshot_history[:10]
+
+    payload = {
+        "generated_at": generated_at,
+        "target_col": target_col,
+        "count": len(leaderboard),
+        "leaderboard": leaderboard,
+        "quadrant_points": quadrant_points,
+        "snapshot_history": snapshot_history,
+        "storage": {
+            "canonical_store": f"sqlite:///{DB_PATH}",
+            "cache_path": str(MODEL_LB_CACHE_PATH),
+            "cache_ttl_sec": MODEL_LB_CACHE_TTL_SEC,
+            "stale_after_sec": MODEL_LB_STALE_SEC,
+        },
+        "cache_status": "fresh",
+        "overfit_gap_threshold": MODEL_LB_OVERFIT_GAP_THRESHOLD,
+        "hard_train_acc_cap": MODEL_LB_HARD_TRAIN_ACC_CAP,
+        "skipped_models": skipped_models,
+        "target_candidates": target_candidates,
+        "error": None,
+    }
+
+    _write_model_leaderboard_cache_payload(payload)
+    with _MODEL_LB_LOCK:
+        _MODEL_LB_CACHE["payload"] = payload
+        _MODEL_LB_CACHE["updated_at"] = time.time()
+        _MODEL_LB_CACHE["error"] = None
+    return payload
 
 
 def load_model_leaderboard_frame(db_path: str = DB_PATH):
