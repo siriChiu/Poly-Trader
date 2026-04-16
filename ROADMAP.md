@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-16 16:42 UTC_
+_最後更新：2026-04-16 18:06 UTC_
 
 只保留目前計畫，不保留舊 roadmap。
 
@@ -41,40 +41,71 @@ _最後更新：2026-04-16 16:42 UTC_
   - `scripts/execution_metadata_external_monitor_install.py`
   - `data/execution_metadata_external_monitor_install_contract.json`
   - `/api/status` 與 Dashboard 會顯示 `preferred_host_lane / install command / install verify / fallback command / systemd timer`
-  - `SignalBanner.tsx` 已正式標示：Dashboard 是 canonical execution route；SignalBanner 只是快捷下單 / automation lane
+- explicit ticking-state contract 已落地：
+  - `/api/status` 導出 `execution_metadata_smoke.governance.external_monitor.ticking_state`
+  - `ticking_state.status` 正式收斂為四態：
+    - `install-ready`
+    - `installed`
+    - `observed-ticking`
+    - `installed-but-not-ticking`
+  - API 在 external artifact 缺失時，會 fallback 讀取 install contract
+  - Dashboard 已新增 `external monitor state` 區塊
+- execution surface contract 已落地：
+  - `/api/status` 新增 `execution_surface_contract`
+  - `execution_surface_contract` 正式收斂 route split + readiness boundary：
+    - `canonical_execution_route=dashboard`
+    - `canonical_surface_label=Dashboard / Execution 狀態面板`
+    - `shortcut_surface.name=signal_banner`
+    - `shortcut_surface.role=shortcut-only`
+    - `shortcut_surface.status=not-upgraded`
+    - `readiness_scope=runtime_governance_visibility_only`
+    - `live_ready=false`
+    - `live_ready_blockers=[credential, order ack, fill lifecycle]`
+  - Dashboard 已新增 `execution route contract` 區塊，不再只靠文件或靜態文案維持 route 邊界
+  - SignalBanner 已新增回 Dashboard 的明示導引，避免 shortcut lane 被誤當成完整 execution surface
 - **本輪新增 closure**：
-  - `preferred_host_lane=user_crontab` 已真正安裝到 host-level scheduler
-  - install contract 現在會 machine-read `install_status={status, installed, active_lane, checked_at, lanes.*}`
-  - Dashboard 會直接顯示 `install status / active lane / install checked at / crontab verify stdout`
-  - `data/execution_metadata_external_monitor_install_contract.json` 與 `data/execution_metadata_external_monitor.json` 都已刷新為 `install_status.status=installed`
-- 驗證已通過：
-  - `python scripts/execution_metadata_smoke.py --symbol BTCUSDT` → **成功，2/2 venue metadata contract 可讀**
-  - `python scripts/execution_metadata_external_monitor_install.py --symbol BTCUSDT` → **成功，artifact 顯示 installed + user_crontab**
-  - `python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT` → **成功，external governance artifact healthy**
-  - `crontab -l | grep 'poly-trader-execution-metadata-external-monitor'` → **成功，host-level scheduler 已存在**
-  - `python -m pytest tests/test_server_startup.py tests/test_frontend_decision_contract.py -q` → **19 passed**
-  - `cd web && npm run build` → **成功**
+  - 直接驗證 `http://127.0.0.1:8000/api/status` 仍回傳完整 `execution_surface_contract`
+  - 直接驗證 `external_monitor.ticking_state.status = observed-ticking`
+  - regression tests 現在補鎖 execution route contract 細節：
+    - `canonical_surface_label`
+    - `shortcut_surface.status / message / upgrade_prerequisite`
+    - `operator_message`
+    - `live_ready_blockers`
+  - 對應檔案：
+    - `tests/test_server_startup.py`
+    - `tests/test_frontend_decision_contract.py`
 
 ---
 
 ## 目前主目標
 
-### 目標 A：確認 host-level scheduler 不是只「已安裝」，而是會自然週期地持續運作
+### 目標 A：守住 execution route contract
 重點：
-- install-ready → installed 已完成
-- 下一步不是再重做 install，而是驗證 **自然 cron 週期** 會刷新 external monitor artifact / log
-- 驗證標準必須是 `generated_at/checked_at/log` 在無手動介入下前進
+- `/api/status` 與 Dashboard 已能直接回答：
+  - canonical execution route 是哪一條
+  - canonical surface label 是什麼
+  - SignalBanner 目前是什麼角色
+  - readiness scope / live blockers 是什麼
+- 下一步不是擴第二 route，而是守住這份 contract 不被 UI / API / 文件 / 文案回退
+- regression tests 與 runtime smoke 必須持續一起維護，避免 contract 細節靜默流失
 
 ### 目標 B：維持清楚的 execution route 分工
 重點：
-- 目前只有 Dashboard 完整消費 `/api/status + guardrails + metadata governance + install_status`
+- Dashboard 仍是唯一 canonical execution route
 - `SignalBanner.tsx` 仍維持快捷下單 / automation lane
-- 若未來要升級第二 route，必須沿用 Dashboard 的同一套 runtime contract，而不是只接 `/api/trade`
+- 如果未來要升級第二 route，必須完整消費 `/api/status` 的：
+  - `ticking_state`
+  - `stale governance`
+  - `guardrail context`
+  - `install_contract`
+  - `execution_surface_contract`
 
-### 目標 C：維持 readiness 邊界紀律
+### 目標 C：維持 readiness / ticking 邊界紀律
 重點：
-- runtime governance / visibility closure **不等於** live/canary order-level readiness
+- 本輪完成的是 execution governance / visibility / ticking contract 驗證
+- 這不等於 live/canary order-level readiness
 - 在 order ack / fill lifecycle / live credential 驗證完成前，不得升級敘事
+- 在 `ticking_state` 與 `live_ready=false` 仍存在時，任何 surface 都不得把 host scheduler 健康誤寫成實盤可用
 
 ---
 
@@ -82,52 +113,50 @@ _最後更新：2026-04-16 16:42 UTC_
 
 | 策略 | 好處 | 風險／代價 | 治標/治本 | 適用條件 | 建議 |
 |---|---|---|---|---|---|
-| 繼續停在 install-ready | 不用碰 host-level 環境 | blocker 原封不動，下一輪還是同一題 | 治標 | 只想保留契約文字 | ❌ 不建議 |
-| 安裝 `user_crontab` 並用 `crontab -l` 驗證 | 直接完成 preferred host lane 落地 | 還需要把 installed 狀態同步到 artifact / UI | 治本第一步 | crontab 可用 | ✅ 本輪採用 |
-| 只裝 cron，不補 installed-state surface | 主機上有 scheduler | UI/API 仍看不到是否真的 installed | 治標 | 只追求主機落地 | ❌ 不建議 |
-| install status machine-readable + Dashboard surface | operator 能直接看到 installed / active lane / verify output | 需要 patch + regression | 治本收尾 | install contract 已存在 | ✅ 本輪採用 |
-| 直接擴 `SignalBanner` 成第二 route | 可能增加操作入口 | 會分散主題，且仍缺完整 runtime contract | 治標 | scheduler 穩定後再評估 | ❌ 本輪不採用 |
+| 只做一次 runtime smoke，不補測試 | 快速知道現在有沒有壞 | 之後仍可能靜默回退 | 治標 | 只想臨時確認 | ❌ 不建議 |
+| 直接把 SignalBanner 升成第二 execution route | 表面 coverage 增加 | 會跳過既有 contract 邊界，重新引入假完成 | 治標（治本需先補同一份 runtime contract） | 已完整消費同一份 `/api/status` contract 時 | ❌ 不建議 |
+| 先驗證 runtime contract，再補 regression lock 守住細節 | 同時處理「現在還在嗎」與「之後會不會靜默消失」 | 不會直接提升 live readiness | 治本 | Dashboard 仍是 canonical route | ✅ 本輪採用 |
 
 ### 效益前提驗證
-- 前提 1：`crontab` 在本機可用 → **成立**
-- 前提 2：external monitor 腳本已穩定 → **成立**
-- 前提 3：Dashboard governance 面板可承接 install status → **成立**
-- 前提 4：本輪是否已可宣稱 live/canary ready → **不成立**
+- 前提 1：Dashboard 仍是 canonical execution route → **成立**
+- 前提 2：SignalBanner 現階段不應升級為第二 route → **成立**
+- 前提 3：`/api/status` 仍是各 surface 的共同入口 → **成立**
+- 前提 4：本輪是否可升級成 live/canary ready → **不成立**
 
 ---
 
 ## Next focus
-1. 在**不手動重跑 external monitor** 的情況下，驗證 artifact / log 會由 cron 自然刷新
+1. 再次確認 `/api/status`、Dashboard、SignalBanner 仍同時維持 `canonical route / canonical surface / shortcut-only / live_ready=false / observed-ticking`
 2. 維持 Dashboard 為 canonical execution route；未升級前不再把 SignalBanner 描述成完整 runtime governance surface
-3. 繼續把 readiness 文案限制在 runtime governance / visibility，不升級成 live/canary safe
+3. 繼續把 readiness 文案限制在 runtime governance / visibility / ticking，不升級成 live/canary safe
 
 ## Success gate
-- external monitor artifact 與 log 在自然 cron 週期下前進，證明 host-level lane 不只是 installed，且會持續 ticking
-- execution route coverage 不再模糊：Dashboard 是 canonical route，SignalBanner 僅屬快捷 lane
-- 文件仍明確區分 install-ready / installed / observed-ticking / live-ready 幾種狀態
+- `/api/status` 與 Dashboard 持續直接區分 canonical route / canonical surface / shortcut lane / readiness scope / live blockers
+- `external_monitor.ticking_state` 持續可 machine-read，且健康時明確顯示 `observed-ticking`
+- execution route coverage 不再模糊：Dashboard 是 canonical route，SignalBanner 僅屬 shortcut lane
+- 文件、UI、API 都持續明確顯示 `live_ready=false`，沒有把 governance/ticking closure 誤寫成 live-ready
 
 ## Fallback if fail
-- 若 scheduler 已安裝但下一輪觀察不到自然 tick，必須把狀態降級為 `installed-not-observed` 或 `installed-but-not-ticking`，並明確保留 fallback command / verify 邊界
-- 若未來要擴第二 route，必須先補 `/api/status` refresh、guardrail context、stale governance、install status 消費，再宣稱 route coverage 擴張
-- 若有人把 governance installed 誤寫成 live-ready，文件必須立即糾正並停止擴大 readiness 敘事
+- 若 `execution_surface_contract` 或 `ticking_state` 無法維持，立即退回 blocker 敘事，明示目前又回到文件/人工判讀維持 route 邊界
+- 若未來要擴第二 route，必須先補 `/api/status` refresh、guardrail context、stale governance、install/ticking-state 顯示，再宣稱 route coverage 擴張
+- 若任何 surface 把 governance / ticking closure 誤寫成 live-ready，文件必須立即糾正並停止擴大 readiness 敘事
 
 ## Documents to update next round
 - `ISSUES.md`
 - `ROADMAP.md`
-- `ARCHITECTURE.md`（若加入 observed-ticking / install-state 新 contract 或第二 route 狀態改變）
-- `scripts/execution_metadata_external_monitor_install.py`
-- `scripts/execution_metadata_external_monitor.py`
-- `server/routes/api.py`
-- `web/src/pages/Dashboard.tsx`
-- 若升級第二 route，則同步更新 `web/src/components/SignalBanner.tsx` 與 regression tests
+- `tests/test_server_startup.py`
+- `tests/test_frontend_decision_contract.py`
+- `server/routes/api.py`（若 contract 欄位變動）
+- `web/src/pages/Dashboard.tsx`（若 contract 顯示變動）
+- `web/src/components/SignalBanner.tsx`（若 shortcut lane 邊界變動）
+- `ARCHITECTURE.md`（若 execution surface contract 或 ticking contract 再擴充）
 
 ## Carry-forward input for next heartbeat
 - 先檢查：
-  - `crontab -l | grep 'poly-trader-execution-metadata-external-monitor'`
-  - `tail -n 20 data/execution_metadata_external_monitor.log`
-  - `python scripts/execution_metadata_external_monitor_install.py --symbol BTCUSDT`
-  - `python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT`（只在需要人工 refresh 診斷時使用）
-  - `/api/status` governance 是否同時帶 `background_monitor + external_monitor + external_monitor.install_contract.install_status`
-- 然後優先做：確認 external monitor 的 `generated_at/checked_at` 是否在自然 cron 週期下前進，而不是只靠手動重跑
-- 接著處理：在未升級完整 runtime contract 前，維持 `SignalBanner = 快捷 lane`、`Dashboard = canonical execution route`
+  - `http://127.0.0.1:8000/api/status` 的 `execution_surface_contract`
+  - `http://127.0.0.1:8000/api/status` 的 `execution_metadata_smoke.governance.external_monitor.ticking_state`
+  - Dashboard 是否仍顯示 `execution route contract` 與 `external monitor state`
+  - SignalBanner 是否仍明確導回 Dashboard
+- 然後優先做：確認 route split / readiness / ticking boundary 是否仍穩定存在，沒有退回人工拼裝判讀
+- 接著處理：在未升級完整 runtime contract 前，維持 `SignalBanner = shortcut lane`、`Dashboard = canonical execution route`
 - 若以上兩件事尚未完成，不要把 execution readiness 敘事升級成 live/canary safe

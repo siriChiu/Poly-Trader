@@ -141,6 +141,21 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["feature_continuity"]["continuity_repair"]["remaining_missing"] == 0
     assert payload["execution"]["guardrails"]["consecutive_failures"] >= 0
     assert payload["execution_metadata_smoke"]["ok_count"] == 2
+    assert payload["execution_surface_contract"]["canonical_execution_route"] == "dashboard"
+    assert payload["execution_surface_contract"]["canonical_surface_label"] == "Dashboard / Execution 狀態面板"
+    assert payload["execution_surface_contract"]["shortcut_surface"]["name"] == "signal_banner"
+    assert payload["execution_surface_contract"]["shortcut_surface"]["role"] == "shortcut-only"
+    assert payload["execution_surface_contract"]["shortcut_surface"]["status"] == "not-upgraded"
+    assert payload["execution_surface_contract"]["shortcut_surface"]["message"] == "SignalBanner 目前只提供快捷下單 / 自動交易切換；完整 Execution 狀態、Guardrail context 與 stale governance 必須回 Dashboard 檢查。"
+    assert payload["execution_surface_contract"]["shortcut_surface"]["upgrade_prerequisite"] == "必須先完整消費 /api/status 的 ticking_state、stale governance、guardrail context，才能升級第二 execution route。"
+    assert payload["execution_surface_contract"]["readiness_scope"] == "runtime_governance_visibility_only"
+    assert payload["execution_surface_contract"]["operator_message"] == "目前完成的是 execution governance / visibility closure，不是 live 或 canary readiness。"
+    assert payload["execution_surface_contract"]["live_ready"] is False
+    assert payload["execution_surface_contract"]["live_ready_blockers"] == [
+        "live exchange credential 尚未驗證",
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+    ]
 
 
 def test_api_status_passes_db_session_into_execution_service(monkeypatch):
@@ -372,7 +387,7 @@ def test_load_execution_metadata_external_monitor_state_reports_freshness(tmp_pa
         "governance_status": "healthy",
         "error": None,
         "interval_seconds": 300,
-        "command": "source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT",
+        "command": "cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT",
         "install_contract": {
             "preferred_host_lane": "user_crontab",
             "install_status": {
@@ -384,21 +399,46 @@ def test_load_execution_metadata_external_monitor_state_reports_freshness(tmp_pa
                 },
             },
             "user_crontab": {"schedule": "*/5 * * * *", "verify_command": "crontab -l | grep 'poly-trader-execution-metadata-external-monitor'"},
-            "fallback": {"reason": "manual fallback", "command": "source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT"},
+            "fallback": {"reason": "manual fallback", "command": "cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT"},
         },
     }), encoding="utf-8")
     monkeypatch.setattr(api_module, "_EXECUTION_METADATA_EXTERNAL_MONITOR_PATH", artifact)
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_EXTERNAL_MONITOR_INSTALL_CONTRACT_PATH", tmp_path / "missing-install-contract.json")
 
     state = api_module._load_execution_metadata_external_monitor_state()
 
     assert state["available"] is True
     assert state["status"] == "healthy"
     assert state["freshness"]["status"] == "fresh"
-    assert state["command"].endswith("python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT")
+    assert state["command"].endswith("scripts/execution_metadata_external_monitor.py --symbol BTCUSDT")
     assert state["install_contract"]["preferred_host_lane"] == "user_crontab"
     assert state["install_contract"]["install_status"]["status"] == "installed"
     assert state["install_contract"]["install_status"]["active_lane"] == "user_crontab"
     assert state["install_contract"]["user_crontab"]["schedule"] == "*/5 * * * *"
+    assert state["ticking_state"]["status"] == "observed-ticking"
+    assert state["ticking_state"]["active_lane"] == "user_crontab"
+
+
+
+def test_load_execution_metadata_external_monitor_state_distinguishes_installed_without_tick(tmp_path, monkeypatch):
+    install_contract = tmp_path / "execution_metadata_external_monitor_install_contract.json"
+    install_contract.write_text(json.dumps({
+        "preferred_host_lane": "user_crontab",
+        "install_status": {
+            "status": "installed",
+            "installed": True,
+            "active_lane": "user_crontab",
+        },
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_EXTERNAL_MONITOR_PATH", tmp_path / "missing-external-monitor.json")
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_EXTERNAL_MONITOR_INSTALL_CONTRACT_PATH", install_contract)
+
+    state = api_module._load_execution_metadata_external_monitor_state()
+
+    assert state["available"] is False
+    assert state["install_contract"]["install_status"]["status"] == "installed"
+    assert state["ticking_state"]["status"] == "installed"
+    assert state["ticking_state"]["active_lane"] == "user_crontab"
 
 
 
@@ -409,8 +449,9 @@ def test_build_execution_metadata_smoke_governance_includes_external_monitor(mon
         "reason": "external_cron_monitor",
         "checked_at": "2026-04-16T16:00:00Z",
         "freshness": {"status": "fresh"},
-        "command": "source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT",
+        "command": "cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT",
         "install_contract": {"preferred_host_lane": "user_crontab"},
+        "ticking_state": {"status": "observed-ticking", "active_lane": "user_crontab"},
     })
     monkeypatch.setattr(api_module, "_build_execution_metadata_smoke_refresh_state", lambda: {"status": "idle"})
     monkeypatch.setattr(api_module, "_build_execution_metadata_smoke_background_state", lambda: {"status": "healthy"})
@@ -424,3 +465,4 @@ def test_build_execution_metadata_smoke_governance_includes_external_monitor(mon
     assert governance["external_monitor"]["status"] == "healthy"
     assert governance["external_monitor"]["freshness"]["status"] == "fresh"
     assert governance["external_monitor"]["install_contract"]["preferred_host_lane"] == "user_crontab"
+    assert governance["external_monitor"]["ticking_state"]["status"] == "observed-ticking"
