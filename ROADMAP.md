@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-16 16:21 UTC_
+_最後更新：2026-04-16 16:42 UTC_
 
 只保留目前計畫，不保留舊 roadmap。
 
@@ -28,30 +28,30 @@ _最後更新：2026-04-16 16:21 UTC_
   - `scripts/execution_metadata_smoke.py`
   - `data/execution_metadata_smoke.json`
   - `tests/test_execution_metadata_smoke.py`
-- 既有 closure：
-  - `/api/status` 會在 stale / unavailable 時自動嘗試 read-only refresh
-  - governance payload 已帶 `auto_refresh` 與 5 分鐘 cooldown
-  - Dashboard 會直接顯示 refresh command / escalation message / auto refresh state
-- API process 內治理 closure：
+- API process 內治理 closure 已落地：
   - `server/main.py` 啟動時會自動啟動 execution metadata background monitor
   - 背景監看器每 60 秒執行一次 stale governance 檢查
   - `execution_metadata_smoke.governance.background_monitor` 已成為 runtime contract
-  - Dashboard 會顯示 `background monitor status / checked_at / freshness / interval_seconds`
-- process-external governance closure：
-  - `scripts/execution_metadata_external_monitor.py` 提供可由 cron / scheduler / pager 直接執行的 external monitor lane
-  - `data/execution_metadata_external_monitor.json` 成為 process 外治理 artifact
-  - `server/routes/api.py` 會把 `external_monitor` 併入 `execution_metadata_smoke.governance`
-  - Dashboard stale governance 面板會顯示 `external monitor status / checked_at / freshness / command / error`
-- **本輪新增 closure**：
-  - `scripts/execution_metadata_external_monitor_install.py` 提供 **host-level install contract generator**
-  - `data/execution_metadata_external_monitor_install_contract.json` 持久化 `user_crontab / systemd_user / fallback` 契約
-  - `scripts/execution_metadata_external_monitor.py` 產出的 artifact 現在內嵌 `install_contract`
-  - `/api/status` 與 Dashboard 會直接顯示 `preferred_host_lane / install command / install verify / fallback command / systemd timer`
+- process-external governance closure 已落地：
+  - `scripts/execution_metadata_external_monitor.py`
+  - `data/execution_metadata_external_monitor.json`
+  - `/api/status` 會把 `external_monitor` 併入 governance payload
+  - Dashboard 會顯示 `external monitor status / checked_at / freshness / command / error`
+- install contract closure 已落地：
+  - `scripts/execution_metadata_external_monitor_install.py`
+  - `data/execution_metadata_external_monitor_install_contract.json`
+  - `/api/status` 與 Dashboard 會顯示 `preferred_host_lane / install command / install verify / fallback command / systemd timer`
   - `SignalBanner.tsx` 已正式標示：Dashboard 是 canonical execution route；SignalBanner 只是快捷下單 / automation lane
+- **本輪新增 closure**：
+  - `preferred_host_lane=user_crontab` 已真正安裝到 host-level scheduler
+  - install contract 現在會 machine-read `install_status={status, installed, active_lane, checked_at, lanes.*}`
+  - Dashboard 會直接顯示 `install status / active lane / install checked at / crontab verify stdout`
+  - `data/execution_metadata_external_monitor_install_contract.json` 與 `data/execution_metadata_external_monitor.json` 都已刷新為 `install_status.status=installed`
 - 驗證已通過：
   - `python scripts/execution_metadata_smoke.py --symbol BTCUSDT` → **成功，2/2 venue metadata contract 可讀**
-  - `python scripts/execution_metadata_external_monitor_install.py --symbol BTCUSDT` → **成功，install contract artifact 生成**
+  - `python scripts/execution_metadata_external_monitor_install.py --symbol BTCUSDT` → **成功，artifact 顯示 installed + user_crontab**
   - `python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT` → **成功，external governance artifact healthy**
+  - `crontab -l | grep 'poly-trader-execution-metadata-external-monitor'` → **成功，host-level scheduler 已存在**
   - `python -m pytest tests/test_server_startup.py tests/test_frontend_decision_contract.py -q` → **19 passed**
   - `cd web && npm run build` → **成功**
 
@@ -59,16 +59,16 @@ _最後更新：2026-04-16 16:21 UTC_
 
 ## 目前主目標
 
-### 目標 A：把 host-level install contract 從 install-ready 推進到 installed + verified
+### 目標 A：確認 host-level scheduler 不是只「已安裝」，而是會自然週期地持續運作
 重點：
-- install contract 與 Dashboard surface 已完成
-- 下一步不是再證明 contract 存在，而是依 `preferred_host_lane=user_crontab`（或必要時 `systemd --user`）**真正安裝並驗證**
-- 驗證標準必須是 install command 已採用、verify command 有證據，而不是單純 artifact 還能手動重跑
+- install-ready → installed 已完成
+- 下一步不是再重做 install，而是驗證 **自然 cron 週期** 會刷新 external monitor artifact / log
+- 驗證標準必須是 `generated_at/checked_at/log` 在無手動介入下前進
 
 ### 目標 B：維持清楚的 execution route 分工
 重點：
-- 目前只有 Dashboard 完整消費 `/api/status + guardrails + metadata governance + install/fallback contract`
-- `SignalBanner.tsx` 已正式收斂為快捷下單 / automation lane，不再模糊扮演第二條完整 execution route
+- 目前只有 Dashboard 完整消費 `/api/status + guardrails + metadata governance + install_status`
+- `SignalBanner.tsx` 仍維持快捷下單 / automation lane
 - 若未來要升級第二 route，必須沿用 Dashboard 的同一套 runtime contract，而不是只接 `/api/trade`
 
 ### 目標 C：維持 readiness 邊界紀律
@@ -82,39 +82,39 @@ _最後更新：2026-04-16 16:21 UTC_
 
 | 策略 | 好處 | 風險／代價 | 治標/治本 | 適用條件 | 建議 |
 |---|---|---|---|---|---|
-| 繼續只保留 external monitor script | 改動最少 | host-level 安裝與 verify 仍模糊 | 治標 | 只想證明 script 還能跑 | ❌ 不建議 |
-| 新增 host-level install contract generator + Dashboard surface | 讓安裝責任、verify、fallback 變成 machine-readable contract | 還沒真的安裝 | **治本第一步** | external monitor script 已穩定 | ✅ 本輪採用 |
-| 直接在本輪硬裝 host scheduler | 最接近完成狀態 | 若沒有先收斂 contract，會留下黑盒部署 | 治本第二步 | install contract 已落地 | ⏳ 下一輪採用 |
-| 直接把 `SignalBanner` 升級成第二 route | 可增加 route coverage | 會分散主題，且目前仍缺完整 runtime context | 治標 | host-level install 已完成後再評估 | ❌ 本輪不採用 |
-| 正式把 Dashboard 定義為 canonical execution route | 立即消除 route 假完成 | 第二 route 仍待未來升級 | **語義治本** | `SignalBanner` 尚未具備完整 contract | ✅ 本輪採用 |
+| 繼續停在 install-ready | 不用碰 host-level 環境 | blocker 原封不動，下一輪還是同一題 | 治標 | 只想保留契約文字 | ❌ 不建議 |
+| 安裝 `user_crontab` 並用 `crontab -l` 驗證 | 直接完成 preferred host lane 落地 | 還需要把 installed 狀態同步到 artifact / UI | 治本第一步 | crontab 可用 | ✅ 本輪採用 |
+| 只裝 cron，不補 installed-state surface | 主機上有 scheduler | UI/API 仍看不到是否真的 installed | 治標 | 只追求主機落地 | ❌ 不建議 |
+| install status machine-readable + Dashboard surface | operator 能直接看到 installed / active lane / verify output | 需要 patch + regression | 治本收尾 | install contract 已存在 | ✅ 本輪採用 |
+| 直接擴 `SignalBanner` 成第二 route | 可能增加操作入口 | 會分散主題，且仍缺完整 runtime contract | 治標 | scheduler 穩定後再評估 | ❌ 本輪不採用 |
 
 ### 效益前提驗證
-- 前提 1：external monitor script 已能穩定重跑並產生 healthy artifact → **成立**
-- 前提 2：Dashboard 已有 stale governance 面板可承接 install/fallback contract → **成立**
-- 前提 3：先明確標示 canonical route，比直接擴大第二 route 更能避免假完成 → **成立**
-- 前提 4：本輪是否已可宣稱 host-level scheduler installed → **不成立**
+- 前提 1：`crontab` 在本機可用 → **成立**
+- 前提 2：external monitor 腳本已穩定 → **成立**
+- 前提 3：Dashboard governance 面板可承接 install status → **成立**
+- 前提 4：本輪是否已可宣稱 live/canary ready → **不成立**
 
 ---
 
 ## Next focus
-1. 依 `preferred_host_lane` 真正安裝 external monitor scheduler，並用 `install verify` 證明 host-level lane 已存在
+1. 在**不手動重跑 external monitor** 的情況下，驗證 artifact / log 會由 cron 自然刷新
 2. 維持 Dashboard 為 canonical execution route；未升級前不再把 SignalBanner 描述成完整 runtime governance surface
 3. 繼續把 readiness 文案限制在 runtime governance / visibility，不升級成 live/canary safe
 
 ## Success gate
-- host-level scheduler 已真正安裝，Dashboard 所顯示的 install/verify/fallback contract 與主機狀態一致
-- execution route coverage 不再模糊：Dashboard 是 canonical route，SignalBanner 僅屬快捷 lane，除非未來另有完整升級 patch
-- 文件仍明確區分 install-ready / installed / live-ready 三種狀態
+- external monitor artifact 與 log 在自然 cron 週期下前進，證明 host-level lane 不只是 installed，且會持續 ticking
+- execution route coverage 不再模糊：Dashboard 是 canonical route，SignalBanner 僅屬快捷 lane
+- 文件仍明確區分 install-ready / installed / observed-ticking / live-ready 幾種狀態
 
 ## Fallback if fail
-- 若本輪或下輪仍無法真正安裝 host-level scheduler，至少要把「未安裝原因 / 人工 fallback / verify 邊界」維持在 Dashboard 與文件中，不可再回退成一句 future work
-- 若未來決定擴第二 route，必須先補 `/api/status` refresh、guardrail context、stale governance、install contract 消費，再宣稱 route coverage 擴張
-- 若有人把 install-ready 誤寫成 live-ready，文件必須立即糾正並停止擴大 readiness 敘事
+- 若 scheduler 已安裝但下一輪觀察不到自然 tick，必須把狀態降級為 `installed-not-observed` 或 `installed-but-not-ticking`，並明確保留 fallback command / verify 邊界
+- 若未來要擴第二 route，必須先補 `/api/status` refresh、guardrail context、stale governance、install status 消費，再宣稱 route coverage 擴張
+- 若有人把 governance installed 誤寫成 live-ready，文件必須立即糾正並停止擴大 readiness 敘事
 
 ## Documents to update next round
 - `ISSUES.md`
 - `ROADMAP.md`
-- `ARCHITECTURE.md`（若 host-level scheduler 已真正安裝，或第二 route 狀態有變）
+- `ARCHITECTURE.md`（若加入 observed-ticking / install-state 新 contract 或第二 route 狀態改變）
 - `scripts/execution_metadata_external_monitor_install.py`
 - `scripts/execution_metadata_external_monitor.py`
 - `server/routes/api.py`
@@ -123,10 +123,11 @@ _最後更新：2026-04-16 16:21 UTC_
 
 ## Carry-forward input for next heartbeat
 - 先檢查：
-  - `python scripts/execution_metadata_smoke.py --symbol BTCUSDT`
+  - `crontab -l | grep 'poly-trader-execution-metadata-external-monitor'`
+  - `tail -n 20 data/execution_metadata_external_monitor.log`
   - `python scripts/execution_metadata_external_monitor_install.py --symbol BTCUSDT`
-  - `python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT`
-  - `/api/status` governance 是否同時帶 `auto_refresh + background_monitor + external_monitor.install_contract`
-- 然後優先做：依 `preferred_host_lane` 把 external monitor 真正安裝到 host-level scheduler，並執行 `install verify`
+  - `python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT`（只在需要人工 refresh 診斷時使用）
+  - `/api/status` governance 是否同時帶 `background_monitor + external_monitor + external_monitor.install_contract.install_status`
+- 然後優先做：確認 external monitor 的 `generated_at/checked_at` 是否在自然 cron 週期下前進，而不是只靠手動重跑
 - 接著處理：在未升級完整 runtime contract 前，維持 `SignalBanner = 快捷 lane`、`Dashboard = canonical execution route`
 - 若以上兩件事尚未完成，不要把 execution readiness 敘事升級成 live/canary safe

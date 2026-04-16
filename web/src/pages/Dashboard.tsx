@@ -102,6 +102,26 @@ interface RuntimeStatusResponse {
           preferred_host_lane?: string;
           generator_command?: string;
           manual_run_command?: string;
+          install_status?: {
+            status?: string;
+            installed?: boolean;
+            active_lane?: string | null;
+            checked_at?: string | null;
+            lanes?: {
+              user_crontab?: {
+                installed?: boolean;
+                verify_command?: string;
+                stdout?: string;
+                stderr?: string;
+              } | null;
+              systemd_user?: {
+                installed?: boolean;
+                verify_command?: string;
+                stdout?: string;
+                stderr?: string;
+              } | null;
+            } | null;
+          } | null;
           fallback?: {
             reason?: string;
             command?: string;
@@ -753,13 +773,24 @@ export default function Dashboard() {
                   <div className="mt-2 opacity-85">
                     preferred host lane: {externalMonitorInstallContract.preferred_host_lane}
                     {externalMonitorInstallContract.user_crontab?.schedule ? ` · schedule ${externalMonitorInstallContract.user_crontab.schedule}` : ""}
+                    {externalMonitorInstallContract.install_status?.status ? ` · install status ${externalMonitorInstallContract.install_status.status}` : ""}
+                    {externalMonitorInstallContract.install_status?.active_lane ? ` · active lane ${externalMonitorInstallContract.install_status.active_lane}` : ""}
                   </div>
+                )}
+                {externalMonitorInstallContract?.install_status?.checked_at && (
+                  <div className="mt-2 opacity-80">install checked at: {externalMonitorInstallContract.install_status.checked_at}</div>
                 )}
                 {externalMonitorInstallContract?.user_crontab?.install_command && (
                   <div className="mt-2 font-mono opacity-85 break-all">install command: {externalMonitorInstallContract.user_crontab.install_command}</div>
                 )}
                 {externalMonitorInstallContract?.user_crontab?.verify_command && (
                   <div className="mt-2 font-mono opacity-85 break-all">install verify: {externalMonitorInstallContract.user_crontab.verify_command}</div>
+                )}
+                {externalMonitorInstallContract?.install_status?.lanes?.user_crontab?.stdout && (
+                  <div className="mt-2 font-mono opacity-80 break-all">crontab verify stdout: {externalMonitorInstallContract.install_status.lanes.user_crontab.stdout}</div>
+                )}
+                {externalMonitorInstallContract?.install_status?.lanes?.user_crontab?.stderr && !externalMonitorInstallContract.install_status.lanes.user_crontab.installed && (
+                  <div className="mt-2 text-amber-200 break-all">crontab verify stderr: {externalMonitorInstallContract.install_status.lanes.user_crontab.stderr}</div>
                 )}
                 {externalMonitorInstallContract?.fallback?.reason && (
                   <div className="mt-2 opacity-90">fallback contract: {externalMonitorInstallContract.fallback.reason}</div>

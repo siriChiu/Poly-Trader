@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +32,38 @@ def _build_schedule(interval_seconds: float) -> str:
     if interval_seconds % 60 == 0 and minutes <= 59:
         return f"*/{minutes} * * * *"
     return f"# every {minutes} minutes (manual/custom scheduler required)"
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _run_verify_command(command: str) -> dict:
+    try:
+        result = subprocess.run(
+            command,
+            shell=True,
+            executable="/bin/bash",
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except Exception as exc:
+        return {
+            "installed": False,
+            "returncode": None,
+            "stdout": "",
+            "stderr": str(exc),
+            "checked_at": _utc_now(),
+        }
+    return {
+        "installed": result.returncode == 0,
+        "returncode": result.returncode,
+        "stdout": (result.stdout or "").strip(),
+        "stderr": (result.stderr or "").strip(),
+        "checked_at": _utc_now(),
+    }
 
 
 def build_install_contract(
@@ -67,6 +101,28 @@ def build_install_contract(
         "WantedBy=timers.target",
         "",
     ])
+    cron_verify_command = f"crontab -l | grep '{service_name}'"
+    systemd_verify_command = f"systemctl --user status {service_name}.timer --no-pager"
+    cron_status = _run_verify_command(cron_verify_command)
+    systemd_status = _run_verify_command(systemd_verify_command)
+    installed_lane = "user_crontab" if cron_status["installed"] else ("systemd_user" if systemd_status["installed"] else None)
+    install_status = {
+        "status": "installed" if installed_lane else "install_ready",
+        "installed": bool(installed_lane),
+        "active_lane": installed_lane,
+        "checked_at": _utc_now(),
+        "preferred_host_lane": "user_crontab",
+        "lanes": {
+            "user_crontab": {
+                **cron_status,
+                "verify_command": cron_verify_command,
+            },
+            "systemd_user": {
+                **systemd_status,
+                "verify_command": systemd_verify_command,
+            },
+        },
+    }
     return {
         "version": 1,
         "preferred_host_lane": "user_crontab",
@@ -83,6 +139,7 @@ def build_install_contract(
             f"test -f {PROJECT_ROOT / 'data' / 'execution_metadata_external_monitor.json'} && "
             f"tail -n 40 {PROJECT_ROOT / 'data' / 'execution_metadata_external_monitor.json'}"
         ),
+        "install_status": install_status,
         "fallback": {
             "mode": "manual_or_existing_scheduler",
             "reason": "若本輪無法直接安裝 host-level scheduler，至少保留可重跑 command 與 verify contract。",
@@ -96,7 +153,7 @@ def build_install_contract(
                 f"(crontab -l 2>/dev/null | grep -v '{service_name}'; "
                 f"echo '{cron_entry} # {service_name}') | crontab -"
             ),
-            "verify_command": f"crontab -l | grep '{service_name}'",
+            "verify_command": cron_verify_command,
         },
         "systemd_user": {
             "service_name": service_name,
@@ -110,7 +167,7 @@ def build_install_contract(
                 "systemctl --user daemon-reload",
                 f"systemctl --user enable --now {service_name}.timer",
             ],
-            "verify_command": f"systemctl --user status {service_name}.timer --no-pager",
+            "verify_command": systemd_verify_command,
         },
         "output_artifact": str(DEFAULT_OUTPUT),
     }

@@ -375,6 +375,14 @@ def test_load_execution_metadata_external_monitor_state_reports_freshness(tmp_pa
         "command": "source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT",
         "install_contract": {
             "preferred_host_lane": "user_crontab",
+            "install_status": {
+                "status": "installed",
+                "installed": True,
+                "active_lane": "user_crontab",
+                "lanes": {
+                    "user_crontab": {"installed": True, "stdout": "*/5 * * * * ... poly-trader-execution-metadata-external-monitor"},
+                },
+            },
             "user_crontab": {"schedule": "*/5 * * * *", "verify_command": "crontab -l | grep 'poly-trader-execution-metadata-external-monitor'"},
             "fallback": {"reason": "manual fallback", "command": "source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT"},
         },
@@ -388,6 +396,8 @@ def test_load_execution_metadata_external_monitor_state_reports_freshness(tmp_pa
     assert state["freshness"]["status"] == "fresh"
     assert state["command"].endswith("python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT")
     assert state["install_contract"]["preferred_host_lane"] == "user_crontab"
+    assert state["install_contract"]["install_status"]["status"] == "installed"
+    assert state["install_contract"]["install_status"]["active_lane"] == "user_crontab"
     assert state["install_contract"]["user_crontab"]["schedule"] == "*/5 * * * *"
 
 
