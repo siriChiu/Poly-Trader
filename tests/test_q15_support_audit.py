@@ -336,6 +336,9 @@ def test_build_report_prefers_explicit_probe_execution_guardrail_reason_over_sta
 
     assert report["current_live"]["execution_guardrail_reason"] is None
     assert report["support_route"]["verdict"] == "exact_bucket_supported"
+    assert report["support_route"]["support_governance_route"] == "exact_live_bucket_supported"
+    assert report["support_route"]["exact_bucket_root_cause"] == "exact_bucket_supported"
+    assert report["support_route"]["recommended_action"].startswith("保持 current_live_structure_bucket_rows >= minimum_support_rows")
     assert report["component_experiment"]["verdict"] == "exact_supported_component_experiment_ready"
 
 
@@ -378,6 +381,28 @@ def test_build_report_support_ready_exposes_component_experiment_machine_read_an
             "regime_label+regime_gate+entry_quality_label": {
                 "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
                 "current_live_structure_bucket_rows": 50,
+                "current_live_structure_bucket_metrics": {
+                    "rows": 50,
+                    "win_rate": 0.93,
+                    "avg_quality": 0.48,
+                    "avg_pnl": 0.0052,
+                },
+                "exact_lane_bucket_diagnostics": {
+                    "buckets": {
+                        "CAUTION|structure_quality_caution|q15": {
+                            "rows": 50,
+                            "win_rate": 0.93,
+                            "avg_quality": 0.48,
+                            "avg_pnl": 0.0052,
+                        },
+                        "CAUTION|structure_quality_caution|q35": {
+                            "rows": 80,
+                            "win_rate": 0.81,
+                            "avg_quality": 0.31,
+                            "avg_pnl": 0.0021,
+                        },
+                    }
+                },
             }
         },
     }
@@ -426,7 +451,9 @@ def test_build_report_support_ready_exposes_component_experiment_machine_read_an
     assert report["component_experiment"]["machine_read_answer"]["support_ready"] is True
     assert report["component_experiment"]["machine_read_answer"]["entry_quality_ge_0_55"] is True
     assert report["component_experiment"]["machine_read_answer"]["allowed_layers_gt_0"] is True
-    assert report["component_experiment"]["machine_read_answer"]["preserves_positive_discrimination_status"] == "not_measured_requires_followup_verify"
+    assert report["component_experiment"]["machine_read_answer"]["preserves_positive_discrimination"] is True
+    assert report["component_experiment"]["machine_read_answer"]["preserves_positive_discrimination_status"] == "verified_exact_lane_bucket_dominance"
+    assert report["component_experiment"]["positive_discrimination_evidence"]["comparisons"][0]["bucket"] == "CAUTION|structure_quality_caution|q35"
 
 
 def test_build_report_marks_q15_experiment_as_standby_when_current_live_row_is_q35():

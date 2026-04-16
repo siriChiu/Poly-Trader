@@ -19,7 +19,7 @@
 - reason: current live row 正位於 q15 lane；q15 support / component verify 可直接視為 current-live deployment 檢查。
 
 ## Support route verdict
-- support_governance_route: **exact_live_bucket_present_but_below_minimum**
+- support_governance_route: **exact_live_bucket_supported**
 - verdict: **exact_bucket_supported**
 - deployable: **True**
 - governance_reference_only: **False**
@@ -54,7 +54,7 @@
 - support_ready: **True**
 - entry_quality_ge_0_55: **True**
 - allowed_layers_gt_0: **True**
-- preserves_positive_discrimination: **None** (not_measured_requires_followup_verify)
+- preserves_positive_discrimination: **True** (verified_exact_lane_bucket_dominance)
 - reason: exact support 已達標，feat_4h_bias50 可作為保守的 q15 component experiment；但是否保留正向 discrimination，仍需靠 pytest / fast heartbeat / live probe 做回歸驗證。
 - verify_next: 用 exact-supported component patch + pytest + fast heartbeat 驗證 allowed_layers / execution_guardrail / live probe 是否仍一致。
 

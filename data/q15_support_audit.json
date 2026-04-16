@@ -22,7 +22,7 @@
     "reason": "current live row 正位於 q15 lane；q15 support / component verify 可直接視為 current-live deployment 檢查。"
   },
   "support_route": {
-    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+    "support_governance_route": "exact_live_bucket_supported",
     "preferred_support_cohort": "exact_live_bucket",
     "verdict": "exact_bucket_supported",
     "deployable": true,
@@ -32,8 +32,8 @@
     "route_hint": null,
     "minimum_support_rows": 50,
     "current_live_structure_bucket_gap_to_minimum": 0,
-    "exact_bucket_root_cause": "exact_bucket_present_but_below_minimum",
-    "recommended_action": "維持部署 blocker；exact bucket 已出現但仍低於 minimum support，proxy 只可作治理參考。",
+    "exact_bucket_root_cause": "exact_bucket_supported",
+    "recommended_action": "保持 current_live_structure_bucket_rows >= minimum_support_rows，且 live row 仍通過 entry-quality / execution guardrail。",
     "exact_live_bucket_proxy_rows": 1,
     "exact_live_lane_proxy_rows": 58,
     "supported_neighbor_rows": 0,
@@ -54,12 +54,12 @@
       "history": [
         {
           "heartbeat": "current",
-          "timestamp": "2026-04-16T23:32:39.832438+00:00",
+          "timestamp": "2026-04-16T23:47:16.519250+00:00",
           "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
           "live_current_structure_bucket_rows": 77,
           "minimum_support_rows": 50,
           "support_route_verdict": "exact_bucket_supported",
-          "support_governance_route": "exact_live_bucket_present_but_below_minimum"
+          "support_governance_route": "exact_live_bucket_supported"
         },
         {
           "heartbeat": "1014",
@@ -126,8 +126,30 @@
       "support_ready": true,
       "entry_quality_ge_0_55": true,
       "allowed_layers_gt_0": true,
-      "preserves_positive_discrimination": null,
-      "preserves_positive_discrimination_status": "not_measured_requires_followup_verify"
+      "preserves_positive_discrimination": true,
+      "preserves_positive_discrimination_status": "verified_exact_lane_bucket_dominance"
+    },
+    "positive_discrimination_evidence": {
+      "preserves_positive_discrimination": true,
+      "status": "verified_exact_lane_bucket_dominance",
+      "reason": "current q15 bucket 在 exact lane 內對所有 sibling buckets 都保留非負 win/pnl/quality discrimination，可作為 exact-supported component verify 的正向證據。",
+      "current_bucket": "CAUTION|structure_quality_caution|q15",
+      "current_bucket_rows": 77,
+      "current_bucket_metrics": {
+        "win_rate": 1.0,
+        "avg_quality": 0.4992,
+        "avg_pnl": 0.0059
+      },
+      "comparisons": [
+        {
+          "bucket": "CAUTION|structure_quality_caution|q35",
+          "rows": 123,
+          "win_rate_delta": 0.1463,
+          "avg_quality_delta": 0.1367,
+          "avg_pnl_delta": 0.0029,
+          "preserves_vs_bucket": true
+        }
+      ]
     },
     "verify_next": "用 exact-supported component patch + pytest + fast heartbeat 驗證 allowed_layers / execution_guardrail / live probe 是否仍一致。"
   },

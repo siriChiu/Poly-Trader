@@ -487,6 +487,7 @@ def _component_experiment(
     component_gap: dict[str, Any],
     runtime_blocker: dict[str, Any] | None,
     scope_applicability: dict[str, Any],
+    positive_discrimination: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     best_single = component_gap.get("best_single_component") or {}
     feature = best_single.get("feature")
@@ -510,6 +511,7 @@ def _component_experiment(
                 "preserves_positive_discrimination": None,
                 "preserves_positive_discrimination_status": "not_measured_runtime_blocked",
             },
+            "positive_discrimination_evidence": positive_discrimination,
             "verify_next": "先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。",
         }
 
@@ -525,6 +527,7 @@ def _component_experiment(
                 "preserves_positive_discrimination": None,
                 "preserves_positive_discrimination_status": "not_measured_support_missing",
             },
+            "positive_discrimination_evidence": positive_discrimination,
             "verify_next": "先把 current q15 exact bucket rows 補到 minimum support，再回來做 component experiment。",
         }
 
@@ -540,6 +543,7 @@ def _component_experiment(
                 "preserves_positive_discrimination": None,
                 "preserves_positive_discrimination_status": "not_measured_no_candidate",
             },
+            "positive_discrimination_evidence": positive_discrimination,
             "verify_next": "先修復 live_decision_quality_drilldown 的 component gap attribution，再重跑 q15 audit。",
         }
 
@@ -564,6 +568,7 @@ def _component_experiment(
                 "preserves_positive_discrimination_status": "not_applicable_current_live_not_q15_lane",
                 "active_for_current_live_row": False,
             },
+            "positive_discrimination_evidence": positive_discrimination,
             "verify_next": "若 live row 回到 q15 lane，再執行 q15 exact-supported deployment verify；目前應以 q35 current-live blocker 為主。",
         }
 
@@ -575,6 +580,13 @@ def _component_experiment(
             entry_quality_ge_trade_floor = entry_after >= trade_floor
         allowed_layers_gt_0 = layers_after > 0
         experiment_mode = "bias50_floor_counterfactual"
+
+    positive_discrimination = positive_discrimination or {}
+    preserves_positive_discrimination = positive_discrimination.get("preserves_positive_discrimination")
+    preserves_positive_discrimination_status = positive_discrimination.get(
+        "status",
+        "not_measured_requires_followup_verify",
+    )
 
     return {
         "verdict": "exact_supported_component_experiment_ready",
@@ -591,10 +603,94 @@ def _component_experiment(
             "support_ready": True,
             "entry_quality_ge_0_55": bool(entry_quality_ge_trade_floor),
             "allowed_layers_gt_0": bool(allowed_layers_gt_0),
-            "preserves_positive_discrimination": None,
-            "preserves_positive_discrimination_status": "not_measured_requires_followup_verify",
+            "preserves_positive_discrimination": preserves_positive_discrimination,
+            "preserves_positive_discrimination_status": preserves_positive_discrimination_status,
         },
+        "positive_discrimination_evidence": positive_discrimination,
         "verify_next": "用 exact-supported component patch + pytest + fast heartbeat 驗證 allowed_layers / execution_guardrail / live probe 是否仍一致。",
+    }
+
+
+def _measure_q15_positive_discrimination(
+    probe: dict[str, Any],
+    drilldown: dict[str, Any],
+    current_bucket: str | None,
+) -> dict[str, Any]:
+    scopes = (probe.get("decision_quality_scope_diagnostics") or {}) if isinstance(probe, dict) else {}
+    exact_scope = scopes.get("regime_label+regime_gate+entry_quality_label") or {}
+    exact_diag = exact_scope.get("exact_lane_bucket_diagnostics") or drilldown.get("exact_live_lane_bucket_diagnostics") or {}
+    buckets = exact_diag.get("buckets") or {}
+    if not current_bucket:
+        return {
+            "preserves_positive_discrimination": None,
+            "status": "not_measured_missing_current_bucket",
+            "reason": "current live structure bucket 缺失，無法驗證 q15 component experiment 是否保留正向 discrimination。",
+        }
+
+    current_metrics = exact_scope.get("current_live_structure_bucket_metrics") or buckets.get(current_bucket) or {}
+    if not current_metrics:
+        return {
+            "preserves_positive_discrimination": None,
+            "status": "not_measured_missing_current_bucket_metrics",
+            "reason": "exact lane artifact 缺少 current bucket metrics，無法驗證正向 discrimination。",
+        }
+
+    sibling_buckets = {
+        bucket: metrics
+        for bucket, metrics in buckets.items()
+        if bucket != current_bucket and isinstance(metrics, dict)
+    }
+    if not sibling_buckets:
+        return {
+            "preserves_positive_discrimination": None,
+            "status": "not_measured_single_bucket_exact_lane",
+            "reason": "exact lane 只有 current bucket，缺少 sibling bucket 作 discrimination 對照。",
+            "current_bucket": current_bucket,
+        }
+
+    comparisons = []
+    passes = True
+    for bucket, metrics in sibling_buckets.items():
+        current_win = _as_float(current_metrics.get("win_rate"))
+        current_quality = _as_float(current_metrics.get("avg_quality"))
+        current_pnl = _as_float(current_metrics.get("avg_pnl"))
+        sibling_win = _as_float(metrics.get("win_rate"))
+        sibling_quality = _as_float(metrics.get("avg_quality"))
+        sibling_pnl = _as_float(metrics.get("avg_pnl"))
+        deltas = {
+            "win_rate_delta": None if current_win is None or sibling_win is None else round(current_win - sibling_win, 4),
+            "avg_quality_delta": None if current_quality is None or sibling_quality is None else round(current_quality - sibling_quality, 4),
+            "avg_pnl_delta": None if current_pnl is None or sibling_pnl is None else round(current_pnl - sibling_pnl, 4),
+        }
+        preserves_vs_bucket = all(delta is not None and delta >= 0 for delta in deltas.values()) and any(
+            delta is not None and delta > 0 for delta in deltas.values()
+        )
+        comparisons.append(
+            {
+                "bucket": bucket,
+                "rows": _as_int(metrics.get("rows"), 0),
+                **deltas,
+                "preserves_vs_bucket": preserves_vs_bucket,
+            }
+        )
+        passes = passes and preserves_vs_bucket
+
+    return {
+        "preserves_positive_discrimination": passes,
+        "status": "verified_exact_lane_bucket_dominance" if passes else "failed_exact_lane_bucket_dominance",
+        "reason": (
+            "current q15 bucket 在 exact lane 內對所有 sibling buckets 都保留非負 win/pnl/quality discrimination，可作為 exact-supported component verify 的正向證據。"
+            if passes
+            else "exact lane 中至少有一個 sibling bucket 的 win/pnl/quality 不劣於 current q15 bucket，不能宣稱 component experiment 保留正向 discrimination。"
+        ),
+        "current_bucket": current_bucket,
+        "current_bucket_rows": _as_int(current_metrics.get("rows"), 0),
+        "current_bucket_metrics": {
+            "win_rate": _as_float(current_metrics.get("win_rate")),
+            "avg_quality": _as_float(current_metrics.get("avg_quality")),
+            "avg_pnl": _as_float(current_metrics.get("avg_pnl")),
+        },
+        "comparisons": comparisons,
     }
 
 
@@ -624,10 +720,13 @@ def build_report(
         preferred_support_cohort=support_summary.get("preferred_support_cohort"),
         support_governance_route=alignment.get("support_governance_route"),
     )
+    effective_support_governance_route = alignment.get("support_governance_route")
+    if support_route.get("deployable"):
+        effective_support_governance_route = "exact_live_bucket_supported"
     support_progress = _summarize_support_progress(
         current_bucket=live_context.get("current_live_structure_bucket"),
         support_route_verdict=support_route.get("verdict"),
-        support_governance_route=alignment.get("support_governance_route"),
+        support_governance_route=effective_support_governance_route,
         live_bucket_rows=current_bucket_rows,
         minimum_support_rows=minimum_support_rows,
         current_label=os.getenv("HB_RUN_LABEL"),
@@ -638,12 +737,18 @@ def build_report(
         remaining_gap_to_floor=_as_float(component_gap.get("remaining_gap_to_floor")),
         best_single_component=best_single,
     )
+    positive_discrimination = _measure_q15_positive_discrimination(
+        probe,
+        drilldown,
+        live_context.get("current_live_structure_bucket"),
+    )
     component_experiment = _component_experiment(
         support_route=support_route,
         floor_legality=floor_legality,
         component_gap=component_gap,
         runtime_blocker=runtime_blocker,
         scope_applicability=scope_applicability,
+        positive_discrimination=positive_discrimination,
     )
 
     remaining_gap = _as_float(component_gap.get("remaining_gap_to_floor"))
@@ -683,7 +788,7 @@ def build_report(
         },
         "scope_applicability": scope_applicability,
         "support_route": {
-            "support_governance_route": alignment.get("support_governance_route"),
+            "support_governance_route": effective_support_governance_route,
             "preferred_support_cohort": support_route.get("preferred_support_cohort"),
             "verdict": support_route.get("verdict"),
             "deployable": support_route.get("deployable"),
@@ -693,8 +798,16 @@ def build_report(
             "route_hint": support_route.get("route_hint"),
             "minimum_support_rows": minimum_support_rows,
             "current_live_structure_bucket_gap_to_minimum": max(0, minimum_support_rows - current_bucket_rows),
-            "exact_bucket_root_cause": support_summary.get("exact_bucket_root_cause") or support_route.get("route_hint") or support_route.get("verdict"),
-            "recommended_action": support_summary.get("recommended_action") or support_route.get("release_condition"),
+            "exact_bucket_root_cause": (
+                "exact_bucket_supported"
+                if support_route.get("deployable")
+                else support_summary.get("exact_bucket_root_cause") or support_route.get("route_hint") or support_route.get("verdict")
+            ),
+            "recommended_action": (
+                support_route.get("release_condition")
+                if support_route.get("deployable")
+                else support_summary.get("recommended_action") or support_route.get("release_condition")
+            ),
             "exact_live_bucket_proxy_rows": _as_int(alignment.get("bull_exact_live_bucket_proxy_rows"), 0),
             "exact_live_lane_proxy_rows": _as_int(alignment.get("bull_exact_live_lane_proxy_rows"), 0),
             "supported_neighbor_rows": _as_int(alignment.get("bull_support_neighbor_rows"), 0),
