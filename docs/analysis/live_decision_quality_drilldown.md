@@ -1,30 +1,30 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-16 20:18:23.397928**
+- feature_timestamp: **2026-04-16 21:38:10.597255**
 - target: `simulated_pyramid_win`
-- live path: **bull / CAUTION / C**
-- signal: **HOLD** @ confidence **0.2449**
-- layers: **1 → 0**
-- allowed_layers_raw_reason: `entry_quality_C_single_layer`
-- allowed_layers_reason: `under_minimum_exact_live_structure_bucket`
-- execution_guardrail_reason: `under_minimum_exact_live_structure_bucket`
+- live path: **bull / CAUTION / D**
+- signal: **HOLD** @ confidence **0.2438**
+- layers: **0 → 0**
+- allowed_layers_raw_reason: `entry_quality_below_trade_floor`
+- allowed_layers_reason: `unsupported_live_structure_bucket_blocks_trade; under_minimum_exact_live_structure_bucket`
+- execution_guardrail_reason: `unsupported_live_structure_bucket_blocks_trade; under_minimum_exact_live_structure_bucket`
 - runtime_blocker: `None` | reason: `None`
 - deployment_blocker: `under_minimum_exact_live_structure_bucket` | reason: `current live structure bucket 已有 exact rows，但仍低於 deployment-grade minimum support；在 support 補滿前，runtime 只能維持 guardrail，不可把這條 lane 視為已可部署。`
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5717** / trade_floor **0.55** / gap **0.0217**
-- base_quality: **0.6304** × weight **0.75**
-- structure_quality: **0.3953** × weight **0.25**
-- base components: feat_4h_bias50=0.1978 (w=0.0, contrib=0.0), feat_nose=0.1768 (w=0.0, contrib=0.0), feat_pulse=0.3006 (w=0.5, contrib=0.1503), feat_ear=0.9603 (w=0.5, contrib=0.4802)
-- structure components: feat_4h_bb_pct_b=0.6724 (w=0.34, contrib=0.2286), feat_4h_dist_bb_lower=0.2662 (w=0.33, contrib=0.0878), feat_4h_dist_swing_low=0.239 (w=0.33, contrib=0.0789)
+- final entry_quality: **0.317** / trade_floor **0.55** / gap **-0.233**
+- base_quality: **0.3163** × weight **0.75**
+- structure_quality: **0.319** × weight **0.25**
+- base components: feat_4h_bias50=0.0 (w=0.4, contrib=0.0), feat_nose=0.3503 (w=0.18, contrib=0.0631), feat_pulse=0.3955 (w=0.27, contrib=0.1068), feat_ear=0.9767 (w=0.15, contrib=0.1465)
+- structure components: feat_4h_bb_pct_b=0.5424 (w=0.34, contrib=0.1844), feat_4h_dist_bb_lower=0.218 (w=0.33, contrib=0.0719), feat_4h_dist_swing_low=0.1898 (w=0.33, contrib=0.0626)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.2772** | structure_group_max_entry_gain: **0.1511**
-- best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
-- single-component floor crossers: None
+- remaining_gap_to_floor: **0.233**
+- base_group_max_entry_gain: **0.5127** | structure_group_max_entry_gain: **0.1702**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.7767, max_gain≈0.3）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.7767)
 - bias50 fully relaxed: entry≈**0.5916** / layers≈**1** / required_bias50_cap≈**-1.9065**
 - unavailable_reason: `None`
 
@@ -32,10 +32,10 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label` | 200 | 0.88 | 0.38 | 0.173 | 0.6803 | 187 | False |
-| exact `regime_label+regime_gate+entry_quality_label` | 1 | 1.0 | 0.4441 | 0.1883 | 0.7917 | 1 | False |
-| narrow `regime_label+entry_quality_label` | 1 | 1.0 | 0.4441 | 0.1883 | 0.7917 | 1 | False |
-| broad `regime_gate+entry_quality_label` | 1 | 1.0 | 0.4441 | 0.1883 | 0.7917 | 1 | False |
+| chosen `regime_label+regime_gate+entry_quality_label` | 190 | 0.9105 | 0.4 | 0.1679 | 0.6717 | 4 | False |
+| exact `regime_label+regime_gate+entry_quality_label` | 190 | 0.9105 | 0.4 | 0.1679 | 0.6717 | 4 | False |
+| narrow `regime_label+entry_quality_label` | 199 | 0.8794 | 0.3797 | 0.1729 | 0.6797 | 4 | False |
+| broad `regime_gate+entry_quality_label` | 190 | 0.9105 | 0.4 | 0.1679 | 0.6717 | 4 | False |
 
 ## Shared shifts
 

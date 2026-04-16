@@ -8,8 +8,11 @@ class DummySession:
         return None
 
 
-def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, capsys):
+def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, capsys, tmp_path):
     session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
 
     monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
     monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"bull": object()}))
@@ -77,3 +80,4 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
     assert payload["allowed_layers_raw_reason"] == "entry_quality_C_single_layer"
     assert payload["allowed_layers_reason"] == "under_minimum_exact_live_structure_bucket"
     assert payload["deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
+    assert json.loads(out_path.read_text()) == payload

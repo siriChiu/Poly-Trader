@@ -19,6 +19,7 @@ from database.models import init_db
 from model.predictor import load_latest_features, load_predictor, predict
 
 DB_URL = f"sqlite:///{PROJECT_ROOT / 'poly_trader.db'}"
+OUT_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 FOUR_H_COLS = [
     "feat_4h_bias50",
     "feat_4h_bias20",
@@ -142,6 +143,8 @@ def main() -> None:
             "non_null_4h_lags": sorted(lag_non_null.keys()),
             "non_null_4h_lag_count": len(lag_non_null),
         }
+        OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        OUT_PATH.write_text(json.dumps(probe, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
         print(json.dumps(probe, ensure_ascii=False, indent=2, default=str))
     finally:
         session.close()

@@ -1,92 +1,94 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-17 05:11 CST_
+_最後更新：2026-04-17 05:46 CST_
 
 只保留目前有效問題；每輪 heartbeat 必須覆蓋更新，不保留舊流水帳。
 
 ---
 
 ## 當前主線
-Poly-Trader 本輪主線是 **live decision-quality runtime truth**：
-- current live path 仍是 `bull / CAUTION / q35`
-- `entry_quality=0.5717`、`allowed_layers_raw=1`
-- 但 exact support 僅 **1/50**，最終 `allowed_layers=0`
-- 本輪已修正一個產品化誤導點：**runtime surface 以前會把 `allowed_layers_reason` 留在 raw sizing 文案，造成 UI / probe / drilldown 看起來像仍可單層部署；現在已拆成 raw reason 與 final reason**
+本輪主線是 **live q15 deployment blocker truth + artifact freshness truth**。
 
 本輪已完成的直接產品化前進：
-- `model/predictor.py` 現在同時輸出：
-  - `allowed_layers_raw_reason` = guardrail 前原始 sizing 解釋
-  - `allowed_layers_reason` = 最終有效層數原因
-- `scripts/hb_predict_probe.py`、`scripts/live_decision_quality_drilldown.py`、`scripts/hb_parallel_runner.py` 已同步吃這個 contract
-- runtime artifact 已刷新，當前 live row 現在明確顯示：
-  - `allowed_layers_raw_reason=entry_quality_C_single_layer`
-  - `allowed_layers_reason=under_minimum_exact_live_structure_bucket`
+- 修正 `scripts/hb_predict_probe.py`：現在每次執行都會**同步覆寫** `data/live_predict_probe.json`
+- 這解掉一個 productization 級真相問題：後續 `live_decision_quality_drilldown.py` / `hb_q15_support_audit.py` 不再默默吃舊 probe snapshot
+- 已用最新 probe → drilldown → q15 audit 重跑，runtime artifacts 已從舊 q35 snapshot 對齊到**目前真實 q15 live row**
+
+目前 live 真相：
+- live path：`bull / CAUTION / D`
+- `structure_bucket = CAUTION|structure_quality_caution|q15`
+- `allowed_layers_raw = 0`
+- `allowed_layers = 0`
+- `deployment_blocker = under_minimum_exact_live_structure_bucket`
+- q15 exact support：**4 / 50**
+- `support_progress.status = accumulating`
+- `feat_4h_bias50` 仍是最佳單點 floor-crosser，但在 support 未達標前只可做 **reference-only calibration research**
 
 驗證：
-- `PYTHONPATH=. pytest tests/test_hb_predict_probe.py tests/test_api_feature_history_and_predictor.py::test_infer_deployment_blocker_flags_under_minimum_exact_live_structure_bucket tests/test_api_feature_history_and_predictor.py::test_apply_live_execution_guardrails_caps_layers_for_c_quality_and_guardrailed_window tests/test_hb_parallel_runner.py::test_collect_live_predictor_diagnostics_reads_probe_json -q` → **4 passed**
-- runtime：
-  - `python scripts/hb_predict_probe.py > data/live_predict_probe.json`
-  - `python scripts/live_decision_quality_drilldown.py`
+- `./venv/bin/python -m pytest tests/test_hb_predict_probe.py tests/test_q15_support_audit.py tests/test_hb_parallel_runner.py::test_collect_q15_support_audit_diagnostics_reads_support_and_floor_verdicts -q` → **10 passed**
+- runtime refresh：
+  - `./venv/bin/python scripts/hb_predict_probe.py`
+  - `./venv/bin/python scripts/live_decision_quality_drilldown.py`
+  - `HB_RUN_LABEL=20260417-cron ./venv/bin/python scripts/hb_q15_support_audit.py`
 - 產物確認：
-  - `data/live_predict_probe.json` 已含 `allowed_layers_raw_reason` / `allowed_layers_reason`
-  - `docs/analysis/live_decision_quality_drilldown.md` 已明確顯示 `1 → 0` 與兩種原因
+  - `data/live_predict_probe.json` → current live row 已是 q15 / 4 rows
+  - `docs/analysis/live_decision_quality_drilldown.md` → floor gap `0.2355`、best single component `feat_4h_bias50`
+  - `data/q15_support_audit.json` → support progress `4/50`, `accumulating`, `delta_vs_previous=+4`
 
 ---
 
 ## Open Issues
 
-### P0. current live q35 exact support 仍嚴重不足，仍是 deployment blocker
+### P0. q15 exact support 仍低於 deployment minimum，live 不能放行
 **現況**
-- live path：`bull / CAUTION / q35`
-- `entry_quality=0.5717`，`allowed_layers_raw=1`
-- `current_live_structure_bucket_rows=1`
-- `minimum_support_rows=50`
-- 最終 blocker：`under_minimum_exact_live_structure_bucket`
+- current live bucket：`CAUTION|structure_quality_caution|q15`
+- exact support：`4 / 50`
+- `support_progress.status = accumulating`
+- `deployment_blocker = under_minimum_exact_live_structure_bucket`
 
 **風險**
-- 即使 q35 redesign 已跨過 trade floor，如果 exact support 未補滿，仍不能部署
-- 任何只看 raw sizing 的 surface 都可能重新把這條 lane 誤讀成可單層上線
+- 即使 exact rows 已從 0 增加到 4，仍遠低於 deployment-grade minimum
+- 若把「開始累積」誤讀成「已可部署」，會讓 runtime / docs /人工判讀再次失真
 
 **下一步**
 - 持續 machine-check `support_progress`
-- 若連續 heartbeat 停滯，升級成 support accumulation blocker
+- exact rows 未達 50 前，保持 blocker，不得用 proxy/neighbor 當 release 證據
 
-### P0. recent canonical 100-row window 仍是 distribution pathology
+### P0. q15 floor gap 的最佳單點修補仍只是研究，不是 release path
 **現況**
-- recent 100 rows：`win_rate=1.0000`
-- dominant regime：`bull (100%)`
-- alerts：`constant_target / regime_concentration / regime_shift`
-- interpretation：`distribution_pathology`
+- drilldown：`remaining_gap_to_floor = 0.2355`
+- q15 audit：`best_single_component = feat_4h_bias50`
+- q15 audit：`required_score_delta_to_cross_floor ≈ 0.7767`
+- legality verdict：`math_cross_possible_but_illegal_without_exact_support`
 
 **風險**
-- recent calibration slice 仍可能把 live expectation 拉向假樂觀
-- 若 guardrail 沒有被所有 surface 正確消費，會再產生「看起來健康」的假訊號
+- 若先做 bias50 calibration，而 exact support 還沒到 minimum，會把研究結果誤包裝成 deployment closure
 
 **下一步**
-- 繼續沿 sibling-window / feature-shift artifact 做 root-cause patch
-- 在 pathology 根因未收斂前維持 current guardrail
+- 在 q15 exact support 達標前，bias50 只保留為 reference-only component experiment
+- support ready 後才允許進入 component patch + regression verify
 
-### P1. collect-enabled freshness 尚未在本輪重新驗證
+### P1. collect-enabled freshness / full fast-lane 還沒有在本輪重新閉環
 **現況**
-- 本輪重點是 runtime reason contract truth，不是 freshness repair
-- `labels[240m/1440m]` 是否在 collect-enabled lane 完全恢復，本輪未重新驗證
+- 本輪聚焦在 runtime artifact freshness truth 與 q15 blocker 對齊
+- collect/watchdog/freshness 不是本輪驗證重點
 
 **風險**
-- 若把本輪 probe/drilldown 修正誤讀成整體 live-ready，會忽略 freshness 仍需閉環
+- 若把 artifact truth 修正誤讀成整體 live-ready，會忽略 collect/freshness 仍需另一次閉環確認
 
 **下一步**
-- 下一輪在 collect-enabled fast/full lane 重新驗證 watchdog / candidate probe / freshness 三者同時健康
+- 下一輪重跑 collect-enabled heartbeat，確認 freshness / candidate governance / runtime blocker 同步健康
 
 ---
 
 ## Not Issues
-- 不是「current live blocker 不清楚」：目前 blocker 很清楚，就是 `under_minimum_exact_live_structure_bucket`
-- 不是「q35 redesign 沒有作用」：raw sizing 已到 `allowed_layers_raw=1`
-- 不是「drilldown 還在說可以單層部署」：本輪已修正 raw/final reason 分離，surface 現在能正確說明 `1 → 0`
+- 不是「仍停在舊 q35 live row」：本輪已修正 probe 持久化，current artifacts 已對齊 q15 live row
+- 不是「support 完全停滯」：q15 exact rows 已由 0 增至 4，當前是 **accumulating**，不是 stalled
+- 不是「bias50 已可直接解 blocker」：目前 legality 仍明確是 **illegal without exact support**
 
 ---
 
 ## Current Priority
-1. 累積 current live q35 exact support，直到 `current_live_structure_bucket_rows >= 50`
-2. 繼續處理 recent canonical distribution pathology 的根因，而不是只看 alert
-3. 在 collect-enabled lane 驗證 freshness 與 governance/runtime contract 同步健康
+1. 把 q15 exact support 從 `4 / 50` 繼續累積到 deployment minimum，並持續追 `support_progress`
+2. 在 support 未達標前，禁止把 `feat_4h_bias50` calibration research 誤寫成 live release
+3. 下一輪重做 collect-enabled freshness 閉環，確認資料新鮮度與 runtime 真相同步成立
