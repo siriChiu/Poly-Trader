@@ -16,7 +16,13 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 
-from server.dependencies import get_db, get_config, is_automation_enabled, set_automation_enabled
+from server.dependencies import (
+    get_db,
+    get_config,
+    get_runtime_status,
+    is_automation_enabled,
+    set_automation_enabled,
+)
 from server.features_engine import get_engine
 from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized
 from feature_engine.feature_history_policy import (
@@ -26,6 +32,8 @@ from feature_engine.feature_history_policy import (
     compute_raw_snapshot_stats,
     _compute_archive_window_coverage,
 )
+from execution.account_sync import AccountSyncService
+from execution.execution_service import ExecutionService
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -40,6 +48,20 @@ _STRATEGY_RUN_EXECUTOR = ThreadPoolExecutor(max_workers=2)
 _BENCHMARK_PROCESS_EXECUTOR = ProcessPoolExecutor(max_workers=1)
 _HYBRID_MODEL_LOCK = threading.Lock()
 _HYBRID_MODEL_CACHE: Dict[str, Dict[str, Any]] = {}
+
+_STRATEGY_STAGE_LABELS = {
+    "queued": "任務排隊",
+    "load_data": "讀取本地資料",
+    "backfill_raw": "回填原始行情",
+    "backfill_features": "補算特徵",
+    "backfill_labels": "補算標籤",
+    "reload_data": "重新載入資料",
+    "prepare_hybrid": "準備 Hybrid 訓練資料",
+    "train_model": "訓練模型",
+    "run_backtest": "執行回測",
+    "postprocess": "整理結果",
+    "save_results": "儲存與同步工作區",
+}
 
 _INTERVAL_MS = {
     "1m": 60_000,
@@ -97,6 +119,40 @@ def _normalize_result_timestamps(payload: Any) -> Any:
 
 def _build_cache_key(*parts: Any) -> str:
     return "::".join(str(part) for part in parts)
+
+
+def _strategy_job_stage_plan(body: Dict[str, Any]) -> List[Dict[str, Any]]:
+    params = body.get("params", {}) if isinstance(body.get("params"), dict) else {}
+    stype = str(body.get("type", "rule_based") or "rule_based")
+    auto_backfill = bool(body.get("auto_backfill", params.get("auto_backfill", False)))
+    keys: List[str] = ["queued", "load_data"]
+    if auto_backfill:
+        keys.extend(["backfill_raw", "backfill_features", "backfill_labels", "reload_data"])
+    if stype == "hybrid":
+        keys.extend(["prepare_hybrid", "train_model"])
+    keys.extend(["run_backtest", "postprocess", "save_results"])
+    return [{"key": key, "label": _STRATEGY_STAGE_LABELS.get(key, key), "status": "pending"} for key in keys]
+
+
+def _update_strategy_job_steps(job: Dict[str, Any], stage_key: Optional[str], *, status: str) -> None:
+    steps = job.get("steps")
+    if not isinstance(steps, list) or not steps:
+        return
+    if not stage_key:
+        if status == "completed":
+            for step in steps:
+                step["status"] = "completed"
+        return
+    current_index = next((idx for idx, step in enumerate(steps) if step.get("key") == stage_key), None)
+    if current_index is None:
+        return
+    for idx, step in enumerate(steps):
+        if idx < current_index and step.get("status") not in {"completed", "failed"}:
+            step["status"] = "completed"
+        elif idx == current_index:
+            step["status"] = "failed" if status == "failed" else ("completed" if status == "completed" and current_index == len(steps) - 1 else "running")
+        elif idx > current_index and step.get("status") == "running":
+            step["status"] = "pending"
 
 
 # ─── Models ───
@@ -348,11 +404,18 @@ def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
 @router.get("/status")
 async def api_status():
     cfg = get_config()
+    db = get_db()
+    execution = ExecutionService(cfg, db_session=db)
+    account_snapshot = AccountSyncService(cfg).snapshot(symbol=cfg.get("trading", {}).get("symbol", "BTCUSDT"))
     return {
         "automation": is_automation_enabled(),
         "dry_run": cfg.get("trading", {}).get("dry_run", True),
         "symbol": cfg.get("trading", {}).get("symbol", "BTCUSDT"),
         "timestamp": datetime.utcnow().isoformat() + "Z",
+        "execution": execution.execution_summary(),
+        "account": account_snapshot,
+        "raw_continuity": get_runtime_status("raw_continuity", None),
+        "feature_continuity": get_runtime_status("feature_continuity", None),
     }
 
 
@@ -463,9 +526,36 @@ async def api_klines(
                 fetch_limit = max(fetch_limit, min(1000, math.ceil(incremental_span / interval_ms) + 5))
 
         exchange = ccxt.binance()
-        ohlcv = exchange.fetch_ohlcv(symbol, interval, since=fetch_since, limit=fetch_limit)
-        if until is not None:
-            ohlcv = [row for row in ohlcv if row[0] <= until]
+        if until is not None and fetch_since is not None:
+            target_bars = max(1, math.ceil((until - fetch_since) / interval_ms) + 1)
+        else:
+            target_bars = max(1, fetch_limit)
+        ohlcv: List[List[float]] = []
+        cursor_since = fetch_since
+        remaining = target_bars
+        while remaining > 0:
+            page_limit = max(50, min(1000, remaining))
+            page = exchange.fetch_ohlcv(symbol, interval, since=cursor_since, limit=page_limit)
+            if not page:
+                break
+            if until is not None:
+                page = [row for row in page if row[0] <= until]
+            if not page:
+                break
+            ohlcv.extend(page)
+            if len(page) < page_limit:
+                break
+            last_open_time = int(page[-1][0])
+            next_since = last_open_time + interval_ms
+            if cursor_since is not None and next_since <= cursor_since:
+                break
+            cursor_since = next_since
+            remaining = target_bars - len(ohlcv)
+            if until is not None and cursor_since > until:
+                break
+        if ohlcv:
+            deduped = {int(row[0]): row for row in ohlcv}
+            ohlcv = [deduped[key] for key in sorted(deduped)]
         payload = _build_chart_payload(symbol, interval, ohlcv)
         if trim_after_time is not None:
             trim_index = 0
@@ -649,16 +739,31 @@ async def api_backtest(days: int = Query(default=30, ge=1, le=365), initial_capi
 
 @router.post("/trade")
 async def api_trade(req: TradeRequest):
-    """Dry-run trade endpoint for the web UI.
-
-    The web app is spot-first, so allow buy / reduce / sell(close-only) but do not imply shorting.
-    """
+    """Execution endpoint for the web UI. Supports paper / live_canary / live via ExecutionService."""
     side = (req.side or "").lower().strip()
     if side not in {"buy", "reduce", "sell"}:
         raise HTTPException(status_code=400, detail="side must be one of: buy, reduce, sell")
 
     cfg = get_config()
-    dry_run = cfg.get("trading", {}).get("dry_run", True)
+    db = get_db()
+    service = ExecutionService(cfg, db_session=db)
+    reduce_only = side == "reduce" and service.venue_default_type() != "spot"
+    try:
+        result = service.submit_order(
+            symbol=req.symbol,
+            side="sell" if reduce_only else "buy",
+            order_type="market",
+            qty=req.qty,
+            venue=(cfg.get("execution", {}) or {}).get("venue") or cfg.get("trading", {}).get("venue"),
+            reduce_only=reduce_only,
+            reason=f"manual_api:{side}",
+            model_confidence=0.0,
+        )
+    except Exception as exc:
+        payload = exc.to_payload() if hasattr(exc, "to_payload") else {"message": str(exc)}
+        raise HTTPException(status_code=400, detail=payload)
+
+    order = result.get("order") or {}
     action_text = {
         "buy": "spot buy",
         "reduce": "position reduce",
@@ -666,15 +771,12 @@ async def api_trade(req: TradeRequest):
     }[side]
     return {
         "success": True,
-        "dry_run": dry_run,
+        "dry_run": result.get("dry_run", True),
         "message": f"{action_text} accepted",
-        "order": {
-            "side": side,
-            "symbol": req.symbol,
-            "qty": req.qty,
-            "mode": "dry_run" if dry_run else "live",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-        },
+        "venue": result.get("venue"),
+        "order_id": order.get("id"),
+        "order": order,
+        "guardrails": result.get("guardrails"),
     }
 
 
@@ -1087,7 +1189,8 @@ def _load_strategy_data_cached(db_mtime_ns: int):
                f.feat_4h_bias50, f.feat_4h_bias200,
                f.feat_nose, f.feat_pulse, f.feat_ear,
                COALESCE(f.regime_label, 'unknown') AS regime_label,
-               f.feat_4h_bb_pct_b, f.feat_4h_dist_bb_lower, f.feat_4h_dist_swing_low
+               f.feat_4h_bb_pct_b, f.feat_4h_dist_bb_lower, f.feat_4h_dist_swing_low,
+               f.feat_local_bottom_score, f.feat_local_top_score
         FROM features_normalized f
         JOIN raw_market_data r ON r.timestamp = f.timestamp AND r.symbol = f.symbol
         WHERE f.feat_4h_bias50 IS NOT NULL AND r.close_price IS NOT NULL
@@ -1104,6 +1207,96 @@ def _load_strategy_data():
     except FileNotFoundError:
         db_mtime_ns = 0
     return _load_strategy_data_cached(db_mtime_ns)
+
+
+def _parse_backtest_timestamp(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    normalized = text.replace("T", " ")
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1]
+    try:
+        dt = datetime.fromisoformat(normalized)
+    except ValueError:
+        try:
+            dt = datetime.strptime(normalized[:19], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _strategy_data_range_summary(rows: List[Any]) -> Dict[str, Any]:
+    if not rows:
+        return {"start": None, "end": None, "count": 0, "span_days": 0.0}
+    timestamps = [str(row[0]) for row in rows if row and row[0] is not None]
+    start = _iso_utc_timestamp(timestamps[0]) if timestamps else None
+    end = _iso_utc_timestamp(timestamps[-1]) if timestamps else None
+    start_dt = _parse_backtest_timestamp(start)
+    end_dt = _parse_backtest_timestamp(end)
+    span_days = 0.0
+    if start_dt and end_dt:
+        span_days = max(0.0, round((end_dt - start_dt).total_seconds() / 86400.0, 2))
+    return {"start": start, "end": end, "count": len(rows), "span_days": span_days}
+
+
+def _filter_strategy_rows_by_backtest_range(
+    rows: List[Any],
+    *,
+    start: Optional[Any] = None,
+    end: Optional[Any] = None,
+) -> tuple[List[Any], Dict[str, Any]]:
+    available = _strategy_data_range_summary(rows)
+    start_dt = _parse_backtest_timestamp(start)
+    end_dt = _parse_backtest_timestamp(end)
+    if start_dt and end_dt and start_dt > end_dt:
+        start_dt, end_dt = end_dt, start_dt
+
+    filtered: List[Any] = []
+    for row in rows:
+        row_dt = _parse_backtest_timestamp(row[0] if row else None)
+        if row_dt is None:
+            continue
+        if start_dt and row_dt < start_dt:
+            continue
+        if end_dt and row_dt > end_dt:
+            continue
+        filtered.append(row)
+
+    requested_start = _iso_utc_timestamp(start_dt) if start_dt else None
+    requested_end = _iso_utc_timestamp(end_dt) if end_dt else None
+    effective = _strategy_data_range_summary(filtered)
+    available_start_dt = _parse_backtest_timestamp(available.get("start"))
+    available_end_dt = _parse_backtest_timestamp(available.get("end"))
+    requested_span_days = None
+    if start_dt and end_dt:
+        requested_span_days = round(max(0.0, (end_dt - start_dt).total_seconds() / 86400.0), 2)
+
+    coverage_ok = True
+    missing_start_days = 0.0
+    missing_end_days = 0.0
+    if start_dt and available_start_dt and start_dt < available_start_dt:
+        coverage_ok = False
+        missing_start_days = round((available_start_dt - start_dt).total_seconds() / 86400.0, 2)
+    if end_dt and available_end_dt and end_dt > available_end_dt:
+        coverage_ok = False
+        missing_end_days = round((end_dt - available_end_dt).total_seconds() / 86400.0, 2)
+
+    return filtered, {
+        "requested_start": requested_start,
+        "requested_end": requested_end,
+        "requested_span_days": requested_span_days,
+        "available": available,
+        "effective": effective,
+        "coverage_ok": coverage_ok,
+        "backfill_required": not coverage_ok,
+        "missing_start_days": missing_start_days,
+        "missing_end_days": missing_end_days,
+    }
 
 
 def _summarize_trades(trades: List[Dict[str, Any]], initial_capital: float) -> Dict[str, Any]:
@@ -1132,6 +1325,69 @@ def _build_strategy_chart_context(timestamps: List[str]) -> Dict[str, Any]:
         "start": _iso_utc_timestamp(timestamps[0]),
         "end": _iso_utc_timestamp(timestamps[-1]),
         "limit": min(max(len(timestamps), 150), 1000),
+    }
+
+
+def _select_strategy_chart_payload(
+    timestamps: List[str],
+    equity_curve: List[Dict[str, Any]],
+    trades: List[Dict[str, Any]],
+    *,
+    max_trades: int = 80,
+    fallback_equity_points: int = 300,
+) -> Dict[str, Any]:
+    selected_trades = list(trades[-max_trades:]) if trades else []
+    if not selected_trades:
+        selected_equity = list(equity_curve[-fallback_equity_points:]) if equity_curve else []
+        context_times = [str(point.get("timestamp")) for point in selected_equity if point.get("timestamp")]
+        if not context_times:
+            context_times = list(timestamps[-fallback_equity_points:]) if timestamps else []
+        return {
+            "equity_curve": selected_equity,
+            "trades": selected_trades,
+            "chart_context": _build_strategy_chart_context(context_times),
+        }
+
+    trade_window_points = []
+    for trade in selected_trades:
+        for key in ("entry_timestamp", "timestamp"):
+            ts = trade.get(key)
+            if ts:
+                trade_window_points.append(str(ts))
+    trade_window_points = sorted(trade_window_points)
+    if not trade_window_points:
+        selected_equity = list(equity_curve[-fallback_equity_points:]) if equity_curve else []
+        context_times = [str(point.get("timestamp")) for point in selected_equity if point.get("timestamp")]
+        return {
+            "equity_curve": selected_equity,
+            "trades": selected_trades,
+            "chart_context": _build_strategy_chart_context(context_times),
+        }
+
+    window_start = _iso_utc_timestamp(trade_window_points[0])
+    window_end = _iso_utc_timestamp(trade_window_points[-1])
+    selected_equity = [
+        point for point in equity_curve
+        if point.get("timestamp")
+        and (window_start is None or _iso_utc_timestamp(point.get("timestamp")) >= window_start)
+        and (window_end is None or _iso_utc_timestamp(point.get("timestamp")) <= window_end)
+    ]
+    if not selected_equity:
+        selected_equity = list(equity_curve[-fallback_equity_points:]) if equity_curve else []
+
+    context_times = [str(point.get("timestamp")) for point in selected_equity if point.get("timestamp")]
+    if not context_times:
+        context_times = trade_window_points
+    chart_context = _build_strategy_chart_context(context_times)
+    if window_start is not None:
+        chart_context["start"] = window_start
+    if window_end is not None:
+        chart_context["end"] = window_end
+    chart_context["limit"] = min(max(len(context_times), 150), 1000) if context_times else 300
+    return {
+        "equity_curve": selected_equity,
+        "trades": selected_trades,
+        "chart_context": chart_context,
     }
 
 
@@ -2150,16 +2406,26 @@ async def api_strategy_leaderboard_history(limit: int = Query(default=12, ge=1, 
     }
 
 
+def _ensure_auto_generated_strategy_leaderboard(force: bool = False) -> None:
+    return None
+
+
 @router.get("/strategies/leaderboard")
 async def api_strategy_leaderboard():
     """回傳所有已儲存策略的 Leaderboard（依 canonical decision-quality semantics 排序）"""
+    from backtesting import strategy_lab
     from backtesting.strategy_lab import load_all_strategies
 
+    _ensure_auto_generated_strategy_leaderboard()
     db = get_db()
     try:
-        strategies = [_decorate_strategy_entry(s, db=db) for s in load_all_strategies()]
+        strategies = [_decorate_strategy_entry(s, db=db) for s in load_all_strategies(include_internal=False)]
     finally:
         db.close()
+    auto_prefix = getattr(strategy_lab, "AUTO_STRATEGY_NAME_PREFIX", "Auto Leaderboard · ")
+    auto_rows = [entry for entry in strategies if str(entry.get("name") or "").startswith(auto_prefix)]
+    if auto_rows:
+        strategies = auto_rows
     strategies.sort(key=_strategy_leaderboard_sort_key, reverse=True)
     snapshot_history = _load_recent_strategy_leaderboard_snapshots(limit=12, db_path=DB_PATH)
     rank_deltas = _compute_strategy_rank_deltas(snapshot_history, db_path=DB_PATH)
@@ -2230,17 +2496,26 @@ async def api_delete_strategy(name: str):
     return {"ok": True, "deleted": name}
 
 
-def _set_strategy_job_progress(job_id: Optional[str], progress: int, detail: str, *, status: str = "running") -> None:
+@router.get("/strategy_data_range")
+async def api_strategy_data_range():
+    rows = _load_strategy_data()
+    return _strategy_data_range_summary(rows)
+
+
+def _set_strategy_job_progress(job_id: Optional[str], progress: int, detail: str, *, status: str = "running", stage_key: Optional[str] = None) -> None:
     if not job_id:
         return
     with _STRATEGY_RUN_LOCK:
         job = _STRATEGY_RUN_JOBS.get(job_id)
         if not job:
             return
+        _update_strategy_job_steps(job, stage_key or job.get("stage_key"), status=status)
         job.update({
             "status": status,
             "progress": max(0, min(100, int(progress))),
             "detail": detail,
+            "stage_key": stage_key or job.get("stage_key"),
+            "stage_label": _STRATEGY_STAGE_LABELS.get(stage_key or job.get("stage_key") or "", job.get("stage_label")),
             "updated_at": datetime.utcnow().isoformat() + "Z",
         })
 
@@ -2251,12 +2526,65 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
     name = body.get("name", "unnamed_strategy")
     stype = body.get("type", "rule_based")
     params = body.get("params", {})
-    initial = body.get("initial_capital", 10000.0)
+    initial = body.get("initial_capital", params.get("initial_capital", 10000.0))
+    auto_backfill = bool(body.get("auto_backfill", params.get("auto_backfill", False)))
+    backtest_range = body.get("backtest_range") if isinstance(body.get("backtest_range"), dict) else (
+        params.get("backtest_range") if isinstance(params.get("backtest_range"), dict) else {}
+    )
 
-    _set_strategy_job_progress(job_id, 5, "正在載入回測資料與特徵欄位。")
+    _set_strategy_job_progress(job_id, 5, "正在載入回測資料與特徵欄位。", stage_key="load_data")
     rows = _load_strategy_data()
     if not rows:
         return {"error": "No data available for backtest"}
+    rows, range_meta = _filter_strategy_rows_by_backtest_range(
+        rows,
+        start=backtest_range.get("start"),
+        end=backtest_range.get("end"),
+    )
+    if range_meta.get("backfill_required") and auto_backfill:
+        from scripts.backfill_backtest_range import run_backfill_pipeline
+
+        _set_strategy_job_progress(job_id, 12, "回測區間超出本地資料，正在規劃自動回填。", stage_key="backfill_raw")
+        backfill_session = get_db()
+
+        def _backfill_progress(stage: str, payload: Dict[str, Any]) -> None:
+            if stage == "raw":
+                requested_days = payload.get("requested_days")
+                detail = f"正在回填 BTCUSDT 原始行情，目標補 {requested_days} 天。" if requested_days else "正在回填 BTCUSDT 原始行情。"
+                _set_strategy_job_progress(job_id, 14, detail, stage_key="backfill_raw")
+            elif stage == "features":
+                _set_strategy_job_progress(job_id, 17, "原始行情已齊，正在補算缺少的 features。", stage_key="backfill_features")
+            elif stage == "labels":
+                horizon = payload.get("horizon_hours")
+                detail = f"features 已更新，正在重建 {horizon}h labels。" if horizon else "features 已更新，正在重建 labels。"
+                _set_strategy_job_progress(job_id, 19, detail, stage_key="backfill_labels")
+            elif stage == "complete":
+                actions = payload.get("actions") or {}
+                _set_strategy_job_progress(job_id, 20, f"自動回填完成：raw +{actions.get('raw_rows_inserted', 0)}、features +{actions.get('feature_rows_inserted', 0)}、labels {actions.get('labels_saved', 0)}。", stage_key="reload_data")
+
+        try:
+            backfill_result = run_backfill_pipeline(
+                backfill_session,
+                symbol="BTCUSDT",
+                target_start=backtest_range.get("start"),
+                target_end=backtest_range.get("end"),
+                apply_changes=True,
+                progress_callback=_backfill_progress,
+            )
+        finally:
+            backfill_session.close()
+        _set_strategy_job_progress(job_id, 20, "自動回填完成，正在重新載入回測資料。", stage_key="reload_data")
+        rows = _load_strategy_data()
+        rows, range_meta = _filter_strategy_rows_by_backtest_range(
+            rows,
+            start=backtest_range.get("start"),
+            end=backtest_range.get("end"),
+        )
+        range_meta["auto_backfill"] = backfill_result
+    if not rows:
+        return {"error": "指定回測區間沒有可用資料", "backtest_range": range_meta}
+    if range_meta.get("backfill_required"):
+        return {"error": "指定回測區間仍超出目前可用資料，請先完成回填", "backtest_range": range_meta}
 
     timestamps = [str(r[0]) for r in rows]
     prices = [float(r[1]) for r in rows]
@@ -2269,13 +2597,15 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
     bb_pct_b_4h = [float(r[8]) if r[8] is not None else None for r in rows]
     dist_bb_lower_4h = [float(r[9]) if r[9] is not None else None for r in rows]
     dist_swing_low_4h = [float(r[10]) if r[10] is not None else None for r in rows]
+    local_bottom_score = [float(r[11]) if len(r) > 11 and r[11] is not None else 0.0 for r in rows]
+    local_top_score = [float(r[12]) if len(r) > 12 and r[12] is not None else 0.0 for r in rows]
     score_series: List[Dict[str, Any]] = []
 
     db = get_db()
     try:
         db_path = _get_sqlite_db_path(db)
         if stype == "rule_based":
-            _set_strategy_job_progress(job_id, 22, f"已載入 {len(rows)} 筆資料，正在執行 rule-based 回測。")
+            _set_strategy_job_progress(job_id, 22, f"已載入 {len(rows)} 筆資料，正在執行 rule-based 回測。", stage_key="run_backtest")
             with ThreadPoolExecutor(max_workers=2) as executor:
                 score_future = executor.submit(
                     _build_strategy_score_series,
@@ -2287,6 +2617,8 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
                     bb_pct_b_4h=bb_pct_b_4h,
                     dist_bb_lower_4h=dist_bb_lower_4h,
                     dist_swing_low_4h=dist_swing_low_4h,
+                    local_bottom_score=local_bottom_score,
+                    local_top_score=local_top_score,
                 )
                 result = run_rule_backtest(
                     prices, timestamps, bias50, bias200, nose, pulse, ear, params, initial,
@@ -2294,11 +2626,13 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
                     bb_pct_b_4h=bb_pct_b_4h,
                     dist_bb_lower_4h=dist_bb_lower_4h,
                     dist_swing_low_4h=dist_swing_low_4h,
+                    local_bottom_score=local_bottom_score,
+                    local_top_score=local_top_score,
                 )
                 score_series = score_future.result()
         elif stype == "hybrid":
             model_name = str(params.get("model_name") or "xgboost")
-            _set_strategy_job_progress(job_id, 24, f"Hybrid 模式：正在準備 {model_name} 訓練資料。")
+            _set_strategy_job_progress(job_id, 24, f"Hybrid 模式：正在準備 {model_name} 訓練資料。", stage_key="prepare_hybrid")
             df = load_model_leaderboard_frame(DB_PATH)
             if df.empty:
                 return {"error": "Hybrid 模式缺少可用訓練資料"}
@@ -2317,7 +2651,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
             if cached:
                 confidence_map = cached["confidence_map"]
             else:
-                _set_strategy_job_progress(job_id, 40, f"Hybrid 模式：正在訓練 {model_name}。")
+                _set_strategy_job_progress(job_id, 40, f"Hybrid 模式：正在訓練 {model_name}。", stage_key="train_model")
                 model = lb._train_model(
                     train_df[feature_cols].fillna(0).values,
                     train_df[target_col].fillna(0).astype(int).values,
@@ -2338,7 +2672,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
                         "updated_at": time.time(),
                     }
             conf = [confidence_map.get(ts, max(0.0, min(1.0, 1.0 - b / 20.0))) for ts, b in zip(timestamps, bias50)]
-            _set_strategy_job_progress(job_id, 58, f"Hybrid 模式：{model_name} 已就緒，正在執行回測。")
+            _set_strategy_job_progress(job_id, 58, f"Hybrid 模式：{model_name} 已就緒，正在執行回測。", stage_key="run_backtest")
             with ThreadPoolExecutor(max_workers=2) as executor:
                 score_future = executor.submit(
                     _build_strategy_score_series,
@@ -2358,12 +2692,14 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
                     bb_pct_b_4h=bb_pct_b_4h,
                     dist_bb_lower_4h=dist_bb_lower_4h,
                     dist_swing_low_4h=dist_swing_low_4h,
+                    local_bottom_score=local_bottom_score,
+                    local_top_score=local_top_score,
                 )
                 score_series = score_future.result()
         else:
             return {"error": f"Unknown strategy type: {stype}"}
 
-        _set_strategy_job_progress(job_id, 76, "回測核心完成，正在平行計算 benchmark、決策品質摘要與圖表上下文。")
+        _set_strategy_job_progress(job_id, 76, "回測核心完成，正在平行計算 benchmark、決策品質摘要與圖表上下文。", stage_key="postprocess")
         chart_context = _build_strategy_chart_context(timestamps)
         recent_equity_curve = result.equity_curve[-300:] if result.equity_curve else []
         recent_trades = result.trades[-80:] if result.trades else []
@@ -2413,6 +2749,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
             "trades": recent_trades,
             "score_series": score_series[-300:] if score_series else [],
             "chart_context": chart_context,
+            "backtest_range": range_meta,
             "run_at": datetime.utcnow().isoformat() + "Z",
             **decision_profile,
             **canonical_quality_profile,
@@ -2423,7 +2760,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
         for key, value in contract_meta.items():
             results_dict.setdefault(key, value)
 
-        _set_strategy_job_progress(job_id, 92, "正在儲存策略、整理圖表上下文與輸出結果。")
+        _set_strategy_job_progress(job_id, 92, "正在儲存策略、整理圖表上下文與輸出結果。", stage_key="save_results")
         normalized_results = _normalize_result_timestamps(results_dict)
         save_strategy(name, strat_def, normalized_results)
         response = {
@@ -2437,7 +2774,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
             "score_series": normalized_results.get("score_series") or [],
             "chart_context": _normalize_result_timestamps(chart_context),
         }
-        _set_strategy_job_progress(job_id, 100, "回測、圖表與排行榜資料已全部同步完成。", status="completed")
+        _set_strategy_job_progress(job_id, 100, "回測、圖表與排行榜資料已全部同步完成。", status="completed", stage_key="save_results")
         return response
     finally:
         db.close()
@@ -2458,6 +2795,9 @@ async def api_run_strategy_async(body: Dict[str, Any]):
             "status": "queued",
             "progress": 0,
             "detail": "已建立回測任務，等待背景工作執行。",
+            "stage_key": "queued",
+            "stage_label": _STRATEGY_STAGE_LABELS["queued"],
+            "steps": _strategy_job_stage_plan(body),
             "created_at": datetime.utcnow().isoformat() + "Z",
             "updated_at": datetime.utcnow().isoformat() + "Z",
             "result": None,
@@ -2465,7 +2805,7 @@ async def api_run_strategy_async(body: Dict[str, Any]):
         }
 
     def _runner() -> None:
-        _set_strategy_job_progress(job_id, 2, "背景工作已啟動。")
+        _set_strategy_job_progress(job_id, 2, "背景工作已啟動。", stage_key="queued")
         try:
             result = _execute_strategy_run(body, job_id=job_id)
             with _STRATEGY_RUN_LOCK:
@@ -2475,6 +2815,10 @@ async def api_run_strategy_async(body: Dict[str, Any]):
                     job["error"] = result.get("error") if isinstance(result, dict) else None
                     if result.get("error"):
                         job["status"] = "failed"
+                        _update_strategy_job_steps(job, job.get("stage_key"), status="failed")
+                    else:
+                        job["status"] = "completed"
+                        _update_strategy_job_steps(job, job.get("stage_key"), status="completed")
         except Exception as exc:
             logger.exception("Strategy async job failed")
             with _STRATEGY_RUN_LOCK:
@@ -2487,6 +2831,7 @@ async def api_run_strategy_async(body: Dict[str, Any]):
                         "error": str(exc),
                         "updated_at": datetime.utcnow().isoformat() + "Z",
                     })
+                    _update_strategy_job_steps(job, job.get("stage_key"), status="failed")
 
     _STRATEGY_RUN_EXECUTOR.submit(_runner)
     return {"job_id": job_id, "status": "queued", "progress": 0}

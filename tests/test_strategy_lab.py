@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from backtesting import strategy_lab
+from scripts import backfill_backtest_range as backfill_module
 from server.routes import api as api_module
 from server.routes.api import (
     _compute_backtest_benchmarks,
@@ -129,6 +130,22 @@ def test_save_strategy_persists_decision_profile_fields(isolated_strategies_dir:
     assert loaded["last_results"]["regime_gate_summary"]["CAUTION"] == 5
 
 
+
+def test_save_strategy_sanitizes_auto_leaderboard_slugs_with_slashes(isolated_strategies_dir: Path):
+    strategy_lab.save_strategy(
+        "Auto Leaderboard · 10/90 後守 Rule #04",
+        {"type": "rule_based", "params": {}},
+        {"roi": 0.03, "win_rate": 0.51},
+    )
+
+    saved = list(isolated_strategies_dir.glob("*.json"))
+    assert len(saved) == 1
+    assert "/" not in saved[0].name
+    loaded = strategy_lab.load_strategy("Auto Leaderboard · 10/90 後守 Rule #04")
+    assert loaded is not None
+    assert loaded["last_results"]["roi"] == pytest.approx(0.03)
+
+
 def test_strategy_metadata_explains_rule_baseline_model(isolated_strategies_dir: Path):
     strategy_lab.save_strategy(
         "Rule Baseline Demo",
@@ -170,6 +187,130 @@ def test_strategy_metadata_mentions_reserve_capital_mode(isolated_strategies_dir
     assert "先用 10% 建倉" in loaded["metadata"]["description"]
 
 
+def test_strategy_metadata_mentions_xgboost_local_top_exit_gate(isolated_strategies_dir: Path):
+    strategy_lab.save_strategy(
+        "Top Exit Hybrid",
+        {
+            "type": "hybrid",
+            "params": {
+                "model_name": "xgboost",
+                "entry": {"bias50_max": -1.0, "confidence_min": 0.55},
+                "turning_point": {"enabled": True, "bottom_score_min": 0.62, "top_score_take_profit": 0.68},
+                "editor_modules": ["turning_point"],
+            },
+        },
+        {"roi": 0.11, "win_rate": 0.63},
+    )
+
+    loaded = strategy_lab.load_strategy("Top Exit Hybrid")
+
+    assert loaded is not None
+    assert loaded["metadata"]["model_name"] == "xgboost"
+    assert "xgboost" in loaded["metadata"]["model_summary"]
+    assert "頂部轉折" in loaded["metadata"]["description"]
+
+
+def test_build_auto_strategy_candidates_returns_diverse_templates():
+    candidates = strategy_lab.build_auto_strategy_candidates(["random_forest", "xgboost"])
+
+    assert len(candidates) >= 8
+    assert len({candidate["name"] for candidate in candidates}) == len(candidates)
+    assert {candidate["definition"]["type"] for candidate in candidates} == {"rule_based", "hybrid"}
+    assert any(
+        candidate["definition"]["params"].get("capital_management", {}).get("mode") == "reserve_90"
+        for candidate in candidates
+    )
+    assert any(
+        float(candidate["definition"]["params"].get("entry", {}).get("top_k_percent", 0) or 0) > 0
+        for candidate in candidates
+    )
+    assert any(candidate["definition"]["params"].get("model_name") == "random_forest" for candidate in candidates)
+    assert any(candidate["definition"]["params"].get("storm_unwind", {}).get("enabled") for candidate in candidates)
+    assert any("turning_point" in (candidate["definition"]["params"].get("editor_modules") or []) for candidate in candidates)
+    assert any(candidate["definition"]["params"].get("turning_point", {}).get("enabled") for candidate in candidates)
+    assert any(
+        candidate["definition"]["params"].get("model_name") == "xgboost"
+        and candidate["definition"]["params"].get("turning_point", {}).get("enabled")
+        for candidate in candidates
+    )
+
+
+def test_top_k_rolling_gate_uses_past_only_history():
+    assert strategy_lab._passes_rolling_top_k_gate(0.62, [], 5) is True
+    assert strategy_lab._passes_rolling_top_k_gate(0.62, [0.91, 0.87, 0.84, 0.81], 25) is False
+    assert strategy_lab._passes_rolling_top_k_gate(0.92, [0.91, 0.87, 0.84, 0.81], 25) is True
+
+
+def test_turning_point_gate_requires_local_bottom_signal_for_entry():
+    prices = [100.0, 99.0, 98.0, 101.0]
+    timestamps = [f"2026-01-01T00:0{i}:00Z" for i in range(len(prices))]
+    bias50 = [-2.0, -2.5, -2.8, 3.5]
+    bias200 = [0.0, 0.0, 0.0, 0.0]
+    nose = [0.3, 0.3, 0.3, 0.3]
+    pulse = [0.7, 0.7, 0.7, 0.7]
+    ear = [0.0, 0.0, 0.0, 0.0]
+    local_bottom = [0.1, 0.2, 0.9, 0.1]
+    local_top = [0.1, 0.1, 0.2, 0.8]
+
+    result = strategy_lab.run_rule_backtest(
+        prices,
+        timestamps,
+        bias50,
+        bias200,
+        nose,
+        pulse,
+        ear,
+        {
+            "entry": {"bias50_max": -1.0, "nose_max": 0.4, "entry_quality_min": 0.0},
+            "turning_point": {"enabled": True, "bottom_score_min": 0.7, "top_score_take_profit": 0.7},
+            "take_profit_bias": 10.0,
+            "take_profit_roi": 0.5,
+        },
+        local_bottom_score=local_bottom,
+        local_top_score=local_top,
+    )
+
+    assert result.total_trades == 1
+    assert result.trades[0]["entry_timestamp"] == timestamps[2]
+
+
+def test_hybrid_turning_point_exit_gate_uses_local_top_score():
+    prices = [100.0, 99.0, 98.0, 100.5, 101.5]
+    timestamps = [f"2026-01-01T00:0{i}:00Z" for i in range(len(prices))]
+    bias50 = [-2.0, -2.5, -3.0, -1.0, -0.5]
+    bias200 = [0.0] * len(prices)
+    nose = [0.3] * len(prices)
+    pulse = [0.7] * len(prices)
+    ear = [0.0] * len(prices)
+    conf = [0.2, 0.3, 0.9, 0.7, 0.6]
+    local_bottom = [0.1, 0.2, 0.85, 0.2, 0.1]
+    local_top = [0.1, 0.1, 0.2, 0.75, 0.2]
+
+    result = strategy_lab.run_hybrid_backtest(
+        prices,
+        timestamps,
+        bias50,
+        bias200,
+        nose,
+        pulse,
+        ear,
+        conf,
+        {
+            "entry": {"bias50_max": -1.0, "confidence_min": 0.55, "entry_quality_min": 0.0},
+            "turning_point": {"enabled": True, "bottom_score_min": 0.7, "top_score_take_profit": 0.7},
+            "take_profit_bias": 10.0,
+            "take_profit_roi": 0.5,
+            "model_name": "xgboost",
+        },
+        local_bottom_score=local_bottom,
+        local_top_score=local_top,
+    )
+
+    assert result.total_trades == 1
+    assert result.trades[0]["reason"] == "tp_turning_point"
+    assert result.trades[0]["entry_timestamp"] == timestamps[2]
+
+
 def test_compute_regime_breakdown_groups_by_entry_regime():
     trades = [
         {"entry_regime": "bull", "pnl": 100.0},
@@ -185,6 +326,210 @@ def test_compute_regime_breakdown_groups_by_entry_regime():
     assert breakdown[0]["losses"] == 1
     assert breakdown[0]["roi"] == pytest.approx(0.06)
     assert breakdown[1]["profit_factor"] == pytest.approx(3000.0)
+
+
+def test_select_strategy_chart_payload_aligns_equity_with_trade_window():
+    equity_curve = [
+        {"timestamp": f"2025-01-01T00:{idx:02d}:00Z", "equity": 10000 + idx}
+        for idx in range(10)
+    ] + [
+        {"timestamp": f"2026-01-01T00:{idx:02d}:00Z", "equity": 20000 + idx}
+        for idx in range(10)
+    ]
+    trades = [
+        {"entry_timestamp": "2025-01-01T00:02:00Z", "timestamp": "2025-01-01T00:04:00Z", "pnl": 10},
+        {"entry_timestamp": "2025-01-01T00:05:00Z", "timestamp": "2025-01-01T00:07:00Z", "pnl": -5},
+    ]
+
+    payload = api_module._select_strategy_chart_payload(
+        timestamps=[point["timestamp"] for point in equity_curve],
+        equity_curve=equity_curve,
+        trades=trades,
+    )
+
+    selected_times = [row["timestamp"] for row in payload["equity_curve"]]
+    assert selected_times[0].startswith("2025-01-01T00:02")
+    assert selected_times[-1].startswith("2025-01-01T00:07")
+    assert payload["chart_context"]["start"].startswith("2025-01-01T00:02")
+    assert payload["chart_context"]["end"].startswith("2025-01-01T00:07")
+
+
+def test_filter_strategy_rows_by_backtest_range_reports_missing_history():
+    rows = [
+        ("2025-04-03 13:00:00", 100.0),
+        ("2025-10-03 13:00:00", 110.0),
+        ("2026-04-16 00:40:26", 120.0),
+    ]
+
+    filtered, meta = api_module._filter_strategy_rows_by_backtest_range(
+        rows,
+        start="2024-04-16T00:00:00Z",
+        end="2026-04-16T00:40:26Z",
+    )
+
+    assert len(filtered) == 3
+    assert meta["backfill_required"] is True
+    assert meta["coverage_ok"] is False
+    assert meta["missing_start_days"] > 300
+    assert meta["effective"]["start"].startswith("2025-04-03")
+
+
+def test_api_strategy_data_range_uses_loaded_strategy_rows(monkeypatch):
+    rows = [
+        ("2025-04-03 13:00:00", 100.0),
+        ("2026-04-16 00:40:26", 120.0),
+    ]
+    monkeypatch.setattr(api_module, "_load_strategy_data", lambda: rows)
+
+    payload = asyncio.run(api_module.api_strategy_data_range())
+
+    assert payload["count"] == 2
+    assert payload["start"].startswith("2025-04-03")
+    assert payload["end"].startswith("2026-04-16")
+    assert payload["span_days"] > 300
+
+
+def test_execute_strategy_run_auto_backfills_when_requested_range_exceeds_local_history(monkeypatch):
+    rows_old = [
+        ("2025-04-03 13:00:00", 100.0, -1.0, 0.0, 0.2, 0.8, 0.0, "bull", 0.5, 1.0, 1.0, 0.0, 0.0),
+        ("2025-04-04 13:00:00", 101.0, -0.8, 0.0, 0.2, 0.8, 0.0, "bull", 0.5, 1.0, 1.0, 0.0, 0.0),
+    ]
+    rows_new = [
+        ("2024-04-16 00:00:00", 90.0, -1.2, 0.0, 0.2, 0.8, 0.0, "bull", 0.5, 1.0, 1.0, 0.0, 0.0),
+        ("2025-04-03 13:00:00", 100.0, -1.0, 0.0, 0.2, 0.8, 0.0, "bull", 0.5, 1.0, 1.0, 0.0, 0.0),
+        ("2026-04-16 00:00:00", 120.0, 5.0, 0.0, 0.2, 0.8, 0.0, "bull", 0.5, 1.0, 1.0, 0.0, 0.0),
+    ]
+    load_calls = {"count": 0}
+    backfill_calls = []
+
+    def fake_load_strategy_data():
+        load_calls["count"] += 1
+        return rows_old if load_calls["count"] == 1 else rows_new
+
+    class DummyDB:
+        def close(self):
+            return None
+
+    def fake_backfill(session, **kwargs):
+        backfill_calls.append(kwargs)
+        return {
+            "dry_run": False,
+            "plan": {"needs_backfill": True},
+            "actions": {"raw_rows_inserted": 10, "feature_rows_inserted": 10, "labels_saved": 10},
+        }
+
+    monkeypatch.setattr(api_module, "_load_strategy_data", fake_load_strategy_data)
+    monkeypatch.setattr(api_module, "get_db", lambda: DummyDB())
+    monkeypatch.setattr(backfill_module, "run_backfill_pipeline", fake_backfill)
+    monkeypatch.setattr(api_module, "_compute_backtest_benchmarks", lambda *args, **kwargs: {})
+    monkeypatch.setattr(api_module, "_compute_decision_profile", lambda trades: {})
+    monkeypatch.setattr(api_module, "_compute_strategy_decision_quality_profile", lambda trades, db_path=None, db=None: {})
+    monkeypatch.setattr(api_module, "_strategy_decision_contract_meta", lambda horizon_minutes=1440: {})
+    monkeypatch.setattr(api_module, "_build_strategy_score_series", lambda *args, **kwargs: [])
+    monkeypatch.setattr(strategy_lab, "save_strategy", lambda *args, **kwargs: None)
+
+    def fake_run_rule_backtest(*args, **kwargs):
+        result = strategy_lab.BacktestResult(
+            roi=0.1,
+            win_rate=1.0,
+            total_trades=1,
+            wins=1,
+            losses=0,
+            max_drawdown=0.01,
+            profit_factor=2.0,
+            total_pnl=100.0,
+        )
+        result.trades = [{"entry_timestamp": "2024-04-16T00:00:00Z", "timestamp": "2026-04-16T00:00:00Z", "pnl": 100.0, "entry_regime": "bull"}]
+        result.equity_curve = [{"timestamp": "2024-04-16T00:00:00Z", "equity": 10000.0}]
+        return result
+
+    monkeypatch.setattr(strategy_lab, "run_rule_backtest", fake_run_rule_backtest)
+
+    payload = api_module._execute_strategy_run(
+        {
+            "name": "Auto Backfill Demo",
+            "type": "rule_based",
+            "initial_capital": 10000.0,
+            "auto_backfill": True,
+            "backtest_range": {
+                "start": "2024-04-16T00:00:00Z",
+                "end": "2026-04-16T00:00:00Z",
+            },
+            "params": {
+                "entry": {"bias50_max": 1.0, "nose_max": 0.4, "pulse_min": 0.0},
+                "layers": [0.2, 0.3, 0.5],
+                "stop_loss": -0.05,
+                "take_profit_bias": 4.0,
+                "take_profit_roi": 0.08,
+            },
+        }
+    )
+
+    assert backfill_calls, "auto_backfill should trigger backfill pipeline"
+    assert backfill_calls[0]["apply_changes"] is True
+    assert load_calls["count"] >= 2
+    assert payload["results"]["backtest_range"]["backfill_required"] is False
+    assert payload["results"]["backtest_range"]["effective"]["start"].startswith("2024-04-16")
+
+
+def test_strategy_async_job_status_exposes_segmented_steps(monkeypatch):
+    monkeypatch.setattr(api_module.uuid, "uuid4", lambda: SimpleNamespace(hex="job-segmented"))
+
+    submitted = {"called": False}
+
+    class ImmediateExecutor:
+        def submit(self, fn):
+            submitted["called"] = True
+            fn()
+            return SimpleNamespace()
+
+    monkeypatch.setattr(api_module, "_STRATEGY_RUN_EXECUTOR", ImmediateExecutor())
+
+    def fake_execute(body, job_id=None):
+        api_module._set_strategy_job_progress(job_id, 14, "正在回填 BTCUSDT 原始行情。", stage_key="backfill_raw")
+        api_module._set_strategy_job_progress(job_id, 17, "正在補算 features。", stage_key="backfill_features")
+        api_module._set_strategy_job_progress(job_id, 92, "正在儲存結果。", stage_key="save_results")
+        return {"results": {"roi": 0.1}}
+
+    monkeypatch.setattr(api_module, "_execute_strategy_run", fake_execute)
+
+    kickoff = asyncio.run(api_module.api_run_strategy_async({"type": "rule_based", "auto_backfill": True, "params": {}}))
+    status = asyncio.run(api_module.api_strategy_job_status(kickoff["job_id"]))
+
+    assert submitted["called"] is True
+    assert status["stage_key"] == "save_results"
+    assert isinstance(status.get("steps"), list) and status["steps"]
+    by_key = {step["key"]: step["status"] for step in status["steps"]}
+    assert by_key["backfill_raw"] == "completed"
+    assert by_key["backfill_features"] == "completed"
+    assert by_key["save_results"] == "completed"
+
+
+
+def test_api_trade_uses_execution_service(monkeypatch):
+    class DummyService:
+        def __init__(self, cfg, db_session=None):
+            self.cfg = cfg
+        def submit_order(self, **kwargs):
+            return {
+                "success": True,
+                "dry_run": True,
+                "venue": "binance",
+                "guardrails": {"consecutive_failures": 0, "daily_loss_halt": False},
+                "order": {"id": "abc123", "symbol": kwargs["symbol"], "side": kwargs["side"], "qty": kwargs["qty"]},
+            }
+
+    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "binance"}, "trading": {"venue": "binance"}})
+    monkeypatch.setattr(api_module, "get_db", lambda: object())
+    monkeypatch.setattr(api_module, "ExecutionService", DummyService)
+
+    payload = asyncio.run(api_module.api_trade(api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.01)))
+
+    assert payload["success"] is True
+    assert payload["venue"] == "binance"
+    assert payload["order_id"] == "abc123"
+    assert payload["guardrails"]["consecutive_failures"] == 0
+
 
 
 def test_compute_backtest_benchmarks_returns_dynamic_buy_hold_and_blind():
@@ -271,6 +616,46 @@ def test_api_klines_incremental_append_only_returns_missing_tail(monkeypatch):
     assert exchange.calls[0]["since"] <= base_ts + interval_ms * 2
 
 
+def test_api_klines_paginates_when_requested_range_exceeds_1000_bars(monkeypatch):
+    base_ts = 1_700_000_000_000
+    interval_ms = 14_400_000
+    first_page = [
+        [base_ts + interval_ms * idx, 100 + idx, 101 + idx, 99 + idx, 100.5 + idx, 10 + idx]
+        for idx in range(1000)
+    ]
+    second_page = [
+        [base_ts + interval_ms * (1000 + idx), 200 + idx, 201 + idx, 199 + idx, 200.5 + idx, 20 + idx]
+        for idx in range(200)
+    ]
+
+    class DummyExchange:
+        def __init__(self):
+            self.calls = []
+
+        def fetch_ohlcv(self, symbol, interval, since=None, limit=None):
+            self.calls.append({"symbol": symbol, "interval": interval, "since": since, "limit": limit})
+            return first_page if len(self.calls) == 1 else second_page
+
+    exchange = DummyExchange()
+    monkeypatch.setattr(api_module.ccxt, "binance", lambda: exchange)
+    api_module._KLINE_RESPONSE_CACHE.clear()
+
+    payload = asyncio.run(
+        api_klines(
+            symbol="BTCUSDT",
+            interval="4h",
+            limit=1220,
+            since=base_ts,
+            until=base_ts + interval_ms * 1199,
+        )
+    )
+
+    assert len(exchange.calls) >= 2
+    assert len(payload["candles"]) == 1200
+    assert payload["candles"][0]["time"] == int(base_ts / 1000)
+    assert payload["candles"][-1]["time"] == int((base_ts + interval_ms * 1199) / 1000)
+
+
 def test_decorate_strategy_entry_adds_risk_fields():
     entry = {
         "name": "Stable Strategy",
@@ -313,6 +698,65 @@ def test_decorate_strategy_entry_attaches_decision_contract_meta():
     assert enriched["last_results"]["target_label"] == "Canonical Decision Quality"
     assert enriched["last_results"]["sort_semantics"] is not None
     assert "avg_expected_win_rate" not in enriched["decision_contract"]
+
+
+def test_decorate_strategy_entry_surfaces_turning_point_exit_gate():
+    entry = {
+        "name": "Top Exit Hybrid",
+        "definition": {
+            "type": "hybrid",
+            "params": {
+                "model_name": "xgboost",
+                "turning_point": {"enabled": True, "top_score_take_profit": 0.68},
+            },
+        },
+        "metadata": {
+            "title": "Top Exit Hybrid",
+            "description": "頂部轉折 exit gate",
+            "model_name": "xgboost",
+            "model_summary": "xgboost：test",
+        },
+        "last_results": {
+            "overall_score": 0.82,
+            "roi": 0.12,
+            "max_drawdown": 0.08,
+            "win_rate": 0.61,
+        },
+    }
+
+    enriched = _decorate_strategy_entry(entry)
+
+    assert enriched["metadata"]["model_name"] == "xgboost"
+    assert enriched["metadata"]["description"] == "頂部轉折 exit gate"
+    assert enriched["last_results"]["overall_score"] is not None
+    assert enriched["overall_score"] is not None
+
+
+def test_api_strategy_leaderboard_prefers_auto_generated_candidates(monkeypatch):
+    class DummyDB:
+        def close(self):
+            return None
+
+    called = {"ensure": 0}
+    monkeypatch.setattr(api_module, "_ensure_auto_generated_strategy_leaderboard", lambda force=False: called.__setitem__("ensure", called["ensure"] + 1))
+    monkeypatch.setattr(api_module, "get_db", lambda: DummyDB())
+    monkeypatch.setattr(api_module, "_decorate_strategy_entry", lambda entry, db=None: entry)
+    monkeypatch.setattr(api_module, "_persist_strategy_leaderboard_snapshot", lambda *args, **kwargs: None)
+    monkeypatch.setattr(api_module, "_load_recent_strategy_leaderboard_snapshots", lambda *args, **kwargs: [])
+    monkeypatch.setattr(api_module, "_compute_strategy_rank_deltas", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        strategy_lab,
+        "load_all_strategies",
+        lambda include_internal=False: [
+            {"name": f"{strategy_lab.AUTO_STRATEGY_NAME_PREFIX}平衡承接 #01", "last_results": {"overall_score": 0.8}},
+            {"name": "Manual Scratch", "last_results": {"overall_score": 0.1}},
+        ],
+    )
+
+    payload = asyncio.run(api_module.api_strategy_leaderboard())
+
+    assert called["ensure"] == 1
+    assert [row["name"] for row in payload["strategies"]] == [f"{strategy_lab.AUTO_STRATEGY_NAME_PREFIX}平衡承接 #01"]
 
 
 def test_compute_strategy_decision_quality_profile_uses_canonical_label_fields(tmp_path: Path):
@@ -473,42 +917,85 @@ def test_run_rule_backtest_reserve_mode_uses_10_percent_probe_before_unlocking_r
         prices=[100.0, 100.0, 89.0, 89.0, 108.0],
         timestamps=[
             "2026-01-01T00:00:00Z",
+            "2026-01-01T01:00:00Z",
+            "2026-01-01T02:00:00Z",
+            "2026-01-01T03:00:00Z",
             "2026-01-01T04:00:00Z",
-            "2026-01-01T08:00:00Z",
-            "2026-01-01T12:00:00Z",
-            "2026-01-01T16:00:00Z",
         ],
-        bias50=[-1.0, -2.0, -4.8, -5.2, 5.0],
-        bias200=[3.0, 3.0, 3.0, 3.0, 3.0],
-        nose=[0.2, 0.2, 0.18, 0.18, 0.35],
-        pulse=[0.8, 0.82, 0.85, 0.86, 0.4],
+        bias50=[0.0, -3.0, -3.2, -3.4, 5.2],
+        bias200=[1.0, 1.0, 1.0, 1.0, 1.0],
+        nose=[0.2, 0.2, 0.2, 0.2, 0.2],
+        pulse=[0.7, 0.7, 0.7, 0.7, 0.7],
+        ear=[0.0, 0.0, 0.0, 0.0, 0.0],
+        params={
+            "entry": {
+                "bias50_max": 0.5,
+                "nose_max": 0.4,
+                "pulse_min": 0.0,
+                "layer2_bias_max": -2.0,
+                "layer3_bias_max": -3.0,
+            },
+            "layers": [0.2, 0.3, 0.5],
+            "capital_management": {"mode": "reserve_90", "base_entry_fraction": 0.10, "reserve_trigger_drawdown": 0.10},
+            "stop_loss": -0.20,
+            "take_profit_bias": 4.0,
+            "take_profit_roi": 0.50,
+        },
+        initial_capital=1000.0,
+        regimes=["bull"] * 5,
+    )
+
+    assert result.total_trades == 1
+    assert result.trades[0]["capital_mode"] == "reserve_90"
+    # First layer should be 10% probe, then remaining reserve unlocks on 11% drawdown.
+    first_curve = next(point for point in result.equity_curve if point["position_layers"] == 1)
+    two_layer_curve = next(point for point in result.equity_curve if point["position_layers"] >= 2)
+    assert first_curve["position_pct"] == pytest.approx(0.10)
+    assert two_layer_curve["position_pct"] > first_curve["position_pct"]
+    assert result.total_pnl > 0
+
+
+
+def test_run_rule_backtest_storm_unwind_releases_highest_trapped_layer():
+    result = strategy_lab.run_rule_backtest(
+        prices=[100.0, 50.0, 40.0, 42.0, 42.0],
+        timestamps=[
+            "2026-03-01T00:00:00Z",
+            "2026-03-01T01:00:00Z",
+            "2026-03-01T02:00:00Z",
+            "2026-03-01T03:00:00Z",
+            "2026-03-01T04:00:00Z",
+        ],
+        bias50=[0.0, -3.0, -5.0, 4.0, 4.0],
+        bias200=[1.0, 1.0, 1.0, 1.0, 1.0],
+        nose=[0.2, 0.2, 0.2, 0.2, 0.2],
+        pulse=[0.7, 0.7, 0.7, 0.7, 0.7],
         ear=[0.0, 0.0, 0.0, 0.0, 0.0],
         params={
             "entry": {
                 "bias50_max": 1.0,
                 "nose_max": 0.4,
                 "pulse_min": 0.0,
-                "layer2_bias_max": -1.5,
-                "layer3_bias_max": -3.5,
-                "regime_bias200_min": -10.0,
+                "layer2_bias_max": -2.0,
+                "layer3_bias_max": -4.0,
             },
             "layers": [0.2, 0.3, 0.5],
             "capital_management": {"mode": "reserve_90", "base_entry_fraction": 0.10, "reserve_trigger_drawdown": 0.10},
-            "stop_loss": -0.20,
-            "take_profit_bias": 4.0,
-            "take_profit_roi": 0.08,
+            "stop_loss": -0.90,
+            "take_profit_bias": 3.0,
+            "take_profit_roi": 0.50,
+            "storm_unwind": {"enabled": True, "release_ratio": 0.25, "min_profit_pct": 0.01},
+            "editor_modules": ["reserve_90", "storm_unwind"],
         },
         initial_capital=1000.0,
-        regimes=["bull", "bull", "bull", "bull", "bull"],
+        regimes=["bull"] * 5,
     )
 
-    assert result.total_trades == 1
-    trade = result.trades[0]
-    assert trade["capital_mode"] == "reserve_90"
-    assert trade["layers"] == 3
-    expected_avg_entry = (100.0 * 1.0 + 89.0 * (270.0 / 89.0) + 89.0 * (630.0 / 89.0)) / (1.0 + (270.0 / 89.0) + (630.0 / 89.0))
-    assert trade["entry"] == pytest.approx(expected_avg_entry, rel=1e-3)
-    assert result.total_pnl > 0
+    storm_trade = next(trade for trade in result.trades if trade["reason"] == "storm_unwind_tp")
+    assert storm_trade["storm_unwind_enabled"] is True
+    assert storm_trade["storm_released_coins"] > 0
+    assert storm_trade["storm_release_from_price"] == pytest.approx(100.0)
+    assert storm_trade["remaining_trapped_coins"] > 0
 
 
 def test_run_rule_backtest_caps_layers_when_regime_gate_is_caution():

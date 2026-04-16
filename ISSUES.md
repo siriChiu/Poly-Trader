@@ -1,207 +1,101 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-16 11:36 UTC_
+_最後更新：2026-04-16 12:42 UTC_
 
-只保留目前仍有效的問題；不保留歷史敘事。
-
----
-
-## Step 0.5 承接（把上輪結論當本輪輸入）
-- 上輪 carry-forward 主軸：`feat_4h_bb_pct_b minimal component counterfactual`、`q15 support accumulation 4→?`、`keep bias50/q35 reference-only until exact support ready`。
-- 本輪逐條對照結果：
-  1. **已完成 `feat_4h_bb_pct_b` 最小反事實**：`scripts/hb_q15_boundary_replay.py` 現在明確輸出 `verdict = same_lane_counterfactual_bucket_proxy_only`，證明把 `feat_4h_bb_pct_b` 從 `0.3974 → 0.7745` 只會把 current row 從 `q15 → q35`，但 `entry_quality` 只從 `0.4227 → 0.4547`，`allowed_layers` 仍是 `0`。
-  2. **q15 support accumulation 沒有退步，但仍未達 deployable**：`support_progress.current_rows = 4`、`minimum_support_rows = 50`、`gap_to_minimum = 46`、`status = accumulating`。
-  3. **bias50 / q35 仍不能接管成可部署主敘事**：`floor_cross_legality.verdict = math_cross_possible_but_illegal_without_exact_support`；`feat_4h_bias50` 仍是唯一可單點跨 floor 的 component，但 support 未達標前只能是 reference-only。
-  4. **本輪已把上輪模糊結論收斂成 machine-readable 治理語義**：不再只留下 `boundary_replay_not_applicable`；現在 artifact 會直接告訴下一輪：`feat_4h_bb_pct_b` 是 bucket proxy，不是 deployable floor fix。
+只保留目前有效問題，不保留舊流水帳。
 
 ---
 
-## 系統現況
-- 本輪最新 DB：**Raw / Features / Labels = 30527 / 18664 / 43750**
-- 最新時間：
-  - Raw：`2026-04-16 10:49:08.303092`
-  - Features：`2026-04-16 10:49:08.303092`
-  - Labels：`2026-04-16 01:43:50.141947`
-  - Canonical 1440m labels：`2026-04-15 05:53:35.506756`
-- canonical 1440m：**12709 rows / simulated_pyramid_win = 0.6470**
-- 全域 IC：**17 / 30 pass**
-- TW-IC：**26 / 30 pass**
-- regime-aware IC：**Bear 5/8、Bull 6/8、Chop 4/8**
-- recent drift primary window：**100**
-  - alerts = `constant_target`, `regime_concentration`, `regime_shift`
-  - interpretation = `distribution_pathology`
-  - `wins = 100 / losses = 0`
-  - `dominant_regime = bull (100%)`
-  - sibling-window `new_compressed = feat_4h_bb_pct_b`
-- current live probe：
-  - regime / gate / bucket：**bull / CAUTION / q15**
-  - `entry_quality = 0.4227`
-  - `entry_quality_label = D`
-  - `allowed_layers_raw = 0`
-  - `allowed_layers = 0`
-  - `deployment_blocker = under_minimum_exact_live_structure_bucket`
-  - exact current-bucket rows = **4**
-- q15 support audit：
-  - `support_route.verdict = exact_bucket_present_but_below_minimum`
-  - `support_progress.status = accumulating`
-  - `support_progress.current_rows / minimum = 4 / 50`
-  - `support_progress.delta_vs_previous = +4`
-  - `support_progress.gap_to_minimum = 46`
-  - `floor_cross_legality.verdict = math_cross_possible_but_illegal_without_exact_support`
-  - `best_single_component = feat_4h_bias50`
-  - `best_single_component_required_score_delta = 0.4243`
-  - `component_experiment.verdict = reference_only_until_exact_support_ready`
-- q15 root-cause artifact：
-  - `verdict = same_lane_neighbor_bucket_dominates`
-  - `candidate_patch_type = structure_component_scoring`
-  - `candidate_patch_feature = feat_4h_bb_pct_b`
-  - `gap_to_q35_boundary = 0.1282`
-  - `dominant_neighbor_bucket = CAUTION|structure_quality_caution|q35`
-  - `near_boundary_rows = 58`
-- q15 boundary replay / 最小反事實：
-  - `verdict = same_lane_counterfactual_bucket_proxy_only`
-  - `component_counterfactual.feature = feat_4h_bb_pct_b`
-  - `raw_delta_to_cross_q35 = +0.3771`
-  - `entry_quality_after = 0.4547`
-  - `trade_floor_gap_after = -0.0953`
-  - `allowed_layers_after = 0`
-- comprehensive test：**6/6 PASS**
-- targeted regression：`python -m pytest tests/test_q15_boundary_replay.py -q` → **3 passed**
+## 目前主線
+Poly-Trader 的 execution foundation 已可走 `ExecutionService`，而本輪進一步補上 **runtime guardrail 可見性與 manual trade 拒單語義**：`/api/status` 現在會帶著 DB session 計算真實的 daily loss halt / recent reject 狀態，`/api/trade` 成功回應會帶回 guardrails，前端也不再把結構化拒單 payload 顯示成 `[object Object]`。目前最大的剩餘缺口已收斂到 **交易所 market-rules guardrail 仍未完整覆蓋 step-size / tick-size / venue-specific precision contract**，因此 live_canary 仍不可視為安全可放量。
 
 ---
 
-## Step 1 事實分類
-
-### 已改善
-1. **上輪要求的 `feat_4h_bb_pct_b` 最小 counterfactual 已真正落地**：現在不再只是口頭說「應該要驗」，而是有 machine-readable artifact 直接證明它只能 rebucket、不能過 floor。
-2. **q15 boundary artifact 的治理語義更精確**：`scripts/hb_q15_boundary_replay.py` 已新增 `same_lane_counterfactual_bucket_proxy_only`，避免同一份 JSON 一邊說 boundary 不適用、一邊又埋著 counterfactual 結果，造成下一輪讀錯主線。
-3. **測試與文件已同步新語義**：
-   - `tests/test_q15_boundary_replay.py` 新增 same-lane bucket-proxy regression
-   - `ARCHITECTURE.md` 已同步 q15 boundary-replay contract
-4. **驗證閉環完整**：
-   - `python scripts/recent_drift_report.py`
-   - `python scripts/full_ic.py`
-   - `python scripts/regime_aware_ic.py`
-   - `python scripts/hb_predict_probe.py > data/live_predict_probe.json`
-   - `python scripts/live_decision_quality_drilldown.py`
-   - `python scripts/hb_q15_support_audit.py`
-   - `python scripts/hb_q15_bucket_root_cause.py`
-   - `python scripts/hb_q15_boundary_replay.py`
-   - `python -m pytest tests/test_q15_boundary_replay.py -q` → **3 passed**
-   - `python tests/comprehensive_test.py` → **6/6 PASS**
-
-### 惡化
-1. **recent canonical pathology 仍未解除**：recent 100 仍是 `100x1 bull pocket`，primary interpretation 仍是 `distribution_pathology`。
-2. **當前 q15 runtime blocker 沒有因 bb_pct_b counterfactual 而鬆動**：即使最小 counterfactual 成功 rebucket，`entry_quality_after` 仍只有 `0.4547`，代表 blocker 已從「未知結構差距」進一步收斂成「trade-floor component + exact-support」雙重問題。
-
-### 卡住不動
-1. **q15 exact support 仍遠低於 deployment minimum**：當前仍只有 **4 / 50**，runtime 必須維持 `allowed_layers = 0`。
-2. **bias50 仍是唯一可單點跨 floor 的 component，但法律上不可放行**：support 未達標前，這仍只能是 reference-only 研究結果。
-3. **q35 仍是 same-lane reference bucket，不是 current-live closure**：current live row 仍停在 `q15`，不得把 q35 neighbor 寫成已修復路徑。
+## 本輪事實摘要
+- Step 0.5 carry-forward 已對照上輪要求：
+  - 上輪要求先處理 `ExecutionService 前置 market-rules / risk-halt guardrail`。
+  - 本輪先修兩個會讓 guardrail 變成假可見性的 root cause：
+    1. `/api/status` 建立 `ExecutionService` 時沒有傳入 DB session，導致 `daily_loss_ratio / daily_loss_halt` 在狀態面板上可能是盲的。
+    2. `/api/trade` 拒單 payload 雖然後端已結構化，但前端 `fetchApi()` 會把 object detail 直接塞進 `Error()`，實際顯示成 `[object Object]`，使用者看不到真正 reject code/message。
+- 本輪 patch：
+  - `server/routes/api.py`
+    - `/api/status` 改成 `ExecutionService(cfg, db_session=get_db())`
+    - `/api/trade` 成功 payload 回傳 `guardrails`
+  - `web/src/hooks/useApi.ts`
+    - 新增 `formatApiErrorDetail()`，把結構化 reject payload 格式化成可讀訊息（如 `[min_notional] Order notional is below exchange minimum`）
+- 驗證：
+  - `source venv/bin/activate && python -m pytest tests/test_execution_service.py tests/test_server_startup.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q` → **53 passed**
+  - `cd web && npm run build` → **PASS**
+- 額外觀察：
+  - repo 內 graphify rebuild 指令無法執行：`ModuleNotFoundError: No module named 'graphify'`，本輪未能刷新 graph artifact。
 
 ---
 
 ## Open Issues
 
-### P0. q15 真正的 deploy blocker 已從 `feat_4h_bb_pct_b` 收斂到 `feat_4h_bias50 + exact-support accumulation`
-**現象**
-- `hb_q15_boundary_replay.py`：`verdict = same_lane_counterfactual_bucket_proxy_only`
-- `component_counterfactual.verdict = bucket_proxy_only_not_trade_floor_fix`
-- `feat_4h_bb_pct_b` 補到跨 q35 後，`entry_quality_after = 0.4547 < 0.55`、`allowed_layers_after = 0`
-- `hb_q15_support_audit.py`：`best_single_component = feat_4h_bias50`、`required_score_delta = 0.4243`
+### P0. Exchange market-rules guardrail 仍未完整覆蓋 step-size / tick-size / venue-specific precision
+**現況**
+- 已有 pre-trade guardrails：`kill_switch`、`daily_loss_halt`、`failure_halt`、`min_qty`、`min_notional`
+- `/api/status` 現在能顯示真實 guardrail 狀態；`/api/trade` reject 也已能被前端正確讀出 code/message
 
-**影響**
-- 這代表 `feat_4h_bb_pct_b` 現在只能當 bucket proxy / structure diagnosis，不是 deployable 修補
-- 下一輪若還把主線寫成「處理 bb_pct_b 就能解 q15」，就會變成空轉
+**缺口**
+- adapter `market_rules()` 目前仍以 `min_qty / min_cost / amount_precision / price_precision` 為主，尚未把 `step-size / tick-size` 明確拉成統一 contract
+- venue-specific rounding / precision 規則還沒有獨立 regression tests 鎖住 Binance / OKX 差異
+- 目前仍偏向「先 round、再送單」；尚未把「原始值 → 調整值 → 拒單/接受理由」完整結構化回傳給上層
 
-**本輪 patch / 證據**
-- `scripts/hb_q15_boundary_replay.py`
-- `tests/test_q15_boundary_replay.py`
-- `data/q15_boundary_replay.json`
-- `docs/analysis/q15_boundary_replay.md`
-- `ARCHITECTURE.md`
+**風險**
+- live_canary 仍可能在某些交易對或 venue 上碰到 exchange-level precision rejection，而不是在 pre-trade lane 被穩定攔下
+- readiness panel 現在看得到 halt / reject，但對「為何這個 qty/price 不合法」仍缺乏完整 contract
 
 **下一步**
-- 直接檢查 `feat_4h_bias50` / base stack 在 q15 exact lane 的 floor-gap 角色
-- 保留 `feat_4h_bb_pct_b` 為 structure proxy，不再把它當 deploy patch 候選
+- 補齊 `step_size / tick_size / precision delta` 的統一 market-rules contract
+- 針對 Binance / OKX 各加至少一條 pre-trade regression test，證明 exchange rejection 會在送單前被攔下
 
-### P1. q15 support 已開始累積，但仍只有 4/50
-**現象**
-- `support_progress.status = accumulating`
-- `current_rows = 4`
-- `delta_vs_previous = +4`
-- `gap_to_minimum = 46`
+### P1. Dashboard execution panel 已可顯示最近 reject / failure / order，但 manual trade 後的即時 refresh 與 richer context 仍有限
+**現況**
+- Dashboard 已有 execution/account 狀態卡
+- `fetchApi()` 現在能把結構化 reject 顯示成可讀文字，而不是 `[object Object]`
 
-**影響**
-- 這不再是「完全無歷史」問題，而是明確的 exact-support 累積問題
-- runtime 仍必須維持 `allowed_layers = 0`
-
-**本輪證據**
-- `scripts/hb_q15_support_audit.py`
-- `data/q15_support_audit.json`
+**缺口**
+- manual trade 後尚未主動刷新 `/api/status`，最近 reject / recent order outcome 主要仍依賴輪詢更新
+- reject `context` 尚未在 UI 展開顯示（例如 min_notional/min_qty 所對應的 rules）
 
 **下一步**
-- 下一輪必須持續追 `support_progress.current_rows` 是否增加
-- 若 rows 停在 4 且 `stagnant_run_count` 上升，升級成 stalled support blocker
+- 在 manual trade 成功/失敗後觸發 runtime status refresh
+- 若 guardrail context 有值，將其整理成可讀 UI 區塊而非只停在 alert 字串
 
-### P1. recent drift 的主病灶仍是 bull-pocket distribution pathology
-**現象**
-- `recent_drift_report.py`：primary window 仍是 recent 100
-- alerts = `constant_target`, `regime_concentration`, `regime_shift`
-- sibling-window `new_compressed = feat_4h_bb_pct_b`
+### P1. OKX adapter 已存在，但 guardrail contract 仍未完成實場規則驗證
+**現況**
+- Binance / OKX adapter 都已存在
+- 本輪修的是共用 execution surface，不是 venue-specific 細節
 
-**影響**
-- drift artifact 仍指向 bull pocket 的極端分布，不可把 recent TW-IC / live lane 當成穩定可部署常態
-- 但本輪已證明 `feat_4h_bb_pct_b` 單點修補不足以過 floor，所以下一輪不能只在 drift 報表裡重複它
-
-**下一步**
-- 讓 drift / q15 / live probe 三條證據都回到同一個主結論：`bb_pct_b` 是 structure proxy，真正部署 blocker 是 `bias50 + support accumulation`
-
-### P2. q35 保持 reference-only，不得重回 current-live 主敘事
-**現象**
-- current live bucket 仍是 q15
-- q35 是 dominant same-lane neighbor bucket，不是 current-live closure
-
-**影響**
-- q35 只能作 comparison/reference lane，不得重寫成當前 deployment closure
+**缺口**
+- 尚未確認 OKX spot-only `precision / lot size / reduceOnly` 行為是否完全符合目前 guardrail 假設
+- 尚未有 OKX-specific guardrail regression 證據
 
 **下一步**
-- 只有在 current live row 真正回到 q35，才重啟 q35 scaling / deployment 主線
+- 先完成 Binance / OKX 共用 market-rules contract
+- 再做 OKX-specific metadata / order param 驗證
 
 ---
 
-## Not Issues
-- **`feat_4h_bb_pct_b` 單點反事實已足以解除 q15 blocker**：不是。它只會 rebucket，不會跨 trade floor。
-- **本輪主線仍應該先做 boundary review**：不是。artifact 已明確改寫成 `same_lane_counterfactual_bucket_proxy_only`。
-- **`feat_4h_bias50` 可以立刻放寬 runtime gate**：不是。`math_cross_possible_but_illegal_without_exact_support` 仍成立。
-- **q35 應回來接管本輪主線**：不是。current live 仍在 q15。
+## 本輪已處理
+- 修復 `/api/status` 沒有把 DB session 傳進 `ExecutionService` 的 root cause，讓 daily halt / recent reject 狀態不再是盲的
+- 修復 `/api/trade` structured reject 在前端被序列化成 `[object Object]` 的 root cause
+- 補齊 `/api/trade` 成功 payload 的 `guardrails`，讓 manual trade 回應可直接攜帶當下 guardrail snapshot
 
 ---
 
 ## Current Priority
-1. **直接檢查 `feat_4h_bias50 / base stack` 為何仍把 q15 exact lane 壓在 floor 下方**
-2. **持續監看 q15 support accumulation（4/50 是否繼續增加）**
-3. **維持 `feat_4h_bb_pct_b` 為 structure proxy、維持 q35 為 reference-only**
+1. **P0：補齊 step-size / tick-size / venue-specific precision 的 pre-trade guardrail contract**
+2. **P1：manual trade 後主動刷新 runtime status，讓 Dashboard 立即反映 recent outcome**
+3. **P1：完成 Binance / OKX venue-specific guardrail regression tests**
 
 ---
 
-## Next Gate Input
-- **Next focus**：`feat_4h_bias50 floor-gap audit`、`q15 support accumulation 4→?`、`keep feat_4h_bb_pct_b as structure proxy only`
-- **Success gate**：
-  - 產出 1 個直接回答 `feat_4h_bias50` 是否為 q15 exact-lane 主 floor-gap blocker 的 artifact 或 patch
-  - `data/q15_support_audit.json` 的 `support_progress.current_rows` 相比本輪 **不下降**
-  - `ISSUES.md` / `ROADMAP.md` / `ARCHITECTURE.md` / `data/q15_boundary_replay.json` 對主結論一致：**`feat_4h_bb_pct_b` 不是 deployable patch；當前主 blocker 是 `bias50 + exact support`**
-- **Fallback if fail**：
-  - 若下一輪還把主線寫成 boundary review / bb_pct_b deploy patch，直接升級成 `#HEARTBEAT_EMPTY_PROGRESS` 類 blocker
-  - 若 q15 rows 停在 4 且 `support_progress` 轉 stalled/regressed，升級成 support accumulation blocker
-  - 若 current live bucket 切換，先重寫 current-state docs，再決定是否切回 q35 或其他 lane
-- **Carry-forward input for next heartbeat**：
-  1. 先讀最新 `data/q15_boundary_replay.json`，確認 `verdict` 是否仍是 `same_lane_counterfactual_bucket_proxy_only`。
-  2. 若仍是，禁止把 `feat_4h_bb_pct_b` 寫成可部署修補；直接轉去檢查 `feat_4h_bias50` / base stack floor-gap root cause。
-  3. 再讀最新 `data/q15_support_audit.json`，逐條檢查：
-     - `support_progress.status`
-     - `support_progress.current_rows`
-     - `support_progress.delta_vs_previous`
-     - `support_progress.stagnant_run_count`
-     - `support_progress.escalate_to_blocker`
-  4. 若 q15 rows 仍低於 50，禁止把 bias50 單點 floor-cross 敘事寫成可 deploy；必須維持 `reference_only_until_exact_support_ready`。
+## Carry-forward（供下一輪 Step 0.5 直接讀入）
+- 最高優先問題：`Exchange market-rules guardrail 仍未完整覆蓋 step-size / tick-size / venue-specific precision`
+- 本輪已完成：`/api/status` 改為用 DB session 計算 execution guardrails；前端可正確顯示 structured reject code/message；/api/trade 成功回傳 guardrails`
+- 下一輪必須先處理：`將 step_size / tick_size / precision delta 納入統一 pre-trade guardrail contract，並補 Binance/OKX regression tests`
+- 成功門檻：`至少一條 precision/step-size 類錯誤能在送單前被結構化拒絕，且 pytest 證明不是 exchange runtime 才失敗`
+- 若失敗：`升級為 blocker，文件明確標示 live_canary 僅具觀測能力，不具安全下單 readiness`

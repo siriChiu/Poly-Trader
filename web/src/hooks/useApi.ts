@@ -40,6 +40,31 @@ const toRequestLabel = (endpoint: string) => {
 
 const API_MEMORY_CACHE = new Map<string, { data: unknown; updatedAt: number }>();
 
+function formatApiErrorDetail(detail: unknown): string {
+  if (detail == null) return "API 錯誤";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((item) => formatApiErrorDetail(item)).filter(Boolean).join("; ");
+  }
+  if (typeof detail === "object") {
+    const payload = detail as Record<string, unknown>;
+    const code = typeof payload.code === "string" ? payload.code : null;
+    const message = typeof payload.message === "string" ? payload.message : null;
+    if (code || message) {
+      return [code ? `[${code}]` : null, message].filter(Boolean).join(" ");
+    }
+    if (typeof payload.detail === "string") {
+      return payload.detail;
+    }
+    try {
+      return JSON.stringify(payload);
+    } catch {
+      return "API 錯誤";
+    }
+  }
+  return String(detail);
+}
+
 const getCachedApiResponse = <T,>(endpoint: string, maxAgeMs: number): T | null => {
   const cached = API_MEMORY_CACHE.get(endpoint);
   if (!cached) return null;
@@ -66,7 +91,7 @@ async function fetchJsonTracked<T>(endpoint: string, options?: RequestInit): Pro
     updateGlobalProgress(taskId, { progress: 45, detail: `${endpoint} · 已收到回應` });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({ detail: resp.statusText }));
-      throw new Error(err.detail || `${resp.status}`);
+      throw new Error(formatApiErrorDetail(err.detail ?? err) || `${resp.status}`);
     }
     const json = await resp.json();
     setCachedApiResponse(endpoint, json);

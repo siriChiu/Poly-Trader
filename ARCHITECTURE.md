@@ -221,6 +221,15 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 ### 6. 可視化層
 顯示每個特徵的 IC、勝率、風險貢獻、spot-long 勝率、回測摘要與會議整理。
 
+### 7. Execution runtime surface
+手動交易與 execution readiness 的正式 surface 目前由 `/api/status`、`/api/trade`、`Dashboard` 共用。
+
+**Execution runtime visibility contract（Heartbeat 2026-04-16）**：`server/routes/api.py::api_status()` 建立 `ExecutionService` 時必須帶入 `db_session=get_db()`，不可只用 config-only summary。原因是 `daily_loss_ratio / daily_loss_halt / recent reject` 依賴 `TradeHistory` 與 runtime 狀態；若少了 DB session，Dashboard 看到的 guardrail 會變成假健康。
+
+**Manual trade reject contract（Heartbeat 2026-04-16）**：`/api/trade` 的 reject path 必須保留 structured payload `detail={code,message,context}`，而前端 transport (`web/src/hooks/useApi.ts`) 不得把 object detail 直接變成 `[object Object]`。若 guardrail 是真的、但 UI 只顯示無意義字串，等同 execution surface 未落地。
+
+**Manual trade success contract（Heartbeat 2026-04-16）**：`/api/trade` 成功回應必須帶回 `guardrails` snapshot，讓 manual trade call site 與 Dashboard/status 面板使用同一組 runtime safety semantics，而不是一邊只看到 order id、另一邊才知道 halt/reject 狀態。
+
 ---
 
 ## 目錄結構
