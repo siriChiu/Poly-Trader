@@ -2,8 +2,8 @@
 
 - generated_at: **2026-04-16 10:49:08.303092**
 - target_col: **simulated_pyramid_win**
-- verdict: **boundary_replay_not_applicable**
-- reason: 目前 q15 root-cause verdict 不是 boundary_sensitivity_candidate，boundary replay 不是本輪主路徑。
+- verdict: **same_lane_counterfactual_bucket_proxy_only**
+- reason: 目前不是 boundary 問題，而是 same-lane q35 鄰近 bucket 已足夠明確；最小 feat_4h_bb_pct_b 反事實只會把 current row 重新分桶到 q35，但 entry_quality 仍過不了 trade floor，因此它只能當 bucket proxy 證據，不能視為 deployable 修補。
 
 ## Current live row
 - signal: **HOLD**
@@ -34,5 +34,5 @@
 - counterfactual reason: 只把 feat_4h_bb_pct_b 補到剛好跨 q35，只會把結構 bucket 從 q15 改成 q35；entry_quality 仍低於 trade floor，allowed_layers 仍是 0，表示它更像 bucket proxy，而不是 deployable floor fix。
 
 ## Next
-- next_action: 依 q15 root-cause / support audit 的既有 blocker 繼續治理。
-- verify_next: 比較 current row 與 dominant neighbor bucket 的 4H component 差值，再做最小 counterfactual。
+- next_action: 停止把 q15 問題包裝成 boundary review；維持 feat_4h_bb_pct_b 為 structure proxy 診斷，主修補焦點轉到 bias50 / exact-support accumulation。
+- verify_next: 保留 feat_4h_bb_pct_b counterfactual 作為 bucket-proxy 證據；下一輪改直接檢查 feat_4h_bias50 / base stack 或 support accumulation 是否才是 floor-gap 主因。

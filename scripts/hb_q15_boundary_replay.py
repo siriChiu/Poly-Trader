@@ -180,7 +180,8 @@ def build_report(
     verify_next = root_cause.get("verify_next") or "先依 q15 root-cause artifact 的 verify_next 行動。"
     next_action = "依 q15 root-cause / support audit 的既有 blocker 繼續治理。"
 
-    if root_cause.get("verdict") == "boundary_sensitivity_candidate":
+    root_verdict = root_cause.get("verdict")
+    if root_verdict == "boundary_sensitivity_candidate":
         if replay_scope_rows <= 0:
             verdict = "boundary_replay_has_no_supported_target_bucket"
             reason = "就算把 q15↔q35 邊界向下回放，chosen scope 仍找不到可承接的 current bucket rows；boundary review 無法形成可部署支持。"
@@ -222,8 +223,28 @@ def build_report(
                 "下一輪可升級成 guarded experiment。"
             )
 
+    if (
+        root_verdict == "same_lane_neighbor_bucket_dominates"
+        and counterfactual_verdict == "bucket_proxy_only_not_trade_floor_fix"
+    ):
+        verdict = "same_lane_counterfactual_bucket_proxy_only"
+        reason = (
+            "目前不是 boundary 問題，而是 same-lane q35 鄰近 bucket 已足夠明確；"
+            "最小 feat_4h_bb_pct_b 反事實只會把 current row 重新分桶到 q35，"
+            "但 entry_quality 仍過不了 trade floor，因此它只能當 bucket proxy 證據，不能視為 deployable 修補。"
+        )
+        verify_next = (
+            "保留 feat_4h_bb_pct_b counterfactual 作為 bucket-proxy 證據；"
+            "下一輪改直接檢查 feat_4h_bias50 / base stack 或 support accumulation 是否才是 floor-gap 主因。"
+        )
+        next_action = (
+            "停止把 q15 問題包裝成 boundary review；"
+            "維持 feat_4h_bb_pct_b 為 structure proxy 診斷，主修補焦點轉到 bias50 / exact-support accumulation。"
+        )
+
     carry_forward = [
-        "先讀 data/q15_boundary_replay.json，確認 boundary replay verdict 與 feat_4h_bb_pct_b counterfactual verdict。",
+        "先讀 data/q15_boundary_replay.json，確認 verdict 與 feat_4h_bb_pct_b counterfactual verdict。",
+        "若 verdict=same_lane_counterfactual_bucket_proxy_only，下一輪不得再把 q15 blocker 寫成 boundary review 或 feat_4h_bb_pct_b 單點可部署修補；必須直接檢查 feat_4h_bias50 / support accumulation。",
         "若 verdict=boundary_relabels_into_existing_q35_support，下一輪不得把 q15 boundary review 當成 deployment patch；只能當治理參考。",
         "若 component_counterfactual.verdict=bucket_proxy_only_not_trade_floor_fix，下一輪不得把 feat_4h_bb_pct_b 單獨包裝成 floor-gap 修復；要改查 bias50 / pulse 或 support accumulation。",
         "只有當 boundary replay 與 component counterfactual 同時證明 exact support 合法且 trade floor 跨越時，才允許討論 runtime gate 調整。",
