@@ -48,6 +48,7 @@ _STRATEGY_RUN_EXECUTOR = ThreadPoolExecutor(max_workers=2)
 _BENCHMARK_PROCESS_EXECUTOR = ProcessPoolExecutor(max_workers=1)
 _HYBRID_MODEL_LOCK = threading.Lock()
 _HYBRID_MODEL_CACHE: Dict[str, Dict[str, Any]] = {}
+_EXECUTION_METADATA_SMOKE_PATH = Path(__file__).resolve().parents[2] / "data" / "execution_metadata_smoke.json"
 
 _STRATEGY_STAGE_LABELS = {
     "queued": "任務排隊",
@@ -119,6 +120,55 @@ def _normalize_result_timestamps(payload: Any) -> Any:
 
 def _build_cache_key(*parts: Any) -> str:
     return "::".join(str(part) for part in parts)
+
+
+def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
+    if not _EXECUTION_METADATA_SMOKE_PATH.exists():
+        return None
+    try:
+        payload = json.loads(_EXECUTION_METADATA_SMOKE_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            "available": False,
+            "artifact_path": str(_EXECUTION_METADATA_SMOKE_PATH),
+            "error": str(exc),
+        }
+
+    results = payload.get("results") if isinstance(payload, dict) else {}
+    if not isinstance(results, dict):
+        results = {}
+
+    venues = []
+    for venue, item in results.items():
+        item = item if isinstance(item, dict) else {}
+        contract = item.get("contract") if isinstance(item.get("contract"), dict) else {}
+        venues.append({
+            "venue": venue,
+            "ok": bool(item.get("ok")),
+            "enabled_in_config": bool(item.get("enabled_in_config")),
+            "credentials_configured": bool(item.get("credentials_configured")),
+            "error": item.get("error"),
+            "contract": {
+                "symbol": contract.get("symbol"),
+                "min_qty": contract.get("min_qty"),
+                "min_cost": contract.get("min_cost"),
+                "step_size": contract.get("step_size"),
+                "tick_size": contract.get("tick_size"),
+                "qty_contract": contract.get("qty_contract") or {},
+                "price_contract": contract.get("price_contract") or {},
+            },
+        })
+
+    return {
+        "available": True,
+        "artifact_path": str(_EXECUTION_METADATA_SMOKE_PATH),
+        "generated_at": payload.get("generated_at"),
+        "symbol": payload.get("symbol"),
+        "all_ok": bool(payload.get("all_ok")),
+        "ok_count": payload.get("ok_count"),
+        "venues_checked": payload.get("venues_checked"),
+        "venues": venues,
+    }
 
 
 def _strategy_job_stage_plan(body: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -414,6 +464,7 @@ async def api_status():
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "execution": execution.execution_summary(),
         "account": account_snapshot,
+        "execution_metadata_smoke": _load_execution_metadata_smoke_summary(),
         "raw_continuity": get_runtime_status("raw_continuity", None),
         "feature_continuity": get_runtime_status("feature_continuity", None),
     }

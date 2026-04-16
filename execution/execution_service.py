@@ -13,6 +13,7 @@ from execution.config import resolve_trading_config
 from execution.exchanges.base import BaseExchangeAdapter, ExchangeOrderResult, OrderRequest
 from execution.exchanges.binance_adapter import BinanceAdapter
 from execution.exchanges.okx_adapter import OKXAdapter
+from execution.metadata_smoke import _build_contract_summary
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -169,6 +170,33 @@ class ExecutionService:
             adjusted = self._round_down(adjusted, precision)
         return adjusted
 
+    def _build_normalization_summary(
+        self,
+        *,
+        request: OrderRequest,
+        validated_request: OrderRequest,
+        rules: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        return {
+            "requested": {
+                "symbol": request.symbol,
+                "qty": request.qty,
+                "price": request.price,
+                "side": request.side,
+                "type": request.order_type,
+            },
+            "normalized": {
+                "symbol": validated_request.symbol,
+                "qty": validated_request.qty,
+                "price": validated_request.price,
+                "side": validated_request.side,
+                "type": validated_request.order_type,
+                "qty_changed": not self._is_close(request.qty, validated_request.qty),
+                "price_changed": not self._is_close(request.price, validated_request.price),
+            },
+            "contract": _build_contract_summary(rules),
+        }
+
     def guardrail_status(self, venue: Optional[str] = None) -> Dict[str, Any]:
         daily_loss_ratio = self._current_daily_loss_ratio(venue)
         max_daily_loss_pct = float(self.execution_cfg.get("max_daily_loss_pct") or 0.0)
@@ -205,7 +233,7 @@ class ExecutionService:
             "guardrails": self.guardrail_status(venue),
         }
 
-    def _validate_order_request(self, adapter: BaseExchangeAdapter, request: OrderRequest) -> OrderRequest:
+    def _validate_order_request(self, adapter: BaseExchangeAdapter, request: OrderRequest) -> tuple[OrderRequest, Dict[str, Any]]:
         guardrails = self.guardrail_status(adapter.venue)
         if guardrails["kill_switch"]:
             raise ExecutionRejectError("kill_switch", "Kill switch is active; live execution is blocked", context=guardrails)
@@ -282,15 +310,18 @@ class ExecutionService:
         if min_cost is not None and notional is not None and notional < float(min_cost):
             raise ExecutionRejectError("min_notional", "Order notional is below exchange minimum", context={"notional": notional, "min_cost": min_cost, "rules": rules})
 
-        return OrderRequest(
-            symbol=request.symbol,
-            side=request.side,
-            order_type=request.order_type,
-            qty=adjusted_qty,
-            price=adjusted_price,
-            reduce_only=request.reduce_only,
-            client_order_id=request.client_order_id,
-            params=request.params,
+        return (
+            OrderRequest(
+                symbol=request.symbol,
+                side=request.side,
+                order_type=request.order_type,
+                qty=adjusted_qty,
+                price=adjusted_price,
+                reduce_only=request.reduce_only,
+                client_order_id=request.client_order_id,
+                params=request.params,
+            ),
+            rules,
         )
 
     def submit_order(
@@ -320,7 +351,12 @@ class ExecutionService:
             params=params or {},
         )
         try:
-            validated_request = self._validate_order_request(adapter, request)
+            validated_request, rules = self._validate_order_request(adapter, request)
+            normalization = self._build_normalization_summary(
+                request=request,
+                validated_request=validated_request,
+                rules=rules,
+            )
             result = adapter.place_order(validated_request)
             _EXECUTION_RUNTIME["consecutive_failures"] = 0
             _EXECUTION_RUNTIME["last_order"] = {
@@ -328,8 +364,10 @@ class ExecutionService:
                 "symbol": result.symbol,
                 "side": result.side,
                 "qty": result.qty,
+                "price": result.price,
                 "status": result.status,
                 "timestamp": result.timestamp,
+                "normalization": normalization,
             }
             self._record_trade(result, reason=reason, model_confidence=model_confidence)
             return {
@@ -338,6 +376,7 @@ class ExecutionService:
                 "venue": result.venue,
                 "mode": self.execution_cfg.get("mode"),
                 "guardrails": self.guardrail_status(result.venue),
+                "normalization": normalization,
                 "order": {
                     "id": result.order_id,
                     "client_order_id": result.client_order_id,
@@ -349,6 +388,7 @@ class ExecutionService:
                     "price": result.price,
                     "timestamp": result.timestamp,
                     "mode": "dry_run" if result.dry_run else "live",
+                    "normalization": normalization,
                 },
             }
         except ExecutionRejectError as exc:

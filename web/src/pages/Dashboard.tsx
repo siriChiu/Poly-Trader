@@ -46,6 +46,30 @@ interface RuntimeStatusResponse {
   dry_run: boolean;
   symbol: string;
   timestamp: string;
+  execution_metadata_smoke?: {
+    available?: boolean;
+    artifact_path?: string;
+    generated_at?: string;
+    symbol?: string;
+    all_ok?: boolean;
+    ok_count?: number;
+    venues_checked?: number;
+    error?: string;
+    venues?: Array<{
+      venue?: string;
+      ok?: boolean;
+      enabled_in_config?: boolean;
+      credentials_configured?: boolean;
+      error?: string | null;
+      contract?: {
+        symbol?: string;
+        min_qty?: number | null;
+        min_cost?: number | null;
+        step_size?: string | number | null;
+        tick_size?: string | number | null;
+      } | null;
+    }>;
+  } | null;
   execution?: {
     mode?: string;
     venue?: string;
@@ -79,7 +103,33 @@ interface RuntimeStatusResponse {
           rules?: Record<string, unknown> | null;
         } | null;
       } | null;
-      last_order?: { venue?: string; symbol?: string; side?: string; qty?: number; status?: string; timestamp?: number } | null;
+      last_order?: {
+        venue?: string;
+        symbol?: string;
+        side?: string;
+        qty?: number;
+        price?: number | null;
+        status?: string;
+        timestamp?: number;
+        normalization?: {
+          requested?: { qty?: number | null; price?: number | null; symbol?: string; side?: string; type?: string } | null;
+          normalized?: {
+            qty?: number | null;
+            price?: number | null;
+            symbol?: string;
+            side?: string;
+            type?: string;
+            qty_changed?: boolean;
+            price_changed?: boolean;
+          } | null;
+          contract?: {
+            step_size?: string | number | null;
+            tick_size?: string | number | null;
+            min_qty?: number | null;
+            min_cost?: number | null;
+          } | null;
+        } | null;
+      } | null;
     } | null;
   } | null;
   account?: {
@@ -309,6 +359,7 @@ export default function Dashboard() {
   const maturitySummary = featureCoverageData?.maturity_counts ?? null;
   const executionSummary = runtimeStatus?.execution ?? null;
   const accountSummary = runtimeStatus?.account ?? null;
+  const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;
   const rawContinuity = runtimeStatus?.raw_continuity ?? null;
   const featureContinuity = runtimeStatus?.feature_continuity ?? null;
   const executionModeLabel = executionSummary?.mode || accountSummary?.mode || "unknown";
@@ -372,10 +423,18 @@ export default function Dashboard() {
       const mode = data?.order?.mode || (data?.dry_run ? "dry_run" : "live");
       const qty = typeof data?.order?.qty === "number" ? data.order.qty : null;
       const venue = data?.venue || "unknown";
+      const normalizedQty = typeof data?.normalization?.normalized?.qty === "number" ? data.normalization.normalized.qty : qty;
+      const normalizedPrice = typeof data?.normalization?.normalized?.price === "number" ? data.normalization.normalized.price : null;
+      const stepSize = data?.normalization?.contract?.step_size;
+      const tickSize = data?.normalization?.contract?.tick_size;
+      const contractSummary = [
+        stepSize != null ? `step ${formatGuardrailValue(stepSize)}` : null,
+        tickSize != null ? `tick ${formatGuardrailValue(tickSize)}` : null,
+      ].filter(Boolean).join(" · ");
       setTradeFeedback({
         tone: "success",
         title: `${label} 指令已提交`,
-        detail: `模式 ${mode} · 場館 ${venue}${qty != null ? ` · qty ${qty}` : ""}。已主動刷新 /api/status。`,
+        detail: `模式 ${mode} · 場館 ${venue}${normalizedQty != null ? ` · normalized qty ${formatGuardrailValue(normalizedQty)}` : ""}${normalizedPrice != null ? ` · normalized price ${formatGuardrailValue(normalizedPrice)}` : ""}${contractSummary ? ` · contract ${contractSummary}` : ""}。已主動刷新 /api/status。`,
         timestamp: new Date().toLocaleString("zh-TW"),
       });
     } catch (e: any) {
@@ -502,6 +561,14 @@ export default function Dashboard() {
             <div className="text-[11px] opacity-70">最近委託</div>
             <div className="mt-1 font-semibold">{lastOrder?.symbol || "—"}</div>
             <div className="mt-1 text-[11px] opacity-80">{lastOrder ? `${lastOrder.side} · qty ${lastOrder.qty} · ${lastOrder.status}` : "尚無委託"}</div>
+            {lastOrder?.normalization && (
+              <div className="mt-2 text-[11px] opacity-80 leading-5">
+                normalized qty {formatGuardrailValue(lastOrder.normalization.normalized?.qty)}
+                {lastOrder.normalization.normalized?.price != null ? ` · price ${formatGuardrailValue(lastOrder.normalization.normalized?.price)}` : ""}
+                {lastOrder.normalization.contract?.step_size != null ? ` · step ${formatGuardrailValue(lastOrder.normalization.contract?.step_size)}` : ""}
+                {lastOrder.normalization.contract?.tick_size != null ? ` · tick ${formatGuardrailValue(lastOrder.normalization.contract?.tick_size)}` : ""}
+              </div>
+            )}
             <div className="mt-2 text-[11px] opacity-70">
               {lastOrder?.timestamp ? new Date(lastOrder.timestamp).toLocaleString("zh-TW") : "尚未收到 order timestamp"}
             </div>
@@ -517,6 +584,45 @@ export default function Dashboard() {
             <div className="mt-1 leading-5 opacity-90">{tradeFeedback.detail}</div>
           </div>
         )}
+        <div className="mt-3 rounded-lg border border-white/10 bg-slate-950/20 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="font-semibold">Metadata smoke 摘要</div>
+            <div className="text-[11px] opacity-70">
+              {metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "尚未產生 smoke artifact"}
+            </div>
+          </div>
+          {metadataSmoke ? (
+            <>
+              <div className="mt-2 text-[11px] opacity-85">
+                {metadataSmoke.all_ok ? "public metadata contract 驗證通過" : "public metadata contract 尚未全通過"}
+                {metadataSmoke.ok_count != null && metadataSmoke.venues_checked != null ? ` · ${metadataSmoke.ok_count}/${metadataSmoke.venues_checked}` : ""}
+                {metadataSmoke.symbol ? ` · ${metadataSmoke.symbol}` : ""}
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {(metadataSmoke.venues || []).map((item) => (
+                  <div key={item.venue || "unknown"} className="rounded-lg border border-white/10 bg-slate-950/30 p-3 text-[11px] leading-5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-semibold">{item.venue || "unknown"}</div>
+                      <div className={item.ok ? "text-emerald-300" : "text-red-300"}>{item.ok ? "OK" : "FAIL"}</div>
+                    </div>
+                    <div className="mt-1 opacity-85">
+                      step {formatGuardrailValue(item.contract?.step_size)} · tick {formatGuardrailValue(item.contract?.tick_size)}
+                    </div>
+                    <div className="mt-1 opacity-85">
+                      min qty {formatGuardrailValue(item.contract?.min_qty)} · min cost {formatGuardrailValue(item.contract?.min_cost)}
+                    </div>
+                    <div className="mt-1 opacity-70">
+                      config {item.enabled_in_config ? "enabled" : "disabled"} · creds {item.credentials_configured ? "configured" : "public-only"}
+                    </div>
+                    {item.error && <div className="mt-1 text-red-200">{item.error}</div>}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="mt-2 text-[11px] opacity-80">/api/status 尚未提供 metadata smoke 摘要。</div>
+          )}
+        </div>
         <div className="mt-3 rounded-lg border border-white/10 bg-slate-950/20 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="font-semibold">Guardrail context 面板</div>

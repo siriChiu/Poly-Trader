@@ -228,7 +228,12 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 
 **Manual trade reject contract（Heartbeat 2026-04-16）**：`/api/trade` 的 reject path 必須保留 structured payload `detail={code,message,context}`，而前端 transport (`web/src/hooks/useApi.ts`) 不得把 object detail 直接變成 `[object Object]`。若 guardrail 是真的、但 UI 只顯示無意義字串，等同 execution surface 未落地。
 
-**Manual trade success contract（Heartbeat 2026-04-16）**：`/api/trade` 成功回應必須帶回 `guardrails` snapshot，讓 manual trade call site 與 Dashboard/status 面板使用同一組 runtime safety semantics，而不是一邊只看到 order id、另一邊才知道 halt/reject 狀態。
+**Manual trade success contract（Heartbeat 2026-04-16）**：`/api/trade` 成功回應不可只帶 order id。它現在必須同步帶回 `guardrails` 與 `normalization={requested, normalized, contract}`，讓 manual trade call site 與 Dashboard/status 面板同時看到：
+- 原始輸入 qty / price
+- venue normalization 後的合法 qty / price
+- 此次委託所依據的 `step_size / tick_size / min_qty / min_cost` contract
+
+同一份 normalization 摘要也必須落到 runtime `last_order`，確保 `/api/status` 刷新後仍能回放最近成功路徑的合法值，而不是只剩 `qty/status`。
 
 **Execution market-rules contract（Heartbeat 2026-04-16 13:00 UTC）**：`execution/exchanges/binance_adapter.py`、`execution/exchanges/okx_adapter.py`、`execution/execution_service.py` 必須共享同一套 venue granularity semantics。adapter `market_rules()` 現在不只回傳 `min_qty / min_cost / amount_precision / price_precision`，還必須回傳：
 - `step_size`
@@ -245,6 +250,10 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 reject context 也必須保留 `raw_value / adjusted_value / delta / rules`，讓上層 API / UI 能把「原始值 → 合法值 → 差額 → 規則來源」完整暴露給操作者，而不是等 exchange runtime rejection 才知道 granularity 不合法。
 
 **Manual trade runtime closure contract（Heartbeat 2026-04-16 13:19 UTC）**：`web/src/pages/Dashboard.tsx` 的 manual trade callback 不得再只送出 `/api/trade` 然後等待輪詢。成功與失敗兩條路都必須 **主動 refresh `/api/status`**，並把最新 `guardrails / last_reject / last_order` 拉回同一個操作閉環。Dashboard 也必須保留一個 operator-facing **Guardrail context 面板**，把最近 reject 的 `field / raw_value / adjusted_value / delta / rules` 轉成可讀資訊；否則即使 structured reject payload 正確存在，execution surface 仍不算真正落地。
+
+**Execution metadata smoke contract（Heartbeat 2026-04-16 14:03 UTC）**：execution readiness 不得只靠 unit tests 或 config 內的 venue enablement 敘事。repo 必須保留一條 **read-only metadata smoke lane**（目前為 `scripts/execution_metadata_smoke.py`），直接向 Binance / OKX 公開 market metadata 抽取 `step_size / tick_size / min_qty / min_cost / precision / qty_contract / price_contract`，並把結果落到 `data/execution_metadata_smoke.json`。這條 lane 的用途是驗證「真實 venue metadata 與 ExecutionService / Dashboard 顯示契約一致」，而且即使 venue 在 config 中 disabled，也必須能以 public metadata 方式驗證，不得因未開 live trading 就跳過 contract smoke。
+
+**Execution metadata runtime-surface contract（Heartbeat 2026-04-16 14:25 UTC）**：metadata smoke 不可停留在離線 JSON artifact。`server/routes/api.py::api_status()` 現在必須把最近一次 `data/execution_metadata_smoke.json` 摘要序列化為 `execution_metadata_smoke={generated_at, symbol, ok_count, venues_checked, venues[]}`，而 `web/src/pages/Dashboard.tsx` 必須直接渲染 venue-level `step/tick/min_qty/min_cost` 摘要。若 artifact 缺失或解析失敗，runtime surface 必須明確暴露 unavailable/error 狀態，而不是默默假裝 readiness 健康。
 
 ---
 

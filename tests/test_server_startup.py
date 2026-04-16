@@ -127,6 +127,7 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     }.get(key, default))
     monkeypatch.setattr(api_module, "is_automation_enabled", lambda: True)
     monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "binance"}, "execution": {"mode": "paper", "venue": "binance", "venues": {"binance": {"enabled": True}}}})
+    monkeypatch.setattr(api_module, "_load_execution_metadata_smoke_summary", lambda: {"all_ok": True, "ok_count": 2, "venues_checked": 2, "venues": [{"venue": "binance", "ok": True}]})
 
     import asyncio
     payload = asyncio.run(api_module.api_status())
@@ -137,6 +138,7 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["feature_continuity"]["status"] == "clean"
     assert payload["feature_continuity"]["continuity_repair"]["remaining_missing"] == 0
     assert payload["execution"]["guardrails"]["consecutive_failures"] >= 0
+    assert payload["execution_metadata_smoke"]["ok_count"] == 2
 
 
 def test_api_status_passes_db_session_into_execution_service(monkeypatch):
@@ -162,6 +164,7 @@ def test_api_status_passes_db_session_into_execution_service(monkeypatch):
     monkeypatch.setattr(api_module, "AccountSyncService", DummyAccountSyncService)
     monkeypatch.setattr(api_module, "get_db", lambda: db_session)
     monkeypatch.setattr(api_module, "get_runtime_status", lambda key, default=None: default)
+    monkeypatch.setattr(api_module, "_load_execution_metadata_smoke_summary", lambda: None)
     monkeypatch.setattr(api_module, "is_automation_enabled", lambda: False)
     monkeypatch.setattr(api_module, "get_config", lambda: {
         "trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "binance"},
