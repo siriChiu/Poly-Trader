@@ -55,6 +55,13 @@ interface RuntimeStatusResponse {
     ok_count?: number;
     venues_checked?: number;
     error?: string;
+    freshness?: {
+      status?: "fresh" | "stale" | "unavailable" | string;
+      label?: string;
+      reason?: string;
+      age_minutes?: number | null;
+      stale_after_minutes?: number | null;
+    } | null;
     venues?: Array<{
       venue?: string;
       ok?: boolean;
@@ -259,6 +266,18 @@ function formatGuardrailRules(rules: Record<string, unknown> | null | undefined)
     .map(([key, value]) => `${key}: ${formatGuardrailValue(value)}`);
 }
 
+function getSmokeFreshnessTone(status: string | undefined | null): string {
+  if (status === "fresh") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
+  if (status === "stale") return "border-amber-700/40 bg-amber-950/20 text-amber-200";
+  return "border-slate-700/40 bg-slate-950/20 text-slate-300";
+}
+
+function getSmokeFreshnessLabel(status: string | undefined | null): string {
+  if (status === "fresh") return "FRESH";
+  if (status === "stale") return "STALE";
+  return "UNAVAILABLE";
+}
+
 export default function Dashboard() {
   const [interval, setInterval] = useState("4h");
   const [days, setDays] = useState(14);
@@ -360,6 +379,9 @@ export default function Dashboard() {
   const executionSummary = runtimeStatus?.execution ?? null;
   const accountSummary = runtimeStatus?.account ?? null;
   const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;
+  const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
+  const metadataSmokeFreshnessTone = getSmokeFreshnessTone(metadataSmokeFreshness?.status);
+  const metadataSmokeFreshnessLabel = getSmokeFreshnessLabel(metadataSmokeFreshness?.status);
   const rawContinuity = runtimeStatus?.raw_continuity ?? null;
   const featureContinuity = runtimeStatus?.feature_continuity ?? null;
   const executionModeLabel = executionSummary?.mode || accountSummary?.mode || "unknown";
@@ -593,10 +615,20 @@ export default function Dashboard() {
           </div>
           {metadataSmoke ? (
             <>
-              <div className="mt-2 text-[11px] opacity-85">
-                {metadataSmoke.all_ok ? "public metadata contract 驗證通過" : "public metadata contract 尚未全通過"}
-                {metadataSmoke.ok_count != null && metadataSmoke.venues_checked != null ? ` · ${metadataSmoke.ok_count}/${metadataSmoke.venues_checked}` : ""}
-                {metadataSmoke.symbol ? ` · ${metadataSmoke.symbol}` : ""}
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] opacity-85">
+                <span>
+                  {metadataSmoke.all_ok ? "public metadata contract 驗證通過" : "public metadata contract 尚未全通過"}
+                  {metadataSmoke.ok_count != null && metadataSmoke.venues_checked != null ? ` · ${metadataSmoke.ok_count}/${metadataSmoke.venues_checked}` : ""}
+                  {metadataSmoke.symbol ? ` · ${metadataSmoke.symbol}` : ""}
+                </span>
+                <span className={`rounded-full border px-2 py-0.5 font-semibold tracking-wide ${metadataSmokeFreshnessTone}`}>
+                  smoke freshness {metadataSmokeFreshnessLabel}
+                </span>
+              </div>
+              <div className="mt-2 text-[11px] opacity-75">
+                {metadataSmokeFreshness?.age_minutes != null
+                  ? `artifact age ${metadataSmokeFreshness.age_minutes.toFixed(1)}m · stale after ${formatGuardrailValue(metadataSmokeFreshness.stale_after_minutes, 1)}m`
+                  : "artifact age unavailable · stale/unavailable policy 已啟用"}
               </div>
               <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {(metadataSmoke.venues || []).map((item) => (

@@ -49,6 +49,7 @@ _BENCHMARK_PROCESS_EXECUTOR = ProcessPoolExecutor(max_workers=1)
 _HYBRID_MODEL_LOCK = threading.Lock()
 _HYBRID_MODEL_CACHE: Dict[str, Dict[str, Any]] = {}
 _EXECUTION_METADATA_SMOKE_PATH = Path(__file__).resolve().parents[2] / "data" / "execution_metadata_smoke.json"
+_EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES = 30.0
 
 _STRATEGY_STAGE_LABELS = {
     "queued": "任務排隊",
@@ -122,6 +123,51 @@ def _build_cache_key(*parts: Any) -> str:
     return "::".join(str(part) for part in parts)
 
 
+def _parse_utc_datetime(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        text = str(value).strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        try:
+            dt = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+
+def _build_execution_metadata_smoke_freshness(generated_at: Any) -> Dict[str, Any]:
+    freshness = {
+        "status": "unavailable",
+        "label": "unavailable",
+        "reason": "missing_generated_at",
+        "age_minutes": None,
+        "stale_after_minutes": _EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES,
+    }
+    parsed = _parse_utc_datetime(generated_at)
+    if parsed is None:
+        freshness["reason"] = "invalid_generated_at"
+        return freshness
+    age_minutes = max((datetime.now(timezone.utc) - parsed).total_seconds() / 60.0, 0.0)
+    status = "fresh" if age_minutes <= _EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES else "stale"
+    freshness.update({
+        "status": status,
+        "label": status,
+        "reason": "within_freshness_window" if status == "fresh" else "artifact_older_than_policy",
+        "age_minutes": round(age_minutes, 2),
+    })
+    return freshness
+
+
+
 def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
     if not _EXECUTION_METADATA_SMOKE_PATH.exists():
         return None
@@ -132,6 +178,13 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
             "available": False,
             "artifact_path": str(_EXECUTION_METADATA_SMOKE_PATH),
             "error": str(exc),
+            "freshness": {
+                "status": "unavailable",
+                "label": "unavailable",
+                "reason": "artifact_parse_failed",
+                "age_minutes": None,
+                "stale_after_minutes": _EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES,
+            },
         }
 
     results = payload.get("results") if isinstance(payload, dict) else {}
@@ -159,14 +212,16 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
             },
         })
 
+    generated_at = payload.get("generated_at")
     return {
         "available": True,
         "artifact_path": str(_EXECUTION_METADATA_SMOKE_PATH),
-        "generated_at": payload.get("generated_at"),
+        "generated_at": generated_at,
         "symbol": payload.get("symbol"),
         "all_ok": bool(payload.get("all_ok")),
         "ok_count": payload.get("ok_count"),
         "venues_checked": payload.get("venues_checked"),
+        "freshness": _build_execution_metadata_smoke_freshness(generated_at),
         "venues": venues,
     }
 

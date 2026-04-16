@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-16 14:25 UTC_
+_最後更新：2026-04-16 14:49 UTC_
 
 只保留目前計畫，不保留舊 roadmap。
 
@@ -20,40 +20,43 @@ _最後更新：2026-04-16 14:25 UTC_
   - manual trade 成功 / 失敗後主動 `refresh /api/status`
   - **手動交易即時回饋** 區塊
   - **Guardrail context 面板**（`raw_value / adjusted_value / delta / rules`）
+  - **Metadata smoke 摘要**
+  - **最近委託 normalization** 顯示
 - Execution metadata smoke lane 已正式落地：
   - `execution/metadata_smoke.py`
   - `scripts/execution_metadata_smoke.py`
   - `data/execution_metadata_smoke.json`
   - `tests/test_execution_metadata_smoke.py`
-- **本輪新增：runtime closure 補齊**
-  - `/api/status` 會回傳 `execution_metadata_smoke`
-  - `/api/trade` / `ExecutionService.submit_order()` 成功路徑會回傳 `normalization={requested, normalized, contract}`
-  - runtime `last_order` 會保留 normalized qty / price / contract 摘要
-  - Dashboard 新增 **Metadata smoke 摘要** 與最近委託 normalization 顯示
-  - `ARCHITECTURE.md` 已同步 runtime-surface contract
+- 本輪新增 closure：
+  - `/api/status` 會回傳 `execution_metadata_smoke.freshness={status,label,reason,age_minutes,stale_after_minutes}`
+  - Dashboard 會顯示 `smoke freshness` badge 與 `artifact age ... · stale after ...`
+  - browser QA 發現的 `CandlestickChart` render loop 已修掉（stable empty prop defaults）
+  - `ARCHITECTURE.md` 已同步 freshness / chart-stability contract
 - 驗證已通過：
   - `python scripts/execution_metadata_smoke.py --symbol BTCUSDT` → **成功，Binance / OKX metadata contract 2/2 可讀**
-  - `python -m pytest tests/test_execution_metadata_smoke.py tests/test_execution_service.py tests/test_frontend_decision_contract.py tests/test_server_startup.py -q` → **23 passed**
+  - `python -m pytest tests/test_execution_metadata_smoke.py tests/test_execution_service.py tests/test_frontend_decision_contract.py tests/test_server_startup.py -q` → **26 passed**
+  - `cd web && npm run build` → **成功**
+  - browser runtime QA → **Dashboard 可見 smoke freshness FRESH、artifact age policy、venue contract 摘要，console 無 JS errors**
 
 ---
 
 ## 目前主目標
 
-### 目標 A：把 execution runtime surface 做成真實可驗證的 operator 面板
+### 目標 A：把 execution runtime visibility 維持在可驗證、可判讀、不中斷的狀態
 重點：
-- Dashboard 真實 route 必須可看到 metadata smoke 摘要
-- 最近成功委託必須可看到 normalized qty / price / contract
-- source contract 不只存在程式碼，要有 runtime / browser 驗證證據
+- Dashboard execution panel 必須持續可見 metadata smoke freshness、venue contract、最近委託 normalization
+- stale / unavailable 不只存在資料結構裡，operator 也要在畫面上一眼看懂
+- browser/runtime 驗證要能證明真實 route 與 console 都健康
 
-### 目標 B：補 metadata smoke freshness / stale policy
+### 目標 B：把 stale metadata smoke 從「可見」推進到「可治理」
 重點：
-- 將 smoke artifact 從「存在」升級為「可判讀新鮮度」
-- `/api/status` 與 Dashboard 共用同一套 fresh / stale / unavailable 規則
-- 避免舊 smoke artifact 被誤讀成 readiness 健康
+- 定義 stale artifact 後的明確動作：refresh / warning / escalation
+- `/api/status` 與 Dashboard 維持同一套 threshold 與語義
+- 不讓 stale badge 變成只有看得到、但無後續動作的半閉環
 
 ### 目標 C：維持 execution readiness 敘事紀律
 重點：
-- public metadata smoke + success-path normalization = runtime closure 前進
+- public metadata smoke + success-path normalization + freshness badge = runtime visibility closure
 - 這仍 **不等於** live/canary order-level readiness 完成
 - 在沒有更高層級驗證前，不擴大 readiness 敘事
 
@@ -63,46 +66,46 @@ _最後更新：2026-04-16 14:25 UTC_
 
 | 策略 | 好處 | 風險／代價 | 治標/治本 | 適用條件 | 建議 |
 |---|---|---|---|---|---|
-| 只把 success path normalized 資訊留在 `/api/trade` 回應 | 改動最小、立刻改善單次操作可讀性 | refresh 後資訊消失，operator 仍無法在 `/api/status` 回放最近成功 contract | 治標（治本需做：runtime `last_order` 與 status surface 同步） | 只想暫時改善單次操作回饋 | ❌ 不建議 |
-| 把 success normalization 同步寫入 runtime `last_order`，並讓 Dashboard 顯示 | 成功路徑與 status panel 使用同一份 contract；refresh 後仍可見 | 需改 execution service + Dashboard 型別與顯示 | 治本 | 已有 guardrails / last_order runtime surface | ✅ 本輪採用 |
-| 只保留 `data/execution_metadata_smoke.json` 不進 `/api/status` | 保持簡單，不改 API | smoke 仍停留離線 artifact，operator 看不到最新結果 | 治標（治本需做：把 artifact 接進 runtime surface） | 只供 repo 開發者閱讀 | ❌ 不建議 |
-| 將 metadata smoke 摘要注入 `/api/status` 並在 Dashboard 顯示 | operator 可直接看到 venue contract 摘要；與 execution panel 合併為單一真相來源 | 仍需下一輪補 freshness/stale policy 與 browser runtime QA | 治本 | smoke lane 已存在且可重跑 | ✅ 本輪採用 |
-| 直接把本輪 closure 宣稱為 canary-safe readiness 完成 | 對外敘事看起來進度快 | 會把 public metadata + UI closure 誤包裝成真實下單 readiness，形成假進度 | 治標 | 必須已有 live/canary order-level 驗證 | ❌ 明確不做 |
+| 只在 Dashboard 顯示 smoke 時間戳，不做 freshness 判讀 | 改動最小 | operator 仍要自己算時間差，stale artifact 容易被誤讀 | 治標（治本需做：API/UI 共用 freshness contract） | 只想快速露出 artifact 時間 | ❌ 不建議 |
+| 在 `/api/status` 輸出 freshness 結構，Dashboard 同步 badge + age policy | API/UI 共用單一真相來源；operator 可立即判讀 fresh/stale/unavailable | 需補測試與文件，還要做 browser 驗證 | 治本 | 已有 metadata smoke artifact 與 status surface | ✅ 本輪採用 |
+| browser QA 看到 chart console 爆錯先記錄不修 | 改動少、能快速出報告 | runtime surface 仍不乾淨，之後 QA 會一直被噪音污染 | 治標（治本需做：修 root cause） | 問題無法快速定位時 | ❌ 不建議 |
+| 直接修掉 CandlestickChart render loop root cause | 清掉 browser QA 假訊號，讓 execution runtime 驗證可信 | 需找出真正的 rerender root cause | 治本 | browser QA 已穩定重現 `Maximum update depth exceeded` | ✅ 本輪採用 |
+| 把本輪 closure 直接升級敘事成 live/canary ready | 對外看起來進度快 | 會把 runtime visibility 誤包裝成真實下單 readiness，形成假進度 | 治標 | 必須已有 order-ack / fill lifecycle 驗證 | ❌ 明確不做 |
 
 ### 效益前提驗證
-- 前提 1：是否已有可重跑 metadata smoke artifact 可供 status surface 使用 → **成立**
-- 前提 2：success path 是否能共享 market-rules contract 給 runtime `last_order` → **成立**
-- 前提 3：本輪 closure 是否已足以宣稱 live/canary readiness 完成 → **不成立**
+- 前提 1：是否已有可重跑 metadata smoke artifact 可供 freshness policy 使用 → **成立**
+- 前提 2：API 與 Dashboard 是否已共享同一 smoke summary → **成立**
+- 前提 3：browser QA 暴露的 console 問題是否有明確 root cause 可修 → **成立（inline empty array defaults）**
+- 前提 4：本輪 closure 是否已足以宣稱 live/canary readiness 完成 → **不成立**
 
 ---
 
 ## Next focus
-1. 以 browser/runtime 驗證 Dashboard execution panel 真實可見 metadata smoke 與 normalized contract
-2. 定義 metadata smoke freshness / stale / unavailable policy，並同步到 `/api/status` + Dashboard
-3. 保持 readiness 文案只描述「public metadata + success contract runtime 可見」，不升級成 live/canary safe
+1. 定義 stale metadata smoke 的自動治理動作（refresh / warning / escalation），不要停在可見 badge
+2. 選定下一個 execution operator-facing surface，做同等級 browser/runtime 驗證
+3. 維持 readiness 文案只描述「runtime visibility closure」，不升級成 live/canary safe
 
 ## Success gate
-- 真實 Dashboard route 可見：
-  - Metadata smoke venue-level contract 摘要
-  - 最近成功委託的 normalized qty / price / contract
-- `/api/status` 與 Dashboard 對同一 smoke artifact 會給出一致的 fresh / stale / unavailable 判讀
-- 文件仍明確區分 runtime closure 與 live/canary readiness
+- stale metadata smoke 會觸發明確治理 contract，而不是只有 badge
+- 新驗證的 execution surface 也能提供 browser-level evidence，且 console 無 JS errors
+- 文件仍明確區分 runtime visibility closure 與 live/canary readiness
 
 ## Fallback if fail
-- 若 browser/runtime 看不到這些 surface，升級為 blocker：代表 code-level contract 不等於 runtime closure
-- 若 smoke freshness policy 做不出來，至少先把 stale / unavailable 明確標成 warning，不可默默顯示舊綠燈
+- 若 stale artifact 治理動作做不出來，至少先把 warning / manual action path 寫成明確 contract，不可默默只留 badge
+- 若下一個 execution surface 做 browser QA 時再出現 runtime/console 問題，升級為 blocker，先修 root cause 再宣稱 closure
 - 若團隊開始把本輪結果誤寫成 live-ready，文件必須立即糾正，停止擴大 readiness 敘事
 
 ## Documents to update next round
 - `ISSUES.md`
 - `ROADMAP.md`
-- `ARCHITECTURE.md`（若新增 freshness/stale contract 或 browser/runtime QA contract）
+- `ARCHITECTURE.md`（若新增 stale governance / escalation contract）
 - `server/routes/api.py`
 - `web/src/pages/Dashboard.tsx`
+- `web/src/components/CandlestickChart.tsx`（若 chart runtime contract 再擴充）
 - 必要時新增 browser/runtime regression tests
 
 ## Carry-forward input for next heartbeat
-- 先檢查：`python scripts/execution_metadata_smoke.py --symbol BTCUSDT` 是否仍可重跑，`/api/status` 是否仍會帶 `execution_metadata_smoke`
-- 然後優先做：browser/runtime 驗證 Dashboard execution panel 真實顯示 smoke 摘要與 normalized contract
-- 接著補：metadata smoke freshness/stale/unavailable age gate，並讓 API 與 Dashboard 共用同一套規則
+- 先檢查：`python scripts/execution_metadata_smoke.py --symbol BTCUSDT` 是否仍可重跑，Dashboard 是否仍可見 `smoke freshness` 與 `artifact age`
+- 然後優先做：stale metadata smoke 的自動治理動作與契約化處置
+- 接著補：下一個 execution operator-facing route 的 browser/runtime 驗證證據
 - 若以上兩件事尚未完成，不要把 execution readiness 敘事升級成 live/canary safe

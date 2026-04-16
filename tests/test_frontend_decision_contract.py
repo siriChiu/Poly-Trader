@@ -34,6 +34,12 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
         'normalized price',
         'Metadata smoke 摘要',
         'public metadata contract 驗證通過',
+        'smoke freshness',
+        'artifact age',
+        'stale/unavailable policy 已啟用',
+        'getSmokeFreshnessTone',
+        'getSmokeFreshnessLabel',
+        'const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;',
         'Guardrail context 面板',
         'raw → adjusted → delta → rules',
         'const guardrails = executionSummary?.guardrails ?? null;',
@@ -58,6 +64,20 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         '⚠️ canonical DQ 缺失，暫退回 legacy ROI',
         'Decision Quality',
         'DQ {formatDecimal(activeResult?.avg_decision_quality_score, 3)}',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_candlestick_chart_uses_stable_empty_prop_defaults_to_avoid_render_loops():
+    source = _read("components/CandlestickChart.tsx")
+    required_snippets = [
+        'const EMPTY_TRADE_MARKERS: TradeMarkerInput[] = [];',
+        'const EMPTY_EQUITY_CURVE: EquityPoint[] = [];',
+        'const EMPTY_SCORE_SERIES: ScorePoint[] = [];',
+        'tradeMarkers = EMPTY_TRADE_MARKERS,',
+        'equityCurve = EMPTY_EQUITY_CURVE,',
+        'scoreSeries = EMPTY_SCORE_SERIES,',
     ]
     for snippet in required_snippets:
         assert snippet in source

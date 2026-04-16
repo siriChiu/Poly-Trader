@@ -57,13 +57,16 @@ interface ScorePoint {
   model_confidence?: number | null;
 }
 
+type EquityDisplayMode = "absolute" | "return";
+
 interface HoverState {
   timeLabel: string;
   priceText: string;
   ma20Text: string;
   ma60Text: string;
   equityText: string;
-  positionText: string;
+  cashText: string;
+  investedText: string;
   scoreText: string;
   entryQualityText: string;
   confidenceText: string;
@@ -81,6 +84,10 @@ interface Props {
   scoreSeries?: ScorePoint[];
   title?: string;
 }
+
+const EMPTY_TRADE_MARKERS: TradeMarkerInput[] = [];
+const EMPTY_EQUITY_CURVE: EquityPoint[] = [];
+const EMPTY_SCORE_SERIES: ScorePoint[] = [];
 
 const toUnix = (value?: string | null) => {
   if (!value) return null;
@@ -131,6 +138,33 @@ const formatPrice = (value?: number | null, digits = 2) => (
 const formatPct = (value?: number | null) => (
   typeof value === "number" && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : "—"
 );
+
+const formatMetricValue = (value: number | null | undefined, mode: EquityDisplayMode) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  if (mode === "absolute") {
+    return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  }
+  return `${value.toFixed(1)}%`;
+};
+
+const getEquityModeMeta = (mode: EquityDisplayMode) => {
+  if (mode === "return") {
+    return {
+      label: "累積報酬(%)",
+      detail: "以下圖起始資金為基準，顯示各資產部位相對報酬",
+      priceFormat: { type: "price" as const, precision: 1, minMove: 0.1 },
+      transform: (amount: number, base: number) => ((amount / base) - 1) * 100,
+      titleSuffix: "報酬%",
+    };
+  }
+  return {
+    label: "絕對資產($)",
+    detail: "總權益 / 現金 / 持倉都用實際金額顯示，Y 軸會依目前資料動態縮放",
+    priceFormat: { type: "price" as const, precision: 0, minMove: 1 },
+    transform: (amount: number, base: number) => amount,
+    titleSuffix: "($)",
+  };
+};
 
 const CHART_PROGRESS_TOTAL = 6;
 const toChartProgress = (completed: number) => Math.max(0, Math.min(100, Math.round((completed / CHART_PROGRESS_TOTAL) * 100)));
@@ -306,9 +340,9 @@ export default function CandlestickChart({
   days = 7,
   since = null,
   until = null,
-  tradeMarkers = [],
-  equityCurve = [],
-  scoreSeries = [],
+  tradeMarkers = EMPTY_TRADE_MARKERS,
+  equityCurve = EMPTY_EQUITY_CURVE,
+  scoreSeries = EMPTY_SCORE_SERIES,
   title,
 }: Props) {
   const priceContainerRef = useRef<HTMLDivElement>(null);
@@ -324,7 +358,8 @@ export default function CandlestickChart({
   const scoreSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const confidenceSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const equitySeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const positionSeriesRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const cashSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const investedSeriesRef = useRef<ISeriesApi<"Area"> | null>(null);
   const syncAnchorSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
 
   const candleLookupRef = useRef<Map<number, CandlestickData<Time>>>(new Map());
@@ -332,8 +367,9 @@ export default function CandlestickChart({
   const ma20LookupRef = useRef<Map<number, number>>(new Map());
   const ma60LookupRef = useRef<Map<number, number>>(new Map());
   const equityLookupRef = useRef<Map<number, number>>(new Map());
+  const cashLookupRef = useRef<Map<number, number>>(new Map());
+  const investedLookupRef = useRef<Map<number, number>>(new Map());
   const equityTimesRef = useRef<number[]>([]);
-  const positionLookupRef = useRef<Map<number, number>>(new Map());
   const scoreLookupRef = useRef<Map<number, number>>(new Map());
   const entryQualityLookupRef = useRef<Map<number, number>>(new Map());
   const confidenceLookupRef = useRef<Map<number, number>>(new Map());
@@ -350,6 +386,8 @@ export default function CandlestickChart({
   const [lastCandleTime, setLastCandleTime] = useState<number | null>(null);
   const [windowLabel, setWindowLabel] = useState<string>("—");
   const [hover, setHover] = useState<HoverState | null>(null);
+  const [equityDisplayMode, setEquityDisplayMode] = useState<EquityDisplayMode>("absolute");
+  const equityModeMeta = getEquityModeMeta(equityDisplayMode);
 
   useGlobalProgressTask(loading, {
     label: hasLoadedOnce ? "圖表更新中" : "載入回測圖表中",
@@ -443,17 +481,24 @@ export default function CandlestickChart({
     const equitySeries = equityChart.addLineSeries({
       color: "#38bdf8",
       lineWidth: 2,
-      title: "策略權益指數",
+      title: "總權益",
       priceFormat: { type: "price", precision: 1, minMove: 0.1 },
     });
-    const positionSeries = equityChart.addAreaSeries({
+    const cashSeries = equityChart.addLineSeries({
+      color: "#22c55e",
+      lineWidth: 2,
+      title: "現金水位",
+      priceFormat: { type: "price", precision: 1, minMove: 0.1 },
+      lineStyle: 2,
+    });
+    const investedSeries = equityChart.addAreaSeries({
       priceScaleId: "left",
       lineColor: "#a855f7",
-      topColor: "rgba(168, 85, 247, 0.35)",
+      topColor: "rgba(168, 85, 247, 0.32)",
       bottomColor: "rgba(168, 85, 247, 0.04)",
       lineWidth: 2,
-      title: "倉位水位",
-      priceFormat: { type: "price", precision: 0, minMove: 1 },
+      title: "持倉水位",
+      priceFormat: { type: "price", precision: 1, minMove: 0.1 },
     });
     const syncAnchorSeries = equityChart.addLineSeries({
       priceScaleId: "sync-anchor",
@@ -477,7 +522,8 @@ export default function CandlestickChart({
     scoreSeriesRef.current = scoreSeriesHandle;
     confidenceSeriesRef.current = confidenceSeriesHandle;
     equitySeriesRef.current = equitySeries;
-    positionSeriesRef.current = positionSeries;
+    cashSeriesRef.current = cashSeries;
+    investedSeriesRef.current = investedSeries;
     syncAnchorSeriesRef.current = syncAnchorSeries;
 
     const syncVisibleRange = (source: IChartApi, target: IChartApi) => {
@@ -494,8 +540,9 @@ export default function CandlestickChart({
     const updateHoverFromTime = (timeValue: number, source: "price" | "equity") => {
       const candlePoint = findClosestPoint(candleLookupRef.current, candleTimesRef.current, timeValue);
       const equityPoint = findClosestPoint(equityLookupRef.current, equityTimesRef.current, timeValue);
-      const positionPoint = findClosestPoint(positionLookupRef.current, equityTimesRef.current, timeValue);
-      const hoverTime = candlePoint?.time ?? equityPoint?.time ?? positionPoint?.time ?? timeValue;
+      const cashPoint = findClosestPoint(cashLookupRef.current, equityTimesRef.current, timeValue);
+      const investedPoint = findClosestPoint(investedLookupRef.current, equityTimesRef.current, timeValue);
+      const hoverTime = candlePoint?.time ?? equityPoint?.time ?? cashPoint?.time ?? investedPoint?.time ?? timeValue;
       const candle = candlePoint?.value ?? null;
       const ma20 = candlePoint ? ma20LookupRef.current.get(candlePoint.time) : undefined;
       const ma60 = candlePoint ? ma60LookupRef.current.get(candlePoint.time) : undefined;
@@ -507,8 +554,9 @@ export default function CandlestickChart({
         priceText: candle ? `O ${formatPrice(candle.open)} · H ${formatPrice(candle.high)} · L ${formatPrice(candle.low)} · C ${formatPrice(candle.close)}` : "—",
         ma20Text: formatPrice(ma20),
         ma60Text: formatPrice(ma60),
-        equityText: equityPoint != null ? `${equityPoint.value.toFixed(1)}` : "—",
-        positionText: positionPoint != null ? `${positionPoint.value.toFixed(0)}%` : "—",
+        equityText: formatMetricValue(equityPoint?.value, equityDisplayMode),
+        cashText: formatMetricValue(cashPoint?.value, equityDisplayMode),
+        investedText: formatMetricValue(investedPoint?.value, equityDisplayMode),
         scoreText: formatPct(score),
         entryQualityText: formatPct(entryQuality),
         confidenceText: formatPct(confidence),
@@ -592,10 +640,11 @@ export default function CandlestickChart({
           ma20SeriesRef.current?.setData([]);
           ma60SeriesRef.current?.setData([]);
           equitySeriesRef.current?.setData([]);
-          positionSeriesRef.current?.setData([]);
+          cashSeriesRef.current?.setData([]);
+          investedSeriesRef.current?.setData([]);
           candleSeriesRef.current?.setMarkers([]);
           equitySeriesRef.current?.setMarkers([]);
-          positionSeriesRef.current?.setMarkers([]);
+          investedSeriesRef.current?.setMarkers([]);
           setLoading(false);
           setHasLoadedOnce(true);
         }
@@ -662,38 +711,80 @@ export default function CandlestickChart({
       setProgressDetail("模型 / 進場分數已整理完成，正在對齊權益曲線");
 
       const baseEquity = equityCurve[0]?.equity ?? 0;
-      const equityData = baseEquity > 0 && equityCurve.length > 1
+      const toMetric = equityModeMeta.transform;
+      equitySeriesRef.current?.applyOptions({
+        title: `總權益 ${equityModeMeta.titleSuffix}`,
+        priceFormat: equityModeMeta.priceFormat,
+      });
+      cashSeriesRef.current?.applyOptions({
+        title: `現金 ${equityModeMeta.titleSuffix}`,
+        priceFormat: equityModeMeta.priceFormat,
+      });
+      investedSeriesRef.current?.applyOptions({
+        title: `持倉 ${equityModeMeta.titleSuffix}`,
+        priceFormat: equityModeMeta.priceFormat,
+      });
+      const equityData = baseEquity > 0 && equityCurve.length > 0
         ? uniqueByTime(
             equityCurve
               .map((point) => {
                 const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes);
                 if (!ts) return null;
-                return { time: ts as Time, value: 100 * (point.equity / baseEquity) };
+                return { time: ts as Time, value: toMetric(point.equity, baseEquity) };
               })
               .filter((row): row is LineData<Time> => !!row)
           )
         : [];
-      const rawPositionData = uniqueByTime(
+      const rawInvestedData = uniqueByTime(
         equityCurve
           .map((point) => {
             const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes);
-            const value = typeof point.position_pct === "number" && Number.isFinite(point.position_pct)
-              ? point.position_pct * 100
+            const invested = typeof point.position_pct === "number" && Number.isFinite(point.position_pct)
+              ? point.position_pct * baseEquity
               : null;
-            if (!ts || value == null) return null;
-            return { time: ts as Time, value };
+            if (!ts || invested == null) return null;
+            return { time: ts as Time, value: toMetric(invested, baseEquity) };
           })
           .filter((row): row is LineData<Time> => !!row)
       );
-      const positionData = rawPositionData.length > 0 ? rawPositionData : buildFallbackPositionSeries(tradeMarkers, candleTimes);
+      const investedData = rawInvestedData.length > 0
+        ? rawInvestedData
+        : uniqueByTime(
+            buildFallbackPositionSeries(tradeMarkers, candleTimes)
+              .map((row) => ({
+                time: row.time,
+                value: toMetric(((Number(row.value) || 0) / 100) * baseEquity, baseEquity),
+              }))
+          );
+      const cashData = baseEquity > 0 && equityCurve.length > 0
+        ? uniqueByTime(
+            equityCurve
+              .map((point) => {
+                const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes);
+                const invested = typeof point.position_pct === "number" && Number.isFinite(point.position_pct)
+                  ? point.position_pct * baseEquity
+                  : null;
+                const cashValue = invested != null ? point.equity - invested : null;
+                if (!ts || cashValue == null) return null;
+                return { time: ts as Time, value: toMetric(cashValue, baseEquity) };
+              })
+              .filter((row): row is LineData<Time> => !!row)
+          )
+        : [];
       equitySeriesRef.current?.setData(equityData);
-      positionSeriesRef.current?.setData(positionData);
+      cashSeriesRef.current?.setData(cashData);
+      investedSeriesRef.current?.setData(investedData);
       syncAnchorSeriesRef.current?.setData(
         candleTimes.map((time) => ({ time: time as Time, value: 0 }))
       );
       equityLookupRef.current = new Map(equityData.map((row) => [Number(row.time), row.value]));
-      equityTimesRef.current = Array.from(new Set([...equityData.map((row) => Number(row.time)), ...positionData.map((row) => Number(row.time))])).sort((a, b) => a - b);
-      positionLookupRef.current = new Map(positionData.map((row) => [Number(row.time), row.value]));
+      cashLookupRef.current = new Map(cashData.map((row) => [Number(row.time), row.value]));
+      investedLookupRef.current = new Map(investedData.map((row) => [Number(row.time), row.value]));
+      equityTimesRef.current = Array.from(new Set([
+        ...equityData.map((row) => Number(row.time)),
+        ...cashData.map((row) => Number(row.time)),
+        ...investedData.map((row) => Number(row.time)),
+      ])).sort((a, b) => a - b);
       setProgress(toChartProgress(4));
       setProgressDetail("權益曲線與倉位水位已對齊，正在把買賣 markers 掛到圖上");
 
@@ -740,8 +831,9 @@ export default function CandlestickChart({
         12,
       );
       candleSeriesRef.current?.setMarkers(normalizedMarkers);
-      positionSeriesRef.current?.setMarkers(normalizedEquityMarkers);
+      investedSeriesRef.current?.setMarkers(normalizedEquityMarkers);
       equitySeriesRef.current?.setMarkers([]);
+      cashSeriesRef.current?.setMarkers([]);
       setProgress(toChartProgress(5));
       setProgressDetail(`買賣點已對齊完成，共 ${normalizedMarkers.length} 個 markers，正在更新視窗`);
 
@@ -765,14 +857,16 @@ export default function CandlestickChart({
         );
         if (lastTs) {
           const lastEquity = findClosestPoint(equityLookupRef.current, equityTimesRef.current, lastTs)?.value;
-          const lastPosition = findClosestPoint(positionLookupRef.current, equityTimesRef.current, lastTs)?.value;
+          const lastCash = findClosestPoint(cashLookupRef.current, equityTimesRef.current, lastTs)?.value;
+          const lastInvested = findClosestPoint(investedLookupRef.current, equityTimesRef.current, lastTs)?.value;
           setHover({
             timeLabel: new Date(lastTs * 1000).toLocaleString("zh-TW"),
             priceText: lastClose != null ? `C ${formatPrice(lastClose)}` : "—",
             ma20Text: formatPrice(ma20LookupRef.current.get(lastTs)),
             ma60Text: formatPrice(ma60LookupRef.current.get(lastTs)),
-            equityText: lastEquity != null ? `${lastEquity.toFixed(1)}` : "—",
-            positionText: lastPosition != null ? `${lastPosition.toFixed(0)}%` : "—",
+            equityText: formatMetricValue(lastEquity, equityDisplayMode),
+            cashText: formatMetricValue(lastCash, equityDisplayMode),
+            investedText: formatMetricValue(lastInvested, equityDisplayMode),
             scoreText: formatPct(scoreLookupRef.current.get(lastTs)),
             entryQualityText: formatPct(entryQualityLookupRef.current.get(lastTs)),
             confidenceText: formatPct(confidenceLookupRef.current.get(lastTs)),
@@ -856,7 +950,7 @@ export default function CandlestickChart({
     return () => {
       cancelled = true;
     };
-  }, [symbol, interval, days, since, until, tradeMarkers, equityCurve, scoreSeries]);
+  }, [symbol, interval, days, since, until, tradeMarkers, equityCurve, scoreSeries, equityDisplayMode]);
 
   return (
     <div className="relative rounded-xl overflow-hidden border border-slate-700/50 bg-slate-950/70">
@@ -883,7 +977,7 @@ export default function CandlestickChart({
           </div>
           <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 px-3 py-2 text-cyan-100">
             <div className="text-cyan-300">權益圖</div>
-            <div>顯示策略權益、倉位水位與下圖買賣 markers</div>
+            <div>顯示總權益、現金水位、持倉水位與下圖買賣 markers</div>
           </div>
           <div className="rounded-lg border border-slate-700/50 bg-slate-950/50 px-3 py-2 text-slate-300 sm:col-span-2 xl:col-span-1">
             <div className="text-slate-500">同步檢視</div>
@@ -911,10 +1005,11 @@ export default function CandlestickChart({
             <div className="font-medium text-emerald-100">{hover ? `${hover.scoreText} / ${hover.entryQualityText}` : "—"}</div>
             <div className="mt-1 text-[10px] text-emerald-300/80">模型信心 {hover?.confidenceText || "—"}</div>
           </div>
-          <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 px-3 py-2">
-            <div className="text-cyan-300">策略權益 / 倉位</div>
-            <div className="font-medium text-cyan-100">{hover?.equityText || "—"}</div>
-            <div className="mt-1 text-[10px] text-fuchsia-300/80">倉位水位 {hover?.positionText || "—"}</div>
+          <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 px-3 py-2 xl:col-span-2">
+            <div className="text-cyan-300">總權益 / 現金 / 持倉</div>
+            <div className="font-medium text-cyan-100">總權益 {hover?.equityText || "—"}</div>
+            <div className="mt-1 text-[10px] text-emerald-300/80">現金 {hover?.cashText || "—"}</div>
+            <div className="mt-1 text-[10px] text-fuchsia-300/80">持倉 {hover?.investedText || "—"}</div>
           </div>
         </div>
       </div>
@@ -928,9 +1023,29 @@ export default function CandlestickChart({
       </div>
 
       <div className="px-4 pb-4 pt-2 border-t border-slate-800/60">
-        <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
-          <span>下圖：策略權益 / 倉位水位 / 買賣點</span>
-          <span className="text-cyan-300">hover 與上圖同步</span>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+          <div className="space-y-1">
+            <div>下圖：總權益 / 現金水位 / 持倉水位 / 買賣點</div>
+            <div className="text-[11px] text-cyan-300">{equityModeMeta.label} · {equityModeMeta.detail}</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-cyan-300">hover 與上圖同步</span>
+            <div className="flex overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900/80">
+              {([
+                ["absolute", "$"],
+                ["return", "報酬%"],
+              ] as [EquityDisplayMode, string][]).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setEquityDisplayMode(mode)}
+                  className={`px-3 py-1.5 text-[11px] transition ${equityDisplayMode === mode ? "bg-cyan-500/20 text-cyan-100" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         <div ref={equityContainerRef} className="w-full h-[180px] min-h-[180px]" />
       </div>

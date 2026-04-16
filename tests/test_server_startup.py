@@ -1,4 +1,6 @@
+import json
 from contextlib import ExitStack
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -176,3 +178,60 @@ def test_api_status_passes_db_session_into_execution_service(monkeypatch):
 
     assert captured["db_session"] is db_session
     assert payload["execution"]["guardrails"]["daily_loss_ratio"] == 0.02
+
+
+def test_load_execution_metadata_smoke_summary_reports_freshness(tmp_path, monkeypatch):
+    fresh_path = tmp_path / "execution_metadata_smoke.json"
+    fresh_path.write_text(json.dumps({
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "symbol": "BTC/USDT",
+        "all_ok": True,
+        "ok_count": 2,
+        "venues_checked": 2,
+        "results": {
+            "binance": {"ok": True, "enabled_in_config": True, "credentials_configured": False, "contract": {"step_size": "0.001", "tick_size": "0.1"}},
+        },
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_SMOKE_PATH", fresh_path)
+
+    summary = api_module._load_execution_metadata_smoke_summary()
+
+    assert summary is not None
+    assert summary["freshness"]["status"] == "fresh"
+    assert summary["freshness"]["age_minutes"] is not None
+    assert summary["freshness"]["age_minutes"] >= 0
+    assert summary["freshness"]["stale_after_minutes"] == api_module._EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES
+
+
+def test_load_execution_metadata_smoke_summary_marks_stale_and_invalid_timestamps(tmp_path, monkeypatch):
+    stale_path = tmp_path / "execution_metadata_smoke_stale.json"
+    stale_path.write_text(json.dumps({
+        "generated_at": (datetime.now(timezone.utc) - timedelta(minutes=91)).isoformat().replace("+00:00", "Z"),
+        "symbol": "BTC/USDT",
+        "all_ok": True,
+        "ok_count": 1,
+        "venues_checked": 1,
+        "results": {},
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_SMOKE_PATH", stale_path)
+    stale_summary = api_module._load_execution_metadata_smoke_summary()
+
+    assert stale_summary is not None
+    assert stale_summary["freshness"]["status"] == "stale"
+    assert stale_summary["freshness"]["reason"] == "artifact_older_than_policy"
+
+    invalid_path = tmp_path / "execution_metadata_smoke_invalid.json"
+    invalid_path.write_text(json.dumps({
+        "generated_at": "not-a-timestamp",
+        "symbol": "BTC/USDT",
+        "all_ok": False,
+        "ok_count": 0,
+        "venues_checked": 1,
+        "results": {},
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_SMOKE_PATH", invalid_path)
+    invalid_summary = api_module._load_execution_metadata_smoke_summary()
+
+    assert invalid_summary is not None
+    assert invalid_summary["freshness"]["status"] == "unavailable"
+    assert invalid_summary["freshness"]["reason"] == "invalid_generated_at"
