@@ -228,6 +228,8 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 
 **Account snapshot detail contract（Heartbeat 2026-04-17）**：`AccountSyncService.snapshot()` 不得只回傳 balance / positions / open_orders 原始列表。它現在還必須同步回傳 `captured_at`、`requested_symbol`、`normalized_symbol`、`position_count`、`open_order_count`、`degraded`、`operator_message`、`recovery_hint`，讓 Dashboard 的 canonical execution surface 可以直接判斷目前看到的是 fresh runtime truth 還是 degraded snapshot，避免空列表被誤讀成「真的沒有倉位 / 掛單」。
 
+**Execution reconciliation summary contract（Heartbeat 2026-04-17）**：`server/routes/api.py::api_status()` 現在還必須輸出 `execution_reconciliation`，把 account snapshot、runtime `last_order`、trade_history 最新列、open_orders 對帳成 machine-readable summary。最低欄位必須包含：`status / summary / issues / account_snapshot.freshness / symbol_scope / trade_history_alignment / open_order_alignment`。Dashboard 必須直接渲染這份 artifact，讓 operator 不只看到「現在列表長什麼樣」，還能看到「它們是否彼此對得上」。這個 contract 目前只解到 summary 層，不等於完整 ack/fill lifecycle audit；後續 restart replay 與 fill trail 仍是 P0。
+
 **Manual trade reject contract（Heartbeat 2026-04-16）**：`/api/trade` 的 reject path 必須保留 structured payload `detail={code,message,context}`，而前端 transport (`web/src/hooks/useApi.ts`) 不得把 object detail 直接變成 `[object Object]`。若 guardrail 是真的、但 UI 只顯示無意義字串，等同 execution surface 未落地。
 
 **Manual trade success contract（Heartbeat 2026-04-16）**：`/api/trade` 成功回應不可只帶 order id。它現在必須同步帶回 `guardrails` 與 `normalization={requested, normalized, contract}`，讓 manual trade call site 與 Dashboard/status 面板同時看到：

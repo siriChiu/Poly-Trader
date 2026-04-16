@@ -367,6 +367,8 @@ class ExecutionService:
                 "price": result.price,
                 "status": result.status,
                 "timestamp": result.timestamp,
+                "order_id": result.order_id,
+                "client_order_id": result.client_order_id,
                 "normalization": normalization,
             }
             self._record_trade(result, reason=reason, model_confidence=model_confidence)

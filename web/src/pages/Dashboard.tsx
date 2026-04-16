@@ -230,6 +230,8 @@ interface RuntimeStatusResponse {
         price?: number | null;
         status?: string;
         timestamp?: number;
+        order_id?: string | null;
+        client_order_id?: string | null;
         normalization?: {
           requested?: { qty?: number | null; price?: number | null; symbol?: string; side?: string; type?: string } | null;
           normalized?: {
@@ -277,6 +279,64 @@ interface RuntimeStatusResponse {
       credentials_configured?: boolean;
       error?: string;
       [key: string]: unknown;
+    } | null;
+  } | null;
+  execution_reconciliation?: {
+    status?: string;
+    summary?: string;
+    checked_at?: string;
+    issues?: string[];
+    account_snapshot?: {
+      captured_at?: string | null;
+      degraded?: boolean;
+      position_count?: number;
+      open_order_count?: number;
+      freshness?: {
+        status?: string;
+        reason?: string;
+        age_minutes?: number | null;
+        stale_after_minutes?: number | null;
+      } | null;
+    } | null;
+    symbol_scope?: {
+      config_symbol?: string;
+      requested_symbol?: string | null;
+      normalized_symbol?: string | null;
+      status?: string;
+      reason?: string;
+    } | null;
+    runtime_last_order?: {
+      status?: string;
+      order?: {
+        symbol?: string;
+        side?: string;
+        status?: string;
+        order_id?: string | null;
+        client_order_id?: string | null;
+      } | null;
+    } | null;
+    trade_history_alignment?: {
+      status?: string;
+      reason?: string;
+      latest_trade?: {
+        timestamp?: string | null;
+        symbol?: string | null;
+        exchange?: string | null;
+        action?: string | null;
+        order_id?: string | null;
+        client_order_id?: string | null;
+        order_status?: string | null;
+        is_dry_run?: boolean | null;
+      } | null;
+    } | null;
+    open_order_alignment?: {
+      status?: string;
+      reason?: string;
+      matched_open_order?: {
+        id?: string | null;
+        symbol?: string | null;
+        status?: string | null;
+      } | null;
     } | null;
   } | null;
   raw_continuity?: {
@@ -431,6 +491,13 @@ function getExternalMonitorTickingTone(status: string | undefined | null): strin
   return "border-amber-700/40 bg-amber-950/20 text-amber-200";
 }
 
+function getReconciliationTone(status: string | undefined | null): string {
+  if (status === "healthy") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
+  if (status === "degraded") return "border-red-700/40 bg-red-950/20 text-red-200";
+  if (status === "warning") return "border-amber-700/40 bg-amber-950/20 text-amber-200";
+  return "border-slate-700/40 bg-slate-950/20 text-slate-300";
+}
+
 export default function Dashboard() {
   const [interval, setInterval] = useState("4h");
   const [days, setDays] = useState(14);
@@ -531,6 +598,7 @@ export default function Dashboard() {
   const maturitySummary = featureCoverageData?.maturity_counts ?? null;
   const executionSummary = runtimeStatus?.execution ?? null;
   const accountSummary = runtimeStatus?.account ?? null;
+  const executionReconciliation = runtimeStatus?.execution_reconciliation ?? null;
   const executionSurfaceContract = runtimeStatus?.execution_surface_contract ?? null;
   const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
@@ -569,6 +637,11 @@ export default function Dashboard() {
   const lastRejectRuleLines = formatGuardrailRules(lastRejectContext?.rules);
   const lastFailure = guardrails?.last_failure ?? null;
   const lastOrder = guardrails?.last_order ?? null;
+  const reconciliationTone = getReconciliationTone(executionReconciliation?.status);
+  const reconciliationIssues = Array.isArray(executionReconciliation?.issues) ? executionReconciliation.issues : [];
+  const reconciliationLatestTrade = executionReconciliation?.trade_history_alignment?.latest_trade ?? null;
+  const reconciliationMatchedOpenOrder = executionReconciliation?.open_order_alignment?.matched_open_order ?? null;
+  const reconciliationFreshness = executionReconciliation?.account_snapshot?.freshness ?? null;
   const tradeFeedbackTone = tradeFeedback?.tone === "success"
     ? "border-emerald-700/40 bg-emerald-950/20 text-emerald-200"
     : tradeFeedback?.tone === "error"
@@ -1015,6 +1088,52 @@ export default function Dashboard() {
               {accountRecoveryHint && <div className="mt-1">hint: {accountRecoveryHint}</div>}
             </div>
           )}
+          <div className={`mt-3 rounded-lg border p-3 text-[11px] leading-5 ${reconciliationTone}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-semibold">Execution reconciliation / recovery</div>
+              <div className="opacity-80">
+                {executionReconciliation?.checked_at ? `checked ${new Date(executionReconciliation.checked_at).toLocaleString("zh-TW")}` : "waiting reconciliation summary"}
+              </div>
+            </div>
+            <div className="mt-2 opacity-90">{executionReconciliation?.summary || "尚未收到 reconciliation 摘要。"}</div>
+            <div className="mt-2 flex flex-wrap items-center gap-2 opacity-85">
+              <span>snapshot freshness {reconciliationFreshness?.status || "unknown"}</span>
+              {reconciliationFreshness?.age_minutes != null && (
+                <span>age {reconciliationFreshness.age_minutes.toFixed(1)}m</span>
+              )}
+              <span>trade history {executionReconciliation?.trade_history_alignment?.status || "unknown"}</span>
+              <span>open-order audit {executionReconciliation?.open_order_alignment?.status || "unknown"}</span>
+            </div>
+            {reconciliationIssues.length > 0 && (
+              <div className="mt-2 opacity-85">issues: {reconciliationIssues.join(" · ")}</div>
+            )}
+            <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
+              <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
+                <div className="text-[11px] opacity-70">Snapshot / symbol scope</div>
+                <div className="mt-2 opacity-85">config {executionReconciliation?.symbol_scope?.config_symbol || "—"}</div>
+                <div className="mt-1 opacity-80">requested {executionReconciliation?.symbol_scope?.requested_symbol || "—"}</div>
+                <div className="mt-1 opacity-80">normalized {executionReconciliation?.symbol_scope?.normalized_symbol || "—"}</div>
+                <div className="mt-1 opacity-80">scope status {executionReconciliation?.symbol_scope?.status || "unknown"}</div>
+                <div className="mt-1 opacity-80">freshness reason {reconciliationFreshness?.reason || "—"}</div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
+                <div className="text-[11px] opacity-70">Trade history audit</div>
+                <div className="mt-2 opacity-85">status {executionReconciliation?.trade_history_alignment?.status || "unknown"}</div>
+                <div className="mt-1 opacity-80">reason {executionReconciliation?.trade_history_alignment?.reason || "—"}</div>
+                <div className="mt-2 opacity-80">latest trade {reconciliationLatestTrade?.timestamp ? new Date(reconciliationLatestTrade.timestamp).toLocaleString("zh-TW") : "—"}</div>
+                <div className="mt-1 opacity-80">{reconciliationLatestTrade?.exchange || "—"} · {reconciliationLatestTrade?.symbol || "—"} · {reconciliationLatestTrade?.action || "—"}</div>
+                <div className="mt-1 opacity-80">order {reconciliationLatestTrade?.order_id || reconciliationLatestTrade?.client_order_id || "—"}</div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
+                <div className="text-[11px] opacity-70">Open-order audit</div>
+                <div className="mt-2 opacity-85">status {executionReconciliation?.open_order_alignment?.status || "unknown"}</div>
+                <div className="mt-1 opacity-80">reason {executionReconciliation?.open_order_alignment?.reason || "—"}</div>
+                <div className="mt-2 opacity-80">matched order {reconciliationMatchedOpenOrder?.id || "—"}</div>
+                <div className="mt-1 opacity-80">{reconciliationMatchedOpenOrder?.symbol || "—"} · {reconciliationMatchedOpenOrder?.status || "—"}</div>
+                <div className="mt-1 opacity-80">runtime order {lastOrder?.order_id || lastOrder?.client_order_id || "—"}</div>
+              </div>
+            </div>
+          </div>
           <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
             <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
               <div className="flex items-center justify-between gap-2">

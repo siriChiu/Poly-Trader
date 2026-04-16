@@ -117,6 +117,7 @@ def test_run_startup_raw_continuity_check_records_failure_status():
 
 
 def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
+    reconciliation_payload = {"status": "warning", "summary": "reconciliation evidence"}
     monkeypatch.setattr(api_module, "get_runtime_status", lambda key, default=None: {
         "raw_continuity": {
             "status": "repaired",
@@ -130,6 +131,7 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     monkeypatch.setattr(api_module, "is_automation_enabled", lambda: True)
     monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "binance"}, "execution": {"mode": "paper", "venue": "binance", "venues": {"binance": {"enabled": True}}}})
     monkeypatch.setattr(api_module, "_ensure_execution_metadata_smoke_governance", lambda cfg, symbol: {"all_ok": True, "ok_count": 2, "venues_checked": 2, "venues": [{"venue": "binance", "ok": True}], "governance": {"status": "healthy"}})
+    monkeypatch.setattr(api_module, "_build_execution_reconciliation_summary", lambda db, symbol, account_snapshot, execution_summary: reconciliation_payload)
 
     import asyncio
     payload = asyncio.run(api_module.api_status())
@@ -140,6 +142,7 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["feature_continuity"]["status"] == "clean"
     assert payload["feature_continuity"]["continuity_repair"]["remaining_missing"] == 0
     assert payload["execution"]["guardrails"]["consecutive_failures"] >= 0
+    assert payload["execution_reconciliation"] == reconciliation_payload
     assert payload["execution_metadata_smoke"]["ok_count"] == 2
     assert payload["execution_surface_contract"]["canonical_execution_route"] == "dashboard"
     assert payload["execution_surface_contract"]["canonical_surface_label"] == "Dashboard / Execution 狀態面板"
@@ -193,6 +196,98 @@ def test_api_status_passes_db_session_into_execution_service(monkeypatch):
 
     assert captured["db_session"] is db_session
     assert payload["execution"]["guardrails"]["daily_loss_ratio"] == 0.02
+
+
+class _QueryStub:
+    def __init__(self, row):
+        self._row = row
+
+    def order_by(self, *_args, **_kwargs):
+        return self
+
+    def first(self):
+        return self._row
+
+
+class _DbStub:
+    def __init__(self, row):
+        self._row = row
+
+    def query(self, *_args, **_kwargs):
+        return _QueryStub(self._row)
+
+
+def test_build_execution_reconciliation_summary_marks_healthy_match():
+    latest_trade = SimpleNamespace(
+        timestamp=datetime.now(timezone.utc),
+        symbol="BTC/USDT",
+        exchange="binance",
+        action="BUY",
+        order_id="order-1",
+        client_order_id="client-1",
+        order_status="closed",
+        is_dry_run=1,
+    )
+    payload = api_module._build_execution_reconciliation_summary(
+        _DbStub(latest_trade),
+        "BTCUSDT",
+        {
+            "captured_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "requested_symbol": "BTCUSDT",
+            "normalized_symbol": "BTC/USDT",
+            "degraded": False,
+            "positions": [],
+            "open_orders": [],
+            "position_count": 0,
+            "open_order_count": 0,
+        },
+        {
+            "guardrails": {
+                "last_order": {
+                    "symbol": "BTC/USDT",
+                    "status": "closed",
+                    "order_id": "order-1",
+                    "client_order_id": "client-1",
+                }
+            }
+        },
+    )
+
+    assert payload["status"] == "healthy"
+    assert payload["trade_history_alignment"]["status"] == "matched"
+    assert payload["open_order_alignment"]["status"] == "not_open"
+    assert payload["issues"] == []
+
+
+def test_build_execution_reconciliation_summary_flags_missing_open_order_when_snapshot_fresh():
+    payload = api_module._build_execution_reconciliation_summary(
+        _DbStub(None),
+        "BTCUSDT",
+        {
+            "captured_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "requested_symbol": "BTCUSDT",
+            "normalized_symbol": "BTC/USDT",
+            "degraded": False,
+            "positions": [],
+            "open_orders": [],
+            "position_count": 0,
+            "open_order_count": 0,
+        },
+        {
+            "guardrails": {
+                "last_order": {
+                    "symbol": "BTC/USDT",
+                    "status": "open",
+                    "order_id": "order-open",
+                    "client_order_id": "client-open",
+                }
+            }
+        },
+    )
+
+    assert payload["status"] == "warning"
+    assert payload["open_order_alignment"]["status"] == "missing_from_account_snapshot"
+    assert "open_order_missing_from_snapshot" in payload["issues"]
 
 
 def test_load_execution_metadata_smoke_summary_reports_freshness(tmp_path, monkeypatch):

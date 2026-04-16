@@ -80,6 +80,8 @@ def test_execution_service_submit_order_records_trade(monkeypatch):
     assert payload["normalization"]["normalized"]["qty"] == 0.01
     assert payload["order"]["normalization"]["contract"]["min_cost"] == 10.0
     assert payload["guardrails"]["last_order"]["normalization"]["normalized"]["qty"] == 0.01
+    assert payload["guardrails"]["last_order"]["order_id"] == "ord-1"
+    assert payload["guardrails"]["last_order"]["client_order_id"] == payload["order"]["client_order_id"]
     assert session.committed is True
     assert session.added[0].exchange == "okx"
     assert session.added[0].symbol == "BTC/USDT"

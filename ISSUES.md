@@ -1,77 +1,78 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-17 02:43 +08:00_
+_最後更新：2026-04-17 02:46 +08:00_
 
 只保留目前有效問題；每輪 heartbeat 必須覆蓋更新，不保留舊流水帳。
 
 ---
 
 ## 當前主線
-Poly-Trader 目前 heartbeat 主線是 **execution / Dashboard / Strategy Lab 的產品化閉環**，不是再追加研究敘事。
+Poly-Trader 目前 heartbeat 主線是 **execution / Dashboard / Strategy Lab 的產品化閉環**。
 
-本輪已完成一項直接產品化前進：
-- Dashboard 現在可直接看到 execution runtime truth / detail：
-  - account snapshot 時間
-  - requested / normalized symbol
-  - 倉位明細
-  - open orders 明細
-  - 最近委託 requested → normalized → contract 回放
-  - degraded / recovery hint
+本輪已完成的直接產品化前進：
+- `/api/status` 新增 **execution reconciliation summary**
+- Dashboard 新增 **Execution reconciliation / recovery** 區塊
+- runtime `last_order` 現在保留 `order_id / client_order_id`
+- 對帳面板可直接顯示：
+  - snapshot freshness
+  - symbol scope 對齊
+  - trade history 對帳狀態
+  - open-order audit 狀態
+  - current issues / mismatch reason
 
 ---
 
 ## Open Issues
 
-### P0. reconciliation / recovery / audit trail 仍未完成
+### P0. execution reconciliation 仍只有 summary，還不是完整 lifecycle audit
 **現況**
-- execution status、guardrails、account snapshot、metadata smoke、continuity 狀態都已集中到 Dashboard canonical surface
-- account snapshot 若退化，現在會明示 degraded + recovery hint，而不是只剩空列表
+- runtime / account snapshot / trade history / open-order 對帳摘要已可由 `/api/status` 與 Dashboard 直接看到
+- 若 snapshot stale、account degraded、trade_history mismatch、open order 缺失，現在已有 machine-readable issue surface
 
 **仍缺**
-- restart reconciliation：重啟後如何確認 open orders / positions / trade history 一致
-- fill replay / order lifecycle audit
-- 對「UI 顯示有單 / venue 已無單」這類偏差的機器可讀診斷
+- restart reconciliation：重啟後 open orders / positions / trade history 是否真正回放一致
+- fill replay / partial-fill lifecycle
+- venue ack → open → fill / cancel 的完整狀態機證據
 
 **下一步**
-- 做 reconciliation summary + mismatch diagnostics，讓 `/api/status` 不只顯示當下列表，還能顯示「是否對得上」
+- 補 `order lifecycle audit trail` 與 restart 後的 reconciliation replay
 
-### P0. execution 雖已有 detail surface，但 canary-ready 還沒被驗證
+### P0. Binance canary readiness 仍未驗證
 **現況**
 - Binance / OKX adapter、market-rule normalization、kill switch、daily loss halt、failure halt 已存在
-- Dashboard 現在已能讓操作者直接檢查 execution 真相，而不是只看摘要數字
+- Metadata smoke 與 execution reconciliation 已讓 operator 更容易看出 surface 是否可信
 
 **仍缺**
 - live credential verification
-- order ack lifecycle 實測
-- fill lifecycle 實測
+- 真實 order ack evidence
+- 真實 fill / cancel evidence
 - canary sizing policy
 
 **下一步**
-- 先把 Binance 做成第一個可驗證 canary venue，再談 live-ready
+- 先做 Binance credential + ack/fill smoke，再談 live-ready
 
-### P1. Strategy Lab / Dashboard / execution contract 還需要更深的同語義對帳
+### P1. Strategy Lab / execution runtime 還沒共用 reconciliation 語義
 **現況**
-- Dashboard execution surface 已升級，操作者可看到 runtime truth 細節
-- Decision-quality / execution guardrails / continuity 在首頁已有可見治理面板
+- Dashboard 已有 reconciliation / recovery product surface
+- Strategy Lab 仍以 decision-quality / backtest contract 為主，尚未消費 runtime reconciliation artifact
 
 **仍缺**
-- Strategy Lab 與 execution runtime 的 reconciliation / recovery 訊號尚未互通
-- execution audit trail 尚未成為 leaderboard / backtest / runtime 共用語義
+- Strategy Lab / leaderboard / strategy summary 尚未顯示 execution reconciliation blocker
+- runtime mismatch 還不能直接回流成策略治理訊號
 
 **下一步**
-- 補 runtime reconciliation artifact，並決定哪些欄位要同步到 Strategy Lab / API summary
+- 決定哪些 reconciliation 欄位要同步到 Strategy Lab / summary surfaces
 
 ---
 
 ## Not Issues
-- 不是「沒有 execution layer」：已有 execution service + multi-venue adapters + guardrails
-- 不是「Dashboard 只能看摘要」：現在已能直接看 positions / open orders / normalization replay / recovery hint
-- 不是「所有問題都在模型」：目前主要 blocker 是 runtime correctness、reconciliation、venue verification
+- 不是「Dashboard 只能看摘要」：現在已可看 runtime truth detail + reconciliation summary
+- 不是「execution surface 完全缺失」：已有 execution service、account snapshot、metadata smoke、reconciliation summary
+- 不是「主要問題都在模型」：目前主 blocker 是 execution correctness、recovery、canary verification
 
 ---
 
 ## Current Priority
-1. reconciliation / recovery / audit trail
-2. Binance canary verification
-3. order ack + fill lifecycle evidence
-4. Strategy Lab / runtime contract sync
+1. order lifecycle audit / restart reconciliation
+2. Binance canary credential + ack/fill verification
+3. Strategy Lab / runtime reconciliation contract sync

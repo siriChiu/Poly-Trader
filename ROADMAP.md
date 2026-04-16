@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-17 02:43 +08:00_
+_最後更新：2026-04-17 02:46 +08:00_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留舊 roadmap 歷史。
 
@@ -21,45 +21,46 @@ _最後更新：2026-04-17 02:43 +08:00_
   - daily loss halt
   - failure halt
 - `/api/status` 已集中帶出 execution / account / continuity / metadata smoke
-- Dashboard execution surface 已升級為可檢查 runtime truth 的 detail 面板：
+- Dashboard execution surface 已可檢查 runtime truth detail
+- **本輪新增 execution reconciliation summary**：
   - snapshot freshness
-  - requested / normalized symbol
-  - positions / open orders detail
-  - recent normalization replay
-  - degraded / recovery hint
+  - symbol scope alignment
+  - trade history alignment
+  - open-order audit
+  - issue list / mismatch reason
 
 ---
 
 ## 主目標
 
-### 目標 A：把 execution 從「看得到」推進到「對得上」
+### 目標 A：把 execution 從「summary 對得上」推進到「lifecycle 對得上」
 重點：
 - restart reconciliation
-- open orders / positions / trade history mismatch diagnostics
-- fill replay / order lifecycle audit
+- order ack → open → fill / cancel audit trail
+- partial fill / replay evidence
 
 ### 目標 B：把 Binance 做成第一個可驗證 canary venue
 重點：
 - credential verification
-- order ack / fill lifecycle evidence
+- live ack/fill smoke
 - canary sizing policy
 
-### 目標 C：讓 Strategy Lab / Dashboard / execution 共用同一套 runtime 治理語義
+### 目標 C：讓 Strategy Lab / Dashboard / execution 共用同一套治理語義
 重點：
-- reconciliation artifact 進 `/api/status`
-- 必要欄位同步到 Strategy Lab / backtest summary
+- reconciliation artifact 進 Strategy Lab / summary
+- runtime blocker 與策略治理語義同步
 - 文件保持 current-state-only
 
 ---
 
 ## 下一步
-1. 新增 reconciliation summary 與 mismatch diagnostics
-2. 驗證 Binance canary 的 credential / ack / fill path
-3. 決定哪些 reconciliation 欄位要同步到 Strategy Lab / API summary
+1. 建立 order lifecycle audit artifact，覆蓋 ack/open/fill/cancel 與 restart replay
+2. 驗證 Binance credential / ack / fill path，收集真實 runtime 證據
+3. 把 reconciliation blocker 同步到 Strategy Lab / summary surfaces
 
 ---
 
 ## 成功標準
-- Dashboard 不只看得到執行狀態，還能說明是否與 venue / trade history 一致
+- Dashboard 不只顯示 account truth，還能 machine-check 是否與 trade history / open orders 對得上
 - Binance 可以用真實 runtime 證據證明 canary-ready，而不是文件宣稱
-- Strategy Lab / Dashboard / execution 對同一筆決策與執行路徑講同一套語義
+- Strategy Lab / Dashboard / execution 對同一筆決策與執行風險講同一套語義
