@@ -98,6 +98,27 @@ interface RuntimeStatusResponse {
         error?: string | null;
         interval_seconds?: number | null;
         command?: string | null;
+        install_contract?: {
+          preferred_host_lane?: string;
+          generator_command?: string;
+          manual_run_command?: string;
+          fallback?: {
+            reason?: string;
+            command?: string;
+            verify_command?: string;
+          } | null;
+          user_crontab?: {
+            schedule?: string;
+            entry?: string;
+            install_command?: string;
+            verify_command?: string;
+          } | null;
+          systemd_user?: {
+            service_file?: string;
+            timer_file?: string;
+            verify_command?: string;
+          } | null;
+        } | null;
         freshness?: {
           status?: "fresh" | "stale" | "unavailable" | string;
           label?: string;
@@ -435,6 +456,7 @@ export default function Dashboard() {
   const metadataSmokeAutoRefresh = metadataSmokeGovernance?.auto_refresh ?? null;
   const metadataSmokeBackgroundMonitor = metadataSmokeGovernance?.background_monitor ?? null;
   const metadataSmokeExternalMonitor = metadataSmokeGovernance?.external_monitor ?? null;
+  const externalMonitorInstallContract = metadataSmokeExternalMonitor?.install_contract ?? null;
   const metadataSmokeFreshnessTone = getSmokeFreshnessTone(metadataSmokeFreshness?.status);
   const metadataSmokeFreshnessLabel = getSmokeFreshnessLabel(metadataSmokeFreshness?.status);
   const metadataSmokeGovernanceTone = getSmokeGovernanceTone(metadataSmokeGovernance?.status);
@@ -726,6 +748,27 @@ export default function Dashboard() {
                 )}
                 {metadataSmokeExternalMonitor?.command && (
                   <div className="mt-2 font-mono opacity-85 break-all">external monitor command: {metadataSmokeExternalMonitor.command}</div>
+                )}
+                {externalMonitorInstallContract?.preferred_host_lane && (
+                  <div className="mt-2 opacity-85">
+                    preferred host lane: {externalMonitorInstallContract.preferred_host_lane}
+                    {externalMonitorInstallContract.user_crontab?.schedule ? ` · schedule ${externalMonitorInstallContract.user_crontab.schedule}` : ""}
+                  </div>
+                )}
+                {externalMonitorInstallContract?.user_crontab?.install_command && (
+                  <div className="mt-2 font-mono opacity-85 break-all">install command: {externalMonitorInstallContract.user_crontab.install_command}</div>
+                )}
+                {externalMonitorInstallContract?.user_crontab?.verify_command && (
+                  <div className="mt-2 font-mono opacity-85 break-all">install verify: {externalMonitorInstallContract.user_crontab.verify_command}</div>
+                )}
+                {externalMonitorInstallContract?.fallback?.reason && (
+                  <div className="mt-2 opacity-90">fallback contract: {externalMonitorInstallContract.fallback.reason}</div>
+                )}
+                {externalMonitorInstallContract?.fallback?.command && (
+                  <div className="mt-2 font-mono opacity-85 break-all">fallback command: {externalMonitorInstallContract.fallback.command}</div>
+                )}
+                {externalMonitorInstallContract?.systemd_user?.timer_file && (
+                  <div className="mt-2 opacity-80">systemd user timer: {externalMonitorInstallContract.systemd_user.timer_file}</div>
                 )}
                 {metadataSmokeExternalMonitor?.error && (
                   <div className="mt-2 text-red-200">external monitor error: {metadataSmokeExternalMonitor.error}</div>

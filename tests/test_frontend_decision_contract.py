@@ -45,12 +45,19 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
         'const metadataSmokeAutoRefresh = metadataSmokeGovernance?.auto_refresh ?? null;',
         'const metadataSmokeBackgroundMonitor = metadataSmokeGovernance?.background_monitor ?? null;',
         'const metadataSmokeExternalMonitor = metadataSmokeGovernance?.external_monitor ?? null;',
+        'const externalMonitorInstallContract = metadataSmokeExternalMonitor?.install_contract ?? null;',
         'stale governance',
         'auto refresh',
         'background monitor',
         'external monitor',
         'refresh command:',
         'external monitor command:',
+        'preferred host lane:',
+        'install command:',
+        'install verify:',
+        'fallback contract:',
+        'fallback command:',
+        'systemd user timer:',
         'escalation:',
         'Guardrail context 面板',
         'raw → adjusted → delta → rules',
@@ -59,6 +66,17 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
         '最近失敗',
         '最近委託',
         'Execution 狀態面板',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_signal_banner_declares_dashboard_as_canonical_execution_route_until_upgraded():
+    source = _read("components/SignalBanner.tsx")
+    required_snippets = [
+        'SignalBanner 目前只提供快捷下單 / 自動交易切換；完整 Execution 狀態面板、Guardrail context 與 stale governance 仍以 Dashboard 為 canonical execution route。',
+        'fetch("/api/trade", {',
+        'fetch("/api/automation/toggle", {',
     ]
     for snippet in required_snippets:
         assert snippet in source

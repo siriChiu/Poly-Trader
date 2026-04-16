@@ -12,6 +12,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from scripts.execution_metadata_external_monitor_install import (  # noqa: E402
+    build_install_contract,
+)
 from server.routes.api import (  # noqa: E402
     _build_execution_metadata_smoke_background_state,
     run_execution_metadata_smoke_background_governance,
@@ -76,6 +79,10 @@ def main() -> int:
         "symbol": args.symbol,
         "command": f"source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol {args.symbol}",
         "metadata_smoke_freshness": summary.get("freshness"),
+        "install_contract": build_install_contract(
+            symbol=args.symbol,
+            interval_seconds=args.interval_seconds,
+        ),
     }
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

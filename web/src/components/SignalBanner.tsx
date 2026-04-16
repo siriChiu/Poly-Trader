@@ -164,6 +164,10 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
         </div>
       )}
 
+      <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
+        SignalBanner 目前只提供快捷下單 / 自動交易切換；完整 Execution 狀態面板、Guardrail context 與 stale governance 仍以 Dashboard 為 canonical execution route。
+      </div>
+
       {/* Timestamp */}
       {timestamp && (
         <div className="mt-2 text-xs text-slate-500 text-center">

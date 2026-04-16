@@ -266,6 +266,7 @@ def _load_execution_metadata_external_monitor_state(symbol: str = "BTCUSDT") -> 
         "error": None,
         "interval_seconds": None,
         "command": f"source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol {symbol}",
+        "install_contract": None,
         "freshness": {
             "status": "unavailable",
             "label": "unavailable",
@@ -313,6 +314,7 @@ def _load_execution_metadata_external_monitor_state(symbol: str = "BTCUSDT") -> 
         "error": payload.get("error"),
         "interval_seconds": interval_seconds,
         "command": payload.get("command") or base["command"],
+        "install_contract": payload.get("install_contract") if isinstance(payload.get("install_contract"), dict) else None,
         "freshness": freshness,
     }
 

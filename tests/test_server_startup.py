@@ -373,6 +373,11 @@ def test_load_execution_metadata_external_monitor_state_reports_freshness(tmp_pa
         "error": None,
         "interval_seconds": 300,
         "command": "source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT",
+        "install_contract": {
+            "preferred_host_lane": "user_crontab",
+            "user_crontab": {"schedule": "*/5 * * * *", "verify_command": "crontab -l | grep 'poly-trader-execution-metadata-external-monitor'"},
+            "fallback": {"reason": "manual fallback", "command": "source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT"},
+        },
     }), encoding="utf-8")
     monkeypatch.setattr(api_module, "_EXECUTION_METADATA_EXTERNAL_MONITOR_PATH", artifact)
 
@@ -382,6 +387,8 @@ def test_load_execution_metadata_external_monitor_state_reports_freshness(tmp_pa
     assert state["status"] == "healthy"
     assert state["freshness"]["status"] == "fresh"
     assert state["command"].endswith("python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT")
+    assert state["install_contract"]["preferred_host_lane"] == "user_crontab"
+    assert state["install_contract"]["user_crontab"]["schedule"] == "*/5 * * * *"
 
 
 
@@ -393,6 +400,7 @@ def test_build_execution_metadata_smoke_governance_includes_external_monitor(mon
         "checked_at": "2026-04-16T16:00:00Z",
         "freshness": {"status": "fresh"},
         "command": "source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT",
+        "install_contract": {"preferred_host_lane": "user_crontab"},
     })
     monkeypatch.setattr(api_module, "_build_execution_metadata_smoke_refresh_state", lambda: {"status": "idle"})
     monkeypatch.setattr(api_module, "_build_execution_metadata_smoke_background_state", lambda: {"status": "healthy"})
@@ -405,3 +413,4 @@ def test_build_execution_metadata_smoke_governance_includes_external_monitor(mon
     assert governance["status"] == "healthy"
     assert governance["external_monitor"]["status"] == "healthy"
     assert governance["external_monitor"]["freshness"]["status"] == "fresh"
+    assert governance["external_monitor"]["install_contract"]["preferred_host_lane"] == "user_crontab"
