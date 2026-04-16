@@ -16,7 +16,7 @@ def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
                 {
                     "heartbeat": str(900 + idx),
                     "timestamp": f"2026-04-16T08:0{idx}:00+00:00",
-                    "q15_support_audit_diagnostics": {
+                    "q15_support_audit": {
                         "current_live": {
                             "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
                             "current_live_structure_bucket_rows": 4,
@@ -46,7 +46,52 @@ def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
     assert progress["previous_rows"] == 4
     assert progress["delta_vs_previous"] == 0
     assert progress["stagnant_run_count"] == 3
+    assert progress["previous_route_changed"] is False
     assert progress["escalate_to_blocker"] is True
+
+
+
+def test_summarize_support_progress_tracks_bucket_accumulation_across_route_change(tmp_path):
+    (tmp_path / "heartbeat_901_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "901",
+                "timestamp": "2026-04-16T07:59:00+00:00",
+                "q15_support_audit": {
+                    "current_live": {
+                        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                        "current_live_structure_bucket_rows": 0,
+                    },
+                    "support_route": {
+                        "verdict": "exact_bucket_missing_proxy_reference_only",
+                        "support_governance_route": "exact_live_bucket_proxy_available",
+                        "minimum_support_rows": 50,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    progress = q15_support_audit._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q15",
+        support_route_verdict="exact_bucket_present_but_below_minimum",
+        support_governance_route="exact_live_lane_proxy_available",
+        live_bucket_rows=4,
+        minimum_support_rows=50,
+        current_label="902",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "accumulating"
+    assert progress["previous_rows"] == 0
+    assert progress["delta_vs_previous"] == 4
+    assert progress["previous_route_changed"] is True
+    assert progress["stagnant_run_count"] == 0
+    assert progress["stalled_support_accumulation"] is False
+    assert progress["escalate_to_blocker"] is False
+    assert progress["history"][0]["live_current_structure_bucket_rows"] == 4
+    assert progress["history"][1]["live_current_structure_bucket_rows"] == 0
 
 
 def test_support_route_decision_marks_proxy_reference_only_when_exact_bucket_missing():
@@ -89,7 +134,7 @@ def test_floor_cross_legality_blocks_component_release_when_support_missing():
     assert "feat_4h_bias50" in result["reason"]
 
 
-def test_build_report_combines_support_route_and_floor_cross_legality():
+def test_build_report_combines_support_route_and_floor_cross_legality(monkeypatch):
     probe = {
         "feature_timestamp": "2026-04-15 07:03:58",
         "target_col": "simulated_pyramid_win",
@@ -139,6 +184,12 @@ def test_build_report_combines_support_route_and_floor_cross_legality():
             "bull_support_neighbor_rows": 155,
         }
     }
+
+    monkeypatch.setattr(
+        q15_support_audit,
+        "_load_recent_q15_support_history",
+        lambda **kwargs: [kwargs["current_entry"]],
+    )
 
     report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
 
@@ -221,6 +272,93 @@ def test_build_report_prefers_probe_live_bucket_over_stale_bull_pocket_context()
     assert report["floor_cross_legality"]["verdict"] == "math_cross_possible_but_illegal_without_exact_support"
     assert report["component_experiment"]["verdict"] == "reference_only_until_exact_support_ready"
     assert report["component_experiment"]["machine_read_answer"]["support_ready"] is False
+
+
+def test_build_report_prefers_explicit_probe_execution_guardrail_reason_over_stale_fallback():
+    probe = {
+        "feature_timestamp": "2026-04-16 23:00:23.100224",
+        "target_col": "simulated_pyramid_win",
+        "signal": "HOLD",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.3238,
+        "entry_quality_label": "D",
+        "decision_quality_label": "C",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "entry_quality_below_trade_floor",
+        "execution_guardrail_reason": None,
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                "current_live_structure_bucket_rows": 77,
+            }
+        },
+    }
+    drilldown = {
+        "generated_at": "2026-04-16 21:38:10.597255",
+        "execution_guardrail_reason": "unsupported_live_structure_bucket_blocks_trade; under_minimum_exact_live_structure_bucket",
+        "component_gap_attribution": {
+            "remaining_gap_to_floor": 0.233,
+            "best_single_component": {
+                "feature": "feat_4h_bias50",
+                "required_score_delta_to_cross_floor": 0.7767,
+                "can_single_component_cross_floor": True,
+            }
+        },
+    }
+    bull_pocket = {
+        "target_col": "simulated_pyramid_win",
+        "live_context": {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "execution_guardrail_reason": "unsupported_live_structure_bucket_blocks_trade",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 77,
+        },
+        "support_pathology_summary": {
+            "minimum_support_rows": 50,
+            "exact_bucket_root_cause": "exact_bucket_supported",
+            "preferred_support_cohort": "exact_live_bucket",
+            "recommended_action": "可回到 exact live bucket 直接治理與驗證。",
+        },
+    }
+    leaderboard_probe = {
+        "alignment": {
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "bull_exact_live_bucket_proxy_rows": 1,
+            "bull_exact_live_lane_proxy_rows": 58,
+            "bull_support_neighbor_rows": 0,
+        }
+    }
+
+    report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
+
+    assert report["current_live"]["execution_guardrail_reason"] is None
+    assert report["support_route"]["verdict"] == "exact_bucket_supported"
+    assert report["component_experiment"]["verdict"] == "exact_supported_component_experiment_ready"
+
+
+def test_refresh_live_drilldown_if_needed_regenerates_stale_artifact(tmp_path, monkeypatch):
+    probe = {"feature_timestamp": "2026-04-16T23:00:23.100224+00:00"}
+    stale = {"generated_at": "2026-04-16T21:38:10.597255+00:00"}
+    refreshed = {"generated_at": "2026-04-16T23:00:23.100224+00:00", "component_gap_attribution": {"remaining_gap_to_floor": 0.1}}
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir()
+    script_path = scripts_dir / "live_decision_quality_drilldown.py"
+    script_path.write_text(
+        "from pathlib import Path\n"
+        f"OUT_JSON = Path({str((tmp_path / 'live_decision_quality_drilldown.json')).__repr__()})\n"
+        "def main():\n"
+        f"    OUT_JSON.write_text({(json.dumps(refreshed, ensure_ascii=False) + chr(10))!r}, encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(q15_support_audit, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(q15_support_audit, "DRILLDOWN_PATH", tmp_path / "live_decision_quality_drilldown.json")
+
+    result = q15_support_audit._refresh_live_drilldown_if_needed(probe, stale)
+
+    assert result == refreshed
 
 
 def test_build_report_support_ready_exposes_component_experiment_machine_read_answer():

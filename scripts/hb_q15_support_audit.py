@@ -21,6 +21,9 @@ Outputs:
 
 from __future__ import annotations
 
+import contextlib
+import importlib.util
+import io
 import json
 import os
 from datetime import datetime, timezone
@@ -45,6 +48,51 @@ def _load_json(path: Path) -> dict[str, Any]:
         return {}
 
 
+def _parse_isoish_timestamp(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _probe_and_drilldown_in_sync(probe: dict[str, Any], drilldown: dict[str, Any]) -> bool:
+    probe_ts = _parse_isoish_timestamp(probe.get("feature_timestamp"))
+    drilldown_ts = _parse_isoish_timestamp(drilldown.get("generated_at"))
+    if probe_ts is None or drilldown_ts is None:
+        return False
+    return abs((probe_ts - drilldown_ts).total_seconds()) < 1
+
+
+def _refresh_live_drilldown_if_needed(probe: dict[str, Any], drilldown: dict[str, Any]) -> dict[str, Any]:
+    if not probe:
+        return drilldown
+    if drilldown and _probe_and_drilldown_in_sync(probe, drilldown):
+        return drilldown
+
+    script_path = PROJECT_ROOT / "scripts" / "live_decision_quality_drilldown.py"
+    if not script_path.exists():
+        return drilldown
+
+    try:
+        spec = importlib.util.spec_from_file_location("live_decision_quality_drilldown_runtime", script_path)
+        if spec is None or spec.loader is None:
+            return drilldown
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with contextlib.redirect_stdout(io.StringIO()):
+            module.main()
+    except Exception:
+        return drilldown
+
+    refreshed = _load_json(DRILLDOWN_PATH)
+    return refreshed or drilldown
+
+
 def _as_int(value: Any, default: int = 0) -> int:
     try:
         if value is None:
@@ -63,10 +111,18 @@ def _as_float(value: Any, default: float | None = None) -> float | None:
         return default
 
 
+def _extract_q15_support_diag(payload: dict[str, Any]) -> dict[str, Any]:
+    return (
+        payload.get("q15_support_audit")
+        or payload.get("q15_support_audit_diagnostics")
+        or {}
+    )
+
+
+
 def _load_recent_q15_support_history(
     *,
     current_entry: dict[str, Any],
-    limit: int = 5,
     data_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
     summaries_dir = data_dir or (PROJECT_ROOT / "data")
@@ -87,7 +143,7 @@ def _load_recent_q15_support_history(
             payload = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
-        diag = payload.get("q15_support_audit_diagnostics") or {}
+        diag = _extract_q15_support_diag(payload)
         current_live = diag.get("current_live") or {}
         support_route = diag.get("support_route") or {}
         payload_timestamp = payload.get("timestamp") or diag.get("generated_at")
@@ -117,8 +173,6 @@ def _load_recent_q15_support_history(
         if not candidate["live_current_structure_bucket"]:
             continue
         history.append(candidate)
-        if len(history) >= limit:
-            break
     return [
         {key: value for key, value in item.items() if key != "observed_at"}
         for item in history
@@ -147,25 +201,32 @@ def _summarize_support_progress(
         "support_route_verdict": support_route_verdict,
         "support_governance_route": support_governance_route,
     }
-    history = _load_recent_q15_support_history(current_entry=current_entry, limit=5, data_dir=data_dir)
-    relevant = [
+    history = _load_recent_q15_support_history(current_entry=current_entry, data_dir=data_dir)
+    same_bucket_history = [
         item
         for item in history
         if item.get("live_current_structure_bucket") == current_bucket
-        and item.get("support_route_verdict") == support_route_verdict
-        and item.get("support_governance_route") == support_governance_route
     ]
+    relevant = same_bucket_history[:5]
     previous = relevant[1] if len(relevant) > 1 else None
     delta_vs_previous = None
+    previous_route_changed = False
     if previous is not None:
-        delta_vs_previous = current_rows - int(previous.get("live_current_structure_bucket_rows") or 0)
+        previous_rows = int(previous.get("live_current_structure_bucket_rows") or 0)
+        delta_vs_previous = current_rows - previous_rows
+        previous_route_changed = (
+            previous.get("support_route_verdict") != support_route_verdict
+            or previous.get("support_governance_route") != support_governance_route
+        )
 
-    stagnant_run_count = 1
-    for item in relevant[1:]:
-        if int(item.get("live_current_structure_bucket_rows") or 0) == current_rows:
-            stagnant_run_count += 1
-            continue
-        break
+    stagnant_run_count = 0
+    if previous is not None and int(previous.get("live_current_structure_bucket_rows") or 0) == current_rows:
+        stagnant_run_count = 1
+        for item in relevant[1:]:
+            if int(item.get("live_current_structure_bucket_rows") or 0) == current_rows:
+                stagnant_run_count += 1
+                continue
+            break
 
     minimum = int(minimum_support_rows or 0)
     if current_rows >= minimum:
@@ -173,10 +234,12 @@ def _summarize_support_progress(
         reason = "current q15 exact bucket 已達 minimum support，可轉向 exact-supported deployment verify。"
     elif previous is None:
         status = "no_recent_comparable_history"
-        reason = "目前找不到同一 q15 bucket + support route 的最近 heartbeat 可比較；先持續累積 exact support。"
+        reason = "目前找不到同一 q15 bucket 的最近 heartbeat 可比較；先持續累積 exact support。"
     elif delta_vs_previous and delta_vs_previous > 0:
         status = "accumulating"
-        reason = "current q15 exact support 仍低於 minimum，但最近 heartbeat 已持續增加。"
+        reason = "current q15 exact support 仍低於 minimum，但同 bucket rows 較上一輪增加。"
+        if previous_route_changed:
+            reason += " route 已切換，代表 support pathology 正在從缺樣本轉向 exact rows 累積。"
     elif delta_vs_previous == 0:
         status = "stalled_under_minimum"
         reason = "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。"
@@ -192,10 +255,13 @@ def _summarize_support_progress(
         "gap_to_minimum": max(minimum - current_rows, 0),
         "delta_vs_previous": delta_vs_previous,
         "previous_rows": None if previous is None else int(previous.get("live_current_structure_bucket_rows") or 0),
+        "previous_route_changed": previous_route_changed,
+        "previous_support_route_verdict": None if previous is None else previous.get("support_route_verdict"),
+        "previous_support_governance_route": None if previous is None else previous.get("support_governance_route"),
         "stagnant_run_count": stagnant_run_count,
         "stalled_support_accumulation": status == "stalled_under_minimum",
         "escalate_to_blocker": status == "stalled_under_minimum" and stagnant_run_count >= 3,
-        "history": history,
+        "history": relevant,
     }
 
 
@@ -370,11 +436,13 @@ def _resolve_current_live_context(
         exact_scope.get("current_live_structure_bucket_rows"),
         _as_int(chosen_scope.get("current_live_structure_bucket_rows"), _as_int(bull_live.get("current_live_structure_bucket_rows"), 0)),
     )
-    execution_guardrail_reason = (
-        probe.get("execution_guardrail_reason")
-        or drilldown.get("execution_guardrail_reason")
-        or bull_live.get("execution_guardrail_reason")
-    )
+    if "execution_guardrail_reason" in probe:
+        execution_guardrail_reason = probe.get("execution_guardrail_reason")
+    else:
+        execution_guardrail_reason = (
+            drilldown.get("execution_guardrail_reason")
+            or bull_live.get("execution_guardrail_reason")
+        )
     return {
         "regime_label": probe.get("regime_label") or bull_live.get("regime_label"),
         "regime_gate": probe.get("regime_gate") or bull_live.get("regime_gate"),
@@ -609,7 +677,7 @@ def build_report(
             "decision_quality_label": probe.get("decision_quality_label"),
             "allowed_layers": probe.get("allowed_layers"),
             "allowed_layers_reason": probe.get("allowed_layers_reason"),
-            "execution_guardrail_reason": probe.get("execution_guardrail_reason") or live_context.get("execution_guardrail_reason"),
+            "execution_guardrail_reason": probe.get("execution_guardrail_reason") if "execution_guardrail_reason" in probe else live_context.get("execution_guardrail_reason"),
             "current_live_structure_bucket": live_context.get("current_live_structure_bucket"),
             "current_live_structure_bucket_rows": _as_int(live_context.get("current_live_structure_bucket_rows"), 0),
         },
@@ -728,6 +796,7 @@ def _markdown(report: dict[str, Any]) -> str:
 def main() -> None:
     probe = _load_json(PROBE_PATH)
     drilldown = _load_json(DRILLDOWN_PATH)
+    drilldown = _refresh_live_drilldown_if_needed(probe, drilldown)
     bull_pocket = _load_json(BULL_POCKET_PATH)
     leaderboard_probe = _load_json(LEADERBOARD_PROBE_PATH)
 
