@@ -173,6 +173,21 @@ def test_summarize_recent_drift_formats_primary_window():
     assert "overlay_only_examples=feat_claw[research_sparse_source]" in summary
 
 
+def test_issue_action_text_falls_back_to_next_actions():
+    action = auto_propose_fixes.issue_action_text(
+        {
+            "id": "P1_current_q35_exact_support",
+            "title": "support under minimum",
+            "next_actions": [
+                "先確認 current live bucket 是否仍是 q35",
+                "只追 exact support 是否累積",
+            ],
+        }
+    )
+
+    assert action == "先確認 current live bucket 是否仍是 q35；只追 exact support 是否累積"
+
+
 def test_main_resolves_stale_issue_when_raw_is_fresh(monkeypatch, capsys):
     events = []
 
@@ -1073,3 +1088,76 @@ def test_summarize_live_predict_probe_flags_toxic_exact_live_lane():
 
     assert "exact_live_lane=(rows=24,wr=0.2917,q=-0.005,dd=0.2986,tuw=0.6147,recent500_dom=bull|ALLOW@1.0,targets=loss:17/win:7,true_negative_rows=17@0.7083,final_gate=ALLOW:24)" in summary
     assert "exact_lane_status=toxic_allow_lane" in summary
+
+
+def test_sync_current_state_governance_issues_replaces_stale_q35_support_issue():
+    events = []
+
+    class DummyTracker:
+        def add(self, priority, issue_id, title, action="", status="open"):
+            events.append(("add", issue_id, title, action, status))
+
+        def resolve(self, issue_id):
+            events.append(("resolve", issue_id))
+            return True
+
+    auto_propose_fixes.sync_current_state_governance_issues(
+        DummyTracker(),
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 2,
+                    "support_progress": {
+                        "current_rows": 2,
+                        "minimum_support_rows": 50,
+                        "history": [
+                            {
+                                "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15"
+                            }
+                        ],
+                    },
+                },
+            }
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    assert ("resolve", "P1_q35_exact_support_under_minimum") in events
+    support_add = next(event for event in events if event[0] == "add" and event[1] == "#H_AUTO_CURRENT_BUCKET_SUPPORT")
+    assert "q15" in support_add[2]
+    assert "2/50" in support_add[2]
+
+
+def test_sync_current_state_governance_issues_adds_alignment_blocker_when_current_inputs_stale():
+    events = []
+
+    class DummyTracker:
+        def add(self, priority, issue_id, title, action="", status="open"):
+            events.append(("add", issue_id, title, action, status))
+
+        def resolve(self, issue_id):
+            events.append(("resolve", issue_id))
+            return True
+
+    auto_propose_fixes.sync_current_state_governance_issues(
+        DummyTracker(),
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": True,
+                "governance_contract": {
+                    "current_closure": "alignment_snapshot_stale",
+                    "recommended_action": "refresh alignment artifacts",
+                    "treat_as_parity_blocker": False,
+                },
+            }
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    align_add = next(event for event in events if event[0] == "add" and event[1] == "#H_AUTO_ALIGNMENT_GOVERNANCE")
+    assert "alignment_snapshot_stale" in align_add[2]
+    assert align_add[3] == "refresh alignment artifacts"

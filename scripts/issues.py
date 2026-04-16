@@ -17,6 +17,38 @@ from datetime import datetime
 ISSUES_JSON = Path(__file__).parent.parent / "issues.json"
 
 
+def _normalize_issue(issue: dict) -> dict:
+    """Backfill legacy/manual issue payloads into the machine-readable action shape.
+
+    Current-state heartbeat docs sometimes persist issues with `next_actions` only.
+    Auto-propose / markdown views expect a single-line `action`, so normalize the
+    loaded payload instead of printing blank arrows.
+    """
+    normalized = dict(issue)
+    action = normalized.get("action")
+    if action:
+        return normalized
+
+    next_actions = normalized.get("next_actions")
+    if isinstance(next_actions, list):
+        steps = [str(step).strip() for step in next_actions if str(step).strip()]
+        if steps:
+            normalized["action"] = "；".join(steps)
+            return normalized
+    elif isinstance(next_actions, str) and next_actions.strip():
+        normalized["action"] = next_actions.strip()
+        return normalized
+
+    summary = normalized.get("summary")
+    if isinstance(summary, dict):
+        for key in ("recommended_action", "next_action"):
+            value = summary.get(key)
+            if isinstance(value, str) and value.strip():
+                normalized["action"] = value.strip()
+                break
+    return normalized
+
+
 class IssueTracker:
     def __init__(self):
         self.issues = []
@@ -29,7 +61,7 @@ class IssueTracker:
         else:
             data = {"issues": []}
         t = cls()
-        t.issues = data.get("issues", [])
+        t.issues = [_normalize_issue(issue) for issue in data.get("issues", [])]
         return t
 
     def add(self, priority, issue_id, title, action="", status="open"):
@@ -68,9 +100,11 @@ class IssueTracker:
         return [i for i in self.issues if i["priority"] == priority and i["status"] == "open"]
 
     def save(self):
+        """Persist only open issues so issues.json stays current-state-only."""
         ISSUES_JSON.parent.mkdir(parents=True, exist_ok=True)
+        open_issues = [i for i in self.issues if i.get("status") == "open"]
         with open(ISSUES_JSON, 'w') as f:
-            json.dump({"issues": self.issues}, f, indent=2, ensure_ascii=False)
+            json.dump({"issues": open_issues}, f, indent=2, ensure_ascii=False)
 
     def to_markdown(self, hb_num=None):
         """Generate ISSUES.md content from structured data."""

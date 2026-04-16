@@ -189,6 +189,91 @@ def load_live_predict_probe():
     return {}
 
 
+def load_leaderboard_candidate_probe():
+    path = ROOT / "data" / "leaderboard_feature_profile_probe.json"
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+
+def issue_action_text(item):
+    action = item.get("action")
+    if isinstance(action, str) and action.strip():
+        return action.strip()
+    next_actions = item.get("next_actions")
+    if isinstance(next_actions, list):
+        steps = [str(step).strip() for step in next_actions if str(step).strip()]
+        if steps:
+            return "；".join(steps)
+    if isinstance(next_actions, str) and next_actions.strip():
+        return next_actions.strip()
+    summary = item.get("summary")
+    if isinstance(summary, dict):
+        for key in ("recommended_action", "next_action"):
+            value = summary.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return ""
+
+
+def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics):
+    """Keep current-state issue IDs aligned with the latest live bucket/governance facts."""
+    alignment = (leaderboard_probe or {}).get("alignment") or {}
+    governance = alignment.get("governance_contract") or {}
+    support_progress = governance.get("support_progress") or {}
+    current_bucket = None
+    if support_progress.get("history"):
+        current_bucket = (support_progress.get("history") or [{}])[0].get("live_current_structure_bucket")
+    current_bucket = current_bucket or (leaderboard_probe or {}).get("live_current_structure_bucket")
+    current_rows = int(governance.get("live_current_structure_bucket_rows") or support_progress.get("current_rows") or 0)
+    minimum_rows = int(governance.get("minimum_support_rows") or support_progress.get("minimum_support_rows") or 0)
+    route = governance.get("support_governance_route")
+    support_issue_ids = ["P1_q35_exact_support_under_minimum", "#H_AUTO_CURRENT_BUCKET_SUPPORT"]
+    if route == "exact_live_bucket_present_but_below_minimum" and current_bucket and minimum_rows > 0:
+        tracker.add(
+            "P1",
+            "#H_AUTO_CURRENT_BUCKET_SUPPORT",
+            f"current live bucket {current_bucket} support remains under minimum ({current_rows}/{minimum_rows})",
+            "以 current live structure bucket 為主追 exact support / governance route；不要沿用舊 q35 blocker 當成本輪主 blocker。",
+        )
+    for issue_id in support_issue_ids:
+        if issue_id != "#H_AUTO_CURRENT_BUCKET_SUPPORT":
+            tracker.resolve(issue_id)
+
+    alignment_issue_ids = ["P1_alignment_artifacts_need_refresh", "#H_AUTO_ALIGNMENT_GOVERNANCE"]
+    alignment_blocked = bool(alignment.get("current_alignment_inputs_stale")) or bool(governance.get("treat_as_parity_blocker"))
+    if alignment_blocked:
+        tracker.add(
+            "P1",
+            "#H_AUTO_ALIGNMENT_GOVERNANCE",
+            f"alignment governance still blocked ({governance.get('current_closure') or 'unknown_closure'})",
+            governance.get("recommended_action") or "刷新 alignment / leaderboard candidate probe，讓 current inputs 與治理結論一致。",
+        )
+    else:
+        for issue_id in alignment_issue_ids:
+            tracker.resolve(issue_id)
+
+    cv = metrics.get("cv_accuracy")
+    cv_std = metrics.get("cv_std")
+    cv_worst = metrics.get("cv_worst")
+    stability_issue_ids = ["P1_model_accuracy_stability", "#H_AUTO_MODEL_STABILITY"]
+    if isinstance(cv, (int, float)) and isinstance(cv_std, (int, float)):
+        cv_worst_text = f"{cv_worst:.4f}" if isinstance(cv_worst, (int, float)) else "n/a"
+        stability_issue = cv_std >= 0.10 or (isinstance(cv_worst, (int, float)) and cv_worst < 0.60)
+        if stability_issue:
+            tracker.add(
+                "P1",
+                "#H_AUTO_MODEL_STABILITY",
+                f"model stability still needs work (cv={cv:.4f}, cv_std={cv_std:.4f}, cv_worst={cv_worst_text})",
+                "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
+            )
+            tracker.resolve("P1_model_accuracy_stability")
+        else:
+            for issue_id in stability_issue_ids:
+                tracker.resolve(issue_id)
+
+
 def summarize_recent_drift(report):
     primary = (report or {}).get("primary_window") or {}
     summary = primary.get("summary") or {}
@@ -710,6 +795,7 @@ def main():
     recent_drift = load_recent_drift_report()
     drift_summary = summarize_recent_drift(recent_drift)
     live_predict_probe = load_live_predict_probe()
+    leaderboard_candidate_probe = load_leaderboard_candidate_probe()
     live_predict_summary = summarize_live_predict_probe(live_predict_probe)
     drift_primary = (recent_drift or {}).get("primary_window") or {}
     drift_primary_summary = drift_primary.get("summary") or {}
@@ -725,6 +811,7 @@ def main():
 
     # Load existing issues
     tracker = IssueTracker.load()
+    sync_current_state_governance_issues(tracker, leaderboard_candidate_probe, metrics)
 
     # Rule 1: canonical simulated win collapses below random
     if db_stats["simulated_win_avg"] < 0.50:
@@ -899,7 +986,7 @@ def main():
             print(f"\n{prio} 問題：")
             for item in items:
                 print(f"  {item['id']}: {item['title']}")
-                print(f"    → {item.get('action', '')}")
+                print(f"    → {issue_action_text(item)}")
 
     print(
         f"\n📊 資料庫：simulated_win={db_stats['simulated_win_avg']:.4f}, "
