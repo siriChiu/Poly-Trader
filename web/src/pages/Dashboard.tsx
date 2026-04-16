@@ -46,6 +46,21 @@ interface RuntimeStatusResponse {
   dry_run: boolean;
   symbol: string;
   timestamp: string;
+  execution_surface_contract?: {
+    canonical_execution_route?: string;
+    canonical_surface_label?: string;
+    shortcut_surface?: {
+      name?: string;
+      role?: string;
+      status?: string;
+      message?: string;
+      upgrade_prerequisite?: string;
+    } | null;
+    readiness_scope?: string;
+    live_ready?: boolean;
+    live_ready_blockers?: string[];
+    operator_message?: string;
+  } | null;
   execution_metadata_smoke?: {
     available?: boolean;
     artifact_path?: string;
@@ -146,6 +161,17 @@ interface RuntimeStatusResponse {
           age_minutes?: number | null;
           stale_after_minutes?: number | null;
         } | null;
+        ticking_state?: {
+          status?: "install-ready" | "installed" | "observed-ticking" | "installed-but-not-ticking" | string;
+          reason?: string;
+          message?: string;
+          installed?: boolean;
+          active_lane?: string | null;
+          checked_at?: string | null;
+          freshness_status?: string | null;
+          age_minutes?: number | null;
+          stale_after_minutes?: number | null;
+        } | null;
       } | null;
     } | null;
     venues?: Array<{
@@ -229,6 +255,15 @@ interface RuntimeStatusResponse {
     venue?: string;
     mode?: string;
     dry_run?: boolean;
+    requested_symbol?: string | null;
+    normalized_symbol?: string | null;
+    captured_at?: string | null;
+    degraded?: boolean;
+    operator_message?: string | null;
+    recovery_hint?: string | null;
+    error?: string | null;
+    position_count?: number;
+    open_order_count?: number;
     balance?: {
       free?: number;
       total?: number;
@@ -240,6 +275,7 @@ interface RuntimeStatusResponse {
     health?: {
       connected?: boolean;
       credentials_configured?: boolean;
+      error?: string;
       [key: string]: unknown;
     } | null;
   } | null;
@@ -352,6 +388,24 @@ function formatGuardrailRules(rules: Record<string, unknown> | null | undefined)
     .map(([key, value]) => `${key}: ${formatGuardrailValue(value)}`);
 }
 
+function readRecordString(record: Record<string, unknown> | null | undefined, keys: string[]): string | null {
+  if (!record) return null;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return null;
+}
+
+function readRecordNumber(record: Record<string, unknown> | null | undefined, keys: string[]): number | null {
+  if (!record) return null;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
 function getSmokeFreshnessTone(status: string | undefined | null): string {
   if (status === "fresh") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
   if (status === "stale") return "border-amber-700/40 bg-amber-950/20 text-amber-200";
@@ -368,6 +422,13 @@ function getSmokeGovernanceTone(status: string | undefined | null): string {
   if (status === "healthy") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
   if (status === "refresh_required") return "border-amber-700/40 bg-amber-950/20 text-amber-200";
   return "border-red-700/40 bg-red-950/20 text-red-200";
+}
+
+function getExternalMonitorTickingTone(status: string | undefined | null): string {
+  if (status === "observed-ticking") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
+  if (status === "installed") return "border-sky-700/40 bg-sky-950/20 text-sky-200";
+  if (status === "install-ready") return "border-slate-700/40 bg-slate-950/20 text-slate-300";
+  return "border-amber-700/40 bg-amber-950/20 text-amber-200";
 }
 
 export default function Dashboard() {
@@ -470,6 +531,7 @@ export default function Dashboard() {
   const maturitySummary = featureCoverageData?.maturity_counts ?? null;
   const executionSummary = runtimeStatus?.execution ?? null;
   const accountSummary = runtimeStatus?.account ?? null;
+  const executionSurfaceContract = runtimeStatus?.execution_surface_contract ?? null;
   const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
@@ -477,9 +539,11 @@ export default function Dashboard() {
   const metadataSmokeBackgroundMonitor = metadataSmokeGovernance?.background_monitor ?? null;
   const metadataSmokeExternalMonitor = metadataSmokeGovernance?.external_monitor ?? null;
   const externalMonitorInstallContract = metadataSmokeExternalMonitor?.install_contract ?? null;
+  const externalMonitorTickingState = metadataSmokeExternalMonitor?.ticking_state ?? null;
   const metadataSmokeFreshnessTone = getSmokeFreshnessTone(metadataSmokeFreshness?.status);
   const metadataSmokeFreshnessLabel = getSmokeFreshnessLabel(metadataSmokeFreshness?.status);
   const metadataSmokeGovernanceTone = getSmokeGovernanceTone(metadataSmokeGovernance?.status);
+  const externalMonitorTickingTone = getExternalMonitorTickingTone(externalMonitorTickingState?.status);
   const rawContinuity = runtimeStatus?.raw_continuity ?? null;
   const featureContinuity = runtimeStatus?.feature_continuity ?? null;
   const executionModeLabel = executionSummary?.mode || accountSummary?.mode || "unknown";
@@ -488,8 +552,17 @@ export default function Dashboard() {
   const balanceFree = typeof accountSummary?.balance?.free === "number" ? accountSummary.balance.free : null;
   const balanceTotal = typeof accountSummary?.balance?.total === "number" ? accountSummary.balance.total : null;
   const balanceCurrency = typeof accountSummary?.balance?.currency === "string" ? accountSummary.balance.currency : "USDT";
-  const openOrderCount = Array.isArray(accountSummary?.open_orders) ? accountSummary.open_orders.length : 0;
-  const positionCount = Array.isArray(accountSummary?.positions) ? accountSummary.positions.length : 0;
+  const positions = Array.isArray(accountSummary?.positions) ? accountSummary.positions : [];
+  const openOrders = Array.isArray(accountSummary?.open_orders) ? accountSummary.open_orders : [];
+  const openOrderCount = typeof accountSummary?.open_order_count === "number" ? accountSummary.open_order_count : openOrders.length;
+  const positionCount = typeof accountSummary?.position_count === "number" ? accountSummary.position_count : positions.length;
+  const accountRequestedSymbol = accountSummary?.requested_symbol ?? null;
+  const accountNormalizedSymbol = accountSummary?.normalized_symbol ?? null;
+  const accountCapturedAt = accountSummary?.captured_at ?? null;
+  const accountDegraded = Boolean(accountSummary?.degraded);
+  const accountOperatorMessage = accountSummary?.operator_message ?? null;
+  const accountRecoveryHint = accountSummary?.recovery_hint ?? null;
+  const accountHealthError = accountSummary?.health?.error ?? accountSummary?.error ?? null;
   const guardrails = executionSummary?.guardrails ?? null;
   const lastReject = guardrails?.last_reject ?? null;
   const lastRejectContext = lastReject?.context ?? null;
@@ -704,6 +777,44 @@ export default function Dashboard() {
             <div className="mt-1 leading-5 opacity-90">{tradeFeedback.detail}</div>
           </div>
         )}
+        {executionSurfaceContract && (
+          <div className="mt-3 rounded-lg border border-cyan-400/20 bg-cyan-500/10 p-3 text-[11px] leading-5 text-cyan-50">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-semibold">execution route contract</div>
+              <div>
+                canonical route {executionSurfaceContract.canonical_execution_route ?? "unknown"}
+              </div>
+            </div>
+            <div className="mt-1 opacity-90">
+              canonical surface {executionSurfaceContract.canonical_surface_label ?? "Dashboard / Execution 狀態面板"}
+            </div>
+            <div className="mt-1 opacity-85">
+              shortcut lane {executionSurfaceContract.shortcut_surface?.name ?? "signal_banner"}
+              {executionSurfaceContract.shortcut_surface?.role ? ` · ${executionSurfaceContract.shortcut_surface.role}` : ""}
+              {executionSurfaceContract.shortcut_surface?.status ? ` · ${executionSurfaceContract.shortcut_surface.status}` : ""}
+            </div>
+            {executionSurfaceContract.shortcut_surface?.message && (
+              <div className="mt-1 opacity-90">{executionSurfaceContract.shortcut_surface.message}</div>
+            )}
+            {executionSurfaceContract.shortcut_surface?.upgrade_prerequisite && (
+              <div className="mt-1 opacity-80">
+                升級前提：{executionSurfaceContract.shortcut_surface.upgrade_prerequisite}
+              </div>
+            )}
+            <div className="mt-1 opacity-85">
+              readiness scope {executionSurfaceContract.readiness_scope ?? "runtime_governance_visibility_only"}
+              {` · live ready ${executionSurfaceContract.live_ready ? "yes" : "no"}`}
+            </div>
+            {executionSurfaceContract.operator_message && (
+              <div className="mt-1 opacity-90">{executionSurfaceContract.operator_message}</div>
+            )}
+            {executionSurfaceContract.live_ready_blockers?.length ? (
+              <div className="mt-1 opacity-80">
+                live blockers: {executionSurfaceContract.live_ready_blockers.join(" · ")}
+              </div>
+            ) : null}
+          </div>
+        )}
         <div className="mt-3 rounded-lg border border-white/10 bg-slate-950/20 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="font-semibold">Metadata smoke 摘要</div>
@@ -755,6 +866,21 @@ export default function Dashboard() {
                     {metadataSmokeExternalMonitor.checked_at ? ` · checked ${new Date(metadataSmokeExternalMonitor.checked_at).toLocaleString("zh-TW")}` : ""}
                     {metadataSmokeExternalMonitor.freshness?.status ? ` · freshness ${metadataSmokeExternalMonitor.freshness.status}` : ""}
                     {metadataSmokeExternalMonitor.interval_seconds != null ? ` · every ${metadataSmokeExternalMonitor.interval_seconds}s` : ""}
+                  </div>
+                )}
+                {externalMonitorTickingState?.status && (
+                  <div className={`mt-2 rounded-md border px-3 py-2 text-[11px] leading-5 ${externalMonitorTickingTone}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-semibold">external monitor state</div>
+                      <div>{externalMonitorTickingState.status}</div>
+                    </div>
+                    <div className="mt-1 opacity-90">{externalMonitorTickingState.message}</div>
+                    <div className="mt-1 opacity-80">
+                      {externalMonitorTickingState.active_lane ? `active lane ${externalMonitorTickingState.active_lane}` : "active lane unknown"}
+                      {externalMonitorTickingState.freshness_status ? ` · freshness ${externalMonitorTickingState.freshness_status}` : ""}
+                      {externalMonitorTickingState.age_minutes != null ? ` · age ${externalMonitorTickingState.age_minutes.toFixed(1)}m` : ""}
+                      {externalMonitorTickingState.stale_after_minutes != null ? ` · stale after ${formatGuardrailValue(externalMonitorTickingState.stale_after_minutes, 1)}m` : ""}
+                    </div>
                   </div>
                 )}
                 {metadataSmokeGovernance?.refresh_command && (
@@ -862,6 +988,123 @@ export default function Dashboard() {
           ) : (
             <div className="mt-2 text-[11px] opacity-80">目前沒有最近 reject context；一旦 pre-trade guardrail 擋單，這裡會直接顯示可調整的 qty / price 規則。</div>
           )}
+        </div>
+        <div className="mt-3 rounded-lg border border-white/10 bg-slate-950/20 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="font-semibold">Execution runtime truth / detail</div>
+            <div className="text-[11px] opacity-70">
+              {accountCapturedAt ? `snapshot ${new Date(accountCapturedAt).toLocaleString("zh-TW")}` : "等待 account snapshot"}
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] opacity-85">
+            <span>symbol scope {accountRequestedSymbol || "—"}</span>
+            <span>normalized {accountNormalizedSymbol || "—"}</span>
+            <span>positions {positionCount}</span>
+            <span>open orders {openOrderCount}</span>
+            <span className={accountDegraded ? "text-amber-300" : "text-emerald-300"}>
+              runtime truth {accountDegraded ? "degraded" : "fresh"}
+            </span>
+          </div>
+          {accountOperatorMessage && (
+            <div className="mt-2 text-[11px] opacity-90">{accountOperatorMessage}</div>
+          )}
+          {(accountRecoveryHint || accountHealthError) && (
+            <div className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-[11px] leading-5 text-amber-100">
+              <div className="font-semibold">Recovery / operator next step</div>
+              {accountHealthError && <div className="mt-1">error: {accountHealthError}</div>}
+              {accountRecoveryHint && <div className="mt-1">hint: {accountRecoveryHint}</div>}
+            </div>
+          )}
+          <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
+            <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[11px] opacity-70">倉位明細</div>
+                <div className="text-[11px] opacity-70">{positionCount} 筆</div>
+              </div>
+              {positions.length > 0 ? (
+                <div className="mt-2 space-y-2 text-[11px] leading-5">
+                  {positions.slice(0, 5).map((position, idx) => {
+                    const symbol = readRecordString(position, ["symbol", "instId", "market", "pair"]);
+                    const side = readRecordString(position, ["side", "direction", "positionSide"]);
+                    const size = readRecordNumber(position, ["size", "contracts", "amount", "positionAmt"]);
+                    const entryPrice = readRecordNumber(position, ["entryPrice", "entry_price", "avgPrice", "average", "avgPx"]);
+                    const markPrice = readRecordNumber(position, ["markPrice", "mark_price", "lastPrice", "last", "markPx"]);
+                    const unrealizedPnl = readRecordNumber(position, ["unrealizedPnl", "unrealized_pnl", "upl", "info.unrealizedPnl"]);
+                    return (
+                      <div key={`${symbol || "position"}-${idx}`} className="rounded-md border border-white/10 px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-semibold">{symbol || `position ${idx + 1}`}</div>
+                          <div className="opacity-80">{side || "unknown side"}</div>
+                        </div>
+                        <div className="mt-1 opacity-85">size {formatGuardrailValue(size)}</div>
+                        <div className="mt-1 opacity-80">entry {formatGuardrailValue(entryPrice)} · mark {formatGuardrailValue(markPrice)}</div>
+                        <div className="mt-1 opacity-80">unrealized pnl {formatGuardrailValue(unrealizedPnl)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-2 text-[11px] opacity-80">目前沒有可見持倉；若預期應有持倉，請檢查上方 degraded / recovery 訊息。</div>
+              )}
+            </div>
+            <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[11px] opacity-70">Open orders 明細</div>
+                <div className="text-[11px] opacity-70">{openOrderCount} 筆</div>
+              </div>
+              {openOrders.length > 0 ? (
+                <div className="mt-2 space-y-2 text-[11px] leading-5">
+                  {openOrders.slice(0, 5).map((order, idx) => {
+                    const symbol = readRecordString(order, ["symbol", "instId", "market", "pair"]);
+                    const side = readRecordString(order, ["side", "direction"]);
+                    const orderType = readRecordString(order, ["type", "orderType", "ordType"]);
+                    const status = readRecordString(order, ["status", "state"]);
+                    const amount = readRecordNumber(order, ["amount", "qty", "size", "origQty", "sz"]);
+                    const remaining = readRecordNumber(order, ["remaining", "leavesQty", "leavesSz"]);
+                    const price = readRecordNumber(order, ["price", "avgPrice", "px"]);
+                    return (
+                      <div key={`${symbol || "order"}-${idx}`} className="rounded-md border border-white/10 px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-semibold">{symbol || `order ${idx + 1}`}</div>
+                          <div className="opacity-80">{status || "unknown status"}</div>
+                        </div>
+                        <div className="mt-1 opacity-85">{side || "unknown side"} · {orderType || "unknown type"}</div>
+                        <div className="mt-1 opacity-80">qty {formatGuardrailValue(amount)} · remaining {formatGuardrailValue(remaining)}</div>
+                        <div className="mt-1 opacity-80">price {formatGuardrailValue(price)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-2 text-[11px] opacity-80">目前沒有未成交掛單；若預期應有掛單，請回頭核對 venue health 與 account snapshot。</div>
+              )}
+            </div>
+            <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
+              <div className="text-[11px] opacity-70">最近委託正規化回放</div>
+              {lastOrder?.normalization ? (
+                <div className="mt-2 space-y-2 text-[11px] leading-5">
+                  <div className="rounded-md border border-white/10 px-3 py-2">
+                    <div className="font-semibold">requested</div>
+                    <div className="mt-1 opacity-80">symbol {lastOrder.normalization.requested?.symbol || "—"}</div>
+                    <div className="mt-1 opacity-80">qty {formatGuardrailValue(lastOrder.normalization.requested?.qty)} · price {formatGuardrailValue(lastOrder.normalization.requested?.price)}</div>
+                  </div>
+                  <div className="rounded-md border border-white/10 px-3 py-2">
+                    <div className="font-semibold">normalized</div>
+                    <div className="mt-1 opacity-80">symbol {lastOrder.normalization.normalized?.symbol || "—"}</div>
+                    <div className="mt-1 opacity-80">qty {formatGuardrailValue(lastOrder.normalization.normalized?.qty)} · price {formatGuardrailValue(lastOrder.normalization.normalized?.price)}</div>
+                    <div className="mt-1 opacity-80">qty changed {lastOrder.normalization.normalized?.qty_changed ? "yes" : "no"} · price changed {lastOrder.normalization.normalized?.price_changed ? "yes" : "no"}</div>
+                  </div>
+                  <div className="rounded-md border border-white/10 px-3 py-2">
+                    <div className="font-semibold">contract replay</div>
+                    <div className="mt-1 opacity-80">step {formatGuardrailValue(lastOrder.normalization.contract?.step_size)} · tick {formatGuardrailValue(lastOrder.normalization.contract?.tick_size)}</div>
+                    <div className="mt-1 opacity-80">min qty {formatGuardrailValue(lastOrder.normalization.contract?.min_qty)} · min cost {formatGuardrailValue(lastOrder.normalization.contract?.min_cost)}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 text-[11px] opacity-80">尚無可回放的最近委託；下一筆手動或自動委託會在這裡顯示 requested → normalized → contract。</div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

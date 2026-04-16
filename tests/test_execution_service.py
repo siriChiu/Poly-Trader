@@ -88,11 +88,18 @@ def test_execution_service_submit_order_records_trade(monkeypatch):
 def test_account_sync_service_returns_combined_snapshot(monkeypatch):
     sync = AccountSyncService({"execution": {"mode": "paper", "venue": "okx"}})
     monkeypatch.setattr(sync.service, "get_adapter", lambda venue=None: FakeAdapter(dry_run=True))
-    snapshot = sync.snapshot(symbol="BTC/USDT")
+    snapshot = sync.snapshot(symbol="BTCUSDT")
     assert snapshot["venue"] == "okx"
     assert snapshot["balance"]["free"] == 321.0
     assert snapshot["positions"][0]["symbol"] == "BTC/USDT"
     assert snapshot["open_orders"][0]["symbol"] == "BTC/USDT"
+    assert snapshot["requested_symbol"] == "BTCUSDT"
+    assert snapshot["normalized_symbol"] == "BTC/USDT"
+    assert snapshot["position_count"] == 1
+    assert snapshot["open_order_count"] == 1
+    assert snapshot["degraded"] is False
+    assert snapshot["captured_at"].endswith("Z")
+    assert "核對目前 venue" in snapshot["operator_message"]
 
 
 def test_execution_service_normalizes_legacy_symbol_format(monkeypatch):
@@ -122,6 +129,15 @@ def test_account_sync_service_degrades_when_adapter_raises(monkeypatch):
     snapshot = sync.snapshot(symbol="BTCUSDT")
     assert snapshot["health"]["error"] == "broken"
     assert snapshot["positions"] == []
+    assert snapshot["open_orders"] == []
+    assert snapshot["degraded"] is True
+    assert snapshot["requested_symbol"] == "BTCUSDT"
+    assert snapshot["normalized_symbol"] == "BTC/USDT"
+    assert snapshot["position_count"] == 0
+    assert snapshot["open_order_count"] == 0
+    assert snapshot["captured_at"].endswith("Z")
+    assert "不可視為已驗證" in snapshot["operator_message"]
+    assert "symbol 正規化" in snapshot["recovery_hint"]
 
 
 def test_execution_service_rejects_disabled_venue():
