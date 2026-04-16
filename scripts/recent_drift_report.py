@@ -179,20 +179,20 @@ def _expected_compressed_reason(
     proxy_baseline = baseline_feature_stats.get(str(proxy_col)) or {}
     proxy_recent_std = proxy_recent.get("std")
     proxy_baseline_std = proxy_baseline.get("std")
-    proxy_recent_mean = proxy_recent.get("mean")
-    proxy_baseline_mean = proxy_baseline.get("mean")
 
     if not isinstance(proxy_recent_std, (int, float)) or not isinstance(proxy_baseline_std, (int, float)):
         return None
     if proxy_baseline_std <= 0:
         return None
+
     proxy_std_ratio = proxy_recent_std / proxy_baseline_std
     if proxy_std_ratio > LOW_VARIANCE_STD_RATIO_THRESHOLD:
         return None
-    if not isinstance(proxy_recent_mean, (int, float)) or not isinstance(proxy_baseline_mean, (int, float)):
-        return None
-    if proxy_recent_mean > proxy_baseline_mean:
-        return None
+
+    # Heartbeat #1025 contract: ATR compression is expected whenever the underlying raw
+    # volatility series compresses too. The proxy mean can rise during a strong bull pocket
+    # even while dispersion collapses, so gating on mean direction misclassifies genuine
+    # volatility contraction as a feature-pathology blocker.
     return str(rule.get("reason") or "expected_underlying_compression")
 
 

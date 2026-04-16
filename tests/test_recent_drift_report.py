@@ -260,7 +260,7 @@ def test_build_report_marks_weekday_macro_features_as_expected_static_outside_us
     assert "feat_dxy" not in unexpected
 
 
-def test_build_report_marks_atr_compression_as_expected_when_raw_volatility_also_compresses(tmp_path, monkeypatch):
+def test_build_report_marks_expected_compressed_features_when_underlying_raw_proxy_compresses(tmp_path, monkeypatch):
     db_path = tmp_path / "poly_trader.db"
     conn = sqlite3.connect(db_path)
     conn.execute(
@@ -312,6 +312,89 @@ def test_build_report_marks_atr_compression_as_expected_when_raw_volatility_also
         label_rows.append((i + 1, ts, "BTCUSDT", 1440, 1, 1.0, 0.01, 0.4, 0.1, 0.2, 0.01, -0.02, 0.03, "bull"))
         atr_val = (0.0100 + i * 0.0020) if i < 5 else (0.0030 + (i - 5) * 0.00005)
         raw_vol = (0.0400 + i * 0.0100) if i < 5 else (0.0080 + (i - 5) * 0.0002)
+        feature_rows.append((ts, "BTCUSDT", "bull", atr_val, float(i)))
+        raw_rows.append((ts, "BTCUSDT", raw_vol))
+
+    conn.executemany(
+        "INSERT INTO labels VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        label_rows,
+    )
+    conn.executemany(
+        "INSERT INTO features_normalized VALUES (?, ?, ?, ?, ?)",
+        feature_rows,
+    )
+    conn.executemany(
+        "INSERT INTO raw_market_data VALUES (?, ?, ?)",
+        raw_rows,
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(recent_drift_report, "DB_PATH", db_path)
+    monkeypatch.setattr(recent_drift_report, "WINDOWS", [5])
+
+    report = recent_drift_report.build_report()
+    feature_diag = report["windows"]["5"]["feature_diagnostics"]
+
+    reasons = {row["feature"]: row.get("expected_compressed_reason") for row in feature_diag["expected_compressed_examples"]}
+    assert reasons["feat_atr_pct"] == "underlying_raw_volatility_compression"
+    unexpected = {row["feature"] for row in feature_diag["unexpected_compressed_examples"]}
+    assert "feat_atr_pct" not in unexpected
+
+
+def test_build_report_keeps_atr_expected_compression_when_raw_volatility_mean_rises_but_dispersion_collapses(tmp_path, monkeypatch):
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE labels (
+            id INTEGER PRIMARY KEY,
+            timestamp TEXT,
+            symbol TEXT,
+            horizon_minutes INTEGER,
+            simulated_pyramid_win INTEGER,
+            label_spot_long_win REAL,
+            simulated_pyramid_pnl REAL,
+            simulated_pyramid_quality REAL,
+            simulated_pyramid_drawdown_penalty REAL,
+            simulated_pyramid_time_underwater REAL,
+            future_return_pct REAL,
+            future_max_drawdown REAL,
+            future_max_runup REAL,
+            regime_label TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE features_normalized (
+            timestamp TEXT,
+            symbol TEXT,
+            regime_label TEXT,
+            feat_atr_pct REAL,
+            feat_eye REAL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE raw_market_data (
+            timestamp TEXT,
+            symbol TEXT,
+            volatility REAL
+        )
+        """
+    )
+
+    label_rows = []
+    feature_rows = []
+    raw_rows = []
+    for i in range(10):
+        ts = f"2026-04-16 0{i}:00:00"
+        label_rows.append((i + 1, ts, "BTCUSDT", 1440, 1, 1.0, 0.01, 0.4, 0.1, 0.2, 0.01, -0.02, 0.03, "bull"))
+        atr_val = (0.0200 + i * 0.0025) if i < 5 else (0.0100 + (i - 5) * 0.00004)
+        # Recent volatility mean is slightly HIGHER than baseline, but dispersion collapses sharply.
+        raw_vol = (0.0040 + i * 0.0002) if i < 5 else (0.0050 + (i - 5) * 0.00001)
         feature_rows.append((ts, "BTCUSDT", "bull", atr_val, float(i)))
         raw_rows.append((ts, "BTCUSDT", raw_vol))
 
