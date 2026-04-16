@@ -244,6 +244,8 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 
 reject context 也必須保留 `raw_value / adjusted_value / delta / rules`，讓上層 API / UI 能把「原始值 → 合法值 → 差額 → 規則來源」完整暴露給操作者，而不是等 exchange runtime rejection 才知道 granularity 不合法。
 
+**Manual trade runtime closure contract（Heartbeat 2026-04-16 13:19 UTC）**：`web/src/pages/Dashboard.tsx` 的 manual trade callback 不得再只送出 `/api/trade` 然後等待輪詢。成功與失敗兩條路都必須 **主動 refresh `/api/status`**，並把最新 `guardrails / last_reject / last_order` 拉回同一個操作閉環。Dashboard 也必須保留一個 operator-facing **Guardrail context 面板**，把最近 reject 的 `field / raw_value / adjusted_value / delta / rules` 轉成可讀資訊；否則即使 structured reject payload 正確存在，execution surface 仍不算真正落地。
+
 ---
 
 ## 目錄結構

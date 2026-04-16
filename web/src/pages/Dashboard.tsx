@@ -6,7 +6,6 @@ import RadarChart from "../components/RadarChart";
 import AdviceCard from "../components/AdviceCard";
 import FeatureChart from "../components/FeatureChart";
 import CandlestickChart from "../components/CandlestickChart";
-import BacktestSummary from "../components/BacktestSummary";
 import { buildWsUrl, useApi, fetchApi } from "../hooks/useApi";
 import ConfidenceIndicator from "../components/ConfidenceIndicator";
 import { ALL_SENSES, getSenseConfig } from "../config/senses";
@@ -42,6 +41,89 @@ interface ModelStats {
   model_params: Record<string, any>;
 }
 
+interface RuntimeStatusResponse {
+  automation: boolean;
+  dry_run: boolean;
+  symbol: string;
+  timestamp: string;
+  execution?: {
+    mode?: string;
+    venue?: string;
+    live_enabled?: boolean;
+    kill_switch?: boolean;
+    health?: {
+      connected?: boolean;
+      credentials_configured?: boolean;
+      [key: string]: unknown;
+    } | null;
+    guardrails?: {
+      kill_switch?: boolean;
+      max_daily_loss_pct?: number;
+      daily_loss_ratio?: number | null;
+      daily_loss_halt?: boolean;
+      max_consecutive_failures?: number;
+      consecutive_failures?: number;
+      failure_halt?: boolean;
+      last_failure?: { message?: string; timestamp?: string } | null;
+      last_reject?: {
+        code?: string;
+        message?: string;
+        timestamp?: string;
+        context?: {
+          field?: string;
+          raw_value?: number | null;
+          adjusted_value?: number | null;
+          delta?: number | null;
+          step_size?: string | number | null;
+          precision?: string | number | null;
+          rules?: Record<string, unknown> | null;
+        } | null;
+      } | null;
+      last_order?: { venue?: string; symbol?: string; side?: string; qty?: number; status?: string; timestamp?: number } | null;
+    } | null;
+  } | null;
+  account?: {
+    venue?: string;
+    mode?: string;
+    dry_run?: boolean;
+    balance?: {
+      free?: number;
+      total?: number;
+      currency?: string;
+      [key: string]: unknown;
+    } | null;
+    positions?: Array<Record<string, unknown>>;
+    open_orders?: Array<Record<string, unknown>>;
+    health?: {
+      connected?: boolean;
+      credentials_configured?: boolean;
+      [key: string]: unknown;
+    } | null;
+  } | null;
+  raw_continuity?: {
+    status?: "clean" | "repaired" | "error" | string;
+    checked_at?: string;
+    error?: string;
+    continuity_repair?: {
+      inserted_total?: number;
+      coarse_inserted?: number;
+      fine_inserted?: number;
+      bridge_inserted?: number;
+      used_bridge?: boolean;
+      used_fine_grain?: boolean;
+    };
+  } | null;
+  feature_continuity?: {
+    status?: "clean" | "repaired" | "error" | string;
+    checked_at?: string;
+    error?: string;
+    continuity_repair?: {
+      inserted_total?: number;
+      remaining_missing?: number;
+    };
+  } | null;
+}
+
 interface ConfidenceData {
   error?: string;
   confidence: number;
@@ -65,37 +147,74 @@ interface ConfidenceData {
   timestamp: string;
 }
 
-interface BacktestData {
-  final_equity: number;
-  initial_capital: number;
-  total_trades: number;
-  win_rate: number;
-  profit_loss_ratio: number;
-  max_drawdown: number;
-  total_return: number;
-  avg_entry_quality?: number | null;
-  avg_allowed_layers?: number | null;
-  dominant_regime_gate?: string | null;
-  avg_expected_win_rate?: number | null;
-  avg_expected_pyramid_quality?: number | null;
-  avg_expected_drawdown_penalty?: number | null;
-  avg_expected_time_underwater?: number | null;
-  avg_decision_quality_score?: number | null;
-  decision_quality_label?: string | null;
-  decision_quality_sample_size?: number | null;
-  decision_contract?: {
-    target_col?: string | null;
-    target_label?: string | null;
-    sort_semantics?: string | null;
-    decision_quality_horizon_minutes?: number | null;
-  } | null;
-  error?: string;
+interface DashboardScorePoint {
+  timestamp: string;
+  score?: number | null;
+}
+
+interface TradeFeedbackState {
+  tone: "success" | "error" | "pending";
+  title: string;
+  detail: string;
+  timestamp: string;
+}
+
+interface FeatureHistoryRow {
+  timestamp: string;
+  [key: string]: string | number | null | undefined;
+}
+
+const DASHBOARD_SCORE_WEIGHTS: Record<string, number> = {
+  pulse: 0.18,
+  eye: 0.12,
+  nose: 0.12,
+  tongue: 0.08,
+  body: 0.06,
+  bb_pct_b: 0.10,
+  nw_slope: 0.08,
+  adx: 0.05,
+  vix: 0.04,
+  dxy: 0.04,
+  "4h_bias50": 0.07,
+  "4h_dist_swing_low": 0.04,
+  "4h_rsi14": 0.02,
+};
+
+function computeDashboardCompositeScore(row: Record<string, string | number | null | undefined>): number | null {
+  let weightedSum = 0;
+  let weightTotal = 0;
+  for (const [key, weight] of Object.entries(DASHBOARD_SCORE_WEIGHTS)) {
+    const value = row[key];
+    if (typeof value !== "number" || !Number.isFinite(value)) continue;
+    weightedSum += value * weight;
+    weightTotal += weight;
+  }
+  if (weightTotal <= 0) return null;
+  return Math.max(0, Math.min(1, weightedSum / weightTotal));
+}
+
+function formatGuardrailValue(value: unknown, digits = 6): string {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return "—";
+    return value.toFixed(digits).replace(/\.?0+$/, "");
+  }
+  if (typeof value === "string" && value.trim()) return value;
+  return "—";
+}
+
+function formatGuardrailRules(rules: Record<string, unknown> | null | undefined): string[] {
+  if (!rules) return [];
+  return Object.entries(rules)
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .map(([key, value]) => `${key}: ${formatGuardrailValue(value)}`);
 }
 
 export default function Dashboard() {
-  const [interval, setInterval] = useState("1h");
-  const [days, setDays] = useState(7);
+  const [interval, setInterval] = useState("4h");
+  const [days, setDays] = useState(14);
   const [selectedSense, setSelectedSense] = useState<string | null>(null);
+  const [showFeatureHistory, setShowFeatureHistory] = useState(false);
+  const [dashboardScoreSeries, setDashboardScoreSeries] = useState<DashboardScorePoint[]>([]);
   // Build initial scores from ALL known features (8 core + 2 macro + 5 TI + 6 P0/P1 + 10 4H)
   const defaultScores: Record<string, number> = {};
   const allFeatures = [...Object.keys(ALL_SENSES)];
@@ -107,12 +226,13 @@ export default function Dashboard() {
   const [liveAdvice, setLiveAdvice] = useState<any>(null);
   const [lastUpdate, setLastUpdate] = useState<string>();
   const [wsConnected, setWsConnected] = useState(false);
+  const [tradeFeedback, setTradeFeedback] = useState<TradeFeedbackState | null>(null);
 
   const { data: sensesData, error: apiError, refresh: refreshSenses } = useApi<SensesResponse>("/api/senses", 30000);
   const { data: featureCoverageData } = useApi<FeatureCoverageResponse>("/api/features/coverage?days=30", 60000);
-  const { data: backtestData } = useApi<BacktestData>("/api/backtest");
   const { data: confidenceData } = useApi<ConfidenceData>("/api/predict/confidence", 60000);
   const { data: modelStats } = useApi<ModelStats>("/api/model/stats", 60000);
+  const { data: runtimeStatus, refresh: refreshRuntimeStatus } = useApi<RuntimeStatusResponse>("/api/status", 60000);
 
   // WebSocket
   useEffect(() => {
@@ -156,6 +276,30 @@ export default function Dashboard() {
     }
   }, [sensesData]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadScoreSeries = async () => {
+      try {
+        const rows = await fetchApi(`/api/features?days=${days}`) as FeatureHistoryRow[];
+        const nextSeries = (rows || []).map((row) => ({
+          timestamp: row.timestamp,
+          score: computeDashboardCompositeScore(row),
+        }));
+        if (!cancelled) {
+          setDashboardScoreSeries(nextSeries);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDashboardScoreSeries([]);
+        }
+      }
+    };
+    loadScoreSeries();
+    return () => {
+      cancelled = true;
+    };
+  }, [days]);
+
   // 合併 live data 與 API data
   const scores = liveScores.eye !== 0.5 || liveScores.ear !== 0.5
     ? liveScores
@@ -163,25 +307,88 @@ export default function Dashboard() {
 
   const advice = liveAdvice || sensesData?.recommendation;
   const maturitySummary = featureCoverageData?.maturity_counts ?? null;
+  const executionSummary = runtimeStatus?.execution ?? null;
+  const accountSummary = runtimeStatus?.account ?? null;
+  const rawContinuity = runtimeStatus?.raw_continuity ?? null;
+  const featureContinuity = runtimeStatus?.feature_continuity ?? null;
+  const executionModeLabel = executionSummary?.mode || accountSummary?.mode || "unknown";
+  const executionVenueLabel = executionSummary?.venue || accountSummary?.venue || "—";
+  const executionHealth = executionSummary?.health ?? accountSummary?.health ?? null;
+  const balanceFree = typeof accountSummary?.balance?.free === "number" ? accountSummary.balance.free : null;
+  const balanceTotal = typeof accountSummary?.balance?.total === "number" ? accountSummary.balance.total : null;
+  const balanceCurrency = typeof accountSummary?.balance?.currency === "string" ? accountSummary.balance.currency : "USDT";
+  const openOrderCount = Array.isArray(accountSummary?.open_orders) ? accountSummary.open_orders.length : 0;
+  const positionCount = Array.isArray(accountSummary?.positions) ? accountSummary.positions.length : 0;
+  const guardrails = executionSummary?.guardrails ?? null;
+  const lastReject = guardrails?.last_reject ?? null;
+  const lastRejectContext = lastReject?.context ?? null;
+  const lastRejectRuleLines = formatGuardrailRules(lastRejectContext?.rules);
+  const lastFailure = guardrails?.last_failure ?? null;
+  const lastOrder = guardrails?.last_order ?? null;
+  const tradeFeedbackTone = tradeFeedback?.tone === "success"
+    ? "border-emerald-700/40 bg-emerald-950/20 text-emerald-200"
+    : tradeFeedback?.tone === "error"
+      ? "border-red-700/40 bg-red-950/20 text-red-200"
+      : "border-sky-700/40 bg-sky-950/20 text-sky-200";
+  const executionTone = executionSummary?.kill_switch || guardrails?.daily_loss_halt || guardrails?.failure_halt
+    ? "border-red-700/40 bg-red-950/30 text-red-200"
+    : executionModeLabel === "live"
+      ? "border-emerald-700/40 bg-emerald-950/30 text-emerald-200"
+      : executionModeLabel === "live_canary"
+        ? "border-amber-700/40 bg-amber-950/30 text-amber-200"
+        : "border-slate-700/40 bg-slate-950/30 text-slate-300";
+  const continuityTone = rawContinuity?.status === "clean"
+    ? "border-emerald-700/40 bg-emerald-950/30 text-emerald-200"
+    : rawContinuity?.status === "repaired"
+      ? "border-amber-700/40 bg-amber-950/30 text-amber-200"
+      : rawContinuity?.status === "error"
+        ? "border-red-700/40 bg-red-950/30 text-red-200"
+        : "border-slate-700/40 bg-slate-950/30 text-slate-300";
+  const continuityLabel = rawContinuity?.status === "clean"
+    ? "raw 連續性正常"
+    : rawContinuity?.status === "repaired"
+      ? "啟動時已自動回填資料斷點"
+      : rawContinuity?.status === "error"
+        ? "啟動檢查失敗"
+        : "尚未收到啟動檢查結果";
 
   const handleTrade = useCallback(async (side: string) => {
     if (side === "hold") return;
+    const label = side === "buy" ? "買入" : side === "reduce" ? "減碼" : side.toUpperCase();
+    setTradeFeedback({
+      tone: "pending",
+      title: `${label} 指令送出中`,
+      detail: "正在提交 /api/trade，完成後會主動刷新 execution status。",
+      timestamp: new Date().toLocaleString("zh-TW"),
+    });
     try {
       const resp = await fetchApi("/api/trade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ side, symbol: "BTCUSDT", qty: 0.001 }),
       });
-      // 顯示成功提示
+      await refreshRuntimeStatus();
       const data = resp as any;
-      const label = side === "buy" ? "買入" : side === "reduce" ? "減碼" : side.toUpperCase();
-      alert(data?.success || data?.order
-        ? `${label} 指令已提交（Dry Run）`
-        : `${label} 已發送`);
+      const mode = data?.order?.mode || (data?.dry_run ? "dry_run" : "live");
+      const qty = typeof data?.order?.qty === "number" ? data.order.qty : null;
+      const venue = data?.venue || "unknown";
+      setTradeFeedback({
+        tone: "success",
+        title: `${label} 指令已提交`,
+        detail: `模式 ${mode} · 場館 ${venue}${qty != null ? ` · qty ${qty}` : ""}。已主動刷新 /api/status。`,
+        timestamp: new Date().toLocaleString("zh-TW"),
+      });
     } catch (e: any) {
-      alert(`下單失敗: ${e.message}`);
+      await refreshRuntimeStatus();
+      const detail = typeof e?.message === "string" ? e.message : "未知錯誤";
+      setTradeFeedback({
+        tone: "error",
+        title: `${label} 指令被拒絕或失敗`,
+        detail: `${detail}。已主動刷新 /api/status，請檢查下方 Guardrail context 面板。`,
+        timestamp: new Date().toLocaleString("zh-TW"),
+      });
     }
-  }, []);
+  }, [refreshRuntimeStatus]);
 
   // 判斷資料新鮮度
   const isDataStale = !lastUpdate && !wsConnected && !sensesData;
@@ -221,6 +428,160 @@ export default function Dashboard() {
         <div className="flex items-center gap-3 text-slate-500">
           {apiError && <span className="text-red-400">API 連線異常</span>}
         </div>
+      </div>
+
+      <div className={`rounded-xl border px-4 py-3 text-xs ${executionTone}`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="font-semibold">💼 Execution 狀態面板</div>
+          <div className="text-[11px] opacity-80">
+            {executionModeLabel.toUpperCase()} · {executionVenueLabel}
+            {executionSummary?.kill_switch ? " · KILL SWITCH" : ""}
+          </div>
+        </div>
+        <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
+            <div className="text-[11px] opacity-70">模式 / 場館</div>
+            <div className="mt-1 font-semibold">{executionModeLabel} · {executionVenueLabel}</div>
+            <div className="mt-1 text-[11px] opacity-80">
+              live enabled: {executionSummary?.live_enabled ? "yes" : "no"}
+            </div>
+            <div className="mt-1 text-[11px] opacity-80">
+              {accountSummary?.dry_run ? "目前為 paper / dry-run" : "可能進入真實委託路徑"}
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
+            <div className="text-[11px] opacity-70">餘額</div>
+            <div className="mt-1 font-semibold">
+              {balanceFree !== null ? `${balanceFree.toFixed(2)} ${balanceCurrency}` : "—"}
+            </div>
+            <div className="mt-1 text-[11px] opacity-80">
+              total {balanceTotal !== null ? balanceTotal.toFixed(2) : "—"}
+            </div>
+            <div className="mt-1 text-[11px] opacity-80">倉位 {positionCount} · 掛單 {openOrderCount}</div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
+            <div className="text-[11px] opacity-70">連線 / 憑證 / Halt</div>
+            <div className="mt-1 font-semibold">
+              {executionHealth?.connected ? "已連線" : "未連線"}
+            </div>
+            <div className="mt-1 text-[11px] opacity-80">
+              憑證 {executionHealth?.credentials_configured ? "已配置" : "未配置"}
+            </div>
+            <div className="mt-1 text-[11px] opacity-80">
+              daily halt {guardrails?.daily_loss_halt ? "ON" : "off"} · failure halt {guardrails?.failure_halt ? "ON" : "off"}
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
+            <div className="text-[11px] opacity-70">Guardrails</div>
+            <div className="mt-1 font-semibold">
+              日損 {guardrails?.daily_loss_ratio != null ? `${(guardrails.daily_loss_ratio * 100).toFixed(2)}%` : "—"}
+            </div>
+            <div className="mt-1 text-[11px] opacity-80">
+              上限 {guardrails?.max_daily_loss_pct != null ? `${(guardrails.max_daily_loss_pct * 100).toFixed(1)}%` : "—"}
+            </div>
+            <div className="mt-1 text-[11px] opacity-80">
+              連續失敗 {guardrails?.consecutive_failures ?? 0}/{guardrails?.max_consecutive_failures ?? 0}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
+          <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
+            <div className="text-[11px] opacity-70">最近拒單</div>
+            <div className="mt-1 font-semibold">{lastReject?.code || "—"}</div>
+            <div className="mt-1 text-[11px] opacity-80">{lastReject?.message || "尚無拒單紀錄"}</div>
+            <div className="mt-2 text-[11px] opacity-70">
+              {lastReject?.timestamp ? new Date(lastReject.timestamp).toLocaleString("zh-TW") : "尚未收到 reject timestamp"}
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
+            <div className="text-[11px] opacity-70">最近失敗</div>
+            <div className="mt-1 font-semibold">{lastFailure?.timestamp ? new Date(lastFailure.timestamp).toLocaleString("zh-TW") : "—"}</div>
+            <div className="mt-1 text-[11px] opacity-80">{lastFailure?.message || "尚無執行失敗"}</div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
+            <div className="text-[11px] opacity-70">最近委託</div>
+            <div className="mt-1 font-semibold">{lastOrder?.symbol || "—"}</div>
+            <div className="mt-1 text-[11px] opacity-80">{lastOrder ? `${lastOrder.side} · qty ${lastOrder.qty} · ${lastOrder.status}` : "尚無委託"}</div>
+            <div className="mt-2 text-[11px] opacity-70">
+              {lastOrder?.timestamp ? new Date(lastOrder.timestamp).toLocaleString("zh-TW") : "尚未收到 order timestamp"}
+            </div>
+          </div>
+        </div>
+        {tradeFeedback && (
+          <div className={`mt-3 rounded-lg border p-3 text-xs ${tradeFeedbackTone}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-semibold">手動交易即時回饋</div>
+              <div className="text-[11px] opacity-80">{tradeFeedback.timestamp}</div>
+            </div>
+            <div className="mt-1 font-semibold">{tradeFeedback.title}</div>
+            <div className="mt-1 leading-5 opacity-90">{tradeFeedback.detail}</div>
+          </div>
+        )}
+        <div className="mt-3 rounded-lg border border-white/10 bg-slate-950/20 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="font-semibold">Guardrail context 面板</div>
+            <div className="text-[11px] opacity-70">raw → adjusted → delta → rules</div>
+          </div>
+          {lastRejectContext ? (
+            <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
+                <div className="text-[11px] opacity-70">欄位 / 合約</div>
+                <div className="mt-1 font-semibold">{lastRejectContext.field || "—"}</div>
+                <div className="mt-2 text-[11px] opacity-85">原始值 {formatGuardrailValue(lastRejectContext.raw_value)}</div>
+                <div className="mt-1 text-[11px] opacity-85">合法值 {formatGuardrailValue(lastRejectContext.adjusted_value)}</div>
+                <div className="mt-1 text-[11px] opacity-85">差額 {formatGuardrailValue(lastRejectContext.delta)}</div>
+                <div className="mt-1 text-[11px] opacity-85">step / tick {formatGuardrailValue(lastRejectContext.step_size)}</div>
+                <div className="mt-1 text-[11px] opacity-85">precision {formatGuardrailValue(lastRejectContext.precision, 0)}</div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
+                <div className="text-[11px] opacity-70">規則來源</div>
+                {lastRejectRuleLines.length > 0 ? (
+                  <div className="mt-2 space-y-1 text-[11px] opacity-90">
+                    {lastRejectRuleLines.map((line) => (
+                      <div key={line}>• {line}</div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2 text-[11px] opacity-80">尚無可讀 rules；請檢查 API payload。</div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 text-[11px] opacity-80">目前沒有最近 reject context；一旦 pre-trade guardrail 擋單，這裡會直接顯示可調整的 qty / price 規則。</div>
+          )}
+        </div>
+      </div>
+
+      <div className={`rounded-xl border px-4 py-3 text-xs ${continuityTone}`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="font-semibold">🩹 啟動檢查 / continuity</div>
+          <div className="text-[11px] opacity-80">
+            {rawContinuity?.checked_at ? `檢查時間 ${new Date(rawContinuity.checked_at).toLocaleString("zh-TW")}` : "等待啟動檢查結果"}
+          </div>
+        </div>
+        <div className="mt-1 leading-5">{continuityLabel}</div>
+        {rawContinuity?.continuity_repair && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] opacity-90">
+            <span>總補回 {rawContinuity.continuity_repair.inserted_total ?? 0}</span>
+            <span>4h {rawContinuity.continuity_repair.coarse_inserted ?? 0}</span>
+            <span>1h {rawContinuity.continuity_repair.fine_inserted ?? 0}</span>
+            <span>bridge {rawContinuity.continuity_repair.bridge_inserted ?? 0}</span>
+            {rawContinuity.continuity_repair.used_bridge && <span className="text-amber-300">⚠️ 依賴 bridge fallback</span>}
+          </div>
+        )}
+        {featureContinuity?.continuity_repair && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] opacity-90">
+            <span>feature 狀態 {featureContinuity.status ?? "unknown"}</span>
+            <span>補回 {featureContinuity.continuity_repair.inserted_total ?? 0}</span>
+            <span>remaining missing {featureContinuity.continuity_repair.remaining_missing ?? 0}</span>
+          </div>
+        )}
+        {rawContinuity?.error && (
+          <div className="mt-2 text-[11px] text-red-200">錯誤：{rawContinuity.error}</div>
+        )}
+        {featureContinuity?.error && (
+          <div className="mt-2 text-[11px] text-red-200">Feature 錯誤：{featureContinuity.error}</div>
+        )}
       </div>
 
       {/* Row 1: Radar + Advice */}
@@ -433,65 +794,45 @@ export default function Dashboard() {
         );
       })()}
 
-      {/* Row 2: Sense History Chart */}
-      <FeatureChart selectedFeature={selectedSense} days={days} onClear={() => setSelectedSense(null)} />
-
-      {/* Row 3: K 線圖 */}
-      <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <span className="text-sm font-semibold text-slate-300">📊 K 線圖 + 技術指標</span>
-          <div className="flex items-center gap-1">
+      {/* Row 2: TradingView-style BTC/USDT + composite score */}
+      <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-300">📈 BTC/USDT × 綜合分數走勢</div>
+            <div className="mt-1 text-xs text-slate-500">主圖只保留價格與綜合分數，讓使用者用 TradingView 風格直接對照市場與策略強弱。</div>
+          </div>
+          <div className="flex items-center gap-2">
             {[
-              { label: "1H", iv: "1h", d: 3 },
               { label: "4H", iv: "4h", d: 14 },
               { label: "1D", iv: "1d", d: 90 },
             ].map((opt) => (
               <button
                 key={opt.iv}
                 onClick={() => { setInterval(opt.iv); setDays(opt.d); }}
-                className={`px-3 py-1 text-xs rounded-lg transition ${
-                  interval === opt.iv
-                    ? "bg-blue-600 text-white"
-                    : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                }`}
+                className={`px-3 py-1 text-xs rounded-lg transition ${interval === opt.iv ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700"}`}
               >
                 {opt.label}
               </button>
             ))}
+            <button
+              onClick={() => setShowFeatureHistory((prev) => !prev)}
+              className={`px-3 py-1 text-xs rounded-lg transition ${showFeatureHistory ? "bg-cyan-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700"}`}
+            >
+              {showFeatureHistory ? "隱藏多特徵" : "顯示多特徵"}
+            </button>
           </div>
         </div>
-        <CandlestickChart symbol="BTCUSDT" interval={interval} days={days} />
-        {/* 指標圖例 */}
-        <div className="flex flex-wrap gap-3 mt-2 text-xs text-slate-500">
-          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-yellow-500 inline-block"></span> MA20</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-pink-500 inline-block"></span> MA60</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-purple-500 inline-block"></span> RSI</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-500 inline-block"></span> MACD</span>
-        </div>
+        <CandlestickChart
+          symbol="BTCUSDT"
+          interval={interval}
+          days={days}
+          scoreSeries={dashboardScoreSeries}
+          title="BTC/USDT（綜合分數指標）"
+        />
       </div>
 
-      {/* Row 4: Backtest */}
-      {backtestData && backtestData.total_trades !== undefined && !backtestData.error && (
-        <BacktestSummary
-          finalEquity={backtestData.final_equity}
-          initialCapital={backtestData.initial_capital}
-          totalTrades={backtestData.total_trades}
-          winRate={backtestData.win_rate}
-          profitLossRatio={backtestData.profit_loss_ratio}
-          maxDrawdown={backtestData.max_drawdown}
-          totalReturn={backtestData.total_return}
-          avgEntryQuality={backtestData.avg_entry_quality}
-          avgAllowedLayers={backtestData.avg_allowed_layers}
-          dominantRegimeGate={backtestData.dominant_regime_gate}
-          avgDecisionQualityScore={backtestData.avg_decision_quality_score}
-          decisionQualityLabel={backtestData.decision_quality_label}
-          avgExpectedWinRate={backtestData.avg_expected_win_rate}
-          avgExpectedPyramidQuality={backtestData.avg_expected_pyramid_quality}
-          avgExpectedDrawdownPenalty={backtestData.avg_expected_drawdown_penalty}
-          avgExpectedTimeUnderwater={backtestData.avg_expected_time_underwater}
-          decisionQualitySampleSize={backtestData.decision_quality_sample_size}
-          decisionContract={backtestData.decision_contract}
-        />
+      {showFeatureHistory && (
+        <FeatureChart selectedFeature={selectedSense} days={days} onClear={() => setSelectedSense(null)} />
       )}
     </div>
   );
