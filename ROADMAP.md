@@ -1,74 +1,68 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-17 12:40 CST_
+_最後更新：2026-04-17 12:47 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留舊 roadmap 歷史。
 
 ---
 
 ## 已完成
-- heartbeat 本輪實際推進資料：`Raw=30591 (+1) / Features=22009 (+1) / Labels=61736 (+1)`
-- `scripts/hb_collect.py` 成功完成 collect / feature / label 閉環
-- canonical 診斷刷新：`Global IC=14/30`、`TW-IC=29/30`
-- `recent_drift_report.py` 已重新確認最近 500 筆是 bull-only distribution pathology，不是 collector 停擺
-- circuit breaker release math 已打通到 runtime contract：
-  - `model/predictor.py`
-  - `scripts/hb_predict_probe.py`
-  - `scripts/live_decision_quality_drilldown.py`
-  - Dashboard `ConfidenceIndicator`
-- Dashboard 在 breaker 狀態下已能直接顯示「還差幾勝解除 blocker」，不再誤顯示 support/floor-cross 卡片
+- 修補 `model/q35_bias50_calibration.py`：q35 bias50 segmented calibration 現在只允許套用在 `CAUTION|structure_quality_caution|q35`
+- 修掉 q35 calibration 洩漏到 q15 lane 的 runtime-contract bug，避免 q15 exact-supported patch 被錯誤放大
+- 新增 regression test：`test_piecewise_q35_bias50_calibration_ignores_non_q35_structure_bucket`
+- 驗證 q15 exact-supported patch 仍維持預期行為：`entry_quality=0.5501`、`entry_quality_label=C`、`allowed_layers=1`
 - 驗證通過：
-  - `python -m pytest tests/test_api_feature_history_and_predictor.py::test_circuit_breaker_uses_simulated_target_column tests/test_hb_predict_probe.py tests/test_live_decision_quality_drilldown.py tests/test_frontend_decision_contract.py -q` → `20 passed`
-  - runtime probes：
-    - `python scripts/hb_predict_probe.py`
-    - `python scripts/live_decision_quality_drilldown.py`
-    - `python scripts/hb_circuit_breaker_audit.py`
+  - `python -m pytest tests/test_api_feature_history_and_predictor.py::test_live_decision_profile_applies_q15_exact_supported_bias50_patch tests/test_api_feature_history_and_predictor.py::test_piecewise_q35_bias50_calibration_ignores_non_q35_structure_bucket -q` → `2 passed`
+  - `python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_hb_predict_probe.py tests/test_live_decision_quality_drilldown.py tests/test_frontend_decision_contract.py -q` → `66 passed`
+- runtime probes 重新刷新：
+  - `python scripts/hb_predict_probe.py`
+  - `python scripts/live_decision_quality_drilldown.py`
+  - `python scripts/hb_circuit_breaker_audit.py`
+- runtime 最新 truth：仍是 `CIRCUIT_BREAKER`，canonical 1440m release gap = `14 wins`
 
 ---
 
 ## 主目標
 
-### 目標 A：把 canonical 1440m circuit breaker 做成真正可操作的 runtime blocker
+### 目標 A：把 canonical 1440m circuit breaker 當成唯一 live blocker truth
 重點：
-- 本輪已補齊 release math contract 與 Dashboard 顯示
-- 下一步不是關 breaker，而是把所有 runtime / API / UI surface 都鎖成同一個 canonical 1440m truth
+- 本輪已確認 q15/q35 lane 修補不會覆蓋 canonical breaker
+- 下一步要直接處理 aligned 1440m recent-50 tail pathology，而不是再做局部 lane 美化
 
 成功標準：
-- `/api/predict/confidence`、Dashboard、drilldown、heartbeat summary 都顯示同一組：
-  - `current_recent_window_wins`
-  - `required_recent_window_wins`
-  - `additional_recent_window_wins_needed`
-  - `current_streak`
-- 不再把 support / component patch / q15 floor-cross 誤說成 breaker release progress
+- `/api/predict/confidence`、Dashboard、drilldown、heartbeat summary 全都顯示同一組 breaker release math
+- breaker 未解除前，所有 lane patch / support artifact 都不能被表述成 deploy-ready
+- 找出 recent 50 = `1/50` 的可執行 root-cause artifact
 
-### 目標 B：完成 Binance execution lifecycle single source of truth
+### 目標 B：完成 Binance execution lifecycle replay closure
 重點：
-- 現在已有 lifecycle visibility contract
-- 下一步要把 partial fill / cancel / restart replay 從「可見缺口」推進到「有真 artifact、可回放、可驗證」
+- 目前還停在 lifecycle visibility / reconciliation contract
+- 下一步要補 partial fill / cancel / restart replay artifact，建立 recovery 可驗證證據
 
 成功標準：
-- `/api/status.execution_reconciliation.lifecycle_contract` 能顯示 partial fill / cancel / restart replay artifact 已觀察到
-- Dashboard / Strategy Lab 對同一筆 order 顯示一致 lifecycle replay verdict
+- `/api/status.execution_reconciliation.lifecycle_contract` 可展示真實 partial fill / cancel / restart replay artifact
+- Dashboard / Strategy Lab / `/api/status` 對同一筆 order 顯示一致 lifecycle replay verdict
 
-### 目標 C：持續治理 recent bull-only pathology 與 sparse-source blockers
+### 目標 C：持續硬化 lane-boundary contract
 重點：
-- breaker 解除前後都要防止 polluted recent slice 被當成 deployment readiness
-- sparse-source 要持續分流 auth-blocked / archive-gap / snapshot-only
+- 本輪證明 q15/q35 runtime override 之間確實可能發生跨 lane 污染
+- 下一步要把所有 runtime override 都收斂成明確 structure-bucket / scope guard
 
 成功標準：
-- live calibration / leaderboard 不再把 bull-only pocket 當 readiness 證據
-- `fin_netflow` auth 問題被獨立追蹤，其他 sparse source 不再混成 generic coverage 問題
+- q15 / q35 / broader-scope override 都有明確 lane guard
+- 每個 override 都有 regression test 保證不會污染其他 lane
+- live runtime sizing / entry quality / support verdict 不再出現跨-lane 漂移
 
 ---
 
 ## 下一步
-1. 驗證 `/api/predict/confidence` 與 Dashboard 在 live runtime 中都已顯示 **breaker release math**，並把同一份數據同步進 heartbeat summary
-2. 以 Binance 為第一 venue，補齊 **partial fill / cancel / restart replay artifact**，把 execution reconciliation 從 visibility 推到 replay closure
-3. breaker 解除後，立刻重驗 **recent bull-only pathology** 是否仍在污染 live calibration / decision-quality
+1. 為 canonical 1440m breaker 補 tail-path root-cause artifact，直接解釋 recent 50 為何只剩 `1/50`
+2. 以 Binance 為第一 venue，完成 partial fill / cancel / restart replay artifact 與 UI/API 同步顯示
+3. 清查其餘 runtime override 是否仍有跨-lane leakage，補齊 lane-boundary regression tests
 
 ---
 
 ## 成功標準
-- circuit breaker 不再只是抽象 blocker，而是 **可量化、可追 release progress、可在 UI 直接判讀** 的 runtime contract
-- execution lifecycle 不只可見，而是 **可 replay、可驗證、可對同一 order 給一致 verdict**
-- live calibration 不再被 recent bull-only window 或 sparse-source maturity 假象誤導
+- breaker 在解除前都維持 **單一 canonical truth**，不會被局部 lane patch 稀釋
+- execution lifecycle 具備 **可 replay、可驗證、可恢復** 的 artifact，而非只有狀態可見
+- q15 / q35 / runtime override 全部具備 **硬邊界 lane contract**，不再互相污染

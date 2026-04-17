@@ -100,6 +100,8 @@ def compute_piecewise_bias50_score(
         return fallback
     if str(regime_label or "") != "bull":
         return fallback
+    if str(structure_bucket or "") != "CAUTION|structure_quality_caution|q35":
+        return fallback
     overall_verdict = str(report.get("overall_verdict") or "")
     if overall_verdict not in {
         "broader_bull_cohort_recalibration_candidate",

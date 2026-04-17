@@ -888,6 +888,49 @@ def test_live_decision_profile_downgrades_borderline_allow_q35_to_caution():
     assert expected_gate == "CAUTION"
 
 
+def test_piecewise_q35_bias50_calibration_ignores_non_q35_structure_bucket(tmp_path, monkeypatch):
+    audit_path = tmp_path / "q35_scaling_audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "overall_verdict": "broader_bull_cohort_recalibration_candidate",
+                "current_live": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                },
+                "segmented_calibration": {
+                    "status": "segmented_calibration_required",
+                    "recommended_mode": "piecewise_quantile_calibration",
+                    "exact_lane": {
+                        "bias50_distribution": {"p90": 3.1054},
+                    },
+                    "reference_cohort": {
+                        "cohort": "bull_all",
+                        "bias50_distribution": {"p90": 4.4607},
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(q35_calibration_module, "DEFAULT_Q35_AUDIT_PATH", audit_path)
+    q35_calibration_module._AUDIT_CACHE.update({"path": None, "mtime": None, "data": None})
+
+    result = q35_calibration_module.compute_piecewise_bias50_score(
+        3.7867,
+        regime_label="bull",
+        regime_gate="CAUTION",
+        structure_bucket="CAUTION|structure_quality_caution|q15",
+    )
+
+    assert result["applied"] is False
+    assert result["mode"] == "legacy_linear"
+    assert result["score"] == 0.0
+
+
+
 def test_piecewise_q35_bias50_calibration_uses_bull_reference_extension(tmp_path, monkeypatch):
     audit_path = tmp_path / "q35_scaling_audit.json"
     audit_path.write_text(
