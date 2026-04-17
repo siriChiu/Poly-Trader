@@ -280,6 +280,12 @@ interface StrategyLabRuntimeStatusResponse {
         path_expected?: number;
         restart_replay_status?: string;
         operator_next_artifact?: string;
+        operator_action_summary?: string;
+        operator_instruction?: string;
+        verify_instruction?: string;
+        operator_next_check?: string;
+        remediation_focus?: string;
+        remediation_priority?: string;
         missing_required_artifacts?: string[];
         artifact_count?: number;
         artifact_keys?: string[];
@@ -2300,11 +2306,16 @@ export default function StrategyLab() {
                           <div className="mt-1 opacity-80">{lane.summary || "—"}</div>
                           <div className="mt-1 opacity-80">baseline {lane.baseline_observed ?? 0}/{lane.baseline_required ?? 0} · path {lane.path_observed ?? 0}/{lane.path_expected ?? 0} · replay {lane.restart_replay_status || "—"}</div>
                           <div className="mt-1 opacity-80">next artifact {lane.operator_next_artifact || "—"}</div>
+                          <div className="mt-1 opacity-80">operator action {lane.operator_action_summary || "—"}</div>
+                          <div className="mt-1 opacity-75">remediation {lane.remediation_priority || "—"} · {lane.remediation_focus || "—"}</div>
                           <div className="mt-1 opacity-75">provenance venue-backed {lane.provenance_counts?.venue_backed ?? 0} · dry-run {lane.provenance_counts?.dry_run_only ?? 0} · internal {lane.provenance_counts?.internal_only ?? 0} · missing {lane.provenance_counts?.missing_or_not_applicable ?? 0}</div>
                           <div className="mt-1 opacity-70">missing required {(lane.missing_required_artifacts || []).join(" / ") || "none"}</div>
                           <div className="mt-2 rounded border border-white/10 bg-black/10 px-2 py-2 opacity-85">
                             <div>lane drilldown {lane.artifact_drilldown_summary || "—"}</div>
                             <div className="mt-1">lane timeline {lane.timeline_summary || `timeline ${lane.timeline_count ?? 0} events · latest none`}</div>
+                            <div className="mt-2">operator instruction {lane.operator_instruction || "—"}</div>
+                            <div className="mt-1">verify {lane.verify_instruction || "—"}</div>
+                            <div className="mt-1">next check {lane.operator_next_check || "—"}</div>
                             <div className="mt-2">lane artifacts {(lane.artifacts || []).slice(0, 3).map((artifact) => `${artifact.key || "unknown"}:${artifact.status || "unknown"}:${artifact.provenance_level || "unknown"}`).join(" · ") || "none"}</div>
                             <div className="mt-2 space-y-1">
                               {(lane.timeline_events || []).slice(-3).map((event, eventIdx) => (

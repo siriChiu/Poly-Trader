@@ -1170,6 +1170,70 @@ def _build_execution_lifecycle_contract(
             lane_keys.add("unscoped_internal")
         return sorted(lane_keys)
 
+    def _build_lane_remediation_contract(
+        lane_key: str,
+        lane_status: str,
+        missing_keys: List[str],
+        venue_backed_count: int,
+    ) -> Dict[str, Any]:
+        lane_label = _format_venue_lane_label(lane_key)
+        missing_summary = " / ".join(missing_keys) if missing_keys else "none"
+        if lane_status == "baseline_incomplete":
+            return {
+                "focus": "baseline_contract",
+                "priority": "P0",
+                "operator_action_summary": f"先補齊 {lane_label} baseline artifact，否則 restart replay 沒有可信起點。",
+                "operator_instruction": (
+                    f"補齊 {lane_label} 的 validation_passed / venue_ack / trade_history_persisted；"
+                    f"目前缺口 {missing_summary}。若 exchange tagging 還沒進 lifecycle event，先修 order_manager / execution_service 的 venue 標記。"
+                ),
+                "verify_instruction": (
+                    f"重刷 /api/status，確認 {lane_label} lane 變成 baseline_ready，且 missing required 不再列出 {missing_summary}。"
+                ),
+                "operator_next_check": "先看 lane missing required，再對照 artifact checklist proof chain。",
+            }
+        if lane_status == "baseline_ready_missing_path":
+            return {
+                "focus": "path_artifact_capture",
+                "priority": "P0",
+                "operator_action_summary": f"{lane_label} baseline 已齊，但還缺真實 path artifact。",
+                "operator_instruction": (
+                    f"用 {lane_label} 的真實/沙盒委託刻意捕捉 partial_fill 或 cancel_ack→canceled path，"
+                    "讓 timeline 不再只有 validation/ack/trade_history。"
+                ),
+                "verify_instruction": (
+                    f"重刷 /api/status，確認 {lane_label} lane 的 path observed > 0，且 timeline 出現 partial_fill / cancel 相關 event。"
+                ),
+                "operator_next_check": "先看 lane timeline 是否仍停在 trade_history_persisted。",
+            }
+        if lane_status == "path_observed_internal_only":
+            return {
+                "focus": "venue_backed_provenance",
+                "priority": "P0",
+                "operator_action_summary": f"{lane_label} 已看到 path，但證據仍停在 internal/dry-run。",
+                "operator_instruction": (
+                    f"把 {lane_label} venue adapter / execution service 的原始 ack/fill/cancel payload 寫進 lifecycle artifact，"
+                    f"避免只剩 internal proof。當前 venue-backed artifact = {venue_backed_count}。"
+                ),
+                "verify_instruction": (
+                    f"重刷 /api/status，確認 {lane_label} lane status 變成 venue_backed_path_ready，且 provenance venue-backed > 0。"
+                ),
+                "operator_next_check": "優先比對 lane artifacts 的 provenance_level，確認不再只有 dry_run_only/internal_only。",
+            }
+        return {
+            "focus": "restart_replay_validation",
+            "priority": "P1",
+            "operator_action_summary": f"{lane_label} 已具備 venue-backed path，下一步是持續驗證 restart replay。",
+            "operator_instruction": (
+                f"保持 {lane_label} lane 的 partial_fill / cancel / restart replay 真實證據鏈，"
+                "每次重啟後都要能從 venue-backed timeline 還原 order state。"
+            ),
+            "verify_instruction": (
+                f"重刷 /api/status，確認 {lane_label} lane 仍維持 venue_backed_path_ready，且 restart_replay_status 不退回 blocked。"
+            ),
+            "operator_next_check": "定期核對 lane summary、timeline 與 artifact provenance 是否仍一致。",
+        }
+
     def _build_venue_lanes(artifact_entries: List[Dict[str, Any]]) -> Dict[str, Any]:
         if not artifact_entries and not lifecycle_events and last_order is None and latest_trade is None:
             return {
@@ -1252,6 +1316,12 @@ def _build_execution_lifecycle_contract(
                 f"path {path_observed}/2 · replay {restart_entry.get('status') if restart_entry else 'not_applicable'} · "
                 f"venue-backed {venue_backed_count}"
             )
+            remediation = _build_lane_remediation_contract(
+                lane_key,
+                lane_status,
+                missing_keys,
+                venue_backed_count,
+            )
             venue_lanes.append(
                 {
                     "venue": lane_key,
@@ -1265,6 +1335,12 @@ def _build_execution_lifecycle_contract(
                     "path_expected": 2,
                     "restart_replay_status": restart_entry.get("status") if restart_entry else "not_applicable",
                     "operator_next_artifact": next_artifact,
+                    "operator_action_summary": remediation["operator_action_summary"],
+                    "operator_instruction": remediation["operator_instruction"],
+                    "verify_instruction": remediation["verify_instruction"],
+                    "operator_next_check": remediation["operator_next_check"],
+                    "remediation_focus": remediation["focus"],
+                    "remediation_priority": remediation["priority"],
                     "missing_required_artifacts": missing_keys,
                     "artifact_count": len(lane_artifacts),
                     "artifact_keys": [str(entry.get("key") or "") for entry in lane_artifacts],
@@ -1300,6 +1376,12 @@ def _build_execution_lifecycle_contract(
                     "path_expected": 2,
                     "restart_replay_status": "not_applicable",
                     "operator_next_artifact": "capture_first_runtime_order",
+                    "operator_action_summary": "先捕捉第一筆 runtime order，建立 unscoped internal baseline。",
+                    "operator_instruction": "先讓 execution service 真正落下一筆 order 與 lifecycle event，再開始檢查 venue-scoped artifact。",
+                    "verify_instruction": "重刷 /api/status，確認 venue lanes 不再是空集合，且 lane summary 開始出現 baseline / path 計數。",
+                    "operator_next_check": "先確認 lifecycle timeline 已有 validation_passed 或 trade_history_persisted。",
+                    "remediation_focus": "runtime_bootstrap",
+                    "remediation_priority": "P0",
                     "missing_required_artifacts": [],
                     "artifact_count": 0,
                     "artifact_keys": [],

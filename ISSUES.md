@@ -1,32 +1,34 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-17 14:48 CST_
+_最後更新：2026-04-17 15:08 CST_
 
 只保留目前有效問題；每輪 heartbeat 必須覆蓋更新，不保留舊流水帳。
 
 ---
 
 ## 當前主線
-本輪 heartbeat 已把 execution reconciliation 從「venue lane 摘要卡」推進到 **lane-level filtered drilldown**。`/api/status.execution_reconciliation.lifecycle_contract.venue_lanes[]` 現在除了 lane summary，還會額外輸出：
-- `artifact_drilldown_summary`
-- `timeline_summary`
-- `timeline_events[]`
-- `artifacts[]`
-
-Dashboard 與 Strategy Lab 已同步顯示 **Binance / OKX / Unscoped internal** 各自的 lane drilldown，operator 可以直接在 lane 卡片內看到：
-- 該 lane 缺哪些 baseline / required artifact
-- 該 lane 最近 3 筆 filtered timeline event
-- 該 lane 自己的 artifact subset，而不是混用 global timeline
-
-本輪已完成的產品化前進：
-- `server/routes/api.py` 新增 lane-level filtered artifact / timeline contract
-- Dashboard execution runtime surface 新增 lane drilldown 區塊
-- Strategy Lab runtime blocker sync surface 新增同一套 lane drilldown
-- `tests/test_server_startup.py` 補 lane drilldown contract regression
-- `tests/test_frontend_decision_contract.py` 補 Dashboard / Strategy Lab lane drilldown regression
-- 驗證已通過：
+本輪 heartbeat 已把 execution reconciliation 的 venue lane 從「看得到 drilldown」推進到 **operator-grade remediation surface**：
+- `/api/status.execution_reconciliation.lifecycle_contract.venue_lanes[]` 現在新增：
+  - `operator_action_summary`
+  - `operator_instruction`
+  - `verify_instruction`
+  - `operator_next_check`
+  - `remediation_focus`
+  - `remediation_priority`
+- Dashboard / Strategy Lab 已直接顯示每個 lane 的：
+  - 先做什麼
+  - 做完怎麼驗證
+  - 下一個檢查點
+  - remediation priority / focus
+- regression / build 已通過：
   - `source venv/bin/activate && python -m pytest tests/test_server_startup.py tests/test_frontend_decision_contract.py -q`
   - `cd web && npm run build`
+
+本輪 heartbeat 實測事實（fast collect + IC diagnostics）：
+- collect 成功：`Raw +1 / Features +1 / Labels +28`
+- 目前 DB：`Raw=30593 / Features=22011 / Labels=61768`
+- canonical diagnostics：`Global IC 14/30 pass`、`TW-IC 28/30 pass`
+- source blockers 仍有 `8` 個；其中 `fin_netflow` 仍被 `COINGLASS_API_KEY` 缺失卡住
 
 ---
 
@@ -34,51 +36,54 @@ Dashboard 與 Strategy Lab 已同步顯示 **Binance / OKX / Unscoped internal**
 
 ### P0. Binance / OKX 仍缺真實 venue-backed partial-fill / cancel / restart-replay artifact
 **現況**
-- lane-level drilldown 已能精確指出每個 venue lane 的缺口
-- 但 closure 仍主要停留在 internal / dry-run / baseline-ready，尚未拿到真實交易所 path artifact 鏈
+- lane remediation surface 已能直接告訴 operator 每個 lane 要補什麼
+- 但 closure 仍主要停在 baseline-ready / internal-only / dry-run-ready
+- 目前還沒有足夠的真實交易所 `partial_fill / cancel_ack / canceled / restart replay` artifact 鏈
 
 **風險**
-- UI 現在更透明，但不能把「可觀測」誤讀成「已 live-ready」
-- 沒有真實 venue artifact，reconciliation 仍是 governance closure，不是交易所實證 closure
+- UI 現在更像產品，但若沒有真實 venue artifact，仍然只是治理與可觀測性 closure，不是 live readiness
+- 容易把「知道缺什麼」誤讀成「已經打通 venue path」
 
 **下一步**
-- 以 Binance 為第一 venue，補 `partial_fill / cancel_ack / canceled / restart replay` 的真實 artifact
-- 讓 lane status 從 `baseline_ready_missing_path` / `path_observed_internal_only` 進到真正 `venue_backed_path_ready`
+- 以 Binance 為第一 lane，實際打出可重放的 `partial_fill / cancel_ack / canceled / restart replay`
+- 讓 lane status 從 `baseline_ready_missing_path` / `path_observed_internal_only` 進到 `venue_backed_path_ready`
+- 驗證 `/api/status`、Dashboard、Strategy Lab 三者對同一 lane 的 truth 完全一致
 
-### P0. Canonical 1440m circuit breaker 仍有效，所有 surface 必須維持 blocker-first truth
+### P0. Breaker-first truth 不能被 remediation/drilldown 蓋過
 **現況**
-- 本輪補的是 execution lane drilldown，不是 breaker release
-- Dashboard / Strategy Lab 仍必須先表達 circuit breaker / deployment blocker，再談 lane closure
+- lane remediation 現在更清楚
+- 但 canonical deployment blocker / circuit breaker 仍必須優先於 lane closure 敘事
 
 **風險**
-- 如果 lane drilldown 視覺比 blocker 更顯眼，operator 可能誤以為 execution readiness 已高於 deployment blocker
+- 如果 operator 先看到某個 lane 的 remediation 已很完整，可能誤判成 deployment blocker 已下降
 
 **下一步**
-- 下一輪補真實 venue artifact 時，同步驗證 blocker-first 排序與文案仍然先於 lane closure
-- 任一 surface 若讓 closure 敘事蓋過 breaker，立即視為 regression
+- 下一輪補 venue-backed artifact 時，同步驗證 Dashboard / Strategy Lab 仍維持 blocker-first 順序
+- 任一 surface 若讓 remediation lane 比 blocker 更像主結論，視為 regression
 
-### P1. Lane drilldown 已有讀取能力，但還沒有 operator-grade remediation action
+### P1. Sparse-source readiness 仍被 auth / 歷史缺口阻塞
 **現況**
-- lane 卡片已能看 filtered artifact / timeline
-- 但目前仍停在「看見問題」，尚未把每個 lane 的下一步升級成更具體的操作指令或 remediation flow
+- fast heartbeat 顯示 blocked features = 8
+- `fin_netflow` 仍因 `COINGLASS_API_KEY` 缺失而 `source_auth_blocked`
+- 其餘 archive-required / snapshot-only 特徵仍未完成歷史閉環
 
 **風險**
-- operator 雖然知道哪個 lane 卡住，仍可能需要人工推理下一個修復動作
+- 雖然近期 canonical IC 很強，但 source maturity 不完整時，FeatureChart / live overlay / future product claims 仍會失真
 
 **下一步**
-- 把 `operator_next_artifact` 進一步對齊成 per-lane remediation 指令 / 檢查入口
-- 讓 Dashboard / Strategy Lab 能直接回答「下一步該補哪個 artifact、看哪條 timeline」
+- 補齊 CoinGlass auth，先解除 `fin_netflow` live fetch blocker
+- 釐清哪些 blocked sparse features 要進 production decision path，哪些只保留 research/overlay
 
 ---
 
 ## Not Issues
-- 不是 breaker 已解除：本輪只補 execution reconciliation 的 lane drilldown 能見度
+- 不是 execution reconciliation 還只有摘要卡：lane drilldown + remediation 已落地
 - 不是 Binance / OKX 已 live-ready：真實 venue-backed path artifact 仍缺
-- 不是 Strategy Lab 已成 execution canonical route：canonical execution route 仍是 Dashboard
+- 不是 breaker 已解除：本輪只補 operator remediation surface，沒有改 breaker release 條件
 
 ---
 
 ## Current Priority
-1. 先補 **Binance 真實 partial-fill / cancel / restart replay artifact**，把 lane 從可觀測推進到真實 venue-backed closure
-2. 維持 **canonical circuit breaker / deployment blocker truth**，避免 lane drilldown 被誤讀成 live readiness
-3. 把 **lane drilldown 升級成 operator remediation surface**，讓下一步動作不再靠人工推理
+1. 先用 **Binance 真實 partial-fill / cancel / restart replay artifact** 關閉 lane-level P0
+2. 維持 **breaker-first / blocker-first truth**，避免 remediation UI 被誤讀成 live readiness
+3. 補 **CoinGlass auth + sparse-source maturity**，避免 research source 混入產品敘事

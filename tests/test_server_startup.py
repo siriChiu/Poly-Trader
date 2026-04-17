@@ -359,6 +359,12 @@ def test_build_execution_reconciliation_summary_marks_healthy_match():
     assert payload["lifecycle_contract"]["venue_lanes"][0]["venue"] == "binance"
     assert payload["lifecycle_contract"]["venue_lanes"][0]["status"] == "baseline_ready_missing_path"
     assert payload["lifecycle_contract"]["venue_lanes"][0]["operator_next_artifact"] == "partial_fill_or_cancel"
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["operator_action_summary"] == "Binance baseline 已齊，但還缺真實 path artifact。"
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["operator_instruction"].startswith("用 Binance 的真實/沙盒委託刻意捕捉 partial_fill")
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["verify_instruction"].startswith("重刷 /api/status，確認 Binance lane 的 path observed > 0")
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["operator_next_check"] == "先看 lane timeline 是否仍停在 trade_history_persisted。"
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["remediation_focus"] == "path_artifact_capture"
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["remediation_priority"] == "P0"
     assert payload["lifecycle_contract"]["venue_lanes"][0]["artifact_drilldown_summary"] == "artifacts 5 · observed 5 · required missing 0"
     assert payload["lifecycle_contract"]["venue_lanes"][0]["timeline_count"] == 3
     assert payload["lifecycle_contract"]["venue_lanes"][0]["timeline_summary"] == "timeline 3 events · latest trade_history_persisted"
@@ -435,6 +441,12 @@ def test_build_execution_reconciliation_summary_tracks_unscoped_internal_lane_wh
     assert lanes["unscoped_internal"]["baseline_required"] == 3
     assert lanes["unscoped_internal"]["status"] == "baseline_incomplete"
     assert lanes["unscoped_internal"]["operator_next_artifact"] == "venue_ack"
+    assert lanes["unscoped_internal"]["operator_action_summary"] == "先補齊 Unscoped internal baseline artifact，否則 restart replay 沒有可信起點。"
+    assert lanes["unscoped_internal"]["operator_instruction"].startswith("補齊 Unscoped internal 的 validation_passed / venue_ack / trade_history_persisted")
+    assert lanes["unscoped_internal"]["verify_instruction"].startswith("重刷 /api/status，確認 Unscoped internal lane 變成 baseline_ready")
+    assert lanes["unscoped_internal"]["operator_next_check"] == "先看 lane missing required，再對照 artifact checklist proof chain。"
+    assert lanes["unscoped_internal"]["remediation_focus"] == "baseline_contract"
+    assert lanes["unscoped_internal"]["remediation_priority"] == "P0"
     assert lanes["unscoped_internal"]["artifact_drilldown_summary"] == "artifacts 7 · observed 2 · required missing 2"
     assert lanes["unscoped_internal"]["timeline_count"] == 2
     assert lanes["unscoped_internal"]["timeline_events"][0]["exchange"] is None
