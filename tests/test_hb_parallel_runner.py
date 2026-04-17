@@ -1933,6 +1933,113 @@ def test_leaderboard_candidate_cache_hit_uses_semantic_alignment_signature(tmp_p
     assert hit["details"]["selected_feature_profile"] == "core_only"
 
 
+def test_leaderboard_candidate_cache_hit_refreshes_alignment_snapshot_when_only_code_freshness_is_stale(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    scripts_dir = tmp_path / "scripts"
+    model_dir = tmp_path / "model"
+    server_routes_dir = tmp_path / "server" / "routes"
+    backtesting_dir = tmp_path / "backtesting"
+    for directory in (data_dir, scripts_dir, model_dir, server_routes_dir, backtesting_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    artifact_path = data_dir / "leaderboard_feature_profile_probe.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-17T07:11:11Z",
+                "top_model": {"selected_feature_profile": "core_only"},
+                "alignment": {
+                    "current_alignment_inputs_stale": False,
+                    "global_recommended_profile": "core_only",
+                    "train_selected_profile": "core_plus_macro",
+                    "train_selected_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+                    "support_governance_route": "no_support_proxy",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket": None,
+                    "live_current_structure_bucket_rows": 0,
+                    "live_execution_guardrail_reason": "circuit_breaker_blocks_trade",
+                    "live_regime_gate": None,
+                    "live_entry_quality_label": None,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    (scripts_dir / "hb_leaderboard_candidate_probe.py").write_text("# stale dep\n", encoding="utf-8")
+    (server_routes_dir / "api.py").write_text("# stale dep\n", encoding="utf-8")
+    (backtesting_dir / "model_leaderboard.py").write_text("# stale dep\n", encoding="utf-8")
+    (model_dir / "last_metrics.json").write_text(
+        json.dumps(
+            {
+                "feature_profile": "core_plus_macro",
+                "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "feature_group_ablation.json").write_text(
+        json.dumps({"recommended_profile": "core_only", "generated_at": "2026-04-17T07:10:00Z"}),
+        encoding="utf-8",
+    )
+    (data_dir / "bull_4h_pocket_ablation.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-17T07:10:00Z",
+                "live_context": {
+                    "current_live_structure_bucket": None,
+                    "current_live_structure_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "q15_support_audit.json").write_text(
+        json.dumps(
+            {
+                "support_route": {
+                    "support_governance_route": "no_support_proxy",
+                    "minimum_support_rows": 50,
+                },
+                "current_live": {
+                    "current_live_structure_bucket": None,
+                    "current_live_structure_bucket_rows": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "execution_guardrail_reason": "circuit_breaker_blocks_trade",
+                "regime_gate": None,
+                "entry_quality_label": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def _fake_refresh(path):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["generated_at"] = "2099-04-17T10:35:00+00:00"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        fresh = 4102440000
+        os.utime(path, (fresh, fresh))
+        return payload
+
+    monkeypatch.setattr(hb_parallel_runner, "_refresh_leaderboard_candidate_alignment_snapshot", _fake_refresh)
+
+    hit = hb_parallel_runner._leaderboard_candidate_cache_hit()
+
+    assert hit is not None
+    assert hit["reason"] == "refreshed_leaderboard_candidate_artifact_reused"
+    assert hit["details"]["refresh_applied"] is True
+    assert hit["details"]["generated_at"] == "2099-04-17T10:35:00+00:00"
+
+
 def test_leaderboard_candidate_cache_hit_rejects_semantic_drift(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"

@@ -109,17 +109,60 @@ def _artifact_timestamp_from_payload(payload: Dict[str, Any] | None, artifact_pa
     return _file_mtime(artifact_path)
 
 
+def _stale_dependency_paths(
+    artifact_time: datetime | None,
+    dependency_paths: list[str | Path] | None,
+) -> list[Path]:
+    if artifact_time is None:
+        return [Path(dep) for dep in (dependency_paths or [])]
+    stale: list[Path] = []
+    for dep in dependency_paths or []:
+        dep_path = Path(dep)
+        dep_mtime = _file_mtime(dep_path)
+        if dep_mtime is not None and dep_mtime > artifact_time:
+            stale.append(dep_path)
+    return stale
+
+
+
 def _artifact_is_newer_than_dependencies(
     artifact_time: datetime | None,
     dependency_paths: list[str | Path] | None,
 ) -> bool:
-    if artifact_time is None:
-        return False
-    for dep in dependency_paths or []:
-        dep_mtime = _file_mtime(dep)
-        if dep_mtime is not None and dep_mtime > artifact_time:
-            return False
-    return True
+    return not _stale_dependency_paths(artifact_time, dependency_paths)
+
+
+
+def _refresh_leaderboard_candidate_alignment_snapshot(
+    artifact_path: Path,
+) -> Dict[str, Any] | None:
+    payload = _read_json_file(artifact_path)
+    if not payload:
+        return None
+    top_model = payload.get("top_model") or {}
+    if not isinstance(top_model, dict) or not top_model:
+        return None
+
+    try:
+        from scripts import hb_leaderboard_candidate_probe as leaderboard_probe
+    except Exception:
+        return None
+
+    now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    try:
+        alignment = leaderboard_probe._build_alignment(
+            top_model,
+            leaderboard_snapshot_created_at=payload.get("leaderboard_snapshot_created_at"),
+            alignment_evaluated_at=now_iso,
+        )
+    except Exception:
+        return None
+
+    payload["generated_at"] = now_iso
+    payload["alignment"] = alignment
+    artifact_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return payload
+
 
 
 def _current_canonical_label_signature() -> Dict[str, Any]:
@@ -309,21 +352,37 @@ def _leaderboard_candidate_cache_hit() -> Dict[str, Any] | None:
     current_signature = _current_leaderboard_candidate_semantic_signature()
     if artifact_signature != current_signature:
         return None
-    artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
     dependency_paths = [
         Path(PROJECT_ROOT) / "scripts" / "hb_leaderboard_candidate_probe.py",
         Path(PROJECT_ROOT) / "server" / "routes" / "api.py",
         Path(PROJECT_ROOT) / "backtesting" / "model_leaderboard.py",
     ]
-    if not _artifact_is_newer_than_dependencies(artifact_time, dependency_paths):
+    artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
+    stale_dependencies = _stale_dependency_paths(artifact_time, dependency_paths)
+    cache_reason = "fresh_leaderboard_candidate_artifact_reused"
+    refresh_applied = False
+
+    if stale_dependencies:
+        refreshed_payload = _refresh_leaderboard_candidate_alignment_snapshot(artifact_path)
+        if refreshed_payload:
+            payload = refreshed_payload
+            artifact_signature = _leaderboard_candidate_semantic_signature(payload)
+            artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
+            stale_dependencies = _stale_dependency_paths(artifact_time, dependency_paths)
+            refresh_applied = True
+            cache_reason = "refreshed_leaderboard_candidate_artifact_reused"
+        if artifact_signature != current_signature:
+            return None
+    if stale_dependencies:
         return None
     return {
         "artifact_path": str(artifact_path),
-        "reason": "fresh_leaderboard_candidate_artifact_reused",
+        "reason": cache_reason,
         "details": {
             "generated_at": payload.get("generated_at"),
             "selected_feature_profile": ((payload.get("top_model") or {}).get("selected_feature_profile")),
             "semantic_signature": artifact_signature,
+            "refresh_applied": refresh_applied,
         },
     }
 
