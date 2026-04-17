@@ -35,6 +35,7 @@ from feature_engine.feature_history_policy import (
     _compute_archive_window_coverage,
 )
 from execution.account_sync import AccountSyncService
+from execution.console_overview import build_execution_overview
 from execution.execution_service import ExecutionService
 from execution.metadata_smoke import run_metadata_smoke
 from utils.logger import setup_logger
@@ -286,7 +287,7 @@ def _compute_strategy_decision_quality_profile(
 
 
 def _compute_raw_snapshot_stats(db: Any) -> Dict[str, Dict[str, Any]]:
-    if hasattr(db, "execute"):
+    if isinstance(db, sqlite3.Connection):
         return compute_raw_snapshot_stats(db)
     bind = getattr(db, "bind", None)
     if hasattr(bind, "raw_connection"):
@@ -295,6 +296,8 @@ def _compute_raw_snapshot_stats(db: Any) -> Dict[str, Dict[str, Any]]:
             return compute_raw_snapshot_stats(conn)
         finally:
             conn.close()
+    if hasattr(db, "execute") and not hasattr(db, "bind"):
+        return compute_raw_snapshot_stats(db)
     return {}
 
 
@@ -2393,6 +2396,7 @@ def _build_execution_reconciliation_summary(
     }
 
 
+@router.get("/predict/confidence")
 async def get_confidence_prediction() -> Dict[str, Any]:
     from config import load_config
     from database.models import init_db
@@ -2418,6 +2422,7 @@ async def get_confidence_prediction() -> Dict[str, Any]:
             close()
 
 
+@router.get("/status")
 async def api_status() -> Dict[str, Any]:
     cfg = get_config() or {}
     trading_cfg = cfg.get("trading") if isinstance(cfg.get("trading"), dict) else {}
@@ -2462,6 +2467,13 @@ async def api_status() -> Dict[str, Any]:
         "execution_metadata_smoke": metadata_smoke,
         "execution_surface_contract": execution_surface_contract,
     }
+
+
+@router.get("/execution/overview")
+async def api_execution_overview() -> Dict[str, Any]:
+    cfg = get_config() or {}
+    status_payload = await api_status()
+    return build_execution_overview(status_payload, config=cfg)
 
 
 # ─── Models ───
@@ -3149,6 +3161,233 @@ def _update_strategy_job_steps(job: Dict[str, Any], stage_key: Optional[str], *,
             step["status"] = "failed" if status == "failed" else ("completed" if status == "completed" and current_index == len(steps) - 1 else "running")
         elif idx > current_index and step.get("status") == "running":
             step["status"] = "pending"
+
+
+def _strategy_sort_key(entry: Dict[str, Any]) -> tuple:
+    last_results = entry.get("last_results") if isinstance(entry.get("last_results"), dict) else {}
+    return (
+        float(last_results.get("overall_score") or 0.0),
+        float(last_results.get("roi") or 0.0),
+        float(last_results.get("profit_factor") or 0.0),
+        -float(last_results.get("max_drawdown") or 0.0),
+    )
+
+
+@lru_cache(maxsize=4)
+def _load_strategy_data_cached(db_mtime_ns: int):
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        return conn.execute(
+            """
+            SELECT f.timestamp, r.close_price,
+                   f.feat_4h_bias50, f.feat_4h_bias200,
+                   f.feat_nose, f.feat_pulse, f.feat_ear,
+                   COALESCE(f.regime_label, 'unknown') AS regime_label,
+                   f.feat_4h_bb_pct_b, f.feat_4h_dist_bb_lower, f.feat_4h_dist_swing_low,
+                   f.feat_local_bottom_score, f.feat_local_top_score
+            FROM features_normalized f
+            JOIN raw_market_data r ON r.timestamp = f.timestamp AND r.symbol = f.symbol
+            WHERE f.feat_4h_bias50 IS NOT NULL AND r.close_price IS NOT NULL
+            ORDER BY f.timestamp
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+
+
+
+def _load_strategy_data() -> List[Any]:
+    try:
+        db_mtime_ns = Path(DB_PATH).stat().st_mtime_ns
+    except FileNotFoundError:
+        db_mtime_ns = 0
+    return list(_load_strategy_data_cached(db_mtime_ns))
+
+
+
+def _parse_backtest_timestamp(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    normalized = text.replace("T", " ").replace("Z", "")
+    try:
+        dt = datetime.fromisoformat(normalized)
+    except ValueError:
+        try:
+            dt = datetime.strptime(normalized[:19], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+
+def _strategy_data_range_summary(rows: List[Any]) -> Dict[str, Any]:
+    if not rows:
+        return {"start": None, "end": None, "count": 0, "span_days": 0.0}
+    timestamps = [str(row[0]) for row in rows if row and row[0] is not None]
+    start = _iso_utc_timestamp(timestamps[0]) if timestamps else None
+    end = _iso_utc_timestamp(timestamps[-1]) if timestamps else None
+    start_dt = _parse_backtest_timestamp(start)
+    end_dt = _parse_backtest_timestamp(end)
+    span_days = 0.0
+    if start_dt and end_dt:
+        span_days = max(0.0, round((end_dt - start_dt).total_seconds() / 86400.0, 2))
+    return {"start": start, "end": end, "count": len(rows), "span_days": span_days}
+
+
+@router.get("/senses")
+async def api_senses() -> Dict[str, Any]:
+    engine = get_engine()
+    scores = engine.calculate_all_scores()
+    full_data = engine.get_latest_full_data()
+    raw = full_data.get("raw", {}) if isinstance(full_data, dict) else {}
+    return {
+        "senses": scores,
+        "scores": scores,
+        "raw": raw,
+        "recommendation": engine.generate_advice(scores),
+    }
+
+
+@router.get("/senses/config")
+async def api_senses_cfg() -> Dict[str, Any]:
+    return get_engine().get_config()
+
+
+@router.put("/senses/config")
+async def api_put_senses_cfg(update: "SenseConfigUpdate") -> Dict[str, Any]:
+    engine = get_engine()
+    updates: Dict[str, Any] = {}
+    if update.enabled is not None:
+        updates["enabled"] = update.enabled
+    if update.weight is not None:
+        updates["weight"] = update.weight
+    ok = engine.update_feature_config(update.sense, update.module, updates)
+    if not ok:
+        raise HTTPException(status_code=400, detail="無效特徵或模組")
+    return {"config": engine.get_config(), "scores": engine.calculate_all_scores()}
+
+
+@router.post("/automation/toggle")
+async def api_toggle_automation() -> Dict[str, Any]:
+    new_state = not bool(is_automation_enabled())
+    set_automation_enabled(new_state)
+    return {"automation": new_state, "message": f"已切換至{'自動' if new_state else '手動'}模式"}
+
+
+@router.get("/model/stats")
+async def api_model_stats() -> Dict[str, Any]:
+    import os
+    import pickle
+
+    stats: Dict[str, Any] = {
+        "model_loaded": False,
+        "sample_count": 0,
+        "label_distribution": {},
+        "feature_importance": {},
+        "ic_values": {},
+        "model_params": {},
+        "feature_count": 0,
+        "signal_4h": None,
+    }
+    try:
+        from model.predictor import MODEL_PATH, BASE_FEATURE_COLS as PREDICTOR_FEATURES
+        stats["feature_count"] = len(PREDICTOR_FEATURES)
+        if os.path.exists(MODEL_PATH):
+            with open(MODEL_PATH, "rb") as handle:
+                model = pickle.load(handle)
+            stats["model_loaded"] = True
+            if hasattr(model, "feature_importances_"):
+                pairs = zip(PREDICTOR_FEATURES, getattr(model, "feature_importances_", []) or [])
+                stats["feature_importance"] = {str(k): round(float(v), 4) for k, v in pairs}
+            if hasattr(model, "get_params"):
+                params = model.get_params()
+                stats["model_params"] = {k: params.get(k) for k in ["n_estimators", "max_depth", "reg_alpha", "reg_lambda"]}
+    except Exception as exc:
+        logger.warning("api_model_stats 模型讀取失敗: %s", exc)
+    try:
+        from database.models import Labels
+        db = get_db()
+        stats["sample_count"] = int(db.query(Labels).count())
+    except Exception as exc:
+        logger.warning("api_model_stats 樣本統計失敗: %s", exc)
+    return stats
+
+
+@router.get("/chart/klines")
+async def api_klines(
+    symbol: str = "BTCUSDT",
+    interval: str = "1h",
+    limit: int = 500,
+    since: Optional[int] = Query(default=None),
+    until: Optional[int] = Query(default=None),
+    append_after: Optional[int] = Query(default=None),
+) -> Dict[str, Any]:
+    since = since if isinstance(since, (int, float)) else None
+    until = until if isinstance(until, (int, float)) else None
+    append_after = append_after if isinstance(append_after, (int, float)) else None
+    cache_key = _build_cache_key("chart_klines", symbol, interval, limit, since or "", until or "", append_after or "")
+    with _KLINE_CACHE_LOCK:
+        cached = _KLINE_RESPONSE_CACHE.get(cache_key)
+        if cached and (time.time() - cached.get("updated_at", 0.0) < 180):
+            return cached["payload"]
+    interval_ms = _interval_ms(interval)
+    fetch_limit = max(min(limit, 1000), 50)
+    fetch_since = since
+    trim_after_time = append_after
+    if append_after is not None:
+        warmup_window_ms = interval_ms * _KLINE_INCREMENTAL_WARMUP_CANDLES
+        warmup_since = max(0, append_after - warmup_window_ms)
+        fetch_since = max(since or 0, warmup_since) if since is not None else warmup_since
+    exchange = ccxt.binance()
+    ohlcv = exchange.fetch_ohlcv(symbol, interval, since=fetch_since, limit=fetch_limit)
+    if until is not None:
+        ohlcv = [row for row in ohlcv if row[0] <= until]
+    payload = _build_chart_payload(symbol, interval, ohlcv)
+    if trim_after_time is not None:
+        candles = payload.get("candles") or []
+        start_index = next((idx for idx, candle in enumerate(candles) if int(candle.get("time", 0)) * 1000 >= trim_after_time), 0)
+        payload = _slice_chart_payload(payload, start_index)
+    with _KLINE_CACHE_LOCK:
+        _KLINE_RESPONSE_CACHE[cache_key] = {"updated_at": time.time(), "payload": payload}
+    return payload
+
+
+@router.get("/strategies/leaderboard")
+async def api_strategy_leaderboard() -> Dict[str, Any]:
+    from backtesting.strategy_lab import load_all_strategies
+
+    strategies = load_all_strategies(include_internal=False)
+    strategies = sorted(strategies, key=_strategy_sort_key, reverse=True)
+    quadrant_points = [
+        {
+            "strategy_name": entry.get("name"),
+            "x": ((entry.get("last_results") or {}).get("reliability_score")),
+            "y": ((entry.get("last_results") or {}).get("return_power_score")),
+            "overall_score": ((entry.get("last_results") or {}).get("overall_score")),
+        }
+        for entry in strategies
+    ]
+    return {"strategies": strategies, "count": len(strategies), "quadrant_points": quadrant_points}
+
+
+@router.get("/strategies/{name}")
+async def api_get_strategy(name: str) -> Dict[str, Any]:
+    from backtesting.strategy_lab import load_strategy
+
+    strategy = load_strategy(name)
+    if strategy is None:
+        raise HTTPException(status_code=404, detail=f"Strategy '{name}' not found")
+    return strategy
+
+
+@router.get("/strategy_data_range")
+async def api_strategy_data_range() -> Dict[str, Any]:
+    return _strategy_data_range_summary(_load_strategy_data())
 
 
 # ─── Models ───

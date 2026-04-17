@@ -175,6 +175,50 @@ type ExecutionConsoleRuntimeStatusResponse = {
   } | null;
 };
 
+type ExecutionOverviewProfileCard = {
+  key?: string;
+  label?: string;
+  summary?: string;
+  activation_status?: string;
+  lifecycle_status?: string;
+  routing_reason?: string;
+  planned_budget_amount?: number | null;
+  planned_budget_ratio_of_balance?: number | null;
+  next_operator_action?: string | null;
+  symbol_scoped_position_count?: number;
+  symbol_scoped_open_order_count?: number;
+  control_contract?: {
+    mode?: string;
+    start_status?: string;
+    start_reason?: string;
+    upgrade_prerequisite?: string;
+  } | null;
+};
+
+type ExecutionOverviewResponse = {
+  controls_mode?: string;
+  operator_message?: string;
+  upgrade_prerequisite?: string;
+  summary?: {
+    total_profiles?: number;
+    active_profiles?: number;
+    blocked_profiles?: number;
+    standby_profiles?: number;
+    monitoring_profiles?: number;
+    allocation_rule?: string;
+    operator_message?: string;
+  } | null;
+  capital_plan?: {
+    deployable_capital?: number | null;
+    per_active_profile_budget?: number | null;
+    allocation_rule?: string;
+    operator_message?: string;
+    max_position_ratio?: number | null;
+    confidence?: number | null;
+  } | null;
+  profile_cards?: ExecutionOverviewProfileCard[] | null;
+};
+
 function formatNumber(value: number | null | undefined, digits = 2): string {
   if (typeof value !== "number" || Number.isNaN(value)) return "—";
   return value.toFixed(digits);
@@ -223,6 +267,7 @@ function readRecordNumber(record: Record<string, unknown>, keys: string[]): numb
 
 export default function ExecutionConsole() {
   const { data: runtimeStatus, loading, error, refresh: refreshRuntimeStatus } = useApi<ExecutionConsoleRuntimeStatusResponse>("/api/status", 60000);
+  const { data: executionOverview, loading: overviewLoading, error: overviewError } = useApi<ExecutionOverviewResponse>("/api/execution/overview", 60000);
 
   const executionSurfaceContract = runtimeStatus?.execution_surface_contract ?? null;
   const operationsSurface = executionSurfaceContract?.operations_surface ?? null;
@@ -253,6 +298,9 @@ export default function ExecutionConsole() {
   const lastFailure = guardrails?.last_failure ?? null;
   const liveReadyBlockers = Array.isArray(executionSurfaceContract?.live_ready_blockers) ? executionSurfaceContract.live_ready_blockers : [];
   const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];
+  const executionOverviewSummary = executionOverview?.summary ?? null;
+  const executionCapitalPlan = executionOverview?.capital_plan ?? null;
+  const executionProfileCards = Array.isArray(executionOverview?.profile_cards) ? executionOverview.profile_cards : [];
 
   return (
     <div className="space-y-6 text-dark-100">
@@ -432,6 +480,76 @@ export default function ExecutionConsole() {
           </div>
           <div className="mt-3 rounded-xl border border-white/10 bg-dark-950/40 p-3 text-[12px] text-dark-300">
             手動交易 controls 與 bot 資金配置尚未搬到這頁；這輪先把 operator 必須看的 snapshot / route contract / blocker truth 切成獨立營運視圖。
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-white/10 bg-dark-900/70 p-4 text-sm leading-6 text-dark-200">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="font-semibold">Bot profiles / capital preview</div>
+            <div className="text-xs text-dark-400">
+              active {executionOverviewSummary?.active_profiles ?? 0}/{executionOverviewSummary?.total_profiles ?? executionProfileCards.length} · blocked {executionOverviewSummary?.blocked_profiles ?? 0} · standby {executionOverviewSummary?.standby_profiles ?? 0}
+            </div>
+          </div>
+          <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(executionOverview?.controls_mode || "preview_only")}`}>
+            {executionOverview?.controls_mode || "preview_only"}
+          </div>
+        </div>
+        <div className="mt-2 text-dark-300">{executionOverview?.operator_message || "尚未取得 execution overview operator message。"}</div>
+        <div className="mt-1 text-dark-400">{executionOverview?.upgrade_prerequisite || "尚未取得 execution overview upgrade prerequisite。"}</div>
+        {(overviewLoading || overviewError) && (
+          <div className="mt-3 rounded-xl border border-white/10 bg-dark-950/40 px-4 py-3 text-[12px] text-dark-300">
+            {overviewLoading ? "/api/execution/overview 載入中…" : `execution overview 載入失敗：${overviewError}`}
+          </div>
+        )}
+        <div className="mt-3 grid gap-3 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-2xl border border-white/10 bg-dark-950/40 p-4">
+            <div className="text-[11px] uppercase tracking-wide text-dark-500">Capital allocation preview</div>
+            <div className="mt-2 text-2xl font-semibold text-white">{formatNumber(executionCapitalPlan?.deployable_capital)} {balanceCurrency}</div>
+            <div className="mt-1 text-sm text-dark-400">per active profile budget {formatNumber(executionCapitalPlan?.per_active_profile_budget)} · allocation rule {executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves"}</div>
+            <div className="mt-2 text-[12px] text-dark-300">max position ratio {formatNumber(executionCapitalPlan?.max_position_ratio, 3)} · confidence {formatNumber(executionCapitalPlan?.confidence, 3)}</div>
+            <div className="mt-2 text-[12px] text-dark-300">{executionCapitalPlan?.operator_message || "尚未取得 capital preview operator message。"}</div>
+            <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-[12px] text-cyan-100">
+              preview-only start contract：目前先用 machine-readable bot card / capital preview 對齊 routing、blocker 與資金規劃；真正 start/pause/stop mutation API 尚未落地。
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {executionProfileCards.length > 0 ? executionProfileCards.map((card) => (
+              <div key={card.key || card.label} className="rounded-2xl border border-white/10 bg-dark-950/40 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-medium text-white">{card.label || card.key || "unknown sleeve"}</div>
+                    <div className="text-[12px] text-dark-400">{card.summary || "—"}</div>
+                  </div>
+                  <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(card.lifecycle_status || card.activation_status)}`}>
+                    {card.lifecycle_status || card.activation_status || "unknown"}
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-2 text-[12px]">
+                  <div className="rounded-xl border border-white/10 bg-dark-900/60 p-3">
+                    <div className="uppercase tracking-wide text-dark-500">planned budget</div>
+                    <div className="mt-1 font-medium text-white">{formatNumber(card.planned_budget_amount)} {balanceCurrency}</div>
+                    <div className="opacity-80">ratio {formatNumber(card.planned_budget_ratio_of_balance, 3)}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-dark-900/60 p-3">
+                    <div className="uppercase tracking-wide text-dark-500">start contract</div>
+                    <div className="mt-1 font-medium text-white">{card.control_contract?.start_status || card.activation_status || "unknown"}</div>
+                    <div className="opacity-80">mode {card.control_contract?.mode || "preview_only"}</div>
+                  </div>
+                </div>
+                <div className="mt-2 text-[12px] text-dark-300">routing reason {card.routing_reason || "—"}</div>
+                <div className="text-[12px] text-dark-300">start reason {card.control_contract?.start_reason || "—"}</div>
+                <div className="text-[12px] text-dark-400">shared symbol positions {card.symbol_scoped_position_count ?? 0} · open orders {card.symbol_scoped_open_order_count ?? 0}</div>
+                <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
+                  next operator action {card.next_operator_action || card.control_contract?.upgrade_prerequisite || "—"}
+                </div>
+              </div>
+            )) : (
+              <div className="rounded-2xl border border-white/10 bg-dark-950/40 p-4 text-[12px] text-dark-300">
+                尚未取得 bot profile cards；先確認 /api/execution/overview 是否可用。
+              </div>
+            )}
           </div>
         </div>
       </section>

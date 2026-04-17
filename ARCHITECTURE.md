@@ -229,6 +229,13 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 ### 7. Execution runtime surface
 手動交易與 execution readiness 的正式 surface 目前由 `/api/status`、`/api/trade`、`Dashboard` 共用。
 
+**Execution overview contract（Heartbeat 2026-04-18）**：`/api/execution/overview` 是 Execution Console 的第一個專用 read-only operations API。它必須直接消費 `/api/status` 的 live runtime truth，並輸出：
+- `summary`：active / blocked / standby bot profile counts
+- `capital_plan`：以 `execution.risk_control.check_position_size()` 算出的 deployable capital，並先用 `equal_split_active_sleeves` 規則切成 active sleeves 的 preview budget
+- `profile_cards[]`：每個 primary sleeve 的 `activation_status / lifecycle_status / routing_reason / planned_budget_amount / control_contract / next_operator_action`
+
+這份 contract 的定位是 **preview-only bot/profile planning surface**：它必須明講 start/pause/stop mutation API 尚未落地，且目前資金只是 shared-symbol preview，不可把這批卡片誤讀成已具備真正 per-bot runtime ledger。
+
 **Execution runtime visibility contract（Heartbeat 2026-04-16）**：`server/routes/api.py::api_status()` 建立 `ExecutionService` 時必須帶入 `db_session=get_db()`，不可只用 config-only summary。原因是 `daily_loss_ratio / daily_loss_halt / recent reject` 依賴 `TradeHistory` 與 runtime 狀態；若少了 DB session，Dashboard 看到的 guardrail 會變成假健康。
 
 **Account snapshot detail contract（Heartbeat 2026-04-17）**：`AccountSyncService.snapshot()` 不得只回傳 balance / positions / open_orders 原始列表。它現在還必須同步回傳 `captured_at`、`requested_symbol`、`normalized_symbol`、`position_count`、`open_order_count`、`degraded`、`operator_message`、`recovery_hint`，讓 Dashboard 的 canonical execution surface 可以直接判斷目前看到的是 fresh runtime truth 還是 degraded snapshot，避免空列表被誤讀成「真的沒有倉位 / 掛單」。

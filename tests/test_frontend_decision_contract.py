@@ -27,6 +27,7 @@ def test_execution_console_consumes_runtime_status_and_exposes_operations_vs_dia
     source = _read("pages/ExecutionConsole.tsx")
     required_snippets = [
         'const { data: runtimeStatus, loading, error, refresh: refreshRuntimeStatus } = useApi<ExecutionConsoleRuntimeStatusResponse>("/api/status", 60000);',
+        'const { data: executionOverview, loading: overviewLoading, error: overviewError } = useApi<ExecutionOverviewResponse>("/api/execution/overview", 60000);',
         'const executionSurfaceContract = runtimeStatus?.execution_surface_contract ?? null;',
         'const operationsSurface = executionSurfaceContract?.operations_surface ?? null;',
         'const diagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;',
@@ -39,6 +40,14 @@ def test_execution_console_consumes_runtime_status_and_exposes_operations_vs_dia
         'Sleeve routing / bot activation',
         'Guardrail / blocker',
         'Capital / account snapshot',
+        'Bot profiles / capital preview',
+        'Capital allocation preview',
+        'preview-only start contract',
+        'planned budget',
+        'start contract',
+        'routing reason',
+        'start reason',
+        'next operator action',
         'Recovery / reconciliation',
         'Metadata / venue readiness',
         '最近委託 / reject / failure',
