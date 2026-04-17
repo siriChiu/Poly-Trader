@@ -131,6 +131,25 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     monkeypatch.setattr(api_module, "is_automation_enabled", lambda: True)
     monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "binance"}, "execution": {"mode": "paper", "venue": "binance", "venues": {"binance": {"enabled": True}}}})
     monkeypatch.setattr(api_module, "_ensure_execution_metadata_smoke_governance", lambda cfg, symbol: {"all_ok": True, "ok_count": 2, "venues_checked": 2, "venues": [{"venue": "binance", "ok": True}], "governance": {"status": "healthy"}})
+    monkeypatch.setattr(api_module, "get_confidence_prediction", lambda: {
+        "signal": "HOLD",
+        "confidence": 0.346959,
+        "entry_quality": 0.5501,
+        "entry_quality_label": "C",
+        "allowed_layers": 1,
+        "allowed_layers_raw": 1,
+        "allowed_layers_reason": "entry_quality_C_single_layer",
+        "allowed_layers_raw_reason": "entry_quality_C_single_layer",
+        "q15_exact_supported_component_patch_applied": True,
+        "support_route_verdict": "exact_bucket_supported",
+        "support_progress": {"current_rows": 77, "minimum_support_rows": 50},
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket_rows": 0,
+                "alerts": ["no_rows"],
+            }
+        },
+    })
     monkeypatch.setattr(api_module, "_build_execution_reconciliation_summary", lambda db, symbol, account_snapshot, execution_summary: reconciliation_payload)
 
     import asyncio
@@ -152,7 +171,14 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["execution_surface_contract"]["shortcut_surface"]["message"] == "SignalBanner 目前只提供快捷下單 / 自動交易切換；完整 Execution 狀態、Guardrail context 與 stale governance 必須回 Dashboard 檢查。"
     assert payload["execution_surface_contract"]["shortcut_surface"]["upgrade_prerequisite"] == "必須先完整消費 /api/status 的 ticking_state、stale governance、guardrail context，才能升級第二 execution route。"
     assert payload["execution_surface_contract"]["readiness_scope"] == "runtime_governance_visibility_only"
-    assert payload["execution_surface_contract"]["operator_message"] == "目前完成的是 execution governance / visibility closure，不是 live 或 canary readiness。"
+    assert payload["execution_surface_contract"]["operator_message"].startswith("目前完成的是 execution governance / visibility closure，不是 live 或 canary readiness。")
+    assert payload["execution"]["live_runtime_truth"]["runtime_closure_state"] == "capacity_opened_signal_hold"
+    assert payload["execution_surface_contract"]["live_runtime_truth"]["runtime_closure_state"] == "capacity_opened_signal_hold"
+    assert payload["execution"]["live_runtime_truth"]["support_alignment_status"] == "runtime_ahead_of_calibration"
+    assert payload["execution"]["live_runtime_truth"]["runtime_exact_support_rows"] == 77
+    assert payload["execution"]["live_runtime_truth"]["calibration_exact_lane_rows"] == 0
+    assert "runtime 已有 77 筆 exact support，但 calibration exact lane 仍是 0 筆" in payload["execution"]["live_runtime_truth"]["support_alignment_summary"]
+    assert "1 層 deployment capacity" in payload["execution_surface_contract"]["operator_message"]
     assert payload["execution_surface_contract"]["live_ready"] is False
     assert payload["execution_surface_contract"]["live_ready_blockers"] == [
         "live exchange credential 尚未驗證",
@@ -199,22 +225,33 @@ def test_api_status_passes_db_session_into_execution_service(monkeypatch):
 
 
 class _QueryStub:
-    def __init__(self, row):
-        self._row = row
+    def __init__(self, rows):
+        if isinstance(rows, list):
+            self._rows = rows
+        elif rows is None:
+            self._rows = []
+        else:
+            self._rows = [rows]
 
     def order_by(self, *_args, **_kwargs):
         return self
 
     def first(self):
-        return self._row
+        return self._rows[0] if self._rows else None
+
+    def all(self):
+        return list(self._rows)
 
 
 class _DbStub:
-    def __init__(self, row):
-        self._row = row
+    def __init__(self, trade_row, lifecycle_rows=None):
+        self._trade_row = trade_row
+        self._lifecycle_rows = lifecycle_rows or []
 
-    def query(self, *_args, **_kwargs):
-        return _QueryStub(self._row)
+    def query(self, model, *_args, **_kwargs):
+        if getattr(model, "__name__", "") == "OrderLifecycleEvent":
+            return _QueryStub(self._lifecycle_rows)
+        return _QueryStub(self._trade_row)
 
 
 def test_build_execution_reconciliation_summary_marks_healthy_match():
@@ -228,8 +265,49 @@ def test_build_execution_reconciliation_summary_marks_healthy_match():
         order_status="closed",
         is_dry_run=1,
     )
+    lifecycle_rows = [
+        SimpleNamespace(
+            timestamp=datetime.now(timezone.utc) - timedelta(seconds=3),
+            exchange="binance",
+            symbol="BTC/USDT",
+            order_id="order-1",
+            client_order_id="client-1",
+            event_type="validation_passed",
+            order_state="validated",
+            source="execution_service",
+            summary="validated",
+            payload_json='{}',
+            is_dry_run=1,
+        ),
+        SimpleNamespace(
+            timestamp=datetime.now(timezone.utc) - timedelta(seconds=2),
+            exchange="binance",
+            symbol="BTC/USDT",
+            order_id="order-1",
+            client_order_id="client-1",
+            event_type="venue_ack",
+            order_state="closed",
+            source="exchange_adapter",
+            summary="ack",
+            payload_json='{}',
+            is_dry_run=1,
+        ),
+        SimpleNamespace(
+            timestamp=datetime.now(timezone.utc) - timedelta(seconds=1),
+            exchange="binance",
+            symbol="BTC/USDT",
+            order_id="order-1",
+            client_order_id="client-1",
+            event_type="trade_history_persisted",
+            order_state="closed",
+            source="trade_history",
+            summary="persisted",
+            payload_json='{}',
+            is_dry_run=1,
+        ),
+    ]
     payload = api_module._build_execution_reconciliation_summary(
-        _DbStub(latest_trade),
+        _DbStub(latest_trade, lifecycle_rows=lifecycle_rows),
         "BTCUSDT",
         {
             "captured_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -256,7 +334,49 @@ def test_build_execution_reconciliation_summary_marks_healthy_match():
     assert payload["status"] == "healthy"
     assert payload["trade_history_alignment"]["status"] == "matched"
     assert payload["open_order_alignment"]["status"] == "not_open"
+    assert payload["lifecycle_audit"]["stage"] == "terminal_reconciled"
+    assert payload["lifecycle_audit"]["restart_replay_required"] is False
+    assert payload["recovery_state"]["status"] == "ready_for_next_audit"
+    assert payload["lifecycle_contract"]["baseline_contract_status"] == "complete"
+    assert payload["lifecycle_contract"]["replay_readiness"] == "ready"
+    assert payload["lifecycle_contract"]["replay_verdict"] == "baseline_replay_ready_missing_path_artifacts"
+    assert payload["lifecycle_contract"]["replay_verdict_reason"] == "terminal_observed_without_partial_or_cancel"
+    assert payload["lifecycle_contract"]["artifact_coverage"] == "terminal_observed_without_partial_or_cancel"
+    assert payload["lifecycle_contract"]["artifact_checklist_summary"] == "baseline 3/3 ready · path artifacts 0/2 observed · restart replay ready"
+    assert payload["lifecycle_contract"]["artifact_checklist"][0]["key"] == "validation_passed"
+    assert payload["lifecycle_contract"]["artifact_checklist"][0]["status"] == "observed"
+    assert payload["lifecycle_contract"]["artifact_checklist"][0]["evidence"]["event_type"] == "validation_passed"
+    assert payload["lifecycle_contract"]["artifact_checklist"][3]["key"] == "partial_fill"
+    assert payload["lifecycle_contract"]["artifact_checklist"][3]["status"] == "pending_optional"
+    assert payload["lifecycle_contract"]["artifact_checklist"][-1]["key"] == "restart_replay"
+    assert payload["lifecycle_contract"]["artifact_checklist"][-1]["status"] == "ready"
+    assert payload["lifecycle_contract"]["event_type_counts"]["trade_history_persisted"] == 1
     assert payload["issues"] == []
+
+
+def test_build_live_runtime_closure_surface_marks_circuit_breaker_as_runtime_blocker():
+    payload = api_module._build_live_runtime_closure_surface(
+        {
+            "signal": "CIRCUIT_BREAKER",
+            "reason": "Recent 50-sample win rate: 10.00% < 30%",
+            "allowed_layers": 0,
+            "allowed_layers_raw": None,
+            "allowed_layers_raw_reason": "circuit_breaker_preempts_runtime_sizing",
+            "allowed_layers_reason": "circuit_breaker_blocks_trade",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "circuit_breaker_blocks_trade",
+            "deployment_blocker": "circuit_breaker_active",
+            "deployment_blocker_reason": "Recent 50-sample win rate: 10.00% < 30%",
+            "deployment_blocker_source": "circuit_breaker",
+            "deployment_blocker_details": {"release_condition": {"recent_window": 50}},
+        }
+    )
+
+    assert payload["runtime_closure_state"] == "circuit_breaker_active"
+    assert payload["allowed_layers_reason"] == "circuit_breaker_blocks_trade"
+    assert payload["execution_guardrail_reason"] == "circuit_breaker_blocks_trade"
+    assert payload["deployment_blocker"] == "circuit_breaker_active"
+    assert "release condition = streak < 50 且 recent 50 win rate >= 30%" in payload["runtime_closure_summary"]
 
 
 def test_build_execution_reconciliation_summary_flags_missing_open_order_when_snapshot_fresh():
@@ -287,7 +407,207 @@ def test_build_execution_reconciliation_summary_flags_missing_open_order_when_sn
 
     assert payload["status"] == "warning"
     assert payload["open_order_alignment"]["status"] == "missing_from_account_snapshot"
+    assert payload["lifecycle_audit"]["stage"] == "open_missing_from_snapshot"
+    assert payload["lifecycle_audit"]["restart_replay_required"] is True
+    assert payload["recovery_state"]["status"] == "needs_open_order_replay"
+    assert payload["lifecycle_contract"]["replay_verdict"] == "baseline_events_missing"
     assert "open_order_missing_from_snapshot" in payload["issues"]
+
+
+def test_build_execution_reconciliation_summary_without_runtime_order_is_idle():
+    payload = api_module._build_execution_reconciliation_summary(
+        _DbStub(None),
+        "BTCUSDT",
+        {
+            "captured_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "requested_symbol": "BTCUSDT",
+            "normalized_symbol": "BTC/USDT",
+            "degraded": False,
+            "positions": [],
+            "open_orders": [],
+        },
+        {"guardrails": {"last_order": None}},
+    )
+
+    assert payload["lifecycle_audit"]["stage"] == "no_runtime_order"
+    assert payload["recovery_state"]["status"] == "idle"
+    assert payload["recovery_state"]["restart_replay_required"] is False
+    assert payload["lifecycle_contract"]["status"] == "absent"
+    assert payload["lifecycle_contract"]["replay_readiness"] == "not_applicable"
+    assert payload["lifecycle_contract"]["replay_verdict"] == "no_runtime_order"
+    assert payload["lifecycle_contract"]["artifact_checklist_summary"] == "尚未建立任何 runtime order artifact；先捕捉第一筆 order lifecycle。"
+    assert payload["lifecycle_contract"]["artifact_checklist"][0]["key"] == "capture_first_runtime_order"
+    assert payload["lifecycle_contract"]["artifact_checklist"][0]["status"] == "not_applicable"
+
+
+def test_build_execution_reconciliation_summary_marks_lifecycle_contract_incomplete_without_baseline_events():
+    latest_trade = SimpleNamespace(
+        timestamp=datetime.now(timezone.utc),
+        symbol="BTC/USDT",
+        exchange="binance",
+        action="BUY",
+        order_id="order-gap",
+        client_order_id="client-gap",
+        order_status="closed",
+        is_dry_run=1,
+    )
+    lifecycle_rows = [
+        SimpleNamespace(
+            timestamp=datetime.now(timezone.utc) - timedelta(seconds=1),
+            exchange="binance",
+            symbol="BTC/USDT",
+            order_id="order-gap",
+            client_order_id="client-gap",
+            event_type="venue_ack",
+            order_state="closed",
+            source="exchange_adapter",
+            summary="ack",
+            payload_json='{}',
+            is_dry_run=1,
+        ),
+    ]
+    payload = api_module._build_execution_reconciliation_summary(
+        _DbStub(latest_trade, lifecycle_rows=lifecycle_rows),
+        "BTCUSDT",
+        {
+            "captured_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "requested_symbol": "BTCUSDT",
+            "normalized_symbol": "BTC/USDT",
+            "degraded": False,
+            "positions": [],
+            "open_orders": [],
+        },
+        {
+            "guardrails": {
+                "last_order": {
+                    "symbol": "BTC/USDT",
+                    "status": "closed",
+                    "order_id": "order-gap",
+                    "client_order_id": "client-gap",
+                }
+            }
+        },
+    )
+
+    assert payload["lifecycle_contract"]["status"] == "incomplete"
+    assert payload["lifecycle_contract"]["baseline_contract_status"] == "incomplete"
+    assert payload["lifecycle_contract"]["replay_readiness"] == "blocked"
+    assert payload["lifecycle_contract"]["replay_verdict"] == "baseline_events_missing"
+    assert payload["lifecycle_contract"]["replay_verdict_reason"] == "missing_required_lifecycle_events"
+    assert payload["lifecycle_contract"]["missing_event_types"] == ["validation_passed", "trade_history_persisted"]
+    assert payload["lifecycle_contract"]["operator_next_artifact"] == "backfill_required_lifecycle_events"
+    assert payload["lifecycle_contract"]["artifact_checklist_summary"] == "baseline 1/3 ready · path artifacts 0/2 observed · restart replay blocked"
+    assert payload["lifecycle_contract"]["artifact_checklist"][0]["status"] == "missing"
+    assert payload["lifecycle_contract"]["artifact_checklist"][1]["status"] == "observed"
+    assert payload["lifecycle_contract"]["artifact_checklist"][2]["status"] == "missing"
+    assert payload["lifecycle_contract"]["artifact_checklist"][-1]["status"] == "blocked"
+
+
+def test_build_execution_reconciliation_summary_normalizes_epoch_runtime_timestamp():
+    latest_trade = SimpleNamespace(
+        timestamp=datetime.now(timezone.utc),
+        symbol="BTC/USDT",
+        exchange="binance",
+        action="BUY",
+        order_id="order-epoch",
+        client_order_id="client-epoch",
+        order_status="closed",
+        is_dry_run=0,
+    )
+    payload = api_module._build_execution_reconciliation_summary(
+        _DbStub(latest_trade),
+        "BTCUSDT",
+        {
+            "captured_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "requested_symbol": "BTCUSDT",
+            "normalized_symbol": "BTC/USDT",
+            "degraded": False,
+            "positions": [],
+            "open_orders": [],
+        },
+        {
+            "guardrails": {
+                "last_order": {
+                    "symbol": "BTC/USDT",
+                    "status": "closed",
+                    "order_id": "order-epoch",
+                    "client_order_id": "client-epoch",
+                    "timestamp": 1_712_345_678_901,
+                }
+            }
+        },
+    )
+
+    assert payload["lifecycle_audit"]["evidence"]["runtime_order_timestamp"].endswith("Z")
+    assert payload["lifecycle_audit"]["evidence"]["trade_history_timestamp"].endswith("Z")
+
+
+def test_build_execution_reconciliation_summary_includes_lifecycle_timeline():
+    latest_trade = SimpleNamespace(
+        timestamp=datetime.now(timezone.utc),
+        symbol="BTC/USDT",
+        exchange="binance",
+        action="BUY",
+        order_id="order-timeline",
+        client_order_id="client-timeline",
+        order_status="closed",
+        is_dry_run=1,
+    )
+    lifecycle_rows = [
+        SimpleNamespace(
+            timestamp=datetime.now(timezone.utc) - timedelta(seconds=2),
+            exchange="binance",
+            symbol="BTC/USDT",
+            order_id="order-timeline",
+            client_order_id="client-timeline",
+            event_type="validation_passed",
+            order_state="validated",
+            source="execution_service",
+            summary="validated",
+            payload_json='{"normalization": {"normalized": {"qty": 0.01}}}',
+            is_dry_run=1,
+        ),
+        SimpleNamespace(
+            timestamp=datetime.now(timezone.utc) - timedelta(seconds=1),
+            exchange="binance",
+            symbol="BTC/USDT",
+            order_id="order-timeline",
+            client_order_id="client-timeline",
+            event_type="venue_ack",
+            order_state="closed",
+            source="exchange_adapter",
+            summary="ack",
+            payload_json='{"timestamp": 1712345678901}',
+            is_dry_run=1,
+        ),
+    ]
+    payload = api_module._build_execution_reconciliation_summary(
+        _DbStub(latest_trade, lifecycle_rows=lifecycle_rows),
+        "BTCUSDT",
+        {
+            "captured_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "requested_symbol": "BTCUSDT",
+            "normalized_symbol": "BTC/USDT",
+            "degraded": False,
+            "positions": [],
+            "open_orders": [],
+        },
+        {
+            "guardrails": {
+                "last_order": {
+                    "symbol": "BTC/USDT",
+                    "status": "closed",
+                    "order_id": "order-timeline",
+                    "client_order_id": "client-timeline",
+                }
+            }
+        },
+    )
+
+    assert payload["lifecycle_timeline"]["status"] == "available"
+    assert payload["lifecycle_timeline"]["total_events"] == 2
+    assert payload["lifecycle_timeline"]["latest_event"]["event_type"] == "venue_ack"
+    assert payload["lifecycle_timeline"]["events"][0]["payload"]["normalization"]["normalized"]["qty"] == 0.01
 
 
 def test_load_execution_metadata_smoke_summary_reports_freshness(tmp_path, monkeypatch):

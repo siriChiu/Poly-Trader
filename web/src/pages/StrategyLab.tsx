@@ -237,9 +237,23 @@ interface StrategyLabRuntimeStatusResponse {
       summary?: string;
       baseline_contract_status?: string;
       replay_readiness?: string;
+      replay_verdict?: string;
+      replay_verdict_reason?: string;
+      replay_verdict_summary?: string;
       artifact_coverage?: string;
       missing_event_types?: string[];
       operator_next_artifact?: string;
+      artifact_checklist_summary?: string;
+      artifact_checklist?: Array<{
+        key?: string;
+        label?: string;
+        status?: string;
+        required?: boolean;
+        observed?: boolean;
+        count?: number;
+        summary?: string;
+        evidence?: Record<string, unknown> | null;
+      }>;
     } | null;
     lifecycle_timeline?: {
       status?: string;
@@ -1776,7 +1790,16 @@ export default function StrategyLab() {
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const lifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
   const lifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
+  const lifecycleArtifactChecklist = Array.isArray(lifecycleContract?.artifact_checklist)
+    ? lifecycleContract.artifact_checklist
+    : [];
   const recoveryState = executionReconciliation?.recovery_state ?? null;
+  const lifecycleChecklistTone = (status?: string | null) => {
+    if (status === "observed" || status === "ready") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";
+    if (status === "missing" || status === "blocked") return "border-red-500/30 bg-red-500/10 text-red-100";
+    if (status === "pending" || status === "pending_optional" || status === "waiting_baseline") return "border-amber-500/30 bg-amber-500/10 text-amber-100";
+    return "border-white/10 bg-slate-950/20 text-slate-200";
+  };
 
   return (
     <div className="space-y-4">
@@ -2156,6 +2179,8 @@ export default function StrategyLab() {
                   <div>restart replay required {lifecycleAudit?.restart_replay_required ? "yes" : "no"}</div>
                 </div>
                 <div className="mt-2 opacity-80">baseline contract {lifecycleContract?.baseline_contract_status || "—"} · replay readiness {lifecycleContract?.replay_readiness || "—"}</div>
+                <div className="opacity-80">replay verdict {lifecycleContract?.replay_verdict || "—"} · reason {lifecycleContract?.replay_verdict_reason || "—"}</div>
+                <div className="opacity-80">replay verdict summary {lifecycleContract?.replay_verdict_summary || "—"}</div>
                 <div className="opacity-80">artifact coverage {lifecycleContract?.artifact_coverage || "—"} · next artifact {lifecycleContract?.operator_next_artifact || "—"}</div>
                 <div className="opacity-80">missing lifecycle events {(lifecycleContract?.missing_event_types || []).join(" / ") || "none"}</div>
                 <div className="mt-2 opacity-80">operator action：{recoveryState?.operator_action || lifecycleAudit?.operator_action || "先到 Dashboard 檢查 execution runtime surface。"}</div>
@@ -2172,6 +2197,27 @@ export default function StrategyLab() {
                     ))}
                   </div>
                 )}
+                <div className="mt-3 rounded-md border border-white/10 bg-slate-950/20 px-3 py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-medium">Artifact checklist / per-order closure</div>
+                    <div className="opacity-80">artifact checklist summary {lifecycleContract?.artifact_checklist_summary || "—"}</div>
+                  </div>
+                  <div className="mt-1 opacity-80">逐筆 order artifact 對帳：validation → ack → trade history → partial fill / cancel → restart replay</div>
+                  <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {lifecycleArtifactChecklist.length > 0 ? lifecycleArtifactChecklist.map((item, idx) => (
+                      <div key={`${item.key || "artifact"}-${idx}`} className={`rounded-md border px-3 py-2 ${lifecycleChecklistTone(item.status)}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div>{item.label || item.key || `artifact ${idx + 1}`}</div>
+                          <div className="opacity-80">{item.status || "unknown"}</div>
+                        </div>
+                        <div className="mt-1 opacity-80">required {item.required ? "yes" : "no"} · observed {item.observed ? "yes" : "no"} · count {item.count ?? 0}</div>
+                        <div className="mt-1 opacity-80">{item.summary || "—"}</div>
+                      </div>
+                    )) : (
+                      <div className="opacity-80">尚未取得 per-order artifact checklist。</div>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="opacity-80">canonical surface {executionSurfaceContract?.canonical_surface_label || "Dashboard / Execution 狀態面板"}</div>

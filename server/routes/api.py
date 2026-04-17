@@ -688,6 +688,92 @@ def _build_execution_surface_contract() -> Dict[str, Any]:
     }
 
 
+def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    payload = confidence_payload or {}
+    patch_active = bool(payload.get("q15_exact_supported_component_patch_applied"))
+    signal = str(payload.get("signal") or "—")
+    allowed_layers = payload.get("allowed_layers")
+    support_progress = payload.get("support_progress") if isinstance(payload.get("support_progress"), dict) else {}
+    current_rows = support_progress.get("current_rows")
+    minimum_rows = support_progress.get("minimum_support_rows")
+    scope_diagnostics = payload.get("decision_quality_scope_diagnostics") if isinstance(payload.get("decision_quality_scope_diagnostics"), dict) else {}
+    exact_scope = scope_diagnostics.get("regime_label+regime_gate+entry_quality_label") if isinstance(scope_diagnostics.get("regime_label+regime_gate+entry_quality_label"), dict) else {}
+    calibration_exact_lane_rows = exact_scope.get("current_live_structure_bucket_rows")
+    calibration_exact_lane_alerts = exact_scope.get("alerts") if isinstance(exact_scope.get("alerts"), list) else []
+
+    support_alignment_status = "unavailable"
+    support_alignment_summary = "尚未取得 exact live lane calibration 對照。"
+    if current_rows is not None and calibration_exact_lane_rows is not None:
+        if int(current_rows) > 0 and int(calibration_exact_lane_rows) == 0:
+            support_alignment_status = "runtime_ahead_of_calibration"
+            support_alignment_summary = (
+                f"runtime 已有 {int(current_rows)} 筆 exact support，但 calibration exact lane 仍是 0 筆；"
+                "目前 deployment capacity 應以 q15 support audit / runtime exact-support closure 為準，"
+                "不能把 calibration 0 rows 誤讀成 runtime 未支援。"
+            )
+        elif int(current_rows) == int(calibration_exact_lane_rows):
+            support_alignment_status = "aligned"
+            support_alignment_summary = (
+                f"runtime exact support 與 calibration exact lane 已對齊（{int(current_rows)} 筆）。"
+            )
+        elif int(current_rows) > int(calibration_exact_lane_rows):
+            support_alignment_status = "runtime_above_calibration"
+            support_alignment_summary = (
+                f"runtime exact support={int(current_rows)}，高於 calibration exact lane={int(calibration_exact_lane_rows)}；"
+                "operator 應優先確認 label replay / calibration artifact 是否落後。"
+            )
+        else:
+            support_alignment_status = "calibration_above_runtime"
+            support_alignment_summary = (
+                f"calibration exact lane={int(calibration_exact_lane_rows)}，高於 runtime exact support={int(current_rows)}；"
+                "需檢查 runtime current-live row / support bucket 是否切換。"
+            )
+
+    if signal == "CIRCUIT_BREAKER":
+        runtime_closure_state = "circuit_breaker_active"
+        runtime_closure_summary = (
+            "canonical live path 目前由 circuit breaker 擋下；"
+            f"{payload.get('reason') or '需檢查 recent 50 win rate / streak'}。"
+            "release condition = streak < 50 且 recent 50 win rate >= 30%。"
+        )
+    elif patch_active and signal == "HOLD" and (allowed_layers or 0) > 0:
+        runtime_closure_state = "capacity_opened_signal_hold"
+        runtime_closure_summary = "q15 patch active，runtime 已開出 1 層 deployment capacity，但 signal 仍是 HOLD；這不是 patch missing，也不是自動 BUY readiness。"
+    elif patch_active:
+        runtime_closure_state = "patch_active"
+        runtime_closure_summary = "q15 patch active，但當前 runtime 狀態不屬於 capacity_opened_signal_hold。"
+    else:
+        runtime_closure_state = "patch_inactive_or_blocked"
+        runtime_closure_summary = "q15 patch 尚未 active 或目前仍被其他條件阻擋。"
+    return {
+        "runtime_closure_state": runtime_closure_state,
+        "runtime_closure_summary": runtime_closure_summary,
+        "signal": signal,
+        "confidence": payload.get("confidence"),
+        "entry_quality": payload.get("entry_quality"),
+        "entry_quality_label": payload.get("entry_quality_label"),
+        "allowed_layers": allowed_layers,
+        "allowed_layers_reason": payload.get("allowed_layers_reason"),
+        "allowed_layers_raw": payload.get("allowed_layers_raw"),
+        "allowed_layers_raw_reason": payload.get("allowed_layers_raw_reason"),
+        "execution_guardrail_applied": payload.get("execution_guardrail_applied"),
+        "execution_guardrail_reason": payload.get("execution_guardrail_reason"),
+        "deployment_blocker": payload.get("deployment_blocker"),
+        "deployment_blocker_reason": payload.get("deployment_blocker_reason"),
+        "deployment_blocker_source": payload.get("deployment_blocker_source"),
+        "deployment_blocker_details": payload.get("deployment_blocker_details"),
+        "q15_exact_supported_component_patch_applied": patch_active,
+        "support_route_verdict": payload.get("support_route_verdict"),
+        "support_progress": support_progress or None,
+        "support_rows_text": f"{current_rows} / {minimum_rows}" if current_rows is not None and minimum_rows is not None else None,
+        "runtime_exact_support_rows": current_rows,
+        "calibration_exact_lane_rows": calibration_exact_lane_rows,
+        "calibration_exact_lane_alerts": calibration_exact_lane_alerts,
+        "support_alignment_status": support_alignment_status,
+        "support_alignment_summary": support_alignment_summary,
+    }
+
+
 def _record_value(record: Any, *keys: str) -> Any:
     current = record
     for key in keys:
@@ -949,6 +1035,335 @@ def _build_execution_recovery_state(
     }
 
 
+def _build_execution_lifecycle_contract(
+    *,
+    lifecycle_events: List[OrderLifecycleEvent],
+    lifecycle_audit: Dict[str, Any],
+    last_order: Optional[Dict[str, Any]],
+    latest_trade: Optional[TradeHistory],
+) -> Dict[str, Any]:
+    runtime_state = str(lifecycle_audit.get("runtime_state") or "absent")
+
+    def _event_evidence(event: Optional[OrderLifecycleEvent]) -> Optional[Dict[str, Any]]:
+        if event is None:
+            return None
+        return {
+            "timestamp": _iso_utc_timestamp(getattr(event, "timestamp", None)),
+            "event_type": getattr(event, "event_type", None),
+            "order_state": getattr(event, "order_state", None),
+            "source": getattr(event, "source", None),
+            "summary": getattr(event, "summary", None),
+        }
+
+    if not lifecycle_events and last_order is None and latest_trade is None:
+        return {
+            "status": "absent",
+            "summary": "尚未觀察到可供 replay 的 lifecycle artifact。",
+            "event_type_counts": {},
+            "event_types_seen": [],
+            "required_event_types": [],
+            "missing_event_types": [],
+            "replay_key_ready": False,
+            "replay_readiness": "not_applicable",
+            "replay_readiness_reason": "no_runtime_order",
+            "replay_verdict": "no_runtime_order",
+            "replay_verdict_reason": "no_runtime_order",
+            "replay_verdict_summary": "目前沒有可供 restart replay 的 runtime order。",
+            "baseline_contract_status": "not_applicable",
+            "partial_fill_observed": False,
+            "cancel_observed": False,
+            "terminal_state_observed": False,
+            "artifact_coverage": "not_applicable",
+            "operator_next_artifact": "capture_first_runtime_order",
+            "artifact_checklist_summary": "尚未建立任何 runtime order artifact；先捕捉第一筆 order lifecycle。",
+            "artifact_checklist": [
+                {
+                    "key": "capture_first_runtime_order",
+                    "label": "Capture first runtime order",
+                    "status": "not_applicable",
+                    "required": True,
+                    "observed": False,
+                    "count": 0,
+                    "summary": "目前沒有 runtime order，因此無法建立 validation / replay checklist。",
+                    "evidence": None,
+                },
+                {
+                    "key": "restart_replay",
+                    "label": "Restart replay evidence",
+                    "status": "not_applicable",
+                    "required": False,
+                    "observed": False,
+                    "count": 0,
+                    "summary": "先有 runtime order 與 replay key，才能評估 restart replay readiness。",
+                    "evidence": None,
+                },
+            ],
+        }
+
+    event_type_counts: Dict[str, int] = {}
+    event_types_seen: List[str] = []
+    latest_event_by_type: Dict[str, OrderLifecycleEvent] = {}
+    partial_fill_event: Optional[OrderLifecycleEvent] = None
+    cancel_event: Optional[OrderLifecycleEvent] = None
+    terminal_event: Optional[OrderLifecycleEvent] = None
+    partial_fill_observed = False
+    cancel_observed = False
+    terminal_state_observed = False
+    for event in lifecycle_events:
+        event_type = str(getattr(event, "event_type", "") or "unknown")
+        if event_type not in event_type_counts:
+            event_types_seen.append(event_type)
+        event_type_counts[event_type] = int(event_type_counts.get(event_type, 0)) + 1
+        latest_event_by_type[event_type] = event
+        normalized_state = _normalize_order_state(getattr(event, "order_state", None))
+        if normalized_state == "partially_filled" or event_type == "partial_fill":
+            partial_fill_observed = True
+            partial_fill_event = event
+        if normalized_state == "canceled" or event_type in {"canceled", "cancel_ack", "cancelled"}:
+            cancel_observed = True
+            cancel_event = event
+        if normalized_state in {"closed", "canceled", "rejected", "expired"}:
+            terminal_state_observed = True
+            terminal_event = event
+
+    required_event_types: List[str] = []
+    if runtime_state != "absent":
+        if runtime_state == "rejected":
+            required_event_types = ["rejected"]
+        else:
+            required_event_types = ["validation_passed", "venue_ack", "trade_history_persisted"]
+    missing_event_types = [event_type for event_type in required_event_types if event_type_counts.get(event_type, 0) <= 0]
+
+    replay_key_ready = bool(
+        _record_text(last_order, "order_id")
+        or _record_text(last_order, "client_order_id")
+        or getattr(latest_trade, "order_id", None)
+        or getattr(latest_trade, "client_order_id", None)
+    )
+
+    if not required_event_types:
+        baseline_contract_status = "not_applicable"
+    elif missing_event_types:
+        baseline_contract_status = "incomplete"
+    else:
+        baseline_contract_status = "complete"
+
+    restart_replay_required = bool(lifecycle_audit.get("restart_replay_required"))
+    if runtime_state == "absent":
+        replay_readiness = "not_applicable"
+        replay_readiness_reason = "no_runtime_order"
+    elif baseline_contract_status != "complete":
+        replay_readiness = "blocked"
+        replay_readiness_reason = "missing_required_lifecycle_events"
+    elif not replay_key_ready:
+        replay_readiness = "blocked"
+        replay_readiness_reason = "missing_replay_key"
+    elif restart_replay_required:
+        replay_readiness = "blocked"
+        replay_readiness_reason = str(lifecycle_audit.get("reason") or "restart_replay_required")
+    else:
+        replay_readiness = "ready"
+        replay_readiness_reason = "baseline_reconciliation_ready"
+
+    if partial_fill_observed and cancel_observed:
+        artifact_coverage = "partial_fill_and_cancel_observed"
+    elif partial_fill_observed:
+        artifact_coverage = "partial_fill_observed"
+    elif cancel_observed:
+        artifact_coverage = "cancel_observed"
+    elif terminal_state_observed:
+        artifact_coverage = "terminal_observed_without_partial_or_cancel"
+    elif baseline_contract_status == "complete":
+        artifact_coverage = "baseline_only"
+    else:
+        artifact_coverage = "incomplete"
+
+    if baseline_contract_status != "complete":
+        operator_next_artifact = "backfill_required_lifecycle_events"
+        summary = "目前 only 有部分 lifecycle 記錄；先補齊 validation / venue ack / trade_history persist 基線事件。"
+        status = "incomplete"
+    elif replay_readiness != "ready":
+        operator_next_artifact = "capture_restart_replay_evidence"
+        summary = "基線 lifecycle 已存在，但 restart replay 仍缺可驗證證據。"
+        status = "replay_blocked"
+    elif artifact_coverage == "baseline_only":
+        operator_next_artifact = "capture_partial_fill_or_cancel_artifacts"
+        summary = "基線 lifecycle 已對上，但 partial fill / cancel artifact 尚未觀察到。"
+        status = "baseline_only"
+    else:
+        operator_next_artifact = "keep_validating_live_lifecycle"
+        summary = "lifecycle artifact 已涵蓋 baseline replay，且已觀察到額外 execution path evidence。"
+        status = "extended_coverage"
+
+    if status == "absent":
+        replay_verdict = "no_runtime_order"
+        replay_verdict_reason = "no_runtime_order"
+        replay_verdict_summary = "目前沒有可供 restart replay 的 runtime order。"
+    elif status == "incomplete":
+        replay_verdict = "baseline_events_missing"
+        replay_verdict_reason = "missing_required_lifecycle_events"
+        replay_verdict_summary = "replay 尚未成立：validation / venue ack / trade_history persist 基線事件仍缺漏。"
+    elif replay_readiness != "ready":
+        replay_verdict = "restart_replay_blocked"
+        replay_verdict_reason = replay_readiness_reason
+        replay_verdict_summary = "基線 lifecycle 已存在，但 restart replay 仍被 recovery lane 擋下。"
+    elif artifact_coverage in {"baseline_only", "terminal_observed_without_partial_or_cancel"}:
+        replay_verdict = "baseline_replay_ready_missing_path_artifacts"
+        replay_verdict_reason = artifact_coverage
+        replay_verdict_summary = "baseline replay 已可驗證，但 partial fill / cancel 類 execution path artifact 還不夠。"
+    else:
+        replay_verdict = "replay_artifacts_observed"
+        replay_verdict_reason = artifact_coverage
+        replay_verdict_summary = "baseline replay 與額外 execution path artifact 都已觀察到，可持續擴充 venue coverage。"
+
+    baseline_observed_count = 0
+    baseline_required_count = 0
+    path_observed_count = int(partial_fill_observed) + int(cancel_observed)
+
+    artifact_checklist: List[Dict[str, Any]] = []
+    for event_type, label in [
+        ("validation_passed", "Validation passed"),
+        ("venue_ack", "Venue ack"),
+        ("trade_history_persisted", "Trade history persisted"),
+    ]:
+        required = event_type in required_event_types
+        observed = event_type_counts.get(event_type, 0) > 0
+        if required:
+            baseline_required_count += 1
+            baseline_observed_count += int(observed)
+        artifact_checklist.append(
+            {
+                "key": event_type,
+                "label": label,
+                "status": "observed" if observed else ("missing" if required else "not_applicable"),
+                "required": required,
+                "observed": observed,
+                "count": int(event_type_counts.get(event_type, 0)),
+                "summary": (
+                    f"已觀察到 {label.lower()} artifact。"
+                    if observed
+                    else (f"{label} 是 replay baseline 必要證據，當前仍缺失。" if required else f"當前 runtime path 不要求 {label}。")
+                ),
+                "evidence": _event_evidence(latest_event_by_type.get(event_type)),
+            }
+        )
+
+    artifact_checklist.append(
+        {
+            "key": "partial_fill",
+            "label": "Partial fill artifact",
+            "status": "observed" if partial_fill_observed else ("pending_optional" if baseline_contract_status == "complete" else "waiting_baseline"),
+            "required": False,
+            "observed": partial_fill_observed,
+            "count": int(event_type_counts.get("partial_fill", 0)),
+            "summary": (
+                "已觀察到 partial fill artifact，可支撐更完整的 venue replay closure。"
+                if partial_fill_observed
+                else (
+                    "baseline 已就緒，但尚未看到 partial fill path；仍需補充 venue path evidence。"
+                    if baseline_contract_status == "complete"
+                    else "先補齊 baseline lifecycle，再追 partial fill / cancel path artifact。"
+                )
+            ),
+            "evidence": _event_evidence(partial_fill_event),
+        }
+    )
+    artifact_checklist.append(
+        {
+            "key": "cancel",
+            "label": "Cancel artifact",
+            "status": "observed" if cancel_observed else ("pending_optional" if baseline_contract_status == "complete" else "waiting_baseline"),
+            "required": False,
+            "observed": cancel_observed,
+            "count": int(event_type_counts.get("cancel_ack", 0) + event_type_counts.get("canceled", 0) + event_type_counts.get("cancelled", 0)),
+            "summary": (
+                "已觀察到 cancel artifact，可驗證 order cancel/replay lane。"
+                if cancel_observed
+                else (
+                    "baseline 已就緒，但尚未看到 cancel path；仍需補充 venue cancel evidence。"
+                    if baseline_contract_status == "complete"
+                    else "先補齊 baseline lifecycle，再追 partial fill / cancel path artifact。"
+                )
+            ),
+            "evidence": _event_evidence(cancel_event),
+        }
+    )
+    artifact_checklist.append(
+        {
+            "key": "terminal_state",
+            "label": "Terminal state observed",
+            "status": "observed" if terminal_state_observed else ("pending" if runtime_state != "absent" else "not_applicable"),
+            "required": False,
+            "observed": terminal_state_observed,
+            "count": int(terminal_state_observed),
+            "summary": (
+                "已觀察到 closed / canceled / rejected / expired 類 terminal state。"
+                if terminal_state_observed
+                else "目前尚未觀察到 terminal state；若 order 仍 open，需持續追蹤後續 lifecycle。"
+            ),
+            "evidence": _event_evidence(terminal_event),
+        }
+    )
+    artifact_checklist.append(
+        {
+            "key": "restart_replay",
+            "label": "Restart replay evidence",
+            "status": (
+                "ready"
+                if replay_readiness == "ready"
+                else ("blocked" if replay_readiness == "blocked" else "not_applicable")
+            ),
+            "required": runtime_state != "absent",
+            "observed": replay_readiness == "ready",
+            "count": int(replay_readiness == "ready"),
+            "summary": (
+                "baseline replay 已 ready，可開始核對 restart replay closure。"
+                if replay_readiness == "ready"
+                else (
+                    f"restart replay 仍被擋下：{replay_readiness_reason}。"
+                    if replay_readiness == "blocked"
+                    else "目前沒有 runtime order，restart replay 不適用。"
+                )
+            ),
+            "evidence": {
+                "order_id": _record_text(last_order, "order_id") or getattr(latest_trade, "order_id", None),
+                "client_order_id": _record_text(last_order, "client_order_id") or getattr(latest_trade, "client_order_id", None),
+                "reason": replay_readiness_reason,
+                "operator_next_artifact": operator_next_artifact,
+            },
+        }
+    )
+
+    artifact_checklist_summary = (
+        f"baseline {baseline_observed_count}/{baseline_required_count or 0} ready · "
+        f"path artifacts {path_observed_count}/2 observed · "
+        f"restart replay {replay_readiness}"
+    )
+
+    return {
+        "status": status,
+        "summary": summary,
+        "event_type_counts": event_type_counts,
+        "event_types_seen": event_types_seen,
+        "required_event_types": required_event_types,
+        "missing_event_types": missing_event_types,
+        "replay_key_ready": replay_key_ready,
+        "replay_readiness": replay_readiness,
+        "replay_readiness_reason": replay_readiness_reason,
+        "replay_verdict": replay_verdict,
+        "replay_verdict_reason": replay_verdict_reason,
+        "replay_verdict_summary": replay_verdict_summary,
+        "baseline_contract_status": baseline_contract_status,
+        "partial_fill_observed": partial_fill_observed,
+        "cancel_observed": cancel_observed,
+        "terminal_state_observed": terminal_state_observed,
+        "artifact_coverage": artifact_coverage,
+        "operator_next_artifact": operator_next_artifact,
+        "artifact_checklist_summary": artifact_checklist_summary,
+        "artifact_checklist": artifact_checklist,
+    }
+
+
 def _build_execution_reconciliation_summary(
     db,
     symbol: str,
@@ -1072,6 +1487,12 @@ def _build_execution_reconciliation_summary(
         trade_alignment_status=trade_alignment_status,
         open_order_alignment_status=open_order_alignment_status,
     )
+    lifecycle_contract = _build_execution_lifecycle_contract(
+        lifecycle_events=lifecycle_events,
+        lifecycle_audit=lifecycle_audit,
+        last_order=last_order,
+        latest_trade=latest_trade,
+    )
 
     if account_degraded:
         status = "degraded"
@@ -1090,6 +1511,7 @@ def _build_execution_reconciliation_summary(
         "issues": issues,
         "lifecycle_audit": lifecycle_audit,
         "recovery_state": recovery_state,
+        "lifecycle_contract": lifecycle_contract,
         "lifecycle_timeline": {
             "status": "available" if lifecycle_events else "absent",
             "replay_key": {
@@ -1657,7 +2079,21 @@ async def api_status():
     execution = ExecutionService(cfg, db_session=db)
     account_snapshot = AccountSyncService(cfg).snapshot(symbol=symbol)
     execution_summary = execution.execution_summary()
-    return {
+    try:
+        confidence_result = get_confidence_prediction()
+        if hasattr(confidence_result, "__await__"):
+            confidence_payload = await confidence_result
+        else:
+            confidence_payload = confidence_result
+    except Exception:
+        confidence_payload = None
+    live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload if isinstance(confidence_payload, dict) else None)
+    execution_summary["live_runtime_truth"] = live_runtime_truth
+    account_snapshot["live_runtime_truth"] = live_runtime_truth
+    if live_runtime_truth.get("runtime_closure_state") == "capacity_opened_signal_hold":
+        execution_summary["operator_message"] = live_runtime_truth["runtime_closure_summary"]
+        account_snapshot["operator_message"] = f"account snapshot 已刷新；{live_runtime_truth['runtime_closure_summary']}"
+    status_payload = {
         "automation": is_automation_enabled(),
         "dry_run": cfg.get("trading", {}).get("dry_run", True),
         "symbol": symbol,
@@ -1675,6 +2111,10 @@ async def api_status():
         "raw_continuity": get_runtime_status("raw_continuity", None),
         "feature_continuity": get_runtime_status("feature_continuity", None),
     }
+    status_payload["execution_surface_contract"]["live_runtime_truth"] = live_runtime_truth
+    if live_runtime_truth.get("runtime_closure_state") == "capacity_opened_signal_hold":
+        status_payload["execution_surface_contract"]["operator_message"] = f"{status_payload['execution_surface_contract']['operator_message']} 另外，{live_runtime_truth['runtime_closure_summary']}"
+    return status_payload
 
 
 @router.get("/features/status")

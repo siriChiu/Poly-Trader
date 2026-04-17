@@ -390,12 +390,26 @@ interface RuntimeStatusResponse {
       replay_key_ready?: boolean;
       replay_readiness?: string;
       replay_readiness_reason?: string;
+      replay_verdict?: string;
+      replay_verdict_reason?: string;
+      replay_verdict_summary?: string;
       baseline_contract_status?: string;
       partial_fill_observed?: boolean;
       cancel_observed?: boolean;
       terminal_state_observed?: boolean;
       artifact_coverage?: string;
       operator_next_artifact?: string;
+      artifact_checklist_summary?: string;
+      artifact_checklist?: Array<{
+        key?: string;
+        label?: string;
+        status?: string;
+        required?: boolean;
+        observed?: boolean;
+        count?: number;
+        summary?: string;
+        evidence?: Record<string, unknown> | null;
+      }>;
     } | null;
     lifecycle_timeline?: {
       status?: string;
@@ -618,7 +632,14 @@ function getReconciliationTone(status: string | undefined | null): string {
   if (status === "healthy") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
   if (status === "degraded") return "border-red-700/40 bg-red-950/20 text-red-200";
   if (status === "warning") return "border-amber-700/40 bg-amber-950/20 text-amber-200";
-  return "border-slate-700/40 bg-slate-950/20 text-slate-300";
+  return "border-slate-700/40 bg-slate-950/20 text-slate-200";
+}
+
+function getLifecycleChecklistTone(status: string | undefined | null): string {
+  if (status === "observed" || status === "ready") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";
+  if (status === "missing" || status === "blocked") return "border-red-500/30 bg-red-500/10 text-red-100";
+  if (status === "pending" || status === "pending_optional" || status === "waiting_baseline") return "border-amber-500/30 bg-amber-500/10 text-amber-100";
+  return "border-white/10 bg-slate-950/20 text-slate-200";
 }
 
 export default function Dashboard() {
@@ -774,6 +795,9 @@ export default function Dashboard() {
   const reconciliationLifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
   const reconciliationRecoveryState = executionReconciliation?.recovery_state ?? null;
   const reconciliationLifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
+  const reconciliationArtifactChecklist = Array.isArray(reconciliationLifecycleContract?.artifact_checklist)
+    ? reconciliationLifecycleContract.artifact_checklist
+    : [];
   const reconciliationTimeline = executionReconciliation?.lifecycle_timeline ?? null;
   const reconciliationTimelineEvents = Array.isArray(reconciliationTimeline?.events) ? reconciliationTimeline.events : [];
   const tradeFeedbackTone = tradeFeedback?.tone === "success"
@@ -1240,6 +1264,7 @@ export default function Dashboard() {
               <span>lifecycle stage {reconciliationLifecycleAudit?.stage || "unknown"}</span>
               <span>restart replay {reconciliationLifecycleAudit?.restart_replay_required ? "required" : "not-required"}</span>
               <span>baseline contract {reconciliationLifecycleContract?.baseline_contract_status || "unknown"}</span>
+              <span>replay verdict {reconciliationLifecycleContract?.replay_verdict || "unknown"}</span>
               <span>artifact coverage {reconciliationLifecycleContract?.artifact_coverage || "unknown"}</span>
             </div>
             {reconciliationIssues.length > 0 && (
@@ -1277,11 +1302,36 @@ export default function Dashboard() {
                 <div className="mt-1 opacity-80">runtime → history {reconciliationLifecycleAudit?.runtime_state || "—"} → {reconciliationLifecycleAudit?.trade_history_state || "—"}</div>
                 <div className="mt-1 opacity-80">open-order state {reconciliationLifecycleAudit?.matched_open_order_state || "—"}</div>
                 <div className="mt-1 opacity-80">baseline contract {reconciliationLifecycleContract?.baseline_contract_status || "—"} · replay readiness {reconciliationLifecycleContract?.replay_readiness || "—"}</div>
+                <div className="mt-1 opacity-80">replay verdict {reconciliationLifecycleContract?.replay_verdict || "—"} · reason {reconciliationLifecycleContract?.replay_verdict_reason || "—"}</div>
+                <div className="mt-1 opacity-80">replay verdict summary {reconciliationLifecycleContract?.replay_verdict_summary || "—"}</div>
                 <div className="mt-1 opacity-80">artifact coverage {reconciliationLifecycleContract?.artifact_coverage || "—"} · next artifact {reconciliationLifecycleContract?.operator_next_artifact || "—"}</div>
                 <div className="mt-1 opacity-80">runtime order ts {reconciliationLifecycleAudit?.evidence?.runtime_order_timestamp || "—"}</div>
                 <div className="mt-1 opacity-80">trade history ts {reconciliationLifecycleAudit?.evidence?.trade_history_timestamp || "—"}</div>
                 <div className="mt-1 opacity-80">missing lifecycle events {(reconciliationLifecycleContract?.missing_event_types || []).join(" / ") || "none"}</div>
                 <div className="mt-2 opacity-80">operator action {reconciliationRecoveryState?.operator_action || reconciliationLifecycleAudit?.operator_action || "先檢查 Dashboard execution runtime surface。"}</div>
+              </div>
+            </div>
+            <div className="mt-3 rounded-lg border border-white/10 bg-slate-950/30 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[11px] opacity-70">Artifact checklist / per-order closure</div>
+                <div className="text-[11px] opacity-80">artifact checklist summary {reconciliationLifecycleContract?.artifact_checklist_summary || "—"}</div>
+              </div>
+              <div className="mt-2 text-[11px] opacity-80">逐筆 order artifact 對帳：validation → ack → trade history → partial fill / cancel → restart replay</div>
+              <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-3">
+                {reconciliationArtifactChecklist.length > 0 ? reconciliationArtifactChecklist.map((item, idx) => (
+                  <div key={`${item.key || "artifact"}-${idx}`} className={`rounded-lg border px-3 py-2 text-[11px] leading-5 ${getLifecycleChecklistTone(item.status)}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-semibold">{item.label || item.key || `artifact ${idx + 1}`}</div>
+                      <div className="opacity-80">{item.status || "unknown"}</div>
+                    </div>
+                    <div className="mt-1 opacity-80">required {item.required ? "yes" : "no"} · observed {item.observed ? "yes" : "no"} · count {item.count ?? 0}</div>
+                    <div className="mt-1 opacity-90">{item.summary || "—"}</div>
+                    <div className="mt-1 opacity-70">evidence ts {typeof item.evidence?.timestamp === "string" ? item.evidence.timestamp : "—"}</div>
+                    <div className="opacity-70">evidence source {typeof item.evidence?.source === "string" ? item.evidence.source : (typeof item.evidence?.operator_next_artifact === "string" ? item.evidence.operator_next_artifact : "—")}</div>
+                  </div>
+                )) : (
+                  <div className="text-[11px] opacity-80">尚未取得 per-order artifact checklist。</div>
+                )}
               </div>
             </div>
           </div>
