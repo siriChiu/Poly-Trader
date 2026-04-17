@@ -400,6 +400,7 @@ interface RuntimeStatusResponse {
       artifact_coverage?: string;
       operator_next_artifact?: string;
       artifact_checklist_summary?: string;
+      artifact_provenance_summary?: string;
       artifact_checklist?: Array<{
         key?: string;
         label?: string;
@@ -408,6 +409,9 @@ interface RuntimeStatusResponse {
         observed?: boolean;
         count?: number;
         summary?: string;
+        provenance_level?: string;
+        provenance_summary?: string;
+        venue_backed?: boolean;
         evidence?: Record<string, unknown> | null;
       }>;
     } | null;
@@ -1317,6 +1321,7 @@ export default function Dashboard() {
                 <div className="text-[11px] opacity-80">artifact checklist summary {reconciliationLifecycleContract?.artifact_checklist_summary || "—"}</div>
               </div>
               <div className="mt-2 text-[11px] opacity-80">逐筆 order artifact 對帳：validation → ack → trade history → partial fill / cancel → restart replay</div>
+              <div className="mt-1 text-[11px] opacity-75">artifact provenance {reconciliationLifecycleContract?.artifact_provenance_summary || "—"}</div>
               <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-3">
                 {reconciliationArtifactChecklist.length > 0 ? reconciliationArtifactChecklist.map((item, idx) => (
                   <div key={`${item.key || "artifact"}-${idx}`} className={`rounded-lg border px-3 py-2 text-[11px] leading-5 ${getLifecycleChecklistTone(item.status)}`}>
@@ -1326,6 +1331,7 @@ export default function Dashboard() {
                     </div>
                     <div className="mt-1 opacity-80">required {item.required ? "yes" : "no"} · observed {item.observed ? "yes" : "no"} · count {item.count ?? 0}</div>
                     <div className="mt-1 opacity-90">{item.summary || "—"}</div>
+                    <div className="mt-1 opacity-80">proof {item.provenance_summary || item.provenance_level || "—"}</div>
                     <div className="mt-1 opacity-70">evidence ts {typeof item.evidence?.timestamp === "string" ? item.evidence.timestamp : "—"}</div>
                     <div className="opacity-70">evidence source {typeof item.evidence?.source === "string" ? item.evidence.source : (typeof item.evidence?.operator_next_artifact === "string" ? item.evidence.operator_next_artifact : "—")}</div>
                   </div>

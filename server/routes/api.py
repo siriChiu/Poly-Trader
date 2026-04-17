@@ -1052,7 +1052,50 @@ def _build_execution_lifecycle_contract(
             "event_type": getattr(event, "event_type", None),
             "order_state": getattr(event, "order_state", None),
             "source": getattr(event, "source", None),
+            "exchange": getattr(event, "exchange", None),
+            "is_dry_run": bool(getattr(event, "is_dry_run", None)) if getattr(event, "is_dry_run", None) is not None else None,
             "summary": getattr(event, "summary", None),
+        }
+
+    def _event_provenance(event: Optional[OrderLifecycleEvent]) -> Dict[str, Any]:
+        if event is None:
+            return {
+                "level": "missing",
+                "venue_backed": False,
+                "exchange": None,
+                "source": None,
+                "is_dry_run": None,
+                "summary": "尚未觀察到這個 artifact 的任何 lifecycle 證據。",
+            }
+
+        source = str(getattr(event, "source", None) or "")
+        source_lower = source.lower()
+        exchange = getattr(event, "exchange", None)
+        is_dry_run_raw = getattr(event, "is_dry_run", None)
+        is_dry_run = bool(is_dry_run_raw) if is_dry_run_raw is not None else None
+        venue_source = (
+            source_lower in {"exchange_adapter", "venue_adapter", "venue_websocket", "exchange_websocket"}
+            or "exchange" in source_lower
+            or "venue" in source_lower
+        )
+
+        if is_dry_run:
+            level = "dry_run_only"
+            summary = "目前只有 dry-run lifecycle 證據；尚未形成真實 venue artifact。"
+        elif venue_source:
+            level = "venue_backed"
+            summary = "已觀察到 venue-backed lifecycle 證據，可直接對應真實交易所事件。"
+        else:
+            level = "internal_only"
+            summary = "目前只有 internal/runtime DB 證據；尚未對上真實 venue artifact。"
+
+        return {
+            "level": level,
+            "venue_backed": level == "venue_backed",
+            "exchange": exchange,
+            "source": source or None,
+            "is_dry_run": is_dry_run,
+            "summary": summary,
         }
 
     if not lifecycle_events and last_order is None and latest_trade is None:
@@ -1076,6 +1119,14 @@ def _build_execution_lifecycle_contract(
             "artifact_coverage": "not_applicable",
             "operator_next_artifact": "capture_first_runtime_order",
             "artifact_checklist_summary": "尚未建立任何 runtime order artifact；先捕捉第一筆 order lifecycle。",
+            "artifact_provenance_summary": "venue-backed 0 · dry-run only 0 · internal-only 0 · missing/not-applicable 2",
+            "artifact_provenance_counts": {
+                "venue_backed": 0,
+                "dry_run_only": 0,
+                "internal_only": 0,
+                "missing": 1,
+                "not_applicable": 1,
+            },
             "artifact_checklist": [
                 {
                     "key": "capture_first_runtime_order",
@@ -1085,6 +1136,9 @@ def _build_execution_lifecycle_contract(
                     "observed": False,
                     "count": 0,
                     "summary": "目前沒有 runtime order，因此無法建立 validation / replay checklist。",
+                    "provenance_level": "missing",
+                    "provenance_summary": "尚未建立 runtime order，因此沒有任何 artifact provenance。",
+                    "venue_backed": False,
                     "evidence": None,
                 },
                 {
@@ -1095,6 +1149,9 @@ def _build_execution_lifecycle_contract(
                     "observed": False,
                     "count": 0,
                     "summary": "先有 runtime order 與 replay key，才能評估 restart replay readiness。",
+                    "provenance_level": "not_applicable",
+                    "provenance_summary": "目前沒有 runtime order，restart replay provenance 不適用。",
+                    "venue_backed": False,
                     "evidence": None,
                 },
             ],
@@ -1221,6 +1278,19 @@ def _build_execution_lifecycle_contract(
     path_observed_count = int(partial_fill_observed) + int(cancel_observed)
 
     artifact_checklist: List[Dict[str, Any]] = []
+    artifact_provenance_counts = {
+        "venue_backed": 0,
+        "dry_run_only": 0,
+        "internal_only": 0,
+        "missing": 0,
+        "not_applicable": 0,
+    }
+
+    def _append_artifact(entry: Dict[str, Any]) -> None:
+        provenance_level = str(entry.get("provenance_level") or "missing")
+        artifact_provenance_counts[provenance_level] = int(artifact_provenance_counts.get(provenance_level, 0)) + 1
+        artifact_checklist.append(entry)
+
     for event_type, label in [
         ("validation_passed", "Validation passed"),
         ("venue_ack", "Venue ack"),
@@ -1231,7 +1301,19 @@ def _build_execution_lifecycle_contract(
         if required:
             baseline_required_count += 1
             baseline_observed_count += int(observed)
-        artifact_checklist.append(
+        provenance = _event_provenance(latest_event_by_type.get(event_type)) if observed else {
+            "level": "missing" if required else "not_applicable",
+            "venue_backed": False,
+            "exchange": None,
+            "source": None,
+            "is_dry_run": None,
+            "summary": (
+                f"{label} 是 replay baseline 必要證據，當前仍缺失。"
+                if required
+                else f"當前 runtime path 不要求 {label}。"
+            ),
+        }
+        _append_artifact(
             {
                 "key": event_type,
                 "label": label,
@@ -1244,11 +1326,23 @@ def _build_execution_lifecycle_contract(
                     if observed
                     else (f"{label} 是 replay baseline 必要證據，當前仍缺失。" if required else f"當前 runtime path 不要求 {label}。")
                 ),
+                "provenance_level": provenance["level"],
+                "provenance_summary": provenance["summary"],
+                "venue_backed": provenance["venue_backed"],
                 "evidence": _event_evidence(latest_event_by_type.get(event_type)),
             }
         )
 
-    artifact_checklist.append(
+    partial_fill_provenance = _event_provenance(partial_fill_event) if partial_fill_observed else {
+        "level": "missing",
+        "venue_backed": False,
+        "summary": (
+            "baseline 已就緒，但尚未看到 partial fill path；仍需補充 venue path evidence。"
+            if baseline_contract_status == "complete"
+            else "先補齊 baseline lifecycle，再追 partial fill / cancel path artifact。"
+        ),
+    }
+    _append_artifact(
         {
             "key": "partial_fill",
             "label": "Partial fill artifact",
@@ -1265,10 +1359,22 @@ def _build_execution_lifecycle_contract(
                     else "先補齊 baseline lifecycle，再追 partial fill / cancel path artifact。"
                 )
             ),
+            "provenance_level": partial_fill_provenance["level"],
+            "provenance_summary": partial_fill_provenance["summary"],
+            "venue_backed": partial_fill_provenance["venue_backed"],
             "evidence": _event_evidence(partial_fill_event),
         }
     )
-    artifact_checklist.append(
+    cancel_provenance = _event_provenance(cancel_event) if cancel_observed else {
+        "level": "missing",
+        "venue_backed": False,
+        "summary": (
+            "baseline 已就緒，但尚未看到 cancel path；仍需補充 venue cancel evidence。"
+            if baseline_contract_status == "complete"
+            else "先補齊 baseline lifecycle，再追 partial fill / cancel path artifact。"
+        ),
+    }
+    _append_artifact(
         {
             "key": "cancel",
             "label": "Cancel artifact",

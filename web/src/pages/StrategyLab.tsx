@@ -244,6 +244,7 @@ interface StrategyLabRuntimeStatusResponse {
       missing_event_types?: string[];
       operator_next_artifact?: string;
       artifact_checklist_summary?: string;
+      artifact_provenance_summary?: string;
       artifact_checklist?: Array<{
         key?: string;
         label?: string;
@@ -252,6 +253,9 @@ interface StrategyLabRuntimeStatusResponse {
         observed?: boolean;
         count?: number;
         summary?: string;
+        provenance_level?: string;
+        provenance_summary?: string;
+        venue_backed?: boolean;
         evidence?: Record<string, unknown> | null;
       }>;
     } | null;
@@ -2203,6 +2207,7 @@ export default function StrategyLab() {
                     <div className="opacity-80">artifact checklist summary {lifecycleContract?.artifact_checklist_summary || "—"}</div>
                   </div>
                   <div className="mt-1 opacity-80">逐筆 order artifact 對帳：validation → ack → trade history → partial fill / cancel → restart replay</div>
+                  <div className="mt-1 opacity-75">artifact provenance {lifecycleContract?.artifact_provenance_summary || "—"}</div>
                   <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                     {lifecycleArtifactChecklist.length > 0 ? lifecycleArtifactChecklist.map((item, idx) => (
                       <div key={`${item.key || "artifact"}-${idx}`} className={`rounded-md border px-3 py-2 ${lifecycleChecklistTone(item.status)}`}>
@@ -2212,6 +2217,7 @@ export default function StrategyLab() {
                         </div>
                         <div className="mt-1 opacity-80">required {item.required ? "yes" : "no"} · observed {item.observed ? "yes" : "no"} · count {item.count ?? 0}</div>
                         <div className="mt-1 opacity-80">{item.summary || "—"}</div>
+                        <div className="mt-1 opacity-80">proof {item.provenance_summary || item.provenance_level || "—"}</div>
                       </div>
                     )) : (
                       <div className="opacity-80">尚未取得 per-order artifact checklist。</div>

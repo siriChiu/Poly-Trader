@@ -343,13 +343,17 @@ def test_build_execution_reconciliation_summary_marks_healthy_match():
     assert payload["lifecycle_contract"]["replay_verdict_reason"] == "terminal_observed_without_partial_or_cancel"
     assert payload["lifecycle_contract"]["artifact_coverage"] == "terminal_observed_without_partial_or_cancel"
     assert payload["lifecycle_contract"]["artifact_checklist_summary"] == "baseline 3/3 ready · path artifacts 0/2 observed · restart replay ready"
+    assert payload["lifecycle_contract"]["artifact_provenance_summary"] == "venue-backed 0 · dry-run only 4 · internal-only 1 · missing/not-applicable 2"
     assert payload["lifecycle_contract"]["artifact_checklist"][0]["key"] == "validation_passed"
     assert payload["lifecycle_contract"]["artifact_checklist"][0]["status"] == "observed"
+    assert payload["lifecycle_contract"]["artifact_checklist"][0]["provenance_level"] == "dry_run_only"
     assert payload["lifecycle_contract"]["artifact_checklist"][0]["evidence"]["event_type"] == "validation_passed"
     assert payload["lifecycle_contract"]["artifact_checklist"][3]["key"] == "partial_fill"
     assert payload["lifecycle_contract"]["artifact_checklist"][3]["status"] == "pending_optional"
+    assert payload["lifecycle_contract"]["artifact_checklist"][3]["provenance_level"] == "missing"
     assert payload["lifecycle_contract"]["artifact_checklist"][-1]["key"] == "restart_replay"
     assert payload["lifecycle_contract"]["artifact_checklist"][-1]["status"] == "ready"
+    assert payload["lifecycle_contract"]["artifact_checklist"][-1]["provenance_level"] == "internal_only"
     assert payload["lifecycle_contract"]["event_type_counts"]["trade_history_persisted"] == 1
     assert payload["issues"] == []
 
@@ -436,8 +440,10 @@ def test_build_execution_reconciliation_summary_without_runtime_order_is_idle():
     assert payload["lifecycle_contract"]["replay_readiness"] == "not_applicable"
     assert payload["lifecycle_contract"]["replay_verdict"] == "no_runtime_order"
     assert payload["lifecycle_contract"]["artifact_checklist_summary"] == "尚未建立任何 runtime order artifact；先捕捉第一筆 order lifecycle。"
+    assert payload["lifecycle_contract"]["artifact_provenance_summary"] == "venue-backed 0 · dry-run only 0 · internal-only 0 · missing/not-applicable 2"
     assert payload["lifecycle_contract"]["artifact_checklist"][0]["key"] == "capture_first_runtime_order"
     assert payload["lifecycle_contract"]["artifact_checklist"][0]["status"] == "not_applicable"
+    assert payload["lifecycle_contract"]["artifact_checklist"][0]["provenance_level"] == "missing"
 
 
 def test_build_execution_reconciliation_summary_marks_lifecycle_contract_incomplete_without_baseline_events():
@@ -608,6 +614,74 @@ def test_build_execution_reconciliation_summary_includes_lifecycle_timeline():
     assert payload["lifecycle_timeline"]["total_events"] == 2
     assert payload["lifecycle_timeline"]["latest_event"]["event_type"] == "venue_ack"
     assert payload["lifecycle_timeline"]["events"][0]["payload"]["normalization"]["normalized"]["qty"] == 0.01
+
+
+def test_build_execution_reconciliation_summary_marks_venue_backed_artifact_provenance():
+    latest_trade = SimpleNamespace(
+        timestamp=datetime.now(timezone.utc),
+        symbol="BTC/USDT",
+        exchange="binance",
+        action="BUY",
+        order_id="order-venue-proof",
+        client_order_id="client-venue-proof",
+        order_status="closed",
+        is_dry_run=0,
+    )
+    lifecycle_rows = [
+        SimpleNamespace(
+            timestamp=datetime.now(timezone.utc) - timedelta(seconds=2),
+            exchange="binance",
+            symbol="BTC/USDT",
+            order_id="order-venue-proof",
+            client_order_id="client-venue-proof",
+            event_type="validation_passed",
+            order_state="validated",
+            source="execution_service",
+            summary="validated",
+            payload_json='{}',
+            is_dry_run=0,
+        ),
+        SimpleNamespace(
+            timestamp=datetime.now(timezone.utc) - timedelta(seconds=1),
+            exchange="binance",
+            symbol="BTC/USDT",
+            order_id="order-venue-proof",
+            client_order_id="client-venue-proof",
+            event_type="venue_ack",
+            order_state="closed",
+            source="exchange_adapter",
+            summary="ack",
+            payload_json='{}',
+            is_dry_run=0,
+        ),
+    ]
+    payload = api_module._build_execution_reconciliation_summary(
+        _DbStub(latest_trade, lifecycle_rows=lifecycle_rows),
+        "BTCUSDT",
+        {
+            "captured_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "requested_symbol": "BTCUSDT",
+            "normalized_symbol": "BTC/USDT",
+            "degraded": False,
+            "positions": [],
+            "open_orders": [],
+        },
+        {
+            "guardrails": {
+                "last_order": {
+                    "symbol": "BTC/USDT",
+                    "status": "closed",
+                    "order_id": "order-venue-proof",
+                    "client_order_id": "client-venue-proof",
+                }
+            }
+        },
+    )
+
+    assert payload["lifecycle_contract"]["artifact_checklist"][0]["provenance_level"] == "internal_only"
+    assert payload["lifecycle_contract"]["artifact_checklist"][1]["provenance_level"] == "venue_backed"
+    assert payload["lifecycle_contract"]["artifact_checklist"][1]["venue_backed"] is True
+    assert payload["lifecycle_contract"]["artifact_provenance_counts"]["venue_backed"] >= 1
 
 
 def test_load_execution_metadata_smoke_summary_reports_freshness(tmp_path, monkeypatch):
