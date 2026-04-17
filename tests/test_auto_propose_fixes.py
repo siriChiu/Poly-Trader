@@ -1123,13 +1123,68 @@ def test_sync_current_state_governance_issues_replaces_stale_q35_support_issue()
                 },
             }
         },
+        {
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 2,
+            "allowed_layers_reason": "unsupported_exact_live_structure_bucket_blocks_trade",
+        },
         {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
     )
 
     assert ("resolve", "P1_q35_exact_support_under_minimum") in events
+    assert ("resolve", "P1_current_q35_exact_support") in events
+    assert ("resolve", "P1_q35_redesign_support_blocked") in events
     support_add = next(event for event in events if event[0] == "add" and event[1] == "#H_AUTO_CURRENT_BUCKET_SUPPORT")
     assert "q15" in support_add[2]
     assert "2/50" in support_add[2]
+
+
+def test_sync_current_state_governance_issues_uses_live_probe_bucket_when_alignment_snapshot_is_stale():
+    events = []
+
+    class DummyTracker:
+        def add(self, priority, issue_id, title, action="", status="open"):
+            events.append(("add", issue_id, title, action, status))
+
+        def resolve(self, issue_id):
+            events.append(("resolve", issue_id))
+            return True
+
+    auto_propose_fixes.sync_current_state_governance_issues(
+        DummyTracker(),
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "support_governance_route": "no_support_proxy",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 0,
+                    "support_progress": {
+                        "current_rows": 0,
+                        "minimum_support_rows": 50,
+                        "history": [
+                            {
+                                "live_current_structure_bucket": None,
+                            }
+                        ],
+                    },
+                },
+            }
+        },
+        {
+            "current_live_structure_bucket": "ALLOW|base_allow|q65",
+            "current_live_structure_bucket_rows": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade",
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    support_add = next(event for event in events if event[0] == "add" and event[1] == "#H_AUTO_CURRENT_BUCKET_SUPPORT")
+    assert "ALLOW|base_allow|q65" in support_add[2]
+    assert "0/50" in support_add[2]
+    assert ("resolve", "P1_current_q35_exact_support") in events
+    assert ("resolve", "P1_q35_redesign_support_blocked") in events
 
 
 def test_sync_current_state_governance_issues_adds_alignment_blocker_when_current_inputs_stale():

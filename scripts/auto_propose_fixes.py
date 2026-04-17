@@ -217,29 +217,91 @@ def issue_action_text(item):
     return ""
 
 
-def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics):
+def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_live_probe, maybe_metrics=None):
     """Keep current-state issue IDs aligned with the latest live bucket/governance facts."""
+    if maybe_metrics is None:
+        metrics = metrics_or_live_probe or {}
+        live_predict_probe = {}
+    else:
+        live_predict_probe = metrics_or_live_probe or {}
+        metrics = maybe_metrics or {}
+
+    def _first_non_null(*values):
+        for value in values:
+            if value is None:
+                continue
+            if isinstance(value, str) and not value.strip():
+                continue
+            return value
+        return None
+
+    def _as_int_or_none(value):
+        try:
+            if value is None:
+                return None
+            return int(value)
+        except Exception:
+            return None
+
     alignment = (leaderboard_probe or {}).get("alignment") or {}
     governance = alignment.get("governance_contract") or {}
     support_progress = governance.get("support_progress") or {}
-    current_bucket = None
-    if support_progress.get("history"):
-        current_bucket = (support_progress.get("history") or [{}])[0].get("live_current_structure_bucket")
-    current_bucket = current_bucket or (leaderboard_probe or {}).get("live_current_structure_bucket")
-    current_rows = int(governance.get("live_current_structure_bucket_rows") or support_progress.get("current_rows") or 0)
-    minimum_rows = int(governance.get("minimum_support_rows") or support_progress.get("minimum_support_rows") or 0)
-    route = governance.get("support_governance_route")
-    support_issue_ids = ["P1_q35_exact_support_under_minimum", "#H_AUTO_CURRENT_BUCKET_SUPPORT"]
-    if route == "exact_live_bucket_present_but_below_minimum" and current_bucket and minimum_rows > 0:
+    support_history = support_progress.get("history") or []
+    history_bucket = (support_history[0] or {}).get("live_current_structure_bucket") if support_history else None
+    current_bucket = _first_non_null(
+        (live_predict_probe or {}).get("current_live_structure_bucket"),
+        history_bucket,
+        (leaderboard_probe or {}).get("live_current_structure_bucket"),
+    )
+    current_rows = _first_non_null(
+        _as_int_or_none((live_predict_probe or {}).get("current_live_structure_bucket_rows")),
+        _as_int_or_none(governance.get("live_current_structure_bucket_rows")),
+        _as_int_or_none(support_progress.get("current_rows")),
+        0,
+    )
+    minimum_rows = _first_non_null(
+        _as_int_or_none((live_predict_probe or {}).get("minimum_support_rows")),
+        _as_int_or_none(governance.get("minimum_support_rows")),
+        _as_int_or_none(support_progress.get("minimum_support_rows")),
+        0,
+    )
+    route = governance.get("support_governance_route") or (live_predict_probe or {}).get("support_route_verdict")
+    live_support_reason = " ".join(
+        str(value or "")
+        for value in [
+            (live_predict_probe or {}).get("allowed_layers_reason"),
+            (live_predict_probe or {}).get("execution_guardrail_reason"),
+            (live_predict_probe or {}).get("deployment_blocker"),
+            (live_predict_probe or {}).get("deployment_blocker_reason"),
+        ]
+    )
+    current_bucket_support_active = bool(current_bucket) and minimum_rows > 0 and (
+        route in {"exact_live_bucket_present_but_below_minimum", "no_support_proxy", "insufficient_support_everywhere"}
+        or "unsupported_exact_live_structure_bucket" in live_support_reason
+        or (int(current_rows or 0) < int(minimum_rows or 0))
+    )
+
+    stale_q35_issue_ids = [
+        "P1_q35_exact_support_under_minimum",
+        "P1_current_q35_exact_support",
+    ]
+    if "q35" not in str(current_bucket or ""):
+        for issue_id in stale_q35_issue_ids + ["P1_q35_redesign_support_blocked"]:
+            tracker.resolve(issue_id)
+    else:
+        for issue_id in stale_q35_issue_ids:
+            tracker.resolve(issue_id)
+
+    if current_bucket_support_active:
+        support_state = "exact support is missing" if int(current_rows or 0) <= 0 else "support remains under minimum"
         tracker.add(
             "P1",
             "#H_AUTO_CURRENT_BUCKET_SUPPORT",
-            f"current live bucket {current_bucket} support remains under minimum ({current_rows}/{minimum_rows})",
+            f"current live bucket {current_bucket} {support_state} ({current_rows}/{minimum_rows})",
             "以 current live structure bucket 為主追 exact support / governance route；不要沿用舊 q35 blocker 當成本輪主 blocker。",
         )
-    for issue_id in support_issue_ids:
-        if issue_id != "#H_AUTO_CURRENT_BUCKET_SUPPORT":
-            tracker.resolve(issue_id)
+    else:
+        tracker.resolve("#H_AUTO_CURRENT_BUCKET_SUPPORT")
 
     alignment_issue_ids = ["P1_alignment_artifacts_need_refresh", "#H_AUTO_ALIGNMENT_GOVERNANCE"]
     alignment_blocked = bool(alignment.get("current_alignment_inputs_stale")) or bool(governance.get("treat_as_parity_blocker"))
@@ -811,7 +873,7 @@ def main():
 
     # Load existing issues
     tracker = IssueTracker.load()
-    sync_current_state_governance_issues(tracker, leaderboard_candidate_probe, metrics)
+    sync_current_state_governance_issues(tracker, leaderboard_candidate_probe, live_predict_probe, metrics)
 
     # Rule 1: canonical simulated win collapses below random
     if db_stats["simulated_win_avg"] < 0.50:

@@ -7,88 +7,103 @@ _最後更新：2026-04-18 CST_
 ---
 
 ## 當前主線
-本輪把 `/execution` 的 **strategy snapshot / version contract** 補到 operator surface：
-- 新增 `GET /api/execution/strategies/source`
-- `/api/execution/overview` / `/api/execution/runs` 繼續帶 `strategy_source_summary`、profile/run `strategy_binding`
-- Execution Console 現在直接顯示：
-  - strategy source summary
-  - sleeve 對應 strategy snapshot
-  - run 綁定的 strategy hash / source /最近版本資訊
-- 未覆蓋 sleeve 會明示 `missing_saved_strategy`，不再隱藏成模糊預設
+本輪把 heartbeat 治理 truth 拉回 **current live bucket**：
+- `scripts/auto_propose_fixes.py` 現在會優先讀 `data/live_predict_probe.json` 的 `current_live_structure_bucket/current_live_structure_bucket_rows`
+- 舊的 lane-specific blocker（例如 `P1_current_q35_exact_support`、`P1_q35_redesign_support_blocked`）不再因 `issues.json` 殘留或 stale leaderboard snapshot 而繼續誤導 current state
+- 重新跑 `python scripts/hb_parallel_runner.py --fast` 後，當前主 blocker 已正確收斂為：
+  - live bucket = `CAUTION|structure_quality_caution|q35`
+  - exact support = `0/50`
+  - live probe `entry_quality=0.5548`、`allowed_layers_raw=1`、`allowed_layers=0`
+  - 最終 deployment blocker = `unsupported_exact_live_structure_bucket`
 
 已驗證：
-- `source venv/bin/activate && python -m pytest tests/test_execution_run_control.py tests/test_execution_console_overview.py tests/test_frontend_decision_contract.py tests/test_server_startup.py -q`
-- `cd web && npm run build`
-
-**目前定位仍必須講清楚：這是 stateful operator-beta + strategy version clarity，不是 per-run ledger closure。**
+- `source venv/bin/activate && pytest tests/test_auto_propose_fixes.py -q`
+- `source venv/bin/activate && python scripts/auto_propose_fixes.py`
+- `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast`
 
 ---
 
 ## Open Issues
 
-### P0. Run 仍不是 `ExecutionService` 的真正 runtime owner
+### P0. recent canonical window 仍是 bull-concentrated distribution pathology
 **現況**
-- run 已有 start / pause / stop / event log
-- run 已可顯示綁定的 strategy snapshot / version
-- 但 run 還沒有真正擁有 order lifecycle、venue ack / fill / cancel、restart replay
+- fast heartbeat：recent 500 rows = `distribution_pathology`
+- `win_rate=0.8400`、`avg_quality=0.3716`、`avg_dd_penalty=0.1460`
+- top shifts 仍集中在 `feat_4h_bb_pct_b / feat_4h_bias20 / feat_4h_ma_order`
+- `new_compressed=feat_dxy/feat_vix`
 
 **風險**
-- 若把「有 run + 有策略版本」誤讀成完整 bot owner，仍會造成假產品化
+- calibration scope 可能被 bull-concentrated pathology slice 稀釋
+- heartbeat 若只看高 recent win rate，會把 distribution pathology 誤寫成健康 closure
 
 **下一步**
-- 把 `ExecutionRun` 綁到 `ExecutionService`
-- 讓 lifecycle / recovery / replay / venue artifact 落到 run scope
+- 直接 drill into recent canonical rows 的 feature variance / distinct-count / target-path root cause
+- 保持 decision-quality guardrails 開啟，直到 pathology 被解釋或修掉
 
-### P0. Capital / position / open-order / PnL 仍不是 per-run attribution
+### P1. current live q35 exact support 仍為 0/50
 **現況**
-- `/execution` 現在能顯示 budget、shared balance、shared symbol positions / open orders
-- 但這仍是 shared preview，不是 run-owned ledger
-- 沒有真正 per-run realized / unrealized / total PnL、capital usage、open-order ownership
+- 最新 live probe：`current_live_structure_bucket=CAUTION|structure_quality_caution|q35`
+- `current_live_structure_bucket_rows=0`
+- `minimum_support_rows=50`
+- `#H_AUTO_CURRENT_BUCKET_SUPPORT` 現在已會跟著 live bucket 即時改寫
 
 **風險**
-- operator 雖然能看懂 strategy 版本，仍無法對單一 run 做資金與績效閉環
+- 就算 broader bull scope 有資料，也不能當成 current q35 deployment 放行依據
+- 若文件或 issue tracker 沒跟 live bucket 同步，operator 會追錯 blocker
 
 **下一步**
-- 建立 per-run capital / position / open-order attribution
-- 補 run-owned realized / unrealized / total PnL
+- 累積 q35 exact support
+- 若 live bucket 再次切換，立刻重寫 blocker，不可沿用舊 q35 敘事
 
-### P1. `/execution` 還缺 capital actions 與完整 strategy coverage
+### P1. q35 discriminative redesign 不是 deployment closure
 **現況**
-- 手動交易 / automation toggle 已進 `/execution`
-- strategy source route 與 snapshot/version 已可見
-- 但 capital actions（充值 / 提現 / 調整部署資金）尚未進來
-- 未覆蓋 sleeve 目前只會被明示，還沒有 operator 內建補齊流程
+- live probe 顯示 `q35_discriminative_redesign_applied=true`
+- `entry_quality` 已被拉到 `0.5548`，`allowed_layers_raw=1`
+- 但 `allowed_layers=0`，因 exact live bucket 仍無支持，deployment blocker 依舊成立
 
 **風險**
-- `/execution` 仍像 operator beta，而不是完整 bot operations workspace
+- 把「跨過 trade floor」誤讀成「可部署」會造成假產品化
 
 **下一步**
-- 把 capital actions 收進 `/execution`
-- 讓 operator 能直接補齊缺少的 strategy snapshot coverage，而不是跳出去手動追
+- 維持 blocker-first 語義
+- 在 exact support 補滿前，不可把 q35 redesign 寫成 release-ready
 
-### P1. Binance / OKX readiness 仍缺 venue-backed closure
+### P1. model stability / dual-role governance 尚未收斂
 **現況**
-- reconciliation、metadata smoke、venue lanes 已可見
-- 但 run 尚未擁有真實 venue-backed ack / fill / cancel / replay artifact ownership
+- `cv_accuracy=0.6978`
+- `cv_std=0.1161`
+- `cv_worst=0.5445`
+- global winner 仍是 `core_only`，production profile 仍是 `core_plus_macro`
 
 **風險**
-- 不能把現在的 surface 寫成 live-ready
+- 容易把 dual-role governance 誤寫成 parity drift 或單純排名問題
 
 **下一步**
-- 將 venue-backed artifact 與 run scope 對齊
-- 讓 `/execution` 與 Dashboard 都能直接顯示 run-owned venue closure
+- 繼續把 governance split 明寫為「global ranking vs support-aware production」
+- 在 q35 exact support 未補滿前，不把 profile split 當作主 blocker
+
+### P2. sparse-source blockers 仍在背景
+**現況**
+- blocked features = 8
+- 主 blocker 仍是 `fin_netflow` 的 `auth_missing`
+
+**風險**
+- 會持續限制研究型 overlay / archive-window coverage
+- 但現在不是 current-live deployment 的第一順位 blocker
+
+**下一步**
+- defer，等 current live bucket blocker 與 pathology 先收斂
 
 ---
 
 ## Not Issues
-- 不是看得到 strategy hash / source，就等於 run 已完成 runtime ownership
-- 不是有 stateful run control，就等於 per-run ledger 完成
-- 不是看得到 shared balance / shared positions / shared open orders，就等於 per-run PnL 已閉環
+- 舊 q35 issue id 殘留在 `issues.json`：**本輪已修正自動 resolve / rewrite 行為**，不再把它當作 current blocker 本身
+- `entry_quality >= 0.55`：**不等於可部署**；exact support = 0 時仍必須擋單
+- `core_only` vs `core_plus_macro`：目前是 **dual-role governance**，不是 parity drift
 
 ---
 
 ## Current Priority
-1. **把 shared preview 升級成 per-run capital / position / open-order / PnL attribution**
-2. **把 `ExecutionRun` 綁到 `ExecutionService`，形成 run-owned lifecycle / replay / recovery**
-3. **把 capital actions 與 strategy coverage closure 收進 `/execution`**
-4. **補齊 Binance / OKX venue-backed closure evidence**
+1. **把 current live q35 exact support 從 0/50 往可驗證 support 累積推進**
+2. **對 recent distribution pathology 做 root-cause drill-down，而不是只重報指標**
+3. **保持 blocker-first 的 runtime / docs / issues 一致語義，避免假 closure**

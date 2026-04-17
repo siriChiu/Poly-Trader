@@ -7,78 +7,62 @@ _最後更新：2026-04-18 CST_
 ---
 
 ## 已完成
-- `/execution` 已是獨立 operator surface，承載 run control、manual trade、automation toggle、capital preview
-- `ExecutionRun` 已有 stateful start / pause / stop / event log
-- run 已能鏡像 runtime / reconciliation / account snapshot / last-order truth
-- shared-symbol preview 邊界已 machine-read 化並顯示到 `/execution`
-- **本輪完成 strategy snapshot / version surface closure**：
-  - `GET /api/execution/strategies/source`
-  - `/api/execution/overview` 的 `strategy_source_summary`
-  - profile card `strategy_binding`
-  - run card `strategy_binding`
-  - 未覆蓋 sleeve 以 `missing_saved_strategy` 明示，而不是隱性預設
-- 已驗證：
-  - `source venv/bin/activate && python -m pytest tests/test_execution_run_control.py tests/test_execution_console_overview.py tests/test_frontend_decision_contract.py tests/test_server_startup.py -q`
-  - `cd web && npm run build`
+- fast heartbeat / auto-propose 現在會優先使用 `data/live_predict_probe.json` 的 current live bucket truth
+- `#H_AUTO_CURRENT_BUCKET_SUPPORT` 會跟著最新 live bucket 改寫，不再沿用 `issues.json` 舊 title
+- 舊的 lane-specific blocker（如 `P1_current_q35_exact_support`、`P1_q35_redesign_support_blocked`）在 live bucket 改變時會自動 resolve，避免 current-state 文件被 stale issue 汙染
+- 已用 regression test 鎖住此 contract：
+  - `source venv/bin/activate && pytest tests/test_auto_propose_fixes.py -q`
+- 已用 runtime 重跑驗證整條心跳鏈：
+  - `source venv/bin/activate && python scripts/auto_propose_fixes.py`
+  - `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast`
 
 ---
 
 ## 主目標
 
-### 目標 A：把 shared preview 升級成真正的 per-run ledger
-重點：
-- 目前 `/execution` 已能清楚顯示 strategy version 與 shared preview 邊界
-- 下一步不是再補文案，而是把 balance / positions / open orders / PnL 真的歸屬到 run
+### 目標 A：收斂 current live q35 exact-support blocker
+**目前真相**
+- current live bucket = `CAUTION|structure_quality_caution|q35`
+- exact support = `0/50`
+- q35 discriminative redesign 已把 `entry_quality` 拉到 `0.5548`
+- 但最終仍 `allowed_layers=0`
 
-成功標準：
-- 每個 run 有自己的 capital / position / open-order attribution
-- Execution Console 顯示 per-run realized / unrealized / total PnL
-- shared preview 退回輔助資訊，不再是主體
+**成功標準**
+- `current_live_structure_bucket_rows >= 50`
+- live probe 不再回報 `unsupported_exact_live_structure_bucket`
+- `allowed_layers_reason` 與 runtime blocker 文案保持一致，不再有假 deployable 敘事
 
-### 目標 B：把 run mirror 升級成 run-owned execution lifecycle
-重點：
-- run 目前仍是 control-plane + runtime mirror + strategy version visibility
-- 尚未擁有 order lifecycle、venue ack / fill / cancel、restart replay ownership
+### 目標 B：把 recent distribution pathology 從觀測升級成 root cause
+**目前真相**
+- recent 500 canonical rows 仍是 bull-concentrated distribution pathology
+- 目前只知道症狀與 top feature shifts，還沒有 product-grade root cause patch
 
-成功標準：
-- `ExecutionRun` 綁到 `ExecutionService`
-- lifecycle / recovery / replay / venue artifact 都可在 run scope 驗證
-- UI 不再把 mirror 誤讀成 bot owner
+**成功標準**
+- heartbeat 產出可重跑的 root-cause artifact / patch
+- guardrail reason 能直接引用病灶根因，而不是只回報 high-level alerts
 
-### 目標 C：完成 `/execution` 的 operator workflow closure
-重點：
-- manual trade / automation 已進 `/execution`
-- strategy source / snapshot 已可見
-- capital actions 與缺失 strategy coverage 的補齊流程仍未進來
+### 目標 C：維持 blocker-first 的治理 surface 一致性
+**目前真相**
+- live probe、auto-propose、issues.json 已重新對齊 current bucket truth
+- leaderboard / bull-pocket heavy artifacts 在 fast lane 仍可能 timeout 並 fallback
 
-成功標準：
-- capital actions / ledger events 移到 `/execution`
-- operator 能直接處理 missing strategy snapshot coverage
-- `/execution` 成為完整 operator workflow；Dashboard 保持 diagnostics-only
-
-### 目標 D：把 venue readiness 推進到 run-owned closure
-重點：
-- reconciliation / metadata smoke / venue lanes 已可見
-- 但 run 還沒有真實 venue-backed artifact ownership
-
-成功標準：
-- `/execution` 與 Dashboard 都能 machine-read run-owned venue artifact
-- 清楚區分 control-plane beta、shared preview、run-owned runtime、venue-backed closure 四個層級
+**成功標準**
+- operator-facing current blocker 永遠以 latest live probe 為準
+- heavy artifact timeout 不再讓 current-state docs 回退到舊 bucket / 舊 blocker
 
 ---
 
 ## 下一步
-1. **先做 per-run capital / position / open-order / PnL attribution**
-   - 驗證：pytest API contract tests + `/execution` 顯示 run-owned ledger，而非 shared preview
-2. **再把 `ExecutionRun` 綁到 `ExecutionService` / reconciliation / replay / venue artifact**
-   - 驗證：run card 能看到自己的 lifecycle / replay / recovery / venue evidence
-3. **最後把 capital actions + strategy coverage closure 收進 `/execution`**
-   - 驗證：operator 不必離開 `/execution` 就能完成資金操作與缺失 strategy snapshot 補齊
+1. **以 q35 exact support 為主追 current-live blocker**
+   - 驗證：`python scripts/hb_predict_probe.py` 顯示 current bucket rows 是否開始累積，且 blocker 文案仍為 current bucket truth
+2. **做 recent pathology root-cause drill-down**
+   - 驗證：能指出 recent canonical pathology 的 feature / label / scope 根因，不只剩 `distribution_pathology` 摘要
+3. **縮短 fast lane heavy artifact 的 stale/fallback 視窗**
+   - 驗證：`hb_parallel_runner.py --fast` 的 current-state summary 不再依賴過期 alignment / bull-pocket snapshot 才能說明 current blocker
 
 ---
 
 ## 成功標準
-- `/api/execution/overview` + `/api/execution/runs` + `/api/execution/strategies/source` + `ExecutionService` 一起構成真實 run-owned operator contract
-- Execution Console 顯示 per-run capital / positions / open orders / PnL / lifecycle / strategy binding，而不是 shared preview 拼裝畫面
-- run card 的 runtime / reconciliation / venue artifact 屬於該 run 本身
-- Binance / OKX readiness 仍以真實 venue evidence 表示，不靠文案假裝 live-ready
+- `ISSUES.md` / `ROADMAP.md` / `issues.json` 都只描述最新 current live bucket blocker，不殘留舊 lane 敘事
+- live probe、auto-propose、fast heartbeat summary 對 current bucket / blocker / layers 給出同一個答案
+- q35 redesign 只在 exact support ready 後才升級成 deployment closure；在那之前一律 blocker-first
