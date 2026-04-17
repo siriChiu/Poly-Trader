@@ -38,6 +38,7 @@ from execution.account_sync import AccountSyncService
 from execution.console_overview import build_execution_overview
 from execution.control_plane import (
     build_execution_control_plane_snapshot,
+    build_execution_strategy_source_snapshot,
     get_execution_run_detail,
     pause_execution_run,
     start_execution_profile_run,
@@ -2484,6 +2485,11 @@ async def api_execution_overview() -> Dict[str, Any]:
     db = get_db()
     control_plane = build_execution_control_plane_snapshot(db, status_payload, base_overview)
     return build_execution_overview(status_payload, config=cfg, control_plane=control_plane)
+
+
+@router.get("/execution/strategies/source")
+async def api_execution_strategy_source() -> Dict[str, Any]:
+    return build_execution_strategy_source_snapshot()
 
 
 @router.get("/execution/profiles")

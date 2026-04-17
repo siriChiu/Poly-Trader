@@ -178,6 +178,33 @@ type ExecutionConsoleRuntimeStatusResponse = {
   } | null;
 };
 
+type ExecutionStrategyBinding = {
+  status?: string | null;
+  strategy_name?: string | null;
+  strategy_slug?: string | null;
+  strategy_source?: string | null;
+  strategy_hash?: string | null;
+  schema_version?: string | null;
+  updated_at?: string | null;
+  created_at?: string | null;
+  run_count?: number | null;
+  primary_sleeve_key?: string | null;
+  primary_sleeve_label?: string | null;
+  strategy_type?: string | null;
+  model_name?: string | null;
+  title?: string | null;
+  description?: string | null;
+  sleeve_summary?: string | null;
+  decision_quality_label?: string | null;
+  avg_decision_quality_score?: number | null;
+  avg_expected_win_rate?: number | null;
+  roi?: number | null;
+  profit_factor?: number | null;
+  total_trades?: number | null;
+  summary?: string | null;
+  operator_action?: string | null;
+};
+
 type ExecutionOverviewProfileCard = {
   key?: string;
   profile_id?: string;
@@ -193,6 +220,7 @@ type ExecutionOverviewProfileCard = {
   symbol_scoped_open_order_count?: number;
   current_run_state?: string | null;
   current_run?: ExecutionRunRecord | null;
+  strategy_binding?: ExecutionStrategyBinding | null;
   control_contract?: {
     mode?: string;
     start_status?: string;
@@ -229,6 +257,14 @@ type ExecutionOverviewResponse = {
     operator_message?: string;
     max_position_ratio?: number | null;
     confidence?: number | null;
+  } | null;
+  strategy_source_summary?: {
+    route?: string | null;
+    strategy_count?: number | null;
+    covered_sleeves?: number | null;
+    total_sleeves?: number | null;
+    missing_sleeves?: string[] | null;
+    operator_message?: string | null;
   } | null;
   profile_cards?: ExecutionOverviewProfileCard[] | null;
 };
@@ -322,6 +358,7 @@ type ExecutionRunRecord = {
   last_event_at?: string | null;
   latest_event?: ExecutionRunEvent | null;
   recent_events?: ExecutionRunEvent[] | null;
+  strategy_binding?: ExecutionStrategyBinding | null;
   runtime_binding_contract?: ExecutionRunBindingContract | null;
   runtime_binding_snapshot?: ExecutionRunBindingSnapshot | null;
   action_contract?: {
@@ -352,6 +389,11 @@ type ExecutionRunsResponse = {
 function formatNumber(value: number | null | undefined, digits = 2): string {
   if (typeof value !== "number" || Number.isNaN(value)) return "—";
   return value.toFixed(digits);
+}
+
+function formatPercent(value: number | null | undefined, digits = 1): string {
+  if (typeof value !== "number" || Number.isNaN(value)) return "—";
+  return `${(value * 100).toFixed(digits)}%`;
 }
 
 function formatTime(value?: string | null): string {
@@ -489,6 +531,7 @@ export default function ExecutionConsole() {
   const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];
   const executionOverviewSummary = executionOverview?.summary ?? null;
   const executionCapitalPlan = executionOverview?.capital_plan ?? null;
+  const executionStrategySummary = executionOverview?.strategy_source_summary ?? null;
   const executionProfileCards = Array.isArray(executionOverview?.profile_cards) ? executionOverview.profile_cards : [];
   const executionRunsSummary = executionRuns?.summary ?? null;
   const executionRunRecords = Array.isArray(executionRuns?.runs) ? executionRuns.runs : [];
@@ -824,14 +867,24 @@ export default function ExecutionConsole() {
           </div>
         )}
         <div className="mt-3 grid gap-3 xl:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-2xl border border-white/10 bg-dark-950/40 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-dark-500">Capital allocation preview</div>
-            <div className="mt-2 text-2xl font-semibold text-white">{formatNumber(executionCapitalPlan?.deployable_capital)} {balanceCurrency}</div>
-            <div className="mt-1 text-sm text-dark-400">per active profile budget {formatNumber(executionCapitalPlan?.per_active_profile_budget)} · allocation rule {executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves"}</div>
-            <div className="mt-2 text-[12px] text-dark-300">max position ratio {formatNumber(executionCapitalPlan?.max_position_ratio, 3)} · confidence {formatNumber(executionCapitalPlan?.confidence, 3)}</div>
-            <div className="mt-2 text-[12px] text-dark-300">{executionCapitalPlan?.operator_message || "尚未取得 capital preview operator message。"}</div>
-            <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-[12px] text-cyan-100">
-              stateful run lifecycle 已落地：目前可以建立 / 暫停 / 停止 control-plane beta run，但這仍不是 per-bot capital / order ledger，也不是 live bot 自動下單 closure。
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-white/10 bg-dark-950/40 p-4">
+              <div className="text-[11px] uppercase tracking-wide text-dark-500">Capital allocation preview</div>
+              <div className="mt-2 text-2xl font-semibold text-white">{formatNumber(executionCapitalPlan?.deployable_capital)} {balanceCurrency}</div>
+              <div className="mt-1 text-sm text-dark-400">per active profile budget {formatNumber(executionCapitalPlan?.per_active_profile_budget)} · allocation rule {executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves"}</div>
+              <div className="mt-2 text-[12px] text-dark-300">max position ratio {formatNumber(executionCapitalPlan?.max_position_ratio, 3)} · confidence {formatNumber(executionCapitalPlan?.confidence, 3)}</div>
+              <div className="mt-2 text-[12px] text-dark-300">{executionCapitalPlan?.operator_message || "尚未取得 capital preview operator message。"}</div>
+              <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-[12px] text-cyan-100">
+                stateful run lifecycle 已落地：目前可以建立 / 暫停 / 停止 control-plane beta run，但這仍不是 per-bot capital / order ledger，也不是 live bot 自動下單 closure。
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-dark-950/40 p-4 text-[12px] text-dark-300">
+              <div className="font-medium text-white">Strategy source / snapshot</div>
+              <div className="mt-2">saved strategies {executionStrategySummary?.strategy_count ?? 0}</div>
+              <div>covered sleeves {executionStrategySummary?.covered_sleeves ?? 0}/{executionStrategySummary?.total_sleeves ?? 0}</div>
+              <div>missing sleeves {(executionStrategySummary?.missing_sleeves || []).join(" / ") || "none"}</div>
+              <div className="mt-2">{executionStrategySummary?.operator_message || "尚未取得 strategy source summary。"}</div>
+              <div className="mt-1 text-dark-400">route {executionStrategySummary?.route || "/api/execution/strategies/source"}</div>
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -841,6 +894,7 @@ export default function ExecutionConsole() {
               const runBindingContract = linkedRun?.runtime_binding_contract ?? null;
               const runOwnershipBoundary = runBindingContract?.ownership_boundary ?? null;
               const runBindingSnapshot = linkedRun?.runtime_binding_snapshot ?? null;
+              const profileStrategyBinding = card.strategy_binding ?? null;
               const runCapitalPreview = runBindingSnapshot?.capital_preview ?? null;
               const runSharedPreview = runBindingSnapshot?.shared_symbol_preview ?? null;
               const runSharedBalance = runSharedPreview?.balance ?? null;
@@ -877,6 +931,14 @@ export default function ExecutionConsole() {
                   <div className="mt-2 text-[12px] text-dark-300">routing reason {card.routing_reason || "—"}</div>
                   <div className="text-[12px] text-dark-300">start reason {card.control_contract?.start_reason || "—"}</div>
                   <div className="text-[12px] text-dark-300">operator run state {linkedRun?.state_label || linkedRun?.state || "not-started"}</div>
+                  <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
+                    <div className="font-medium text-white">strategy snapshot</div>
+                    <div className="mt-1">{profileStrategyBinding?.summary || "尚未取得對應 sleeve 的 strategy snapshot。"}</div>
+                    <div>source {profileStrategyBinding?.strategy_source || "—"} · hash {profileStrategyBinding?.strategy_hash || "—"}</div>
+                    <div>DQ {formatNumber(profileStrategyBinding?.avg_decision_quality_score, 3)} · expected win {formatPercent(profileStrategyBinding?.avg_expected_win_rate, 1)}</div>
+                    <div>updated {formatTime(profileStrategyBinding?.updated_at)}</div>
+                    <div>{profileStrategyBinding?.operator_action || "前往 Strategy Lab 補齊對應 sleeve 的 strategy snapshot。"}</div>
+                  </div>
                   <div className="text-[12px] text-dark-300">event log {linkedRun?.latest_event?.event_type || linkedRun?.last_event_type || card.control_contract?.latest_event_type || "none"} · {linkedRun?.latest_event?.message || linkedRun?.last_event_message || card.control_contract?.latest_event_message || "尚未建立 run event。"}</div>
                   <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
                     <div className="font-medium text-white">shared-symbol runtime mirror</div>
@@ -948,6 +1010,7 @@ export default function ExecutionConsole() {
             const runBindingContract = run.runtime_binding_contract ?? null;
             const runOwnershipBoundary = runBindingContract?.ownership_boundary ?? null;
             const runRuntimeSnapshot = run.runtime_binding_snapshot ?? null;
+            const runStrategyBinding = run.strategy_binding ?? null;
             const runCapitalPreview = runRuntimeSnapshot?.capital_preview ?? null;
             const runSharedPreview = runRuntimeSnapshot?.shared_symbol_preview ?? null;
             const runSharedBalance = runSharedPreview?.balance ?? null;
@@ -970,6 +1033,13 @@ export default function ExecutionConsole() {
               <div className="mt-2 text-[12px] text-dark-300">start {formatTime(run.start_time)} · last event {formatTime(run.last_event_at)}</div>
               <div className="text-[12px] text-dark-300">budget {formatNumber(run.budget_amount)} {run.capital_currency || balanceCurrency} · ratio {formatNumber(run.budget_ratio, 3)}</div>
               <div className="text-[12px] text-dark-300">binding {run.runtime_binding_status || "control_plane_only"}</div>
+              <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
+                <div className="font-medium text-white">run strategy snapshot</div>
+                <div className="mt-1">{runStrategyBinding?.summary || "尚未綁定 run strategy snapshot。"}</div>
+                <div>source {runStrategyBinding?.strategy_source || "—"} · hash {runStrategyBinding?.strategy_hash || "—"}</div>
+                <div>DQ {formatNumber(runStrategyBinding?.avg_decision_quality_score, 3)} · expected win {formatPercent(runStrategyBinding?.avg_expected_win_rate, 1)}</div>
+                <div>updated {formatTime(runStrategyBinding?.updated_at)}</div>
+              </div>
               <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
                 <div className="font-medium text-white">shared-symbol runtime mirror</div>
                 <div className="mt-1">binding summary {runBindingContract?.summary || "尚未取得 runtime binding summary。"}</div>

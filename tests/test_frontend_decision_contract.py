@@ -36,6 +36,7 @@ def test_execution_console_consumes_runtime_status_and_exposes_operations_vs_dia
         'const diagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;',
         'const liveRuntimeTruth = runtimeStatus?.execution?.live_runtime_truth ?? executionSurfaceContract?.live_runtime_truth ?? null;',
         'const liveRouting = liveRuntimeTruth?.sleeve_routing ?? null;',
+        'const executionStrategySummary = executionOverview?.strategy_source_summary ?? null;',
         'const automationEnabled = Boolean(runtimeStatus?.automation);',
         'const executionSymbol = runtimeStatus?.symbol || "BTCUSDT";',
         'const handleOperatorTrade = async (side: "buy" | "reduce") => {',
@@ -49,12 +50,17 @@ def test_execution_console_consumes_runtime_status_and_exposes_operations_vs_dia
         'Capital / account snapshot',
         'Bot profiles / capital preview',
         'Capital allocation preview',
+        'Strategy source / snapshot',
+        'saved strategies',
+        'covered sleeves',
+        'missing sleeves',
         'stateful run lifecycle 已落地',
         'planned budget',
         'start contract',
         'routing reason',
         'start reason',
         'operator run state',
+        'strategy snapshot',
         'event log',
         'shared-symbol runtime mirror',
         'binding summary',
@@ -70,6 +76,7 @@ def test_execution_console_consumes_runtime_status_and_exposes_operations_vs_dia
         '暫停 run',
         '停止 run',
         'Stateful run lifecycle',
+        'run strategy snapshot',
         'latest event',
         'next operator action',
         'Recovery / reconciliation',
@@ -473,6 +480,25 @@ def test_candlestick_chart_uses_stable_empty_prop_defaults_to_avoid_render_loops
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+
+def test_candlestick_chart_guards_resize_observer_after_dispose():
+    source = _read("components/CandlestickChart.tsx")
+    required_snippets = [
+        'const chartsDisposedRef = useRef(false);',
+        'const resizeFrameRef = useRef<number | null>(null);',
+        'if (chartsDisposedRef.current) return;',
+        'resizeFrameRef.current = window.requestAnimationFrame(() => {',
+        'resizeObserver.unobserve(priceContainer);',
+        'resizeObserver.unobserve(equityContainer);',
+        'visibleRangeUnsubscribers.forEach((unsubscribe) => unsubscribe());',
+        'priceChart.remove();',
+        'equityChart.remove();',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
 
 
 def test_fetch_api_formats_structured_reject_payloads_for_trade_guardrails():
