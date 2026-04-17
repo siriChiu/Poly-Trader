@@ -35,6 +35,20 @@ from scripts.hb_collect import summarize_label_horizons
 PYTHON = os.path.join(PROJECT_ROOT, 'venv', 'bin', 'python')
 DB_PATH = os.path.join(PROJECT_ROOT, 'poly_trader.db')
 _CURRENT_HEARTBEAT_RUN_LABEL: str | None = None
+_CURRENT_HEARTBEAT_FAST_MODE = False
+FAST_SERIAL_TIMEOUTS = {
+    "recent_drift_report": 30,
+    "hb_q35_scaling_audit": 20,
+    "hb_predict_probe": 20,
+    "live_decision_quality_drilldown": 20,
+    "hb_circuit_breaker_audit": 20,
+    "feature_group_ablation": 20,
+    "bull_4h_pocket_ablation": 20,
+    "hb_leaderboard_candidate_probe": 20,
+    "hb_q15_support_audit": 20,
+    "hb_q15_bucket_root_cause": 20,
+    "hb_q15_boundary_replay": 20,
+}
 
 TASKS = [
     {"name": "full_ic", "label": "🔍 Full IC", "cmd": [PYTHON, "scripts/full_ic.py"]},
@@ -310,26 +324,40 @@ def collect_ic_diagnostics() -> Dict[str, Any]:
     }
 
 
+def _resolve_serial_timeout(cmd: list[str], timeout: int | None) -> int:
+    if timeout is not None:
+        return timeout
+    command_name = Path(cmd[1]).stem if len(cmd) > 1 else Path(cmd[0]).stem
+    if _CURRENT_HEARTBEAT_FAST_MODE:
+        return FAST_SERIAL_TIMEOUTS.get(command_name, 600)
+    return 600
+
+
 def _run_serial_command(
     cmd: list[str],
-    timeout: int = 600,
+    timeout: int | None = None,
     extra_env: Dict[str, str] | None = None,
     *,
     progress: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
+    command_name = Path(cmd[1]).stem if len(cmd) > 1 else Path(cmd[0]).stem
+    effective_timeout = _resolve_serial_timeout(cmd, timeout)
     effective_progress = progress
     if effective_progress is None and _CURRENT_HEARTBEAT_RUN_LABEL:
-        command_name = Path(cmd[1]).stem if len(cmd) > 1 else Path(cmd[0]).stem
         effective_progress = {
             "run_label": _CURRENT_HEARTBEAT_RUN_LABEL,
             "stage": command_name,
             "label": command_name,
-            "details": {"command_kind": "serial_command"},
+            "details": {
+                "command_kind": "serial_command",
+                "timeout_seconds": effective_timeout,
+                "fast_mode_timeout": bool(_CURRENT_HEARTBEAT_FAST_MODE and timeout is None),
+            },
         }
     try:
         return _run_command_with_watchdog(
             cmd,
-            timeout=timeout,
+            timeout=effective_timeout,
             extra_env=extra_env,
             progress=effective_progress,
         )
@@ -1003,6 +1031,8 @@ def collect_circuit_breaker_audit_diagnostics() -> Dict[str, Any]:
             "latest_timestamp": mixed.get("latest_timestamp"),
             "streak": mixed.get("streak") or {},
             "recent_window": mixed.get("recent_window") or {},
+            "release_condition": mixed.get("release_condition") or {},
+            "tail_pathology": mixed.get("tail_pathology") or {},
         },
         "aligned_scope": {
             "triggered": aligned.get("triggered"),
@@ -1012,6 +1042,8 @@ def collect_circuit_breaker_audit_diagnostics() -> Dict[str, Any]:
             "latest_timestamp": aligned.get("latest_timestamp"),
             "streak": aligned.get("streak") or {},
             "recent_window": aligned.get("recent_window") or {},
+            "release_condition": aligned.get("release_condition") or {},
+            "tail_pathology": aligned.get("tail_pathology") or {},
         },
     }
 
@@ -1194,10 +1226,11 @@ def print_source_blockers(source_blockers: Dict[str, Any]) -> None:
 
 
 def main(argv=None):
-    global _CURRENT_HEARTBEAT_RUN_LABEL
+    global _CURRENT_HEARTBEAT_RUN_LABEL, _CURRENT_HEARTBEAT_FAST_MODE
     args = parse_args(argv)
     run_label = resolve_run_label(args)
     _CURRENT_HEARTBEAT_RUN_LABEL = run_label
+    _CURRENT_HEARTBEAT_FAST_MODE = bool(args.fast)
     progress_path = write_progress(
         run_label,
         "collect",
@@ -1595,6 +1628,11 @@ def main(argv=None):
                 "runtime_blocker_reason": drill_payload.get("runtime_blocker_reason"),
                 "deployment_blocker": drill_payload.get("deployment_blocker"),
                 "deployment_blocker_reason": drill_payload.get("deployment_blocker_reason"),
+                "q15_exact_supported_component_patch_applied": drill_payload.get("q15_exact_supported_component_patch_applied"),
+                "signal": drill_payload.get("signal"),
+                "allowed_layers": drill_payload.get("allowed_layers"),
+                "allowed_layers_reason": drill_payload.get("allowed_layers_reason"),
+                "support_route_verdict": drill_payload.get("support_route_verdict"),
                 "remaining_gap_to_floor": drill_payload.get("remaining_gap_to_floor"),
                 "best_single_component": drill_payload.get("best_single_component"),
                 "best_single_component_required_score_delta": drill_payload.get("best_single_component_required_score_delta"),

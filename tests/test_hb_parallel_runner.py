@@ -951,6 +951,11 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
         live_decision_drilldown={
             "json": "data/live_decision_quality_drilldown.json",
             "chosen_scope": "regime_label+entry_quality_label",
+            "q15_exact_supported_component_patch_applied": True,
+            "signal": "HOLD",
+            "allowed_layers": 1,
+            "allowed_layers_reason": "entry_quality_C_single_layer",
+            "support_route_verdict": "exact_bucket_supported",
             "remaining_gap_to_floor": 0.051,
             "best_single_component": "feat_4h_bias50",
             "best_single_component_required_score_delta": 0.17,
@@ -992,6 +997,9 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert summary["drift_diagnostics"]["primary_window"] == "100"
     assert summary["live_predictor_diagnostics"]["decision_quality_label"] == "D"
     assert summary["live_decision_drilldown"]["best_single_component"] == "feat_4h_bias50"
+    assert summary["live_decision_drilldown"]["q15_exact_supported_component_patch_applied"] is True
+    assert summary["live_decision_drilldown"]["signal"] == "HOLD"
+    assert summary["live_decision_drilldown"]["allowed_layers"] == 1
     assert summary["q35_scaling_audit"]["overall_verdict"] == "hold_only_bias50_overheat_confirmed"
     assert summary["q35_scaling_audit"]["segmented_calibration"]["status"] == "hold_only_confirmed"
     assert summary["circuit_breaker_audit"]["root_cause"]["verdict"] == "mixed_horizon_false_positive"
@@ -1013,6 +1021,8 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert saved["drift_diagnostics"]["primary_alerts"] == ["regime_concentration"]
     assert saved["live_predictor_diagnostics"]["allowed_layers"] == 0
     assert saved["live_decision_drilldown"]["remaining_gap_to_floor"] == 0.051
+    assert saved["live_decision_drilldown"]["support_route_verdict"] == "exact_bucket_supported"
+    assert saved["live_decision_drilldown"]["allowed_layers_reason"] == "entry_quality_C_single_layer"
     assert saved["q35_scaling_audit"]["structure_scaling_verdict"] == "q35_structure_caution_not_root_cause"
     assert saved["q35_scaling_audit"]["broader_bull_cohorts"]["bull_all"]["current_bias50_percentile"] == 0.99
     assert saved["q35_scaling_audit"]["segmented_calibration"]["recommended_mode"] == "keep_hold_only"
@@ -1336,6 +1346,8 @@ def test_collect_circuit_breaker_audit_diagnostics_reads_mixed_horizon_false_pos
                     "latest_timestamp": "2026-04-14 06:49:03",
                     "streak": {"count": 0, "threshold": 50, "horizons": {"1440": 0}},
                     "recent_window": {"window_size": 50, "win_rate": 1.0, "losses": 0},
+                    "release_condition": {"additional_recent_window_wins_needed": 0},
+                    "tail_pathology": {"loss_share": 0.0},
                 },
             }
         )
@@ -1348,6 +1360,8 @@ def test_collect_circuit_breaker_audit_diagnostics_reads_mixed_horizon_false_pos
     assert diag["mixed_scope"]["streak"]["count"] == 59
     assert diag["aligned_scope"]["release_ready"] is True
     assert diag["aligned_scope"]["recent_window"]["win_rate"] == 1.0
+    assert diag["aligned_scope"]["release_condition"]["additional_recent_window_wins_needed"] == 0
+    assert diag["aligned_scope"]["tail_pathology"]["loss_share"] == 0.0
 
 
 def test_collect_feature_ablation_diagnostics_reads_recommended_profile(tmp_path, monkeypatch):
@@ -1603,6 +1617,7 @@ def test_run_serial_command_uses_global_run_label_for_watchdog(monkeypatch):
         return {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": "", "command": cmd}
 
     monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_RUN_LABEL", "hb-watchdog")
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", False)
     monkeypatch.setattr(hb_parallel_runner, "_run_command_with_watchdog", _fake_watchdog)
 
     result = hb_parallel_runner._run_serial_command(["python", "scripts/recent_drift_report.py"], timeout=321)
@@ -1612,6 +1627,29 @@ def test_run_serial_command_uses_global_run_label_for_watchdog(monkeypatch):
     assert captured["progress"]["run_label"] == "hb-watchdog"
     assert captured["progress"]["stage"] == "recent_drift_report"
     assert captured["progress"]["details"]["command_kind"] == "serial_command"
+    assert captured["progress"]["details"]["timeout_seconds"] == 321
+    assert captured["progress"]["details"]["fast_mode_timeout"] is False
+
+
+def test_run_serial_command_uses_fast_mode_timeout_budget(monkeypatch):
+    captured = {}
+
+    def _fake_watchdog(cmd, *, timeout=600, extra_env=None, progress=None):
+        captured["cmd"] = cmd
+        captured["timeout"] = timeout
+        captured["progress"] = progress
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": "", "command": cmd}
+
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_RUN_LABEL", "hb-fast")
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", True)
+    monkeypatch.setattr(hb_parallel_runner, "_run_command_with_watchdog", _fake_watchdog)
+
+    result = hb_parallel_runner._run_serial_command(["python", "scripts/hb_predict_probe.py"])
+
+    assert result["success"] is True
+    assert captured["timeout"] == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["hb_predict_probe"]
+    assert captured["progress"]["details"]["timeout_seconds"] == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["hb_predict_probe"]
+    assert captured["progress"]["details"]["fast_mode_timeout"] is True
 
 
 
