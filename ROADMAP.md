@@ -1,81 +1,64 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-17 13:38 UTC_
+_最後更新：2026-04-17 14:12 UTC_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留舊 roadmap 歷史。
 
 ---
 
 ## 已完成
-- **Leaderboard candidate fast-cache 已從 contract 變成 live evidence**
-  - `scripts/hb_parallel_runner.py` 新增 leaderboard candidate artifact 的 **alignment snapshot refresh**
-  - 當 semantic signature 不變、只是 code dependency 更新時，runner 會先輕量刷新 `data/leaderboard_feature_profile_probe.json`，再安全 reuse
-  - 最新 fast run 已驗證：`serial_results.hb_leaderboard_candidate_probe.cached=true`
-  - `cache_reason=refreshed_leaderboard_candidate_artifact_reused`
-- **Regression guard 補齊**
-  - `tests/test_hb_parallel_runner.py` 新增 refresh+reuse 案例
-  - 驗證：`python -m pytest tests/test_hb_parallel_runner.py -q` → **48 passed**
-- **Fast heartbeat runtime evidence refresh**
-  - `Raw=30615 / Features=22033 / Labels=61792`
-  - canonical runtime：`Global IC 14/30`、`TW-IC 28/30`、`CIRCUIT_BREAKER`、recent 50=`11/50`
+- Canonical target 已穩定對齊 `simulated_pyramid_win`
+- Fast heartbeat collect / IC / live probe / q15 系列 artifact 仍可閉環運作
+- **本輪完成：`q35_scaling_audit` 快路徑產品化**
+  - current live row 不在 q35 時，直接輸出 reference-only artifact
+  - runtime 若先被 circuit breaker 擋下，直接輸出 blocker-preempt artifact
+  - q35 audit 不再把非 q35 current row 包裝成 q35 blocker，也不再強迫跑重型 historical lane 分析
+  - 新增 regression tests，鎖住「aligned probe reuse / non-q35 short-circuit / breaker preempt short-circuit」
 
 ---
 
 ## 主目標
 
-### 目標 A：把 fast cache-hit 從單一 leaderboard lane 擴成可複用機制
-重點：
-- 目前已證明 leaderboard candidate lane 可 `refresh + reuse`
-- 下一步不是再寫新的 timeout fallback，而是把同一套 safe cache / refresh 原則擴到其他重型治理 lanes
-- 優先候選：`recent_drift_report`、`feature_group_ablation`、`bull_4h_pocket_ablation`
+### 目標 A：關閉 recent pathology 的 fast-timeout 與 root-cause 黑箱
+**重點**
+- 讓 `recent_drift_report.py` 在 fast heartbeat 預算內完成，或明確使用安全快取
+- 把 recent canonical pathology 從「數字摘要」升級為可修復的 root-cause artifact
 
-成功標準：
-- 下一輪 fast run 至少再多一條重型 lane 顯示 `cached=true`
-- summary 能清楚區分 `cached / refreshed / timeout fallback`
-- operator 能直接看懂哪些 artifact 是本輪真刷新、哪些是安全重用
+**成功標準**
+- fast heartbeat 不再對 `recent_drift_report` timeout
+- recent 500 / 100 canonical pathology 有 machine-read root cause 與 verify path
+- heartbeat summary 不再依賴 timeout fallback 才能知道 recent 問題
 
-### 目標 B：維持 breaker-first canonical runtime truth
-重點：
-- `circuit_breaker_active` 仍是真正 deployment blocker
-- q15 / q35 / profile governance 只能當 background governance，不可覆蓋 live blocker
-- heartbeat 必須直接回答距 release 還差多少勝
+### 目標 B：把 current live bucket 治理完全切到 `ALLOW|base_allow|q65`
+**重點**
+- q35 已降級為 reference-only；接下來要把所有 support / blocker / calibration 分析切到 current q65 bucket
+- current live blocker 必須以 exact support 與 current trade-floor gap 為主，而不是沿用舊 q35 blocker
 
-成功標準：
-- recent 50 win rate 回到 `>= 30%`
-- recent 50 至少達 `15/50`
-- predictor / drilldown / breaker audit / docs 維持同一 breaker-first truth
+**成功標準**
+- probe / audit / docs 一致指向 q65 current bucket
+- `current_live_structure_bucket_rows`、support route、remaining gap to floor 在主要 surface 可直接看懂
+- 不再出現「current row 明明不是 q35，文件仍把 q35 當主 blocker」
 
-### 目標 C：把 recent canonical pathology 轉成可 patch 根因
-重點：
-- current primary pathology 仍是 `window=500` bull concentration
-- 必須把「局部高 win rate」與 deployment readiness 分離
-- 直接追 target-path / feature variance / distinct-count / sibling-window shift
+### 目標 C：清掉 fast governance lane 的剩餘 timeout
+**重點**
+- `feature_group_ablation.py`
+- `bull_4h_pocket_ablation.py`
+- `hb_leaderboard_candidate_probe.py`
 
-成功標準：
-- recent pathology 不再只是 `distribution_pathology` 黑盒標籤
-- heartbeat / probe / docs 對同一 root cause 給出一致 machine-readable 結論
-- 至少留下一個可驗證 patch 或明確 blocker，而不是只報數
-
-### 目標 D：q35/base-stack redesign 僅保留治理候選身份
-重點：
-- q35 scaling artifact 目前仍顯示 redesign 候選有價值，但 live runtime 被 breaker 先擋
-- 這條線暫時只能作治理候選，不是 deployment closure
-
-成功標準：
-- breaker 未解除前，不再把 q35/base-stack 改動寫成 live-ready
-- breaker 一旦鬆動，立即重跑 probe / q35 audit 驗證 runtime contract
+**成功標準**
+- 以上 3 條 script 在 fast heartbeat 中要嘛通過、要嘛走明確安全 reuse；不能再以 timeout 作為常態路徑
+- heartbeat summary 直接註明 artifact 是 fresh / cached / fallback，而不是只看到 timeout 後的人類摘要
 
 ---
 
 ## 下一步
-1. **擴第二條 cache-hit lane**：先挑 `recent_drift_report` 或 `feature_group_ablation` 做 safe refresh / reuse
-2. **Tail root cause**：直接拆 canonical recent 50/500 的 target path，回答為何仍停在 `11/50`
-3. **Breaker-first discipline**：在 breaker 未解除前，所有 q15/q35/base-stack 僅作治理候選
+1. 優先產品化 `recent_drift_report` 的 fast-safe 執行路徑
+2. 把 current live q65 bucket support / blocker drilldown 變成主治理 lane
+3. 依序替 feature ablation、bull pocket、leaderboard probe 補 short-circuit / semantic cache reuse
 
 ---
 
 ## 成功標準
-- fast heartbeat 具備 **至少兩條真 cache-hit 的重型治理 lane**
-- breaker-first runtime truth 在所有主要 surface 保持一致
-- recent canonical pathology 被縮小或明確解釋，不再只是 blocker 黑盒
-- q15/q35/base-stack 未經 breaker release 前，不再被誤包裝成 live closure
+- Fast heartbeat 真正變成可運營的 operator loop，而不是 timeout + fallback loop
+- Current live blocker 永遠跟著 current live bucket 走，不再被舊 q35 敘事綁架
+- Governance artifact 全部能在 fast lane 中提供新鮮、可執行、machine-read 的產品化證據

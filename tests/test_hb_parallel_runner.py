@@ -350,6 +350,138 @@ def test_q35_audit_main_runs_post_write_second_pass_refresh(monkeypatch, capsys)
     assert output["deployment_grade_component_experiment"]["q35_discriminative_redesign_applied"] is True
 
 
+def test_q35_audit_reuses_aligned_probe_without_refresh(tmp_path, monkeypatch):
+    probe_path = tmp_path / "live_predict_probe.json"
+    probe_payload = {
+        "feature_timestamp": "2026-04-17 14:02:37.686291",
+        "structure_bucket": "CAUTION|structure_quality_caution|q35",
+        "entry_quality": 0.4523,
+    }
+    probe_path.write_text(json.dumps(probe_payload), encoding="utf-8")
+    monkeypatch.setattr(hb_q35_scaling_audit, "PROBE_PATH", probe_path)
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("subprocess refresh should not run when probe already matches current row")
+
+    monkeypatch.setattr(hb_q35_scaling_audit.subprocess, "run", _boom)
+
+    probe = hb_q35_scaling_audit._load_or_refresh_live_predict_probe(
+        "2026-04-17 14:02:37.686291",
+        "CAUTION|structure_quality_caution|q35",
+    )
+
+    assert probe["entry_quality"] == 0.4523
+
+
+
+def test_q35_audit_main_short_circuits_when_circuit_breaker_preempts_runtime(monkeypatch, capsys):
+    current = {
+        "timestamp": "2026-04-17 13:49:17.419527",
+        "symbol": "BTCUSDT",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality_label": "D",
+        "structure_bucket": "CAUTION|structure_quality_caution|q35",
+        "entry_quality": 0.3323,
+        "allowed_layers_raw": 0,
+        "allowed_layers_reason": "entry_quality_below_trade_floor",
+        "structure_quality": 0.3804,
+        "raw_features": {"feat_4h_bias50": 1.2345},
+    }
+    probe = {
+        "target_col": "simulated_pyramid_win",
+        "signal": "CIRCUIT_BREAKER",
+        "deployment_blocker": "circuit_breaker_active",
+        "deployment_blocker_reason": "Recent 50-sample win rate: 26.00% < 30%",
+        "deployment_blocker_source": "circuit_breaker",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "circuit_breaker_blocks_trade",
+        "allowed_layers_raw_reason": "circuit_breaker_preempts_runtime_sizing",
+        "runtime_closure_state": "circuit_breaker_active",
+        "runtime_closure_summary": "circuit breaker active",
+    }
+    written = {}
+
+    class _FakeConn:
+        row_factory = None
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(hb_q35_scaling_audit.sqlite3, "connect", lambda *args, **kwargs: _FakeConn())
+    monkeypatch.setattr(hb_q35_scaling_audit, "_current_row", lambda conn: _DictRow(feat_4h_bias50=1.2345))
+    monkeypatch.setattr(hb_q35_scaling_audit, "_build_row_context", lambda row, *, bias50_calibration_override=None: dict(current))
+    monkeypatch.setattr(hb_q35_scaling_audit, "_load_or_refresh_live_predict_probe", lambda ts, bucket: dict(probe))
+    monkeypatch.setattr(
+        hb_q35_scaling_audit,
+        "_write_runtime_blocker_preempt_outputs",
+        lambda report: written.setdefault("report", report),
+    )
+    monkeypatch.setattr(
+        hb_q35_scaling_audit,
+        "_historical_rows",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("historical rows should not be loaded when circuit breaker preempts q35 audit")),
+    )
+
+    hb_q35_scaling_audit.main()
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["overall_verdict"] == "runtime_blocker_preempts_q35_scaling"
+    assert output["runtime_blocker"]["type"] == "circuit_breaker_active"
+    assert written["report"]["segmented_calibration"]["status"] == "runtime_blocker_preempts_q35_scaling"
+    assert written["report"]["scope_applicability"]["status"] == "current_live_q35_lane_active"
+
+
+def test_q35_audit_main_short_circuits_when_current_row_is_not_q35(monkeypatch, capsys):
+    current = {
+        "timestamp": "2026-04-17 14:02:37.686291",
+        "symbol": "BTCUSDT",
+        "regime_label": "bull",
+        "regime_gate": "ALLOW",
+        "entry_quality_label": "D",
+        "structure_bucket": "ALLOW|base_allow|q65",
+        "entry_quality": 0.4523,
+        "allowed_layers_raw": 0,
+        "allowed_layers_reason": "entry_quality_below_trade_floor",
+        "structure_quality": 0.6623,
+        "raw_features": {"feat_4h_bias50": 5.5331},
+    }
+    written = {}
+
+    class _FakeConn:
+        row_factory = None
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(hb_q35_scaling_audit.sqlite3, "connect", lambda *args, **kwargs: _FakeConn())
+    monkeypatch.setattr(hb_q35_scaling_audit, "_current_row", lambda conn: _DictRow(feat_4h_bias50=5.5331))
+    monkeypatch.setattr(hb_q35_scaling_audit, "_build_row_context", lambda row, *, bias50_calibration_override=None: dict(current))
+    monkeypatch.setattr(
+        hb_q35_scaling_audit,
+        "_write_reference_only_outputs",
+        lambda report: written.setdefault("report", report),
+    )
+    monkeypatch.setattr(
+        hb_q35_scaling_audit,
+        "_load_or_refresh_live_predict_probe",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("probe refresh should not run for reference-only non-q35 rows")),
+    )
+    monkeypatch.setattr(
+        hb_q35_scaling_audit,
+        "_historical_rows",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("historical rows should not run for reference-only non-q35 rows")),
+    )
+
+    hb_q35_scaling_audit.main()
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["overall_verdict"] == "reference_only_current_bucket_outside_q35"
+    assert written["report"]["scope_applicability"]["status"] == "reference_only_current_bucket_outside_q35"
+    assert written["report"]["recommended_action"].startswith("current live row 已離開 q35 lane")
+
+
+
 def test_q35_runtime_contract_state_marks_runtime_ready_when_current_row_is_back_inside_exact_lane():
     runtime_status, runtime_reason = hb_q35_scaling_audit._runtime_contract_state(
         {

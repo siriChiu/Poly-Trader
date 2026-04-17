@@ -328,6 +328,8 @@ def _load_or_refresh_live_predict_probe(current_ts: str, current_bucket: str) ->
             loaded = {}
         if isinstance(loaded, dict):
             probe = loaded
+    if probe and _probe_matches_current_row(probe, current_ts, current_bucket):
+        return probe
 
     cmd = [sys.executable, str(PROJECT_ROOT / "scripts" / "hb_predict_probe.py")]
     result = subprocess.run(
@@ -1222,6 +1224,365 @@ def _deployment_runtime_signature(runtime: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
+def _runtime_blocker_preempts_q35_audit(probe: dict[str, Any]) -> bool:
+    signal = str(probe.get("signal") or "").upper()
+    blocker_source = str(probe.get("deployment_blocker_source") or "").lower()
+    runtime_closure_state = str(probe.get("runtime_closure_state") or "").lower()
+    return (
+        signal == "CIRCUIT_BREAKER"
+        or blocker_source == "circuit_breaker"
+        or runtime_closure_state == "circuit_breaker_active"
+    )
+
+
+def _build_runtime_blocker_preempt_report(
+    current: dict[str, Any],
+    probe: dict[str, Any],
+    scope_applicability: dict[str, Any],
+) -> dict[str, Any]:
+    current_bias50 = float((current.get("raw_features") or {}).get("feat_4h_bias50") or 0.0)
+    legacy_preview = _legacy_bias50_calibration_preview(current_bias50)
+    blocker_reason = (
+        probe.get("deployment_blocker_reason")
+        or probe.get("runtime_closure_summary")
+        or probe.get("reason")
+        or "circuit breaker active"
+    )
+    runtime_view = dict(current)
+    runtime_view.update(
+        {
+            "signal": probe.get("signal") or current.get("signal"),
+            "allowed_layers_raw": probe.get("allowed_layers_raw"),
+            "allowed_layers_raw_reason": probe.get("allowed_layers_raw_reason") or probe.get("allowed_layers_reason"),
+            "allowed_layers": probe.get("allowed_layers"),
+            "allowed_layers_reason": probe.get("allowed_layers_reason") or current.get("allowed_layers_reason"),
+            "deployment_blocker": probe.get("deployment_blocker"),
+            "deployment_blocker_reason": probe.get("deployment_blocker_reason"),
+            "deployment_blocker_source": probe.get("deployment_blocker_source"),
+            "deployment_blocker_details": probe.get("deployment_blocker_details"),
+            "runtime_closure_state": probe.get("runtime_closure_state"),
+            "runtime_closure_summary": probe.get("runtime_closure_summary"),
+            "source": "live_predict_probe_runtime_blocker_preempt",
+            "q35_discriminative_redesign_applied": False,
+            "q35_discriminative_redesign": None,
+            "probe_alignment": {
+                "used_live_predict_probe": True,
+                "reason": "circuit breaker 先擋下 live runtime，q35 scaling audit 本輪直接沿用 probe blocker 狀態並跳過重型 historical lane 分析。",
+                "probe_feature_timestamp": probe.get("feature_timestamp"),
+                "current_feature_timestamp": current.get("timestamp"),
+                "probe_structure_bucket": probe.get("structure_bucket") or probe.get("current_live_structure_bucket"),
+                "current_structure_bucket": current.get("structure_bucket"),
+            },
+        }
+    )
+    empty_summary = _summarize_subset([], current_bias50)
+    preempt_machine_read = {
+        "entry_quality_ge_0_55": False,
+        "allowed_layers_gt_0": False,
+        "positive_discriminative_gap": None,
+        "used_exact_supported_target": False,
+    }
+    return {
+        "generated_at": current.get("timestamp"),
+        "target_col": probe.get("target_col", "simulated_pyramid_win"),
+        "current_live": runtime_view,
+        "legacy_current_live": current,
+        "baseline_current_live": current,
+        "calibration_runtime_current": runtime_view,
+        "deployed_runtime_current": runtime_view,
+        "scope_applicability": scope_applicability,
+        "runtime_blocker": {
+            "type": probe.get("deployment_blocker") or "circuit_breaker_active",
+            "reason": blocker_reason,
+            "source": probe.get("deployment_blocker_source") or "circuit_breaker",
+            "runtime_closure_state": probe.get("runtime_closure_state"),
+            "runtime_closure_summary": probe.get("runtime_closure_summary"),
+            "allowed_layers": probe.get("allowed_layers"),
+            "allowed_layers_reason": probe.get("allowed_layers_reason"),
+        },
+        "exact_lane_summary": empty_summary,
+        "exact_lane_winner_summary": empty_summary,
+        "same_bucket_any_regime_summary": empty_summary,
+        "broader_bull_cohorts": {
+            "same_gate_same_quality": empty_summary,
+            "same_bucket": empty_summary,
+            "bull_all": empty_summary,
+        },
+        "segmented_calibration": {
+            "status": "runtime_blocker_preempts_q35_scaling",
+            "recommended_mode": "defer_until_circuit_breaker_releases",
+            "reason": "live runtime 已被 circuit breaker 擋下；本輪 q35 scaling 只能保留 reference-only blocker artifact，不能再花時間重算 exact-lane calibration。",
+            "runtime_contract_status": "runtime_blocker_preempts_q35_scaling",
+            "runtime_contract_reason": blocker_reason,
+            "exact_lane": _cohort_calibration_view(empty_summary, current_bias50),
+            "broader_bull_cohorts": {
+                "same_gate_same_quality": _cohort_calibration_view(empty_summary, current_bias50),
+                "same_bucket": _cohort_calibration_view(empty_summary, current_bias50),
+                "bull_all": _cohort_calibration_view(empty_summary, current_bias50),
+            },
+            "reference_cohort": {},
+        },
+        "piecewise_runtime_preview": legacy_preview,
+        "deployment_grade_component_experiment": {
+            "verdict": "runtime_blocker_preempts_q35_scaling",
+            "baseline_entry_quality": current.get("entry_quality"),
+            "calibration_runtime_entry_quality": runtime_view.get("entry_quality"),
+            "runtime_entry_quality": runtime_view.get("entry_quality"),
+            "calibration_runtime_delta_vs_legacy": 0.0,
+            "entry_quality_delta_vs_legacy": 0.0,
+            "baseline_allowed_layers_raw": current.get("allowed_layers_raw"),
+            "calibration_runtime_allowed_layers_raw": runtime_view.get("allowed_layers_raw"),
+            "runtime_allowed_layers_raw": runtime_view.get("allowed_layers_raw"),
+            "runtime_remaining_gap_to_floor": None,
+            "machine_read_answer": {
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+            },
+            "q35_discriminative_redesign_applied": False,
+            "runtime_source": runtime_view.get("source"),
+            "next_patch_target": "release_circuit_breaker_then_rerun_q35_scaling_audit",
+            "reason": blocker_reason,
+        },
+        "joint_component_experiment": {
+            "verdict": "runtime_blocker_preempts_q35_scaling",
+            "machine_read_answer": {
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+            },
+            "best_scenario": {},
+            "reason": blocker_reason,
+        },
+        "exact_supported_bias50_component_experiment": {
+            "verdict": "runtime_blocker_preempts_q35_scaling",
+            "machine_read_answer": {
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+                "used_exact_supported_target": False,
+            },
+            "best_scenario": {},
+            "reason": blocker_reason,
+        },
+        "base_mix_component_experiment": {
+            "verdict": "runtime_blocker_preempts_q35_scaling",
+            "machine_read_answer": {
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+            },
+            "best_scenario": {},
+            "reason": blocker_reason,
+        },
+        "base_stack_redesign_experiment": {
+            "verdict": "runtime_blocker_preempts_q35_scaling",
+            "machine_read_answer": preempt_machine_read,
+            "rows": 0,
+            "wins": 0,
+            "losses": 0,
+            "best_discriminative_candidate": {},
+            "best_floor_candidate": {},
+            "unsafe_floor_cross_candidate": None,
+            "reason": blocker_reason,
+        },
+        "counterfactuals": {
+            "gate_allow_only_changes_layers": False,
+            "entry_if_gate_allow_only": None,
+            "layers_if_gate_allow_only": 0,
+            "entry_if_bias50_fully_relaxed": None,
+            "layers_if_bias50_fully_relaxed": 0,
+            "required_bias50_cap_for_floor": None,
+            "current_bias50_value": _round(current_bias50),
+        },
+        "structure_scaling_verdict": "runtime_blocker_preempts_q35_scaling",
+        "overall_verdict": "runtime_blocker_preempts_q35_scaling",
+        "verdict_reason": blocker_reason,
+        "recommended_action": "先解除 canonical circuit breaker 或至少接近 release condition，再重跑 q35 scaling audit；在 breaker 仍有效時，不得把 q35 formula / calibration 當成本輪 live blocker 主敘事。",
+    }
+
+
+def _build_reference_only_report(
+    current: dict[str, Any],
+    scope_applicability: dict[str, Any],
+) -> dict[str, Any]:
+    current_bias50 = float((current.get("raw_features") or {}).get("feat_4h_bias50") or 0.0)
+    empty_summary = _summarize_subset([], current_bias50)
+    legacy_preview = _legacy_bias50_calibration_preview(current_bias50)
+    reason = scope_applicability.get("reason") or "current live row is outside q35"
+    return {
+        "generated_at": current.get("timestamp"),
+        "target_col": "simulated_pyramid_win",
+        "current_live": current,
+        "legacy_current_live": current,
+        "baseline_current_live": current,
+        "calibration_runtime_current": current,
+        "deployed_runtime_current": current,
+        "scope_applicability": scope_applicability,
+        "runtime_blocker": None,
+        "exact_lane_summary": empty_summary,
+        "exact_lane_winner_summary": empty_summary,
+        "same_bucket_any_regime_summary": empty_summary,
+        "broader_bull_cohorts": {
+            "same_gate_same_quality": empty_summary,
+            "same_bucket": empty_summary,
+            "bull_all": empty_summary,
+        },
+        "segmented_calibration": {
+            "status": "reference_only_current_bucket_outside_q35",
+            "recommended_mode": "defer_until_current_live_returns_to_q35",
+            "reason": reason,
+            "runtime_contract_status": "reference_only_current_bucket_outside_q35",
+            "runtime_contract_reason": reason,
+            "exact_lane": _cohort_calibration_view(empty_summary, current_bias50),
+            "broader_bull_cohorts": {
+                "same_gate_same_quality": _cohort_calibration_view(empty_summary, current_bias50),
+                "same_bucket": _cohort_calibration_view(empty_summary, current_bias50),
+                "bull_all": _cohort_calibration_view(empty_summary, current_bias50),
+            },
+            "reference_cohort": {},
+        },
+        "piecewise_runtime_preview": legacy_preview,
+        "deployment_grade_component_experiment": {
+            "verdict": "reference_only_current_bucket_outside_q35",
+            "baseline_entry_quality": current.get("entry_quality"),
+            "calibration_runtime_entry_quality": current.get("entry_quality"),
+            "runtime_entry_quality": current.get("entry_quality"),
+            "calibration_runtime_delta_vs_legacy": 0.0,
+            "entry_quality_delta_vs_legacy": 0.0,
+            "baseline_allowed_layers_raw": current.get("allowed_layers_raw"),
+            "calibration_runtime_allowed_layers_raw": current.get("allowed_layers_raw"),
+            "runtime_allowed_layers_raw": current.get("allowed_layers_raw"),
+            "runtime_remaining_gap_to_floor": None,
+            "machine_read_answer": {
+                "entry_quality_ge_0_55": bool((current.get("entry_quality") or 0.0) >= 0.55),
+                "allowed_layers_gt_0": bool(current.get("allowed_layers_raw")),
+            },
+            "q35_discriminative_redesign_applied": False,
+            "runtime_source": "reference_only_current_live_outside_q35",
+            "next_patch_target": "follow_current_live_bucket_not_q35",
+            "reason": reason,
+        },
+        "joint_component_experiment": {
+            "verdict": "reference_only_current_bucket_outside_q35",
+            "machine_read_answer": {
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+            },
+            "best_scenario": {},
+            "reason": reason,
+        },
+        "exact_supported_bias50_component_experiment": {
+            "verdict": "reference_only_current_bucket_outside_q35",
+            "machine_read_answer": {
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+                "used_exact_supported_target": False,
+            },
+            "best_scenario": {},
+            "reason": reason,
+        },
+        "base_mix_component_experiment": {
+            "verdict": "reference_only_current_bucket_outside_q35",
+            "machine_read_answer": {
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+            },
+            "best_scenario": {},
+            "reason": reason,
+        },
+        "base_stack_redesign_experiment": {
+            "verdict": "reference_only_current_bucket_outside_q35",
+            "machine_read_answer": {
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+                "positive_discriminative_gap": None,
+            },
+            "rows": 0,
+            "wins": 0,
+            "losses": 0,
+            "best_discriminative_candidate": {},
+            "best_floor_candidate": {},
+            "unsafe_floor_cross_candidate": None,
+            "reason": reason,
+        },
+        "counterfactuals": {
+            "gate_allow_only_changes_layers": False,
+            "entry_if_gate_allow_only": None,
+            "layers_if_gate_allow_only": 0,
+            "entry_if_bias50_fully_relaxed": None,
+            "layers_if_bias50_fully_relaxed": 0,
+            "required_bias50_cap_for_floor": None,
+            "current_bias50_value": _round(current_bias50),
+        },
+        "structure_scaling_verdict": "reference_only_current_bucket_outside_q35",
+        "overall_verdict": "reference_only_current_bucket_outside_q35",
+        "verdict_reason": reason,
+        "recommended_action": "current live row 已離開 q35 lane；本輪 q35 audit 保留為 reference-only。下一步應直接跟 current live bucket 的 support / runtime blocker，而不是再為 q35 calibration 重跑 historical lane 分析。",
+    }
+
+
+def _write_reference_only_outputs(report: dict[str, Any]) -> None:
+    OUT_JSON.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    current = report.get("baseline_current_live") or {}
+    scope = report.get("scope_applicability") or {}
+    md = [
+        "# Q35 Scaling Audit",
+        "",
+        f"- generated_at: **{report.get('generated_at')}**",
+        f"- overall_verdict: **{report.get('overall_verdict')}**",
+        f"- structure_scaling_verdict: **{report.get('structure_scaling_verdict')}**",
+        f"- scope_applicability: **{scope.get('status')}**",
+        f"- reason: {report.get('verdict_reason')}",
+        f"- applicability_note: {scope.get('reason')}",
+        "",
+        "## Reference-only current row",
+        "",
+        f"- regime/gate/quality: **{current.get('regime_label')} / {current.get('regime_gate')} / {current.get('entry_quality_label')}**",
+        f"- structure_bucket: **{current.get('structure_bucket')}**",
+        f"- feat_4h_bias50: **{((current.get('raw_features') or {}).get('feat_4h_bias50'))}**",
+        f"- structure_quality: **{current.get('structure_quality')}**",
+        "",
+        "## Recommended action",
+        "",
+        f"- {report.get('recommended_action')}",
+    ]
+    OUT_MD.parent.mkdir(parents=True, exist_ok=True)
+    OUT_MD.write_text("\n".join(md) + "\n", encoding="utf-8")
+
+
+def _write_runtime_blocker_preempt_outputs(report: dict[str, Any]) -> None:
+    OUT_JSON.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    runtime_blocker = report.get("runtime_blocker") or {}
+    current = report.get("baseline_current_live") or {}
+    scope = report.get("scope_applicability") or {}
+    md = [
+        "# Q35 Scaling Audit",
+        "",
+        f"- generated_at: **{report.get('generated_at')}**",
+        f"- overall_verdict: **{report.get('overall_verdict')}**",
+        f"- structure_scaling_verdict: **{report.get('structure_scaling_verdict')}**",
+        f"- scope_applicability: **{scope.get('status')}**",
+        f"- reason: {report.get('verdict_reason')}",
+        f"- applicability_note: {scope.get('reason')}",
+        "",
+        "## Runtime blocker preempt",
+        "",
+        f"- blocker: **{runtime_blocker.get('type')}** from **{runtime_blocker.get('source')}**",
+        f"- summary: {runtime_blocker.get('runtime_closure_summary') or runtime_blocker.get('reason')}",
+        f"- allowed_layers: **{runtime_blocker.get('allowed_layers')}** (`{runtime_blocker.get('allowed_layers_reason')}`)",
+        "",
+        "## Current live row",
+        "",
+        f"- regime/gate/quality: **{current.get('regime_label')} / {current.get('regime_gate')} / {current.get('entry_quality_label')}**",
+        f"- structure_bucket: **{current.get('structure_bucket')}**",
+        f"- feat_4h_bias50: **{((current.get('raw_features') or {}).get('feat_4h_bias50'))}**",
+        f"- structure_quality: **{current.get('structure_quality')}**",
+        "",
+        "## Recommended action",
+        "",
+        f"- {report.get('recommended_action')}",
+    ]
+    OUT_MD.parent.mkdir(parents=True, exist_ok=True)
+    OUT_MD.write_text("\n".join(md) + "\n", encoding="utf-8")
+
+
 def _write_outputs(
     report: dict[str, Any],
     *,
@@ -1358,16 +1719,43 @@ def main() -> None:
         current_row,
         bias50_calibration_override=_legacy_bias50_calibration_preview(current_row["feat_4h_bias50"] or 0.0),
     )
+    scope_applicability = _q35_scope_applicability(current)
+    if not scope_applicability.get("active_for_current_live_row"):
+        conn.close()
+        report = _build_reference_only_report(current, scope_applicability)
+        _write_reference_only_outputs(report)
+        print(json.dumps({
+            "json": str(OUT_JSON),
+            "markdown": str(OUT_MD),
+            "overall_verdict": report["overall_verdict"],
+            "structure_scaling_verdict": report["structure_scaling_verdict"],
+            "scope_applicability": scope_applicability["status"],
+            "recommended_action": report["recommended_action"],
+        }, indent=2, ensure_ascii=False))
+        return
     probe = _load_or_refresh_live_predict_probe(
         str(current.get("timestamp") or ""),
         str(current.get("structure_bucket") or ""),
     )
+    if _runtime_blocker_preempts_q35_audit(probe):
+        conn.close()
+        report = _build_runtime_blocker_preempt_report(current, probe, scope_applicability)
+        _write_runtime_blocker_preempt_outputs(report)
+        print(json.dumps({
+            "json": str(OUT_JSON),
+            "markdown": str(OUT_MD),
+            "overall_verdict": report["overall_verdict"],
+            "structure_scaling_verdict": report["structure_scaling_verdict"],
+            "scope_applicability": scope_applicability["status"],
+            "runtime_blocker": report["runtime_blocker"],
+            "recommended_action": report["recommended_action"],
+        }, indent=2, ensure_ascii=False))
+        return
     history = _historical_rows(conn, use_legacy_bias50_baseline=True)
     runtime_history = _historical_rows(conn, use_legacy_bias50_baseline=False)
     conn.close()
 
     current_bias50 = float(current["raw_features"]["feat_4h_bias50"] or 0.0)
-    scope_applicability = _q35_scope_applicability(current)
     exact_lane = [
         r for r in history
         if r["regime_label"] == current["regime_label"]
