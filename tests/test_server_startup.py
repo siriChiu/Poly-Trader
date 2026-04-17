@@ -134,6 +134,9 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     monkeypatch.setattr(api_module, "get_confidence_prediction", lambda: {
         "signal": "HOLD",
         "confidence": 0.346959,
+        "regime_label": "bull",
+        "regime_gate": "ALLOW",
+        "structure_bucket": "A",
         "entry_quality": 0.5501,
         "entry_quality_label": "C",
         "allowed_layers": 1,
@@ -156,6 +159,11 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     payload = asyncio.run(api_module.api_status())
 
     assert payload["automation"] is True
+    assert payload["symbol"] == "BTCUSDT"
+    assert isinstance(payload["timestamp"], str)
+    assert isinstance(payload["account"], dict)
+    assert payload["account"].get("requested_symbol") == "BTCUSDT"
+    assert isinstance(payload["account"].get("health"), dict)
     assert payload["raw_continuity"]["status"] == "repaired"
     assert payload["raw_continuity"]["continuity_repair"]["bridge_inserted"] == 1
     assert payload["feature_continuity"]["status"] == "clean"
@@ -165,6 +173,13 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["execution_metadata_smoke"]["ok_count"] == 2
     assert payload["execution_surface_contract"]["canonical_execution_route"] == "dashboard"
     assert payload["execution_surface_contract"]["canonical_surface_label"] == "Dashboard / Execution 狀態面板"
+    assert payload["execution_surface_contract"]["operations_surface"]["route"] == "/execution"
+    assert payload["execution_surface_contract"]["operations_surface"]["label"] == "Execution Console / 實戰交易"
+    assert payload["execution_surface_contract"]["operations_surface"]["role"] == "operations-beta"
+    assert payload["execution_surface_contract"]["operations_surface"]["status"] == "live-routing-operator-view"
+    assert payload["execution_surface_contract"]["diagnostics_surface"]["route"] == "/"
+    assert payload["execution_surface_contract"]["diagnostics_surface"]["label"] == "Dashboard / Execution 狀態面板"
+    assert payload["execution_surface_contract"]["diagnostics_surface"]["role"] == "diagnostics-canonical"
     assert payload["execution_surface_contract"]["shortcut_surface"]["name"] == "signal_banner"
     assert payload["execution_surface_contract"]["shortcut_surface"]["role"] == "shortcut-only"
     assert payload["execution_surface_contract"]["shortcut_surface"]["status"] == "not-upgraded"
@@ -174,6 +189,14 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["execution_surface_contract"]["operator_message"].startswith("目前完成的是 execution governance / visibility closure，不是 live 或 canary readiness。")
     assert payload["execution"]["live_runtime_truth"]["runtime_closure_state"] == "capacity_opened_signal_hold"
     assert payload["execution_surface_contract"]["live_runtime_truth"]["runtime_closure_state"] == "capacity_opened_signal_hold"
+    assert payload["execution"]["live_runtime_truth"]["regime_label"] == "bull"
+    assert payload["execution"]["live_runtime_truth"]["regime_gate"] == "ALLOW"
+    assert payload["execution"]["live_runtime_truth"]["structure_bucket"] == "A"
+    assert payload["execution"]["live_runtime_truth"]["sleeve_routing"]["current_regime"] == "bull"
+    assert payload["execution"]["live_runtime_truth"]["sleeve_routing"]["current_regime_gate"] == "ALLOW"
+    assert payload["execution"]["live_runtime_truth"]["sleeve_routing"]["active_ratio_text"] == "3/4"
+    assert {item["key"] for item in payload["execution"]["live_runtime_truth"]["sleeve_routing"]["active_sleeves"]} == {"trend", "pullback", "selective"}
+    assert {item["key"] for item in payload["execution"]["live_runtime_truth"]["sleeve_routing"]["inactive_sleeves"]} == {"rebound"}
     assert payload["execution"]["live_runtime_truth"]["support_alignment_status"] == "runtime_ahead_of_calibration"
     assert payload["execution"]["live_runtime_truth"]["runtime_exact_support_rows"] == 77
     assert payload["execution"]["live_runtime_truth"]["calibration_exact_lane_rows"] == 0

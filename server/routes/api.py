@@ -875,6 +875,21 @@ def _build_execution_surface_contract() -> Dict[str, Any]:
     return {
         "canonical_execution_route": "dashboard",
         "canonical_surface_label": "Dashboard / Execution 狀態面板",
+        "operations_surface": {
+            "route": "/execution",
+            "label": "Execution Console / 實戰交易",
+            "role": "operations-beta",
+            "status": "live-routing-operator-view",
+            "message": "Execution Console 已拆成獨立 trading operations surface，直接顯示 live runtime truth、sleeve routing、account snapshot 與 reconciliation 摘要；深度 proof chain / recovery 仍回 Dashboard。",
+            "upgrade_prerequisite": "必須接上 bot profile/run lifecycle、手動交易 controls 與資金配置後，才能從 operator-view 升級成完整 execution console。",
+        },
+        "diagnostics_surface": {
+            "route": "/",
+            "label": "Dashboard / Execution 狀態面板",
+            "role": "diagnostics-canonical",
+            "status": "proof-chain",
+            "message": "Dashboard 仍是 execution diagnostics / guardrail / recovery proof chain 的 canonical surface。",
+        },
         "shortcut_surface": {
             "name": "signal_banner",
             "role": "shortcut-only",
@@ -889,14 +904,19 @@ def _build_execution_surface_contract() -> Dict[str, Any]:
             "order ack lifecycle 尚未驗證",
             "fill lifecycle 尚未驗證",
         ],
-        "operator_message": "目前完成的是 execution governance / visibility closure，不是 live 或 canary readiness。",
+        "operator_message": "目前完成的是 execution governance / visibility closure，不是 live 或 canary readiness。Execution Console 已獨立出 operator view，但深度 proof chain / recovery 仍以 Dashboard 為準。",
     }
 
 
 def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    from backtesting import strategy_lab
+
     payload = confidence_payload or {}
     patch_active = bool(payload.get("q15_exact_supported_component_patch_applied"))
-    signal = str(payload.get("signal") or "—")
+    signal = str(payload.get("signal") or "unknown")
+    regime_label = payload.get("regime_label")
+    regime_gate = payload.get("regime_gate")
+    structure_bucket = payload.get("current_live_structure_bucket") or payload.get("structure_bucket")
     allowed_layers = payload.get("allowed_layers")
     support_progress = payload.get("support_progress") if isinstance(payload.get("support_progress"), dict) else {}
     current_rows = support_progress.get("current_rows")
@@ -985,10 +1005,23 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
     else:
         runtime_closure_state = "patch_inactive_or_blocked"
         runtime_closure_summary = "q15 patch 尚未 active 或目前仍被其他條件阻擋。"
+
+    sleeve_routing = strategy_lab.build_regime_aware_sleeve_routing(
+        regime_label=regime_label,
+        regime_gate=regime_gate,
+        structure_bucket=structure_bucket,
+        allowed_layers=allowed_layers,
+        entry_quality=payload.get("entry_quality"),
+        deployment_blocker=payload.get("deployment_blocker"),
+        execution_guardrail_reason=payload.get("execution_guardrail_reason"),
+    )
     return {
         "runtime_closure_state": runtime_closure_state,
         "runtime_closure_summary": runtime_closure_summary,
         "signal": signal,
+        "regime_label": regime_label,
+        "regime_gate": regime_gate,
+        "structure_bucket": structure_bucket,
         "confidence": payload.get("confidence"),
         "entry_quality": payload.get("entry_quality"),
         "entry_quality_label": payload.get("entry_quality_label"),
@@ -1011,6 +1044,7 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "calibration_exact_lane_alerts": calibration_exact_lane_alerts,
         "support_alignment_status": support_alignment_status,
         "support_alignment_summary": support_alignment_summary,
+        "sleeve_routing": sleeve_routing,
         "decision_quality_recent_pathology_applied": payload.get("decision_quality_recent_pathology_applied"),
         "decision_quality_recent_pathology_reason": payload.get("decision_quality_recent_pathology_reason"),
         "decision_quality_recent_pathology_window": payload.get("decision_quality_recent_pathology_window"),
@@ -2388,6 +2422,7 @@ async def api_status() -> Dict[str, Any]:
     cfg = get_config() or {}
     trading_cfg = cfg.get("trading") if isinstance(cfg.get("trading"), dict) else {}
     symbol = str(trading_cfg.get("symbol") or "BTCUSDT")
+    status_timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     db = get_db()
 
     execution_service = ExecutionService(cfg, db_session=db)
@@ -2417,7 +2452,10 @@ async def api_status() -> Dict[str, Any]:
     return {
         "automation": bool(is_automation_enabled()),
         "dry_run": bool(trading_cfg.get("dry_run", False)),
+        "symbol": symbol,
+        "timestamp": status_timestamp,
         "execution": execution_summary,
+        "account": account_snapshot,
         "raw_continuity": get_runtime_status("raw_continuity", {"status": "unknown"}),
         "feature_continuity": get_runtime_status("feature_continuity", {"status": "unknown"}),
         "execution_reconciliation": execution_reconciliation,

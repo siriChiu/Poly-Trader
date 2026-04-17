@@ -58,6 +58,19 @@ type LiveRuntimeTruth = {
   calibration_exact_lane_alerts?: string[] | null;
   support_alignment_status?: string | null;
   support_alignment_summary?: string | null;
+  decision_quality_recent_pathology_applied?: boolean | null;
+  decision_quality_recent_pathology_reason?: string | null;
+  decision_quality_recent_pathology_window?: number | null;
+  decision_quality_recent_pathology_alerts?: string[] | null;
+  decision_quality_recent_pathology_summary?: {
+    win_rate?: number | null;
+    avg_pnl?: number | null;
+    avg_quality?: number | null;
+    avg_drawdown_penalty?: number | null;
+    avg_time_underwater?: number | null;
+    start_timestamp?: string | null;
+    end_timestamp?: string | null;
+  } | null;
 };
 
 interface RuntimeStatusResponse {
@@ -68,6 +81,21 @@ interface RuntimeStatusResponse {
   execution_surface_contract?: {
     canonical_execution_route?: string;
     canonical_surface_label?: string;
+    operations_surface?: {
+      route?: string;
+      label?: string;
+      role?: string;
+      status?: string;
+      message?: string;
+      upgrade_prerequisite?: string;
+    } | null;
+    diagnostics_surface?: {
+      route?: string;
+      label?: string;
+      role?: string;
+      status?: string;
+      message?: string;
+    } | null;
     shortcut_surface?: {
       name?: string;
       role?: string;
@@ -578,6 +606,19 @@ interface ConfidenceData {
   decision_quality_score?: number | null;
   decision_quality_label?: string | null;
   decision_profile_version?: string | null;
+  decision_quality_recent_pathology_applied?: boolean | null;
+  decision_quality_recent_pathology_reason?: string | null;
+  decision_quality_recent_pathology_window?: number | null;
+  decision_quality_recent_pathology_alerts?: string[] | null;
+  decision_quality_recent_pathology_summary?: {
+    win_rate?: number | null;
+    avg_pnl?: number | null;
+    avg_quality?: number | null;
+    avg_drawdown_penalty?: number | null;
+    avg_time_underwater?: number | null;
+    start_timestamp?: string | null;
+    end_timestamp?: string | null;
+  } | null;
   timestamp: string;
 }
 
@@ -634,6 +675,11 @@ function formatGuardrailValue(value: unknown, digits = 6): string {
   }
   if (typeof value === "string" && value.trim()) return value;
   return "—";
+}
+
+function formatPct(value: number | null | undefined, digits = 1): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return `${(value * 100).toFixed(digits)}%`;
 }
 
 function formatGuardrailRules(rules: Record<string, unknown> | null | undefined): string[] {
@@ -802,7 +848,49 @@ export default function Dashboard() {
   const accountSummary = runtimeStatus?.account ?? null;
   const executionReconciliation = runtimeStatus?.execution_reconciliation ?? null;
   const executionSurfaceContract = runtimeStatus?.execution_surface_contract ?? null;
+  const executionOperationsSurface = executionSurfaceContract?.operations_surface ?? null;
+  const executionDiagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;
   const liveRuntimeTruth = executionSummary?.live_runtime_truth ?? executionSurfaceContract?.live_runtime_truth ?? null;
+  const liveRecentPathologyApplied = Boolean(
+    liveRuntimeTruth?.decision_quality_recent_pathology_applied ?? confidenceData?.decision_quality_recent_pathology_applied
+  );
+  const liveRecentPathologyReason =
+    liveRuntimeTruth?.decision_quality_recent_pathology_reason
+    ?? confidenceData?.decision_quality_recent_pathology_reason
+    ?? null;
+  const liveRecentPathologyWindow =
+    liveRuntimeTruth?.decision_quality_recent_pathology_window
+    ?? confidenceData?.decision_quality_recent_pathology_window
+    ?? null;
+  const liveRecentPathologyAlerts =
+    liveRuntimeTruth?.decision_quality_recent_pathology_alerts
+    ?? confidenceData?.decision_quality_recent_pathology_alerts
+    ?? [];
+  const liveRecentPathologySummary =
+    liveRuntimeTruth?.decision_quality_recent_pathology_summary
+    ?? confidenceData?.decision_quality_recent_pathology_summary
+    ?? null;
+  const deploymentBlockerDetails = confidenceData?.deployment_blocker_details ?? null;
+  const breakerRecentWindow = deploymentBlockerDetails?.recent_window ?? null;
+  const breakerRelease = deploymentBlockerDetails?.release_condition ?? null;
+  const circuitBreakerActive = confidenceData?.deployment_blocker === "circuit_breaker_active";
+  const breakerWindow = typeof breakerRelease?.recent_window === "number"
+    ? breakerRelease.recent_window
+    : (typeof breakerRecentWindow?.window_size === "number" ? breakerRecentWindow.window_size : null);
+  const breakerWins = typeof breakerRelease?.current_recent_window_wins === "number"
+    ? breakerRelease.current_recent_window_wins
+    : (typeof breakerRecentWindow?.wins === "number" ? breakerRecentWindow.wins : null);
+  const breakerWinsGap = typeof breakerRelease?.additional_recent_window_wins_needed === "number"
+    ? breakerRelease.additional_recent_window_wins_needed
+    : null;
+  const breakerRecentWinRate = typeof breakerRelease?.current_recent_window_win_rate === "number"
+    ? breakerRelease.current_recent_window_win_rate
+    : (typeof breakerRecentWindow?.win_rate === "number" ? breakerRecentWindow.win_rate : null);
+  const breakerFloor = typeof breakerRelease?.recent_win_rate_must_be_at_least === "number"
+    ? breakerRelease.recent_win_rate_must_be_at_least
+    : (typeof breakerRecentWindow?.floor === "number" ? breakerRecentWindow.floor : null);
+  const breakerCurrentStreak = typeof breakerRelease?.current_streak === "number" ? breakerRelease.current_streak : null;
+  const breakerStreakLimit = typeof breakerRelease?.streak_must_be_below === "number" ? breakerRelease.streak_must_be_below : null;
   const liveRuntimeSupportAlignmentTone = liveRuntimeTruth?.support_alignment_status === "runtime_ahead_of_calibration"
     ? "text-amber-200"
     : liveRuntimeTruth?.support_alignment_status === "aligned"
@@ -1085,6 +1173,24 @@ export default function Dashboard() {
               {executionSurfaceContract.shortcut_surface?.role ? ` · ${executionSurfaceContract.shortcut_surface.role}` : ""}
               {executionSurfaceContract.shortcut_surface?.status ? ` · ${executionSurfaceContract.shortcut_surface.status}` : ""}
             </div>
+            <div className="mt-1 opacity-85">
+              operations surface {executionOperationsSurface?.label || "Execution Console / 實戰交易"}
+              {executionOperationsSurface?.route ? ` · ${executionOperationsSurface.route}` : ""}
+              {executionOperationsSurface?.status ? ` · ${executionOperationsSurface.status}` : ""}
+            </div>
+            <div className="mt-1 opacity-80">
+              diagnostics surface {executionDiagnosticsSurface?.label || "Dashboard / Execution 狀態面板"}
+              {executionDiagnosticsSurface?.route ? ` · ${executionDiagnosticsSurface.route}` : ""}
+              {executionDiagnosticsSurface?.status ? ` · ${executionDiagnosticsSurface.status}` : ""}
+            </div>
+            {executionOperationsSurface?.message && (
+              <div className="mt-1 opacity-90">{executionOperationsSurface.message}</div>
+            )}
+            {executionOperationsSurface?.upgrade_prerequisite && (
+              <div className="mt-1 opacity-80">
+                Execution Console 升級前提：{executionOperationsSurface.upgrade_prerequisite}
+              </div>
+            )}
             {executionSurfaceContract.shortcut_surface?.message && (
               <div className="mt-1 opacity-90">{executionSurfaceContract.shortcut_surface.message}</div>
             )}
@@ -1093,6 +1199,14 @@ export default function Dashboard() {
                 升級前提：{executionSurfaceContract.shortcut_surface.upgrade_prerequisite}
               </div>
             )}
+            <div className="mt-2">
+              <a
+                href={executionOperationsSurface?.route || "/execution"}
+                className="inline-flex text-cyan-100 underline underline-offset-2 hover:text-cyan-50"
+              >
+                前往 Execution Console →
+              </a>
+            </div>
             <div className="mt-1 opacity-85">
               readiness scope {executionSurfaceContract.readiness_scope ?? "runtime_governance_visibility_only"}
               {` · live ready ${executionSurfaceContract.live_ready ? "yes" : "no"}`}
@@ -1570,7 +1684,7 @@ export default function Dashboard() {
       </div>
 
       {liveRuntimeTruth && (
-        <div className={`rounded-xl border px-4 py-3 text-xs ${liveRuntimeTruth.q15_exact_supported_component_patch_applied ? "border-emerald-700/40 bg-emerald-950/20 text-emerald-100" : "border-slate-700/40 bg-slate-950/30 text-slate-300"}`}>
+        <div className={`rounded-xl border px-4 py-3 text-xs ${circuitBreakerActive ? "border-amber-700/40 bg-amber-950/20 text-amber-100" : liveRuntimeTruth.q15_exact_supported_component_patch_applied ? "border-emerald-700/40 bg-emerald-950/20 text-emerald-100" : "border-slate-700/40 bg-slate-950/30 text-slate-300"}`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="font-semibold">🧭 Execution runtime truth / detail</div>
             <div className="text-[11px] opacity-80">{liveRuntimeTruth.runtime_closure_state || "unknown"}</div>
@@ -1599,6 +1713,48 @@ export default function Dashboard() {
               <div className="mt-1 text-[11px] opacity-75">runtime 已有 support、但 calibration exact lane 尚未追上時，operator 應優先信任 runtime closure。</div>
             </div>
           </div>
+          {liveRecentPathologyApplied && (
+            <div className="mt-3 rounded-lg border border-rose-500/30 bg-rose-950/20 p-3 text-[11px] leading-5 text-rose-100">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="font-semibold">Recent distribution pathology</div>
+                <div className="opacity-80">window {liveRecentPathologyWindow ?? "—"} rows</div>
+              </div>
+              <div className="mt-2 opacity-90">reason {liveRecentPathologyReason || "—"}</div>
+              <div className="mt-1 opacity-85">alerts {(liveRecentPathologyAlerts || []).join(" / ") || "none"}</div>
+              <div className="mt-1 opacity-85">win_rate {typeof liveRecentPathologySummary?.win_rate === "number" ? liveRecentPathologySummary.win_rate.toFixed(4) : "—"} · avg_quality {typeof liveRecentPathologySummary?.avg_quality === "number" ? liveRecentPathologySummary.avg_quality.toFixed(4) : "—"} · avg_pnl {typeof liveRecentPathologySummary?.avg_pnl === "number" ? liveRecentPathologySummary.avg_pnl.toFixed(4) : "—"}</div>
+              <div className="mt-1 opacity-80">window {liveRecentPathologySummary?.start_timestamp || "—"} → {liveRecentPathologySummary?.end_timestamp || "—"}</div>
+              <div className="mt-1 opacity-75">這代表最近 canonical 決策樣本正在退化；operator 應先看 drift / regime concentration，而不是把暫時高分當成可部署容量。</div>
+            </div>
+          )}
+          {circuitBreakerActive && (
+            <div className="mt-3 rounded-lg border border-white/10 bg-slate-950/30 p-3 text-[11px] leading-5">
+              <div className="font-semibold">circuit breaker：recent 50 release window</div>
+              <div className="mt-1 opacity-85">Dashboard 是 canonical execution route；這裡必須直接顯示 release math，避免 operator 只看到 q15 patch / support 就誤判成可部署。</div>
+              <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-wide opacity-60">recent 50 release window</div>
+                  <div className="mt-1 font-medium">{breakerWins ?? "—"} / {breakerWindow ?? "—"}</div>
+                  <div className="opacity-80">win rate {formatPct(breakerRecentWinRate)} · floor {formatPct(breakerFloor)}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-wide opacity-60">release gap</div>
+                  <div className="mt-1 font-medium">至少還差 {breakerWinsGap ?? "—"} 勝</div>
+                  <div className="opacity-80">目前 canonical live path 仍被 circuit breaker 擋下。</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-wide opacity-60">streak guardrail</div>
+                  <div className="mt-1 font-medium">{breakerCurrentStreak ?? "—"} / {breakerStreakLimit ?? "—"}</div>
+                  <div className="opacity-80">目前主 blocker 是 recent win rate，不是 q15 patch。</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-wide opacity-60">runtime truth</div>
+                  <div className="mt-1 font-medium">{liveRuntimeTruth.runtime_closure_state || "circuit_breaker_active"}</div>
+                  <div className="opacity-80">不要把 support / component patch 當成 breaker release 替代品。</div>
+                </div>
+              </div>
+              <div className="mt-2 opacity-80">Dashboard 只應同步 release math，不可把 q15 patch active / support-ready 包裝成 deployment readiness。</div>
+            </div>
+          )}
           {liveRuntimeTruth.runtime_closure_state === "capacity_opened_signal_hold" && (
             <div className="mt-2 text-[11px] opacity-90">capacity opened but signal still HOLD</div>
           )}

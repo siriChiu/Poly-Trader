@@ -1,105 +1,99 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-17 14:52 UTC_
+_最後更新：2026-04-18 CST_
 
-只保留目前有效 blocker；每輪 heartbeat 必須覆蓋更新，不保留歷史流水帳。
+只保留目前有效問題；每輪 heartbeat 必須覆蓋更新，不保留舊流水帳。
 
 ---
 
-## 當前產品化事實
-- Fast heartbeat 最新實測：Raw=30661、Features=22079、Labels=61805
-- Canonical target：`simulated_pyramid_win`
-- Global IC：14/30 pass；TW-IC：29/30 pass
-- Live predictor：`signal=HOLD`、`regime_gate=ALLOW`、`structure_bucket=ALLOW|base_allow|q65`、`entry_quality=0.5304 (D)`、`allowed_layers=0`
-- `q35_scaling_audit` 現在是 **reference-only**；current live blocker 不再是 q35，而是 current q65 lane 的 exact support = 0
-- **本輪已修復**：`recent_drift_report.py` 不再因慢查詢拖垮 fast heartbeat；SQLite 現在有 drift/governance 必要的 composite indexes，fresh run 已可在 fast 預算內完成，未變更時可安全 reuse fresh artifact
+## 當前主線
+目前最重要的進展是：**Execution Console 第一版已從 Dashboard 拆出來，並直接吃 `/api/status` 的 runtime truth。**
+
+本輪已完成：
+- `web/src/App.tsx` 新增 `⚡ 實戰交易` 導航與 `/execution` route
+- `web/src/pages/ExecutionConsole.tsx` 落地第一版營運視圖：
+  - live runtime truth
+  - sleeve routing / bot activation
+  - account snapshot
+  - reconciliation / recovery 摘要
+  - metadata / venue readiness
+- `/api/status` 現在明確回傳：
+  - `symbol`
+  - `timestamp`
+  - `account`
+  - `execution_surface_contract.operations_surface`
+  - `execution_surface_contract.diagnostics_surface`
+- Dashboard / Strategy Lab 已能明確導向 Execution Console，而不是只說「未來會有」
+
+這代表 Poly-Trader 已不再只有 Dashboard 這個混合型 execution surface；**營運視圖與診斷視圖開始真正拆層**。
 
 ---
 
 ## Open Issues
 
-### P0. Current live `ALLOW|base_allow|q65` exact support = 0，runtime 仍被 unsupported-exact-support 擋下
+### P0. Execution Console 仍是 operator-view shell，尚未接上 bot lifecycle / capital allocation
 **現況**
-- `current_live_structure_bucket_rows=0`
-- `allowed_layers_reason=decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade`
-- `remaining_gap_to_floor=0.0196`
-- `best_single_component=feat_4h_bias50`，單點數學上可補 floor，但 **support 未達 deployment 門檻**
+- `/execution` 已存在，但目前仍以 runtime truth / snapshot / blocker / reconciliation 為主
+- sleeve routing 已可視化，但還沒有真的 bot profile / run / start / pause / stop contract
+- 也還沒有 per-bot capital、PnL、run status 卡片
 
 **風險**
-- runtime / operator surface 仍沒有 current q65 exact evidence 可放行
-- 若把研究型 component 調整誤包裝成 deployment patch，會破壞 support-aware guardrail 紀律
+- 使用者已能進入實戰頁，但還不能在同一頁完成真正的策略營運閉環
+- 若太早把它包裝成完整 execution console，會誤導成「已可多 bot 營運」
 
 **下一步**
-- 所有 support / blocker / docs 主線完全對齊 current q65 lane
-- 先補 current q65 exact support 或安全 proxy 治理證據，再談 runtime 放寬
-- 用 `feat_4h_bias50` 當 component research 主探針，但只保留 reference-only，不能越過 support gate
+- 新增 execution profiles / runs / events 資料模型與 `/api/execution/*` APIs
+- 把 sleeve routing 從「顯示建議 active sleeves」升級成「實際 bot activation contract」
+- 將資金配置、run status、PnL 明確落到 bot card
 
-### P0. Recent canonical pathology 還在，但現在已經有 fresh / reusable drift artifact，不再接受 timeout 當藉口
+### P0. Diagnostics 與 operations 雖已拆第一刀，但 Strategy Lab 仍帶太多 execution proof-chain 內容
 **現況**
-- primary window = recent 500
-- alerts = `label_imbalance + regime_concentration + regime_shift`
-- win_rate=0.814、dominant_regime≈bull 99.2%
-- feature diagnostics：low_variance 10/56、low_distinct 10/56、null_heavy 10/56
-- top shifts：`feat_4h_bias20`、`feat_4h_bb_pct_b`、`feat_4h_ma_order`
-- new compressed：`feat_dxy`、`feat_vix`
+- Dashboard 仍是 canonical diagnostics / proof-chain surface
+- Strategy Lab 已新增前往 Execution Console 的連結
+- 但 Strategy Lab 仍承載大量 reconciliation / lifecycle / venue lane 細節
 
 **風險**
-- calibration / decision-quality scope 仍可能被 recent bull pocket 汙染
-- 若只修 timeout、不追 root cause，heartbeat 仍只是更快地重報 pathology
+- 研究頁、營運頁、診斷頁三種心智仍未完全切乾淨
+- 後續若再加入 bot lifecycle，資訊架構會再次打結
 
 **下一步**
-- 直接沿 fresh drift artifact 追 feature compression / regime concentration / target-path root cause
-- 把 recent pathology 的修復物件收斂成可 patch 的 data/runtime contract，而不是只停在統計摘要
+- 把 Strategy Lab 保留在 runtime blocker sync / strategy context
+- 將 deeper reconciliation / venue lane drilldown 收斂到 Dashboard 或獨立 Diagnostics workspace
 
-### P1. Fast governance lane 仍有 3 個 timeout blocker
+### P1. 手動交易 controls 仍留在 Dashboard，尚未搬進 Execution Console
 **現況**
-- `feature_group_ablation.py` timeout（20s）→ fallback artifact age ≈ 7h+
-- `bull_4h_pocket_ablation.py` timeout（20s）→ fallback artifact age ≈ 7h+
-- `hb_leaderboard_candidate_probe.py` timeout（20s）→ fallback artifact age ≈ 7h+
+- Execution Console 已有 route contract / blocker truth / account snapshot
+- 但真正可操作的 manual trade controls 仍在 Dashboard
 
 **風險**
-- operator 看到的是 stale governance artifact，不是本輪 fresh evidence
-- fast heartbeat 雖已不再被 drift report 卡死，但 governance 主線仍不夠 cron-safe
+- 營運入口與操作入口分裂，Execution Console 仍不像完整的交易工作區
 
 **下一步**
-- 比照 drift lane，替這 3 條 script 補 current-context short-circuit / semantic cache reuse / budgeted refresh
-- summary 必須明示 fresh / cached / fallback，不再讓 timeout 成為常態路徑
+- 等 execution profile/run contract 定型後，把 manual trade / capital actions 一起搬到 `/execution`
+- Dashboard 保留 proof chain、guardrail、recovery、artifact drilldown
 
-### P1. Governance split 仍存在，但目前不是主 blocker
+### P1. Binance / OKX readiness 仍停留在治理可見性，不是 live-ready
 **現況**
-- leaderboard global winner = `core_only`
-- train selected profile = `core_plus_macro`
-- probe verdict = `dual_role_governance_active`
+- metadata smoke / reconciliation / guardrail surface 已可見
+- `live_ready` 仍為 false；order ack / fill lifecycle 尚未被實證關閉
 
 **風險**
-- 若 current q65 support 尚未補齊，就太早把主線改寫成 profile parity 問題
+- UI 若只看到 execution route 擴充，容易誤讀成 venue 已可實盤放量
 
 **下一步**
-- 先解 current q65 support / runtime blocker 與 3 條 governance timeout
-- exact support 達標後，再決定是否升級成 post-threshold leaderboard sync blocker
-
-### P2. Sparse-source auth / archive blockers 仍存在
-**現況**
-- 8 個 blocked features 未解除
-- `fin_netflow` 仍是 `auth_missing`（缺 `COINGLASS_API_KEY`）
-
-**風險**
-- feature maturity 仍有 research / blocked 混雜區
-
-**下一步**
-- auth blocker 與 archive/backfill 繼續分開治理
-- 優先順序仍低於 current live runtime blocker 與 fast governance timeout
+- 繼續補 order ack / fill / restart replay 的 venue-backed evidence
+- 讓 Execution Console 顯示「可操作」與「可實盤」的明確分界
 
 ---
 
 ## Not Issues
-- 不是再把 q35 calibration 當 current live 主 blocker
-- 不是 `recent_drift_report` 30s timeout；本輪已解除這個 fast-lane blocker
-- 不是直接下調 trade floor / 放寬 gate 來假性製造交易
+- 不是再把更多 diagnostics 卡片塞回 Strategy Lab 或 Execution Console
+- 不是靠降低 gate / confidence / entry threshold 來製造更多交易動作
+- 不是把 `/execution` 做成 Dashboard 的文字鏡像後就宣稱產品化完成
 
 ---
 
 ## Current Priority
-1. 關閉 current q65 exact-support blocker，讓 runtime / docs / operator surface 完全對齊 current live lane
-2. 清掉剩餘 3 條 fast governance timeout（feature ablation / bull pocket / leaderboard probe）
-3. 用現在已可快取/快跑的 drift artifact 直接追 recent pathology root cause，而不是只重報數字
+1. 把 **Execution Console 接上 bot profile/run lifecycle + capital allocation**
+2. 把 **Strategy Lab 的 execution diagnostics 再瘦身，完成 IA 拆層**
+3. 把 **Binance / OKX 的 venue-backed execution evidence** 從治理可見性推進到可操作驗證

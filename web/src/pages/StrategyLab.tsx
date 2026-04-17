@@ -98,6 +98,11 @@ interface StrategyMetadata {
   strategy_type?: string;
   model_name?: string;
   model_summary?: string;
+  primary_sleeve_key?: string;
+  primary_sleeve_label?: string;
+  sleeve_keys?: string[];
+  sleeve_labels?: string[];
+  sleeve_summary?: string;
 }
 
 interface DecisionContractMeta {
@@ -107,9 +112,31 @@ interface DecisionContractMeta {
   decision_quality_horizon_minutes?: number | null;
 }
 
+interface SleeveRoutingEntry {
+  key?: string | null;
+  label?: string | null;
+  status?: string | null;
+  why?: string | null;
+}
+
+interface SleeveRoutingState {
+  current_regime?: string | null;
+  current_regime_gate?: string | null;
+  current_structure_bucket?: string | null;
+  active_count?: number | null;
+  total_count?: number | null;
+  active_ratio_text?: string | null;
+  active_sleeves?: SleeveRoutingEntry[] | null;
+  inactive_sleeves?: SleeveRoutingEntry[] | null;
+  summary?: string | null;
+}
+
 interface StrategyLabLiveDecisionResponse {
   signal?: string | null;
   confidence?: number | null;
+  regime_label?: string | null;
+  regime_gate?: string | null;
+  structure_bucket?: string | null;
   should_trade?: boolean;
   entry_quality?: number | null;
   entry_quality_label?: string | null;
@@ -159,12 +186,40 @@ interface StrategyLabLiveDecisionResponse {
   calibration_exact_lane_alerts?: string[] | null;
   support_alignment_status?: string | null;
   support_alignment_summary?: string | null;
+  decision_quality_recent_pathology_applied?: boolean | null;
+  decision_quality_recent_pathology_reason?: string | null;
+  decision_quality_recent_pathology_window?: number | null;
+  decision_quality_recent_pathology_alerts?: string[] | null;
+  decision_quality_recent_pathology_summary?: {
+    win_rate?: number | null;
+    avg_pnl?: number | null;
+    avg_quality?: number | null;
+    avg_drawdown_penalty?: number | null;
+    avg_time_underwater?: number | null;
+    start_timestamp?: string | null;
+    end_timestamp?: string | null;
+  } | null;
 }
 
 interface StrategyLabRuntimeStatusResponse {
   execution_surface_contract?: {
     canonical_execution_route?: string;
     canonical_surface_label?: string;
+    operations_surface?: {
+      route?: string;
+      label?: string;
+      role?: string;
+      status?: string;
+      message?: string;
+      upgrade_prerequisite?: string;
+    } | null;
+    diagnostics_surface?: {
+      route?: string;
+      label?: string;
+      role?: string;
+      status?: string;
+      message?: string;
+    } | null;
     shortcut_surface?: {
       name?: string;
       message?: string;
@@ -177,11 +232,28 @@ interface StrategyLabRuntimeStatusResponse {
     live_runtime_truth?: {
       runtime_closure_state?: string | null;
       runtime_closure_summary?: string | null;
+      regime_label?: string | null;
+      regime_gate?: string | null;
+      structure_bucket?: string | null;
+      sleeve_routing?: SleeveRoutingState | null;
       runtime_exact_support_rows?: number | null;
       calibration_exact_lane_rows?: number | null;
       support_alignment_status?: string | null;
       support_alignment_summary?: string | null;
       calibration_exact_lane_alerts?: string[] | null;
+      decision_quality_recent_pathology_applied?: boolean | null;
+      decision_quality_recent_pathology_reason?: string | null;
+      decision_quality_recent_pathology_window?: number | null;
+      decision_quality_recent_pathology_alerts?: string[] | null;
+      decision_quality_recent_pathology_summary?: {
+        win_rate?: number | null;
+        avg_pnl?: number | null;
+        avg_quality?: number | null;
+        avg_drawdown_penalty?: number | null;
+        avg_time_underwater?: number | null;
+        start_timestamp?: string | null;
+        end_timestamp?: string | null;
+      } | null;
     } | null;
   } | null;
   execution_metadata_smoke?: {
@@ -1104,6 +1176,7 @@ export default function StrategyLab() {
   const [investmentHorizon, setInvestmentHorizon] = useState<keyof typeof investmentHorizonLabels>("medium");
   const [activeTab, setActiveTab] = useState<"workspace" | "leaderboard">("workspace");
   const [capitalModeFilter, setCapitalModeFilter] = useState<"all" | "classic_pyramid" | "reserve_90">("all");
+  const [strategySleeveFilter, setStrategySleeveFilter] = useState<string>("all");
   const [activeModules, setActiveModules] = useState<EditorModuleId[]>(["pyramid_sl_tp", "turning_point"]);
   const { data: runtimeStatus } = useApi<StrategyLabRuntimeStatusResponse>("/api/status", 60000);
   const { data: liveDecisionStatus } = useApi<StrategyLabLiveDecisionResponse>("/api/predict/confidence", 60000);
@@ -1165,11 +1238,32 @@ export default function StrategyLab() {
     const fromParams = entry.definition?.params?.capital_management?.mode;
     return fromParams === "reserve_90" ? "reserve_90" : "classic_pyramid";
   }, []);
+  const strategyPrimarySleeveKey = (entry: StrategyEntry) => entry.metadata?.primary_sleeve_key || "uncategorized";
+  const strategySleeveOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const entry of strategies) {
+      const key = strategyPrimarySleeveKey(entry);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return [
+      { key: "all", label: "全部 sleeves", count: strategies.length },
+      ...Array.from(counts.entries()).map(([key, count]) => ({
+        key,
+        label: strategies.find((entry) => strategyPrimarySleeveKey(entry) === key)?.metadata?.primary_sleeve_label || "未分類 sleeve",
+        count,
+      })),
+    ];
+  }, [strategies]);
+
+  const sleeveFilteredStrategies = useMemo(() => {
+    if (strategySleeveFilter === "all") return strategies;
+    return strategies.filter((entry) => strategyPrimarySleeveKey(entry) === strategySleeveFilter);
+  }, [strategySleeveFilter, strategies]);
 
   const filteredStrategies = useMemo(() => {
-    if (capitalModeFilter === "all") return strategies;
-    return strategies.filter((entry) => strategyCapitalMode(entry) === capitalModeFilter);
-  }, [capitalModeFilter, strategies, strategyCapitalMode]);
+    if (capitalModeFilter === "all") return sleeveFilteredStrategies;
+    return sleeveFilteredStrategies.filter((entry) => strategyCapitalMode(entry) === capitalModeFilter);
+  }, [capitalModeFilter, sleeveFilteredStrategies, strategyCapitalMode]);
 
   const sortedStrategies = useMemo(() => {
     const rows = [...filteredStrategies];
@@ -1804,13 +1898,37 @@ export default function StrategyLab() {
   const activeHorizonMinutes = activeResult?.decision_quality_horizon_minutes || selectedStrategy?.decision_contract?.decision_quality_horizon_minutes || activeDecisionContract?.decision_quality_horizon_minutes || 1440;
   const executionReconciliation = runtimeStatus?.execution_reconciliation ?? null;
   const executionSurfaceContract = runtimeStatus?.execution_surface_contract ?? null;
+  const executionOperationsSurface = executionSurfaceContract?.operations_surface ?? null;
+  const executionDiagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;
   const liveRuntimeTruth = executionSurfaceContract?.live_runtime_truth ?? null;
+  const liveRouting = liveRuntimeTruth?.sleeve_routing ?? null;
+  const liveActiveSleeves = Array.isArray(liveRouting?.active_sleeves) ? liveRouting.active_sleeves : [];
+  const liveInactiveSleeves = Array.isArray(liveRouting?.inactive_sleeves) ? liveRouting.inactive_sleeves : [];
   const liveSupportAlignmentStatus = liveDecisionStatus?.support_alignment_status ?? liveRuntimeTruth?.support_alignment_status ?? null;
   const liveSupportAlignmentSummary = liveDecisionStatus?.support_alignment_summary ?? liveRuntimeTruth?.support_alignment_summary ?? null;
   const liveRuntimeExactSupportRows = liveDecisionStatus?.runtime_exact_support_rows ?? liveRuntimeTruth?.runtime_exact_support_rows ?? null;
   const liveCalibrationExactLaneRows = liveDecisionStatus?.calibration_exact_lane_rows ?? liveRuntimeTruth?.calibration_exact_lane_rows ?? null;
   const liveRuntimeClosureState = liveDecisionStatus?.runtime_closure_state ?? liveRuntimeTruth?.runtime_closure_state ?? null;
   const liveRuntimeClosureSummary = liveDecisionStatus?.runtime_closure_summary ?? liveRuntimeTruth?.runtime_closure_summary ?? null;
+  const liveRecentPathologyApplied = Boolean(
+    liveDecisionStatus?.decision_quality_recent_pathology_applied ?? liveRuntimeTruth?.decision_quality_recent_pathology_applied
+  );
+  const liveRecentPathologyReason =
+    liveDecisionStatus?.decision_quality_recent_pathology_reason
+    ?? liveRuntimeTruth?.decision_quality_recent_pathology_reason
+    ?? null;
+  const liveRecentPathologyWindow =
+    liveDecisionStatus?.decision_quality_recent_pathology_window
+    ?? liveRuntimeTruth?.decision_quality_recent_pathology_window
+    ?? null;
+  const liveRecentPathologyAlerts =
+    liveDecisionStatus?.decision_quality_recent_pathology_alerts
+    ?? liveRuntimeTruth?.decision_quality_recent_pathology_alerts
+    ?? [];
+  const liveRecentPathologySummary =
+    liveDecisionStatus?.decision_quality_recent_pathology_summary
+    ?? liveRuntimeTruth?.decision_quality_recent_pathology_summary
+    ?? null;
   const liveDeploymentBlockerDetails = liveDecisionStatus?.deployment_blocker_details ?? null;
   const breakerRecentWindow = liveDeploymentBlockerDetails?.recent_window ?? null;
   const breakerRelease = liveDeploymentBlockerDetails?.release_condition ?? null;
@@ -2169,6 +2287,44 @@ export default function StrategyLab() {
                   <div className="opacity-80">
                     runtime closure {liveRuntimeClosureState || "—"} · summary {liveRuntimeClosureSummary || "尚未取得 runtime closure summary。"}
                   </div>
+                  <div className="mt-3 rounded-lg border border-cyan-500/30 bg-cyan-950/20 px-3 py-3 text-cyan-50">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-medium">當前 regime</div>
+                      <div className="text-xs opacity-80">active sleeves {liveRouting?.active_ratio_text || "0/0"}</div>
+                    </div>
+                    <div className="mt-1 opacity-85">
+                      {liveRouting?.current_regime || liveDecisionStatus?.regime_label || "—"} · gate {liveRouting?.current_regime_gate || liveDecisionStatus?.regime_gate || "—"} · bucket {liveRouting?.current_structure_bucket || liveDecisionStatus?.current_live_structure_bucket || "—"}
+                    </div>
+                    <div className="mt-2 text-[11px] opacity-80">{liveRouting?.summary || "尚未建立 regime-aware sleeve routing 摘要。"}</div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-wide opacity-60">active sleeves</div>
+                        {liveActiveSleeves.length > 0 ? liveActiveSleeves.map((item) => (
+                          <div key={item.key || item.label} className="mt-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-2">
+                            <div className="font-medium text-emerald-200">{item.label || item.key}</div>
+                            <div className="mt-1 opacity-80">{item.why || "—"}</div>
+                          </div>
+                        )) : <div className="mt-2 opacity-70">目前沒有 active sleeves。</div>}
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-wide opacity-60">inactive sleeves</div>
+                        {liveInactiveSleeves.length > 0 ? liveInactiveSleeves.map((item) => (
+                          <div key={item.key || item.label} className="mt-2 rounded-md border border-rose-500/20 bg-rose-500/10 px-2 py-2">
+                            <div className="font-medium text-rose-200">{item.label || item.key}</div>
+                            <div className="mt-1 opacity-80">{item.why || "—"}</div>
+                          </div>
+                        )) : <div className="mt-2 opacity-70">目前沒有 inactive sleeves。</div>}
+                      </div>
+                    </div>
+                    <div className="mt-3 text-[11px] opacity-75">Execution Console 現在直接消費同一份 runtime sleeve routing；Strategy Lab 這裡只同步 activation truth，實際營運請前往 Execution Console。</div>
+                    <div className="mt-2 text-[11px] opacity-75">canonical surface {executionDiagnosticsSurface?.label || "Dashboard / Execution 狀態面板"}</div>
+                    <a
+                      href={executionOperationsSurface?.route || "/execution"}
+                      className="mt-2 inline-flex text-[11px] font-semibold text-cyan-200 underline underline-offset-2 hover:text-cyan-100"
+                    >
+                      前往 Execution Console 檢查 active sleeves →
+                    </a>
+                  </div>
                   {circuitBreakerActive && (
                     <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                       <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
@@ -2205,6 +2361,19 @@ export default function StrategyLab() {
                   <div className="opacity-70">
                     runtime 已有 support、但 calibration exact lane 尚未追上時，Strategy Lab 不得把 0 rows 誤讀成 runtime 未支援。
                   </div>
+                  {liveRecentPathologyApplied && (
+                    <div className="mt-3 rounded-lg border border-rose-500/30 bg-rose-950/20 px-3 py-2 text-rose-100">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="font-medium">Recent distribution pathology</div>
+                        <div className="opacity-80">window {liveRecentPathologyWindow ?? "—"} rows</div>
+                      </div>
+                      <div className="mt-1 opacity-85">reason {liveRecentPathologyReason || "—"}</div>
+                      <div className="mt-1 opacity-80">alerts {(liveRecentPathologyAlerts || []).join(" / ") || "none"}</div>
+                      <div className="mt-1 opacity-80">win_rate {typeof liveRecentPathologySummary?.win_rate === "number" ? liveRecentPathologySummary.win_rate.toFixed(4) : "—"} · avg_quality {typeof liveRecentPathologySummary?.avg_quality === "number" ? liveRecentPathologySummary.avg_quality.toFixed(4) : "—"} · avg_pnl {typeof liveRecentPathologySummary?.avg_pnl === "number" ? liveRecentPathologySummary.avg_pnl.toFixed(4) : "—"}</div>
+                      <div className="mt-1 opacity-75">window {liveRecentPathologySummary?.start_timestamp || "—"} → {liveRecentPathologySummary?.end_timestamp || "—"}</div>
+                      <div className="mt-1 opacity-75">這代表最近 canonical 決策樣本正在退化；Strategy Lab 只能同步這個 drift 事實，不能把局部回測亮點誤讀成 live deployment capacity。</div>
+                    </div>
+                  )}
                   <div className="mt-2 opacity-80">
                     {circuitBreakerActive
                       ? "目前 canonical live path 仍被 circuit breaker 擋下；這個狀態優先於 q15 support / component patch，Strategy Lab 只應同步 release math，不可包裝成 deployment readiness。"
@@ -2455,6 +2624,21 @@ export default function StrategyLab() {
                   </div>
                   <button onClick={() => loadLeaderboard(true)} className="text-xs text-blue-400 hover:text-blue-300">🔄 重新搜尋</button>
                 </div>
+                <div className="rounded-lg border border-slate-700/40 bg-slate-950/20 p-3 text-xs space-y-2">
+                  <div className="font-semibold text-slate-300">多 sleeve 結構</div>
+                  <div className="flex flex-wrap gap-2">
+                    {strategySleeveOptions.map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => setStrategySleeveFilter(option.key)}
+                        className={`rounded-full border px-3 py-1 ${strategySleeveFilter === option.key ? "border-cyan-400/60 bg-cyan-500/15 text-cyan-200" : "border-slate-700/50 text-slate-400 hover:text-slate-200"}`}
+                      >
+                        {option.label} · {option.count}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="overflow-auto rounded-lg border border-slate-700/40">
                   <table className="w-full text-xs min-w-[980px]">
                     <thead className="bg-slate-950/30 text-slate-500 border-b border-slate-800">
@@ -2501,7 +2685,11 @@ export default function StrategyLab() {
                           <tr key={strategy.name} onClick={() => selectStrategyByName(strategy.name)} className={`cursor-pointer border-b border-slate-800/50 ${selected ? "bg-sky-950/30" : "hover:bg-slate-800/30"}`}>
                             <td className="py-2 px-2 text-slate-200 font-medium align-top text-left">
                               <div>{formatStrategyDisplayName(strategy)}</div>
-                              <div className="mt-1 text-[10px] text-slate-500">{strategy.metadata?.model_name || strategy.definition?.type} · {investmentHorizonLabels[(strategy.definition?.params?.investment_horizon as keyof typeof investmentHorizonLabels) || "medium"]} · 變化 {typeof strategy.rank_delta === "number" ? (strategy.rank_delta > 0 ? `↑${strategy.rank_delta}` : strategy.rank_delta < 0 ? `↓${Math.abs(strategy.rank_delta)}` : "—") : "—"}</div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+                                <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">{strategy.metadata?.primary_sleeve_label || "未分類 sleeve"}</span>
+                                <span>{strategy.metadata?.model_name || strategy.definition?.type} · {investmentHorizonLabels[(strategy.definition?.params?.investment_horizon as keyof typeof investmentHorizonLabels) || "medium"]} · 變化 {typeof strategy.rank_delta === "number" ? (strategy.rank_delta > 0 ? `↑${strategy.rank_delta}` : strategy.rank_delta < 0 ? `↓${Math.abs(strategy.rank_delta)}` : "—") : "—"}</span>
+                              </div>
+                              <div className="mt-1 text-[10px] text-slate-500">{strategy.metadata?.sleeve_labels?.join(" · ") || "單一路徑"}</div>
                             </td>
                             <td className="py-2 px-2 text-right text-emerald-300 font-semibold">{formatDecimal(r?.overall_score, 3)}</td>
                             <td className="py-2 px-2 text-right text-cyan-300">{formatDecimal(r?.reliability_score, 3)}</td>
