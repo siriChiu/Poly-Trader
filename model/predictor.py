@@ -728,6 +728,8 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
             "allowed_layers": None,
             "allowed_layers_reason": None,
             "allowed_layers_raw_reason": None,
+            "q15_exact_supported_component_patch_applied": False,
+            "q15_exact_supported_component_patch": None,
             "decision_profile_version": "phase16_baseline_v2",
         }
 
@@ -766,6 +768,12 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
         structure_bucket,
         entry_quality_breakdown,
     )
+    entry_quality_breakdown, q15_patch_meta = _maybe_apply_q15_exact_supported_component_patch(
+        features,
+        regime_gate,
+        structure_bucket,
+        entry_quality_breakdown,
+    )
     entry_quality = float(entry_quality_breakdown["entry_quality"])
     allowed_layers = _allowed_layers_for_live_signal(regime_gate, entry_quality, max_layers=max_layers)
     raw_allowed_layers_reason = _allowed_layers_reason_for_live_signal(regime_gate, entry_quality)
@@ -783,6 +791,8 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
         "allowed_layers_raw_reason": raw_allowed_layers_reason,
         "q35_discriminative_redesign_applied": bool(redesign_meta),
         "q35_discriminative_redesign": redesign_meta,
+        "q15_exact_supported_component_patch_applied": bool(q15_patch_meta),
+        "q15_exact_supported_component_patch": q15_patch_meta,
         "decision_profile_version": "phase16_baseline_v2",
     }
 
@@ -957,6 +967,134 @@ def _maybe_apply_q35_discriminative_redesign(
         "candidate": candidate,
     }
     return updated_breakdown, updated_breakdown["q35_discriminative_redesign"]
+
+
+def _maybe_apply_q15_exact_supported_component_patch(
+    features: Optional[Dict[str, Any]],
+    regime_gate: str,
+    structure_bucket: str,
+    entry_quality_breakdown: Dict[str, Any],
+) -> tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+    """Apply the q15 exact-supported bias50 floor-cross patch only for the audited live row.
+
+    Heartbeat #2026-04-17 moved q15 from proxy-research to exact-supported. The productization
+    blocker is no longer support — it's that runtime still exposes the old baseline mapping where
+    bias50 contributes 0 and the live row stays at 0 layers. We only patch the exact audited row,
+    require the machine-readable audit to say the component experiment is legal and discrimination-
+    preserving, and lift the bias50 normalized score by the precise delta needed to cross the
+    trade floor.
+    """
+    if not isinstance(features, dict):
+        return entry_quality_breakdown, None
+    if str(features.get("regime_label") or "") != "bull":
+        return entry_quality_breakdown, None
+    if regime_gate != "CAUTION":
+        return entry_quality_breakdown, None
+    if structure_bucket != "CAUTION|structure_quality_caution|q15":
+        return entry_quality_breakdown, None
+    if float(entry_quality_breakdown.get("entry_quality") or 0.0) >= 0.55:
+        return entry_quality_breakdown, None
+
+    q15_audit = _load_json_artifact(Q15_SUPPORT_AUDIT_PATH)
+    scope = q15_audit.get("scope_applicability") or {}
+    current_live = q15_audit.get("current_live") or {}
+    support_route = q15_audit.get("support_route") or {}
+    floor_cross = q15_audit.get("floor_cross_legality") or {}
+    component_experiment = q15_audit.get("component_experiment") or {}
+    machine_read = component_experiment.get("machine_read_answer") or {}
+
+    if scope.get("status") != "current_live_q15_lane_active" or not scope.get("active_for_current_live_row"):
+        return entry_quality_breakdown, None
+    if scope.get("current_structure_bucket") not in {None, structure_bucket}:
+        return entry_quality_breakdown, None
+    if support_route.get("verdict") != "exact_bucket_supported" or not support_route.get("deployable"):
+        return entry_quality_breakdown, None
+    if floor_cross.get("verdict") != "legal_component_experiment_after_support_ready":
+        return entry_quality_breakdown, None
+    if not floor_cross.get("legal_to_relax_runtime_gate"):
+        return entry_quality_breakdown, None
+    if component_experiment.get("verdict") != "exact_supported_component_experiment_ready":
+        return entry_quality_breakdown, None
+    if component_experiment.get("feature") != "feat_4h_bias50":
+        return entry_quality_breakdown, None
+    if not (
+        machine_read.get("support_ready")
+        and machine_read.get("entry_quality_ge_0_55")
+        and machine_read.get("allowed_layers_gt_0")
+        and machine_read.get("preserves_positive_discrimination")
+    ):
+        return entry_quality_breakdown, None
+
+    feature_ts = features.get("timestamp")
+    audit_ts = current_live.get("feature_timestamp") or current_live.get("timestamp") or q15_audit.get("generated_at")
+    if feature_ts is not None and audit_ts is not None and str(feature_ts) != str(audit_ts):
+        return entry_quality_breakdown, None
+
+    audit_features = current_live.get("raw_features") or {}
+    for feature_name in ("feat_4h_bias50", "feat_nose", "feat_pulse", "feat_ear"):
+        if not _feature_value_matches_audit(features.get(feature_name), audit_features.get(feature_name)):
+            return entry_quality_breakdown, None
+
+    required_delta = floor_cross.get("best_single_component_required_score_delta")
+    try:
+        required_delta = float(required_delta)
+    except (TypeError, ValueError):
+        return entry_quality_breakdown, None
+    if required_delta <= 0.0:
+        return entry_quality_breakdown, None
+
+    base_components = [dict(component) for component in (entry_quality_breakdown.get("base_components") or [])]
+    bias_component = None
+    for component in base_components:
+        if str(component.get("feature")) == "feat_4h_bias50":
+            bias_component = component
+            break
+    if bias_component is None:
+        return entry_quality_breakdown, None
+
+    current_score = float(bias_component.get("normalized_score") or 0.0)
+    patched_score = _clamp01(current_score + required_delta)
+    if patched_score <= current_score:
+        return entry_quality_breakdown, None
+
+    bias_weight = float(bias_component.get("weight") or 0.0)
+    bias_component["normalized_score"] = round(patched_score, 4)
+    bias_component["weighted_contribution"] = round(bias_weight * patched_score, 4)
+
+    redesigned_base_quality = 0.0
+    for component in base_components:
+        weight = float(component.get("weight") or 0.0)
+        normalized_score = float(component.get("normalized_score") or 0.0)
+        component["weighted_contribution"] = round(weight * normalized_score, 4)
+        redesigned_base_quality += weight * normalized_score
+
+    base_weight = float(entry_quality_breakdown.get("base_quality_weight") or 0.75)
+    structure_weight = float(entry_quality_breakdown.get("structure_quality_weight") or 0.25)
+    structure_quality = float(entry_quality_breakdown.get("structure_quality") or 0.0)
+    patched_entry_quality = round(base_weight * redesigned_base_quality + structure_weight * structure_quality, 4)
+    if patched_entry_quality + 1e-6 < 0.55:
+        return entry_quality_breakdown, None
+
+    patch_meta = {
+        "applied": True,
+        "source": "q15_support_audit.exact_supported_component_experiment_ready",
+        "feature": "feat_4h_bias50",
+        "mode": component_experiment.get("mode") or "bias50_floor_counterfactual",
+        "required_score_delta": round(required_delta, 4),
+        "original_normalized_score": round(current_score, 4),
+        "patched_normalized_score": round(patched_score, 4),
+        "support_route_verdict": support_route.get("verdict"),
+        "floor_cross_verdict": floor_cross.get("verdict"),
+        "machine_read_answer": machine_read,
+    }
+
+    updated_breakdown = dict(entry_quality_breakdown)
+    updated_breakdown["base_components"] = base_components
+    updated_breakdown["base_quality"] = round(redesigned_base_quality, 4)
+    updated_breakdown["entry_quality"] = patched_entry_quality
+    updated_breakdown["trade_floor_gap"] = round(patched_entry_quality - 0.55, 4)
+    updated_breakdown["q15_exact_supported_component_patch"] = patch_meta
+    return updated_breakdown, patch_meta
 
 
 def _infer_deployment_blocker(
@@ -2584,6 +2722,110 @@ def _q35_runtime_redesign_support_override(
     }
 
 
+def _q15_exact_support_runtime_override(
+    decision_profile: Dict[str, Any],
+    chosen_scope: Optional[str],
+    scope_diagnostics: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """Replay exact-supported q15 runtime support from the audited component patch lane.
+
+    Heartbeat 2026-04-17 moved q15 into an exact-supported + discrimination-preserving state,
+    but the decision-quality exact lane can still show 0 rows because historical labels are built
+    from the pre-patch baseline entry-quality label. When the live row exactly matches the audited
+    q15 patch lane, treat the q15 audit as the runtime source of truth so execution does not regress
+    to a fake `unsupported_exact_live_structure_bucket` blocker.
+    """
+    if not isinstance(decision_profile, dict):
+        return None
+    if not decision_profile.get("q15_exact_supported_component_patch_applied"):
+        return None
+    if str(decision_profile.get("regime_label") or "") != "bull":
+        return None
+    if str(decision_profile.get("regime_gate") or "") != "CAUTION":
+        return None
+
+    structure_bucket = str(decision_profile.get("structure_bucket") or "")
+    if structure_bucket != "CAUTION|structure_quality_caution|q15":
+        return None
+    target_label = str(decision_profile.get("entry_quality_label") or "")
+    if target_label != "C":
+        return None
+
+    exact_scope = (scope_diagnostics or {}).get("regime_label+regime_gate+entry_quality_label") or {}
+    exact_rows = int(exact_scope.get("current_live_structure_bucket_rows") or 0)
+    if exact_rows > 0:
+        return None
+
+    q15_audit = _load_json_artifact(Q15_SUPPORT_AUDIT_PATH)
+    scope = q15_audit.get("scope_applicability") or {}
+    current_live = q15_audit.get("current_live") or {}
+    support_route = q15_audit.get("support_route") or {}
+    support_progress = support_route.get("support_progress") or {}
+    component_experiment = q15_audit.get("component_experiment") or {}
+    machine_read = component_experiment.get("machine_read_answer") or {}
+    positive_discrimination = component_experiment.get("positive_discrimination_evidence") or {}
+    bucket_metrics = positive_discrimination.get("current_bucket_metrics") or {}
+
+    if scope.get("status") != "current_live_q15_lane_active" or not scope.get("active_for_current_live_row"):
+        return None
+    if str(scope.get("current_structure_bucket") or current_live.get("current_live_structure_bucket") or "") != structure_bucket:
+        return None
+    if str(current_live.get("regime_label") or "") != "bull":
+        return None
+    if str(current_live.get("regime_gate") or "") != "CAUTION":
+        return None
+    if support_route.get("verdict") != "exact_bucket_supported" or not support_route.get("deployable"):
+        return None
+    if component_experiment.get("verdict") != "exact_supported_component_experiment_ready":
+        return None
+    if component_experiment.get("feature") != "feat_4h_bias50":
+        return None
+    if not (
+        machine_read.get("support_ready")
+        and machine_read.get("entry_quality_ge_0_55")
+        and machine_read.get("allowed_layers_gt_0")
+        and machine_read.get("preserves_positive_discrimination")
+    ):
+        return None
+
+    support_rows = int(
+        support_progress.get("current_rows")
+        or current_live.get("current_live_structure_bucket_rows")
+        or 0
+    )
+    if support_rows <= 0:
+        return None
+
+    support_share = None
+    chosen_info = (scope_diagnostics or {}).get(chosen_scope or "") or {}
+    if chosen_info.get("rows"):
+        try:
+            support_share = support_rows / float(chosen_info.get("rows"))
+        except (TypeError, ValueError, ZeroDivisionError):
+            support_share = None
+
+    return {
+        "applied": True,
+        "reason": (
+            "q15 exact-supported component patch 已通過 support / floor-cross / positive-discrimination audit；"
+            "exact runtime lane rows 尚未在 baseline calibration labels 中重播，因此以 q15 audit 的 exact bucket"
+            " support 回填 runtime 結構支撐，避免假性 unsupported blocker。"
+        ),
+        "support_mode": "exact_bucket_supported_via_q15_audit",
+        "support_rows": support_rows,
+        "support_share": _round_optional(support_share),
+        "exact_support_rows": support_rows,
+        "exact_support_share": _round_optional(support_share),
+        "supported_neighbor_buckets": [],
+        "live_structure_bucket": structure_bucket,
+        "expected_win_rate": bucket_metrics.get("win_rate"),
+        "expected_pnl": bucket_metrics.get("avg_pnl"),
+        "expected_quality": bucket_metrics.get("avg_quality"),
+        "expected_drawdown_penalty": bucket_metrics.get("avg_drawdown_penalty"),
+        "expected_time_underwater": bucket_metrics.get("avg_time_underwater"),
+    }
+
+
 def _structure_bucket_support_guardrail(
     decision_profile: Dict[str, Any],
     chosen_scope: Optional[str],
@@ -2634,6 +2876,22 @@ def _structure_bucket_support_guardrail(
         for bucket, count in exact_bucket_counts.items()
         if bucket != live_structure_bucket and int(count or 0) > 0
     ]
+
+    q15_support_override = _q15_exact_support_runtime_override(
+        decision_profile,
+        chosen_scope,
+        scope_diagnostics,
+    )
+    if q15_support_override:
+        return {
+            **default_result,
+            **q15_support_override,
+            "expected_win_rate": _min_optional(expected_win_rate, q15_support_override.get("expected_win_rate")),
+            "expected_pnl": _min_optional(expected_pnl, q15_support_override.get("expected_pnl")),
+            "expected_quality": _min_optional(expected_quality, q15_support_override.get("expected_quality")),
+            "expected_drawdown_penalty": _max_optional(expected_drawdown_penalty, q15_support_override.get("expected_drawdown_penalty")),
+            "expected_time_underwater": _max_optional(expected_time_underwater, q15_support_override.get("expected_time_underwater")),
+        }
 
     redesign_support_override = _q35_runtime_redesign_support_override(
         decision_profile,

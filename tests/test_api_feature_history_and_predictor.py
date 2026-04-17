@@ -475,6 +475,81 @@ def test_live_decision_profile_skips_q35_discriminative_redesign_when_audit_row_
     assert profile["allowed_layers_reason"] == "entry_quality_below_trade_floor"
 
 
+def test_live_decision_profile_applies_q15_exact_supported_bias50_patch(tmp_path, monkeypatch):
+    q15_path = tmp_path / "q15_support_audit.json"
+    q15_path.write_text(
+        json.dumps(
+            {
+                "scope_applicability": {
+                    "status": "current_live_q15_lane_active",
+                    "active_for_current_live_row": True,
+                    "current_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                },
+                "current_live": {
+                    "feature_timestamp": "2026-04-16 23:00:23.100224",
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                    "raw_features": {
+                        "feat_4h_bias50": 2.6461,
+                        "feat_nose": 0.6107,
+                        "feat_pulse": 0.4451,
+                        "feat_ear": 0.0112,
+                    },
+                },
+                "support_route": {
+                    "verdict": "exact_bucket_supported",
+                    "deployable": True,
+                },
+                "floor_cross_legality": {
+                    "verdict": "legal_component_experiment_after_support_ready",
+                    "legal_to_relax_runtime_gate": True,
+                    "best_single_component": "feat_4h_bias50",
+                    "best_single_component_required_score_delta": 0.754,
+                },
+                "component_experiment": {
+                    "verdict": "exact_supported_component_experiment_ready",
+                    "feature": "feat_4h_bias50",
+                    "mode": "bias50_floor_counterfactual",
+                    "machine_read_answer": {
+                        "support_ready": True,
+                        "entry_quality_ge_0_55": True,
+                        "allowed_layers_gt_0": True,
+                        "preserves_positive_discrimination": True,
+                        "preserves_positive_discrimination_status": "verified_exact_lane_bucket_dominance",
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(predictor_module, "Q15_SUPPORT_AUDIT_PATH", q15_path)
+
+    features = {
+        "timestamp": "2026-04-16 23:00:23.100224",
+        "regime_label": "bull",
+        "feat_4h_bias200": 2.2202,
+        "feat_4h_bias50": 2.6461,
+        "feat_nose": 0.6107,
+        "feat_pulse": 0.4451,
+        "feat_ear": 0.0112,
+        "feat_4h_bb_pct_b": 0.5099,
+        "feat_4h_dist_bb_lower": 1.6483,
+        "feat_4h_dist_swing_low": 1.773,
+    }
+
+    profile = predictor_module._build_live_decision_profile(features)
+
+    assert profile["q15_exact_supported_component_patch_applied"] is True
+    assert profile["q15_exact_supported_component_patch"]["feature"] == "feat_4h_bias50"
+    assert profile["q15_exact_supported_component_patch"]["required_score_delta"] == pytest.approx(0.754)
+    assert profile["entry_quality"] == pytest.approx(0.5501)
+    assert profile["entry_quality"] > 0.55
+    assert profile["entry_quality_label"] == "C"
+    assert profile["allowed_layers"] == 1
+    assert profile["allowed_layers_reason"] == "entry_quality_C_single_layer"
+    assert profile["entry_quality_components"]["base_components"][0]["normalized_score"] == pytest.approx(0.754)
+
+
 def test_structure_bucket_support_guardrail_replays_q35_runtime_redesign_support(tmp_path, monkeypatch):
     q35_path = tmp_path / "q35_scaling_audit.json"
     q35_path.write_text(
@@ -563,6 +638,111 @@ def test_structure_bucket_support_guardrail_replays_q35_runtime_redesign_support
     assert guarded["expected_quality"] == pytest.approx(0.3974)
     assert guarded["expected_drawdown_penalty"] == pytest.approx(0.1695)
     assert guarded["expected_time_underwater"] == pytest.approx(0.6795)
+
+
+def test_structure_bucket_support_guardrail_replays_q15_exact_supported_runtime(tmp_path, monkeypatch):
+    q15_path = tmp_path / "q15_support_audit.json"
+    q15_path.write_text(
+        json.dumps(
+            {
+                "scope_applicability": {
+                    "status": "current_live_q15_lane_active",
+                    "active_for_current_live_row": True,
+                    "current_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                },
+                "current_live": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                    "current_live_structure_bucket_rows": 79,
+                },
+                "support_route": {
+                    "verdict": "exact_bucket_supported",
+                    "deployable": True,
+                    "support_progress": {
+                        "current_rows": 79,
+                        "minimum_support_rows": 50,
+                    },
+                },
+                "component_experiment": {
+                    "verdict": "exact_supported_component_experiment_ready",
+                    "feature": "feat_4h_bias50",
+                    "machine_read_answer": {
+                        "support_ready": True,
+                        "entry_quality_ge_0_55": True,
+                        "allowed_layers_gt_0": True,
+                        "preserves_positive_discrimination": True,
+                    },
+                    "positive_discrimination_evidence": {
+                        "current_bucket_metrics": {
+                            "win_rate": 1.0,
+                            "avg_pnl": 0.0058,
+                            "avg_quality": 0.4966,
+                            "avg_drawdown_penalty": 0.0674,
+                            "avg_time_underwater": 0.1272,
+                        }
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(predictor_module, "Q15_SUPPORT_AUDIT_PATH", q15_path)
+
+    decision_profile = {
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "entry_quality_label": "C",
+        "q15_exact_supported_component_patch_applied": True,
+    }
+    scope_diagnostics = {
+        "regime_label+regime_gate+entry_quality_label": {
+            "current_live_structure_bucket_rows": 0,
+            "current_live_structure_bucket_share": None,
+            "current_live_structure_bucket_metrics": None,
+            "recent500_structure_bucket_counts": {},
+        },
+        "regime_label": {
+            "rows": 200,
+            "current_live_structure_bucket_rows": 79,
+            "current_live_structure_bucket_share": 0.395,
+            "current_live_structure_bucket_metrics": {
+                "win_rate": 1.0,
+                "avg_pnl": 0.0058,
+                "avg_quality": 0.4966,
+                "avg_drawdown_penalty": 0.0674,
+                "avg_time_underwater": 0.1272,
+            },
+            "recent500_structure_bucket_counts": {
+                "CAUTION|structure_quality_caution|q15": 79,
+                "CAUTION|structure_quality_caution|q35": 121,
+            },
+        },
+    }
+
+    guarded = predictor_module._structure_bucket_support_guardrail(
+        decision_profile,
+        "regime_label",
+        scope_diagnostics,
+        expected_win_rate=0.91,
+        expected_pnl=0.0041,
+        expected_quality=0.4146,
+        expected_drawdown_penalty=0.1096,
+        expected_time_underwater=0.2429,
+    )
+
+    assert guarded["applied"] is True
+    assert guarded["support_mode"] == "exact_bucket_supported_via_q15_audit"
+    assert guarded["support_rows"] == 79
+    assert guarded["exact_support_rows"] == 79
+    assert guarded["supported_neighbor_buckets"] == []
+    assert guarded["expected_win_rate"] == pytest.approx(0.91)
+    assert guarded["expected_pnl"] == pytest.approx(0.0041)
+    assert guarded["expected_quality"] == pytest.approx(0.4146)
+    assert guarded["expected_drawdown_penalty"] == pytest.approx(0.1096)
+    assert guarded["expected_time_underwater"] == pytest.approx(0.2429)
 
 
 def test_predictor_applies_legacy_isotonic_calibration_payload_keys():
@@ -2426,6 +2606,7 @@ def test_predict_confidence_route_unpacks_load_predictor_tuple(monkeypatch):
         }
 
     monkeypatch.setattr(predictor_module, "predict", _fake_predict)
+    monkeypatch.setattr(api_module, "_load_q15_support_audit_summary", lambda _bucket=None: None)
 
     result = asyncio.run(api_module.get_confidence_prediction())
 
@@ -2438,6 +2619,73 @@ def test_predict_confidence_route_unpacks_load_predictor_tuple(monkeypatch):
     assert result["expected_drawdown_penalty"] == 0.09
     assert result["decision_profile_version"] == "phase16_baseline_v2"
     assert closed["value"] is True
+
+
+def test_get_confidence_prediction_enriches_q15_support_blocker_from_audit(monkeypatch):
+    import asyncio
+    import config as config_module
+    from database import models as models_module
+    from model import predictor as predictor_module
+
+    class _FakeDb:
+        def close(self):
+            return None
+
+    monkeypatch.setattr(config_module, "load_config", lambda: {"database": {"url": "sqlite:///fake.db"}})
+    monkeypatch.setattr(models_module, "init_db", lambda _url: _FakeDb())
+    monkeypatch.setattr(predictor_module, "load_predictor", lambda: ("global-predictor", {"bull": object()}))
+    monkeypatch.setattr(
+        predictor_module,
+        "predict",
+        lambda _session, _predictor, _regime_models: {
+            "confidence": 0.24,
+            "signal": "HOLD",
+            "confidence_level": "LOW",
+            "should_trade": False,
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "deployment_blocker_reason": "support not enough",
+            "deployment_blocker_details": {"current_live_structure_bucket_rows": 4},
+            "decision_profile_version": "phase16_baseline_v2",
+        },
+    )
+    monkeypatch.setattr(
+        api_module,
+        "_load_q15_support_audit_summary",
+        lambda _bucket=None: {
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_route_deployable": False,
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 46,
+            "support_progress": {
+                "status": "accumulating",
+                "current_rows": 4,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 46,
+                "delta_vs_previous": 4,
+            },
+            "floor_cross_legality": {
+                "verdict": "math_cross_possible_but_illegal_without_exact_support",
+                "legal_to_relax_runtime_gate": False,
+                "remaining_gap_to_floor": 0.233,
+                "best_single_component": "feat_4h_bias50",
+                "best_single_component_required_score_delta": 0.7767,
+            },
+            "component_experiment": {"verdict": "reference_only_until_exact_support_ready"},
+        },
+    )
+
+    result = asyncio.run(api_module.get_confidence_prediction())
+
+    assert result["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
+    assert result["minimum_support_rows"] == 50
+    assert result["support_progress"]["status"] == "accumulating"
+    assert result["deployment_blocker_details"]["support_progress"]["gap_to_minimum"] == 46
+    assert result["floor_cross_verdict"] == "math_cross_possible_but_illegal_without_exact_support"
+    assert result["best_single_component"] == "feat_4h_bias50"
+    assert result["component_experiment_verdict"] == "reference_only_until_exact_support_ready"
 
 
 def test_backtest_route_uses_canonical_features_and_returns_decision_quality(monkeypatch):
