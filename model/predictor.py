@@ -20,6 +20,7 @@ logger = setup_logger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DW_RESULT_PATH = PROJECT_ROOT / "data" / "dw_result.json"
+RECENT_DRIFT_REPORT_PATH = PROJECT_ROOT / "data" / "recent_drift_report.json"
 Q35_AUDIT_PATH = PROJECT_ROOT / "data" / "q35_scaling_audit.json"
 Q15_SUPPORT_AUDIT_PATH = PROJECT_ROOT / "data" / "q15_support_audit.json"
 
@@ -848,6 +849,77 @@ def _load_json_artifact(path: Path) -> Dict[str, Any]:
     except Exception:
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _load_recent_pathology_from_drift_report() -> Dict[str, Any]:
+    report = _load_json_artifact(RECENT_DRIFT_REPORT_PATH)
+    primary = report.get("primary_window") or {}
+    alerts = [str(alert) for alert in (primary.get("alerts") or []) if str(alert).strip()]
+    raw_summary = primary.get("summary") or {}
+    if not isinstance(raw_summary, dict):
+        raw_summary = {}
+    try:
+        window = int(primary.get("window") or 0)
+    except Exception:
+        window = 0
+    interpretation = (
+        raw_summary.get("drift_interpretation")
+        or primary.get("interpretation")
+        or report.get("interpretation")
+    )
+    applied = bool(alerts or interpretation)
+    if not applied:
+        return {}
+
+    quality_metrics = raw_summary.get("quality_metrics") or {}
+    feature_diagnostics = raw_summary.get("feature_diagnostics") or {}
+    reference_window = raw_summary.get("reference_window_comparison") or {}
+    target_path = raw_summary.get("target_path_diagnostics") or {}
+    dominant_regime = raw_summary.get("dominant_regime")
+    dominant_regime_share = raw_summary.get("dominant_regime_share")
+    summary = {
+        "rows": raw_summary.get("rows"),
+        "wins": raw_summary.get("wins"),
+        "losses": raw_summary.get("losses"),
+        "win_rate": raw_summary.get("win_rate"),
+        "drift_interpretation": interpretation,
+        "dominant_regime": dominant_regime,
+        "dominant_regime_share": dominant_regime_share,
+        "avg_pnl": quality_metrics.get("avg_simulated_pnl"),
+        "avg_quality": quality_metrics.get("avg_simulated_quality"),
+        "avg_drawdown_penalty": quality_metrics.get("avg_drawdown_penalty"),
+        "avg_time_underwater": quality_metrics.get("avg_time_underwater"),
+        "unexpected_frozen_count": feature_diagnostics.get("unexpected_frozen_count"),
+        "unexpected_compressed_count": feature_diagnostics.get("unexpected_compressed_count"),
+        "top_mean_shift_features": reference_window.get("top_mean_shift_features") or [],
+        "longest_target_streak": target_path.get("longest_target_streak"),
+        "longest_zero_target_streak": target_path.get("longest_zero_target_streak"),
+        "longest_one_target_streak": target_path.get("longest_one_target_streak"),
+    }
+    reason_bits = []
+    if window:
+        reason_bits.append(f"recent drift primary window {window} rows")
+    else:
+        reason_bits.append("recent drift primary window")
+    if interpretation:
+        reason_bits.append(f"shows {interpretation}")
+    if dominant_regime:
+        share_text = ""
+        try:
+            if dominant_regime_share is not None:
+                share_text = f" ({float(dominant_regime_share) * 100:.0f}%)"
+        except Exception:
+            share_text = ""
+        reason_bits.append(f"dominant_regime={dominant_regime}{share_text}")
+    if alerts:
+        reason_bits.append(f"alerts={alerts}")
+    return {
+        "decision_quality_recent_pathology_applied": True,
+        "decision_quality_recent_pathology_reason": "; ".join(reason_bits),
+        "decision_quality_recent_pathology_window": window,
+        "decision_quality_recent_pathology_alerts": alerts,
+        "decision_quality_recent_pathology_summary": summary,
+    }
 
 
 def _feature_value_matches_audit(current_value: Any, audit_value: Any, tol: float = 1e-4) -> bool:
@@ -3674,6 +3746,7 @@ def _check_circuit_breaker(session) -> Optional[Dict]:
             "additional_recent_window_wins_needed": max(0, required_recent_window_wins - window_wins),
         },
     }
+    recent_pathology = _load_recent_pathology_from_drift_report()
     return {
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "confidence": 0.5,
@@ -3699,6 +3772,7 @@ def _check_circuit_breaker(session) -> Optional[Dict]:
         "deployment_blocker_reason": reason,
         "deployment_blocker_source": "circuit_breaker",
         "deployment_blocker_details": blocker_details,
+        **recent_pathology,
     }
 
 

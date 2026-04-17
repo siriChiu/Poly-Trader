@@ -940,6 +940,12 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
             "canonical live path 目前由 circuit breaker 擋下；"
             f"{payload.get('reason') or '需檢查 recent 50 win rate / streak'}。"
             "release condition = streak < 50 且 recent 50 win rate >= 30%。"
+            + (
+                f" recent pathology={payload.get('decision_quality_recent_pathology_reason')}。"
+                if payload.get("decision_quality_recent_pathology_applied")
+                and payload.get("decision_quality_recent_pathology_reason")
+                else ""
+            )
         )
     elif patch_active and signal == "HOLD" and (allowed_layers or 0) > 0:
         runtime_closure_state = "capacity_opened_signal_hold"
@@ -976,6 +982,11 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "calibration_exact_lane_alerts": calibration_exact_lane_alerts,
         "support_alignment_status": support_alignment_status,
         "support_alignment_summary": support_alignment_summary,
+        "decision_quality_recent_pathology_applied": payload.get("decision_quality_recent_pathology_applied"),
+        "decision_quality_recent_pathology_reason": payload.get("decision_quality_recent_pathology_reason"),
+        "decision_quality_recent_pathology_window": payload.get("decision_quality_recent_pathology_window"),
+        "decision_quality_recent_pathology_alerts": payload.get("decision_quality_recent_pathology_alerts"),
+        "decision_quality_recent_pathology_summary": payload.get("decision_quality_recent_pathology_summary"),
     }
 
 

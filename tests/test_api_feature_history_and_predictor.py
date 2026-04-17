@@ -201,6 +201,59 @@ def test_circuit_breaker_ignores_noncanonical_240m_tail_when_1440m_is_healthy():
     assert result is None
 
 
+def test_circuit_breaker_surfaces_recent_pathology_from_drift_report(tmp_path, monkeypatch):
+    drift_path = tmp_path / "recent_drift_report.json"
+    drift_path.write_text(
+        json.dumps(
+            {
+                "primary_window": {
+                    "window": "500",
+                    "alerts": ["label_imbalance", "regime_concentration"],
+                    "summary": {
+                        "rows": 500,
+                        "wins": 402,
+                        "losses": 98,
+                        "win_rate": 0.804,
+                        "drift_interpretation": "distribution_pathology",
+                        "dominant_regime": "bull",
+                        "dominant_regime_share": 1.0,
+                        "quality_metrics": {
+                            "avg_simulated_pnl": 0.0046,
+                            "avg_simulated_quality": 0.3388,
+                            "avg_drawdown_penalty": 0.1538,
+                            "avg_time_underwater": 0.4919,
+                        },
+                        "feature_diagnostics": {
+                            "unexpected_frozen_count": 0,
+                            "unexpected_compressed_count": 8,
+                        },
+                        "reference_window_comparison": {
+                            "top_mean_shift_features": ["feat_4h_bias20", "feat_vix"],
+                        },
+                        "target_path_diagnostics": {
+                            "longest_target_streak": 259,
+                            "longest_one_target_streak": 259,
+                        },
+                    },
+                }
+            }
+        )
+    )
+    monkeypatch.setattr(predictor_module, "RECENT_DRIFT_REPORT_PATH", drift_path)
+
+    rows = [_FakeLabelRow(0, 1440) for _ in range(60)]
+    result = predictor_module._check_circuit_breaker(_FakeSession(rows))
+
+    assert result is not None
+    assert result["decision_quality_recent_pathology_applied"] is True
+    assert result["decision_quality_recent_pathology_window"] == 500
+    assert result["decision_quality_recent_pathology_alerts"] == ["label_imbalance", "regime_concentration"]
+    assert "distribution_pathology" in result["decision_quality_recent_pathology_reason"]
+    assert result["decision_quality_recent_pathology_summary"]["dominant_regime"] == "bull"
+    assert result["decision_quality_recent_pathology_summary"]["top_mean_shift_features"] == ["feat_4h_bias20", "feat_vix"]
+    assert result["decision_quality_recent_pathology_summary"]["longest_one_target_streak"] == 259
+
+
 def test_infer_deployment_blocker_flags_bull_q35_no_deploy_governance(tmp_path, monkeypatch):
     q35_path = tmp_path / "q35_scaling_audit.json"
     q15_path = tmp_path / "q15_support_audit.json"

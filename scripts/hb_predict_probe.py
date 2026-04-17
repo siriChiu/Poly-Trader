@@ -304,6 +304,12 @@ def _build_probe_payload(
                     if release_gap not in (None, 0) and current_wins is not None
                     else "。"
                 )
+                + (
+                    f" 同時 recent pathology={result.get('decision_quality_recent_pathology_reason')}。"
+                    if result.get("decision_quality_recent_pathology_applied")
+                    and result.get("decision_quality_recent_pathology_reason")
+                    else ""
+                )
             )
             if result.get("signal") == "CIRCUIT_BREAKER"
             else (

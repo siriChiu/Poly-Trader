@@ -468,6 +468,15 @@ def test_build_live_runtime_closure_surface_marks_circuit_breaker_as_runtime_blo
             "deployment_blocker_reason": "Recent 50-sample win rate: 10.00% < 30%",
             "deployment_blocker_source": "circuit_breaker",
             "deployment_blocker_details": {"release_condition": {"recent_window": 50}},
+            "decision_quality_recent_pathology_applied": True,
+            "decision_quality_recent_pathology_reason": "recent scope slice 100 rows shows distribution_pathology",
+            "decision_quality_recent_pathology_window": 100,
+            "decision_quality_recent_pathology_alerts": ["label_imbalance", "regime_concentration"],
+            "decision_quality_recent_pathology_summary": {
+                "win_rate": 0.18,
+                "avg_pnl": -0.0123,
+                "avg_quality": -0.15,
+            },
         }
     )
 
@@ -475,7 +484,12 @@ def test_build_live_runtime_closure_surface_marks_circuit_breaker_as_runtime_blo
     assert payload["allowed_layers_reason"] == "circuit_breaker_blocks_trade"
     assert payload["execution_guardrail_reason"] == "circuit_breaker_blocks_trade"
     assert payload["deployment_blocker"] == "circuit_breaker_active"
+    assert payload["decision_quality_recent_pathology_applied"] is True
+    assert payload["decision_quality_recent_pathology_window"] == 100
+    assert payload["decision_quality_recent_pathology_alerts"] == ["label_imbalance", "regime_concentration"]
+    assert payload["decision_quality_recent_pathology_summary"]["avg_pnl"] == -0.0123
     assert "release condition = streak < 50 且 recent 50 win rate >= 30%" in payload["runtime_closure_summary"]
+    assert "recent pathology=recent scope slice 100 rows shows distribution_pathology" in payload["runtime_closure_summary"]
 
 
 def test_build_execution_reconciliation_summary_flags_missing_open_order_when_snapshot_fresh():

@@ -497,6 +497,11 @@ def test_hb_predict_probe_emits_circuit_breaker_runtime_closure(monkeypatch, cap
                 "additional_recent_window_wins_needed": 10,
             },
         },
+        "decision_quality_recent_pathology_applied": True,
+        "decision_quality_recent_pathology_reason": "recent drift primary window 500 rows shows distribution_pathology; dominant_regime=bull (100%); alerts=['label_imbalance', 'regime_concentration']",
+        "decision_quality_recent_pathology_window": 500,
+        "decision_quality_recent_pathology_alerts": ["label_imbalance", "regime_concentration"],
+        "decision_quality_recent_pathology_summary": {"win_rate": 0.804, "dominant_regime": "bull"},
         "decision_quality_horizon_minutes": 1440,
     })
     hb_predict_probe.main()
@@ -507,3 +512,4 @@ def test_hb_predict_probe_emits_circuit_breaker_runtime_closure(monkeypatch, cap
     assert payload["deployment_blocker"] == "circuit_breaker_active"
     assert "release condition = streak < 50 且 recent 50 win rate >= 30%" in payload["runtime_closure_summary"]
     assert "目前 recent 50 只贏 5/50，至少還差 10 勝" in payload["runtime_closure_summary"]
+    assert "recent pathology=recent drift primary window 500 rows shows distribution_pathology" in payload["runtime_closure_summary"]
