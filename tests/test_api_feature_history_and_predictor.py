@@ -185,6 +185,12 @@ def test_circuit_breaker_uses_simulated_target_column():
     assert result["horizon_minutes"] == 1440
     assert result["triggered_by"] == ["streak", "recent_win_rate"]
     assert result["recent_window_win_rate"] == 0.0
+    release = result["deployment_blocker_details"]["release_condition"]
+    assert release["current_streak"] == 60
+    assert release["current_recent_window_wins"] == 0
+    assert release["required_recent_window_wins"] == 15
+    assert release["additional_recent_window_wins_needed"] == 15
+    assert release["blocked_by"] == ["streak", "recent_win_rate"]
 
 
 def test_circuit_breaker_ignores_noncanonical_240m_tail_when_1440m_is_healthy():

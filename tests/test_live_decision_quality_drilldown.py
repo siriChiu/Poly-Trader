@@ -112,6 +112,10 @@ def test_runtime_blocker_summary_and_unavailable_gap_attribution_for_circuit_bre
         "reason": "Consecutive loss streak: 50 >= 50",
         "streak": 50,
         "allowed_layers": 0,
+        "deployment_blocker_details": {
+            "recent_window": {"window_size": 50, "wins": 3, "win_rate": 0.06, "floor": 0.3},
+            "release_condition": {"required_recent_window_wins": 15, "additional_recent_window_wins_needed": 12},
+        },
     }
 
     blocker = live_drilldown._runtime_blocker_summary(payload)
@@ -124,9 +128,47 @@ def test_runtime_blocker_summary_and_unavailable_gap_attribution_for_circuit_bre
         "reason": "Consecutive loss streak: 50 >= 50",
         "streak": 50,
         "win_rate": None,
+        "recent_window_win_rate": None,
+        "recent_window_wins": None,
+        "window_size": None,
+        "triggered_by": [],
+        "horizon_minutes": None,
         "allowed_layers": 0,
+        "release_condition": {"required_recent_window_wins": 15, "additional_recent_window_wins_needed": 12},
+        "recent_window": {"window_size": 50, "wins": 3, "win_rate": 0.06, "floor": 0.3},
     }
     assert result["remaining_gap_to_floor"] is None
     assert result["best_single_component"] is None
     assert result["runtime_blocker"]["type"] == "circuit_breaker"
     assert result["unavailable_reason"] == "Consecutive loss streak: 50 >= 50"
+
+
+def test_deployment_blocker_summary_extracts_q35_no_deploy_governance():
+    payload = {
+        "deployment_blocker": "bull_q35_no_deploy_governance",
+        "deployment_blocker_reason": "safe redesign 失敗，只剩 unsafe floor cross",
+        "deployment_blocker_source": "q35_scaling_audit+q15_support_audit",
+        "deployment_blocker_details": {
+            "support_route_verdict": "exact_bucket_supported",
+            "unsafe_floor_cross_candidate": {"weights": {"feat_ear": 1.0}},
+        },
+    }
+
+    blocker = live_drilldown._deployment_blocker_summary(payload)
+
+    assert blocker == {
+        "type": "bull_q35_no_deploy_governance",
+        "reason": "safe redesign 失敗，只剩 unsafe floor cross",
+        "source": "q35_scaling_audit+q15_support_audit",
+        "details": {
+            "support_route_verdict": "exact_bucket_supported",
+            "unsafe_floor_cross_candidate": {"weights": {"feat_ear": 1.0}},
+        },
+    }
+
+
+def test_drilldown_markdown_mentions_runtime_closure_summaries():
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert "capacity opened but signal still HOLD" in source
+    assert "patch active but execution still blocked" in source
+    assert "runtime closure summary" in source

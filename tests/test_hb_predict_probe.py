@@ -466,3 +466,44 @@ def test_hb_predict_probe_emits_patch_active_but_execution_blocked_summary(monke
     assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
     assert "patch 已啟用並把 entry_quality 拉到 0.5500" in payload["runtime_closure_summary"]
     assert "不可把 patch active 誤讀成可部署" in payload["runtime_closure_summary"]
+
+
+def test_hb_predict_probe_emits_circuit_breaker_runtime_closure(monkeypatch, capsys, tmp_path):
+    session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", tmp_path / "missing_q15_support_audit.json")
+    monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
+    monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"bull": object()}))
+    monkeypatch.setattr(hb_predict_probe, "load_latest_features", lambda _session: {"timestamp": "2026-04-17T00:00:00+00:00", "regime_label": "bull"})
+    monkeypatch.setattr(hb_predict_probe, "predict", lambda *_args, **_kwargs: {
+        "target_col": "simulated_pyramid_win", "used_model": "circuit_breaker", "model_type": "circuit_breaker",
+        "signal": "CIRCUIT_BREAKER", "confidence": 0.5, "reason": "Recent 50-sample win rate: 10.00% < 30%",
+        "streak": 45, "recent_window_win_rate": 0.1, "recent_window_wins": 5, "window_size": 50,
+        "triggered_by": ["recent_win_rate"], "horizon_minutes": 1440,
+        "allowed_layers_raw": None, "allowed_layers_raw_reason": "circuit_breaker_preempts_runtime_sizing",
+        "allowed_layers": 0, "allowed_layers_reason": "circuit_breaker_blocks_trade",
+        "execution_guardrail_applied": True, "execution_guardrail_reason": "circuit_breaker_blocks_trade",
+        "deployment_blocker": "circuit_breaker_active", "deployment_blocker_reason": "Recent 50-sample win rate: 10.00% < 30%",
+        "deployment_blocker_source": "circuit_breaker", "deployment_blocker_details": {
+            "recent_window": {"window_size": 50, "wins": 5, "win_rate": 0.1, "floor": 0.3},
+            "release_condition": {
+                "streak_must_be_below": 50,
+                "current_streak": 45,
+                "recent_window": 50,
+                "recent_win_rate_must_be_at_least": 0.3,
+                "current_recent_window_wins": 5,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 10,
+            },
+        },
+        "decision_quality_horizon_minutes": 1440,
+    })
+    hb_predict_probe.main()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["runtime_closure_state"] == "circuit_breaker_active"
+    assert payload["allowed_layers_reason"] == "circuit_breaker_blocks_trade"
+    assert payload["execution_guardrail_reason"] == "circuit_breaker_blocks_trade"
+    assert payload["deployment_blocker"] == "circuit_breaker_active"
+    assert "release condition = streak < 50 且 recent 50 win rate >= 30%" in payload["runtime_closure_summary"]
+    assert "目前 recent 50 只贏 5/50，至少還差 10 勝" in payload["runtime_closure_summary"]

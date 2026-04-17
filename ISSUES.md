@@ -1,73 +1,105 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-17 10:38 CST_
+_最後更新：2026-04-17 12:40 CST_
 
 只保留目前有效問題；每輪 heartbeat 必須覆蓋更新，不保留舊流水帳。
 
 ---
 
 ## 當前主線
-本輪已修復 **q15 exact-supported patch 的 probe ↔ audit artifact split-brain**：
-- `scripts/hb_predict_probe.py` 現在會在 q15 audit 改變 patch readiness、或 audit `current_live` 與最終 probe 不一致時，**強制二次同步 q15 audit**，避免先寫 baseline probe、再讓 `hb_q15_support_audit.py` 讀到舊 probe 把 runtime 又打回未開啟狀態。
-- 這個修正解決了會自我回退的產品化問題：**probe / q15 audit / live drilldown 以前可能彼此矛盾，甚至讓後續 predictor 再次讀到 stale audit 而關閉已驗證的 q15 patch**。
-- 新 regression 已鎖住：當 q15 audit 第一次 refresh 仍是 baseline current_live、但第二次 force refresh 需要對齊最終 probe 時，probe 必須輸出 patch-active，且嵌入的 `q15_support_audit.current_live` 必須同步到最終 runtime 真相。
+本輪 heartbeat 的最新產品真相是：**資料管線仍在前進、canonical IC / recent drift / circuit-breaker 診斷都可重跑，而且 circuit breaker 已從「只有 on/off」升級成 operator 可執行的 release math contract。Dashboard / probe / drilldown 現在能直接看到 recent 50 視窗還差幾勝才能解除 blocker。**
 
-### 本輪驗證後的 runtime 真相
-- live path：`bull / CAUTION / q15`
-- current live structure bucket rows：`79 / 50` → **exact-supported**
-- live predictor：
-  - `signal=HOLD`
-  - `entry_quality=0.55`
-  - `entry_quality_label=C`
-  - `allowed_layers=1`
-  - `q15_exact_supported_component_patch_applied=true`
-  - `runtime_closure_state=capacity_opened_signal_hold`
-- q15 audit / live drilldown：
-  - `support_route_verdict=exact_bucket_supported`
-  - `current_live.entry_quality=0.55`
-  - `current_live.allowed_layers=1`
-  - `component_experiment_verdict=exact_supported_component_experiment_ready`
+本輪已完成的產品化前進：
+- heartbeat 實際推進資料：`Raw=30591 (+1) / Features=22009 (+1) / Labels=61736 (+1)`
+- `scripts/hb_collect.py` 成功完成 collect / feature / label 閉環
+- canonical 診斷：`Global IC=14/30`、`TW-IC=29/30`
+- recent drift 仍指出最近 500 筆是 `bull 100%` 的 distribution pathology，而不是 collector 停擺
+- `model/predictor.py` 現在輸出 breaker release math：
+  - `current_streak`
+  - `current_recent_window_wins`
+  - `required_recent_window_wins`
+  - `additional_recent_window_wins_needed`
+  - `blocked_by / release_ready`
+- `scripts/hb_predict_probe.py` / `scripts/live_decision_quality_drilldown.py` 現在會把 breaker release math 寫進 runtime summary
+- Dashboard `ConfidenceIndicator` 現在在 `circuit_breaker_active` 狀態下顯示：
+  - `recent 50 release window`
+  - `release gap`
+  - `streak release condition`
+  - `operator next step`
+  不再把 support/floor-cross 卡片誤拿來解釋 breaker
 
 ---
 
 ## Open Issues
 
-### P0. Execution / venue surface 還沒把「capacity opened but HOLD」產品語義完整落地
+### P0. Canonical 1440m circuit breaker 仍然有效，live runtime 仍不可部署
 **現況**
-- q15 patch 已經真的把 current live row 拉到 `entry_quality=0.55`、`allowed_layers=1`
-- 但目前 runtime 仍是 `signal=HOLD`
-- 這代表系統現在進入的是 **deployment capacity opened**，不是自動下單，也不是 venue-ready 已完成
+- `scripts/hb_predict_probe.py`：`signal=CIRCUIT_BREAKER`
+- 原因：`Recent 50-sample win rate: 2.00% < 30%`
+- `scripts/hb_circuit_breaker_audit.py`：
+  - `aligned_scope.triggered = true`
+  - `aligned_scope.release_condition.current_recent_window_wins = 1`
+  - `aligned_scope.release_condition.required_recent_window_wins = 15`
+  - `aligned_scope.release_condition.additional_recent_window_wins_needed = 14`
+- mixed all-horizon scope 已證明不是 blocker；真正 blocker 是 **canonical 1440m aligned scope**
 
 **風險**
-- 如果 `/api/status`、execution metadata、Dashboard 文案沒有同步這層語義，operator 會把「1 層 capacity」誤讀成「已經應該下單」或「venue 路徑已完成」
-- execution / reconciliation / venue guardrail 可能仍停在研究型 surface，而非產品 runtime surface
+- 若沒有把 breaker 視為當前最高優先 blocker，會把 q15/q35、support 或 calibration 修補誤讀成可部署進展
+- 若 UI 只顯示 generic blocker 文案而不顯示 release math，operator 無法知道距離解除還差多少
 
 **下一步**
-- 把 `capacity_opened_signal_hold` / `allowed_layers_raw -> allowed_layers` / `deployment_blocker` 語義同步到 `/api/status`、execution metadata monitor、Dashboard live status surface
-- 驗證要同時覆蓋：runtime script、API payload、前端 copy、pytest
+- 持續以 canonical 1440m tail 為唯一 breaker truth
+- 下一輪直接驗證 `/api/predict/confidence` 與 Dashboard runtime surface 都已消費 `additional_recent_window_wins_needed`
+- 若 release gap 長時間不收斂，升級成 tail-path root-cause / label-pathology blocker
 
-### P1. Binance / OKX execution readiness 還缺少單一真相的 reconciliation surface
+### P0. Binance / OKX execution lifecycle 仍未完成真實 partial-fill / cancel / restart-replay artifact
 **現況**
-- q15 live lane blocker已不再是 support / patch replay
-- 下一個產品化主問題不再是 calibration 研究，而是：**account / order / venue / reconcile 是否有同一個 operator-facing truth**
+- `/api/status.execution_reconciliation.lifecycle_contract` 已能顯示 baseline contract / replay readiness / missing lifecycle events
+- 但目前仍偏向 **visibility contract**，不是 venue lifecycle closure
 
 **風險**
-- 若 execution monitor、order manager、status API、Dashboard 對 venue 狀態各說各話，產品看起來 ready，實際上 operator 仍無法安全判斷是否可部署
+- 若沒有真實 partial fill / cancel / restart replay artifact，runtime / recovery / UI 仍無法證明重啟後可完整回放 order lifecycle
 
 **下一步**
-- 以 Binance 為第一優先，補齊 execution metadata、external monitor、status API 的單一真相鏈
-- OKX 維持第二 venue，但不能先跳過 Binance 的 reconciliation closure
+- 以 Binance 為第一 venue，補齊 partial fill / cancel / restart replay artifact
+- 讓 Dashboard / Strategy Lab / `/api/status` 對同一筆 order 顯示一致 replay verdict
+
+### P1. Recent bull-only distribution pathology 仍在污染 calibration 判讀
+**現況**
+- `recent_drift_report.py`：最近 500 筆 `win_rate=0.8000`、`dominant_regime=bull (100.00%)`
+- alerts：`label_imbalance`、`regime_concentration`、`regime_shift`
+- sibling-window 對比：`prev_win_rate=0.988 → current=0.800`、`quality Δ=-0.3349`、`pnl Δ=-0.0167`
+
+**風險**
+- 若把這個 bull-only pocket 直接當成 calibration / deployment 證據，會產生假 readiness
+
+**下一步**
+- 繼續讓 live probe / drilldown / leaderboard 明確拒絕 polluted lane
+- breaker 解除後，第一優先驗證是否仍被 bull-only pathology 汙染
+
+### P1. Sparse-source blockers 仍需分流治理
+**現況**
+- blocked sparse features：`8`
+- 分布：`archive_required=3`、`snapshot_only=4`、`short_window_public_api=1`
+- `fin_netflow` 仍是 auth-blocked 代表案例，最新 status 仍為 `auth_missing`
+
+**風險**
+- 若把 forward archive ready 誤讀成 feature 已成熟，會把研究型 sparse source 混進主產品敘事
+
+**下一步**
+- `fin_netflow` 先補 auth
+- 其餘 source 繼續區分 auth-blocked / archive-gap / snapshot-only，不混成 generic coverage 問題
 
 ---
 
 ## Not Issues
-- 不是 q15 exact support 不足：**目前 `79 / 50`，已 exact-supported**
-- 不是 q15 patch 仍停在 audit 文件層：**live predictor / hb_predict_probe / live_decision_quality_drilldown 已對齊 `patch active + allowed_layers=1`**
-- 不是 q15 runtime 還被假 blocker 擋住：**`deployment_blocker=null`，當前狀態是 `capacity_opened_signal_hold`，不是 support blocker**
+- 不是資料管線停滯：本輪仍有 `+1 raw / +1 features / +1 labels`
+- 不是 IC 腳本失效：`full_ic.py`、`regime_aware_ic.py`、`recent_drift_report.py` 都成功刷新
+- 不是 breaker 混 horizon 假陽性：`hb_circuit_breaker_audit.py` 已證明 blocker 來自 canonical 1440m aligned scope
 
 ---
 
 ## Current Priority
-1. 把 **capacity-opened-but-HOLD** 正式變成 execution / API / Dashboard 的產品語義
-2. 用 Binance 先收斂 **execution reconciliation / venue truth**
-3. 再把同一套 contract 推到 OKX 與 Strategy Lab / Dashboard 的 operator surface
+1. 先處理 **canonical 1440m circuit breaker release path**，把 runtime/UI/operator surface 都對齊 release math
+2. 補 **Binance execution lifecycle artifact closure**，不要停留在 visibility-only contract
+3. 持續治理 **bull-only recent pathology** 與 **sparse-source blockers**，避免假 readiness

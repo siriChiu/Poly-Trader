@@ -69,6 +69,9 @@ def _runtime_blocker_summary(payload: dict[str, Any]) -> dict[str, Any] | None:
     model_type = str(payload.get("model_type") or "")
     if signal != "CIRCUIT_BREAKER" and model_type != "circuit_breaker":
         return None
+    details = payload.get("deployment_blocker_details") or {}
+    release_condition = details.get("release_condition") or {}
+    recent_window = details.get("recent_window") or {}
     return {
         "type": "circuit_breaker",
         "signal": signal or "CIRCUIT_BREAKER",
@@ -82,6 +85,8 @@ def _runtime_blocker_summary(payload: dict[str, Any]) -> dict[str, Any] | None:
         "triggered_by": payload.get("triggered_by") or [],
         "horizon_minutes": payload.get("horizon_minutes"),
         "allowed_layers": payload.get("allowed_layers"),
+        "release_condition": release_condition,
+        "recent_window": recent_window,
     }
 
 
@@ -233,6 +238,8 @@ def main() -> None:
             blocker=runtime_blocker,
         )
 
+    q15_patch_meta = (entry_quality_components.get("q15_exact_supported_component_patch") or {}) if isinstance(entry_quality_components, dict) else {}
+
     report = {
         "generated_at": payload.get("feature_timestamp"),
         "target_col": payload.get("target_col"),
@@ -241,6 +248,7 @@ def main() -> None:
         "should_trade": payload.get("should_trade"),
         "regime_label": payload.get("regime_label"),
         "regime_gate": payload.get("regime_gate"),
+        "entry_quality": payload.get("entry_quality"),
         "entry_quality_label": payload.get("entry_quality_label"),
         "entry_quality_components": entry_quality_components,
         "component_gap_attribution": component_gap_attribution,
@@ -251,6 +259,12 @@ def main() -> None:
         "allowed_layers": payload.get("allowed_layers"),
         "allowed_layers_reason": payload.get("allowed_layers_reason"),
         "execution_guardrail_reason": payload.get("execution_guardrail_reason"),
+        "q15_exact_supported_component_patch_applied": bool(payload.get("q15_exact_supported_component_patch_applied")),
+        "q15_exact_supported_component_patch": q15_patch_meta or None,
+        "runtime_closure_state": payload.get("runtime_closure_state"),
+        "runtime_closure_summary": payload.get("runtime_closure_summary"),
+        "support_route_verdict": payload.get("support_route_verdict"),
+        "floor_cross_verdict": payload.get("floor_cross_verdict"),
         "chosen_scope": chosen_scope,
         "chosen_scope_summary": _scope_summary(chosen_scope, diags.get(chosen_scope) or {}),
         "exact_live_lane_summary": _scope_summary(exact_scope_name, diags.get(exact_scope_name) or {}),
@@ -281,6 +295,17 @@ def main() -> None:
     best_component = gap_attr.get("best_single_component") or {}
     crossers = gap_attr.get("single_component_floor_crossers") or []
     bias50_cf = gap_attr.get("bias50_floor_counterfactual") or {}
+    q15_patch = report.get("q15_exact_supported_component_patch") or {}
+    q15_patch_machine_read = q15_patch.get("machine_read_answer") or {}
+    runtime_closure_summary = report.get("runtime_closure_summary") or (
+        "capacity opened but signal still HOLD"
+        if report.get("q15_exact_supported_component_patch_applied") and report.get("signal") == "HOLD" and (report.get("allowed_layers") or 0) > 0
+        else (
+            "patch active but execution still blocked"
+            if report.get("q15_exact_supported_component_patch_applied")
+            else "patch inactive or still blocked"
+        )
+    )
     base_component_text = ", ".join(
         f"{item.get('feature')}={item.get('normalized_score')} (w={item.get('weight')}, contrib={item.get('weighted_contribution')})"
         for item in base_components
@@ -307,6 +332,9 @@ def main() -> None:
         f"- execution_guardrail_reason: `{report['execution_guardrail_reason']}`",
         f"- runtime_blocker: `{(runtime_blocker or {}).get('type')}` | reason: `{(runtime_blocker or {}).get('reason')}`",
         f"- deployment_blocker: `{(deployment_blocker or {}).get('type')}` | reason: `{(deployment_blocker or {}).get('reason')}`",
+        f"- q15 exact-supported patch: **{'active' if report['q15_exact_supported_component_patch_applied'] else 'inactive'}** | support_route `{report.get('support_route_verdict')}` | floor_cross `{report.get('floor_cross_verdict')}`",
+        f"- runtime closure summary: **{runtime_closure_summary}**",
+        f"- q15 patch machine-read: support_ready={q15_patch_machine_read.get('support_ready')} / entry_quality_ge_0_55={q15_patch_machine_read.get('entry_quality_ge_0_55')} / allowed_layers_gt_0={q15_patch_machine_read.get('allowed_layers_gt_0')} / preserves_positive_discrimination_status=`{q15_patch_machine_read.get('preserves_positive_discrimination_status')}`",
         "",
         "## Entry-quality component breakdown",
         "",
@@ -343,6 +371,7 @@ def main() -> None:
         "",
         "- if `runtime_blocker.type=circuit_breaker`, the current live row is blocked before the decision-quality contract is evaluated; treat q35/q15 diagnostics as background research, not deployable live routing.",
         "- if `deployment_blocker.type=bull_q35_no_deploy_governance`, the current bull q35 lane is exact-supported but still not deployable because only non-discriminative unsafe reweight can cross the floor; do not describe it as simple support shortage or generic floor gap.",
+        "- if `q15_exact_supported_component_patch_applied=true` while `signal=HOLD`, describe the state as 'capacity opened but signal still HOLD' — not as patch missing, and not as automatic BUY readiness.",
         "- exact live lane and chosen scope are separated on purpose: if exact lane is tiny or lacks current structure-bucket support, runtime must not trust it blindly.",
         "- broader same-gate scope is still useful only as a structure-bucket fallback, not as the primary semantic representative of the live bull path.",
         "- if the shared shift set remains dominated by `feat_4h_dist_swing_low / feat_4h_dist_bb_lower / feat_4h_bb_pct_b`, the next fix should stay on 4H structure collapse rather than generic calibration tuning.",
@@ -359,6 +388,13 @@ def main() -> None:
         "runtime_blocker_reason": (runtime_blocker or {}).get("reason"),
         "deployment_blocker": (deployment_blocker or {}).get("type"),
         "deployment_blocker_reason": (deployment_blocker or {}).get("reason"),
+        "q15_exact_supported_component_patch_applied": report.get("q15_exact_supported_component_patch_applied"),
+        "runtime_closure_state": report.get("runtime_closure_state"),
+        "runtime_closure_summary": report.get("runtime_closure_summary"),
+        "signal": report.get("signal"),
+        "allowed_layers": report.get("allowed_layers"),
+        "allowed_layers_reason": report.get("allowed_layers_reason"),
+        "support_route_verdict": report.get("support_route_verdict"),
         "remaining_gap_to_floor": gap_attr.get("remaining_gap_to_floor"),
         "best_single_component": (best_component.get("feature") if best_component else None),
         "best_single_component_required_score_delta": (best_component.get("required_score_delta_to_cross_floor") if best_component else None),

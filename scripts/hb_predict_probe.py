@@ -221,6 +221,14 @@ def _build_probe_payload(
     support_progress = support_route.get("support_progress") if isinstance(support_route.get("support_progress"), dict) else {}
     floor_cross = q15_support_audit.get("floor_cross_legality") if isinstance((q15_support_audit or {}).get("floor_cross_legality"), dict) else {}
     component_experiment = q15_support_audit.get("component_experiment") if isinstance((q15_support_audit or {}).get("component_experiment"), dict) else {}
+    deployment_blocker_details = result.get("deployment_blocker_details") if isinstance(result.get("deployment_blocker_details"), dict) else {}
+    breaker_release = deployment_blocker_details.get("release_condition") if isinstance(deployment_blocker_details.get("release_condition"), dict) else {}
+    breaker_recent_window = deployment_blocker_details.get("recent_window") if isinstance(deployment_blocker_details.get("recent_window"), dict) else {}
+    release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
+    release_floor = breaker_release.get("recent_win_rate_must_be_at_least")
+    release_wins = breaker_release.get("required_recent_window_wins")
+    release_gap = breaker_release.get("additional_recent_window_wins_needed")
+    current_wins = breaker_release.get("current_recent_window_wins")
     return {
         "db_url": DB_URL,
         "feature_timestamp": str(latest.get("timestamp")),
@@ -259,7 +267,7 @@ def _build_probe_payload(
         "deployment_blocker": result.get("deployment_blocker"),
         "deployment_blocker_reason": result.get("deployment_blocker_reason"),
         "deployment_blocker_source": result.get("deployment_blocker_source"),
-        "deployment_blocker_details": result.get("deployment_blocker_details"),
+        "deployment_blocker_details": deployment_blocker_details,
         "support_route_verdict": support_route.get("verdict"),
         "support_route_deployable": support_route.get("deployable"),
         "support_progress": support_progress or None,
@@ -272,29 +280,44 @@ def _build_probe_payload(
         "best_single_component_required_score_delta": floor_cross.get("best_single_component_required_score_delta"),
         "component_experiment_verdict": component_experiment.get("verdict"),
         "runtime_closure_state": (
-            "capacity_opened_signal_hold"
-            if result.get("q15_exact_supported_component_patch_applied") and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0
+            "circuit_breaker_active"
+            if result.get("signal") == "CIRCUIT_BREAKER"
             else (
-                "patch_active_but_execution_blocked"
-                if result.get("q15_exact_supported_component_patch_applied") and (
-                    result.get("deployment_blocker")
-                    or result.get("execution_guardrail_applied")
-                    or (result.get("allowed_layers") or 0) <= 0
+                "capacity_opened_signal_hold"
+                if result.get("q15_exact_supported_component_patch_applied") and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0
+                else (
+                    "patch_active_but_execution_blocked"
+                    if result.get("q15_exact_supported_component_patch_applied") and (
+                        result.get("deployment_blocker")
+                        or result.get("execution_guardrail_applied")
+                        or (result.get("allowed_layers") or 0) <= 0
+                    )
+                    else "patch_inactive_or_blocked"
                 )
-                else "patch_inactive_or_blocked"
             )
         ),
         "runtime_closure_summary": (
-            "support-ready + patch active；runtime 已開出 1 層 deployment capacity，但 signal 仍是 HOLD，不等於自動 BUY。"
-            if result.get("q15_exact_supported_component_patch_applied") and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0
-            else (
-                f"q15 patch 已啟用並把 entry_quality 拉到 {float(result.get('entry_quality') or 0.0):.4f}，但 execution 仍被 blocker / guardrail 擋住；目前不可把 patch active 誤讀成可部署。"
-                if result.get("q15_exact_supported_component_patch_applied") and (
-                    result.get("deployment_blocker")
-                    or result.get("execution_guardrail_applied")
-                    or (result.get("allowed_layers") or 0) <= 0
+            (
+                f"circuit breaker active：{result.get('reason')}; release condition = streak < {breaker_release.get('streak_must_be_below', 50)} 且 recent {release_window} win rate >= {((release_floor if isinstance(release_floor, (int, float)) else 0.3) * 100):.0f}%"
+                + (
+                    f"；目前 recent {release_window} 只贏 {current_wins}/{release_window}，至少還差 {release_gap} 勝。"
+                    if release_gap not in (None, 0) and current_wins is not None
+                    else "。"
                 )
-                else None
+            )
+            if result.get("signal") == "CIRCUIT_BREAKER"
+            else (
+                "support-ready + patch active；runtime 已開出 1 層 deployment capacity，但 signal 仍是 HOLD，不等於自動 BUY。"
+                if result.get("q15_exact_supported_component_patch_applied") and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0
+                else (
+                    f"q15 patch 已啟用並把 entry_quality 拉到 {float(result.get('entry_quality') or 0.0):.4f}，但 execution 仍被 blocker / guardrail 擋住；目前不可把 patch active 誤讀成可部署。"
+                    if result.get("q15_exact_supported_component_patch_applied") and (
+                        result.get("deployment_blocker")
+                        or result.get("execution_guardrail_applied")
+                        or (result.get("allowed_layers") or 0) <= 0
+                    )
+                    else None
+                )
             )
         ),
         "q15_support_audit": q15_support_audit,

@@ -41,6 +41,25 @@ interface ModelStats {
   model_params: Record<string, any>;
 }
 
+type LiveRuntimeTruth = {
+  runtime_closure_state?: string | null;
+  runtime_closure_summary?: string | null;
+  signal?: string | null;
+  confidence?: number | null;
+  allowed_layers?: number | null;
+  allowed_layers_raw?: number | null;
+  allowed_layers_raw_reason?: string | null;
+  allowed_layers_reason?: string | null;
+  support_rows_text?: string | null;
+  support_route_verdict?: string | null;
+  q15_exact_supported_component_patch_applied?: boolean | null;
+  runtime_exact_support_rows?: number | null;
+  calibration_exact_lane_rows?: number | null;
+  calibration_exact_lane_alerts?: string[] | null;
+  support_alignment_status?: string | null;
+  support_alignment_summary?: string | null;
+};
+
 interface RuntimeStatusResponse {
   automation: boolean;
   dry_run: boolean;
@@ -60,6 +79,7 @@ interface RuntimeStatusResponse {
     live_ready?: boolean;
     live_ready_blockers?: string[];
     operator_message?: string;
+    live_runtime_truth?: LiveRuntimeTruth | null;
   } | null;
   execution_metadata_smoke?: {
     available?: boolean;
@@ -199,6 +219,7 @@ interface RuntimeStatusResponse {
       credentials_configured?: boolean;
       [key: string]: unknown;
     } | null;
+    live_runtime_truth?: LiveRuntimeTruth | null;
     guardrails?: {
       kill_switch?: boolean;
       max_daily_loss_pct?: number;
@@ -251,6 +272,7 @@ interface RuntimeStatusResponse {
           } | null;
         } | null;
       } | null;
+      live_runtime_truth?: LiveRuntimeTruth | null;
     } | null;
   } | null;
   account?: {
@@ -338,6 +360,66 @@ interface RuntimeStatusResponse {
         status?: string | null;
       } | null;
     } | null;
+    lifecycle_audit?: {
+      stage?: string;
+      reason?: string;
+      runtime_state?: string;
+      trade_history_state?: string;
+      matched_open_order_state?: string;
+      restart_replay_required?: boolean;
+      operator_action?: string;
+      evidence?: {
+        runtime_order_timestamp?: string | null;
+        trade_history_timestamp?: string | null;
+      } | null;
+    } | null;
+    recovery_state?: {
+      status?: string;
+      reason?: string;
+      summary?: string;
+      operator_action?: string;
+      restart_replay_required?: boolean;
+    } | null;
+    lifecycle_contract?: {
+      status?: string;
+      summary?: string;
+      event_type_counts?: Record<string, number>;
+      event_types_seen?: string[];
+      required_event_types?: string[];
+      missing_event_types?: string[];
+      replay_key_ready?: boolean;
+      replay_readiness?: string;
+      replay_readiness_reason?: string;
+      baseline_contract_status?: string;
+      partial_fill_observed?: boolean;
+      cancel_observed?: boolean;
+      terminal_state_observed?: boolean;
+      artifact_coverage?: string;
+      operator_next_artifact?: string;
+    } | null;
+    lifecycle_timeline?: {
+      status?: string;
+      total_events?: number;
+      replay_key?: {
+        order_id?: string | null;
+        client_order_id?: string | null;
+      } | null;
+      latest_event?: {
+        timestamp?: string | null;
+        event_type?: string | null;
+        order_state?: string | null;
+        summary?: string | null;
+      } | null;
+      events?: Array<{
+        timestamp?: string | null;
+        event_type?: string | null;
+        order_state?: string | null;
+        source?: string | null;
+        summary?: string | null;
+        order_id?: string | null;
+        client_order_id?: string | null;
+      }>;
+    } | null;
   } | null;
   raw_continuity?: {
     status?: "clean" | "repaired" | "error" | string;
@@ -370,9 +452,50 @@ interface ConfidenceData {
   confidence_level: string;
   should_trade: boolean;
   regime_gate?: string | null;
+  structure_bucket?: string | null;
+  current_live_structure_bucket?: string | null;
   entry_quality?: number | null;
   entry_quality_label?: string | null;
   allowed_layers?: number | null;
+  allowed_layers_reason?: string | null;
+  deployment_blocker?: string | null;
+  deployment_blocker_reason?: string | null;
+  deployment_blocker_details?: {
+    recent_window?: {
+      window_size?: number | null;
+      wins?: number | null;
+      win_rate?: number | null;
+      floor?: number | null;
+    } | null;
+    release_condition?: {
+      streak_must_be_below?: number | null;
+      current_streak?: number | null;
+      recent_window?: number | null;
+      recent_win_rate_must_be_at_least?: number | null;
+      current_recent_window_win_rate?: number | null;
+      current_recent_window_wins?: number | null;
+      required_recent_window_wins?: number | null;
+      additional_recent_window_wins_needed?: number | null;
+    } | null;
+  } | null;
+  support_route_verdict?: string | null;
+  support_route_deployable?: boolean | null;
+  support_progress?: {
+    status?: string | null;
+    current_rows?: number | null;
+    minimum_support_rows?: number | null;
+    gap_to_minimum?: number | null;
+    delta_vs_previous?: number | null;
+  } | null;
+  minimum_support_rows?: number | null;
+  current_live_structure_bucket_gap_to_minimum?: number | null;
+  floor_cross_verdict?: string | null;
+  legal_to_relax_runtime_gate?: boolean | null;
+  remaining_gap_to_floor?: number | null;
+  best_single_component?: string | null;
+  best_single_component_required_score_delta?: number | null;
+  component_experiment_verdict?: string | null;
+  q15_exact_supported_component_patch_applied?: boolean | null;
   decision_quality_horizon_minutes?: number | null;
   decision_quality_calibration_scope?: string | null;
   decision_quality_sample_size?: number | null;
@@ -600,6 +723,12 @@ export default function Dashboard() {
   const accountSummary = runtimeStatus?.account ?? null;
   const executionReconciliation = runtimeStatus?.execution_reconciliation ?? null;
   const executionSurfaceContract = runtimeStatus?.execution_surface_contract ?? null;
+  const liveRuntimeTruth = executionSummary?.live_runtime_truth ?? executionSurfaceContract?.live_runtime_truth ?? null;
+  const liveRuntimeSupportAlignmentTone = liveRuntimeTruth?.support_alignment_status === "runtime_ahead_of_calibration"
+    ? "text-amber-200"
+    : liveRuntimeTruth?.support_alignment_status === "aligned"
+      ? "text-emerald-200"
+      : "text-slate-300";
   const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
@@ -642,6 +771,11 @@ export default function Dashboard() {
   const reconciliationLatestTrade = executionReconciliation?.trade_history_alignment?.latest_trade ?? null;
   const reconciliationMatchedOpenOrder = executionReconciliation?.open_order_alignment?.matched_open_order ?? null;
   const reconciliationFreshness = executionReconciliation?.account_snapshot?.freshness ?? null;
+  const reconciliationLifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
+  const reconciliationRecoveryState = executionReconciliation?.recovery_state ?? null;
+  const reconciliationLifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
+  const reconciliationTimeline = executionReconciliation?.lifecycle_timeline ?? null;
+  const reconciliationTimelineEvents = Array.isArray(reconciliationTimeline?.events) ? reconciliationTimeline.events : [];
   const tradeFeedbackTone = tradeFeedback?.tone === "success"
     ? "border-emerald-700/40 bg-emerald-950/20 text-emerald-200"
     : tradeFeedback?.tone === "error"
@@ -1103,11 +1237,15 @@ export default function Dashboard() {
               )}
               <span>trade history {executionReconciliation?.trade_history_alignment?.status || "unknown"}</span>
               <span>open-order audit {executionReconciliation?.open_order_alignment?.status || "unknown"}</span>
+              <span>lifecycle stage {reconciliationLifecycleAudit?.stage || "unknown"}</span>
+              <span>restart replay {reconciliationLifecycleAudit?.restart_replay_required ? "required" : "not-required"}</span>
+              <span>baseline contract {reconciliationLifecycleContract?.baseline_contract_status || "unknown"}</span>
+              <span>artifact coverage {reconciliationLifecycleContract?.artifact_coverage || "unknown"}</span>
             </div>
             {reconciliationIssues.length > 0 && (
               <div className="mt-2 opacity-85">issues: {reconciliationIssues.join(" · ")}</div>
             )}
-            <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
+            <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-4">
               <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
                 <div className="text-[11px] opacity-70">Snapshot / symbol scope</div>
                 <div className="mt-2 opacity-85">config {executionReconciliation?.symbol_scope?.config_symbol || "—"}</div>
@@ -1132,9 +1270,22 @@ export default function Dashboard() {
                 <div className="mt-1 opacity-80">{reconciliationMatchedOpenOrder?.symbol || "—"} · {reconciliationMatchedOpenOrder?.status || "—"}</div>
                 <div className="mt-1 opacity-80">runtime order {lastOrder?.order_id || lastOrder?.client_order_id || "—"}</div>
               </div>
+              <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
+                <div className="text-[11px] opacity-70">Lifecycle / replay audit</div>
+                <div className="mt-2 opacity-85">stage {reconciliationLifecycleAudit?.stage || "unknown"}</div>
+                <div className="mt-1 opacity-80">recovery {reconciliationRecoveryState?.status || "unknown"}</div>
+                <div className="mt-1 opacity-80">runtime → history {reconciliationLifecycleAudit?.runtime_state || "—"} → {reconciliationLifecycleAudit?.trade_history_state || "—"}</div>
+                <div className="mt-1 opacity-80">open-order state {reconciliationLifecycleAudit?.matched_open_order_state || "—"}</div>
+                <div className="mt-1 opacity-80">baseline contract {reconciliationLifecycleContract?.baseline_contract_status || "—"} · replay readiness {reconciliationLifecycleContract?.replay_readiness || "—"}</div>
+                <div className="mt-1 opacity-80">artifact coverage {reconciliationLifecycleContract?.artifact_coverage || "—"} · next artifact {reconciliationLifecycleContract?.operator_next_artifact || "—"}</div>
+                <div className="mt-1 opacity-80">runtime order ts {reconciliationLifecycleAudit?.evidence?.runtime_order_timestamp || "—"}</div>
+                <div className="mt-1 opacity-80">trade history ts {reconciliationLifecycleAudit?.evidence?.trade_history_timestamp || "—"}</div>
+                <div className="mt-1 opacity-80">missing lifecycle events {(reconciliationLifecycleContract?.missing_event_types || []).join(" / ") || "none"}</div>
+                <div className="mt-2 opacity-80">operator action {reconciliationRecoveryState?.operator_action || reconciliationLifecycleAudit?.operator_action || "先檢查 Dashboard execution runtime surface。"}</div>
+              </div>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-4">
             <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="text-[11px] opacity-70">倉位明細</div>
@@ -1199,6 +1350,32 @@ export default function Dashboard() {
               )}
             </div>
             <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
+              <div className="text-[11px] opacity-70">Lifecycle event timeline</div>
+              {reconciliationTimelineEvents.length > 0 ? (
+                <div className="mt-2 space-y-2 text-[11px] leading-5">
+                  <div className="rounded-md border border-white/10 px-3 py-2 opacity-85">
+                    <div>timeline status {reconciliationTimeline?.status || "available"} · total events {reconciliationTimeline?.total_events ?? reconciliationTimelineEvents.length}</div>
+                    <div className="mt-1">replay key {reconciliationTimeline?.replay_key?.order_id || reconciliationTimeline?.replay_key?.client_order_id || "—"}</div>
+                    <div className="mt-1">latest event {reconciliationTimeline?.latest_event?.event_type || "—"} · {reconciliationTimeline?.latest_event?.order_state || "—"}</div>
+                    <div className="mt-1">lifecycle contract summary {reconciliationLifecycleContract?.summary || "—"}</div>
+                  </div>
+                  {reconciliationTimelineEvents.slice(-4).map((event, idx) => (
+                    <div key={`${event.timestamp || "timeline"}-${event.event_type || idx}`} className="rounded-md border border-white/10 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold">{event.event_type || "unknown_event"}</div>
+                        <div className="opacity-70">{event.timestamp ? new Date(event.timestamp).toLocaleString("zh-TW") : "—"}</div>
+                      </div>
+                      <div className="mt-1 opacity-80">state {event.order_state || "—"} · source {event.source || "—"}</div>
+                      <div className="mt-1 opacity-80">summary {event.summary || "—"}</div>
+                      <div className="mt-1 opacity-70">ids {event.order_id || event.client_order_id || "—"}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-2 text-[11px] opacity-80">尚無 lifecycle event timeline；下一筆委託會開始留下 validation → venue ack → trade history 持久化軌跡。</div>
+              )}
+            </div>
+            <div className="rounded-lg border border-white/10 bg-slate-950/30 p-3">
               <div className="text-[11px] opacity-70">最近委託正規化回放</div>
               {lastOrder?.normalization ? (
                 <div className="mt-2 space-y-2 text-[11px] leading-5">
@@ -1226,6 +1403,42 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {liveRuntimeTruth && (
+        <div className={`rounded-xl border px-4 py-3 text-xs ${liveRuntimeTruth.q15_exact_supported_component_patch_applied ? "border-emerald-700/40 bg-emerald-950/20 text-emerald-100" : "border-slate-700/40 bg-slate-950/30 text-slate-300"}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="font-semibold">🧭 Execution runtime truth / detail</div>
+            <div className="text-[11px] opacity-80">{liveRuntimeTruth.runtime_closure_state || "unknown"}</div>
+          </div>
+          <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
+              <div className="text-[11px] opacity-70">runtime closure</div>
+              <div className="mt-1 font-semibold">{liveRuntimeTruth.runtime_closure_state || "—"}</div>
+              <div className="mt-1 text-[11px] opacity-90">{liveRuntimeTruth.runtime_closure_summary || "—"}</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
+              <div className="text-[11px] opacity-70">signal / confidence / layers</div>
+              <div className="mt-1 font-semibold">{liveRuntimeTruth.signal || "—"} · {typeof liveRuntimeTruth.confidence === "number" ? liveRuntimeTruth.confidence.toFixed(6) : "—"}</div>
+              <div className="mt-1 text-[11px] opacity-90">layers {liveRuntimeTruth.allowed_layers_raw ?? "—"} → {liveRuntimeTruth.allowed_layers ?? "—"} · raw reason {liveRuntimeTruth.allowed_layers_raw_reason || "—"} · final reason {liveRuntimeTruth.allowed_layers_reason || "—"}</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
+              <div className="text-[11px] opacity-70">support / patch</div>
+              <div className="mt-1 font-semibold">{liveRuntimeTruth.support_rows_text || "—"}</div>
+              <div className="mt-1 text-[11px] opacity-90">patch {liveRuntimeTruth.q15_exact_supported_component_patch_applied ? "active" : "inactive"} · route {liveRuntimeTruth.support_route_verdict || "—"}</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
+              <div className="text-[11px] opacity-70">support alignment</div>
+              <div className={`mt-1 font-semibold ${liveRuntimeSupportAlignmentTone}`}>{liveRuntimeTruth.support_alignment_status || "unavailable"}</div>
+              <div className="mt-1 text-[11px] opacity-90">runtime exact support {liveRuntimeTruth.runtime_exact_support_rows ?? "—"} · calibration exact lane {liveRuntimeTruth.calibration_exact_lane_rows ?? "—"}</div>
+              <div className="mt-1 text-[11px] opacity-90">{liveRuntimeTruth.support_alignment_summary || "尚未取得 support alignment 摘要"}</div>
+              <div className="mt-1 text-[11px] opacity-75">runtime 已有 support、但 calibration exact lane 尚未追上時，operator 應優先信任 runtime closure。</div>
+            </div>
+          </div>
+          {liveRuntimeTruth.runtime_closure_state === "capacity_opened_signal_hold" && (
+            <div className="mt-2 text-[11px] opacity-90">capacity opened but signal still HOLD</div>
+          )}
+        </div>
+      )}
 
       <div className={`rounded-xl border px-4 py-3 text-xs ${continuityTone}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1355,6 +1568,18 @@ export default function Dashboard() {
           decisionQualitySampleSize={confidenceData.decision_quality_sample_size}
           decisionQualityHorizonMinutes={confidenceData.decision_quality_horizon_minutes}
           decisionProfileVersion={confidenceData.decision_profile_version}
+          currentLiveStructureBucket={confidenceData.current_live_structure_bucket ?? confidenceData.structure_bucket}
+          deploymentBlocker={confidenceData.deployment_blocker}
+          deploymentBlockerReason={confidenceData.deployment_blocker_reason ?? confidenceData.allowed_layers_reason}
+          deploymentBlockerDetails={confidenceData.deployment_blocker_details}
+          supportProgress={confidenceData.support_progress}
+          minimumSupportRows={confidenceData.minimum_support_rows}
+          currentLiveStructureBucketGapToMinimum={confidenceData.current_live_structure_bucket_gap_to_minimum}
+          floorCrossVerdict={confidenceData.floor_cross_verdict}
+          bestSingleComponent={confidenceData.best_single_component}
+          bestSingleComponentRequiredScoreDelta={confidenceData.best_single_component_required_score_delta}
+          componentExperimentVerdict={confidenceData.component_experiment_verdict}
+          q15ExactSupportedComponentPatchApplied={confidenceData.q15_exact_supported_component_patch_applied}
           timestamp={confidenceData.timestamp}
         />
       )}

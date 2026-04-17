@@ -5,6 +5,7 @@ Only trade when model confidence > 0.7 or < 0.3
 
 import os
 import json
+import math
 from collections import Counter
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -3641,6 +3642,38 @@ def _check_circuit_breaker(session) -> Optional[Dict]:
             f"Recent {CIRCUIT_BREAKER_WINDOW}-sample win rate: {window_wr:.2%} < {CIRCUIT_BREAKER_RECENT_WINRATE:.0%}"
         )
 
+    reason = "; ".join(reason_parts)
+    required_recent_window_wins = math.ceil(CIRCUIT_BREAKER_RECENT_WINRATE * CIRCUIT_BREAKER_WINDOW)
+    recent_win_rate_release_ready = (
+        window_size < CIRCUIT_BREAKER_WINDOW
+        or window_wr is None
+        or window_wr >= CIRCUIT_BREAKER_RECENT_WINRATE
+    )
+    streak_release_ready = streak < CIRCUIT_BREAKER_STREAK
+    blocker_details = {
+        "triggered_by": triggered_by,
+        "horizon_minutes": CIRCUIT_BREAKER_HORIZON_MINUTES,
+        "recent_window": {
+            "window_size": window_size,
+            "wins": window_wins,
+            "win_rate": window_wr,
+            "floor": CIRCUIT_BREAKER_RECENT_WINRATE,
+        },
+        "release_condition": {
+            "release_ready": streak_release_ready and recent_win_rate_release_ready,
+            "blocked_by": triggered_by,
+            "streak_release_ready": streak_release_ready,
+            "recent_win_rate_release_ready": recent_win_rate_release_ready,
+            "streak_must_be_below": CIRCUIT_BREAKER_STREAK,
+            "current_streak": streak,
+            "recent_window": CIRCUIT_BREAKER_WINDOW,
+            "recent_win_rate_must_be_at_least": CIRCUIT_BREAKER_RECENT_WINRATE,
+            "current_recent_window_win_rate": window_wr,
+            "current_recent_window_wins": window_wins,
+            "required_recent_window_wins": required_recent_window_wins,
+            "additional_recent_window_wins_needed": max(0, required_recent_window_wins - window_wins),
+        },
+    }
     return {
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "confidence": 0.5,
@@ -3648,7 +3681,7 @@ def _check_circuit_breaker(session) -> Optional[Dict]:
         "confidence_level": "CIRCUIT_BREAKER",
         "should_trade": False,
         "model_type": "circuit_breaker",
-        "reason": "; ".join(reason_parts),
+        "reason": reason,
         "streak": streak,
         "win_rate": window_wr,
         "recent_window_win_rate": window_wr,
@@ -3656,6 +3689,16 @@ def _check_circuit_breaker(session) -> Optional[Dict]:
         "window_size": window_size,
         "triggered_by": triggered_by,
         "horizon_minutes": CIRCUIT_BREAKER_HORIZON_MINUTES,
+        "allowed_layers_raw": None,
+        "allowed_layers_raw_reason": "circuit_breaker_preempts_runtime_sizing",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "circuit_breaker_blocks_trade",
+        "execution_guardrail_applied": True,
+        "execution_guardrail_reason": "circuit_breaker_blocks_trade",
+        "deployment_blocker": "circuit_breaker_active",
+        "deployment_blocker_reason": reason,
+        "deployment_blocker_source": "circuit_breaker",
+        "deployment_blocker_details": blocker_details,
     }
 
 
@@ -3799,16 +3842,11 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
     if cb is not None:
         logger.warning(f"CIRCUIT BREAKER TRIGGERED: {cb['reason']}")
         return {
-            **cb,
             **_decision_quality_fallback(),
+            **cb,
             "regime_gate": None,
             "entry_quality": None,
             "entry_quality_label": None,
-            "allowed_layers": 0,
-            "deployment_blocker": None,
-            "deployment_blocker_reason": None,
-            "deployment_blocker_source": None,
-            "deployment_blocker_details": None,
         }
     features = load_latest_features(session)
     if not features:
