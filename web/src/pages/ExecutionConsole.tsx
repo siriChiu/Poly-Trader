@@ -248,13 +248,47 @@ type ExecutionRunBindingContract = {
   scope?: string | null;
   summary?: string | null;
   operator_action?: string | null;
+  ownership_boundary?: {
+    ledger_scope?: string | null;
+    capital_attribution?: string | null;
+    position_attribution?: string | null;
+    open_order_attribution?: string | null;
+    summary?: string | null;
+  } | null;
 };
+
+type ExecutionRunPreviewRecord = Record<string, unknown>;
 
 type ExecutionRunBindingSnapshot = {
   account_snapshot?: {
     captured_at?: string | null;
     position_count?: number | null;
     open_order_count?: number | null;
+  } | null;
+  capital_preview?: {
+    allocation_scope?: string | null;
+    ownership_status?: string | null;
+    budget_amount?: number | null;
+    budget_ratio?: number | null;
+    balance_total?: number | null;
+    balance_free?: number | null;
+    currency?: string | null;
+    summary?: string | null;
+  } | null;
+  shared_symbol_preview?: {
+    scope?: string | null;
+    ownership_status?: string | null;
+    ownership_summary?: string | null;
+    captured_at?: string | null;
+    positions_total_count?: number | null;
+    open_orders_total_count?: number | null;
+    balance?: {
+      total?: number | null;
+      free?: number | null;
+      currency?: string | null;
+    } | null;
+    positions?: ExecutionRunPreviewRecord[] | null;
+    open_orders?: ExecutionRunPreviewRecord[] | null;
   } | null;
   reconciliation?: {
     status?: string | null;
@@ -325,6 +359,45 @@ function formatTime(value?: string | null): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString("zh-TW");
+}
+
+function toMaybeNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function pickPreviewText(record: ExecutionRunPreviewRecord, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = record[key];
+    if (value === null || value === undefined) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return null;
+}
+
+function summarizePreviewRecord(record: ExecutionRunPreviewRecord): string {
+  const symbol = pickPreviewText(record, ["symbol", "instId", "market", "pair"]) || "unknown";
+  const side = pickPreviewText(record, ["side", "positionSide"]);
+  const qty = toMaybeNumber(record.size ?? record.qty ?? record.amount ?? record.contracts ?? record.positionAmt);
+  const price = toMaybeNumber(record.price ?? record.entryPrice ?? record.avgPrice ?? record.markPrice);
+  const status = pickPreviewText(record, ["status", "state"]);
+  return [
+    symbol,
+    side,
+    qty !== null ? `qty ${formatNumber(qty, 4)}` : null,
+    price !== null ? `price ${formatNumber(price, 2)}` : null,
+    status,
+  ].filter(Boolean).join(" · ");
+}
+
+function summarizePreviewRecords(records?: ExecutionRunPreviewRecord[] | null): string {
+  if (!Array.isArray(records) || records.length === 0) return "none";
+  return records.map((record) => summarizePreviewRecord(record)).join(" ｜ ");
 }
 
 function getStatusTone(status?: string | null): string {
@@ -766,7 +839,13 @@ export default function ExecutionConsole() {
               const profileId = card.profile_id || card.key || "";
               const linkedRun = runsByProfileId.get(profileId) || card.current_run || null;
               const runBindingContract = linkedRun?.runtime_binding_contract ?? null;
+              const runOwnershipBoundary = runBindingContract?.ownership_boundary ?? null;
               const runBindingSnapshot = linkedRun?.runtime_binding_snapshot ?? null;
+              const runCapitalPreview = runBindingSnapshot?.capital_preview ?? null;
+              const runSharedPreview = runBindingSnapshot?.shared_symbol_preview ?? null;
+              const runSharedBalance = runSharedPreview?.balance ?? null;
+              const runPreviewPositions = Array.isArray(runSharedPreview?.positions) ? runSharedPreview.positions : [];
+              const runPreviewOpenOrders = Array.isArray(runSharedPreview?.open_orders) ? runSharedPreview.open_orders : [];
               const runReconciliation = runBindingSnapshot?.reconciliation ?? null;
               const runLastOrder = runBindingSnapshot?.guardrails?.last_order ?? null;
               const canStart = Boolean(profileId) && ["ready_control_plane", "resume_available"].includes(card.control_contract?.start_status || "");
@@ -802,6 +881,11 @@ export default function ExecutionConsole() {
                   <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
                     <div className="font-medium text-white">shared-symbol runtime mirror</div>
                     <div className="mt-1">binding summary {runBindingContract?.summary || "尚未對齊到 runtime snapshot。"}</div>
+                    <div>ownership boundary {runOwnershipBoundary?.summary || runSharedPreview?.ownership_summary || "—"}</div>
+                    <div>capital preview source {runCapitalPreview?.allocation_scope || "—"} · budget {formatNumber(runCapitalPreview?.budget_amount)} {runCapitalPreview?.currency || balanceCurrency} · ratio {formatNumber(runCapitalPreview?.budget_ratio, 3)}</div>
+                    <div>shared balance total {formatNumber(runSharedBalance?.total)} {runSharedBalance?.currency || balanceCurrency} · free {formatNumber(runSharedBalance?.free)} {runSharedBalance?.currency || balanceCurrency}</div>
+                    <div>preview positions {runSharedPreview?.positions_total_count ?? 0} · {summarizePreviewRecords(runPreviewPositions)}</div>
+                    <div>preview open orders {runSharedPreview?.open_orders_total_count ?? 0} · {summarizePreviewRecords(runPreviewOpenOrders)}</div>
                     <div>reconciliation status {runReconciliation?.status || "unavailable"} · {runReconciliation?.summary || "—"}</div>
                     <div>last live order {runLastOrder?.order_id || "—"} · {runLastOrder?.status || "unknown"}</div>
                     <div>operator action {runBindingContract?.operator_action || "—"}</div>
@@ -862,7 +946,13 @@ export default function ExecutionConsole() {
         <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {executionRunRecords.length > 0 ? executionRunRecords.map((run) => {
             const runBindingContract = run.runtime_binding_contract ?? null;
+            const runOwnershipBoundary = runBindingContract?.ownership_boundary ?? null;
             const runRuntimeSnapshot = run.runtime_binding_snapshot ?? null;
+            const runCapitalPreview = runRuntimeSnapshot?.capital_preview ?? null;
+            const runSharedPreview = runRuntimeSnapshot?.shared_symbol_preview ?? null;
+            const runSharedBalance = runSharedPreview?.balance ?? null;
+            const runPreviewPositions = Array.isArray(runSharedPreview?.positions) ? runSharedPreview.positions : [];
+            const runPreviewOpenOrders = Array.isArray(runSharedPreview?.open_orders) ? runSharedPreview.open_orders : [];
             const runReconciliation = runRuntimeSnapshot?.reconciliation ?? null;
             const runAccountSnapshot = runRuntimeSnapshot?.account_snapshot ?? null;
             const runLastOrder = runRuntimeSnapshot?.guardrails?.last_order ?? null;
@@ -883,6 +973,11 @@ export default function ExecutionConsole() {
               <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
                 <div className="font-medium text-white">shared-symbol runtime mirror</div>
                 <div className="mt-1">binding summary {runBindingContract?.summary || "尚未取得 runtime binding summary。"}</div>
+                <div>ownership boundary {runOwnershipBoundary?.summary || runSharedPreview?.ownership_summary || "—"}</div>
+                <div>capital preview source {runCapitalPreview?.allocation_scope || "—"} · budget {formatNumber(runCapitalPreview?.budget_amount)} {runCapitalPreview?.currency || balanceCurrency} · ratio {formatNumber(runCapitalPreview?.budget_ratio, 3)}</div>
+                <div>shared balance total {formatNumber(runSharedBalance?.total)} {runSharedBalance?.currency || balanceCurrency} · free {formatNumber(runSharedBalance?.free)} {runSharedBalance?.currency || balanceCurrency}</div>
+                <div>preview positions {runSharedPreview?.positions_total_count ?? 0} · {summarizePreviewRecords(runPreviewPositions)}</div>
+                <div>preview open orders {runSharedPreview?.open_orders_total_count ?? 0} · {summarizePreviewRecords(runPreviewOpenOrders)}</div>
                 <div>reconciliation status {runReconciliation?.status || "unavailable"} · {runReconciliation?.summary || "—"}</div>
                 <div>account snapshot positions {runAccountSnapshot?.position_count ?? 0} · open orders {runAccountSnapshot?.open_order_count ?? 0}</div>
                 <div>last live order {runLastOrder?.order_id || "—"} · {runLastOrder?.status || "unknown"}</div>

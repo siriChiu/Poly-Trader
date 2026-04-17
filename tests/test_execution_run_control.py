@@ -130,7 +130,14 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     event_types = [event["event_type"] for event in detail_payload["recent_events"]]
     assert detail_payload["state"] == "stopped"
     assert detail_payload["runtime_binding_contract"]["status"] == "symbol_scope_runtime_mirror"
+    assert detail_payload["runtime_binding_contract"]["ownership_boundary"]["ledger_scope"] == "shared_symbol_preview_only"
     assert detail_payload["runtime_binding_snapshot"]["account_snapshot"]["position_count"] == 1
+    assert detail_payload["runtime_binding_snapshot"]["capital_preview"]["allocation_scope"] == "run_budget_vs_shared_balance_preview"
+    assert detail_payload["runtime_binding_snapshot"]["capital_preview"]["balance_total"] == 1000.0
+    assert detail_payload["runtime_binding_snapshot"]["shared_symbol_preview"]["positions_total_count"] == 1
+    assert detail_payload["runtime_binding_snapshot"]["shared_symbol_preview"]["open_orders_total_count"] == 1
+    assert detail_payload["runtime_binding_snapshot"]["shared_symbol_preview"]["positions"][0]["symbol"] == "BTC/USDT"
+    assert detail_payload["runtime_binding_snapshot"]["shared_symbol_preview"]["open_orders"][0]["symbol"] == "BTCUSDT"
     assert "started" in event_types
     assert "paused" in event_types
     assert "resumed" in event_types

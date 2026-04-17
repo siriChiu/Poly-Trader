@@ -190,6 +190,73 @@ def _record_symbol_key(record: Any) -> Optional[str]:
 
 
 
+def _compact_preview_record(record: Dict[str, Any], *, kind: str) -> Dict[str, Any]:
+    if not isinstance(record, dict):
+        return {}
+    if kind == "position":
+        preferred_keys = (
+            "symbol",
+            "instId",
+            "market",
+            "pair",
+            "side",
+            "positionSide",
+            "size",
+            "qty",
+            "amount",
+            "contracts",
+            "positionAmt",
+            "entryPrice",
+            "avgPrice",
+            "markPrice",
+            "unrealizedPnl",
+            "pnl",
+            "status",
+            "state",
+        )
+    else:
+        preferred_keys = (
+            "symbol",
+            "instId",
+            "market",
+            "pair",
+            "side",
+            "qty",
+            "amount",
+            "size",
+            "price",
+            "avgPrice",
+            "type",
+            "status",
+            "state",
+            "order_id",
+            "id",
+            "clientOrderId",
+            "client_order_id",
+            "reduceOnly",
+        )
+    compact: Dict[str, Any] = {}
+    for key in preferred_keys:
+        value = record.get(key)
+        if value is None:
+            continue
+        compact[key] = value
+    return compact
+
+
+
+def _compact_preview_records(records: Iterable[Dict[str, Any]], *, kind: str, limit: int = 3) -> List[Dict[str, Any]]:
+    preview: List[Dict[str, Any]] = []
+    for record in records:
+        if len(preview) >= limit:
+            break
+        compact = _compact_preview_record(record, kind=kind)
+        if compact:
+            preview.append(compact)
+    return preview
+
+
+
 def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dict[str, Any]]) -> tuple[Dict[str, Any], Dict[str, Any]]:
     status_payload = _as_dict(status_payload)
     execution = _as_dict(status_payload.get("execution"))
@@ -221,6 +288,7 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
     open_orders = [item for item in _as_list(account.get("open_orders")) if isinstance(item, dict)]
     symbol_positions = [item for item in positions if _record_symbol_key(item) == run_symbol_key]
     symbol_open_orders = [item for item in open_orders if _record_symbol_key(item) == run_symbol_key]
+    balance = _as_dict(account.get("balance"))
 
     last_order = _as_dict(guardrails.get("last_order"))
     last_order_symbol_match = not last_order or _record_symbol_key(last_order) == run_symbol_key
@@ -230,6 +298,7 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
         "account_snapshot",
         "execution_reconciliation",
         "execution_guardrails",
+        "shared_symbol_preview",
     ] if matched_runtime else []
     operator_action = (
         _as_dict(reconciliation.get("recovery_state")).get("operator_action")
@@ -242,6 +311,17 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
         if matched_runtime
         else "此 run 目前只有 stateful control-plane event log；尚未對齊到當前 runtime symbol/venue snapshot。"
     )
+    ownership_boundary = {
+        "ledger_scope": "shared_symbol_preview_only" if matched_runtime else "control_plane_only",
+        "capital_attribution": "planned_budget_vs_shared_account_balance" if matched_runtime else "not_bound",
+        "position_attribution": "symbol_scoped_preview_only" if matched_runtime else "not_bound",
+        "open_order_attribution": "symbol_scoped_preview_only" if matched_runtime else "not_bound",
+        "summary": (
+            "run 目前只擁有 planned budget 與 lifecycle/event log；實際 balance / positions / open orders 仍是 shared-symbol preview。"
+            if matched_runtime
+            else "run 尚未綁到 runtime symbol/venue snapshot，因此連 shared-symbol preview 都還沒對齊。"
+        ),
+    }
     contract = {
         "status": "symbol_scope_runtime_mirror" if matched_runtime else "control_plane_only",
         "scope": "symbol_scoped_runtime_preview" if matched_runtime else "control_plane_event_log_only",
@@ -254,6 +334,7 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
             "venue_fill_ownership",
             "restart_replay_ownership",
         ],
+        "ownership_boundary": ownership_boundary,
         "operator_action": operator_action,
         "match": {
             "run_symbol": run_symbol,
@@ -288,6 +369,31 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
             "normalized_symbol": account.get("normalized_symbol"),
             "position_count": len(symbol_positions),
             "open_order_count": len(symbol_open_orders),
+        } if matched_runtime else None,
+        "capital_preview": {
+            "allocation_scope": "run_budget_vs_shared_balance_preview",
+            "ownership_status": "shared_symbol_preview_only",
+            "budget_amount": row.get("budget_amount"),
+            "budget_ratio": row.get("budget_ratio"),
+            "balance_total": balance.get("total"),
+            "balance_free": balance.get("free"),
+            "currency": row.get("capital_currency") or balance.get("currency") or "USDT",
+            "summary": "run budget 是 control-plane 規劃值；實際可用資金仍來自 account snapshot 的 shared balance。",
+        } if matched_runtime else None,
+        "shared_symbol_preview": {
+            "scope": "symbol_scoped_account_preview",
+            "ownership_status": "shared_symbol_preview_only",
+            "ownership_summary": "這裡顯示的是 run 對應 symbol 的 shared account preview，不代表倉位/掛單已完成 per-bot attribution。",
+            "captured_at": account.get("captured_at"),
+            "positions_total_count": len(symbol_positions),
+            "open_orders_total_count": len(symbol_open_orders),
+            "balance": {
+                "total": balance.get("total"),
+                "free": balance.get("free"),
+                "currency": balance.get("currency") or row.get("capital_currency") or "USDT",
+            },
+            "positions": _compact_preview_records(symbol_positions, kind="position"),
+            "open_orders": _compact_preview_records(symbol_open_orders, kind="order"),
         } if matched_runtime else None,
         "reconciliation": {
             "status": reconciliation.get("status"),
