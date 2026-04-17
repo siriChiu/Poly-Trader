@@ -1000,10 +1000,15 @@ def build_report() -> dict[str, Any]:
     primary_window, primary_summary = _find_primary_window(window_summaries)
     primary_alerts = list((primary_summary or {}).get("alerts", []))
 
+    latest_label_timestamp = rows[-1]["timestamp"] if rows else None
     report = {
         "target_col": TARGET_COL,
         "horizon_minutes": CANONICAL_HORIZON_MINUTES,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source_meta": {
+            "label_rows": total,
+            "latest_label_timestamp": latest_label_timestamp,
+        },
         "full_sample": {
             "rows": total,
             "win_rate": _round(baseline_win_rate),

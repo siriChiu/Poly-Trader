@@ -1676,6 +1676,97 @@ def test_run_serial_command_uses_fast_mode_timeout_budget(monkeypatch):
 
 
 
+def test_run_serial_command_reuses_fresh_fast_artifact(monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", True)
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "_get_fast_serial_cache_hit",
+        lambda command_name: {
+            "artifact_path": "/tmp/recent_drift_report.json",
+            "reason": "fresh_recent_drift_artifact_reused",
+            "details": {"label_rows": 12, "latest_label_timestamp": "2026-04-17 10:00:00"},
+        } if command_name == "recent_drift_report" else None,
+    )
+
+    result = hb_parallel_runner._run_serial_command(["python", "scripts/recent_drift_report.py"])
+
+    assert result["success"] is True
+    assert result["attempted"] is False
+    assert result["cached"] is True
+    assert result["cache_reason"] == "fresh_recent_drift_artifact_reused"
+    assert result["artifact_path"] == "/tmp/recent_drift_report.json"
+
+
+
+def test_recent_drift_cache_hit_requires_matching_label_signature(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    artifact_path = data_dir / "recent_drift_report.json"
+    script_path = tmp_path / "scripts"
+    script_path.mkdir()
+    (script_path / "recent_drift_report.py").write_text("# test\n", encoding="utf-8")
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2099-04-17T10:30:00+00:00",
+                "source_meta": {
+                    "label_rows": 21853,
+                    "latest_label_timestamp": "2026-04-17 06:00:00",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "_current_canonical_label_signature",
+        lambda: {"label_rows": 21853, "latest_label_timestamp": "2026-04-17 06:00:00"},
+    )
+
+    hit = hb_parallel_runner._recent_drift_cache_hit()
+
+    assert hit is not None
+    assert hit["reason"] == "fresh_recent_drift_artifact_reused"
+    assert hit["details"]["label_rows"] == 21853
+
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "_current_canonical_label_signature",
+        lambda: {"label_rows": 21854, "latest_label_timestamp": "2026-04-17 10:00:00"},
+    )
+    assert hb_parallel_runner._recent_drift_cache_hit() is None
+
+
+
+def test_build_serial_result_summary_marks_cached_artifact(tmp_path):
+    artifact_path = tmp_path / "data" / "q35_scaling_audit.json"
+    artifact_path.parent.mkdir()
+    artifact_path.write_text(json.dumps({"generated_at": "2026-04-17T10:30:00+00:00"}), encoding="utf-8")
+
+    summary = hb_parallel_runner._build_serial_result_summary(
+        "hb_q35_scaling_audit",
+        {
+            "attempted": False,
+            "success": True,
+            "returncode": 0,
+            "cached": True,
+            "cache_reason": "fresh_q35_scaling_artifact_reused",
+            "cache_details": {"current_feature_timestamp": "2026-04-17 10:30:00"},
+            "artifact_path": str(artifact_path),
+        },
+        diagnostics={"generated_at": "2026-04-17T10:30:00+00:00"},
+        now=hb_parallel_runner._safe_parse_datetime("2026-04-17T10:31:00+00:00"),
+    )
+
+    assert summary["cached"] is True
+    assert summary["cache_reason"] == "fresh_q35_scaling_artifact_reused"
+    assert summary["cache_details"]["current_feature_timestamp"] == "2026-04-17 10:30:00"
+    assert summary["artifact_path"] == str(artifact_path)
+    assert summary["fallback_artifact_used"] is False
+
+
+
 def test_main_writes_final_progress_artifact(tmp_path, monkeypatch):
     class Args:
         fast = True

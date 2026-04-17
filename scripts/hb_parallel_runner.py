@@ -72,6 +72,198 @@ BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
 LEADERBOARD_CANDIDATE_PROBE_CMD = [PYTHON, "scripts/hb_leaderboard_candidate_probe.py"]
 
 
+def _safe_parse_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    normalized = text.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        try:
+            parsed = datetime.fromisoformat(normalized.replace(" ", "T"))
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _file_mtime(path: str | Path | None) -> datetime | None:
+    if not path:
+        return None
+    try:
+        return datetime.fromtimestamp(Path(path).stat().st_mtime, tz=timezone.utc)
+    except Exception:
+        return None
+
+
+def _artifact_timestamp_from_payload(payload: Dict[str, Any] | None, artifact_path: str | Path | None) -> datetime | None:
+    payload = payload or {}
+    for key in ("generated_at", "alignment_evaluated_at"):
+        parsed = _safe_parse_datetime(payload.get(key))
+        if parsed is not None:
+            return parsed
+    return _file_mtime(artifact_path)
+
+
+def _artifact_is_newer_than_dependencies(
+    artifact_time: datetime | None,
+    dependency_paths: list[str | Path] | None,
+) -> bool:
+    if artifact_time is None:
+        return False
+    for dep in dependency_paths or []:
+        dep_mtime = _file_mtime(dep)
+        if dep_mtime is not None and dep_mtime > artifact_time:
+            return False
+    return True
+
+
+def _current_canonical_label_signature() -> Dict[str, Any]:
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS row_count, MAX(timestamp) AS latest_timestamp
+            FROM labels
+            WHERE horizon_minutes = ?
+              AND simulated_pyramid_win IS NOT NULL
+            """,
+            (1440,),
+        ).fetchone()
+    finally:
+        conn.close()
+    row_count = int(row[0] or 0) if row else 0
+    latest_timestamp = row[1] if row else None
+    return {
+        "label_rows": row_count,
+        "latest_label_timestamp": latest_timestamp,
+    }
+
+
+def _recent_drift_cache_hit() -> Dict[str, Any] | None:
+    artifact_path = Path(PROJECT_ROOT) / "data" / "recent_drift_report.json"
+    if not artifact_path.exists():
+        return None
+    try:
+        payload = json.loads(artifact_path.read_text())
+    except Exception:
+        return None
+    source_meta = payload.get("source_meta") or {}
+    current_signature = _current_canonical_label_signature()
+    if source_meta != current_signature:
+        return None
+    artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
+    dependency_paths = [
+        Path(PROJECT_ROOT) / "scripts" / "recent_drift_report.py",
+    ]
+    if not _artifact_is_newer_than_dependencies(artifact_time, dependency_paths):
+        return None
+    return {
+        "artifact_path": str(artifact_path),
+        "reason": "fresh_recent_drift_artifact_reused",
+        "details": current_signature,
+    }
+
+
+def _latest_feature_timestamp() -> str | None:
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        row = conn.execute("SELECT MAX(timestamp) FROM features_normalized").fetchone()
+    finally:
+        conn.close()
+    return row[0] if row else None
+
+
+def _q35_scaling_cache_hit() -> Dict[str, Any] | None:
+    artifact_path = Path(PROJECT_ROOT) / "data" / "q35_scaling_audit.json"
+    if not artifact_path.exists():
+        return None
+    try:
+        payload = json.loads(artifact_path.read_text())
+    except Exception:
+        return None
+    current_live = payload.get("current_live") or {}
+    if current_live.get("timestamp") != _latest_feature_timestamp():
+        return None
+    artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
+    dependency_paths = [
+        Path(PROJECT_ROOT) / "scripts" / "hb_q35_scaling_audit.py",
+        Path(PROJECT_ROOT) / "model" / "predictor.py",
+        Path(PROJECT_ROOT) / "model" / "q35_bias50_calibration.py",
+    ]
+    if not _artifact_is_newer_than_dependencies(artifact_time, dependency_paths):
+        return None
+    return {
+        "artifact_path": str(artifact_path),
+        "reason": "fresh_q35_scaling_artifact_reused",
+        "details": {
+            "current_feature_timestamp": current_live.get("timestamp"),
+            "structure_bucket": current_live.get("structure_bucket"),
+        },
+    }
+
+
+def _leaderboard_candidate_cache_hit() -> Dict[str, Any] | None:
+    artifact_path = Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json"
+    if not artifact_path.exists():
+        return None
+    try:
+        payload = json.loads(artifact_path.read_text())
+    except Exception:
+        return None
+    artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
+    dependency_paths = [
+        Path(PROJECT_ROOT) / "scripts" / "hb_leaderboard_candidate_probe.py",
+        Path(PROJECT_ROOT) / "model" / "last_metrics.json",
+        Path(PROJECT_ROOT) / "data" / "feature_group_ablation.json",
+        Path(PROJECT_ROOT) / "data" / "bull_4h_pocket_ablation.json",
+        Path(PROJECT_ROOT) / "data" / "q15_support_audit.json",
+        Path(PROJECT_ROOT) / "data" / "live_predict_probe.json",
+    ]
+    if not _artifact_is_newer_than_dependencies(artifact_time, dependency_paths):
+        return None
+    return {
+        "artifact_path": str(artifact_path),
+        "reason": "fresh_leaderboard_candidate_artifact_reused",
+        "details": {
+            "generated_at": payload.get("generated_at"),
+            "selected_feature_profile": ((payload.get("top_model") or {}).get("selected_feature_profile")),
+        },
+    }
+
+
+def _get_fast_serial_cache_hit(command_name: str) -> Dict[str, Any] | None:
+    if not _CURRENT_HEARTBEAT_FAST_MODE:
+        return None
+    if command_name == "recent_drift_report":
+        return _recent_drift_cache_hit()
+    if command_name == "hb_q35_scaling_audit":
+        return _q35_scaling_cache_hit()
+    if command_name == "hb_leaderboard_candidate_probe":
+        return _leaderboard_candidate_cache_hit()
+    return None
+
+
+def _build_cached_serial_result(command_name: str, cache_hit: Dict[str, Any]) -> Dict[str, Any]:
+    artifact_path = cache_hit.get("artifact_path")
+    return {
+        "attempted": False,
+        "success": True,
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+        "command": [command_name],
+        "cached": True,
+        "cache_reason": cache_hit.get("reason"),
+        "cache_details": cache_hit.get("details") or {},
+        "artifact_path": artifact_path,
+    }
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--hb", type=str, required=False, help="Heartbeat label. Required for full runs; optional in --fast mode.")
@@ -341,6 +533,9 @@ def _run_serial_command(
     progress: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     command_name = Path(cmd[1]).stem if len(cmd) > 1 else Path(cmd[0]).stem
+    cache_hit = _get_fast_serial_cache_hit(command_name) if timeout is None else None
+    if cache_hit is not None:
+        return _build_cached_serial_result(command_name, cache_hit)
     effective_timeout = _resolve_serial_timeout(cmd, timeout)
     effective_progress = progress
     if effective_progress is None and _CURRENT_HEARTBEAT_RUN_LABEL:
@@ -547,8 +742,9 @@ def _build_serial_result_summary(
 ) -> Dict[str, Any]:
     result = result or {}
     diagnostics = diagnostics or {}
+    effective_artifact_path = artifact_path or result.get("artifact_path")
     timed_out = result.get("returncode") == -1 and "TIMEOUT after" in str(result.get("stderr") or "")
-    artifact_snapshot = _artifact_recency_snapshot(artifact_path, diagnostics, now=now)
+    artifact_snapshot = _artifact_recency_snapshot(effective_artifact_path, diagnostics, now=now)
     artifact_exists = artifact_snapshot.get("artifact_exists", False)
     return {
         "name": name,
@@ -556,6 +752,9 @@ def _build_serial_result_summary(
         "success": result.get("success", False),
         "returncode": result.get("returncode"),
         "timed_out": timed_out,
+        "cached": bool(result.get("cached")),
+        "cache_reason": result.get("cache_reason"),
+        "cache_details": result.get("cache_details") or {},
         "stdout_preview": (result.get("stdout") or "")[:1200],
         "stderr_preview": (result.get("stderr") or "")[:800],
         "diagnostics_available": bool(diagnostics),

@@ -1,26 +1,31 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-17 10:16 UTC_
+_最後更新：2026-04-17 10:47 UTC_
 
 只保留目前有效問題；每輪 heartbeat 必須覆蓋更新，不保留舊流水帳。
 
 ---
 
 ## 當前主線
-本輪 heartbeat 先修 **fast heartbeat timeout fallback 的可觀測性缺口**：
-- `scripts/hb_parallel_runner.py` 現在會把 serial governance 步驟寫進 `data/heartbeat_<run>_summary.json > serial_results`
-- 每一步都會顯示 `success / timed_out / fallback_artifact_used / artifact_path / artifact_generated_at / artifact_age_seconds`
-- 目的：讓 operator 直接知道「本輪是即時刷新 artifact，還是 timeout 後沿用舊 snapshot fail-soft 關閉」，避免把 stale governance artifact 誤讀成已刷新事實
-- regression 已鎖住 summary contract，避免之後又回退成只看到 stderr timeout、卻看不到 fallback artifact 新舊
+本輪 heartbeat 先修 **fast heartbeat 的 recent drift 重跑超時問題**，把它從「每輪都可能 30s timeout」推進成「**canonical label 輸入沒變時直接重用 fresh artifact**」。
 
-本輪實測事實：
-- runtime：`python scripts/hb_parallel_runner.py --fast` ✅ 完成（10:11:54 → 10:15 UTC 左右）
-- collect：`Raw=30604 / Features=22022 / Labels=61776`，本輪 **+1 / +1 / +0**
+**本輪已落地**
+- `scripts/recent_drift_report.py` 現在會把 `source_meta={label_rows, latest_label_timestamp}` 寫進 artifact
+- `scripts/hb_parallel_runner.py` fast mode 新增 fresh-artifact reuse：
+  - 針對 `recent_drift_report`
+  - 若 canonical 1440m labels 簽名沒變，且 artifact 新於腳本依賴，就**不重跑**
+  - `serial_results` 明確新增 `cached / cache_reason / cache_details`
+- targeted regression：`python -m pytest tests/test_hb_parallel_runner.py -q` → **42 passed**
+- runtime evidence：
+  - `python scripts/recent_drift_report.py` → **77.7s**，成功重建含 `source_meta` 的 drift artifact
+  - 之後 `_run_serial_command(['python','scripts/recent_drift_report.py'])` 在 fast mode 會回傳 `cached=True`、`cache_reason=fresh_recent_drift_artifact_reused`
+
+**本輪實測事實**
+- fast heartbeat：`Raw=30605 / Features=22023 / Labels=61777`
 - canonical diagnostics：`Global IC 14/30`、`TW-IC 28/30`
-- live predictor：`CIRCUIT_BREAKER`，canonical 1440m recent 50 = **7/50**，距 release 還差 **8 勝**
-- drift：primary window=`500`，`distribution_pathology`，`bull=100%`，recent artifact 本輪 **timeout fallback**，summary 已明示 fallback 狀態與 artifact age
-- q35 / feature ablation / bull pocket / leaderboard probe 也都在本輪 summary 被明確標示為 **timeout + fallback artifact used**
-- targeted regression：`python -m pytest tests/test_hb_parallel_runner.py -q` → **39 passed**
+- live predictor：`CIRCUIT_BREAKER`
+- canonical 1440m recent 50：**7/50**，距 release 還差 **8 勝**
+- recent drift：primary window=`500`，`distribution_pathology`，`bull=100%`
 
 ---
 
@@ -30,97 +35,89 @@ _最後更新：2026-04-17 10:16 UTC_
 **現況**
 - canonical 1440m recent 50 = `7/50`
 - recent win rate = `14%`，仍低於 release floor `30%`
-- `/api/status` / probe / drilldown 已能直接回答還差 `8` 勝
+- `/api/status` / probe / drilldown 都仍指向 canonical breaker truth
 
 **風險**
-- 任何 q15/q35/component patch 若被寫成主 blocker，都會偏離 breaker-first 真相
+- 若把 q15/q35 或 profile split 誤寫成主 blocker，會偏離 breaker-first 真相
 
 **下一步**
-- 直接追 `7/50 → 15/50` 的 canonical tail root-cause
-- breaker 未解除前，不得把治理候選當成 deployment closure
+- 直接追 `7/50 → 15/50` 的 canonical tail root cause
+- breaker 未解除前，不得把治理候選包裝成 deployment closure
 
 ### P0. Recent canonical window 仍是 distribution pathology
 **現況**
 - primary drift window=`500`
 - `alerts=['label_imbalance', 'regime_concentration', 'regime_shift']`
-- `bull=100%`、`win_rate=0.806`，但並不代表 live readiness
+- `bull=100%`、`win_rate=0.806`
 
 **風險**
-- 若只看高 win-rate，會把 bull-only concentration 誤判成 readiness
+- 若只看高 win rate，會把 bull-only concentration 誤判成 readiness
 
 **下一步**
-- 繼續做 canonical recent-window root-cause drill-down
+- 做 canonical recent-window root-cause drill-down
 - 維持 decision-quality / execution guardrails，不因局部高分放寬 live runtime
 
-### P1. Fast heartbeat 多個治理腳本仍依賴 timeout fallback
-**現況**
-- `recent_drift_report`
+### P1. Fast governance timeout 仍未收斂，只是先拿下 recent drift lane
+**已改善**
+- `recent_drift_report` 現在在 **canonical labels 未變** 時可直接重用 fresh artifact
+- fast summary 可明確區分：`cached` vs `fallback_artifact_used`
+
+**仍未解**
 - `hb_q35_scaling_audit`
 - `feature_group_ablation`
 - `bull_4h_pocket_ablation`
 - `hb_leaderboard_candidate_probe`
-都在 fast mode timeout，runner 目前靠最新 artifact fail-soft 關閉
-
-**本輪已完成**
-- summary 現在會 machine-read 持久化每個 timeout/fallback artifact 的新舊與路徑
-
-**剩餘缺口**
-- timeout 本身還沒消失；目前只是從「隱性 stale」變成「顯性 stale」
+仍會 hit fast timeout
 
 **下一步**
-- 優先縮短上述腳本 runtime，或補更嚴格的 stale / freshness policy
-- 不可把 fallback artifact 誤寫成已即時刷新
+- 對上述腳本做同級別的 freshness gating / dependency signature reuse，或直接縮時
+- 不可把 timeout fallback 誤寫成 fresh recompute
 
 ### P1. q35 / support-aware governance 仍未收斂
 **現況**
+- q35 audit 仍給 `bias50_formula_may_be_too_harsh`
 - live 仍先被 breaker 擋下
-- q35 audit 結論仍是 `bias50_formula_may_be_too_harsh`
-- leaderboard probe 仍是 `dual_role_governance_active`
+- 目前還不是 q35 deployment closure，而是 governance candidate
 
 **風險**
-- 若把 q35 redesign 或 profile split 寫成 closure，會掩蓋真正 blocker
+- 若把 q35 redesign 誤寫成 closure，會掩蓋 breaker 與 recent pathology
 
 **下一步**
-- breaker 未解除前，q35/support-aware 僅能作 governance candidate
-- 補 exact support 與 live row structure-quality evidence
+- breaker 未解除前，q35 僅能作治理候選
+- 補 exact support 與 live row 結構證據
+
+### P1. Leaderboard / shrinkage / bull-pocket governance artifact 仍偏慢
+**現況**
+- current truth 仍顯示 dual-role governance：`leaderboard=core_only` vs `train=core_plus_macro`
+- 但 fast lane 對應 probe / ablation artifact 仍常 timeout
+
+**風險**
+- operator 看到的是舊 governance snapshot，不是當輪 fresh closure
+
+**下一步**
+- 把 feature ablation / bull pocket / leaderboard probe 納入同一套 freshness reuse 或 runtime 縮時策略
 
 ### P1. Binance / OKX 仍缺真實 venue-backed partial-fill / cancel / restart-replay artifact
 **現況**
 - runtime truth / drilldown / Dashboard / Strategy Lab 已有產品 surface
 - 但 execution artifact 鏈仍不足，尚不能宣稱 live-ready
 
-**風險**
-- UI 看起來像產品，不代表 execution closure 已完成
-
 **下一步**
 - 補 Binance 真實 venue-backed artifact 鏈
 - 驗證 `/api/status`、Dashboard、Strategy Lab 對同一 lane 的 execution truth 完全一致
 
-### P1. Sparse-source readiness 仍被 auth / 歷史缺口阻塞
-**現況**
-- blocked sparse features = `8`
-- `fin_netflow` 仍為 `source_auth_blocked`
-- 根因：`COINGLASS_API_KEY` 缺失
-
-**風險**
-- production / research feature 邊界若不清楚，會污染 operator 對主 runtime 的判讀
-
-**下一步**
-- 解除 CoinGlass auth blocker
-- 繼續把 sparse-source 嚴格留在 research / blocked 層
-
 ---
 
 ## Not Issues
-- 不是 collect pipeline 停住：本輪 `raw/features` 仍有新增
-- 不是 fast heartbeat 失去閉環：本輪已完成 collect / IC / probe / auto-propose / summary 落地
-- 不是 timeout fallback 無法辨識：本輪已把 serial fallback freshness 寫入 `serial_results`
+- 不是 recent drift artifact 完全不可重用：**本輪已補 fresh cache reuse contract**
+- 不是 fast summary 看不出 reuse/fallback 差異：`serial_results` 已新增 `cached / cache_reason / cache_details`
+- 不是 collect pipeline 停住：本輪 `raw/features/labels` 仍有新增
 - 不是 mixed-horizon breaker 假陽性：breaker audit 仍是 `canonical_breaker_active`
 
 ---
 
 ## Current Priority
-1. 維持 **breaker-first**，直接追 `7/50 → 15/50` 的 canonical release 證據
-2. 收斂 **recent 500 bull concentration pathology**，避免把局部高勝率誤判成 readiness
-3. 把 **timeout fallback** 從「可觀測」推進到「真正縮時或刷新」
+1. 維持 **breaker-first**，直接追 `7/50 → 15/50`
+2. 把 **recent drift cache reuse** 從 `recent_drift_report` 擴到其餘重型治理腳本
+3. 收斂 **recent 500 bull concentration pathology** 的 root cause
 4. 補 **Binance 真實 venue artifact 鏈**，把 execution lane 從 product-like 推到 venue-backed
