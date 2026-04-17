@@ -1,27 +1,25 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-17 09:54 UTC_
+_最後更新：2026-04-17 10:16 UTC_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留舊 roadmap 歷史。
 
 ---
 
 ## 已完成
-- **API runtime closure release-math productization**：
-  - `server/routes/api.py` 的 circuit-breaker `runtime_closure_summary` 已補上 **recent window / release floor / current wins / additional wins needed**
-  - `/api/status` 與其 operator surface 不再只說 blocker 名稱，而是直接回答距 release 還差多少
-  - regression 已在 `tests/test_server_startup.py` 鎖住，避免之後回退成 generic blocker 文案
+- **Fast heartbeat timeout fallback observability**：
+  - `scripts/hb_parallel_runner.py` 已新增 `serial_results` summary contract
+  - fast summary 現在逐項保存 `success / timed_out / fallback_artifact_used / artifact_path / artifact_generated_at / artifact_age_seconds`
+  - operator 可直接分辨「本輪刷新 artifact」vs「沿用舊 snapshot fail-soft 關閉」
+  - regression：`python -m pytest tests/test_hb_parallel_runner.py -q` → **39 passed**
 - **本輪 fast heartbeat 完成**：
-  - `python scripts/hb_parallel_runner.py --fast` ✅ 完成（約 **183s**）
-  - `Raw=30602 / Features=22020 / Labels=61775`（本輪 `+1 / +1 / +1`）
+  - `python scripts/hb_parallel_runner.py --fast` ✅ 完成
+  - `Raw=30604 / Features=22022 / Labels=61776`（本輪 `+1 / +1 / +0`）
   - `Global IC 14/30`
   - `TW-IC 28/30`
   - live `CIRCUIT_BREAKER`：recent 50 = `7/50`，距 release 還差 `8` 勝
-  - breaker audit：`canonical_breaker_active`
   - recent drift：primary window=`500`，`distribution_pathology`，`bull=100%`
-- 驗證通過：
-  - `python -m pytest tests/test_server_startup.py -q` → **23 passed**
-  - `python -m pytest tests/test_execution_service.py tests/test_frontend_decision_contract.py tests/test_api_feature_history_and_predictor.py tests/test_hb_parallel_runner.py -q` → **107 passed**
+  - fast summary 現在明確標出 drift/q35/ablation/bull-pocket/leaderboard probe 的 timeout fallback 狀態
 
 ---
 
@@ -38,25 +36,26 @@ _最後更新：2026-04-17 09:54 UTC_
 - 所有主要 surface 一致顯示 release condition 與 remaining gap
 - heartbeat summary 能直接回答距 release 還差多少勝
 
-### 目標 B：收斂 recent canonical distribution pathology
+### 目標 B：把 recent canonical distribution pathology 收斂成可執行根因
 重點：
 - current primary pathology 仍是 recent 500 bull concentration
 - 必須把 high win-rate 與 true deployment readiness 分離
-- recent-window root-cause 要回到 canonical tail / 4H structure / macro compression 的機器可讀證據
+- canonical recent-window root-cause 要回到機器可讀證據
 
 成功標準：
 - recent pathology 不再是 `distribution_pathology`
-- 同一批 canonical recent-window diagnostics 在 heartbeat / probe / docs 一致
-- 不再需要靠 guardrail 把同一個 bull-only pocket 一直擋下
+- heartbeat / probe / docs 對同一個 pathology root-cause 給出一致結論
+- 不再靠 guardrail 長期遮住同一個 unexplained pocket
 
-### 目標 C：把 q35 / support-aware governance 留在 reference-only，直到 breaker 解除
+### 目標 C：把 timeout fallback 從「可觀測」推進到「真正縮時」
 重點：
-- q35 redesign、profile split、support-aware fallback 都不得蓋過 breaker-first 主線
-- 目前 exact support 仍不足，live row structure-quality 也未收斂
+- 本輪已補 summary-level visibility，但 drift / q35 / ablation / leaderboard probe 仍 timeout
+- 下一步不是再補報表，而是縮短 runtime 或更嚴格標 stale
 
 成功標準：
-- breaker 未解除前，所有 q35/support-aware surface 都維持 blocked/reference-only 語義
-- exact support 到達 minimum support rows 後，再進 deployment 級驗證
+- fast mode serial governance 腳本 timeout 數量明顯下降
+- 若仍 timeout，summary 會明確標示 freshness/staleness，且 operator 可立即判讀風險
+- heartbeat 不再把舊 artifact 誤當成本輪即時事實
 
 ### 目標 D：把 Binance execution lane 推進到真實 venue-backed closure
 重點：
@@ -72,13 +71,13 @@ _最後更新：2026-04-17 09:54 UTC_
 
 ## 下一步
 1. **Breaker release root-cause**：直接追 canonical recent 50/500 tail evidence，驗證從 `7/50` 提升到 release floor 的必要條件
-2. **Recent-pathology contraction**：對 bull-only recent slice 做結構／macro compression root-cause，避免把局部高勝率誤判成 readiness
+2. **Fast governance de-timeout**：優先處理 `recent_drift_report`、`hb_q35_scaling_audit`、`feature_group_ablation`、`bull_4h_pocket_ablation`、`hb_leaderboard_candidate_probe` 的 runtime
 3. **Binance venue artifacts**：補 partial-fill / cancel / restart-replay 真實證據鏈
 
 ---
 
 ## 成功標準
 - `/api/status`、Dashboard、Strategy Lab、probe 對 breaker release math 維持 **同一套 runtime truth**
-- fast heartbeat 維持 **cron-safe + machine-readable + fail-soft**，同時明確標示 timeout artifact 的 freshness 風險
+- fast heartbeat 維持 **cron-safe + machine-readable + fail-soft**，且 serial timeout/fallback freshness 可直接判讀
 - recent canonical pathology 被縮小或明確解釋，不再是 deployment blocker 的黑盒子
 - execution lane 具備 **真實 venue-backed artifact**，而不只是產品外觀完整

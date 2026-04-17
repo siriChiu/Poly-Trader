@@ -502,6 +502,68 @@ def write_progress(
     return path
 
 
+def _artifact_recency_snapshot(
+    artifact_path: str | Path | None,
+    diagnostics: Dict[str, Any] | None = None,
+    *,
+    now: datetime | None = None,
+) -> Dict[str, Any]:
+    if not artifact_path:
+        return {}
+    path = Path(artifact_path)
+    snapshot: Dict[str, Any] = {
+        "artifact_path": str(path),
+        "artifact_exists": path.exists(),
+    }
+    generated_at = None
+    diagnostics = diagnostics or {}
+    if isinstance(diagnostics, dict):
+        generated_at = diagnostics.get("generated_at")
+    if generated_at:
+        snapshot["artifact_generated_at"] = generated_at
+        try:
+            generated_dt = datetime.fromisoformat(str(generated_at).replace("Z", "+00:00"))
+            ref_now = now or datetime.now(timezone.utc)
+            if generated_dt.tzinfo is None:
+                generated_dt = generated_dt.replace(tzinfo=timezone.utc)
+            snapshot["artifact_age_seconds"] = round(max((ref_now - generated_dt).total_seconds(), 0.0), 1)
+        except Exception:
+            pass
+    if path.exists():
+        try:
+            snapshot["artifact_mtime"] = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
+        except Exception:
+            pass
+    return snapshot
+
+
+def _build_serial_result_summary(
+    name: str,
+    result: Dict[str, Any] | None,
+    *,
+    diagnostics: Dict[str, Any] | None = None,
+    artifact_path: str | Path | None = None,
+    now: datetime | None = None,
+) -> Dict[str, Any]:
+    result = result or {}
+    diagnostics = diagnostics or {}
+    timed_out = result.get("returncode") == -1 and "TIMEOUT after" in str(result.get("stderr") or "")
+    artifact_snapshot = _artifact_recency_snapshot(artifact_path, diagnostics, now=now)
+    artifact_exists = artifact_snapshot.get("artifact_exists", False)
+    return {
+        "name": name,
+        "attempted": result.get("attempted", False),
+        "success": result.get("success", False),
+        "returncode": result.get("returncode"),
+        "timed_out": timed_out,
+        "stdout_preview": (result.get("stdout") or "")[:1200],
+        "stderr_preview": (result.get("stderr") or "")[:800],
+        "diagnostics_available": bool(diagnostics),
+        "fallback_artifact_used": bool(result and not result.get("success", False) and bool(diagnostics) and artifact_exists),
+        **artifact_snapshot,
+    }
+
+
 def save_summary(
     run_label,
     counts,
@@ -524,6 +586,7 @@ def save_summary(
     leaderboard_candidate_diagnostics=None,
     auto_propose_result=None,
     progress_path=None,
+    serial_results=None,
 ):
     passed = sum(1 for r in results.values() if r["success"])
     total = len(results)
@@ -539,10 +602,11 @@ def save_summary(
         except Exception:
             runtime_progress_snapshot = {}
 
+    summary_now = datetime.now(timezone.utc)
     summary = {
         "heartbeat": run_label,
         "mode": "fast" if fast_mode else "full",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": summary_now.isoformat(),
         "collect_result": {
             "attempted": collect_result.get("attempted", False),
             "success": collect_result.get("success", False),
@@ -577,6 +641,7 @@ def save_summary(
             "snapshot": runtime_progress_snapshot,
         },
         "parallel_results": {},
+        "serial_results": {},
         "stats": {"passed": passed, "total": total, "elapsed_seconds": round(elapsed, 1)},
     }
 
@@ -586,6 +651,24 @@ def save_summary(
             "stdout_preview": r["stdout"][:2000] if r.get("stdout") else "",
             "stderr_preview": r["stderr"][:1000] if r.get("stderr") else "",
         }
+
+    serial_results = serial_results or {}
+    for name, payload in serial_results.items():
+        if isinstance(payload, dict) and "result" in payload:
+            result_payload = payload.get("result")
+            diagnostics_payload = payload.get("diagnostics")
+            artifact_path = payload.get("artifact_path")
+        else:
+            result_payload = payload
+            diagnostics_payload = None
+            artifact_path = None
+        summary["serial_results"][name] = _build_serial_result_summary(
+            name,
+            result_payload,
+            diagnostics=diagnostics_payload,
+            artifact_path=artifact_path,
+            now=summary_now,
+        )
 
     summary_path = os.path.join(PROJECT_ROOT, 'data', f'heartbeat_{run_label}_summary.json')
     os.makedirs(os.path.dirname(summary_path), exist_ok=True)
@@ -608,6 +691,7 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
     target_path = summary.get("target_path_diagnostics") or {}
     tail_streak = target_path.get("tail_target_streak") or {}
     return {
+        "generated_at": payload.get("generated_at"),
         "target_col": payload.get("target_col"),
         "horizon_minutes": payload.get("horizon_minutes"),
         "full_sample": payload.get("full_sample") or {},
@@ -1866,6 +1950,68 @@ def main(argv=None):
     if auto_propose_result.get("stderr"):
         print(f"\n--- auto_propose_fixes stderr ---\n{auto_propose_result['stderr']}")
 
+    serial_result_payload = {
+        "recent_drift_report": {
+            "result": drift_report_result,
+            "diagnostics": drift_diagnostics,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "recent_drift_report.json",
+        },
+        "hb_q35_scaling_audit": {
+            "result": q35_scaling_result,
+            "diagnostics": q35_scaling_summary,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "q35_scaling_audit.json",
+        },
+        "hb_predict_probe": {
+            "result": predict_probe_result,
+            "diagnostics": live_predictor_diagnostics,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "live_predict_probe.json",
+        },
+        "live_decision_quality_drilldown": {
+            "result": live_drilldown_result,
+            "diagnostics": live_drilldown_summary,
+            "artifact_path": (live_drilldown_summary or {}).get("json") or (Path(PROJECT_ROOT) / "data" / "live_decision_quality_drilldown.json"),
+        },
+        "hb_circuit_breaker_audit": {
+            "result": circuit_breaker_audit_result,
+            "diagnostics": circuit_breaker_audit_summary,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / f"circuit_breaker_audit_{run_label}.json",
+        },
+        "feature_group_ablation": {
+            "result": feature_ablation_result,
+            "diagnostics": feature_ablation_summary,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "feature_group_ablation.json",
+        },
+        "bull_4h_pocket_ablation": {
+            "result": bull_pocket_result,
+            "diagnostics": bull_pocket_summary,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "bull_4h_pocket_ablation.json",
+        },
+        "hb_leaderboard_candidate_probe": {
+            "result": leaderboard_probe_result,
+            "diagnostics": leaderboard_candidate_diagnostics,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json",
+        },
+        "hb_q15_support_audit": {
+            "result": q15_support_result,
+            "diagnostics": q15_support_summary,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "q15_support_audit.json",
+        },
+        "hb_q15_bucket_root_cause": {
+            "result": q15_bucket_root_cause_result,
+            "diagnostics": q15_bucket_root_cause_summary,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "q15_bucket_root_cause.json",
+        },
+        "hb_q15_boundary_replay": {
+            "result": q15_boundary_replay_result,
+            "diagnostics": q15_boundary_replay_summary,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "q15_boundary_replay.json",
+        },
+        "auto_propose_fixes": {
+            "result": auto_propose_result,
+            "artifact_path": Path(PROJECT_ROOT) / "issues.json",
+        },
+    }
+
     summary, summary_path = save_summary(
         run_label,
         counts,
@@ -1888,6 +2034,7 @@ def main(argv=None):
         leaderboard_candidate_diagnostics=leaderboard_candidate_diagnostics,
         auto_propose_result=auto_propose_result,
         progress_path=progress_path,
+        serial_results=serial_result_payload,
     )
     final_status = "success"
     serial_results = [

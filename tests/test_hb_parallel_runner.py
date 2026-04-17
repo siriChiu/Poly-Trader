@@ -937,6 +937,10 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     }
     results = {"full_ic": {"success": True, "stdout": "ok", "stderr": ""}}
 
+    recent_drift_path = tmp_path / "data" / "recent_drift_report.json"
+    recent_drift_path.parent.mkdir(exist_ok=True)
+    recent_drift_path.write_text(json.dumps({"generated_at": "2026-04-17T09:54:00+00:00"}), encoding="utf-8")
+
     summary, summary_path = hb_parallel_runner.save_summary(
         "fast",
         counts,
@@ -946,7 +950,7 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
         elapsed=1.2,
         fast_mode=True,
         ic_diagnostics={"global_pass": 13, "tw_pass": 10, "total_features": 30},
-        drift_diagnostics={"primary_window": "100", "primary_alerts": ["regime_concentration"]},
+        drift_diagnostics={"generated_at": "2026-04-17T09:54:00+00:00", "primary_window": "100", "primary_alerts": ["regime_concentration"]},
         live_predictor_diagnostics={"decision_quality_label": "D", "allowed_layers": 0},
         live_decision_drilldown={
             "json": "data/live_decision_quality_drilldown.json",
@@ -985,6 +989,17 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
         bull_4h_pocket_ablation={"bull_collapse_q35": {"recommended_profile": "core_plus_macro"}, "production_profile_role": {"role": "support_aware_production_profile"}},
         leaderboard_candidate_diagnostics={"selected_feature_profile": "core_only", "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback", "profile_split": {"verdict": "dual_role_required"}},
         auto_propose_result={"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""},
+        serial_results={
+            "recent_drift_report": {
+                "result": {"attempted": True, "success": False, "returncode": -1, "stdout": "", "stderr": "TIMEOUT after 30s"},
+                "diagnostics": {"generated_at": "2026-04-17T09:54:00+00:00", "primary_window": "100"},
+                "artifact_path": recent_drift_path,
+            },
+            "auto_propose_fixes": {
+                "result": {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""},
+                "artifact_path": tmp_path / "issues.json",
+            },
+        },
     )
 
     assert summary["heartbeat"] == "fast"
@@ -1011,6 +1026,10 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert summary["leaderboard_candidate_diagnostics"]["selected_feature_profile"] == "core_only"
     assert summary["leaderboard_candidate_diagnostics"]["profile_split"]["verdict"] == "dual_role_required"
     assert summary["auto_propose"]["success"] is True
+    assert summary["serial_results"]["recent_drift_report"]["timed_out"] is True
+    assert summary["serial_results"]["recent_drift_report"]["fallback_artifact_used"] is True
+    assert summary["serial_results"]["recent_drift_report"]["artifact_path"] == str(recent_drift_path)
+    assert summary["serial_results"]["recent_drift_report"]["artifact_generated_at"] == "2026-04-17T09:54:00+00:00"
     assert summary_path.endswith("heartbeat_fast_summary.json")
 
     saved = json.loads(Path(summary_path).read_text())
@@ -1035,6 +1054,8 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert saved["leaderboard_candidate_diagnostics"]["dual_profile_state"] == "leaderboard_global_winner_vs_train_support_fallback"
     assert saved["leaderboard_candidate_diagnostics"]["profile_split"]["verdict"] == "dual_role_required"
     assert saved["auto_propose"]["stdout_preview"] == "ok"
+    assert saved["serial_results"]["recent_drift_report"]["fallback_artifact_used"] is True
+    assert saved["serial_results"]["recent_drift_report"]["timed_out"] is True
 
 
 def test_collect_recent_drift_diagnostics_reads_primary_window(tmp_path, monkeypatch):
@@ -1044,6 +1065,7 @@ def test_collect_recent_drift_diagnostics_reads_primary_window(tmp_path, monkeyp
     (data_dir / "recent_drift_report.json").write_text(
         json.dumps(
             {
+                "generated_at": "2026-04-17T09:54:00+00:00",
                 "target_col": "simulated_pyramid_win",
                 "horizon_minutes": 1440,
                 "full_sample": {"rows": 11134, "win_rate": 0.6459},
@@ -1085,6 +1107,7 @@ def test_collect_recent_drift_diagnostics_reads_primary_window(tmp_path, monkeyp
 
     diag = hb_parallel_runner.collect_recent_drift_diagnostics()
 
+    assert diag["generated_at"] == "2026-04-17T09:54:00+00:00"
     assert diag["target_col"] == "simulated_pyramid_win"
     assert diag["primary_window"] == "100"
     assert diag["primary_summary"]["dominant_regime"] == "chop"
