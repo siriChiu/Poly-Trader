@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 
 from model import q35_bias50_calibration as q35_calibration_module
@@ -1765,6 +1766,95 @@ def test_build_serial_result_summary_marks_cached_artifact(tmp_path):
     assert summary["artifact_path"] == str(artifact_path)
     assert summary["fallback_artifact_used"] is False
 
+
+def test_feature_group_ablation_cache_hit_uses_db_and_script_recency(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    scripts_dir = tmp_path / "scripts"
+    model_dir = tmp_path / "model"
+    db_dir = tmp_path / "database"
+    for directory in (data_dir, scripts_dir, model_dir, db_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    artifact_path = data_dir / "feature_group_ablation.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2099-04-17T10:30:00+00:00",
+                "recommended_profile": "core_plus_macro",
+                "recent_rows": 5000,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (scripts_dir / "feature_group_ablation.py").write_text("# test\n", encoding="utf-8")
+    (model_dir / "train.py").write_text("# test\n", encoding="utf-8")
+    (db_dir / "models.py").write_text("# test\n", encoding="utf-8")
+    db_path = tmp_path / "poly_trader.db"
+    db_path.write_text("db", encoding="utf-8")
+    monkeypatch.setattr(hb_parallel_runner, "DB_PATH", str(db_path))
+
+    hit = hb_parallel_runner._feature_group_ablation_cache_hit()
+
+    assert hit is not None
+    assert hit["reason"] == "fresh_feature_group_ablation_artifact_reused"
+    assert hit["details"]["recommended_profile"] == "core_plus_macro"
+
+    os.utime(db_path, (4102440000, 4102440000))
+    assert hb_parallel_runner._feature_group_ablation_cache_hit() is None
+
+
+def test_q15_support_cache_hit_tracks_artifact_dependencies(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    scripts_dir = tmp_path / "scripts"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+
+    artifact_path = data_dir / "q15_support_audit.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2099-04-17T10:30:00+00:00",
+                "current_live": {"current_live_structure_bucket": "CAUTION|structure_quality_caution|q15"},
+                "support_route": {"verdict": "under_minimum_exact_live_structure_bucket"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (scripts_dir / "hb_q15_support_audit.py").write_text("# test\n", encoding="utf-8")
+    for name in [
+        "live_predict_probe.json",
+        "live_decision_quality_drilldown.json",
+        "bull_4h_pocket_ablation.json",
+        "leaderboard_feature_profile_probe.json",
+    ]:
+        (data_dir / name).write_text("{}", encoding="utf-8")
+
+    hit = hb_parallel_runner._q15_support_cache_hit()
+
+    assert hit is not None
+    assert hit["reason"] == "fresh_q15_support_artifact_reused"
+    assert hit["details"]["support_route_verdict"] == "under_minimum_exact_live_structure_bucket"
+
+    dep = data_dir / "live_predict_probe.json"
+    os.utime(dep, (4102440000, 4102440000))
+    assert hb_parallel_runner._q15_support_cache_hit() is None
+
+
+def test_get_fast_serial_cache_hit_dispatches_new_governance_artifacts(monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", True)
+    monkeypatch.setattr(hb_parallel_runner, "_feature_group_ablation_cache_hit", lambda: {"artifact_path": "fg.json", "reason": "fg", "details": {}})
+    monkeypatch.setattr(hb_parallel_runner, "_bull_4h_pocket_cache_hit", lambda: {"artifact_path": "bull.json", "reason": "bull", "details": {}})
+    monkeypatch.setattr(hb_parallel_runner, "_q15_support_cache_hit", lambda: {"artifact_path": "q15.json", "reason": "q15", "details": {}})
+    monkeypatch.setattr(hb_parallel_runner, "_q15_bucket_root_cause_cache_hit", lambda: {"artifact_path": "root.json", "reason": "root", "details": {}})
+    monkeypatch.setattr(hb_parallel_runner, "_q15_boundary_replay_cache_hit", lambda: {"artifact_path": "replay.json", "reason": "replay", "details": {}})
+
+    assert hb_parallel_runner._get_fast_serial_cache_hit("feature_group_ablation")["reason"] == "fg"
+    assert hb_parallel_runner._get_fast_serial_cache_hit("bull_4h_pocket_ablation")["reason"] == "bull"
+    assert hb_parallel_runner._get_fast_serial_cache_hit("hb_q15_support_audit")["reason"] == "q15"
+    assert hb_parallel_runner._get_fast_serial_cache_hit("hb_q15_bucket_root_cause")["reason"] == "root"
+    assert hb_parallel_runner._get_fast_serial_cache_hit("hb_q15_boundary_replay")["reason"] == "replay"
 
 
 def test_main_writes_final_progress_artifact(tmp_path, monkeypatch):

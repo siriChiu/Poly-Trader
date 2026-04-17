@@ -169,6 +169,31 @@ def _recent_drift_cache_hit() -> Dict[str, Any] | None:
     }
 
 
+def _artifact_cache_hit_from_dependencies(
+    *,
+    artifact_relpath: str,
+    reason: str,
+    dependency_paths: list[str | Path],
+    detail_builder=None,
+) -> Dict[str, Any] | None:
+    artifact_path = Path(PROJECT_ROOT) / artifact_relpath
+    if not artifact_path.exists():
+        return None
+    try:
+        payload = json.loads(artifact_path.read_text())
+    except Exception:
+        return None
+    artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
+    if not _artifact_is_newer_than_dependencies(artifact_time, dependency_paths):
+        return None
+    details = detail_builder(payload) if callable(detail_builder) else {}
+    return {
+        "artifact_path": str(artifact_path),
+        "reason": reason,
+        "details": details or {},
+    }
+
+
 def _latest_feature_timestamp() -> str | None:
     conn = sqlite3.connect(DB_PATH)
     try:
@@ -208,32 +233,118 @@ def _q35_scaling_cache_hit() -> Dict[str, Any] | None:
 
 
 def _leaderboard_candidate_cache_hit() -> Dict[str, Any] | None:
-    artifact_path = Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json"
-    if not artifact_path.exists():
-        return None
-    try:
-        payload = json.loads(artifact_path.read_text())
-    except Exception:
-        return None
-    artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
-    dependency_paths = [
-        Path(PROJECT_ROOT) / "scripts" / "hb_leaderboard_candidate_probe.py",
-        Path(PROJECT_ROOT) / "model" / "last_metrics.json",
-        Path(PROJECT_ROOT) / "data" / "feature_group_ablation.json",
-        Path(PROJECT_ROOT) / "data" / "bull_4h_pocket_ablation.json",
-        Path(PROJECT_ROOT) / "data" / "q15_support_audit.json",
-        Path(PROJECT_ROOT) / "data" / "live_predict_probe.json",
-    ]
-    if not _artifact_is_newer_than_dependencies(artifact_time, dependency_paths):
-        return None
-    return {
-        "artifact_path": str(artifact_path),
-        "reason": "fresh_leaderboard_candidate_artifact_reused",
-        "details": {
+    return _artifact_cache_hit_from_dependencies(
+        artifact_relpath="data/leaderboard_feature_profile_probe.json",
+        reason="fresh_leaderboard_candidate_artifact_reused",
+        dependency_paths=[
+            Path(PROJECT_ROOT) / "scripts" / "hb_leaderboard_candidate_probe.py",
+            Path(PROJECT_ROOT) / "model" / "last_metrics.json",
+            Path(PROJECT_ROOT) / "data" / "feature_group_ablation.json",
+            Path(PROJECT_ROOT) / "data" / "bull_4h_pocket_ablation.json",
+            Path(PROJECT_ROOT) / "data" / "q15_support_audit.json",
+            Path(PROJECT_ROOT) / "data" / "live_predict_probe.json",
+        ],
+        detail_builder=lambda payload: {
             "generated_at": payload.get("generated_at"),
             "selected_feature_profile": ((payload.get("top_model") or {}).get("selected_feature_profile")),
         },
-    }
+    )
+
+
+def _feature_group_ablation_cache_hit() -> Dict[str, Any] | None:
+    return _artifact_cache_hit_from_dependencies(
+        artifact_relpath="data/feature_group_ablation.json",
+        reason="fresh_feature_group_ablation_artifact_reused",
+        dependency_paths=[
+            Path(PROJECT_ROOT) / "scripts" / "feature_group_ablation.py",
+            Path(PROJECT_ROOT) / "model" / "train.py",
+            Path(PROJECT_ROOT) / "database" / "models.py",
+            Path(DB_PATH),
+        ],
+        detail_builder=lambda payload: {
+            "generated_at": payload.get("generated_at"),
+            "recommended_profile": payload.get("recommended_profile"),
+            "recent_rows": payload.get("recent_rows"),
+        },
+    )
+
+
+def _bull_4h_pocket_cache_hit() -> Dict[str, Any] | None:
+    return _artifact_cache_hit_from_dependencies(
+        artifact_relpath="data/bull_4h_pocket_ablation.json",
+        reason="fresh_bull_4h_pocket_artifact_reused",
+        dependency_paths=[
+            Path(PROJECT_ROOT) / "scripts" / "bull_4h_pocket_ablation.py",
+            Path(PROJECT_ROOT) / "scripts" / "feature_group_ablation.py",
+            Path(PROJECT_ROOT) / "model" / "predictor.py",
+            Path(PROJECT_ROOT) / "model" / "train.py",
+            Path(PROJECT_ROOT) / "data" / "feature_group_ablation.json",
+            Path(PROJECT_ROOT) / "data" / "live_predict_probe.json",
+            Path(DB_PATH),
+        ],
+        detail_builder=lambda payload: {
+            "generated_at": payload.get("generated_at"),
+            "feature_timestamp": ((payload.get("live_context") or {}).get("feature_timestamp")),
+            "current_live_structure_bucket": ((payload.get("live_context") or {}).get("current_live_structure_bucket")),
+        },
+    )
+
+
+def _q15_support_cache_hit() -> Dict[str, Any] | None:
+    return _artifact_cache_hit_from_dependencies(
+        artifact_relpath="data/q15_support_audit.json",
+        reason="fresh_q15_support_artifact_reused",
+        dependency_paths=[
+            Path(PROJECT_ROOT) / "scripts" / "hb_q15_support_audit.py",
+            Path(PROJECT_ROOT) / "data" / "live_predict_probe.json",
+            Path(PROJECT_ROOT) / "data" / "live_decision_quality_drilldown.json",
+            Path(PROJECT_ROOT) / "data" / "bull_4h_pocket_ablation.json",
+            Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json",
+        ],
+        detail_builder=lambda payload: {
+            "generated_at": payload.get("generated_at"),
+            "current_live_structure_bucket": ((payload.get("current_live") or {}).get("current_live_structure_bucket")),
+            "support_route_verdict": ((payload.get("support_route") or {}).get("verdict")),
+        },
+    )
+
+
+def _q15_bucket_root_cause_cache_hit() -> Dict[str, Any] | None:
+    return _artifact_cache_hit_from_dependencies(
+        artifact_relpath="data/q15_bucket_root_cause.json",
+        reason="fresh_q15_bucket_root_cause_artifact_reused",
+        dependency_paths=[
+            Path(PROJECT_ROOT) / "scripts" / "hb_q15_bucket_root_cause.py",
+            Path(PROJECT_ROOT) / "scripts" / "feature_group_ablation.py",
+            Path(PROJECT_ROOT) / "scripts" / "bull_4h_pocket_ablation.py",
+            Path(PROJECT_ROOT) / "data" / "live_predict_probe.json",
+            Path(PROJECT_ROOT) / "data" / "live_decision_quality_drilldown.json",
+            Path(PROJECT_ROOT) / "data" / "bull_4h_pocket_ablation.json",
+        ],
+        detail_builder=lambda payload: {
+            "generated_at": payload.get("generated_at"),
+            "verdict": payload.get("verdict"),
+            "candidate_patch_feature": payload.get("candidate_patch_feature"),
+        },
+    )
+
+
+def _q15_boundary_replay_cache_hit() -> Dict[str, Any] | None:
+    return _artifact_cache_hit_from_dependencies(
+        artifact_relpath="data/q15_boundary_replay.json",
+        reason="fresh_q15_boundary_replay_artifact_reused",
+        dependency_paths=[
+            Path(PROJECT_ROOT) / "scripts" / "hb_q15_boundary_replay.py",
+            Path(PROJECT_ROOT) / "data" / "live_predict_probe.json",
+            Path(PROJECT_ROOT) / "data" / "q15_support_audit.json",
+            Path(PROJECT_ROOT) / "data" / "q15_bucket_root_cause.json",
+        ],
+        detail_builder=lambda payload: {
+            "generated_at": payload.get("generated_at"),
+            "verdict": payload.get("verdict"),
+            "replay_bucket": ((payload.get("boundary_replay") or {}).get("replay_bucket")),
+        },
+    )
 
 
 def _get_fast_serial_cache_hit(command_name: str) -> Dict[str, Any] | None:
@@ -243,8 +354,18 @@ def _get_fast_serial_cache_hit(command_name: str) -> Dict[str, Any] | None:
         return _recent_drift_cache_hit()
     if command_name == "hb_q35_scaling_audit":
         return _q35_scaling_cache_hit()
+    if command_name == "feature_group_ablation":
+        return _feature_group_ablation_cache_hit()
+    if command_name == "bull_4h_pocket_ablation":
+        return _bull_4h_pocket_cache_hit()
     if command_name == "hb_leaderboard_candidate_probe":
         return _leaderboard_candidate_cache_hit()
+    if command_name == "hb_q15_support_audit":
+        return _q15_support_cache_hit()
+    if command_name == "hb_q15_bucket_root_cause":
+        return _q15_bucket_root_cause_cache_hit()
+    if command_name == "hb_q15_boundary_replay":
+        return _q15_boundary_replay_cache_hit()
     return None
 
 
