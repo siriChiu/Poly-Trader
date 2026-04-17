@@ -203,6 +203,70 @@ def _latest_feature_timestamp() -> str | None:
     return row[0] if row else None
 
 
+def _read_json_file(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text())
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _leaderboard_candidate_semantic_signature(payload: Dict[str, Any]) -> Dict[str, Any] | None:
+    alignment = payload.get("alignment") or {}
+    if not isinstance(alignment, dict) or alignment.get("current_alignment_inputs_stale"):
+        return None
+    return {
+        "global_recommended_profile": alignment.get("global_recommended_profile"),
+        "train_selected_profile": alignment.get("train_selected_profile"),
+        "train_selected_profile_source": alignment.get("train_selected_profile_source"),
+        "support_governance_route": alignment.get("support_governance_route"),
+        "minimum_support_rows": int(alignment.get("minimum_support_rows") or 0),
+        "live_current_structure_bucket": alignment.get("live_current_structure_bucket"),
+        "live_current_structure_bucket_rows": int(alignment.get("live_current_structure_bucket_rows") or 0),
+        "live_execution_guardrail_reason": alignment.get("live_execution_guardrail_reason"),
+        "live_regime_gate": alignment.get("live_regime_gate"),
+        "live_entry_quality_label": alignment.get("live_entry_quality_label"),
+    }
+
+
+
+def _current_leaderboard_candidate_semantic_signature() -> Dict[str, Any]:
+    data_dir = Path(PROJECT_ROOT) / "data"
+    model_dir = Path(PROJECT_ROOT) / "model"
+    feature_ablation = _read_json_file(data_dir / "feature_group_ablation.json")
+    bull_pocket = _read_json_file(data_dir / "bull_4h_pocket_ablation.json")
+    q15_support = _read_json_file(data_dir / "q15_support_audit.json")
+    live_probe = _read_json_file(data_dir / "live_predict_probe.json")
+    last_metrics = _read_json_file(model_dir / "last_metrics.json")
+    live_context = bull_pocket.get("live_context") or {}
+    support_route = q15_support.get("support_route") or {}
+    current_live = q15_support.get("current_live") or {}
+    feature_profile_source = last_metrics.get("feature_profile_source") or (last_metrics.get("feature_profile_meta") or {}).get("source")
+    live_current_structure_bucket = live_context.get("current_live_structure_bucket")
+    if live_current_structure_bucket is None:
+        live_current_structure_bucket = current_live.get("current_live_structure_bucket")
+    live_current_structure_bucket_rows = live_context.get("current_live_structure_bucket_rows")
+    if live_current_structure_bucket_rows is None:
+        live_current_structure_bucket_rows = current_live.get("current_live_structure_bucket_rows")
+    minimum_support_rows = live_context.get("minimum_support_rows")
+    if minimum_support_rows is None:
+        minimum_support_rows = support_route.get("minimum_support_rows")
+    return {
+        "global_recommended_profile": feature_ablation.get("recommended_profile"),
+        "train_selected_profile": last_metrics.get("feature_profile"),
+        "train_selected_profile_source": feature_profile_source,
+        "support_governance_route": support_route.get("support_governance_route"),
+        "minimum_support_rows": int(minimum_support_rows or 0),
+        "live_current_structure_bucket": live_current_structure_bucket,
+        "live_current_structure_bucket_rows": int(live_current_structure_bucket_rows or 0),
+        "live_execution_guardrail_reason": live_probe.get("execution_guardrail_reason"),
+        "live_regime_gate": live_probe.get("regime_gate"),
+        "live_entry_quality_label": live_probe.get("entry_quality_label"),
+    }
+
+
 def _q35_scaling_cache_hit() -> Dict[str, Any] | None:
     artifact_path = Path(PROJECT_ROOT) / "data" / "q35_scaling_audit.json"
     if not artifact_path.exists():
@@ -233,25 +297,76 @@ def _q35_scaling_cache_hit() -> Dict[str, Any] | None:
 
 
 def _leaderboard_candidate_cache_hit() -> Dict[str, Any] | None:
-    return _artifact_cache_hit_from_dependencies(
-        artifact_relpath="data/leaderboard_feature_profile_probe.json",
-        reason="fresh_leaderboard_candidate_artifact_reused",
-        dependency_paths=[
-            Path(PROJECT_ROOT) / "scripts" / "hb_leaderboard_candidate_probe.py",
-            Path(PROJECT_ROOT) / "model" / "last_metrics.json",
-            Path(PROJECT_ROOT) / "data" / "feature_group_ablation.json",
-            Path(PROJECT_ROOT) / "data" / "bull_4h_pocket_ablation.json",
-            Path(PROJECT_ROOT) / "data" / "q15_support_audit.json",
-            Path(PROJECT_ROOT) / "data" / "live_predict_probe.json",
-        ],
-        detail_builder=lambda payload: {
+    artifact_path = Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json"
+    if not artifact_path.exists():
+        return None
+    payload = _read_json_file(artifact_path)
+    if not payload:
+        return None
+    artifact_signature = _leaderboard_candidate_semantic_signature(payload)
+    if artifact_signature is None:
+        return None
+    current_signature = _current_leaderboard_candidate_semantic_signature()
+    if artifact_signature != current_signature:
+        return None
+    artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
+    dependency_paths = [
+        Path(PROJECT_ROOT) / "scripts" / "hb_leaderboard_candidate_probe.py",
+        Path(PROJECT_ROOT) / "server" / "routes" / "api.py",
+        Path(PROJECT_ROOT) / "backtesting" / "model_leaderboard.py",
+    ]
+    if not _artifact_is_newer_than_dependencies(artifact_time, dependency_paths):
+        return None
+    return {
+        "artifact_path": str(artifact_path),
+        "reason": "fresh_leaderboard_candidate_artifact_reused",
+        "details": {
             "generated_at": payload.get("generated_at"),
             "selected_feature_profile": ((payload.get("top_model") or {}).get("selected_feature_profile")),
+            "semantic_signature": artifact_signature,
         },
-    )
+    }
 
 
 def _feature_group_ablation_cache_hit() -> Dict[str, Any] | None:
+    artifact_path = Path(PROJECT_ROOT) / "data" / "feature_group_ablation.json"
+    if not artifact_path.exists():
+        return None
+    try:
+        payload = json.loads(artifact_path.read_text())
+    except Exception:
+        return None
+
+    source_meta = payload.get("source_meta") or {}
+    current_signature = _current_canonical_label_signature()
+    if source_meta:
+        expected_signature = {
+            "label_rows": current_signature.get("label_rows"),
+            "latest_label_timestamp": current_signature.get("latest_label_timestamp"),
+            "horizon_minutes": 1440,
+            "target_col": "simulated_pyramid_win",
+        }
+        if source_meta != expected_signature:
+            return None
+        dependency_paths = [
+            Path(PROJECT_ROOT) / "scripts" / "feature_group_ablation.py",
+            Path(PROJECT_ROOT) / "model" / "train.py",
+            Path(PROJECT_ROOT) / "database" / "models.py",
+        ]
+        artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
+        if not _artifact_is_newer_than_dependencies(artifact_time, dependency_paths):
+            return None
+        return {
+            "artifact_path": str(artifact_path),
+            "reason": "fresh_feature_group_ablation_artifact_reused",
+            "details": {
+                "generated_at": payload.get("generated_at"),
+                "recommended_profile": payload.get("recommended_profile"),
+                "recent_rows": payload.get("recent_rows"),
+                "source_meta": source_meta,
+            },
+        }
+
     return _artifact_cache_hit_from_dependencies(
         artifact_relpath="data/feature_group_ablation.json",
         reason="fresh_feature_group_ablation_artifact_reused",
@@ -261,10 +376,10 @@ def _feature_group_ablation_cache_hit() -> Dict[str, Any] | None:
             Path(PROJECT_ROOT) / "database" / "models.py",
             Path(DB_PATH),
         ],
-        detail_builder=lambda payload: {
-            "generated_at": payload.get("generated_at"),
-            "recommended_profile": payload.get("recommended_profile"),
-            "recent_rows": payload.get("recent_rows"),
+        detail_builder=lambda legacy_payload: {
+            "generated_at": legacy_payload.get("generated_at"),
+            "recommended_profile": legacy_payload.get("recommended_profile"),
+            "recent_rows": legacy_payload.get("recent_rows"),
         },
     )
 
