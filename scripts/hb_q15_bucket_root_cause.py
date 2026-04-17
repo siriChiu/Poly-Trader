@@ -185,8 +185,10 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
     live_regime = str(probe.get("regime_label") or "")
     live_gate = str(probe.get("regime_gate") or "")
     live_entry_quality_label = str(probe.get("entry_quality_label") or "")
-    current_bucket = ((bull_pocket.get("live_context") or {}).get("current_live_structure_bucket") or
-                      ((probe.get("decision_quality_scope_diagnostics") or {}).get("regime_label+regime_gate+entry_quality_label") or {}).get("current_live_structure_bucket"))
+    current_bucket = (
+        ((probe.get("decision_quality_scope_diagnostics") or {}).get("regime_label+regime_gate+entry_quality_label") or {}).get("current_live_structure_bucket")
+        or ((bull_pocket.get("live_context") or {}).get("current_live_structure_bucket"))
+    )
     structure_components = (probe.get("entry_quality_components") or {}).get("structure_components") or []
     current_structure_quality = _safe_float((probe.get("entry_quality_components") or {}).get("structure_quality"))
     component_map = {item.get("feature"): item for item in structure_components if item.get("feature")}
@@ -245,13 +247,27 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
 
     non_null_4h_feature_count = probe.get("non_null_4h_feature_count")
     projection_issue = bool(non_null_4h_feature_count is not None and int(non_null_4h_feature_count) < 3)
+    signal = str(probe.get("signal") or "").strip().upper()
+    deployment_blocker = str(probe.get("deployment_blocker") or "").strip()
+    deployment_blocker_source = str(probe.get("deployment_blocker_source") or "").strip()
+    execution_guardrail_reason = str(probe.get("execution_guardrail_reason") or "").strip()
+    runtime_blocker_preempts = bool(
+        signal == "CIRCUIT_BREAKER"
+        or deployment_blocker == "circuit_breaker_active"
+        or deployment_blocker_source == "circuit_breaker"
+        or execution_guardrail_reason == "circuit_breaker_blocks_trade"
+    )
 
     verdict = "insufficient_scope_data"
     candidate_patch_type = None
     reason = "目前資料不足，尚無法判定 q15 exact bucket 0-row 的最小可修補原因。"
     verify_next = "先確保 live probe / bull pocket artifacts 完整，再重跑 q15 root-cause artifact。"
 
-    if projection_issue:
+    if runtime_blocker_preempts:
+        verdict = "runtime_blocker_preempts_bucket_root_cause"
+        reason = "目前 live runtime 已先被 circuit breaker 擋下；q15 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。"
+        verify_next = "先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 q15 root-cause artifact。"
+    elif projection_issue:
         verdict = "live_row_projection_missing_4h_inputs"
         candidate_patch_type = "live_row_projection"
         reason = "live row 的 4H 欄位 non-null 數不足，應先修投影/對齊，而不是討論 q15↔q35 分桶。"
