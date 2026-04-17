@@ -1,14 +1,14 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-16 23:00:23.100224**
+- generated_at: **2026-04-17 00:54:21.709888**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
 - signal: **HOLD**
-- regime / gate / label: **bull / CAUTION / D**
+- regime / gate / label: **bull / CAUTION / C**
 - current_live_structure_bucket: **CAUTION|structure_quality_caution|q15**
-- current_live_structure_bucket_rows: **77**
-- allowed_layers: **0** (entry_quality_below_trade_floor)
+- current_live_structure_bucket_rows: **79**
+- allowed_layers: **1** (entry_quality_C_single_layer)
 - execution_guardrail_reason: **None**
 
 ## Scope applicability
@@ -31,9 +31,9 @@
 - reason: current q15 exact bucket 已達 minimum support，可直接用 exact bucket 做 deployment 級驗證。
 - release_condition: 保持 current_live_structure_bucket_rows >= minimum_support_rows，且 live row 仍通過 entry-quality / execution guardrail。
 - support_progress.status: **exact_supported**
-- support_progress.current_rows / minimum: **77 / 50**
+- support_progress.current_rows / minimum: **79 / 50**
 - support_progress.previous_rows: **0**
-- support_progress.delta_vs_previous: **77**
+- support_progress.delta_vs_previous: **79**
 - support_progress.stagnant_run_count: **0**
 - support_progress.escalate_to_blocker: **False**
 - support_progress.reason: current q15 exact bucket 已達 minimum support，可轉向 exact-supported deployment verify。
@@ -41,9 +41,9 @@
 ## Floor-cross legality
 - verdict: **legal_component_experiment_after_support_ready**
 - legal_to_relax_runtime_gate: **True**
-- remaining_gap_to_floor: **0.2262**
+- remaining_gap_to_floor: **0.2473**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.754**
+- best_single_component_required_score_delta: **0.8243**
 - best_single_component_can_cross_floor: **True**
 - reason: 若 exact q15 support 已達標，則 feat_4h_bias50 可作為下一輪優先 component experiment；但仍需通過 runtime guardrail 與回歸驗證。
 
@@ -54,7 +54,7 @@
 - support_ready: **True**
 - entry_quality_ge_0_55: **True**
 - allowed_layers_gt_0: **True**
-- preserves_positive_discrimination: **True** (verified_exact_lane_bucket_dominance)
+- preserves_positive_discrimination: **None** (not_measured_missing_current_bucket_metrics)
 - reason: exact support 已達標，feat_4h_bias50 可作為保守的 q15 component experiment；但是否保留正向 discrimination，仍需靠 pytest / fast heartbeat / live probe 做回歸驗證。
 - verify_next: 用 exact-supported component patch + pytest + fast heartbeat 驗證 allowed_layers / execution_guardrail / live probe 是否仍一致。
 
