@@ -177,6 +177,8 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["execution_surface_contract"]["operations_surface"]["label"] == "Execution Console / 實戰交易"
     assert payload["execution_surface_contract"]["operations_surface"]["role"] == "operations-beta"
     assert payload["execution_surface_contract"]["operations_surface"]["status"] == "live-routing-operator-view"
+    assert payload["execution_surface_contract"]["operations_surface"]["message"] == "Execution Console 已拆成獨立 trading operations surface，現在同時承載 live runtime truth、run control、manual trade / automation controls 與 account snapshot；深度 proof chain / recovery 仍回 Dashboard。"
+    assert payload["execution_surface_contract"]["operations_surface"]["upgrade_prerequisite"] == "下一步必須把 per-bot capital / position / order attribution 與 capital actions 接上 run-owned ledger，才能從 operator-view 升級成完整 execution console。"
     assert payload["execution_surface_contract"]["diagnostics_surface"]["route"] == "/"
     assert payload["execution_surface_contract"]["diagnostics_surface"]["label"] == "Dashboard / Execution 狀態面板"
     assert payload["execution_surface_contract"]["diagnostics_surface"]["role"] == "diagnostics-canonical"
@@ -245,6 +247,42 @@ def test_api_status_passes_db_session_into_execution_service(monkeypatch):
 
     assert captured["db_session"] is db_session
     assert payload["execution"]["guardrails"]["daily_loss_ratio"] == 0.02
+
+
+def test_api_toggle_automation_respects_explicit_enabled_state(monkeypatch):
+    state = {"enabled": False}
+
+    monkeypatch.setattr(api_module, "is_automation_enabled", lambda: state["enabled"])
+    monkeypatch.setattr(api_module, "set_automation_enabled", lambda enabled: state.__setitem__("enabled", enabled))
+
+    import asyncio
+
+    payload = asyncio.run(api_module.api_toggle_automation({"enabled": True}))
+
+    assert state["enabled"] is True
+    assert payload == {
+        "automation": True,
+        "changed": True,
+        "message": "已切換至自動模式",
+    }
+
+
+def test_api_toggle_automation_preserves_legacy_toggle_when_body_missing(monkeypatch):
+    state = {"enabled": True}
+
+    monkeypatch.setattr(api_module, "is_automation_enabled", lambda: state["enabled"])
+    monkeypatch.setattr(api_module, "set_automation_enabled", lambda enabled: state.__setitem__("enabled", enabled))
+
+    import asyncio
+
+    payload = asyncio.run(api_module.api_toggle_automation())
+
+    assert state["enabled"] is False
+    assert payload == {
+        "automation": False,
+        "changed": True,
+        "message": "已切換至手動模式",
+    }
 
 
 class _QueryStub:

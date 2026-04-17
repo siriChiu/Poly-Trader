@@ -227,7 +227,7 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 顯示每個特徵的 IC、勝率、風險貢獻、spot-long 勝率、回測摘要與會議整理。
 
 ### 7. Execution runtime surface
-手動交易與 execution readiness 的正式 surface 目前由 `/api/status`、`/api/trade`、`Dashboard` 共用。
+Execution surface 現在採 **operations / diagnostics split**：`/execution` 承載 operator workflow（run control、manual trade、automation toggle、capital preview），`Dashboard` 保留 canonical diagnostics / guardrail / recovery proof chain，底層共同消費 `/api/status` 與 `/api/trade` contract。
 
 **Execution overview contract（Heartbeat 2026-04-18）**：`/api/execution/overview` 仍是 Execution Console 的 canonical planning surface，但它已不再停在純 preview 文案。它必須直接消費 `/api/status` 的 live runtime truth，再疊上 control-plane summary，並輸出：
 - `summary`：active / blocked / standby profile counts + `running_runs / paused_runs / stopped_runs / total_runs`
@@ -253,6 +253,10 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 - `runtime_binding_snapshot`
 
 目前硬約束是：`runtime_binding_status=control_plane_only` 仍代表 **stateful operator control plane beta**；但 run payload 現在已能鏡像 **symbol-scoped runtime truth / account snapshot / reconciliation / guardrails**。也就是說，Execution Console 已從單純 event log 前進到「run × runtime/recovery mirror」階段；但這仍不代表 run 已綁定 `ExecutionService`，也不代表已有 per-bot capital / order / position ownership。後續若不把這層 runtime mirror 與真正 runtime / venue closure 的邊界寫清楚，就會再次出現「UI 看起來像 bot console，底層其實還是 shared execution surface」的假產品化。
+
+**Execution operator-controls contract（Heartbeat 2026-04-18）**：`web/src/pages/ExecutionConsole.tsx` 現在必須直接承載 `/api/trade` 與 `/api/automation/toggle`，並在同頁回寫 runtime refresh / normalization feedback。這層 contract 的目的是把 operator workflow 集中到 `/execution`，不再讓手動交易只留在 Dashboard shortcut；但它仍不是 per-bot capital action closure，因為資金帳本與倉位/掛單 ownership 仍是 shared-symbol preview。
+
+**Automation toggle determinism contract（Heartbeat 2026-04-18）**：`/api/automation/toggle` 不得只做 blind toggle。當 request body 提供 `enabled=true/false` 時，後端必須以該值為 source of truth，回傳 `{automation, changed, message}`；只有缺 body 時才允許沿用 legacy toggle。否則多個 operator surface 若以為自己在設定明確模式，實際上卻只是 race-condition 式翻轉，會造成 execution mode 認知錯位。
 
 **Execution runtime visibility contract（Heartbeat 2026-04-16）**：`server/routes/api.py::api_status()` 建立 `ExecutionService` 時必須帶入 `db_session=get_db()`，不可只用 config-only summary。原因是 `daily_loss_ratio / daily_loss_halt / recent reject` 依賴 `TradeHistory` 與 runtime 狀態；若少了 DB session，Dashboard 看到的 guardrail 會變成假健康。
 

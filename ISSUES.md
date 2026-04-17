@@ -7,105 +7,88 @@ _最後更新：2026-04-18 CST_
 ---
 
 ## 當前主線
-目前最重要的進展是：**Execution Console 已從 stateful run control beta 再往前推進到「run × runtime/recovery 鏡像」階段。**
+目前最重要的進展是：**Execution Console 已從「run × runtime/recovery mirror」再往前推到「operator controls 進 `/execution`」階段。**
 
 本輪已完成：
-- `ExecutionRun` 回傳新增 `runtime_binding_contract`
-- `ExecutionRun` 回傳新增 `runtime_binding_snapshot`
-- `/api/execution/runs` 與 `/api/execution/runs/{id}` 現在會把 **symbol-scoped runtime truth / account snapshot / reconciliation / guardrails** 鏡像到 run card
-- Execution Console 現在會直接顯示：
-  - shared-symbol runtime mirror 摘要
-  - reconciliation status
-  - last live order
-  - operator action
-- `profile_cards[].current_run` 與獨立 run list 已同步帶出這組鏡像 contract
+- `/execution` 現在直接承載 **manual trade controls**（買入 / 減碼）
+- `/execution` 現在直接承載 **automation toggle**，不再只靠 Dashboard shortcut
+- `/api/automation/toggle` 現在支援 **explicit `enabled=true/false`**，避免 operator surface 只能 blind toggle
+- `Dashboard` 仍保留 canonical diagnostics / guardrail / recovery proof chain；`/execution` 負責 operator workflow
 
 已驗證：
-- `pytest tests/test_server_startup.py tests/test_execution_console_overview.py tests/test_execution_run_control.py tests/test_frontend_decision_contract.py -q`
+- `source venv/bin/activate && python -m pytest tests/test_server_startup.py tests/test_frontend_decision_contract.py -q`
 - `cd web && npm run build`
 
-**目前定位必須講清楚：這仍是 control-plane beta + shared-symbol runtime mirror，不是 per-bot live runtime。**
-run 已能看到 runtime / recovery 真相，但資金、倉位、掛單、成交與 replay ownership 仍未真正歸屬到單一 run。
+**目前定位必須講清楚：這仍是 operations-beta，不是 live-ready execution closure。**
+manual trade / automation controls 已集中到 `/execution`，但 capital / position / open-order / replay ownership 仍不是 per-run ledger。
 
 ---
 
 ## Open Issues
 
-### P0. Run 已有 runtime mirror，但仍不是 per-bot runtime owner
+### P0. Run 仍是 runtime mirror，不是 per-bot runtime owner
 **現況**
-- run 已可持久化 start / pause / stop / event log
-- run 已可鏡像 `/api/status` 的 symbol-scoped runtime / reconciliation
-- 但 `runtime_binding_status` 仍是 `control_plane_only`，run 只是看到 shared-symbol 真相，不是擁有自己的 runtime
+- `ExecutionRun` 已可 start / pause / stop，並鏡像 symbol-scoped runtime / reconciliation / last order
+- `runtime_binding_status` 仍是 `control_plane_only`
+- run card 看到的仍是 shared-symbol truth，不是 run 自己擁有的 execution lifecycle
 
 **風險**
-- 若把 runtime mirror 誤讀成真正 run ownership，會再次產生「看起來像 bot console，底層仍是 shared execution surface」的假產品化
+- 若把 mirror 誤讀成 ownership，會再次出現「UI 看起來像 bot console，底層其實還是 shared execution surface」的假產品化
 
 **下一步**
 - 把 `ExecutionRun` 綁到 `ExecutionService`
-- 讓 run 讀到自己的 lifecycle / recovery / order evidence，而不是全域 symbol 摘要
+- 讓 lifecycle / recovery / replay / order evidence 落到 run scope
 - 將 runtime mirror 升級成真正 run-bound contract
 
-### P0. 資金 / 倉位 / 掛單仍是 shared-symbol preview，不是 per-bot ledger
+### P0. Capital / position / open-order 仍是 shared-symbol preview
 **現況**
-- budget 仍來自 `check_position_size()` + `equal_split_active_sleeves`
-- run card 看到的是 shared-symbol position / open-order / last-order 鏡像
-- 沒有真正 per-run capital / position / order attribution
+- `/execution` 已能顯示 capital preview、account snapshot、manual trade controls、automation toggle
+- 但 budget 仍來自 preview allocation，positions / open orders / trade history 仍是 symbol-shared
+- 尚無真正 per-run capital attribution、PnL、restart replay ownership
 
 **風險**
-- 沒有 per-bot ledger，就無法做真 PnL、真資金占用、真 restart replay ownership
+- 沒有 per-bot ledger，就無法把 operator actions、資金占用與實際風控閉環到單一 run
 
 **下一步**
-- 建立 per-bot capital attribution
-- 把 positions / open orders / trade history 對應到 run / profile
-- 讓 Execution Console 顯示真實 per-run capital / PnL，而不是 preview budget
+- 建立 per-run capital / position / order attribution
+- 讓 Execution Console 顯示真實 per-run capital、PnL、open orders，而不是 shared preview
 
-### P1. Manual trade / capital actions 仍未收進 `/execution`
+### P1. Capital actions 尚未進 `/execution`
 **現況**
-- `/execution` 已有 bot card、run control、runtime mirror
-- 但手動交易與資金操作入口仍未集中到同一頁
+- manual trade 與 automation toggle 已搬到 `/execution`
+- 但充值 / 提現 / 調整部署資金 / run-owned ledger action 仍未有正式 operator contract
 
 **風險**
-- operator workflow 仍分裂在 Dashboard 與 Execution Console
+- operator workflow 還沒真正收斂成單頁閉環；目前只完成交易控制，尚未完成資金控制
 
 **下一步**
-- 把 manual trade / capital actions 移到 `/execution`
-- 讓 run card、manual action、capital ledger 同頁完成
+- 把 capital actions 與 ledger events 納入 `/execution`
+- 讓 manual trade / capital action / run ledger 成為同一頁工作流
 
-### P1. Strategy Lab 仍保留過多 execution diagnostics
+### P1. Binance / OKX readiness 仍缺 venue-backed closure
 **現況**
-- Dashboard / Execution Console / Strategy Lab 的分工已比之前清楚
-- 但 Strategy Lab 仍殘留部分 execution diagnostics 與治理提示
+- metadata smoke、reconciliation、lane drilldown 已可見
+- 但 run 尚未擁有真實 venue ack / fill / cancel / restart replay artifact ownership
 
 **風險**
-- 研究頁與營運頁的心智模型仍未完全切乾淨
+- 即使 `/execution` 更像 operator workspace，也不能誤寫成可實盤放量
 
 **下一步**
-- 繼續把 execution diagnostics 收斂回 Dashboard / Execution Console
-- Strategy Lab 只保留研究與 runtime blocker sync
-
-### P1. Binance / OKX readiness 仍是治理可見性，不是 venue-backed closure
-**現況**
-- reconciliation / metadata smoke / venue lanes 已可見
-- run 尚未擁有真實 venue ack / fill / cancel / restart replay artifact ownership
-
-**風險**
-- 即使 run card 更像產品，也不能誤寫成已可實盤放量
-
-**下一步**
-- 補真實 venue-backed ack / fill / cancel / restart replay artifact
-- 讓 run card 與 venue readiness 一起顯示「可控」vs「可實盤」的明確邊界
+- 把 venue-backed ack / fill / cancel / replay artifact 綁到 run scope
+- 讓 `/execution` 與 Dashboard 都能明確分辨 control-plane beta vs venue-backed closure
 
 ---
 
 ## Not Issues
-- 不是把 shared-symbol runtime mirror 包裝成 per-bot runtime
-- 不是把 equal-split budget 當成正式資金帳本
-- 不是只增加控制按鈕卻沒有 runtime / recovery 真相
-- 不是為了增加 run 數量去放寬 gate / threshold
+- 不是把 `/execution` 的 manual controls 包裝成 per-bot ledger 完成
+- 不是把 shared-symbol capital preview 當成正式資金帳本
+- 不是把 runtime mirror 誤寫成 run ownership
+- 不是因為有 automation toggle 就宣稱 live-ready
 
 ---
 
 ## Current Priority
-1. **把 runtime mirror 升級成 run-bound execution ownership**
-2. **把 shared-symbol capital / position / order preview 升級成 per-bot ledger**
-3. **把 manual trade / capital actions 收進 `/execution`，完成 operator workflow 集中**
+1. **把 run mirror 升級成 run-owned execution lifecycle**
+2. **把 shared-symbol capital / position / open-order preview 升級成 per-run ledger**
+3. **把 capital actions 收進 `/execution`，完成 operator workflow 集中**
+4. **補齊 Binance / OKX venue-backed closure evidence**

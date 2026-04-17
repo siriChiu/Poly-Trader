@@ -11,7 +11,7 @@ import uuid
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Body, Query, HTTPException
 import pandas as pd
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any, Callable
@@ -890,8 +890,8 @@ def _build_execution_surface_contract() -> Dict[str, Any]:
             "label": "Execution Console / 實戰交易",
             "role": "operations-beta",
             "status": "live-routing-operator-view",
-            "message": "Execution Console 已拆成獨立 trading operations surface，直接顯示 live runtime truth、sleeve routing、account snapshot 與 reconciliation 摘要；深度 proof chain / recovery 仍回 Dashboard。",
-            "upgrade_prerequisite": "必須接上 bot profile/run lifecycle、手動交易 controls 與資金配置後，才能從 operator-view 升級成完整 execution console。",
+            "message": "Execution Console 已拆成獨立 trading operations surface，現在同時承載 live runtime truth、run control、manual trade / automation controls 與 account snapshot；深度 proof chain / recovery 仍回 Dashboard。",
+            "upgrade_prerequisite": "下一步必須把 per-bot capital / position / order attribution 與 capital actions 接上 run-owned ledger，才能從 operator-view 升級成完整 execution console。",
         },
         "diagnostics_surface": {
             "route": "/",
@@ -3385,10 +3385,24 @@ async def api_put_senses_cfg(update: "SenseConfigUpdate") -> Dict[str, Any]:
 
 
 @router.post("/automation/toggle")
-async def api_toggle_automation() -> Dict[str, Any]:
-    new_state = not bool(is_automation_enabled())
+async def api_toggle_automation(payload: Optional[Dict[str, Any]] = Body(default=None)) -> Dict[str, Any]:
+    requested_enabled = payload.get("enabled") if isinstance(payload, dict) else None
+    previous_state = bool(is_automation_enabled())
+    if isinstance(requested_enabled, bool):
+        new_state = requested_enabled
+    else:
+        new_state = not previous_state
     set_automation_enabled(new_state)
-    return {"automation": new_state, "message": f"已切換至{'自動' if new_state else '手動'}模式"}
+    changed = new_state != previous_state
+    if changed:
+        message = f"已切換至{'自動' if new_state else '手動'}模式"
+    else:
+        message = f"目前已是{'自動' if new_state else '手動'}模式"
+    return {
+        "automation": new_state,
+        "changed": changed,
+        "message": message,
+    }
 
 
 @router.get("/model/stats")

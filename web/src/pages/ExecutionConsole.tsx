@@ -50,6 +50,8 @@ type LiveRuntimeTruth = {
 type ExecutionConsoleRuntimeStatusResponse = {
   symbol?: string;
   timestamp?: string;
+  automation?: boolean;
+  dry_run?: boolean;
   execution_surface_contract?: {
     canonical_execution_route?: string;
     canonical_surface_label?: string;
@@ -367,6 +369,10 @@ export default function ExecutionConsole() {
     tone: "idle",
     message: "",
   });
+  const [operatorActionState, setOperatorActionState] = useState<{ tone: "idle" | "pending" | "success" | "error"; message: string }>({
+    tone: "idle",
+    message: "",
+  });
 
   const handleRunAction = async (endpoint: string, pendingLabel: string, successLabel: string) => {
     setRunActionState({ tone: "pending", message: pendingLabel });
@@ -414,11 +420,82 @@ export default function ExecutionConsole() {
   const executionRunsSummary = executionRuns?.summary ?? null;
   const executionRunRecords = Array.isArray(executionRuns?.runs) ? executionRuns.runs : [];
   const runsByProfileId = new Map(executionRunRecords.map((run) => [run.profile_id || "", run]));
+  const automationEnabled = Boolean(runtimeStatus?.automation);
+  const dryRunEnabled = Boolean(runtimeStatus?.dry_run);
+  const executionSymbol = runtimeStatus?.symbol || "BTCUSDT";
+  const executionModeLabel = executionSummary?.mode || (dryRunEnabled ? "dry_run" : "paper");
+  const executionVenueLabel = executionSummary?.venue || "unknown";
   const runActionTone = runActionState.tone === "success"
     ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
     : runActionState.tone === "error"
       ? "border-rose-500/20 bg-rose-500/10 text-rose-100"
       : "border-cyan-500/20 bg-cyan-500/10 text-cyan-100";
+  const operatorActionTone = operatorActionState.tone === "success"
+    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
+    : operatorActionState.tone === "error"
+      ? "border-rose-500/20 bg-rose-500/10 text-rose-100"
+      : "border-cyan-500/20 bg-cyan-500/10 text-cyan-100";
+
+  const handleOperatorTrade = async (side: "buy" | "reduce") => {
+    const label = side === "buy" ? "買入" : "減碼";
+    setOperatorActionState({
+      tone: "pending",
+      message: `${label} 指令送出中… ${executionSymbol} 會送到 /api/trade，完成後自動刷新 runtime。`,
+    });
+    try {
+      const resp = await fetchApi<any>("/api/trade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ side, symbol: executionSymbol, qty: 0.001 }),
+      });
+      await refreshRuntimeStatus();
+      const order = resp?.order ?? null;
+      const normalization = resp?.normalization ?? null;
+      const normalizedQty = typeof normalization?.normalized?.qty === "number" ? normalization.normalized.qty : (typeof order?.qty === "number" ? order.qty : null);
+      const normalizedPrice = typeof normalization?.normalized?.price === "number" ? normalization.normalized.price : null;
+      const stepSize = normalization?.contract?.step_size;
+      const tickSize = normalization?.contract?.tick_size;
+      const contractSummary = [
+        stepSize != null ? `step ${formatNumber(Number(stepSize), 6)}` : null,
+        tickSize != null ? `tick ${formatNumber(Number(tickSize), 6)}` : null,
+      ].filter(Boolean).join(" · ");
+      setOperatorActionState({
+        tone: "success",
+        message: `${label} 已提交：模式 ${order?.mode || (resp?.dry_run ? "dry_run" : executionModeLabel)} · venue ${resp?.venue || executionVenueLabel}${normalizedQty != null ? ` · normalized qty ${formatNumber(normalizedQty, 6)}` : ""}${normalizedPrice != null ? ` · normalized price ${formatNumber(normalizedPrice, 2)}` : ""}${contractSummary ? ` · contract ${contractSummary}` : ""}`,
+      });
+    } catch (err: any) {
+      await refreshRuntimeStatus();
+      setOperatorActionState({
+        tone: "error",
+        message: `${label} 指令失敗：${err?.message || "未知錯誤"}`,
+      });
+    }
+  };
+
+  const handleAutomationToggle = async (enabled: boolean) => {
+    setOperatorActionState({
+      tone: "pending",
+      message: `${enabled ? "切換至自動" : "切換至手動"}模式中…`,
+    });
+    try {
+      const resp = await fetchApi<{ automation?: boolean; message?: string }>("/api/automation/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      await refreshRuntimeStatus();
+      setOperatorActionState({
+        tone: "success",
+        message: resp.message || `目前已是${resp.automation ? "自動" : "手動"}模式`,
+      });
+    } catch (err: any) {
+      await refreshRuntimeStatus();
+      setOperatorActionState({
+        tone: "error",
+        message: `automation 切換失敗：${err?.message || "未知錯誤"}`,
+      });
+    }
+  };
 
   return (
     <div className="space-y-6 text-dark-100">
@@ -602,7 +679,48 @@ export default function ExecutionConsole() {
             </div>
           </div>
           <div className="mt-3 rounded-xl border border-white/10 bg-dark-950/40 p-3 text-[12px] text-dark-300">
-            手動交易 controls 與 bot 資金配置尚未搬到這頁；這輪先把 operator 必須看的 snapshot / route contract / blocker truth 切成獨立營運視圖。
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-medium text-white">Manual operator controls</div>
+              <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(automationEnabled ? "ok" : "warning")}`}>
+                automation {automationEnabled ? "ON" : "off"}
+              </div>
+            </div>
+            <div className="mt-1">symbol {executionSymbol} · mode {executionModeLabel} · venue {executionVenueLabel}</div>
+            <div className="mt-1">這組 controls 直接呼叫 /api/trade 與 /api/automation/toggle；若 guardrail 拒單，錯誤會直接回寫在這裡，proof chain / recovery 仍回 Dashboard。</div>
+            <div className="mt-3 flex flex-wrap gap-2 text-[12px]">
+              <button
+                type="button"
+                disabled={operatorActionState.tone === "pending"}
+                onClick={() => handleOperatorTrade("buy")}
+                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 font-medium text-emerald-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-emerald-500/20"
+              >
+                買入 0.001 BTC
+              </button>
+              <button
+                type="button"
+                disabled={operatorActionState.tone === "pending"}
+                onClick={() => handleOperatorTrade("reduce")}
+                className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 font-medium text-amber-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-amber-500/20"
+              >
+                減碼 0.001 BTC
+              </button>
+              <button
+                type="button"
+                disabled={operatorActionState.tone === "pending"}
+                onClick={() => handleAutomationToggle(!automationEnabled)}
+                className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 font-medium text-cyan-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-cyan-500/20"
+              >
+                {automationEnabled ? "切到手動模式" : "切到自動模式"}
+              </button>
+            </div>
+            {operatorActionState.tone !== "idle" && operatorActionState.message && (
+              <div className={`mt-3 rounded-xl border px-3 py-2 ${operatorActionTone}`}>
+                {operatorActionState.message}
+              </div>
+            )}
+          </div>
+          <div className="mt-3 rounded-xl border border-white/10 bg-dark-950/40 p-3 text-[12px] text-dark-300">
+            手動交易 controls 與 automation toggle 已搬到這頁；Dashboard 保留 guardrail / recovery diagnostics，per-bot capital ledger / capital actions 仍未完成。
           </div>
         </div>
       </section>
