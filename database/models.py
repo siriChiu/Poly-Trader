@@ -309,6 +309,21 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
     ),
 }
 
+_SQLITE_INDEX_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
+    # Heartbeat 2026-04-17: fast governance/drift queries join on timestamp+symbol and
+    # frequently filter labels by horizon before ordering by timestamp. Single-column
+    # indexes forced recent_drift_report into slow scans that timed out under cron.
+    "labels": (
+        ("idx_labels_horizon_timestamp_symbol", "(horizon_minutes, timestamp, symbol)"),
+    ),
+    "features_normalized": (
+        ("idx_features_timestamp_symbol", "(timestamp, symbol)"),
+    ),
+    "raw_market_data": (
+        ("idx_raw_market_timestamp_symbol", "(timestamp, symbol)"),
+    ),
+}
+
 
 def _sqlite_add_missing_columns(engine) -> None:
     inspector = inspect(engine)
@@ -330,6 +345,21 @@ def _sqlite_add_missing_columns(engine) -> None:
                 except Exception:
                     # If a column already exists due to race/partial migration, keep going.
                     pass
+
+
+def _sqlite_add_missing_indexes(engine) -> None:
+    if engine.dialect.name != "sqlite":
+        return
+
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    with engine.begin() as conn:
+        for table, indexes in _SQLITE_INDEX_MIGRATIONS.items():
+            if table not in existing_tables:
+                continue
+            for index_name, column_expr in indexes:
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table} {column_expr}"))
+
 
 
 def _configure_sqlite_engine(engine) -> None:
@@ -358,5 +388,6 @@ def init_db(db_url: str):
     _configure_sqlite_engine(engine)
     Base.metadata.create_all(engine)
     _sqlite_add_missing_columns(engine)
+    _sqlite_add_missing_indexes(engine)
     SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     return SessionLocal()
