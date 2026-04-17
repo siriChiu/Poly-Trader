@@ -1266,6 +1266,43 @@ def _infer_deployment_blocker(
     if generic_blocker is not None:
         return generic_blocker
 
+    toxic_status = str(dq.get("decision_quality_exact_live_lane_status") or "")
+    toxic_reason = dq.get("decision_quality_exact_live_lane_reason")
+    toxic_bucket = (
+        dq.get("decision_quality_exact_live_lane_toxic_bucket")
+        if isinstance(dq.get("decision_quality_exact_live_lane_toxic_bucket"), dict)
+        else {}
+    )
+    toxic_bucket_diagnostics = (
+        dq.get("decision_quality_exact_live_lane_bucket_diagnostics")
+        if isinstance(dq.get("decision_quality_exact_live_lane_bucket_diagnostics"), dict)
+        else {}
+    )
+    if bool(dq.get("decision_quality_exact_live_lane_toxicity_applied")) and toxic_status in {
+        "toxic_sub_bucket_current_bucket",
+        "toxic_allow_lane",
+    }:
+        blocker_type = f"exact_live_lane_{toxic_status}"
+        blocker_reason = toxic_reason
+        if not blocker_reason:
+            blocker_reason = (
+                f"current live structure bucket `{structure_bucket}` 已被 exact live lane 毒性治理規則判成 {toxic_status}；"
+                "在 exact lane 品質恢復前，runtime 不可放行部署。"
+            )
+        return {
+            "type": blocker_type,
+            "reason": blocker_reason,
+            "source": "decision_quality_contract",
+            "structure_bucket": structure_bucket,
+            "status": toxic_status,
+            "current_live_structure_bucket_rows": current_live_structure_bucket_rows,
+            "exact_live_structure_bucket_rows": exact_support_rows or current_live_structure_bucket_rows,
+            "decision_quality_calibration_scope": dq.get("decision_quality_calibration_scope"),
+            "decision_quality_sample_size": dq.get("decision_quality_sample_size"),
+            "toxic_bucket": toxic_bucket or None,
+            "bucket_diagnostics": toxic_bucket_diagnostics or None,
+        }
+
     if str(decision_profile.get("regime_label") or "") != "bull":
         return None
     if str(decision_profile.get("regime_gate") or "") != "CAUTION":
@@ -1334,7 +1371,8 @@ def _apply_deployment_blocker_to_execution_profile(
     guarded["allowed_layers"] = 0
     reasons = [r for r in str(guarded.get("execution_guardrail_reason") or "").split("; ") if r]
     blocker_reason = str(deployment_blocker.get("type") or "").strip()
-    if blocker_reason and blocker_reason not in reasons:
+    toxic_guardrail_reason = f"{blocker_reason}_blocks_trade" if blocker_reason.startswith("exact_live_lane_toxic_") else None
+    if blocker_reason and blocker_reason not in reasons and toxic_guardrail_reason not in reasons:
         reasons.append(blocker_reason)
     final_reason = "; ".join(reasons) if reasons else None
     guarded["execution_guardrail_applied"] = True

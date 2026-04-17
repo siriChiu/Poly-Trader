@@ -216,8 +216,11 @@ def _runtime_patch_name(result: dict) -> str | None:
 
 def _runtime_closure_state(result: dict) -> str:
     patch_name = _runtime_patch_name(result)
+    blocker = str(result.get("deployment_blocker") or "")
     if result.get("signal") == "CIRCUIT_BREAKER":
         return "circuit_breaker_active"
+    if blocker.startswith("exact_live_lane_toxic_"):
+        return "deployment_guardrail_blocks_trade"
     if patch_name and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0:
         return "capacity_opened_signal_hold"
     if patch_name and (
@@ -254,6 +257,15 @@ def _runtime_closure_summary(
                 and result.get("decision_quality_recent_pathology_reason")
                 else ""
             )
+        )
+    blocker = str(result.get("deployment_blocker") or "")
+    blocker_reason = result.get("deployment_blocker_reason") or result.get("execution_guardrail_reason") or result.get("allowed_layers_reason")
+    if blocker.startswith("exact_live_lane_toxic_"):
+        bucket = result.get("current_live_structure_bucket") or result.get("structure_bucket") or "unknown_bucket"
+        return (
+            f"current live bucket {bucket} 已具 exact support，但 runtime 仍被 {blocker} 擋住；"
+            f"{blocker_reason or 'exact live lane 毒性治理仍未解除'}。"
+            "目前保持 hold-only，不可把 support closure 誤讀成 deployment closure。"
         )
     if patch_name and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0:
         return (

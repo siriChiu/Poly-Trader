@@ -465,6 +465,52 @@ def test_infer_deployment_blocker_uses_scope_diagnostics_fallback_for_exact_rows
     assert blocker["support_mode"] == "exact_bucket_present_but_below_minimum"
 
 
+def test_infer_deployment_blocker_surfaces_exact_live_lane_toxic_current_bucket():
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+        },
+        {
+            "decision_quality_exact_live_lane_toxicity_applied": True,
+            "decision_quality_exact_live_lane_status": "toxic_sub_bucket_current_bucket",
+            "decision_quality_exact_live_lane_reason": "current q35 bucket is the exact-lane toxic sub-bucket",
+            "decision_quality_exact_live_lane_toxic_bucket": {
+                "bucket": "CAUTION|structure_quality_caution|q35",
+                "rows": 137,
+                "win_rate": 0.5474,
+                "avg_quality": 0.1729,
+            },
+            "decision_quality_exact_live_lane_bucket_diagnostics": {
+                "verdict": "toxic_sub_bucket_identified",
+            },
+            "decision_quality_structure_bucket_support_rows": 137,
+            "decision_quality_exact_live_structure_bucket_support_rows": 137,
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_supported",
+            "decision_quality_calibration_scope": "regime_label+regime_gate+entry_quality_label",
+            "decision_quality_sample_size": 196,
+        },
+    )
+    guarded = predictor_module._apply_deployment_blocker_to_execution_profile(
+        {
+            "allowed_layers": 0,
+            "allowed_layers_raw": 0,
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
+        },
+        blocker,
+    )
+
+    assert blocker is not None
+    assert blocker["type"] == "exact_live_lane_toxic_sub_bucket_current_bucket"
+    assert blocker["source"] == "decision_quality_contract"
+    assert blocker["current_live_structure_bucket_rows"] == 137
+    assert blocker["toxic_bucket"]["bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert guarded["deployment_blocker"] == "exact_live_lane_toxic_sub_bucket_current_bucket"
+    assert guarded["allowed_layers_reason"] == "decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade"
+
+
 def test_live_decision_profile_applies_q35_discriminative_redesign_when_current_row_matches_audit(tmp_path, monkeypatch):
     q35_path = tmp_path / "q35_scaling_audit.json"
     q35_path.write_text(

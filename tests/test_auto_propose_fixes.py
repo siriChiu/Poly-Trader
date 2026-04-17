@@ -1225,13 +1225,16 @@ def test_sync_current_state_governance_issues_prefers_live_supported_bucket_over
             "current_live_structure_bucket_rows": 139,
             "allowed_layers_reason": "decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
             "execution_guardrail_reason": "decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
-            "deployment_blocker": None,
+            "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
         },
         {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
     )
 
     assert ("resolve", "#H_AUTO_CURRENT_BUCKET_SUPPORT") in events
     assert not any(event[0] == "add" and event[1] == "#H_AUTO_CURRENT_BUCKET_SUPPORT" for event in events)
+    toxic_add = next(event for event in events if event[0] == "add" and event[1] == "#H_AUTO_CURRENT_BUCKET_TOXICITY")
+    assert "CAUTION|structure_quality_caution|q35" in toxic_add[2]
+    assert "139 rows" in toxic_add[2]
 
 
 def test_sync_current_state_governance_issues_adds_alignment_blocker_when_current_inputs_stale():

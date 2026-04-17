@@ -413,6 +413,68 @@ def test_hb_predict_probe_replays_when_refreshed_q15_audit_invalidates_patch(mon
     assert json.loads(out_path.read_text()) == payload
 
 
+def test_hb_predict_probe_emits_toxic_exact_lane_runtime_blocker_summary(monkeypatch, capsys, tmp_path):
+    session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", tmp_path / "missing_q15_support_audit.json")
+    monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
+    monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"bull": object()}))
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "load_latest_features",
+        lambda _session: {"timestamp": "2026-04-17T00:00:00+00:00", "regime_label": "bull"},
+    )
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "predict",
+        lambda *_args, **_kwargs: {
+            "target_col": "simulated_pyramid_win",
+            "used_model": "regime_bull_ensemble",
+            "model_type": "RegimeAwarePredictor",
+            "signal": "BUY",
+            "confidence": 0.86,
+            "regime_label": "bull",
+            "model_route_regime": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "entry_quality": 0.4556,
+            "entry_quality_label": "D",
+            "allowed_layers_raw": 0,
+            "allowed_layers_raw_reason": "entry_quality_below_trade_floor",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
+            "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+            "deployment_blocker_reason": "current q35 bucket is the exact-lane toxic sub-bucket",
+            "deployment_blocker_source": "decision_quality_contract",
+            "deployment_blocker_details": {
+                "current_live_structure_bucket_rows": 137,
+                "toxic_bucket": {
+                    "bucket": "CAUTION|structure_quality_caution|q35",
+                    "rows": 137,
+                    "win_rate": 0.5474,
+                    "avg_quality": 0.1729,
+                },
+            },
+            "decision_quality_horizon_minutes": 1440,
+            "decision_quality_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "decision_quality_exact_live_structure_bucket_support_rows": 137,
+        },
+    )
+
+    hb_predict_probe.main()
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["deployment_blocker"] == "exact_live_lane_toxic_sub_bucket_current_bucket"
+    assert payload["runtime_closure_state"] == "deployment_guardrail_blocks_trade"
+    assert "已具 exact support" in payload["runtime_closure_summary"]
+    assert "不可把 support closure 誤讀成 deployment closure" in payload["runtime_closure_summary"]
+    assert json.loads(out_path.read_text()) == payload
+
+
 def test_hb_predict_probe_emits_capacity_opened_hold_summary(monkeypatch, capsys, tmp_path):
     session = DummySession()
     out_path = tmp_path / "live_predict_probe.json"

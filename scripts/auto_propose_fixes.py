@@ -312,6 +312,21 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
     else:
         tracker.resolve("#H_AUTO_CURRENT_BUCKET_SUPPORT")
 
+    toxic_blocker = str((live_predict_probe or {}).get("deployment_blocker") or "")
+    toxic_current_bucket_active = bool(current_bucket) and (
+        toxic_blocker == "exact_live_lane_toxic_sub_bucket_current_bucket"
+        or "exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade" in live_support_reason
+    )
+    if toxic_current_bucket_active:
+        tracker.add(
+            "P0",
+            "#H_AUTO_CURRENT_BUCKET_TOXICITY",
+            f"current live bucket {current_bucket} is exact-lane toxic despite exact support ({current_rows} rows)",
+            "把 current live bucket 視為 hold-only；維持 toxic sub-bucket blocker 在 runtime/docs 的 machine-read truth，直到 bucket-level win/quality 明顯改善。",
+        )
+    else:
+        tracker.resolve("#H_AUTO_CURRENT_BUCKET_TOXICITY")
+
     alignment_issue_ids = ["P1_alignment_artifacts_need_refresh", "#H_AUTO_ALIGNMENT_GOVERNANCE"]
     alignment_blocked = bool(alignment.get("current_alignment_inputs_stale")) or bool(governance.get("treat_as_parity_blocker"))
     if alignment_blocked:
