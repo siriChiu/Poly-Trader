@@ -1,4 +1,5 @@
-import { useApi } from "../hooks/useApi";
+import { useState } from "react";
+import { fetchApi, useApi } from "../hooks/useApi";
 
 type SurfaceInfo = {
   route?: string;
@@ -177,6 +178,7 @@ type ExecutionConsoleRuntimeStatusResponse = {
 
 type ExecutionOverviewProfileCard = {
   key?: string;
+  profile_id?: string;
   label?: string;
   summary?: string;
   activation_status?: string;
@@ -187,10 +189,16 @@ type ExecutionOverviewProfileCard = {
   next_operator_action?: string | null;
   symbol_scoped_position_count?: number;
   symbol_scoped_open_order_count?: number;
+  current_run_state?: string | null;
+  current_run?: ExecutionRunRecord | null;
   control_contract?: {
     mode?: string;
     start_status?: string;
     start_reason?: string;
+    pause_status?: string;
+    stop_status?: string;
+    latest_event_type?: string | null;
+    latest_event_message?: string | null;
     upgrade_prerequisite?: string;
   } | null;
 };
@@ -205,6 +213,10 @@ type ExecutionOverviewResponse = {
     blocked_profiles?: number;
     standby_profiles?: number;
     monitoring_profiles?: number;
+    running_runs?: number;
+    paused_runs?: number;
+    stopped_runs?: number;
+    total_runs?: number;
     allocation_rule?: string;
     operator_message?: string;
   } | null;
@@ -217,6 +229,88 @@ type ExecutionOverviewResponse = {
     confidence?: number | null;
   } | null;
   profile_cards?: ExecutionOverviewProfileCard[] | null;
+};
+
+type ExecutionRunEvent = {
+  event_id?: number;
+  run_id?: string;
+  profile_id?: string;
+  event_type?: string;
+  level?: string;
+  message?: string;
+  created_at?: string;
+};
+
+type ExecutionRunBindingContract = {
+  status?: string | null;
+  scope?: string | null;
+  summary?: string | null;
+  operator_action?: string | null;
+};
+
+type ExecutionRunBindingSnapshot = {
+  account_snapshot?: {
+    captured_at?: string | null;
+    position_count?: number | null;
+    open_order_count?: number | null;
+  } | null;
+  reconciliation?: {
+    status?: string | null;
+    summary?: string | null;
+  } | null;
+  guardrails?: {
+    last_order?: {
+      order_id?: string | null;
+      status?: string | null;
+    } | null;
+  } | null;
+};
+
+type ExecutionRunRecord = {
+  run_id?: string;
+  profile_id?: string;
+  label?: string;
+  state?: string;
+  state_label?: string;
+  mode?: string;
+  control_mode?: string;
+  runtime_binding_status?: string;
+  budget_amount?: number | null;
+  budget_ratio?: number | null;
+  capital_currency?: string | null;
+  start_time?: string | null;
+  stop_time?: string | null;
+  stop_reason?: string | null;
+  last_event_type?: string | null;
+  last_event_message?: string | null;
+  last_event_at?: string | null;
+  latest_event?: ExecutionRunEvent | null;
+  recent_events?: ExecutionRunEvent[] | null;
+  runtime_binding_contract?: ExecutionRunBindingContract | null;
+  runtime_binding_snapshot?: ExecutionRunBindingSnapshot | null;
+  action_contract?: {
+    can_pause?: boolean;
+    can_resume?: boolean;
+    can_stop?: boolean;
+    upgrade_prerequisite?: string;
+  } | null;
+};
+
+type ExecutionRunsResponse = {
+  controls_mode?: string;
+  operator_message?: string;
+  upgrade_prerequisite?: string;
+  summary?: {
+    total_profiles?: number;
+    active_profiles?: number;
+    blocked_profiles?: number;
+    standby_profiles?: number;
+    running_runs?: number;
+    paused_runs?: number;
+    stopped_runs?: number;
+    total_runs?: number;
+  } | null;
+  runs?: ExecutionRunRecord[] | null;
 };
 
 function formatNumber(value: number | null | undefined, digits = 2): string {
@@ -267,7 +361,23 @@ function readRecordNumber(record: Record<string, unknown>, keys: string[]): numb
 
 export default function ExecutionConsole() {
   const { data: runtimeStatus, loading, error, refresh: refreshRuntimeStatus } = useApi<ExecutionConsoleRuntimeStatusResponse>("/api/status", 60000);
-  const { data: executionOverview, loading: overviewLoading, error: overviewError } = useApi<ExecutionOverviewResponse>("/api/execution/overview", 60000);
+  const { data: executionOverview, loading: overviewLoading, error: overviewError, refresh: refreshExecutionOverview } = useApi<ExecutionOverviewResponse>("/api/execution/overview", 60000);
+  const { data: executionRuns, loading: runsLoading, error: runsError, refresh: refreshExecutionRuns } = useApi<ExecutionRunsResponse>("/api/execution/runs", 60000);
+  const [runActionState, setRunActionState] = useState<{ tone: "idle" | "pending" | "success" | "error"; message: string }>({
+    tone: "idle",
+    message: "",
+  });
+
+  const handleRunAction = async (endpoint: string, pendingLabel: string, successLabel: string) => {
+    setRunActionState({ tone: "pending", message: pendingLabel });
+    try {
+      const resp = await fetchApi<{ operator_message?: string }>(endpoint, { method: "POST" });
+      await Promise.all([refreshExecutionRuns(), refreshExecutionOverview(), refreshRuntimeStatus()]);
+      setRunActionState({ tone: "success", message: resp.operator_message || successLabel });
+    } catch (err: any) {
+      setRunActionState({ tone: "error", message: err?.message || "execution run 操作失敗" });
+    }
+  };
 
   const executionSurfaceContract = runtimeStatus?.execution_surface_contract ?? null;
   const operationsSurface = executionSurfaceContract?.operations_surface ?? null;
@@ -301,6 +411,14 @@ export default function ExecutionConsole() {
   const executionOverviewSummary = executionOverview?.summary ?? null;
   const executionCapitalPlan = executionOverview?.capital_plan ?? null;
   const executionProfileCards = Array.isArray(executionOverview?.profile_cards) ? executionOverview.profile_cards : [];
+  const executionRunsSummary = executionRuns?.summary ?? null;
+  const executionRunRecords = Array.isArray(executionRuns?.runs) ? executionRuns.runs : [];
+  const runsByProfileId = new Map(executionRunRecords.map((run) => [run.profile_id || "", run]));
+  const runActionTone = runActionState.tone === "success"
+    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
+    : runActionState.tone === "error"
+      ? "border-rose-500/20 bg-rose-500/10 text-rose-100"
+      : "border-cyan-500/20 bg-cyan-500/10 text-cyan-100";
 
   return (
     <div className="space-y-6 text-dark-100">
@@ -338,6 +456,11 @@ export default function ExecutionConsole() {
         {(loading || error) && (
           <div className="mt-4 rounded-xl border border-white/10 bg-dark-950/60 px-4 py-3 text-sm text-dark-300">
             {loading ? "/api/status 載入中…" : `載入失敗：${error}`}
+          </div>
+        )}
+        {runActionState.tone !== "idle" && runActionState.message && (
+          <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${runActionTone}`}>
+            {runActionState.message}
           </div>
         )}
       </section>
@@ -489,7 +612,7 @@ export default function ExecutionConsole() {
           <div>
             <div className="font-semibold">Bot profiles / capital preview</div>
             <div className="text-xs text-dark-400">
-              active {executionOverviewSummary?.active_profiles ?? 0}/{executionOverviewSummary?.total_profiles ?? executionProfileCards.length} · blocked {executionOverviewSummary?.blocked_profiles ?? 0} · standby {executionOverviewSummary?.standby_profiles ?? 0}
+              active {executionOverviewSummary?.active_profiles ?? 0}/{executionOverviewSummary?.total_profiles ?? executionProfileCards.length} · blocked {executionOverviewSummary?.blocked_profiles ?? 0} · standby {executionOverviewSummary?.standby_profiles ?? 0} · runs {executionRunsSummary?.running_runs ?? 0} running / {executionRunsSummary?.paused_runs ?? 0} paused / {executionRunsSummary?.stopped_runs ?? 0} stopped
             </div>
           </div>
           <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(executionOverview?.controls_mode || "preview_only")}`}>
@@ -498,9 +621,15 @@ export default function ExecutionConsole() {
         </div>
         <div className="mt-2 text-dark-300">{executionOverview?.operator_message || "尚未取得 execution overview operator message。"}</div>
         <div className="mt-1 text-dark-400">{executionOverview?.upgrade_prerequisite || "尚未取得 execution overview upgrade prerequisite。"}</div>
-        {(overviewLoading || overviewError) && (
+        {(overviewLoading || overviewError || runsLoading || runsError) && (
           <div className="mt-3 rounded-xl border border-white/10 bg-dark-950/40 px-4 py-3 text-[12px] text-dark-300">
-            {overviewLoading ? "/api/execution/overview 載入中…" : `execution overview 載入失敗：${overviewError}`}
+            {overviewLoading
+              ? "/api/execution/overview 載入中…"
+              : overviewError
+                ? `execution overview 載入失敗：${overviewError}`
+                : runsLoading
+                  ? "/api/execution/runs 載入中…"
+                  : `execution runs 載入失敗：${runsError}`}
           </div>
         )}
         <div className="mt-3 grid gap-3 xl:grid-cols-[0.9fr_1.1fr]">
@@ -511,46 +640,183 @@ export default function ExecutionConsole() {
             <div className="mt-2 text-[12px] text-dark-300">max position ratio {formatNumber(executionCapitalPlan?.max_position_ratio, 3)} · confidence {formatNumber(executionCapitalPlan?.confidence, 3)}</div>
             <div className="mt-2 text-[12px] text-dark-300">{executionCapitalPlan?.operator_message || "尚未取得 capital preview operator message。"}</div>
             <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-[12px] text-cyan-100">
-              preview-only start contract：目前先用 machine-readable bot card / capital preview 對齊 routing、blocker 與資金規劃；真正 start/pause/stop mutation API 尚未落地。
+              stateful run lifecycle 已落地：目前可以建立 / 暫停 / 停止 control-plane beta run，但這仍不是 per-bot capital / order ledger，也不是 live bot 自動下單 closure。
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            {executionProfileCards.length > 0 ? executionProfileCards.map((card) => (
-              <div key={card.key || card.label} className="rounded-2xl border border-white/10 bg-dark-950/40 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-medium text-white">{card.label || card.key || "unknown sleeve"}</div>
-                    <div className="text-[12px] text-dark-400">{card.summary || "—"}</div>
+            {executionProfileCards.length > 0 ? executionProfileCards.map((card) => {
+              const profileId = card.profile_id || card.key || "";
+              const linkedRun = runsByProfileId.get(profileId) || card.current_run || null;
+              const runBindingContract = linkedRun?.runtime_binding_contract ?? null;
+              const runBindingSnapshot = linkedRun?.runtime_binding_snapshot ?? null;
+              const runReconciliation = runBindingSnapshot?.reconciliation ?? null;
+              const runLastOrder = runBindingSnapshot?.guardrails?.last_order ?? null;
+              const canStart = Boolean(profileId) && ["ready_control_plane", "resume_available"].includes(card.control_contract?.start_status || "");
+              const canPause = Boolean(linkedRun?.action_contract?.can_pause && linkedRun?.run_id);
+              const canStop = Boolean(linkedRun?.action_contract?.can_stop && linkedRun?.run_id);
+              return (
+                <div key={card.key || card.label} className="rounded-2xl border border-white/10 bg-dark-950/40 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium text-white">{card.label || card.key || "unknown sleeve"}</div>
+                      <div className="text-[12px] text-dark-400">{card.summary || "—"}</div>
+                    </div>
+                    <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(linkedRun?.state || card.lifecycle_status || card.activation_status)}`}>
+                      {linkedRun?.state_label || linkedRun?.state || card.lifecycle_status || card.activation_status || "unknown"}
+                    </div>
                   </div>
-                  <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(card.lifecycle_status || card.activation_status)}`}>
-                    {card.lifecycle_status || card.activation_status || "unknown"}
+                  <div className="mt-3 grid gap-2 md:grid-cols-2 text-[12px]">
+                    <div className="rounded-xl border border-white/10 bg-dark-900/60 p-3">
+                      <div className="uppercase tracking-wide text-dark-500">planned budget</div>
+                      <div className="mt-1 font-medium text-white">{formatNumber(card.planned_budget_amount)} {balanceCurrency}</div>
+                      <div className="opacity-80">ratio {formatNumber(card.planned_budget_ratio_of_balance, 3)}</div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-dark-900/60 p-3">
+                      <div className="uppercase tracking-wide text-dark-500">start contract</div>
+                      <div className="mt-1 font-medium text-white">{card.control_contract?.start_status || card.activation_status || "unknown"}</div>
+                      <div className="opacity-80">mode {card.control_contract?.mode || "preview_only"}</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-[12px] text-dark-300">routing reason {card.routing_reason || "—"}</div>
+                  <div className="text-[12px] text-dark-300">start reason {card.control_contract?.start_reason || "—"}</div>
+                  <div className="text-[12px] text-dark-300">operator run state {linkedRun?.state_label || linkedRun?.state || "not-started"}</div>
+                  <div className="text-[12px] text-dark-300">event log {linkedRun?.latest_event?.event_type || linkedRun?.last_event_type || card.control_contract?.latest_event_type || "none"} · {linkedRun?.latest_event?.message || linkedRun?.last_event_message || card.control_contract?.latest_event_message || "尚未建立 run event。"}</div>
+                  <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
+                    <div className="font-medium text-white">shared-symbol runtime mirror</div>
+                    <div className="mt-1">binding summary {runBindingContract?.summary || "尚未對齊到 runtime snapshot。"}</div>
+                    <div>reconciliation status {runReconciliation?.status || "unavailable"} · {runReconciliation?.summary || "—"}</div>
+                    <div>last live order {runLastOrder?.order_id || "—"} · {runLastOrder?.status || "unknown"}</div>
+                    <div>operator action {runBindingContract?.operator_action || "—"}</div>
+                  </div>
+                  <div className="text-[12px] text-dark-400">shared symbol positions {card.symbol_scoped_position_count ?? 0} · open orders {card.symbol_scoped_open_order_count ?? 0}</div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[12px]">
+                    <button
+                      type="button"
+                      disabled={!canStart || runActionState.tone === "pending"}
+                      onClick={() => handleRunAction(`/api/execution/runs/${profileId}/start`, "建立 run 中…", card.control_contract?.start_status === "resume_available" ? "已恢復 execution run。" : "已建立 execution run。")}
+                      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 font-medium text-emerald-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-emerald-500/20"
+                    >
+                      建立 run / resume
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canPause || runActionState.tone === "pending"}
+                      onClick={() => linkedRun?.run_id && handleRunAction(`/api/execution/runs/${linkedRun.run_id}/pause`, "暫停 run 中…", "已暫停 execution run。")}
+                      className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 font-medium text-amber-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-amber-500/20"
+                    >
+                      暫停 run
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canStop || runActionState.tone === "pending"}
+                      onClick={() => linkedRun?.run_id && handleRunAction(`/api/execution/runs/${linkedRun.run_id}/stop`, "停止 run 中…", "已停止 execution run。")}
+                      className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 font-medium text-rose-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-rose-500/20"
+                    >
+                      停止 run
+                    </button>
+                  </div>
+                  <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
+                    next operator action {card.next_operator_action || card.control_contract?.upgrade_prerequisite || "—"}
                   </div>
                 </div>
-                <div className="mt-3 grid gap-2 md:grid-cols-2 text-[12px]">
-                  <div className="rounded-xl border border-white/10 bg-dark-900/60 p-3">
-                    <div className="uppercase tracking-wide text-dark-500">planned budget</div>
-                    <div className="mt-1 font-medium text-white">{formatNumber(card.planned_budget_amount)} {balanceCurrency}</div>
-                    <div className="opacity-80">ratio {formatNumber(card.planned_budget_ratio_of_balance, 3)}</div>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-dark-900/60 p-3">
-                    <div className="uppercase tracking-wide text-dark-500">start contract</div>
-                    <div className="mt-1 font-medium text-white">{card.control_contract?.start_status || card.activation_status || "unknown"}</div>
-                    <div className="opacity-80">mode {card.control_contract?.mode || "preview_only"}</div>
-                  </div>
-                </div>
-                <div className="mt-2 text-[12px] text-dark-300">routing reason {card.routing_reason || "—"}</div>
-                <div className="text-[12px] text-dark-300">start reason {card.control_contract?.start_reason || "—"}</div>
-                <div className="text-[12px] text-dark-400">shared symbol positions {card.symbol_scoped_position_count ?? 0} · open orders {card.symbol_scoped_open_order_count ?? 0}</div>
-                <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
-                  next operator action {card.next_operator_action || card.control_contract?.upgrade_prerequisite || "—"}
-                </div>
-              </div>
-            )) : (
+              );
+            }) : (
               <div className="rounded-2xl border border-white/10 bg-dark-950/40 p-4 text-[12px] text-dark-300">
                 尚未取得 bot profile cards；先確認 /api/execution/overview 是否可用。
               </div>
             )}
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-white/10 bg-dark-900/70 p-4 text-sm leading-6 text-dark-200">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="font-semibold">Stateful run lifecycle</div>
+            <div className="text-xs text-dark-400">running {executionRunsSummary?.running_runs ?? 0} · paused {executionRunsSummary?.paused_runs ?? 0} · stopped {executionRunsSummary?.stopped_runs ?? 0} · total {executionRunsSummary?.total_runs ?? executionRunRecords.length}</div>
+          </div>
+          <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(executionRuns?.controls_mode || executionOverview?.controls_mode || "stateful_run_control_beta")}`}>
+            {executionRuns?.controls_mode || executionOverview?.controls_mode || "stateful_run_control_beta"}
+          </div>
+        </div>
+        <div className="mt-2 text-dark-300">{executionRuns?.operator_message || "尚未取得 execution runs operator message。"}</div>
+        <div className="mt-1 text-dark-400">{executionRuns?.upgrade_prerequisite || "尚未取得 execution runs upgrade prerequisite。"}</div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {executionRunRecords.length > 0 ? executionRunRecords.map((run) => {
+            const runBindingContract = run.runtime_binding_contract ?? null;
+            const runRuntimeSnapshot = run.runtime_binding_snapshot ?? null;
+            const runReconciliation = runRuntimeSnapshot?.reconciliation ?? null;
+            const runAccountSnapshot = runRuntimeSnapshot?.account_snapshot ?? null;
+            const runLastOrder = runRuntimeSnapshot?.guardrails?.last_order ?? null;
+            return (
+            <div key={run.run_id || `${run.profile_id}-${run.start_time}`} className="rounded-2xl border border-white/10 bg-dark-950/40 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-medium text-white">{run.label || run.profile_id || "unknown run"}</div>
+                  <div className="text-[12px] text-dark-400">profile {run.profile_id || "—"} · mode {run.mode || "paper"}</div>
+                </div>
+                <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(run.state || "unknown")}`}>
+                  {run.state_label || run.state || "unknown"}
+                </div>
+              </div>
+              <div className="mt-2 text-[12px] text-dark-300">start {formatTime(run.start_time)} · last event {formatTime(run.last_event_at)}</div>
+              <div className="text-[12px] text-dark-300">budget {formatNumber(run.budget_amount)} {run.capital_currency || balanceCurrency} · ratio {formatNumber(run.budget_ratio, 3)}</div>
+              <div className="text-[12px] text-dark-300">binding {run.runtime_binding_status || "control_plane_only"}</div>
+              <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
+                <div className="font-medium text-white">shared-symbol runtime mirror</div>
+                <div className="mt-1">binding summary {runBindingContract?.summary || "尚未取得 runtime binding summary。"}</div>
+                <div>reconciliation status {runReconciliation?.status || "unavailable"} · {runReconciliation?.summary || "—"}</div>
+                <div>account snapshot positions {runAccountSnapshot?.position_count ?? 0} · open orders {runAccountSnapshot?.open_order_count ?? 0}</div>
+                <div>last live order {runLastOrder?.order_id || "—"} · {runLastOrder?.status || "unknown"}</div>
+                <div>operator action {runBindingContract?.operator_action || "—"}</div>
+              </div>
+              <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
+                latest event {run.latest_event?.event_type || run.last_event_type || "—"} · {run.latest_event?.message || run.last_event_message || "尚未取得 run event。"}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-[12px]">
+                <button
+                  type="button"
+                  disabled={!run.action_contract?.can_resume || !run.run_id || runActionState.tone === "pending"}
+                  onClick={() => run.profile_id && handleRunAction(`/api/execution/runs/${run.profile_id}/start`, "恢復 run 中…", "已恢復 execution run。")}
+                  className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 font-medium text-emerald-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-emerald-500/20"
+                >
+                  Resume
+                </button>
+                <button
+                  type="button"
+                  disabled={!run.action_contract?.can_pause || !run.run_id || runActionState.tone === "pending"}
+                  onClick={() => run.run_id && handleRunAction(`/api/execution/runs/${run.run_id}/pause`, "暫停 run 中…", "已暫停 execution run。")}
+                  className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 font-medium text-amber-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-amber-500/20"
+                >
+                  Pause
+                </button>
+                <button
+                  type="button"
+                  disabled={!run.action_contract?.can_stop || !run.run_id || runActionState.tone === "pending"}
+                  onClick={() => run.run_id && handleRunAction(`/api/execution/runs/${run.run_id}/stop`, "停止 run 中…", "已停止 execution run。")}
+                  className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 font-medium text-rose-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-rose-500/20"
+                >
+                  Stop
+                </button>
+              </div>
+              {Array.isArray(run.recent_events) && run.recent_events.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {run.recent_events.slice(0, 3).map((event) => (
+                    <div key={`${run.run_id}-${event.event_id || event.created_at}`} className="rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
+                      <div className="font-medium text-white">{event.event_type || "unknown"}</div>
+                      <div className="opacity-80">{event.message || "—"}</div>
+                      <div className="opacity-70">{formatTime(event.created_at)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            );
+          }) : (
+            <div className="rounded-2xl border border-white/10 bg-dark-950/40 p-4 text-[12px] text-dark-300">
+              尚未建立 stateful run；請先在上方 bot card 建立 run / resume，之後這裡會顯示 event log 與控制狀態。
+            </div>
+          )}
         </div>
       </section>
 

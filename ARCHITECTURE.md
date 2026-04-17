@@ -229,12 +229,30 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 ### 7. Execution runtime surface
 手動交易與 execution readiness 的正式 surface 目前由 `/api/status`、`/api/trade`、`Dashboard` 共用。
 
-**Execution overview contract（Heartbeat 2026-04-18）**：`/api/execution/overview` 是 Execution Console 的第一個專用 read-only operations API。它必須直接消費 `/api/status` 的 live runtime truth，並輸出：
-- `summary`：active / blocked / standby bot profile counts
+**Execution overview contract（Heartbeat 2026-04-18）**：`/api/execution/overview` 仍是 Execution Console 的 canonical planning surface，但它已不再停在純 preview 文案。它必須直接消費 `/api/status` 的 live runtime truth，再疊上 control-plane summary，並輸出：
+- `summary`：active / blocked / standby profile counts + `running_runs / paused_runs / stopped_runs / total_runs`
 - `capital_plan`：以 `execution.risk_control.check_position_size()` 算出的 deployable capital，並先用 `equal_split_active_sleeves` 規則切成 active sleeves 的 preview budget
-- `profile_cards[]`：每個 primary sleeve 的 `activation_status / lifecycle_status / routing_reason / planned_budget_amount / control_contract / next_operator_action`
+- `profile_cards[]`：每個 primary sleeve 的 `profile_id / activation_status / lifecycle_status / routing_reason / planned_budget_amount / current_run / control_contract / next_operator_action`
 
-這份 contract 的定位是 **preview-only bot/profile planning surface**：它必須明講 start/pause/stop mutation API 尚未落地，且目前資金只是 shared-symbol preview，不可把這批卡片誤讀成已具備真正 per-bot runtime ledger。
+這份 contract 的定位是：**capital 仍是 preview，但 run lifecycle 已 stateful**。也就是說，profile card 現在可以看到 current run state 與 control contract；但 budget / positions / open orders 仍是 shared-symbol preview，不可把它誤讀成已具備真正 per-bot runtime ledger。
+
+**Execution run control-plane contract（Heartbeat 2026-04-18）**：Execution Console 現在新增一條獨立的 stateful run lane：
+- `GET /api/execution/profiles`
+- `GET /api/execution/runs`
+- `POST /api/execution/runs/{profile_id}/start`
+- `POST /api/execution/runs/{run_id}/pause`
+- `POST /api/execution/runs/{run_id}/stop`
+- `GET /api/execution/runs/{run_id}`
+
+這批 API 會持久化／輸出：
+- primary sleeve profile catalog
+- `ExecutionRun` 狀態（running / paused / stopped）
+- per-run event log
+- `runtime_binding_status`
+- `runtime_binding_contract`
+- `runtime_binding_snapshot`
+
+目前硬約束是：`runtime_binding_status=control_plane_only` 仍代表 **stateful operator control plane beta**；但 run payload 現在已能鏡像 **symbol-scoped runtime truth / account snapshot / reconciliation / guardrails**。也就是說，Execution Console 已從單純 event log 前進到「run × runtime/recovery mirror」階段；但這仍不代表 run 已綁定 `ExecutionService`，也不代表已有 per-bot capital / order / position ownership。後續若不把這層 runtime mirror 與真正 runtime / venue closure 的邊界寫清楚，就會再次出現「UI 看起來像 bot console，底層其實還是 shared execution surface」的假產品化。
 
 **Execution runtime visibility contract（Heartbeat 2026-04-16）**：`server/routes/api.py::api_status()` 建立 `ExecutionService` 時必須帶入 `db_session=get_db()`，不可只用 config-only summary。原因是 `daily_loss_ratio / daily_loss_halt / recent reject` 依賴 `TradeHistory` 與 runtime 狀態；若少了 DB session，Dashboard 看到的 guardrail 會變成假健康。
 

@@ -10,77 +10,76 @@ _最後更新：2026-04-18 CST_
 - Heartbeat 主線已從「只做報告」轉向 **Execution / UX 產品化**
 - `web/src/App.tsx` 已有 `⚡ 實戰交易` 導航與 `/execution` route
 - `web/src/pages/ExecutionConsole.tsx` 已從 Dashboard 拆出營運視圖
-- 本輪新增 `execution/console_overview.py` 與 `/api/execution/overview`
-- Execution Console 現在可直接顯示：
-  - bot profile cards
-  - preview-only start contract
-  - equal-split active sleeve capital preview
-  - next operator action
-- `ARCHITECTURE.md` 已同步新增 execution overview contract
-- 驗證已完成：
-  - `pytest tests/test_execution_console_overview.py tests/test_server_startup.py tests/test_frontend_decision_contract.py -q`
+- `execution/console_overview.py` + `/api/execution/overview` 已把 runtime truth 轉成 bot profile / capital preview
+- `/api/execution/profiles`、`/api/execution/runs`、`start / pause / stop / detail` 已落地 stateful run control beta
+- **本輪完成 run × runtime/recovery mirror：**
+  - `ExecutionRun.runtime_binding_contract`
+  - `ExecutionRun.runtime_binding_snapshot`
+  - run card / profile card 顯示 shared-symbol runtime mirror、reconciliation status、last live order、operator action
+- 已驗證：
+  - `pytest tests/test_server_startup.py tests/test_execution_console_overview.py tests/test_execution_run_control.py tests/test_frontend_decision_contract.py -q`
   - `cd web && npm run build`
 
 ---
 
 ## 主目標
 
-### 目標 A：把 bot profile preview 升級成真正可操作的 run lifecycle
+### 目標 A：把 runtime mirror 升級成真正的 runtime-bound bot lifecycle
 重點：
-- 現在 `/api/execution/overview` 只提供 read-only preview
-- start / pause / stop mutation 還不存在
-- per-run event log / operator replay 還沒有正式 contract
+- 現在 run 已可持久化 start / pause / stop / event log
+- run 已可鏡像 symbol-scoped runtime / reconciliation
+- 但 run 尚未擁有自己的 execution ownership
 
 成功標準：
-- 新增 `/api/execution/runs` 與 start / pause / stop API
-- run state 有 machine-readable event log
-- Execution Console 可看到真實 run status，而不是 preview-only status
+- `ExecutionRun` 綁到 `ExecutionService`
+- 每個 run 都能看到自己的 lifecycle / recovery / order evidence
+- UI 不再把 shared-symbol runtime mirror 誤讀成 live bot runtime
 
-### 目標 B：把 capital preview 升級成 per-bot capital / position ledger
+### 目標 B：把 shared-symbol preview 升級成 per-bot capital / position / order ledger
 重點：
-- 現在 deployable capital 只先用 `check_position_size()` 計算總量
-- active sleeves 先用 `equal_split_active_sleeves` 做 preview budget
-- positions / open orders 仍是 symbol-shared 視角
+- budget 仍是 preview number
+- positions / open orders / trade history 仍是 symbol-shared
+- 沒有真正 per-run PnL 與資金占用
 
 成功標準：
-- bot profile / run / position / open order 可互相對應
-- Execution Console 顯示每個 bot 的資金、持倉、掛單、PnL
-- restart replay 與 reconciliation 可落到 per-bot scope
+- bot profile / run / capital / position / order 可互相對應
+- Execution Console 顯示 per-run capital / positions / open orders / PnL
+- restart replay 與 reconciliation 可落到 run scope
 
-### 目標 C：把 Execution Console 變成真正操作入口，同時完成 IA 拆層
+### 目標 C：把 `/execution` 變成主要 operator workspace
 重點：
-- manual trade / capital action 仍留在 Dashboard
-- Strategy Lab 仍承載過多 execution diagnostics
-- Dashboard / Execution Console / Strategy Lab 的分工尚未完全收斂
+- run control beta 與 runtime mirror 已經在 `/execution`
+- 但 manual trade / capital actions 仍未完全搬過來
+- operator workflow 仍分裂在 Dashboard / Execution Console
 
 成功標準：
-- manual trade / capital action 移到 `/execution`
-- Strategy Lab 只保留研究 + runtime blocker sync
-- Dashboard 保留 proof chain / recovery / venue diagnostics
+- manual trade / capital actions 移到 `/execution`
+- run card、manual action、capital ledger 同頁完成
+- Dashboard 回到 canonical diagnostics / proof-chain surface
 
-### 目標 D：把 Binance / OKX readiness 從治理可見性推進到 venue-backed closure
+### 目標 D：把 venue readiness 從治理可見性推進到 venue-backed closure
 重點：
-- `live_ready` 仍為 false
-- order ack / fill / cancel / restart replay 還缺真實 venue artifact
+- reconciliation / metadata smoke / venue lanes 已可見
+- 但 run 尚未帶真實 venue ack / fill / cancel / replay artifact
 
 成功標準：
-- Execution Console 與 Dashboard 都能 machine-read venue-backed closure evidence
-- UI 明確區分 preview planning、可操作、可實盤放量三個層級
+- Execution Console 與 Dashboard 都能 machine-read run-scoped venue artifact
+- UI 明確區分 control-plane beta、runtime-bound、venue-backed live closure 三個層級
 
 ---
 
 ## 下一步
-1. **先做 `/api/execution/runs` + start / pause / stop + event log**
-   - 驗證：pytest API contract tests + Execution Console 顯示真實 run status
-2. **再做 per-bot capital / position / order attribution**
-   - 驗證：每張 bot card 都能顯示自己的 capital / positions / open orders / PnL
-3. **最後搬 manual controls 並繼續瘦身 Strategy Lab diagnostics**
-   - 驗證：`/execution` 成為主要操作入口；Strategy Lab 不再承載深度 proof-chain
+1. **先做 per-bot capital / position / order attribution，讓 run 不再只是 shared-symbol mirror**
+   - 驗證：pytest API contract tests + Execution Console 顯示 per-run capital / positions / open orders
+2. **再把 run lifecycle 綁到 `ExecutionService` / reconciliation / recovery**
+   - 驗證：run card 能看到自己的 lifecycle / replay / recovery 狀態，而不是只看全域 symbol 摘要
+3. **最後把 manual trade / capital actions 收進 `/execution`，並保持 Dashboard / Strategy Lab IA 收斂**
+   - 驗證：`/execution` 成為主要操作入口；Dashboard 回 diagnostics；Strategy Lab 不再承載深度 execution diagnostics
 
 ---
 
 ## 成功標準
-- `/api/execution/overview` 不再只是 preview-only，而是能銜接真實 run lifecycle
-- Execution Console 不再只是 operator-view + preview card，而是可營運的 bot console
-- Dashboard / Execution Console / Strategy Lab 各自只承擔一種主要問題
-- Binance / OKX readiness 仍用真實 venue evidence 表示，不靠文案假裝 live-ready
+- `/api/execution/overview` + `/api/execution/runs` 一起構成真實、可持久化的 operator contract
+- Execution Console 不再只是 preview card，而是可管理 run lifecycle 並看見 runtime / recovery 真相的 trading operations surface
+- run card 顯示的 capital / PnL / positions / replay 狀態都屬於該 run 本身，不是 symbol-shared 假對應
+- Binance / OKX readiness 仍以真實 venue evidence 表示，不靠文案假裝 live-ready

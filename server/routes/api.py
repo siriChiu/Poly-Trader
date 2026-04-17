@@ -36,6 +36,13 @@ from feature_engine.feature_history_policy import (
 )
 from execution.account_sync import AccountSyncService
 from execution.console_overview import build_execution_overview
+from execution.control_plane import (
+    build_execution_control_plane_snapshot,
+    get_execution_run_detail,
+    pause_execution_run,
+    start_execution_profile_run,
+    stop_execution_run,
+)
 from execution.execution_service import ExecutionService
 from execution.metadata_smoke import run_metadata_smoke
 from utils.logger import setup_logger
@@ -2473,7 +2480,83 @@ async def api_status() -> Dict[str, Any]:
 async def api_execution_overview() -> Dict[str, Any]:
     cfg = get_config() or {}
     status_payload = await api_status()
-    return build_execution_overview(status_payload, config=cfg)
+    base_overview = build_execution_overview(status_payload, config=cfg)
+    db = get_db()
+    control_plane = build_execution_control_plane_snapshot(db, status_payload, base_overview)
+    return build_execution_overview(status_payload, config=cfg, control_plane=control_plane)
+
+
+@router.get("/execution/profiles")
+async def api_execution_profiles() -> Dict[str, Any]:
+    cfg = get_config() or {}
+    status_payload = await api_status()
+    base_overview = build_execution_overview(status_payload, config=cfg)
+    db = get_db()
+    control_plane = build_execution_control_plane_snapshot(db, status_payload, base_overview)
+    return {
+        "controls_mode": control_plane.get("controls_mode"),
+        "operator_message": control_plane.get("operator_message"),
+        "upgrade_prerequisite": control_plane.get("upgrade_prerequisite"),
+        "summary": control_plane.get("summary"),
+        "profiles": control_plane.get("profiles"),
+    }
+
+
+@router.get("/execution/runs")
+async def api_execution_runs() -> Dict[str, Any]:
+    cfg = get_config() or {}
+    status_payload = await api_status()
+    base_overview = build_execution_overview(status_payload, config=cfg)
+    db = get_db()
+    control_plane = build_execution_control_plane_snapshot(db, status_payload, base_overview)
+    return {
+        "controls_mode": control_plane.get("controls_mode"),
+        "operator_message": control_plane.get("operator_message"),
+        "upgrade_prerequisite": control_plane.get("upgrade_prerequisite"),
+        "summary": control_plane.get("summary"),
+        "profiles": control_plane.get("profiles"),
+        "runs": control_plane.get("runs"),
+    }
+
+
+@router.post("/execution/runs/{profile_id}/start")
+async def api_execution_start_run(profile_id: str) -> Dict[str, Any]:
+    cfg = get_config() or {}
+    status_payload = await api_status()
+    base_overview = build_execution_overview(status_payload, config=cfg)
+    db = get_db()
+    return start_execution_profile_run(db, profile_id, status_payload, base_overview)
+
+
+@router.post("/execution/runs/{run_id}/pause")
+async def api_execution_pause_run(run_id: str) -> Dict[str, Any]:
+    status_payload = await api_status()
+    db = get_db()
+    result = pause_execution_run(db, run_id, status_payload=status_payload)
+    return {
+        "action": "pause",
+        "operator_message": "已更新 execution run 為 paused。",
+        **result,
+    }
+
+
+@router.post("/execution/runs/{run_id}/stop")
+async def api_execution_stop_run(run_id: str) -> Dict[str, Any]:
+    status_payload = await api_status()
+    db = get_db()
+    result = stop_execution_run(db, run_id, status_payload=status_payload)
+    return {
+        "action": "stop",
+        "operator_message": "已更新 execution run 為 stopped。",
+        **result,
+    }
+
+
+@router.get("/execution/runs/{run_id}")
+async def api_execution_run_detail(run_id: str) -> Dict[str, Any]:
+    status_payload = await api_status()
+    db = get_db()
+    return get_execution_run_detail(db, run_id, status_payload=status_payload)
 
 
 # ─── Models ───
@@ -3173,6 +3256,35 @@ def _strategy_sort_key(entry: Dict[str, Any]) -> tuple:
     )
 
 
+_HEAVY_STRATEGY_RESULT_KEYS = {
+    "equity_curve",
+    "trades",
+    "score_series",
+}
+
+
+def _compact_strategy_last_results(last_results: Any) -> Dict[str, Any]:
+    if not isinstance(last_results, dict):
+        return {}
+    compact = {key: value for key, value in last_results.items() if key not in _HEAVY_STRATEGY_RESULT_KEYS}
+    chart_context = compact.get("chart_context")
+    if isinstance(chart_context, dict):
+        compact["chart_context"] = {
+            "symbol": chart_context.get("symbol"),
+            "interval": chart_context.get("interval"),
+            "start": chart_context.get("start"),
+            "end": chart_context.get("end"),
+        }
+    return compact
+
+
+
+def _compact_strategy_leaderboard_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+    compact = dict(entry or {})
+    compact["last_results"] = _compact_strategy_last_results(entry.get("last_results"))
+    return compact
+
+
 @lru_cache(maxsize=4)
 def _load_strategy_data_cached(db_mtime_ns: int):
     conn = sqlite3.connect(DB_PATH)
@@ -3363,6 +3475,7 @@ async def api_strategy_leaderboard() -> Dict[str, Any]:
 
     strategies = load_all_strategies(include_internal=False)
     strategies = sorted(strategies, key=_strategy_sort_key, reverse=True)
+    compact_strategies = [_compact_strategy_leaderboard_entry(entry) for entry in strategies]
     quadrant_points = [
         {
             "strategy_name": entry.get("name"),
@@ -3370,9 +3483,9 @@ async def api_strategy_leaderboard() -> Dict[str, Any]:
             "y": ((entry.get("last_results") or {}).get("return_power_score")),
             "overall_score": ((entry.get("last_results") or {}).get("overall_score")),
         }
-        for entry in strategies
+        for entry in compact_strategies
     ]
-    return {"strategies": strategies, "count": len(strategies), "quadrant_points": quadrant_points}
+    return {"strategies": compact_strategies, "count": len(compact_strategies), "quadrant_points": quadrant_points}
 
 
 @router.get("/strategies/{name}")
