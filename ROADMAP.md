@@ -1,51 +1,50 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-17 12:47 CST_
+_最後更新：2026-04-17 13:10 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留舊 roadmap 歷史。
 
 ---
 
 ## 已完成
-- 修補 `model/q35_bias50_calibration.py`：q35 bias50 segmented calibration 現在只允許套用在 `CAUTION|structure_quality_caution|q35`
-- 修掉 q35 calibration 洩漏到 q15 lane 的 runtime-contract bug，避免 q15 exact-supported patch 被錯誤放大
-- 新增 regression test：`test_piecewise_q35_bias50_calibration_ignores_non_q35_structure_bucket`
-- 驗證 q15 exact-supported patch 仍維持預期行為：`entry_quality=0.5501`、`entry_quality_label=C`、`allowed_layers=1`
-- 驗證通過：
-  - `python -m pytest tests/test_api_feature_history_and_predictor.py::test_live_decision_profile_applies_q15_exact_supported_bias50_patch tests/test_api_feature_history_and_predictor.py::test_piecewise_q35_bias50_calibration_ignores_non_q35_structure_bucket -q` → `2 passed`
-  - `python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_hb_predict_probe.py tests/test_live_decision_quality_drilldown.py tests/test_frontend_decision_contract.py -q` → `66 passed`
-- runtime probes 重新刷新：
+- Strategy Lab live runtime 區塊已升級成 **canonical breaker-first** 呈現：同時顯示 `runtime_closure_state / runtime_closure_summary`、recent-50 release window、required wins、release gap、streak guardrail
+- SignalBanner 快捷面板已同步 canonical breaker release math，不再只停留在 q15 patch 文案
+- 兩個前端 surface 都新增明確治理文案：**不要把 support / component patch 當成 breaker release 替代品**
+- regression coverage 已補到 `tests/test_frontend_decision_contract.py`
+- 前端 build 驗證通過：`npm run build`
+- runtime probes 重新確認 canonical blocker 未變：
   - `python scripts/hb_predict_probe.py`
   - `python scripts/live_decision_quality_drilldown.py`
   - `python scripts/hb_circuit_breaker_audit.py`
-- runtime 最新 truth：仍是 `CIRCUIT_BREAKER`，canonical 1440m release gap = `14 wins`
+- 最新 runtime truth：仍是 `CIRCUIT_BREAKER`，canonical 1440m release gap = `14 wins`
 
 ---
 
 ## 主目標
 
-### 目標 A：把 canonical 1440m circuit breaker 當成唯一 live blocker truth
+### 目標 A：解除 canonical 1440m circuit breaker 的真正 root cause
 重點：
-- 本輪已確認 q15/q35 lane 修補不會覆蓋 canonical breaker
-- 下一步要直接處理 aligned 1440m recent-50 tail pathology，而不是再做局部 lane 美化
+- UI / API 主語義已收斂到 breaker-first；下一步不能再做 presentation-only patch
+- 要直接產出 1440m recent-50 為何 `1/50` 的 canonical path artifact，讓 release condition 可被操作
 
 成功標準：
-- `/api/predict/confidence`、Dashboard、drilldown、heartbeat summary 全都顯示同一組 breaker release math
-- breaker 未解除前，所有 lane patch / support artifact 都不能被表述成 deploy-ready
-- 找出 recent 50 = `1/50` 的可執行 root-cause artifact
+- heartbeat 能指出 recent-50 tail pathology 的可執行 root cause，而不是只重述 breaker
+- `/api/predict/confidence`、Dashboard、Strategy Lab、probe、summary 都顯示同一組 canonical release math
+- breaker 未解除前，任何 q15/q35 patch 都不會被表述成 deploy-ready
 
 ### 目標 B：完成 Binance execution lifecycle replay closure
 重點：
-- 目前還停在 lifecycle visibility / reconciliation contract
+- 目前 execution surface 已有 lifecycle / reconciliation 可見性
 - 下一步要補 partial fill / cancel / restart replay artifact，建立 recovery 可驗證證據
 
 成功標準：
 - `/api/status.execution_reconciliation.lifecycle_contract` 可展示真實 partial fill / cancel / restart replay artifact
 - Dashboard / Strategy Lab / `/api/status` 對同一筆 order 顯示一致 lifecycle replay verdict
+- operator 能根據 artifact 判斷 restart replay 是否完成，而不是只看狀態字串
 
 ### 目標 C：持續硬化 lane-boundary contract
 重點：
-- 本輪證明 q15/q35 runtime override 之間確實可能發生跨 lane 污染
+- 本輪已證明前端 surface 也必須以 canonical breaker truth 為先，不能讓 local patch 敘事覆蓋主 blocker
 - 下一步要把所有 runtime override 都收斂成明確 structure-bucket / scope guard
 
 成功標準：
