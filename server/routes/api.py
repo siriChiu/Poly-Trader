@@ -12,6 +12,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 from fastapi import APIRouter, Query, HTTPException
+import pandas as pd
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any, Callable
 from datetime import datetime, timedelta, timezone
@@ -24,7 +25,7 @@ from server.dependencies import (
     set_automation_enabled,
     set_runtime_status,
 )
-from server.features_engine import get_engine
+from server.features_engine import get_engine, normalize_feature
 from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized, OrderLifecycleEvent
 from feature_engine.feature_history_policy import (
     FEATURE_KEY_MAP,
@@ -41,6 +42,17 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 router = APIRouter()
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DB_PATH = str(PROJECT_ROOT / "poly_trader.db")
+MODEL_LB_CACHE_PATH = PROJECT_ROOT / "data" / "model_leaderboard_cache.json"
+_MODEL_LB_CACHE: Dict[str, Any] = {
+    "payload": None,
+    "updated_at": None,
+    "refreshing": False,
+    "error": None,
+}
+_MODEL_LB_CACHE_LOCK = threading.Lock()
 
 _KLINE_CACHE_LOCK = threading.Lock()
 _KLINE_RESPONSE_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -270,6 +282,199 @@ def _compute_strategy_decision_quality_profile(
         "avg_decision_quality_score": round(decision_quality_score, 4),
         "decision_quality_label": quality_label,
         "decision_quality_sample_size": len(trades),
+    }
+
+
+def _compute_raw_snapshot_stats(db: Any) -> Dict[str, Dict[str, Any]]:
+    if hasattr(db, "execute"):
+        return compute_raw_snapshot_stats(db)
+    bind = getattr(db, "bind", None)
+    if hasattr(bind, "raw_connection"):
+        conn = bind.raw_connection()
+        try:
+            return compute_raw_snapshot_stats(conn)
+        finally:
+            conn.close()
+    return {}
+
+
+def _row_timestamp_value(row: Any) -> Any:
+    value = getattr(row, "timestamp", None)
+    if isinstance(value, datetime):
+        return value
+    if hasattr(value, "timestamp") and callable(getattr(value, "timestamp")):
+        try:
+            return value.timestamp()
+        except Exception:
+            return value
+    return value
+
+
+def _recent_feature_rows(days: int = 30) -> List[Any]:
+    db = get_db()
+    rows = list(db.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all())
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max(int(days), 1))
+    filtered: List[Any] = []
+    for row in rows:
+        ts = _parse_utc_datetime(_row_timestamp_value(row))
+        if ts is None or ts >= cutoff:
+            filtered.append(row)
+    return filtered or rows
+
+
+def _feature_row_to_payload(row: Any) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "timestamp": _iso_utc_timestamp(_row_timestamp_value(row)),
+    }
+    for db_key, clean_key in FEATURE_KEY_MAP.items():
+        raw_value = getattr(row, db_key, None)
+        payload[clean_key] = None if raw_value is None else normalize_feature(raw_value, db_key)
+        payload[f"raw_{clean_key}"] = raw_value
+    return payload
+
+
+def _feature_coverage_from_rows(rows: List[Any], snapshot_stats: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+    snapshot_stats = snapshot_stats or {}
+    snapshot_counts = {subtype: row.get("count", 0) for subtype, row in snapshot_stats.items()}
+    total_rows = len(rows)
+    ordered_timestamps = [getattr(row, "timestamp", None) for row in rows]
+    available_columns = {
+        db_key for db_key in FEATURE_KEY_MAP if any(hasattr(row, db_key) for row in rows)
+    }
+    stats: List[Dict[str, Any]] = []
+    for db_key, clean_key in FEATURE_KEY_MAP.items():
+        if db_key in available_columns:
+            feature_values = [getattr(row, db_key, None) for row in rows]
+            non_null_values = [value for value in feature_values if value is not None]
+            non_null = len(non_null_values)
+            distinct = len({value for value in non_null_values})
+            min_v = min(non_null_values) if non_null_values else None
+            max_v = max(non_null_values) if non_null_values else None
+        else:
+            feature_values = [None] * total_rows
+            non_null, distinct, min_v, max_v = 0, 0, None, None
+        coverage_pct = (non_null / total_rows * 100.0) if total_rows else 0.0
+        quality = assess_feature_quality(clean_key, coverage_pct, distinct, non_null, min_v, max_v)
+        quality.update(_compute_archive_window_coverage(clean_key, ordered_timestamps, feature_values, snapshot_stats))
+        quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts, snapshot_stats)
+        stats.append({
+            "db_key": db_key,
+            "key": clean_key,
+            "non_null": non_null,
+            "coverage_pct": round(coverage_pct, 2),
+            "distinct": distinct,
+            "min": min_v,
+            "max": max_v,
+            **quality,
+        })
+    stats.sort(key=lambda row: (row["chart_usable"], row["coverage_pct"], row["distinct"]))
+    maturity_counts = {"core": 0, "research": 0, "blocked": 0}
+    for row in stats:
+        tier = str(row.get("maturity_tier") or "blocked")
+        maturity_counts[tier] = maturity_counts.get(tier, 0) + 1
+    return {
+        "rows_total": total_rows,
+        "usable_count": sum(1 for row in stats if row.get("chart_usable")),
+        "hidden_count": sum(1 for row in stats if not row.get("chart_usable")),
+        "maturity_counts": maturity_counts,
+        "features": {row["key"]: row for row in stats},
+    }
+
+
+@router.get("/features")
+async def api_features(days: int = 30) -> List[Dict[str, Any]]:
+    return [_feature_row_to_payload(row) for row in _recent_feature_rows(days=days)]
+
+
+@router.get("/features/coverage")
+async def api_features_coverage(days: int = 90) -> Dict[str, Any]:
+    db = get_db()
+    return _feature_coverage_from_rows(_recent_feature_rows(days=days), snapshot_stats=_compute_raw_snapshot_stats(db))
+
+
+@router.get("/backtest")
+async def api_backtest(days: int = 30, initial_capital: float = 10000.0) -> Dict[str, Any]:
+    from backtesting import strategy_lab
+
+    exchange = ccxt.binance()
+    try:
+        candles_4h = exchange.fetch_ohlcv("BTCUSDT", "4h", limit=max(int(days) * 6, 20))
+    except Exception:
+        candles_4h = []
+    try:
+        candles_1d = exchange.fetch_ohlcv("BTCUSDT", "1d", limit=max(int(days), 5))
+    except Exception:
+        candles_1d = []
+
+    trades: List[Dict[str, Any]] = []
+    equity = float(initial_capital)
+    for row in _recent_feature_rows(days=days):
+        regime = str(getattr(row, "regime_label", None) or "unknown")
+        bias200 = float(getattr(row, "feat_4h_bias200", 0.0) or 0.0)
+        bb_pct_b = getattr(row, "feat_4h_bb_pct_b", None)
+        dist_bb_lower = getattr(row, "feat_4h_dist_bb_lower", None)
+        dist_swing_low = getattr(row, "feat_4h_dist_swing_low", None)
+        regime_gate = strategy_lab._compute_regime_gate(
+            bias200,
+            regime,
+            regime_min=0.0,
+            bb_pct_b_value=bb_pct_b,
+            dist_bb_lower_value=dist_bb_lower,
+            dist_swing_low_value=dist_swing_low,
+        )
+        structure_quality = strategy_lab._compute_4h_structure_quality(
+            bb_pct_b_value=bb_pct_b,
+            dist_bb_lower_value=dist_bb_lower,
+            dist_swing_low_value=dist_swing_low,
+        )
+        structure_bucket = strategy_lab._structure_bucket(regime_gate, structure_quality)
+        entry_quality = strategy_lab._compute_entry_quality(
+            float(getattr(row, "feat_4h_bias50", 0.0) or 0.0),
+            float(getattr(row, "feat_nose", 0.0) or 0.0),
+            float(getattr(row, "feat_pulse", 0.0) or 0.0),
+            float(getattr(row, "feat_ear", 0.0) or 0.0),
+            bb_pct_b_value=bb_pct_b,
+            dist_bb_lower_value=dist_bb_lower,
+            dist_swing_low_value=dist_swing_low,
+            regime_label=regime,
+            regime_gate=regime_gate,
+            structure_bucket=structure_bucket,
+        )
+        allowed_layers = strategy_lab._allowed_layers_for_signal(regime_gate, entry_quality, 3)
+        if allowed_layers <= 0:
+            continue
+        pnl = round((entry_quality - 0.5) * 0.1 * allowed_layers, 4)
+        equity = round(equity + pnl * initial_capital, 4)
+        trades.append({
+            "entry_timestamp": _iso_utc_timestamp(_row_timestamp_value(row)),
+            "entry_quality": round(entry_quality, 4),
+            "entry_quality_label": strategy_lab._quality_label(entry_quality),
+            "allowed_layers": allowed_layers,
+            "regime_gate": regime_gate,
+            "structure_bucket": structure_bucket,
+            "pnl": pnl,
+            "max_drawdown": 0.0 if pnl >= 0 else abs(pnl),
+            "bars_held": 1,
+            "equity": equity,
+        })
+
+    decision_profile = _compute_decision_profile(trades)
+    decision_quality = _compute_strategy_decision_quality_profile(trades, db=get_db(), horizon_minutes=1440)
+    return {
+        "initial_capital": float(initial_capital),
+        "total_trades": len(trades),
+        "decision_contract": _strategy_decision_contract_meta(horizon_minutes=1440),
+        **decision_profile,
+        **decision_quality,
+        "trades": _normalize_result_timestamps(trades),
+        "price_data": _normalize_result_timestamps([
+            {"timestamp": candle[0], "close": candle[4], "volume": candle[5]}
+            for candle in candles_4h
+        ]),
+        "benchmark_daily": _normalize_result_timestamps([
+            {"timestamp": candle[0], "close": candle[4]}
+            for candle in candles_1d
+        ]),
     }
 
 
@@ -2182,6 +2387,455 @@ async def api_status() -> Dict[str, Any]:
 
 
 # ─── Models ───
+
+_OVERFIT_GAP_THRESHOLD = 0.12
+_OVERFIT_ACCURACY_THRESHOLD = 0.90
+_MODEL_LEADERBOARD_HISTORY_LIMIT = 10
+_MODEL_TIER_LABELS = {
+    "xgboost": ("core", "核心模型"),
+    "lightgbm": ("core", "核心模型"),
+    "catboost": ("core", "核心模型"),
+    "random_forest": ("core", "核心模型"),
+    "logistic_regression": ("core", "核心模型"),
+    "ensemble": ("core", "核心模型"),
+    "rule_baseline": ("baseline", "基線模型"),
+}
+
+
+def _sqlite_table_columns(conn: sqlite3.Connection, table: str) -> List[str]:
+    try:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    except sqlite3.Error:
+        return []
+    return [str(row[1]) for row in rows]
+
+
+
+def _read_sql_frame(conn: sqlite3.Connection, query: str) -> pd.DataFrame:
+    try:
+        return pd.read_sql_query(query, conn)
+    except Exception:
+        return pd.DataFrame()
+
+
+
+def _normalize_timestamp_frame(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty or "timestamp" not in df.columns:
+        return df
+    normalized = df.copy()
+    normalized["timestamp"] = pd.to_datetime(normalized["timestamp"], format="mixed", errors="coerce")
+    normalized = normalized.dropna(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
+    return normalized
+
+
+
+def _first_non_null_per_timestamp(df: pd.DataFrame, value_col: str) -> pd.DataFrame:
+    if df.empty or value_col not in df.columns or "timestamp" not in df.columns:
+        return pd.DataFrame(columns=["timestamp", value_col])
+    subset = df[["timestamp", value_col]].copy()
+    subset = subset.dropna(subset=[value_col])
+    if subset.empty:
+        return pd.DataFrame(columns=["timestamp", value_col])
+    return subset.drop_duplicates(subset=["timestamp"], keep="first").reset_index(drop=True)
+
+
+
+def load_model_leaderboard_frame(db_path: Optional[str] = None) -> pd.DataFrame:
+    db_path = db_path or DB_PATH
+    conn = sqlite3.connect(db_path)
+    try:
+        feature_columns = _sqlite_table_columns(conn, "features_normalized")
+        raw_columns = _sqlite_table_columns(conn, "raw_market_data")
+        label_columns = _sqlite_table_columns(conn, "labels")
+        if not feature_columns:
+            return pd.DataFrame()
+
+        selected_feature_cols = [
+            col for col in [
+                "timestamp",
+                "symbol",
+                "feat_eye", "feat_ear", "feat_nose", "feat_tongue", "feat_body", "feat_pulse", "feat_aura", "feat_mind",
+                "feat_vix", "feat_dxy",
+                "feat_rsi14", "feat_macd_hist", "feat_atr_pct", "feat_vwap_dev", "feat_bb_pct_b",
+                "feat_nw_width", "feat_nw_slope", "feat_adx", "feat_choppiness", "feat_donchian_pos",
+                "feat_4h_bias50", "feat_4h_bias20", "feat_4h_bias200", "feat_4h_rsi14", "feat_4h_macd_hist",
+                "feat_4h_bb_pct_b", "feat_4h_dist_bb_lower", "feat_4h_ma_order", "feat_4h_dist_swing_low", "feat_4h_vol_ratio",
+            ] if col in feature_columns
+        ]
+        features_df = _read_sql_frame(
+            conn,
+            f"SELECT {', '.join(selected_feature_cols)} FROM features_normalized ORDER BY timestamp"
+        )
+        features_df = _normalize_timestamp_frame(features_df)
+        if features_df.empty:
+            return features_df
+
+        if {"timestamp", "symbol", "close_price"}.issubset(set(raw_columns)):
+            raw_df = _read_sql_frame(
+                conn,
+                "SELECT timestamp, symbol, close_price FROM raw_market_data ORDER BY timestamp"
+            )
+            raw_df = _normalize_timestamp_frame(raw_df)
+            if not raw_df.empty:
+                raw_df = raw_df.drop_duplicates(subset=["timestamp", "symbol"], keep="last")
+                features_df = features_df.merge(raw_df, on=["timestamp", "symbol"], how="left")
+        elif "close_price" not in features_df.columns:
+            features_df["close_price"] = None
+
+        wanted_label_cols = [
+            col for col in [
+                "timestamp",
+                "symbol",
+                "horizon_minutes",
+                "label_spot_long_win",
+                "simulated_pyramid_win",
+                "simulated_pyramid_pnl",
+                "simulated_pyramid_quality",
+                "simulated_pyramid_drawdown_penalty",
+                "simulated_pyramid_time_underwater",
+            ] if col in label_columns
+        ]
+        if wanted_label_cols:
+            label_query = f"SELECT {', '.join(wanted_label_cols)} FROM labels"
+            if "horizon_minutes" in wanted_label_cols:
+                label_query += " WHERE horizon_minutes = 1440 OR horizon_minutes IS NULL"
+            label_query += " ORDER BY timestamp"
+            labels_df = _read_sql_frame(conn, label_query)
+            labels_df = _normalize_timestamp_frame(labels_df)
+            if not labels_df.empty:
+                dedupe_cols = [col for col in ["timestamp", "symbol"] if col in labels_df.columns]
+                if dedupe_cols:
+                    labels_df = labels_df.drop_duplicates(subset=dedupe_cols, keep="last")
+                merge_cols = [col for col in ["timestamp", "symbol"] if col in labels_df.columns and col in features_df.columns]
+                if merge_cols:
+                    features_df = features_df.merge(labels_df, on=merge_cols, how="left")
+                fallback_ts = labels_df[[col for col in labels_df.columns if col != "symbol"]].copy()
+                for label_col in [
+                    "label_spot_long_win",
+                    "simulated_pyramid_win",
+                    "simulated_pyramid_pnl",
+                    "simulated_pyramid_quality",
+                    "simulated_pyramid_drawdown_penalty",
+                    "simulated_pyramid_time_underwater",
+                ]:
+                    if label_col not in fallback_ts.columns:
+                        continue
+                    fallback_df = _first_non_null_per_timestamp(fallback_ts, label_col)
+                    if fallback_df.empty:
+                        continue
+                    fallback_name = f"__fallback_{label_col}"
+                    features_df = features_df.merge(
+                        fallback_df.rename(columns={label_col: fallback_name}),
+                        on="timestamp",
+                        how="left",
+                    )
+                    if label_col not in features_df.columns:
+                        features_df[label_col] = features_df[fallback_name]
+                    else:
+                        features_df[label_col] = features_df[label_col].where(features_df[label_col].notna(), features_df[fallback_name])
+                    features_df = features_df.drop(columns=[fallback_name])
+
+        return features_df.sort_values("timestamp").reset_index(drop=True)
+    finally:
+        conn.close()
+
+
+
+def _serialize_model_scores(scores: List[Any], leaderboard) -> List[Dict[str, Any]]:
+    payload: List[Dict[str, Any]] = []
+    for idx, score in enumerate(scores or [], start=1):
+        model_name = str(getattr(score, "model_name", "unknown"))
+        model_tier, model_tier_label = _MODEL_TIER_LABELS.get(model_name, ("research", "研究模型"))
+        status = {}
+        if leaderboard is not None:
+            status = getattr(leaderboard, "last_model_statuses", {}).get(model_name, {}) or {}
+        item = {
+            "rank": idx,
+            "rank_delta": 0,
+            "model_name": model_name,
+            "deployment_profile": getattr(score, "deployment_profile", status.get("selected_deployment_profile", "standard")),
+            "feature_profile": getattr(score, "feature_profile", status.get("selected_feature_profile", "current_full")),
+            "feature_profile_source": getattr(score, "feature_profile_source", status.get("selected_feature_profile_source", "code_default")),
+            "selected_feature_profile": status.get("selected_feature_profile", getattr(score, "feature_profile", "current_full")),
+            "selected_feature_profile_source": status.get("selected_feature_profile_source", getattr(score, "feature_profile_source", "code_default")),
+            "selected_feature_profile_blocker_applied": bool(status.get("selected_feature_profile_blocker_applied", False)),
+            "selected_feature_profile_blocker_reason": status.get("selected_feature_profile_blocker_reason"),
+            "deployment_profiles_evaluated": status.get("deployment_profiles_evaluated", [getattr(score, "deployment_profile", "standard")]),
+            "feature_profiles_evaluated": status.get("feature_profiles_evaluated", [getattr(score, "feature_profile", "current_full")]),
+            "feature_profile_candidate_diagnostics": status.get("feature_profile_candidate_diagnostics", []),
+            "feature_profile_support_cohort": status.get("feature_profile_support_cohort"),
+            "feature_profile_support_rows": status.get("feature_profile_support_rows"),
+            "feature_profile_exact_live_bucket_rows": status.get("feature_profile_exact_live_bucket_rows"),
+            "avg_roi": float(getattr(score, "avg_roi", 0.0) or 0.0),
+            "avg_win_rate": float(getattr(score, "avg_win_rate", 0.0) or 0.0),
+            "avg_trades": float(getattr(score, "avg_trades", 0.0) or 0.0),
+            "avg_max_drawdown": float(getattr(score, "avg_max_drawdown", 0.0) or 0.0),
+            "avg_profit_factor": float(getattr(score, "avg_profit_factor", 0.0) or 0.0),
+            "avg_entry_quality": float(getattr(score, "avg_entry_quality", 0.0) or 0.0),
+            "avg_allowed_layers": float(getattr(score, "avg_allowed_layers", 0.0) or 0.0),
+            "avg_trade_quality": float(getattr(score, "avg_trade_quality", 0.0) or 0.0),
+            "avg_decision_quality_score": float(getattr(score, "avg_decision_quality_score", 0.0) or 0.0),
+            "avg_expected_win_rate": float(getattr(score, "avg_expected_win_rate", 0.0) or 0.0),
+            "avg_expected_pyramid_quality": float(getattr(score, "avg_expected_pyramid_quality", 0.0) or 0.0),
+            "avg_expected_drawdown_penalty": float(getattr(score, "avg_expected_drawdown_penalty", 0.0) or 0.0),
+            "avg_expected_time_underwater": float(getattr(score, "avg_expected_time_underwater", 0.0) or 0.0),
+            "regime_stability_score": float(getattr(score, "regime_stability_score", 0.0) or 0.0),
+            "trade_count_score": float(getattr(score, "trade_count_score", 0.0) or 0.0),
+            "roi_score": float(getattr(score, "roi_score", 0.0) or 0.0),
+            "max_drawdown_score": float(getattr(score, "max_drawdown_score", 0.0) or 0.0),
+            "profit_factor_score": float(getattr(score, "profit_factor_score", 0.0) or 0.0),
+            "time_underwater_score": float(getattr(score, "time_underwater_score", 0.0) or 0.0),
+            "decision_quality_component": float(getattr(score, "decision_quality_component", 0.0) or 0.0),
+            "reliability_score": float(getattr(score, "reliability_score", 0.0) or 0.0),
+            "return_power_score": float(getattr(score, "return_power_score", 0.0) or 0.0),
+            "risk_control_score": float(getattr(score, "risk_control_score", 0.0) or 0.0),
+            "capital_efficiency_score": float(getattr(score, "capital_efficiency_score", 0.0) or 0.0),
+            "overall_score": float(getattr(score, "overall_score", getattr(score, "composite_score", 0.0)) or 0.0),
+            "overfit_penalty": float(getattr(score, "overfit_penalty", 0.0) or 0.0),
+            "std_roi": float(getattr(score, "std_roi", 0.0) or 0.0),
+            "train_accuracy": float(getattr(score, "train_accuracy", 0.0) or 0.0),
+            "test_accuracy": float(getattr(score, "test_accuracy", 0.0) or 0.0),
+            "train_test_gap": float(getattr(score, "train_test_gap", 0.0) or 0.0),
+            "composite_score": float(getattr(score, "composite_score", getattr(score, "overall_score", 0.0)) or 0.0),
+            "model_tier": model_tier,
+            "model_tier_label": model_tier_label,
+            "folds": getattr(score, "folds", []) or [],
+        }
+        payload.append(item)
+    return payload
+
+
+
+def _choose_best_non_overfit_model(items: List[Dict[str, Any]], overfit_gap_threshold: float, overfit_accuracy_threshold: float) -> Optional[Dict[str, Any]]:
+    if not items:
+        return None
+    non_overfit = [
+        item for item in items
+        if float(item.get("train_test_gap", 0.0) or 0.0) <= overfit_gap_threshold
+        and float(item.get("train_accuracy", 0.0) or 0.0) <= overfit_accuracy_threshold
+    ]
+    candidates = non_overfit or items
+    candidates = sorted(
+        candidates,
+        key=lambda item: (
+            float(item.get("overall_score", item.get("composite_score", 0.0)) or 0.0),
+            float(item.get("avg_decision_quality_score", 0.0) or 0.0),
+            float(item.get("avg_win_rate", 0.0) or 0.0),
+        ),
+        reverse=True,
+    )
+    return candidates[0]
+
+
+
+def _summarize_target_candidates(
+    data_df: pd.DataFrame,
+    overfit_gap_threshold: float = _OVERFIT_GAP_THRESHOLD,
+    overfit_accuracy_threshold: float = _OVERFIT_ACCURACY_THRESHOLD,
+) -> List[Dict[str, Any]]:
+    from backtesting.model_leaderboard import ModelLeaderboard
+
+    summaries: List[Dict[str, Any]] = []
+    target_specs = [
+        ("simulated_pyramid_win", True, "主訓練 / 主排行榜 target"),
+        ("label_spot_long_win", False, "僅供 path-aware 比較診斷，不作 canonical 排名主依據"),
+    ]
+    for target_col, is_canonical, usage_note in target_specs:
+        if target_col not in data_df.columns:
+            continue
+        target_df = data_df[data_df[target_col].notna()].copy()
+        if target_df.empty:
+            continue
+        leaderboard = ModelLeaderboard(target_df, target_col=target_col)
+        scores = leaderboard.run_all_models(getattr(leaderboard, "SUPPORTED_MODELS", None))
+        serialized = _serialize_model_scores(scores, leaderboard)
+        best_model = _choose_best_non_overfit_model(serialized, overfit_gap_threshold, overfit_accuracy_threshold)
+        summaries.append({
+            "target_col": target_col,
+            "is_canonical": is_canonical,
+            "usage_note": usage_note,
+            "best_model": best_model,
+            "model_count": len(serialized),
+        })
+    summaries.sort(key=lambda item: (bool(item.get("is_canonical")), float((item.get("best_model") or {}).get("overall_score", 0.0))), reverse=True)
+    return summaries
+
+
+
+def _ensure_model_leaderboard_tables(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS leaderboard_model_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            updated_at REAL,
+            target_col TEXT,
+            model_count INTEGER,
+            payload_json TEXT NOT NULL
+        )
+        """
+    )
+    conn.commit()
+
+
+
+def _load_model_leaderboard_history(limit: int = _MODEL_LEADERBOARD_HISTORY_LIMIT, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    db_path = db_path or DB_PATH
+    conn = sqlite3.connect(db_path)
+    try:
+        _ensure_model_leaderboard_tables(conn)
+        rows = conn.execute(
+            "SELECT created_at, updated_at, target_col, model_count FROM leaderboard_model_snapshots ORDER BY id DESC LIMIT ?",
+            (int(limit),),
+        ).fetchall()
+        return [
+            {
+                "created_at": row[0],
+                "updated_at": row[1],
+                "target_col": row[2],
+                "model_count": row[3],
+            }
+            for row in rows
+        ]
+    finally:
+        conn.close()
+
+
+
+def _persist_model_leaderboard_snapshot(payload: Dict[str, Any], db_path: Optional[str] = None) -> None:
+    db_path = db_path or DB_PATH
+    conn = sqlite3.connect(db_path)
+    try:
+        _ensure_model_leaderboard_tables(conn)
+        created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        conn.execute(
+            "INSERT INTO leaderboard_model_snapshots(created_at, updated_at, target_col, model_count, payload_json) VALUES (?, ?, ?, ?, ?)",
+            (
+                created_at,
+                time.time(),
+                payload.get("target_col"),
+                payload.get("count"),
+                json.dumps(payload, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+
+def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str, Any]:
+    from backtesting.model_leaderboard import ModelLeaderboard
+
+    db_path = db_path or DB_PATH
+    data_df = load_model_leaderboard_frame(db_path)
+    if data_df.empty:
+        return {
+            "target_col": "simulated_pyramid_win",
+            "count": 0,
+            "leaderboard": [],
+            "quadrant_points": [],
+            "skipped_models": [],
+            "snapshot_history": _load_model_leaderboard_history(db_path=db_path),
+            "storage": {"canonical_store": f"sqlite:///{db_path}"},
+            "overfit_gap_threshold": _OVERFIT_GAP_THRESHOLD,
+            "overfit_accuracy_threshold": _OVERFIT_ACCURACY_THRESHOLD,
+            "target_candidates": [],
+        }
+
+    target_col = "simulated_pyramid_win" if "simulated_pyramid_win" in data_df.columns else "label_spot_long_win"
+    leaderboard = ModelLeaderboard(data_df, target_col=target_col)
+    scores = leaderboard.run_all_models(getattr(leaderboard, "SUPPORTED_MODELS", None))
+    leaderboard_rows = _serialize_model_scores(scores, leaderboard)
+    skipped_models = []
+    for model_name, status in (getattr(leaderboard, "last_model_statuses", {}) or {}).items():
+        if status.get("status") == "ok":
+            continue
+        skipped_models.append({
+            "model_name": model_name,
+            "status": status.get("status"),
+            "reason": status.get("reason"),
+            "detail": status.get("detail"),
+        })
+    quadrant_points = [
+        {
+            "model_name": row.get("model_name"),
+            "reliability_score": row.get("reliability_score"),
+            "return_power_score": row.get("return_power_score"),
+            "overall_score": row.get("overall_score"),
+        }
+        for row in leaderboard_rows
+    ]
+    payload = {
+        "target_col": target_col,
+        "count": len(leaderboard_rows),
+        "leaderboard": leaderboard_rows,
+        "quadrant_points": quadrant_points,
+        "skipped_models": skipped_models,
+        "snapshot_history": _load_model_leaderboard_history(db_path=db_path),
+        "storage": {"canonical_store": f"sqlite:///{db_path}"},
+        "overfit_gap_threshold": _OVERFIT_GAP_THRESHOLD,
+        "overfit_accuracy_threshold": _OVERFIT_ACCURACY_THRESHOLD,
+        "target_candidates": _summarize_target_candidates(data_df, _OVERFIT_GAP_THRESHOLD, _OVERFIT_ACCURACY_THRESHOLD),
+    }
+    return payload
+
+
+
+def _write_model_leaderboard_cache(payload: Dict[str, Any]) -> None:
+    MODEL_LB_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    MODEL_LB_CACHE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+
+def _ensure_model_leaderboard_refresh(force: bool = False) -> Optional[Dict[str, Any]]:
+    with _MODEL_LB_CACHE_LOCK:
+        if _MODEL_LB_CACHE.get("payload") is not None and not force:
+            return _MODEL_LB_CACHE.get("payload")
+        _MODEL_LB_CACHE["refreshing"] = True
+        _MODEL_LB_CACHE["error"] = None
+    try:
+        payload = _build_model_leaderboard_payload()
+        _write_model_leaderboard_cache(payload)
+        _persist_model_leaderboard_snapshot(payload)
+        with _MODEL_LB_CACHE_LOCK:
+            _MODEL_LB_CACHE.update({
+                "payload": payload,
+                "updated_at": time.time(),
+                "refreshing": False,
+                "error": None,
+            })
+        return payload
+    except Exception as exc:
+        with _MODEL_LB_CACHE_LOCK:
+            _MODEL_LB_CACHE["refreshing"] = False
+            _MODEL_LB_CACHE["error"] = str(exc)
+        raise
+
+
+
+@router.get("/models/leaderboard")
+async def api_model_leaderboard(force: bool = False) -> Dict[str, Any]:
+    cached_payload = _MODEL_LB_CACHE.get("payload")
+    if cached_payload is not None and not force:
+        return {**cached_payload, "cached": True}
+    payload = _ensure_model_leaderboard_refresh(force=force)
+    if payload is None:
+        cached_payload = _MODEL_LB_CACHE.get("payload") or {}
+        return {**cached_payload, "cached": True}
+    return {**payload, "cached": False}
+
+
+
+@router.get("/models/leaderboard/history")
+async def api_model_leaderboard_history(limit: int = 10) -> Dict[str, Any]:
+    history = _load_model_leaderboard_history(limit=limit)
+    return {
+        "count": len(history),
+        "history": history,
+    }
 
 
 
