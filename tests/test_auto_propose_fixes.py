@@ -1187,6 +1187,53 @@ def test_sync_current_state_governance_issues_uses_live_probe_bucket_when_alignm
     assert ("resolve", "P1_q35_redesign_support_blocked") in events
 
 
+def test_sync_current_state_governance_issues_prefers_live_supported_bucket_over_stale_proxy_route():
+    events = []
+
+    class DummyTracker:
+        def add(self, priority, issue_id, title, action="", status="open"):
+            events.append(("add", issue_id, title, action, status))
+
+        def resolve(self, issue_id):
+            events.append(("resolve", issue_id))
+            return True
+
+    auto_propose_fixes.sync_current_state_governance_issues(
+        DummyTracker(),
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "support_governance_route": "no_support_proxy",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 0,
+                    "support_progress": {
+                        "current_rows": 0,
+                        "minimum_support_rows": 50,
+                        "history": [
+                            {
+                                "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                            }
+                        ],
+                    },
+                },
+            }
+        },
+        {
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "current_live_structure_bucket_rows": 139,
+            "allowed_layers_reason": "decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
+            "deployment_blocker": None,
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    assert ("resolve", "#H_AUTO_CURRENT_BUCKET_SUPPORT") in events
+    assert not any(event[0] == "add" and event[1] == "#H_AUTO_CURRENT_BUCKET_SUPPORT" for event in events)
+
+
 def test_sync_current_state_governance_issues_adds_alignment_blocker_when_current_inputs_stale():
     events = []
 

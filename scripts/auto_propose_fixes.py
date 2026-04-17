@@ -275,10 +275,19 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
             (live_predict_probe or {}).get("deployment_blocker_reason"),
         ]
     )
+    live_bucket_blocked = (
+        "unsupported_exact_live_structure_bucket" in live_support_reason
+        or "under_minimum_exact_live_structure_bucket" in live_support_reason
+    )
+    live_bucket_meets_minimum = bool(current_bucket) and minimum_rows > 0 and int(current_rows or 0) >= int(minimum_rows or 0)
+    route_indicates_support_gap = route in {
+        "exact_live_bucket_present_but_below_minimum",
+        "no_support_proxy",
+        "insufficient_support_everywhere",
+    }
     current_bucket_support_active = bool(current_bucket) and minimum_rows > 0 and (
-        route in {"exact_live_bucket_present_but_below_minimum", "no_support_proxy", "insufficient_support_everywhere"}
-        or "unsupported_exact_live_structure_bucket" in live_support_reason
-        or (int(current_rows or 0) < int(minimum_rows or 0))
+        live_bucket_blocked
+        or (int(current_rows or 0) < int(minimum_rows or 0) and (route_indicates_support_gap or not live_bucket_meets_minimum))
     )
 
     stale_q35_issue_ids = [

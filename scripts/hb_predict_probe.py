@@ -205,6 +205,76 @@ def _q15_audit_current_live_matches_probe(payload: dict | None, probe: dict | No
     return True
 
 
+def _runtime_patch_name(result: dict) -> str | None:
+    if result.get("q15_exact_supported_component_patch_applied"):
+        return "q15 patch"
+    if result.get("q35_discriminative_redesign_applied"):
+        return "q35 discriminative redesign"
+    return None
+
+
+
+def _runtime_closure_state(result: dict) -> str:
+    patch_name = _runtime_patch_name(result)
+    if result.get("signal") == "CIRCUIT_BREAKER":
+        return "circuit_breaker_active"
+    if patch_name and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0:
+        return "capacity_opened_signal_hold"
+    if patch_name and (
+        result.get("deployment_blocker")
+        or result.get("execution_guardrail_applied")
+        or (result.get("allowed_layers") or 0) <= 0
+    ):
+        return "patch_active_but_execution_blocked"
+    return "patch_inactive_or_blocked"
+
+
+
+def _runtime_closure_summary(
+    result: dict,
+    *,
+    release_window: int,
+    release_floor,
+    release_gap,
+    current_wins,
+    breaker_release: dict,
+) -> str | None:
+    patch_name = _runtime_patch_name(result)
+    if result.get("signal") == "CIRCUIT_BREAKER":
+        return (
+            f"circuit breaker active：{result.get('reason')}; release condition = streak < {breaker_release.get('streak_must_be_below', 50)} 且 recent {release_window} win rate >= {((release_floor if isinstance(release_floor, (int, float)) else 0.3) * 100):.0f}%"
+            + (
+                f"；目前 recent {release_window} 只贏 {current_wins}/{release_window}，至少還差 {release_gap} 勝。"
+                if release_gap not in (None, 0) and current_wins is not None
+                else "。"
+            )
+            + (
+                f" 同時 recent pathology={result.get('decision_quality_recent_pathology_reason')}。"
+                if result.get("decision_quality_recent_pathology_applied")
+                and result.get("decision_quality_recent_pathology_reason")
+                else ""
+            )
+        )
+    if patch_name and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0:
+        return (
+            f"{patch_name} 已啟用；runtime 已開出 {int(result.get('allowed_layers') or 0)} 層 deployment capacity，"
+            "但 signal 仍是 HOLD，不等於自動 BUY。"
+        )
+    if patch_name and (
+        result.get("deployment_blocker")
+        or result.get("execution_guardrail_applied")
+        or (result.get("allowed_layers") or 0) <= 0
+    ):
+        blocker = result.get("deployment_blocker") or result.get("execution_guardrail_reason") or result.get("allowed_layers_reason") or "unknown_guardrail"
+        raw_layers = int(result.get("allowed_layers_raw") or result.get("allowed_layers") or 0)
+        return (
+            f"{patch_name} 已啟用並把 entry_quality 拉到 {float(result.get('entry_quality') or 0.0):.4f}（raw layers={raw_layers}），"
+            f"但最終 execution 仍被 {blocker} 擋住；目前不可把 patch active 誤讀成可部署。"
+        )
+    return None
+
+
+
 def _build_probe_payload(
     *,
     latest: dict,
@@ -279,52 +349,14 @@ def _build_probe_payload(
         "best_single_component": floor_cross.get("best_single_component"),
         "best_single_component_required_score_delta": floor_cross.get("best_single_component_required_score_delta"),
         "component_experiment_verdict": component_experiment.get("verdict"),
-        "runtime_closure_state": (
-            "circuit_breaker_active"
-            if result.get("signal") == "CIRCUIT_BREAKER"
-            else (
-                "capacity_opened_signal_hold"
-                if result.get("q15_exact_supported_component_patch_applied") and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0
-                else (
-                    "patch_active_but_execution_blocked"
-                    if result.get("q15_exact_supported_component_patch_applied") and (
-                        result.get("deployment_blocker")
-                        or result.get("execution_guardrail_applied")
-                        or (result.get("allowed_layers") or 0) <= 0
-                    )
-                    else "patch_inactive_or_blocked"
-                )
-            )
-        ),
-        "runtime_closure_summary": (
-            (
-                f"circuit breaker active：{result.get('reason')}; release condition = streak < {breaker_release.get('streak_must_be_below', 50)} 且 recent {release_window} win rate >= {((release_floor if isinstance(release_floor, (int, float)) else 0.3) * 100):.0f}%"
-                + (
-                    f"；目前 recent {release_window} 只贏 {current_wins}/{release_window}，至少還差 {release_gap} 勝。"
-                    if release_gap not in (None, 0) and current_wins is not None
-                    else "。"
-                )
-                + (
-                    f" 同時 recent pathology={result.get('decision_quality_recent_pathology_reason')}。"
-                    if result.get("decision_quality_recent_pathology_applied")
-                    and result.get("decision_quality_recent_pathology_reason")
-                    else ""
-                )
-            )
-            if result.get("signal") == "CIRCUIT_BREAKER"
-            else (
-                "support-ready + patch active；runtime 已開出 1 層 deployment capacity，但 signal 仍是 HOLD，不等於自動 BUY。"
-                if result.get("q15_exact_supported_component_patch_applied") and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0
-                else (
-                    f"q15 patch 已啟用並把 entry_quality 拉到 {float(result.get('entry_quality') or 0.0):.4f}，但 execution 仍被 blocker / guardrail 擋住；目前不可把 patch active 誤讀成可部署。"
-                    if result.get("q15_exact_supported_component_patch_applied") and (
-                        result.get("deployment_blocker")
-                        or result.get("execution_guardrail_applied")
-                        or (result.get("allowed_layers") or 0) <= 0
-                    )
-                    else None
-                )
-            )
+        "runtime_closure_state": _runtime_closure_state(result),
+        "runtime_closure_summary": _runtime_closure_summary(
+            result,
+            release_window=release_window,
+            release_floor=release_floor,
+            release_gap=release_gap,
+            current_wins=current_wins,
+            breaker_release=breaker_release,
         ),
         "q15_support_audit": q15_support_audit,
         "decision_quality_horizon_minutes": result.get("decision_quality_horizon_minutes"),

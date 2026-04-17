@@ -336,6 +336,7 @@ def test_infer_deployment_blocker_flags_under_minimum_exact_live_structure_bucke
             "structure_bucket": "CAUTION|structure_quality_caution|q15",
         },
         {
+            "decision_quality_structure_bucket_guardrail_applied": True,
             "decision_quality_structure_bucket_support_rows": 2,
             "decision_quality_exact_live_structure_bucket_support_rows": 2,
             "decision_quality_structure_bucket_support_mode": "exact_bucket_supported",
@@ -365,6 +366,75 @@ def test_infer_deployment_blocker_flags_under_minimum_exact_live_structure_bucke
     assert "under_minimum_exact_live_structure_bucket" in guarded["execution_guardrail_reason"]
 
 
+def test_infer_deployment_blocker_flags_generic_unsupported_exact_bucket_for_allow_q65():
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bull",
+            "regime_gate": "ALLOW",
+            "structure_bucket": "ALLOW|base_allow|q65",
+        },
+        {
+            "decision_quality_structure_bucket_guardrail_applied": True,
+            "decision_quality_structure_bucket_support_rows": 0,
+            "decision_quality_exact_live_structure_bucket_support_rows": 0,
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_unsupported_block",
+            "decision_quality_structure_bucket_guardrail_reason": "exact current bucket has no historical rows yet",
+        },
+    )
+    guarded = predictor_module._apply_deployment_blocker_to_execution_profile(
+        {
+            "allowed_layers": 0,
+            "allowed_layers_raw": 0,
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade",
+        },
+        blocker,
+    )
+
+    assert blocker is not None
+    assert blocker["type"] == "unsupported_exact_live_structure_bucket"
+    assert blocker["source"] == "decision_quality_contract"
+    assert blocker["structure_bucket"] == "ALLOW|base_allow|q65"
+    assert blocker["current_live_structure_bucket_rows"] == 0
+    assert blocker["exact_live_structure_bucket_rows"] == 0
+    assert guarded["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert guarded["allowed_layers"] == 0
+    assert guarded["allowed_layers_reason"] == (
+        "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; unsupported_exact_live_structure_bucket"
+    )
+
+
+def test_infer_deployment_blocker_uses_exact_scope_no_rows_even_without_structure_guardrail():
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+        },
+        {
+            "decision_quality_calibration_scope": "regime_label",
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 0,
+                    "alerts": ["no_rows"],
+                },
+                "regime_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 139,
+                },
+            },
+        },
+    )
+
+    assert blocker is not None
+    assert blocker["type"] == "unsupported_exact_live_structure_bucket"
+    assert blocker["structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert blocker["current_live_structure_bucket_rows"] == 0
+    assert blocker["exact_live_structure_bucket_rows"] == 0
+    assert blocker["support_mode"] == "exact_bucket_unsupported_block"
+
+
 def test_infer_deployment_blocker_uses_scope_diagnostics_fallback_for_exact_rows():
     blocker = predictor_module._infer_deployment_blocker(
         {
@@ -374,6 +444,7 @@ def test_infer_deployment_blocker_uses_scope_diagnostics_fallback_for_exact_rows
         },
         {
             "decision_quality_calibration_scope": "regime_label",
+            "decision_quality_structure_bucket_guardrail_applied": True,
             "decision_quality_scope_diagnostics": {
                 "regime_label+regime_gate+entry_quality_label": {
                     "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",

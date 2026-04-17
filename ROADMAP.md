@@ -7,13 +7,11 @@ _最後更新：2026-04-18 CST_
 ---
 
 ## 已完成
-- fast heartbeat / auto-propose 現在會優先使用 `data/live_predict_probe.json` 的 current live bucket truth
-- `#H_AUTO_CURRENT_BUCKET_SUPPORT` 會跟著最新 live bucket 改寫，不再沿用 `issues.json` 舊 title
-- 舊的 lane-specific blocker（如 `P1_current_q35_exact_support`、`P1_q35_redesign_support_blocked`）在 live bucket 改變時會自動 resolve，避免 current-state 文件被 stale issue 汙染
-- 已用 regression test 鎖住此 contract：
-  - `source venv/bin/activate && pytest tests/test_auto_propose_fixes.py -q`
-- 已用 runtime 重跑驗證整條心跳鏈：
-  - `source venv/bin/activate && python scripts/auto_propose_fixes.py`
+- **generic exact-bucket blocker fallback 已補齊**：`model/predictor.py` 現在會從 exact-scope `no_rows` 診斷直接推導 `unsupported_exact_live_structure_bucket`，不再被較寬 calibration scope 掩蓋
+- **q35 runtime closure surface 已產品化**：`scripts/hb_predict_probe.py` / `data/live_predict_probe.json` / `data/live_decision_quality_drilldown.json` 現在會明示 `patch_active_but_execution_blocked` 與對應 `runtime_closure_summary`
+- **current-bucket issue governance 已回到 live truth**：`scripts/auto_propose_fixes.py` 不再把 stale governance route 誤寫成「139/50 仍 under minimum」
+- 已用以下測試與 runtime 驗證鎖住本輪 patch：
+  - `source venv/bin/activate && python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_hb_predict_probe.py tests/test_live_decision_quality_drilldown.py tests/test_auto_propose_fixes.py tests/test_hb_parallel_runner.py -q`
   - `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast`
 
 ---
@@ -23,46 +21,50 @@ _最後更新：2026-04-18 CST_
 ### 目標 A：收斂 current live q35 exact-support blocker
 **目前真相**
 - current live bucket = `CAUTION|structure_quality_caution|q35`
-- exact support = `0/50`
-- q35 discriminative redesign 已把 `entry_quality` 拉到 `0.5548`
-- 但最終仍 `allowed_layers=0`
+- `current_live_structure_bucket_rows=0`
+- `deployment_blocker=unsupported_exact_live_structure_bucket`
+- q35 discriminative redesign 可把 `entry_quality` 拉到 `0.6883`，但 runtime 仍被 blocker 壓回 `allowed_layers=0`
 
 **成功標準**
 - `current_live_structure_bucket_rows >= 50`
-- live probe 不再回報 `unsupported_exact_live_structure_bucket`
-- `allowed_layers_reason` 與 runtime blocker 文案保持一致，不再有假 deployable 敘事
+- live probe / drilldown / fast heartbeat 不再回報 `unsupported_exact_live_structure_bucket`
+- `allowed_layers_reason` 與 `deployment_blocker` 對 current live row 仍維持同一個 truth
 
-### 目標 B：把 recent distribution pathology 從觀測升級成 root cause
+### 目標 B：把 recent distribution pathology 從症狀升級成 root cause
 **目前真相**
-- recent 500 canonical rows 仍是 bull-concentrated distribution pathology
-- 目前只知道症狀與 top feature shifts，還沒有 product-grade root cause patch
+- primary window = recent 500
+- `alerts = label_imbalance + regime_concentration + regime_shift`
+- `dominant_regime=bull(99.20%)`
+- top shifts = `feat_4h_bb_pct_b / feat_4h_bias20 / feat_4h_ma_order`
+- new compressed = `feat_dxy / feat_vix`
 
 **成功標準**
 - heartbeat 產出可重跑的 root-cause artifact / patch
-- guardrail reason 能直接引用病灶根因，而不是只回報 high-level alerts
+- guardrail reason 能直接引用 feature / label / target-path 病灶，而不是只剩 drift 摘要
 
-### 目標 C：維持 blocker-first 的治理 surface 一致性
+### 目標 C：讓 fast lane heavy governance artifacts 不再 stale-first
 **目前真相**
-- live probe、auto-propose、issues.json 已重新對齊 current bucket truth
-- leaderboard / bull-pocket heavy artifacts 在 fast lane 仍可能 timeout 並 fallback
+- `feature_group_ablation.py`、`bull_4h_pocket_ablation.py`、`hb_leaderboard_candidate_probe.py` 在 fast lane 仍 timeout 20s
+- current live blocker 已回到 q35 exact-support truth，但 heavy governance 仍有 stale fallback 風險
 
 **成功標準**
-- operator-facing current blocker 永遠以 latest live probe 為準
-- heavy artifact timeout 不再讓 current-state docs 回退到舊 bucket / 舊 blocker
+- fast lane 能在 cron 預算內刷新這三條 artifact，或至少明確標示 cache/stale age
+- current-state summary 不再依賴過期 shrinkage / bull-pocket / leaderboard snapshot 才能解讀 product truth
 
 ---
 
 ## 下一步
-1. **以 q35 exact support 為主追 current-live blocker**
-   - 驗證：`python scripts/hb_predict_probe.py` 顯示 current bucket rows 是否開始累積，且 blocker 文案仍為 current bucket truth
+1. **追 current live q35 exact support**
+   - 驗證：`python scripts/hb_predict_probe.py` / `python scripts/live_decision_quality_drilldown.py` / fast heartbeat 三者都維持 `deployment_blocker=unsupported_exact_live_structure_bucket` 直到 rows 補滿；補滿後三者必須同步移除 blocker
 2. **做 recent pathology root-cause drill-down**
-   - 驗證：能指出 recent canonical pathology 的 feature / label / scope 根因，不只剩 `distribution_pathology` 摘要
-3. **縮短 fast lane heavy artifact 的 stale/fallback 視窗**
-   - 驗證：`hb_parallel_runner.py --fast` 的 current-state summary 不再依賴過期 alignment / bull-pocket snapshot 才能說明 current blocker
+   - 驗證：產出可重跑 artifact，能直接指出 feature variance / distinct-count / target-path 根因，並把結果接進 issue / heartbeat summary
+3. **處理 fast lane heavy artifact timeout**
+   - 驗證：`hb_parallel_runner.py --fast` 不再讓 feature-group / bull-pocket / leaderboard probe 以 timeout fallback 收尾，或 summary 會清楚顯示 stale age / cache source
 
 ---
 
 ## 成功標準
-- `ISSUES.md` / `ROADMAP.md` / `issues.json` 都只描述最新 current live bucket blocker，不殘留舊 lane 敘事
-- live probe、auto-propose、fast heartbeat summary 對 current bucket / blocker / layers 給出同一個答案
-- q35 redesign 只在 exact support ready 後才升級成 deployment closure；在那之前一律 blocker-first
+- `ISSUES.md` / `ROADMAP.md` / live artifacts 都只描述最新 current q35 blocker，不殘留 q65 舊主線
+- live probe、drilldown、fast heartbeat 對 current bucket / blocker / layers 給出同一個答案
+- recent pathology 有 root-cause artifact，而不是只剩 drift 指標
+- fast lane heavy governance artifacts 的 stale/fallback 風險下降到可操作水位

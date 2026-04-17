@@ -112,7 +112,8 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
     assert payload["support_progress"]["status"] == "accumulating"
     assert payload["best_single_component"] == "feat_4h_bias50"
     assert payload["component_experiment_verdict"] == "reference_only_until_exact_support_ready"
-    assert payload["runtime_closure_state"] == "patch_inactive_or_blocked"
+    assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
+    assert "q35 discriminative redesign 已啟用並把 entry_quality 拉到 0.5621" in payload["runtime_closure_summary"]
     assert json.loads(out_path.read_text()) == payload
 
 
@@ -464,8 +465,36 @@ def test_hb_predict_probe_emits_patch_active_but_execution_blocked_summary(monke
     payload = json.loads(capsys.readouterr().out)
     assert payload["q15_exact_supported_component_patch_applied"] is True
     assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
-    assert "patch 已啟用並把 entry_quality 拉到 0.5500" in payload["runtime_closure_summary"]
+    assert "q15 patch 已啟用並把 entry_quality 拉到 0.5500" in payload["runtime_closure_summary"]
     assert "不可把 patch active 誤讀成可部署" in payload["runtime_closure_summary"]
+
+
+def test_hb_predict_probe_emits_q35_patch_active_but_execution_blocked_summary(monkeypatch, capsys, tmp_path):
+    session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", tmp_path / "missing_q15_support_audit.json")
+    monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
+    monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"bull": object()}))
+    monkeypatch.setattr(hb_predict_probe, "load_latest_features", lambda _session: {"timestamp": "2026-04-17T20:15:27.519273", "regime_label": "bull"})
+    monkeypatch.setattr(hb_predict_probe, "predict", lambda *_args, **_kwargs: {
+        "target_col": "simulated_pyramid_win", "used_model": "regime_bull_ensemble", "model_type": "RegimeAwarePredictor",
+        "signal": "HOLD", "confidence": 0.339355, "regime_label": "bull", "model_route_regime": "bull", "regime_gate": "CAUTION",
+        "structure_bucket": "CAUTION|structure_quality_caution|q35", "entry_quality": 0.5514, "entry_quality_label": "C",
+        "q35_discriminative_redesign_applied": True,
+        "q35_discriminative_redesign": {"applied": True, "weights": {"feat_nose": 0.8, "feat_ear": 0.2}},
+        "allowed_layers_raw": 1, "allowed_layers_raw_reason": "entry_quality_C_single_layer", "allowed_layers": 0, "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket",
+        "execution_guardrail_applied": True, "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket",
+        "deployment_blocker": "unsupported_exact_live_structure_bucket", "deployment_blocker_reason": "exact bucket rows still zero", "deployment_blocker_source": "decision_quality_contract", "deployment_blocker_details": {"current_live_structure_bucket_rows": 0, "exact_live_structure_bucket_rows": 0},
+        "decision_quality_horizon_minutes": 1440, "decision_quality_live_structure_bucket": "CAUTION|structure_quality_caution|q35", "decision_quality_exact_live_structure_bucket_support_rows": 0
+    })
+    hb_predict_probe.main()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["q35_discriminative_redesign_applied"] is True
+    assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
+    assert payload["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert "q35 discriminative redesign 已啟用並把 entry_quality 拉到 0.5514" in payload["runtime_closure_summary"]
+    assert "unsupported_exact_live_structure_bucket" in payload["runtime_closure_summary"]
 
 
 def test_hb_predict_probe_emits_circuit_breaker_runtime_closure(monkeypatch, capsys, tmp_path):

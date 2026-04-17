@@ -7,18 +7,22 @@ _最後更新：2026-04-18 CST_
 ---
 
 ## 當前主線
-本輪把 heartbeat 治理 truth 拉回 **current live bucket**：
-- `scripts/auto_propose_fixes.py` 現在會優先讀 `data/live_predict_probe.json` 的 `current_live_structure_bucket/current_live_structure_bucket_rows`
-- 舊的 lane-specific blocker（例如 `P1_current_q35_exact_support`、`P1_q35_redesign_support_blocked`）不再因 `issues.json` 殘留或 stale leaderboard snapshot 而繼續誤導 current state
-- 重新跑 `python scripts/hb_parallel_runner.py --fast` 後，當前主 blocker 已正確收斂為：
-  - live bucket = `CAUTION|structure_quality_caution|q35`
-  - exact support = `0/50`
-  - live probe `entry_quality=0.5548`、`allowed_layers_raw=1`、`allowed_layers=0`
-  - 最終 deployment blocker = `unsupported_exact_live_structure_bucket`
+本輪已把 **current live q35 exact-bucket blocker** 拉回 machine-read runtime truth：
+- current live bucket = `CAUTION|structure_quality_caution|q35`
+- `entry_quality=0.6883`、`entry_quality_label=B`
+- `allowed_layers_raw=2 -> allowed_layers=0`
+- `deployment_blocker=unsupported_exact_live_structure_bucket`
+- `allowed_layers_reason=decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket`
+- `runtime_closure_state=patch_active_but_execution_blocked`
+- `runtime_closure_summary` 已明示：**q35 discriminative redesign 有把 entry quality 拉高，但 execution 仍被 exact-bucket blocker 擋住，不可誤讀成可部署**
+
+本輪已修正的 product/runtime drift：
+- `model/predictor.py` 現在會從 exact-scope `no_rows` 診斷直接推導 generic `unsupported_exact_live_structure_bucket`，不再只依賴較寬 calibration scope 或舊 guardrail flag
+- `scripts/hb_predict_probe.py` / `data/live_predict_probe.json` / `data/live_decision_quality_drilldown.json` 現在會把 **q35 discriminative redesign active but blocked** 明確寫成 runtime closure，而不是退回 `patch_inactive_or_blocked`
+- `scripts/auto_propose_fixes.py` 現在優先信任 live probe 的 current bucket truth，不再把 stale governance route 誤寫成「139/50 仍 under minimum」
 
 已驗證：
-- `source venv/bin/activate && pytest tests/test_auto_propose_fixes.py -q`
-- `source venv/bin/activate && python scripts/auto_propose_fixes.py`
+- `source venv/bin/activate && python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_hb_predict_probe.py tests/test_live_decision_quality_drilldown.py tests/test_auto_propose_fixes.py tests/test_hb_parallel_runner.py -q`
 - `source venv/bin/activate && python scripts/hb_parallel_runner.py --fast`
 
 ---
@@ -27,83 +31,89 @@ _最後更新：2026-04-18 CST_
 
 ### P0. recent canonical window 仍是 bull-concentrated distribution pathology
 **現況**
-- fast heartbeat：recent 500 rows = `distribution_pathology`
-- `win_rate=0.8400`、`avg_quality=0.3716`、`avg_dd_penalty=0.1460`
-- top shifts 仍集中在 `feat_4h_bb_pct_b / feat_4h_bias20 / feat_4h_ma_order`
-- `new_compressed=feat_dxy/feat_vix`
+- primary window = recent 500
+- `win_rate=0.8400`、`avg_quality=0.3716`、`avg_drawdown_penalty=0.1460`
+- alerts = `label_imbalance + regime_concentration + regime_shift`
+- dominant regime = `bull (99.20%)`
+- sibling-window top shifts 仍集中在 `feat_4h_bb_pct_b / feat_4h_bias20 / feat_4h_ma_order`
+- new compressed = `feat_dxy / feat_vix`
 
 **風險**
-- calibration scope 可能被 bull-concentrated pathology slice 稀釋
-- heartbeat 若只看高 recent win rate，會把 distribution pathology 誤寫成健康 closure
+- 若只看 recent 高 win rate，會把病態 bull pocket 誤當成健康 closure
+- calibration / governance 容易被病態 slice 稀釋，造成假樂觀 runtime expectation
 
 **下一步**
-- 直接 drill into recent canonical rows 的 feature variance / distinct-count / target-path root cause
-- 保持 decision-quality guardrails 開啟，直到 pathology 被解釋或修掉
+- 直接做 recent canonical rows 的 feature variance / distinct-count / target-path root cause artifact
+- 在根因被 patch 前，維持 decision-quality guardrails
 
 ### P1. current live q35 exact support 仍為 0/50
 **現況**
-- 最新 live probe：`current_live_structure_bucket=CAUTION|structure_quality_caution|q35`
+- current live bucket = `CAUTION|structure_quality_caution|q35`
 - `current_live_structure_bucket_rows=0`
 - `minimum_support_rows=50`
-- `#H_AUTO_CURRENT_BUCKET_SUPPORT` 現在已會跟著 live bucket 即時改寫
+- runtime 已明示 `deployment_blocker=unsupported_exact_live_structure_bucket`
+- q35 discriminative redesign 雖能把 `entry_quality` 拉到 `0.6883`，但 **raw capacity 不能當 deployment closure**
 
 **風險**
-- 就算 broader bull scope 有資料，也不能當成 current q35 deployment 放行依據
-- 若文件或 issue tracker 沒跟 live bucket 同步，operator 會追錯 blocker
+- 若只看 `entry_quality` 或 raw layers，operator 會誤判為已可放行
+- broader / proxy rows 仍可能被誤讀成 exact live lane 支持
 
 **下一步**
-- 累積 q35 exact support
-- 若 live bucket 再次切換，立刻重寫 blocker，不可沿用舊 q35 敘事
+- 以 current live q35 bucket 為主累積 exact support
+- 持續驗證 probe / drilldown / heartbeat summary 都保留同一個 blocker truth
 
-### P1. q35 discriminative redesign 不是 deployment closure
+### P1. fast lane heavy artifacts 仍 timeout 20s
 **現況**
-- live probe 顯示 `q35_discriminative_redesign_applied=true`
-- `entry_quality` 已被拉到 `0.5548`，`allowed_layers_raw=1`
-- 但 `allowed_layers=0`，因 exact live bucket 仍無支持，deployment blocker 依舊成立
+- `feature_group_ablation.py`
+- `bull_4h_pocket_ablation.py`
+- `hb_leaderboard_candidate_probe.py`
+- 以上三條在 fast lane 仍走 timeout fallback
 
 **風險**
-- 把「跨過 trade floor」誤讀成「可部署」會造成假產品化
+- shrinkage / bull pocket / leaderboard governance 仍可能引用 stale snapshot
+- current-state docs 雖已回到 q35 truth，但 heavy artifact 仍可能落後 current runtime
 
 **下一步**
-- 維持 blocker-first 語義
-- 在 exact support 補滿前，不可把 q35 redesign 寫成 release-ready
+- 縮短或拆分 heavy artifact 的 fast-lane path
+- 至少把 cache age / stale state 更明確寫入 summary
 
-### P1. model stability / dual-role governance 尚未收斂
+### P1. model stability / profile split 仍未收斂
 **現況**
 - `cv_accuracy=0.6978`
 - `cv_std=0.1161`
 - `cv_worst=0.5445`
-- global winner 仍是 `core_only`，production profile 仍是 `core_plus_macro`
+- leaderboard global winner 與 support-aware production path 仍是雙角色治理
 
 **風險**
-- 容易把 dual-role governance 誤寫成 parity drift 或單純排名問題
+- 容易把 dual-role governance 誤寫成簡單 parity drift
+- heavy artifact 若 stale，會讓 profile split 更難解釋
 
 **下一步**
-- 繼續把 governance split 明寫為「global ranking vs support-aware production」
-- 在 q35 exact support 未補滿前，不把 profile split 當作主 blocker
+- 維持「global ranking vs support-aware production」雙角色語義
+- 在 q35 exact support 未補滿前，不把 profile split 當主 blocker
 
 ### P2. sparse-source blockers 仍在背景
 **現況**
 - blocked features = 8
-- 主 blocker 仍是 `fin_netflow` 的 `auth_missing`
+- 最硬 blocker 仍是 `fin_netflow` 的 `auth_missing`
 
 **風險**
-- 會持續限制研究型 overlay / archive-window coverage
-- 但現在不是 current-live deployment 的第一順位 blocker
+- 會持續限制 research overlay / archive-window completeness
+- 但目前不是 current-live deployment 的第一順位 blocker
 
 **下一步**
-- defer，等 current live bucket blocker 與 pathology 先收斂
+- defer，等 q35 current-live blocker 與 recent pathology 先收斂
 
 ---
 
 ## Not Issues
-- 舊 q35 issue id 殘留在 `issues.json`：**本輪已修正自動 resolve / rewrite 行為**，不再把它當作 current blocker 本身
-- `entry_quality >= 0.55`：**不等於可部署**；exact support = 0 時仍必須擋單
-- `core_only` vs `core_plus_macro`：目前是 **dual-role governance**，不是 parity drift
+- `q65` current-live blocker 敘事：**不是本輪真相**；本輪 current live row 已回到 `CAUTION|structure_quality_caution|q35`
+- `139/50 仍 under minimum`：**不是最新真相**；這是本輪修掉的 stale issue-generation bug，不可再寫進 current-state docs
+- `patch_inactive_or_blocked` on active q35 redesign：**已修正**；probe / drilldown 現在會明示 patch active but execution blocked
 
 ---
 
 ## Current Priority
-1. **把 current live q35 exact support 從 0/50 往可驗證 support 累積推進**
-2. **對 recent distribution pathology 做 root-cause drill-down，而不是只重報指標**
-3. **保持 blocker-first 的 runtime / docs / issues 一致語義，避免假 closure**
+1. **做 recent distribution pathology 的 root-cause artifact / patch，不再只停在 drift 摘要**
+2. **累積 current live q35 exact support，直到 `unsupported_exact_live_structure_bucket` 從 runtime surface 消失**
+3. **處理 fast lane heavy artifact timeout，避免 governance 再回退成 stale-first**

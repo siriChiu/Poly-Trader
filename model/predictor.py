@@ -1188,59 +1188,88 @@ def _infer_deployment_blocker(
     """
     if not isinstance(decision_profile, dict):
         return None
-    if str(decision_profile.get("regime_label") or "") != "bull":
-        return None
-    if str(decision_profile.get("regime_gate") or "") != "CAUTION":
-        return None
 
     structure_bucket = str(decision_profile.get("structure_bucket") or "")
+    if not structure_bucket:
+        return None
+
     dq = decision_quality_contract if isinstance(decision_quality_contract, dict) else {}
     support_rows = int(dq.get("decision_quality_structure_bucket_support_rows") or 0)
     exact_support_rows = int(dq.get("decision_quality_exact_live_structure_bucket_support_rows") or 0)
     support_mode = str(dq.get("decision_quality_structure_bucket_support_mode") or "")
     support_reason = dq.get("decision_quality_structure_bucket_guardrail_reason")
+    structure_guardrail_applied = bool(dq.get("decision_quality_structure_bucket_guardrail_applied"))
 
     scope_diagnostics = dq.get("decision_quality_scope_diagnostics") or {}
     exact_scope_info = scope_diagnostics.get("regime_label+regime_gate+entry_quality_label") or {}
-    if (
-        structure_bucket
-        and str(exact_scope_info.get("current_live_structure_bucket") or "") == structure_bucket
-        and exact_support_rows <= 0
-    ):
-        exact_support_rows = int(exact_scope_info.get("current_live_structure_bucket_rows") or 0)
+    exact_scope_matches_current_bucket = (
+        str(exact_scope_info.get("current_live_structure_bucket") or "") == structure_bucket
+    )
+    exact_scope_rows = (
+        int(exact_scope_info.get("current_live_structure_bucket_rows") or 0)
+        if exact_scope_matches_current_bucket
+        else None
+    )
+    exact_scope_alerts = set(exact_scope_info.get("alerts") or []) if exact_scope_matches_current_bucket else set()
+    if exact_scope_matches_current_bucket and exact_support_rows <= 0:
+        exact_support_rows = int(exact_scope_rows or 0)
     if support_rows <= 0 and exact_support_rows > 0:
         support_rows = exact_support_rows
+    current_live_structure_bucket_rows = (
+        int(exact_scope_rows or 0)
+        if exact_scope_matches_current_bucket
+        else int(exact_support_rows or support_rows or 0)
+    )
 
-    if support_mode == "exact_bucket_unsupported_block" or exact_support_rows <= 0:
-        return {
+    missing_exact_scope_support = (
+        exact_scope_matches_current_bucket
+        and current_live_structure_bucket_rows <= 0
+        and ("no_rows" in exact_scope_alerts or not exact_scope_alerts)
+    )
+    under_minimum_exact_scope_support = (
+        exact_scope_matches_current_bucket
+        and 0 < current_live_structure_bucket_rows < 5
+    )
+
+    generic_blocker: Optional[Dict[str, Any]] = None
+    if support_mode == "exact_bucket_unsupported_block" or (
+        structure_guardrail_applied and exact_support_rows <= 0
+    ) or missing_exact_scope_support:
+        generic_blocker = {
             "type": "unsupported_exact_live_structure_bucket",
             "reason": (
                 "current live structure bucket 缺少 exact live lane 歷史支持；"
                 "在 exact bucket 出現前，broader / proxy rows 只能作治理參考，不可作 deployment 放行依據。"
             ),
             "source": "decision_quality_contract",
-            "structure_bucket": structure_bucket or None,
+            "structure_bucket": structure_bucket,
             "support_mode": support_mode or "exact_bucket_unsupported_block",
-            "current_live_structure_bucket_rows": support_rows,
+            "current_live_structure_bucket_rows": current_live_structure_bucket_rows,
             "exact_live_structure_bucket_rows": exact_support_rows,
             "guardrail_reason": support_reason,
         }
-
-    if exact_support_rows < 5:
-        return {
+    elif (structure_guardrail_applied and exact_support_rows < 5) or under_minimum_exact_scope_support:
+        generic_blocker = {
             "type": "under_minimum_exact_live_structure_bucket",
             "reason": (
                 "current live structure bucket 已有 exact rows，但仍低於 deployment-grade minimum support；"
                 "在 support 補滿前，runtime 只能維持 guardrail，不可把這條 lane 視為已可部署。"
             ),
             "source": "decision_quality_contract",
-            "structure_bucket": structure_bucket or None,
+            "structure_bucket": structure_bucket,
             "support_mode": support_mode or "exact_bucket_present_but_below_minimum",
-            "current_live_structure_bucket_rows": support_rows,
+            "current_live_structure_bucket_rows": current_live_structure_bucket_rows,
             "exact_live_structure_bucket_rows": exact_support_rows,
             "guardrail_reason": support_reason,
         }
 
+    if generic_blocker is not None:
+        return generic_blocker
+
+    if str(decision_profile.get("regime_label") or "") != "bull":
+        return None
+    if str(decision_profile.get("regime_gate") or "") != "CAUTION":
+        return None
     if structure_bucket != "CAUTION|structure_quality_caution|q35":
         return None
 
