@@ -13,7 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable
 from datetime import datetime, timedelta, timezone
 
 from server.dependencies import (
@@ -1098,6 +1098,231 @@ def _build_execution_lifecycle_contract(
             "summary": summary,
         }
 
+    def _serialize_proof_chain_event(event: OrderLifecycleEvent) -> Dict[str, Any]:
+        provenance = _event_provenance(event)
+        return {
+            "timestamp": _iso_utc_timestamp(getattr(event, "timestamp", None)),
+            "event_type": getattr(event, "event_type", None),
+            "order_state": getattr(event, "order_state", None),
+            "summary": getattr(event, "summary", None),
+            "source": getattr(event, "source", None),
+            "exchange": getattr(event, "exchange", None),
+            "order_id": getattr(event, "order_id", None),
+            "client_order_id": getattr(event, "client_order_id", None),
+            "provenance_level": provenance["level"],
+            "provenance_summary": provenance["summary"],
+            "venue_backed": provenance["venue_backed"],
+            "is_dry_run": provenance["is_dry_run"],
+        }
+
+    def _build_proof_chain(
+        matcher: Callable[[OrderLifecycleEvent], bool],
+        *,
+        fallback_summary: str,
+    ) -> Dict[str, Any]:
+        proof_events = [event for event in lifecycle_events if matcher(event)]
+        if not proof_events:
+            return {
+                "proof_chain": [],
+                "proof_chain_summary": fallback_summary,
+            }
+
+        serialized = [_serialize_proof_chain_event(event) for event in proof_events]
+        venue_count = sum(1 for item in serialized if item.get("provenance_level") == "venue_backed")
+        dry_run_count = sum(1 for item in serialized if item.get("provenance_level") == "dry_run_only")
+        internal_count = sum(1 for item in serialized if item.get("provenance_level") == "internal_only")
+        proof_chain_summary = (
+            f"{len(serialized)} timeline events · "
+            f"venue-backed {venue_count} · dry-run {dry_run_count} · internal {internal_count}"
+        )
+        return {
+            "proof_chain": serialized,
+            "proof_chain_summary": proof_chain_summary,
+        }
+
+    def _normalize_venue_lane(value: Any) -> str:
+        lane = str(value or "").strip().lower()
+        if not lane:
+            return "unscoped_internal"
+        if lane in {"binance", "okx"}:
+            return lane
+        return lane.replace(" ", "_")
+
+    def _format_venue_lane_label(lane_key: str) -> str:
+        if lane_key == "binance":
+            return "Binance"
+        if lane_key == "okx":
+            return "OKX"
+        if lane_key == "unscoped_internal":
+            return "Unscoped internal"
+        return lane_key.replace("_", " ").title()
+
+    def _extract_artifact_lane_keys(entry: Dict[str, Any]) -> List[str]:
+        lane_keys = {
+            _normalize_venue_lane(item.get("exchange"))
+            for item in (entry.get("proof_chain") or [])
+            if item.get("exchange")
+        }
+        evidence = entry.get("evidence") or {}
+        if isinstance(evidence, dict) and evidence.get("exchange"):
+            lane_keys.add(_normalize_venue_lane(evidence.get("exchange")))
+        if not lane_keys:
+            lane_keys.add("unscoped_internal")
+        return sorted(lane_keys)
+
+    def _build_venue_lanes(artifact_entries: List[Dict[str, Any]]) -> Dict[str, Any]:
+        if not artifact_entries and not lifecycle_events and last_order is None and latest_trade is None:
+            return {
+                "venue_lanes_summary": "尚未建立任何 venue closure lane；先捕捉第一筆 runtime order。",
+                "venue_lanes": [],
+            }
+
+        lane_keys = {
+            _normalize_venue_lane(getattr(event, "exchange", None))
+            for event in lifecycle_events
+            if getattr(event, "exchange", None)
+        }
+        if getattr(latest_trade, "exchange", None):
+            lane_keys.add(_normalize_venue_lane(getattr(latest_trade, "exchange", None)))
+        if isinstance(last_order, dict) and last_order.get("exchange"):
+            lane_keys.add(_normalize_venue_lane(last_order.get("exchange")))
+        lane_keys.update(
+            lane_key
+            for entry in artifact_entries
+            for lane_key in _extract_artifact_lane_keys(entry)
+        )
+        if not lane_keys:
+            lane_keys = {"unscoped_internal"}
+
+        preferred_order = {"binance": 0, "okx": 1, "unscoped_internal": 99}
+        baseline_keys = {"validation_passed", "venue_ack", "trade_history_persisted"}
+        path_keys = {"partial_fill", "cancel"}
+        venue_lanes: List[Dict[str, Any]] = []
+
+        for lane_key in sorted(lane_keys, key=lambda item: (preferred_order.get(item, 50), item)):
+            lane_artifacts = [
+                entry
+                for entry in artifact_entries
+                if lane_key in _extract_artifact_lane_keys(entry)
+            ]
+            lane_timeline_events = [
+                _serialize_proof_chain_event(event)
+                for event in lifecycle_events
+                if _normalize_venue_lane(getattr(event, "exchange", None)) == lane_key
+            ]
+            if not lane_artifacts and not lane_timeline_events and lane_key != "unscoped_internal":
+                continue
+            baseline_entries = [entry for entry in lane_artifacts if str(entry.get("key") or "") in baseline_keys]
+            baseline_required = sum(1 for entry in baseline_entries if entry.get("required"))
+            baseline_observed = sum(1 for entry in baseline_entries if entry.get("observed"))
+            path_entries = [entry for entry in lane_artifacts if str(entry.get("key") or "") in path_keys]
+            path_observed = sum(1 for entry in path_entries if entry.get("observed"))
+            restart_entry = next((entry for entry in lane_artifacts if str(entry.get("key") or "") == "restart_replay"), None)
+            venue_backed_count = sum(1 for entry in lane_artifacts if entry.get("provenance_level") == "venue_backed")
+            dry_run_count = sum(1 for entry in lane_artifacts if entry.get("provenance_level") == "dry_run_only")
+            internal_count = sum(1 for entry in lane_artifacts if entry.get("provenance_level") == "internal_only")
+            missing_keys = [
+                str(entry.get("key") or "")
+                for entry in lane_artifacts
+                if entry.get("required") and not entry.get("observed")
+            ]
+            lane_artifact_drilldown_summary = (
+                f"artifacts {len(lane_artifacts)} · observed {sum(1 for entry in lane_artifacts if entry.get('observed'))} · "
+                f"required missing {len(missing_keys)}"
+            )
+            lane_timeline_summary = (
+                f"timeline {len(lane_timeline_events)} events · latest "
+                f"{lane_timeline_events[-1].get('event_type') if lane_timeline_events else 'none'}"
+            )
+            if baseline_required > 0 and baseline_observed < baseline_required:
+                lane_status = "baseline_incomplete"
+                next_artifact = missing_keys[0] if missing_keys else "backfill_required_lifecycle_events"
+            elif path_observed <= 0:
+                lane_status = "baseline_ready_missing_path"
+                next_artifact = "partial_fill_or_cancel"
+            elif venue_backed_count <= 0:
+                lane_status = "path_observed_internal_only"
+                next_artifact = "venue_backed_path_artifact"
+            else:
+                lane_status = "venue_backed_path_ready"
+                next_artifact = "keep_validating_live_lifecycle"
+            lane_label = _format_venue_lane_label(lane_key)
+            lane_summary = (
+                f"{lane_label}: baseline {baseline_observed}/{baseline_required or 0} · "
+                f"path {path_observed}/2 · replay {restart_entry.get('status') if restart_entry else 'not_applicable'} · "
+                f"venue-backed {venue_backed_count}"
+            )
+            venue_lanes.append(
+                {
+                    "venue": lane_key,
+                    "label": lane_label,
+                    "status": lane_status,
+                    "summary": lane_summary,
+                    "baseline_ready": baseline_required > 0 and baseline_observed >= baseline_required,
+                    "baseline_observed": baseline_observed,
+                    "baseline_required": baseline_required,
+                    "path_observed": path_observed,
+                    "path_expected": 2,
+                    "restart_replay_status": restart_entry.get("status") if restart_entry else "not_applicable",
+                    "operator_next_artifact": next_artifact,
+                    "missing_required_artifacts": missing_keys,
+                    "artifact_count": len(lane_artifacts),
+                    "artifact_keys": [str(entry.get("key") or "") for entry in lane_artifacts],
+                    "artifact_drilldown_summary": lane_artifact_drilldown_summary,
+                    "timeline_count": len(lane_timeline_events),
+                    "timeline_summary": lane_timeline_summary,
+                    "timeline_events": lane_timeline_events,
+                    "provenance_counts": {
+                        "venue_backed": venue_backed_count,
+                        "dry_run_only": dry_run_count,
+                        "internal_only": internal_count,
+                        "missing_or_not_applicable": sum(
+                            1
+                            for entry in lane_artifacts
+                            if str(entry.get("provenance_level") or "") in {"missing", "not_applicable"}
+                        ),
+                    },
+                    "artifacts": lane_artifacts,
+                }
+            )
+
+        if not venue_lanes:
+            venue_lanes.append(
+                {
+                    "venue": "unscoped_internal",
+                    "label": "Unscoped internal",
+                    "status": "baseline_incomplete",
+                    "summary": "Unscoped internal: 尚未建立任何 venue-scoped artifact。",
+                    "baseline_ready": False,
+                    "baseline_observed": 0,
+                    "baseline_required": 0,
+                    "path_observed": 0,
+                    "path_expected": 2,
+                    "restart_replay_status": "not_applicable",
+                    "operator_next_artifact": "capture_first_runtime_order",
+                    "missing_required_artifacts": [],
+                    "artifact_count": 0,
+                    "artifact_keys": [],
+                    "artifact_drilldown_summary": "artifacts 0 · observed 0 · required missing 0",
+                    "timeline_count": 0,
+                    "timeline_summary": "timeline 0 events · latest none",
+                    "timeline_events": [],
+                    "provenance_counts": {
+                        "venue_backed": 0,
+                        "dry_run_only": 0,
+                        "internal_only": 0,
+                        "missing_or_not_applicable": 0,
+                    },
+                    "artifacts": [],
+                }
+            )
+
+        venue_lanes_summary = " · ".join(lane.get("summary") or lane.get("label") or "lane" for lane in venue_lanes)
+        return {
+            "venue_lanes_summary": venue_lanes_summary,
+            "venue_lanes": venue_lanes,
+        }
+
     if not lifecycle_events and last_order is None and latest_trade is None:
         return {
             "status": "absent",
@@ -1139,6 +1364,8 @@ def _build_execution_lifecycle_contract(
                     "provenance_level": "missing",
                     "provenance_summary": "尚未建立 runtime order，因此沒有任何 artifact provenance。",
                     "venue_backed": False,
+                    "proof_chain_summary": "尚未建立 runtime order，因此沒有任何 timeline proof chain。",
+                    "proof_chain": [],
                     "evidence": None,
                 },
                 {
@@ -1152,9 +1379,13 @@ def _build_execution_lifecycle_contract(
                     "provenance_level": "not_applicable",
                     "provenance_summary": "目前沒有 runtime order，restart replay provenance 不適用。",
                     "venue_backed": False,
+                    "proof_chain_summary": "目前沒有 runtime order，restart replay proof chain 不適用。",
+                    "proof_chain": [],
                     "evidence": None,
                 },
             ],
+            "venue_lanes_summary": "尚未建立任何 venue closure lane；先捕捉第一筆 runtime order。",
+            "venue_lanes": [],
         }
 
     event_type_counts: Dict[str, int] = {}
@@ -1313,6 +1544,14 @@ def _build_execution_lifecycle_contract(
                 else f"當前 runtime path 不要求 {label}。"
             ),
         }
+        proof_chain_data = _build_proof_chain(
+            lambda event, expected_event_type=event_type: str(getattr(event, "event_type", "") or "unknown") == expected_event_type,
+            fallback_summary=(
+                f"尚未找到 {label} 的 timeline proof chain。"
+                if required or observed
+                else f"當前 runtime path 不要求 {label} proof chain。"
+            ),
+        )
         _append_artifact(
             {
                 "key": event_type,
@@ -1329,6 +1568,8 @@ def _build_execution_lifecycle_contract(
                 "provenance_level": provenance["level"],
                 "provenance_summary": provenance["summary"],
                 "venue_backed": provenance["venue_backed"],
+                "proof_chain_summary": proof_chain_data["proof_chain_summary"],
+                "proof_chain": proof_chain_data["proof_chain"],
                 "evidence": _event_evidence(latest_event_by_type.get(event_type)),
             }
         )
@@ -1342,6 +1583,15 @@ def _build_execution_lifecycle_contract(
             else "先補齊 baseline lifecycle，再追 partial fill / cancel path artifact。"
         ),
     }
+    partial_fill_chain = _build_proof_chain(
+        lambda event: _normalize_order_state(getattr(event, "order_state", None)) == "partially_filled"
+        or str(getattr(event, "event_type", "") or "unknown") == "partial_fill",
+        fallback_summary=(
+            "baseline 已就緒，但 partial fill timeline proof chain 仍缺失。"
+            if baseline_contract_status == "complete"
+            else "先補齊 baseline lifecycle，再追 partial fill proof chain。"
+        ),
+    )
     _append_artifact(
         {
             "key": "partial_fill",
@@ -1362,6 +1612,8 @@ def _build_execution_lifecycle_contract(
             "provenance_level": partial_fill_provenance["level"],
             "provenance_summary": partial_fill_provenance["summary"],
             "venue_backed": partial_fill_provenance["venue_backed"],
+            "proof_chain_summary": partial_fill_chain["proof_chain_summary"],
+            "proof_chain": partial_fill_chain["proof_chain"],
             "evidence": _event_evidence(partial_fill_event),
         }
     )
@@ -1374,6 +1626,15 @@ def _build_execution_lifecycle_contract(
             else "先補齊 baseline lifecycle，再追 partial fill / cancel path artifact。"
         ),
     }
+    cancel_chain = _build_proof_chain(
+        lambda event: _normalize_order_state(getattr(event, "order_state", None)) == "canceled"
+        or str(getattr(event, "event_type", "") or "unknown") in {"canceled", "cancel_ack", "cancelled"},
+        fallback_summary=(
+            "baseline 已就緒，但 cancel timeline proof chain 仍缺失。"
+            if baseline_contract_status == "complete"
+            else "先補齊 baseline lifecycle，再追 cancel proof chain。"
+        ),
+    )
     _append_artifact(
         {
             "key": "cancel",
@@ -1391,10 +1652,32 @@ def _build_execution_lifecycle_contract(
                     else "先補齊 baseline lifecycle，再追 partial fill / cancel path artifact。"
                 )
             ),
+            "provenance_level": cancel_provenance["level"],
+            "provenance_summary": cancel_provenance["summary"],
+            "venue_backed": cancel_provenance["venue_backed"],
+            "proof_chain_summary": cancel_chain["proof_chain_summary"],
+            "proof_chain": cancel_chain["proof_chain"],
             "evidence": _event_evidence(cancel_event),
         }
     )
-    artifact_checklist.append(
+    terminal_provenance = _event_provenance(terminal_event) if terminal_state_observed else {
+        "level": "missing" if runtime_state != "absent" else "not_applicable",
+        "venue_backed": False,
+        "summary": (
+            "目前尚未觀察到 terminal state；若 order 仍 open，需持續追蹤後續 lifecycle。"
+            if runtime_state != "absent"
+            else "目前沒有 runtime order，terminal state 不適用。"
+        ),
+    }
+    terminal_chain = _build_proof_chain(
+        lambda event: _normalize_order_state(getattr(event, "order_state", None)) in {"closed", "canceled", "rejected", "expired"},
+        fallback_summary=(
+            "目前尚未建立 terminal state timeline proof chain。"
+            if runtime_state != "absent"
+            else "目前沒有 runtime order，terminal state proof chain 不適用。"
+        ),
+    )
+    _append_artifact(
         {
             "key": "terminal_state",
             "label": "Terminal state observed",
@@ -1407,10 +1690,45 @@ def _build_execution_lifecycle_contract(
                 if terminal_state_observed
                 else "目前尚未觀察到 terminal state；若 order 仍 open，需持續追蹤後續 lifecycle。"
             ),
+            "provenance_level": terminal_provenance["level"],
+            "provenance_summary": terminal_provenance["summary"],
+            "venue_backed": terminal_provenance["venue_backed"],
+            "proof_chain_summary": terminal_chain["proof_chain_summary"],
+            "proof_chain": terminal_chain["proof_chain"],
             "evidence": _event_evidence(terminal_event),
         }
     )
-    artifact_checklist.append(
+    restart_provenance_level = (
+        "venue_backed"
+        if replay_readiness == "ready" and artifact_provenance_counts.get("venue_backed", 0) > 0
+        else (
+            "internal_only"
+            if replay_readiness == "ready"
+            else ("missing" if replay_readiness == "blocked" else "not_applicable")
+        )
+    )
+    restart_provenance_summary = (
+        "restart replay 已 ready，且當前 lifecycle 中已有 venue-backed artifact。"
+        if replay_readiness == "ready" and restart_provenance_level == "venue_backed"
+        else (
+            "restart replay 已 ready，但目前觀察到的 closure 仍以 dry-run / internal artifact 為主。"
+            if replay_readiness == "ready"
+            else (
+                f"restart replay 仍被擋下：{replay_readiness_reason}。"
+                if replay_readiness == "blocked"
+                else "目前沒有 runtime order，restart replay 不適用。"
+            )
+        )
+    )
+    restart_chain = _build_proof_chain(
+        lambda event: True,
+        fallback_summary=(
+            "目前沒有 runtime order，restart replay proof chain 不適用。"
+            if runtime_state == "absent"
+            else "尚未建立 restart replay 所需的 lifecycle proof chain。"
+        ),
+    )
+    _append_artifact(
         {
             "key": "restart_replay",
             "label": "Restart replay evidence",
@@ -1431,6 +1749,11 @@ def _build_execution_lifecycle_contract(
                     else "目前沒有 runtime order，restart replay 不適用。"
                 )
             ),
+            "provenance_level": restart_provenance_level,
+            "provenance_summary": restart_provenance_summary,
+            "venue_backed": artifact_provenance_counts.get("venue_backed", 0) > 0,
+            "proof_chain_summary": restart_chain["proof_chain_summary"],
+            "proof_chain": restart_chain["proof_chain"],
             "evidence": {
                 "order_id": _record_text(last_order, "order_id") or getattr(latest_trade, "order_id", None),
                 "client_order_id": _record_text(last_order, "client_order_id") or getattr(latest_trade, "client_order_id", None),
@@ -1440,11 +1763,19 @@ def _build_execution_lifecycle_contract(
         }
     )
 
+    artifact_provenance_summary = (
+        f"venue-backed {artifact_provenance_counts.get('venue_backed', 0)} · "
+        f"dry-run only {artifact_provenance_counts.get('dry_run_only', 0)} · "
+        f"internal-only {artifact_provenance_counts.get('internal_only', 0)} · "
+        f"missing/not-applicable {artifact_provenance_counts.get('missing', 0) + artifact_provenance_counts.get('not_applicable', 0)}"
+    )
+
     artifact_checklist_summary = (
         f"baseline {baseline_observed_count}/{baseline_required_count or 0} ready · "
         f"path artifacts {path_observed_count}/2 observed · "
         f"restart replay {replay_readiness}"
     )
+    venue_lane_data = _build_venue_lanes(artifact_checklist)
 
     return {
         "status": status,
@@ -1466,7 +1797,11 @@ def _build_execution_lifecycle_contract(
         "artifact_coverage": artifact_coverage,
         "operator_next_artifact": operator_next_artifact,
         "artifact_checklist_summary": artifact_checklist_summary,
+        "artifact_provenance_summary": artifact_provenance_summary,
+        "artifact_provenance_counts": artifact_provenance_counts,
         "artifact_checklist": artifact_checklist,
+        "venue_lanes_summary": venue_lane_data["venue_lanes_summary"],
+        "venue_lanes": venue_lane_data["venue_lanes"],
     }
 
 
@@ -1683,7 +2018,7 @@ def _build_execution_reconciliation_summary(
                 "client_order_id": getattr(latest_trade, "client_order_id", None) if latest_trade is not None else None,
                 "order_status": getattr(latest_trade, "order_status", None) if latest_trade is not None else None,
                 "is_dry_run": bool(getattr(latest_trade, "is_dry_run", 0)) if latest_trade is not None else None,
-            },
+            } if latest_trade is not None else None,
         },
         "open_order_alignment": {
             "status": open_order_alignment_status,
@@ -1695,6 +2030,77 @@ def _build_execution_reconciliation_summary(
             } if matched_account_order is not None else None,
         },
     }
+
+
+async def get_confidence_prediction() -> Dict[str, Any]:
+    from config import load_config
+    from database.models import init_db
+    from model import predictor as predictor_module
+
+    cfg = load_config() or {}
+    database_url = ((cfg.get("database") or {}).get("url")) or "sqlite:///poly_trader.db"
+    session = init_db(database_url)
+    try:
+        loaded = predictor_module.load_predictor()
+        if isinstance(loaded, tuple):
+            predictor = loaded[0]
+            regime_models = loaded[1] if len(loaded) > 1 else None
+        else:
+            predictor = loaded
+            regime_models = None
+        result = predictor_module.predict(session, predictor, regime_models)
+        result = result if isinstance(result, dict) else {}
+        return _enrich_confidence_with_q15_support_audit(dict(result))
+    finally:
+        close = getattr(session, "close", None)
+        if callable(close):
+            close()
+
+
+async def api_status() -> Dict[str, Any]:
+    cfg = get_config() or {}
+    trading_cfg = cfg.get("trading") if isinstance(cfg.get("trading"), dict) else {}
+    symbol = str(trading_cfg.get("symbol") or "BTCUSDT")
+    db = get_db()
+
+    execution_service = ExecutionService(cfg, db_session=db)
+    execution_summary = execution_service.execution_summary() if hasattr(execution_service, "execution_summary") else {}
+    execution_summary = execution_summary if isinstance(execution_summary, dict) else {}
+    execution_summary.setdefault("guardrails", {})
+    execution_summary["guardrails"].setdefault("consecutive_failures", 0)
+
+    account_sync = AccountSyncService(cfg)
+    account_snapshot = account_sync.snapshot(symbol=symbol) if hasattr(account_sync, "snapshot") else {}
+    account_snapshot = account_snapshot if isinstance(account_snapshot, dict) else {}
+
+    maybe_confidence_payload = get_confidence_prediction()
+    confidence_payload = await maybe_confidence_payload if hasattr(maybe_confidence_payload, "__await__") else maybe_confidence_payload
+    live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload)
+    execution_summary["live_runtime_truth"] = live_runtime_truth
+
+    execution_reconciliation = _build_execution_reconciliation_summary(db, symbol, account_snapshot, execution_summary)
+    metadata_smoke = _ensure_execution_metadata_smoke_governance(cfg, symbol)
+    execution_surface_contract = _build_execution_surface_contract()
+    execution_surface_contract["live_runtime_truth"] = live_runtime_truth
+    operator_message = execution_surface_contract.get("operator_message") or ""
+    if live_runtime_truth.get("runtime_closure_state") == "capacity_opened_signal_hold":
+        operator_message = f"{operator_message} 目前 runtime 已開出 1 層 deployment capacity，但 signal 仍是 HOLD。".strip()
+    execution_surface_contract["operator_message"] = operator_message
+
+    return {
+        "automation": bool(is_automation_enabled()),
+        "dry_run": bool(trading_cfg.get("dry_run", False)),
+        "execution": execution_summary,
+        "raw_continuity": get_runtime_status("raw_continuity", {"status": "unknown"}),
+        "feature_continuity": get_runtime_status("feature_continuity", {"status": "unknown"}),
+        "execution_reconciliation": execution_reconciliation,
+        "execution_metadata_smoke": metadata_smoke,
+        "execution_surface_contract": execution_surface_contract,
+    }
+
+
+# ─── Models ───
+
 
 
 def _record_execution_metadata_smoke_background_state(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -2104,1474 +2510,3 @@ def normalize_for_api(raw_val, db_key):
     soft_hi = p95 + soft_margin
     if raw_val <= p5:
         v = max(soft_lo, raw_val)
-        return round(0.02 + 0.08 * (v - soft_lo) / max(p5 - soft_lo, 1e-10), 4)
-    if raw_val >= p95:
-        v = min(soft_hi, raw_val)
-        return round(0.90 + 0.08 * (v - p95) / max(soft_hi - p95, 1e-10), 4)
-    return round(0.10 + 0.80 * (raw_val - p5) / span, 4)
-
-
-
-
-def _compute_raw_snapshot_stats(db) -> Dict[str, Dict[str, Any]]:
-    try:
-        bind = db.get_bind()
-        if bind is None:
-            return {}
-        db_path = bind.url.database
-        if not db_path:
-            return {}
-        conn = sqlite3.connect(db_path)
-        try:
-            return compute_raw_snapshot_stats(conn)
-        finally:
-            conn.close()
-    except Exception:
-        return {}
-
-
-def _compute_feature_coverage(db, days: int = 90) -> Dict[str, Any]:
-    since = datetime.utcnow() - timedelta(days=days)
-    rows = (
-        db.query(FeaturesNormalized)
-        .filter(FeaturesNormalized.timestamp >= since)
-        .order_by(FeaturesNormalized.timestamp)
-        .all()
-    )
-    snapshot_stats = _compute_raw_snapshot_stats(db)
-    snapshot_counts = {subtype: row.get("count", 0) for subtype, row in snapshot_stats.items()}
-    total_rows = len(rows)
-    feature_stats: Dict[str, Any] = {}
-    timestamp_values = [getattr(r, "timestamp", None) for r in rows]
-    for db_key, clean_key in FEATURE_KEY_MAP.items():
-        values = [getattr(r, db_key, None) for r in rows]
-        non_null_values = [v for v in values if v is not None]
-        distinct = len({round(float(v), 10) for v in non_null_values}) if non_null_values else 0
-        coverage_pct = (len(non_null_values) / total_rows * 100.0) if total_rows else 0.0
-        min_val = min(non_null_values) if non_null_values else None
-        max_val = max(non_null_values) if non_null_values else None
-        archive_window = _compute_archive_window_coverage(clean_key, timestamp_values, values, snapshot_stats)
-        quality = assess_feature_quality(clean_key, coverage_pct, distinct, len(non_null_values), min_val, max_val)
-        quality.update(archive_window)
-        quality = attach_forward_archive_meta(clean_key, quality, snapshot_counts, snapshot_stats)
-        feature_stats[clean_key] = {
-            "db_key": db_key,
-            "non_null": len(non_null_values),
-            "coverage_pct": round(coverage_pct, 2),
-            "distinct": distinct,
-            "min": min_val,
-            "max": max_val,
-            **quality,
-        }
-    maturity_counts = {
-        "core": sum(1 for meta in feature_stats.values() if meta.get("maturity_tier") == "core"),
-        "research": sum(1 for meta in feature_stats.values() if meta.get("maturity_tier") == "research"),
-        "blocked": sum(1 for meta in feature_stats.values() if meta.get("maturity_tier") == "blocked"),
-    }
-    return {
-        "days": days,
-        "rows": total_rows,
-        "maturity_counts": maturity_counts,
-        "features": feature_stats,
-    }
-
-
-# ─── API Endpoints ───
-@router.get("/status")
-async def api_status():
-    cfg = get_config()
-    db = get_db()
-    symbol = cfg.get("trading", {}).get("symbol", "BTCUSDT")
-    execution = ExecutionService(cfg, db_session=db)
-    account_snapshot = AccountSyncService(cfg).snapshot(symbol=symbol)
-    execution_summary = execution.execution_summary()
-    try:
-        confidence_result = get_confidence_prediction()
-        if hasattr(confidence_result, "__await__"):
-            confidence_payload = await confidence_result
-        else:
-            confidence_payload = confidence_result
-    except Exception:
-        confidence_payload = None
-    live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload if isinstance(confidence_payload, dict) else None)
-    execution_summary["live_runtime_truth"] = live_runtime_truth
-    account_snapshot["live_runtime_truth"] = live_runtime_truth
-    if live_runtime_truth.get("runtime_closure_state") == "capacity_opened_signal_hold":
-        execution_summary["operator_message"] = live_runtime_truth["runtime_closure_summary"]
-        account_snapshot["operator_message"] = f"account snapshot 已刷新；{live_runtime_truth['runtime_closure_summary']}"
-    status_payload = {
-        "automation": is_automation_enabled(),
-        "dry_run": cfg.get("trading", {}).get("dry_run", True),
-        "symbol": symbol,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "execution": execution_summary,
-        "account": account_snapshot,
-        "execution_reconciliation": _build_execution_reconciliation_summary(
-            db,
-            symbol,
-            account_snapshot,
-            execution_summary,
-        ),
-        "execution_metadata_smoke": _ensure_execution_metadata_smoke_governance(cfg, symbol),
-        "execution_surface_contract": _build_execution_surface_contract(),
-        "raw_continuity": get_runtime_status("raw_continuity", None),
-        "feature_continuity": get_runtime_status("feature_continuity", None),
-    }
-    status_payload["execution_surface_contract"]["live_runtime_truth"] = live_runtime_truth
-    if live_runtime_truth.get("runtime_closure_state") == "capacity_opened_signal_hold":
-        status_payload["execution_surface_contract"]["operator_message"] = f"{status_payload['execution_surface_contract']['operator_message']} 另外，{live_runtime_truth['runtime_closure_summary']}"
-    return status_payload
-
-
-@router.get("/features/status")
-async def api_features_status():
-    """返回全部 22 特徵的即時狀態"""
-    engine = get_engine()
-    scores = engine.calculate_all_scores()
-    full_data = engine.get_latest_full_data()
-    advice = engine.generate_advice(scores)
-    return {
-        "features": engine.get_features_status(),
-        "scores": scores,
-        "raw": full_data.get("raw", {}),
-        "recommendation": advice,
-    }
-
-
-@router.get("/features/config")
-async def api_features_cfg():
-    return get_engine().get_config()
-
-
-@router.put("/features/config")
-async def api_put_features(update: SenseConfigUpdate):
-    engine = get_engine()
-    updates = {}
-    if update.enabled is not None:
-        updates["enabled"] = update.enabled
-    if update.weight is not None:
-        updates["weight"] = update.weight
-    ok = engine.update_feature_config(update.sense, update.module, updates)
-    if not ok:
-        raise HTTPException(status_code=400, detail="無效特徵或模組")
-    return {"config": engine.get_config(), "scores": engine.calculate_all_scores()}
-
-
-@router.get("/senses")
-async def api_senses():
-    """返回最新特徵（多特徵）分數 — 前端雷達圖 + 價格 × 特徵 overlay 用"""
-    engine = get_engine()
-    scores = engine.calculate_all_scores()
-    full_data = engine.get_latest_full_data()
-    raw = full_data.get("raw", {})
-    return {
-        "senses": scores,  # 前端欄位名稱 (向後相容)
-        "scores": scores,
-        "raw": raw,
-        "recommendation": engine.generate_advice(scores),
-    }
-
-
-@router.get("/senses/config")
-async def api_senses_cfg():
-    """返回特徵配置（舊路由，向後相容）"""
-    return get_engine().get_config()
-
-
-@router.put("/senses/config")
-async def api_put_senses_cfg(update: SenseConfigUpdate):
-    """更新特徵配置（舊路由，向後相容）"""
-    engine = get_engine()
-    updates = {}
-    if update.enabled is not None:
-        updates["enabled"] = update.enabled
-    if update.weight is not None:
-        updates["weight"] = update.weight
-    ok = engine.update_feature_config(update.sense, update.module, updates)
-    if not ok:
-        raise HTTPException(status_code=400, detail="無效特徵或模組")
-    return {"config": engine.get_config(), "scores": engine.calculate_all_scores()}
-
-
-@router.get("/recommendation")
-async def api_rec():
-    engine = get_engine()
-    return engine.generate_advice(engine.calculate_all_scores())
-
-
-@router.get("/chart/klines")
-async def api_klines(
-    symbol: str = "BTCUSDT",
-    interval: str = "1h",
-    limit: int = 500,
-    since: Optional[int] = Query(default=None),
-    until: Optional[int] = Query(default=None),
-    append_after: Optional[int] = Query(default=None),
-):
-    since = since if isinstance(since, (int, float)) else None
-    until = until if isinstance(until, (int, float)) else None
-    append_after = append_after if isinstance(append_after, (int, float)) else None
-    cache_key = _build_cache_key("chart_klines", symbol, interval, limit, since or "", until or "", append_after or "")
-    with _KLINE_CACHE_LOCK:
-        cached = _KLINE_RESPONSE_CACHE.get(cache_key)
-        if cached and (time.time() - cached.get("updated_at", 0.0) < 180):
-            return cached["payload"]
-    try:
-        interval_ms = _interval_ms(interval)
-        fetch_limit = max(min(limit, 1000), 50)
-        fetch_since = since
-        trim_after_time = append_after
-        if append_after is not None:
-            warmup_window_ms = interval_ms * _KLINE_INCREMENTAL_WARMUP_CANDLES
-            warmup_since = max(0, append_after - warmup_window_ms)
-            fetch_since = max(since or 0, warmup_since) if since is not None else warmup_since
-            if until is not None and until > fetch_since:
-                incremental_span = max(until - fetch_since, interval_ms)
-                fetch_limit = max(fetch_limit, min(1000, math.ceil(incremental_span / interval_ms) + 5))
-
-        exchange = ccxt.binance()
-        if until is not None and fetch_since is not None:
-            target_bars = max(1, math.ceil((until - fetch_since) / interval_ms) + 1)
-        else:
-            target_bars = max(1, fetch_limit)
-        ohlcv: List[List[float]] = []
-        cursor_since = fetch_since
-        remaining = target_bars
-        while remaining > 0:
-            page_limit = max(50, min(1000, remaining))
-            page = exchange.fetch_ohlcv(symbol, interval, since=cursor_since, limit=page_limit)
-            if not page:
-                break
-            if until is not None:
-                page = [row for row in page if row[0] <= until]
-            if not page:
-                break
-            ohlcv.extend(page)
-            if len(page) < page_limit:
-                break
-            last_open_time = int(page[-1][0])
-            next_since = last_open_time + interval_ms
-            if cursor_since is not None and next_since <= cursor_since:
-                break
-            cursor_since = next_since
-            remaining = target_bars - len(ohlcv)
-            if until is not None and cursor_since > until:
-                break
-        if ohlcv:
-            deduped = {int(row[0]): row for row in ohlcv}
-            ohlcv = [deduped[key] for key in sorted(deduped)]
-        payload = _build_chart_payload(symbol, interval, ohlcv)
-        if trim_after_time is not None:
-            trim_index = 0
-            while trim_index < len(ohlcv) and int(ohlcv[trim_index][0]) <= trim_after_time:
-                trim_index += 1
-            payload = _slice_chart_payload(payload, trim_index)
-            payload["incremental"] = True
-            payload["append_after"] = int(trim_after_time / 1000)
-        else:
-            payload["incremental"] = False
-        with _KLINE_CACHE_LOCK:
-            _KLINE_RESPONSE_CACHE[cache_key] = {"updated_at": time.time(), "payload": payload}
-        return payload
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/backtest")
-async def api_backtest(days: int = Query(default=30, ge=1, le=365), initial_capital: float = Query(default=10000.0, ge=100.0, le=10000000.0)):
-    try:
-        from model import predictor as predictor_module
-
-        symbol = "BTCUSDT"
-        interval = "4h" if days <= 7 else "1d"
-        limit = max(int(days * 6), 20)
-        exchange = ccxt.binance()
-        ohlcv = exchange.fetch_ohlcv(symbol, interval, limit=limit)
-        if not ohlcv or len(ohlcv) < 20:
-            return {"error": "數據不足", "total_trades": 0,
-                    "equity_curve": [], "trades": []}
-        db = get_db()
-        start = datetime.fromtimestamp(ohlcv[0][0] / 1000)
-        features = db.query(FeaturesNormalized).filter(
-            FeaturesNormalized.timestamp >= start
-        ).order_by(FeaturesNormalized.timestamp).all()
-        feat_map = {}
-        for f in features:
-            feat_map[int(f.timestamp.timestamp())] = f
-        initial = float(initial_capital)
-        equity = initial
-        position = 0.0
-        entry_price = 0.0
-        entry_timestamp = None
-        open_trade_profile: Dict[str, Any] = {}
-        equity_curve = []
-        trades = []
-        threshold = 0.55
-        exit_thresh = 0.48
-        stop_p = 0.03
-        canonical_core_cols = [
-            "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
-            "feat_body", "feat_pulse", "feat_aura", "feat_mind",
-        ]
-        for bar in ohlcv:
-            t, o, h, l, c = bar[0], bar[1], bar[2], bar[3], bar[4]
-            dt = int(t / 1000)
-            price = c
-            feat = None
-            min_diff = 999999
-            for ft, f in feat_map.items():
-                d = abs(ft - dt)
-                if d < min_diff:
-                    min_diff = d
-                    feat = f
-            if not feat or min_diff > 2 * 3600:
-                equity_curve.append({
-                    "timestamp": datetime.fromtimestamp(dt).isoformat() + "Z",
-                    "equity": round(equity + (position * price if position else 0), 2)})
-                continue
-
-            feature_values = {col: getattr(feat, col, None) for col in canonical_core_cols}
-            feature_values.update({
-                "feat_4h_bias50": getattr(feat, "feat_4h_bias50", None),
-                "feat_4h_bias200": getattr(feat, "feat_4h_bias200", None),
-                "regime_label": getattr(feat, "regime_label", None),
-            })
-            normed = [
-                normalize_for_api(feature_values[col], col)
-                for col in canonical_core_cols
-                if normalize_for_api(feature_values[col], col) is not None
-            ]
-            if not normed:
-                equity_curve.append({
-                    "timestamp": datetime.fromtimestamp(dt).isoformat() + "Z",
-                    "equity": round(equity + (position * price if position else 0), 2)})
-                continue
-
-            score = sum(normed) / len(normed)
-            decision_profile = predictor_module._build_live_decision_profile(feature_values)
-
-            if position > 0 and price <= entry_price * (1 - stop_p):
-                pnl = (price - entry_price) * position
-                equity += pnl
-                trades.append({
-                    "timestamp": datetime.fromtimestamp(dt).isoformat() + "Z",
-                    "entry_timestamp": entry_timestamp,
-                    "action": "sell",
-                    "price": round(price, 2),
-                    "amount": position,
-                    "pnl": round(pnl, 2),
-                    "reason": "stop_loss",
-                    **open_trade_profile,
-                })
-                position = 0
-                entry_timestamp = None
-                open_trade_profile = {}
-
-            can_enter = (
-                position == 0
-                and score >= threshold
-                and (decision_profile.get("allowed_layers") or 0) > 0
-                and decision_profile.get("regime_gate") != "BLOCK"
-            )
-            if can_enter:
-                position = (equity * 0.05) / price
-                entry_price = price
-                entry_timestamp = datetime.fromtimestamp(dt).isoformat() + "Z"
-                open_trade_profile = {
-                    "regime_gate": decision_profile.get("regime_gate"),
-                    "entry_quality": decision_profile.get("entry_quality"),
-                    "entry_quality_label": decision_profile.get("entry_quality_label"),
-                    "allowed_layers": decision_profile.get("allowed_layers"),
-                }
-            elif score < exit_thresh and position > 0:
-                pnl = (price - entry_price) * position
-                equity += pnl
-                trades.append({
-                    "timestamp": datetime.fromtimestamp(dt).isoformat() + "Z",
-                    "entry_timestamp": entry_timestamp,
-                    "action": "sell",
-                    "price": round(price, 2),
-                    "amount": position,
-                    "pnl": round(pnl, 2),
-                    "reason": "signal_exit",
-                    **open_trade_profile,
-                })
-                position = 0
-                entry_timestamp = None
-                open_trade_profile = {}
-            equity_curve.append({
-                "timestamp": datetime.fromtimestamp(dt).isoformat() + "Z",
-                "equity": round(equity + (position * price if position else 0), 2)})
-        if position > 0:
-            pnl = (c - entry_price) * position
-            equity += pnl
-            trades.append({
-                "timestamp": datetime.fromtimestamp(ohlcv[-1][0] / 1000).isoformat() + "Z",
-                "entry_timestamp": entry_timestamp,
-                "action": "sell",
-                "price": round(c, 2),
-                "amount": position,
-                "pnl": round(pnl, 2),
-                "reason": "end",
-                **open_trade_profile,
-            })
-        win = [t for t in trades if t["pnl"] > 0]
-        aw = sum(t["pnl"] for t in win) / max(len(win), 1)
-        al = abs(sum(t["pnl"] for t in trades if t["pnl"] < 0)) / max(len(trades) - len(win), 1)
-        decision_profile_summary = _compute_decision_profile(trades)
-        decision_quality_profile = _compute_strategy_decision_quality_profile(trades, db=db, horizon_minutes=1440)
-        return {
-            "final_equity": round(equity, 2),
-            "initial_capital": initial,
-            "total_trades": len(trades),
-            "win_rate": round(len(win) / max(len(trades), 1) * 100, 1),
-            "profit_loss_ratio": round(aw / max(al, 0.01), 2),
-            "max_drawdown": round(_calc_max_dd([e["equity"] for e in equity_curve]) * 100, 2),
-            "total_return": round((equity - initial) / initial * 100, 2),
-            "equity_curve": equity_curve[-200:],
-            "trades": trades[-50:],
-            **decision_profile_summary,
-            **decision_quality_profile,
-            "decision_contract": _strategy_decision_contract_meta(horizon_minutes=1440),
-        }
-    except Exception as e:
-        logger.error(f"Backtest failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return {"error": str(e), "total_trades": 0, "equity_curve": [], "trades": []}
-
-
-@router.post("/trade")
-async def api_trade(req: TradeRequest):
-    """Execution endpoint for the web UI. Supports paper / live_canary / live via ExecutionService."""
-    side = (req.side or "").lower().strip()
-    if side not in {"buy", "reduce", "sell"}:
-        raise HTTPException(status_code=400, detail="side must be one of: buy, reduce, sell")
-
-    cfg = get_config()
-    db = get_db()
-    service = ExecutionService(cfg, db_session=db)
-    reduce_only = side == "reduce" and service.venue_default_type() != "spot"
-    try:
-        result = service.submit_order(
-            symbol=req.symbol,
-            side="sell" if reduce_only else "buy",
-            order_type="market",
-            qty=req.qty,
-            venue=(cfg.get("execution", {}) or {}).get("venue") or cfg.get("trading", {}).get("venue"),
-            reduce_only=reduce_only,
-            reason=f"manual_api:{side}",
-            model_confidence=0.0,
-        )
-    except Exception as exc:
-        payload = exc.to_payload() if hasattr(exc, "to_payload") else {"message": str(exc)}
-        raise HTTPException(status_code=400, detail=payload)
-
-    order = result.get("order") or {}
-    action_text = {
-        "buy": "spot buy",
-        "reduce": "position reduce",
-        "sell": "position close",
-    }[side]
-    return {
-        "success": True,
-        "dry_run": result.get("dry_run", True),
-        "message": f"{action_text} accepted",
-        "venue": result.get("venue"),
-        "order_id": order.get("id"),
-        "order": order,
-        "guardrails": result.get("guardrails"),
-    }
-
-
-@router.get("/features")
-async def api_features(days: int = Query(default=7, ge=1, le=90)):
-    """返回全部 22+ 特徵的時間序列資料（正確 key mapping + ECDF 正規化）"""
-    db = get_db()
-    since = datetime.utcnow() - timedelta(days=days)
-    rows = (
-        db.query(FeaturesNormalized)
-        .filter(FeaturesNormalized.timestamp >= since)
-        .order_by(FeaturesNormalized.timestamp)
-        .all()
-    )
-    result = []
-    for r in rows:
-        obj = {"timestamp": _iso_utc_timestamp(r.timestamp)}
-        for db_key, clean_key in FEATURE_KEY_MAP.items():
-            raw_val = getattr(r, db_key, None)
-            obj[clean_key] = normalize_for_api(raw_val, db_key)
-            obj[f"raw_{clean_key}"] = raw_val
-        result.append(obj)
-    return result
-
-
-@router.get("/features/coverage")
-async def api_features_coverage(days: int = Query(default=90, ge=1, le=365)):
-    """Coverage/distinctness audit for feature history chart rendering."""
-    db = get_db()
-    return _compute_feature_coverage(db, days=days)
-
-
-@router.get("/model/stats")
-async def api_model_stats():
-    """返回模型準確率、IC 值等統計資訊，供 Web 顯示"""
-    import os, pickle, numpy as np
-    from model.train import FEATURE_COLS
-    from model.predictor import BASE_FEATURE_COLS as PREDICTOR_FEATURES
-    from model.predictor import MODEL_PATH
-    from database.models import Labels, FeaturesNormalized
-    from sqlalchemy import text
-
-    db = get_db()
-    all_features = PREDICTOR_FEATURES
-    stats = {
-        "model_loaded": False, "sample_count": 0,
-        "label_distribution": {}, "cv_accuracy": None,
-        "feature_importance": {}, "ic_values": {},
-        "model_params": {}, "feature_count": len(all_features),
-        "signal_4h": _get_4h_signal(),
-    }
-    try:
-        total = db.query(Labels).count()
-        stats["sample_count"] = total
-        dist = db.execute(text(
-            "SELECT label, COUNT(*) as cnt FROM labels GROUP BY label"
-        )).fetchall()
-        stats["label_distribution"] = {str(r[0]): r[1] for r in dist}
-    except Exception as e:
-        logger.error(f"Stats label error: {e}")
-    try:
-        if os.path.exists(MODEL_PATH):
-            with open(MODEL_PATH, "rb") as f:
-                model = pickle.load(f)
-            stats["model_loaded"] = True
-            if hasattr(model, "feature_importances_"):
-                imp = dict(zip(FEATURE_COLS, model.feature_importances_.tolist()))
-                stats["feature_importance"] = {
-                    k: round(v, 4) for k, v in sorted(imp.items(), key=lambda x: -x[1])}
-            if hasattr(model, "get_params"):
-                p = model.get_params()
-                stats["model_params"] = {
-                    k: p.get(k) for k in ["n_estimators", "max_depth",
-                                           "reg_alpha", "reg_lambda"]}
-    except Exception as e:
-        logger.error(f"Stats model error: {e}")
-    try:
-        ic_path = os.path.join(os.path.dirname(MODEL_PATH), "ic_signs.json")
-        if os.path.exists(ic_path):
-            with open(ic_path) as f:
-                ic_data = json.load(f)
-            for src_key in ["ic_global", "ic_map", "core_ic_summary", "tw_ic_summary"]:
-                if src_key in ic_data:
-                    for feat, val in ic_data[src_key].items():
-                        clean = feat.replace("feat_", "").replace("4h_", "4h_")
-                        stats["ic_values"][clean] = round(float(val), 4)
-    except Exception as e:
-        logger.error(f"Stats IC error: {e}")
-    return stats
-
-
-@router.post("/backtest/run")
-async def api_run_backtest(days: int = Query(default=30)):
-    return await api_backtest(days=days)
-
-
-@router.get("/predict/confidence")
-async def get_confidence_prediction():
-    """返回模型信心分層預測"""
-    from model.predictor import predict, load_predictor
-    from database.models import init_db
-    from config import load_config
-    cfg = load_config()
-    session = init_db(cfg["database"]["url"])
-    try:
-        predictor, regime_models = load_predictor()
-        result = predict(session, predictor, regime_models)
-    finally:
-        session.close()
-    if result is None:
-        return {
-            "error": "prediction failed",
-            "confidence": 0.5,
-            "signal": "HOLD",
-            "confidence_level": "LOW",
-            "should_trade": False,
-            "regime_gate": None,
-            "entry_quality": None,
-            "entry_quality_label": None,
-            "allowed_layers": None,
-            "decision_quality_horizon_minutes": 1440,
-            "decision_quality_calibration_scope": None,
-            "decision_quality_sample_size": 0,
-            "decision_quality_reference_from": None,
-            "expected_win_rate": None,
-            "expected_pyramid_pnl": None,
-            "expected_pyramid_quality": None,
-            "expected_drawdown_penalty": None,
-            "expected_time_underwater": None,
-            "decision_quality_score": None,
-            "decision_quality_label": None,
-            "decision_profile_version": "phase16_baseline_v2",
-        }
-    return _enrich_confidence_with_q15_support_audit(result)
-
-
-# ═══════════════════════════════════════════════
-# Strategy Lab API
-# ═══════════════════════════════════════════════
-
-DB_PATH = '/home/kazuha/Poly-Trader/poly_trader.db'
-MODEL_LB_CACHE_PATH = Path('/tmp/polytrader_model_leaderboard_cache.json')
-MODEL_LB_CACHE_TTL_SEC = 60 * 15
-MODEL_LB_STALE_SEC = 60 * 60 * 6
-MODEL_LB_OVERFIT_GAP_THRESHOLD = 0.12
-MODEL_LB_HARD_TRAIN_ACC_CAP = 0.85
-_MODEL_LB_LOCK = threading.Lock()
-_MODEL_LB_CACHE: Dict[str, Any] = {
-    "payload": None,
-    "updated_at": 0.0,
-    "refreshing": False,
-    "error": None,
-}
-
-
-def _serialize_model_scores(results, overfit_gap_threshold: float, hard_train_acc_cap: float) -> List[Dict[str, Any]]:
-    leaderboard = []
-    for r in results:
-        fold_data = []
-        for f in r.folds:
-            fold_data.append({
-                "fold": int(f.fold),
-                "train_start": str(f.train_start),
-                "train_end": str(f.train_end),
-                "test_start": str(f.test_start),
-                "test_end": str(f.test_end),
-                "roi": float(round(f.roi, 4)),
-                "win_rate": float(round(f.win_rate, 4)),
-                "trades": int(f.total_trades),
-                "max_dd": float(round(f.max_drawdown, 4)),
-                "profit_factor": float(round(f.profit_factor, 4)),
-                "avg_decision_quality_score": float(round(getattr(f, "avg_decision_quality_score", 0.0), 4)),
-                "avg_expected_win_rate": float(round(getattr(f, "avg_expected_win_rate", 0.0), 4)),
-                "avg_expected_pyramid_quality": float(round(getattr(f, "avg_expected_pyramid_quality", 0.0), 4)),
-                "avg_expected_drawdown_penalty": float(round(getattr(f, "avg_expected_drawdown_penalty", 0.0), 4)),
-                "avg_expected_time_underwater": float(round(getattr(f, "avg_expected_time_underwater", 0.0), 4)),
-                "deployment_profile": str(getattr(f, "deployment_profile", "standard")),
-                "feature_profile": str(getattr(f, "feature_profile", "current_full")),
-                "feature_profile_source": str(getattr(f, "feature_profile_source", "code_default")),
-            })
-        is_overfit = bool(r.train_test_gap > overfit_gap_threshold or r.train_accuracy > hard_train_acc_cap)
-        tier_meta = _model_tier_for_name(str(r.model_name))
-        leaderboard.append({
-            "model_name": str(r.model_name),
-            "deployment_profile": str(getattr(r, "deployment_profile", "standard")),
-            "feature_profile": str(getattr(r, "feature_profile", "current_full")),
-            "feature_profile_source": str(getattr(r, "feature_profile_source", "code_default")),
-            "feature_profile_support_cohort": (getattr(r, "feature_profile_meta", {}) or {}).get("support_cohort"),
-            "feature_profile_support_rows": (getattr(r, "feature_profile_meta", {}) or {}).get("support_rows"),
-            "feature_profile_exact_live_bucket_rows": (getattr(r, "feature_profile_meta", {}) or {}).get("exact_live_bucket_rows"),
-            **tier_meta,
-            "avg_roi": float(round(r.avg_roi, 4)),
-            "avg_win_rate": float(round(r.avg_win_rate, 4)),
-            "avg_trades": int(r.avg_trades),
-            "avg_max_dd": float(round(r.avg_max_drawdown, 4)),
-            "avg_entry_quality": float(round(getattr(r, "avg_entry_quality", 0.0), 4)),
-            "avg_allowed_layers": float(round(getattr(r, "avg_allowed_layers", 0.0), 4)),
-            "avg_trade_quality": float(round(getattr(r, "avg_trade_quality", 0.0), 4)),
-            "avg_decision_quality_score": float(round(getattr(r, "avg_decision_quality_score", 0.0), 4)),
-            "avg_expected_win_rate": float(round(getattr(r, "avg_expected_win_rate", 0.0), 4)),
-            "avg_expected_pyramid_quality": float(round(getattr(r, "avg_expected_pyramid_quality", 0.0), 4)),
-            "avg_expected_drawdown_penalty": float(round(getattr(r, "avg_expected_drawdown_penalty", 0.0), 4)),
-            "avg_expected_time_underwater": float(round(getattr(r, "avg_expected_time_underwater", 0.0), 4)),
-            "regime_stability_score": float(round(getattr(r, "regime_stability_score", 0.0), 4)),
-            "trade_count_score": float(round(getattr(r, "trade_count_score", 0.0), 4)),
-            "roi_score": float(round(getattr(r, "roi_score", 0.0), 4)),
-            "max_drawdown_score": float(round(getattr(r, "max_drawdown_score", 0.0), 4)),
-            "profit_factor_score": float(round(getattr(r, "profit_factor_score", 0.0), 4)),
-            "time_underwater_score": float(round(getattr(r, "time_underwater_score", 0.0), 4)),
-            "decision_quality_component": float(round(getattr(r, "decision_quality_component", 0.0), 4)),
-            "reliability_score": float(round(getattr(r, "reliability_score", 0.0), 4)),
-            "return_power_score": float(round(getattr(r, "return_power_score", 0.0), 4)),
-            "risk_control_score": float(round(getattr(r, "risk_control_score", 0.0), 4)),
-            "capital_efficiency_score": float(round(getattr(r, "capital_efficiency_score", 0.0), 4)),
-            "overall_score": float(round(getattr(r, "overall_score", getattr(r, "composite_score", 0.0)), 4)),
-            "overfit_penalty": float(round(getattr(r, "overfit_penalty", 0.0), 4)),
-            "std_roi": float(round(r.std_roi, 4)),
-            "profit_factor": float(round(r.avg_profit_factor, 4)),
-            "train_acc": float(round(r.train_accuracy, 4)),
-            "test_acc": float(round(r.test_accuracy, 4)),
-            "train_test_gap": float(round(r.train_test_gap, 4)),
-            "composite": float(round(r.composite_score, 4)),
-            "is_overfit": bool(is_overfit),
-            "overfit_reason": "train_test_gap" if r.train_test_gap > overfit_gap_threshold else ("train_accuracy_cap" if r.train_accuracy > hard_train_acc_cap else None),
-            "folds": fold_data,
-        })
-    return leaderboard
-
-
-def _model_tier_for_name(model_name: str) -> Dict[str, str]:
-    normalized = str(model_name or "").strip().lower()
-    if normalized in {"rule_baseline", "random_forest", "xgboost", "logistic_regression"}:
-        return {
-            "model_tier": "core",
-            "model_tier_label": "核心模型",
-            "model_tier_reason": "最符合目前 Poly-Trader 的多特徵、低頻高信念、可解釋與穩定度優先主線。",
-        }
-    if normalized in {"lightgbm", "catboost", "ensemble"}:
-        return {
-            "model_tier": "control",
-            "model_tier_label": "對照模型",
-            "model_tier_reason": "適合作為 XGBoost / RandomForest 的對照與補充，不是當前第一主線。",
-        }
-    if normalized in {"mlp", "svm"}:
-        return {
-            "model_tier": "research",
-            "model_tier_label": "研究模型",
-            "model_tier_reason": "目前保留在研究層，用來觀察是否有額外訊號，不建議當前主線優先投入。",
-        }
-    return {
-        "model_tier": "control",
-        "model_tier_label": "對照模型",
-        "model_tier_reason": "未明確歸類，預設先放在對照層，避免過早升為主線。",
-    }
-
-
-def _summarize_target_candidates(df, overfit_gap_threshold: float, hard_train_acc_cap: float) -> List[Dict[str, Any]]:
-    from backtesting.model_leaderboard import ModelLeaderboard
-
-    summaries = []
-    candidate_models = ["rule_baseline", "logistic_regression", "xgboost", "catboost"]
-    target_specs = [
-        ("simulated_pyramid_win", "Simulated Pyramid"),
-        ("label_spot_long_win", "Path-aware TP/DD"),
-    ]
-    for target_col, label in target_specs:
-        if target_col not in df.columns:
-            continue
-        target_df = df.dropna(subset=[target_col]).copy()
-        if target_df.empty:
-            continue
-        target_df[target_col] = target_df[target_col].fillna(0).astype(int)
-        lb = ModelLeaderboard(target_df, target_col=target_col)
-        results = lb.run_all_models(candidate_models)
-        serialized = _serialize_model_scores(results, overfit_gap_threshold, hard_train_acc_cap)
-        non_overfit = [row for row in serialized if not row["is_overfit"]]
-        best = non_overfit[0] if non_overfit else (serialized[0] if serialized else None)
-        is_canonical = target_col == "simulated_pyramid_win"
-        summaries.append({
-            "target_col": target_col,
-            "label": label,
-            "is_canonical": is_canonical,
-            "usage_note": (
-                "主訓練 / 主排行榜 target"
-                if is_canonical
-                else "僅供 path-aware 比較診斷，不作主 target"
-            ),
-            "samples": int(len(target_df)),
-            "positive_ratio": float(round(target_df[target_col].mean(), 4)),
-            "best_model": best,
-            "models_evaluated": len(serialized),
-        })
-    summaries.sort(key=lambda row: (not row.get("is_canonical", False), row["target_col"]))
-    return summaries
-
-
-def _load_model_leaderboard_cache_payload() -> Optional[Dict[str, Any]]:
-    if not MODEL_LB_CACHE_PATH.exists():
-        return None
-    try:
-        payload = json.loads(MODEL_LB_CACHE_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    return payload if isinstance(payload, dict) else None
-
-
-def _write_model_leaderboard_cache_payload(payload: Dict[str, Any]) -> None:
-    try:
-        MODEL_LB_CACHE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception as exc:
-        logger.warning(f"failed to write model leaderboard cache: {exc}")
-
-
-def _compute_rank_deltas(current_rows: List[Dict[str, Any]], previous_rows: List[Dict[str, Any]]) -> None:
-    previous_rank_by_model = {
-        str(row.get("model_name")): idx
-        for idx, row in enumerate(previous_rows or [], start=1)
-        if row.get("model_name")
-    }
-    for idx, row in enumerate(current_rows or [], start=1):
-        model_name = str(row.get("model_name") or "")
-        previous_rank = previous_rank_by_model.get(model_name)
-        row["rank"] = idx
-        row["previous_rank"] = previous_rank
-        row["rank_delta"] = 0 if previous_rank is None else int(previous_rank - idx)
-
-
-def _snapshot_history_from_payload(payload: Optional[Dict[str, Any]], limit: int = 10) -> List[Dict[str, Any]]:
-    if not isinstance(payload, dict):
-        return []
-    history = payload.get("snapshot_history")
-    if isinstance(history, list):
-        return [item for item in history if isinstance(item, dict)][:limit]
-    return []
-
-
-def _build_model_leaderboard_payload(force_refresh: bool = False) -> Dict[str, Any]:
-    cached_payload = None
-    cached_updated_at = 0.0
-    with _MODEL_LB_LOCK:
-        if not force_refresh and isinstance(_MODEL_LB_CACHE.get("payload"), dict):
-            cached_payload = _MODEL_LB_CACHE.get("payload")
-            cached_updated_at = float(_MODEL_LB_CACHE.get("updated_at") or 0.0)
-            if time.time() - cached_updated_at <= MODEL_LB_CACHE_TTL_SEC:
-                return cached_payload
-
-    file_cache_payload = _load_model_leaderboard_cache_payload()
-    if file_cache_payload is not None:
-        try:
-            cache_age = max(time.time() - MODEL_LB_CACHE_PATH.stat().st_mtime, 0.0)
-        except Exception:
-            cache_age = float("inf")
-        if not force_refresh and cache_age <= MODEL_LB_CACHE_TTL_SEC:
-            with _MODEL_LB_LOCK:
-                _MODEL_LB_CACHE["payload"] = file_cache_payload
-                _MODEL_LB_CACHE["updated_at"] = time.time()
-                _MODEL_LB_CACHE["error"] = None
-            return file_cache_payload
-
-    previous_payload = cached_payload or file_cache_payload or {}
-    previous_rows = previous_payload.get("leaderboard") if isinstance(previous_payload, dict) else []
-    previous_rows = previous_rows if isinstance(previous_rows, list) else []
-    previous_history = _snapshot_history_from_payload(previous_payload)
-
-    generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    target_col = "simulated_pyramid_win"
-    leaderboard: List[Dict[str, Any]] = []
-    quadrant_points: List[Dict[str, Any]] = []
-    skipped_models: List[Dict[str, Any]] = []
-    target_candidates: List[Dict[str, Any]] = []
-
-    try:
-        df = load_model_leaderboard_frame(DB_PATH)
-        if not df.empty:
-            if target_col not in df.columns and "label_spot_long_win" in df.columns:
-                target_col = "label_spot_long_win"
-            target_df = df.dropna(subset=[target_col]).copy() if target_col in df.columns else df.copy()
-            if target_col in target_df.columns:
-                target_df[target_col] = target_df[target_col].fillna(0).astype(int)
-
-            from backtesting.model_leaderboard import ModelLeaderboard
-
-            leaderboard_runner = ModelLeaderboard(target_df, target_col=target_col)
-            model_names = list(getattr(leaderboard_runner, "SUPPORTED_MODELS", []) or [])
-            results = leaderboard_runner.run_all_models(model_names or None)
-            leaderboard = _serialize_model_scores(
-                results,
-                MODEL_LB_OVERFIT_GAP_THRESHOLD,
-                MODEL_LB_HARD_TRAIN_ACC_CAP,
-            )
-
-            model_statuses = getattr(leaderboard_runner, "last_model_statuses", {}) or {}
-            for row in leaderboard:
-                status = model_statuses.get(row.get("model_name"), {}) if isinstance(model_statuses, dict) else {}
-                row["selected_deployment_profile"] = status.get("selected_deployment_profile", row.get("deployment_profile"))
-                row["selected_feature_profile"] = status.get("selected_feature_profile", row.get("feature_profile"))
-                row["selected_feature_profile_source"] = status.get("selected_feature_profile_source", row.get("feature_profile_source"))
-                row["selected_feature_profile_blocker_applied"] = bool(status.get("selected_feature_profile_blocker_applied", False))
-                row["selected_feature_profile_blocker_reason"] = status.get("selected_feature_profile_blocker_reason")
-                row["deployment_profiles_evaluated"] = list(status.get("deployment_profiles_evaluated") or [row.get("deployment_profile")])
-                row["feature_profiles_evaluated"] = list(status.get("feature_profiles_evaluated") or [row.get("feature_profile")])
-                row["feature_profile_candidate_diagnostics"] = list(status.get("feature_profile_candidate_diagnostics") or [])
-
-            _compute_rank_deltas(leaderboard, previous_rows)
-            quadrant_points = [
-                {
-                    "model_name": row.get("model_name"),
-                    "x": row.get("avg_roi"),
-                    "y": row.get("avg_decision_quality_score"),
-                    "overall_score": row.get("overall_score"),
-                    "model_tier": row.get("model_tier"),
-                }
-                for row in leaderboard
-            ]
-
-            if isinstance(model_statuses, dict):
-                skipped_models = [
-                    {
-                        "model_name": model_name,
-                        "status": status.get("status"),
-                        "reason": status.get("reason"),
-                        "detail": status.get("detail"),
-                    }
-                    for model_name, status in model_statuses.items()
-                    if isinstance(status, dict) and status.get("status") != "ok"
-                ]
-
-            target_candidates = _summarize_target_candidates(
-                df,
-                MODEL_LB_OVERFIT_GAP_THRESHOLD,
-                MODEL_LB_HARD_TRAIN_ACC_CAP,
-            )
-    except Exception as exc:
-        logger.exception("failed_to_build_model_leaderboard_payload")
-        if isinstance(previous_payload, dict) and previous_payload.get("leaderboard"):
-            fallback_payload = dict(previous_payload)
-            fallback_payload["generated_at"] = generated_at
-            fallback_payload["cache_status"] = "stale_fallback_after_refresh_error"
-            fallback_payload["error"] = str(exc)
-            with _MODEL_LB_LOCK:
-                _MODEL_LB_CACHE["payload"] = fallback_payload
-                _MODEL_LB_CACHE["updated_at"] = time.time()
-                _MODEL_LB_CACHE["error"] = str(exc)
-            return fallback_payload
-        raise
-
-    snapshot_entry = {
-        "created_at": generated_at,
-        "target_col": target_col,
-        "count": len(leaderboard),
-        "top_model": leaderboard[0].get("model_name") if leaderboard else None,
-        "selected_feature_profile": leaderboard[0].get("selected_feature_profile") if leaderboard else None,
-        "selected_feature_profile_source": leaderboard[0].get("selected_feature_profile_source") if leaderboard else None,
-    }
-    snapshot_history = [snapshot_entry]
-    snapshot_history.extend(
-        item for item in previous_history
-        if item.get("created_at") != generated_at
-    )
-    snapshot_history = snapshot_history[:10]
-
-    payload = {
-        "generated_at": generated_at,
-        "target_col": target_col,
-        "count": len(leaderboard),
-        "leaderboard": leaderboard,
-        "quadrant_points": quadrant_points,
-        "snapshot_history": snapshot_history,
-        "storage": {
-            "canonical_store": f"sqlite:///{DB_PATH}",
-            "cache_path": str(MODEL_LB_CACHE_PATH),
-            "cache_ttl_sec": MODEL_LB_CACHE_TTL_SEC,
-            "stale_after_sec": MODEL_LB_STALE_SEC,
-        },
-        "cache_status": "fresh",
-        "overfit_gap_threshold": MODEL_LB_OVERFIT_GAP_THRESHOLD,
-        "hard_train_acc_cap": MODEL_LB_HARD_TRAIN_ACC_CAP,
-        "skipped_models": skipped_models,
-        "target_candidates": target_candidates,
-        "error": None,
-    }
-
-    _write_model_leaderboard_cache_payload(payload)
-    with _MODEL_LB_LOCK:
-        _MODEL_LB_CACHE["payload"] = payload
-        _MODEL_LB_CACHE["updated_at"] = time.time()
-        _MODEL_LB_CACHE["error"] = None
-    return payload
-
-
-def load_model_leaderboard_frame(db_path: str = DB_PATH):
-    """Load leaderboard training frame using timestamp-nearest alignment.
-
-    Exact SQL joins are too brittle for this project because historical rows can
-    differ slightly in timestamp precision and symbol normalization. Training code
-    already relies on nearest-timestamp merges; reuse the same idea here so the
-    leaderboard reflects the real available data instead of collapsing to zero rows.
-    """
-    import sqlite3
-    import pandas as pd
-
-    conn = sqlite3.connect(db_path)
-    try:
-        feature_cols = {row[1] for row in conn.execute("PRAGMA table_info(features_normalized)").fetchall()}
-        requested_feature_cols = [
-            "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
-            "feat_body", "feat_pulse", "feat_aura", "feat_mind",
-            "feat_vix", "feat_dxy",
-            "feat_rsi14", "feat_macd_hist", "feat_atr_pct",
-            "feat_vwap_dev", "feat_bb_pct_b", "feat_nw_width",
-            "feat_nw_slope", "feat_adx", "feat_choppiness", "feat_donchian_pos",
-            "feat_4h_bias50", "feat_4h_bias20", "feat_4h_bias200", "feat_4h_rsi14",
-            "feat_4h_macd_hist", "feat_4h_bb_pct_b", "feat_4h_dist_bb_lower",
-            "feat_4h_ma_order", "feat_4h_dist_swing_low", "feat_4h_vol_ratio",
-        ]
-        selected_feature_cols = [col for col in requested_feature_cols if col in feature_cols]
-        features_select = ",\n                   ".join(["timestamp", *selected_feature_cols])
-        features_df = pd.read_sql(
-            f"""
-            SELECT {features_select}
-            FROM features_normalized
-            WHERE feat_4h_bias50 IS NOT NULL
-            ORDER BY timestamp
-            """,
-            conn,
-        )
-        raw_df = pd.read_sql(
-            "SELECT timestamp, close_price FROM raw_market_data WHERE close_price IS NOT NULL ORDER BY timestamp",
-            conn,
-        )
-        label_cols = {row[1] for row in conn.execute("PRAGMA table_info(labels)").fetchall()}
-        primary_target = "simulated_pyramid_win" if "simulated_pyramid_win" in label_cols else "label_spot_long_win"
-        required_label_cols = [col for col in ("label_spot_long_win", primary_target) if col in label_cols]
-        optional_label_cols = [
-            "label_spot_long_tp_hit",
-            "label_spot_long_quality",
-            "simulated_pyramid_pnl",
-            "simulated_pyramid_quality",
-            "simulated_pyramid_drawdown_penalty",
-            "simulated_pyramid_time_underwater",
-        ]
-        selected_optional = [col for col in optional_label_cols if col in label_cols]
-        labels_select = ", ".join(dict.fromkeys(["timestamp", *required_label_cols, *selected_optional]))
-        label_not_null_clause = " OR ".join(f"{col} IS NOT NULL" for col in required_label_cols)
-        labels_df = pd.read_sql(
-            f"SELECT {labels_select} FROM labels WHERE horizon_minutes = 1440 AND ({label_not_null_clause}) ORDER BY timestamp",
-            conn,
-        )
-    finally:
-        conn.close()
-
-    if features_df.empty or raw_df.empty or labels_df.empty:
-        return pd.DataFrame()
-
-    for df in (features_df, raw_df, labels_df):
-        df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed")
-        df.sort_values("timestamp", inplace=True)
-
-    merged = pd.merge_asof(
-        features_df,
-        raw_df,
-        on="timestamp",
-        direction="nearest",
-        tolerance=pd.Timedelta("10min"),
-    )
-    merged = pd.merge_asof(
-        merged,
-        labels_df,
-        on="timestamp",
-        direction="nearest",
-        tolerance=pd.Timedelta("10min"),
-    )
-    merged = merged.dropna(subset=["close_price", primary_target]).reset_index(drop=True)
-    return merged
-
-
-def _get_4h_signal():
-    """返回目前 4H 狀態摘要"""
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH)
-    row = conn.execute("""
-        SELECT timestamp, feat_4h_bias50, feat_4h_dist_swing_low,
-               feat_4h_rsi14, feat_4h_macd_hist, feat_4h_ma_order
-        FROM features_normalized
-        WHERE feat_4h_bias50 IS NOT NULL
-        ORDER BY timestamp DESC LIMIT 1
-    """).fetchone()
-    conn.close()
-    if not row:
-        return None
-    return {
-        "timestamp": str(row[0]),
-        "bias50": float(row[1]) if row[1] else None,
-        "dist_swing": float(row[2]) if row[2] else None,
-        "rsi14": float(row[3]) if row[3] else None,
-        "macd_hist": float(row[4]) if row[4] else None,
-        "ma_order": float(row[5]) if row[5] else None,
-    }
-
-
-@lru_cache(maxsize=4)
-def _load_strategy_data_cached(db_mtime_ns: int):
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH)
-    rows = conn.execute("""
-        SELECT f.timestamp, r.close_price,
-               f.feat_4h_bias50, f.feat_4h_bias200,
-               f.feat_nose, f.feat_pulse, f.feat_ear,
-               COALESCE(f.regime_label, 'unknown') AS regime_label,
-               f.feat_4h_bb_pct_b, f.feat_4h_dist_bb_lower, f.feat_4h_dist_swing_low,
-               f.feat_local_bottom_score, f.feat_local_top_score
-        FROM features_normalized f
-        JOIN raw_market_data r ON r.timestamp = f.timestamp AND r.symbol = f.symbol
-        WHERE f.feat_4h_bias50 IS NOT NULL AND r.close_price IS NOT NULL
-        ORDER BY f.timestamp
-    """).fetchall()
-    conn.close()
-    return rows
-
-
-def _load_strategy_data():
-    """載入回測用的完整資料（依 DB mtime 快取）。"""
-    try:
-        db_mtime_ns = Path(DB_PATH).stat().st_mtime_ns
-    except FileNotFoundError:
-        db_mtime_ns = 0
-    return _load_strategy_data_cached(db_mtime_ns)
-
-
-def _parse_backtest_timestamp(value: Any) -> Optional[datetime]:
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    normalized = text.replace("T", " ")
-    if normalized.endswith("Z"):
-        normalized = normalized[:-1]
-    try:
-        dt = datetime.fromisoformat(normalized)
-    except ValueError:
-        try:
-            dt = datetime.strptime(normalized[:19], "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            return None
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-    return dt
-
-
-def _strategy_data_range_summary(rows: List[Any]) -> Dict[str, Any]:
-    if not rows:
-        return {"start": None, "end": None, "count": 0, "span_days": 0.0}
-    timestamps = [str(row[0]) for row in rows if row and row[0] is not None]
-    start = _iso_utc_timestamp(timestamps[0]) if timestamps else None
-    end = _iso_utc_timestamp(timestamps[-1]) if timestamps else None
-    start_dt = _parse_backtest_timestamp(start)
-    end_dt = _parse_backtest_timestamp(end)
-    span_days = 0.0
-    if start_dt and end_dt:
-        span_days = max(0.0, round((end_dt - start_dt).total_seconds() / 86400.0, 2))
-    return {"start": start, "end": end, "count": len(rows), "span_days": span_days}
-
-
-def _filter_strategy_rows_by_backtest_range(
-    rows: List[Any],
-    *,
-    start: Optional[Any] = None,
-    end: Optional[Any] = None,
-) -> tuple[List[Any], Dict[str, Any]]:
-    available = _strategy_data_range_summary(rows)
-    start_dt = _parse_backtest_timestamp(start)
-    end_dt = _parse_backtest_timestamp(end)
-    if start_dt and end_dt and start_dt > end_dt:
-        start_dt, end_dt = end_dt, start_dt
-
-    filtered: List[Any] = []
-    for row in rows:
-        row_dt = _parse_backtest_timestamp(row[0] if row else None)
-        if row_dt is None:
-            continue
-        if start_dt and row_dt < start_dt:
-            continue
-        if end_dt and row_dt > end_dt:
-            continue
-        filtered.append(row)
-
-    requested_start = _iso_utc_timestamp(start_dt) if start_dt else None
-    requested_end = _iso_utc_timestamp(end_dt) if end_dt else None
-    effective = _strategy_data_range_summary(filtered)
-    available_start_dt = _parse_backtest_timestamp(available.get("start"))
-    available_end_dt = _parse_backtest_timestamp(available.get("end"))
-    requested_span_days = None
-    if start_dt and end_dt:
-        requested_span_days = round(max(0.0, (end_dt - start_dt).total_seconds() / 86400.0), 2)
-
-    coverage_ok = True
-    missing_start_days = 0.0
-    missing_end_days = 0.0
-    if start_dt and available_start_dt and start_dt < available_start_dt:
-        coverage_ok = False
-        missing_start_days = round((available_start_dt - start_dt).total_seconds() / 86400.0, 2)
-    if end_dt and available_end_dt and end_dt > available_end_dt:
-        coverage_ok = False
-        missing_end_days = round((end_dt - available_end_dt).total_seconds() / 86400.0, 2)
-
-    return filtered, {
-        "requested_start": requested_start,
-        "requested_end": requested_end,
-        "requested_span_days": requested_span_days,
-        "available": available,
-        "effective": effective,
-        "coverage_ok": coverage_ok,
-        "backfill_required": not coverage_ok,
-        "missing_start_days": missing_start_days,
-        "missing_end_days": missing_end_days,
-    }
-
-
-def _summarize_trades(trades: List[Dict[str, Any]], initial_capital: float) -> Dict[str, Any]:
-    total_pnl = float(sum(float(t.get("pnl", 0.0) or 0.0) for t in trades))
-    wins = sum(1 for t in trades if float(t.get("pnl", 0.0) or 0.0) > 0)
-    losses = max(len(trades) - wins, 0)
-    gross_profit = sum(float(t.get("pnl", 0.0) or 0.0) for t in trades if float(t.get("pnl", 0.0) or 0.0) > 0)
-    gross_loss = abs(sum(float(t.get("pnl", 0.0) or 0.0) for t in trades if float(t.get("pnl", 0.0) or 0.0) <= 0))
-    return {
-        "roi": round(total_pnl / initial_capital, 4) if initial_capital else None,
-        "win_rate": round(wins / len(trades), 4) if trades else None,
-        "total_pnl": round(total_pnl, 2),
-        "profit_factor": round(gross_profit / max(gross_loss, 0.01), 4) if trades else None,
-        "total_trades": len(trades),
-        "wins": wins,
-        "losses": losses,
-    }
-
-
-def _build_strategy_chart_context(timestamps: List[str]) -> Dict[str, Any]:
-    if not timestamps:
-        return {"symbol": "BTCUSDT", "interval": "4h", "start": None, "end": None, "limit": 300}
-    return {
-        "symbol": "BTCUSDT",
-        "interval": "4h",
-        "start": _iso_utc_timestamp(timestamps[0]),
-        "end": _iso_utc_timestamp(timestamps[-1]),
-        "limit": min(max(len(timestamps), 150), 1000),
-    }
-
-
-def _select_strategy_chart_payload(
-    timestamps: List[str],
-    equity_curve: List[Dict[str, Any]],
-    trades: List[Dict[str, Any]],
-    *,
-    max_trades: int = 80,
-    fallback_equity_points: int = 300,
-) -> Dict[str, Any]:
-    selected_trades = list(trades[-max_trades:]) if trades else []
-    if not selected_trades:
-        selected_equity = list(equity_curve[-fallback_equity_points:]) if equity_curve else []
-        context_times = [str(point.get("timestamp")) for point in selected_equity if point.get("timestamp")]
-        if not context_times:
-            context_times = list(timestamps[-fallback_equity_points:]) if timestamps else []
-        return {
-            "equity_curve": selected_equity,
-            "trades": selected_trades,
-            "chart_context": _build_strategy_chart_context(context_times),
-        }
-
-    trade_window_points = []
-    for trade in selected_trades:
-        for key in ("entry_timestamp", "timestamp"):
-            ts = trade.get(key)
-            if ts:
-                trade_window_points.append(str(ts))
-    trade_window_points = sorted(trade_window_points)
-    if not trade_window_points:
-        selected_equity = list(equity_curve[-fallback_equity_points:]) if equity_curve else []
-        context_times = [str(point.get("timestamp")) for point in selected_equity if point.get("timestamp")]
-        return {
-            "equity_curve": selected_equity,
-            "trades": selected_trades,
-            "chart_context": _build_strategy_chart_context(context_times),
-        }
-
-    window_start = _iso_utc_timestamp(trade_window_points[0])
-    window_end = _iso_utc_timestamp(trade_window_points[-1])
-    selected_equity = [
-        point for point in equity_curve
-        if point.get("timestamp")
-        and (window_start is None or _iso_utc_timestamp(point.get("timestamp")) >= window_start)
-        and (window_end is None or _iso_utc_timestamp(point.get("timestamp")) <= window_end)
-    ]
-    if not selected_equity:
-        selected_equity = list(equity_curve[-fallback_equity_points:]) if equity_curve else []
-
-    context_times = [str(point.get("timestamp")) for point in selected_equity if point.get("timestamp")]
-    if not context_times:
-        context_times = trade_window_points
-    chart_context = _build_strategy_chart_context(context_times)
-    if window_start is not None:
-        chart_context["start"] = window_start
-    if window_end is not None:
-        chart_context["end"] = window_end
-    chart_context["limit"] = min(max(len(context_times), 150), 1000) if context_times else 300
-    return {
-        "equity_curve": selected_equity,
-        "trades": selected_trades,
-        "chart_context": chart_context,
-    }
-
-
-def _clamp01(value: float) -> float:
-    return max(0.0, min(1.0, float(value)))
-
-
-def _compute_chart_entry_quality(
-    bias50_value: float,
-    nose_value: float,
-    pulse_value: float,
-    ear_value: float,
-    bb_pct_b_value: Optional[float] = None,
-    dist_bb_lower_value: Optional[float] = None,
-    dist_swing_low_value: Optional[float] = None,
-) -> float:
-    from backtesting import strategy_lab as strategy_lab_module
-
-    return strategy_lab_module._compute_entry_quality(
-        bias50_value,
-        nose_value,
-        pulse_value,
-        ear_value,
-        bb_pct_b_value,
-        dist_bb_lower_value,
-        dist_swing_low_value,
-    )
-
-
-def _build_strategy_score_series(
-    timestamps: List[str],
-    bias50: List[float],
-    nose: List[float],
-    pulse: List[float],
-    ear: List[float],
-    model_confidence: Optional[List[float]] = None,
-    bb_pct_b_4h: Optional[List[float]] = None,
-    dist_bb_lower_4h: Optional[List[float]] = None,
-    dist_swing_low_4h: Optional[List[float]] = None,
-) -> List[Dict[str, Any]]:
-    points: List[Dict[str, Any]] = []
-    for idx, timestamp in enumerate(timestamps):
-        entry_quality = _compute_chart_entry_quality(
-            bias50[idx] if idx < len(bias50) else 0.0,
-            nose[idx] if idx < len(nose) else 0.5,
-            pulse[idx] if idx < len(pulse) else 0.5,
-            ear[idx] if idx < len(ear) else 0.0,
-            bb_pct_b_4h[idx] if bb_pct_b_4h and idx < len(bb_pct_b_4h) else None,
-            dist_bb_lower_4h[idx] if dist_bb_lower_4h and idx < len(dist_bb_lower_4h) else None,
-            dist_swing_low_4h[idx] if dist_swing_low_4h and idx < len(dist_swing_low_4h) else None,
-        )
-        confidence = None
-        if model_confidence is not None and idx < len(model_confidence):
-            confidence = round(float(model_confidence[idx]), 4)
-        composite_score = round((0.6 * confidence + 0.4 * entry_quality), 4) if confidence is not None else entry_quality
-        points.append({
-            "timestamp": timestamp,
-            "entry_quality": entry_quality,
-            "model_confidence": confidence,
-            "score": composite_score,
-        })
-    return points
-
-
-def _compute_blind_pyramid_benchmark(
-    prices: List[float],
-    timestamps: List[str],
-    bias50: List[float],
-    bias200: List[float],
-    nose: List[float],
-    pulse: List[float],
-    ear: List[float],
-    regimes: List[str],
-    initial_capital: float,
-    params: Dict[str, Any],
-    bb_pct_b_4h: Optional[List[float]] = None,
-    dist_bb_lower_4h: Optional[List[float]] = None,
-    dist_swing_low_4h: Optional[List[float]] = None,
-) -> Dict[str, Any]:
-    from backtesting.strategy_lab import run_rule_backtest
-
-    blind_params = json.loads(json.dumps(params or {}))
-    blind_entry = blind_params.setdefault("entry", {})
-    blind_entry["bias50_max"] = 999.0
-    blind_entry["nose_max"] = 1.0
-    blind_entry["pulse_min"] = 0.0
-    blind_entry["regime_bias200_min"] = -999.0
-    blind_result = run_rule_backtest(
-        prices,
-        timestamps,
-        bias50,
-        bias200,
-        nose,
-        pulse,
-        ear,
-        blind_params,
-        initial_capital,
-        regimes=regimes,
-        bb_pct_b_4h=bb_pct_b_4h,
-        dist_bb_lower_4h=dist_bb_lower_4h,
-        dist_swing_low_4h=dist_swing_low_4h,
-    )
-    return {
-        "label": "盲金字塔",
-        **_summarize_trades(blind_result.trades, initial_capital),
-    }
-
-
-def _compute_backtest_benchmarks(
-    prices: List[float],
-    timestamps: List[str],
-    bias50: List[float],
-    bias200: List[float],
-    nose: List[float],
-    pulse: List[float],
-    ear: List[float],
-    regimes: List[str],
-    initial_capital: float,
-    params: Dict[str, Any],
-    bb_pct_b_4h: Optional[List[float]] = None,
-    dist_bb_lower_4h: Optional[List[float]] = None,
-    dist_swing_low_4h: Optional[List[float]] = None,
-) -> Dict[str, Any]:
-    buy_hold_roi = 0.0
-    if prices and prices[0]:
-        buy_hold_roi = (prices[-1] - prices[0]) / prices[0]
-    buy_hold_summary = {
-        "label": "買入持有",
-        "roi": round(buy_hold_roi, 4),
-    }
-
-    blind_future = _BENCHMARK_PROCESS_EXECUTOR.submit(
-        _compute_blind_pyramid_benchmark,
-        prices,
-        timestamps,
-        bias50,
-        bias200,
-        nose,
-        pulse,
-        ear,
-        regimes,
-        initial_capital,
-        params,
-        bb_pct_b_4h,
-        dist_bb_lower_4h,
-        dist_swing_low_4h,
-    )
-    try:
-        blind_summary = blind_future.result(timeout=180)
-    except Exception:
-        logger.exception("Blind benchmark process failed; falling back to in-process execution")
-        blind_summary = _compute_blind_pyramid_benchmark(
-            prices,
-            timestamps,
-            bias50,
-            bias200,
-            nose,
-            pulse,
-            ear,
-            regimes,
-            initial_capital,
-            params,
-            bb_pct_b_4h=bb_pct_b_4h,
-            dist_bb_lower_4h=dist_bb_lower_4h,
-            dist_swing_low_4h=dist_swing_low_4h,
-        )
-
-    return {
-        "buy_hold": buy_hold_summary,
-        "blind_pyramid": blind_summary,
-    }
-
-
-def _compute_regime_breakdown(trades: List[Dict[str, Any]], initial_capital: float) -> List[Dict[str, Any]]:
-    grouped: Dict[str, Dict[str, Any]] = {}
-    for trade in trades:
-        regime = (trade.get("entry_regime") or "unknown").lower()
-        bucket = grouped.setdefault(regime, {
-            "regime": regime,
-            "trades": 0,
-            "wins": 0,
-            "losses": 0,
-            "total_pnl": 0.0,
-            "gross_profit": 0.0,
-            "gross_loss": 0.0,
-        })

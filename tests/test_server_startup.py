@@ -355,7 +355,90 @@ def test_build_execution_reconciliation_summary_marks_healthy_match():
     assert payload["lifecycle_contract"]["artifact_checklist"][-1]["status"] == "ready"
     assert payload["lifecycle_contract"]["artifact_checklist"][-1]["provenance_level"] == "internal_only"
     assert payload["lifecycle_contract"]["event_type_counts"]["trade_history_persisted"] == 1
+    assert payload["lifecycle_contract"]["venue_lanes_summary"].startswith("Binance: baseline 3/3")
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["venue"] == "binance"
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["status"] == "baseline_ready_missing_path"
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["operator_next_artifact"] == "partial_fill_or_cancel"
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["artifact_drilldown_summary"] == "artifacts 5 · observed 5 · required missing 0"
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["timeline_count"] == 3
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["timeline_summary"] == "timeline 3 events · latest trade_history_persisted"
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["timeline_events"][-1]["event_type"] == "trade_history_persisted"
     assert payload["issues"] == []
+
+
+def test_build_execution_reconciliation_summary_tracks_unscoped_internal_lane_when_exchange_missing():
+    latest_trade = SimpleNamespace(
+        timestamp=datetime.now(timezone.utc),
+        symbol="BTC/USDT",
+        exchange=None,
+        action="BUY",
+        order_id="order-1",
+        client_order_id="client-1",
+        order_status="open",
+        is_dry_run=0,
+    )
+    lifecycle_rows = [
+        SimpleNamespace(
+            timestamp=datetime.now(timezone.utc) - timedelta(seconds=3),
+            exchange=None,
+            symbol="BTC/USDT",
+            order_id="order-1",
+            client_order_id="client-1",
+            event_type="validation_passed",
+            order_state="validated",
+            source="execution_service",
+            summary="validated",
+            payload_json='{}',
+            is_dry_run=0,
+        ),
+        SimpleNamespace(
+            timestamp=datetime.now(timezone.utc) - timedelta(seconds=2),
+            exchange=None,
+            symbol="BTC/USDT",
+            order_id="order-1",
+            client_order_id="client-1",
+            event_type="trade_history_persisted",
+            order_state="open",
+            source="trade_history",
+            summary="persisted",
+            payload_json='{}',
+            is_dry_run=0,
+        ),
+    ]
+    payload = api_module._build_execution_reconciliation_summary(
+        _DbStub(latest_trade, lifecycle_rows=lifecycle_rows),
+        "BTCUSDT",
+        {
+            "captured_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "requested_symbol": "BTCUSDT",
+            "normalized_symbol": "BTC/USDT",
+            "degraded": False,
+            "positions": [],
+            "open_orders": [],
+            "position_count": 0,
+            "open_order_count": 0,
+        },
+        {
+            "guardrails": {
+                "last_order": {
+                    "symbol": "BTC/USDT",
+                    "status": "open",
+                    "order_id": "order-1",
+                    "client_order_id": "client-1",
+                }
+            }
+        },
+    )
+
+    lanes = {lane["venue"]: lane for lane in payload["lifecycle_contract"]["venue_lanes"]}
+    assert lanes["unscoped_internal"]["baseline_observed"] == 2
+    assert lanes["unscoped_internal"]["baseline_required"] == 3
+    assert lanes["unscoped_internal"]["status"] == "baseline_incomplete"
+    assert lanes["unscoped_internal"]["operator_next_artifact"] == "venue_ack"
+    assert lanes["unscoped_internal"]["artifact_drilldown_summary"] == "artifacts 7 · observed 2 · required missing 2"
+    assert lanes["unscoped_internal"]["timeline_count"] == 2
+    assert lanes["unscoped_internal"]["timeline_events"][0]["exchange"] is None
+    assert "Unscoped internal: baseline 2/3" in payload["lifecycle_contract"]["venue_lanes_summary"]
 
 
 def test_build_live_runtime_closure_surface_marks_circuit_breaker_as_runtime_blocker():
@@ -679,8 +762,14 @@ def test_build_execution_reconciliation_summary_marks_venue_backed_artifact_prov
     )
 
     assert payload["lifecycle_contract"]["artifact_checklist"][0]["provenance_level"] == "internal_only"
+    assert payload["lifecycle_contract"]["artifact_checklist"][0]["proof_chain_summary"] == "1 timeline events · venue-backed 0 · dry-run 0 · internal 1"
+    assert payload["lifecycle_contract"]["artifact_checklist"][0]["proof_chain"][0]["event_type"] == "validation_passed"
     assert payload["lifecycle_contract"]["artifact_checklist"][1]["provenance_level"] == "venue_backed"
     assert payload["lifecycle_contract"]["artifact_checklist"][1]["venue_backed"] is True
+    assert payload["lifecycle_contract"]["artifact_checklist"][1]["proof_chain_summary"] == "1 timeline events · venue-backed 1 · dry-run 0 · internal 0"
+    assert payload["lifecycle_contract"]["artifact_checklist"][1]["proof_chain"][0]["source"] == "exchange_adapter"
+    assert payload["lifecycle_contract"]["artifact_checklist"][-1]["proof_chain_summary"] == "2 timeline events · venue-backed 1 · dry-run 0 · internal 1"
+    assert len(payload["lifecycle_contract"]["artifact_checklist"][-1]["proof_chain"]) == 2
     assert payload["lifecycle_contract"]["artifact_provenance_counts"]["venue_backed"] >= 1
 
 

@@ -256,7 +256,55 @@ interface StrategyLabRuntimeStatusResponse {
         provenance_level?: string;
         provenance_summary?: string;
         venue_backed?: boolean;
+        proof_chain_summary?: string;
+        proof_chain?: Array<{
+          timestamp?: string | null;
+          event_type?: string | null;
+          order_state?: string | null;
+          source?: string | null;
+          exchange?: string | null;
+          provenance_level?: string | null;
+        }>;
         evidence?: Record<string, unknown> | null;
+      }>;
+      venue_lanes_summary?: string;
+      venue_lanes?: Array<{
+        venue?: string;
+        label?: string;
+        status?: string;
+        summary?: string;
+        baseline_ready?: boolean;
+        baseline_observed?: number;
+        baseline_required?: number;
+        path_observed?: number;
+        path_expected?: number;
+        restart_replay_status?: string;
+        operator_next_artifact?: string;
+        missing_required_artifacts?: string[];
+        artifact_count?: number;
+        artifact_keys?: string[];
+        artifact_drilldown_summary?: string;
+        timeline_count?: number;
+        timeline_summary?: string;
+        timeline_events?: Array<{
+          timestamp?: string | null;
+          event_type?: string | null;
+          order_state?: string | null;
+          source?: string | null;
+          exchange?: string | null;
+          provenance_level?: string | null;
+        }>;
+        provenance_counts?: {
+          venue_backed?: number;
+          dry_run_only?: number;
+          internal_only?: number;
+          missing_or_not_applicable?: number;
+        } | null;
+        artifacts?: Array<{
+          key?: string;
+          status?: string;
+          provenance_level?: string;
+        }>;
       }>;
     } | null;
     lifecycle_timeline?: {
@@ -1797,6 +1845,9 @@ export default function StrategyLab() {
   const lifecycleArtifactChecklist = Array.isArray(lifecycleContract?.artifact_checklist)
     ? lifecycleContract.artifact_checklist
     : [];
+  const lifecycleVenueLanes = Array.isArray(lifecycleContract?.venue_lanes)
+    ? lifecycleContract.venue_lanes
+    : [];
   const recoveryState = executionReconciliation?.recovery_state ?? null;
   const lifecycleChecklistTone = (status?: string | null) => {
     if (status === "observed" || status === "ready") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";
@@ -2218,10 +2269,57 @@ export default function StrategyLab() {
                         <div className="mt-1 opacity-80">required {item.required ? "yes" : "no"} · observed {item.observed ? "yes" : "no"} · count {item.count ?? 0}</div>
                         <div className="mt-1 opacity-80">{item.summary || "—"}</div>
                         <div className="mt-1 opacity-80">proof {item.provenance_summary || item.provenance_level || "—"}</div>
+                        <div className="mt-1 opacity-75">proof chain {item.proof_chain_summary || "—"}</div>
+                        {Array.isArray(item.proof_chain) && item.proof_chain.length > 0 ? (
+                          <div className="mt-2 space-y-1 rounded border border-white/10 bg-black/10 px-2 py-2 text-[10px] opacity-85">
+                            {item.proof_chain.slice(-3).map((chainEvent, chainIdx) => (
+                              <div key={`${chainEvent.timestamp || "proof"}-${chainEvent.event_type || chainIdx}`}>
+                                {chainEvent.timestamp || "—"} · {chainEvent.event_type || "unknown"} · {chainEvent.provenance_level || "unknown"} · {chainEvent.source || chainEvent.exchange || chainEvent.order_state || "—"}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     )) : (
                       <div className="opacity-80">尚未取得 per-order artifact checklist。</div>
                     )}
+                  </div>
+                  <div className="mt-3 border-t border-white/10 pt-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-medium">Venue-specific closure lanes</div>
+                      <div className="opacity-80">venue lanes summary {lifecycleContract?.venue_lanes_summary || "—"}</div>
+                    </div>
+                    <div className="mt-1 opacity-75">Binance / OKX lane 必須分開看 baseline、path artifact、restart replay，不能再把 mixed timeline 當成單一 closure 敘事。</div>
+                    <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                      {lifecycleVenueLanes.length > 0 ? lifecycleVenueLanes.map((lane, idx) => (
+                        <div key={`${lane.venue || lane.label || "venue-lane"}-${idx}`} className={`rounded-md border px-3 py-2 ${lifecycleChecklistTone(lane.status)}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div>{lane.label || lane.venue || `lane ${idx + 1}`}</div>
+                            <div className="opacity-80">{lane.status || "unknown"}</div>
+                          </div>
+                          <div className="mt-1 opacity-80">{lane.summary || "—"}</div>
+                          <div className="mt-1 opacity-80">baseline {lane.baseline_observed ?? 0}/{lane.baseline_required ?? 0} · path {lane.path_observed ?? 0}/{lane.path_expected ?? 0} · replay {lane.restart_replay_status || "—"}</div>
+                          <div className="mt-1 opacity-80">next artifact {lane.operator_next_artifact || "—"}</div>
+                          <div className="mt-1 opacity-75">provenance venue-backed {lane.provenance_counts?.venue_backed ?? 0} · dry-run {lane.provenance_counts?.dry_run_only ?? 0} · internal {lane.provenance_counts?.internal_only ?? 0} · missing {lane.provenance_counts?.missing_or_not_applicable ?? 0}</div>
+                          <div className="mt-1 opacity-70">missing required {(lane.missing_required_artifacts || []).join(" / ") || "none"}</div>
+                          <div className="mt-2 rounded border border-white/10 bg-black/10 px-2 py-2 opacity-85">
+                            <div>lane drilldown {lane.artifact_drilldown_summary || "—"}</div>
+                            <div className="mt-1">lane timeline {lane.timeline_summary || `timeline ${lane.timeline_count ?? 0} events · latest none`}</div>
+                            <div className="mt-2">lane artifacts {(lane.artifacts || []).slice(0, 3).map((artifact) => `${artifact.key || "unknown"}:${artifact.status || "unknown"}:${artifact.provenance_level || "unknown"}`).join(" · ") || "none"}</div>
+                            <div className="mt-2 space-y-1">
+                              {(lane.timeline_events || []).slice(-3).map((event, eventIdx) => (
+                                <div key={`${lane.venue || "lane"}-${event.timestamp || "event"}-${eventIdx}`}>
+                                  {event.timestamp || "—"} · {event.event_type || "unknown"} · {event.provenance_level || "unknown"} · {event.source || event.exchange || event.order_state || "—"}
+                                </div>
+                              ))}
+                              {!lane.timeline_events?.length && <div>lane timeline events none</div>}
+                            </div>
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="opacity-80">尚未取得 venue-specific closure lanes。</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
