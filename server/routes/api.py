@@ -936,10 +936,39 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
 
     if signal == "CIRCUIT_BREAKER":
         runtime_closure_state = "circuit_breaker_active"
+        blocker_details = payload.get("deployment_blocker_details") if isinstance(payload.get("deployment_blocker_details"), dict) else {}
+        breaker_release = blocker_details.get("release_condition") if isinstance(blocker_details.get("release_condition"), dict) else {}
+        breaker_recent_window = blocker_details.get("recent_window") if isinstance(blocker_details.get("recent_window"), dict) else {}
+        release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
+        release_floor = breaker_release.get("recent_win_rate_must_be_at_least")
+        if release_floor is None:
+            release_floor = breaker_recent_window.get("floor")
+        current_wins = breaker_release.get("current_recent_window_wins")
+        if current_wins is None:
+            current_wins = breaker_recent_window.get("wins")
+        wins_gap = breaker_release.get("additional_recent_window_wins_needed")
+        release_math = ""
+        if current_wins is not None:
+            release_math = (
+                f"目前 recent {release_window} 只贏 {int(current_wins)}/{int(release_window)}"
+                + (f"，至少還差 {int(wins_gap)} 勝" if wins_gap is not None else "")
+                + "。"
+            )
+        release_condition_text = "release condition = streak < 50 且 recent 50 win rate >= 30%。"
+        if release_floor is not None:
+            try:
+                release_condition_text = (
+                    f"release condition = streak < 50 且 recent {int(release_window)} win rate >= {float(release_floor):.0%}。"
+                )
+            except (TypeError, ValueError):
+                release_condition_text = (
+                    f"release condition = streak < 50 且 recent {int(release_window)} win rate 達到 release floor。"
+                )
         runtime_closure_summary = (
             "canonical live path 目前由 circuit breaker 擋下；"
             f"{payload.get('reason') or '需檢查 recent 50 win rate / streak'}。"
-            "release condition = streak < 50 且 recent 50 win rate >= 30%。"
+            f"{release_condition_text}"
+            f"{release_math}"
             + (
                 f" recent pathology={payload.get('decision_quality_recent_pathology_reason')}。"
                 if payload.get("decision_quality_recent_pathology_applied")

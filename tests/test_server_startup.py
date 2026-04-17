@@ -467,7 +467,15 @@ def test_build_live_runtime_closure_surface_marks_circuit_breaker_as_runtime_blo
             "deployment_blocker": "circuit_breaker_active",
             "deployment_blocker_reason": "Recent 50-sample win rate: 10.00% < 30%",
             "deployment_blocker_source": "circuit_breaker",
-            "deployment_blocker_details": {"release_condition": {"recent_window": 50}},
+            "deployment_blocker_details": {
+                "recent_window": {"window_size": 50, "wins": 5, "win_rate": 0.1, "floor": 0.3},
+                "release_condition": {
+                    "recent_window": 50,
+                    "recent_win_rate_must_be_at_least": 0.3,
+                    "current_recent_window_wins": 5,
+                    "additional_recent_window_wins_needed": 10,
+                },
+            },
             "decision_quality_recent_pathology_applied": True,
             "decision_quality_recent_pathology_reason": "recent scope slice 100 rows shows distribution_pathology",
             "decision_quality_recent_pathology_window": 100,
@@ -489,6 +497,7 @@ def test_build_live_runtime_closure_surface_marks_circuit_breaker_as_runtime_blo
     assert payload["decision_quality_recent_pathology_alerts"] == ["label_imbalance", "regime_concentration"]
     assert payload["decision_quality_recent_pathology_summary"]["avg_pnl"] == -0.0123
     assert "release condition = streak < 50 且 recent 50 win rate >= 30%" in payload["runtime_closure_summary"]
+    assert "目前 recent 50 只贏 5/50，至少還差 10 勝" in payload["runtime_closure_summary"]
     assert "recent pathology=recent scope slice 100 rows shows distribution_pathology" in payload["runtime_closure_summary"]
 
 
