@@ -1,5 +1,4 @@
 {
-  "generated_at": "2026-04-19T03:57:40+08:00",
   "issues": [
     {
       "id": "P0_circuit_breaker_active",
@@ -13,62 +12,68 @@
         "current_recent_window_wins": 0,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 15,
-        "streak": 137,
+        "streak": 235,
         "allowed_layers": 0,
-        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15"
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "runtime_closure_state": "circuit_breaker_active"
       },
-      "next_actions": [
-        "keep hb_predict_probe.py and the operator surfaces breaker-first until recent 50 recovers to at least 15 wins and streak < 50",
-        "verify with hb_predict_probe.py, /lab live deployment sync, and /execution/status"
-      ],
-      "action": "hold breaker-first truth as the only deployment blocker until release math is truly cleared"
+      "action": "Keep breaker-first truth on hb_predict_probe.py, /lab, /execution/status, and current-state docs until recent 50 reaches at least 15 wins and streak falls below 50.",
+      "created_at": "2026-04-18T21:16:34Z",
+      "updated_at": "2026-04-18T21:16:34Z",
+      "hb_detected": "fast"
     },
     {
-      "id": "P1_q15_exact_support_under_minimum_governance_synced",
+      "id": "P1_q15_exact_support_stalled_under_breaker",
       "priority": "P1",
       "status": "open",
-      "title": "q15 exact support remains below minimum, but governance is correctly synced to support-aware production fallback",
+      "title": "q15 exact support remains 0/50 and stalled, but support-aware governance is now visible under breaker",
       "summary": {
-        "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
-        "live_current_structure_bucket_rows": 41,
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "live_current_structure_bucket_rows": 0,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 9,
+        "gap_to_minimum": 50,
+        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+        "support_governance_route": "exact_live_lane_proxy_available",
         "support_progress_status": "stalled_under_minimum",
-        "stagnant_run_count": 2,
-        "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
-        "train_selected_profile": "core_plus_macro",
-        "train_selected_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+        "support_progress_delta_vs_previous": 0,
+        "support_progress_stagnant_run_count": 2,
         "leaderboard_selected_profile": "core_only",
+        "train_selected_profile": "core_plus_macro",
         "governance_contract": "dual_role_governance_active"
       },
-      "next_actions": [
-        "keep production metadata on support-aware core_plus_macro until exact bucket reaches at least 50 rows",
-        "verify with hb_leaderboard_candidate_probe.py, hb_model_leaderboard_api_probe.py, hb_predict_probe.py, and the /lab governance banner"
-      ],
-      "action": "preserve synced support-aware fallback semantics while exact support remains under minimum"
+      "action": "Keep `support_route_verdict`, `support_progress`, `minimum_support_rows`, and `gap_to_minimum` visible in probe/API/UI even when circuit_breaker_active is the primary blocker, and do not regress to stale support narratives.",
+      "created_at": "2026-04-18T21:16:34Z",
+      "updated_at": "2026-04-18T21:16:34Z",
+      "hb_detected": "fast"
     },
     {
-      "id": "P1_bull_spillover_pathology_persists",
+      "id": "P1_bull_caution_spillover_pathology",
       "priority": "P1",
       "status": "open",
-      "title": "exact live lane and broader bull spillover still disagree sharply",
+      "title": "broader bull|CAUTION spillover remains toxic while the exact live lane has zero rows",
       "summary": {
-        "exact_live_lane_rows": 41,
-        "exact_live_lane_win_rate": 1.0,
-        "exact_live_lane_quality": 0.697,
-        "exact_live_lane_pnl": 0.022,
-        "spillover_scope": "bull|ALLOW",
-        "spillover_rows": 159,
+        "exact_live_lane_rows": 0,
+        "spillover_scope": "bull|CAUTION",
+        "spillover_rows": 200,
         "spillover_win_rate": 0.0,
-        "spillover_quality": -0.276,
-        "spillover_pnl": -0.0103,
-        "recent_zero_streak": 100
+        "spillover_quality": -0.2948,
+        "spillover_pnl": -0.011,
+        "recent_pathology_window": 100,
+        "recent_pathology_alerts": [
+          "constant_target",
+          "regime_concentration",
+          "regime_shift"
+        ],
+        "shared_top_shift_features": [
+          "feat_4h_dist_bb_lower",
+          "feat_4h_bb_pct_b",
+          "feat_4h_dist_swing_low"
+        ]
       },
-      "next_actions": [
-        "turn the broader bull spillover pocket into a reproducible gate/calibration/training patch instead of leaving it as a visualization-only diagnosis",
-        "verify with live_decision_quality_drilldown.json, hb_predict_probe.py, targeted pytest, and the /lab live pathology card"
-      ],
-      "action": "convert exact-live-lane vs spillover evidence into a productized runtime fix"
+      "action": "Turn the broader bull|CAUTION toxic pocket into a reproducible gate/calibration/training patch, then verify it with drilldown artifacts, hb_predict_probe.py, targeted pytest, and browser validation on /lab.",
+      "created_at": "2026-04-18T21:16:34Z",
+      "updated_at": "2026-04-18T21:16:34Z",
+      "hb_detected": "fast"
     },
     {
       "id": "P1_execution_venue_readiness_unverified",
@@ -76,14 +81,14 @@
       "status": "open",
       "title": "venue readiness is still unverified",
       "summary": {
-        "status_surface": "/execution/status and /lab live deployment sync",
-        "main_blocker": "live exchange credential 尚未驗證 · order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證"
+        "status_surface": "/lab and /execution/status",
+        "main_blocker": "live exchange credential 尚未驗證 · order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證",
+        "metadata_freshness": "fresh"
       },
-      "next_actions": [
-        "keep venue-readiness blockers visible on operator surfaces even when breaker math changes",
-        "only treat live operations as ready after credentials, order ack, and fill lifecycle each have runtime proof"
-      ],
-      "action": "prevent any false live-ready interpretation while venue lifecycle is still unverified"
+      "action": "Keep venue blockers explicitly visible on operator surfaces until credentials, order ack lifecycle, and fill lifecycle each have runtime-backed proof.",
+      "created_at": "2026-04-18T21:16:34Z",
+      "updated_at": "2026-04-18T21:16:34Z",
+      "hb_detected": "fast"
     }
   ]
 }

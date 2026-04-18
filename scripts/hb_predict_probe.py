@@ -339,10 +339,10 @@ def _build_probe_payload(
     support_progress = result.get("support_progress") if isinstance(result.get("support_progress"), dict) else {}
     floor_cross = q15_support_audit.get("floor_cross_legality") if isinstance((q15_support_audit or {}).get("floor_cross_legality"), dict) else {}
     component_experiment = q15_support_audit.get("component_experiment") if isinstance((q15_support_audit or {}).get("component_experiment"), dict) else {}
-    deployment_blocker_details = result.get("deployment_blocker_details") if isinstance(result.get("deployment_blocker_details"), dict) else {}
+    deployment_blocker_details = dict(result.get("deployment_blocker_details")) if isinstance(result.get("deployment_blocker_details"), dict) else {}
     if isinstance((q15_support_audit or {}).get("support_route"), dict):
         support_route = q15_support_audit.get("support_route")
-        if not support_progress and isinstance(support_route.get("support_progress"), dict):
+        if isinstance(support_route.get("support_progress"), dict):
             support_progress = support_route.get("support_progress")
     if not support_route:
         generic_support_mode = (
@@ -367,12 +367,21 @@ def _build_probe_payload(
         fallback_progress = deployment_blocker_details.get("support_progress") if isinstance(deployment_blocker_details.get("support_progress"), dict) else {}
         if fallback_progress:
             support_progress = fallback_progress
+    if support_progress:
+        deployment_blocker_details["support_progress"] = support_progress
+        deployment_blocker_details["minimum_support_rows"] = support_progress.get("minimum_support_rows")
+        deployment_blocker_details["current_live_structure_bucket_gap_to_minimum"] = support_progress.get("gap_to_minimum")
+        if support_progress.get("current_rows") is not None:
+            deployment_blocker_details.setdefault("current_live_structure_bucket_rows", support_progress.get("current_rows"))
+    if support_route:
+        deployment_blocker_details["support_route_verdict"] = support_route.get("verdict")
+        deployment_blocker_details["support_route_deployable"] = support_route.get("deployable")
     runtime_result = dict(result)
-    if support_route.get("verdict") is not None and not runtime_result.get("support_route_verdict"):
+    if support_route.get("verdict") is not None:
         runtime_result["support_route_verdict"] = support_route.get("verdict")
-    if support_route.get("deployable") is not None and runtime_result.get("support_route_deployable") is None:
+    if support_route.get("deployable") is not None:
         runtime_result["support_route_deployable"] = support_route.get("deployable")
-    if support_progress and not isinstance(runtime_result.get("support_progress"), dict):
+    if support_progress:
         runtime_result["support_progress"] = support_progress
     breaker_release = deployment_blocker_details.get("release_condition") if isinstance(deployment_blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = deployment_blocker_details.get("recent_window") if isinstance(deployment_blocker_details.get("recent_window"), dict) else {}

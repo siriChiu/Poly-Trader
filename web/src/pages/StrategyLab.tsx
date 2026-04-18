@@ -233,6 +233,8 @@ interface StrategyLabRuntimeStatusResponse {
     live_runtime_truth?: {
       runtime_closure_state?: string | null;
       runtime_closure_summary?: string | null;
+      deployment_blocker?: string | null;
+      deployment_blocker_reason?: string | null;
       regime_label?: string | null;
       regime_gate?: string | null;
       structure_bucket?: string | null;
@@ -2132,6 +2134,13 @@ export default function StrategyLab() {
   const lifecycleTimelineEvents = Array.isArray(lifecycleTimeline?.events) ? lifecycleTimeline.events : [];
   const runtimeSyncIssues = Array.isArray(executionReconciliation?.issues) ? executionReconciliation.issues : [];
   const liveExecutionBlockers = Array.isArray(executionSurfaceContract?.live_ready_blockers) ? executionSurfaceContract.live_ready_blockers : [];
+  const venueReadinessBlockers = liveExecutionBlockers;
+  const currentLiveBlocker = liveDecisionStatus?.deployment_blocker ?? liveRuntimeTruth?.deployment_blocker ?? null;
+  const currentLiveBlockerSummary =
+    liveDecisionStatus?.deployment_blocker_reason
+    ?? liveRuntimeTruth?.deployment_blocker_reason
+    ?? liveRuntimeClosureSummary
+    ?? "尚未取得 current live blocker。";
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const lifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
   const lifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
@@ -2394,10 +2403,15 @@ export default function StrategyLab() {
                   <div className="opacity-70">{executionReconciliation?.checked_at ? new Date(executionReconciliation.checked_at).toLocaleString("zh-TW") : "尚未取得 /api/status"}</div>
                 </div>
               </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 text-xs">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5 text-xs">
                 <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide opacity-60">live blocker</div>
-                  <div className="mt-1 font-medium">{liveExecutionBlockers.length ? liveExecutionBlockers.join(" · ") : executionSurfaceContract?.operator_message || "目前沒有額外 live blocker 摘要"}</div>
+                  <div className="text-[10px] uppercase tracking-wide opacity-60">current live blocker</div>
+                  <div className="mt-1 font-medium">{currentLiveBlocker || "unknown"}</div>
+                  <div className="opacity-80">{currentLiveBlockerSummary}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-wide opacity-60">venue blockers</div>
+                  <div className="mt-1 font-medium">{venueReadinessBlockers.length ? venueReadinessBlockers.join(" · ") : executionSurfaceContract?.operator_message || "目前沒有額外 venue blocker 摘要"}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide opacity-60">runtime closure</div>

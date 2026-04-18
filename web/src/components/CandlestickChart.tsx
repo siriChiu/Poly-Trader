@@ -370,9 +370,9 @@ export default function CandlestickChart({
   const cashLookupRef = useRef<Map<number, number>>(new Map());
   const investedLookupRef = useRef<Map<number, number>>(new Map());
   const equityTimesRef = useRef<number[]>([]);
-  const scoreLookupRef = useRef<Map<number, number>>(new Map());
-  const entryQualityLookupRef = useRef<Map<number, number>>(new Map());
-  const confidenceLookupRef = useRef<Map<number, number>>(new Map());
+  const scoreRawLookupRef = useRef<Map<number, number>>(new Map());
+  const entryQualityRawLookupRef = useRef<Map<number, number>>(new Map());
+  const confidenceRawLookupRef = useRef<Map<number, number>>(new Map());
   const syncingRangeRef = useRef(false);
   const syncingCrosshairRef = useRef(false);
   const viewportKeyRef = useRef<string | null>(null);
@@ -568,9 +568,9 @@ export default function CandlestickChart({
       const candle = candlePoint?.value ?? null;
       const ma20 = candlePoint ? ma20LookupRef.current.get(candlePoint.time) : undefined;
       const ma60 = candlePoint ? ma60LookupRef.current.get(candlePoint.time) : undefined;
-      const score = candlePoint ? scoreLookupRef.current.get(candlePoint.time) : undefined;
-      const entryQuality = candlePoint ? entryQualityLookupRef.current.get(candlePoint.time) : undefined;
-      const confidence = candlePoint ? confidenceLookupRef.current.get(candlePoint.time) : undefined;
+      const scoreRaw = candlePoint ? scoreRawLookupRef.current.get(candlePoint.time) : undefined;
+      const entryQualityRaw = candlePoint ? entryQualityRawLookupRef.current.get(candlePoint.time) : undefined;
+      const confidenceRaw = candlePoint ? confidenceRawLookupRef.current.get(candlePoint.time) : undefined;
       setHover({
         timeLabel: new Date(hoverTime * 1000).toLocaleString("zh-TW"),
         priceText: candle ? `O ${formatPrice(candle.open)} · H ${formatPrice(candle.high)} · L ${formatPrice(candle.low)} · C ${formatPrice(candle.close)}` : "—",
@@ -579,9 +579,9 @@ export default function CandlestickChart({
         equityText: formatMetricValue(equityPoint?.value, equityDisplayMode),
         cashText: formatMetricValue(cashPoint?.value, equityDisplayMode),
         investedText: formatMetricValue(investedPoint?.value, equityDisplayMode),
-        scoreText: formatPct(score),
-        entryQualityText: formatPct(entryQuality),
-        confidenceText: formatPct(confidence),
+        scoreText: formatPct(scoreRaw),
+        entryQualityText: formatPct(entryQualityRaw),
+        confidenceText: formatPct(confidenceRaw),
         source,
       });
     };
@@ -760,14 +760,29 @@ export default function CandlestickChart({
           })
           .filter((row): row is LineData<Time> => !!row)
       );
+      const toRawScoreLookup = (selector: (point: ScorePoint) => number | null | undefined) => new Map(
+        uniqueByTime(
+          scoreSeries
+            .map((point) => {
+              const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes);
+              const value = selector(point);
+              if (!ts || typeof value !== "number" || !Number.isFinite(value)) return null;
+              return { time: ts as Time, value };
+            })
+            .filter((row): row is LineData<Time> => !!row)
+        ).map((row) => [Number(row.time), row.value])
+      );
       const scoreData = toScoreLine((point) => point.score);
       const confidenceData = toScoreLine((point) => point.model_confidence);
       const entryQualityData = toScoreLine((point) => point.entry_quality);
       scoreSeriesRef.current?.setData(scoreData.length > 0 ? scoreData : entryQualityData);
       confidenceSeriesRef.current?.setData(confidenceData);
-      scoreLookupRef.current = new Map((scoreData.length > 0 ? scoreData : entryQualityData).map((row) => [Number(row.time), row.value]));
-      entryQualityLookupRef.current = new Map(entryQualityData.map((row) => [Number(row.time), row.value]));
-      confidenceLookupRef.current = new Map(confidenceData.map((row) => [Number(row.time), row.value]));
+      scoreRawLookupRef.current = toRawScoreLookup((point) => point.score);
+      if (scoreRawLookupRef.current.size === 0) {
+        scoreRawLookupRef.current = toRawScoreLookup((point) => point.entry_quality);
+      }
+      entryQualityRawLookupRef.current = toRawScoreLookup((point) => point.entry_quality);
+      confidenceRawLookupRef.current = toRawScoreLookup((point) => point.model_confidence);
       setProgress(toChartProgress(3));
       setProgressDetail("模型 / 進場分數已整理完成，正在對齊權益曲線");
 
@@ -928,9 +943,9 @@ export default function CandlestickChart({
             equityText: formatMetricValue(lastEquity, equityDisplayMode),
             cashText: formatMetricValue(lastCash, equityDisplayMode),
             investedText: formatMetricValue(lastInvested, equityDisplayMode),
-            scoreText: formatPct(scoreLookupRef.current.get(lastTs)),
-            entryQualityText: formatPct(entryQualityLookupRef.current.get(lastTs)),
-            confidenceText: formatPct(confidenceLookupRef.current.get(lastTs)),
+            scoreText: formatPct(scoreRawLookupRef.current.get(lastTs)),
+            entryQualityText: formatPct(entryQualityRawLookupRef.current.get(lastTs)),
+            confidenceText: formatPct(confidenceRawLookupRef.current.get(lastTs)),
             source: "price",
           });
         }

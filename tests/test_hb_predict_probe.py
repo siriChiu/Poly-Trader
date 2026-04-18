@@ -1017,3 +1017,112 @@ def test_hb_predict_probe_emits_circuit_breaker_runtime_closure(monkeypatch, cap
     assert "release condition = streak < 50 且 recent 50 win rate >= 30%" in payload["runtime_closure_summary"]
     assert "目前 recent 50 只贏 5/50，至少還差 10 勝" in payload["runtime_closure_summary"]
     assert "recent pathology=recent drift primary window 500 rows shows distribution_pathology" in payload["runtime_closure_summary"]
+
+
+def test_hb_predict_probe_prefers_q15_audit_support_progress_even_under_circuit_breaker(monkeypatch, capsys, tmp_path):
+    session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+    q15_audit_path = tmp_path / "q15_support_audit.json"
+    q15_audit_path.write_text(
+        json.dumps(
+            {
+                "scope_applicability": {
+                    "active_for_current_live_row": True,
+                    "current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                },
+                "support_route": {
+                    "verdict": "exact_bucket_missing_exact_lane_proxy_only",
+                    "deployable": False,
+                    "support_progress": {
+                        "status": "regressed_under_minimum",
+                        "current_rows": 0,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 50,
+                        "delta_vs_previous": -41,
+                        "previous_rows": 41,
+                    },
+                },
+                "floor_cross_legality": {
+                    "verdict": "runtime_blocker_preempts_floor_analysis",
+                    "best_single_component": "feat_4h_bias50",
+                    "best_single_component_required_score_delta": 0.885,
+                },
+                "component_experiment": {"verdict": "runtime_blocker_preempts_component_experiment"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit_path)
+    monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
+    monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"bull": object()}))
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "load_latest_features",
+        lambda _session: {
+            "timestamp": "2026-04-18 20:43:06.555618",
+            "regime_label": "bull",
+            "feat_4h_bias50": 2.3655,
+        },
+    )
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "predict",
+        lambda *_args, **_kwargs: {
+            "target_col": "simulated_pyramid_win",
+            "used_model": "circuit_breaker",
+            "model_type": "circuit_breaker",
+            "signal": "CIRCUIT_BREAKER",
+            "confidence": 0.5,
+            "reason": "Consecutive loss streak: 235 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+            "streak": 235,
+            "recent_window_win_rate": 0.0,
+            "recent_window_wins": 0,
+            "window_size": 50,
+            "triggered_by": ["streak", "recent_win_rate"],
+            "horizon_minutes": 1440,
+            "regime_gate": "BLOCK",
+            "structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "current_live_structure_bucket_rows": 0,
+            "entry_quality": 0.2845,
+            "entry_quality_label": "D",
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_route_deployable": False,
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+            "deployment_blocker": "circuit_breaker_active",
+            "deployment_blocker_reason": "Consecutive loss streak: 235 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+            "deployment_blocker_source": "circuit_breaker",
+            "deployment_blocker_details": {
+                "recent_window": {"window_size": 50, "wins": 0, "win_rate": 0.0, "floor": 0.3},
+                "release_condition": {
+                    "streak_must_be_below": 50,
+                    "current_streak": 235,
+                    "recent_window": 50,
+                    "recent_win_rate_must_be_at_least": 0.3,
+                    "current_recent_window_wins": 0,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 15,
+                },
+            },
+            "allowed_layers": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            "decision_quality_horizon_minutes": 1440,
+        },
+    )
+
+    hb_predict_probe.main()
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
+    assert payload["support_progress"]["status"] == "regressed_under_minimum"
+    assert payload["support_progress"]["delta_vs_previous"] == -41
+    assert payload["support_progress"]["previous_rows"] == 41
+    assert payload["deployment_blocker_details"]["support_progress"]["delta_vs_previous"] == -41

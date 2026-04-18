@@ -3292,6 +3292,93 @@ def test_get_confidence_prediction_enriches_q15_support_blocker_from_audit(monke
     assert result["component_experiment_verdict"] == "reference_only_until_exact_support_ready"
 
 
+def test_get_confidence_prediction_prefers_q15_audit_support_progress_even_when_breaker_is_primary_blocker(monkeypatch):
+    import asyncio
+    import config as config_module
+    from database import models as models_module
+    from model import predictor as predictor_module
+
+    class _FakeDb:
+        def close(self):
+            return None
+
+    monkeypatch.setattr(config_module, "load_config", lambda: {"database": {"url": "sqlite:///fake.db"}})
+    monkeypatch.setattr(models_module, "init_db", lambda _url: _FakeDb())
+    monkeypatch.setattr(predictor_module, "load_predictor", lambda: ("global-predictor", {"bull": object()}))
+    monkeypatch.setattr(api_module, "_get_loaded_predictor_cached", lambda: ("global-predictor", {"bull": object()}))
+    monkeypatch.setattr(
+        predictor_module,
+        "predict",
+        lambda _session, _predictor, _regime_models: {
+            "confidence": 0.5,
+            "signal": "CIRCUIT_BREAKER",
+            "confidence_level": "CIRCUIT_BREAKER",
+            "should_trade": False,
+            "regime_gate": "BLOCK",
+            "structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+            "deployment_blocker": "circuit_breaker_active",
+            "deployment_blocker_reason": "breaker active",
+            "deployment_blocker_source": "circuit_breaker",
+            "deployment_blocker_details": {
+                "recent_window": {"window_size": 50, "wins": 0, "win_rate": 0.0, "floor": 0.3},
+                "release_condition": {
+                    "streak_must_be_below": 50,
+                    "current_streak": 235,
+                    "recent_window": 50,
+                    "recent_win_rate_must_be_at_least": 0.3,
+                    "current_recent_window_wins": 0,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 15,
+                },
+            },
+            "decision_profile_version": "phase16_baseline_v2",
+        },
+    )
+    monkeypatch.setattr(
+        api_module,
+        "_load_q15_support_audit_summary",
+        lambda _bucket=None: {
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_route_deployable": False,
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_progress": {
+                "status": "regressed_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+                "delta_vs_previous": -41,
+                "previous_rows": 41,
+            },
+            "floor_cross_legality": {
+                "verdict": "runtime_blocker_preempts_floor_analysis",
+                "legal_to_relax_runtime_gate": False,
+                "remaining_gap_to_floor": 0.2655,
+                "best_single_component": "feat_4h_bias50",
+                "best_single_component_required_score_delta": 0.885,
+            },
+            "component_experiment": {"verdict": "runtime_blocker_preempts_component_experiment"},
+        },
+    )
+
+    result = asyncio.run(api_module.get_confidence_prediction())
+
+    assert result["deployment_blocker"] == "circuit_breaker_active"
+    assert result["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
+    assert result["support_progress"]["status"] == "regressed_under_minimum"
+    assert result["support_progress"]["delta_vs_previous"] == -41
+    assert result["support_progress"]["previous_rows"] == 41
+    assert result["deployment_blocker_details"]["support_progress"]["delta_vs_previous"] == -41
+
+
 def test_backtest_route_uses_canonical_features_and_returns_decision_quality(monkeypatch):
     class _FakeExchange:
         def fetch_ohlcv(self, symbol, interval, limit=0):

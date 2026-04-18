@@ -765,13 +765,6 @@ def _enrich_confidence_with_q15_support_audit(result: Dict[str, Any]) -> Dict[st
     if not isinstance(result, dict):
         return result
 
-    blocker = str(result.get("deployment_blocker") or "")
-    if blocker not in {
-        "under_minimum_exact_live_structure_bucket",
-        "unsupported_exact_live_structure_bucket",
-    }:
-        return result
-
     blocker_details = result.get("deployment_blocker_details") if isinstance(result.get("deployment_blocker_details"), dict) else {}
     scope_diagnostics = result.get("decision_quality_scope_diagnostics") if isinstance(result.get("decision_quality_scope_diagnostics"), dict) else {}
     exact_scope = scope_diagnostics.get("regime_label+regime_gate+entry_quality_label") if isinstance(scope_diagnostics.get("regime_label+regime_gate+entry_quality_label"), dict) else {}
@@ -793,14 +786,20 @@ def _enrich_confidence_with_q15_support_audit(result: Dict[str, Any]) -> Dict[st
 
     details = dict(blocker_details)
     if support_progress:
-        details.setdefault("support_progress", support_progress)
-        details.setdefault("current_live_structure_bucket_rows", support_progress.get("current_rows"))
-        details.setdefault("minimum_support_rows", support_progress.get("minimum_support_rows"))
-        details.setdefault("current_live_structure_bucket_gap_to_minimum", support_progress.get("gap_to_minimum"))
+        details["support_progress"] = support_progress
+        details["current_live_structure_bucket_rows"] = support_progress.get("current_rows")
+        details["minimum_support_rows"] = support_progress.get("minimum_support_rows")
+        details["current_live_structure_bucket_gap_to_minimum"] = support_progress.get("gap_to_minimum")
+    if audit_summary.get("support_route_verdict") is not None:
+        details["support_route_verdict"] = audit_summary.get("support_route_verdict")
+    if audit_summary.get("support_route_deployable") is not None:
+        details["support_route_deployable"] = audit_summary.get("support_route_deployable")
+    if audit_summary.get("support_governance_route") is not None:
+        details["support_governance_route"] = audit_summary.get("support_governance_route")
     if floor_cross:
-        details.setdefault("floor_cross_legality", floor_cross)
+        details["floor_cross_legality"] = floor_cross
     if component_experiment:
-        details.setdefault("component_experiment", component_experiment)
+        details["component_experiment"] = component_experiment
 
     enriched["deployment_blocker_details"] = details
     enriched["q15_support_audit"] = audit_summary

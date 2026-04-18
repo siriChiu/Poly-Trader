@@ -239,9 +239,13 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         '只同步 live truth；blocked 與 recovery 請到「執行狀態」。',
         'const liveScopePathologySummary =',
         'liveRuntimeTruth?.decision_quality_scope_pathology_summary',
+        'const currentLiveBlocker =',
+        'const venueReadinessBlockers = liveExecutionBlockers;',
+        'const currentLiveBlockerSummary =',
         'LivePathologySummaryCard',
         '🧬 Live lane / spillover 對照',
-        'live blocker',
+        'current live blocker',
+        'venue blockers',
         'runtime closure',
         'active sleeves',
         'metadata freshness',
@@ -295,6 +299,24 @@ def test_candlestick_chart_guards_resize_observer_after_dispose():
         'visibleRangeUnsubscribers.forEach((unsubscribe) => unsubscribe());',
         'priceChart.remove();',
         'equityChart.remove();',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+
+def test_candlestick_chart_hover_uses_raw_score_values_for_percent_labels():
+    source = _read("components/CandlestickChart.tsx")
+    required_snippets = [
+        'const scoreRawLookupRef = useRef<Map<number, number>>(new Map());',
+        'const entryQualityRawLookupRef = useRef<Map<number, number>>(new Map());',
+        'const confidenceRawLookupRef = useRef<Map<number, number>>(new Map());',
+        'const scoreRaw = candlePoint ? scoreRawLookupRef.current.get(candlePoint.time) : undefined;',
+        'const entryQualityRaw = candlePoint ? entryQualityRawLookupRef.current.get(candlePoint.time) : undefined;',
+        'const confidenceRaw = candlePoint ? confidenceRawLookupRef.current.get(candlePoint.time) : undefined;',
+        'scoreText: formatPct(scoreRaw),',
+        'entryQualityText: formatPct(entryQualityRaw),',
+        'confidenceText: formatPct(confidenceRaw),',
     ]
     for snippet in required_snippets:
         assert snippet in source
