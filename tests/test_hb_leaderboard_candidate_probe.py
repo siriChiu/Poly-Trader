@@ -960,6 +960,56 @@ def test_load_leaderboard_payload_prefers_latest_snapshot_when_cache_is_empty(tm
     assert meta["cache_error"] == "cache broken"
 
 
+
+def test_load_leaderboard_payload_rebuilds_when_cached_payload_is_stale_and_missing_selection_fields(tmp_path, monkeypatch):
+    cache_path = tmp_path / "model_leaderboard_cache.json"
+    stale_updated_at = 1_713_100_000.0
+    cache_path.write_text(
+        json.dumps(
+            {
+                "payload": {
+                    "target_col": "simulated_pyramid_win",
+                    "count": 1,
+                    "leaderboard": [{"model_name": "xgboost"}],
+                },
+                "updated_at": stale_updated_at,
+                "error": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hb_leaderboard_candidate_probe.api_module, "MODEL_LB_CACHE_PATH", cache_path, raising=False)
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_load_latest_model_leaderboard_snapshot_payload",
+        lambda: None,
+    )
+    monkeypatch.setattr(hb_leaderboard_candidate_probe.time, "time", lambda: stale_updated_at + 3600)
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_build_model_leaderboard_payload",
+        lambda: {
+            "target_col": "simulated_pyramid_win",
+            "count": 1,
+            "leaderboard": [
+                {
+                    "model_name": "xgboost",
+                    "selected_feature_profile": "core_plus_macro",
+                    "selected_deployment_profile": "stable_turning_point_all_regimes_strict_v1",
+                }
+            ],
+        },
+    )
+
+    payload, meta = hb_leaderboard_candidate_probe._load_leaderboard_payload(allow_rebuild=True)
+
+    assert payload["leaderboard"][0]["selected_feature_profile"] == "core_plus_macro"
+    assert payload["leaderboard"][0]["selected_deployment_profile"] == "stable_turning_point_all_regimes_strict_v1"
+    assert meta["source"] == "live_rebuild"
+    assert meta["stale"] is False
+
+
+
 def test_main_suppresses_known_sklearn_feature_name_warnings(tmp_path, monkeypatch):
     out_path = tmp_path / "leaderboard_feature_profile_probe.json"
     monkeypatch.setattr(hb_leaderboard_candidate_probe, "OUT_PATH", out_path)
@@ -1067,6 +1117,12 @@ def test_top_model_payload_falls_back_to_placeholder_rows_when_no_comparable_row
         "placeholder_rows": [
             {
                 "model_name": "rule_baseline",
+                "deployment_profile": "stable_turning_point_bull_chop_relaxed_v1",
+                "deployment_profile_label": "穩定轉折 · Bull/Chop 寬鬆 v1",
+                "deployment_profile_source": "code_backed_promoted_from_scan",
+                "selected_deployment_profile": "stable_turning_point_bull_chop_relaxed_v1",
+                "selected_deployment_profile_label": "穩定轉折 · Bull/Chop 寬鬆 v1",
+                "selected_deployment_profile_source": "code_backed_promoted_from_scan",
                 "selected_feature_profile": "core_plus_macro_plus_4h_structure_shift",
                 "selected_feature_profile_source": "bull_4h_pocket_ablation.exact_supported_profile",
                 "ranking_status": "no_trade_placeholder",
@@ -1082,6 +1138,9 @@ def test_top_model_payload_falls_back_to_placeholder_rows_when_no_comparable_row
     top_model = hb_leaderboard_candidate_probe._top_model_payload(payload)
 
     assert top_model["model_name"] == "rule_baseline"
+    assert top_model["selected_deployment_profile"] == "stable_turning_point_bull_chop_relaxed_v1"
+    assert top_model["selected_deployment_profile_label"] == "穩定轉折 · Bull/Chop 寬鬆 v1"
+    assert top_model["selected_deployment_profile_source"] == "code_backed_promoted_from_scan"
     assert top_model["selected_feature_profile"] == "core_plus_macro_plus_4h_structure_shift"
     assert top_model["ranking_status"] == "no_trade_placeholder"
     assert top_model["top_model_source"] == "placeholder_rows"

@@ -186,6 +186,8 @@ class ModelScore:
     """模型的綜合得分"""
     model_name: str
     deployment_profile: str = "standard"
+    deployment_profile_label: Optional[str] = None
+    deployment_profile_source: str = "code_backed"
     feature_profile: str = "current_full"
     feature_profile_source: str = "code_default"
     feature_profile_meta: Dict[str, Any] = field(default_factory=dict)
@@ -227,6 +229,28 @@ class ModelScore:
     train_accuracy: float = 0.0  # 訓練集分類準確率
     test_accuracy: float = 0.0   # 測試集分類準確率
 
+
+def _normalize_deployment_signature_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _normalize_deployment_signature_value(val) for key, val in sorted(value.items(), key=lambda item: str(item[0]))}
+    if isinstance(value, list):
+        normalized = [_normalize_deployment_signature_value(item) for item in value]
+        if all(isinstance(item, str) for item in normalized):
+            return sorted(dict.fromkeys(str(item) for item in normalized))
+        return normalized
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return round(float(value), 6)
+    return value
+
+
+def _deployment_profile_signature(params: Optional[Dict[str, Any]]) -> str:
+    payload = copy.deepcopy(params or {})
+    if isinstance(payload, dict):
+        payload.pop("model_name", None)
+    normalized = _normalize_deployment_signature_value(payload)
+    return json.dumps(normalized, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
 class ModelLeaderboard:
     """模型排行榜"""
 
@@ -242,17 +266,175 @@ class ModelLeaderboard:
         'catboost',
         'random_forest',
     ]
+    PROMOTED_SCAN_DEFAULT_DEPLOYMENT_PROFILES: Dict[str, str] = {
+        'logistic_regression': 'stable_turning_point_bull_chop_strict_v1',
+        'xgboost': 'stable_turning_point_all_regimes_strict_v1',
+        'lightgbm': 'stable_turning_point_all_regimes_tp62_v1',
+        'catboost': 'stable_turning_point_bull_chop_relaxed_v1',
+        'random_forest': 'stable_turning_point_all_regimes_relaxed_v1',
+    }
     DEPLOYMENT_PROFILES: Dict[str, Dict[str, Any]] = {
         'scan_backed_best': {
+            'label': 'Auto Scan Candidate',
+            'source': 'artifact_scan',
+            'entry_overrides': {},
+        },
+        'stable_turning_point_bull_chop_relaxed_v1': {
+            'label': '穩定轉折 · Bull/Chop 寬鬆 v1',
+            'source': 'code_backed_promoted_from_scan',
+            'params': {
+                'entry': {
+                    'bias50_max': 3.0,
+                    'nose_max': 0.4,
+                    'pulse_min': 0.0,
+                    'confidence_min': 0.45,
+                    'entry_quality_min': 0.5,
+                    'top_k_percent': 0.0,
+                    'allowed_regimes': ['bull', 'chop'],
+                    'layer2_bias_max': 2.0,
+                    'layer3_bias_max': 0.5,
+                },
+                'layers': [0.25, 0.25, 0.5],
+                'stop_loss': -0.05,
+                'take_profit_bias': 999.0,
+                'take_profit_roi': 999.0,
+                'turning_point': {
+                    'enabled': True,
+                    'bottom_score_min': 0.56,
+                    'top_score_take_profit': 0.8,
+                    'min_profit_pct': 0.0,
+                },
+                'editor_modules': ['turning_point'],
+            },
+            'entry_overrides': {},
+        },
+        'stable_turning_point_bull_chop_strict_v1': {
+            'label': '穩定轉折 · Bull/Chop 嚴格 v1',
+            'source': 'code_backed_promoted_from_scan',
+            'params': {
+                'entry': {
+                    'bias50_max': 3.0,
+                    'nose_max': 0.4,
+                    'pulse_min': 0.0,
+                    'confidence_min': 0.55,
+                    'entry_quality_min': 0.5,
+                    'top_k_percent': 0.0,
+                    'allowed_regimes': ['bull', 'chop'],
+                    'layer2_bias_max': 2.0,
+                    'layer3_bias_max': 0.5,
+                },
+                'layers': [0.25, 0.25, 0.5],
+                'stop_loss': -0.03,
+                'take_profit_bias': 999.0,
+                'take_profit_roi': 999.0,
+                'turning_point': {
+                    'enabled': True,
+                    'bottom_score_min': 0.56,
+                    'top_score_take_profit': 0.8,
+                    'min_profit_pct': 0.0,
+                },
+                'editor_modules': ['turning_point'],
+            },
+            'entry_overrides': {},
+        },
+        'stable_turning_point_all_regimes_relaxed_v1': {
+            'label': '穩定轉折 · 全 regime 寬鬆 v1',
+            'source': 'code_backed_promoted_from_scan',
+            'params': {
+                'entry': {
+                    'bias50_max': 3.0,
+                    'nose_max': 0.4,
+                    'pulse_min': 0.0,
+                    'confidence_min': 0.45,
+                    'entry_quality_min': 0.5,
+                    'top_k_percent': 0.0,
+                    'allowed_regimes': ['bear', 'bull', 'chop', 'unknown'],
+                    'layer2_bias_max': 2.0,
+                    'layer3_bias_max': 0.5,
+                },
+                'layers': [0.25, 0.25, 0.5],
+                'stop_loss': -0.05,
+                'take_profit_bias': 999.0,
+                'take_profit_roi': 999.0,
+                'turning_point': {
+                    'enabled': True,
+                    'bottom_score_min': 0.56,
+                    'top_score_take_profit': 0.8,
+                    'min_profit_pct': 0.0,
+                },
+                'editor_modules': ['turning_point'],
+            },
+            'entry_overrides': {},
+        },
+        'stable_turning_point_all_regimes_strict_v1': {
+            'label': '穩定轉折 · 全 regime 嚴格 v1',
+            'source': 'code_backed_promoted_from_scan',
+            'params': {
+                'entry': {
+                    'bias50_max': 3.0,
+                    'nose_max': 0.4,
+                    'pulse_min': 0.0,
+                    'confidence_min': 0.55,
+                    'entry_quality_min': 0.5,
+                    'top_k_percent': 0.0,
+                    'allowed_regimes': ['bear', 'bull', 'chop', 'unknown'],
+                    'layer2_bias_max': 2.0,
+                    'layer3_bias_max': 0.5,
+                },
+                'layers': [0.25, 0.25, 0.5],
+                'stop_loss': -0.03,
+                'take_profit_bias': 999.0,
+                'take_profit_roi': 999.0,
+                'turning_point': {
+                    'enabled': True,
+                    'bottom_score_min': 0.56,
+                    'top_score_take_profit': 0.8,
+                    'min_profit_pct': 0.0,
+                },
+                'editor_modules': ['turning_point'],
+            },
+            'entry_overrides': {},
+        },
+        'stable_turning_point_all_regimes_tp62_v1': {
+            'label': '穩定轉折 · 全 regime TP0.62 v1',
+            'source': 'code_backed_promoted_from_scan',
+            'params': {
+                'entry': {
+                    'bias50_max': 3.0,
+                    'nose_max': 0.4,
+                    'pulse_min': 0.0,
+                    'confidence_min': 0.45,
+                    'entry_quality_min': 0.5,
+                    'top_k_percent': 0.0,
+                    'allowed_regimes': ['bear', 'bull', 'chop', 'unknown'],
+                    'layer2_bias_max': 2.0,
+                    'layer3_bias_max': 0.5,
+                },
+                'layers': [0.25, 0.25, 0.5],
+                'stop_loss': -0.05,
+                'take_profit_bias': 999.0,
+                'take_profit_roi': 999.0,
+                'turning_point': {
+                    'enabled': True,
+                    'bottom_score_min': 0.62,
+                    'top_score_take_profit': 0.8,
+                    'min_profit_pct': 0.0,
+                },
+                'editor_modules': ['turning_point'],
+            },
             'entry_overrides': {},
         },
         'standard': {
+            'label': 'Standard',
+            'source': 'code_backed',
             'entry_overrides': {
                 'entry_quality_min': 0.55,
                 'allowed_regimes': ['all'],
             },
         },
         'high_conviction_bear_top10': {
+            'label': 'High Conviction Bear Top 10%',
+            'source': 'code_backed',
             'entry_overrides': {
                 'confidence_min': 0.52,
                 'entry_quality_min': 0.58,
@@ -261,6 +443,8 @@ class ModelLeaderboard:
             },
         },
         'bear_top5': {
+            'label': 'Bear Top 5%',
+            'source': 'code_backed',
             'entry_overrides': {
                 'confidence_min': 0.50,
                 'entry_quality_min': 0.57,
@@ -269,6 +453,8 @@ class ModelLeaderboard:
             },
         },
         'balanced_conviction': {
+            'label': 'Balanced Conviction',
+            'source': 'code_backed',
             'entry_overrides': {
                 'confidence_min': 0.50,
                 'entry_quality_min': 0.55,
@@ -277,6 +463,8 @@ class ModelLeaderboard:
             },
         },
         'quality_filtered_all_regimes': {
+            'label': 'Quality Filtered All Regimes',
+            'source': 'code_backed',
             'entry_overrides': {
                 'confidence_min': 0.48,
                 'entry_quality_min': 0.56,
@@ -356,6 +544,9 @@ class ModelLeaderboard:
         ]
 
     def _default_deployment_profile_name(self, model_name: str) -> str:
+        promoted = self.PROMOTED_SCAN_DEFAULT_DEPLOYMENT_PROFILES.get(model_name)
+        if promoted:
+            return promoted
         if model_name == 'random_forest':
             return 'high_conviction_bear_top10'
         if model_name in {'xgboost', 'catboost', 'lightgbm', 'ensemble'}:
@@ -363,6 +554,27 @@ class ModelLeaderboard:
         if model_name in {'logistic_regression', 'mlp', 'svm'}:
             return 'quality_filtered_all_regimes'
         return 'standard'
+
+    @classmethod
+    def _deployment_profile_metadata(cls, profile_name: Optional[str]) -> Dict[str, Any]:
+        profile = cls.DEPLOYMENT_PROFILES.get(str(profile_name or ''), {})
+        return {
+            'name': profile_name or 'standard',
+            'label': profile.get('label') or str(profile_name or 'standard'),
+            'source': profile.get('source') or 'code_backed',
+        }
+
+    @classmethod
+    def _stable_scan_profile_name_from_params(cls, params: Optional[Dict[str, Any]]) -> Optional[str]:
+        if not isinstance(params, dict):
+            return None
+        signature = _deployment_profile_signature(params)
+        for name, profile in cls.DEPLOYMENT_PROFILES.items():
+            if profile.get('source') != 'code_backed_promoted_from_scan':
+                continue
+            if _deployment_profile_signature(profile.get('params')) == signature:
+                return name
+        return None
 
     def _deployment_profile_candidates_for_model(self, model_name: str) -> List[str]:
         """Fixed candidate lanes for automatic leaderboard lane selection.
@@ -395,7 +607,13 @@ class ModelLeaderboard:
 
         default_name = self._default_deployment_profile_name(model_name)
         scan_backed_params = self._scan_backed_best_params(model_name)
-        ordered = (["scan_backed_best"] if scan_backed_params else []) + [default_name] + candidates
+        promoted_scan_profile = self._stable_scan_profile_name_from_params(scan_backed_params)
+        ordered = (
+            ([promoted_scan_profile] if promoted_scan_profile else [])
+            + (["scan_backed_best"] if scan_backed_params and not promoted_scan_profile else [])
+            + [default_name]
+            + candidates
+        )
         unique: List[str] = []
         for name in ordered:
             if name in self.DEPLOYMENT_PROFILES and name not in unique:
@@ -408,6 +626,9 @@ class ModelLeaderboard:
         profile = self.DEPLOYMENT_PROFILES.get(profile_name, self.DEPLOYMENT_PROFILES['standard'])
         return {
             'name': profile_name,
+            'label': profile.get('label') or profile_name,
+            'source': profile.get('source') or 'code_backed',
+            'params': copy.deepcopy(profile.get('params')) if isinstance(profile.get('params'), dict) else None,
             'entry_overrides': dict(profile.get('entry_overrides', {})),
         }
 
@@ -498,11 +719,17 @@ class ModelLeaderboard:
             "minimum_support_rows": minimum_support_rows,
         }
 
-    def _candidate_selection_key(self, score: ModelScore) -> Tuple[float, float, float, float, float, float, float, float]:
+    def _candidate_selection_key(self, score: ModelScore) -> Tuple[float, float, float, float, float, float, float, float, float]:
         blocker = self._feature_profile_blocker_assessment(score.feature_profile_meta)
         blocker_gate = 0.0 if blocker["blocker_applied"] else 1.0
         exact_rows = float(blocker.get("exact_live_bucket_rows") or 0.0)
         support_rows = float(blocker.get("support_rows") or 0.0)
+        deployment_source = str(getattr(score, "deployment_profile_source", "") or "")
+        deployment_source_preference = {
+            "code_backed_promoted_from_scan": 2.0,
+            "code_backed": 1.0,
+            "artifact_scan": 0.0,
+        }.get(deployment_source, 0.5)
         return (
             blocker_gate,
             exact_rows,
@@ -512,6 +739,7 @@ class ModelLeaderboard:
             float(score.avg_decision_quality_score),
             float(score.avg_win_rate),
             -float(score.std_roi),
+            deployment_source_preference,
         )
 
     def _score_model_from_folds(
@@ -637,55 +865,35 @@ class ModelLeaderboard:
         profile = self._deployment_profile_for_model(model_name)
         scan_backed_params = self._scan_backed_best_params(model_name) if profile.get('name') == 'scan_backed_best' else None
 
-        if isinstance(scan_backed_params, dict):
-            entry = {
-                'bias50_max': 1.0,
-                'nose_max': 0.40,
-                'pulse_min': 0,
-                'layer2_bias_max': -1.5,
-                'layer3_bias_max': -3.5,
-                'confidence_min': 0.45,
-                'entry_quality_min': 0.55,
-                'top_k_percent': 0.0,
-                'allowed_regimes': ['all'],
-            }
-            entry.update(dict(scan_backed_params.get('entry') or {}))
-            params: Dict[str, Any] = {
-                'entry': entry,
-                'layers': list(scan_backed_params.get('layers') or [0.20, 0.30, 0.50]),
-                'stop_loss': float(scan_backed_params.get('stop_loss', -0.05) or -0.05),
-                'take_profit_bias': float(scan_backed_params.get('take_profit_bias', 4.0) or 4.0),
-                'take_profit_roi': float(scan_backed_params.get('take_profit_roi', 0.08) or 0.08),
-                'deployment_profile': profile['name'],
-            }
-            if isinstance(scan_backed_params.get('turning_point'), dict):
-                params['turning_point'] = copy.deepcopy(scan_backed_params.get('turning_point') or {})
-            if isinstance(scan_backed_params.get('storm_unwind'), dict):
-                params['storm_unwind'] = copy.deepcopy(scan_backed_params.get('storm_unwind') or {})
-            if isinstance(scan_backed_params.get('capital_management'), dict):
-                params['capital_management'] = copy.deepcopy(scan_backed_params.get('capital_management') or {})
-            if isinstance(scan_backed_params.get('editor_modules'), list):
-                params['editor_modules'] = list(scan_backed_params.get('editor_modules') or [])
-        else:
-            entry = {
-                'bias50_max': 1.0,
-                'nose_max': 0.40,
-                'pulse_min': 0,
-                'layer2_bias_max': -1.5,
-                'layer3_bias_max': -3.5,
-                'confidence_min': 0.45,
-                'entry_quality_min': 0.55,
-                'top_k_percent': 0.0,
-                'allowed_regimes': ['all'],
-            }
-            params = {
-                'entry': entry,
-                'layers': [0.20, 0.30, 0.50],
-                'stop_loss': -0.05,
-                'take_profit_bias': 4.0,
-                'take_profit_roi': 0.08,
-                'deployment_profile': profile['name'],
-            }
+        source_params = profile.get('params') if isinstance(profile.get('params'), dict) else scan_backed_params
+        entry = {
+            'bias50_max': 1.0,
+            'nose_max': 0.40,
+            'pulse_min': 0,
+            'layer2_bias_max': -1.5,
+            'layer3_bias_max': -3.5,
+            'confidence_min': 0.45,
+            'entry_quality_min': 0.55,
+            'top_k_percent': 0.0,
+            'allowed_regimes': ['all'],
+        }
+        entry.update(dict((source_params or {}).get('entry') or {}))
+        params = {
+            'entry': entry,
+            'layers': list((source_params or {}).get('layers') or [0.20, 0.30, 0.50]),
+            'stop_loss': float((source_params or {}).get('stop_loss', -0.05) or -0.05),
+            'take_profit_bias': float((source_params or {}).get('take_profit_bias', 4.0) or 4.0),
+            'take_profit_roi': float((source_params or {}).get('take_profit_roi', 0.08) or 0.08),
+            'deployment_profile': profile['name'],
+        }
+        if isinstance((source_params or {}).get('turning_point'), dict):
+            params['turning_point'] = copy.deepcopy((source_params or {}).get('turning_point') or {})
+        if isinstance((source_params or {}).get('storm_unwind'), dict):
+            params['storm_unwind'] = copy.deepcopy((source_params or {}).get('storm_unwind') or {})
+        if isinstance((source_params or {}).get('capital_management'), dict):
+            params['capital_management'] = copy.deepcopy((source_params or {}).get('capital_management') or {})
+        if isinstance((source_params or {}).get('editor_modules'), list):
+            params['editor_modules'] = list((source_params or {}).get('editor_modules') or [])
 
         params['entry'].update(profile.get('entry_overrides', {}))
         return params
@@ -1006,6 +1214,9 @@ class ModelLeaderboard:
                 all_test_accs=run["test_accs"],
             )
             score.deployment_profile = deployment_name
+            deployment_meta = self._deployment_profile_metadata(deployment_name)
+            score.deployment_profile_label = str(deployment_meta.get('label') or deployment_name)
+            score.deployment_profile_source = str(deployment_meta.get('source') or 'code_backed')
             score.feature_profile = feature_profile_name
             score.feature_profile_meta = dict(run.get("feature_profile_meta") or {})
             score.feature_profile_source = str(score.feature_profile_meta.get("source") or getattr(score, "feature_profile_source", "code_default"))
@@ -1025,10 +1236,13 @@ class ModelLeaderboard:
         candidate_diagnostics: List[Dict[str, Any]] = []
         for rank, candidate_score in enumerate(candidate_scores, start=1):
             blocker = self._feature_profile_blocker_assessment(candidate_score.feature_profile_meta)
+            deployment_meta = self._deployment_profile_metadata(candidate_score.deployment_profile)
             candidate_diagnostics.append({
                 "rank": rank,
                 "model_name": candidate_score.model_name,
                 "deployment_profile": candidate_score.deployment_profile,
+                "deployment_profile_label": deployment_meta.get("label"),
+                "deployment_profile_source": deployment_meta.get("source"),
                 "feature_profile": candidate_score.feature_profile,
                 "feature_profile_source": candidate_score.feature_profile_source,
                 "support_cohort": blocker.get("support_cohort"),
@@ -1049,6 +1263,8 @@ class ModelLeaderboard:
             "detail": None,
             "folds": len(scores.folds),
             "selected_deployment_profile": scores.deployment_profile,
+            "selected_deployment_profile_label": scores.deployment_profile_label or scores.deployment_profile,
+            "selected_deployment_profile_source": scores.deployment_profile_source or 'code_backed',
             "selected_feature_profile": scores.feature_profile,
             "selected_feature_profile_source": scores.feature_profile_source,
             "selected_feature_profile_blocker_applied": selected_blocker.get("blocker_applied", False),

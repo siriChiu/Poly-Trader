@@ -2953,6 +2953,124 @@ def test_predict_applies_execution_guardrail_to_live_result(monkeypatch):
     assert result["should_trade"] is True
 
 
+
+def test_predict_preserves_live_decision_context_when_circuit_breaker_active(monkeypatch):
+    monkeypatch.setattr(
+        predictor_module,
+        "_check_circuit_breaker",
+        lambda session: {
+            "timestamp": "2026-04-18T15:58:55Z",
+            "confidence": 0.5,
+            "signal": "CIRCUIT_BREAKER",
+            "confidence_level": "CIRCUIT_BREAKER",
+            "should_trade": False,
+            "model_type": "circuit_breaker",
+            "reason": "Consecutive loss streak: 74 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+            "streak": 74,
+            "recent_window_win_rate": 0.0,
+            "recent_window_wins": 0,
+            "window_size": 50,
+            "triggered_by": ["streak", "recent_win_rate"],
+            "horizon_minutes": 1440,
+            "deployment_blocker_details": {
+                "triggered_by": ["streak", "recent_win_rate"],
+                "horizon_minutes": 1440,
+                "recent_window": {"window_size": 50, "wins": 0, "win_rate": 0.0, "floor": 0.3},
+                "release_condition": {
+                    "release_ready": False,
+                    "blocked_by": ["streak", "recent_win_rate"],
+                    "streak_must_be_below": 50,
+                    "current_streak": 74,
+                    "recent_window": 50,
+                    "recent_win_rate_must_be_at_least": 0.3,
+                    "current_recent_window_win_rate": 0.0,
+                    "current_recent_window_wins": 0,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 15,
+                },
+            },
+        },
+    )
+    monkeypatch.setattr(
+        predictor_module,
+        "load_latest_features",
+        lambda session: {
+            "regime_label": "bull",
+            "feat_4h_bias200": 2.4,
+            "feat_4h_bias50": 1.1,
+            "feat_nose": 0.62,
+            "feat_pulse": 0.71,
+            "feat_ear": 0.05,
+        },
+    )
+    monkeypatch.setattr(
+        predictor_module,
+        "_build_live_decision_profile",
+        lambda features: {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "entry_quality": 0.63,
+            "entry_quality_label": "C",
+            "allowed_layers": 2,
+            "allowed_layers_reason": "entry_quality_C_single_layer",
+            "allowed_layers_raw_reason": "entry_quality_C_single_layer",
+            "q15_exact_supported_component_patch_applied": False,
+        },
+    )
+    monkeypatch.setattr(
+        predictor_module,
+        "_infer_live_decision_quality_contract",
+        lambda session, decision_profile, horizon_minutes=1440, lookback_rows=5000: {
+            **predictor_module._decision_quality_fallback(),
+            "decision_quality_label": "C",
+            "decision_quality_score": 0.41,
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_present_but_below_minimum",
+            "decision_quality_structure_bucket_support_rows": 7,
+            "decision_quality_exact_live_structure_bucket_support_rows": 7,
+            "decision_quality_live_structure_bucket": decision_profile["structure_bucket"],
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": decision_profile["structure_bucket"],
+                    "current_live_structure_bucket_rows": 7,
+                    "alerts": [],
+                }
+            },
+        },
+    )
+    monkeypatch.setattr(
+        predictor_module,
+        "_apply_live_execution_guardrails",
+        lambda decision_profile, decision_quality_contract: {
+            **decision_profile,
+            "allowed_layers_raw": 2,
+            "allowed_layers": 1,
+            "allowed_layers_raw_reason": "entry_quality_C_single_layer",
+            "allowed_layers_reason": "decision_quality_caps_single_layer",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_caps_single_layer",
+        },
+    )
+
+    result = predictor_module.predict(session=object(), predictor=object(), regime_models={})
+
+    assert result["signal"] == "CIRCUIT_BREAKER"
+    assert result["used_model"] == "circuit_breaker"
+    assert result["regime_label"] == "bull"
+    assert result["regime_gate"] == "CAUTION"
+    assert result["structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert result["entry_quality"] == pytest.approx(0.63)
+    assert result["allowed_layers_raw"] == 2
+    assert result["allowed_layers"] == 0
+    assert result["allowed_layers_raw_reason"] == "entry_quality_C_single_layer"
+    assert result["deployment_blocker"] == "circuit_breaker_active"
+    assert result["deployment_blocker_source"] == "circuit_breaker"
+    assert "circuit_breaker_active" in result["allowed_layers_reason"]
+    assert result["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
+    assert result["current_live_structure_bucket_gap_to_minimum"] == 43
+
+
+
 def test_predict_routes_regime_model_using_decision_profile_regime(monkeypatch):
     monkeypatch.setattr(predictor_module, "_check_circuit_breaker", lambda session: None)
     monkeypatch.setattr(

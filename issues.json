@@ -4,7 +4,7 @@
       "id": "P0_canonical_circuit_breaker_active",
       "priority": "P0",
       "status": "open",
-      "title": "canonical circuit breaker remains the current-live blocker (0/15 wins in recent 50)",
+      "title": "canonical circuit breaker remains the current-live blocker (0/15 wins in recent 50; streak=77)",
       "summary": {
         "deployment_blocker": "circuit_breaker_active",
         "horizon_minutes": 1440,
@@ -12,12 +12,12 @@
         "current_recent_window_wins": 0,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 15,
-        "streak": 74,
+        "streak": 77,
         "allowed_layers": 0
       },
       "next_actions": [
         "keep hb_predict_probe.py and hb_circuit_breaker_audit.py as the primary truth for current-live blocker semantics",
-        "do not let q15/q35 support narratives override circuit-breaker release math until the breaker is actually cleared",
+        "do not let q15 support recovery override circuit-breaker release math until the breaker is actually cleared",
         "verify with hb_parallel_runner fast mode, hb_predict_probe.py, hb_circuit_breaker_audit.py, and /execution/status"
       ],
       "action": "clear the canonical circuit breaker by fixing recent-window release math or keep explicit no-deploy governance"
@@ -26,42 +26,46 @@
       "id": "P0_recent_canonical_tail_pathology",
       "priority": "P0",
       "status": "open",
-      "title": "recent canonical tail is still pathological (74 consecutive simulated_pyramid_win=0)",
+      "title": "recent canonical tail is still pathological (77 consecutive simulated_pyramid_win=0)",
       "summary": {
         "primary_window": 1000,
         "interpretation": "distribution_pathology",
         "dominant_regime": "bull",
-        "dominant_regime_share": 0.917,
-        "recent_100_win_rate": 0.25,
-        "losing_streak": 74
+        "dominant_regime_share": 0.92,
+        "recent_100_win_rate": 0.22,
+        "losing_streak": 77,
+        "best_single_component": "feat_4h_bias50",
+        "remaining_gap_to_floor": 0.2066
       },
       "next_actions": [
-        "drill into recent 50/100/1000 canonical rows for target path, regime mix, 4H shifts, and release-window examples",
+        "drill into recent 50/100/1000 canonical rows for target path, bull pocket shifts, and feat_4h_bias50 floor-gap behavior",
         "convert the tail-pathology diagnosis into a regression patch instead of leaving it as observation-only",
         "verify with recent_drift_report.py, hb_predict_probe.py, and targeted regression tests"
       ],
       "action": "turn the pathological recent tail into a reproducible root cause and fix"
     },
     {
-      "id": "P1_scan_backed_best_needs_profile_promotion",
+      "id": "P1_post_threshold_leaderboard_governance_sync",
       "priority": "P1",
       "status": "open",
-      "title": "scan_backed_best has restored comparable rows, but still needs graduation into a stable code-backed profile",
+      "title": "exact-supported q15 lane has recovered, but leaderboard governance is not fully synced to the production profile split",
       "summary": {
-        "count": 5,
-        "comparable_count": 5,
-        "placeholder_count": 1,
-        "top_model": "logistic_regression",
-        "top_deployment_profile": "scan_backed_best",
-        "top_overall_score": 0.7723,
-        "top_avg_roi": 0.0092
+        "governance_contract": "post_threshold_governance_contract_needs_leaderboard_sync",
+        "current_closure": "exact_supported_but_leaderboard_not_synced",
+        "support_route_verdict": "exact_bucket_supported",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "current_live_structure_bucket_rows": 69,
+        "minimum_support_rows": 50,
+        "leaderboard_selected_profile": "core_only",
+        "train_selected_profile": "core_plus_macro_plus_4h_structure_shift",
+        "top_deployment_profile": "stable_turning_point_bull_chop_strict_v1",
+        "top_deployment_profile_source": "code_backed_promoted_from_scan"
       },
       "next_actions": [
-        "promote scan-winning params into clearly named code-backed deployment profiles",
-        "keep comparable_count > 0 while reducing long-term dependence on artifact-only params",
-        "verify with /api/models/leaderboard, hb_model_leaderboard_api_probe.py, and /lab"
+        "sync leaderboard/heartbeat/docs so the exact-supported production role is explicit and no old fallback semantics remain",
+        "verify with hb_leaderboard_candidate_probe.py, hb_model_leaderboard_api_probe.py, and browser /lab"
       ],
-      "action": "convert the recovered comparable rows into a stable, productized canonical leaderboard profile set"
+      "action": "finish post-threshold governance sync after deployment profile promotion"
     },
     {
       "id": "P1_execution_venue_readiness_unverified",

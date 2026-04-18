@@ -473,6 +473,11 @@ interface ModelLeaderboardEntry {
   model_tier_label?: string;
   model_tier_reason?: string;
   deployment_profile?: string;
+  deployment_profile_label?: string;
+  deployment_profile_source?: string;
+  selected_deployment_profile?: string;
+  selected_deployment_profile_label?: string;
+  selected_deployment_profile_source?: string;
   avg_roi: number;
   avg_win_rate: number;
   avg_trades: number;
@@ -819,6 +824,20 @@ const describeRankingReason = (model: ModelLeaderboardEntry) => {
     return reasons.slice(0, 3).join(" · ");
   }
   return `⚠️ canonical DQ 缺失，暫退回 legacy ROI ${formatPct(model.avg_roi, 1, true)} · 最大回撤 ${formatPct(model.avg_max_dd)} · 勝率 ${formatPct(model.avg_win_rate)}（僅參考）`;
+};
+const deploymentProfileDisplayName = (model: ModelLeaderboardEntry) => (
+  model.selected_deployment_profile_label
+  || model.deployment_profile_label
+  || model.selected_deployment_profile
+  || model.deployment_profile
+  || "standard"
+);
+const deploymentProfileSourceLabel = (model: ModelLeaderboardEntry) => {
+  const source = model.selected_deployment_profile_source || model.deployment_profile_source || null;
+  if (source === "code_backed_promoted_from_scan") return "code-backed promoted from scan";
+  if (source === "artifact_scan") return "artifact scan";
+  if (source === "code_backed") return "code-backed";
+  return source || "source unknown";
 };
 const describeStrategyRankingReason = (result?: StrategyResult | null) => {
   if (!result) return "尚未回測，無 canonical decision-quality ranking evidence";
@@ -2654,7 +2673,7 @@ export default function StrategyLab() {
                                   <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${modelTierBadgeTone[String(model.model_tier || group.key)] || modelTierBadgeTone.control}`}>{modelTierLabel(model)}</span>
                                 </div>
                                 <div className="mt-1 text-[10px] text-slate-500">{model.model_tier_reason || describeRankingReason(model)}</div>
-                                <div className="mt-1 text-[10px] text-slate-600">deployment: {model.deployment_profile || "standard"} · {typeof model.rank_delta === "number" ? (model.rank_delta > 0 ? `↑${model.rank_delta}` : model.rank_delta < 0 ? `↓${Math.abs(model.rank_delta)}` : "—") : "—"}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">deployment: {deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)} · {typeof model.rank_delta === "number" ? (model.rank_delta > 0 ? `↑${model.rank_delta}` : model.rank_delta < 0 ? `↓${Math.abs(model.rank_delta)}` : "—") : "—"}</div>
                               </td>
                               <td className="px-2 py-2 text-right text-emerald-300">{formatDecimal(model.overall_score, 3)}</td>
                               <td className="px-2 py-2 text-right text-cyan-300">{formatDecimal(model.reliability_score, 3)}</td>
@@ -2699,6 +2718,7 @@ export default function StrategyLab() {
                                   <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${modelTierBadgeTone[String(model.model_tier || "control")] || modelTierBadgeTone.control}`}>{modelTierLabel(model)}</span>
                                 </div>
                                 <div className="mt-1 text-[10px] text-slate-500">{describeRankingReason(model)}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">deployment: {deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)}</div>
                               </td>
                               <td className="px-2 py-2 text-right text-amber-200">{typeof model.raw_rank === "number" ? `#${model.raw_rank}` : "—"}</td>
                               <td className="px-2 py-2 text-right text-amber-200">{formatDecimal(model.overall_score, 3)}</td>

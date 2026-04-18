@@ -2873,11 +2873,25 @@ def _serialize_model_scores(scores: List[Any], leaderboard) -> List[Dict[str, An
         status = {}
         if leaderboard is not None:
             status = getattr(leaderboard, "last_model_statuses", {}).get(model_name, {}) or {}
+        selected_deployment_profile = status.get("selected_deployment_profile", getattr(score, "deployment_profile", "standard"))
+        selected_deployment_profile_label = status.get(
+            "selected_deployment_profile_label",
+            getattr(score, "deployment_profile_label", selected_deployment_profile),
+        )
+        selected_deployment_profile_source = status.get(
+            "selected_deployment_profile_source",
+            getattr(score, "deployment_profile_source", "code_backed"),
+        )
         item = {
             "rank": idx,
             "rank_delta": 0,
             "model_name": model_name,
-            "deployment_profile": getattr(score, "deployment_profile", status.get("selected_deployment_profile", "standard")),
+            "deployment_profile": getattr(score, "deployment_profile", selected_deployment_profile),
+            "deployment_profile_label": getattr(score, "deployment_profile_label", selected_deployment_profile_label),
+            "deployment_profile_source": getattr(score, "deployment_profile_source", selected_deployment_profile_source),
+            "selected_deployment_profile": selected_deployment_profile,
+            "selected_deployment_profile_label": selected_deployment_profile_label,
+            "selected_deployment_profile_source": selected_deployment_profile_source,
             "feature_profile": getattr(score, "feature_profile", status.get("selected_feature_profile", "current_full")),
             "feature_profile_source": getattr(score, "feature_profile_source", status.get("selected_feature_profile_source", "code_default")),
             "selected_feature_profile": status.get("selected_feature_profile", getattr(score, "feature_profile", "current_full")),

@@ -81,6 +81,16 @@ def _timestamp_to_iso(value: Any) -> str | None:
     return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _payload_missing_selection_fields(payload: dict[str, Any]) -> bool:
+    if not isinstance(payload, dict):
+        return True
+    rows = payload.get("leaderboard") or payload.get("placeholder_rows") or []
+    if not isinstance(rows, list) or not rows:
+        return True
+    first = rows[0] if isinstance(rows[0], dict) else {}
+    return not bool(first.get("selected_feature_profile") and first.get("selected_deployment_profile"))
+
+
 def _load_leaderboard_payload(*, allow_rebuild: bool = True) -> tuple[dict[str, Any], dict[str, Any]]:
     payload: dict[str, Any] = {}
     source: str | None = None
@@ -124,16 +134,34 @@ def _load_leaderboard_payload(*, allow_rebuild: bool = True) -> tuple[dict[str, 
                 source_error = snapshot.get("error")
                 source = "latest_persisted_snapshot"
 
+    age_sec = max(int(time.time() - updated_at), 0) if updated_at else None
+    stale = None if source is None else bool(age_sec is None or age_sec > 900)
+    semantic_refresh_needed = bool(
+        allow_rebuild
+        and payload
+        and _payload_missing_selection_fields(payload)
+    )
+    if semantic_refresh_needed:
+        payload = {}
+        updated_at = 0.0
+        source_error = None
+        source = None
+        age_sec = None
+        stale = None
+
     if not payload and allow_rebuild:
         payload = api_module._build_model_leaderboard_payload()
         updated_at = time.time()
         source_error = None
         source = "live_rebuild"
-
-    age_sec = max(int(time.time() - updated_at), 0) if updated_at else None
-    stale = None if source is None else bool(age_sec is None or age_sec > 900)
-    if source == "live_rebuild":
+        age_sec = 0
         stale = False
+    elif source == "live_rebuild":
+        stale = False
+
+    if source != "live_rebuild":
+        age_sec = max(int(time.time() - updated_at), 0) if updated_at else None
+        stale = None if source is None else bool(age_sec is None or age_sec > 900)
 
     meta = {
         "source": source,
@@ -158,7 +186,11 @@ def _top_model_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "model_name": top.get("model_name"),
         "deployment_profile": top.get("deployment_profile"),
+        "deployment_profile_label": top.get("deployment_profile_label"),
+        "deployment_profile_source": top.get("deployment_profile_source"),
         "selected_deployment_profile": top.get("selected_deployment_profile"),
+        "selected_deployment_profile_label": top.get("selected_deployment_profile_label"),
+        "selected_deployment_profile_source": top.get("selected_deployment_profile_source"),
         "deployment_profiles_evaluated": top.get("deployment_profiles_evaluated"),
         "feature_profile": top.get("feature_profile"),
         "selected_feature_profile": top.get("selected_feature_profile"),

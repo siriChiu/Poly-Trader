@@ -572,9 +572,11 @@ def test_build_strategy_params_uses_evidence_driven_profile_for_random_forest():
 
     params = leaderboard._build_strategy_params("random_forest")
 
-    assert params["deployment_profile"] == "high_conviction_bear_top10"
-    assert params["entry"]["allowed_regimes"] == ["bear"]
-    assert params["entry"]["top_k_percent"] == pytest.approx(10.0)
+    assert params["deployment_profile"] == "stable_turning_point_all_regimes_relaxed_v1"
+    assert params["entry"]["allowed_regimes"] == ["bear", "bull", "chop", "unknown"]
+    assert params["entry"]["top_k_percent"] == pytest.approx(0.0)
+    assert params["turning_point"]["enabled"] is True
+    assert params["turning_point"]["bottom_score_min"] == pytest.approx(0.56)
 
 
 def test_deployment_profile_candidates_include_scan_backed_best_when_artifact_exists():
@@ -666,6 +668,62 @@ def test_build_strategy_params_uses_scan_backed_best_params_when_available():
     assert params["turning_point"]["bottom_score_min"] == pytest.approx(0.56)
 
 
+def test_deployment_profile_candidates_promote_matching_scan_signature_to_code_backed_profile():
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2025-01-01", periods=2, freq="D"),
+            "close_price": [50000, 50010],
+            "simulated_pyramid_win": [1, 0],
+            "feat_4h_bias50": [0.0, 0.0],
+            "feat_4h_bias200": [0.0, 0.0],
+            "feat_nose": [0.4, 0.5],
+            "feat_pulse": [0.6, 0.6],
+            "feat_ear": [0.1, 0.1],
+        }
+    )
+    leaderboard = ModelLeaderboard(df)
+    leaderboard._strategy_param_scan_payload = {
+        "scan_results": [
+            {
+                "model_name": "xgboost",
+                "best": {
+                    "params": {
+                        "model_name": "xgboost",
+                        "entry": {
+                            "bias50_max": 3.0,
+                            "nose_max": 0.4,
+                            "pulse_min": 0.0,
+                            "confidence_min": 0.55,
+                            "entry_quality_min": 0.5,
+                            "top_k_percent": 0.0,
+                            "allowed_regimes": ["bull", "chop", "bear", "unknown"],
+                            "layer2_bias_max": 2.0,
+                            "layer3_bias_max": 0.5,
+                        },
+                        "layers": [0.25, 0.25, 0.5],
+                        "stop_loss": -0.03,
+                        "take_profit_bias": 999.0,
+                        "take_profit_roi": 999.0,
+                        "turning_point": {"enabled": True, "bottom_score_min": 0.56, "top_score_take_profit": 0.8, "min_profit_pct": 0.0},
+                        "editor_modules": ["turning_point"],
+                    }
+                },
+            }
+        ]
+    }
+
+    candidates = leaderboard._deployment_profile_candidates_for_model("xgboost")
+    leaderboard._deployment_profile_override = candidates[0]
+    params = leaderboard._build_strategy_params("xgboost")
+
+    assert candidates[0] == "stable_turning_point_all_regimes_strict_v1"
+    assert "scan_backed_best" not in candidates
+    assert params["deployment_profile"] == "stable_turning_point_all_regimes_strict_v1"
+    assert params["entry"]["allowed_regimes"] == ["bear", "bull", "chop", "unknown"]
+    assert params["entry"]["confidence_min"] == pytest.approx(0.55)
+    assert params["stop_loss"] == pytest.approx(-0.03)
+
+
 def test_evaluate_model_auto_selects_best_deployment_profile(monkeypatch):
     timestamps = pd.date_range("2025-01-01", periods=220, freq="D")
     df = pd.DataFrame(
@@ -752,6 +810,81 @@ def test_evaluate_model_auto_selects_best_deployment_profile(monkeypatch):
     assert score.deployment_profile == "balanced_conviction"
     assert leaderboard.last_model_statuses["xgboost"]["selected_deployment_profile"] == "balanced_conviction"
     assert "standard" in leaderboard.last_model_statuses["xgboost"]["deployment_profiles_evaluated"]
+
+
+
+def test_evaluate_model_prefers_code_backed_promoted_profile_when_scores_tie(monkeypatch):
+    timestamps = pd.date_range("2025-01-01", periods=220, freq="D")
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "close_price": [50000 + i for i in range(len(timestamps))],
+            "simulated_pyramid_win": [i % 2 for i in range(len(timestamps))],
+            "feat_4h_bias50": [0.0] * len(timestamps),
+            "feat_nose": [0.4] * len(timestamps),
+            "feat_pulse": [0.6] * len(timestamps),
+            "feat_ear": [0.1] * len(timestamps),
+        }
+    )
+    leaderboard = ModelLeaderboard(df)
+    monkeypatch.setattr("backtesting.model_leaderboard.MIN_TRAIN_SAMPLES", 50)
+    monkeypatch.setattr(
+        leaderboard,
+        "_get_walk_forward_splits",
+        lambda: [("2025-01-01", "2025-05-01", "2025-05-01", "2025-07-15")],
+    )
+    monkeypatch.setattr(
+        leaderboard,
+        "_deployment_profile_candidates_for_model",
+        lambda model_name: ["scan_backed_best", "stable_turning_point_bull_chop_strict_v1"],
+    )
+    monkeypatch.setattr(
+        leaderboard,
+        "_feature_profile_candidates_for_frame",
+        lambda feature_cols: [{"name": "core_only", "columns": feature_cols, "meta": {"source": "feature_group_ablation.recommended_profile"}}],
+    )
+
+    def fake_run_single_fold(train_df, test_df, model_name):
+        profile = leaderboard._deployment_profile_override or "scan_backed_best"
+        fold = type("Fold", (), {
+            "fold": 0,
+            "train_start": "2025-01-01",
+            "train_end": "2025-05-01",
+            "test_start": "2025-05-01",
+            "test_end": "2025-06-01",
+            "train_samples": len(train_df),
+            "test_samples": len(test_df),
+            "roi": 0.18,
+            "win_rate": 0.74,
+            "total_trades": 9,
+            "max_drawdown": 0.09,
+            "sharpe_ratio": 0.0,
+            "profit_factor": 1.8,
+            "avg_entry_quality": 0.79,
+            "avg_allowed_layers": 2.2,
+            "trade_quality_score": 0.71,
+            "regime_gate_allow_ratio": 0.84,
+            "avg_decision_quality_score": 0.67,
+            "avg_expected_win_rate": 0.78,
+            "avg_expected_pyramid_quality": 0.57,
+            "avg_expected_drawdown_penalty": 0.11,
+            "avg_expected_time_underwater": 0.18,
+            "deployment_profile": profile,
+            "feature_profile": "core_only",
+            "feature_profile_source": "feature_group_ablation.recommended_profile",
+        })()
+        return fold, None, object(), 0.77, 0.71
+
+    monkeypatch.setattr(leaderboard, "_run_single_fold", fake_run_single_fold)
+
+    score = leaderboard.evaluate_model("logistic_regression")
+
+    assert score is not None
+    assert score.deployment_profile == "stable_turning_point_bull_chop_strict_v1"
+    assert score.deployment_profile_source == "code_backed_promoted_from_scan"
+    assert leaderboard.last_model_statuses["logistic_regression"]["selected_deployment_profile"] == "stable_turning_point_bull_chop_strict_v1"
+    assert leaderboard.last_model_statuses["logistic_regression"]["selected_deployment_profile_source"] == "code_backed_promoted_from_scan"
+
 
 
 def test_evaluate_model_auto_selects_best_feature_profile(monkeypatch):
@@ -1117,13 +1250,13 @@ def test_run_single_fold_uses_true_4h_context_and_deployment_profile(monkeypatch
     fold, _, _, _, _ = leaderboard._run_single_fold(df.iloc[:150], df.iloc[150:], "random_forest")
 
     assert captured["bias200_first"] == pytest.approx(-2.5)
-    assert captured["deployment_profile"] == "high_conviction_bear_top10"
-    assert captured["allowed_regimes"] == ["bear"]
-    assert captured["top_k_percent"] == pytest.approx(10.0)
+    assert captured["deployment_profile"] == "stable_turning_point_all_regimes_relaxed_v1"
+    assert captured["allowed_regimes"] == ["bear", "bull", "chop", "unknown"]
+    assert captured["top_k_percent"] == pytest.approx(0.0)
     assert captured["regimes"][0] == "bear"
     assert captured["local_bottom_score_first"] == pytest.approx(0.64)
     assert captured["local_top_score_first"] == pytest.approx(0.28)
-    assert fold.deployment_profile == "high_conviction_bear_top10"
+    assert fold.deployment_profile == "stable_turning_point_all_regimes_relaxed_v1"
 
 
 def test_evaluate_model_records_average_profit_factor(monkeypatch):
@@ -1360,6 +1493,8 @@ def test_build_model_leaderboard_payload_includes_skipped_models(monkeypatch):
                 "xgboost": {
                     "status": "ok",
                     "selected_deployment_profile": "balanced_conviction",
+                    "selected_deployment_profile_label": "Balanced Conviction",
+                    "selected_deployment_profile_source": "code_backed",
                     "deployment_profiles_evaluated": ["balanced_conviction", "standard"],
                     "selected_feature_profile": "core_only",
                     "selected_feature_profile_source": "feature_group_ablation.recommended_profile",
@@ -1438,6 +1573,11 @@ def test_build_model_leaderboard_payload_includes_skipped_models(monkeypatch):
 
     assert payload["leaderboard"][0]["model_name"] == "xgboost"
     assert payload["leaderboard"][0]["deployment_profile"] == "balanced_conviction"
+    assert payload["leaderboard"][0]["deployment_profile_label"] == "Balanced Conviction"
+    assert payload["leaderboard"][0]["deployment_profile_source"] == "code_backed"
+    assert payload["leaderboard"][0]["selected_deployment_profile"] == "balanced_conviction"
+    assert payload["leaderboard"][0]["selected_deployment_profile_label"] == "Balanced Conviction"
+    assert payload["leaderboard"][0]["selected_deployment_profile_source"] == "code_backed"
     assert payload["leaderboard"][0]["feature_profile"] == "core_only"
     assert payload["leaderboard"][0]["selected_feature_profile"] == "core_only"
     assert payload["leaderboard"][0]["selected_feature_profile_blocker_applied"] is False

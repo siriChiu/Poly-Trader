@@ -4033,6 +4033,29 @@ def _check_circuit_breaker(session) -> Optional[Dict]:
     }
 
 
+
+def _circuit_breaker_deployment_blocker(cb: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not isinstance(cb, dict):
+        return None
+    blocker_details = cb.get("deployment_blocker_details") if isinstance(cb.get("deployment_blocker_details"), dict) else {}
+    return {
+        **blocker_details,
+        "type": cb.get("deployment_blocker") or "circuit_breaker_active",
+        "signal": cb.get("signal") or "CIRCUIT_BREAKER",
+        "model_type": cb.get("model_type") or "circuit_breaker",
+        "reason": cb.get("deployment_blocker_reason") or cb.get("reason"),
+        "source": cb.get("deployment_blocker_source") or "circuit_breaker",
+        "streak": cb.get("streak"),
+        "win_rate": cb.get("win_rate", cb.get("recent_window_win_rate")),
+        "recent_window_win_rate": cb.get("recent_window_win_rate"),
+        "recent_window_wins": cb.get("recent_window_wins"),
+        "window_size": cb.get("window_size"),
+        "triggered_by": list(cb.get("triggered_by") or blocker_details.get("triggered_by") or []),
+        "horizon_minutes": cb.get("horizon_minutes") or blocker_details.get("horizon_minutes") or CIRCUIT_BREAKER_HORIZON_MINUTES,
+    }
+
+
+
 def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -> Optional[Dict]:
     """Predict using time-weighted IC fusion instead of static model.
     Uses exp decay IC (tau) to weight each sense, then fuses via weighted average.
@@ -4168,25 +4191,64 @@ def predict_with_ic_fusion(session: Session, predictor=None, tau: float = 200) -
 
 
 def predict(session: Session, predictor=None, regime_models=None) -> Optional[Dict]:
-    # P0 #H420: Circuit breaker check before any prediction
     cb = _check_circuit_breaker(session)
-    if cb is not None:
+    features = load_latest_features(session)
+    if not features:
+        if cb is None:
+            return None
         logger.warning(f"CIRCUIT BREAKER TRIGGERED: {cb['reason']}")
         return {
             **_decision_quality_fallback(),
             **cb,
+            "used_model": "circuit_breaker",
+            "target_col": DEFAULT_TARGET_COL,
             "regime_gate": None,
             "entry_quality": None,
             "entry_quality_label": None,
         }
-    features = load_latest_features(session)
-    if not features:
-        return None
-    if predictor is None:
-        predictor, regime_models = load_predictor()
 
     decision_profile = _build_live_decision_profile(features)
     decision_quality_contract = _infer_live_decision_quality_contract(session, decision_profile)
+    support_route = _summarize_structure_bucket_support_route(decision_quality_contract)
+
+    if cb is not None:
+        logger.warning(f"CIRCUIT BREAKER TRIGGERED: {cb['reason']}")
+        execution_profile = _apply_live_execution_guardrails(decision_profile, decision_quality_contract)
+        execution_profile = _apply_deployment_blocker_to_execution_profile(
+            execution_profile,
+            _circuit_breaker_deployment_blocker(cb),
+        )
+        return {
+            "timestamp": cb.get("timestamp") or datetime.utcnow().isoformat() + "Z",
+            "features": features,
+            "confidence": float(cb.get("confidence", 0.5) or 0.5),
+            "signal": cb.get("signal") or "CIRCUIT_BREAKER",
+            "confidence_level": cb.get("confidence_level") or "CIRCUIT_BREAKER",
+            "should_trade": False,
+            "model_type": cb.get("model_type") or "circuit_breaker",
+            "used_model": "circuit_breaker",
+            "model_route_regime": execution_profile.get("regime_label") or features.get("regime_label") or _determine_regime(features),
+            "target_col": DEFAULT_TARGET_COL,
+            "reason": cb.get("reason"),
+            "streak": cb.get("streak"),
+            "win_rate": cb.get("win_rate", cb.get("recent_window_win_rate")),
+            "recent_window_win_rate": cb.get("recent_window_win_rate"),
+            "recent_window_wins": cb.get("recent_window_wins"),
+            "window_size": cb.get("window_size"),
+            "triggered_by": cb.get("triggered_by"),
+            "horizon_minutes": cb.get("horizon_minutes") or CIRCUIT_BREAKER_HORIZON_MINUTES,
+            **execution_profile,
+            **decision_quality_contract,
+            "support_route_verdict": support_route.get("verdict"),
+            "support_route_deployable": support_route.get("deployable"),
+            "support_progress": support_route.get("support_progress"),
+            "minimum_support_rows": support_route.get("minimum_support_rows"),
+            "current_live_structure_bucket_gap_to_minimum": support_route.get("current_live_structure_bucket_gap_to_minimum"),
+        }
+
+    if predictor is None:
+        predictor, regime_models = load_predictor()
+
     deployment_blocker = _infer_deployment_blocker(decision_profile, decision_quality_contract)
     execution_profile = _apply_live_execution_guardrails(decision_profile, decision_quality_contract)
     execution_profile = _apply_deployment_blocker_to_execution_profile(execution_profile, deployment_blocker)
