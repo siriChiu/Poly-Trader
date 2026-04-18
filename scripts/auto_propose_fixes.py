@@ -248,24 +248,10 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
     support_progress = governance.get("support_progress") or {}
     support_history = support_progress.get("history") or []
     history_bucket = (support_history[0] or {}).get("live_current_structure_bucket") if support_history else None
-    current_bucket = _first_non_null(
-        (live_predict_probe or {}).get("current_live_structure_bucket"),
-        history_bucket,
-        (leaderboard_probe or {}).get("live_current_structure_bucket"),
-    )
-    current_rows = _first_non_null(
-        _as_int_or_none((live_predict_probe or {}).get("current_live_structure_bucket_rows")),
-        _as_int_or_none(governance.get("live_current_structure_bucket_rows")),
-        _as_int_or_none(support_progress.get("current_rows")),
-        0,
-    )
-    minimum_rows = _first_non_null(
-        _as_int_or_none((live_predict_probe or {}).get("minimum_support_rows")),
-        _as_int_or_none(governance.get("minimum_support_rows")),
-        _as_int_or_none(support_progress.get("minimum_support_rows")),
-        0,
-    )
-    route = governance.get("support_governance_route") or (live_predict_probe or {}).get("support_route_verdict")
+    live_current_bucket = (live_predict_probe or {}).get("current_live_structure_bucket")
+    live_signal = str((live_predict_probe or {}).get("signal") or "").strip()
+    live_blocker = str((live_predict_probe or {}).get("deployment_blocker") or "").strip()
+    runtime_closure_state = str((live_predict_probe or {}).get("runtime_closure_state") or "").strip()
     live_support_reason = " ".join(
         str(value or "")
         for value in [
@@ -275,6 +261,30 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
             (live_predict_probe or {}).get("deployment_blocker_reason"),
         ]
     )
+    circuit_breaker_active = (
+        live_signal == "CIRCUIT_BREAKER"
+        or live_blocker == "circuit_breaker_active"
+        or runtime_closure_state == "circuit_breaker_active"
+        or "circuit_breaker_blocks_trade" in live_support_reason
+    )
+    current_bucket = _first_non_null(
+        live_current_bucket,
+        None if circuit_breaker_active and not live_current_bucket else history_bucket,
+        None if circuit_breaker_active and not live_current_bucket else (leaderboard_probe or {}).get("live_current_structure_bucket"),
+    )
+    current_rows = _first_non_null(
+        _as_int_or_none((live_predict_probe or {}).get("current_live_structure_bucket_rows")),
+        None if circuit_breaker_active and not live_current_bucket else _as_int_or_none(governance.get("live_current_structure_bucket_rows")),
+        None if circuit_breaker_active and not live_current_bucket else _as_int_or_none(support_progress.get("current_rows")),
+        0,
+    )
+    minimum_rows = _first_non_null(
+        _as_int_or_none((live_predict_probe or {}).get("minimum_support_rows")),
+        _as_int_or_none(governance.get("minimum_support_rows")),
+        _as_int_or_none(support_progress.get("minimum_support_rows")),
+        0,
+    )
+    route = governance.get("support_governance_route") or (live_predict_probe or {}).get("support_route_verdict")
     live_bucket_blocked = (
         "unsupported_exact_live_structure_bucket" in live_support_reason
         or "under_minimum_exact_live_structure_bucket" in live_support_reason
@@ -311,6 +321,35 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         )
     else:
         tracker.resolve("#H_AUTO_CURRENT_BUCKET_SUPPORT")
+
+    if circuit_breaker_active:
+        release_condition = (((live_predict_probe or {}).get("deployment_blocker_details") or {}).get("release_condition") or {})
+        current_recent_wins = release_condition.get("current_recent_window_wins")
+        required_recent_wins = release_condition.get("required_recent_window_wins")
+        recent_window = release_condition.get("recent_window")
+        additional_wins_needed = release_condition.get("additional_recent_window_wins_needed")
+        streak_floor = release_condition.get("streak_must_be_below")
+        release_text = (
+            f"recent {recent_window} 需至少 {required_recent_wins} 勝，當前 {current_recent_wins} 勝，還差 {additional_wins_needed} 勝；"
+            f"同時 streak 必須 < {streak_floor}。"
+            if recent_window is not None and required_recent_wins is not None and current_recent_wins is not None and additional_wins_needed is not None and streak_floor is not None
+            else "依 hb_circuit_breaker_audit / hb_predict_probe 的 release math 驗證解鎖條件。"
+        )
+        tracker.resolve("P0_q15_patch_active_but_execution_blocked")
+        tracker.resolve("#H_AUTO_CURRENT_BUCKET_TOXICITY")
+        tracker.add(
+            "P0",
+            "#H_AUTO_CIRCUIT_BREAKER",
+            (
+                f"canonical circuit breaker active ({current_recent_wins}/{required_recent_wins} wins in recent {recent_window})"
+                if recent_window is not None and required_recent_wins is not None and current_recent_wins is not None
+                else "canonical circuit breaker active"
+            ),
+            "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。"
+            f" {release_text}",
+        )
+    else:
+        tracker.resolve("#H_AUTO_CIRCUIT_BREAKER")
 
     toxic_blocker = str((live_predict_probe or {}).get("deployment_blocker") or "")
     toxic_current_bucket_active = bool(current_bucket) and (

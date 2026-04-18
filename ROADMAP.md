@@ -1,74 +1,80 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-18 20:23 CST_
+_最後更新：2026-04-18 21:46 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **hybrid / model leaderboard 路徑已補齊 local turning-point context**：`server/routes/api.py` 與 `backtesting/model_leaderboard.py` 現在都會把 `feat_local_bottom_score` / `feat_local_top_score` 傳入 `run_hybrid_backtest()`；canonical 掃描不再遺漏 turning-point gating。
-- **leaderboard frame 已補齊 regime / turning-point 欄位**：`load_model_leaderboard_frame()` 現在會載入 `regime_label`、`feat_local_bottom_score`、`feat_local_top_score`、`feat_turning_point_score`。
-- **全模型重掃腳本已建立並驗證**：`scripts/rescan_models_and_refresh_strategy_leaderboard.py --top-per-model 1` 會重掃 refresh models、做參數搜尋、清掉舊 auto candidates、重建最新 strategy leaderboard。
-- **策略排行榜已刷新成 6 筆最新 auto candidates**：包含 `rule_baseline`、`logistic_regression`、`xgboost`、`lightgbm`、`catboost`、`random_forest` 各 1 筆最佳候選。
-- **model leaderboard placeholder-only 狀態已產品化一層**：`/api/models/leaderboard` 現在雖然仍是 `count=0`，但 payload 會額外帶 `strategy_param_scan`，明確告訴 operator 目前可參考的 scan-backed strategy candidates。
-- **驗證完成**：
-  - `python -m pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_rescan_models_and_refresh_strategy_leaderboard.py -q` → `68 passed`
-  - `python -m py_compile server/routes/api.py backtesting/model_leaderboard.py scripts/rescan_models_and_refresh_strategy_leaderboard.py` → PASS
-  - `python scripts/rescan_models_and_refresh_strategy_leaderboard.py --top-per-model 1` → PASS
-  - `python scripts/hb_model_leaderboard_api_probe.py` → PASS（cache stable, placeholder warning retained）
+- **current-state issue truth 已產品化到 machine-readable 層**：`scripts/auto_propose_fixes.py` 現在在 live probe 進入 `CIRCUIT_BREAKER` / `circuit_breaker_active` 時，會停止沿用 stale q15 bucket history，改由 breaker release math 生成 `#H_AUTO_CIRCUIT_BREAKER`，並自動 resolve 舊的 `P0_q15_patch_active_but_execution_blocked`。
+- **回歸測試已補上**：`python -m pytest tests/test_auto_propose_fixes.py -q` → `19 passed`；`python -m pytest tests/test_api_feature_history_and_predictor.py tests/test_hb_predict_probe.py tests/test_q15_support_audit.py tests/test_auto_propose_fixes.py tests/test_server_startup.py -q` → `129 passed`。
+- **fast heartbeat 已重新對齊 current-live truth**：`python scripts/hb_parallel_runner.py --fast --hb 20260418f` 成功完成 collect / IC / drift / q35 / q15 / breaker / auto-propose 閉環，並把 current-live truth 切回 `circuit_breaker_active`。
+- **operator UI 已驗證 breaker truth**：瀏覽器 `http://127.0.0.1:5173/execution` 與 `/execution/status` 均顯示 `circuit_breaker_active`、`circuit_breaker_blocks_trade`、`layers — → 0`，並保留 venue readiness blocker。
+- **leaderboard honesty 仍被守住**：瀏覽器 `fetch('/api/models/leaderboard')` 驗證 `count=0 / comparable_count=0 / placeholder_count=4 / stale=true / refreshing=true`；目前仍是誠實空榜，而不是假排名。
 
 ---
 
 ## 主目標
 
-### 目標 A：用 live predictor truth 收斂 q15 current-live closure
+### 目標 A：解除 current-live circuit breaker，或至少把 release math 維持成唯一真相
 **目前真相**
-- `current_live_structure_bucket=CAUTION|structure_quality_caution|q15`
-- `support_route_verdict=exact_bucket_supported`
-- `current_live_structure_bucket_rows=96 / 50`
-- 但 top-level live baseline 仍是 `entry_quality=0.3385 / D / allowed_layers=0 / should_trade=false`
+- current live path 已不是 q15/q35 floor-gap 主導，而是 `circuit_breaker_active`
+- recent 50 只贏 `4/50`，距離 release floor `15/50` 還差 `11` 勝
+- `streak=45`，tail pathology 仍在擴大
 
 **成功標準**
-- 要嘛 live predictor 本身跨過 trade floor，變成真正可部署；
-- 要嘛所有 surface 一律明確呈現 `support closed but live baseline still below floor`，不再混淆成 patch-ready / venue-ready / deploy-ready。
+- 要嘛 recent 50 視窗提升到 `>=15` 勝並解除 breaker；
+- 要嘛所有 operator / heartbeat / docs 只把 breaker release math 當成唯一 current-live blocker，不再混入 stale q15/q35 敘事。
 
-### 目標 B：把 canonical model leaderboard 從 placeholder-only 推進到 usable comparable ranking
+### 目標 B：把 recent canonical tail pathology 轉成可修的 root cause
 **目前真相**
-- canonical leaderboard 仍是 `count=0 / placeholder_count=6`
-- 但 `strategy_param_scan` 與 strategy leaderboard 已經提供 6 條 scan-backed deployable candidates
-- 目前 scan 顯示有效參數普遍落在：
-  - `bias50_max ≈ 3.0`
-  - `stop_loss ≈ -0.05`
-  - `turning_point.bottom_score_min ≈ 0.56~0.62`
+- primary drift window = `1000`
+- `interpretation=distribution_pathology`
+- `dominant_regime=bull 88.8%`
+- tail streak 已到 `45x0`
 
 **成功標準**
-- 把上述有效參數回灌到 canonical leaderboard 的 deployment profiles / evaluation path，至少產生 `comparable_count > 0`；
-- 若短期內仍無 comparable rows，則 Strategy Lab / operator UX 必須直接顯示 `strategy_param_scan` advisory，而不是只留下空榜。
+- 能清楚指出 recent 50 / 100 / 1000 為何持續輸出 loss tail；
+- 對應 patch 必須能用 `hb_predict_probe.py` / `hb_circuit_breaker_audit.py` / `recent_drift_report.py` 重跑驗證，而不是只靠主觀描述。
 
-### 目標 C：維持產品化排行榜同步
+### 目標 C：讓 canonical leaderboard 脫離 placeholder-only
 **目前真相**
-- `Auto Leaderboard · ...` 已改為由最新 scan artifact 驅動
-- rule_baseline 落盤 bug 已修掉
-- stale auto candidates 已清除
+- `/api/models/leaderboard` 仍 `count=0 / comparable_count=0 / placeholder_count=4`
+- API 雖已誠實標示 `stale=true / refreshing=true`，但 עדיין沒有任何可部署 canonical row
 
 **成功標準**
-- 每次 scan 都能 deterministically 清掉舊 auto candidates、重建新候選、同步到 `/api/strategies/leaderboard`。
+- 至少出現一條 `comparable_count > 0` 的 canonical row；
+- 在做到之前，前端 / API 都必須維持 placeholder-only warning，不可把背景重算中的空榜包裝成正常排名。
+
+### 目標 D：保持 execution/runtime/operator surface 同步，且不掩蓋 venue blocker
+**目前真相**
+- `/execution`、`/execution/status` 已能顯示 breaker truth
+- venue blocker 仍存在：credentials / order ack / fill lifecycle 尚未驗證
+
+**成功標準**
+- 即使 breaker 將來解除，operator surfaces 仍必須保留 venue readiness blocker，直到 runtime 證據真的 closure。
 
 ---
 
 ## 下一步
-1. **把 scan winner 參數回灌到 canonical model leaderboard deployment profiles**
-   - 驗證：`python scripts/hb_model_leaderboard_api_probe.py` 或 `/api/models/leaderboard` 出現 `comparable_count > 0`
-2. **把 `strategy_param_scan` advisory 接到 Strategy Lab / operator UI**
-   - 驗證：前端 surface 能在 placeholder-only 時直接顯示 scan-backed candidates，而不是只顯示空榜 warning
-3. **持續以 live probe truth 收斂 q15 current-live semantics**
-   - 驗證：`hb_predict_probe.py`、`live_decision_quality_drilldown.py`、`/execution/status`
+1. **把 circuit breaker release math 當成唯一 current-live P0**
+   - 方向：沿 `hb_predict_probe.py`、`hb_circuit_breaker_audit.py`、`recent_drift_report.py` 追 recent 50/1000 canonical tail，找出能提升 recent 50 勝數的直接根因
+   - 驗證：`python scripts/hb_parallel_runner.py --fast --hb <N>`、`python scripts/hb_predict_probe.py`、`python scripts/hb_circuit_breaker_audit.py <N>`、瀏覽器 `/execution/status`
+2. **把 tail pathology 轉成具體 patch，而不是繼續用 q15/q35 敘事繞路**
+   - 方向：針對 recent tail 的 target path、regime mix、4H feature shifts 做 root-cause drill-down；若 patch 會影響 current-live blocker，優先加回歸測試
+   - 驗證：`recent_drift_report.py`、相關 pytest、fast heartbeat
+3. **把 canonical leaderboard 推出至少一條 comparable row**
+   - 方向：讓 canonical deployment profile 真正產生交易，不再只依賴 placeholder row；必要時同步處理 cache stale-while-revalidate 與 candidate refresh
+   - 驗證：`/api/models/leaderboard`、Strategy Lab `/lab`、必要時 `hb_model_leaderboard_api_probe.py`
+4. **保持 venue blocker 可見，不得被 breaker 或 leaderboard 修復遮蔽**
+   - 方向：繼續以 `/execution` / `/execution/status` 作 operator-facing truth surface
+   - 驗證：瀏覽器 UI + 對應 `/api/status` payload
 
 ---
 
 ## 成功標準
-- q15 current-live truth 與 operator surface 完全一致：support closure 不再被誤讀為 deployment closure
-- canonical model leaderboard 要嘛出現至少 1 條 comparable row，要嘛 placeholder-only UX 已完整產品化
-- strategy leaderboard 持續反映最新 scan artifact，而不是舊的 stale auto candidates
+- current-live blocker 清楚且唯一：**breaker release math**
+- recent tail pathology 有可重跑、可驗證的 root cause / patch / regression evidence
+- canonical leaderboard 不再只是 placeholder-only 空榜
 - heartbeat 維持：**issue 對齊 → patch → verify → docs overwrite → commit → push**

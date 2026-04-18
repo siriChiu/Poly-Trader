@@ -232,6 +232,8 @@ def _runtime_closure_state(result: dict) -> str:
         or (result.get("allowed_layers") or 0) <= 0
     ):
         return "patch_active_but_execution_blocked"
+    if patch_name:
+        return "patch_active"
     return "patch_inactive_or_blocked"
 
 
@@ -310,6 +312,8 @@ def _runtime_closure_summary(
             f"{patch_name} 已啟用並把 entry_quality 拉到 {float(result.get('entry_quality') or 0.0):.4f}（raw layers={raw_layers}），"
             f"但最終 execution 仍被 {blocker} 擋住；目前不可把 patch active 誤讀成可部署。"
         )
+    if patch_name:
+        return f"{patch_name} active，但當前 runtime 狀態不屬於 capacity_opened_signal_hold。"
     return None
 
 

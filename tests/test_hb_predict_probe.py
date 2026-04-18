@@ -849,6 +849,39 @@ def test_hb_predict_probe_emits_capacity_opened_hold_summary(monkeypatch, capsys
     assert "1 層 deployment capacity" in payload["runtime_closure_summary"]
 
 
+def test_hb_predict_probe_emits_patch_active_when_q15_capacity_is_live_and_signal_is_buy(monkeypatch, capsys, tmp_path):
+    session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+    q15_audit_path = tmp_path / "q15_support_audit.json"
+    q15_audit_path.write_text(json.dumps({
+        "scope_applicability": {"active_for_current_live_row": True, "current_structure_bucket": "CAUTION|structure_quality_caution|q15"},
+        "support_route": {"verdict": "exact_bucket_supported", "deployable": True, "support_progress": {"status": "exact_supported", "current_rows": 95, "minimum_support_rows": 50, "gap_to_minimum": 0}},
+        "floor_cross_legality": {"verdict": "legal_component_experiment_after_support_ready", "legal_to_relax_runtime_gate": True},
+        "component_experiment": {"verdict": "exact_supported_component_experiment_ready", "feature": "feat_4h_bias50", "machine_read_answer": {"support_ready": True, "entry_quality_ge_0_55": True, "allowed_layers_gt_0": True, "preserves_positive_discrimination": True}}
+    }), encoding="utf-8")
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit_path)
+    monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
+    monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"bull": object()}))
+    monkeypatch.setattr(hb_predict_probe, "load_latest_features", lambda _session: {"timestamp": "2026-04-18T12:29:28.706281", "regime_label": "bull"})
+    monkeypatch.setattr(hb_predict_probe, "predict", lambda *_args, **_kwargs: {
+        "target_col": "simulated_pyramid_win", "used_model": "regime_bull_ensemble", "model_type": "RegimeAwarePredictor",
+        "signal": "BUY", "confidence": 0.749339, "regime_label": "bull", "model_route_regime": "bull", "regime_gate": "CAUTION",
+        "structure_bucket": "CAUTION|structure_quality_caution|q15", "entry_quality": 0.55, "entry_quality_label": "C",
+        "allowed_layers_raw": 1, "allowed_layers_raw_reason": "entry_quality_C_single_layer", "allowed_layers": 1, "allowed_layers_reason": "entry_quality_C_single_layer",
+        "q15_exact_supported_component_patch_applied": True, "execution_guardrail_applied": False, "execution_guardrail_reason": None,
+        "deployment_blocker": None, "deployment_blocker_reason": None, "deployment_blocker_source": None, "deployment_blocker_details": None,
+        "decision_quality_horizon_minutes": 1440, "decision_quality_live_structure_bucket": "CAUTION|structure_quality_caution|q15", "decision_quality_exact_live_structure_bucket_support_rows": 95,
+        "support_route_verdict": "exact_bucket_supported", "support_route_deployable": True, "support_progress": {"status": "exact_supported", "current_rows": 95, "minimum_support_rows": 50, "gap_to_minimum": 0},
+        "minimum_support_rows": 50, "current_live_structure_bucket_gap_to_minimum": 0,
+    })
+    hb_predict_probe.main()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["q15_exact_supported_component_patch_applied"] is True
+    assert payload["runtime_closure_state"] == "patch_active"
+    assert "q15 patch active" in payload["runtime_closure_summary"]
+
+
 def test_hb_predict_probe_emits_patch_active_but_execution_blocked_summary(monkeypatch, capsys, tmp_path):
     session = DummySession()
     out_path = tmp_path / "live_predict_probe.json"

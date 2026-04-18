@@ -3142,6 +3142,7 @@ def _q15_exact_support_runtime_override(
         "expected_quality": bucket_metrics.get("avg_quality"),
         "expected_drawdown_penalty": bucket_metrics.get("avg_drawdown_penalty"),
         "expected_time_underwater": bucket_metrics.get("avg_time_underwater"),
+        "authoritative_expected_metrics": True,
     }
 
 
@@ -3202,6 +3203,16 @@ def _structure_bucket_support_guardrail(
         scope_diagnostics,
     )
     if q15_support_override:
+        if q15_support_override.get("authoritative_expected_metrics"):
+            return {
+                **default_result,
+                **q15_support_override,
+                "expected_win_rate": q15_support_override.get("expected_win_rate", expected_win_rate),
+                "expected_pnl": q15_support_override.get("expected_pnl", expected_pnl),
+                "expected_quality": q15_support_override.get("expected_quality", expected_quality),
+                "expected_drawdown_penalty": q15_support_override.get("expected_drawdown_penalty", expected_drawdown_penalty),
+                "expected_time_underwater": q15_support_override.get("expected_time_underwater", expected_time_underwater),
+            }
         return {
             **default_result,
             **q15_support_override,

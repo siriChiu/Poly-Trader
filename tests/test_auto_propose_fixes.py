@@ -1237,6 +1237,69 @@ def test_sync_current_state_governance_issues_prefers_live_supported_bucket_over
     assert "139 rows" in toxic_add[2]
 
 
+def test_sync_current_state_governance_issues_resolves_stale_q15_issue_when_circuit_breaker_is_active():
+    events = []
+
+    class DummyTracker:
+        def add(self, priority, issue_id, title, action="", status="open"):
+            events.append(("add", issue_id, title, action, status))
+
+        def resolve(self, issue_id):
+            events.append(("resolve", issue_id))
+            return True
+
+    auto_propose_fixes.sync_current_state_governance_issues(
+        DummyTracker(),
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "support_governance_route": "exact_live_bucket_supported",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 95,
+                    "support_progress": {
+                        "current_rows": 95,
+                        "minimum_support_rows": 50,
+                        "history": [
+                            {
+                                "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15"
+                            }
+                        ],
+                    },
+                },
+            }
+        },
+        {
+            "signal": "CIRCUIT_BREAKER",
+            "current_live_structure_bucket": None,
+            "current_live_structure_bucket_rows": None,
+            "runtime_closure_state": "circuit_breaker_active",
+            "deployment_blocker": "circuit_breaker_active",
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "current_recent_window_wins": 5,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 10,
+                    "recent_window": 50,
+                    "streak_must_be_below": 50,
+                }
+            },
+            "allowed_layers_reason": "circuit_breaker_blocks_trade",
+            "execution_guardrail_reason": "circuit_breaker_blocks_trade",
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    assert ("resolve", "P0_q15_patch_active_but_execution_blocked") in events
+    assert ("resolve", "#H_AUTO_CURRENT_BUCKET_SUPPORT") in events
+    breaker_add = next(event for event in events if event[0] == "add" and event[1] == "#H_AUTO_CIRCUIT_BREAKER")
+    assert "5/15" in breaker_add[2]
+    assert "recent 50" in breaker_add[2]
+    assert "還差 10 勝" in breaker_add[3]
+    assert not any(event[0] == "add" and event[1] == "#H_AUTO_CURRENT_BUCKET_SUPPORT" for event in events)
+
+
 def test_sync_current_state_governance_issues_adds_alignment_blocker_when_current_inputs_stale():
     events = []
 

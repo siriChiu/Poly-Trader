@@ -489,6 +489,180 @@ def test_build_report_support_ready_exposes_component_experiment_machine_read_an
     assert report["component_experiment"]["positive_discrimination_evidence"]["comparisons"][0]["bucket"] == "CAUTION|structure_quality_caution|q35"
 
 
+def test_build_report_falls_back_to_chosen_scope_metrics_for_q15_positive_discrimination():
+    probe = {
+        "feature_timestamp": "2026-04-15 17:35:54",
+        "target_col": "simulated_pyramid_win",
+        "signal": "BUY",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.55,
+        "entry_quality_label": "C",
+        "decision_quality_label": "D",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "decision_quality_below_trade_floor",
+        "execution_guardrail_reason": "decision_quality_below_trade_floor",
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                "current_live_structure_bucket_rows": 0,
+                "current_live_structure_bucket_metrics": None,
+                "exact_lane_bucket_diagnostics": {
+                    "buckets": {
+                        "CAUTION|structure_quality_caution|q35": {
+                            "rows": 80,
+                            "win_rate": 0.81,
+                            "avg_quality": 0.31,
+                            "avg_pnl": 0.0021,
+                        }
+                    }
+                },
+            }
+        },
+    }
+    drilldown = {
+        "chosen_scope_summary": {
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 50,
+            "current_live_structure_bucket_metrics": {
+                "win_rate": 0.93,
+                "avg_quality": 0.48,
+                "avg_pnl": 0.0052,
+            },
+        },
+        "component_gap_attribution": {
+            "trade_floor": 0.55,
+            "remaining_gap_to_floor": 0.0541,
+            "best_single_component": {
+                "feature": "feat_4h_bias50",
+                "required_score_delta_to_cross_floor": 0.1803,
+                "can_single_component_cross_floor": True,
+            },
+            "bias50_floor_counterfactual": {
+                "entry_if_bias50_fully_relaxed": 0.7208,
+                "layers_if_bias50_fully_relaxed": 2,
+                "required_bias50_cap_for_floor": 0.247,
+            },
+        },
+    }
+    bull_pocket = {
+        "target_col": "simulated_pyramid_win",
+        "support_pathology_summary": {
+            "minimum_support_rows": 50,
+            "exact_bucket_root_cause": "exact_bucket_supported",
+            "preferred_support_cohort": "exact_live_bucket",
+            "recommended_action": "可回到 exact live bucket 直接治理與驗證。",
+        },
+    }
+    leaderboard_probe = {
+        "alignment": {
+            "support_governance_route": "exact_live_bucket_supported",
+            "bull_exact_live_bucket_proxy_rows": 171,
+            "bull_exact_live_lane_proxy_rows": 434,
+            "bull_support_neighbor_rows": 0,
+        }
+    }
+
+    report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
+
+    assert report["support_route"]["verdict"] == "exact_bucket_supported"
+    assert report["component_experiment"]["machine_read_answer"]["preserves_positive_discrimination"] is True
+    assert report["component_experiment"]["machine_read_answer"]["preserves_positive_discrimination_status"] == "verified_exact_lane_bucket_dominance"
+    assert report["component_experiment"]["positive_discrimination_evidence"]["current_bucket_metrics"]["win_rate"] == 0.93
+    assert report["component_experiment"]["positive_discrimination_evidence"]["comparisons"][0]["bucket"] == "CAUTION|structure_quality_caution|q35"
+
+
+def test_build_report_falls_back_to_probe_exact_lane_bucket_diagnostics_for_q15_positive_discrimination():
+    probe = {
+        "feature_timestamp": "2026-04-18 12:29:28.706281",
+        "target_col": "simulated_pyramid_win",
+        "signal": "BUY",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.55,
+        "entry_quality_label": "C",
+        "decision_quality_label": "D",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "decision_quality_below_trade_floor",
+        "execution_guardrail_reason": "decision_quality_below_trade_floor",
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                "current_live_structure_bucket_rows": 0,
+                "current_live_structure_bucket_metrics": None,
+                "exact_lane_bucket_diagnostics": {
+                    "buckets": {}
+                },
+            }
+        },
+        "decision_quality_exact_live_lane_bucket_diagnostics": {
+            "buckets": {
+                "CAUTION|structure_quality_caution|q15": {
+                    "rows": 95,
+                    "win_rate": 0.9579,
+                    "avg_quality": 0.5977,
+                    "avg_pnl": 0.0158,
+                },
+                "CAUTION|structure_quality_caution|q35": {
+                    "rows": 101,
+                    "win_rate": 0.4554,
+                    "avg_quality": 0.157,
+                    "avg_pnl": 0.0035,
+                },
+            }
+        },
+    }
+    drilldown = {
+        "chosen_scope_summary": {
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 95,
+            "current_live_structure_bucket_metrics": {
+                "win_rate": 0.9579,
+                "avg_quality": 0.5977,
+                "avg_pnl": 0.0158,
+            },
+        },
+        "component_gap_attribution": {
+            "trade_floor": 0.55,
+            "remaining_gap_to_floor": 0.2013,
+            "best_single_component": {
+                "feature": "feat_4h_bias50",
+                "required_score_delta_to_cross_floor": 0.671,
+                "can_single_component_cross_floor": True,
+            },
+            "bias50_floor_counterfactual": {
+                "entry_if_bias50_fully_relaxed": 0.55,
+                "layers_if_bias50_fully_relaxed": 1,
+                "required_bias50_cap_for_floor": None,
+            },
+        },
+    }
+    bull_pocket = {
+        "target_col": "simulated_pyramid_win",
+        "support_pathology_summary": {
+            "minimum_support_rows": 50,
+            "exact_bucket_root_cause": "exact_bucket_supported",
+            "preferred_support_cohort": "exact_live_bucket",
+            "recommended_action": "可回到 exact live bucket 直接治理與驗證。",
+        },
+    }
+    leaderboard_probe = {
+        "alignment": {
+            "support_governance_route": "exact_live_bucket_supported",
+            "bull_exact_live_bucket_proxy_rows": 0,
+            "bull_exact_live_lane_proxy_rows": 1,
+            "bull_support_neighbor_rows": 1,
+        }
+    }
+
+    report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
+
+    assert report["component_experiment"]["machine_read_answer"]["preserves_positive_discrimination"] is True
+    assert report["component_experiment"]["machine_read_answer"]["preserves_positive_discrimination_status"] == "verified_exact_lane_bucket_dominance"
+    assert report["component_experiment"]["positive_discrimination_evidence"]["current_bucket_metrics"]["win_rate"] == 0.9579
+    assert report["component_experiment"]["positive_discrimination_evidence"]["comparisons"][0]["bucket"] == "CAUTION|structure_quality_caution|q35"
+
+
 def test_build_report_marks_q15_experiment_as_standby_when_current_live_row_is_q35():
     probe = {
         "feature_timestamp": "2026-04-15 17:35:54",

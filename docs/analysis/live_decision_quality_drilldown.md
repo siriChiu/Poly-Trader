@@ -1,41 +1,41 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-18 12:08:40.638156**
+- feature_timestamp: **2026-04-18 13:43:25.809469**
 - target: `simulated_pyramid_win`
-- live path: **bull / CAUTION / C**
-- signal: **BUY** @ confidence **0.7646**
-- layers: **1 → 0**
-- allowed_layers_raw_reason: `entry_quality_C_single_layer`
-- allowed_layers_reason: `decision_quality_below_trade_floor`
-- execution_guardrail_reason: `decision_quality_below_trade_floor`
-- runtime_blocker: `None` | reason: `None`
-- deployment_blocker: `decision_quality_below_trade_floor` | reason: `current live structure bucket `CAUTION|structure_quality_caution|q15` 已完成 exact support closure（96/50），且 q15 patch 已啟用並把 raw entry 拉到 entry_quality=0.5500（raw layers=1），但 final execution 仍被 decision-quality trade floor 擋住；目前必須維持 patch_active_but_execution_blocked，不可把 q15 patch active 或 support closure 誤讀成 deployment closure。`
-- q15 exact-supported patch: **active** | support_route `exact_bucket_supported` | floor_cross `legal_component_experiment_after_support_ready`
-- runtime closure summary: **q15 patch 已啟用並把 entry_quality 拉到 0.5500（raw layers=1），但最終 execution 仍被 decision_quality_below_trade_floor 擋住；目前不可把 patch active 誤讀成可部署。**
-- q15 patch machine-read: support_ready=True / entry_quality_ge_0_55=True / allowed_layers_gt_0=True / preserves_positive_discrimination_status=`verified_exact_lane_bucket_dominance`
+- live path: **bull / None / None**
+- signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
+- layers: **None → 0**
+- allowed_layers_raw_reason: `circuit_breaker_preempts_runtime_sizing`
+- allowed_layers_reason: `circuit_breaker_blocks_trade`
+- execution_guardrail_reason: `circuit_breaker_blocks_trade`
+- runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 8.00% < 30%`
+- deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 8.00% < 30%`
+- q15 exact-supported patch: **inactive** | support_route `None` | floor_cross `None`
+- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 8.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 4/50，至少還差 11 勝。 同時 recent pathology=recent drift primary window 1000 rows; shows distribution_pathology; dominant_regime=bull (89%); alerts=['label_imbalance', 'regime_shift']。**
+- q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.55** / trade_floor **0.55** / gap **0.0**
-- base_quality: **0.6448** × weight **0.75**
-- structure_quality: **0.2656** × weight **0.25**
-- base components: feat_4h_bias50=0.705 (w=0.4, contrib=0.282), feat_nose=0.7709 (w=0.18, contrib=0.1388), feat_pulse=0.3056 (w=0.27, contrib=0.0825), feat_ear=0.9437 (w=0.15, contrib=0.1416)
-- structure components: feat_4h_bb_pct_b=0.3079 (w=0.34, contrib=0.1047), feat_4h_dist_bb_lower=0.1103 (w=0.33, contrib=0.0364), feat_4h_dist_swing_low=0.3772 (w=0.33, contrib=0.1245)
+- final entry_quality: **None** / trade_floor **None** / gap **None**
+- base_quality: **None** × weight **None**
+- structure_quality: **None** × weight **None**
+- base components: None
+- structure components: None
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.2115**
-- base_group_max_entry_gain: **0.4778** | structure_group_max_entry_gain: **0.1836**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.705, max_gain≈0.3）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.705)
-- bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
-- unavailable_reason: `None`
+- remaining_gap_to_floor: **None**
+- base_group_max_entry_gain: **None** | structure_group_max_entry_gain: **None**
+- best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
+- single-component floor crossers: None
+- bias50 fully relaxed: entry≈**None** / layers≈**None** / required_bias50_cap≈**None**
+- unavailable_reason: `Recent 50-sample win rate: 8.00% < 30%`
 
 ## Scope comparison
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label` | 196 | 0.7041 | 0.3738 | 0.1263 | 0.3728 | 96 | False |
+| chosen `unknown` | 0 | None | None | None | None | 0 | False |
 | exact `regime_label+regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
 | narrow `regime_label+entry_quality_label` | 0 | None | None | None | None | 0 | False |
 | broad `regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |

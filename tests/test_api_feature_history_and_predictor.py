@@ -1127,11 +1127,11 @@ def test_structure_bucket_support_guardrail_replays_q15_exact_supported_runtime(
         decision_profile,
         "regime_label",
         scope_diagnostics,
-        expected_win_rate=0.91,
-        expected_pnl=0.0041,
-        expected_quality=0.4146,
-        expected_drawdown_penalty=0.1096,
-        expected_time_underwater=0.2429,
+        expected_win_rate=0.699,
+        expected_pnl=0.0095,
+        expected_quality=0.3706,
+        expected_drawdown_penalty=0.127,
+        expected_time_underwater=0.3724,
     )
 
     assert guarded["applied"] is True
@@ -1139,11 +1139,11 @@ def test_structure_bucket_support_guardrail_replays_q15_exact_supported_runtime(
     assert guarded["support_rows"] == 79
     assert guarded["exact_support_rows"] == 79
     assert guarded["supported_neighbor_buckets"] == []
-    assert guarded["expected_win_rate"] == pytest.approx(0.91)
-    assert guarded["expected_pnl"] == pytest.approx(0.0041)
-    assert guarded["expected_quality"] == pytest.approx(0.4146)
-    assert guarded["expected_drawdown_penalty"] == pytest.approx(0.1096)
-    assert guarded["expected_time_underwater"] == pytest.approx(0.2429)
+    assert guarded["expected_win_rate"] == pytest.approx(1.0)
+    assert guarded["expected_pnl"] == pytest.approx(0.0058)
+    assert guarded["expected_quality"] == pytest.approx(0.4966)
+    assert guarded["expected_drawdown_penalty"] == pytest.approx(0.0674)
+    assert guarded["expected_time_underwater"] == pytest.approx(0.1272)
 
 
 def test_predictor_applies_legacy_isotonic_calibration_payload_keys():

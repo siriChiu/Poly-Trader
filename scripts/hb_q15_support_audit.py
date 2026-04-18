@@ -628,8 +628,12 @@ def _measure_q15_positive_discrimination(
 ) -> dict[str, Any]:
     scopes = (probe.get("decision_quality_scope_diagnostics") or {}) if isinstance(probe, dict) else {}
     exact_scope = scopes.get("regime_label+regime_gate+entry_quality_label") or {}
-    exact_diag = exact_scope.get("exact_lane_bucket_diagnostics") or drilldown.get("exact_live_lane_bucket_diagnostics") or {}
+    probe_exact_diag = (probe.get("decision_quality_exact_live_lane_bucket_diagnostics") or {}) if isinstance(probe, dict) else {}
+    exact_diag = exact_scope.get("exact_lane_bucket_diagnostics") or {}
+    if not (exact_diag.get("buckets") or {}):
+        exact_diag = probe_exact_diag or drilldown.get("exact_live_lane_bucket_diagnostics") or {}
     buckets = exact_diag.get("buckets") or {}
+    chosen_scope = (drilldown.get("chosen_scope_summary") or {}) if isinstance(drilldown, dict) else {}
     if not current_bucket:
         return {
             "preserves_positive_discrimination": None,
@@ -638,6 +642,10 @@ def _measure_q15_positive_discrimination(
         }
 
     current_metrics = exact_scope.get("current_live_structure_bucket_metrics") or buckets.get(current_bucket) or {}
+    if not current_metrics and str(chosen_scope.get("current_live_structure_bucket") or "") == str(current_bucket):
+        current_metrics = dict(chosen_scope.get("current_live_structure_bucket_metrics") or {})
+        if current_metrics and current_metrics.get("rows") is None:
+            current_metrics["rows"] = chosen_scope.get("current_live_structure_bucket_rows")
     if not current_metrics:
         return {
             "preserves_positive_discrimination": None,

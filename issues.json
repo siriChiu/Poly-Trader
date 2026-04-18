@@ -1,52 +1,88 @@
 {
+  "updated_at": "2026-04-18T21:46:45+08:00",
   "issues": [
     {
-      "id": "P0_q15_support_closed_but_live_baseline_below_floor",
+      "id": "#H_AUTO_CIRCUIT_BREAKER",
       "priority": "P0",
       "status": "open",
-      "title": "current live q15 lane is exact-supported, but the live baseline still remains below the trade floor",
+      "title": "canonical circuit breaker active (4/15 wins in recent 50)",
       "summary": {
-        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
-        "support_route_verdict": "exact_bucket_supported",
-        "support_rows": 96,
-        "minimum_support_rows": 50,
-        "q15_exact_supported_component_patch_applied": false,
-        "live_entry_quality": 0.3385,
-        "live_entry_quality_label": "D",
-        "allowed_layers": 0,
-        "allowed_layers_reason": "decision_quality_below_trade_floor",
-        "deployment_blocker": "decision_quality_below_trade_floor",
-        "should_trade": false
+        "deployment_blocker": "circuit_breaker_active",
+        "recent_window": 50,
+        "current_recent_window_wins": 4,
+        "required_recent_window_wins": 15,
+        "additional_recent_window_wins_needed": 11,
+        "streak": 45,
+        "streak_must_be_below": 50
       },
-      "next_actions": [
-        "keep live_predict_probe.json as the single source of truth for current q15 runtime semantics",
-        "only treat q15 as deployable when the top-level live baseline itself reaches entry_quality >= 0.55 and allowed_layers > 0",
-        "verify with hb_predict_probe.py, live_decision_quality_drilldown.py, hb_parallel_runner fast mode, and /execution/status"
-      ],
-      "action": "promote q15 from support-closed research readiness to true live deployment closure or explicit no-deploy governance"
+      "action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。recent 50 需至少 15 勝，當前 4 勝，還差 11 勝；同時 streak 必須 < 50。"
     },
     {
-      "id": "P1_canonical_model_leaderboard_placeholder_only_with_scan_advisory",
+      "id": "#H_AUTO_STREAK",
+      "priority": "P0",
+      "status": "open",
+      "title": "連續 45 筆 simulated_pyramid_win=0",
+      "summary": {
+        "losing_streak": 45,
+        "drift_window": 1000,
+        "drift_interpretation": "distribution_pathology",
+        "dominant_regime": "bull"
+      },
+      "action": "檢查 recent canonical labels / regime breakdown / circuit breaker；必要時升級為 distribution-aware drift 調查。"
+    },
+    {
+      "id": "P1_canonical_model_leaderboard_placeholder_only",
       "priority": "P1",
       "status": "open",
-      "title": "canonical model leaderboard is still placeholder-only, but scan-backed strategy candidates now exist",
+      "title": "canonical model leaderboard is still placeholder-only",
       "summary": {
-        "artifact": "/api/models/leaderboard",
         "count": 0,
         "comparable_count": 0,
-        "placeholder_count": 6,
-        "leaderboard_warning": "目前 6 個模型都沒有產生任何交易；排行榜已降級為 placeholder 檢視，請勿把 #1 當成可部署排名。",
-        "strategy_param_scan_saved_strategy_count": 6,
-        "strategy_param_scan_top_candidate_model": "lightgbm",
-        "strategy_param_scan_top_candidate_roi": 0.3744,
-        "strategy_param_scan_warning": "canonical model leaderboard 仍是 placeholder-only；請改看策略參數重掃候選。"
+        "placeholder_count": 4,
+        "stale": true,
+        "refreshing": true,
+        "refresh_reason": "cache_stale",
+        "leaderboard_warning": "目前 4 個模型都沒有產生任何交易；排行榜已降級為 placeholder 檢視，請勿把 #1 當成可部署排名。"
       },
-      "next_actions": [
-        "backport scan-winning parameters such as bias50_max≈3.0, stop_loss≈-0.05, and turning_point.bottom_score_min≈0.56~0.62 into canonical leaderboard deployment profiles",
-        "keep placeholder-only warning visible until comparable_count > 0",
-        "surface strategy_param_scan directly on Strategy Lab/operator UX so placeholder-only state is actionable instead of opaque"
-      ],
-      "action": "turn the honest placeholder-only canonical leaderboard into a usable comparable ranking, while preserving the scan-backed advisory path"
+      "action": "讓 canonical leaderboard 產生至少一條 comparable row；在做到前，維持 placeholder-only warning，並以 /api/models/leaderboard 與 /lab 驗證。"
+    },
+    {
+      "id": "#H_AUTO_MODEL_STABILITY",
+      "priority": "P1",
+      "status": "open",
+      "title": "model stability still needs work (cv=0.6198, cv_std=0.0667, cv_worst=0.5557)",
+      "summary": {
+        "cv_accuracy": 0.6198,
+        "cv_std": 0.0667,
+        "cv_worst": 0.5557
+      },
+      "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。"
+    },
+    {
+      "id": "#H_AUTO_LIVE_DQ_PATHOLOGY",
+      "priority": "P1",
+      "status": "open",
+      "title": "live predictor decision-quality contract is runtime-blocked by recent pathology, a toxic exact live lane, or a severe narrowed pathology lane",
+      "summary": {
+        "live_scope": "unknown",
+        "deployment_blocker": "circuit_breaker_active",
+        "window": 1000,
+        "alerts": ["label_imbalance", "regime_shift"],
+        "allowed_layers": 0
+      },
+      "action": "把 hb_predict_probe 納入每輪 heartbeat 驗證，對 exact live lane、當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；先確認 execution guardrail 是否只是正確地把壞 pocket 擋下。"
+    },
+    {
+      "id": "#H_AUTO_REGIME_DRIFT",
+      "priority": "P1",
+      "status": "open",
+      "title": "TW-IC 30 vs Global IC 14 — 信號強依賴近期資料",
+      "summary": {
+        "global_pass": 14,
+        "tw_pass": 30,
+        "total_features": 30
+      },
+      "action": "市場 regime 可能已變化；考慮 regime-gated feature weighting，但不得先忽略 current-live circuit breaker。"
     }
   ]
 }
