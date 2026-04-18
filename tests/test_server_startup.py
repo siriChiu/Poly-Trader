@@ -1230,3 +1230,92 @@ def test_build_execution_metadata_smoke_governance_includes_external_monitor(mon
     assert governance["external_monitor"]["freshness"]["status"] == "fresh"
     assert governance["external_monitor"]["install_contract"]["preferred_host_lane"] == "user_crontab"
     assert governance["external_monitor"]["ticking_state"]["status"] == "observed-ticking"
+
+
+
+def test_build_live_runtime_closure_surface_exposes_exact_vs_spillover_summary(monkeypatch):
+    from backtesting import strategy_lab
+
+    monkeypatch.setattr(
+        strategy_lab,
+        "build_regime_aware_sleeve_routing",
+        lambda **_: {"active_ratio_text": "0/4", "current_regime": "bull", "current_regime_gate": "CAUTION"},
+    )
+
+    payload = {
+        "signal": "CIRCUIT_BREAKER",
+        "reason": "Consecutive loss streak: 125 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+        "deployment_blocker": "circuit_breaker_active",
+        "deployment_blocker_details": {
+            "recent_window": {"window_size": 50, "wins": 0, "win_rate": 0.0, "floor": 0.3},
+            "release_condition": {
+                "recent_window": 50,
+                "current_recent_window_wins": 0,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 15,
+                "recent_win_rate_must_be_at_least": 0.3,
+                "current_streak": 125,
+                "streak_must_be_below": 50,
+            },
+        },
+        "support_progress": {"current_rows": 53, "minimum_support_rows": 50},
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "rows": 104,
+                "win_rate": 0.7115,
+                "avg_pnl": 0.0110,
+                "avg_quality": 0.4086,
+                "avg_drawdown_penalty": 0.1211,
+                "avg_time_underwater": 0.2547,
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                "current_live_structure_bucket_rows": 53,
+                "alerts": [],
+            },
+            "regime_label+entry_quality_label": {
+                "rows": 199,
+                "win_rate": 0.3719,
+                "avg_pnl": 0.0008,
+                "avg_quality": 0.0814,
+                "avg_drawdown_penalty": 0.2371,
+                "avg_time_underwater": 0.4894,
+                "spillover_vs_exact_live_lane": {
+                    "extra_rows": 95,
+                    "extra_row_share": 0.4774,
+                    "win_rate_delta_vs_exact": -0.3396,
+                    "avg_pnl_delta_vs_exact": -0.0102,
+                    "avg_quality_delta_vs_exact": -0.3272,
+                    "avg_drawdown_penalty_delta_vs_exact": 0.2430,
+                    "avg_time_underwater_delta_vs_exact": 0.4917,
+                    "worst_extra_regime_gate": {
+                        "regime_gate": "bull|ALLOW",
+                        "rows": 95,
+                        "win_rate": 0.0,
+                        "avg_pnl": -0.0103,
+                        "avg_quality": -0.2768,
+                        "avg_drawdown_penalty": 0.3641,
+                        "avg_time_underwater": 0.7464,
+                    },
+                    "worst_extra_regime_gate_feature_contrast": {
+                        "top_mean_shift_features": [
+                            {"feature": "feat_4h_bias200", "reference_mean": 7.5079, "current_mean": 10.2237, "mean_delta": 2.7158},
+                            {"feature": "feat_4h_dist_swing_low", "reference_mean": 2.8279, "current_mean": 5.4505, "mean_delta": 2.6226},
+                        ],
+                    },
+                },
+            },
+        },
+    }
+
+    result = api_module._build_live_runtime_closure_surface(payload)
+
+    scope_summary = result["decision_quality_scope_pathology_summary"]
+    assert scope_summary["focus_scope"] == "regime_label+entry_quality_label"
+    assert scope_summary["spillover"]["extra_rows"] == 95
+    assert scope_summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|ALLOW"
+    assert scope_summary["exact_live_lane"]["rows"] == 104
+    assert "bull|ALLOW" in scope_summary["summary"]
+    assert "exact-vs-spillover" in result["runtime_closure_summary"]
+    assert "bull|ALLOW" in result["runtime_closure_summary"]

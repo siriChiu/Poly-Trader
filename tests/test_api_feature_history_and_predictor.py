@@ -1283,6 +1283,46 @@ def test_live_decision_profile_downgrades_borderline_allow_q35_to_caution():
     assert expected_gate == "CAUTION"
 
 
+def test_live_decision_profile_blocks_bull_q15_bias50_overextended_pocket():
+    features = {
+        "regime_label": "bull",
+        "feat_4h_bias200": 2.4,
+        "feat_4h_bias50": 1.8,
+        "feat_nose": 0.0,
+        "feat_pulse": 1.0,
+        "feat_ear": 0.0,
+        "feat_4h_bb_pct_b": 0.30,
+        "feat_4h_dist_bb_lower": 1.2,
+        "feat_4h_dist_swing_low": 4.0,
+    }
+
+    profile = predictor_module._build_live_decision_profile(features)
+    debug = predictor_module._compute_live_regime_gate_debug(
+        2.4,
+        "bull",
+        bb_pct_b_value=0.30,
+        dist_bb_lower_value=1.2,
+        dist_swing_low_value=4.0,
+        bias50_value=1.8,
+    )
+    expected_gate = strategy_lab._compute_regime_gate(
+        2.4,
+        "bull",
+        -10.0,
+        0.30,
+        1.2,
+        4.0,
+        bias50_value=1.8,
+    )
+
+    assert debug["final_reason"] == "bull_q15_bias50_overextended_block"
+    assert profile["regime_gate"] == "BLOCK"
+    assert profile["structure_bucket"] == "BLOCK|bull_q15_bias50_overextended_block|q15"
+    assert profile["allowed_layers"] == 0
+    assert profile["allowed_layers_reason"] == "regime_gate_block"
+    assert expected_gate == "BLOCK"
+
+
 def test_piecewise_q35_bias50_calibration_ignores_non_q35_structure_bucket(tmp_path, monkeypatch):
     audit_path = tmp_path / "q35_scaling_audit.json"
     audit_path.write_text(

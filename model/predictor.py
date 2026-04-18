@@ -67,6 +67,10 @@ EXACT_LIVE_STRUCTURE_BUCKET_MIN_SUPPORT_ROWS = 50
 LIVE_4H_OVEREXTENDED_BB_PCT_B_MIN = 1.0
 LIVE_4H_OVEREXTENDED_DIST_BB_LOWER_MIN = 10.0
 LIVE_4H_OVEREXTENDED_DIST_SWING_LOW_MIN = 11.0
+# P0 follow-up: bull q15 weak-structure pockets can still look barely tradable when
+# bias50 remains stretched. Fail-close these lanes before they are surfaced as live
+# CAUTION entries or allowed through exact-support heuristics.
+LIVE_BULL_Q15_BIAS50_OVEREXTENDED_MIN = 1.8
 
 # P0 #H426: Bull regime signal inversion
 # Legacy short-selling logic needed inversion in bull markets.
@@ -345,6 +349,7 @@ def _compute_live_regime_gate_debug(
     bb_pct_b_value: Optional[float] = None,
     dist_bb_lower_value: Optional[float] = None,
     dist_swing_low_value: Optional[float] = None,
+    bias50_value: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Explain how the live regime gate was formed for diagnostics/root-cause work."""
     regime = (regime or "unknown").lower()
@@ -403,6 +408,13 @@ def _compute_live_regime_gate_debug(
         if structure_quality < 0.15:
             final_gate = "BLOCK"
             final_reason = "structure_quality_block"
+        elif _is_live_bull_q15_bias50_overextended_pocket(
+            regime=regime,
+            structure_quality=structure_quality,
+            bias50_value=bias50_value,
+        ):
+            final_gate = "BLOCK"
+            final_reason = "bull_q15_bias50_overextended_block"
         # Heartbeat #718: ALLOW+q35 produced a live bull path that looked permissive
         # but had almost no historical support (2 rows in the 24h calibration set).
         # Treat borderline 4H structure (<0.65) as CAUTION so runtime semantics stop
@@ -430,6 +442,7 @@ def _compute_live_regime_gate(
     bb_pct_b_value: Optional[float] = None,
     dist_bb_lower_value: Optional[float] = None,
     dist_swing_low_value: Optional[float] = None,
+    bias50_value: Optional[float] = None,
 ) -> str:
     """Mirror Strategy Lab's regime gate semantics for live inference.
 
@@ -445,6 +458,7 @@ def _compute_live_regime_gate(
             bb_pct_b_value=bb_pct_b_value,
             dist_bb_lower_value=dist_bb_lower_value,
             dist_swing_low_value=dist_swing_low_value,
+            bias50_value=bias50_value,
         ).get("final_gate")
         or "BLOCK"
     )
@@ -462,6 +476,20 @@ def _is_live_4h_structure_overextended(
         and float(dist_bb_lower_value) >= LIVE_4H_OVEREXTENDED_DIST_BB_LOWER_MIN
         and float(dist_swing_low_value) >= LIVE_4H_OVEREXTENDED_DIST_SWING_LOW_MIN
     )
+
+
+def _is_live_bull_q15_bias50_overextended_pocket(
+    *,
+    regime: Optional[str],
+    structure_quality: Optional[float],
+    bias50_value: Optional[float],
+) -> bool:
+    if str(regime or "").lower() != "bull":
+        return False
+    if structure_quality is None or bias50_value is None:
+        return False
+    quality = float(structure_quality)
+    return 0.15 <= quality < 0.35 and float(bias50_value) >= LIVE_BULL_Q15_BIAS50_OVEREXTENDED_MIN
 
 
 def _live_4h_structure_component_breakdown(
@@ -744,17 +772,26 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
     bb_pct_b_value = features.get("feat_4h_bb_pct_b")
     dist_bb_lower_value = features.get("feat_4h_dist_bb_lower")
     dist_swing_low_value = features.get("feat_4h_dist_swing_low")
+    bias50_value = _f("feat_4h_bias50")
     gate_debug = _compute_live_regime_gate_debug(
         _f("feat_4h_bias200"),
         regime,
         bb_pct_b_value=bb_pct_b_value,
         dist_bb_lower_value=dist_bb_lower_value,
         dist_swing_low_value=dist_swing_low_value,
+        bias50_value=bias50_value,
     )
+    if (
+        gate_debug.get("final_reason") == "bull_q15_bias50_overextended_block"
+        and _matches_current_live_q15_component_patch_audit(features)
+    ):
+        gate_debug = dict(gate_debug)
+        gate_debug["final_gate"] = "CAUTION"
+        gate_debug["final_reason"] = "structure_quality_caution"
     regime_gate = str(gate_debug.get("final_gate") or "BLOCK")
     structure_bucket = _live_structure_bucket_from_debug(gate_debug)
     entry_quality_breakdown = _live_entry_quality_component_breakdown(
-        _f("feat_4h_bias50"),
+        bias50_value,
         _f("feat_nose"),
         _f("feat_pulse"),
         _f("feat_ear"),
@@ -932,6 +969,55 @@ def _feature_value_matches_audit(current_value: Any, audit_value: Any, tol: floa
         return abs(float(current_value) - float(audit_value)) <= tol
     except Exception:
         return str(current_value) == str(audit_value)
+
+
+def _matches_current_live_q15_component_patch_audit(features: Optional[Dict[str, Any]]) -> bool:
+    if not isinstance(features, dict):
+        return False
+    if str(features.get("regime_label") or "") != "bull":
+        return False
+
+    q15_audit = _load_json_artifact(Q15_SUPPORT_AUDIT_PATH)
+    scope = q15_audit.get("scope_applicability") or {}
+    current_live = q15_audit.get("current_live") or {}
+    support_route = q15_audit.get("support_route") or {}
+    floor_cross = q15_audit.get("floor_cross_legality") or {}
+    component_experiment = q15_audit.get("component_experiment") or {}
+    machine_read = component_experiment.get("machine_read_answer") or {}
+
+    if scope.get("status") != "current_live_q15_lane_active" or not scope.get("active_for_current_live_row"):
+        return False
+    if str(scope.get("current_structure_bucket") or current_live.get("current_live_structure_bucket") or "") != "CAUTION|structure_quality_caution|q15":
+        return False
+    if support_route.get("verdict") != "exact_bucket_supported" or not support_route.get("deployable"):
+        return False
+    if floor_cross.get("verdict") != "legal_component_experiment_after_support_ready":
+        return False
+    if not floor_cross.get("legal_to_relax_runtime_gate"):
+        return False
+    if component_experiment.get("verdict") != "exact_supported_component_experiment_ready":
+        return False
+    if component_experiment.get("feature") != "feat_4h_bias50":
+        return False
+    if not (
+        machine_read.get("support_ready")
+        and machine_read.get("entry_quality_ge_0_55")
+        and machine_read.get("allowed_layers_gt_0")
+        and machine_read.get("preserves_positive_discrimination")
+    ):
+        return False
+
+    feature_ts = features.get("timestamp")
+    audit_ts = current_live.get("feature_timestamp") or current_live.get("timestamp") or q15_audit.get("generated_at")
+    if feature_ts is not None and audit_ts is not None and str(feature_ts) != str(audit_ts):
+        return False
+
+    audit_features = current_live.get("raw_features") or {}
+    for feature_name in ("feat_4h_bias50", "feat_nose", "feat_pulse", "feat_ear"):
+        if not _feature_value_matches_audit(features.get(feature_name), audit_features.get(feature_name)):
+            return False
+
+    return True
 
 
 def _maybe_apply_q35_discriminative_redesign(

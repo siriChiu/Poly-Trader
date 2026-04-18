@@ -1059,6 +1059,47 @@ def test_run_rule_backtest_records_regime_gate_and_entry_quality():
     assert trade["entry_quality"] > 0.72
 
 
+def test_run_rule_backtest_blocks_bull_q15_bias50_overextended_pocket():
+    result = strategy_lab.run_rule_backtest(
+        prices=[100.0, 100.5, 101.0, 101.5],
+        timestamps=[
+            "2026-02-02T00:00:00Z",
+            "2026-02-02T04:00:00Z",
+            "2026-02-02T08:00:00Z",
+            "2026-02-02T12:00:00Z",
+        ],
+        bias50=[1.8, 1.8, 1.8, 4.5],
+        bias200=[2.4, 2.4, 2.4, 2.4],
+        nose=[0.0, 0.0, 0.0, 0.0],
+        pulse=[1.0, 1.0, 1.0, 1.0],
+        ear=[0.0, 0.0, 0.0, 0.0],
+        params={
+            "entry": {
+                "bias50_max": 3.0,
+                "nose_max": 1.0,
+                "pulse_min": 0.0,
+                "layer2_bias_max": 2.0,
+                "layer3_bias_max": 0.5,
+                "regime_bias200_min": -10.0,
+                "entry_quality_min": 0.55,
+            },
+            "layers": [0.2, 0.3, 0.5],
+            "stop_loss": -0.20,
+            "take_profit_bias": 999.0,
+            "take_profit_roi": 0.50,
+        },
+        initial_capital=1000.0,
+        regimes=["bull"] * 4,
+        bb_pct_b_4h=[0.30] * 4,
+        dist_bb_lower_4h=[1.2] * 4,
+        dist_swing_low_4h=[4.0] * 4,
+    )
+
+    assert result.total_trades == 0
+    assert all(point["regime_gate"] == "BLOCK" for point in result.equity_curve)
+    assert all(point["allowed_layers"] == 0 for point in result.equity_curve)
+
+
 def test_run_rule_backtest_reserve_mode_uses_10_percent_probe_before_unlocking_reserve():
     result = strategy_lab.run_rule_backtest(
         prices=[100.0, 100.0, 89.0, 89.0, 108.0],

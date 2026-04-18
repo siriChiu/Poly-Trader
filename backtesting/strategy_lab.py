@@ -332,6 +332,11 @@ def build_regime_aware_sleeve_routing(
 OVEREXTENDED_4H_BB_PCT_B_MIN = 1.0
 OVEREXTENDED_4H_DIST_BB_LOWER_MIN = 10.0
 OVEREXTENDED_4H_DIST_SWING_LOW_MIN = 11.0
+# Heartbeat P0 follow-up: bull q15 pockets with still-stretched bias50 were slipping
+# through as low-conviction CAUTION entries. Keep Strategy Lab aligned with live
+# predictor by fail-closing these weak-structure bull pockets before they appear as
+# valid runtime/backtest candidates.
+BULL_Q15_BIAS50_OVEREXTENDED_MIN = 1.8
 
 
 def _sanitize_json_like(value: Any) -> Any:
@@ -497,6 +502,7 @@ def _compute_regime_gate(
     bb_pct_b_value: Optional[float] = None,
     dist_bb_lower_value: Optional[float] = None,
     dist_swing_low_value: Optional[float] = None,
+    bias50_value: Optional[float] = None,
 ) -> str:
     regime = (regime or "unknown").lower()
     if bias200_value < regime_min:
@@ -528,6 +534,12 @@ def _compute_regime_gate(
         return "BLOCK"
     if base_gate == "ALLOW" and structure_quality < 0.15:
         return "BLOCK"
+    if base_gate == "ALLOW" and _is_bull_q15_bias50_overextended_pocket(
+        regime=regime,
+        structure_quality=structure_quality,
+        bias50_value=bias50_value,
+    ):
+        return "BLOCK"
     # Heartbeat #718 parity: borderline ALLOW+q35 setups were too sparse to treat as
     # trustworthy ALLOW lanes. Keep Strategy Lab aligned with live predictor by
     # downgrading weak-but-not-collapsed 4H structure to CAUTION.
@@ -548,6 +560,20 @@ def _is_4h_structure_overextended(
         and float(dist_bb_lower_value) >= OVEREXTENDED_4H_DIST_BB_LOWER_MIN
         and float(dist_swing_low_value) >= OVEREXTENDED_4H_DIST_SWING_LOW_MIN
     )
+
+
+def _is_bull_q15_bias50_overextended_pocket(
+    *,
+    regime: Optional[str],
+    structure_quality: Optional[float],
+    bias50_value: Optional[float],
+) -> bool:
+    if str(regime or "").lower() != "bull":
+        return False
+    if structure_quality is None or bias50_value is None:
+        return False
+    quality = float(structure_quality)
+    return 0.15 <= quality < 0.35 and float(bias50_value) >= BULL_Q15_BIAS50_OVEREXTENDED_MIN
 
 
 def _compute_4h_structure_quality(
@@ -1146,6 +1172,7 @@ def run_rule_backtest(
             bb_pct_b_value,
             dist_bb_lower_value,
             dist_swing_low_value,
+            bias50_value=b50,
         )
         structure_quality = _compute_4h_structure_quality(
             bb_pct_b_value=bb_pct_b_value,
@@ -1320,6 +1347,10 @@ def run_rule_backtest(
             "equity": round(equity, 2),
             "position_pct": round((invested_value / initial_capital) if initial_capital > 0 else 0.0, 4),
             "position_layers": len(entry_layers),
+            "regime_gate": regime_gate,
+            "structure_bucket": structure_bucket,
+            "entry_quality": entry_quality,
+            "allowed_layers": allowed_layers,
         })
 
     # 平倉未結部位
@@ -1428,6 +1459,7 @@ def run_hybrid_backtest(
             bb_pct_b_value,
             dist_bb_lower_value,
             dist_swing_low_value,
+            bias50_value=b50,
         )
         structure_quality = _compute_4h_structure_quality(
             bb_pct_b_value=bb_pct_b_value,
@@ -1586,6 +1618,10 @@ def run_hybrid_backtest(
             "equity": round(equity, 2),
             "position_pct": round((invested_value / initial_capital) if initial_capital > 0 else 0.0, 4),
             "position_layers": len(entry_layers),
+            "regime_gate": regime_gate,
+            "structure_bucket": structure_bucket,
+            "entry_quality": entry_quality,
+            "allowed_layers": allowed_layers,
         })
 
     if position > 0 and entry_layers:

@@ -6,6 +6,7 @@ import RadarChart from "../components/RadarChart";
 import AdviceCard from "../components/AdviceCard";
 import FeatureChart from "../components/FeatureChart";
 import CandlestickChart from "../components/CandlestickChart";
+import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
 import { buildWsUrl, useApi, fetchApi } from "../hooks/useApi";
 import ConfidenceIndicator from "../components/ConfidenceIndicator";
 import { ALL_SENSES, getSenseConfig } from "../config/senses";
@@ -71,6 +72,7 @@ type LiveRuntimeTruth = {
     start_timestamp?: string | null;
     end_timestamp?: string | null;
   } | null;
+  decision_quality_scope_pathology_summary?: DecisionQualityScopePathologySummary | null;
 };
 
 interface RuntimeStatusResponse {
@@ -870,6 +872,9 @@ export default function Dashboard() {
     liveRuntimeTruth?.decision_quality_recent_pathology_summary
     ?? confidenceData?.decision_quality_recent_pathology_summary
     ?? null;
+  const liveScopePathologySummary =
+    liveRuntimeTruth?.decision_quality_scope_pathology_summary
+    ?? null;
   const deploymentBlockerDetails = confidenceData?.deployment_blocker_details ?? null;
   const breakerRecentWindow = deploymentBlockerDetails?.recent_window ?? null;
   const breakerRelease = deploymentBlockerDetails?.release_condition ?? null;
@@ -1108,6 +1113,11 @@ export default function Dashboard() {
             <div className="mt-1 text-[11px] opacity-80">{executionReconciliation?.summary || "尚未收到 reconciliation 摘要。"}</div>
           </div>
         </div>
+        <LivePathologySummaryCard
+          summary={liveScopePathologySummary}
+          className="mt-3"
+          title="🧬 Live lane / spillover 對照"
+        />
       </div>
 
       <div className={`rounded-xl border px-4 py-3 text-xs ${continuityTone}`}>

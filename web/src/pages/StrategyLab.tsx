@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import CandlestickChart from "../components/CandlestickChart";
+import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
 import { fetchApi, useApi } from "../hooks/useApi";
 import { useGlobalProgressTask } from "../hooks/useGlobalProgress";
 import { getSenseConfig } from "../config/senses";
@@ -254,6 +255,7 @@ interface StrategyLabRuntimeStatusResponse {
         start_timestamp?: string | null;
         end_timestamp?: string | null;
       } | null;
+      decision_quality_scope_pathology_summary?: DecisionQualityScopePathologySummary | null;
     } | null;
   } | null;
   execution_metadata_smoke?: {
@@ -2093,6 +2095,9 @@ export default function StrategyLab() {
     liveDecisionStatus?.decision_quality_recent_pathology_summary
     ?? liveRuntimeTruth?.decision_quality_recent_pathology_summary
     ?? null;
+  const liveScopePathologySummary =
+    liveRuntimeTruth?.decision_quality_scope_pathology_summary
+    ?? null;
   const liveDeploymentBlockerDetails = liveDecisionStatus?.deployment_blocker_details ?? null;
   const breakerRecentWindow = liveDeploymentBlockerDetails?.recent_window ?? null;
   const breakerRelease = liveDeploymentBlockerDetails?.release_condition ?? null;
@@ -2424,6 +2429,10 @@ export default function StrategyLab() {
                 </div>
               </div>
             </div>
+            <LivePathologySummaryCard
+              summary={liveScopePathologySummary}
+              title="🧬 Live lane / spillover 對照"
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
               <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">

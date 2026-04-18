@@ -1,10 +1,11 @@
 {
+  "generated_at": "2026-04-19T02:58:00+08:00",
   "issues": [
     {
-      "id": "P0_canonical_circuit_breaker_active",
+      "id": "P0_circuit_breaker_active",
       "priority": "P0",
       "status": "open",
-      "title": "canonical circuit breaker remains the current-live blocker (0/15 wins in recent 50; streak=123)",
+      "title": "canonical circuit breaker remains the only current-live deployment blocker",
       "summary": {
         "deployment_blocker": "circuit_breaker_active",
         "horizon_minutes": 1440,
@@ -12,70 +13,75 @@
         "current_recent_window_wins": 0,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 15,
-        "streak": 123,
+        "streak": 137,
         "allowed_layers": 0,
-        "support_route_verdict": "exact_bucket_supported",
-        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
-        "current_live_structure_bucket_rows": 55,
-        "minimum_support_rows": 50
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15"
       },
       "next_actions": [
         "keep hb_predict_probe.py and hb_circuit_breaker_audit.py as the primary truth for current-live blocker semantics",
-        "do not let q15 exact-support recovery override circuit-breaker release math until the breaker is actually cleared",
-        "verify with hb_parallel_runner fast mode, hb_predict_probe.py, hb_circuit_breaker_audit.py, and /api/status"
+        "keep all operator surfaces breaker-first until recent 50 recovers to at least 15 wins and streak < 50",
+        "verify with hb_predict_probe.py, hb_circuit_breaker_audit.py fast, and browser checks on / and /lab"
       ],
-      "action": "clear the canonical circuit breaker by fixing recent-window release math or keep explicit no-deploy governance"
+      "action": "hold breaker-first truth as the only deployment blocker until release math is truly cleared"
     },
     {
-      "id": "P0_recent_canonical_tail_pathology",
+      "id": "P0_bull_spillover_tail_pathology",
       "priority": "P0",
       "status": "open",
-      "title": "recent canonical tail is still pathological (123 consecutive simulated_pyramid_win=0)",
+      "title": "recent bull exact-vs-spillover pathology is still unresolved",
       "summary": {
-        "primary_window": 100,
-        "interpretation": "distribution_pathology",
-        "dominant_regime": "bull",
-        "dominant_regime_share": 1.0,
+        "recent_window": 100,
         "recent_100_win_rate": 0.0,
-        "losing_streak": 123,
-        "best_single_component": "feat_4h_bias50",
-        "remaining_gap_to_floor": 0.1785
+        "recent_100_streak": 100,
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "exact_live_lane_rows": 41,
+        "exact_live_lane_win_rate": 1.0,
+        "exact_live_lane_quality": 0.697,
+        "spillover_scope": "bull|ALLOW",
+        "spillover_rows": 159,
+        "spillover_win_rate": 0.0,
+        "spillover_quality": -0.276,
+        "top_shift_features": [
+          "feat_4h_bias200",
+          "feat_4h_dist_swing_low",
+          "feat_4h_dist_bb_lower"
+        ]
       },
       "next_actions": [
-        "drill into recent 50/100/1000 canonical rows for target path, bull pocket shifts, and feat_4h_bias50 floor-gap behavior",
-        "convert the tail-pathology diagnosis into a regression patch instead of leaving it as observation-only",
-        "verify with recent_drift_report.py, hb_predict_probe.py, and targeted regression tests"
+        "turn the broader bull spillover pocket into a reproducible gate/calibration/training patch instead of leaving it as a visualization-only diagnosis",
+        "verify with recent_drift_report.py, hb_predict_probe.py, targeted pytest, and the Dashboard/Strategy Lab pathology card"
       ],
-      "action": "turn the pathological recent bull tail into a reproducible root cause and fix"
+      "action": "convert exact-live-lane vs spillover evidence into a productized runtime fix"
     },
     {
-      "id": "P1_post_threshold_leaderboard_governance_sync",
+      "id": "P1_leaderboard_governance_stale_under_minimum_support",
       "priority": "P1",
       "status": "open",
-      "title": "leaderboard governance visibility is landed, but the production-profile split is not fully closed",
+      "title": "train/leaderboard governance is stale against current under-minimum support truth",
       "summary": {
-        "governance_contract": "post_threshold_governance_contract_needs_leaderboard_sync",
-        "current_closure": "exact_supported_but_leaderboard_not_synced",
-        "support_route_verdict": "exact_bucket_supported",
-        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
-        "current_live_structure_bucket_rows": 55,
+        "dual_profile_state": "train_exact_supported_profile_stale_under_minimum",
+        "governance_contract": "train_profile_contract_stale_against_current_support",
+        "current_closure": "train_still_claims_exact_supported_profile_but_live_bucket_under_minimum",
+        "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "live_current_structure_bucket_rows": 41,
         "minimum_support_rows": 50,
-        "leaderboard_selected_profile": "core_only",
-        "train_selected_profile": "core_plus_macro_plus_4h_structure_shift",
-        "top_deployment_profile": "stable_turning_point_bull_chop_strict_v1",
-        "top_deployment_profile_source": "code_backed_promoted_from_scan"
+        "comparable_count": 0,
+        "placeholder_count": 4,
+        "candidate_probe_status": "timeout_prone",
+        "api_probe_status": "healthy_cached_payload"
       },
       "next_actions": [
-        "sync leaderboard/heartbeat/docs so the exact-supported production role is explicit and no old fallback semantics remain",
-        "verify with hb_leaderboard_candidate_probe.py, hb_model_leaderboard_api_probe.py, and Strategy Lab governance surfaces"
+        "refresh support-aware profile selection and train metadata so production-profile claims fall back to under-minimum-support truth",
+        "stabilize hb_leaderboard_candidate_probe.py runtime so direct probe output matches the cached API governance payload",
+        "verify with hb_model_leaderboard_api_probe.py, hb_leaderboard_candidate_probe.py, /api/models/leaderboard, and /lab"
       ],
-      "action": "finish post-threshold governance sync after visibility landed on API, probe, and Strategy Lab"
+      "action": "remove stale exact-supported production-profile semantics from train/runtime/leaderboard surfaces"
     },
     {
       "id": "P1_execution_venue_readiness_unverified",
       "priority": "P1",
       "status": "open",
-      "title": "venue readiness is still unverified even after breaker-first governance",
+      "title": "venue readiness is still unverified",
       "summary": {
         "status_surface": "/api/status",
         "main_blocker": "live exchange credential 尚未驗證 · order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證"
