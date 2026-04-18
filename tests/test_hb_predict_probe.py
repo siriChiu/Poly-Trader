@@ -117,6 +117,159 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
     assert json.loads(out_path.read_text()) == payload
 
 
+def test_hb_predict_probe_falls_back_to_generic_support_progress_for_q35_blocker(monkeypatch, capsys, tmp_path):
+    session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+    q15_audit_path = tmp_path / "q15_support_audit.json"
+    q15_audit_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit_path)
+    monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
+    monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"bull": object()}))
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "load_latest_features",
+        lambda _session: {
+            "timestamp": "2026-04-18 10:00:00",
+            "regime_label": "bull",
+            "feat_4h_bias50": 5.0,
+        },
+    )
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "predict",
+        lambda _session, _predictor, _regime_models: {
+            "target_col": "simulated_pyramid_win",
+            "used_model": "regime_bull_ensemble",
+            "model_type": "RegimeAwarePredictor",
+            "signal": "HOLD",
+            "confidence": 0.59051,
+            "regime_label": "bull",
+            "model_route_regime": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "entry_quality": 0.5508,
+            "entry_quality_label": "C",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "allowed_layers_raw": 1,
+            "allowed_layers_raw_reason": "entry_quality_C_single_layer",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor; under_minimum_exact_live_structure_bucket",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; under_minimum_exact_live_structure_bucket",
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "deployment_blocker_reason": "support not enough",
+            "deployment_blocker_source": "decision_quality_contract",
+            "deployment_blocker_details": {
+                "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                "support_mode": "exact_bucket_present_but_below_minimum",
+                "current_live_structure_bucket_rows": 9,
+                "exact_live_structure_bucket_rows": 9,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 41,
+                "support_progress": {
+                    "status": "accumulating",
+                    "current_rows": 9,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 41,
+                },
+            },
+            "decision_quality_horizon_minutes": 1440,
+            "decision_quality_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "decision_quality_exact_live_structure_bucket_support_rows": 9,
+        },
+    )
+
+    hb_predict_probe.main()
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert payload["current_live_structure_bucket_rows"] == 9
+    assert payload["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
+    assert payload["support_progress"]["status"] == "accumulating"
+    assert payload["minimum_support_rows"] == 50
+    assert payload["current_live_structure_bucket_gap_to_minimum"] == 41
+    assert payload["floor_cross_verdict"] is None
+    assert payload["component_experiment_verdict"] is None
+
+
+def test_hb_predict_probe_uses_result_support_route_when_q35_override_is_exact_supported(monkeypatch, capsys, tmp_path):
+    session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+    q15_audit_path = tmp_path / "q15_support_audit.json"
+    q15_audit_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit_path)
+    monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
+    monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"bull": object()}))
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "load_latest_features",
+        lambda _session: {
+            "timestamp": "2026-04-18 12:00:00",
+            "regime_label": "bull",
+            "feat_4h_bias50": 4.4,
+        },
+    )
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "predict",
+        lambda _session, _predictor, _regime_models: {
+            "target_col": "simulated_pyramid_win",
+            "used_model": "regime_bull_ensemble",
+            "model_type": "RegimeAwarePredictor",
+            "signal": "BUY",
+            "confidence": 0.71,
+            "regime_label": "bull",
+            "model_route_regime": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "entry_quality": 0.7127,
+            "entry_quality_label": "B",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "allowed_layers_raw": 2,
+            "allowed_layers_raw_reason": "caution_gate_caps_two_layers",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+            "deployment_blocker": None,
+            "deployment_blocker_reason": None,
+            "deployment_blocker_source": None,
+            "deployment_blocker_details": None,
+            "decision_quality_horizon_minutes": 1440,
+            "decision_quality_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_supported_via_q35_runtime_redesign",
+            "decision_quality_exact_live_structure_bucket_support_rows": 100,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_route_deployable": True,
+            "support_progress": {
+                "status": "exact_supported",
+                "current_rows": 100,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 0,
+            },
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+        },
+    )
+
+    hb_predict_probe.main()
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["deployment_blocker"] is None
+    assert payload["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert payload["current_live_structure_bucket_rows"] == 100
+    assert payload["support_route_verdict"] == "exact_bucket_supported"
+    assert payload["support_route_deployable"] is True
+    assert payload["support_progress"]["status"] == "exact_supported"
+    assert payload["minimum_support_rows"] == 50
+    assert payload["current_live_structure_bucket_gap_to_minimum"] == 0
+    assert json.loads(out_path.read_text()) == payload
+
+
 def test_hb_predict_probe_refreshes_q15_audit_before_emitting(monkeypatch, capsys, tmp_path):
     session = DummySession()
     out_path = tmp_path / "live_predict_probe.json"

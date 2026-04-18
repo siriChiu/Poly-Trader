@@ -299,11 +299,43 @@ def _build_probe_payload(
     four_h_non_null: dict,
     lag_non_null: dict,
 ) -> dict:
-    support_route = q15_support_audit.get("support_route") if isinstance((q15_support_audit or {}).get("support_route"), dict) else {}
-    support_progress = support_route.get("support_progress") if isinstance(support_route.get("support_progress"), dict) else {}
+    support_route = {}
+    if result.get("support_route_verdict"):
+        support_route = {
+            "verdict": result.get("support_route_verdict"),
+            "deployable": result.get("support_route_deployable"),
+        }
+    support_progress = result.get("support_progress") if isinstance(result.get("support_progress"), dict) else {}
     floor_cross = q15_support_audit.get("floor_cross_legality") if isinstance((q15_support_audit or {}).get("floor_cross_legality"), dict) else {}
     component_experiment = q15_support_audit.get("component_experiment") if isinstance((q15_support_audit or {}).get("component_experiment"), dict) else {}
     deployment_blocker_details = result.get("deployment_blocker_details") if isinstance(result.get("deployment_blocker_details"), dict) else {}
+    if isinstance((q15_support_audit or {}).get("support_route"), dict):
+        support_route = q15_support_audit.get("support_route")
+        if not support_progress and isinstance(support_route.get("support_progress"), dict):
+            support_progress = support_route.get("support_progress")
+    if not support_route:
+        generic_support_mode = (
+            str(result.get("decision_quality_structure_bucket_support_mode") or "")
+            or str(deployment_blocker_details.get("support_mode") or "")
+        )
+        generic_support_verdict = deployment_blocker_details.get("support_route_verdict")
+        if not generic_support_verdict:
+            blocker = str(result.get("deployment_blocker") or "")
+            if blocker == "under_minimum_exact_live_structure_bucket" or generic_support_mode == "exact_bucket_present_but_below_minimum":
+                generic_support_verdict = "exact_bucket_present_but_below_minimum"
+            elif blocker == "unsupported_exact_live_structure_bucket" or generic_support_mode == "exact_bucket_unsupported_block":
+                generic_support_verdict = "exact_bucket_unsupported_block"
+            elif generic_support_mode.startswith("exact_bucket_supported"):
+                generic_support_verdict = "exact_bucket_supported"
+        if generic_support_verdict:
+            support_route = {
+                "verdict": generic_support_verdict,
+                "deployable": deployment_blocker_details.get("support_route_deployable"),
+            }
+    if not support_progress:
+        fallback_progress = deployment_blocker_details.get("support_progress") if isinstance(deployment_blocker_details.get("support_progress"), dict) else {}
+        if fallback_progress:
+            support_progress = fallback_progress
     breaker_release = deployment_blocker_details.get("release_condition") if isinstance(deployment_blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = deployment_blocker_details.get("recent_window") if isinstance(deployment_blocker_details.get("recent_window"), dict) else {}
     release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
@@ -353,8 +385,16 @@ def _build_probe_payload(
         "support_route_verdict": support_route.get("verdict"),
         "support_route_deployable": support_route.get("deployable"),
         "support_progress": support_progress or None,
-        "minimum_support_rows": support_progress.get("minimum_support_rows"),
-        "current_live_structure_bucket_gap_to_minimum": support_progress.get("gap_to_minimum"),
+        "minimum_support_rows": (
+            support_progress.get("minimum_support_rows")
+            if support_progress
+            else deployment_blocker_details.get("minimum_support_rows")
+        ),
+        "current_live_structure_bucket_gap_to_minimum": (
+            support_progress.get("gap_to_minimum")
+            if support_progress
+            else deployment_blocker_details.get("current_live_structure_bucket_gap_to_minimum")
+        ),
         "floor_cross_verdict": floor_cross.get("verdict"),
         "legal_to_relax_runtime_gate": floor_cross.get("legal_to_relax_runtime_gate"),
         "remaining_gap_to_floor": floor_cross.get("remaining_gap_to_floor"),
@@ -457,13 +497,13 @@ def main() -> None:
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
         OUT_PATH.write_text(json.dumps(probe, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
 
+        result_patch_applied = bool(result.get("q15_exact_supported_component_patch_applied"))
         refreshed_q15_support_audit = _refresh_q15_support_audit(
             current_live_structure_bucket=current_live_structure_bucket,
             feature_timestamp=probe.get("feature_timestamp"),
         )
         if refreshed_q15_support_audit:
             refreshed_patch_supported = _q15_patch_supported_by_audit(refreshed_q15_support_audit)
-            result_patch_applied = bool(result.get("q15_exact_supported_component_patch_applied"))
             if result_patch_applied != refreshed_patch_supported:
                 result = predict(session, predictor, regime_models)
                 if result is None:
@@ -500,6 +540,24 @@ def main() -> None:
                     force=True,
                 )
                 if synced_q15_support_audit:
+                    synced_patch_supported = _q15_patch_supported_by_audit(synced_q15_support_audit)
+                    current_result_patch_applied = bool(result.get("q15_exact_supported_component_patch_applied"))
+                    if current_result_patch_applied != synced_patch_supported:
+                        result = predict(session, predictor, regime_models)
+                        if result is None:
+                            raise SystemExit("predictor probe failed: force-refreshed q15 audit changed patch readiness but replay prediction returned no result")
+                        current_live_structure_bucket = (
+                            result.get("decision_quality_live_structure_bucket")
+                            or ((result.get("decision_quality_scope_diagnostics") or {}).get("regime_label+regime_gate+entry_quality_label") or {}).get("current_live_structure_bucket")
+                            or result.get("structure_bucket")
+                        )
+                        blocker_details = result.get("deployment_blocker_details") or {}
+                        current_live_structure_bucket_rows = (
+                            result.get("decision_quality_exact_live_structure_bucket_support_rows")
+                            or blocker_details.get("exact_live_structure_bucket_rows")
+                            or blocker_details.get("current_live_structure_bucket_rows")
+                            or (((result.get("decision_quality_scope_diagnostics") or {}).get("regime_label+regime_gate+entry_quality_label") or {}).get("current_live_structure_bucket_rows"))
+                        )
                     probe = _build_probe_payload(
                         latest=latest,
                         result=result,

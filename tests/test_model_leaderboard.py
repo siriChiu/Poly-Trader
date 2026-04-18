@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import sqlite3
 
@@ -193,6 +194,266 @@ def test_load_model_leaderboard_frame_prefers_simulated_target_rows(tmp_path: Pa
 
 def test_supported_models_includes_catboost():
     assert "catboost" in ModelLeaderboard.SUPPORTED_MODELS
+
+
+def test_build_model_leaderboard_payload_uses_bounded_refresh_shortlist(monkeypatch):
+    refresh_calls = {}
+
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=3, freq="D"),
+            "close_price": [50000.0, 50010.0, 50020.0],
+            "simulated_pyramid_win": [1, 0, 1],
+            "feat_4h_bias50": [0.0, 0.0, 0.0],
+            "feat_nose": [0.4, 0.5, 0.6],
+            "feat_pulse": [0.6, 0.5, 0.4],
+            "feat_ear": [0.1, 0.1, 0.1],
+        }
+    )
+
+    monkeypatch.setattr(api_module, "load_model_leaderboard_frame", lambda db_path=None: df)
+    monkeypatch.setattr(api_module, "_load_model_leaderboard_history", lambda db_path=None: [])
+    monkeypatch.setattr(api_module, "_summarize_target_candidates", lambda *args, **kwargs: [])
+    monkeypatch.setattr(api_module, "_serialize_model_scores", lambda scores, leaderboard: [])
+
+    def _fake_run_all_models(self, model_names=None):
+        refresh_calls["model_names"] = list(model_names or [])
+        self.last_model_statuses = {
+            name: {"status": "skipped", "reason": "test_shortlist", "detail": None}
+            for name in refresh_calls["model_names"]
+        }
+        return []
+
+    monkeypatch.setattr(ModelLeaderboard, "run_all_models", _fake_run_all_models)
+
+    payload = api_module._build_model_leaderboard_payload()
+
+    assert refresh_calls["model_names"] == ModelLeaderboard.REFRESH_MODELS
+    assert payload["refresh_model_scope"] == "production_refresh_shortlist"
+    assert payload["evaluated_models"] == ModelLeaderboard.REFRESH_MODELS
+    assert payload["excluded_supported_models"] == ["mlp", "svm", "ensemble"]
+
+
+
+def test_score_model_from_folds_marks_zero_trade_rows_as_placeholders():
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=4, freq="D"),
+            "close_price": [50000.0, 50010.0, 50020.0, 50030.0],
+            "simulated_pyramid_win": [1, 0, 1, 0],
+            "feat_4h_bias50": [0.0, 0.0, 0.0, 0.0],
+            "feat_nose": [0.4, 0.5, 0.6, 0.7],
+            "feat_pulse": [0.6, 0.5, 0.4, 0.3],
+            "feat_ear": [0.1, 0.1, 0.1, 0.1],
+        }
+    )
+    leaderboard = ModelLeaderboard(df)
+    fold = model_leaderboard_module.FoldResult(
+        fold=0,
+        train_start="2026-01-01",
+        train_end="2026-01-02",
+        test_start="2026-01-03",
+        test_end="2026-01-04",
+        train_samples=2,
+        test_samples=2,
+        total_trades=0,
+        roi=0.0,
+        win_rate=0.0,
+        max_drawdown=0.0,
+        profit_factor=0.0,
+        trade_quality_score=0.0,
+        avg_decision_quality_score=0.0,
+        avg_expected_time_underwater=0.0,
+    )
+
+    score = leaderboard._score_model_from_folds("xgboost", [fold], [0.62], [0.55])
+
+    assert score.ranking_eligible is False
+    assert score.ranking_status == "no_trade_placeholder"
+    assert score.placeholder_reason == "no_trades_generated_under_current_deployment_profile"
+    assert score.ranking_warning is not None and "未產生任何交易" in score.ranking_warning
+    assert score.reliability_score == 0.0
+    assert score.return_power_score == 0.0
+    assert score.risk_control_score == 0.0
+    assert score.capital_efficiency_score == 0.0
+    assert score.overall_score == 0.0
+    assert score.composite_score == 0.0
+
+
+
+def test_build_model_leaderboard_payload_separates_no_trade_placeholders(monkeypatch):
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=3, freq="D"),
+            "close_price": [50000.0, 50010.0, 50020.0],
+            "simulated_pyramid_win": [1, 0, 1],
+            "feat_4h_bias50": [0.0, 0.0, 0.0],
+            "feat_nose": [0.4, 0.5, 0.6],
+            "feat_pulse": [0.6, 0.5, 0.4],
+            "feat_ear": [0.1, 0.1, 0.1],
+        }
+    )
+
+    monkeypatch.setattr(api_module, "load_model_leaderboard_frame", lambda db_path=None: df)
+    monkeypatch.setattr(api_module, "_load_model_leaderboard_history", lambda db_path=None: [])
+    monkeypatch.setattr(api_module, "_summarize_target_candidates", lambda *args, **kwargs: [])
+
+    comparable = model_leaderboard_module.ModelScore(
+        model_name="xgboost",
+        deployment_profile="standard",
+        feature_profile="core_only",
+        feature_profile_source="feature_group_ablation.recommended_profile",
+        avg_roi=0.04,
+        avg_win_rate=0.58,
+        avg_trades=12.0,
+        overall_score=0.71,
+        composite_score=0.71,
+        reliability_score=0.63,
+        return_power_score=0.67,
+    )
+    placeholder = model_leaderboard_module.ModelScore(
+        model_name="rule_baseline",
+        deployment_profile="standard",
+        feature_profile="core_plus_macro_plus_4h_structure_shift",
+        feature_profile_source="bull_4h_pocket_ablation.exact_supported_profile",
+        avg_roi=0.0,
+        avg_win_rate=0.0,
+        avg_trades=0.0,
+        overall_score=0.0,
+        composite_score=0.0,
+        ranking_eligible=False,
+        ranking_status="no_trade_placeholder",
+        ranking_warning="此模型在當前 deployment profile 下未產生任何交易；僅可視為 no-trade placeholder，不得當成正常排行榜前段結果。",
+        placeholder_reason="no_trades_generated_under_current_deployment_profile",
+    )
+
+    def _fake_run_all_models(self, model_names=None):
+        self.last_model_statuses = {
+            "xgboost": {"status": "ok", "selected_feature_profile": "core_only", "selected_feature_profile_source": "feature_group_ablation.recommended_profile"},
+            "rule_baseline": {"status": "ok", "selected_feature_profile": "core_plus_macro_plus_4h_structure_shift", "selected_feature_profile_source": "bull_4h_pocket_ablation.exact_supported_profile"},
+        }
+        return [comparable, placeholder]
+
+    monkeypatch.setattr(ModelLeaderboard, "run_all_models", _fake_run_all_models)
+
+    payload = api_module._build_model_leaderboard_payload()
+
+    assert payload["count"] == 1
+    assert payload["comparable_count"] == 1
+    assert payload["placeholder_count"] == 1
+    assert payload["evaluated_row_count"] == 2
+    assert payload["leaderboard"][0]["model_name"] == "xgboost"
+    assert payload["leaderboard"][0]["rank"] == 1
+    assert payload["placeholder_rows"][0]["model_name"] == "rule_baseline"
+    assert payload["placeholder_rows"][0]["rank"] is None
+    assert payload["placeholder_rows"][0]["raw_rank"] == 2
+    assert payload["quadrant_points"] == [
+        {
+            "model_name": "xgboost",
+            "reliability_score": payload["leaderboard"][0]["reliability_score"],
+            "return_power_score": payload["leaderboard"][0]["return_power_score"],
+            "overall_score": payload["leaderboard"][0]["overall_score"],
+        }
+    ]
+    assert payload["leaderboard_warning"] is not None and "no-trade placeholder" in payload["leaderboard_warning"]
+
+
+def test_target_candidate_summary_reuses_refresh_shortlist(monkeypatch):
+    calls = []
+
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=4, freq="D"),
+            "close_price": [50000.0, 50010.0, 50020.0, 50030.0],
+            "simulated_pyramid_win": [1, 0, 1, 0],
+            "label_spot_long_win": [1, 1, 0, 0],
+            "feat_4h_bias50": [0.0, 0.0, 0.0, 0.0],
+            "feat_nose": [0.4, 0.5, 0.6, 0.7],
+            "feat_pulse": [0.6, 0.5, 0.4, 0.3],
+            "feat_ear": [0.1, 0.1, 0.1, 0.1],
+        }
+    )
+
+    def _fake_run_all_models(self, model_names=None):
+        calls.append(list(model_names or []))
+        self.last_model_statuses = {}
+        return []
+
+    monkeypatch.setattr(ModelLeaderboard, "run_all_models", _fake_run_all_models)
+    monkeypatch.setattr(api_module, "_serialize_model_scores", lambda scores, leaderboard: [])
+
+    summaries = api_module._summarize_target_candidates(df)
+
+    assert summaries == [
+        {
+            "target_col": "simulated_pyramid_win",
+            "is_canonical": True,
+            "usage_note": "主訓練 / 主排行榜 target",
+            "best_model": None,
+            "model_count": 0,
+        },
+        {
+            "target_col": "label_spot_long_win",
+            "is_canonical": False,
+            "usage_note": "僅供 path-aware 比較診斷，不作 canonical 排名主依據",
+            "best_model": None,
+            "model_count": 0,
+        },
+    ]
+    assert calls == [ModelLeaderboard.REFRESH_MODELS, ModelLeaderboard.REFRESH_MODELS]
+
+
+def test_serialize_model_scores_makes_fold_results_json_safe():
+    score = model_leaderboard_module.ModelScore(
+        model_name="xgboost",
+        folds=[
+            model_leaderboard_module.FoldResult(
+                fold=0,
+                train_start="2026-01-01",
+                train_end="2026-02-01",
+                test_start="2026-02-01",
+                test_end="2026-03-01",
+                train_samples=100,
+                test_samples=20,
+                deployment_profile="balanced_conviction",
+                feature_profile="core_only",
+                feature_profile_source="feature_group_ablation.recommended_profile",
+            )
+        ],
+    )
+
+    payload = api_module._serialize_model_scores([score], leaderboard=None)
+
+    assert payload[0]["folds"] == [
+        {
+            "fold": 0,
+            "train_start": "2026-01-01",
+            "train_end": "2026-02-01",
+            "test_start": "2026-02-01",
+            "test_end": "2026-03-01",
+            "train_samples": 100,
+            "test_samples": 20,
+            "roi": 0.0,
+            "win_rate": 0.0,
+            "total_trades": 0,
+            "max_drawdown": 0.0,
+            "sharpe_ratio": 0.0,
+            "profit_factor": 0.0,
+            "avg_entry_quality": 0.0,
+            "avg_allowed_layers": 0.0,
+            "trade_quality_score": 0.0,
+            "regime_gate_allow_ratio": 0.0,
+            "avg_decision_quality_score": 0.0,
+            "avg_expected_win_rate": 0.0,
+            "avg_expected_pyramid_quality": 0.0,
+            "avg_expected_drawdown_penalty": 0.0,
+            "avg_expected_time_underwater": 0.0,
+            "deployment_profile": "balanced_conviction",
+            "feature_profile": "core_only",
+            "feature_profile_source": "feature_group_ablation.recommended_profile",
+        }
+    ]
+    json.dumps(payload, ensure_ascii=False)
 
 
 def test_model_leaderboard_defaults_to_simulated_target():
@@ -1026,6 +1287,71 @@ def test_build_model_leaderboard_payload_includes_skipped_models(monkeypatch):
     assert payload["leaderboard"][0]["overfit_penalty"] == pytest.approx(0.4)
     assert payload["skipped_models"][0]["model_name"] == "lightgbm"
     assert payload["skipped_models"][0]["reason"] == "missing_dependency"
+
+
+def test_build_model_leaderboard_payload_moves_zero_trade_rows_to_placeholder_models(monkeypatch):
+    class FakeLeaderboard:
+        def __init__(self, data_df, target_col="simulated_pyramid_win"):
+            self.target_col = target_col
+            self.last_model_statuses = {"rule_baseline": {"status": "ok"}}
+
+        def run_all_models(self, model_names):
+            class Score:
+                model_name = "rule_baseline"
+                deployment_profile = "standard"
+                feature_profile = "core_only"
+                feature_profile_source = "feature_group_ablation.recommended_profile"
+                avg_roi = 0.0
+                avg_win_rate = 0.0
+                avg_trades = 0
+                avg_max_drawdown = 0.0
+                avg_profit_factor = 0.0
+                avg_entry_quality = 0.0
+                avg_allowed_layers = 0.0
+                avg_trade_quality = 0.0
+                avg_decision_quality_score = 0.0
+                avg_expected_win_rate = 0.0
+                avg_expected_pyramid_quality = 0.0
+                avg_expected_drawdown_penalty = 0.0
+                avg_expected_time_underwater = 0.0
+                regime_stability_score = 0.0
+                trade_count_score = 0.0
+                roi_score = 0.0
+                max_drawdown_score = 0.0
+                profit_factor_score = 0.0
+                time_underwater_score = 0.0
+                decision_quality_component = 0.0
+                reliability_score = 0.62
+                return_power_score = 0.0
+                risk_control_score = 0.0
+                capital_efficiency_score = 0.0
+                overall_score = 0.62
+                overfit_penalty = 0.0
+                std_roi = 0.0
+                train_accuracy = 0.0
+                test_accuracy = 0.0
+                train_test_gap = 0.0
+                composite_score = 0.62
+                folds = []
+
+            return [Score()]
+
+    monkeypatch.setattr(api_module, "load_model_leaderboard_frame", lambda db_path: pd.DataFrame({
+        "timestamp": pd.date_range("2025-01-01", periods=3, freq="D"),
+        "close_price": [1.0, 2.0, 3.0],
+        "simulated_pyramid_win": [1, 0, 1],
+    }))
+    monkeypatch.setattr("backtesting.model_leaderboard.ModelLeaderboard", FakeLeaderboard)
+
+    payload = api_module._build_model_leaderboard_payload()
+
+    assert payload["count"] == 0
+    assert payload["leaderboard"] == []
+    assert payload["placeholder_count"] == 1
+    assert payload["placeholder_models"][0]["model_name"] == "rule_baseline"
+    assert payload["placeholder_models"][0]["ranking_status"] == "no_trade_placeholder"
+    assert payload["placeholder_models"][0]["avg_total_trades"] == 0.0
+    assert payload["data_warning"] is not None
 
 
 def test_summarize_target_candidates_prefers_non_overfit_best_model(monkeypatch):

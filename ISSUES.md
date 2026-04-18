@@ -1,83 +1,63 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-18 12:55 CST_
+_最後更新：2026-04-18 18:40 CST_
 
 只保留目前有效問題；每輪 heartbeat 必須覆蓋更新，不保留歷史流水帳。
 
 ---
 
-## 當前主線
-- **fast lane 已完成 ablation fail-soft 產品化**：`hb_parallel_runner.py` 現在會在 **canonical 1440m labels 只小幅 drift（<=12 rows / <=6h）** 時，安全重用 `feature_group_ablation.json` 與 `bull_4h_pocket_ablation.json`。
-- 本輪 `data/heartbeat_fast_summary.json` 已驗證：
-  - `serial_results.feature_group_ablation.cached=true`
-  - `cache_reason=bounded_label_drift_feature_group_ablation_artifact_reused`
-  - `serial_results.bull_4h_pocket_ablation.cached=true`
-  - `cache_reason=bounded_label_drift_bull_4h_pocket_artifact_reused`
-- 這代表 **fast heartbeat 不再因 ablation 重跑而卡在 45s/20s timeout**；cron 內能維持 machine-readable shrinkage / bull-pocket 治理證據。
-- 目前真正的 deployment blocker 仍是 **current live q35 exact support = 0 / 50**，不是 fast-lane artifact freshness。
+## 當前主線事實
+- **q15 live lane 的 support closure 已成立，但 live predictor 仍是 trade-floor blocker**：`current_live_structure_bucket=CAUTION|structure_quality_caution|q15`、`support_route_verdict=exact_bucket_supported`、`support_rows=96/50`，但 `hb_predict_probe.py` 最新 top-level live truth 仍是 `entry_quality=0.4181 / D / allowed_layers=0 / allowed_layers_reason=decision_quality_below_trade_floor`。
+- **q15 stale-audit 假 patch-ready probe bug 已修掉**：`hb_predict_probe.py` 現在會先 refresh `q15_support_audit`、必要時 replay prediction、audit/probe 不一致時再 force-refresh，避免舊 audit 讓 probe 假裝已 patch active。
+- **model leaderboard zero-trade surface 已修成 placeholder-only governance**：`/api/models/leaderboard` / `hb_model_leaderboard_api_probe.py` 最新結果為 `count=0 / comparable_count=0 / placeholder_count=6 / evaluated_row_count=6`，並帶 `leaderboard_warning=目前 6 個模型都沒有產生任何交易；排行榜已降級為 placeholder 檢視，請勿把 #1 當成可部署排名。`
+- **驗證現況**：
+  - `python -m pytest tests/test_hb_predict_probe.py tests/test_model_leaderboard.py tests/test_model_leaderboard_api_cache.py tests/test_hb_model_leaderboard_api_probe.py tests/test_strategy_leaderboard_contract.py tests/test_q15_support_audit.py -q` → `57 passed`
+  - `python -m pytest tests/test_frontend_decision_contract.py tests/test_server_startup.py -q` → `36 passed`
+  - `cd web && npm run build` → PASS
 
 ---
 
 ## Open Issues
 
-### P0. current live q35 exact support 仍是 deployment blocker
+### P0. q15 current-live lane is exact-supported, but live predictor still remains below trade floor
 **現況**
-- live row = `bull / CAUTION / CAUTION|structure_quality_caution|q35`
-- `current_live_structure_bucket_rows=0`
-- `minimum_support_rows=50`
-- `deployment_blocker=unsupported_exact_live_structure_bucket`
-- `runtime_closure_state=patch_active_but_execution_blocked`
-- q35 discriminative redesign 已把 raw entry quality 拉到可跨 floor 的區域，但 execution 仍被 exact-support blocker 壓回 `allowed_layers=0`
+- `support_route_verdict=exact_bucket_supported`
+- `support_rows=96 / 50`
+- `hb_predict_probe.py` top-level live truth：`entry_quality=0.4181 / D / allowed_layers=0`
+- `allowed_layers_reason=decision_quality_below_trade_floor`
+- `q15_exact_supported_component_patch_applied=false`
+- `q15_support_audit.component_experiment.verdict=exact_supported_component_experiment_ready`
 
 **風險**
-- 若 surface 只看 patch active / entry quality，而沒有 exact-support blocker，operator 會誤讀成可部署。
+- support closure 已完成，但 live predictor 還沒跨過 trade floor；如果 operator 只看到 audit/component experiment ready，仍可能把研究型 patch readiness 誤讀成 deployment closure。
 
 **下一步**
-- 只以 current live q35 bucket 當 deployment gate，持續追 `0 -> 50 rows`
-- 確保 `live_predict_probe.json`、`live_decision_quality_drilldown.json`、`heartbeat_fast_summary.json` 三處對 blocker / minimum / gap / support route 完全一致
+- 把 `q15_support_audit` 的 component experiment 與 `hb_predict_probe` 的 live baseline 明確分層，不再讓兩者語義混淆。
+- 若要真正放行 q15，必須讓 live predictor 本身達到 `entry_quality >= 0.55` 且 `allowed_layers > 0`；否則就維持 machine-readable no-deploy governance。
+- 驗證方式：`python scripts/hb_predict_probe.py` 與相關 pytest 必須同時證明 top-level live truth 與 audit semantics 一致。
 
-### P0. recent canonical 500-row distribution pathology 仍未收斂
+### P1. model leaderboard is now honest, but still has zero comparable models
 **現況**
-- primary window = recent 500
-- `alerts = label_imbalance + regime_concentration + regime_shift`
-- `win_rate=0.8560` vs full `0.6381`（`Δ=+0.2179`）
-- dominant regime = `bull (99.20%)`
-- sibling-window top shifts = `feat_4h_bb_pct_b / feat_4h_vol_ratio / feat_eye`
-- new compressed = `feat_atr_pct / feat_vix`
-- tail streak = `71x1`
+- `/api/models/leaderboard` 最新 probe：`count=0 / comparable_count=0 / placeholder_count=6`
+- warning 已明確指出「placeholder-only」
+- zero-trade rows 不再偽裝成正常 top-ranked winners，但目前仍沒有任何可比較、可部署的 model row
 
 **風險**
-- calibration / governance 仍可能被 bull-only pathological window 汙染。
-- 如果只看 broader scope 高分數，會再次把 pathology 包裝成 deployment-ready。
+- Strategy Lab 雖然不再被假排行榜誤導，但現在仍缺少真正可比較的 deployment 候選；產品層面仍無法回答「目前哪個模型可部署」。
 
 **下一步**
-- 產出 recent 500 canonical rows 的 root-cause patch / artifact（variance、distinct-count、target-path）
-- 在根因真正落地前，維持 decision-quality guardrails，不把 broader lane 當 current-live truth
-
-### P1. leaderboard fresh cache refresh 仍停在 stale snapshot
-**現況**
-- `leaderboard_payload_source=latest_persisted_snapshot`
-- `leaderboard_payload_stale=true`
-- `leaderboard_payload_cache_error=CallbackContainer/xgboost circular import`
-- candidate governance probe 雖可讀，但仍不是 fresh rebuild truth
-
-**風險**
-- Strategy Lab / leaderboard 仍有 stale-first 風險；模型治理可能繼續依賴舊 snapshot。
-
-**下一步**
-- 修復 `model_leaderboard_cache.json` refresh path
-- 讓 probe 回到 fresh cache / current snapshot，而不是只靠 old snapshot fallback
+- 追出為何 6 個 refresh models 全都 `avg_trades=0`，確認是 deployment profile、資料窗口、target semantics，還是 run/evaluation path 本身沒有產生 trade。
+- 在找出真正可交易 row 之前，所有 operator / Strategy Lab surface 都必須保留 placeholder-only warning，不得回退成正常排名語氣。
+- 驗證方式：`python scripts/hb_model_leaderboard_api_probe.py` 必須先維持 placeholder warning；之後若修好，至少要看到 `comparable_count>0`。
 
 ---
 
 ## Not Issues
-- **fast-lane ablation timeout**：本輪已降級為非 blocker。`feature_group_ablation` / `bull_4h_pocket_ablation` 已在 fast mode 成功 bounded-reuse，且 summary 保留 `cache_reason / cache_details / artifact_age_seconds`。
-- **q15 exact support**：`q15_support_audit.json` 仍顯示 `exact_bucket_supported`，但 current live row 不是 q15，因此不是當輪 blocker。
-- **240m / 1440m label freshness**：目前仍屬 lookahead horizon 預期，不是 blocker。
+- **q15 stale support audit 讓 probe 假裝 patch-ready / support-ready**：已修復；probe 現在會 refresh audit、必要時 replay prediction，避免直接相信舊 audit。
+- **model leaderboard cache 把 zero-trade rows 當正常 top-ranked rows**：已修復；placeholder rows 現在會被分離，`leaderboard_warning` 也會 machine-read 保留。
 
 ---
 
 ## Current Priority
-1. **補 current q35 exact support 到 50 rows，解除 deployment blocker**
-2. **把 recent 500 pathology 升級成可直接行動的 root-cause patch / artifact**
-3. **修掉 leaderboard fresh cache refresh，讓治理不再 stale-first**
+1. **把 q15 current-live 問題收斂成真正的 live deployment truth，而不是 audit-ready 假 closure**
+2. **把 model leaderboard 從「誠實但全 placeholder」推進到至少一條可比較的 deployment row**

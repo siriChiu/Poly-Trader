@@ -264,14 +264,47 @@ def test_build_report_prefers_probe_live_bucket_over_stale_bull_pocket_context()
 
     report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
 
+    assert report["current_live"]["feature_timestamp"] == "2026-04-15 15:48:14"
     assert report["current_live"]["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
     assert report["current_live"]["current_live_structure_bucket_rows"] == 0
     assert report["current_live"]["execution_guardrail_reason"] == "unsupported_exact_live_structure_bucket_blocks_trade"
+    assert report["current_live"]["raw_features"] == {}
     assert report["support_route"]["verdict"] == "exact_bucket_missing_proxy_reference_only"
     assert report["support_route"]["current_live_structure_bucket_gap_to_minimum"] == 50
     assert report["floor_cross_legality"]["verdict"] == "math_cross_possible_but_illegal_without_exact_support"
     assert report["component_experiment"]["verdict"] == "reference_only_until_exact_support_ready"
     assert report["component_experiment"]["machine_read_answer"]["support_ready"] is False
+
+
+def test_resolve_current_live_context_prefers_nonzero_chosen_scope_rows_when_exact_scope_is_zero():
+    probe = {
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality_label": "D",
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                "current_live_structure_bucket_rows": 0,
+            }
+        },
+    }
+    drilldown = {
+        "chosen_scope_summary": {
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 79,
+        }
+    }
+    bull_pocket = {
+        "live_context": {
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 79,
+        }
+    }
+
+    resolved = q15_support_audit._resolve_current_live_context(probe, drilldown, bull_pocket)
+
+    assert resolved["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
+    assert resolved["current_live_structure_bucket_rows"] == 79
 
 
 def test_build_report_prefers_explicit_probe_execution_guardrail_reason_over_stale_fallback():

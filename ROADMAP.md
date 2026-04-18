@@ -1,82 +1,57 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-18 12:55 CST_
+_最後更新：2026-04-18 18:40 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat ablation fail-soft 已產品化**：
-  - `scripts/hb_parallel_runner.py` 新增 **bounded label-drift cache reuse**
-  - `feature_group_ablation` 可在 1440m canonical labels 只小幅 drift（<=12 rows / <=6h）時安全 reuse
-  - `bull_4h_pocket_ablation` 除了 bounded label drift，還會檢查 **current live structure bucket / blocker semantic signature**；在 `exact bucket rows=0` 時，不再因 `entry_quality_label` 的小幅跳動被迫重跑
-- **bull pocket artifact 現在持久化 `source_meta`**，讓 fast lane 能機器可讀地判斷 artifact 是否仍可安全沿用
-- **回歸驗證已通過**：
-  - `source venv/bin/activate && python -m pytest tests/test_hb_parallel_runner.py tests/test_bull_4h_pocket_ablation.py -q`
-  - 結果：`55 passed`
-- **本輪 runtime 證據**：
-  - `data/heartbeat_fast_summary.json` 顯示：
-    - `feature_group_ablation.cached=true`
-    - `cache_reason=bounded_label_drift_feature_group_ablation_artifact_reused`
-    - `bull_4h_pocket_ablation.cached=true`
-    - `cache_reason=bounded_label_drift_bull_4h_pocket_artifact_reused`
-  - fast lane 已不再被 45s / 20s ablation timeout 卡住
+- **q15 probe/audit truth sync 修復**：`scripts/hb_predict_probe.py` 現在會先 refresh `q15_support_audit`、在 support-ready 狀態改變時 replay prediction、audit 與 probe current-live 不一致時 force-refresh，避免 stale audit 把 live probe 誤寫成 patch-ready。
+- **model leaderboard placeholder contract 修復**：`server/routes/api.py` 現在會保留並快取 `placeholder_rows / placeholder_count / leaderboard_warning`；zero-trade models 不再被正常排行榜吞掉或重新偽裝成 top rank。
+- **cache loader 支援 placeholder-only snapshot**：placeholder-only cache 不再被當成空 cache 忽略，`/api/models/leaderboard` 可以正確回放 `count=0 / placeholder_count>0` 的 honest state。
+- **驗證完成**：
+  - `python -m pytest tests/test_hb_predict_probe.py tests/test_model_leaderboard.py tests/test_model_leaderboard_api_cache.py tests/test_hb_model_leaderboard_api_probe.py tests/test_strategy_leaderboard_contract.py tests/test_q15_support_audit.py -q` → `57 passed`
+  - `python -m pytest tests/test_frontend_decision_contract.py tests/test_server_startup.py -q` → `36 passed`
+  - `cd web && npm run build` → PASS
 
 ---
 
 ## 主目標
 
-### 目標 A：解除 current live q35 exact-support deployment blocker
+### 目標 A：把 q15 current-live lane 從「support 已 closure」推進到真正的 live closure
 **目前真相**
-- current live bucket = `CAUTION|structure_quality_caution|q35`
-- `current_live_structure_bucket_rows=0 / minimum_support_rows=50`
-- `deployment_blocker=unsupported_exact_live_structure_bucket`
-- q35 discriminative redesign 已把 raw layers 拉高，但最終 execution 仍被 blocker 壓回 `allowed_layers=0`
+- `support_route_verdict=exact_bucket_supported`
+- `support_rows=96 / 50`
+- top-level live probe 仍是 `entry_quality=0.4181 / D / allowed_layers=0`
+- `q15_support_audit` 雖然已經產出 `exact_supported_component_experiment_ready`，但這仍是 audit/component experiment 語義，不是 live deployment closure
 
 **成功標準**
-- `current_live_structure_bucket_rows >= 50`
-- `live_predict_probe.json` / `live_decision_quality_drilldown.json` / `heartbeat_fast_summary.json` 三處同時移除 exact-support blocker
-- current-live truth 仍保持 blocker-first，而不是只剩 broader governance 分數
+- `hb_predict_probe.py` top-level live truth 要嘛真正達成 `entry_quality >= 0.55 && allowed_layers > 0`，要嘛維持明確 no-deploy governance；不能再讓 audit-ready 語義冒充 live-ready。
+- operator-facing surface 必須清楚分開 `support closure`、`component experiment ready`、`execution closure`。
 
-### 目標 B：把 recent 500-row pathology 變成可執行 root-cause patch
+### 目標 B：把 model leaderboard 從 honest placeholder-only state 推進到 usable comparable ranking
 **目前真相**
-- recent 500 = `distribution_pathology`
-- dominant regime = `bull (99.20%)`
-- `win_rate=0.8560` vs full `0.6381`
-- top shifts = `feat_4h_bb_pct_b / feat_4h_vol_ratio / feat_eye`
-- new compressed = `feat_atr_pct / feat_vix`
+- `/api/models/leaderboard` 已誠實回傳 `count=0 / placeholder_count=6`
+- 排名 bug 已修掉，但目前沒有任何可比較的 model row
 
 **成功標準**
-- heartbeat 產出可重跑的 root-cause artifact / patch，不只剩 drift 摘要
-- artifact 能直接回答 variance / distinct-count / target-path 病灶
-- guardrail reason 能直接引用該 artifact，而不是人工轉述
-
-### 目標 C：修掉 leaderboard stale snapshot 依賴
-**目前真相**
-- candidate probe 可讀，但 `leaderboard_payload_source` 仍是 `latest_persisted_snapshot`
-- `leaderboard_payload_cache_error = CallbackContainer/xgboost circular import`
-- ablation fast-lane freshness 已不是主 blocker；剩下的是 leaderboard refresh path 本身
-
-**成功標準**
-- `model_leaderboard_cache.json` 能 fresh refresh
-- `leaderboard_payload_source` 回到 fresh cache / current snapshot
-- summary / docs 能 machine-read fresh/stale state，而不是靠人工猜測
+- 要嘛至少出現 `comparable_count > 0` 的真正可比較 row，
+- 要嘛在 Strategy Lab / operator UX 上把 placeholder-only state 明確產品化，不讓使用者誤以為還有可部署名次。
 
 ---
 
 ## 下一步
-1. **追 current q35 exact support 0→50**
-   - 驗證：`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/hb_parallel_runner.py --fast` 三處對 blocker / minimum / gap / route 完全一致
-2. **把 recent 500 pathology 升級成 root-cause artifact / patch**
-   - 驗證：artifact 直接列出 variance / distinct-count / target-path 病灶，並被 ISSUES / heartbeat summary 直接引用
-3. **修掉 leaderboard cache refresh stale-first**
-   - 驗證：`hb_leaderboard_candidate_probe.py` 的 `leaderboard_payload_source` 不再是 `latest_persisted_snapshot`
+1. **q15 live-vs-audit semantic split**
+   - 驗證：`python scripts/hb_predict_probe.py` 必須能清楚區分 live baseline 與 q15 component experiment；若 patch 未真的生效，不得再在 current-live surface 上看起來像已 closure。
+2. **model leaderboard trade-generation root cause**
+   - 驗證：`python scripts/hb_model_leaderboard_api_probe.py` 先維持 placeholder warning；修好後至少出現 `comparable_count > 0`。
+3. **維持回歸與前端 build 綠燈**
+   - 驗證：沿用本輪兩組 pytest + `npm run build`。
 
 ---
 
 ## 成功標準
-- fast lane 內的 feature-group / bull-pocket governance 已能穩定 bounded-reuse，不再是 cron blocker
-- q35 exact support 不再是 current-live deployment blocker
-- recent pathology 有 root cause，而不是只有 drift 指標
-- leaderboard 治理回到 fresh cache / current snapshot，而不是 stale snapshot fallback
+- q15 current-live blocker 以 live predictor truth 為主，不再被 stale audit 或 component experiment 混淆
+- model leaderboard 不再只是「誠實的空榜」，而是至少能提供一條可比較候選，或在 UI 上完成 placeholder-only 治理
+- heartbeat 仍維持：**issue 對齊 → patch → verify → docs overwrite → commit → push**
