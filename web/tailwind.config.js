@@ -23,7 +23,7 @@ export default {
         buy: '#22c55e',
         sell: '#ef4444',
         hold: '#eab308',
-        accent: '#3b82f6',
+        accent: '#7132f5',
       },
     },
   },

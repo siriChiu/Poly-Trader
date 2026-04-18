@@ -1,5 +1,7 @@
 import asyncio
 
+from backtesting import strategy_lab
+from database.models import init_db
 from execution.console_overview import build_execution_overview
 from server.routes import api as api_module
 
@@ -13,6 +15,8 @@ def _status_payload():
             "live_ready_blockers": ["order ack lifecycle 尚未驗證"],
         },
         "execution": {
+            "mode": "paper",
+            "venue": "binance",
             "live_runtime_truth": {
                 "confidence": 0.60,
                 "regime_label": "bull",
@@ -46,16 +50,42 @@ def _status_payload():
 
 
 
-def test_build_execution_overview_creates_equal_split_preview_cards():
+def _seed_execution_strategy_catalog(tmp_path, monkeypatch):
+    strategies_dir = tmp_path / "strategies"
+    strategies_dir.mkdir()
+    monkeypatch.setattr(strategy_lab, "STRATEGIES_DIR", strategies_dir)
+    strategy_lab.save_strategy(
+        "Trend QA Strategy",
+        {
+            "type": "hybrid",
+            "params": {
+                "model_name": "random_forest",
+                "entry": {
+                    "bias50_max": 0.1,
+                },
+            },
+        },
+        {
+            "roi": 0.083,
+            "profit_factor": 1.21,
+            "avg_decision_quality_score": 0.61,
+            "avg_expected_win_rate": 0.57,
+            "total_trades": 14,
+        },
+    )
+
+
+def test_build_execution_overview_exposes_stateful_run_control_beta_contract():
     payload = build_execution_overview(
         _status_payload(),
         config={"trading": {"max_position_ratio": 0.10}},
     )
 
-    assert payload["controls_mode"] == "preview_only"
+    assert payload["controls_mode"] == "stateful_run_control_beta"
     assert payload["summary"]["total_profiles"] == 4
     assert payload["summary"]["active_profiles"] == 3
     assert payload["summary"]["monitoring_profiles"] == 3
+    assert payload["summary"]["running_runs"] == 0
     assert payload["summary"]["allocation_rule"] == "equal_split_active_sleeves"
     assert payload["capital_plan"]["allocation_rule"] == "equal_split_active_sleeves"
     assert payload["capital_plan"]["symbol_scoped_position_count"] == 1
@@ -64,9 +94,12 @@ def test_build_execution_overview_creates_equal_split_preview_cards():
     assert round(payload["capital_plan"]["per_active_profile_budget"], 4) == round(60.4 / 3.0, 4)
 
     cards = {card["key"]: card for card in payload["profile_cards"]}
+    assert cards["trend"]["profile_id"] == "trend"
     assert cards["trend"]["activation_status"] == "active"
     assert cards["trend"]["lifecycle_status"] == "monitoring_shared_symbol"
-    assert cards["trend"]["control_contract"]["start_status"] == "ready_preview"
+    assert cards["trend"]["control_contract"]["start_status"] == "ready_control_plane"
+    assert cards["trend"]["control_contract"]["mode"] == "stateful_run_control_beta"
+    assert cards["trend"]["current_run"] is None
     assert round(cards["trend"]["planned_budget_amount"], 4) == round(60.4 / 3.0, 4)
     assert cards["rebound"]["activation_status"] == "inactive"
     assert cards["rebound"]["lifecycle_status"] == "standby"
@@ -74,16 +107,64 @@ def test_build_execution_overview_creates_equal_split_preview_cards():
 
 
 
-def test_api_execution_overview_wraps_status_payload_and_route_is_registered(monkeypatch):
+def test_build_execution_overview_exposes_strategy_snapshot_summary(monkeypatch, tmp_path):
+    _seed_execution_strategy_catalog(tmp_path, monkeypatch)
+
+    payload = build_execution_overview(
+        _status_payload(),
+        config={"trading": {"max_position_ratio": 0.10}},
+    )
+
+    cards = {card["key"]: card for card in payload["profile_cards"]}
+    trend_binding = cards["trend"]["strategy_binding"]
+    pullback_binding = cards["pullback"]["strategy_binding"]
+
+    assert payload["strategy_source_summary"]["strategy_count"] == 1
+    assert payload["strategy_source_summary"]["covered_sleeves"] == 1
+    assert payload["strategy_source_summary"]["total_sleeves"] == 4
+    assert payload["strategy_source_summary"]["missing_sleeves"] == ["pullback", "rebound", "selective"]
+    assert payload["strategy_source_summary"]["route"] == "/api/execution/strategies/source"
+    assert trend_binding["status"] == "saved_strategy_bound"
+    assert trend_binding["strategy_name"] == "Trend QA Strategy"
+    assert trend_binding["strategy_source"] == "strategy_lab_saved"
+    assert trend_binding["primary_sleeve_key"] == "trend"
+    assert trend_binding["strategy_hash"]
+    assert pullback_binding["status"] == "missing_saved_strategy"
+    assert "尚未找到對應 sleeve 的已儲存策略快照" in pullback_binding["summary"]
+
+
+
+def test_api_execution_overview_wraps_status_payload_and_registers_execution_control_routes(monkeypatch, tmp_path):
     async def _fake_status():
         return _status_payload()
 
+    _seed_execution_strategy_catalog(tmp_path, monkeypatch)
+    session = init_db(f"sqlite:///{tmp_path / 'execution_console.db'}")
     monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"max_position_ratio": 0.10}})
+    monkeypatch.setattr(api_module, "get_db", lambda: session)
     monkeypatch.setattr(api_module, "api_status", _fake_status)
 
     payload = asyncio.run(api_module.api_execution_overview())
+    strategy_payload = asyncio.run(api_module.api_execution_strategy_source())
+    runs_payload = asyncio.run(api_module.api_execution_runs())
 
     assert payload["symbol"] == "BTCUSDT"
+    assert payload["controls_mode"] == "stateful_run_control_beta"
     assert payload["summary"]["active_profiles"] == 3
-    assert payload["profile_cards"][0]["controls_mode"] == "preview_only"
-    assert any(getattr(route, "path", None) == "/execution/overview" for route in api_module.router.routes)
+    assert payload["profile_cards"][0]["controls_mode"] == "stateful_run_control_beta"
+    assert payload["profile_cards"][0]["strategy_binding"]["status"] == "saved_strategy_bound"
+    assert payload["strategy_source_summary"]["route"] == "/api/execution/strategies/source"
+    assert strategy_payload["summary"]["strategy_count"] == 1
+    assert strategy_payload["sleeve_bindings"]["trend"]["recommended"]["strategy_name"] == "Trend QA Strategy"
+    assert runs_payload["controls_mode"] == "stateful_run_control_beta"
+    assert runs_payload["summary"]["total_profiles"] == 4
+    assert runs_payload["summary"]["total_runs"] == 0
+    route_paths = {getattr(route, "path", None) for route in api_module.router.routes}
+    assert "/execution/overview" in route_paths
+    assert "/execution/strategies/source" in route_paths
+    assert "/execution/profiles" in route_paths
+    assert "/execution/runs" in route_paths
+    assert "/execution/runs/{profile_id}/start" in route_paths
+    assert "/execution/runs/{run_id}/pause" in route_paths
+    assert "/execution/runs/{run_id}/stop" in route_paths
+    assert "/execution/runs/{run_id}" in route_paths

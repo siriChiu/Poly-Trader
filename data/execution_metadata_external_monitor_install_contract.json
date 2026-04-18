@@ -5,22 +5,22 @@
   "project_root": "/home/kazuha/Poly-Trader",
   "symbol": "BTCUSDT",
   "interval_seconds": 300.0,
-  "generator_command": "cd /home/kazuha/Poly-Trader && source venv/bin/activate && python scripts/execution_metadata_external_monitor_install.py --symbol BTCUSDT",
-  "manual_run_command": "cd /home/kazuha/Poly-Trader && source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300",
+  "generator_command": "cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor_install.py --symbol BTCUSDT",
+  "manual_run_command": "cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300",
   "verify_artifact_command": "test -f /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.json && tail -n 40 /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.json",
   "install_status": {
     "status": "installed",
     "installed": true,
     "active_lane": "user_crontab",
-    "checked_at": "2026-04-16T16:41:28.436875Z",
+    "checked_at": "2026-04-16T17:26:09.435843Z",
     "preferred_host_lane": "user_crontab",
     "lanes": {
       "user_crontab": {
         "installed": true,
         "returncode": 0,
-        "stdout": "*/5 * * * * cd /home/kazuha/Poly-Trader && source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300 >> /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.log 2>&1 # poly-trader-execution-metadata-external-monitor",
+        "stdout": "*/5 * * * * cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300 >> /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.log 2>&1 # poly-trader-execution-metadata-external-monitor",
         "stderr": "",
-        "checked_at": "2026-04-16T16:41:28.416792Z",
+        "checked_at": "2026-04-16T17:26:09.431850Z",
         "verify_command": "crontab -l | grep 'poly-trader-execution-metadata-external-monitor'"
       },
       "systemd_user": {
@@ -28,7 +28,7 @@
         "returncode": 4,
         "stdout": "",
         "stderr": "Unit poly-trader-execution-metadata-external-monitor.timer could not be found.",
-        "checked_at": "2026-04-16T16:41:28.436859Z",
+        "checked_at": "2026-04-16T17:26:09.435835Z",
         "verify_command": "systemctl --user status poly-trader-execution-metadata-external-monitor.timer --no-pager"
       }
     }
@@ -36,20 +36,20 @@
   "fallback": {
     "mode": "manual_or_existing_scheduler",
     "reason": "若本輪無法直接安裝 host-level scheduler，至少保留可重跑 command 與 verify contract。",
-    "command": "cd /home/kazuha/Poly-Trader && source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300",
+    "command": "cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300",
     "verify_command": "test -f /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.json"
   },
   "user_crontab": {
     "schedule": "*/5 * * * *",
-    "entry": "*/5 * * * * cd /home/kazuha/Poly-Trader && source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300 >> /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.log 2>&1",
-    "install_command": "(crontab -l 2>/dev/null | grep -v 'poly-trader-execution-metadata-external-monitor'; echo '*/5 * * * * cd /home/kazuha/Poly-Trader && source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300 >> /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.log 2>&1 # poly-trader-execution-metadata-external-monitor') | crontab -",
+    "entry": "*/5 * * * * cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300 >> /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.log 2>&1",
+    "install_command": "(crontab -l 2>/dev/null | grep -v 'poly-trader-execution-metadata-external-monitor'; echo '*/5 * * * * cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300 >> /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.log 2>&1 # poly-trader-execution-metadata-external-monitor') | crontab -",
     "verify_command": "crontab -l | grep 'poly-trader-execution-metadata-external-monitor'"
   },
   "systemd_user": {
     "service_name": "poly-trader-execution-metadata-external-monitor",
     "service_file": "~/.config/systemd/user/poly-trader-execution-metadata-external-monitor.service",
     "timer_file": "~/.config/systemd/user/poly-trader-execution-metadata-external-monitor.timer",
-    "service_unit": "[Unit]\nDescription=Poly-Trader execution metadata external monitor\nAfter=network-online.target\n\n[Service]\nType=oneshot\nWorkingDirectory=/home/kazuha/Poly-Trader\nExecStart=/bin/bash -lc 'cd /home/kazuha/Poly-Trader && source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300'\n",
+    "service_unit": "[Unit]\nDescription=Poly-Trader execution metadata external monitor\nAfter=network-online.target\n\n[Service]\nType=oneshot\nWorkingDirectory=/home/kazuha/Poly-Trader\nExecStart=/bin/bash -lc 'cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300'\n",
     "timer_unit": "[Unit]\nDescription=Run Poly-Trader execution metadata external monitor on a fixed cadence\n\n[Timer]\nOnBootSec=300\nOnUnitActiveSec=300\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n",
     "install_steps": [
       "mkdir -p ~/.config/systemd/user && cat > ~/.config/systemd/user/poly-trader-execution-metadata-external-monitor.service",

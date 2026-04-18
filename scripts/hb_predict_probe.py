@@ -217,10 +217,13 @@ def _runtime_patch_name(result: dict) -> str | None:
 def _runtime_closure_state(result: dict) -> str:
     patch_name = _runtime_patch_name(result)
     blocker = str(result.get("deployment_blocker") or "")
+    support_route_verdict = str(result.get("support_route_verdict") or "")
     if result.get("signal") == "CIRCUIT_BREAKER":
         return "circuit_breaker_active"
     if blocker.startswith("exact_live_lane_toxic_"):
         return "deployment_guardrail_blocks_trade"
+    if blocker == "decision_quality_below_trade_floor" and support_route_verdict == "exact_bucket_supported" and not patch_name:
+        return "support_closed_but_trade_floor_blocked"
     if patch_name and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0:
         return "capacity_opened_signal_hold"
     if patch_name and (
@@ -266,6 +269,30 @@ def _runtime_closure_summary(
             f"current live bucket {bucket} 已具 exact support，但 runtime 仍被 {blocker} 擋住；"
             f"{blocker_reason or 'exact live lane 毒性治理仍未解除'}。"
             "目前保持 hold-only，不可把 support closure 誤讀成 deployment closure。"
+        )
+    if blocker == "decision_quality_below_trade_floor" and str(result.get("support_route_verdict") or "") == "exact_bucket_supported" and not patch_name:
+        bucket = result.get("current_live_structure_bucket") or result.get("structure_bucket") or "unknown_bucket"
+        entry_quality = float(result.get("entry_quality") or 0.0)
+        trade_floor = None
+        entry_quality_components = result.get("entry_quality_components")
+        if isinstance(entry_quality_components, dict):
+            try:
+                trade_floor = float(entry_quality_components.get("trade_floor")) if entry_quality_components.get("trade_floor") is not None else None
+            except (TypeError, ValueError):
+                trade_floor = None
+        support_progress = result.get("support_progress") if isinstance(result.get("support_progress"), dict) else {}
+        current_rows = support_progress.get("current_rows")
+        minimum_rows = support_progress.get("minimum_support_rows")
+        component_verdict = result.get("component_experiment_verdict")
+        entry_label = result.get("entry_quality_label") or "—"
+        return (
+            f"current live bucket {bucket} 已完成 exact support closure"
+            + (f"（{current_rows}/{minimum_rows}）" if current_rows is not None and minimum_rows is not None else "")
+            + f"，但 top-level live baseline 仍停在 entry_quality={entry_quality:.4f} ({entry_label})"
+            + (f" < trade floor {trade_floor:.2f}" if trade_floor is not None else "")
+            + "；目前維持明確 no-deploy governance。"
+            + (f" q15 audit 的 {component_verdict} 只代表研究型 component experiment readiness，" if component_verdict else " ")
+            + "不可把 support closure 誤讀成 deployment closure。"
         )
     if patch_name and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0:
         return (
@@ -336,6 +363,13 @@ def _build_probe_payload(
         fallback_progress = deployment_blocker_details.get("support_progress") if isinstance(deployment_blocker_details.get("support_progress"), dict) else {}
         if fallback_progress:
             support_progress = fallback_progress
+    runtime_result = dict(result)
+    if support_route.get("verdict") is not None and not runtime_result.get("support_route_verdict"):
+        runtime_result["support_route_verdict"] = support_route.get("verdict")
+    if support_route.get("deployable") is not None and runtime_result.get("support_route_deployable") is None:
+        runtime_result["support_route_deployable"] = support_route.get("deployable")
+    if support_progress and not isinstance(runtime_result.get("support_progress"), dict):
+        runtime_result["support_progress"] = support_progress
     breaker_release = deployment_blocker_details.get("release_condition") if isinstance(deployment_blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = deployment_blocker_details.get("recent_window") if isinstance(deployment_blocker_details.get("recent_window"), dict) else {}
     release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
@@ -401,9 +435,9 @@ def _build_probe_payload(
         "best_single_component": floor_cross.get("best_single_component"),
         "best_single_component_required_score_delta": floor_cross.get("best_single_component_required_score_delta"),
         "component_experiment_verdict": component_experiment.get("verdict"),
-        "runtime_closure_state": _runtime_closure_state(result),
+        "runtime_closure_state": _runtime_closure_state(runtime_result),
         "runtime_closure_summary": _runtime_closure_summary(
-            result,
+            runtime_result,
             release_window=release_window,
             release_floor=release_floor,
             release_gap=release_gap,

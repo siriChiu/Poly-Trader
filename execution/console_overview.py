@@ -3,27 +3,15 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
+from execution.control_plane import (
+    CONTROL_MODE,
+    CONTROL_PLANE_OPERATOR_MESSAGE,
+    CONTROL_PLANE_UPGRADE_PREREQUISITE,
+    PRIMARY_SLEEVE_META,
+    PRIMARY_SLEEVE_ORDER,
+    build_execution_strategy_source_snapshot,
+)
 from execution.risk_control import check_position_size
-
-PRIMARY_SLEEVE_ORDER = ("trend", "pullback", "rebound", "selective")
-PRIMARY_SLEEVE_META: Dict[str, Dict[str, str]] = {
-    "trend": {
-        "label": "趨勢承接",
-        "summary": "順著既有 4H 結構承接 pullback，維持中頻主線節奏。",
-    },
-    "pullback": {
-        "label": "回調承接",
-        "summary": "等待較深 pullback 再進場，優先服務 bull / chop 的再部署窗口。",
-    },
-    "rebound": {
-        "label": "深跌回補",
-        "summary": "只在極端 oversold / crash pocket 嘗試反身回補，屬於反轉型 sleeve。",
-    },
-    "selective": {
-        "label": "高信念精選",
-        "summary": "提高品質門檻與 top-k 篩選，只保留最強交易候選。",
-    },
-}
 
 
 def _as_dict(value: Any) -> Dict[str, Any]:
@@ -126,9 +114,14 @@ def _planned_budget(
 
 
 
-def build_execution_overview(status_payload: Optional[Dict[str, Any]], config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def build_execution_overview(
+    status_payload: Optional[Dict[str, Any]],
+    config: Optional[Dict[str, Any]] = None,
+    control_plane: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     payload = _as_dict(status_payload)
     config = _as_dict(config)
+    control_plane = _as_dict(control_plane)
 
     symbol = str(payload.get("symbol") or "BTCUSDT")
     timestamp = payload.get("timestamp") or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -137,6 +130,9 @@ def build_execution_overview(status_payload: Optional[Dict[str, Any]], config: O
     live_runtime_truth = _as_dict(_as_dict(payload.get("execution")).get("live_runtime_truth") or execution_surface_contract.get("live_runtime_truth"))
     sleeve_routing = _as_dict(live_runtime_truth.get("sleeve_routing"))
     account = _as_dict(payload.get("account"))
+    runs_by_profile = _as_dict(control_plane.get("runs_by_profile"))
+    strategy_source_snapshot = build_execution_strategy_source_snapshot()
+    strategy_bindings = _as_dict(strategy_source_snapshot.get("sleeve_bindings"))
 
     positions = [item for item in _as_list(account.get("positions")) if isinstance(item, dict)]
     open_orders = [item for item in _as_list(account.get("open_orders")) if isinstance(item, dict)]
@@ -218,19 +214,44 @@ def build_execution_overview(status_payload: Optional[Dict[str, Any]], config: O
             active_count=active_count,
         )
 
-        if active and not global_blocker:
-            start_status = "ready_preview"
-            start_reason = "routing active，且目前沒有全域 execution blocker；可先用 preview contract 規劃 bot/profile。"
+        current_run = _as_dict(runs_by_profile.get(key))
+        current_run_state = str(current_run.get("state") or "").strip()
+        current_run_event = _as_dict(current_run.get("latest_event"))
+
+        if current_run_state == "running":
+            start_status = "already_running"
+            start_reason = "此 sleeve 已有 stateful running run；可直接 pause/stop，或讓它維持目前 control-plane 狀態。"
+            pause_status = "available"
+            stop_status = "available"
+            next_action = "目前已有 stateful running run；下一步應確認 per-bot capital / position attribution 是否已接上，而不是再重複 start。"
+        elif current_run_state == "paused":
+            start_status = "resume_available"
+            start_reason = "此 sleeve 先前已建立 paused run；可直接 resume，不必重新建立新 run。"
+            pause_status = "already_paused"
+            stop_status = "available"
+            next_action = "此 sleeve 目前在 paused；若要繼續，請 resume 並對齊 per-bot runtime binding。"
+        elif active and not global_blocker:
+            start_status = "ready_control_plane"
+            start_reason = "routing active，且目前沒有全域 execution blocker；可建立 stateful run control beta。"
+            pause_status = "available_when_running"
+            stop_status = "available_when_running"
         elif active:
             start_status = "blocked_preview"
             start_reason = f"routing 雖 active，但目前仍被 blocker 擋下：{global_blocker}。"
+            pause_status = "blocked_until_started"
+            stop_status = "blocked_until_started"
         else:
             start_status = "inactive_preview"
             start_reason = routing_reason
+            pause_status = "blocked_until_started"
+            stop_status = "blocked_until_started"
+
+        strategy_binding = _as_dict(_as_dict(strategy_bindings.get(key)).get("recommended")) or None
 
         cards.append(
             {
                 "key": key,
+                "profile_id": key,
                 "label": label,
                 "summary": summary,
                 "activation_status": "active" if active else "inactive",
@@ -243,15 +264,20 @@ def build_execution_overview(status_payload: Optional[Dict[str, Any]], config: O
                 "allowed_layers_reason": live_runtime_truth.get("allowed_layers_reason"),
                 "deployment_blocker": live_runtime_truth.get("deployment_blocker"),
                 "execution_guardrail_reason": live_runtime_truth.get("execution_guardrail_reason"),
-                "controls_mode": "preview_only",
+                "strategy_binding": strategy_binding,
+                "controls_mode": control_plane.get("controls_mode") or CONTROL_MODE,
+                "current_run": current_run or None,
+                "current_run_state": current_run_state or None,
                 "control_contract": {
-                    "mode": "preview_only",
+                    "mode": control_plane.get("controls_mode") or CONTROL_MODE,
                     "start_status": start_status,
                     "start_reason": start_reason,
-                    "pause_status": "not_live_yet",
-                    "stop_status": "not_live_yet",
+                    "pause_status": pause_status,
+                    "stop_status": stop_status,
+                    "latest_event_type": current_run.get("last_event_type"),
+                    "latest_event_message": current_run.get("last_event_message") or current_run_event.get("message"),
                     "upgrade_required": True,
-                    "upgrade_prerequisite": "需要真正的 /api/execution/runs start/pause/stop mutation 與 per-bot runtime event log。",
+                    "upgrade_prerequisite": CONTROL_PLANE_UPGRADE_PREREQUISITE,
                 },
                 "symbol_scoped_position_count": len(symbol_positions),
                 "symbol_scoped_open_order_count": len(symbol_open_orders),
@@ -260,15 +286,21 @@ def build_execution_overview(status_payload: Optional[Dict[str, Any]], config: O
             }
         )
 
+    controls_mode = control_plane.get("controls_mode") or CONTROL_MODE
+    control_plane_summary = _as_dict(control_plane.get("summary"))
     summary = {
         "total_profiles": len(cards),
         "active_profiles": active_count,
         "standby_profiles": standby_count,
         "blocked_profiles": blocked_count,
         "monitoring_profiles": monitoring_count,
-        "controls_mode": "preview_only",
+        "running_runs": control_plane_summary.get("running_runs", 0),
+        "paused_runs": control_plane_summary.get("paused_runs", 0),
+        "stopped_runs": control_plane_summary.get("stopped_runs", 0),
+        "total_runs": control_plane_summary.get("total_runs", 0),
+        "controls_mode": controls_mode,
         "allocation_rule": "equal_split_active_sleeves",
-        "operator_message": "Execution Console 現在已具備 machine-readable bot profile / capital preview；真正的 mutable lifecycle 仍待後續 /api/execution/runs 落地。",
+        "operator_message": control_plane.get("operator_message") or CONTROL_PLANE_OPERATOR_MESSAGE,
     }
 
     capital_plan = {
@@ -284,18 +316,19 @@ def build_execution_overview(status_payload: Optional[Dict[str, Any]], config: O
         "allocation_rule": "equal_split_active_sleeves",
         "symbol_scoped_position_count": len(symbol_positions),
         "symbol_scoped_open_order_count": len(symbol_open_orders),
-        "operator_message": "deployable capital 先依 risk_control.check_position_size() 計算，再由 active sleeves 等分；這是 preview contract，不是 live bot 資金切帳。",
+        "operator_message": "deployable capital 仍先依 risk_control.check_position_size() 計算，再由 active sleeves 等分；run control 已 stateful 化，但 per-bot capital ledger 仍未落地。",
     }
 
     return {
         "symbol": symbol,
         "timestamp": timestamp,
-        "controls_mode": "preview_only",
+        "controls_mode": controls_mode,
         "source_route": "/api/status",
         "operator_message": summary["operator_message"],
-        "upgrade_prerequisite": "目前先用 /api/execution/overview 提供 read-only bot profile / capital preview；真正 start/pause/stop、per-bot capital 與 run event persistence 是下一步。",
+        "upgrade_prerequisite": control_plane.get("upgrade_prerequisite") or CONTROL_PLANE_UPGRADE_PREREQUISITE,
         "summary": summary,
         "capital_plan": capital_plan,
+        "strategy_source_summary": _as_dict(strategy_source_snapshot.get("summary")),
         "profile_cards": cards,
         "live_ready": bool(execution_surface_contract.get("live_ready", False)),
         "live_ready_blockers": _as_list(execution_surface_contract.get("live_ready_blockers")),

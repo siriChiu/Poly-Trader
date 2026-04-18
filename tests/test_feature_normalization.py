@@ -27,3 +27,17 @@ def test_api_normalization_matches_soft_extreme_behavior():
     assert base is not None and high is not None and extreme is not None
     assert base < high < extreme < 0.99
     assert high >= 0.89
+
+
+def test_api_normalization_handles_transformed_sparse_source_ranges():
+    fang_mid = normalize_for_api(-0.53, "feat_fang_pcr")
+    fang_high = normalize_for_api(0.35, "feat_fang_pcr")
+    claw_mid = normalize_for_api(-0.49, "feat_claw")
+    claw_high = normalize_for_api(0.4, "feat_claw")
+
+    assert fang_mid is not None and fang_high is not None
+    assert claw_mid is not None and claw_high is not None
+    assert 0.0 < fang_mid < fang_high < 1.0
+    assert 0.0 < claw_mid < claw_high < 1.0
+    assert fang_mid > 0.02
+    assert claw_mid > 0.02

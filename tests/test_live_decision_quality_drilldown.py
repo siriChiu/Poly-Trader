@@ -103,6 +103,87 @@ def test_component_gap_attribution_handles_zero_gap_without_required_delta():
     assert result["remaining_gap_to_floor"] == 0.0
     assert result["best_single_component"] is None
     assert result["single_component_floor_crossers"] == []
+    assert result["reconstructed_from_q15_patch"] is False
+
+
+def test_component_gap_attribution_reconstructs_baseline_when_q15_patch_is_active():
+    eq_components = {
+        "entry_quality": 0.55,
+        "trade_floor": 0.55,
+        "base_quality_weight": 0.75,
+        "structure_quality_weight": 0.25,
+        "base_components": [
+            {
+                "feature": "feat_4h_bias50",
+                "weight": 0.40,
+                "raw_value": 3.8273,
+                "normalized_score": 0.4397,
+                "weighted_contribution": 0.1759,
+            },
+            {
+                "feature": "feat_nose",
+                "weight": 0.18,
+                "raw_value": 0.0911,
+                "normalized_score": 0.9089,
+                "weighted_contribution": 0.1636,
+            },
+            {
+                "feature": "feat_pulse",
+                "weight": 0.27,
+                "raw_value": 0.4974,
+                "normalized_score": 0.4974,
+                "weighted_contribution": 0.1343,
+            },
+            {
+                "feature": "feat_ear",
+                "weight": 0.15,
+                "raw_value": -0.009,
+                "normalized_score": 0.9549,
+                "weighted_contribution": 0.1432,
+            },
+        ],
+        "structure_quality": 0.349,
+        "structure_components": [
+            {
+                "feature": "feat_4h_bb_pct_b",
+                "weight": 0.34,
+                "raw_value": 0.4405,
+                "normalized_score": 0.4405,
+                "weighted_contribution": 0.1498,
+            },
+            {
+                "feature": "feat_4h_dist_bb_lower",
+                "weight": 0.33,
+                "raw_value": 1.3549,
+                "normalized_score": 0.1694,
+                "weighted_contribution": 0.0559,
+            },
+            {
+                "feature": "feat_4h_dist_swing_low",
+                "weight": 0.33,
+                "raw_value": 4.3429,
+                "normalized_score": 0.4343,
+                "weighted_contribution": 0.1433,
+            },
+        ],
+        "q15_exact_supported_component_patch": {
+            "applied": True,
+            "feature": "feat_4h_bias50",
+            "original_normalized_score": 0.0,
+            "patched_normalized_score": 0.4397,
+            "required_score_delta": 0.4397,
+        },
+    }
+
+    result = live_drilldown._component_gap_attribution(eq_components, {})
+
+    assert result["reconstructed_from_q15_patch"] is True
+    assert result["runtime_entry_quality_after_patch"] == 0.55
+    assert result["entry_quality"] == 0.4181
+    assert result["remaining_gap_to_floor"] == 0.1319
+    assert result["best_single_component"]["feature"] == "feat_4h_bias50"
+    assert result["best_single_component"]["required_score_delta_to_cross_floor"] == 0.4397
+    assert result["single_component_floor_crossers"][0]["feature"] == "feat_4h_bias50"
 
 
 def test_runtime_blocker_summary_and_unavailable_gap_attribution_for_circuit_breaker():

@@ -20,6 +20,7 @@ def leaderboard_db(tmp_path: Path) -> Path:
         CREATE TABLE features_normalized (
             timestamp TEXT,
             symbol TEXT,
+            regime_label TEXT,
             feat_eye REAL,
             feat_ear REAL,
             feat_nose REAL,
@@ -44,7 +45,10 @@ def leaderboard_db(tmp_path: Path) -> Path:
             feat_4h_dist_bb_lower REAL,
             feat_4h_ma_order REAL,
             feat_4h_dist_swing_low REAL,
-            feat_4h_vol_ratio REAL
+            feat_4h_vol_ratio REAL,
+            feat_local_bottom_score REAL,
+            feat_local_top_score REAL,
+            feat_turning_point_score REAL
         );
         CREATE TABLE raw_market_data (
             timestamp TEXT,
@@ -62,8 +66,8 @@ def leaderboard_db(tmp_path: Path) -> Path:
 
     ts = "2026-01-01 00:00:00"
     conn.execute(
-        "INSERT INTO features_normalized VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (ts, "BTCUSDT", 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 11.0, 101.0, 0.55, 0.01, 0.02, 0.03, 0.8, -2.0, -1.0, -3.0, 45.0, 100.0, 0.4, -0.6, 1.0, 3.0, 1.2),
+        "INSERT INTO features_normalized VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (ts, "BTCUSDT", "bull", 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 11.0, 101.0, 0.55, 0.01, 0.02, 0.03, 0.8, -2.0, -1.0, -3.0, 45.0, 100.0, 0.4, -0.6, 1.0, 3.0, 1.2, 0.61, 0.47, 0.61),
     )
     conn.execute(
         "INSERT INTO raw_market_data VALUES (?,?,?)",
@@ -106,6 +110,9 @@ def test_load_model_leaderboard_frame_falls_back_to_timestamp_join(leaderboard_d
     assert not df.empty
     assert df.loc[0, "label_spot_long_win"] == 1
     assert df.loc[0, "close_price"] == 50000.0
+    assert df.loc[0, "regime_label"] == "bull"
+    assert df.loc[0, "feat_local_bottom_score"] == pytest.approx(0.61)
+    assert df.loc[0, "feat_local_top_score"] == pytest.approx(0.47)
 
 
 def test_load_model_leaderboard_frame_prefers_simulated_target_rows(tmp_path: Path):
@@ -116,6 +123,7 @@ def test_load_model_leaderboard_frame_prefers_simulated_target_rows(tmp_path: Pa
         CREATE TABLE features_normalized (
             timestamp TEXT,
             symbol TEXT,
+            regime_label TEXT,
             feat_eye REAL,
             feat_ear REAL,
             feat_nose REAL,
@@ -140,7 +148,10 @@ def test_load_model_leaderboard_frame_prefers_simulated_target_rows(tmp_path: Pa
             feat_4h_dist_bb_lower REAL,
             feat_4h_ma_order REAL,
             feat_4h_dist_swing_low REAL,
-            feat_4h_vol_ratio REAL
+            feat_4h_vol_ratio REAL,
+            feat_local_bottom_score REAL,
+            feat_local_top_score REAL,
+            feat_turning_point_score REAL
         );
         CREATE TABLE raw_market_data (
             timestamp TEXT,
@@ -162,8 +173,8 @@ def test_load_model_leaderboard_frame_prefers_simulated_target_rows(tmp_path: Pa
     )
     ts = "2026-01-02 00:00:00"
     conn.execute(
-        "INSERT INTO features_normalized VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (ts, "BTCUSDT", 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 11.0, 101.0, 0.55, 0.01, 0.02, 0.03, 0.8, -2.0, -1.0, -3.0, 45.0, 100.0, 0.4, -0.6, 1.0, 3.0, 1.2),
+        "INSERT INTO features_normalized VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (ts, "BTCUSDT", "bull", 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 11.0, 101.0, 0.55, 0.01, 0.02, 0.03, 0.8, -2.0, -1.0, -3.0, 45.0, 100.0, 0.4, -0.6, 1.0, 3.0, 1.2, 0.61, 0.47, 0.61),
     )
     conn.execute("INSERT INTO raw_market_data VALUES (?,?,?)", (ts, "BTCUSDT", 51000.0))
     conn.execute(
@@ -189,6 +200,8 @@ def test_load_model_leaderboard_frame_prefers_simulated_target_rows(tmp_path: Pa
     assert df.loc[0, "feat_4h_bias200"] == pytest.approx(-3.0)
     assert df.loc[0, "feat_4h_dist_bb_lower"] == pytest.approx(-0.6)
     assert df.loc[0, "feat_4h_vol_ratio"] == pytest.approx(1.2)
+    assert df.loc[0, "feat_local_bottom_score"] == pytest.approx(0.61)
+    assert df.loc[0, "feat_local_top_score"] == pytest.approx(0.47)
     assert df.loc[0, "close_price"] == 51000.0
 
 
@@ -356,6 +369,72 @@ def test_build_model_leaderboard_payload_separates_no_trade_placeholders(monkeyp
         }
     ]
     assert payload["leaderboard_warning"] is not None and "no-trade placeholder" in payload["leaderboard_warning"]
+
+
+def test_build_model_leaderboard_payload_includes_strategy_param_scan_when_placeholder_only(monkeypatch):
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=3, freq="D"),
+            "close_price": [50000.0, 50010.0, 50020.0],
+            "simulated_pyramid_win": [1, 0, 1],
+            "feat_4h_bias50": [0.0, 0.0, 0.0],
+            "feat_nose": [0.4, 0.5, 0.6],
+            "feat_pulse": [0.6, 0.5, 0.4],
+            "feat_ear": [0.1, 0.1, 0.1],
+        }
+    )
+
+    monkeypatch.setattr(api_module, "load_model_leaderboard_frame", lambda db_path=None: df)
+    monkeypatch.setattr(api_module, "_load_model_leaderboard_history", lambda db_path=None: [])
+    monkeypatch.setattr(api_module, "_summarize_target_candidates", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        api_module,
+        "_load_strategy_param_scan_summary",
+        lambda: {
+            "generated_at": "2026-04-18T11:44:36Z",
+            "saved_strategy_count": 6,
+            "best_strategy_candidates": [
+                {
+                    "name": "Auto Leaderboard · 重掃 lightgbm Hybrid #01",
+                    "model_name": "lightgbm",
+                    "roi": 0.3744,
+                    "win_rate": 0.7183,
+                    "total_trades": 71,
+                }
+            ],
+            "warning": "canonical model leaderboard 仍是 placeholder-only；請改看策略參數重掃候選。",
+        },
+    )
+
+    placeholder = model_leaderboard_module.ModelScore(
+        model_name="rule_baseline",
+        deployment_profile="standard",
+        feature_profile="core_plus_macro_plus_4h_structure_shift",
+        feature_profile_source="bull_4h_pocket_ablation.exact_supported_profile",
+        avg_roi=0.0,
+        avg_win_rate=0.0,
+        avg_trades=0.0,
+        overall_score=0.0,
+        composite_score=0.0,
+        ranking_eligible=False,
+        ranking_status="no_trade_placeholder",
+        ranking_warning="此模型在當前 deployment profile 下未產生任何交易；僅可視為 no-trade placeholder，不得當成正常排行榜前段結果。",
+        placeholder_reason="no_trades_generated_under_current_deployment_profile",
+    )
+
+    def _fake_run_all_models(self, model_names=None):
+        self.last_model_statuses = {"rule_baseline": {"status": "ok"}}
+        return [placeholder]
+
+    monkeypatch.setattr(ModelLeaderboard, "run_all_models", _fake_run_all_models)
+
+    payload = api_module._build_model_leaderboard_payload()
+
+    assert payload["count"] == 0
+    assert payload["placeholder_count"] == 1
+    assert payload["strategy_param_scan"]["saved_strategy_count"] == 6
+    assert payload["strategy_param_scan"]["best_strategy_candidates"][0]["model_name"] == "lightgbm"
+    assert "placeholder-only" in payload["strategy_param_scan"]["warning"]
 
 
 def test_target_candidate_summary_reuses_refresh_shortlist(monkeypatch):
@@ -906,6 +985,8 @@ def test_run_single_fold_uses_true_4h_context_and_deployment_profile(monkeypatch
             "feat_4h_dist_bb_lower": [-0.8] * len(timestamps),
             "feat_4h_dist_swing_low": [2.2] * len(timestamps),
             "regime_label": ["bear"] * len(timestamps),
+            "feat_local_bottom_score": [0.64] * len(timestamps),
+            "feat_local_top_score": [0.28] * len(timestamps),
             "feat_nose": [0.4] * len(timestamps),
             "feat_pulse": [0.6] * len(timestamps),
             "feat_ear": [0.1] * len(timestamps),
@@ -931,6 +1012,8 @@ def test_run_single_fold_uses_true_4h_context_and_deployment_profile(monkeypatch
         captured["allowed_regimes"] = params.get("entry", {}).get("allowed_regimes")
         captured["top_k_percent"] = params.get("entry", {}).get("top_k_percent")
         captured["regimes"] = kwargs.get("regimes")
+        captured["local_bottom_score_first"] = kwargs.get("local_bottom_score")[0]
+        captured["local_top_score_first"] = kwargs.get("local_top_score")[0]
         return type("Result", (), {
             "roi": 0.1,
             "win_rate": 0.6,
@@ -949,6 +1032,8 @@ def test_run_single_fold_uses_true_4h_context_and_deployment_profile(monkeypatch
     assert captured["allowed_regimes"] == ["bear"]
     assert captured["top_k_percent"] == pytest.approx(10.0)
     assert captured["regimes"][0] == "bear"
+    assert captured["local_bottom_score_first"] == pytest.approx(0.64)
+    assert captured["local_top_score_first"] == pytest.approx(0.28)
     assert fold.deployment_profile == "high_conviction_bear_top10"
 
 

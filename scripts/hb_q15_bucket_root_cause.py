@@ -177,7 +177,8 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
             "reason": "缺少 data/live_predict_probe.json，無法分析 q15 exact-bucket root cause。",
         }
 
-    X, _, regimes = feature_group_module._load_training_frame()
+    loaded = feature_group_module._load_training_frame()
+    X, _, regimes = loaded[:3]
     frame = X.copy()
     frame["regime_label"] = regimes.values
     frame = bull_pocket_module._derive_live_bucket_columns(frame)

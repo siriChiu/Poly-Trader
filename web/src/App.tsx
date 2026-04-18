@@ -6,10 +6,12 @@ const Dashboard = React.lazy(() => import('./pages/Dashboard'))
 const Senses = React.lazy(() => import('./pages/Senses'))
 const StrategyLab = React.lazy(() => import('./pages/StrategyLab'))
 const ExecutionConsole = React.lazy(() => import('./pages/ExecutionConsole'))
+const ExecutionStatus = React.lazy(() => import('./pages/ExecutionStatus'))
 
 const NAV_ITEMS = [
   { to: '/', label: '📊 儀表板', end: true },
-  { to: '/execution', label: '⚡ 實戰交易' },
+  { to: '/execution', label: '⚡ Bot 營運', end: true },
+  { to: '/execution/status', label: '🩺 執行狀態' },
   { to: '/senses', label: '🎛️ 特徵管理' },
   { to: '/lab', label: '🧪 策略實驗室' },
 ]
@@ -18,7 +20,7 @@ export default function App() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <div className="min-h-screen bg-dark-950">
-        <nav className="bg-dark-900 border-b border-dark-700 sticky top-0 z-50">
+        <nav className="sticky top-0 z-50 border-b border-white/6 bg-dark-900/80 backdrop-blur-xl shadow-[0_12px_40px_rgba(6,10,24,0.28)]">
           <div className="w-full px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-14">
               <div className="flex items-center gap-2">
@@ -54,6 +56,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/execution" element={<ExecutionConsole />} />
+              <Route path="/execution/status" element={<ExecutionStatus />} />
               <Route path="/backtest" element={<Navigate to="/lab" replace />} />
               <Route path="/senses" element={<Senses />} />
               <Route path="/lab" element={<StrategyLab />} />

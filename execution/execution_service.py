@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import time
 from datetime import datetime, timezone
@@ -8,7 +9,7 @@ from typing import Any, Dict, Optional
 
 from sqlalchemy import func
 
-from database.models import TradeHistory
+from database.models import OrderLifecycleEvent, TradeHistory
 from execution.config import resolve_trading_config
 from execution.exchanges.base import BaseExchangeAdapter, ExchangeOrderResult, OrderRequest
 from execution.exchanges.binance_adapter import BinanceAdapter
@@ -324,6 +325,41 @@ class ExecutionService:
             rules,
         )
 
+    def _record_lifecycle_event(
+        self,
+        *,
+        exchange: Optional[str],
+        symbol: Optional[str],
+        order_id: Optional[str],
+        client_order_id: Optional[str],
+        event_type: str,
+        order_state: Optional[str],
+        source: str,
+        summary: str,
+        payload: Optional[Dict[str, Any]] = None,
+        is_dry_run: Optional[bool] = None,
+    ) -> None:
+        if self.db_session is None:
+            return
+        try:
+            event = OrderLifecycleEvent(
+                exchange=exchange,
+                symbol=symbol,
+                order_id=order_id,
+                client_order_id=client_order_id,
+                event_type=event_type,
+                order_state=order_state,
+                source=source,
+                summary=summary,
+                payload_json=json.dumps(payload or {}, ensure_ascii=False, default=str),
+                is_dry_run=1 if is_dry_run else 0 if is_dry_run is not None else None,
+            )
+            self.db_session.add(event)
+            self.db_session.commit()
+        except Exception as exc:
+            self.db_session.rollback()
+            logger.error(f"訂單 lifecycle event 保存失敗: {exc}")
+
     def submit_order(
         self,
         *,
@@ -350,12 +386,29 @@ class ExecutionService:
             client_order_id=client_order_id or f"poly_{adapter.venue}_{int(time.time())}",
             params=params or {},
         )
+        normalization: Optional[Dict[str, Any]] = None
         try:
             validated_request, rules = self._validate_order_request(adapter, request)
             normalization = self._build_normalization_summary(
                 request=request,
                 validated_request=validated_request,
                 rules=rules,
+            )
+            self._record_lifecycle_event(
+                exchange=adapter.venue,
+                symbol=validated_request.symbol,
+                order_id=None,
+                client_order_id=validated_request.client_order_id,
+                event_type="validation_passed",
+                order_state="validated",
+                source="execution_service",
+                summary="Order passed execution guardrails and venue normalization.",
+                payload={
+                    "reason": reason,
+                    "normalization": normalization,
+                    "reduce_only": validated_request.reduce_only,
+                },
+                is_dry_run=not self.is_live_enabled(),
             )
             result = adapter.place_order(validated_request)
             _EXECUTION_RUNTIME["consecutive_failures"] = 0
@@ -371,6 +424,25 @@ class ExecutionService:
                 "client_order_id": result.client_order_id,
                 "normalization": normalization,
             }
+            self._record_lifecycle_event(
+                exchange=result.venue,
+                symbol=result.symbol,
+                order_id=result.order_id,
+                client_order_id=result.client_order_id,
+                event_type="venue_ack",
+                order_state=result.status,
+                source="exchange_adapter",
+                summary="Venue acknowledged the order request.",
+                payload={
+                    "timestamp": result.timestamp,
+                    "side": result.side,
+                    "qty": result.qty,
+                    "price": result.price,
+                    "order_type": result.order_type,
+                    "raw": result.raw,
+                },
+                is_dry_run=result.dry_run,
+            )
             self._record_trade(result, reason=reason, model_confidence=model_confidence)
             return {
                 "success": True,
@@ -395,10 +467,52 @@ class ExecutionService:
             }
         except ExecutionRejectError as exc:
             _EXECUTION_RUNTIME["last_reject"] = {**exc.to_payload(), "timestamp": datetime.utcnow().isoformat() + "Z"}
+            self._record_lifecycle_event(
+                exchange=adapter.venue,
+                symbol=request.symbol,
+                order_id=None,
+                client_order_id=request.client_order_id,
+                event_type="rejected",
+                order_state="rejected",
+                source="execution_guardrail",
+                summary=exc.message,
+                payload={
+                    "reject": exc.to_payload(),
+                    "request": {
+                        "symbol": request.symbol,
+                        "side": request.side,
+                        "order_type": request.order_type,
+                        "qty": request.qty,
+                        "price": request.price,
+                    },
+                },
+                is_dry_run=not self.is_live_enabled(),
+            )
             raise
         except Exception as exc:
             _EXECUTION_RUNTIME["consecutive_failures"] = int(_EXECUTION_RUNTIME.get("consecutive_failures") or 0) + 1
             _EXECUTION_RUNTIME["last_failure"] = {"message": str(exc), "timestamp": datetime.utcnow().isoformat() + "Z"}
+            self._record_lifecycle_event(
+                exchange=adapter.venue,
+                symbol=request.symbol,
+                order_id=None,
+                client_order_id=request.client_order_id,
+                event_type="runtime_failure",
+                order_state="failed",
+                source="execution_service",
+                summary=str(exc),
+                payload={
+                    "request": {
+                        "symbol": request.symbol,
+                        "side": request.side,
+                        "order_type": request.order_type,
+                        "qty": request.qty,
+                        "price": request.price,
+                    },
+                    "normalization": normalization,
+                },
+                is_dry_run=not self.is_live_enabled(),
+            )
             raise
 
     def _record_trade(self, result: ExchangeOrderResult, *, reason: Optional[str], model_confidence: float) -> None:
@@ -422,6 +536,35 @@ class ExecutionService:
             )
             self.db_session.add(trade)
             self.db_session.commit()
+            self._record_lifecycle_event(
+                exchange=result.venue,
+                symbol=result.symbol,
+                order_id=result.order_id,
+                client_order_id=result.client_order_id,
+                event_type="trade_history_persisted",
+                order_state=result.status,
+                source="trade_history",
+                summary="Order lifecycle persisted into trade_history.",
+                payload={
+                    "reason": reason,
+                    "model_confidence": float(model_confidence or 0.0),
+                    "action": trade.action,
+                    "trade_timestamp": trade.timestamp.isoformat() if trade.timestamp else None,
+                },
+                is_dry_run=result.dry_run,
+            )
         except Exception as exc:
             self.db_session.rollback()
             logger.error(f"交易記錄保存失敗: {exc}")
+            self._record_lifecycle_event(
+                exchange=result.venue,
+                symbol=result.symbol,
+                order_id=result.order_id,
+                client_order_id=result.client_order_id,
+                event_type="trade_history_persist_failed",
+                order_state=result.status,
+                source="trade_history",
+                summary="Failed to persist order lifecycle into trade_history.",
+                payload={"error": str(exc), "reason": reason},
+                is_dry_run=result.dry_run,
+            )

@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from database.models import OrderLifecycleEvent, TradeHistory
 from execution.account_sync import AccountSyncService
 from execution.config import resolve_trading_config
 from execution.execution_service import ExecutionService
@@ -83,8 +84,13 @@ def test_execution_service_submit_order_records_trade(monkeypatch):
     assert payload["guardrails"]["last_order"]["order_id"] == "ord-1"
     assert payload["guardrails"]["last_order"]["client_order_id"] == payload["order"]["client_order_id"]
     assert session.committed is True
-    assert session.added[0].exchange == "okx"
-    assert session.added[0].symbol == "BTC/USDT"
+    trades = [obj for obj in session.added if isinstance(obj, TradeHistory)]
+    lifecycle_events = [obj for obj in session.added if isinstance(obj, OrderLifecycleEvent)]
+    assert len(trades) == 1
+    assert trades[0].exchange == "okx"
+    assert trades[0].symbol == "BTC/USDT"
+    assert [event.event_type for event in lifecycle_events] == ["validation_passed", "venue_ack", "trade_history_persisted"]
+    assert lifecycle_events[-1].order_id == "ord-1"
 
 
 def test_account_sync_service_returns_combined_snapshot(monkeypatch):
@@ -174,6 +180,19 @@ def test_execution_service_guardrail_summary_includes_last_reject(monkeypatch):
         pass
     summary = service.execution_summary()
     assert summary["guardrails"]["last_reject"]["code"] == "min_notional"
+
+
+def test_execution_service_records_rejected_lifecycle_event(monkeypatch):
+    session = DummySession()
+    service = ExecutionService({"execution": {"mode": "paper", "venue": "okx"}}, db_session=session)
+    monkeypatch.setattr(service, "get_adapter", lambda venue=None: FakeAdapter(dry_run=True))
+    try:
+        service.submit_order(symbol="BTC/USDT", side="buy", order_type="limit", qty=0.001, price=1000.0)
+    except Exception:
+        pass
+    lifecycle_events = [obj for obj in session.added if isinstance(obj, OrderLifecycleEvent)]
+    assert [event.event_type for event in lifecycle_events] == ["rejected"]
+    assert lifecycle_events[0].order_state == "rejected"
 
 
 class FakeBinanceStepAdapter(FakeAdapter):

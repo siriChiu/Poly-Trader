@@ -432,10 +432,20 @@ def _resolve_current_live_context(
         or chosen_scope.get("current_live_structure_bucket")
         or bull_live.get("current_live_structure_bucket")
     )
-    current_bucket_rows = _as_int(
-        exact_scope.get("current_live_structure_bucket_rows"),
-        _as_int(chosen_scope.get("current_live_structure_bucket_rows"), _as_int(bull_live.get("current_live_structure_bucket_rows"), 0)),
-    )
+    exact_rows = _as_int(exact_scope.get("current_live_structure_bucket_rows"), None)
+    chosen_rows = _as_int(chosen_scope.get("current_live_structure_bucket_rows"), None)
+    bull_rows = _as_int(bull_live.get("current_live_structure_bucket_rows"), 0)
+    chosen_bucket = chosen_scope.get("current_live_structure_bucket")
+    if (
+        current_bucket
+        and chosen_bucket
+        and str(current_bucket) == str(chosen_bucket)
+        and exact_rows in (None, 0)
+        and chosen_rows not in (None, 0)
+    ):
+        current_bucket_rows = chosen_rows
+    else:
+        current_bucket_rows = _as_int(exact_rows, _as_int(chosen_rows, bull_rows))
     if "execution_guardrail_reason" in probe:
         execution_guardrail_reason = probe.get("execution_guardrail_reason")
     else:
@@ -774,6 +784,7 @@ def build_report(
         "generated_at": probe.get("feature_timestamp") or drilldown.get("generated_at"),
         "target_col": probe.get("target_col") or bull_pocket.get("target_col"),
         "current_live": {
+            "feature_timestamp": probe.get("feature_timestamp") or drilldown.get("generated_at"),
             "signal": probe.get("signal"),
             "regime_label": probe.get("regime_label") or live_context.get("regime_label"),
             "regime_gate": probe.get("regime_gate") or live_context.get("regime_gate"),
@@ -785,6 +796,11 @@ def build_report(
             "execution_guardrail_reason": probe.get("execution_guardrail_reason") if "execution_guardrail_reason" in probe else live_context.get("execution_guardrail_reason"),
             "current_live_structure_bucket": live_context.get("current_live_structure_bucket"),
             "current_live_structure_bucket_rows": _as_int(live_context.get("current_live_structure_bucket_rows"), 0),
+            "raw_features": {
+                str(item.get("feature")): item.get("raw_value")
+                for item in ((probe.get("entry_quality_components") or {}).get("base_components") or [])
+                if item.get("feature") is not None
+            },
         },
         "scope_applicability": scope_applicability,
         "support_route": {

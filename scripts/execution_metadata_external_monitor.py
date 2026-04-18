@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+VENV_PYTHON = PROJECT_ROOT / "venv" / "bin" / "python"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -77,7 +78,7 @@ def main() -> int:
         "error": background_monitor.get("error"),
         "interval_seconds": args.interval_seconds,
         "symbol": args.symbol,
-        "command": f"source venv/bin/activate && python scripts/execution_metadata_external_monitor.py --symbol {args.symbol}",
+        "command": f"cd {PROJECT_ROOT} && {VENV_PYTHON} scripts/execution_metadata_external_monitor.py --symbol {args.symbol}",
         "metadata_smoke_freshness": summary.get("freshness"),
         "install_contract": build_install_contract(
             symbol=args.symbol,

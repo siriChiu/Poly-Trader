@@ -289,12 +289,42 @@ def _live_context() -> dict[str, Any]:
     exact = diags.get("regime_label+regime_gate+entry_quality_label") or {}
     narrow = diags.get("regime_label+entry_quality_label") or {}
     broad = diags.get("regime_gate+entry_quality_label") or {}
+    gate = diags.get("regime_gate") or {}
     pathology_consensus = diags.get("pathology_consensus") or {}
-    snapshot = (((broad.get("spillover_vs_exact_live_lane") or {}).get("worst_extra_regime_gate_feature_snapshot")) or {})
+    support_route_verdict = payload.get("support_route_verdict")
+    support_route_deployable = payload.get("support_route_deployable")
+    support_progress = payload.get("support_progress") or {}
+
+    current_bucket = (
+        payload.get("current_live_structure_bucket")
+        or payload.get("structure_bucket")
+        or exact.get("current_live_structure_bucket")
+        or broad.get("current_live_structure_bucket")
+        or gate.get("current_live_structure_bucket")
+    )
+    current_bucket_rows = payload.get("current_live_structure_bucket_rows")
+    if current_bucket_rows is None:
+        current_bucket_rows = support_progress.get("current_rows")
+    if current_bucket_rows is None:
+        current_bucket_rows = exact.get("current_live_structure_bucket_rows")
+    if current_bucket_rows is None:
+        current_bucket_rows = broad.get("current_live_structure_bucket_rows")
+    if current_bucket_rows is None:
+        current_bucket_rows = gate.get("current_live_structure_bucket_rows")
+
+    use_gate_scope = (
+        support_route_verdict == "exact_bucket_supported"
+        and int(exact.get("current_live_structure_bucket_rows") or 0) <= 0
+        and int(current_bucket_rows or 0) > 0
+        and bool(gate)
+    )
+    support_scope = gate if use_gate_scope else broad
+    support_scope_name = "regime_gate" if use_gate_scope else "regime_gate+entry_quality_label"
+    snapshot = (((support_scope.get("spillover_vs_exact_live_lane") or {}).get("worst_extra_regime_gate_feature_snapshot")) or {})
     exact_bucket_counts = exact.get("recent500_structure_bucket_counts") or {}
-    current_bucket = exact.get("current_live_structure_bucket") or broad.get("current_live_structure_bucket")
+    support_bucket_counts = support_scope.get("recent500_structure_bucket_counts") or {}
     supported_neighbor_buckets = [
-        bucket for bucket, count in exact_bucket_counts.items()
+        bucket for bucket, count in (exact_bucket_counts or support_bucket_counts).items()
         if bucket != current_bucket and int(count or 0) > 0
     ]
     return {
@@ -309,8 +339,11 @@ def _live_context() -> dict[str, Any]:
         "decision_quality_narrowed_pathology_scope": payload.get("decision_quality_narrowed_pathology_scope"),
         "decision_quality_narrowed_pathology_reason": payload.get("decision_quality_narrowed_pathology_reason"),
         "decision_quality_label": payload.get("decision_quality_label"),
+        "support_route_verdict": support_route_verdict,
+        "support_route_deployable": support_route_deployable,
+        "support_progress": support_progress,
         "current_live_structure_bucket": current_bucket,
-        "current_live_structure_bucket_rows": exact.get("current_live_structure_bucket_rows"),
+        "current_live_structure_bucket_rows": current_bucket_rows,
         "exact_scope_rows": exact.get("rows"),
         "exact_scope_metrics": {
             "rows": exact.get("rows"),
@@ -327,12 +360,13 @@ def _live_context() -> dict[str, Any]:
         "narrow_scope_rows": narrow.get("rows"),
         "narrow_current_live_structure_bucket_rows": narrow.get("current_live_structure_bucket_rows"),
         "narrow_current_live_structure_bucket_metrics": narrow.get("current_live_structure_bucket_metrics"),
-        "broad_scope_rows": broad.get("rows"),
-        "broad_current_live_structure_bucket_rows": broad.get("current_live_structure_bucket_rows"),
-        "broad_current_live_structure_bucket_metrics": broad.get("current_live_structure_bucket_metrics"),
-        "broad_recent500_regime_counts": broad.get("recent500_regime_counts") or {},
-        "broad_recent500_dominant_regime": broad.get("recent500_dominant_regime"),
-        "broad_recent_pathology": broad.get("recent_pathology") or {},
+        "broad_scope_source": support_scope_name,
+        "broad_scope_rows": support_scope.get("rows"),
+        "broad_current_live_structure_bucket_rows": support_scope.get("current_live_structure_bucket_rows"),
+        "broad_current_live_structure_bucket_metrics": support_scope.get("current_live_structure_bucket_metrics"),
+        "broad_recent500_regime_counts": support_scope.get("recent500_regime_counts") or {},
+        "broad_recent500_dominant_regime": support_scope.get("recent500_dominant_regime"),
+        "broad_recent_pathology": support_scope.get("recent_pathology") or {},
         "supported_neighbor_buckets": supported_neighbor_buckets,
         "collapse_feature_snapshot": snapshot,
         "pathology_worst_scope": (pathology_consensus.get("worst_pathology_scope") or {}).get("scope"),

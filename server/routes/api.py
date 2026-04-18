@@ -56,6 +56,7 @@ router = APIRouter()
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = str(PROJECT_ROOT / "poly_trader.db")
 MODEL_LB_CACHE_PATH = PROJECT_ROOT / "data" / "model_leaderboard_cache.json"
+_STRATEGY_PARAM_SCAN_PATH = PROJECT_ROOT / "data" / "model_strategy_param_scan_latest.json"
 _MODEL_LB_STALE_AFTER_SEC = 900
 _MODEL_LB_REFRESH_COOLDOWN_SEC = 300
 _MODEL_LB_CACHE: Dict[str, Any] = {
@@ -1111,12 +1112,37 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
                 else ""
             )
         )
+    elif payload.get("deployment_blocker") == "decision_quality_below_trade_floor" and payload.get("support_route_verdict") == "exact_bucket_supported" and not patch_active:
+        runtime_closure_state = "support_closed_but_trade_floor_blocked"
+        try:
+            trade_floor = float((payload.get("entry_quality_components") or {}).get("trade_floor"))
+        except (TypeError, ValueError, AttributeError):
+            trade_floor = None
+        component_verdict = payload.get("component_experiment_verdict")
+        runtime_closure_summary = (
+            f"current live bucket {structure_bucket or 'unknown_bucket'} 已完成 exact support closure"
+            + (f"（{current_rows}/{minimum_rows}）" if current_rows is not None and minimum_rows is not None else "")
+            + f"，但 top-level live baseline 仍停在 entry_quality={float(payload.get('entry_quality') or 0.0):.4f} ({payload.get('entry_quality_label') or '—'})"
+            + (f" < trade floor {trade_floor:.2f}" if trade_floor is not None else "")
+            + "；目前維持明確 no-deploy governance。"
+            + (f" q15 audit 的 {component_verdict} 只代表研究型 component experiment readiness，" if component_verdict else " ")
+            + "不可把 support closure 誤讀成 deployment closure。"
+        )
     elif patch_active and signal == "HOLD" and (allowed_layers or 0) > 0:
         runtime_closure_state = "capacity_opened_signal_hold"
         runtime_closure_summary = "q15 patch active，runtime 已開出 1 層 deployment capacity，但 signal 仍是 HOLD；這不是 patch missing，也不是自動 BUY readiness。"
     elif patch_active:
-        runtime_closure_state = "patch_active"
-        runtime_closure_summary = "q15 patch active，但當前 runtime 狀態不屬於 capacity_opened_signal_hold。"
+        blocker = payload.get("deployment_blocker") or payload.get("execution_guardrail_reason") or payload.get("allowed_layers_reason")
+        if payload.get("deployment_blocker") or payload.get("execution_guardrail_applied") or (allowed_layers or 0) <= 0:
+            runtime_closure_state = "patch_active_but_execution_blocked"
+            runtime_closure_summary = (
+                f"q15 patch active，並把 raw entry 拉到 {float(payload.get('entry_quality') or 0.0):.4f}"
+                f"（raw layers={int(payload.get('allowed_layers_raw') or 0)}），"
+                f"但最終 execution 仍被 {blocker or 'unknown_guardrail'} 擋住；不可把 patch active 誤讀成可部署。"
+            )
+        else:
+            runtime_closure_state = "patch_active"
+            runtime_closure_summary = "q15 patch active，但當前 runtime 狀態不屬於 capacity_opened_signal_hold。"
     else:
         runtime_closure_state = "patch_inactive_or_blocked"
         runtime_closure_summary = "q15 patch 尚未 active 或目前仍被其他條件阻擋。"
@@ -2740,12 +2766,14 @@ def load_model_leaderboard_frame(db_path: Optional[str] = None) -> pd.DataFrame:
             col for col in [
                 "timestamp",
                 "symbol",
+                "regime_label",
                 "feat_eye", "feat_ear", "feat_nose", "feat_tongue", "feat_body", "feat_pulse", "feat_aura", "feat_mind",
                 "feat_vix", "feat_dxy",
                 "feat_rsi14", "feat_macd_hist", "feat_atr_pct", "feat_vwap_dev", "feat_bb_pct_b",
                 "feat_nw_width", "feat_nw_slope", "feat_adx", "feat_choppiness", "feat_donchian_pos",
                 "feat_4h_bias50", "feat_4h_bias20", "feat_4h_bias200", "feat_4h_rsi14", "feat_4h_macd_hist",
                 "feat_4h_bb_pct_b", "feat_4h_dist_bb_lower", "feat_4h_ma_order", "feat_4h_dist_swing_low", "feat_4h_vol_ratio",
+                "feat_local_bottom_score", "feat_local_top_score", "feat_turning_point_score",
             ] if col in feature_columns
         ]
         features_df = _read_sql_frame(
@@ -3118,10 +3146,69 @@ def _persist_model_leaderboard_snapshot(payload: Dict[str, Any], db_path: Option
 
 
 
+def _load_strategy_param_scan_summary(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    artifact_path = path or _STRATEGY_PARAM_SCAN_PATH
+    try:
+        if not artifact_path.exists():
+            return None
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Failed to load strategy param scan summary: %s", exc)
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    saved_rows = list(payload.get("saved_strategies") or [])
+    best_candidates = []
+    for row in saved_rows[:10]:
+        if not isinstance(row, dict):
+            continue
+        best_candidates.append(
+            {
+                "name": row.get("name"),
+                "model_name": row.get("model_name"),
+                "roi": row.get("roi"),
+                "win_rate": row.get("win_rate"),
+                "total_trades": row.get("total_trades"),
+            }
+        )
+
+    combined_top = []
+    for row in list(payload.get("combined_top_10") or [])[:10]:
+        if not isinstance(row, dict):
+            continue
+        combined_top.append(
+            {
+                "model_name": row.get("model_name"),
+                "variant": row.get("variant"),
+                "roi": row.get("roi"),
+                "win_rate": row.get("win_rate"),
+                "max_drawdown": row.get("max_drawdown"),
+                "profit_factor": row.get("profit_factor"),
+                "total_trades": row.get("total_trades"),
+            }
+        )
+
+    return {
+        "generated_at": payload.get("generated_at"),
+        "saved_strategy_count": len(saved_rows),
+        "best_strategy_candidates": best_candidates,
+        "combined_top_variants": combined_top,
+        "source_artifact": str(artifact_path),
+        "warning": (
+            "canonical model leaderboard 仍是 placeholder-only；請改看策略參數重掃候選。"
+            if best_candidates
+            else None
+        ),
+    }
+
+
+
 def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str, Any]:
     from backtesting.model_leaderboard import ModelLeaderboard
 
     db_path = db_path or DB_PATH
+    strategy_param_scan = _load_strategy_param_scan_summary()
     data_df = load_model_leaderboard_frame(db_path)
     if data_df.empty:
         return {
@@ -3140,6 +3227,7 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
             "overfit_gap_threshold": _OVERFIT_GAP_THRESHOLD,
             "overfit_accuracy_threshold": _OVERFIT_ACCURACY_THRESHOLD,
             "target_candidates": [],
+            "strategy_param_scan": strategy_param_scan,
         }
 
     target_col = "simulated_pyramid_win" if "simulated_pyramid_win" in data_df.columns else "label_spot_long_win"
@@ -3186,6 +3274,7 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
         "overfit_accuracy_threshold": _OVERFIT_ACCURACY_THRESHOLD,
         "target_candidates": _summarize_target_candidates(data_df, _OVERFIT_GAP_THRESHOLD, _OVERFIT_ACCURACY_THRESHOLD),
         "data_warning": leaderboard_warning,
+        "strategy_param_scan": strategy_param_scan,
     })
     return payload
 
@@ -4616,6 +4705,8 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
                     bb_pct_b_4h=bb_pct_b_4h,
                     dist_bb_lower_4h=dist_bb_lower_4h,
                     dist_swing_low_4h=dist_swing_low_4h,
+                    local_bottom_score=local_bottom_score,
+                    local_top_score=local_top_score,
                 )
                 score_series = score_future.result()
         else:

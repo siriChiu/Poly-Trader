@@ -4,7 +4,7 @@
 """
 
 from typing import Optional, Dict
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import math
 import numpy as np
@@ -312,6 +312,57 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     else:
         features["feat_mind"] = 0.0
 
+    # 9. Turning-point / reversal family (v1)
+    #    目的不是神準預言極值，而是估計「現在更像局部底 or 局部頂」的品質。
+    recent_window = close.tail(48) if len(close) >= 48 else close
+    if len(recent_window) >= 5:
+        recent_min = float(recent_window.min())
+        recent_max = float(recent_window.max())
+        recent_range = max(recent_max - recent_min, 1e-9)
+        latest_close = float(close.iloc[-1])
+        dist_from_min = max(0.0, latest_close - recent_min)
+        dist_from_max = max(0.0, recent_max - latest_close)
+        bottom_proximity = max(0.0, 1.0 - dist_from_min / recent_range)
+        top_proximity = max(0.0, 1.0 - dist_from_max / recent_range)
+    else:
+        latest_close = float(close.iloc[-1]) if len(close) else 0.0
+        recent_max = latest_close
+        recent_min = latest_close
+        bottom_proximity = 0.0
+        top_proximity = 0.0
+
+    if len(close) >= 4:
+        last_return = float(close.iloc[-1] / close.iloc[-2] - 1)
+        prev_return = float(close.iloc[-2] / close.iloc[-3] - 1)
+        rebound_strength = max(0.0, last_return - prev_return)
+        fade_strength = max(0.0, prev_return - last_return)
+    else:
+        rebound_strength = 0.0
+        fade_strength = 0.0
+
+    if "volume" in df.columns and df["volume"].notna().sum() >= 5:
+        vol_series = df["volume"].dropna().astype(float)
+        vol_recent = vol_series.tail(24) if len(vol_series) >= 24 else vol_series
+        vol_mean = float(vol_recent.iloc[:-1].mean()) if len(vol_recent) >= 2 else float(vol_recent.mean())
+        vol_last = float(vol_recent.iloc[-1]) if len(vol_recent) else 0.0
+        volume_exhaustion = max(0.0, min(1.0, (vol_last - vol_mean) / max(vol_mean, 1e-9)))
+    else:
+        volume_exhaustion = 0.0
+
+    features["feat_wick_rejection"] = float(min(1.0, max(rebound_strength, fade_strength) * 40.0))
+    features["feat_volume_exhaustion"] = float(volume_exhaustion)
+    features["feat_local_bottom_score"] = float(min(1.0, 0.65 * bottom_proximity + 0.20 * min(1.0, rebound_strength * 40.0) + 0.15 * volume_exhaustion))
+    features["feat_local_top_score"] = float(min(1.0, 0.65 * top_proximity + 0.20 * min(1.0, fade_strength * 40.0) + 0.15 * volume_exhaustion))
+    features["feat_turning_point_score"] = float(max(features["feat_local_bottom_score"], features["feat_local_top_score"]))
+    features["feat_dist_swing_high"] = float(((recent_max - latest_close) / latest_close) * 100.0) if latest_close > 0 else 0.0
+    if len(close) >= 144:
+        tunnel_ma = float(close.tail(144).mean())
+    elif len(close) >= 55:
+        tunnel_ma = float(close.tail(55).mean())
+    else:
+        tunnel_ma = latest_close
+    features["feat_tunnel_distance"] = float((latest_close - tunnel_ma) / max(tunnel_ma, 1e-9)) if tunnel_ma else 0.0
+
     # ─── P0 #H161: Technical Indicators (5 IC-validated) ───
     # MACD-Hist IC=+0.1485, RSI IC=+0.0992, VWAP IC=+0.0969,
     # ATR IC=+0.0835, BB% IC=+0.0595 — all far exceed legacy senses
@@ -562,6 +613,13 @@ def save_features_to_db(
             existing.feat_4h_ma_order = features.get("feat_4h_ma_order")
             existing.feat_4h_dist_swing_low = features.get("feat_4h_dist_swing_low")
             existing.feat_4h_vol_ratio = features.get("feat_4h_vol_ratio")
+            existing.feat_local_bottom_score = features.get("feat_local_bottom_score")
+            existing.feat_local_top_score = features.get("feat_local_top_score")
+            existing.feat_turning_point_score = features.get("feat_turning_point_score")
+            existing.feat_wick_rejection = features.get("feat_wick_rejection")
+            existing.feat_volume_exhaustion = features.get("feat_volume_exhaustion")
+            existing.feat_tunnel_distance = features.get("feat_tunnel_distance")
+            existing.feat_dist_swing_high = features.get("feat_dist_swing_high")
             existing.regime_label = features.get("regime_label") or _derive_regime_label(features)
             existing.feature_version = 'v4_4h_integration'
             session.commit()
@@ -613,6 +671,13 @@ def save_features_to_db(
             feat_4h_ma_order=features.get("feat_4h_ma_order"),
             feat_4h_dist_swing_low=features.get("feat_4h_dist_swing_low"),
             feat_4h_vol_ratio=features.get("feat_4h_vol_ratio"),
+            feat_local_bottom_score=features.get("feat_local_bottom_score"),
+            feat_local_top_score=features.get("feat_local_top_score"),
+            feat_turning_point_score=features.get("feat_turning_point_score"),
+            feat_wick_rejection=features.get("feat_wick_rejection"),
+            feat_volume_exhaustion=features.get("feat_volume_exhaustion"),
+            feat_tunnel_distance=features.get("feat_tunnel_distance"),
+            feat_dist_swing_high=features.get("feat_dist_swing_high"),
             regime_label=features.get("regime_label") or _derive_regime_label(features),
         )
         session.add(record)
@@ -644,7 +709,55 @@ def run_preprocessor(
     return features if saved else None
 
 
-def backfill_missing_feature_rows(session: Session, symbol: str = "BTCUSDT") -> int:
+def _load_existing_feature_timestamps(session: Session, symbol: str = "BTCUSDT") -> set:
+    rows = (
+        session.query(FeaturesNormalized.timestamp)
+        .filter((FeaturesNormalized.symbol == symbol) | (FeaturesNormalized.symbol.is_(None)))
+        .order_by(FeaturesNormalized.timestamp)
+        .all()
+    )
+    return {ts for (ts,) in rows if ts is not None}
+
+
+
+def _compute_recent_feature_gap_hours(timestamps, expected_gap_hours: float = 4.0) -> Dict:
+    ordered = sorted(ts for ts in timestamps if ts is not None)
+    if len(ordered) < 2:
+        return {
+            "max_gap_hours": 0.0,
+            "gap_count_over_expected": 0,
+            "largest_gap_start": None,
+            "largest_gap_end": None,
+        }
+
+    largest_gap_hours = 0.0
+    largest_gap_start = None
+    largest_gap_end = None
+    gap_count = 0
+    threshold = float(expected_gap_hours) + 0.5
+    for prev_ts, curr_ts in zip(ordered, ordered[1:]):
+        gap_hours = (curr_ts - prev_ts).total_seconds() / 3600.0
+        if gap_hours > threshold:
+            gap_count += 1
+        if gap_hours > largest_gap_hours:
+            largest_gap_hours = gap_hours
+            largest_gap_start = prev_ts
+            largest_gap_end = curr_ts
+    return {
+        "max_gap_hours": round(largest_gap_hours, 4),
+        "gap_count_over_expected": gap_count,
+        "largest_gap_start": largest_gap_start.isoformat() if largest_gap_start else None,
+        "largest_gap_end": largest_gap_end.isoformat() if largest_gap_end else None,
+    }
+
+
+
+def backfill_missing_feature_rows(
+    session: Session,
+    symbol: str = "BTCUSDT",
+    *,
+    lookback_days: int | None = None,
+) -> int:
     """Compute features for raw timestamps that do not yet have a feature row.
 
     Heartbeat #628 continuity repair inserts missing raw rows to close upstream gaps.
@@ -656,19 +769,18 @@ def backfill_missing_feature_rows(session: Session, symbol: str = "BTCUSDT") -> 
     if df.empty:
         return 0
 
-    existing_rows = (
-        session.query(FeaturesNormalized.timestamp)
-        .filter((FeaturesNormalized.symbol == symbol) | (FeaturesNormalized.symbol.is_(None)))
-        .order_by(FeaturesNormalized.timestamp)
-        .all()
-    )
-    existing_timestamps = {ts for (ts,) in existing_rows if ts is not None}
+    existing_timestamps = _load_existing_feature_timestamps(session, symbol)
+    cutoff = None
+    if lookback_days is not None and lookback_days > 0:
+        cutoff = datetime.utcnow() - timedelta(days=lookback_days)
 
     inserted = 0
     min_window = 10
     for end_idx in range(min_window, len(df) + 1):
         ts = df.iloc[end_idx - 1].get("timestamp")
         if ts is None or ts in existing_timestamps:
+            continue
+        if cutoff is not None and ts < cutoff:
             continue
         features = compute_features_from_raw(df.iloc[:end_idx])
         if not features:
@@ -679,8 +791,68 @@ def backfill_missing_feature_rows(session: Session, symbol: str = "BTCUSDT") -> 
             inserted += 1
 
     if inserted:
-        logger.info("補回缺失特徵列完成: %s rows inserted for %s", inserted, symbol)
+        scope = f"recent {lookback_days}d" if cutoff is not None else "full history"
+        logger.info("補回缺失特徵列完成: %s rows inserted for %s (%s)", inserted, symbol, scope)
     return inserted
+
+
+
+def repair_recent_feature_continuity(
+    session: Session,
+    symbol: str = "BTCUSDT",
+    *,
+    lookback_days: int = 30,
+    expected_gap_hours: float = 4.0,
+    return_details: bool = False,
+) -> int | Dict:
+    """Backfill missing feature rows for recent raw timestamps and report continuity status."""
+    df = load_latest_raw_data(session, symbol, limit=0)
+    if df.empty:
+        details = {
+            "symbol": symbol,
+            "lookback_days": lookback_days,
+            "raw_rows_in_window": 0,
+            "missing_before": 0,
+            "inserted_total": 0,
+            "remaining_missing": 0,
+            **_compute_recent_feature_gap_hours([], expected_gap_hours),
+        }
+        return details if return_details else 0
+
+    cutoff = datetime.utcnow() - timedelta(days=lookback_days)
+    min_window = 10
+    eligible_recent_timestamps = [
+        df.iloc[end_idx - 1].get("timestamp")
+        for end_idx in range(min_window, len(df) + 1)
+        if df.iloc[end_idx - 1].get("timestamp") is not None and df.iloc[end_idx - 1].get("timestamp") >= cutoff
+    ]
+    existing_before = _load_existing_feature_timestamps(session, symbol)
+    missing_before = [ts for ts in eligible_recent_timestamps if ts not in existing_before]
+
+    inserted = backfill_missing_feature_rows(session, symbol, lookback_days=lookback_days)
+
+    existing_after = _load_existing_feature_timestamps(session, symbol)
+    remaining_missing = [ts for ts in eligible_recent_timestamps if ts not in existing_after]
+    gap_meta = _compute_recent_feature_gap_hours(
+        [ts for ts in existing_after if ts >= cutoff],
+        expected_gap_hours=expected_gap_hours,
+    )
+    details = {
+        "symbol": symbol,
+        "lookback_days": lookback_days,
+        "raw_rows_in_window": len(eligible_recent_timestamps),
+        "missing_before": len(missing_before),
+        "inserted_total": inserted,
+        "remaining_missing": len(remaining_missing),
+        "first_missing_before": missing_before[0].isoformat() if missing_before else None,
+        "last_missing_before": missing_before[-1].isoformat() if missing_before else None,
+        "first_remaining_missing": remaining_missing[0].isoformat() if remaining_missing else None,
+        "last_remaining_missing": remaining_missing[-1].isoformat() if remaining_missing else None,
+        **gap_meta,
+    }
+    if inserted:
+        logger.info("recent feature continuity repair inserted %s rows for %s", inserted, symbol)
+    return details if return_details else inserted
 
 
 def recompute_all_features(session: Session, symbol: str = "BTCUSDT") -> int:

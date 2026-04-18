@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 
 from backtesting import strategy_lab
 from scripts import backfill_backtest_range as backfill_module
@@ -26,6 +27,21 @@ def isolated_strategies_dir(tmp_path: Path, monkeypatch):
     strategies_dir.mkdir()
     monkeypatch.setattr(strategy_lab, "STRATEGIES_DIR", strategies_dir)
     return strategies_dir
+
+
+def _local_request():
+    return SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"))
+
+
+def _remote_request():
+    return SimpleNamespace(client=SimpleNamespace(host="10.0.0.8"))
+
+
+def test_assert_local_operator_request_rejects_non_loopback():
+    api_module._assert_local_operator_request(_local_request())
+    with pytest.raises(HTTPException) as excinfo:
+        api_module._assert_local_operator_request(_remote_request())
+    assert excinfo.value.status_code == 403
 
 
 def test_load_all_strategies_sanitizes_invalid_results_and_filters_internal(isolated_strategies_dir: Path):
@@ -410,8 +426,14 @@ def test_execute_strategy_run_auto_backfills_when_requested_range_exceeds_local_
         def close(self):
             return None
 
-    def fake_backfill(session, **kwargs):
-        backfill_calls.append(kwargs)
+    def fake_backfill(session, *, target_start=None, target_end=None, apply_changes=None, symbol=None, **kwargs):
+        backfill_calls.append({
+            "target_start": target_start,
+            "target_end": target_end,
+            "apply_changes": apply_changes,
+            "symbol": symbol,
+            **kwargs,
+        })
         return {
             "dry_run": False,
             "plan": {"needs_backfill": True},
@@ -467,9 +489,97 @@ def test_execute_strategy_run_auto_backfills_when_requested_range_exceeds_local_
 
     assert backfill_calls, "auto_backfill should trigger backfill pipeline"
     assert backfill_calls[0]["apply_changes"] is True
+    assert backfill_calls[0]["target_start"].startswith("2024-04-16")
+    assert backfill_calls[0]["target_end"].startswith("2026-04-16")
     assert load_calls["count"] >= 2
     assert payload["results"]["backtest_range"]["backfill_required"] is False
     assert payload["results"]["backtest_range"]["effective"]["start"].startswith("2024-04-16")
+
+
+def test_execute_strategy_run_hybrid_passes_local_turning_scores(monkeypatch):
+    rows = [
+        ("2025-04-03 13:00:00", 100.0, -1.0, -2.0, 0.2, 0.8, 0.0, "bull", 0.5, 1.0, 1.0, 0.66, 0.18),
+        ("2025-04-04 13:00:00", 101.0, -0.8, -2.0, 0.2, 0.8, 0.0, "bull", 0.5, 1.0, 1.0, 0.71, 0.24),
+    ]
+    captured = {}
+
+    class DummyDB:
+        def close(self):
+            return None
+
+    train_df = api_module.pd.DataFrame(
+        {
+            "timestamp": api_module.pd.to_datetime(["2025-04-03 13:00:00", "2025-04-04 13:00:00"]),
+            "close_price": [100.0, 101.0],
+            "simulated_pyramid_win": [1, 0],
+            "feat_4h_bias50": [-1.0, -0.8],
+            "feat_4h_bias200": [-2.0, -2.0],
+            "feat_nose": [0.2, 0.2],
+            "feat_pulse": [0.8, 0.8],
+            "feat_ear": [0.0, 0.0],
+            "feat_local_bottom_score": [0.66, 0.71],
+            "feat_local_top_score": [0.18, 0.24],
+        }
+    )
+
+    class DummyModel:
+        pass
+
+    def fake_run_hybrid_backtest(*args, **kwargs):
+        captured["local_bottom_score"] = kwargs.get("local_bottom_score")
+        captured["local_top_score"] = kwargs.get("local_top_score")
+        result = strategy_lab.BacktestResult(
+            roi=0.12,
+            win_rate=1.0,
+            total_trades=1,
+            wins=1,
+            losses=0,
+            max_drawdown=0.01,
+            profit_factor=2.0,
+            total_pnl=120.0,
+        )
+        result.trades = [{"entry_timestamp": "2025-04-03 13:00:00", "timestamp": "2025-04-04 13:00:00", "pnl": 120.0, "entry_regime": "bull"}]
+        result.equity_curve = [{"timestamp": "2025-04-03 13:00:00", "equity": 10000.0}]
+        return result
+
+    monkeypatch.setattr(api_module, "_load_strategy_data", lambda: rows)
+    monkeypatch.setattr(api_module, "get_db", lambda: DummyDB())
+    monkeypatch.setattr(api_module, "_get_sqlite_db_path", lambda db: "test.db")
+    monkeypatch.setattr(api_module, "load_model_leaderboard_frame", lambda db_path=None: train_df.copy())
+    monkeypatch.setattr(api_module, "_compute_backtest_benchmarks", lambda *args, **kwargs: {})
+    monkeypatch.setattr(api_module, "_compute_decision_profile", lambda trades: {})
+    monkeypatch.setattr(api_module, "_compute_strategy_decision_quality_profile", lambda trades, db_path=None, db=None: {})
+    monkeypatch.setattr(api_module, "_strategy_decision_contract_meta", lambda horizon_minutes=1440: {})
+    monkeypatch.setattr(api_module, "_build_strategy_score_series", lambda *args, **kwargs: [])
+    monkeypatch.setattr(strategy_lab, "save_strategy", lambda *args, **kwargs: None)
+    monkeypatch.setattr(strategy_lab, "run_hybrid_backtest", fake_run_hybrid_backtest)
+
+    from backtesting.model_leaderboard import ModelLeaderboard
+
+    monkeypatch.setattr(ModelLeaderboard, "_train_model", lambda self, X_train, y_train, model_name: DummyModel())
+    monkeypatch.setattr(ModelLeaderboard, "_get_confidence", lambda self, model, X_test, model_name: __import__("numpy").array([0.62, 0.65]))
+
+    payload = api_module._execute_strategy_run(
+        {
+            "name": "Hybrid Local Score Demo",
+            "type": "hybrid",
+            "initial_capital": 10000.0,
+            "params": {
+                "model_name": "xgboost",
+                "entry": {"bias50_max": 1.0, "confidence_min": 0.5, "entry_quality_min": 0.5},
+                "layers": [0.2, 0.3, 0.5],
+                "stop_loss": -0.05,
+                "take_profit_bias": 4.0,
+                "take_profit_roi": 0.08,
+                "turning_point": {"enabled": True, "bottom_score_min": 0.62, "top_score_take_profit": 0.8},
+                "editor_modules": ["turning_point"],
+            },
+        }
+    )
+
+    assert payload["results"]["roi"] == pytest.approx(0.12)
+    assert captured["local_bottom_score"] == [0.66, 0.71]
+    assert captured["local_top_score"] == [0.18, 0.24]
 
 
 def test_strategy_async_job_status_exposes_segmented_steps(monkeypatch):
@@ -493,8 +603,8 @@ def test_strategy_async_job_status_exposes_segmented_steps(monkeypatch):
 
     monkeypatch.setattr(api_module, "_execute_strategy_run", fake_execute)
 
-    kickoff = asyncio.run(api_module.api_run_strategy_async({"type": "rule_based", "auto_backfill": True, "params": {}}))
-    status = asyncio.run(api_module.api_strategy_job_status(kickoff["job_id"]))
+    kickoff = asyncio.run(api_module.api_run_strategy_async({"type": "rule_based", "auto_backfill": True, "params": {}}, request=_local_request()))
+    status = asyncio.run(api_module.api_strategy_job_status(kickoff["job_id"], request=_local_request()))
 
     assert submitted["called"] is True
     assert status["stage_key"] == "save_results"
@@ -510,25 +620,26 @@ def test_api_trade_uses_execution_service(monkeypatch):
     class DummyService:
         def __init__(self, cfg, db_session=None):
             self.cfg = cfg
-        def submit_order(self, **kwargs):
+        def submit_order(self, *, side, symbol, qty, order_type, reduce_only=False, **kwargs):
             return {
                 "success": True,
                 "dry_run": True,
                 "venue": "binance",
                 "guardrails": {"consecutive_failures": 0, "daily_loss_halt": False},
-                "order": {"id": "abc123", "symbol": kwargs["symbol"], "side": kwargs["side"], "qty": kwargs["qty"]},
+                "order": {"id": "abc123", "symbol": symbol, "side": side, "qty": qty, "type": order_type, "reduce_only": reduce_only},
             }
 
     monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "binance"}, "trading": {"venue": "binance"}})
     monkeypatch.setattr(api_module, "get_db", lambda: object())
     monkeypatch.setattr(api_module, "ExecutionService", DummyService)
 
-    payload = asyncio.run(api_module.api_trade(api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.01)))
+    payload = asyncio.run(api_module.api_trade(api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.01), request=_local_request()))
 
     assert payload["success"] is True
     assert payload["venue"] == "binance"
     assert payload["order_id"] == "abc123"
     assert payload["guardrails"]["consecutive_failures"] == 0
+    assert payload["order"]["type"] == "market"
 
 
 
@@ -757,6 +868,42 @@ def test_api_strategy_leaderboard_prefers_auto_generated_candidates(monkeypatch)
 
     assert called["ensure"] == 1
     assert [row["name"] for row in payload["strategies"]] == [f"{strategy_lab.AUTO_STRATEGY_NAME_PREFIX}平衡承接 #01"]
+
+
+def test_api_strategy_leaderboard_rank_delta_uses_fresh_snapshot(monkeypatch, tmp_path: Path):
+    db_path = str(tmp_path / "strategy_lb.db")
+
+    class DummyDB:
+        def close(self):
+            return None
+
+    state = {
+        "rows": [
+            {"name": "Strategy A", "last_results": {"overall_score": 0.9}},
+            {"name": "Strategy B", "last_results": {"overall_score": 0.8}},
+        ]
+    }
+
+    monkeypatch.setattr(api_module, "DB_PATH", db_path)
+    monkeypatch.setattr(api_module, "get_db", lambda: DummyDB())
+    monkeypatch.setattr(api_module, "_ensure_auto_generated_strategy_leaderboard", lambda force=False: None)
+    monkeypatch.setattr(api_module, "_decorate_strategy_entry", lambda entry, db=None: entry)
+    monkeypatch.setattr(strategy_lab, "load_all_strategies", lambda include_internal=True: list(state["rows"]))
+    api_module._persist_strategy_leaderboard_snapshot(list(state["rows"]), db_path=db_path)
+
+    first = asyncio.run(api_module.api_strategy_leaderboard())
+    first_by_name = {row["name"]: row["rank_delta"] for row in first["strategies"]}
+    assert first_by_name == {"Strategy A": 0, "Strategy B": 0}
+
+    state["rows"] = [
+        {"name": "Strategy B", "last_results": {"overall_score": 0.95}},
+        {"name": "Strategy A", "last_results": {"overall_score": 0.7}},
+    ]
+    second = asyncio.run(api_module.api_strategy_leaderboard())
+    second_by_name = {row["name"]: row["rank_delta"] for row in second["strategies"]}
+
+    assert second_by_name["Strategy B"] == 1
+    assert second_by_name["Strategy A"] == -1
 
 
 def test_compute_strategy_decision_quality_profile_uses_canonical_label_fields(tmp_path: Path):

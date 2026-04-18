@@ -1,6 +1,6 @@
 # q15 Bucket Root Cause
 
-- generated_at: **2026-04-18 11:46:58.752058**
+- generated_at: **2026-04-18 12:08:40.638156**
 - target_col: **simulated_pyramid_win**
 - verdict: **same_lane_neighbor_bucket_dominates**
 - candidate_patch_type: **structure_component_scoring**
@@ -9,8 +9,8 @@
 ## Current live
 - live path: **bull / CAUTION / C**
 - structure_bucket: `CAUTION|structure_quality_caution|q15`
-- structure_quality: **0.1949**
-- gap_to_q35_boundary: **0.1551**
+- structure_quality: **0.2656**
+- gap_to_q35_boundary: **0.0844**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `decision_quality_below_trade_floor`
 
@@ -18,18 +18,18 @@
 - rows: **51**
 - bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q15': 50, 'CAUTION|structure_quality_caution|q35': 1}`
 - dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q15** (50 rows)
-- near_boundary_window: `{'lower': 0.1949, 'upper': 0.35}`
-- near_boundary_rows: **50**
+- near_boundary_window: `{'lower': 0.2656, 'upper': 0.35}`
+- near_boundary_rows: **9**
 
 ## Decision
 - reason: same exact lane 有明顯鄰近 bucket 樣本，current row 與 q35 support 的差距主要來自結構 component，不是 generic breaker / q35 總體治理。
-- candidate_patch: `{'type': 'structure_component_scoring', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.1774, 'current_normalized': 0.1774, 'needed_raw_delta_to_cross_q35': 0.4562, 'target_bucket_p25': 0.337, 'target_bucket_median': 0.3536, 'needed_raw_delta_to_target_p25': 0.1596, 'needed_raw_delta_to_target_median': 0.1762}`
+- candidate_patch: `{'type': 'structure_component_scoring', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.3079, 'current_normalized': 0.3079, 'needed_raw_delta_to_cross_q35': 0.2482, 'target_bucket_p25': 0.337, 'target_bucket_median': 0.3536, 'needed_raw_delta_to_target_p25': 0.0291, 'needed_raw_delta_to_target_median': 0.0457}`
 - verify_next: 比較 current row 與 dominant neighbor bucket 的 4H component 差值，再做最小 counterfactual。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.1774 / norm=0.1774 / Δto_cross_q35=0.4562 / target_p25=0.337 / target_median=0.3536
-- `feat_4h_dist_bb_lower`: current=0.55 / norm=0.0688 / Δto_cross_q35=3.76 / target_p25=1.6837 / target_median=1.8043
-- `feat_4h_dist_swing_low`: current=3.3899 / norm=0.339 / Δto_cross_q35=4.7 / target_p25=1.7921 / target_median=1.8703
+- `feat_4h_bb_pct_b`: current=0.3079 / norm=0.3079 / Δto_cross_q35=0.2482 / target_p25=0.337 / target_median=0.3536
+- `feat_4h_dist_bb_lower`: current=0.8826 / norm=0.1103 / Δto_cross_q35=2.0461 / target_p25=1.6837 / target_median=1.8043
+- `feat_4h_dist_swing_low`: current=3.7723 / norm=0.3772 / Δto_cross_q35=2.5576 / target_p25=1.7921 / target_median=1.8703
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 verdict 與 candidate_patch_feature。

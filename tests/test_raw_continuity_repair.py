@@ -228,3 +228,43 @@ def test_repair_recent_raw_continuity_return_details_surfaces_bridge_usage(tmp_p
         assert details["skipped_no_klines"] is True
     finally:
         session.close()
+
+
+def test_repair_recent_raw_continuity_return_details_reports_clean_recent_window(tmp_path):
+    db_path = tmp_path / "continuity_clean.sqlite"
+    session = init_db(f"sqlite:///{db_path}")
+    try:
+        session.add_all(
+            [
+                RawMarketData(timestamp=datetime(2026, 4, 9, 20, 0, 0), symbol="BTCUSDT", close_price=100.0),
+                RawMarketData(timestamp=datetime(2026, 4, 9, 21, 0, 0), symbol="BTCUSDT", close_price=101.0),
+                RawMarketData(timestamp=datetime(2026, 4, 9, 22, 0, 0), symbol="BTCUSDT", close_price=102.0),
+                RawMarketData(timestamp=datetime(2026, 4, 9, 23, 0, 0), symbol="BTCUSDT", close_price=103.0),
+                RawMarketData(timestamp=datetime(2026, 4, 10, 0, 0, 0), symbol="BTCUSDT", close_price=105.0),
+            ]
+        )
+        session.commit()
+
+        details = repair_recent_raw_continuity(
+            session,
+            "BTCUSDT",
+            lookback_days=3650,
+            klines_df=_klines_df(
+                datetime(2026, 4, 9, 20, 0, 0),
+                datetime(2026, 4, 10, 0, 0, 0),
+            ),
+            fine_grain_days=3650,
+            fine_grain_klines_df=_klines_df(
+                datetime(2026, 4, 9, 21, 0, 0),
+                datetime(2026, 4, 9, 22, 0, 0),
+                datetime(2026, 4, 9, 23, 0, 0),
+            ),
+            return_details=True,
+        )
+
+        assert details["inserted_total"] == 0
+        assert details["used_bridge"] is False
+        assert details["used_fine_grain"] is False
+        assert details["skipped_no_klines"] is False
+    finally:
+        session.close()

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+VENV_PYTHON = PROJECT_ROOT / "venv" / "bin" / "python"
 DEFAULT_OUTPUT = PROJECT_ROOT / "data" / "execution_metadata_external_monitor_install_contract.json"
 DEFAULT_INTERVAL_SECONDS = 300.0
 DEFAULT_SERVICE_NAME = "poly-trader-execution-metadata-external-monitor"
@@ -21,8 +22,7 @@ def _format_number(value: float) -> str:
 def _build_monitor_command(symbol: str, interval_seconds: float) -> str:
     interval_arg = _format_number(interval_seconds)
     return (
-        f"cd {PROJECT_ROOT} && source venv/bin/activate && "
-        f"python scripts/execution_metadata_external_monitor.py --symbol {symbol} "
+        f"cd {PROJECT_ROOT} && {VENV_PYTHON} scripts/execution_metadata_external_monitor.py --symbol {symbol} "
         f"--interval-seconds {interval_arg}"
     )
 
@@ -131,8 +131,7 @@ def build_install_contract(
         "symbol": symbol,
         "interval_seconds": interval_seconds,
         "generator_command": (
-            f"cd {PROJECT_ROOT} && source venv/bin/activate && "
-            f"python scripts/execution_metadata_external_monitor_install.py --symbol {symbol}"
+            f"cd {PROJECT_ROOT} && {VENV_PYTHON} scripts/execution_metadata_external_monitor_install.py --symbol {symbol}"
         ),
         "manual_run_command": monitor_command,
         "verify_artifact_command": (

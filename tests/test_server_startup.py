@@ -8,6 +8,10 @@ from server import main as server_main
 from server.routes import api as api_module
 
 
+def _local_request():
+    return SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"))
+
+
 class DummySession:
     def close(self):
         return None
@@ -257,7 +261,7 @@ def test_api_toggle_automation_respects_explicit_enabled_state(monkeypatch):
 
     import asyncio
 
-    payload = asyncio.run(api_module.api_toggle_automation({"enabled": True}))
+    payload = asyncio.run(api_module.api_toggle_automation({"enabled": True}, request=_local_request()))
 
     assert state["enabled"] is True
     assert payload == {
@@ -275,7 +279,7 @@ def test_api_toggle_automation_preserves_legacy_toggle_when_body_missing(monkeyp
 
     import asyncio
 
-    payload = asyncio.run(api_module.api_toggle_automation())
+    payload = asyncio.run(api_module.api_toggle_automation(request=_local_request()))
 
     assert state["enabled"] is False
     assert payload == {
@@ -560,6 +564,92 @@ def test_build_live_runtime_closure_surface_marks_circuit_breaker_as_runtime_blo
     assert "release condition = streak < 50 且 recent 50 win rate >= 30%" in payload["runtime_closure_summary"]
     assert "目前 recent 50 只贏 5/50，至少還差 10 勝" in payload["runtime_closure_summary"]
     assert "recent pathology=recent scope slice 100 rows shows distribution_pathology" in payload["runtime_closure_summary"]
+
+
+def test_build_live_runtime_closure_surface_marks_exact_supported_q15_trade_floor_blocker_as_no_deploy():
+    payload = api_module._build_live_runtime_closure_surface(
+        {
+            "signal": "BUY",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "entry_quality": 0.4181,
+            "entry_quality_label": "D",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "allowed_layers": 0,
+            "allowed_layers_raw": 0,
+            "allowed_layers_raw_reason": "entry_quality_below_trade_floor",
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "deployment_blocker_reason": "support 已 closure，但 live baseline 仍低於 trade floor",
+            "deployment_blocker_source": "decision_quality_contract+q15_support_audit",
+            "deployment_blocker_details": {
+                "current_live_structure_bucket_rows": 96,
+                "minimum_support_rows": 50,
+            },
+            "support_route_verdict": "exact_bucket_supported",
+            "support_progress": {
+                "status": "exact_supported",
+                "current_rows": 96,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 0,
+            },
+            "component_experiment_verdict": "exact_supported_component_experiment_ready",
+        }
+    )
+
+    assert payload["runtime_closure_state"] == "support_closed_but_trade_floor_blocked"
+    assert payload["deployment_blocker"] == "decision_quality_below_trade_floor"
+    assert payload["support_route_verdict"] == "exact_bucket_supported"
+    assert payload["support_rows_text"] == "96 / 50"
+    assert "已完成 exact support closure" in payload["runtime_closure_summary"]
+    assert "不可把 support closure 誤讀成 deployment closure" in payload["runtime_closure_summary"]
+
+
+def test_build_live_runtime_closure_surface_keeps_q15_patch_active_execution_blocked_state():
+    payload = api_module._build_live_runtime_closure_surface(
+        {
+            "signal": "BUY",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "entry_quality": 0.55,
+            "entry_quality_label": "C",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "allowed_layers": 0,
+            "allowed_layers_raw": 1,
+            "allowed_layers_raw_reason": "entry_quality_C_single_layer",
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "deployment_blocker_reason": "q15 patch 已啟用但 final execution 仍被 trade floor 擋住",
+            "deployment_blocker_source": "decision_quality_contract+q15_support_audit",
+            "deployment_blocker_details": {
+                "current_live_structure_bucket_rows": 96,
+                "minimum_support_rows": 50,
+                "allowed_layers_raw": 1,
+                "q15_exact_supported_component_patch_applied": True,
+            },
+            "support_route_verdict": "exact_bucket_supported",
+            "support_progress": {
+                "status": "exact_supported",
+                "current_rows": 96,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 0,
+            },
+            "component_experiment_verdict": "exact_supported_component_experiment_ready",
+            "q15_exact_supported_component_patch_applied": True,
+        }
+    )
+
+    assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
+    assert payload["deployment_blocker"] == "decision_quality_below_trade_floor"
+    assert payload["support_route_verdict"] == "exact_bucket_supported"
+    assert "q15 patch active" in payload["runtime_closure_summary"]
+    assert "decision_quality_below_trade_floor" in payload["runtime_closure_summary"]
 
 
 def test_build_execution_reconciliation_summary_flags_missing_open_order_when_snapshot_fresh():

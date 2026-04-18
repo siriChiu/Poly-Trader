@@ -19,6 +19,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 _db_session: Optional[SASession] = None
 _config: Optional[Dict] = None
 _automation_enabled: bool = False
+_runtime_status: Dict[str, Dict] = {}
 
 
 def load_app_config(config_path: str = None) -> Dict:
@@ -77,3 +78,11 @@ def set_automation_enabled(enabled: bool):
     global _automation_enabled
     _automation_enabled = enabled
     logger.info(f"Automation mode: {'ON' if enabled else 'OFF'}")
+
+
+def set_runtime_status(key: str, payload: Dict):
+    _runtime_status[str(key)] = dict(payload or {})
+
+
+def get_runtime_status(key: str, default=None):
+    return _runtime_status.get(str(key), default)

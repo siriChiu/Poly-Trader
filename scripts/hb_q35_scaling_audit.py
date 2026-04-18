@@ -319,7 +319,12 @@ def _probe_matches_current_row(probe: dict[str, Any], current_ts: str, current_b
     return bool(current_ts and current_bucket and probe_ts == current_ts and probe_bucket == current_bucket)
 
 
-def _load_or_refresh_live_predict_probe(current_ts: str, current_bucket: str) -> dict[str, Any]:
+def _load_or_refresh_live_predict_probe(
+    current_ts: str,
+    current_bucket: str,
+    *,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
     probe: dict[str, Any] = {}
     if PROBE_PATH.exists():
         try:
@@ -328,7 +333,7 @@ def _load_or_refresh_live_predict_probe(current_ts: str, current_bucket: str) ->
             loaded = {}
         if isinstance(loaded, dict):
             probe = loaded
-    if probe and _probe_matches_current_row(probe, current_ts, current_bucket):
+    if not force_refresh and probe and _probe_matches_current_row(probe, current_ts, current_bucket):
         return probe
 
     cmd = [sys.executable, str(PROJECT_ROOT / "scripts" / "hb_predict_probe.py")]
@@ -2008,6 +2013,7 @@ def main() -> None:
     refreshed_probe = _load_or_refresh_live_predict_probe(
         str(current.get("timestamp") or ""),
         str(current.get("structure_bucket") or ""),
+        force_refresh=True,
     )
     refreshed_runtime = _build_deployed_runtime_current(current, runtime_current, refreshed_probe)
     if _deployment_runtime_signature(refreshed_runtime) != _deployment_runtime_signature(deployed_runtime_current):

@@ -178,7 +178,7 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
                 ? ((runtimeDecision.allowed_layers ?? 0) > 0
                     ? "目前是 support-ready + patch active；即使 signal 仍是 HOLD，也代表 runtime 已開出 1 層 deployment capacity，不等於自動 BUY。"
                     : "目前 q15 patch 已經吃到 current live row，但 execution 仍被 blocker / guardrail 壓回 0 層；這裡要讀成 patch active but execution still blocked。")
-                : "目前尚未觀察到 q15 patch active；若要確認完整 runtime truth，仍要回 Dashboard。"}
+                : "目前尚未觀察到 q15 patch active；若要確認完整 runtime truth，請改看執行狀態頁。"}
           </div>
         </div>
       )}
@@ -245,10 +245,10 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
       )}
 
       <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
-        <div>SignalBanner 目前只提供快捷下單 / 自動交易切換；完整 Execution 狀態面板、Guardrail context 與 stale governance 仍以 Dashboard 為 canonical execution route。</div>
+        <div>SignalBanner 目前只提供快捷下單 / 自動交易切換；完整 blocker、Guardrail context、stale governance 與 recovery 請到執行狀態頁查看。</div>
         <div className="mt-1">若 q15 patch active 但 signal 仍是 HOLD，這裡應理解為「capacity opened but signal still HOLD」，不是 patch 失效，也不是自動 BUY readiness。</div>
-        <a href="/" className="mt-1 inline-flex text-[11px] font-semibold text-amber-200 underline underline-offset-2 hover:text-amber-100">
-          前往 Dashboard 檢查完整 Execution 狀態 →
+        <a href="/execution/status" className="mt-1 inline-flex text-[11px] font-semibold text-amber-200 underline underline-offset-2 hover:text-amber-100">
+          前往執行狀態頁 →
         </a>
       </div>
 

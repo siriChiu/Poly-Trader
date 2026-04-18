@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import uuid
 from datetime import datetime, timezone
@@ -91,6 +92,10 @@ _SCHEMA_STATEMENTS = (
         stop_time TEXT,
         stop_reason TEXT,
         operator_note TEXT,
+        strategy_name TEXT,
+        strategy_source TEXT,
+        strategy_hash TEXT,
+        strategy_snapshot_json TEXT,
         last_event_type TEXT,
         last_event_message TEXT,
         last_event_at TEXT,
@@ -155,6 +160,208 @@ def _run_priority(state: Optional[str]) -> int:
     if normalized == "paused":
         return 1
     return 2
+
+
+
+def _to_float_maybe(value: Any) -> Optional[float]:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
+    return None
+
+
+
+def _to_int_maybe(value: Any) -> Optional[int]:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return int(value)
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            return int(float(text))
+        except ValueError:
+            return None
+    return None
+
+
+
+def _strategy_sort_tuple(entry: Dict[str, Any]) -> tuple:
+    last_results = entry.get("last_results") if isinstance(entry.get("last_results"), dict) else {}
+    return (
+        _to_float_maybe(last_results.get("avg_decision_quality_score")) or -999.0,
+        _to_float_maybe(last_results.get("avg_expected_win_rate")) or -999.0,
+        _to_float_maybe(last_results.get("roi")) or -999.0,
+        _to_float_maybe(last_results.get("profit_factor")) or -999.0,
+        -(_to_float_maybe(last_results.get("max_drawdown")) or 999.0),
+        str(entry.get("updated_at") or entry.get("created_at") or ""),
+        str(entry.get("name") or ""),
+    )
+
+
+
+def _strategy_metadata(entry: Dict[str, Any]) -> Dict[str, Any]:
+    from backtesting import strategy_lab
+
+    metadata = entry.get("metadata") if isinstance(entry.get("metadata"), dict) else {}
+    metadata = dict(metadata)
+    if not metadata.get("primary_sleeve_key") or not metadata.get("primary_sleeve_label"):
+        fallback = strategy_lab._build_strategy_metadata(
+            str(entry.get("name") or ""),
+            entry.get("definition") if isinstance(entry.get("definition"), dict) else {},
+        )
+        fallback = fallback if isinstance(fallback, dict) else {}
+        merged = dict(fallback)
+        merged.update({key: value for key, value in metadata.items() if value not in (None, "", [], {})})
+        metadata = merged
+    return metadata
+
+
+
+def _compact_strategy_binding(entry: Dict[str, Any], sleeve_key: str) -> Dict[str, Any]:
+    metadata = _strategy_metadata(entry)
+    last_results = entry.get("last_results") if isinstance(entry.get("last_results"), dict) else {}
+    primary_label = str(
+        metadata.get("primary_sleeve_label")
+        or PRIMARY_SLEEVE_META.get(sleeve_key, {}).get("label")
+        or sleeve_key
+    )
+    compact = {
+        "status": "saved_strategy_bound",
+        "strategy_name": entry.get("name"),
+        "strategy_slug": entry.get("slug"),
+        "strategy_source": "strategy_lab_saved",
+        "strategy_hash": hashlib.sha1(
+            _json_dumps(
+                {
+                    "schema_version": entry.get("schema_version"),
+                    "name": entry.get("name"),
+                    "updated_at": entry.get("updated_at"),
+                    "definition": entry.get("definition"),
+                    "metadata": metadata,
+                }
+            ).encode("utf-8")
+        ).hexdigest()[:12],
+        "schema_version": entry.get("schema_version"),
+        "updated_at": entry.get("updated_at"),
+        "created_at": entry.get("created_at"),
+        "run_count": entry.get("run_count"),
+        "primary_sleeve_key": metadata.get("primary_sleeve_key") or sleeve_key,
+        "primary_sleeve_label": primary_label,
+        "strategy_type": metadata.get("strategy_type"),
+        "model_name": metadata.get("model_name"),
+        "title": metadata.get("title") or entry.get("name"),
+        "description": metadata.get("description"),
+        "sleeve_summary": metadata.get("sleeve_summary"),
+        "decision_quality_label": last_results.get("decision_quality_label"),
+        "avg_decision_quality_score": _to_float_maybe(last_results.get("avg_decision_quality_score")),
+        "avg_expected_win_rate": _to_float_maybe(last_results.get("avg_expected_win_rate")),
+        "roi": _to_float_maybe(last_results.get("roi")),
+        "profit_factor": _to_float_maybe(last_results.get("profit_factor")),
+        "total_trades": _to_int_maybe(last_results.get("total_trades")),
+    }
+    compact["summary"] = (
+        f"{compact.get('strategy_name') or primary_label} · {primary_label} · "
+        f"source saved_strategy · hash {compact.get('strategy_hash')}"
+    )
+    compact["operator_action"] = "可直接沿用這份已儲存策略快照；若要改參數，請先回 Strategy Lab 另存新版本。"
+    return compact
+
+
+
+def _missing_strategy_binding(sleeve_key: str) -> Dict[str, Any]:
+    primary_label = str(PRIMARY_SLEEVE_META.get(sleeve_key, {}).get("label") or sleeve_key)
+    return {
+        "status": "missing_saved_strategy",
+        "strategy_name": None,
+        "strategy_slug": None,
+        "strategy_source": None,
+        "strategy_hash": None,
+        "schema_version": None,
+        "updated_at": None,
+        "created_at": None,
+        "run_count": 0,
+        "primary_sleeve_key": sleeve_key,
+        "primary_sleeve_label": primary_label,
+        "strategy_type": None,
+        "model_name": None,
+        "title": None,
+        "description": None,
+        "sleeve_summary": None,
+        "decision_quality_label": None,
+        "avg_decision_quality_score": None,
+        "avg_expected_win_rate": None,
+        "roi": None,
+        "profit_factor": None,
+        "total_trades": None,
+        "summary": f"尚未找到對應 sleeve 的已儲存策略快照：{primary_label}。",
+        "operator_action": "前往 Strategy Lab 儲存對應 sleeve 的策略，才能讓 Execution Console 顯示明確 strategy snapshot / version。",
+    }
+
+
+
+def build_execution_strategy_source_snapshot() -> Dict[str, Any]:
+    from backtesting.strategy_lab import load_all_strategies
+
+    strategies = load_all_strategies(include_internal=False)
+    normalized_entries: List[Dict[str, Any]] = []
+    sleeve_candidates: Dict[str, List[Dict[str, Any]]] = {key: [] for key in PRIMARY_SLEEVE_ORDER}
+    for entry in sorted(strategies, key=_strategy_sort_tuple, reverse=True):
+        metadata = _strategy_metadata(entry)
+        primary_key = str(metadata.get("primary_sleeve_key") or "").strip()
+        if primary_key in sleeve_candidates:
+            sleeve_candidates[primary_key].append(entry)
+        compact = _compact_strategy_binding(entry, primary_key or "uncategorized")
+        compact["status"] = "saved_strategy_catalog"
+        normalized_entries.append(compact)
+
+    sleeve_bindings: Dict[str, Dict[str, Any]] = {}
+    covered_sleeves = []
+    missing_sleeves = []
+    for key in PRIMARY_SLEEVE_ORDER:
+        candidates = sleeve_candidates.get(key) or []
+        recommended = _compact_strategy_binding(candidates[0], key) if candidates else _missing_strategy_binding(key)
+        if candidates:
+            covered_sleeves.append(key)
+        else:
+            missing_sleeves.append(key)
+        sleeve_bindings[key] = {
+            "primary_sleeve_key": key,
+            "primary_sleeve_label": PRIMARY_SLEEVE_META.get(key, {}).get("label") or key,
+            "coverage_status": recommended.get("status"),
+            "recommended": recommended,
+            "alternatives": [_compact_strategy_binding(entry, key) for entry in candidates[1:3]],
+        }
+
+    return {
+        "generated_at": _utcnow_iso(),
+        "summary": {
+            "route": "/api/execution/strategies/source",
+            "strategy_count": len(normalized_entries),
+            "covered_sleeves": len(covered_sleeves),
+            "total_sleeves": len(PRIMARY_SLEEVE_ORDER),
+            "missing_sleeves": missing_sleeves,
+            "operator_message": (
+                f"目前已有 {len(normalized_entries)} 份已儲存策略快照，可覆蓋 {len(covered_sleeves)}/{len(PRIMARY_SLEEVE_ORDER)} 個 primary sleeves；"
+                "尚未覆蓋的 sleeves 仍需回 Strategy Lab 補 strategy snapshot/version。"
+            ),
+        },
+        "sleeve_bindings": sleeve_bindings,
+        "strategies": normalized_entries,
+    }
 
 
 
@@ -257,6 +464,194 @@ def _compact_preview_records(records: Iterable[Dict[str, Any]], *, kind: str, li
 
 
 
+def _record_text(record: Dict[str, Any], keys: Iterable[str]) -> Optional[str]:
+    for key in keys:
+        value = record.get(key)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
+
+def _first_numeric_value(record: Dict[str, Any], keys: Iterable[str]) -> Optional[float]:
+    for key in keys:
+        value = _to_float_maybe(record.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+
+def _side_sign(record: Dict[str, Any]) -> Optional[float]:
+    side = (_record_text(record, ("side", "positionSide")) or "").strip().lower()
+    if side in {"buy", "long", "bid"}:
+        return 1.0
+    if side in {"sell", "short", "ask"}:
+        return -1.0
+    return None
+
+
+
+def _position_signed_quantity(record: Dict[str, Any]) -> Optional[float]:
+    explicit_position_amt = _to_float_maybe(record.get("positionAmt"))
+    if explicit_position_amt is not None:
+        return explicit_position_amt
+    quantity = _first_numeric_value(record, ("contracts", "size", "qty", "amount"))
+    if quantity is None:
+        return None
+    side_sign = _side_sign(record)
+    if side_sign is None:
+        return quantity
+    return abs(quantity) * side_sign
+
+
+
+def _position_mark_price(record: Dict[str, Any]) -> Optional[float]:
+    return _first_numeric_value(record, ("markPrice", "price", "avgPrice", "entryPrice"))
+
+
+
+def _order_signed_quantity(record: Dict[str, Any]) -> Optional[float]:
+    quantity = _first_numeric_value(record, ("qty", "amount", "size"))
+    if quantity is None:
+        return None
+    side_sign = _side_sign(record)
+    if side_sign is None:
+        return quantity
+    return abs(quantity) * side_sign
+
+
+
+def _order_price(record: Dict[str, Any]) -> Optional[float]:
+    return _first_numeric_value(record, ("price", "avgPrice"))
+
+
+
+def _format_preview_amount(value: Optional[float], currency: str) -> str:
+    if value is None:
+        return f"— {currency}"
+    return f"{float(value):.2f} {currency}"
+
+
+
+def _build_shared_symbol_ledger_preview(
+    *,
+    positions: List[Dict[str, Any]],
+    open_orders: List[Dict[str, Any]],
+    balance: Dict[str, Any],
+    budget_amount: Optional[float],
+    currency: str,
+) -> Dict[str, Any]:
+    gross_position_notional_total = 0.0
+    net_position_notional_total = 0.0
+    position_priced_count = 0
+    unrealized_pnl_total = 0.0
+    unrealized_pnl_count = 0
+
+    for record in positions:
+        signed_qty = _position_signed_quantity(record)
+        mark_price = _position_mark_price(record)
+        if signed_qty is not None and mark_price is not None:
+            gross_position_notional_total += abs(float(signed_qty)) * float(mark_price)
+            net_position_notional_total += float(signed_qty) * float(mark_price)
+            position_priced_count += 1
+        unrealized_pnl = _first_numeric_value(record, ("unrealizedPnl", "pnl"))
+        if unrealized_pnl is not None:
+            unrealized_pnl_total += float(unrealized_pnl)
+            unrealized_pnl_count += 1
+
+    open_order_notional_total = 0.0
+    open_order_priced_count = 0
+    for record in open_orders:
+        signed_qty = _order_signed_quantity(record)
+        price = _order_price(record)
+        if signed_qty is None or price is None:
+            continue
+        open_order_notional_total += abs(float(signed_qty)) * float(price)
+        open_order_priced_count += 1
+
+    priced_positions_total = 0.0 if not positions else (gross_position_notional_total if position_priced_count == len(positions) else None)
+    priced_net_position_total = 0.0 if not positions else (net_position_notional_total if position_priced_count == len(positions) else None)
+    priced_open_orders_total = 0.0 if not open_orders else (open_order_notional_total if open_order_priced_count == len(open_orders) else None)
+    total_known_commitment = None
+    if priced_positions_total is not None and priced_open_orders_total is not None:
+        total_known_commitment = float(priced_positions_total) + float(priced_open_orders_total)
+
+    total_balance = _to_float_maybe(balance.get("total"))
+    free_balance = _to_float_maybe(balance.get("free"))
+    capital_in_use = None
+    if total_balance is not None and free_balance is not None:
+        capital_in_use = max(float(total_balance) - float(free_balance), 0.0)
+
+    budget_gap = None
+    commitment_vs_budget_ratio = None
+    if budget_amount not in (None, 0.0) and total_known_commitment is not None:
+        budget_gap = float(budget_amount) - float(total_known_commitment)
+        commitment_vs_budget_ratio = float(total_known_commitment) / float(budget_amount)
+
+    if not positions and not open_orders:
+        budget_alignment_status = "healthy_no_symbol_commitment"
+        budget_alignment_summary = "目前 shared symbol 沒有持倉或掛單；run budget 尚未形成實際 commitment。"
+    elif total_known_commitment is None:
+        budget_alignment_status = "warning_commitment_unpriced"
+        budget_alignment_summary = (
+            "已偵測 shared symbol 持倉或掛單，但缺少 mark/price 欄位；"
+            "目前只能做 count-level preview，不能判斷 budget alignment。"
+        )
+    elif budget_amount in (None, 0.0):
+        budget_alignment_status = "warning_budget_unavailable"
+        budget_alignment_summary = (
+            f"shared symbol 已有 {_format_preview_amount(total_known_commitment, currency)} 的 known commitment，"
+            "但 run budget 不可用；暫時無法比較 budget alignment。"
+        )
+    elif float(total_known_commitment) <= float(budget_amount) * 1.05:
+        budget_alignment_status = "healthy_within_planned_preview"
+        budget_alignment_summary = (
+            f"shared symbol known commitment {_format_preview_amount(total_known_commitment, currency)} "
+            f"仍在 planned budget {_format_preview_amount(budget_amount, currency)} 的 preview 容許範圍內；"
+            "但尚未完成 per-run attribution。"
+        )
+    else:
+        budget_alignment_status = "warning_over_planned_preview"
+        budget_alignment_summary = (
+            f"shared symbol known commitment {_format_preview_amount(total_known_commitment, currency)} "
+            f"已高於 planned budget {_format_preview_amount(budget_amount, currency)}；"
+            "先對齊 ownership / attribution，再擴張 exposure。"
+        )
+
+    unrealized_pnl_value = 0.0 if not positions else (unrealized_pnl_total if unrealized_pnl_count == len(positions) else None)
+
+    return {
+        "scope": "symbol_scoped_shared_ledger_preview",
+        "ownership_status": "shared_symbol_preview_only",
+        "summary": (
+            f"shared symbol ledger preview：{budget_alignment_summary}"
+            " 這仍是 symbol-scoped shared preview，不是 per-run realized / unrealized PnL ledger。"
+        ),
+        "budget_alignment_status": budget_alignment_status,
+        "budget_alignment_summary": budget_alignment_summary,
+        "pricing_complete": total_known_commitment is not None,
+        "position_count": len(positions),
+        "open_order_count": len(open_orders),
+        "position_priced_count": position_priced_count,
+        "open_order_priced_count": open_order_priced_count,
+        "gross_position_notional": priced_positions_total,
+        "net_position_notional": priced_net_position_total,
+        "open_order_notional": priced_open_orders_total,
+        "total_known_commitment": total_known_commitment,
+        "unrealized_pnl": unrealized_pnl_value,
+        "capital_in_use": capital_in_use,
+        "budget_amount": budget_amount,
+        "budget_gap": budget_gap,
+        "commitment_vs_budget_ratio": commitment_vs_budget_ratio,
+        "currency": currency,
+    }
+
+
+
 def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dict[str, Any]]) -> tuple[Dict[str, Any], Dict[str, Any]]:
     status_payload = _as_dict(status_payload)
     execution = _as_dict(status_payload.get("execution"))
@@ -289,6 +684,16 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
     symbol_positions = [item for item in positions if _record_symbol_key(item) == run_symbol_key]
     symbol_open_orders = [item for item in open_orders if _record_symbol_key(item) == run_symbol_key]
     balance = _as_dict(account.get("balance"))
+    budget_amount = _to_float_maybe(row.get("budget_amount"))
+    budget_ratio = _to_float_maybe(row.get("budget_ratio"))
+    capital_currency = str(row.get("capital_currency") or balance.get("currency") or "USDT")
+    shared_symbol_ledger_preview = _build_shared_symbol_ledger_preview(
+        positions=symbol_positions,
+        open_orders=symbol_open_orders,
+        balance=balance,
+        budget_amount=budget_amount,
+        currency=capital_currency,
+    )
 
     last_order = _as_dict(guardrails.get("last_order"))
     last_order_symbol_match = not last_order or _record_symbol_key(last_order) == run_symbol_key
@@ -299,6 +704,7 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
         "execution_reconciliation",
         "execution_guardrails",
         "shared_symbol_preview",
+        "shared_symbol_ledger_preview",
     ] if matched_runtime else []
     operator_action = (
         _as_dict(reconciliation.get("recovery_state")).get("operator_action")
@@ -307,7 +713,7 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
     )
     summary = (
         "此 run 已鏡像到目前 /api/status 的 symbol-scoped runtime / account / reconciliation 視圖；"
-        "但資金、倉位、掛單仍是 shared-symbol preview，不是 per-bot ledger。"
+        "shared-symbol budget / exposure / PnL preview 也已 machine-read 化，但仍不是 per-bot ledger。"
         if matched_runtime
         else "此 run 目前只有 stateful control-plane event log；尚未對齊到當前 runtime symbol/venue snapshot。"
     )
@@ -316,8 +722,10 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
         "capital_attribution": "planned_budget_vs_shared_account_balance" if matched_runtime else "not_bound",
         "position_attribution": "symbol_scoped_preview_only" if matched_runtime else "not_bound",
         "open_order_attribution": "symbol_scoped_preview_only" if matched_runtime else "not_bound",
+        "pnl_attribution": "symbol_scoped_preview_only" if matched_runtime else "not_bound",
         "summary": (
-            "run 目前只擁有 planned budget 與 lifecycle/event log；實際 balance / positions / open orders 仍是 shared-symbol preview。"
+            "run 目前只擁有 planned budget、shared-symbol exposure/PnL preview 與 lifecycle/event log；"
+            "實際 balance / positions / open orders / PnL 仍是 shared-symbol preview。"
             if matched_runtime
             else "run 尚未綁到 runtime symbol/venue snapshot，因此連 shared-symbol preview 都還沒對齊。"
         ),
@@ -331,6 +739,7 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
             "per_bot_capital_ledger",
             "per_bot_position_attribution",
             "per_bot_open_order_attribution",
+            "per_bot_pnl_attribution",
             "venue_fill_ownership",
             "restart_replay_ownership",
         ],
@@ -373,11 +782,11 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
         "capital_preview": {
             "allocation_scope": "run_budget_vs_shared_balance_preview",
             "ownership_status": "shared_symbol_preview_only",
-            "budget_amount": row.get("budget_amount"),
-            "budget_ratio": row.get("budget_ratio"),
+            "budget_amount": budget_amount,
+            "budget_ratio": budget_ratio,
             "balance_total": balance.get("total"),
             "balance_free": balance.get("free"),
-            "currency": row.get("capital_currency") or balance.get("currency") or "USDT",
+            "currency": capital_currency,
             "summary": "run budget 是 control-plane 規劃值；實際可用資金仍來自 account snapshot 的 shared balance。",
         } if matched_runtime else None,
         "shared_symbol_preview": {
@@ -390,11 +799,12 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
             "balance": {
                 "total": balance.get("total"),
                 "free": balance.get("free"),
-                "currency": balance.get("currency") or row.get("capital_currency") or "USDT",
+                "currency": capital_currency,
             },
             "positions": _compact_preview_records(symbol_positions, kind="position"),
             "open_orders": _compact_preview_records(symbol_open_orders, kind="order"),
         } if matched_runtime else None,
+        "shared_symbol_ledger_preview": shared_symbol_ledger_preview if matched_runtime else None,
         "reconciliation": {
             "status": reconciliation.get("status"),
             "summary": reconciliation.get("summary"),
@@ -438,6 +848,9 @@ def _serialize_run(
     recent_events = events or []
     latest_event = recent_events[0] if recent_events else None
     runtime_binding_contract, runtime_binding_snapshot = _runtime_binding_artifacts(row, status_payload)
+    strategy_binding = _json_loads(row.get("strategy_snapshot_json"))
+    if not isinstance(strategy_binding, dict):
+        strategy_binding = None
     return {
         "run_id": row.get("id"),
         "profile_id": row.get("profile_id"),
@@ -463,6 +876,7 @@ def _serialize_run(
         "last_event_at": row.get("last_event_at"),
         "runtime_binding_contract": runtime_binding_contract,
         "runtime_binding_snapshot": runtime_binding_snapshot,
+        "strategy_binding": strategy_binding,
         "action_contract": {
             "can_pause": current_state == "running",
             "can_resume": current_state == "paused",
@@ -477,6 +891,8 @@ def _serialize_run(
 
 def _serialize_profile(row: Dict[str, Any], current_run: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     snapshot = _json_loads(row.get("snapshot_json")) or {}
+    strategy_binding = snapshot.get("strategy_binding") if isinstance(snapshot, dict) else None
+    strategy_binding = strategy_binding if isinstance(strategy_binding, dict) else None
     return {
         "profile_id": row.get("id"),
         "profile_type": row.get("profile_type") or "primary_sleeve",
@@ -496,14 +912,37 @@ def _serialize_profile(row: Dict[str, Any], current_run: Optional[Dict[str, Any]
         "current_structure_bucket": row.get("current_structure_bucket"),
         "source_route": row.get("source_route") or "/api/execution/overview",
         "current_run": current_run,
+        "strategy_binding": strategy_binding,
         "snapshot": snapshot,
     }
+
+
+
+def _ensure_optional_columns(db, table: str, columns: Dict[str, str]) -> None:
+    existing = {
+        str(row.get("name") or "")
+        for row in _rows(db, f"PRAGMA table_info({table})")
+    }
+    for column_name, column_def in columns.items():
+        if column_name in existing:
+            continue
+        db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column_name} {column_def}"))
 
 
 
 def ensure_execution_control_plane_schema(db) -> None:
     for statement in _SCHEMA_STATEMENTS:
         db.execute(text(statement))
+    _ensure_optional_columns(
+        db,
+        "execution_runs",
+        {
+            "strategy_name": "TEXT",
+            "strategy_source": "TEXT",
+            "strategy_hash": "TEXT",
+            "strategy_snapshot_json": "TEXT",
+        },
+    )
     db.commit()
 
 
@@ -769,6 +1208,8 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
     profile_snapshot = _json_loads(profile_row.get("snapshot_json")) or {}
     control_contract = profile_snapshot.get("control_contract") if isinstance(profile_snapshot, dict) else {}
     control_contract = control_contract if isinstance(control_contract, dict) else {}
+    strategy_binding = profile_snapshot.get("strategy_binding") if isinstance(profile_snapshot, dict) else None
+    strategy_binding = strategy_binding if isinstance(strategy_binding, dict) else None
     start_status = str(control_contract.get("start_status") or "")
     if start_status.startswith("blocked") or start_status.startswith("inactive"):
         raise HTTPException(
@@ -881,13 +1322,15 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
                 id, profile_id, label, symbol, venue, mode, state, control_mode,
                 runtime_binding_status, budget_amount, budget_ratio, capital_currency,
                 activation_status, lifecycle_status, start_time, stop_time, stop_reason,
-                operator_note, last_event_type, last_event_message, last_event_at,
+                operator_note, strategy_name, strategy_source, strategy_hash, strategy_snapshot_json,
+                last_event_type, last_event_message, last_event_at,
                 created_at, updated_at
             ) VALUES (
                 :id, :profile_id, :label, :symbol, :venue, :mode, :state, :control_mode,
                 :runtime_binding_status, :budget_amount, :budget_ratio, :capital_currency,
                 :activation_status, :lifecycle_status, :start_time, :stop_time, :stop_reason,
-                :operator_note, :last_event_type, :last_event_message, :last_event_at,
+                :operator_note, :strategy_name, :strategy_source, :strategy_hash, :strategy_snapshot_json,
+                :last_event_type, :last_event_message, :last_event_at,
                 :created_at, :updated_at
             )
             """
@@ -911,6 +1354,10 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
             "stop_time": None,
             "stop_reason": None,
             "operator_note": CONTROL_PLANE_UPGRADE_PREREQUISITE,
+            "strategy_name": strategy_binding.get("strategy_name") if strategy_binding else None,
+            "strategy_source": strategy_binding.get("strategy_source") if strategy_binding else None,
+            "strategy_hash": strategy_binding.get("strategy_hash") if strategy_binding else None,
+            "strategy_snapshot_json": _json_dumps(strategy_binding) if strategy_binding else None,
             "last_event_type": "started",
             "last_event_message": message,
             "last_event_at": now,

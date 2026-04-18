@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 import sys
@@ -20,6 +21,7 @@ LAST_METRICS_PATH = PROJECT_ROOT / "model" / "last_metrics.json"
 LIVE_PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 BULL_POCKET_PATH = PROJECT_ROOT / "data" / "bull_4h_pocket_ablation.json"
 FEATURE_ABLATION_PATH = PROJECT_ROOT / "data" / "feature_group_ablation.json"
+Q15_SUPPORT_AUDIT_PATH = PROJECT_ROOT / "data" / "q15_support_audit.json"
 
 
 KNOWN_SKLEARN_FEATURE_NAME_WARNING_PATTERNS = (
@@ -69,9 +71,90 @@ def _parse_iso_datetime(value: Any) -> datetime | None:
     return parsed
 
 
+def _timestamp_to_iso(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    try:
+        ts = float(value)
+    except (TypeError, ValueError):
+        return None
+    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _load_leaderboard_payload(*, allow_rebuild: bool = True) -> tuple[dict[str, Any], dict[str, Any]]:
+    payload: dict[str, Any] = {}
+    source: str | None = None
+    updated_at = 0.0
+    source_error: Any = None
+    cache_error: Any = None
+
+    cache_path = getattr(api_module, "MODEL_LB_CACHE_PATH", None)
+    if cache_path and Path(cache_path).exists():
+        try:
+            cached = json.loads(Path(cache_path).read_text(encoding="utf-8"))
+            if isinstance(cached, dict):
+                cached_payload = cached.get("payload") if isinstance(cached.get("payload"), dict) else None
+                legacy_payload = cached if cached_payload is None and isinstance(cached.get("leaderboard"), list) else None
+                if cached_payload is not None and cached_payload.get("leaderboard"):
+                    payload = cached_payload
+                    updated_at = float(cached.get("updated_at") or 0.0)
+                    source_error = cached.get("error")
+                    source = "model_leaderboard_cache"
+                elif legacy_payload is not None and legacy_payload.get("leaderboard"):
+                    payload = legacy_payload
+                    updated_at = Path(cache_path).stat().st_mtime
+                    source_error = None
+                    source = "model_leaderboard_cache"
+                else:
+                    cache_error = cached.get("error")
+        except Exception as exc:
+            cache_error = str(exc)
+
+    if not payload:
+        try:
+            snapshot = api_module._load_latest_model_leaderboard_snapshot_payload()
+        except Exception as exc:
+            snapshot = None
+            cache_error = cache_error or str(exc)
+        if isinstance(snapshot, dict):
+            snapshot_payload = snapshot.get("payload")
+            if isinstance(snapshot_payload, dict) and snapshot_payload.get("leaderboard"):
+                payload = snapshot_payload
+                updated_at = float(snapshot.get("updated_at") or 0.0)
+                source_error = snapshot.get("error")
+                source = "latest_persisted_snapshot"
+
+    if not payload and allow_rebuild:
+        payload = api_module._build_model_leaderboard_payload()
+        updated_at = time.time()
+        source_error = None
+        source = "live_rebuild"
+
+    age_sec = max(int(time.time() - updated_at), 0) if updated_at else None
+    stale = None if source is None else bool(age_sec is None or age_sec > 900)
+    if source == "live_rebuild":
+        stale = False
+
+    meta = {
+        "source": source,
+        "updated_at": _timestamp_to_iso(updated_at),
+        "cache_age_sec": age_sec,
+        "stale": stale,
+        "error": source_error,
+        "cache_error": cache_error,
+    }
+    return payload if isinstance(payload, dict) else {}, meta
+
+
 def _top_model_payload(payload: dict[str, Any]) -> dict[str, Any]:
     leaderboard = payload.get("leaderboard") or []
-    top = leaderboard[0] if leaderboard else {}
+    placeholder_rows = payload.get("placeholder_rows") or []
+    top_source = "leaderboard"
+    rows = leaderboard
+    if not rows and placeholder_rows:
+        rows = placeholder_rows
+        top_source = "placeholder_rows"
+    top = rows[0] if rows else {}
     return {
         "model_name": top.get("model_name"),
         "deployment_profile": top.get("deployment_profile"),
@@ -89,6 +172,13 @@ def _top_model_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "feature_profile_candidate_diagnostics": top.get("feature_profile_candidate_diagnostics"),
         "overall_score": top.get("overall_score"),
         "avg_decision_quality_score": top.get("avg_decision_quality_score"),
+        "ranking_status": top.get("ranking_status"),
+        "ranking_warning": top.get("ranking_warning"),
+        "placeholder_reason": top.get("placeholder_reason"),
+        "top_model_source": top_source,
+        "leaderboard_warning": payload.get("leaderboard_warning"),
+        "comparable_count": payload.get("comparable_count"),
+        "placeholder_count": payload.get("placeholder_count"),
     }
 
 
@@ -159,6 +249,32 @@ def _load_recent_support_history(
     return history
 
 
+def _load_q15_support_progress_hint(
+    *,
+    current_bucket: Any,
+    current_route: str | None,
+    current_rows: int,
+    minimum_support_rows: int,
+) -> dict[str, Any] | None:
+    q15_audit = _load_json(Q15_SUPPORT_AUDIT_PATH)
+    current_live = q15_audit.get("current_live") or {}
+    support_route = q15_audit.get("support_route") or {}
+    support_progress = support_route.get("support_progress") or {}
+    if not support_progress:
+        return None
+    if current_live.get("current_live_structure_bucket") != current_bucket:
+        return None
+    if int(current_live.get("current_live_structure_bucket_rows") or 0) != current_rows:
+        return None
+    if int(support_route.get("minimum_support_rows") or 0) != int(minimum_support_rows or 0):
+        return None
+    q15_route = support_route.get("support_governance_route")
+    if current_route and q15_route and q15_route != current_route:
+        return None
+    return support_progress
+
+
+
 def _summarize_support_progress(
     *,
     current_bucket: Any,
@@ -169,6 +285,15 @@ def _summarize_support_progress(
     data_dir: Path | None = None,
 ) -> dict[str, Any]:
     current_rows = int(live_bucket_rows or 0)
+    q15_hint = _load_q15_support_progress_hint(
+        current_bucket=current_bucket,
+        current_route=current_route,
+        current_rows=current_rows,
+        minimum_support_rows=minimum_support_rows,
+    )
+    if q15_hint is not None:
+        return q15_hint
+
     observed_at = datetime.now(timezone.utc)
     current_entry = {
         "heartbeat": str(current_label or "current"),
@@ -184,30 +309,37 @@ def _summarize_support_progress(
     relevant = [
         item for item in history
         if item.get("live_current_structure_bucket") == current_bucket
-        and item.get("support_governance_route") == current_route
     ]
 
     previous = relevant[1] if len(relevant) > 1 else None
     delta_vs_previous = None
+    previous_route_changed = False
     if previous is not None:
-        delta_vs_previous = current_rows - int(previous.get("live_current_structure_bucket_rows") or 0)
+        previous_rows = int(previous.get("live_current_structure_bucket_rows") or 0)
+        delta_vs_previous = current_rows - previous_rows
+        previous_route_changed = previous.get("support_governance_route") != current_route
 
-    stagnant_run_count = 1
-    for item in relevant[1:]:
-        if int(item.get("live_current_structure_bucket_rows") or 0) == current_rows:
-            stagnant_run_count += 1
-            continue
-        break
+    stagnant_run_count = 0
+    if previous is not None and int(previous.get("live_current_structure_bucket_rows") or 0) == current_rows:
+        stagnant_run_count = 1
+        for item in relevant[1:]:
+            if int(item.get("live_current_structure_bucket_rows") or 0) == current_rows:
+                stagnant_run_count += 1
+                continue
+            break
 
-    if current_route == "exact_live_bucket_supported" or current_rows >= int(minimum_support_rows or 0):
+    minimum = int(minimum_support_rows or 0)
+    if current_route == "exact_live_bucket_supported" or current_rows >= minimum:
         status = "exact_supported"
         reason = "current live exact bucket 已達 minimum support，治理焦點可轉向 post-threshold leaderboard sync。"
     elif previous is None:
         status = "no_recent_comparable_history"
-        reason = "目前找不到同一 current live structure bucket + route 的最近 heartbeat 可比對；先持續累積 support。"
+        reason = "目前找不到同一 current live structure bucket 的最近 heartbeat 可比對；先持續累積 support。"
     elif delta_vs_previous and delta_vs_previous > 0:
         status = "accumulating"
         reason = "current live exact support 仍低於 minimum，但最近 heartbeat 已持續增加。"
+        if previous_route_changed:
+            reason += " route 已切換，代表 support pathology 正在從 proxy / fallback 轉向 exact rows 累積。"
     elif delta_vs_previous == 0:
         status = "stalled_under_minimum"
         reason = "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。"
@@ -219,14 +351,16 @@ def _summarize_support_progress(
         "status": status,
         "reason": reason,
         "current_rows": current_rows,
-        "minimum_support_rows": int(minimum_support_rows or 0),
-        "gap_to_minimum": max(int(minimum_support_rows or 0) - current_rows, 0),
+        "minimum_support_rows": minimum,
+        "gap_to_minimum": max(minimum - current_rows, 0),
         "delta_vs_previous": delta_vs_previous,
         "previous_rows": None if previous is None else int(previous.get("live_current_structure_bucket_rows") or 0),
+        "previous_route_changed": previous_route_changed,
+        "previous_support_governance_route": None if previous is None else previous.get("support_governance_route"),
         "stagnant_run_count": stagnant_run_count,
         "stalled_support_accumulation": status == "stalled_under_minimum",
         "escalate_to_blocker": status == "stalled_under_minimum" and stagnant_run_count >= 3,
-        "history": history,
+        "history": relevant,
     }
 
 
@@ -274,6 +408,25 @@ def _build_governance_contract(
             "current_closure": "exact_supported_but_leaderboard_not_synced",
             "reason": "exact live bucket 已達 minimum support，production profile 已升級為 exact-supported lane；若 leaderboard 仍停在 global winner，這是 post-threshold governance 未收斂，而不是健康的雙角色分工。",
             "recommended_action": "同步 leaderboard / heartbeat summary / docs，讓 leaderboard candidate governance 接上 exact-supported production profile，避免 fallback 語義殘留。",
+            "global_profile": global_profile,
+            "global_profile_role": global_role,
+            "production_profile": production_profile,
+            "production_profile_role": production_role,
+            "support_governance_route": support_governance_route,
+            "split_required": split_required,
+            "minimum_support_rows": minimum_support_rows,
+            "live_current_structure_bucket_rows": live_rows,
+            "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
+            "support_progress": support_progress,
+        }
+
+    if dual_profile_state == "train_exact_supported_profile_stale_under_minimum":
+        return {
+            "verdict": "train_profile_contract_stale_against_current_support",
+            "treat_as_parity_blocker": False,
+            "current_closure": "train_still_claims_exact_supported_profile_but_live_bucket_under_minimum",
+            "reason": "train / runtime 仍沿用 exact-supported production profile，但 current live exact bucket 已回落到 minimum support 以下；這代表 production-profile 敘事落後於當前 support 事實，不能再直接把 train profile 當成 current-live closure。",
+            "recommended_action": "下一輪至少重跑一次 full train / support-aware profile refresh，讓 feature_profile_meta 從 exact-supported 降回 support-aware 或重新證明 exact bucket 已恢復；在此之前，heartbeat / docs 必須把 current blocker 寫成 q35 exact support regression，而不是 exact-supported production readiness。",
             "global_profile": global_profile,
             "global_profile_role": global_role,
             "production_profile": production_profile,
@@ -357,7 +510,24 @@ def _build_alignment(
     bull_pocket = _load_json(BULL_POCKET_PATH)
     feature_ablation = _load_json(FEATURE_ABLATION_PATH)
 
-    live_context = bull_pocket.get("live_context") or {}
+    live_context = dict(bull_pocket.get("live_context") or {})
+    probe_scope = (
+        (live_probe.get("decision_quality_scope_diagnostics") or {}).get("regime_label+regime_gate+entry_quality_label")
+        or {}
+    )
+    probe_live_bucket = (
+        live_probe.get("current_live_structure_bucket")
+        or live_probe.get("structure_bucket")
+        or probe_scope.get("current_live_structure_bucket")
+    )
+    probe_live_bucket_rows = live_probe.get("current_live_structure_bucket_rows")
+    if probe_live_bucket_rows is None:
+        probe_live_bucket_rows = probe_scope.get("current_live_structure_bucket_rows")
+    if probe_live_bucket:
+        live_context["current_live_structure_bucket"] = probe_live_bucket
+    if probe_live_bucket_rows is not None:
+        live_context["current_live_structure_bucket_rows"] = int(probe_live_bucket_rows or 0)
+
     cohorts = bull_pocket.get("cohorts") or {}
     support_summary = bull_pocket.get("support_pathology_summary") or {}
     support_cohort = cohorts.get("bull_supported_neighbor_buckets_proxy") or {}
@@ -437,6 +607,11 @@ def _build_alignment(
     if leaderboard_selected != train_profile:
         if current_alignment_inputs_stale:
             dual_profile_state = "stale_alignment_snapshot"
+        elif (
+            support_governance_route == "exact_live_bucket_present_but_below_minimum"
+            and train_profile_source == "bull_4h_pocket_ablation.exact_supported_profile"
+        ):
+            dual_profile_state = "train_exact_supported_profile_stale_under_minimum"
         elif (
             support_governance_route == "exact_live_bucket_supported"
             and train_profile_source == "bull_4h_pocket_ablation.exact_supported_profile"
@@ -545,19 +720,38 @@ def _build_alignment(
     }
 
 
-def main() -> int:
-    _suppress_known_feature_name_warnings()
-    payload = api_module._build_model_leaderboard_payload()
+def build_probe_result(*, allow_rebuild: bool = True, generated_at: str | None = None) -> dict[str, Any] | None:
+    payload, payload_meta = _load_leaderboard_payload(allow_rebuild=allow_rebuild)
+    if not payload.get("leaderboard"):
+        return None
     top_model = _top_model_payload(payload)
-    leaderboard_snapshot_created_at = (
-        payload.get("snapshot_history", [{}])[0].get("created_at")
-        if payload.get("snapshot_history")
-        else None
-    )
-    generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    result = {
+    snapshot_history = payload.get("snapshot_history") or []
+    leaderboard_snapshot_created_at = None
+    latest_snapshot_dt = None
+    for item in snapshot_history:
+        if not isinstance(item, dict):
+            continue
+        created_at = item.get("created_at")
+        created_dt = _parse_iso_datetime(created_at)
+        if created_dt is None:
+            continue
+        if latest_snapshot_dt is None or created_dt > latest_snapshot_dt:
+            latest_snapshot_dt = created_dt
+            leaderboard_snapshot_created_at = created_at
+    payload_updated_at = payload_meta.get("updated_at")
+    payload_updated_dt = _parse_iso_datetime(payload_updated_at)
+    if payload_updated_dt is not None and (latest_snapshot_dt is None or payload_updated_dt > latest_snapshot_dt):
+        leaderboard_snapshot_created_at = payload_updated_at
+    generated_at = generated_at or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return {
         "generated_at": generated_at,
         "leaderboard_snapshot_created_at": leaderboard_snapshot_created_at,
+        "leaderboard_payload_source": payload_meta.get("source"),
+        "leaderboard_payload_updated_at": payload_meta.get("updated_at"),
+        "leaderboard_payload_cache_age_sec": payload_meta.get("cache_age_sec"),
+        "leaderboard_payload_stale": payload_meta.get("stale"),
+        "leaderboard_payload_error": payload_meta.get("error"),
+        "leaderboard_payload_cache_error": payload_meta.get("cache_error"),
         "target_col": payload.get("target_col"),
         "leaderboard_count": payload.get("count", 0),
         "top_model": top_model,
@@ -567,6 +761,13 @@ def main() -> int:
             alignment_evaluated_at=generated_at,
         ),
     }
+
+
+def main() -> int:
+    _suppress_known_feature_name_warnings()
+    result = build_probe_result(allow_rebuild=True)
+    if result is None:
+        raise RuntimeError("Unable to load leaderboard payload from cache, snapshot, or live rebuild")
     OUT_PATH.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

@@ -215,6 +215,10 @@ class ModelScore:
     capital_efficiency_score: float = 0.0
     overall_score: float = 0.0
     composite_score: float = 0.0  # 綜合排名分數
+    ranking_eligible: bool = True
+    ranking_status: str = "comparable"
+    ranking_warning: Optional[str] = None
+    placeholder_reason: Optional[str] = None
     folds: List[FoldResult] = field(default_factory=list)
     train_accuracy: float = 0.0  # 訓練集分類準確率
     test_accuracy: float = 0.0   # 測試集分類準確率
@@ -225,6 +229,14 @@ class ModelLeaderboard:
     SUPPORTED_MODELS = [
         'rule_baseline', 'logistic_regression', 'xgboost',
         'lightgbm', 'catboost', 'random_forest', 'mlp', 'svm', 'ensemble'
+    ]
+    REFRESH_MODELS = [
+        'rule_baseline',
+        'logistic_regression',
+        'xgboost',
+        'lightgbm',
+        'catboost',
+        'random_forest',
     ]
     DEPLOYMENT_PROFILES: Dict[str, Dict[str, Any]] = {
         'standard': {
@@ -579,6 +591,22 @@ class ModelLeaderboard:
             + 0.15 * scores.capital_efficiency_score,
             4,
         )
+
+        no_trade_placeholder = float(scores.avg_trades or 0.0) <= 0.0
+        if no_trade_placeholder:
+            scores.ranking_eligible = False
+            scores.ranking_status = "no_trade_placeholder"
+            scores.placeholder_reason = "no_trades_generated_under_current_deployment_profile"
+            scores.ranking_warning = (
+                "此模型在當前 deployment profile 下未產生任何交易；"
+                "僅可視為 no-trade placeholder，不得當成正常排行榜前段結果。"
+            )
+            scores.reliability_score = 0.0
+            scores.return_power_score = 0.0
+            scores.risk_control_score = 0.0
+            scores.capital_efficiency_score = 0.0
+            scores.overall_score = 0.0
+
         scores.composite_score = scores.overall_score
         return scores
 
@@ -608,7 +636,10 @@ class ModelLeaderboard:
     def _train_model(self, X_train, y_train, model_name):
         """訓練單一模型"""
         if model_name == 'xgboost':
-            from xgboost import XGBClassifier
+            try:
+                from xgboost import XGBClassifier
+            except Exception as exc:
+                raise ModelUnavailableError(model_name, 'missing_dependency', str(exc)) from exc
             m = XGBClassifier(
                 n_estimators=120, max_depth=3, learning_rate=0.035,
                 min_child_weight=10, gamma=0.2,
@@ -687,7 +718,10 @@ class ModelLeaderboard:
                 raise ModelUnavailableError(model_name, 'missing_dependency', str(exc)) from exc
         elif model_name == 'ensemble':
             """Average voting from XGBoost + RF + LR"""
-            from xgboost import XGBClassifier
+            try:
+                from xgboost import XGBClassifier
+            except Exception as exc:
+                raise ModelUnavailableError(model_name, 'missing_dependency', str(exc)) from exc
             from sklearn.ensemble import RandomForestClassifier
             from sklearn.linear_model import LogisticRegression
             from sklearn.preprocessing import StandardScaler
@@ -766,8 +800,20 @@ class ModelLeaderboard:
             # 置信度: 預測 buy_win (class=0) 的機率
             confidence = self._get_confidence(model, X_test, model_name)
             # 準確率
-            train_acc = (model.predict(X_train) == y_train).mean()
-            test_acc = (model.predict(X_test) == y_test).mean()
+            if model_name == 'ensemble':
+                train_pred = (self._get_confidence(model, X_train, model_name) >= 0.5).astype(int)
+                test_pred = (confidence >= 0.5).astype(int)
+                train_acc = (train_pred == y_train.values).mean()
+                test_acc = (test_pred == y_test.values).mean()
+            else:
+                if model_name in ['logistic_regression', 'mlp', 'svm']:
+                    train_pred = model.predict(model.scaler.transform(X_train))
+                    test_pred = model.predict(model.scaler.transform(X_test))
+                    train_acc = (train_pred == y_train).mean()
+                    test_acc = (test_pred == y_test).mean()
+                else:
+                    train_acc = (model.predict(X_train) == y_train).mean()
+                    test_acc = (model.predict(X_test) == y_test).mean()
 
         # 回測
         prices = test_df['close_price'].values
@@ -786,6 +832,8 @@ class ModelLeaderboard:
         bb_pct_b_4h = test_df['feat_4h_bb_pct_b'].tolist() if 'feat_4h_bb_pct_b' in test_df.columns else None
         dist_bb_lower_4h = test_df['feat_4h_dist_bb_lower'].tolist() if 'feat_4h_dist_bb_lower' in test_df.columns else None
         dist_swing_low_4h = test_df['feat_4h_dist_swing_low'].tolist() if 'feat_4h_dist_swing_low' in test_df.columns else None
+        local_bottom_score = test_df['feat_local_bottom_score'].tolist() if 'feat_local_bottom_score' in test_df.columns else None
+        local_top_score = test_df['feat_local_top_score'].tolist() if 'feat_local_top_score' in test_df.columns else None
 
         params = self._build_strategy_params(model_name)
 
@@ -797,6 +845,8 @@ class ModelLeaderboard:
             bb_pct_b_4h=bb_pct_b_4h,
             dist_bb_lower_4h=dist_bb_lower_4h,
             dist_swing_low_4h=dist_swing_low_4h,
+            local_bottom_score=local_bottom_score,
+            local_top_score=local_top_score,
         )
         trade_quality = _summarize_trade_quality(result, test_df)
 

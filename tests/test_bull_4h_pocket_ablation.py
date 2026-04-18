@@ -55,3 +55,118 @@ def test_load_frame_with_source_meta_returns_source_meta(monkeypatch):
     assert got_y.tolist() == [1]
     assert got_regimes.tolist() == ["bull"]
     assert got_source_meta == source_meta
+
+
+def test_live_context_reuses_runtime_support_when_exact_lane_rows_are_zero(tmp_path, monkeypatch):
+    live_probe = tmp_path / "live_predict_probe.json"
+    live_probe.write_text(
+        bull_4h_pocket_ablation.json.dumps(
+            {
+                "feature_timestamp": "2026-04-18 08:18:48.555339",
+                "regime_label": "bull",
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "B",
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                "current_live_structure_bucket_rows": 100,
+                "support_route_verdict": "exact_bucket_supported",
+                "support_route_deployable": True,
+                "support_progress": {
+                    "status": "exact_supported",
+                    "current_rows": 100,
+                    "minimum_support_rows": 50,
+                },
+                "decision_quality_scope_diagnostics": {
+                    "regime_label+regime_gate+entry_quality_label": {
+                        "rows": 0,
+                        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                        "current_live_structure_bucket_rows": 0,
+                        "current_live_structure_bucket_metrics": None,
+                        "recent500_structure_bucket_counts": {},
+                    },
+                    "regime_gate": {
+                        "rows": 200,
+                        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                        "current_live_structure_bucket_rows": 100,
+                        "current_live_structure_bucket_metrics": {
+                            "rows": 100,
+                            "win_rate": 0.46,
+                            "avg_pnl": 0.0014,
+                            "avg_quality": 0.1281,
+                            "avg_drawdown_penalty": 0.2018,
+                            "avg_time_underwater": 0.5549,
+                        },
+                        "recent500_structure_bucket_counts": {
+                            "CAUTION|structure_quality_caution|q35": 100,
+                            "CAUTION|structure_quality_caution|q15": 96,
+                        },
+                        "recent500_regime_counts": {
+                            "bull": 196,
+                            "chop": 4,
+                        },
+                        "recent500_dominant_regime": {
+                            "regime": "bull",
+                            "count": 196,
+                            "share": 0.98,
+                        },
+                        "recent_pathology": {
+                            "applied": False,
+                            "window": 100,
+                            "alerts": [],
+                            "reason": None,
+                            "summary": None,
+                        },
+                        "spillover_vs_exact_live_lane": {
+                            "worst_extra_regime_gate_feature_snapshot": {
+                                "feat_4h_bias200": {
+                                    "current_mean": 6.3681,
+                                    "reference_mean": None,
+                                    "mean_delta": None,
+                                }
+                            }
+                        },
+                    },
+                    "regime_gate+entry_quality_label": {
+                        "rows": 0,
+                        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                        "current_live_structure_bucket_rows": 0,
+                        "current_live_structure_bucket_metrics": None,
+                        "recent500_structure_bucket_counts": {},
+                        "recent500_regime_counts": {},
+                        "recent500_dominant_regime": None,
+                        "recent_pathology": {
+                            "applied": False,
+                            "window": 0,
+                            "alerts": [],
+                            "reason": None,
+                            "summary": None,
+                        },
+                    },
+                    "regime_label+entry_quality_label": {
+                        "rows": 0,
+                        "current_live_structure_bucket_rows": 0,
+                        "current_live_structure_bucket_metrics": None,
+                        "recent500_structure_bucket_counts": {},
+                    },
+                    "pathology_consensus": {
+                        "worst_pathology_scope": None,
+                        "shared_top_shift_features": [],
+                    },
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bull_4h_pocket_ablation, "LIVE_PROBE_PATH", live_probe)
+
+    context = bull_4h_pocket_ablation._live_context()
+
+    assert context["support_route_verdict"] == "exact_bucket_supported"
+    assert context["current_live_structure_bucket_rows"] == 100
+    assert context["broad_scope_source"] == "regime_gate"
+    assert context["broad_scope_rows"] == 200
+    assert context["broad_current_live_structure_bucket_rows"] == 100
+    assert context["supported_neighbor_buckets"] == ["CAUTION|structure_quality_caution|q15"]
+    assert context["broad_recent500_regime_counts"] == {"bull": 196, "chop": 4}
+    assert context["collapse_feature_snapshot"]["feat_4h_bias200"]["current_mean"] == 6.3681

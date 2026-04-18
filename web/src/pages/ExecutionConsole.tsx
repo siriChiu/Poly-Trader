@@ -289,11 +289,35 @@ type ExecutionRunBindingContract = {
     capital_attribution?: string | null;
     position_attribution?: string | null;
     open_order_attribution?: string | null;
+    pnl_attribution?: string | null;
     summary?: string | null;
   } | null;
 };
 
 type ExecutionRunPreviewRecord = Record<string, unknown>;
+
+type ExecutionRunLedgerPreview = {
+  scope?: string | null;
+  ownership_status?: string | null;
+  summary?: string | null;
+  budget_alignment_status?: string | null;
+  budget_alignment_summary?: string | null;
+  pricing_complete?: boolean | null;
+  position_count?: number | null;
+  open_order_count?: number | null;
+  position_priced_count?: number | null;
+  open_order_priced_count?: number | null;
+  gross_position_notional?: number | null;
+  net_position_notional?: number | null;
+  open_order_notional?: number | null;
+  total_known_commitment?: number | null;
+  unrealized_pnl?: number | null;
+  capital_in_use?: number | null;
+  budget_amount?: number | null;
+  budget_gap?: number | null;
+  commitment_vs_budget_ratio?: number | null;
+  currency?: string | null;
+};
 
 type ExecutionRunBindingSnapshot = {
   account_snapshot?: {
@@ -326,6 +350,7 @@ type ExecutionRunBindingSnapshot = {
     positions?: ExecutionRunPreviewRecord[] | null;
     open_orders?: ExecutionRunPreviewRecord[] | null;
   } | null;
+  shared_symbol_ledger_preview?: ExecutionRunLedgerPreview | null;
   reconciliation?: {
     status?: string | null;
     summary?: string | null;
@@ -396,6 +421,12 @@ function formatPercent(value: number | null | undefined, digits = 1): string {
   return `${(value * 100).toFixed(digits)}%`;
 }
 
+function formatSignedNumber(value: number | null | undefined, digits = 2): string {
+  if (typeof value !== "number" || Number.isNaN(value)) return "—";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value.toFixed(digits)}`;
+}
+
 function formatTime(value?: string | null): string {
   if (!value) return "—";
   const parsed = new Date(value);
@@ -456,6 +487,26 @@ function getStatusTone(status?: string | null): string {
   return "border-cyan-500/30 bg-cyan-500/10 text-cyan-100";
 }
 
+function humanizeExecutionReason(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "尚未提供 blocker 摘要。";
+  const lower = normalized.toLowerCase();
+  const mappings: Array<[string, string]> = [
+    ["live exchange credential", "交易所憑證尚未驗證。"],
+    ["order ack lifecycle", "委託確認流程尚未驗證。"],
+    ["fill lifecycle", "成交回補流程尚未驗證。"],
+    ["unsupported_exact_live_structure_bucket", "目前結構 bucket 尚未通過可部署條件。"],
+    ["decision_quality_below_trade_floor", "目前決策品質不足，暫不建議進場。"],
+    ["circuit_breaker_active", "目前觸發保護機制，暫停部署。"],
+    ["patch_inactive_or_blocked", "目前 q15 patch 尚未啟用，或仍被其他條件阻擋。"],
+    ["unsupported", "目前條件尚未通過可部署檢查。"],
+  ];
+  for (const [token, message] of mappings) {
+    if (lower.includes(token)) return message;
+  }
+  return normalized.replace(/[_|]+/g, " ").trim();
+}
+
 function readRecordString(record: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
     const value = record[key];
@@ -474,6 +525,11 @@ function readRecordNumber(record: Record<string, unknown>, keys: string[]): numb
     }
   }
   return null;
+}
+
+function getValueTone(value: number | null | undefined): string {
+  if (typeof value !== "number" || Number.isNaN(value) || value === 0) return "text-white";
+  return value > 0 ? "text-emerald-300" : "text-rose-300";
 }
 
 export default function ExecutionConsole() {
@@ -536,6 +592,28 @@ export default function ExecutionConsole() {
   const executionRunsSummary = executionRuns?.summary ?? null;
   const executionRunRecords = Array.isArray(executionRuns?.runs) ? executionRuns.runs : [];
   const runsByProfileId = new Map(executionRunRecords.map((run) => [run.profile_id || "", run]));
+  const runLedgerPreviews = executionRunRecords
+    .map((run) => run.runtime_binding_snapshot?.shared_symbol_ledger_preview ?? null)
+    .filter((item): item is ExecutionRunLedgerPreview => Boolean(item));
+  const totalUnrealizedPnl = runLedgerPreviews.reduce((sum, item) => sum + (typeof item.unrealized_pnl === "number" ? item.unrealized_pnl : 0), 0);
+  const totalCapitalInUse = runLedgerPreviews.reduce((sum, item) => sum + (typeof item.capital_in_use === "number" ? item.capital_in_use : 0), 0);
+  const profitableRuns = executionRunRecords.filter((run) => (run.runtime_binding_snapshot?.shared_symbol_ledger_preview?.unrealized_pnl ?? 0) > 0).length;
+  const deployableCapital = executionCapitalPlan?.deployable_capital ?? balanceFree;
+  const hasBlockedState = !executionSurfaceContract?.live_ready;
+  const rawPrimaryBlockedReason = liveReadyBlockers[0]
+    || liveRuntimeTruth?.deployment_blocker_reason
+    || liveRuntimeTruth?.deployment_blocker
+    || liveRuntimeTruth?.execution_guardrail_reason
+    || executionSurfaceContract?.operator_message
+    || null;
+  const primaryBlockedReason = humanizeExecutionReason(rawPrimaryBlockedReason);
+  const blockedReasonSummary = liveReadyBlockers.length > 0
+    ? liveReadyBlockers.map((item) => humanizeExecutionReason(item)).join(" · ")
+    : primaryBlockedReason;
+  const deploymentStatusLabel = executionSurfaceContract?.live_ready ? "Ready" : "Blocked";
+  const deploymentStatusDetail = executionSurfaceContract?.live_ready
+    ? (liveRuntimeTruth?.runtime_closure_summary || executionSurfaceContract?.operator_message || "目前已滿足主要部署條件。")
+    : (liveRuntimeTruth?.runtime_closure_summary || liveRuntimeTruth?.deployment_blocker_reason || primaryBlockedReason);
   const automationEnabled = Boolean(runtimeStatus?.automation);
   const dryRunEnabled = Boolean(runtimeStatus?.dry_run);
   const executionSymbol = runtimeStatus?.symbol || "BTCUSDT";
@@ -614,201 +692,374 @@ export default function ExecutionConsole() {
   };
 
   return (
-    <div className="space-y-6 text-dark-100">
-      <section className="rounded-2xl border border-white/10 bg-dark-900/80 p-6 shadow-[0_20px_80px_rgba(15,23,42,0.35)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className="space-y-5 text-white">
+      <section className="rounded-[24px] border border-white/6 bg-[#13182b] p-5 shadow-[0_24px_80px_rgba(6,10,24,0.45)]">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <div className="inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold tracking-[0.2em] text-cyan-200">
-              Execution Console / 實戰交易
+            <div className="inline-flex items-center rounded-full border border-[#7132f5]/30 bg-[#7132f5]/15 px-3 py-1 text-[11px] font-semibold tracking-[0.2em] text-[#d6c9ff]">
+              Bot 營運 / Live Ops
             </div>
-            <h1 className="mt-3 text-3xl font-semibold text-white">營運視圖已從 Dashboard 分拆</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-dark-300">
-              這裡先把 live runtime truth、Sleeve routing / bot activation、account snapshot、Recovery / reconciliation、Metadata / venue readiness 從 Dashboard 拆成獨立營運視圖；
-              深度 proof chain / diagnostics 仍保留在 Dashboard。
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">先看我的 Bot、資金使用與盈虧預覽</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+              主頁只放營運關鍵：Bot 狀態、資金、盈虧；診斷與恢復集中到「執行狀態」。
             </p>
-            <div className="mt-3 text-xs text-dark-400">
-              {executionSurfaceContract?.operator_message || "尚未取得 execution surface contract operator message。"}
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-300">
+              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{executionModeLabel.toUpperCase()}</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{executionVenueLabel}</span>
+              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(automationEnabled ? "ok" : "warning")}`}>
+                automation {automationEnabled ? "ON" : "OFF"}
+              </span>
+              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(executionSurfaceContract?.live_ready ? "ok" : "blocked")}`}>
+                {executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞"}
+              </span>
+              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(metadataSmokeFreshness?.status)}`}>
+                freshness {metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable"}
+              </span>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 text-xs">
+          <div className="flex flex-wrap gap-2 text-sm">
             <button
               type="button"
-              onClick={() => refreshRuntimeStatus()}
-              className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 font-medium text-cyan-100 transition hover:bg-cyan-500/20"
+              onClick={() => Promise.all([refreshRuntimeStatus(), refreshExecutionOverview(), refreshExecutionRuns()])}
+              className="rounded-xl border border-[#7132f5]/35 bg-[#7132f5] px-4 py-2 font-medium text-white transition hover:bg-[#5f28d8]"
             >
-              重新整理 runtime
+              重新整理
             </button>
-            <a href={diagnosticsSurface?.route || "/"} className="rounded-lg border border-white/10 bg-dark-800 px-3 py-2 font-medium text-dark-100 transition hover:border-cyan-400/40 hover:text-cyan-200">
-              前往 Dashboard 診斷 →
+            <a href="/lab" className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 font-medium text-slate-100 transition hover:border-[#7132f5]/35 hover:text-white">
+              選策略
             </a>
-            <a href="/lab" className="rounded-lg border border-white/10 bg-dark-800 px-3 py-2 font-medium text-dark-100 transition hover:border-cyan-400/40 hover:text-cyan-200">
-              前往 Strategy Lab 挑策略 →
+            <a href="/execution/status" className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 font-medium text-slate-100 transition hover:border-[#7132f5]/35 hover:text-white">
+              執行狀態
             </a>
           </div>
         </div>
+        {executionSurfaceContract?.operator_message && !hasBlockedState && (
+          <div className="mt-4 rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-slate-200">
+            {executionSurfaceContract.operator_message}
+          </div>
+        )}
         {(loading || error) && (
-          <div className="mt-4 rounded-xl border border-white/10 bg-dark-950/60 px-4 py-3 text-sm text-dark-300">
+          <div className="mt-4 rounded-2xl border border-white/8 bg-[#0d1324] px-4 py-3 text-sm text-slate-300">
             {loading ? "/api/status 載入中…" : `載入失敗：${error}`}
           </div>
         )}
         {runActionState.tone !== "idle" && runActionState.message && (
-          <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${runActionTone}`}>
+          <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${runActionTone}`}>
             {runActionState.message}
+          </div>
+        )}
+        {hasBlockedState && (
+          <div className="mt-4 rounded-[24px] border border-amber-400/30 bg-[linear-gradient(135deg,rgba(245,158,11,0.18),rgba(113,50,245,0.14))] p-4 shadow-[0_18px_40px_rgba(245,158,11,0.12)]">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/80">blocked</div>
+                <div className="mt-2 text-lg font-semibold text-amber-50">先解除 blocker，再做操作</div>
+                <div className="mt-1 text-sm text-amber-100/90">{primaryBlockedReason}</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <a href="/execution/status" className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-200">
+                  查看阻塞原因
+                </a>
+                <button
+                  type="button"
+                  onClick={() => Promise.all([refreshRuntimeStatus(), refreshExecutionOverview(), refreshExecutionRuns()])}
+                  className="rounded-xl border border-white/15 bg-white/8 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/12"
+                >
+                  重新整理
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-4">
-        <div className="rounded-2xl border border-white/10 bg-dark-900/70 p-4">
-          <div className="text-xs uppercase tracking-[0.2em] text-dark-500">總資金</div>
-          <div className="mt-2 text-2xl font-semibold text-white">{formatNumber(balanceTotal)} {balanceCurrency}</div>
-          <div className="mt-1 text-sm text-dark-400">已分配 {formatNumber(allocatedCapital)} · 可用 {formatNumber(balanceFree)}</div>
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">資產總覽</div>
+          <div className="mt-2 text-3xl font-semibold text-white">{formatNumber(balanceTotal)} {balanceCurrency}</div>
+          <div className="mt-2 text-sm text-slate-400">可用 {formatNumber(balanceFree)} · 已分配 {formatNumber(allocatedCapital)}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-dark-900/70 p-4">
-          <div className="text-xs uppercase tracking-[0.2em] text-dark-500">Sleeves</div>
-          <div className="mt-2 text-2xl font-semibold text-white">{liveRouting?.active_ratio_text || "0/0"}</div>
-          <div className="mt-1 text-sm text-dark-400">{liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—"} · {liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—"}</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-dark-900/70 p-4">
-          <div className="text-xs uppercase tracking-[0.2em] text-dark-500">倉位 / 掛單</div>
-          <div className="mt-2 text-2xl font-semibold text-white">{accountSummary?.position_count ?? positions.length} / {accountSummary?.open_order_count ?? openOrders.length}</div>
-          <div className="mt-1 text-sm text-dark-400">{accountSummary ? (accountSummary.degraded ? "snapshot degraded" : "snapshot fresh") : "snapshot unavailable"}</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-dark-900/70 p-4">
-          <div className="text-xs uppercase tracking-[0.2em] text-dark-500">路由 / 準備度</div>
-          <div className="mt-2 text-2xl font-semibold text-white">{executionSurfaceContract?.live_ready ? "live-ready" : "not-ready"}</div>
-          <div className="mt-1 text-sm text-dark-400">canonical route {executionSurfaceContract?.canonical_execution_route ?? "unknown"}</div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-50">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="font-semibold">operations surface</div>
-            <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(operationsSurface?.status)}`}>
-              {operationsSurface?.status || "planned"}
-            </div>
+        <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">共享盈虧預覽</div>
+          <div className={`mt-2 text-3xl font-semibold ${totalUnrealizedPnl > 0 ? "text-emerald-300" : totalUnrealizedPnl < 0 ? "text-rose-300" : "text-white"}`}>
+            {formatSignedNumber(runLedgerPreviews.length > 0 ? totalUnrealizedPnl : null)} {balanceCurrency}
           </div>
-          <div className="mt-2 opacity-90">{operationsSurface?.label || "Execution Console / 實戰交易"} · route {operationsSurface?.route || "/execution"}</div>
-          <div className="mt-1 opacity-85">{operationsSurface?.message || "尚未提供 operations surface message。"}</div>
-          <div className="mt-2 opacity-75">{operationsSurface?.upgrade_prerequisite || "尚未提供 operator-view 升級前提。"}</div>
-          <div className="mt-3 rounded-xl border border-white/10 bg-dark-950/40 p-3 text-[12px] text-cyan-50">
-            <div className="font-medium">diagnostics surface</div>
-            <div className="mt-1 opacity-90">{diagnosticsSurface?.label || "Dashboard / Execution 狀態面板"} · route {diagnosticsSurface?.route || "/"}</div>
-            <div className="mt-1 opacity-80">{diagnosticsSurface?.message || "Dashboard 保留 proof chain / recovery diagnostics。"}</div>
-          </div>
+          <div className="mt-2 text-sm text-slate-400">{runLedgerPreviews.length > 0 ? `共享帳戶預覽 · ${executionRunRecords.length} 個 run` : "尚未取得共享盈虧預覽"}</div>
         </div>
-
-        <div className="rounded-2xl border border-white/10 bg-dark-900/70 p-4 text-sm leading-6 text-dark-200">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="font-semibold">Guardrail / blocker</div>
-            <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(liveRuntimeTruth?.deployment_blocker || liveRuntimeTruth?.execution_guardrail_reason)}`}>
-              {liveRuntimeTruth?.deployment_blocker || liveRuntimeTruth?.execution_guardrail_reason || "none"}
-            </div>
-          </div>
-          <div className="mt-2 opacity-90">runtime closure {liveRuntimeTruth?.runtime_closure_state || "—"}</div>
-          <div className="mt-1 opacity-80">{liveRuntimeTruth?.runtime_closure_summary || "尚未取得 runtime closure summary。"}</div>
-          <div className="mt-2 grid gap-2 md:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-dark-950/40 p-3">
-              <div className="text-[11px] uppercase tracking-wide text-dark-500">layers</div>
-              <div className="mt-1 font-medium text-white">{liveRuntimeTruth?.allowed_layers_raw ?? "—"} → {liveRuntimeTruth?.allowed_layers ?? "—"}</div>
-              <div className="mt-1 text-[12px] opacity-80">raw {liveRuntimeTruth?.allowed_layers_raw_reason || "—"}</div>
-              <div className="text-[12px] opacity-80">final {liveRuntimeTruth?.allowed_layers_reason || "—"}</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-dark-950/40 p-3">
-              <div className="text-[11px] uppercase tracking-wide text-dark-500">support alignment</div>
-              <div className="mt-1 font-medium text-white">{liveRuntimeTruth?.support_alignment_status || "unavailable"}</div>
-              <div className="mt-1 text-[12px] opacity-80">{liveRuntimeTruth?.support_alignment_summary || "尚未取得 support alignment 摘要。"}</div>
-            </div>
-          </div>
-          {liveReadyBlockers.length > 0 && (
-            <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12px] text-amber-100">
-              live blockers: {liveReadyBlockers.join(" · ")}
-            </div>
-          )}
+        <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">資金使用中</div>
+          <div className="mt-2 text-3xl font-semibold text-white">{formatNumber(runLedgerPreviews.length > 0 ? totalCapitalInUse : allocatedCapital)} {balanceCurrency}</div>
+          <div className="mt-2 text-sm text-slate-400">{runLedgerPreviews.length > 0 ? "依目前 run ledger preview 匯總" : "暫以帳戶已分配資金表示"}</div>
+        </div>
+        <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">可部署資金</div>
+          <div className="mt-2 text-3xl font-semibold text-white">{formatNumber(deployableCapital)} {balanceCurrency}</div>
+          <div className="mt-2 text-sm text-slate-400">allocation {executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves"}</div>
+        </div>
+        <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">運行中 Bot</div>
+          <div className="mt-2 text-3xl font-semibold text-white">{executionRunsSummary?.running_runs ?? 0}</div>
+          <div className="mt-2 text-sm text-slate-400">獲利中 {profitableRuns} · paused {executionRunsSummary?.paused_runs ?? 0} · total {executionRunsSummary?.total_runs ?? executionRunRecords.length}</div>
+        </div>
+        <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">部署狀態</div>
+          <div className="mt-2 text-3xl font-semibold text-white">{deploymentStatusLabel}</div>
+          <div className="mt-2 text-sm text-slate-400">{deploymentStatusDetail}</div>
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-2xl border border-white/10 bg-dark-900/70 p-4 text-sm leading-6 text-dark-200">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="font-semibold">Sleeve routing / bot activation</div>
-            <div className="text-xs text-dark-400">active sleeves {liveRouting?.active_ratio_text || "0/0"}</div>
-          </div>
-          <div className="mt-2 text-dark-300">
-            {liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—"} · gate {liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—"} · bucket {liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—"}
-          </div>
-          <div className="mt-1 text-sm text-dark-400">{liveRouting?.summary || "尚未建立 regime-aware sleeve routing 摘要。"}</div>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
-              <div className="text-[11px] uppercase tracking-wide text-emerald-200">active sleeves</div>
-              {liveActiveSleeves.length > 0 ? liveActiveSleeves.map((item) => (
-                <div key={item.key || item.label} className="mt-2 rounded-lg border border-emerald-500/20 bg-dark-950/30 px-3 py-2">
-                  <div className="font-medium text-emerald-100">{item.label || item.key}</div>
-                  <div className="mt-1 text-[12px] text-emerald-50/80">{item.why || "—"}</div>
+      <section className="grid gap-4 xl:grid-cols-[1.55fr_0.95fr]">
+        <div className="space-y-4">
+          <section className="rounded-[24px] border border-white/6 bg-[#151b31] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-lg font-semibold text-white">我的 Bot</div>
+                <div className="mt-1 text-sm text-slate-400">
+                  已建立 Bot 的盈利能力與共享帳戶預覽。
                 </div>
-              )) : <div className="mt-2 text-[12px] text-emerald-50/80">目前沒有 active sleeves。</div>}
-            </div>
-            <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
-              <div className="text-[11px] uppercase tracking-wide text-rose-200">inactive sleeves</div>
-              {liveInactiveSleeves.length > 0 ? liveInactiveSleeves.map((item) => (
-                <div key={item.key || item.label} className="mt-2 rounded-lg border border-rose-500/20 bg-dark-950/30 px-3 py-2">
-                  <div className="font-medium text-rose-100">{item.label || item.key}</div>
-                  <div className="mt-1 text-[12px] text-rose-50/80">{item.why || "—"}</div>
-                </div>
-              )) : <div className="mt-2 text-[12px] text-rose-50/80">目前沒有 inactive sleeves。</div>}
-            </div>
-          </div>
-          <div className="mt-3 rounded-xl border border-white/10 bg-dark-950/40 p-3 text-[12px] text-dark-300">
-            Execution Console 現在直接消費同一份 runtime sleeve routing；真正缺的不是再做一套規則，而是把 bot profile/run lifecycle 與資金配置接上這份 activation truth。
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-dark-900/70 p-4 text-sm leading-6 text-dark-200">
-          <div className="font-semibold">Capital / account snapshot</div>
-          <div className="mt-2 text-dark-300">captured {formatTime(accountSummary?.captured_at)}</div>
-          <div className="text-dark-400">requested {accountSummary?.requested_symbol || "—"} · normalized {accountSummary?.normalized_symbol || "—"}</div>
-          {accountSummary?.operator_message && <div className="mt-2 text-dark-300">{accountSummary.operator_message}</div>}
-          {(accountSummary?.recovery_hint || accountSummary?.degraded) && (
-            <div className="mt-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12px] text-amber-100">
-              {accountSummary?.recovery_hint || (accountSummary?.degraded ? "account snapshot degraded" : "")}
-            </div>
-          )}
-          <div className="mt-3 grid gap-2 md:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-dark-950/40 p-3">
-              <div className="text-[11px] uppercase tracking-wide text-dark-500">positions</div>
-              <div className="mt-1 font-medium text-white">{accountSummary?.position_count ?? positions.length}</div>
-              {(positions.slice(0, 3) as Array<Record<string, unknown>>).map((position, idx) => (
-                <div key={idx} className="mt-2 text-[12px] opacity-80">
-                  {readRecordString(position, ["symbol", "instId", "market", "pair"]) || "unknown"} · size {formatNumber(readRecordNumber(position, ["contracts", "positionAmt", "size", "sz", "amount"]))}
-                </div>
-              ))}
-            </div>
-            <div className="rounded-xl border border-white/10 bg-dark-950/40 p-3">
-              <div className="text-[11px] uppercase tracking-wide text-dark-500">open orders</div>
-              <div className="mt-1 font-medium text-white">{accountSummary?.open_order_count ?? openOrders.length}</div>
-              {(openOrders.slice(0, 3) as Array<Record<string, unknown>>).map((order, idx) => (
-                <div key={idx} className="mt-2 text-[12px] opacity-80">
-                  {readRecordString(order, ["symbol", "instId", "market", "pair"]) || "unknown"} · qty {formatNumber(readRecordNumber(order, ["amount", "qty", "size", "origQty", "sz"]))}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="mt-3 rounded-xl border border-white/10 bg-dark-950/40 p-3 text-[12px] text-dark-300">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="font-medium text-white">Manual operator controls</div>
-              <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(automationEnabled ? "ok" : "warning")}`}>
-                automation {automationEnabled ? "ON" : "off"}
+              </div>
+              <div className="text-right text-xs text-slate-400">
+                <div>策略來源 {executionStrategySummary?.strategy_count ?? 0}</div>
+                <div>資金規則 {executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves"}</div>
               </div>
             </div>
-            <div className="mt-1">symbol {executionSymbol} · mode {executionModeLabel} · venue {executionVenueLabel}</div>
-            <div className="mt-1">這組 controls 直接呼叫 /api/trade 與 /api/automation/toggle；若 guardrail 拒單，錯誤會直接回寫在這裡，proof chain / recovery 仍回 Dashboard。</div>
-            <div className="mt-3 flex flex-wrap gap-2 text-[12px]">
+            {(overviewLoading || overviewError) && (
+              <div className="mt-3 rounded-2xl border border-white/8 bg-[#0d1324] px-4 py-3 text-sm text-slate-300">
+                {overviewLoading ? "/api/execution/overview 載入中…" : `execution overview 載入失敗：${overviewError}`}
+              </div>
+            )}
+            {executionOverview?.operator_message && (
+              <div className="mt-3 text-sm text-slate-300">{executionOverview.operator_message}</div>
+            )}
+            <div className="mt-2 text-xs text-slate-400">
+              saved strategies {executionStrategySummary?.strategy_count ?? 0} · covered sleeves {executionStrategySummary?.covered_sleeves ?? 0}/{executionStrategySummary?.total_sleeves ?? 0} · missing {(executionStrategySummary?.missing_sleeves || []).join(" / ") || "none"}
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {executionProfileCards.length > 0 ? executionProfileCards.map((card) => {
+                const profileId = card.profile_id || card.key || "";
+                const linkedRun = runsByProfileId.get(profileId) || card.current_run || null;
+                const profileStrategyBinding = card.strategy_binding ?? null;
+                const ledgerPreview = linkedRun?.runtime_binding_snapshot?.shared_symbol_ledger_preview ?? null;
+                const canStart = Boolean(profileId) && ["ready_control_plane", "resume_available"].includes(card.control_contract?.start_status || "");
+                const canPause = Boolean(linkedRun?.action_contract?.can_pause && linkedRun?.run_id);
+                const canStop = Boolean(linkedRun?.action_contract?.can_stop && linkedRun?.run_id);
+                return (
+                  <div key={card.key || card.label} className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-base font-semibold text-white">{card.label || card.key || "unknown sleeve"}</div>
+                        <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                          <span className="rounded-full border border-[#7132f5]/25 bg-[#7132f5]/12 px-2.5 py-1 text-[#d8cbff]">
+                            {profileStrategyBinding?.primary_sleeve_label || card.strategy_binding?.title || "未分類"}
+                          </span>
+                          <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(linkedRun?.state || card.lifecycle_status || card.activation_status)}`}>
+                            {linkedRun?.state_label || linkedRun?.state || card.lifecycle_status || card.activation_status || "unknown"}
+                          </span>
+                          {ledgerPreview && (
+                            <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-cyan-100">
+                              共享預覽
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right text-[11px] text-slate-500">
+                        <div>{card.profile_id || card.key || "—"}</div>
+                        <div>{linkedRun?.last_event_type || card.control_contract?.latest_event_type || "no event"}</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 text-sm text-slate-300">{card.summary || profileStrategyBinding?.summary || card.routing_reason || "尚未提供策略摘要"}</div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2 xl:grid-cols-3">
+                      <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">策略 ROI</div>
+                        <div className={`mt-1 text-sm font-semibold ${((profileStrategyBinding?.roi ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300")}`}>
+                          {formatPercent(profileStrategyBinding?.roi, 1)}
+                        </div>
+                        <div className="text-[11px] text-slate-400">PF {formatNumber(profileStrategyBinding?.profit_factor, 2)}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">共享盈虧預覽</div>
+                        <div className={`mt-1 text-sm font-semibold ${(ledgerPreview?.unrealized_pnl ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+                          {formatSignedNumber(ledgerPreview?.unrealized_pnl)} {ledgerPreview?.currency || balanceCurrency}
+                        </div>
+                        <div className="text-[11px] text-slate-400">資金使用中 {formatNumber(ledgerPreview?.capital_in_use)} {ledgerPreview?.currency || balanceCurrency}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">預算 / 勝率</div>
+                        <div className="mt-1 text-sm font-semibold text-white">{formatNumber(card.planned_budget_amount)} {balanceCurrency}</div>
+                        <div className="text-[11px] text-slate-400">win {formatPercent(profileStrategyBinding?.avg_expected_win_rate, 1)}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">DQ</div>
+                        <div className="mt-1 text-sm font-semibold text-white">{formatNumber(profileStrategyBinding?.avg_decision_quality_score, 3)}</div>
+                        <div className="text-[11px] text-slate-400">trades {profileStrategyBinding?.total_trades ?? "—"}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">倉位 / 掛單</div>
+                        <div className="mt-1 text-sm font-semibold text-white">{card.symbol_scoped_position_count ?? 0} / {card.symbol_scoped_open_order_count ?? 0}</div>
+                        <div className="text-[11px] text-slate-400">{linkedRun?.state_label || linkedRun?.state || "not-started"}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">下一步</div>
+                        <div className="mt-1 text-sm font-semibold text-white">{card.control_contract?.start_status || "—"}</div>
+                        <div className="text-[11px] text-slate-400">{linkedRun?.latest_event?.event_type || linkedRun?.last_event_type || "waiting"}</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-slate-400">
+                      <span>routing {card.routing_reason || "—"}</span>
+                      <span>start {card.control_contract?.start_reason || "—"}</span>
+                      <span>預覽 {ledgerPreview?.budget_alignment_status || ledgerPreview?.ownership_status || "unavailable"}</span>
+                      <span>event {linkedRun?.latest_event?.message || linkedRun?.last_event_message || card.control_contract?.latest_event_message || "尚未建立 run event"}</span>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2 text-sm">
+                      <button
+                        type="button"
+                        disabled={!canStart || runActionState.tone === "pending"}
+                        onClick={() => handleRunAction(`/api/execution/runs/${profileId}/start`, "建立 run 中…", card.control_contract?.start_status === "resume_available" ? "已恢復 execution run。" : "已建立 execution run。")}
+                        className="rounded-xl border border-emerald-500/30 bg-emerald-500/12 px-3 py-2 font-medium text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        啟動 / 恢復
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canPause || runActionState.tone === "pending"}
+                        onClick={() => linkedRun?.run_id && handleRunAction(`/api/execution/runs/${linkedRun.run_id}/pause`, "暫停 run 中…", "已暫停 execution run。")}
+                        className="rounded-xl border border-amber-500/30 bg-amber-500/12 px-3 py-2 font-medium text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        暫停
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canStop || runActionState.tone === "pending"}
+                        onClick={() => linkedRun?.run_id && handleRunAction(`/api/execution/runs/${linkedRun.run_id}/stop`, "停止 run 中…", "已停止 execution run。")}
+                        className="rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2 font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        停止
+                      </button>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-5 text-sm text-slate-300">
+                  尚未取得 bot profile cards；先確認 /api/execution/overview 是否可用。
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-[24px] border border-white/6 bg-[#151b31] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-lg font-semibold text-white">運行中</div>
+                <div className="mt-1 text-sm text-slate-400">
+                  running {executionRunsSummary?.running_runs ?? 0} · paused {executionRunsSummary?.paused_runs ?? 0} · stopped {executionRunsSummary?.stopped_runs ?? 0} · total {executionRunsSummary?.total_runs ?? executionRunRecords.length}
+                </div>
+              </div>
+              <div className="text-xs text-slate-400">run control beta</div>
+            </div>
+            {(runsLoading || runsError) && (
+              <div className="mt-3 rounded-2xl border border-white/8 bg-[#0d1324] px-4 py-3 text-sm text-slate-300">
+                {runsLoading ? "/api/execution/runs 載入中…" : `execution runs 載入失敗：${runsError}`}
+              </div>
+            )}
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {executionRunRecords.length > 0 ? executionRunRecords.slice(0, 6).map((run) => {
+                const runStrategyBinding = run.strategy_binding ?? null;
+                const latestMessage = run.latest_event?.message || run.last_event_message || "尚未取得 run event";
+                const ledgerPreview = run.runtime_binding_snapshot?.shared_symbol_ledger_preview ?? null;
+                return (
+                  <div key={run.run_id || `${run.profile_id}-${run.start_time}`} className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-base font-semibold text-white">{run.label || run.profile_id || "unknown run"}</div>
+                        <div className="mt-1 text-[12px] text-slate-400">profile {run.profile_id || "—"} · {run.mode || "paper"}</div>
+                      </div>
+                      <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(run.state || "unknown")}`}>
+                        {run.state_label || run.state || "unknown"}
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-[12px] xl:grid-cols-4">
+                      <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">預算</div>
+                        <div className="mt-1 font-semibold text-white">{formatNumber(run.budget_amount)} {run.capital_currency || balanceCurrency}</div>
+                        <div className="text-slate-400">ratio {formatNumber(run.budget_ratio, 3)}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">共享盈虧預覽</div>
+                        <div className={`mt-1 font-semibold ${(ledgerPreview?.unrealized_pnl ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{formatSignedNumber(ledgerPreview?.unrealized_pnl)} {ledgerPreview?.currency || balanceCurrency}</div>
+                        <div className="text-slate-400">資金使用中 {formatNumber(ledgerPreview?.capital_in_use)} {ledgerPreview?.currency || balanceCurrency}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">策略能力</div>
+                        <div className={`mt-1 font-semibold ${(runStrategyBinding?.roi ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{formatPercent(runStrategyBinding?.roi, 1)}</div>
+                        <div className="text-slate-400">PF {formatNumber(runStrategyBinding?.profit_factor, 2)} · win {formatPercent(runStrategyBinding?.avg_expected_win_rate, 1)}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">最近事件</div>
+                        <div className="mt-1 font-semibold text-white">{run.latest_event?.event_type || run.last_event_type || "—"}</div>
+                        <div className="text-slate-400">{formatTime(run.last_event_at)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-sm text-slate-300">{runStrategyBinding?.summary || latestMessage}</div>
+                    <div className="mt-2 text-[12px] text-slate-400">共享預覽 {ledgerPreview?.budget_alignment_summary || ledgerPreview?.summary || "尚未提供共享帳戶預覽。"}</div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                      <button
+                        type="button"
+                        disabled={!run.action_contract?.can_resume || !run.profile_id || runActionState.tone === "pending"}
+                        onClick={() => run.profile_id && handleRunAction(`/api/execution/runs/${run.profile_id}/start`, "恢復 run 中…", "已恢復 execution run。")}
+                        className="rounded-xl border border-emerald-500/30 bg-emerald-500/12 px-3 py-2 font-medium text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        恢復
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!run.action_contract?.can_pause || !run.run_id || runActionState.tone === "pending"}
+                        onClick={() => run.run_id && handleRunAction(`/api/execution/runs/${run.run_id}/pause`, "暫停 run 中…", "已暫停 execution run。")}
+                        className="rounded-xl border border-amber-500/30 bg-amber-500/12 px-3 py-2 font-medium text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        暫停
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!run.action_contract?.can_stop || !run.run_id || runActionState.tone === "pending"}
+                        onClick={() => run.run_id && handleRunAction(`/api/execution/runs/${run.run_id}/stop`, "停止 run 中…", "已停止 execution run。")}
+                        className="rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2 font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        停止
+                      </button>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-5 text-sm text-slate-300">
+                  尚未建立 stateful run；先在上方 Bot 卡啟動，這裡才會出現事件與狀態。
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <div className="space-y-4">
+          <section className="rounded-[24px] border border-white/6 bg-[#151b31] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-lg font-semibold text-white">應急手動操作</div>
+                <div className="mt-1 text-sm text-slate-400">{executionSymbol} · {executionModeLabel} · {executionVenueLabel}</div>
+              </div>
+              <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(automationEnabled ? "ok" : "warning")}`}>
+                automation {automationEnabled ? "ON" : "OFF"}
+              </div>
+            </div>
+            <div className="mt-2 text-[12px] text-slate-400">僅供人工介入，不是 Bot 營運的主流程。</div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
               <button
                 type="button"
                 disabled={operatorActionState.tone === "pending"}
                 onClick={() => handleOperatorTrade("buy")}
-                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 font-medium text-emerald-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-emerald-500/20"
+                className="rounded-xl border border-emerald-500/30 bg-emerald-500/12 px-3 py-3 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 買入 0.001 BTC
               </button>
@@ -816,7 +1067,7 @@ export default function ExecutionConsole() {
                 type="button"
                 disabled={operatorActionState.tone === "pending"}
                 onClick={() => handleOperatorTrade("reduce")}
-                className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 font-medium text-amber-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-amber-500/20"
+                className="rounded-xl border border-amber-500/30 bg-amber-500/12 px-3 py-3 text-sm font-medium text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 減碼 0.001 BTC
               </button>
@@ -824,376 +1075,148 @@ export default function ExecutionConsole() {
                 type="button"
                 disabled={operatorActionState.tone === "pending"}
                 onClick={() => handleAutomationToggle(!automationEnabled)}
-                className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 font-medium text-cyan-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-cyan-500/20"
+                className="rounded-xl border border-[#7132f5]/35 bg-[#7132f5]/15 px-3 py-3 text-sm font-medium text-[#e4dbff] transition hover:bg-[#7132f5]/25 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {automationEnabled ? "切到手動模式" : "切到自動模式"}
               </button>
             </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-300">
+              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(guardrails?.kill_switch ? "blocked" : "ok")}`}>kill switch {guardrails?.kill_switch ? "ON" : "off"}</span>
+              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(guardrails?.failure_halt ? "warning" : "ok")}`}>failure halt {guardrails?.failure_halt ? "ON" : "off"}</span>
+              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(guardrails?.daily_loss_halt ? "warning" : "ok")}`}>daily halt {guardrails?.daily_loss_halt ? "ON" : "off"}</span>
+            </div>
             {operatorActionState.tone !== "idle" && operatorActionState.message && (
-              <div className={`mt-3 rounded-xl border px-3 py-2 ${operatorActionTone}`}>
+              <div className={`mt-3 rounded-2xl border px-3 py-2 text-sm ${operatorActionTone}`}>
                 {operatorActionState.message}
               </div>
             )}
-          </div>
-          <div className="mt-3 rounded-xl border border-white/10 bg-dark-950/40 p-3 text-[12px] text-dark-300">
-            手動交易 controls 與 automation toggle 已搬到這頁；Dashboard 保留 guardrail / recovery diagnostics，per-bot capital ledger / capital actions 仍未完成。
-          </div>
-        </div>
-      </section>
+          </section>
 
-      <section className="rounded-2xl border border-white/10 bg-dark-900/70 p-4 text-sm leading-6 text-dark-200">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="font-semibold">Bot profiles / capital preview</div>
-            <div className="text-xs text-dark-400">
-              active {executionOverviewSummary?.active_profiles ?? 0}/{executionOverviewSummary?.total_profiles ?? executionProfileCards.length} · blocked {executionOverviewSummary?.blocked_profiles ?? 0} · standby {executionOverviewSummary?.standby_profiles ?? 0} · runs {executionRunsSummary?.running_runs ?? 0} running / {executionRunsSummary?.paused_runs ?? 0} paused / {executionRunsSummary?.stopped_runs ?? 0} stopped
-            </div>
-          </div>
-          <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(executionOverview?.controls_mode || "preview_only")}`}>
-            {executionOverview?.controls_mode || "preview_only"}
-          </div>
-        </div>
-        <div className="mt-2 text-dark-300">{executionOverview?.operator_message || "尚未取得 execution overview operator message。"}</div>
-        <div className="mt-1 text-dark-400">{executionOverview?.upgrade_prerequisite || "尚未取得 execution overview upgrade prerequisite。"}</div>
-        {(overviewLoading || overviewError || runsLoading || runsError) && (
-          <div className="mt-3 rounded-xl border border-white/10 bg-dark-950/40 px-4 py-3 text-[12px] text-dark-300">
-            {overviewLoading
-              ? "/api/execution/overview 載入中…"
-              : overviewError
-                ? `execution overview 載入失敗：${overviewError}`
-                : runsLoading
-                  ? "/api/execution/runs 載入中…"
-                  : `execution runs 載入失敗：${runsError}`}
-          </div>
-        )}
-        <div className="mt-3 grid gap-3 xl:grid-cols-[0.9fr_1.1fr]">
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-white/10 bg-dark-950/40 p-4">
-              <div className="text-[11px] uppercase tracking-wide text-dark-500">Capital allocation preview</div>
-              <div className="mt-2 text-2xl font-semibold text-white">{formatNumber(executionCapitalPlan?.deployable_capital)} {balanceCurrency}</div>
-              <div className="mt-1 text-sm text-dark-400">per active profile budget {formatNumber(executionCapitalPlan?.per_active_profile_budget)} · allocation rule {executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves"}</div>
-              <div className="mt-2 text-[12px] text-dark-300">max position ratio {formatNumber(executionCapitalPlan?.max_position_ratio, 3)} · confidence {formatNumber(executionCapitalPlan?.confidence, 3)}</div>
-              <div className="mt-2 text-[12px] text-dark-300">{executionCapitalPlan?.operator_message || "尚未取得 capital preview operator message。"}</div>
-              <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-[12px] text-cyan-100">
-                stateful run lifecycle 已落地：目前可以建立 / 暫停 / 停止 control-plane beta run，但這仍不是 per-bot capital / order ledger，也不是 live bot 自動下單 closure。
+          <section className="rounded-[24px] border border-white/6 bg-[#151b31] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-lg font-semibold text-white">部署狀態</div>
+                <div className="mt-1 text-sm text-slate-400">{liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—"} · gate {liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—"} · bucket {liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—"}</div>
+              </div>
+              <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(executionSurfaceContract?.live_ready ? "ok" : "blocked")}`}>
+                {executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞"}
               </div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-dark-950/40 p-4 text-[12px] text-dark-300">
-              <div className="font-medium text-white">Strategy source / snapshot</div>
-              <div className="mt-2">saved strategies {executionStrategySummary?.strategy_count ?? 0}</div>
-              <div>covered sleeves {executionStrategySummary?.covered_sleeves ?? 0}/{executionStrategySummary?.total_sleeves ?? 0}</div>
-              <div>missing sleeves {(executionStrategySummary?.missing_sleeves || []).join(" / ") || "none"}</div>
-              <div className="mt-2">{executionStrategySummary?.operator_message || "尚未取得 strategy source summary。"}</div>
-              <div className="mt-1 text-dark-400">route {executionStrategySummary?.route || "/api/execution/strategies/source"}</div>
+            <div className="mt-3 text-sm text-slate-300">{deploymentStatusDetail}</div>
+            <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Layers</div>
+                <div className="mt-1 font-semibold text-white">{liveRuntimeTruth?.allowed_layers_raw ?? "—"} → {liveRuntimeTruth?.allowed_layers ?? "—"}</div>
+                <div className="text-[11px] text-slate-400">{liveRuntimeTruth?.allowed_layers_reason || liveRuntimeTruth?.allowed_layers_raw_reason || "—"}</div>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Support</div>
+                <div className="mt-1 font-semibold text-white">{liveRuntimeTruth?.support_rows_text || `${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`}</div>
+                <div className="text-[11px] text-slate-400">{liveRuntimeTruth?.support_alignment_status || "unavailable"}</div>
+              </div>
             </div>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            {executionProfileCards.length > 0 ? executionProfileCards.map((card) => {
-              const profileId = card.profile_id || card.key || "";
-              const linkedRun = runsByProfileId.get(profileId) || card.current_run || null;
-              const runBindingContract = linkedRun?.runtime_binding_contract ?? null;
-              const runOwnershipBoundary = runBindingContract?.ownership_boundary ?? null;
-              const runBindingSnapshot = linkedRun?.runtime_binding_snapshot ?? null;
-              const profileStrategyBinding = card.strategy_binding ?? null;
-              const runCapitalPreview = runBindingSnapshot?.capital_preview ?? null;
-              const runSharedPreview = runBindingSnapshot?.shared_symbol_preview ?? null;
-              const runSharedBalance = runSharedPreview?.balance ?? null;
-              const runPreviewPositions = Array.isArray(runSharedPreview?.positions) ? runSharedPreview.positions : [];
-              const runPreviewOpenOrders = Array.isArray(runSharedPreview?.open_orders) ? runSharedPreview.open_orders : [];
-              const runReconciliation = runBindingSnapshot?.reconciliation ?? null;
-              const runLastOrder = runBindingSnapshot?.guardrails?.last_order ?? null;
-              const canStart = Boolean(profileId) && ["ready_control_plane", "resume_available"].includes(card.control_contract?.start_status || "");
-              const canPause = Boolean(linkedRun?.action_contract?.can_pause && linkedRun?.run_id);
-              const canStop = Boolean(linkedRun?.action_contract?.can_stop && linkedRun?.run_id);
-              return (
-                <div key={card.key || card.label} className="rounded-2xl border border-white/10 bg-dark-950/40 p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-medium text-white">{card.label || card.key || "unknown sleeve"}</div>
-                      <div className="text-[12px] text-dark-400">{card.summary || "—"}</div>
-                    </div>
-                    <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(linkedRun?.state || card.lifecycle_status || card.activation_status)}`}>
-                      {linkedRun?.state_label || linkedRun?.state || card.lifecycle_status || card.activation_status || "unknown"}
-                    </div>
-                  </div>
-                  <div className="mt-3 grid gap-2 md:grid-cols-2 text-[12px]">
-                    <div className="rounded-xl border border-white/10 bg-dark-900/60 p-3">
-                      <div className="uppercase tracking-wide text-dark-500">planned budget</div>
-                      <div className="mt-1 font-medium text-white">{formatNumber(card.planned_budget_amount)} {balanceCurrency}</div>
-                      <div className="opacity-80">ratio {formatNumber(card.planned_budget_ratio_of_balance, 3)}</div>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-dark-900/60 p-3">
-                      <div className="uppercase tracking-wide text-dark-500">start contract</div>
-                      <div className="mt-1 font-medium text-white">{card.control_contract?.start_status || card.activation_status || "unknown"}</div>
-                      <div className="opacity-80">mode {card.control_contract?.mode || "preview_only"}</div>
-                    </div>
-                  </div>
-                  <div className="mt-2 text-[12px] text-dark-300">routing reason {card.routing_reason || "—"}</div>
-                  <div className="text-[12px] text-dark-300">start reason {card.control_contract?.start_reason || "—"}</div>
-                  <div className="text-[12px] text-dark-300">operator run state {linkedRun?.state_label || linkedRun?.state || "not-started"}</div>
-                  <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
-                    <div className="font-medium text-white">strategy snapshot</div>
-                    <div className="mt-1">{profileStrategyBinding?.summary || "尚未取得對應 sleeve 的 strategy snapshot。"}</div>
-                    <div>source {profileStrategyBinding?.strategy_source || "—"} · hash {profileStrategyBinding?.strategy_hash || "—"}</div>
-                    <div>DQ {formatNumber(profileStrategyBinding?.avg_decision_quality_score, 3)} · expected win {formatPercent(profileStrategyBinding?.avg_expected_win_rate, 1)}</div>
-                    <div>updated {formatTime(profileStrategyBinding?.updated_at)}</div>
-                    <div>{profileStrategyBinding?.operator_action || "前往 Strategy Lab 補齊對應 sleeve 的 strategy snapshot。"}</div>
-                  </div>
-                  <div className="text-[12px] text-dark-300">event log {linkedRun?.latest_event?.event_type || linkedRun?.last_event_type || card.control_contract?.latest_event_type || "none"} · {linkedRun?.latest_event?.message || linkedRun?.last_event_message || card.control_contract?.latest_event_message || "尚未建立 run event。"}</div>
-                  <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
-                    <div className="font-medium text-white">shared-symbol runtime mirror</div>
-                    <div className="mt-1">binding summary {runBindingContract?.summary || "尚未對齊到 runtime snapshot。"}</div>
-                    <div>ownership boundary {runOwnershipBoundary?.summary || runSharedPreview?.ownership_summary || "—"}</div>
-                    <div>capital preview source {runCapitalPreview?.allocation_scope || "—"} · budget {formatNumber(runCapitalPreview?.budget_amount)} {runCapitalPreview?.currency || balanceCurrency} · ratio {formatNumber(runCapitalPreview?.budget_ratio, 3)}</div>
-                    <div>shared balance total {formatNumber(runSharedBalance?.total)} {runSharedBalance?.currency || balanceCurrency} · free {formatNumber(runSharedBalance?.free)} {runSharedBalance?.currency || balanceCurrency}</div>
-                    <div>preview positions {runSharedPreview?.positions_total_count ?? 0} · {summarizePreviewRecords(runPreviewPositions)}</div>
-                    <div>preview open orders {runSharedPreview?.open_orders_total_count ?? 0} · {summarizePreviewRecords(runPreviewOpenOrders)}</div>
-                    <div>reconciliation status {runReconciliation?.status || "unavailable"} · {runReconciliation?.summary || "—"}</div>
-                    <div>last live order {runLastOrder?.order_id || "—"} · {runLastOrder?.status || "unknown"}</div>
-                    <div>operator action {runBindingContract?.operator_action || "—"}</div>
-                  </div>
-                  <div className="text-[12px] text-dark-400">shared symbol positions {card.symbol_scoped_position_count ?? 0} · open orders {card.symbol_scoped_open_order_count ?? 0}</div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-[12px]">
-                    <button
-                      type="button"
-                      disabled={!canStart || runActionState.tone === "pending"}
-                      onClick={() => handleRunAction(`/api/execution/runs/${profileId}/start`, "建立 run 中…", card.control_contract?.start_status === "resume_available" ? "已恢復 execution run。" : "已建立 execution run。")}
-                      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 font-medium text-emerald-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-emerald-500/20"
-                    >
-                      建立 run / resume
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!canPause || runActionState.tone === "pending"}
-                      onClick={() => linkedRun?.run_id && handleRunAction(`/api/execution/runs/${linkedRun.run_id}/pause`, "暫停 run 中…", "已暫停 execution run。")}
-                      className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 font-medium text-amber-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-amber-500/20"
-                    >
-                      暫停 run
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!canStop || runActionState.tone === "pending"}
-                      onClick={() => linkedRun?.run_id && handleRunAction(`/api/execution/runs/${linkedRun.run_id}/stop`, "停止 run 中…", "已停止 execution run。")}
-                      className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 font-medium text-rose-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-rose-500/20"
-                    >
-                      停止 run
-                    </button>
-                  </div>
-                  <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
-                    next operator action {card.next_operator_action || card.control_contract?.upgrade_prerequisite || "—"}
-                  </div>
-                </div>
-              );
-            }) : (
-              <div className="rounded-2xl border border-white/10 bg-dark-950/40 p-4 text-[12px] text-dark-300">
-                尚未取得 bot profile cards；先確認 /api/execution/overview 是否可用。
+            {liveReadyBlockers.length > 0 && (
+              <div className="mt-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                {blockedReasonSummary}
               </div>
             )}
-          </div>
+            <div className="mt-4 space-y-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">Active sleeves</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {liveActiveSleeves.length > 0 ? liveActiveSleeves.map((item) => (
+                    <span key={item.key || item.label} title={item.why || undefined} className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-100">
+                      {item.label || item.key}
+                    </span>
+                  )) : <span className="text-sm text-slate-400">目前沒有 active sleeves</span>}
+                </div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">Inactive sleeves</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {liveInactiveSleeves.length > 0 ? liveInactiveSleeves.map((item) => (
+                    <span key={item.key || item.label} title={item.why || undefined} className="rounded-full border border-rose-500/25 bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-100">
+                      {item.label || item.key}
+                    </span>
+                  )) : <span className="text-sm text-slate-400">目前沒有 inactive sleeves</span>}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[24px] border border-white/6 bg-[#151b31] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-lg font-semibold text-white">帳戶與成交</div>
+                <div className="mt-1 text-sm text-slate-400">captured {formatTime(accountSummary?.captured_at)}</div>
+              </div>
+              <div className="text-xs text-slate-400">{accountSummary?.requested_symbol || "—"} → {accountSummary?.normalized_symbol || "—"}</div>
+            </div>
+            {(accountSummary?.operator_message || accountSummary?.recovery_hint || accountSummary?.degraded) && (
+              <div className="mt-3 rounded-2xl border border-white/8 bg-white/5 px-3 py-2 text-sm text-slate-300">
+                {accountSummary?.operator_message || accountSummary?.recovery_hint || (accountSummary?.degraded ? "account snapshot degraded" : "")}
+              </div>
+            )}
+            <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">持倉</div>
+                <div className="mt-1 font-semibold text-white">{accountSummary?.position_count ?? positions.length}</div>
+                <div className="text-[11px] text-slate-400">{summarizePreviewRecords(positions.slice(0, 2) as ExecutionRunPreviewRecord[])}</div>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">掛單</div>
+                <div className="mt-1 font-semibold text-white">{accountSummary?.open_order_count ?? openOrders.length}</div>
+                <div className="text-[11px] text-slate-400">{summarizePreviewRecords(openOrders.slice(0, 2) as ExecutionRunPreviewRecord[])}</div>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-3 text-sm">
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">最近委託</div>
+                <div className="mt-1 font-semibold text-white">{lastOrder?.side || "—"} · {lastOrder?.status || "—"}</div>
+                <div className="text-[11px] text-slate-400">qty {formatNumber(lastOrder?.qty)} · price {formatNumber(lastOrder?.price)}</div>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">最近拒單</div>
+                <div className="mt-1 font-semibold text-white">{lastReject?.code || "none"}</div>
+                <div className="text-[11px] text-slate-400">{lastReject?.message || "尚無最近 reject"}</div>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">最近失敗</div>
+                <div className="mt-1 font-semibold text-white">{lastFailure?.message || "none"}</div>
+                <div className="text-[11px] text-slate-400">{formatTime(lastFailure?.timestamp)}</div>
+              </div>
+            </div>
+          </section>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-white/10 bg-dark-900/70 p-4 text-sm leading-6 text-dark-200">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <section className="rounded-[24px] border border-white/6 bg-[#151b31] p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <div className="font-semibold">Stateful run lifecycle</div>
-            <div className="text-xs text-dark-400">running {executionRunsSummary?.running_runs ?? 0} · paused {executionRunsSummary?.paused_runs ?? 0} · stopped {executionRunsSummary?.stopped_runs ?? 0} · total {executionRunsSummary?.total_runs ?? executionRunRecords.length}</div>
+            <div className="text-lg font-semibold text-white">執行狀態</div>
+            <div className="mt-1 text-sm leading-6 text-slate-300">
+              blocked 原因、metadata freshness、reconciliation / recovery 已移到獨立頁；這裡只保留營運摘要與入口。
+            </div>
           </div>
-          <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(executionRuns?.controls_mode || executionOverview?.controls_mode || "stateful_run_control_beta")}`}>
-            {executionRuns?.controls_mode || executionOverview?.controls_mode || "stateful_run_control_beta"}
-          </div>
+          <a href="/execution/status" className="inline-flex rounded-xl border border-cyan-400/35 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20">
+            前往執行狀態 →
+          </a>
         </div>
-        <div className="mt-2 text-dark-300">{executionRuns?.operator_message || "尚未取得 execution runs operator message。"}</div>
-        <div className="mt-1 text-dark-400">{executionRuns?.upgrade_prerequisite || "尚未取得 execution runs upgrade prerequisite。"}</div>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {executionRunRecords.length > 0 ? executionRunRecords.map((run) => {
-            const runBindingContract = run.runtime_binding_contract ?? null;
-            const runOwnershipBoundary = runBindingContract?.ownership_boundary ?? null;
-            const runRuntimeSnapshot = run.runtime_binding_snapshot ?? null;
-            const runStrategyBinding = run.strategy_binding ?? null;
-            const runCapitalPreview = runRuntimeSnapshot?.capital_preview ?? null;
-            const runSharedPreview = runRuntimeSnapshot?.shared_symbol_preview ?? null;
-            const runSharedBalance = runSharedPreview?.balance ?? null;
-            const runPreviewPositions = Array.isArray(runSharedPreview?.positions) ? runSharedPreview.positions : [];
-            const runPreviewOpenOrders = Array.isArray(runSharedPreview?.open_orders) ? runSharedPreview.open_orders : [];
-            const runReconciliation = runRuntimeSnapshot?.reconciliation ?? null;
-            const runAccountSnapshot = runRuntimeSnapshot?.account_snapshot ?? null;
-            const runLastOrder = runRuntimeSnapshot?.guardrails?.last_order ?? null;
-            return (
-            <div key={run.run_id || `${run.profile_id}-${run.start_time}`} className="rounded-2xl border border-white/10 bg-dark-950/40 p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="font-medium text-white">{run.label || run.profile_id || "unknown run"}</div>
-                  <div className="text-[12px] text-dark-400">profile {run.profile_id || "—"} · mode {run.mode || "paper"}</div>
-                </div>
-                <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(run.state || "unknown")}`}>
-                  {run.state_label || run.state || "unknown"}
-                </div>
-              </div>
-              <div className="mt-2 text-[12px] text-dark-300">start {formatTime(run.start_time)} · last event {formatTime(run.last_event_at)}</div>
-              <div className="text-[12px] text-dark-300">budget {formatNumber(run.budget_amount)} {run.capital_currency || balanceCurrency} · ratio {formatNumber(run.budget_ratio, 3)}</div>
-              <div className="text-[12px] text-dark-300">binding {run.runtime_binding_status || "control_plane_only"}</div>
-              <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
-                <div className="font-medium text-white">run strategy snapshot</div>
-                <div className="mt-1">{runStrategyBinding?.summary || "尚未綁定 run strategy snapshot。"}</div>
-                <div>source {runStrategyBinding?.strategy_source || "—"} · hash {runStrategyBinding?.strategy_hash || "—"}</div>
-                <div>DQ {formatNumber(runStrategyBinding?.avg_decision_quality_score, 3)} · expected win {formatPercent(runStrategyBinding?.avg_expected_win_rate, 1)}</div>
-                <div>updated {formatTime(runStrategyBinding?.updated_at)}</div>
-              </div>
-              <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
-                <div className="font-medium text-white">shared-symbol runtime mirror</div>
-                <div className="mt-1">binding summary {runBindingContract?.summary || "尚未取得 runtime binding summary。"}</div>
-                <div>ownership boundary {runOwnershipBoundary?.summary || runSharedPreview?.ownership_summary || "—"}</div>
-                <div>capital preview source {runCapitalPreview?.allocation_scope || "—"} · budget {formatNumber(runCapitalPreview?.budget_amount)} {runCapitalPreview?.currency || balanceCurrency} · ratio {formatNumber(runCapitalPreview?.budget_ratio, 3)}</div>
-                <div>shared balance total {formatNumber(runSharedBalance?.total)} {runSharedBalance?.currency || balanceCurrency} · free {formatNumber(runSharedBalance?.free)} {runSharedBalance?.currency || balanceCurrency}</div>
-                <div>preview positions {runSharedPreview?.positions_total_count ?? 0} · {summarizePreviewRecords(runPreviewPositions)}</div>
-                <div>preview open orders {runSharedPreview?.open_orders_total_count ?? 0} · {summarizePreviewRecords(runPreviewOpenOrders)}</div>
-                <div>reconciliation status {runReconciliation?.status || "unavailable"} · {runReconciliation?.summary || "—"}</div>
-                <div>account snapshot positions {runAccountSnapshot?.position_count ?? 0} · open orders {runAccountSnapshot?.open_order_count ?? 0}</div>
-                <div>last live order {runLastOrder?.order_id || "—"} · {runLastOrder?.status || "unknown"}</div>
-                <div>operator action {runBindingContract?.operator_action || "—"}</div>
-              </div>
-              <div className="mt-2 rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
-                latest event {run.latest_event?.event_type || run.last_event_type || "—"} · {run.latest_event?.message || run.last_event_message || "尚未取得 run event。"}
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-[12px]">
-                <button
-                  type="button"
-                  disabled={!run.action_contract?.can_resume || !run.run_id || runActionState.tone === "pending"}
-                  onClick={() => run.profile_id && handleRunAction(`/api/execution/runs/${run.profile_id}/start`, "恢復 run 中…", "已恢復 execution run。")}
-                  className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 font-medium text-emerald-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-emerald-500/20"
-                >
-                  Resume
-                </button>
-                <button
-                  type="button"
-                  disabled={!run.action_contract?.can_pause || !run.run_id || runActionState.tone === "pending"}
-                  onClick={() => run.run_id && handleRunAction(`/api/execution/runs/${run.run_id}/pause`, "暫停 run 中…", "已暫停 execution run。")}
-                  className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 font-medium text-amber-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-amber-500/20"
-                >
-                  Pause
-                </button>
-                <button
-                  type="button"
-                  disabled={!run.action_contract?.can_stop || !run.run_id || runActionState.tone === "pending"}
-                  onClick={() => run.run_id && handleRunAction(`/api/execution/runs/${run.run_id}/stop`, "停止 run 中…", "已停止 execution run。")}
-                  className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 font-medium text-rose-100 transition disabled:cursor-not-allowed disabled:opacity-40 hover:bg-rose-500/20"
-                >
-                  Stop
-                </button>
-              </div>
-              {Array.isArray(run.recent_events) && run.recent_events.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {run.recent_events.slice(0, 3).map((event) => (
-                    <div key={`${run.run_id}-${event.event_id || event.created_at}`} className="rounded-xl border border-white/10 bg-dark-900/60 p-3 text-[12px] text-dark-300">
-                      <div className="font-medium text-white">{event.event_type || "unknown"}</div>
-                      <div className="opacity-80">{event.message || "—"}</div>
-                      <div className="opacity-70">{formatTime(event.created_at)}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            );
-          }) : (
-            <div className="rounded-2xl border border-white/10 bg-dark-950/40 p-4 text-[12px] text-dark-300">
-              尚未建立 stateful run；請先在上方 bot card 建立 run / resume，之後這裡會顯示 event log 與控制狀態。
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="rounded-2xl border border-white/10 bg-dark-900/70 p-4 text-sm leading-6 text-dark-200">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="font-semibold">Recovery / reconciliation</div>
-            <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(executionReconciliation?.status)}`}>
-              {executionReconciliation?.status || "unavailable"}
-            </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Live readiness</div>
+            <div className="mt-2 text-base font-semibold text-white">{executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞"}</div>
+            <div className="mt-2">{liveRuntimeTruth?.deployment_blocker || liveRuntimeTruth?.execution_guardrail_reason || executionSurfaceContract?.operator_message || "尚未提供 readiness 訊息。"}</div>
           </div>
-          <div className="mt-2 text-dark-300">{executionReconciliation?.summary || "尚未取得 execution reconciliation summary。"}</div>
-          <div className="mt-1 text-dark-400">checked {formatTime(executionReconciliation?.checked_at)}</div>
-          <div className="mt-3 grid gap-2 md:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-dark-950/40 p-3">
-              <div className="text-[11px] uppercase tracking-wide text-dark-500">lifecycle audit</div>
-              <div className="mt-1 font-medium text-white">{lifecycleAudit?.stage || "unknown"}</div>
-              <div className="mt-1 text-[12px] opacity-80">runtime → history {lifecycleAudit?.runtime_state || "—"} → {lifecycleAudit?.trade_history_state || "—"}</div>
-              <div className="text-[12px] opacity-80">restart replay {lifecycleAudit?.restart_replay_required ? "required" : "not-required"}</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-dark-950/40 p-3">
-              <div className="text-[11px] uppercase tracking-wide text-dark-500">recovery state</div>
-              <div className="mt-1 font-medium text-white">{executionReconciliation?.recovery_state?.status || lifecycleContract?.replay_verdict || "unknown"}</div>
-              <div className="mt-1 text-[12px] opacity-80">{executionReconciliation?.recovery_state?.operator_action || lifecycleAudit?.operator_action || "先檢查 Dashboard execution diagnostics。"}</div>
-            </div>
+          <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Metadata freshness</div>
+            <div className="mt-2 text-base font-semibold text-white">{metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable"}</div>
+            <div className="mt-2">generated {formatTime(metadataSmoke?.generated_at)} · age {metadataSmokeFreshness?.age_minutes != null ? `${metadataSmokeFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}</div>
           </div>
-          <div className="mt-3 rounded-xl border border-white/10 bg-dark-950/40 p-3 text-[12px] text-dark-300">
-            lifecycle contract {lifecycleContract?.summary || "—"} · baseline {lifecycleContract?.baseline_contract_status || "—"} · coverage {lifecycleContract?.artifact_coverage || "—"}
-          </div>
-          {venueLanes.length > 0 && (
-            <div className="mt-3 space-y-2">
-              {venueLanes.slice(0, 3).map((lane, idx) => (
-                <div key={`${lane.venue || "venue"}-${idx}`} className="rounded-xl border border-white/10 bg-dark-950/40 p-3 text-[12px] text-dark-300">
-                  <div className="font-medium text-white">{lane.venue || "unknown"} · {lane.restart_replay_status || "unknown"}</div>
-                  <div className="mt-1">{lane.summary || lane.operator_action_summary || "尚無 lane summary。"}</div>
-                  <div className="mt-1 opacity-80">remediation {lane.remediation_priority || "—"} · {lane.remediation_focus || "—"}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-dark-900/70 p-4 text-sm leading-6 text-dark-200">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="font-semibold">Metadata / venue readiness</div>
-            <div className={`rounded-full border px-2 py-1 text-[11px] ${getStatusTone(metadataSmokeFreshness?.status || metadataSmokeGovernance?.status)}`}>
-              {metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || metadataSmokeGovernance?.status || "unavailable"}
-            </div>
-          </div>
-          <div className="mt-2 text-dark-300">generated {formatTime(metadataSmoke?.generated_at)}</div>
-          <div className="text-dark-400">artifact age {metadataSmokeFreshness?.age_minutes != null ? `${metadataSmokeFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}</div>
-          <div className="mt-2 text-dark-300">{metadataSmokeGovernance?.operator_message || "尚未取得 metadata governance message。"}</div>
-          {metadataSmokeGovernance?.escalation_message && (
-            <div className="mt-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12px] text-amber-100">
-              {metadataSmokeGovernance.escalation_message}
-            </div>
-          )}
-          <div className="mt-3 space-y-2">
-            {venueChecks.length > 0 ? venueChecks.map((item) => (
-              <div key={item.venue || "unknown"} className="rounded-xl border border-white/10 bg-dark-950/40 p-3 text-[12px] text-dark-300">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-medium text-white">{item.venue || "unknown"}</div>
-                  <div className={item.ok ? "text-emerald-300" : "text-rose-300"}>{item.ok ? "OK" : "FAIL"}</div>
-                </div>
-                <div className="mt-1">config {item.enabled_in_config ? "enabled" : "disabled"} · creds {item.credentials_configured ? "configured" : "public-only"}</div>
-                <div className="opacity-80">step {String(item.contract?.step_size ?? "—")} · tick {String(item.contract?.tick_size ?? "—")}</div>
-                <div className="opacity-80">min qty {String(item.contract?.min_qty ?? "—")} · min cost {String(item.contract?.min_cost ?? "—")}</div>
-                {item.error && <div className="mt-1 text-rose-300">{item.error}</div>}
-              </div>
-            )) : <div className="rounded-xl border border-white/10 bg-dark-950/40 p-3 text-[12px] text-dark-300">尚未取得 venue metadata smoke。</div>}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-white/10 bg-dark-900/70 p-4 text-sm leading-6 text-dark-200">
-        <div className="font-semibold">最近委託 / reject / failure</div>
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <div className="rounded-xl border border-white/10 bg-dark-950/40 p-3">
-            <div className="text-[11px] uppercase tracking-wide text-dark-500">last order</div>
-            <div className="mt-1 font-medium text-white">{lastOrder?.side || "—"} · {lastOrder?.status || "—"}</div>
-            <div className="mt-1 text-[12px] opacity-80">{lastOrder?.venue || executionSummary?.venue || "—"} · {lastOrder?.symbol || runtimeStatus?.symbol || "—"}</div>
-            <div className="text-[12px] opacity-80">qty {formatNumber(lastOrder?.qty)} · price {formatNumber(lastOrder?.price)}</div>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-dark-950/40 p-3">
-            <div className="text-[11px] uppercase tracking-wide text-dark-500">last reject</div>
-            <div className="mt-1 font-medium text-white">{lastReject?.code || "none"}</div>
-            <div className="mt-1 text-[12px] opacity-80">{lastReject?.message || "尚無最近 reject。"}</div>
-            <div className="text-[12px] opacity-80">{formatTime(lastReject?.timestamp)}</div>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-dark-950/40 p-3">
-            <div className="text-[11px] uppercase tracking-wide text-dark-500">last failure</div>
-            <div className="mt-1 font-medium text-white">{lastFailure?.message || "none"}</div>
-            <div className="mt-1 text-[12px] opacity-80">{formatTime(lastFailure?.timestamp)}</div>
-            <div className="text-[12px] opacity-80">kill switch {guardrails?.kill_switch ? "on" : "off"} · failure halt {guardrails?.failure_halt ? "on" : "off"}</div>
+          <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Reconciliation / recovery</div>
+            <div className="mt-2 text-base font-semibold text-white">{executionReconciliation?.status || "unavailable"}</div>
+            <div className="mt-2">{executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得 reconciliation 摘要。"}</div>
           </div>
         </div>
       </section>

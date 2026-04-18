@@ -51,6 +51,7 @@ interface KlineResponse {
   candles: KlineCandle[];
   incremental?: boolean;
   append_after?: number;
+  indicators?: Record<string, (number | null)[]>;
 }
 
 interface FeatureCoverageMeta {
@@ -181,8 +182,12 @@ const GROUP_AVERAGE_CONFIG: Record<FeatureGroupKey, { key: keyof MergedPoint; la
   structure4h: { key: "avg_structure4h", label: "4H 結構平均", color: "#fb7185" },
 };
 
+const STEP_FEATURE_KEYS = new Set([
+  "claw", "claw_intensity", "fang_pcr", "fang_skew", "fin_netflow", "web_whale", "scales_ssr", "nest_pred",
+]);
+
 function lineTypeForFeature(key: string): "monotone" | "stepAfter" {
-  return key === "4h_ma_order" ? "stepAfter" : "monotone";
+  return key === "4h_ma_order" || key.startsWith("4h_") || STEP_FEATURE_KEYS.has(key) ? "stepAfter" : "monotone";
 }
 
 const TIMEFRAMES = [
@@ -193,6 +198,11 @@ const TIMEFRAMES = [
 
 const FEATURE_CHART_KLINE_CACHE_KEY_PREFIX = "polytrader.featurechart.klines.v1";
 const FEATURE_CHART_KLINE_MEMORY_CACHE = new Map<string, KlineResponse>();
+const INTERVAL_MS_BY_KEY: Record<string, number> = {
+  "15m": 15 * 60 * 1000,
+  "1h": 60 * 60 * 1000,
+  "4h": 4 * 60 * 60 * 1000,
+};
 
 // ─── Helpers ───
 
@@ -207,6 +217,47 @@ function formatTime(ts: number): string {
 function formatPrice(v: number): string {
   if (v >= 1000) return `$${(v / 1000).toFixed(1)}k`;
   return `$${v.toFixed(0)}`;
+}
+
+function formatFeatureRawValue(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const abs = Math.abs(value);
+  if (abs >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  if (abs >= 1) return value.toFixed(3);
+  if (abs >= 0.01) return value.toFixed(4);
+  return value.toExponential(2);
+}
+
+function quantile(values: number[], q: number): number | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = (sorted.length - 1) * q;
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  const frac = idx - lo;
+  return sorted[lo] * (1 - frac) + sorted[hi] * frac;
+}
+
+function normalizeWindowValue(value: number | null | undefined, values: number[]): number | null {
+  if (value == null || !Number.isFinite(value) || !values.length) return null;
+  const p05 = quantile(values, 0.05);
+  const p95 = quantile(values, 0.95);
+  if (p05 == null || p95 == null) return null;
+  const span = p95 - p05;
+  if (!Number.isFinite(span) || Math.abs(span) < 1e-10) return 0.5;
+  const softMargin = span * 0.5;
+  const softLo = p05 - softMargin;
+  const softHi = p95 + softMargin;
+  if (value <= p05) {
+    const v = Math.max(softLo, value);
+    return 0.02 + 0.08 * (v - softLo) / Math.max(p05 - softLo, 1e-10);
+  }
+  if (value >= p95) {
+    const v = Math.min(softHi, value);
+    return 0.90 + 0.08 * (v - p95) / Math.max(softHi - p95, 1e-10);
+  }
+  return 0.10 + 0.80 * (value - p05) / span;
 }
 
 function loadCachedFeatureChartKlines(cacheKey: string): KlineResponse | null {
@@ -242,6 +293,15 @@ function mergeFeatureChartKlines(base: KlineResponse, incoming: KlineResponse): 
   return {
     candles: Array.from(candleMap.values()).sort((a, b) => a.time - b.time),
     incremental: false,
+  };
+}
+
+function trimFeatureChartKlines(payload: KlineResponse, limit: number): KlineResponse {
+  const candles = [...(payload.candles || [])].sort((a, b) => a.time - b.time);
+  if (candles.length <= limit) return { ...payload, candles };
+  return {
+    ...payload,
+    candles: candles.slice(-limit),
   };
 }
 
@@ -379,10 +439,11 @@ function CustomTooltip({ active, payload, label }: any) {
       </div>
       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
         {Object.entries(FEATURE_CONFIG).map(([key, cfg]) => {
-          const val = d[key as keyof MergedPoint] as number | null;
+          const rawVal = d[`raw_${key}` as keyof MergedPoint] as number | null;
+          const chartVal = d[key as keyof MergedPoint] as number | null;
           return (
             <div key={key} style={{ color: cfg.color }}>
-              {cfg.label}：{val !== null ? (val * 100).toFixed(0) : "—"}
+              {cfg.label}：{rawVal != null ? formatFeatureRawValue(rawVal) : chartVal != null ? `${(chartVal * 100).toFixed(0)}%` : "—"}
             </div>
           );
         })}
@@ -548,7 +609,7 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
             ? Promise.resolve(cachedKlines)
             : fetchApi<KlineResponse>(`/api/chart/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`),
         ]);
-        let klines = initialKlines;
+        let klines = trimFeatureChartKlines(initialKlines, limit);
         if (!cachedKlines) {
           saveCachedFeatureChartKlines(klineCacheKey, klines);
         }
@@ -561,7 +622,7 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
             `/api/chart/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}&append_after=${lastCached.time * 1000}`
           );
           if (delta.candles?.length) {
-            klines = mergeFeatureChartKlines(klines, delta);
+            klines = trimFeatureChartKlines(mergeFeatureChartKlines(klines, delta), limit);
             saveCachedFeatureChartKlines(klineCacheKey, klines);
             advance(`FeatureChart 已從本地快取還原，並補上 ${delta.candles.length} 根新 K 線`);
           }
@@ -575,6 +636,19 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
         const sortedFeatures = [...features]
           .map((row) => ({ ...row, _ts: new Date(String(row.timestamp)).getTime() }))
           .sort((a, b) => (a._ts as number) - (b._ts as number));
+        const rawSeriesByFeature = Object.fromEntries(
+          FEATURE_ORDER.map((featureKey) => [
+            featureKey,
+            sortedFeatures
+              .map((row) => (row as FeatureRow)[`raw_${featureKey}`])
+              .filter((value): value is number => typeof value === "number" && Number.isFinite(value)),
+          ])
+        ) as Record<string, number[]>;
+        const scoreKeys = FEATURE_ORDER.filter((featureKey) => {
+          const coverageMeta = coverage[featureKey];
+          return coverageMeta ? coverageMeta.score_usable !== false : true;
+        });
+        const featureFreshnessMs = Math.max(2 * 60 * 1000, (INTERVAL_MS_BY_KEY[interval] || 60 * 60 * 1000));
         let featureIndex = 0;
 
         const points: MergedPoint[] = klines.candles.map((c) => {
@@ -587,49 +661,59 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
           }
 
           let feat: FeatureRow | undefined = sortedFeatures[featureIndex];
-          if (!feat || Math.abs(((feat as any)._ts as number) - candleTs) > 48 * 3600 * 1000) {
+          if (!feat || Math.abs(((feat as any)._ts as number) - candleTs) > featureFreshnessMs) {
             feat = undefined;
           }
 
-          const dynamicValues = Object.fromEntries(
+          const chartValues = Object.fromEntries(
             FEATURE_ORDER.map((featureKey) => {
               const coverageMeta = coverage[featureKey];
               if (coverageMeta && !coverageMeta.chart_usable) {
                 return [featureKey, null];
               }
-              const raw = feat?.[featureKey];
-              return [featureKey, typeof raw === "number" ? raw : raw == null ? null : Number(raw)];
+              const raw = feat?.[`raw_${featureKey}`];
+              const numericRaw = typeof raw === "number" ? raw : raw == null ? null : Number(raw);
+              return [featureKey, normalizeWindowValue(numericRaw, rawSeriesByFeature[featureKey] || [])];
+            })
+          );
+
+          const rawValueFields = Object.fromEntries(
+            FEATURE_ORDER.map((featureKey) => {
+              const raw = feat?.[`raw_${featureKey}`];
+              const numericRaw = typeof raw === "number" ? raw : raw == null ? null : Number(raw);
+              return [`raw_${featureKey}`, numericRaw];
             })
           );
 
           const averageValues = Object.fromEntries(
             (Object.keys(GROUP_AVERAGE_CONFIG) as FeatureGroupKey[]).map((groupKey) => [
               GROUP_AVERAGE_CONFIG[groupKey].key,
-              calcGroupAverage(dynamicValues as Partial<MergedPoint>, groupKey),
+              calcGroupAverage(chartValues as Partial<MergedPoint>, groupKey),
             ])
           );
+
+          const scoreSourceValues = Object.fromEntries(
+            FEATURE_ORDER.map((featureKey) => {
+              const normalized = feat?.[featureKey];
+              const numericValue = typeof normalized === "number" ? normalized : normalized == null ? null : Number(normalized);
+              return [featureKey, numericValue];
+            })
+          ) as Partial<MergedPoint>;
 
           return {
             time: c.time,
             label: formatTime(c.time),
             price: c.close,
-            ...dynamicValues,
+            ...chartValues,
+            ...rawValueFields,
             ...averageValues,
-            score: null,
+            score: calcScore(scoreSourceValues, scoreKeys),
             entrySignal: null,
             reduceSignal: null,
           };
         });
 
-        const scoreKeys = FEATURE_ORDER.filter((featureKey) => {
-          const coverageMeta = coverage[featureKey];
-          return coverageMeta ? coverageMeta.score_usable !== false : true;
-        });
-
-        // Calculate scores and detect signals using core decision signals only.
-        for (const p of points) {
-          p.score = calcScore(p, scoreKeys);
-        }
+        // Calculate signals using core decision signals only.
         detectSignals(points);
 
         if (!cancelled) {

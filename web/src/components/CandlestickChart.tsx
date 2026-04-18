@@ -376,6 +376,8 @@ export default function CandlestickChart({
   const syncingRangeRef = useRef(false);
   const syncingCrosshairRef = useRef(false);
   const viewportKeyRef = useRef<string | null>(null);
+  const chartsDisposedRef = useRef(false);
+  const resizeFrameRef = useRef<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -402,6 +404,12 @@ export default function CandlestickChart({
     const priceContainer = priceContainerRef.current;
     const equityContainer = equityContainerRef.current;
     if (!priceContainer || !equityContainer) return;
+
+    chartsDisposedRef.current = false;
+    if (resizeFrameRef.current !== null) {
+      window.cancelAnimationFrame(resizeFrameRef.current);
+      resizeFrameRef.current = null;
+    }
 
     const priceChart = createChart(priceContainer, {
       width: priceContainer.clientWidth || 900,
@@ -526,12 +534,26 @@ export default function CandlestickChart({
     investedSeriesRef.current = investedSeries;
     syncAnchorSeriesRef.current = syncAnchorSeries;
 
+    const visibleRangeUnsubscribers: Array<() => void> = [];
     const syncVisibleRange = (source: IChartApi, target: IChartApi) => {
-      source.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-        if (!range || syncingRangeRef.current) return;
+      const handler = (range: any) => {
+        if (!range || syncingRangeRef.current || chartsDisposedRef.current) return;
         syncingRangeRef.current = true;
-        target.timeScale().setVisibleLogicalRange(range);
-        syncingRangeRef.current = false;
+        try {
+          target.timeScale().setVisibleLogicalRange(range);
+        } catch {
+          // lightweight-charts may already be disposed during route switches.
+        } finally {
+          syncingRangeRef.current = false;
+        }
+      };
+      source.timeScale().subscribeVisibleLogicalRangeChange(handler);
+      visibleRangeUnsubscribers.push(() => {
+        try {
+          source.timeScale().unsubscribeVisibleLogicalRangeChange(handler);
+        } catch {
+          // ignore dispose-time cleanup noise
+        }
       });
     };
     syncVisibleRange(priceChart, equityChart);
@@ -605,25 +627,64 @@ export default function CandlestickChart({
     priceChart.subscribeCrosshairMove(onPriceMove);
     equityChart.subscribeCrosshairMove(onEquityMove);
 
-    const resizeObserver = new ResizeObserver(() => {
-      if (priceContainerRef.current && priceChartRef.current) {
-        priceChartRef.current.applyOptions({ width: Math.floor(priceContainerRef.current.clientWidth), height: 360 });
+    const scheduleResize = () => {
+      if (chartsDisposedRef.current) return;
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
       }
-      if (equityContainerRef.current && equityChartRef.current) {
-        equityChartRef.current.applyOptions({ width: Math.floor(equityContainerRef.current.clientWidth), height: 180 });
-      }
-    });
+      resizeFrameRef.current = window.requestAnimationFrame(() => {
+        resizeFrameRef.current = null;
+        if (chartsDisposedRef.current) return;
+        try {
+          if (priceContainerRef.current && priceChartRef.current) {
+            priceChartRef.current.applyOptions({ width: Math.floor(priceContainerRef.current.clientWidth), height: 360 });
+          }
+          if (equityContainerRef.current && equityChartRef.current) {
+            equityChartRef.current.applyOptions({ width: Math.floor(equityContainerRef.current.clientWidth), height: 180 });
+          }
+        } catch {
+          // Ignore late ResizeObserver ticks after the chart is disposed.
+        }
+      });
+    };
+    const resizeObserver = new ResizeObserver(scheduleResize);
     resizeObserver.observe(priceContainer);
     resizeObserver.observe(equityContainer);
 
     return () => {
+      chartsDisposedRef.current = true;
+      resizeObserver.unobserve(priceContainer);
+      resizeObserver.unobserve(equityContainer);
       resizeObserver.disconnect();
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+      visibleRangeUnsubscribers.forEach((unsubscribe) => unsubscribe());
       priceChart.unsubscribeCrosshairMove(onPriceMove);
       equityChart.unsubscribeCrosshairMove(onEquityMove);
-      priceChart.remove();
-      equityChart.remove();
       priceChartRef.current = null;
       equityChartRef.current = null;
+      candleSeriesRef.current = null;
+      volumeSeriesRef.current = null;
+      ma20SeriesRef.current = null;
+      ma60SeriesRef.current = null;
+      scoreSeriesRef.current = null;
+      confidenceSeriesRef.current = null;
+      equitySeriesRef.current = null;
+      cashSeriesRef.current = null;
+      investedSeriesRef.current = null;
+      syncAnchorSeriesRef.current = null;
+      try {
+        priceChart.remove();
+      } catch {
+        // ignore double-dispose cleanup noise
+      }
+      try {
+        equityChart.remove();
+      } catch {
+        // ignore double-dispose cleanup noise
+      }
     };
   }, []);
 

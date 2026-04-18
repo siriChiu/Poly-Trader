@@ -11,17 +11,21 @@
 import json
 import os
 import math
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 
+from model.q35_bias50_calibration import compute_piecewise_bias50_score
+
 STRATEGIES_DIR = Path(os.path.expanduser("~/.hermes/poly-trader/strategies"))
 STRATEGIES_DIR.mkdir(parents=True, exist_ok=True)
 
 STRATEGY_SCHEMA_VERSION = 2
-INTERNAL_STRATEGY_PREFIXES = ("tmp_", "debug_", "scratch_")
+INTERNAL_STRATEGY_PREFIXES = ("tmp_", "debug_", "scratch_", "auto_leaderboard_")
 INTERNAL_STRATEGY_NAMES = {"test", "unnamed", "unnamed_strategy"}
+AUTO_STRATEGY_NAME_PREFIX = "Auto Leaderboard · "
 
 
 @dataclass
@@ -44,7 +48,11 @@ class BacktestResult:
 
 
 def _strategy_slug(name: str) -> str:
-    return (name or "unnamed_strategy").strip().replace(" ", "_").lower()
+    text = (name or "unnamed_strategy").strip().lower()
+    text = re.sub(r"[\\/:*?\"<>|]+", "_", text)
+    text = re.sub(r"\s+", "_", text)
+    text = re.sub(r"_+", "_", text).strip("._")
+    return text or "unnamed_strategy"
 
 
 def _strategy_path(name: str) -> Path:
@@ -109,6 +117,215 @@ MODEL_SUMMARY_MAP = {
 CAPITAL_MODE_CLASSIC = "classic_pyramid"
 CAPITAL_MODE_RESERVE = "reserve_90"
 
+STRATEGY_SLEEVE_LIBRARY: Dict[str, Dict[str, Any]] = {
+    "trend": {
+        "label": "趨勢承接",
+        "summary": "順著既有 4H 結構承接 pullback，維持中頻主線節奏。",
+    },
+    "pullback": {
+        "label": "回調承接",
+        "summary": "等待較深 pullback 再進場，優先服務 bull / chop 的再部署窗口。",
+    },
+    "rebound": {
+        "label": "深跌回補",
+        "summary": "只在極端 oversold / crash pocket 嘗試反身回補，屬於反轉型 sleeve。",
+    },
+    "selective": {
+        "label": "高信念精選",
+        "summary": "提高品質門檻與 top-k 篩選，只保留最強交易候選。",
+    },
+    "capital_defense": {
+        "label": "資金防守",
+        "summary": "用 10/90 後守或 reserve-style 配置，延後主資金部署。",
+    },
+    "turning_point_exit": {
+        "label": "轉折出場",
+        "summary": "以 local-top / turning-point 作為主要出場與節奏收斂模組。",
+    },
+    "storm_recovery": {
+        "label": "風暴解套",
+        "summary": "用更快落袋與解套釋放機制處理高波動倉位回收。",
+    },
+}
+
+
+def _ordered_unique_strings(items: List[str]) -> List[str]:
+    seen = set()
+    ordered: List[str] = []
+    for item in items:
+        value = str(item or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        ordered.append(value)
+    return ordered
+
+
+def _infer_primary_sleeve_key(name: str, definition: Dict[str, Any]) -> str:
+    params = definition.get("params") if isinstance(definition, dict) else {}
+    params = params if isinstance(params, dict) else {}
+    entry = params.get("entry") if isinstance(params.get("entry"), dict) else {}
+
+    name_text = str(name or "").lower()
+    top_k_percent = _coerce_float(entry.get("top_k_percent")) or 0.0
+    confidence_min = _coerce_float(entry.get("confidence_min")) or 0.0
+    entry_quality_min = _coerce_float(entry.get("entry_quality_min")) or 0.0
+    bias50_max = _coerce_float(entry.get("bias50_max"))
+    layer2_bias_max = _coerce_float(entry.get("layer2_bias_max"))
+    layer3_bias_max = _coerce_float(entry.get("layer3_bias_max"))
+
+    if (
+        top_k_percent > 0
+        or confidence_min >= 0.70
+        or entry_quality_min >= 0.68
+        or any(keyword in name_text for keyword in ("高勝率", "高把握", "low freq", "selective"))
+    ):
+        return "selective"
+    if (
+        (bias50_max is not None and bias50_max <= -0.9)
+        or (layer3_bias_max is not None and layer3_bias_max <= -4.8)
+        or any(keyword in name_text for keyword in ("深跌", "回補", "rebound"))
+    ):
+        return "rebound"
+    if (
+        (bias50_max is not None and bias50_max <= -0.25)
+        or (layer2_bias_max is not None and layer2_bias_max <= -2.0)
+        or any(keyword in name_text for keyword in ("pullback", "平衡承接", "回調"))
+    ):
+        return "pullback"
+    return "trend"
+
+
+def _infer_strategy_sleeves(name: str, definition: Dict[str, Any]) -> List[Dict[str, Any]]:
+    params = definition.get("params") if isinstance(definition, dict) else {}
+    params = params if isinstance(params, dict) else {}
+    capital_management = params.get("capital_management") if isinstance(params.get("capital_management"), dict) else {}
+    turning_point = params.get("turning_point") if isinstance(params.get("turning_point"), dict) else {}
+    storm_unwind = params.get("storm_unwind") if isinstance(params.get("storm_unwind"), dict) else {}
+    editor_modules = params.get("editor_modules") if isinstance(params.get("editor_modules"), list) else []
+
+    sleeve_keys = [_infer_primary_sleeve_key(name, definition)]
+    if str(capital_management.get("mode") or CAPITAL_MODE_CLASSIC) == CAPITAL_MODE_RESERVE or any(str(v) == "reserve_90" for v in editor_modules):
+        sleeve_keys.append("capital_defense")
+    if bool(turning_point.get("enabled")) or any(str(v) == "turning_point" for v in editor_modules):
+        sleeve_keys.append("turning_point_exit")
+    if bool(storm_unwind.get("enabled")) or any(str(v) == "storm_unwind" for v in editor_modules):
+        sleeve_keys.append("storm_recovery")
+
+    ordered = _ordered_unique_strings(sleeve_keys)
+    sleeves: List[Dict[str, Any]] = []
+    for idx, key in enumerate(ordered):
+        info = STRATEGY_SLEEVE_LIBRARY.get(key, {"label": key, "summary": ""})
+        sleeves.append({
+            "key": key,
+            "label": info.get("label") or key,
+            "summary": info.get("summary") or "",
+            "role": "primary" if idx == 0 else "secondary",
+        })
+    return sleeves
+
+
+def build_regime_aware_sleeve_routing(
+    *,
+    regime_label: Optional[str],
+    regime_gate: Optional[str],
+    structure_bucket: Optional[str] = None,
+    allowed_layers: Optional[int] = None,
+    entry_quality: Optional[float] = None,
+    deployment_blocker: Optional[str] = None,
+    execution_guardrail_reason: Optional[str] = None,
+) -> Dict[str, Any]:
+    regime = str(regime_label or "unknown").lower()
+    gate = str(regime_gate or "unknown").upper()
+    normalized_structure_bucket = str(structure_bucket) if structure_bucket is not None else None
+    primary_sleeves = ["trend", "pullback", "rebound", "selective"]
+    layers = max(int(allowed_layers or 0), 0)
+    quality = None if entry_quality is None else float(entry_quality)
+    blocker = str(deployment_blocker or "").strip()
+    guardrail = str(execution_guardrail_reason or "").strip()
+    global_blocker_reason = None
+    if blocker:
+        global_blocker_reason = blocker.replace("_", " ")
+    elif guardrail:
+        global_blocker_reason = guardrail.replace("_", " ")
+    elif gate == "BLOCK" or layers <= 0:
+        global_blocker_reason = "runtime gate currently blocks deployment"
+
+    def _entry(key: str, active: bool, why: str) -> Dict[str, Any]:
+        info = STRATEGY_SLEEVE_LIBRARY.get(key, {"label": key, "summary": ""})
+        return {
+            "key": key,
+            "label": info.get("label") or key,
+            "summary": info.get("summary") or "",
+            "status": "active" if active else "inactive",
+            "why": why,
+        }
+
+    active_entries: List[Dict[str, Any]] = []
+    inactive_entries: List[Dict[str, Any]] = []
+
+    if global_blocker_reason:
+        blocker_text = f"目前 {global_blocker_reason}，先凍結所有 primary sleeves。"
+        inactive_entries = [_entry(key, False, blocker_text) for key in primary_sleeves]
+    else:
+        routing_rules = {
+            "trend": (
+                regime == "bull" and gate == "ALLOW",
+                f"目前 regime={regime} 且 gate={gate}，順勢承接 sleeve 保持 active。",
+                f"目前 regime={regime} / gate={gate}，趨勢承接 sleeve 暫不啟用。",
+            ),
+            "pullback": (
+                regime in {"bull", "chop"} and gate in {"ALLOW", "CAUTION"},
+                f"目前 regime={regime}，pullback 承接仍屬有效部署 lane。",
+                f"目前 regime={regime} 不適合 pullback 承接，先保留其他 sleeves。",
+            ),
+            "rebound": (
+                (regime in {"bull", "chop"} and gate == "CAUTION") or regime == "bear",
+                f"目前 regime={regime} / gate={gate} 更接近 stress / oversold lane，深跌回補 sleeve 可啟用。",
+                "目前尚未進入 stress / deep pullback lane，深跌回補 sleeve 先停用。",
+            ),
+            "selective": (
+                layers > 0 and (quality is None or quality >= 0.55),
+                f"allowed_layers={layers}{f' · entry_quality={quality:.2f}' if quality is not None else ''}，保留高信念精選 sleeve 作為最保守 lane。",
+                f"目前 allowed_layers={layers}{f' / entry_quality={quality:.2f}' if quality is not None else ''}，尚不足以維持高信念精選 sleeve。",
+            ),
+        }
+        for key in primary_sleeves:
+            active, active_why, inactive_why = routing_rules[key]
+            if active:
+                active_entries.append(_entry(key, True, active_why))
+            else:
+                inactive_entries.append(_entry(key, False, inactive_why))
+
+    active_count = len(active_entries)
+    total_count = len(primary_sleeves)
+    active_ratio_text = f"{active_count}/{total_count}"
+    if active_entries:
+        summary = (
+            f"目前 regime={regime} / gate={gate} / bucket={normalized_structure_bucket or '—'}；"
+            f"active sleeves {active_ratio_text}：{'、'.join(item['label'] for item in active_entries)}。"
+        )
+    else:
+        summary = (
+            f"目前 regime={regime} / gate={gate} / bucket={normalized_structure_bucket or '—'}；"
+            f"active sleeves {active_ratio_text}，暫無可部署 primary sleeves。"
+        )
+
+    return {
+        "current_regime": regime,
+        "current_regime_gate": gate,
+        "current_structure_bucket": normalized_structure_bucket,
+        "active_count": active_count,
+        "total_count": total_count,
+        "active_ratio_text": active_ratio_text,
+        "active_sleeves": active_entries,
+        "inactive_sleeves": inactive_entries,
+        "active_sleeve_keys": [item["key"] for item in active_entries],
+        "inactive_sleeve_keys": [item["key"] for item in inactive_entries],
+        "summary": summary,
+        "global_blocker_reason": global_blocker_reason,
+    }
+
 # Heartbeat #715: the bull ALLOW + D lane still contained a small but fully losing
 # overextended 4H pocket. Mirror predictor.py so Strategy Lab/backtests and live
 # inference share the same ALLOW-lane veto semantics.
@@ -145,6 +362,8 @@ def _build_strategy_metadata(name: str, definition: Dict[str, Any]) -> Dict[str,
     model_name = str(params.get("model_name") or "rule_baseline")
     layer_text = " / ".join(f"{round(float(layer) * 100):.0f}%" for layer in layers[:3]) if layers else "20% / 30% / 50%"
     title = name or "Unnamed Strategy"
+    sleeves = _infer_strategy_sleeves(title, definition)
+    primary_sleeve = sleeves[0] if sleeves else {"key": "uncategorized", "label": "未分類 sleeve", "summary": ""}
 
     description_bits = []
     if len(layers) >= 3:
@@ -157,10 +376,25 @@ def _build_strategy_metadata(name: str, definition: Dict[str, Any]) -> Dict[str,
         description_bits.append(f"第三層在 Bias50 ≤ {_coerce_float(entry.get('layer3_bias_max')):.1f}% 時加碼")
     if _coerce_float(params.get("stop_loss")) is not None:
         description_bits.append(f"止損 {(_coerce_float(params.get('stop_loss')) or 0.0) * 100:.0f}%")
+    turning_point = params.get("turning_point") if isinstance(params.get("turning_point"), dict) else {}
+    editor_modules = params.get("editor_modules") if isinstance(params.get("editor_modules"), list) else []
+    if bool(turning_point.get("enabled")) or any(str(v) == "turning_point" for v in editor_modules):
+        tp_exit = _coerce_float(turning_point.get("top_score_take_profit"))
+        if tp_exit is not None:
+            description_bits.append(f"頂部轉折 ≥ {tp_exit:.2f} 時啟用 exit gate")
+        else:
+            description_bits.append("啟用頂部轉折 exit gate")
     if str(capital_management.get("mode") or CAPITAL_MODE_CLASSIC) == CAPITAL_MODE_RESERVE:
         entry_fraction = (_coerce_float(capital_management.get("base_entry_fraction")) or 0.10) * 100
         reserve_trigger = (_coerce_float(capital_management.get("reserve_trigger_drawdown")) or 0.10) * 100
         description_bits.append(f"先用 {entry_fraction:.0f}% 建倉，回撤達 {reserve_trigger:.0f}% 後才啟用後守資金")
+
+    sleeve_labels = [str(item.get("label") or item.get("key") or "").strip() for item in sleeves if str(item.get("label") or item.get("key") or "").strip()]
+    sleeve_keys = [str(item.get("key") or "").strip() for item in sleeves if str(item.get("key") or "").strip()]
+    secondary_labels = [label for label in sleeve_labels[1:] if label]
+    sleeve_summary = f"主 sleeve：{primary_sleeve.get('label') or '未分類 sleeve'}"
+    if secondary_labels:
+        sleeve_summary += f"；附加：{'、'.join(secondary_labels)}"
 
     return {
         "title": title,
@@ -168,6 +402,12 @@ def _build_strategy_metadata(name: str, definition: Dict[str, Any]) -> Dict[str,
         "strategy_type": definition.get("type") or "rule_based",
         "model_name": model_name,
         "model_summary": MODEL_SUMMARY_MAP.get(model_name, f"{model_name}：自訂交易模型。"),
+        "primary_sleeve_key": primary_sleeve.get("key") or "uncategorized",
+        "primary_sleeve_label": primary_sleeve.get("label") or "未分類 sleeve",
+        "sleeve_keys": sleeve_keys,
+        "sleeve_labels": sleeve_labels,
+        "sleeves": sleeves,
+        "sleeve_summary": sleeve_summary,
     }
 
 
@@ -341,6 +581,32 @@ def _compute_4h_structure_quality(
 
 
 
+def _structure_bucket(regime_gate: str, structure_quality: Optional[float]) -> Optional[str]:
+    if not regime_gate:
+        return None
+    if structure_quality is None:
+        quality_bucket = "missing"
+    else:
+        quality_value = float(structure_quality)
+        if quality_value >= 0.85:
+            quality_bucket = "q85"
+        elif quality_value >= 0.65:
+            quality_bucket = "q65"
+        elif quality_value >= 0.35:
+            quality_bucket = "q35"
+        elif quality_value >= 0.15:
+            quality_bucket = "q15"
+        else:
+            quality_bucket = "q00"
+    reason = {
+        "BLOCK": "structure_quality_block" if (structure_quality is not None and float(structure_quality) < 0.15) else "regime_gate_block",
+        "CAUTION": "structure_quality_caution",
+        "ALLOW": "base_allow",
+    }.get(str(regime_gate), "unknown")
+    return f"{regime_gate}|{reason}|{quality_bucket}"
+
+
+
 def _compute_entry_quality(
     bias50_value: float,
     nose_value: float,
@@ -349,8 +615,16 @@ def _compute_entry_quality(
     bb_pct_b_value: Optional[float] = None,
     dist_bb_lower_value: Optional[float] = None,
     dist_swing_low_value: Optional[float] = None,
+    regime_label: Optional[str] = None,
+    regime_gate: Optional[str] = None,
+    structure_bucket: Optional[str] = None,
 ) -> float:
-    bias_score = _clamp01((-bias50_value + 2.4) / 5.0)
+    bias_score = compute_piecewise_bias50_score(
+        bias50_value,
+        regime_label=regime_label,
+        regime_gate=regime_gate,
+        structure_bucket=structure_bucket,
+    )["score"]
     nose_score = _clamp01(1.0 - nose_value)
     pulse_score = _clamp01(pulse_value)
     ear_score = _clamp01(1.0 - abs(ear_value) * 5.0)
@@ -421,6 +695,184 @@ def _top_k_cutoff(values: List[float], top_k_percent: float) -> Optional[float]:
     return clean[count - 1]
 
 
+def _passes_rolling_top_k_gate(value: Optional[float], history: List[float], top_k_percent: float) -> bool:
+    if value is None or top_k_percent <= 0:
+        return True
+    if not history:
+        return True
+    cutoff = _top_k_cutoff(history, top_k_percent)
+    if cutoff is None:
+        return True
+    return float(value) >= float(cutoff)
+
+
+def build_auto_strategy_candidates(model_candidates: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    selected_models = []
+    for model_name in model_candidates or []:
+        model_name = str(model_name or "").strip()
+        if model_name and model_name not in selected_models:
+            selected_models.append(model_name)
+    if not selected_models:
+        selected_models = ["random_forest", "logistic_regression"]
+
+    candidates: List[Dict[str, Any]] = []
+
+    def add_candidate(label: str, strategy_type: str, params: Dict[str, Any], *, model_name: Optional[str] = None) -> None:
+        idx = len(candidates) + 1
+        title = f"{AUTO_STRATEGY_NAME_PREFIX}{label} #{idx:02d}"
+        merged_params = {
+            "entry": {
+                "pulse_min": 0.0,
+                **(params.get("entry") or {}),
+            },
+            "layers": params.get("layers") or [0.2, 0.3, 0.5],
+            "capital_management": params.get("capital_management") or {"mode": CAPITAL_MODE_CLASSIC, "base_entry_fraction": 0.10, "reserve_trigger_drawdown": 0.10},
+            "stop_loss": params.get("stop_loss", -0.05),
+            "take_profit_bias": params.get("take_profit_bias", 4.0),
+            "take_profit_roi": params.get("take_profit_roi", 0.08),
+            "editor_modules": params.get("editor_modules") or [],
+        }
+        if isinstance(params.get("storm_unwind"), dict):
+            merged_params["storm_unwind"] = dict(params.get("storm_unwind") or {})
+        if isinstance(params.get("turning_point"), dict):
+            merged_params["turning_point"] = dict(params.get("turning_point") or {})
+        if model_name:
+            merged_params["model_name"] = model_name
+        definition = {
+            "type": strategy_type,
+            "params": merged_params,
+        }
+        candidates.append({
+            "name": title,
+            "definition": definition,
+            "metadata": _build_strategy_metadata(title, definition),
+        })
+
+    add_candidate(
+        "舊版 Baseline Rule（對照）",
+        "rule_based",
+        {
+            "entry": {"bias50_max": 1.0, "nose_max": 0.40, "layer2_bias_max": -1.5, "layer3_bias_max": -3.5, "entry_quality_min": 0.55, "top_k_percent": 0, "allowed_regimes": ["bull", "chop", "bear", "unknown"]},
+            "investment_horizon": "medium",
+        },
+    )
+    add_candidate(
+        "新版預設 XGBoost Hybrid",
+        "hybrid",
+        {
+            "entry": {"bias50_max": 0.0, "nose_max": 0.40, "layer2_bias_max": -1.0, "layer3_bias_max": -3.0, "confidence_min": 0.52, "entry_quality_min": 0.50, "top_k_percent": 0, "allowed_regimes": ["bull", "chop"]},
+            "layers": [0.25, 0.25, 0.5],
+            "stop_loss": -0.03,
+            "take_profit_bias": 999.0,
+            "take_profit_roi": 999.0,
+            "editor_modules": ["turning_point"],
+            "turning_point": {"enabled": True, "bottom_score_min": 0.62, "top_score_take_profit": 0.80, "min_profit_pct": 0.0},
+        },
+        model_name="xgboost",
+    )
+    add_candidate(
+        "平衡承接 Rule（短期）",
+        "rule_based",
+        {
+            "entry": {"bias50_max": 1.0, "nose_max": 0.40, "layer2_bias_max": -1.0, "layer3_bias_max": -2.0, "entry_quality_min": 0.48, "top_k_percent": 0, "allowed_regimes": ["bull", "chop", "bear", "unknown"]},
+            "take_profit_bias": 2.8,
+            "take_profit_roi": 0.05,
+            "investment_horizon": "short",
+        },
+    )
+    add_candidate(
+        "平衡承接 Rule（長期）",
+        "rule_based",
+        {
+            "entry": {"bias50_max": -0.5, "nose_max": 0.34, "layer2_bias_max": -2.5, "layer3_bias_max": -4.5, "entry_quality_min": 0.65, "top_k_percent": 0, "allowed_regimes": ["bull", "chop"]},
+            "take_profit_bias": 5.2,
+            "take_profit_roi": 0.12,
+            "investment_horizon": "long",
+        },
+    )
+    add_candidate(
+        "深跌回補 Rule",
+        "rule_based",
+        {
+            "entry": {"bias50_max": -1.0, "nose_max": 0.35, "layer2_bias_max": -2.8, "layer3_bias_max": -5.0, "entry_quality_min": 0.62, "top_k_percent": 0, "allowed_regimes": ["bull", "chop"]},
+            "take_profit_bias": 4.5,
+        },
+    )
+    add_candidate(
+        "低頻高把握 Rule",
+        "rule_based",
+        {
+            "entry": {"bias50_max": 0.5, "nose_max": 0.35, "layer2_bias_max": -2.0, "layer3_bias_max": -4.0, "entry_quality_min": 0.68, "top_k_percent": 10, "allowed_regimes": ["bear"]},
+        },
+    )
+    add_candidate(
+        "10/90 後守 Rule",
+        "rule_based",
+        {
+            "entry": {"bias50_max": 0.5, "nose_max": 0.35, "layer2_bias_max": -2.5, "layer3_bias_max": -4.5, "entry_quality_min": 0.60, "top_k_percent": 0, "allowed_regimes": ["bull", "chop", "bear", "unknown"]},
+            "capital_management": {"mode": CAPITAL_MODE_RESERVE, "base_entry_fraction": 0.10, "reserve_trigger_drawdown": 0.10},
+            "stop_loss": -0.07,
+            "editor_modules": ["reserve_90"],
+        },
+    )
+    add_candidate(
+        "風暴斬倉 Rule",
+        "rule_based",
+        {
+            "entry": {"bias50_max": 0.5, "nose_max": 0.35, "layer2_bias_max": -2.5, "layer3_bias_max": -4.5, "entry_quality_min": 0.60, "top_k_percent": 0, "allowed_regimes": ["bull", "chop"]},
+            "capital_management": {"mode": CAPITAL_MODE_RESERVE, "base_entry_fraction": 0.10, "reserve_trigger_drawdown": 0.08},
+            "stop_loss": -0.04,
+            "take_profit_bias": 3.2,
+            "take_profit_roi": 0.06,
+            "editor_modules": ["reserve_90", "storm_unwind"],
+            "storm_unwind": {"enabled": True, "release_ratio": 0.25, "min_profit_pct": 0.01},
+        },
+    )
+    add_candidate(
+        "轉折狙擊 Rule",
+        "rule_based",
+        {
+            "entry": {"bias50_max": 0.5, "nose_max": 0.42, "layer2_bias_max": -1.8, "layer3_bias_max": -3.8, "entry_quality_min": 0.52, "top_k_percent": 0, "allowed_regimes": ["bull", "chop", "bear", "unknown"]},
+            "take_profit_bias": 2.6,
+            "take_profit_roi": 0.05,
+            "editor_modules": ["turning_point"],
+            "turning_point": {"enabled": True, "bottom_score_min": 0.62, "top_score_take_profit": 0.68},
+        },
+    )
+    add_candidate(
+        "XGBoost 頂部轉折 Hybrid",
+        "hybrid",
+        {
+            "entry": {"bias50_max": 0.5, "nose_max": 0.40, "layer2_bias_max": -1.5, "layer3_bias_max": -3.5, "confidence_min": 0.58, "entry_quality_min": 0.56, "top_k_percent": 0, "allowed_regimes": ["bull", "chop", "bear", "unknown"]},
+            "take_profit_bias": 10.0,
+            "take_profit_roi": 0.50,
+            "editor_modules": ["turning_point"],
+            "turning_point": {"enabled": True, "bottom_score_min": 0.62, "top_score_take_profit": 0.68},
+        },
+        model_name="xgboost",
+    )
+
+    for model_name in selected_models[:2]:
+        add_candidate(
+            f"{model_name} 平衡 Hybrid",
+            "hybrid",
+            {
+                "entry": {"bias50_max": 1.0, "nose_max": 0.40, "layer2_bias_max": -1.5, "layer3_bias_max": -3.5, "confidence_min": 0.55, "entry_quality_min": 0.55, "top_k_percent": 0, "allowed_regimes": ["bull", "chop", "bear", "unknown"]},
+            },
+            model_name=model_name,
+        )
+        add_candidate(
+            f"{model_name} 高勝率 Hybrid",
+            "hybrid",
+            {
+                "entry": {"bias50_max": 1.0, "nose_max": 0.40, "layer2_bias_max": -1.5, "layer3_bias_max": -3.5, "confidence_min": 0.75, "entry_quality_min": 0.68, "top_k_percent": 5, "allowed_regimes": ["bear"]},
+            },
+            model_name=model_name,
+        )
+
+    return candidates
+
+
 def _capital_management_config(params: Dict[str, Any]) -> Dict[str, Any]:
     cfg = params.get("capital_management") if isinstance(params.get("capital_management"), dict) else {}
     mode = str(cfg.get("mode") or CAPITAL_MODE_CLASSIC)
@@ -464,6 +916,164 @@ def _reserve_unlocked(capital_cfg: Dict[str, Any], entry_layers: List[Dict[str, 
     return drawdown <= -trigger
 
 
+def _storm_unwind_config(params: Dict[str, Any]) -> Dict[str, Any]:
+    cfg = params.get("storm_unwind") if isinstance(params.get("storm_unwind"), dict) else {}
+    editor_modules = params.get("editor_modules") if isinstance(params.get("editor_modules"), list) else []
+    enabled = bool(cfg.get("enabled")) or any(str(v) == "storm_unwind" for v in editor_modules)
+    release_ratio = _coerce_float(cfg.get("release_ratio"))
+    if release_ratio is None:
+        release_ratio = 0.25
+    min_profit_pct = _coerce_float(cfg.get("min_profit_pct"))
+    if min_profit_pct is None:
+        min_profit_pct = 0.01
+    return {
+        "enabled": enabled,
+        "release_ratio": _clamp01(release_ratio),
+        "min_profit_pct": max(0.0, min(0.25, float(min_profit_pct))),
+    }
+
+
+def _investment_horizon_profile(params: Dict[str, Any]) -> str:
+    value = str(params.get("investment_horizon") or "medium").strip().lower()
+    if value in {"short", "medium", "long"}:
+        return value
+    return "medium"
+
+
+def _turning_point_config(params: Dict[str, Any]) -> Dict[str, Any]:
+    cfg = params.get("turning_point") if isinstance(params.get("turning_point"), dict) else {}
+    editor_modules = params.get("editor_modules") if isinstance(params.get("editor_modules"), list) else []
+    enabled = bool(cfg.get("enabled")) or any(str(v) == "turning_point" for v in editor_modules)
+    bottom_score_min = _coerce_float(cfg.get("bottom_score_min"))
+    top_score_take_profit = _coerce_float(cfg.get("top_score_take_profit"))
+    return {
+        "enabled": enabled,
+        "bottom_score_min": _clamp01(bottom_score_min if bottom_score_min is not None else 0.60),
+        "top_score_take_profit": _clamp01(top_score_take_profit if top_score_take_profit is not None else 0.70),
+    }
+
+
+def _adjust_value_by_horizon(value: float, horizon: str, *, short_delta: float = 0.0, long_delta: float = 0.0) -> float:
+    if horizon == "short":
+        return value + short_delta
+    if horizon == "long":
+        return value + long_delta
+    return value
+
+
+def _entry_layers_avg_price(entry_layers: List[Dict[str, Any]]) -> float:
+    total_coins = sum(float(layer.get("coins") or 0.0) for layer in entry_layers)
+    if total_coins <= 0:
+        return 0.0
+    return sum(float(layer.get("price") or 0.0) * float(layer.get("coins") or 0.0) for layer in entry_layers) / total_coins
+
+
+def _close_all_layers(
+    *,
+    entry_layers: List[Dict[str, Any]],
+    current_price: float,
+    reason: str,
+    timestamp: str,
+    initial_capital: float,
+    capital_mode: Optional[str] = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    sold_coins = sum(float(layer.get("coins") or 0.0) for layer in entry_layers)
+    avg = _entry_layers_avg_price(entry_layers)
+    pnl = sum((float(current_price) - float(layer.get("price") or 0.0)) * float(layer.get("coins") or 0.0) for layer in entry_layers)
+    payload = {
+        "entry": avg,
+        "exit": float(current_price),
+        "pnl": pnl,
+        "roi": pnl / initial_capital if initial_capital else 0.0,
+        "layers": len(entry_layers),
+        "reason": reason,
+        "timestamp": timestamp,
+        "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
+        "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
+        "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
+        "entry_quality": entry_layers[0].get("entry_quality") if entry_layers else None,
+        "allowed_layers": entry_layers[0].get("allowed_layers") if entry_layers else None,
+        "capital_mode": capital_mode or (entry_layers[0].get("capital_mode") if entry_layers else None),
+        "sold_coins": sold_coins,
+    }
+    if extra:
+        payload.update(extra)
+    return payload
+
+
+def _apply_storm_unwind_take_profit(
+    *,
+    entry_layers: List[Dict[str, Any]],
+    current_price: float,
+    timestamp: str,
+    initial_capital: float,
+    capital_mode: Optional[str],
+    storm_cfg: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    if not storm_cfg.get("enabled") or not entry_layers:
+        return None
+    profitable_layers = [layer for layer in entry_layers if float(current_price) > float(layer.get("price") or 0.0)]
+    if not profitable_layers:
+        return None
+    profitable_realized = sum((float(current_price) - float(layer.get("price") or 0.0)) * float(layer.get("coins") or 0.0) for layer in profitable_layers)
+    profitable_cost = sum(float(layer.get("price") or 0.0) * float(layer.get("coins") or 0.0) for layer in profitable_layers)
+    if profitable_cost <= 0:
+        return None
+    profit_pct = profitable_realized / profitable_cost
+    if profit_pct < float(storm_cfg.get("min_profit_pct") or 0.0):
+        return None
+
+    sold_layers: List[Dict[str, Any]] = [dict(layer) for layer in profitable_layers]
+    sold_profitable_coins = sum(float(layer.get("coins") or 0.0) for layer in profitable_layers)
+    remaining_layers = [dict(layer) for layer in entry_layers if float(current_price) <= float(layer.get("price") or 0.0)]
+    trapped_layers = [layer for layer in remaining_layers if float(current_price) < float(layer.get("price") or 0.0)]
+    trapped_layers.sort(key=lambda layer: float(layer.get("price") or 0.0), reverse=True)
+    unwind_target = trapped_layers[0] if trapped_layers else None
+    unwind_coins = 0.0
+    unwind_entry_price = None
+    if unwind_target is not None and sold_profitable_coins > 0:
+        unwind_entry_price = float(unwind_target.get("price") or 0.0)
+        unwind_coins = min(float(unwind_target.get("coins") or 0.0), sold_profitable_coins * float(storm_cfg.get("release_ratio") or 0.0))
+        if unwind_coins > 0:
+            sold_layers.append({**dict(unwind_target), "coins": unwind_coins, "storm_release": True})
+            unwind_target["coins"] = max(0.0, float(unwind_target.get("coins") or 0.0) - unwind_coins)
+    remaining_layers = [layer for layer in remaining_layers if float(layer.get("coins") or 0.0) > 1e-12]
+    total_sold_coins = sum(float(layer.get("coins") or 0.0) for layer in sold_layers)
+    if total_sold_coins <= 0:
+        return None
+    avg_entry = sum(float(layer.get("price") or 0.0) * float(layer.get("coins") or 0.0) for layer in sold_layers) / total_sold_coins
+    pnl = sum((float(current_price) - float(layer.get("price") or 0.0)) * float(layer.get("coins") or 0.0) for layer in sold_layers)
+    remaining_trapped_coins = sum(float(layer.get("coins") or 0.0) for layer in remaining_layers if float(current_price) < float(layer.get("price") or 0.0))
+    highest_remaining_price = max((float(layer.get("price") or 0.0) for layer in remaining_layers), default=None)
+    return {
+        "trade": {
+            "entry": avg_entry,
+            "exit": float(current_price),
+            "pnl": pnl,
+            "roi": pnl / initial_capital if initial_capital else 0.0,
+            "layers": len(sold_layers),
+            "reason": "storm_unwind_tp",
+            "timestamp": timestamp,
+            "entry_timestamp": sold_layers[0].get("timestamp", "") if sold_layers else "",
+            "entry_regime": sold_layers[0].get("regime", "unknown") if sold_layers else "unknown",
+            "regime_gate": sold_layers[0].get("regime_gate", "ALLOW") if sold_layers else "ALLOW",
+            "entry_quality": sold_layers[0].get("entry_quality") if sold_layers else None,
+            "allowed_layers": sold_layers[0].get("allowed_layers") if sold_layers else None,
+            "capital_mode": capital_mode or (sold_layers[0].get("capital_mode") if sold_layers else None),
+            "sold_coins": total_sold_coins,
+            "storm_unwind_enabled": True,
+            "storm_released_coins": round(unwind_coins, 8),
+            "storm_release_ratio": float(storm_cfg.get("release_ratio") or 0.0),
+            "storm_release_from_price": unwind_entry_price,
+            "remaining_trapped_coins": round(remaining_trapped_coins, 8),
+            "highest_remaining_entry": highest_remaining_price,
+        },
+        "remaining_layers": remaining_layers,
+        "sold_coins": total_sold_coins,
+    }
+
+
 def run_rule_backtest(
     prices: List[float],
     timestamps: List[str],
@@ -478,6 +1088,8 @@ def run_rule_backtest(
     bb_pct_b_4h: Optional[List[float]] = None,
     dist_bb_lower_4h: Optional[List[float]] = None,
     dist_swing_low_4h: Optional[List[float]] = None,
+    local_bottom_score: Optional[List[float]] = None,
+    local_top_score: Optional[List[float]] = None,
 ) -> BacktestResult:
     """純規則回測：bias50 + 特徵條件 + 金字塔 + SL/TP。"""
     # ── 解包參數 ──
@@ -490,11 +1102,18 @@ def run_rule_backtest(
     allowed_regimes = _normalize_allowed_regimes(entry.get("allowed_regimes"))
     top_k_percent = float(entry.get("top_k_percent", 0.0) or 0.0)
 
+    horizon_profile = _investment_horizon_profile(params)
+    bias50_max = _adjust_value_by_horizon(float(bias50_max), horizon_profile, short_delta=1.0, long_delta=-1.0)
+    nose_max = _adjust_value_by_horizon(float(nose_max), horizon_profile, short_delta=0.08, long_delta=-0.05)
+    entry_quality_min = _clamp01(_adjust_value_by_horizon(float(entry_quality_min), horizon_profile, short_delta=-0.08, long_delta=0.08))
+
     layers_pct   = params.get("layers", [0.20, 0.30, 0.50])
     capital_cfg  = _capital_management_config(params)
-    stop_loss    = params.get("stop_loss", -0.05)     # -5%
-    tp_bias      = params.get("take_profit_bias", 4.0)  # bias50 > 4% 止盈
-    tp_roi       = params.get("take_profit_roi", 0.08)  # ROI > 8% 止盈
+    storm_cfg    = _storm_unwind_config(params)
+    turning_cfg  = _turning_point_config(params)
+    stop_loss    = _adjust_value_by_horizon(float(params.get("stop_loss", -0.05)), horizon_profile, short_delta=0.02, long_delta=-0.03)
+    tp_bias      = _adjust_value_by_horizon(float(params.get("take_profit_bias", 4.0)), horizon_profile, short_delta=-1.2, long_delta=1.2)
+    tp_roi       = _adjust_value_by_horizon(float(params.get("take_profit_roi", 0.08)), horizon_profile, short_delta=-0.03, long_delta=0.04)
 
     cash = initial_capital
     position = 0.0
@@ -505,44 +1124,7 @@ def run_rule_backtest(
     max_dd = 0.0
     consec_loss = 0
     max_consec_loss = 0
-
-    top_k_cutoff = None
-    if top_k_percent > 0:
-        entry_quality_series = []
-        for i in range(len(prices)):
-            regime = regimes[i] if regimes and i < len(regimes) and regimes[i] else "unknown"
-            if not _regime_allowed(regime, allowed_regimes):
-                continue
-            b200 = bias200[i] if i < len(bias200) else 0
-            bb_pct_b_val = bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None
-            dist_bb_lower_val = dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None
-            dist_swing_low_val = dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None
-            regime_gate = _compute_regime_gate(
-                b200,
-                regime,
-                regime_min,
-                bb_pct_b_val,
-                dist_bb_lower_val,
-                dist_swing_low_val,
-            )
-            if regime_gate == "BLOCK":
-                continue
-            b50 = bias50[i] if i < len(bias50) else 0
-            n_val = nose[i] if i < len(nose) else 0.5
-            p_val = pulse[i] if i < len(pulse) else 0.5
-            e_val = ear[i] if i < len(ear) else 0.0
-            quality = _compute_entry_quality(
-                b50,
-                n_val,
-                p_val,
-                e_val,
-                bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None,
-                dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None,
-                dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None,
-            )
-            if quality >= entry_quality_min:
-                entry_quality_series.append(quality)
-        top_k_cutoff = _top_k_cutoff(entry_quality_series, top_k_percent)
+    top_k_history: List[float] = []
 
     for i in range(len(prices)):
         p = prices[i]
@@ -552,41 +1134,58 @@ def run_rule_backtest(
         p_val = pulse[i] if i < len(pulse) else 0.5
         e_val = ear[i] if i < len(ear) else 0.0
         regime = regimes[i] if regimes and i < len(regimes) and regimes[i] else "unknown"
-        regime_gate = _compute_regime_gate(b200, regime, regime_min)
+        bb_pct_b_value = bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None
+        dist_bb_lower_value = dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None
+        dist_swing_low_value = dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None
+        bottom_score_value = local_bottom_score[i] if local_bottom_score and i < len(local_bottom_score) else 0.0
+        top_score_value = local_top_score[i] if local_top_score and i < len(local_top_score) else 0.0
+        regime_gate = _compute_regime_gate(
+            b200,
+            regime,
+            regime_min,
+            bb_pct_b_value,
+            dist_bb_lower_value,
+            dist_swing_low_value,
+        )
+        structure_quality = _compute_4h_structure_quality(
+            bb_pct_b_value=bb_pct_b_value,
+            dist_bb_lower_value=dist_bb_lower_value,
+            dist_swing_low_value=dist_swing_low_value,
+        )
+        structure_bucket = _structure_bucket(regime_gate, structure_quality)
         entry_quality = _compute_entry_quality(
             b50,
             n_val,
             p_val,
             e_val,
-            bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None,
-            dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None,
-            dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None,
+            bb_pct_b_value,
+            dist_bb_lower_value,
+            dist_swing_low_value,
+            regime_label=regime,
+            regime_gate=regime_gate,
+            structure_bucket=structure_bucket,
         )
         allowed_layers = _allowed_layers_for_signal(regime_gate, entry_quality, len(layers_pct))
 
         # 更新權益
         if position > 0:
-            avg = sum(l["price"] * l["coins"] for l in entry_layers) / sum(l["coins"] for l in entry_layers)
+            avg = _entry_layers_avg_price(entry_layers)
             equity = cash + position * p
 
         # ── 止損 ──
         if position > 0 and entry_layers:
-            avg = sum(l["price"] * l["coins"] for l in entry_layers) / sum(l["coins"] for l in entry_layers)
+            avg = _entry_layers_avg_price(entry_layers)
             pnl_pct = (p - avg) / avg
             if pnl_pct <= stop_loss:
-                pnl = (p - avg) * position
+                trade_payload = _close_all_layers(
+                    entry_layers=entry_layers,
+                    current_price=p,
+                    reason="stop_loss",
+                    timestamp=timestamps[i] if i < len(timestamps) else "",
+                    initial_capital=initial_capital,
+                )
                 cash += p * position
-                result.trades.append({
-                    "entry": avg, "exit": p, "pnl": pnl,
-                    "roi": pnl / initial_capital, "layers": len(entry_layers),
-                    "reason": "stop_loss", "timestamp": timestamps[i] if i < len(timestamps) else "",
-                    "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
-                    "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
-                    "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
-                    "entry_quality": entry_layers[0].get("entry_quality"),
-                    "allowed_layers": entry_layers[0].get("allowed_layers"),
-                    "capital_mode": entry_layers[0].get("capital_mode"),
-                })
+                result.trades.append(trade_payload)
                 position = 0
                 entry_layers = []
                 consec_loss += 1
@@ -596,36 +1195,52 @@ def run_rule_backtest(
 
         # ── 止盈 ──
         if position > 0 and entry_layers:
-            avg = sum(l["price"] * l["coins"] for l in entry_layers) / sum(l["coins"] for l in entry_layers)
+            avg = _entry_layers_avg_price(entry_layers)
             pnl_pct = (p - avg) / avg
-            if b50 > tp_bias or pnl_pct > tp_roi:
-                pnl = (p - avg) * position
+            turning_take_profit = turning_cfg.get("enabled") and float(top_score_value) >= float(turning_cfg.get("top_score_take_profit") or 1.0)
+            if b50 > tp_bias or pnl_pct > tp_roi or turning_take_profit:
+                storm_event = _apply_storm_unwind_take_profit(
+                    entry_layers=entry_layers,
+                    current_price=p,
+                    timestamp=timestamps[i] if i < len(timestamps) else "",
+                    initial_capital=initial_capital,
+                    capital_mode=capital_cfg.get("mode"),
+                    storm_cfg=storm_cfg,
+                )
+                if storm_event is not None:
+                    cash += p * float(storm_event.get("sold_coins") or 0.0)
+                    position = max(0.0, position - float(storm_event.get("sold_coins") or 0.0))
+                    entry_layers = storm_event.get("remaining_layers") or []
+                    result.trades.append(storm_event["trade"])
+                    if float(storm_event["trade"].get("pnl") or 0.0) > 0:
+                        consec_loss = 0
+                    continue
+                trade_payload = _close_all_layers(
+                    entry_layers=entry_layers,
+                    current_price=p,
+                    reason="tp_turning_point" if turning_take_profit else ("tp_bias" if b50 > tp_bias else "tp_roi"),
+                    timestamp=timestamps[i] if i < len(timestamps) else "",
+                    initial_capital=initial_capital,
+                )
                 cash += p * position
-                reason = "tp_bias" if b50 > tp_bias else "tp_roi"
-                result.trades.append({
-                    "entry": avg, "exit": p, "pnl": pnl,
-                    "roi": pnl / initial_capital, "layers": len(entry_layers),
-                    "reason": reason, "timestamp": timestamps[i] if i < len(timestamps) else "",
-                    "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
-                    "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
-                    "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
-                    "entry_quality": entry_layers[0].get("entry_quality"),
-                    "allowed_layers": entry_layers[0].get("allowed_layers"),
-                    "capital_mode": entry_layers[0].get("capital_mode"),
-                })
+                result.trades.append(trade_payload)
                 position = 0
                 entry_layers = []
-                if pnl > 0:
+                if float(trade_payload.get("pnl") or 0.0) > 0:
                     consec_loss = 0
                 continue
 
+        top_k_pass = _passes_rolling_top_k_gate(entry_quality, top_k_history, top_k_percent)
+
         # ── 進場判定 ──
+        turning_gate_ok = (not turning_cfg.get("enabled")) or float(bottom_score_value) >= float(turning_cfg.get("bottom_score_min") or 0.0)
         can_enter = (
             regime_gate != "BLOCK"
             and allowed_layers > 0
             and _regime_allowed(regime, allowed_regimes)
             and entry_quality >= entry_quality_min
-            and (top_k_cutoff is None or entry_quality >= top_k_cutoff)
+            and top_k_pass
+            and turning_gate_ok
             and b50 <= bias50_max
             and n_val <= nose_max
             and p_val >= pulse_min
@@ -684,6 +1299,14 @@ def run_rule_backtest(
                         "capital_mode": capital_cfg.get("mode"),
                     })
 
+        if (
+            top_k_percent > 0
+            and regime_gate != "BLOCK"
+            and _regime_allowed(regime, allowed_regimes)
+            and entry_quality >= entry_quality_min
+        ):
+            top_k_history.append(entry_quality)
+
         # 更新最大回撤
         if equity > peak_equity:
             peak_equity = equity
@@ -701,19 +1324,15 @@ def run_rule_backtest(
 
     # 平倉未結部位
     if position > 0 and entry_layers:
-        avg = sum(l["price"] * l["coins"] for l in entry_layers) / sum(l["coins"] for l in entry_layers)
-        pnl = (prices[-1] - avg) * position
+        trade_payload = _close_all_layers(
+            entry_layers=entry_layers,
+            current_price=prices[-1],
+            reason="end_of_data",
+            timestamp=timestamps[-1] if timestamps else "",
+            initial_capital=initial_capital,
+        )
         cash += prices[-1] * position
-        result.trades.append({
-            "entry": avg, "exit": prices[-1], "pnl": pnl,
-            "roi": pnl / initial_capital, "layers": len(entry_layers),
-            "reason": "end_of_data", "timestamp": timestamps[-1] if timestamps else "",
-            "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
-            "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
-            "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
-            "entry_quality": entry_layers[0].get("entry_quality"),
-            "allowed_layers": entry_layers[0].get("allowed_layers"),
-        })
+        result.trades.append(trade_payload)
 
     # ── 統計 ──
     result.total_trades = len(result.trades)
@@ -755,6 +1374,8 @@ def run_hybrid_backtest(
     bb_pct_b_4h: Optional[List[float]] = None,
     dist_bb_lower_4h: Optional[List[float]] = None,
     dist_swing_low_4h: Optional[List[float]] = None,
+    local_bottom_score: Optional[List[float]] = None,
+    local_top_score: Optional[List[float]] = None,
 ) -> BacktestResult:
     """混合模式：4H 規則過濾 + ML 信心分數入場。"""
     entry = params.get("entry", {})
@@ -765,11 +1386,18 @@ def run_hybrid_backtest(
     allowed_regimes = _normalize_allowed_regimes(entry.get("allowed_regimes"))
     top_k_percent = float(entry.get("top_k_percent", 0.0) or 0.0)
 
+    horizon_profile = _investment_horizon_profile(params)
+    bias50_max = _adjust_value_by_horizon(float(bias50_max), horizon_profile, short_delta=1.0, long_delta=-1.0)
+    conf_min = _clamp01(_adjust_value_by_horizon(float(conf_min), horizon_profile, short_delta=-0.10, long_delta=0.08))
+    entry_quality_min = _clamp01(_adjust_value_by_horizon(float(entry_quality_min), horizon_profile, short_delta=-0.08, long_delta=0.08))
+
     layers_pct   = params.get("layers", [0.20, 0.30, 0.50])
     capital_cfg  = _capital_management_config(params)
-    stop_loss    = params.get("stop_loss", -0.05)
-    tp_bias      = params.get("take_profit_bias", 4.0)
-    tp_roi       = params.get("take_profit_roi", 0.08)
+    storm_cfg    = _storm_unwind_config(params)
+    turning_cfg  = _turning_point_config(params)
+    stop_loss    = _adjust_value_by_horizon(float(params.get("stop_loss", -0.05)), horizon_profile, short_delta=0.02, long_delta=-0.03)
+    tp_bias      = _adjust_value_by_horizon(float(params.get("take_profit_bias", 4.0)), horizon_profile, short_delta=-1.2, long_delta=1.2)
+    tp_roi       = _adjust_value_by_horizon(float(params.get("take_profit_roi", 0.08)), horizon_profile, short_delta=-0.03, long_delta=0.04)
 
     cash = initial_capital
     position = 0.0
@@ -780,43 +1408,7 @@ def run_hybrid_backtest(
     max_dd = 0.0
     consec_loss = 0
     max_consec_loss = 0
-
-    top_k_cutoff = None
-    if top_k_percent > 0:
-        eligible_confidence = []
-        for i in range(len(prices)):
-            regime = regimes[i] if regimes and i < len(regimes) and regimes[i] else "unknown"
-            if not _regime_allowed(regime, allowed_regimes):
-                continue
-            b200 = bias200[i] if i < len(bias200) else 0
-            bb_pct_b_val = bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None
-            dist_bb_lower_val = dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None
-            dist_swing_low_val = dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None
-            regime_gate = _compute_regime_gate(
-                b200,
-                regime,
-                regime_min,
-                bb_pct_b_val,
-                dist_bb_lower_val,
-                dist_swing_low_val,
-            )
-            if regime_gate == "BLOCK":
-                continue
-            b50 = bias50[i] if i < len(bias50) else 0
-            conf = model_confidence[i] if i < len(model_confidence) else 0.5
-            base_quality = _compute_entry_quality(
-                b50,
-                nose[i] if i < len(nose) else 0.5,
-                pulse[i] if i < len(pulse) else 0.5,
-                ear[i] if i < len(ear) else 0.0,
-                bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None,
-                dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None,
-                dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None,
-            )
-            quality = round(0.6 * _clamp01(conf) + 0.4 * base_quality, 4)
-            if quality >= entry_quality_min and conf >= conf_min:
-                eligible_confidence.append(conf)
-        top_k_cutoff = _top_k_cutoff(eligible_confidence, top_k_percent)
+    top_k_history: List[float] = []
 
     for i in range(len(prices)):
         p = prices[i]
@@ -824,7 +1416,25 @@ def run_hybrid_backtest(
         b200 = bias200[i] if i < len(bias200) else 0
         conf = model_confidence[i] if i < len(model_confidence) else 0.5
         regime = regimes[i] if regimes and i < len(regimes) and regimes[i] else "unknown"
-        regime_gate = _compute_regime_gate(b200, regime, regime_min)
+        bb_pct_b_value = bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None
+        dist_bb_lower_value = dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None
+        dist_swing_low_value = dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None
+        bottom_score_value = local_bottom_score[i] if local_bottom_score and i < len(local_bottom_score) else 0.0
+        top_score_value = local_top_score[i] if local_top_score and i < len(local_top_score) else 0.0
+        regime_gate = _compute_regime_gate(
+            b200,
+            regime,
+            regime_min,
+            bb_pct_b_value,
+            dist_bb_lower_value,
+            dist_swing_low_value,
+        )
+        structure_quality = _compute_4h_structure_quality(
+            bb_pct_b_value=bb_pct_b_value,
+            dist_bb_lower_value=dist_bb_lower_value,
+            dist_swing_low_value=dist_swing_low_value,
+        )
+        structure_bucket = _structure_bucket(regime_gate, structure_quality)
         entry_quality = round(
             0.6 * _clamp01(conf)
             + 0.4
@@ -833,66 +1443,79 @@ def run_hybrid_backtest(
                 nose[i] if i < len(nose) else 0.5,
                 pulse[i] if i < len(pulse) else 0.5,
                 ear[i] if i < len(ear) else 0.0,
-                bb_pct_b_4h[i] if bb_pct_b_4h and i < len(bb_pct_b_4h) else None,
-                dist_bb_lower_4h[i] if dist_bb_lower_4h and i < len(dist_bb_lower_4h) else None,
-                dist_swing_low_4h[i] if dist_swing_low_4h and i < len(dist_swing_low_4h) else None,
+                bb_pct_b_value,
+                dist_bb_lower_value,
+                dist_swing_low_value,
+                regime_label=regime,
+                regime_gate=regime_gate,
+                structure_bucket=structure_bucket,
             ),
             4,
         )
         allowed_layers = _allowed_layers_for_signal(regime_gate, entry_quality, len(layers_pct))
 
         if position > 0 and entry_layers:
-            avg = sum(l["price"] * l["coins"] for l in entry_layers) / sum(l["coins"] for l in entry_layers)
+            avg = _entry_layers_avg_price(entry_layers)
             equity = cash + position * p
 
             # 止損
             pnl_pct = (p - avg) / avg
             if pnl_pct <= stop_loss:
-                pnl = (p - avg) * position
+                trade_payload = _close_all_layers(
+                    entry_layers=entry_layers,
+                    current_price=p,
+                    reason="stop_loss",
+                    timestamp=timestamps[i] if i < len(timestamps) else "",
+                    initial_capital=initial_capital,
+                )
                 cash += p * position
-                result.trades.append({
-                    "entry": avg, "exit": p, "pnl": pnl,
-                    "roi": pnl / initial_capital, "layers": len(entry_layers),
-                    "reason": "stop_loss", "timestamp": timestamps[i] if i < len(timestamps) else "",
-                    "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
-                    "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
-                    "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
-                    "entry_quality": entry_layers[0].get("entry_quality"),
-                    "allowed_layers": entry_layers[0].get("allowed_layers"),
-                    "capital_mode": entry_layers[0].get("capital_mode"),
-                })
+                result.trades.append(trade_payload)
                 position = 0; entry_layers = []
                 consec_loss += 1
                 max_consec_loss = max(max_consec_loss, consec_loss)
                 continue
 
             # 止盈
-            if b50 > tp_bias or pnl_pct > tp_roi:
-                pnl = (p - avg) * position
+            turning_take_profit = turning_cfg.get("enabled") and float(top_score_value) >= float(turning_cfg.get("top_score_take_profit") or 1.0)
+            if b50 > tp_bias or pnl_pct > tp_roi or turning_take_profit:
+                storm_event = _apply_storm_unwind_take_profit(
+                    entry_layers=entry_layers,
+                    current_price=p,
+                    timestamp=timestamps[i] if i < len(timestamps) else "",
+                    initial_capital=initial_capital,
+                    capital_mode=capital_cfg.get("mode"),
+                    storm_cfg=storm_cfg,
+                )
+                if storm_event is not None:
+                    cash += p * float(storm_event.get("sold_coins") or 0.0)
+                    position = max(0.0, position - float(storm_event.get("sold_coins") or 0.0)); entry_layers = storm_event.get("remaining_layers") or []
+                    result.trades.append(storm_event["trade"])
+                    if float(storm_event["trade"].get("pnl") or 0.0) > 0: consec_loss = 0
+                    continue
+                trade_payload = _close_all_layers(
+                    entry_layers=entry_layers,
+                    current_price=p,
+                    reason="tp_turning_point" if turning_take_profit else ("tp_bias" if b50 > tp_bias else "tp_roi"),
+                    timestamp=timestamps[i] if i < len(timestamps) else "",
+                    initial_capital=initial_capital,
+                )
                 cash += p * position
-                reason = "tp_bias" if b50 > tp_bias else "tp_roi"
-                result.trades.append({
-                    "entry": avg, "exit": p, "pnl": pnl,
-                    "roi": pnl / initial_capital, "layers": len(entry_layers),
-                    "reason": reason, "timestamp": timestamps[i] if i < len(timestamps) else "",
-                    "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
-                    "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
-                    "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
-                    "entry_quality": entry_layers[0].get("entry_quality"),
-                    "allowed_layers": entry_layers[0].get("allowed_layers"),
-                    "capital_mode": entry_layers[0].get("capital_mode"),
-                })
+                result.trades.append(trade_payload)
                 position = 0; entry_layers = []
-                if pnl > 0: consec_loss = 0
+                if float(trade_payload.get("pnl") or 0.0) > 0: consec_loss = 0
                 continue
 
+        top_k_pass = _passes_rolling_top_k_gate(conf, top_k_history, top_k_percent)
+
         # 進場: 4H 過濾 + ML 信心 > 閾值 + quality-based layers
+        turning_gate_ok = (not turning_cfg.get("enabled")) or float(bottom_score_value) >= float(turning_cfg.get("bottom_score_min") or 0.0)
         can_enter = (
             regime_gate != "BLOCK"
             and allowed_layers > 0
             and _regime_allowed(regime, allowed_regimes)
             and entry_quality >= entry_quality_min
-            and (top_k_cutoff is None or conf >= top_k_cutoff)
+            and top_k_pass
+            and turning_gate_ok
             and b50 <= bias50_max
             and conf >= conf_min
             and b200 >= regime_min
@@ -945,6 +1568,15 @@ def run_hybrid_backtest(
                         "capital_mode": capital_cfg.get("mode"),
                     })
 
+        if (
+            top_k_percent > 0
+            and regime_gate != "BLOCK"
+            and _regime_allowed(regime, allowed_regimes)
+            and entry_quality >= entry_quality_min
+            and conf >= conf_min
+        ):
+            top_k_history.append(conf)
+
         if equity > peak_equity: peak_equity = equity
         dd = (peak_equity - equity) / peak_equity if peak_equity > 0 else 0
         if dd > max_dd: max_dd = dd
@@ -957,19 +1589,15 @@ def run_hybrid_backtest(
         })
 
     if position > 0 and entry_layers:
-        avg = sum(l["price"] * l["coins"] for l in entry_layers) / sum(l["coins"] for l in entry_layers)
-        pnl = (prices[-1] - avg) * position
+        trade_payload = _close_all_layers(
+            entry_layers=entry_layers,
+            current_price=prices[-1],
+            reason="end_of_data",
+            timestamp=timestamps[-1] if timestamps else "",
+            initial_capital=initial_capital,
+        )
         cash += prices[-1] * position
-        result.trades.append({
-            "entry": avg, "exit": prices[-1], "pnl": pnl,
-            "roi": pnl / initial_capital, "layers": len(entry_layers),
-            "reason": "end_of_data", "timestamp": timestamps[-1] if timestamps else "",
-            "entry_timestamp": entry_layers[0].get("timestamp", "") if entry_layers else "",
-            "entry_regime": entry_layers[0].get("regime", "unknown") if entry_layers else "unknown",
-            "regime_gate": entry_layers[0].get("regime_gate", "ALLOW") if entry_layers else "ALLOW",
-            "entry_quality": entry_layers[0].get("entry_quality"),
-            "allowed_layers": entry_layers[0].get("allowed_layers"),
-        })
+        result.trades.append(trade_payload)
 
     result.total_trades = len(result.trades)
     if result.total_trades > 0:

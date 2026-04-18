@@ -87,6 +87,25 @@ def _simulate_pyramid_outcome(
     return finalize(int(pnl_pct > 0), pnl_pct)
 
 
+def _compute_turning_point_labels(current_price: float, horizon_prices: list[float], threshold_pct: float) -> tuple[int, int, float]:
+    prices = [float(p) for p in horizon_prices if p is not None]
+    if not prices or current_price <= 0:
+        return 0, 0, 0.0
+    future_min = min(prices)
+    future_max = max(prices)
+    future_range = max(future_max - future_min, 1e-9)
+    near_future_min = max(0.0, 1.0 - abs(current_price - future_min) / future_range)
+    near_future_max = max(0.0, 1.0 - abs(current_price - future_max) / future_range)
+    runup_pct = (future_max - current_price) / current_price
+    drawdown_pct = (future_min - current_price) / current_price
+    bottom_score = max(0.0, min(1.0, 0.6 * near_future_min + 0.4 * max(0.0, runup_pct / max(threshold_pct, 1e-9))))
+    top_score = max(0.0, min(1.0, 0.6 * near_future_max + 0.4 * max(0.0, abs(drawdown_pct) / max(threshold_pct, 1e-9))))
+    label_local_bottom = int(near_future_min >= 0.65 and runup_pct >= threshold_pct)
+    label_local_top = int(near_future_max >= 0.65 and drawdown_pct <= -threshold_pct)
+    turning_point_score = float(max(bottom_score, top_score))
+    return label_local_bottom, label_local_top, turning_point_score
+
+
 def generate_future_return_labels(
     session: Session,
     symbol: str = "BTCUSDT",
@@ -196,6 +215,7 @@ def generate_future_return_labels(
         dd_component = abs(min(max_drawdown or 0.0, 0.0)) / max(neutral_band, 1e-9)
         quality_score = runup_component - 0.7 * dd_component + 0.3 * ret_pct / max(threshold_pct, 1e-9)
 
+        horizon_price_list = horizon_prices["close_price"].tolist() if not horizon_prices.empty else []
         (
             simulated_win,
             simulated_pnl,
@@ -203,10 +223,15 @@ def generate_future_return_labels(
             simulated_drawdown_penalty,
             simulated_time_underwater,
         ) = _simulate_pyramid_outcome(
-            horizon_prices["close_price"].tolist() if not horizon_prices.empty else [],
+            horizon_price_list,
             current_price,
             take_profit_pct=threshold_pct,
             stop_loss_pct=neutral_band,
+        )
+        label_local_bottom, label_local_top, turning_point_score = _compute_turning_point_labels(
+            current_price,
+            horizon_price_list,
+            threshold_pct,
         )
 
         tri_label = long_win
@@ -223,6 +248,9 @@ def generate_future_return_labels(
             "simulated_pyramid_quality": simulated_quality,
             "simulated_pyramid_drawdown_penalty": simulated_drawdown_penalty,
             "simulated_pyramid_time_underwater": simulated_time_underwater,
+            "label_local_bottom": label_local_bottom,
+            "label_local_top": label_local_top,
+            "turning_point_score": turning_point_score,
             "label_sell_win": label_sell_win,
             "label_up": label_up,
             "future_return_pct": ret_pct,
@@ -282,6 +310,9 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
         simulated_quality = float(row.get("simulated_pyramid_quality") or 0.0)
         simulated_drawdown_penalty = float(row.get("simulated_pyramid_drawdown_penalty") or 0.0)
         simulated_time_underwater = float(row.get("simulated_pyramid_time_underwater") or 0.0)
+        label_local_bottom = int(row.get("label_local_bottom", 0) or 0)
+        label_local_top = int(row.get("label_local_top", 0) or 0)
+        turning_point_score = float(row.get("turning_point_score") or 0.0)
         label_sell_win = int(row.get("label_sell_win", 1 - spot_long_win))
         label_up = int(row.get("label_up", spot_long_win))
         future_max_drawdown = float(row.get("future_max_drawdown") or 0)
@@ -303,6 +334,9 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
                     "simulated_pyramid_quality",
                     "simulated_pyramid_drawdown_penalty",
                     "simulated_pyramid_time_underwater",
+                    "label_local_bottom",
+                    "label_local_top",
+                    "turning_point_score",
                     "label_up",
                 )
             )
@@ -316,6 +350,9 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
                 existing.simulated_pyramid_quality = simulated_quality
                 existing.simulated_pyramid_drawdown_penalty = simulated_drawdown_penalty
                 existing.simulated_pyramid_time_underwater = simulated_time_underwater
+                existing.label_local_bottom = label_local_bottom
+                existing.label_local_top = label_local_top
+                existing.turning_point_score = turning_point_score
                 existing.label_sell_win = label_sell_win
                 existing.label_up = label_up
                 existing.future_return_pct = float(fut_ret) if fut_ret is not None else existing.future_return_pct
@@ -333,6 +370,9 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
                 existing.simulated_pyramid_quality = simulated_quality
                 existing.simulated_pyramid_drawdown_penalty = simulated_drawdown_penalty
                 existing.simulated_pyramid_time_underwater = simulated_time_underwater
+                existing.label_local_bottom = label_local_bottom
+                existing.label_local_top = label_local_top
+                existing.turning_point_score = turning_point_score
                 existing.label_sell_win = label_sell_win
                 existing.label_up = label_up
                 existing.future_max_drawdown = future_max_drawdown
@@ -350,6 +390,9 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
                 existing.simulated_pyramid_quality = simulated_quality
                 existing.simulated_pyramid_drawdown_penalty = simulated_drawdown_penalty
                 existing.simulated_pyramid_time_underwater = simulated_time_underwater
+                existing.label_local_bottom = label_local_bottom
+                existing.label_local_top = label_local_top
+                existing.turning_point_score = turning_point_score
                 if existing.label_sell_win is None:
                     existing.label_sell_win = label_sell_win
                 existing.label_up = label_up
@@ -383,6 +426,9 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
             simulated_pyramid_quality=float(row.get("simulated_pyramid_quality") or 0.0),
             simulated_pyramid_drawdown_penalty=float(row.get("simulated_pyramid_drawdown_penalty") or 0.0),
             simulated_pyramid_time_underwater=float(row.get("simulated_pyramid_time_underwater") or 0.0),
+            label_local_bottom=int(row.get("label_local_bottom", 0) or 0),
+            label_local_top=int(row.get("label_local_top", 0) or 0),
+            turning_point_score=float(row.get("turning_point_score") or 0.0),
             label_sell_win=int(row.get("label_sell_win", 1 - spot_long_win)),
             label_up=int(row.get("label_up", spot_long_win)),
             regime_label=regime_val,  # P0 fix: 自動填入 regime

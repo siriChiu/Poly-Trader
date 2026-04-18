@@ -96,7 +96,7 @@ def _feature_row(r: Any) -> dict[str, Any]:
     return train_module._feature_row(r)
 
 
-def _load_training_frame() -> tuple[pd.DataFrame, pd.Series, pd.Series]:
+def _load_training_frame() -> tuple[pd.DataFrame, pd.Series, pd.Series, dict[str, Any]]:
     session = init_db(DB_URL)
     try:
         feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
@@ -163,10 +163,23 @@ def _load_training_frame() -> tuple[pd.DataFrame, pd.Series, pd.Series]:
     merged = merged.dropna(subset=[TARGET_COL]).copy()
     merged = merged.iloc[-RECENT_ROWS:].reset_index(drop=True)
 
+    latest_label_timestamp = None
+    if not label_df.empty:
+        latest_label_ts = label_df["timestamp"].max()
+        if pd.notna(latest_label_ts):
+            latest_label_timestamp = latest_label_ts.isoformat()
+
+    source_meta = {
+        "label_rows": int(len(label_df)),
+        "latest_label_timestamp": latest_label_timestamp,
+        "horizon_minutes": HORIZON_MINUTES,
+        "target_col": TARGET_COL,
+    }
+
     X = merged[feature_columns].apply(pd.to_numeric, errors="coerce").fillna(0.0)
     y = merged[TARGET_COL].astype(int)
     regimes = merged["regime_label"].fillna("neutral").astype(str)
-    return X, y, regimes
+    return X, y, regimes, source_meta
 
 
 def _safe_win_rate(y_true: pd.Series, proba: np.ndarray, top_k: float = TOP_K) -> tuple[float | None, int]:
@@ -331,9 +344,8 @@ def _write_markdown(payload: dict[str, Any]) -> None:
 
 
 def main() -> None:
-    X, y, regimes = _load_training_frame()
+    X, y, regimes, source_meta = _load_training_frame()
     subsets = _build_subsets(list(X.columns))
-
     profile_results = {
         name: _evaluate_subset(X, y, regimes, columns)
         for name, columns in subsets.items()
@@ -347,6 +359,7 @@ def main() -> None:
     )
     payload = {
         "generated_at": generated_at,
+        "source_meta": source_meta,
         "target_col": TARGET_COL,
         "recent_rows": RECENT_ROWS,
         "positive_ratio": round(float(y.mean()), 4),

@@ -117,6 +117,14 @@ class FeaturesNormalized(Base):
     feat_4h_ma_order = Column(Float, nullable=True)     # 4H MA alignment (+1=多頭/-1=空頭)
     feat_4h_dist_swing_low = Column(Float, nullable=True)  # 4H 距最近 swing low 距離 (%)
     feat_4h_vol_ratio = Column(Float, nullable=True)    # 4H 相對量能 (volume / vol_ma20)
+    # --- Turning-point / reversal family ---
+    feat_local_bottom_score = Column(Float, nullable=True)
+    feat_local_top_score = Column(Float, nullable=True)
+    feat_turning_point_score = Column(Float, nullable=True)
+    feat_wick_rejection = Column(Float, nullable=True)
+    feat_volume_exhaustion = Column(Float, nullable=True)
+    feat_tunnel_distance = Column(Float, nullable=True)
+    feat_dist_swing_high = Column(Float, nullable=True)
 
     # --- Backward-compatible aliases for legacy callers/tests ---
     @property
@@ -175,6 +183,29 @@ class TradeHistory(Base):
     reason = Column(String, nullable=True)
     regime_label = Column(String, nullable=True)
     sell_win = Column(Integer, nullable=True)
+    symbol = Column(String, nullable=True)
+    exchange = Column(String, nullable=True)
+    order_id = Column(String, nullable=True)
+    client_order_id = Column(String, nullable=True)
+    order_status = Column(String, nullable=True)
+    is_dry_run = Column(Integer, nullable=True)
+
+
+class OrderLifecycleEvent(Base):
+    __tablename__ = "order_lifecycle_events"
+
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    exchange = Column(String, nullable=True)
+    symbol = Column(String, nullable=True)
+    order_id = Column(String, nullable=True)
+    client_order_id = Column(String, nullable=True)
+    event_type = Column(String, nullable=False)
+    order_state = Column(String, nullable=True)
+    source = Column(String, nullable=True)
+    summary = Column(String, nullable=True)
+    payload_json = Column(Text, nullable=True)
+    is_dry_run = Column(Integer, nullable=True)
 
 
 class Labels(Base):
@@ -196,6 +227,9 @@ class Labels(Base):
     simulated_pyramid_quality = Column(Float, nullable=True)
     simulated_pyramid_drawdown_penalty = Column(Float, nullable=True)
     simulated_pyramid_time_underwater = Column(Float, nullable=True)
+    label_local_bottom = Column(Integer, nullable=True)
+    label_local_top = Column(Integer, nullable=True)
+    turning_point_score = Column(Float, nullable=True)
     # Legacy compatibility fields — kept for older scripts and reports.
     label_sell_win = Column(Integer)
     label_up = Column(Integer)
@@ -256,6 +290,13 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
         ("feat_4h_ma_order", "REAL"),
         ("feat_4h_dist_swing_low", "REAL"),
         ("feat_4h_vol_ratio", "REAL"),
+        ("feat_local_bottom_score", "REAL"),
+        ("feat_local_top_score", "REAL"),
+        ("feat_turning_point_score", "REAL"),
+        ("feat_wick_rejection", "REAL"),
+        ("feat_volume_exhaustion", "REAL"),
+        ("feat_tunnel_distance", "REAL"),
+        ("feat_dist_swing_high", "REAL"),
     ),
     "trade_history": (
         ("gross_pnl", "REAL"),
@@ -263,6 +304,24 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
         ("reason", "TEXT"),
         ("regime_label", "TEXT"),
         ("sell_win", "INTEGER"),
+        ("symbol", "TEXT"),
+        ("exchange", "TEXT"),
+        ("order_id", "TEXT"),
+        ("client_order_id", "TEXT"),
+        ("order_status", "TEXT"),
+        ("is_dry_run", "INTEGER"),
+    ),
+    "order_lifecycle_events": (
+        ("exchange", "TEXT"),
+        ("symbol", "TEXT"),
+        ("order_id", "TEXT"),
+        ("client_order_id", "TEXT"),
+        ("event_type", "TEXT"),
+        ("order_state", "TEXT"),
+        ("source", "TEXT"),
+        ("summary", "TEXT"),
+        ("payload_json", "TEXT"),
+        ("is_dry_run", "INTEGER"),
     ),
     "labels": (
         ("horizon_minutes", "INTEGER"),
@@ -276,6 +335,9 @@ _SQLITE_MIGRATIONS: Dict[str, Tuple[Tuple[str, str], ...]] = {
         ("simulated_pyramid_quality", "REAL"),
         ("simulated_pyramid_drawdown_penalty", "REAL"),
         ("simulated_pyramid_time_underwater", "REAL"),
+        ("label_local_bottom", "INTEGER"),
+        ("label_local_top", "INTEGER"),
+        ("turning_point_score", "REAL"),
         ("label_sell_win", "INTEGER"),
         ("label_up", "INTEGER"),
         ("regime_label", "TEXT"),

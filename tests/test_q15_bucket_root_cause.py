@@ -188,6 +188,71 @@ def test_build_report_prefers_probe_bucket_over_stale_bull_pocket_bucket(monkeyp
     assert report["exact_live_lane"]["bucket_counts"]["CAUTION|structure_quality_caution|q35"] == 2
 
 
+def test_build_report_accepts_feature_group_source_meta(monkeypatch):
+    exact_lane_frame = q15_bucket_root_cause.pd.DataFrame(
+        {
+            "regime_label": ["bull", "bull"],
+            "regime_gate": ["CAUTION", "CAUTION"],
+            "entry_quality_label": ["D", "D"],
+            "structure_bucket": [
+                "CAUTION|structure_quality_caution|q35",
+                "CAUTION|structure_quality_caution|q35",
+            ],
+            "structure_quality": [0.42, 0.48],
+            "feat_4h_bb_pct_b": [0.72, 0.84],
+            "feat_4h_dist_bb_lower": [3.2, 3.9],
+            "feat_4h_dist_swing_low": [4.3, 4.8],
+        }
+    )
+    monkeypatch.setattr(
+        q15_bucket_root_cause.feature_group_module,
+        "_load_training_frame",
+        lambda: (
+            exact_lane_frame[[
+                "feat_4h_bb_pct_b",
+                "feat_4h_dist_bb_lower",
+                "feat_4h_dist_swing_low",
+            ]].copy(),
+            q15_bucket_root_cause.pd.Series([1, 1]),
+            exact_lane_frame["regime_label"].copy(),
+            {"target_col": "simulated_pyramid_win"},
+        ),
+    )
+    monkeypatch.setattr(
+        q15_bucket_root_cause.bull_pocket_module,
+        "_derive_live_bucket_columns",
+        lambda frame: exact_lane_frame.copy(),
+    )
+
+    probe = {
+        "feature_timestamp": "2026-04-17 11:34:13",
+        "target_col": "simulated_pyramid_win",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality_label": "D",
+        "non_null_4h_feature_count": 7,
+        "execution_guardrail_reason": "unsupported_exact_live_structure_bucket_blocks_trade",
+        "entry_quality_components": {
+            "structure_quality": 0.2813,
+            "structure_components": [
+                {"feature": "feat_4h_bb_pct_b", "raw_value": 0.2882, "normalized_score": 0.2882, "weighted_contribution": 0.0980},
+                {"feature": "feat_4h_dist_bb_lower", "raw_value": 0.9181, "normalized_score": 0.1148, "weighted_contribution": 0.0379},
+                {"feature": "feat_4h_dist_swing_low", "raw_value": 4.4066, "normalized_score": 0.4407, "weighted_contribution": 0.1454},
+            ],
+        },
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            }
+        },
+    }
+
+    report = q15_bucket_root_cause.build_report(probe, {}, {"live_context": {"current_live_structure_bucket": "CAUTION|structure_quality_caution|q35"}})
+
+    assert report["current_live"]["structure_bucket"] == "CAUTION|structure_quality_caution|q15"
+    assert report["exact_live_lane"]["rows"] == 2
+
+
 def test_build_report_marks_runtime_blocker_preempt_when_circuit_breaker_active(monkeypatch):
     empty_frame = q15_bucket_root_cause.pd.DataFrame(
         {

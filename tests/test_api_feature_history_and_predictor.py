@@ -366,6 +366,169 @@ def test_infer_deployment_blocker_flags_under_minimum_exact_live_structure_bucke
     assert "under_minimum_exact_live_structure_bucket" in guarded["execution_guardrail_reason"]
 
 
+def test_infer_deployment_blocker_flags_exact_supported_q15_live_trade_floor_blocker(tmp_path, monkeypatch):
+    q15_path = tmp_path / "q15_support_audit.json"
+    q15_path.write_text(
+        json.dumps(
+            {
+                "support_route": {
+                    "verdict": "exact_bucket_supported",
+                    "deployable": True,
+                    "support_progress": {
+                        "status": "exact_supported",
+                        "current_rows": 96,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 0,
+                    },
+                },
+                "floor_cross_legality": {
+                    "verdict": "legal_component_experiment_after_support_ready",
+                    "legal_to_relax_runtime_gate": True,
+                    "remaining_gap_to_floor": 0.1319,
+                    "best_single_component": "feat_4h_bias50",
+                    "best_single_component_required_score_delta": 0.4397,
+                },
+                "component_experiment": {
+                    "verdict": "exact_supported_component_experiment_ready",
+                    "feature": "feat_4h_bias50",
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(predictor_module, "Q15_SUPPORT_AUDIT_PATH", q15_path)
+
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "entry_quality": 0.4181,
+            "entry_quality_label": "D",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "entry_quality_below_trade_floor",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "q15_exact_supported_component_patch_applied": False,
+        },
+        {
+            "decision_quality_structure_bucket_support_rows": 96,
+            "decision_quality_exact_live_structure_bucket_support_rows": 96,
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_supported",
+            "decision_quality_label": "D",
+            "decision_quality_score": 0.3428,
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                    "current_live_structure_bucket_rows": 96,
+                },
+            },
+        },
+    )
+    guarded = predictor_module._apply_deployment_blocker_to_execution_profile(
+        {
+            "allowed_layers": 0,
+            "allowed_layers_raw": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+        },
+        blocker,
+    )
+
+    assert blocker is not None
+    assert blocker["type"] == "decision_quality_below_trade_floor"
+    assert blocker["source"] == "decision_quality_contract+q15_support_audit"
+    assert blocker["support_route_verdict"] == "exact_bucket_supported"
+    assert blocker["current_live_structure_bucket_rows"] == 96
+    assert blocker["trade_floor"] == 0.55
+    assert blocker["component_experiment"]["verdict"] == "exact_supported_component_experiment_ready"
+    assert guarded["deployment_blocker"] == "decision_quality_below_trade_floor"
+    assert guarded["allowed_layers_reason"] == "decision_quality_below_trade_floor"
+    assert guarded["execution_guardrail_reason"] == "decision_quality_below_trade_floor"
+
+
+def test_infer_deployment_blocker_flags_exact_supported_q15_patch_active_execution_blocker(tmp_path, monkeypatch):
+    q15_path = tmp_path / "q15_support_audit.json"
+    q15_path.write_text(
+        json.dumps(
+            {
+                "support_route": {
+                    "verdict": "exact_bucket_supported",
+                    "deployable": True,
+                    "support_progress": {
+                        "status": "exact_supported",
+                        "current_rows": 96,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 0,
+                    },
+                },
+                "floor_cross_legality": {
+                    "verdict": "legal_component_experiment_after_support_ready",
+                    "legal_to_relax_runtime_gate": True,
+                    "remaining_gap_to_floor": 0.2115,
+                    "best_single_component": "feat_4h_bias50",
+                    "best_single_component_required_score_delta": 0.705,
+                },
+                "component_experiment": {
+                    "verdict": "exact_supported_component_experiment_ready",
+                    "feature": "feat_4h_bias50",
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(predictor_module, "Q15_SUPPORT_AUDIT_PATH", q15_path)
+
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "entry_quality": 0.55,
+            "entry_quality_label": "C",
+            "allowed_layers": 1,
+            "allowed_layers_reason": "entry_quality_C_single_layer",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "q15_exact_supported_component_patch_applied": True,
+        },
+        {
+            "decision_quality_structure_bucket_support_rows": 96,
+            "decision_quality_exact_live_structure_bucket_support_rows": 96,
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_supported",
+            "decision_quality_label": "D",
+            "decision_quality_score": 0.3478,
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                    "current_live_structure_bucket_rows": 96,
+                },
+            },
+        },
+    )
+    guarded = predictor_module._apply_deployment_blocker_to_execution_profile(
+        {
+            "allowed_layers": 0,
+            "allowed_layers_raw": 1,
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+        },
+        blocker,
+    )
+
+    assert blocker is not None
+    assert blocker["type"] == "decision_quality_below_trade_floor"
+    assert blocker["q15_exact_supported_component_patch_applied"] is True
+    assert blocker["allowed_layers_raw"] == 1
+    assert blocker["support_route_verdict"] == "exact_bucket_supported"
+    assert "q15 patch 已啟用並把 raw entry 拉到 entry_quality=0.5500" in blocker["reason"]
+    assert guarded["deployment_blocker"] == "decision_quality_below_trade_floor"
+    assert guarded["allowed_layers_reason"] == "decision_quality_below_trade_floor"
+    assert guarded["execution_guardrail_reason"] == "decision_quality_below_trade_floor"
+
+
 def test_infer_deployment_blocker_flags_generic_unsupported_exact_bucket_for_allow_q65():
     blocker = predictor_module._infer_deployment_blocker(
         {
@@ -435,6 +598,36 @@ def test_infer_deployment_blocker_uses_exact_scope_no_rows_even_without_structur
     assert blocker["support_mode"] == "exact_bucket_unsupported_block"
 
 
+def test_infer_deployment_blocker_respects_q35_runtime_redesign_exact_support_override():
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "q35_discriminative_redesign_applied": True,
+        },
+        {
+            "decision_quality_calibration_scope": "regime_label",
+            "decision_quality_structure_bucket_support_rows": 187,
+            "decision_quality_exact_live_structure_bucket_support_rows": 187,
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_supported_via_q35_runtime_redesign",
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 0,
+                    "alerts": ["no_rows"],
+                },
+                "regime_gate": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 187,
+                },
+            },
+        },
+    )
+
+    assert blocker is None
+
+
 def test_infer_deployment_blocker_uses_scope_diagnostics_fallback_for_exact_rows():
     blocker = predictor_module._infer_deployment_blocker(
         {
@@ -463,6 +656,38 @@ def test_infer_deployment_blocker_uses_scope_diagnostics_fallback_for_exact_rows
     assert blocker["current_live_structure_bucket_rows"] == 4
     assert blocker["exact_live_structure_bucket_rows"] == 4
     assert blocker["support_mode"] == "exact_bucket_present_but_below_minimum"
+
+
+def test_infer_deployment_blocker_keeps_exact_bucket_under_minimum_until_50_rows():
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+        },
+        {
+            "decision_quality_calibration_scope": "regime_label",
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 9,
+                },
+                "regime_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 139,
+                },
+            },
+        },
+    )
+
+    assert blocker is not None
+    assert blocker["type"] == "under_minimum_exact_live_structure_bucket"
+    assert blocker["current_live_structure_bucket_rows"] == 9
+    assert blocker["exact_live_structure_bucket_rows"] == 9
+    assert blocker["minimum_support_rows"] == 50
+    assert blocker["current_live_structure_bucket_gap_to_minimum"] == 41
+    assert blocker["support_progress"]["status"] == "accumulating"
+    assert blocker["support_progress"]["gap_to_minimum"] == 41
 
 
 def test_infer_deployment_blocker_surfaces_exact_live_lane_toxic_current_bucket():
@@ -2794,6 +3019,7 @@ def test_predict_confidence_route_unpacks_load_predictor_tuple(monkeypatch):
     monkeypatch.setattr(config_module, "load_config", lambda: {"database": {"url": "sqlite:///fake.db"}})
     monkeypatch.setattr(models_module, "init_db", lambda _url: _FakeDb())
     monkeypatch.setattr(predictor_module, "load_predictor", lambda: ("global-predictor", {"bull": object()}))
+    monkeypatch.setattr(api_module, "_get_loaded_predictor_cached", lambda: ("global-predictor", {"bull": object()}))
 
     def _fake_predict(session, predictor, regime_models):
         assert predictor == "global-predictor"
@@ -2853,6 +3079,7 @@ def test_get_confidence_prediction_enriches_q15_support_blocker_from_audit(monke
     monkeypatch.setattr(config_module, "load_config", lambda: {"database": {"url": "sqlite:///fake.db"}})
     monkeypatch.setattr(models_module, "init_db", lambda _url: _FakeDb())
     monkeypatch.setattr(predictor_module, "load_predictor", lambda: ("global-predictor", {"bull": object()}))
+    monkeypatch.setattr(api_module, "_get_loaded_predictor_cached", lambda: ("global-predictor", {"bull": object()}))
     monkeypatch.setattr(
         predictor_module,
         "predict",

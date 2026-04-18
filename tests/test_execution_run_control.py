@@ -1,7 +1,13 @@
 import asyncio
+from types import SimpleNamespace
 
+from backtesting import strategy_lab
 from database.models import init_db
 from server.routes import api as api_module
+
+
+def _local_request():
+    return SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"))
 
 
 def _status_payload():
@@ -60,8 +66,15 @@ def _status_payload():
             "requested_symbol": "BTCUSDT",
             "normalized_symbol": "BTC/USDT",
             "balance": {"total": 1000.0, "free": 820.0, "currency": "USDT"},
-            "positions": [{"symbol": "BTC/USDT", "size": 0.1}],
-            "open_orders": [{"symbol": "BTCUSDT", "qty": 0.01}],
+            "positions": [{
+                "symbol": "BTC/USDT",
+                "side": "long",
+                "size": 0.1,
+                "entryPrice": 67250.0,
+                "markPrice": 68000.0,
+                "unrealizedPnl": 125.0,
+            }],
+            "open_orders": [{"symbol": "BTCUSDT", "side": "buy", "qty": 0.01, "price": 69000.0}],
         },
         "execution_reconciliation": {
             "status": "attention",
@@ -83,16 +96,42 @@ def _status_payload():
 
 
 
+def _seed_execution_strategy_catalog(tmp_path, monkeypatch):
+    strategies_dir = tmp_path / "strategies"
+    strategies_dir.mkdir()
+    monkeypatch.setattr(strategy_lab, "STRATEGIES_DIR", strategies_dir)
+    strategy_lab.save_strategy(
+        "Trend QA Strategy",
+        {
+            "type": "hybrid",
+            "params": {
+                "model_name": "random_forest",
+                "entry": {
+                    "bias50_max": 0.1,
+                },
+            },
+        },
+        {
+            "roi": 0.083,
+            "profit_factor": 1.21,
+            "avg_decision_quality_score": 0.61,
+            "avg_expected_win_rate": 0.57,
+            "total_trades": 14,
+        },
+    )
+
+
 def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_path):
     async def _fake_status():
         return _status_payload()
 
+    _seed_execution_strategy_catalog(tmp_path, monkeypatch)
     session = init_db(f"sqlite:///{tmp_path / 'execution_runs.db'}")
     monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"max_position_ratio": 0.10}})
     monkeypatch.setattr(api_module, "get_db", lambda: session)
     monkeypatch.setattr(api_module, "api_status", _fake_status)
 
-    start_payload = asyncio.run(api_module.api_execution_start_run("trend"))
+    start_payload = asyncio.run(api_module.api_execution_start_run("trend", request=_local_request()))
     run_id = start_payload["run"]["run_id"]
     assert start_payload["action"] == "start"
     assert start_payload["action_result"] == "started"
@@ -100,6 +139,14 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert start_payload["run"]["runtime_binding_status"] == "control_plane_only"
     assert start_payload["run"]["runtime_binding_contract"]["status"] == "symbol_scope_runtime_mirror"
     assert start_payload["run"]["runtime_binding_contract"]["operator_action"] == "確認 shared symbol 倉位與 run ownership 邊界。"
+    assert start_payload["run"]["runtime_binding_contract"]["ownership_boundary"]["pnl_attribution"] == "symbol_scoped_preview_only"
+    assert start_payload["run"]["runtime_binding_snapshot"]["shared_symbol_ledger_preview"]["budget_alignment_status"] == "warning_over_planned_preview"
+    assert start_payload["run"]["runtime_binding_snapshot"]["shared_symbol_ledger_preview"]["gross_position_notional"] == 6800.0
+    assert start_payload["run"]["runtime_binding_snapshot"]["shared_symbol_ledger_preview"]["open_order_notional"] == 690.0
+    assert start_payload["run"]["runtime_binding_snapshot"]["shared_symbol_ledger_preview"]["unrealized_pnl"] == 125.0
+    assert start_payload["run"]["strategy_binding"]["strategy_name"] == "Trend QA Strategy"
+    assert start_payload["run"]["strategy_binding"]["strategy_source"] == "strategy_lab_saved"
+    assert start_payload["run"]["strategy_binding"]["strategy_hash"]
     assert start_payload["run"]["runtime_binding_snapshot"]["reconciliation"]["status"] == "attention"
     assert start_payload["run"]["runtime_binding_snapshot"]["guardrails"]["last_order"]["order_id"] == "ord-123"
     assert start_payload["snapshot"]["summary"]["running_runs"] == 1
@@ -110,17 +157,17 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert trend_card["control_contract"]["start_status"] == "already_running"
     assert trend_card["current_run"]["runtime_binding_contract"]["status"] == "symbol_scope_runtime_mirror"
 
-    pause_payload = asyncio.run(api_module.api_execution_pause_run(run_id))
+    pause_payload = asyncio.run(api_module.api_execution_pause_run(run_id, request=_local_request()))
     assert pause_payload["action"] == "pause"
     assert pause_payload["action_result"] == "paused"
     assert pause_payload["run"]["state"] == "paused"
     assert pause_payload["run"]["action_contract"]["can_resume"] is True
 
-    resume_payload = asyncio.run(api_module.api_execution_start_run("trend"))
+    resume_payload = asyncio.run(api_module.api_execution_start_run("trend", request=_local_request()))
     assert resume_payload["action_result"] == "resumed"
     assert resume_payload["run"]["state"] == "running"
 
-    stop_payload = asyncio.run(api_module.api_execution_stop_run(run_id))
+    stop_payload = asyncio.run(api_module.api_execution_stop_run(run_id, request=_local_request()))
     assert stop_payload["action"] == "stop"
     assert stop_payload["action_result"] == "stopped"
     assert stop_payload["run"]["state"] == "stopped"
@@ -131,6 +178,9 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert detail_payload["state"] == "stopped"
     assert detail_payload["runtime_binding_contract"]["status"] == "symbol_scope_runtime_mirror"
     assert detail_payload["runtime_binding_contract"]["ownership_boundary"]["ledger_scope"] == "shared_symbol_preview_only"
+    assert detail_payload["runtime_binding_contract"]["ownership_boundary"]["pnl_attribution"] == "symbol_scoped_preview_only"
+    assert detail_payload["strategy_binding"]["strategy_name"] == "Trend QA Strategy"
+    assert detail_payload["strategy_binding"]["strategy_hash"] == start_payload["run"]["strategy_binding"]["strategy_hash"]
     assert detail_payload["runtime_binding_snapshot"]["account_snapshot"]["position_count"] == 1
     assert detail_payload["runtime_binding_snapshot"]["capital_preview"]["allocation_scope"] == "run_budget_vs_shared_balance_preview"
     assert detail_payload["runtime_binding_snapshot"]["capital_preview"]["balance_total"] == 1000.0
@@ -138,6 +188,11 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert detail_payload["runtime_binding_snapshot"]["shared_symbol_preview"]["open_orders_total_count"] == 1
     assert detail_payload["runtime_binding_snapshot"]["shared_symbol_preview"]["positions"][0]["symbol"] == "BTC/USDT"
     assert detail_payload["runtime_binding_snapshot"]["shared_symbol_preview"]["open_orders"][0]["symbol"] == "BTCUSDT"
+    assert detail_payload["runtime_binding_snapshot"]["shared_symbol_ledger_preview"]["total_known_commitment"] == 7490.0
+    assert detail_payload["runtime_binding_snapshot"]["shared_symbol_ledger_preview"]["budget_alignment_status"] == "warning_over_planned_preview"
+    assert detail_payload["runtime_binding_snapshot"]["shared_symbol_ledger_preview"]["position_priced_count"] == 1
+    assert detail_payload["runtime_binding_snapshot"]["shared_symbol_ledger_preview"]["open_order_priced_count"] == 1
+    assert detail_payload["runtime_binding_snapshot"]["shared_symbol_ledger_preview"]["unrealized_pnl"] == 125.0
     assert "started" in event_types
     assert "paused" in event_types
     assert "resumed" in event_types
@@ -161,7 +216,7 @@ def test_execution_run_start_rejects_inactive_profile(monkeypatch, tmp_path):
     monkeypatch.setattr(api_module, "api_status", _fake_status)
 
     try:
-        asyncio.run(api_module.api_execution_start_run("rebound"))
+        asyncio.run(api_module.api_execution_start_run("rebound", request=_local_request()))
     except Exception as exc:
         detail = getattr(exc, "detail", {})
         assert detail["code"] == "profile_not_startable"

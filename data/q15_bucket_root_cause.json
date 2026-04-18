@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-04-18 11:46:58.752058",
+  "generated_at": "2026-04-18 12:08:40.638156",
   "target_col": "simulated_pyramid_win",
   "current_live": {
     "regime_label": "bull",
     "regime_gate": "CAUTION",
     "entry_quality_label": "C",
     "structure_bucket": "CAUTION|structure_quality_caution|q15",
-    "structure_quality": 0.1949,
+    "structure_quality": 0.2656,
     "q15_threshold": 0.15,
     "q35_threshold": 0.35,
-    "gap_to_q35_boundary": 0.1551,
+    "gap_to_q35_boundary": 0.0844,
     "non_null_4h_feature_count": 10,
     "execution_guardrail_reason": "decision_quality_below_trade_floor"
   },
@@ -22,10 +22,10 @@
     "dominant_neighbor_bucket": "CAUTION|base_caution_regime_or_bias|q15",
     "dominant_neighbor_rows": 50,
     "near_boundary_window": {
-      "lower": 0.1949,
+      "lower": 0.2656,
       "upper": 0.35
     },
-    "near_boundary_rows": 50
+    "near_boundary_rows": 9
   },
   "verdict": "same_lane_neighbor_bucket_dominates",
   "candidate_patch_type": "structure_component_scoring",
@@ -34,59 +34,59 @@
   "candidate_patch": {
     "type": "structure_component_scoring",
     "feature": "feat_4h_bb_pct_b",
-    "current_raw": 0.1774,
-    "current_normalized": 0.1774,
-    "needed_raw_delta_to_cross_q35": 0.4562,
+    "current_raw": 0.3079,
+    "current_normalized": 0.3079,
+    "needed_raw_delta_to_cross_q35": 0.2482,
     "target_bucket_p25": 0.337,
     "target_bucket_median": 0.3536,
-    "needed_raw_delta_to_target_p25": 0.1596,
-    "needed_raw_delta_to_target_median": 0.1762
+    "needed_raw_delta_to_target_p25": 0.0291,
+    "needed_raw_delta_to_target_median": 0.0457
   },
   "component_deltas": {
     "feat_4h_bb_pct_b": {
-      "current_raw": 0.1774,
-      "current_normalized": 0.1774,
+      "current_raw": 0.3079,
+      "current_normalized": 0.3079,
       "target_bucket_rows": 50,
       "target_bucket_mean": 0.3493,
       "target_bucket_median": 0.3536,
       "target_bucket_p25": 0.337,
       "target_bucket_p75": 0.37,
-      "delta_vs_target_median": -0.1762,
-      "delta_vs_target_p25": -0.1596,
-      "needed_raw_delta_to_target_p25": 0.1596,
-      "needed_raw_delta_to_target_median": 0.1762,
-      "needed_raw_delta_to_cross_q35": 0.4562,
-      "weighted_contribution": 0.0603
+      "delta_vs_target_median": -0.0457,
+      "delta_vs_target_p25": -0.0291,
+      "needed_raw_delta_to_target_p25": 0.0291,
+      "needed_raw_delta_to_target_median": 0.0457,
+      "needed_raw_delta_to_cross_q35": 0.2482,
+      "weighted_contribution": 0.1047
     },
     "feat_4h_dist_bb_lower": {
-      "current_raw": 0.55,
-      "current_normalized": 0.0688,
+      "current_raw": 0.8826,
+      "current_normalized": 0.1103,
       "target_bucket_rows": 50,
       "target_bucket_mean": 1.8643,
       "target_bucket_median": 1.8043,
       "target_bucket_p25": 1.6837,
       "target_bucket_p75": 1.8378,
-      "delta_vs_target_median": -1.2543,
-      "delta_vs_target_p25": -1.1337,
-      "needed_raw_delta_to_target_p25": 1.1337,
-      "needed_raw_delta_to_target_median": 1.2543,
-      "needed_raw_delta_to_cross_q35": 3.76,
-      "weighted_contribution": 0.0227
+      "delta_vs_target_median": -0.9217,
+      "delta_vs_target_p25": -0.8011,
+      "needed_raw_delta_to_target_p25": 0.8011,
+      "needed_raw_delta_to_target_median": 0.9217,
+      "needed_raw_delta_to_cross_q35": 2.0461,
+      "weighted_contribution": 0.0364
     },
     "feat_4h_dist_swing_low": {
-      "current_raw": 3.3899,
-      "current_normalized": 0.339,
+      "current_raw": 3.7723,
+      "current_normalized": 0.3772,
       "target_bucket_rows": 50,
       "target_bucket_mean": 1.8385,
       "target_bucket_median": 1.8703,
       "target_bucket_p25": 1.7921,
       "target_bucket_p75": 1.9056,
-      "delta_vs_target_median": 1.5196,
-      "delta_vs_target_p25": 1.5978,
-      "needed_raw_delta_to_target_p25": -1.5978,
-      "needed_raw_delta_to_target_median": -1.5196,
-      "needed_raw_delta_to_cross_q35": 4.7,
-      "weighted_contribution": 0.1119
+      "delta_vs_target_median": 1.902,
+      "delta_vs_target_p25": 1.9802,
+      "needed_raw_delta_to_target_p25": -1.9802,
+      "needed_raw_delta_to_target_median": -1.902,
+      "needed_raw_delta_to_cross_q35": 2.5576,
+      "weighted_contribution": 0.1245
     }
   },
   "verify_next": "比較 current row 與 dominant neighbor bucket 的 4H component 差值，再做最小 counterfactual。",

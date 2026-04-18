@@ -54,6 +54,15 @@ def _safe_round(value: Any, digits: int = 4) -> Any:
     return value
 
 
+def _safe_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _load_q35_audit_counterfactuals() -> dict[str, Any]:
     if not Q35_AUDIT_PATH.exists():
         return {}
@@ -124,16 +133,46 @@ def _unavailable_component_gap_attribution(reason: str | None, blocker: dict[str
 
 
 def _component_gap_attribution(eq_components: dict[str, Any], q35_counterfactuals: dict[str, Any]) -> dict[str, Any]:
-    trade_floor = float(eq_components.get("trade_floor") or 0.55)
-    entry_quality = float(eq_components.get("entry_quality") or 0.0)
-    floor_gap = max(0.0, trade_floor - entry_quality)
+    runtime_trade_floor = float(eq_components.get("trade_floor") or 0.55)
+    runtime_entry_quality = float(eq_components.get("entry_quality") or 0.0)
     base_outer = float(eq_components.get("base_quality_weight") or 1.0)
     structure_outer = float(eq_components.get("structure_quality_weight") or 0.0)
 
+    analysis_components = dict(eq_components or {})
+    q15_patch = analysis_components.get("q15_exact_supported_component_patch") or {}
+    reconstructed_from_q15_patch = False
+    if isinstance(q15_patch, dict) and q15_patch.get("applied"):
+        patch_feature = str(q15_patch.get("feature") or "")
+        original_score = _safe_float(q15_patch.get("original_normalized_score"))
+        if patch_feature and original_score is not None:
+            base_components = [dict(item) for item in (analysis_components.get("base_components") or [])]
+            for item in base_components:
+                if str(item.get("feature") or "") != patch_feature:
+                    continue
+                weight = float(item.get("weight") or 0.0)
+                item["normalized_score"] = original_score
+                item["weighted_contribution"] = _safe_round(weight * original_score)
+                break
+            analysis_components["base_components"] = base_components
+            base_quality = sum(
+                float(item.get("weight") or 0.0) * float(item.get("normalized_score") or 0.0)
+                for item in base_components
+            )
+            structure_quality = float(analysis_components.get("structure_quality") or 0.0)
+            baseline_entry_quality = base_outer * base_quality + structure_outer * structure_quality
+            analysis_components["base_quality"] = _safe_round(base_quality)
+            analysis_components["entry_quality"] = _safe_round(baseline_entry_quality)
+            analysis_components["trade_floor_gap"] = _safe_round(baseline_entry_quality - runtime_trade_floor)
+            reconstructed_from_q15_patch = True
+
+    trade_floor = float(analysis_components.get("trade_floor") or runtime_trade_floor)
+    entry_quality = float(analysis_components.get("entry_quality") or 0.0)
+    floor_gap = max(0.0, trade_floor - entry_quality)
+
     components: list[dict[str, Any]] = []
     for group_name, outer_weight, items in (
-        ("base", base_outer, eq_components.get("base_components") or []),
-        ("structure", structure_outer, eq_components.get("structure_components") or []),
+        ("base", base_outer, analysis_components.get("base_components") or []),
+        ("structure", structure_outer, analysis_components.get("structure_components") or []),
     ):
         for item in items:
             weight = float(item.get("weight") or 0.0)
@@ -202,6 +241,9 @@ def _component_gap_attribution(eq_components: dict[str, Any], q35_counterfactual
         "trade_floor": _safe_round(trade_floor),
         "entry_quality": _safe_round(entry_quality),
         "remaining_gap_to_floor": _safe_round(floor_gap),
+        "reconstructed_from_q15_patch": reconstructed_from_q15_patch,
+        "runtime_entry_quality_after_patch": _safe_round(runtime_entry_quality) if reconstructed_from_q15_patch else None,
+        "runtime_trade_floor_gap_after_patch": _safe_round(runtime_entry_quality - runtime_trade_floor) if reconstructed_from_q15_patch else None,
         "base_group_max_entry_gain": group_headroom["base"],
         "structure_group_max_entry_gain": group_headroom["structure"],
         "best_single_component": best_single,
@@ -297,13 +339,55 @@ def main() -> None:
     bias50_cf = gap_attr.get("bias50_floor_counterfactual") or {}
     q15_patch = report.get("q15_exact_supported_component_patch") or {}
     q15_patch_machine_read = q15_patch.get("machine_read_answer") or {}
-    runtime_closure_summary = report.get("runtime_closure_summary") or (
-        "capacity opened but signal still HOLD"
-        if report.get("q15_exact_supported_component_patch_applied") and report.get("signal") == "HOLD" and (report.get("allowed_layers") or 0) > 0
+    runtime_closure_state = report.get("runtime_closure_state") or (
+        "support_closed_but_trade_floor_blocked"
+        if (
+            report.get("deployment_blocker") == "decision_quality_below_trade_floor"
+            and report.get("support_route_verdict") == "exact_bucket_supported"
+            and not report.get("q15_exact_supported_component_patch_applied")
+        )
         else (
-            "patch active but execution still blocked"
-            if report.get("q15_exact_supported_component_patch_applied")
-            else "patch inactive or still blocked"
+            "capacity_opened_signal_hold"
+            if report.get("q15_exact_supported_component_patch_applied") and report.get("signal") == "HOLD" and (report.get("allowed_layers") or 0) > 0
+            else (
+                "patch_active_but_execution_blocked"
+                if report.get("q15_exact_supported_component_patch_applied")
+                else "patch_inactive_or_blocked"
+            )
+        )
+    )
+    runtime_closure_summary = report.get("runtime_closure_summary") or (
+        (
+            f"current live bucket {report.get('current_live_structure_bucket') or report.get('structure_bucket') or 'unknown_bucket'} 已完成 exact support closure"
+            + (
+                f"（{(report.get('support_progress') or {}).get('current_rows')}/{(report.get('support_progress') or {}).get('minimum_support_rows')}）"
+                if isinstance(report.get('support_progress'), dict)
+                and (report.get('support_progress') or {}).get('current_rows') is not None
+                and (report.get('support_progress') or {}).get('minimum_support_rows') is not None
+                else ""
+            )
+            + f"，但 top-level live baseline 仍停在 entry_quality={float(report.get('entry_quality') or 0.0):.4f} ({report.get('entry_quality_label') or '—'})"
+            + (
+                f" < trade floor {float((report.get('entry_quality_components') or {}).get('trade_floor')):.2f}"
+                if isinstance(report.get('entry_quality_components'), dict)
+                and (report.get('entry_quality_components') or {}).get('trade_floor') is not None
+                else ""
+            )
+            + "；目前維持明確 no-deploy governance，不可把 support closure 誤讀成 deployment closure。"
+        )
+        if (
+            report.get("deployment_blocker") == "decision_quality_below_trade_floor"
+            and report.get("support_route_verdict") == "exact_bucket_supported"
+            and not report.get("q15_exact_supported_component_patch_applied")
+        )
+        else (
+            "capacity opened but signal still HOLD"
+            if report.get("q15_exact_supported_component_patch_applied") and report.get("signal") == "HOLD" and (report.get("allowed_layers") or 0) > 0
+            else (
+                "patch active but execution still blocked"
+                if report.get("q15_exact_supported_component_patch_applied")
+                else "patch inactive or still blocked"
+            )
         )
     )
     base_component_text = ", ".join(
@@ -389,8 +473,8 @@ def main() -> None:
         "deployment_blocker": (deployment_blocker or {}).get("type"),
         "deployment_blocker_reason": (deployment_blocker or {}).get("reason"),
         "q15_exact_supported_component_patch_applied": report.get("q15_exact_supported_component_patch_applied"),
-        "runtime_closure_state": report.get("runtime_closure_state"),
-        "runtime_closure_summary": report.get("runtime_closure_summary"),
+        "runtime_closure_state": runtime_closure_state,
+        "runtime_closure_summary": runtime_closure_summary,
         "signal": report.get("signal"),
         "allowed_layers": report.get("allowed_layers"),
         "allowed_layers_reason": report.get("allowed_layers_reason"),

@@ -504,6 +504,11 @@ interface ModelLeaderboardEntry {
   profit_factor_score?: number;
   overfit_penalty?: number;
   trade_count_score?: number;
+  ranking_eligible?: boolean;
+  ranking_status?: string;
+  ranking_warning?: string | null;
+  placeholder_reason?: string | null;
+  raw_rank?: number | null;
   is_overfit?: boolean;
   overfit_reason?: string | null;
   folds: Array<{ fold: number; roi: number; win_rate: number; trades: number; max_dd: number; profit_factor: number }>;
@@ -572,9 +577,14 @@ interface ModelLeaderboardMeta {
   updated_at?: string | null;
   cache_age_sec?: number | null;
   warning?: string | null;
+  leaderboard_warning?: string | null;
   error?: string | null;
   target_col?: string | null;
   target_label?: string | null;
+  comparable_count?: number | null;
+  placeholder_count?: number | null;
+  evaluated_row_count?: number | null;
+  placeholder_rows?: ModelLeaderboardEntry[];
   global_metrics?: LeaderboardGlobalMetrics | null;
   regime_metrics?: Record<string, RegimeMetricsEntry> | null;
   skipped_models?: SkippedModel[];
@@ -757,6 +767,9 @@ const modelTierMetaForRow = (model: Pick<ModelLeaderboardEntry, "model_name" | "
 };
 const modelTierLabel = (model: Pick<ModelLeaderboardEntry, "model_name" | "model_tier" | "model_tier_label" | "model_tier_reason">) => modelTierMetaForRow(model).model_tier_label;
 const describeRankingReason = (model: ModelLeaderboardEntry) => {
+  if (model.ranking_status === "no_trade_placeholder") {
+    return model.ranking_warning || "⚠️ 當前 deployment profile 沒有產生任何交易，這列只是 placeholder，不代表可比較排名。";
+  }
   const reasons: string[] = [];
   if (isFiniteNumber(model.avg_decision_quality_score)) {
     reasons.push(`決策品質 ${model.avg_decision_quality_score.toFixed(3)}`);
@@ -1232,6 +1245,7 @@ export default function StrategyLab() {
       .map((group) => ({ ...group, rows: sortedModelLeaderboard.filter((row) => String(row.model_tier || "control") === group.key) }))
       .filter((group) => group.rows.length > 0);
   }, [sortedModelLeaderboard]);
+  const placeholderModelRows = Array.isArray(modelMeta.placeholder_rows) ? modelMeta.placeholder_rows : [];
   const strategyCapitalMode = useCallback((entry: StrategyEntry) => {
     const fromResults = entry.last_results?.capital_mode;
     if (fromResults === "classic_pyramid" || fromResults === "reserve_90") return fromResults;
@@ -1511,9 +1525,14 @@ export default function StrategyLab() {
         updated_at: data?.updated_at ?? null,
         cache_age_sec: data?.cache_age_sec ?? null,
         warning: data?.warning ?? null,
+        leaderboard_warning: data?.leaderboard_warning ?? null,
         error: data?.error ?? null,
         target_col: data?.target_col ?? null,
         target_label: data?.target_label ?? null,
+        comparable_count: data?.comparable_count ?? null,
+        placeholder_count: data?.placeholder_count ?? null,
+        evaluated_row_count: data?.evaluated_row_count ?? null,
+        placeholder_rows: Array.isArray(data?.placeholder_rows) ? data.placeholder_rows : [],
         global_metrics: data?.global_metrics ?? null,
         regime_metrics: data?.regime_metrics ?? null,
         skipped_models: Array.isArray(data?.skipped_models) ? data.skipped_models : [],
@@ -1609,13 +1628,13 @@ export default function StrategyLab() {
   }, []);
 
   useEffect(() => {
-    if (!modelMeta.refreshing && !modelMeta.stale) {
+    if (!modelMeta.refreshing) {
       clearBackgroundStage("model_refresh");
       return;
     }
     updateBackgroundStage({
       mode: "model_refresh",
-      label: modelMeta.refreshing ? "模型排行榜背景重算中" : "模型排行榜快取刷新中",
+      label: "模型排行榜背景重算中",
       detail: modelMeta.cache_age_sec != null
         ? `目前快取年齡 ${modelMeta.cache_age_sec} 秒，系統持續輪詢最新結果。`
         : "正在輪詢最新 leaderboard 與模型統計。",
@@ -1624,9 +1643,9 @@ export default function StrategyLab() {
     const timer = window.setInterval(() => {
       loadModelLeaderboard(false);
       loadModelStats();
-    }, 2500);
+    }, 15000);
     return () => window.clearInterval(timer);
-  }, [modelMeta.refreshing, modelMeta.stale, modelMeta.cache_age_sec]);
+  }, [modelMeta.refreshing, modelMeta.cache_age_sec]);
 
   const handleRun = async () => {
     setRunning(true);
@@ -1800,10 +1819,10 @@ export default function StrategyLab() {
 
   const activeModuleDetails = EDITOR_MODULES.filter((module) => activeModules.includes(module.id));
   const moduleCategoryMeta = {
-    core: { label: "主策略骨架", description: "先決定主要進出場與加碼節奏" },
-    signal: { label: "訊號增強", description: "提升進出場品質與過濾條件" },
-    risk: { label: "風險控制", description: "控制資金部署與回撤節奏" },
-    research: { label: "研究模組", description: "保留進階研究邏輯，不強迫一般使用者理解" },
+    core: { label: "主 preset", description: "先選主要進出場骨架" },
+    signal: { label: "訊號 modifier", description: "再補強進出場品質" },
+    risk: { label: "風控 modifier", description: "最後補上資金防守" },
+    research: { label: "研究模組", description: "需要時再開" },
   } as const;
   const groupedEditorModules = (Object.keys(moduleCategoryMeta) as Array<keyof typeof moduleCategoryMeta>).map((key) => ({
     key,
@@ -1815,10 +1834,10 @@ export default function StrategyLab() {
     ? `複合策略：${activeModuleDetails.map((module) => module.label).join(" ＋ ")}`
     : `單一策略：${activeModuleDetails[0]?.label || "未選擇"}`;
   const dynamicHighlights = [
-    `${editorSummary.strategyType === "hybrid" ? "Hybrid（模型 + 規則）" : "Rule-based（純規則）"} / ${editorSummary.modelName}`,
-    capitalMode === "reserve_90" ? `10/90 後守：先 ${baseEntryFractionPct}% 試單` : `金字塔層數：${layer1}/${layer2}/${layer3}`,
-    `信心 ${confidenceMin}% · 品質 ${entryQualityMin}% · ${allowedRegimeLabels[allowedRegimesMode]}`,
-    `${investmentHorizonLabels[investmentHorizon]} · ${investmentHorizon === "short" ? "偏快進出" : investmentHorizon === "long" ? "偏耐心等深區" : "平衡頻率與持有時間"}`,
+    `${editorSummary.strategyType === "hybrid" ? "Hybrid" : "Rule"} · ${editorSummary.modelName}`,
+    capitalMode === "reserve_90" ? `10/90 後守 ${baseEntryFractionPct}%` : `層數 ${layer1}/${layer2}/${layer3}`,
+    `信心 ${confidenceMin}% · 品質 ${entryQualityMin}%`,
+    investmentHorizonLabels[investmentHorizon],
   ];
 
   useEffect(() => {
@@ -1985,7 +2004,7 @@ export default function StrategyLab() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-200">🧪 策略實驗室</h2>
-          <span className="text-xs text-slate-500">排行榜點一下，左側設定就會自動切換</span>
+          <span className="text-xs text-slate-500">點排行榜可快速載入</span>
         </div>
         <div className="inline-flex rounded-lg border border-slate-700/60 bg-slate-900/70 p-1 text-sm">
           <button
@@ -2011,7 +2030,7 @@ export default function StrategyLab() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-slate-300">⚙️ 策略編輯器</h3>
-                <div className="mt-1 text-[11px] leading-5 text-slate-500">保留必要參數：進場條件、風控、資金模式。其他分析移到右側摘要，不再把版面切得太碎。</div>
+                <div className="mt-1 text-[11px] leading-5 text-slate-500">只保留必要設定，其他資訊交給右側摘要。</div>
               </div>
               <div className="rounded-lg border border-slate-700/50 bg-slate-950/40 px-3 py-2 text-right">
                 <div className="text-[10px] text-slate-500">目前策略</div>
@@ -2025,21 +2044,18 @@ export default function StrategyLab() {
                 <input value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200" />
               </div>
 
-              <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 px-3 py-3 text-[11px] leading-5 text-cyan-100 space-y-2">
-                <div className="font-medium">新的編輯器邏輯：先選策略模組，再決定要不要進階微調</div>
-                <div>下面這些不是單選 preset，而是 <span className="font-semibold">可疊加的策略模組</span>。</div>
-                <div>目前語義是：<span className="font-semibold">同時啟用會疊加</span>；如果兩個模組改到同一個欄位，會依固定模組順序做合成，最後以「合成後摘要」為準，不是各跑各的獨立策略。</div>
-                <div>若只想快速測試，直接切模組即可；編輯器本身只保留必要資訊，避免過多選項讓使用者困惑。</div>
+              <div className="rounded-xl border border-cyan-700/30 bg-cyan-950/10 px-3 py-3 text-[11px] leading-5 text-cyan-100 space-y-2">
+                <div className="font-medium">策略模組選擇</div>
+                <div>先選 1 個主 preset，再疊加 modifier；只看摘要，不先讀長說明。</div>
               </div>
 
               <div className="space-y-4">
                 {groupedEditorModules.map((group) => (
                   <div key={group.key} className="space-y-2">
-                    <div className="px-1">
-                      <div className="text-xs font-semibold text-slate-300">{group.label}</div>
-                      <div className="mt-1 text-[11px] text-slate-500">{group.description}</div>
+                    <div className="flex items-center justify-between px-1">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{group.label}</div>
                     </div>
-                    <div className="grid gap-2">
+                    <div className="grid gap-2 sm:grid-cols-2">
                       {group.modules.map((module) => {
                         const active = activeModules.includes(module.id);
                         return (
@@ -2047,19 +2063,18 @@ export default function StrategyLab() {
                             key={module.id}
                             type="button"
                             onClick={() => toggleModule(module.id)}
-                            className={`rounded-xl border px-3 py-3 text-left transition ${active ? "border-cyan-500/50 bg-cyan-500/10" : "border-slate-700/50 bg-slate-950/30 hover:border-slate-500/60 hover:bg-slate-900/70"}`}
+                            className={`rounded-2xl border px-3 py-3 text-left transition-all ${active ? "border-[#7132f5]/55 bg-[#7132f5]/10 shadow-[0_12px_30px_rgba(113,50,245,0.18)]" : "border-white/8 bg-white/[0.03] hover:border-white/16 hover:bg-white/[0.05]"}`}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <div>
+                              <div className="min-w-0">
                                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
                                   <span>{module.emoji}</span>
                                   <span>{module.label}</span>
                                 </div>
-                                <div className="mt-1 text-xs text-slate-400">{module.summary}</div>
-                                <div className="mt-2 text-[11px] leading-5 text-slate-500">{module.explainer}</div>
+                                <div className="mt-1 text-[11px] leading-5 text-slate-400">{module.summary}</div>
                               </div>
-                              <div className={`rounded-full border px-2 py-0.5 text-[10px] ${active ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-100" : "border-slate-700/50 text-slate-500"}`}>
-                                {active ? "已啟用" : module.badge}
+                              <div className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${active ? "border-[#7132f5]/50 bg-[#7132f5]/12 text-[#e3d9ff]" : "border-white/10 text-slate-500"}`}>
+                                {active ? "已選取" : module.badge}
                               </div>
                             </div>
                           </button>
@@ -2072,7 +2087,7 @@ export default function StrategyLab() {
 
               <div className="rounded-xl border border-slate-700/40 bg-slate-950/30 px-3 py-3 text-xs text-slate-300 space-y-3">
                 <div>
-                  <div className="text-slate-500">目前策略組合</div>
+                  <div className="text-slate-500">目前組合</div>
                   <div className="mt-1 font-semibold text-slate-100">{compositeModuleLabel}</div>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -2084,19 +2099,19 @@ export default function StrategyLab() {
                 </div>
                 {activeModuleDetails.length > 1 && (
                   <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 px-3 py-2 text-cyan-100">
-                    <div className="font-medium">複合策略同時生效</div>
-                    <div className="mt-1 leading-5">{activeModuleDetails.map((module) => module.label).join(" ＋ ")} 會一起合成，不是只保留其中一種。</div>
+                    <div className="font-medium">模組已合成</div>
+                    <div className="mt-1 leading-5">{activeModuleDetails.map((module) => module.label).join(" ＋ ")}</div>
                   </div>
                 )}
                 {activeModules.includes("storm_unwind") && (
                   <div className="rounded-lg border border-amber-700/30 bg-amber-950/10 px-3 py-2 text-amber-100">
-                    <div className="font-medium">🌪️ 風暴斬倉目前已納入本次策略</div>
-                    <div className="mt-1 leading-5">此組合會把低位循環盈利的一部分拿去釋放高位套牢倉，現在先以代理版回測；若未啟用這個模組，這段說明就不顯示。</div>
+                    <div className="font-medium">風暴斬倉已啟用</div>
+                    <div className="mt-1 leading-5">低位盈利會優先拿來釋放高位套牢倉。</div>
                   </div>
                 )}
               </div>
 
-              <button onClick={handleRun} disabled={workspaceBusy} className={`w-full py-2 rounded-lg font-semibold text-sm ${workspaceBusy ? "bg-slate-700 text-slate-400" : "bg-blue-600 text-white hover:bg-blue-500"}`}>
+              <button onClick={handleRun} disabled={workspaceBusy} className={`w-full py-2.5 rounded-xl font-semibold text-sm transition ${workspaceBusy ? "bg-slate-700 text-slate-400" : "bg-[#7132f5] text-white shadow-[0_12px_30px_rgba(113,50,245,0.22)] hover:bg-[#5f28d8]"}`}>
                 {running ? "⏳ 回測中..." : loadingStrategy ? "⏳ 載入策略中..." : initialLoading ? "⏳ 初始化中..." : "▶ 執行回測"}
               </button>
               {runStrategyProgressCard && (
@@ -2136,8 +2151,7 @@ export default function StrategyLab() {
           </div>
 
           <div className="rounded-xl border border-slate-700/50 bg-slate-950/40 p-3 text-xs leading-5 text-slate-400">
-            <div className="font-semibold text-slate-200">策略說明</div>
-            <div className="mt-1">{activeMeta.description}</div>
+            <div className="font-semibold text-slate-200">策略摘要</div>
             <div className="mt-2 flex flex-wrap gap-2">
               {activeModuleDetails.map((module) => (
                 <span key={module.id} className="inline-flex rounded-full border border-cyan-700/40 bg-cyan-950/20 px-2 py-0.5 text-[10px] text-cyan-100">
@@ -2187,8 +2201,8 @@ export default function StrategyLab() {
                     <div>可用特徵資料：{strategyDataRange?.start ? new Date(strategyDataRange.start).toLocaleDateString("zh-TW") : "—"} → {strategyDataRange?.end ? new Date(strategyDataRange.end).toLocaleDateString("zh-TW") : "—"}</div>
                     <div>
                       {activeResult?.backtest_range?.backfill_required
-                        ? `你要求的區間超出目前特徵資料範圍；目前仍缺少約 ${Math.round(activeResult.backtest_range.missing_start_days || 0)} 天的較早資料，需要先回填。`
-                        : "若選 2 年但資料不足，系統會直接標示需要回填，不會默默拿短資料假裝跑完。"}
+                        ? `缺少約 ${Math.round(activeResult.backtest_range.missing_start_days || 0)} 天較早資料，需先回填。`
+                        : "資料不足時會直接標示，不會用短資料假裝跑完。"}
                     </div>
                   </div>
                 </div>
@@ -2199,8 +2213,8 @@ export default function StrategyLab() {
                     <div>實際區間：{activeResult?.backtest_range?.effective?.start ? new Date(activeResult.backtest_range.effective.start).toLocaleDateString("zh-TW") : "—"} → {activeResult?.backtest_range?.effective?.end ? new Date(activeResult.backtest_range.effective.end).toLocaleDateString("zh-TW") : "—"}</div>
                   </div>
                   <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 px-3 py-2 text-cyan-100">
-                    <div className="font-medium">圖表判讀方式</div>
-                    <div>上圖看 BTC/USDT 價格、買賣點與模型/進場分數；下圖看總權益、現金水位、持倉水位與買賣點，hover / tips 應同步。</div>
+                    <div className="font-medium">圖表提示</div>
+                    <div>上圖看價格與訊號，下圖看權益與持倉；hover 會同步。</div>
                   </div>
                 </div>
               </div>
@@ -2218,11 +2232,11 @@ export default function StrategyLab() {
             </div>
 
             <div className={`rounded-xl border p-4 space-y-3 ${executionSyncTone(executionReconciliation?.status)}`}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <div className="text-sm font-semibold">Execution runtime blocker sync</div>
+                  <div className="text-sm font-semibold">Live 部署同步</div>
                   <div className="mt-1 text-[11px] leading-5 opacity-80">
-                    目前 canonical execution route 仍在 Dashboard；Strategy Lab 這裡只同步 runtime blocker，避免回測語義與 execution 現況脫鉤。
+                    只同步 live truth；blocked 與 recovery 請到「執行狀態」。
                   </div>
                 </div>
                 <div className="text-right text-xs">
@@ -2230,284 +2244,39 @@ export default function StrategyLab() {
                   <div className="opacity-70">{executionReconciliation?.checked_at ? new Date(executionReconciliation.checked_at).toLocaleString("zh-TW") : "尚未取得 /api/status"}</div>
                 </div>
               </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6 text-xs">
-                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide opacity-60">runtime summary</div>
-                  <div className="mt-1 font-medium">{executionReconciliation?.summary || "Strategy Lab 尚未取得 execution reconciliation summary。"}</div>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide opacity-60">snapshot / trade history</div>
-                  <div className="mt-1">snapshot {executionReconciliation?.account_snapshot?.freshness?.status || "—"}</div>
-                  <div>trade history {executionReconciliation?.trade_history_alignment?.status || "—"}</div>
-                  <div>open-order audit {executionReconciliation?.open_order_alignment?.status || "—"}</div>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide opacity-60">Lifecycle / replay</div>
-                  <div className="mt-1 font-medium">stage {lifecycleAudit?.stage || "—"}</div>
-                  <div className="opacity-80">recovery {recoveryState?.status || "—"}</div>
-                  <div className="opacity-80">restart replay {lifecycleAudit?.restart_replay_required ? "required" : "not-required"}</div>
-                  <div className="opacity-80">baseline contract {lifecycleContract?.baseline_contract_status || "—"}</div>
-                  <div className="opacity-80">artifact coverage {lifecycleContract?.artifact_coverage || "—"}</div>
-                </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 text-xs">
                 <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide opacity-60">live blocker</div>
                   <div className="mt-1 font-medium">{liveExecutionBlockers.length ? liveExecutionBlockers.join(" · ") : executionSurfaceContract?.operator_message || "目前沒有額外 live blocker 摘要"}</div>
-                  <div className="mt-1 opacity-80">readiness scope {executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only"}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide opacity-60">live q15 closure</div>
-                  <div className="mt-1 font-medium">{liveDecisionStatus?.support_progress?.current_rows ?? "—"} / {liveDecisionStatus?.support_progress?.minimum_support_rows ?? "—"}</div>
-                  <div className="opacity-80">status {liveDecisionStatus?.support_progress?.status || "unknown"}</div>
-                  <div className="opacity-80">support route {liveDecisionStatus?.support_route_verdict || "—"}</div>
-                  <div className="opacity-80">gap to minimum {liveDecisionStatus?.support_progress?.gap_to_minimum ?? "—"}</div>
-                  <div className="opacity-80">best single component {liveDecisionStatus?.best_single_component || "—"}</div>
-                  <div className="opacity-80">runtime closure {liveRuntimeClosureState || "unknown"}</div>
+                  <div className="text-[10px] uppercase tracking-wide opacity-60">runtime closure</div>
+                  <div className="mt-1 font-medium">{liveRuntimeClosureState || "unknown"}</div>
+                  <div className="opacity-80">{liveRuntimeClosureSummary || "尚未取得 runtime closure summary。"}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide opacity-60">Metadata smoke</div>
+                  <div className="text-[10px] uppercase tracking-wide opacity-60">active sleeves</div>
+                  <div className="mt-1 font-medium">{liveRouting?.active_ratio_text || "0/0"}</div>
+                  <div className="opacity-80">{liveRouting?.current_regime || liveDecisionStatus?.regime_label || "—"} · gate {liveRouting?.current_regime_gate || liveDecisionStatus?.regime_gate || "—"}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-wide opacity-60">metadata freshness</div>
                   <div className={`mt-1 font-medium ${metadataFreshnessTone(metadataSmokeFreshness?.status)}`}>
                     {metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable"}
                   </div>
-                  <div className="opacity-80">artifact age {metadataSmokeFreshness?.age_minutes != null ? `${metadataSmokeFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}</div>
                   <div className="opacity-80">generated {metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "—"}</div>
                 </div>
               </div>
-              {liveDecisionStatus && (
-                <div className={`rounded-lg border px-3 py-3 text-xs leading-5 ${circuitBreakerActive ? "border-amber-700/40 bg-amber-950/20 text-amber-100" : liveDecisionStatus?.q15_exact_supported_component_patch_applied ? "border-emerald-700/40 bg-emerald-950/10 text-emerald-100" : "border-white/10 bg-slate-950/20 text-slate-200"}`}>
-                  <div className="font-medium">q15 runtime closure 狀態</div>
-                  <div className="mt-1 break-words">
-                    signal {liveDecisionStatus?.signal || "—"} · confidence {typeof liveDecisionStatus?.confidence === "number" ? liveDecisionStatus.confidence.toFixed(6) : "—"} · entry {formatDecimal(liveDecisionStatus?.entry_quality, 4)}{liveDecisionStatus?.entry_quality_label ? ` (${liveDecisionStatus.entry_quality_label})` : ""}
-                  </div>
-                  <div className="opacity-80">
-                    layers {liveDecisionStatus?.allowed_layers_raw ?? "—"} → {liveDecisionStatus?.allowed_layers ?? "—"} · raw reason {liveDecisionStatus?.allowed_layers_raw_reason || "—"} · final reason {liveDecisionStatus?.allowed_layers_reason || "—"}
-                  </div>
-                  <div className="opacity-80">
-                    patch {liveDecisionStatus?.q15_exact_supported_component_patch_applied ? "active" : "inactive"} · blocker {liveDecisionStatus?.deployment_blocker || "none"} · execution guardrail {liveDecisionStatus?.execution_guardrail_reason || "none"}
-                  </div>
-                  <div className="opacity-80">
-                    runtime closure {liveRuntimeClosureState || "—"} · summary {liveRuntimeClosureSummary || "尚未取得 runtime closure summary。"}
-                  </div>
-                  <div className="mt-3 rounded-lg border border-cyan-500/30 bg-cyan-950/20 px-3 py-3 text-cyan-50">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-medium">當前 regime</div>
-                      <div className="text-xs opacity-80">active sleeves {liveRouting?.active_ratio_text || "0/0"}</div>
-                    </div>
-                    <div className="mt-1 opacity-85">
-                      {liveRouting?.current_regime || liveDecisionStatus?.regime_label || "—"} · gate {liveRouting?.current_regime_gate || liveDecisionStatus?.regime_gate || "—"} · bucket {liveRouting?.current_structure_bucket || liveDecisionStatus?.current_live_structure_bucket || "—"}
-                    </div>
-                    <div className="mt-2 text-[11px] opacity-80">{liveRouting?.summary || "尚未建立 regime-aware sleeve routing 摘要。"}</div>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-wide opacity-60">active sleeves</div>
-                        {liveActiveSleeves.length > 0 ? liveActiveSleeves.map((item) => (
-                          <div key={item.key || item.label} className="mt-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-2">
-                            <div className="font-medium text-emerald-200">{item.label || item.key}</div>
-                            <div className="mt-1 opacity-80">{item.why || "—"}</div>
-                          </div>
-                        )) : <div className="mt-2 opacity-70">目前沒有 active sleeves。</div>}
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-wide opacity-60">inactive sleeves</div>
-                        {liveInactiveSleeves.length > 0 ? liveInactiveSleeves.map((item) => (
-                          <div key={item.key || item.label} className="mt-2 rounded-md border border-rose-500/20 bg-rose-500/10 px-2 py-2">
-                            <div className="font-medium text-rose-200">{item.label || item.key}</div>
-                            <div className="mt-1 opacity-80">{item.why || "—"}</div>
-                          </div>
-                        )) : <div className="mt-2 opacity-70">目前沒有 inactive sleeves。</div>}
-                      </div>
-                    </div>
-                    <div className="mt-3 text-[11px] opacity-75">Execution Console 現在直接消費同一份 runtime sleeve routing；Strategy Lab 這裡只同步 activation truth，實際營運請前往 Execution Console。</div>
-                    <div className="mt-2 text-[11px] opacity-75">canonical surface {executionDiagnosticsSurface?.label || "Dashboard / Execution 狀態面板"}</div>
-                    <a
-                      href={executionOperationsSurface?.route || "/execution"}
-                      className="mt-2 inline-flex text-[11px] font-semibold text-cyan-200 underline underline-offset-2 hover:text-cyan-100"
-                    >
-                      前往 Execution Console 檢查 active sleeves →
-                    </a>
-                  </div>
-                  {circuitBreakerActive && (
-                    <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                      <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-wide opacity-60">recent 50 release window</div>
-                        <div className="mt-1 font-medium">{breakerWins ?? "—"} / {breakerWindow ?? "—"}</div>
-                        <div className="opacity-80">win rate {formatPct(breakerRecentWinRate)} · floor {formatPct(breakerFloor)}</div>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-wide opacity-60">release gap</div>
-                        <div className="mt-1 font-medium">至少還差 {breakerWinsGap ?? "—"} 勝</div>
-                        <div className="opacity-80">required wins {breakerRequiredWins ?? "—"}</div>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-wide opacity-60">streak guardrail</div>
-                        <div className="mt-1 font-medium">{breakerCurrentStreak ?? "—"} / {breakerStreakLimit ?? "—"}</div>
-                        <div className="opacity-80">目前主 blocker 是 recent win rate，不是 q15 patch。</div>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-wide opacity-60">runtime truth</div>
-                        <div className="mt-1 font-medium">{liveRuntimeClosureState || "circuit_breaker_active"}</div>
-                        <div className="opacity-80">不要把 support / component patch 當成 breaker release 替代品。</div>
-                      </div>
-                    </div>
-                  )}
-                  <div className={`mt-2 ${liveSupportAlignmentTone}`}>
-                    support alignment {liveSupportAlignmentStatus || "unavailable"}
-                  </div>
-                  <div className="opacity-80">
-                    runtime exact support {liveRuntimeExactSupportRows ?? "—"} · calibration exact lane {liveCalibrationExactLaneRows ?? "—"}
-                  </div>
-                  <div className="opacity-80">
-                    {liveSupportAlignmentSummary || "尚未取得 support alignment 摘要。"}
-                  </div>
-                  <div className="opacity-70">
-                    runtime 已有 support、但 calibration exact lane 尚未追上時，Strategy Lab 不得把 0 rows 誤讀成 runtime 未支援。
-                  </div>
-                  {liveRecentPathologyApplied && (
-                    <div className="mt-3 rounded-lg border border-rose-500/30 bg-rose-950/20 px-3 py-2 text-rose-100">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="font-medium">Recent distribution pathology</div>
-                        <div className="opacity-80">window {liveRecentPathologyWindow ?? "—"} rows</div>
-                      </div>
-                      <div className="mt-1 opacity-85">reason {liveRecentPathologyReason || "—"}</div>
-                      <div className="mt-1 opacity-80">alerts {(liveRecentPathologyAlerts || []).join(" / ") || "none"}</div>
-                      <div className="mt-1 opacity-80">win_rate {typeof liveRecentPathologySummary?.win_rate === "number" ? liveRecentPathologySummary.win_rate.toFixed(4) : "—"} · avg_quality {typeof liveRecentPathologySummary?.avg_quality === "number" ? liveRecentPathologySummary.avg_quality.toFixed(4) : "—"} · avg_pnl {typeof liveRecentPathologySummary?.avg_pnl === "number" ? liveRecentPathologySummary.avg_pnl.toFixed(4) : "—"}</div>
-                      <div className="mt-1 opacity-75">window {liveRecentPathologySummary?.start_timestamp || "—"} → {liveRecentPathologySummary?.end_timestamp || "—"}</div>
-                      <div className="mt-1 opacity-75">這代表最近 canonical 決策樣本正在退化；Strategy Lab 只能同步這個 drift 事實，不能把局部回測亮點誤讀成 live deployment capacity。</div>
-                    </div>
-                  )}
-                  <div className="mt-2 opacity-80">
-                    {circuitBreakerActive
-                      ? "目前 canonical live path 仍被 circuit breaker 擋下；這個狀態優先於 q15 support / component patch，Strategy Lab 只應同步 release math，不可包裝成 deployment readiness。"
-                      : liveDecisionStatus?.q15_exact_supported_component_patch_applied
-                        ? ((liveDecisionStatus?.allowed_layers ?? 0) > 0
-                            ? "目前已是 support-ready + patch active，但 signal 仍是 HOLD；這代表 runtime 已開出 1 層 deployment capacity，不等於自動進場。"
-                            : "目前 q15 patch 已套用到 current live row，但 execution 仍被 exact live bucket blocker / guardrail 擋住；這裡要讀成 patch active but execution still blocked。")
-                        : "目前 q15 patch 尚未 active；仍需以 support / floor / guardrail contract 為主。"}
-                  </div>
-                </div>
-              )}
-              {(runtimeSyncIssues.length > 0 || liveExecutionBlockers.length > 0) && (
-                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2 text-xs leading-5">
-                  <div className="font-medium">需要同步考慮的 execution blocker</div>
-                  <div className="mt-1 break-words">
-                    {runtimeSyncIssues.length > 0 ? runtimeSyncIssues.join(" · ") : "無"}
-                    {liveExecutionBlockers.length > 0 ? ` ｜ ${liveExecutionBlockers.join(" · ")}` : ""}
-                  </div>
-                  <div className="mt-2 opacity-80">
-                    shortcut lane {executionSurfaceContract?.shortcut_surface?.name || "signal_banner"} · {executionSurfaceContract?.shortcut_surface?.message || "完整 execution 狀態仍以 Dashboard 為準"}
-                  </div>
-                  <div className="opacity-80">升級前提：{executionSurfaceContract?.shortcut_surface?.upgrade_prerequisite || "先完成 Dashboard execution surface 的 lifecycle / reconciliation contract"}</div>
-                </div>
-              )}
-              <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2 text-xs leading-5">
-                <div className="font-medium">Restart replay / recovery state</div>
-                <div className="mt-1 break-words">{recoveryState?.summary || "尚未取得 restart replay summary。"}</div>
-                <div className="mt-1 opacity-80">lifecycle contract summary {lifecycleContract?.summary || "—"}</div>
-                <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                  <div>lifecycle stage {lifecycleAudit?.stage || "—"}</div>
-                  <div>runtime → trade history {lifecycleAudit?.runtime_state || "—"} → {lifecycleAudit?.trade_history_state || "—"}</div>
-                  <div>matched open-order state {lifecycleAudit?.matched_open_order_state || "—"}</div>
-                  <div>restart replay required {lifecycleAudit?.restart_replay_required ? "yes" : "no"}</div>
-                </div>
-                <div className="mt-2 opacity-80">baseline contract {lifecycleContract?.baseline_contract_status || "—"} · replay readiness {lifecycleContract?.replay_readiness || "—"}</div>
-                <div className="opacity-80">replay verdict {lifecycleContract?.replay_verdict || "—"} · reason {lifecycleContract?.replay_verdict_reason || "—"}</div>
-                <div className="opacity-80">replay verdict summary {lifecycleContract?.replay_verdict_summary || "—"}</div>
-                <div className="opacity-80">artifact coverage {lifecycleContract?.artifact_coverage || "—"} · next artifact {lifecycleContract?.operator_next_artifact || "—"}</div>
-                <div className="opacity-80">missing lifecycle events {(lifecycleContract?.missing_event_types || []).join(" / ") || "none"}</div>
-                <div className="mt-2 opacity-80">operator action：{recoveryState?.operator_action || lifecycleAudit?.operator_action || "先到 Dashboard 檢查 execution runtime surface。"}</div>
-                <div className="opacity-80">runtime order ts {lifecycleAudit?.evidence?.runtime_order_timestamp || "—"} · trade history ts {lifecycleAudit?.evidence?.trade_history_timestamp || "—"}</div>
-                <div className="mt-2 opacity-80">Lifecycle event timeline {lifecycleTimeline?.status || "absent"} · total events {lifecycleTimeline?.total_events ?? 0}</div>
-                <div className="opacity-80">latest event {lifecycleTimeline?.latest_event?.event_type || "—"} · {lifecycleTimeline?.latest_event?.order_state || "—"}</div>
-                {lifecycleTimelineEvents.length > 0 && (
-                  <div className="mt-2 rounded-md border border-white/10 bg-slate-950/20 px-3 py-2">
-                    {lifecycleTimelineEvents.slice(-3).map((event, idx) => (
-                      <div key={`${event.timestamp || "timeline"}-${event.event_type || idx}`} className={idx === 0 ? "" : "mt-2 pt-2 border-t border-white/10"}>
-                        <div>{event.event_type || "unknown_event"} · {event.order_state || "—"} · {event.source || "—"}</div>
-                        <div className="opacity-80">{event.summary || "—"}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="mt-3 rounded-md border border-white/10 bg-slate-950/20 px-3 py-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-medium">Artifact checklist / per-order closure</div>
-                    <div className="opacity-80">artifact checklist summary {lifecycleContract?.artifact_checklist_summary || "—"}</div>
-                  </div>
-                  <div className="mt-1 opacity-80">逐筆 order artifact 對帳：validation → ack → trade history → partial fill / cancel → restart replay</div>
-                  <div className="mt-1 opacity-75">artifact provenance {lifecycleContract?.artifact_provenance_summary || "—"}</div>
-                  <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                    {lifecycleArtifactChecklist.length > 0 ? lifecycleArtifactChecklist.map((item, idx) => (
-                      <div key={`${item.key || "artifact"}-${idx}`} className={`rounded-md border px-3 py-2 ${lifecycleChecklistTone(item.status)}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <div>{item.label || item.key || `artifact ${idx + 1}`}</div>
-                          <div className="opacity-80">{item.status || "unknown"}</div>
-                        </div>
-                        <div className="mt-1 opacity-80">required {item.required ? "yes" : "no"} · observed {item.observed ? "yes" : "no"} · count {item.count ?? 0}</div>
-                        <div className="mt-1 opacity-80">{item.summary || "—"}</div>
-                        <div className="mt-1 opacity-80">proof {item.provenance_summary || item.provenance_level || "—"}</div>
-                        <div className="mt-1 opacity-75">proof chain {item.proof_chain_summary || "—"}</div>
-                        {Array.isArray(item.proof_chain) && item.proof_chain.length > 0 ? (
-                          <div className="mt-2 space-y-1 rounded border border-white/10 bg-black/10 px-2 py-2 text-[10px] opacity-85">
-                            {item.proof_chain.slice(-3).map((chainEvent, chainIdx) => (
-                              <div key={`${chainEvent.timestamp || "proof"}-${chainEvent.event_type || chainIdx}`}>
-                                {chainEvent.timestamp || "—"} · {chainEvent.event_type || "unknown"} · {chainEvent.provenance_level || "unknown"} · {chainEvent.source || chainEvent.exchange || chainEvent.order_state || "—"}
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    )) : (
-                      <div className="opacity-80">尚未取得 per-order artifact checklist。</div>
-                    )}
-                  </div>
-                  <div className="mt-3 border-t border-white/10 pt-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-medium">Venue-specific closure lanes</div>
-                      <div className="opacity-80">venue lanes summary {lifecycleContract?.venue_lanes_summary || "—"}</div>
-                    </div>
-                    <div className="mt-1 opacity-75">Binance / OKX lane 必須分開看 baseline、path artifact、restart replay，不能再把 mixed timeline 當成單一 closure 敘事。</div>
-                    <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                      {lifecycleVenueLanes.length > 0 ? lifecycleVenueLanes.map((lane, idx) => (
-                        <div key={`${lane.venue || lane.label || "venue-lane"}-${idx}`} className={`rounded-md border px-3 py-2 ${lifecycleChecklistTone(lane.status)}`}>
-                          <div className="flex items-center justify-between gap-2">
-                            <div>{lane.label || lane.venue || `lane ${idx + 1}`}</div>
-                            <div className="opacity-80">{lane.status || "unknown"}</div>
-                          </div>
-                          <div className="mt-1 opacity-80">{lane.summary || "—"}</div>
-                          <div className="mt-1 opacity-80">baseline {lane.baseline_observed ?? 0}/{lane.baseline_required ?? 0} · path {lane.path_observed ?? 0}/{lane.path_expected ?? 0} · replay {lane.restart_replay_status || "—"}</div>
-                          <div className="mt-1 opacity-80">next artifact {lane.operator_next_artifact || "—"}</div>
-                          <div className="mt-1 opacity-80">operator action {lane.operator_action_summary || "—"}</div>
-                          <div className="mt-1 opacity-75">remediation {lane.remediation_priority || "—"} · {lane.remediation_focus || "—"}</div>
-                          <div className="mt-1 opacity-75">provenance venue-backed {lane.provenance_counts?.venue_backed ?? 0} · dry-run {lane.provenance_counts?.dry_run_only ?? 0} · internal {lane.provenance_counts?.internal_only ?? 0} · missing {lane.provenance_counts?.missing_or_not_applicable ?? 0}</div>
-                          <div className="mt-1 opacity-70">missing required {(lane.missing_required_artifacts || []).join(" / ") || "none"}</div>
-                          <div className="mt-2 rounded border border-white/10 bg-black/10 px-2 py-2 opacity-85">
-                            <div>lane drilldown {lane.artifact_drilldown_summary || "—"}</div>
-                            <div className="mt-1">lane timeline {lane.timeline_summary || `timeline ${lane.timeline_count ?? 0} events · latest none`}</div>
-                            <div className="mt-2">operator instruction {lane.operator_instruction || "—"}</div>
-                            <div className="mt-1">verify {lane.verify_instruction || "—"}</div>
-                            <div className="mt-1">next check {lane.operator_next_check || "—"}</div>
-                            <div className="mt-2">lane artifacts {(lane.artifacts || []).slice(0, 3).map((artifact) => `${artifact.key || "unknown"}:${artifact.status || "unknown"}:${artifact.provenance_level || "unknown"}`).join(" · ") || "none"}</div>
-                            <div className="mt-2 space-y-1">
-                              {(lane.timeline_events || []).slice(-3).map((event, eventIdx) => (
-                                <div key={`${lane.venue || "lane"}-${event.timestamp || "event"}-${eventIdx}`}>
-                                  {event.timestamp || "—"} · {event.event_type || "unknown"} · {event.provenance_level || "unknown"} · {event.source || event.exchange || event.order_state || "—"}
-                                </div>
-                              ))}
-                              {!lane.timeline_events?.length && <div>lane timeline events none</div>}
-                            </div>
-                          </div>
-                        </div>
-                      )) : (
-                        <div className="opacity-80">尚未取得 venue-specific closure lanes。</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
               <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="opacity-80">canonical surface {executionSurfaceContract?.canonical_surface_label || "Dashboard / Execution 狀態面板"}</div>
-                <a href="/" className="rounded-lg border border-white/15 px-3 py-1.5 text-cyan-100 hover:border-cyan-300/40 hover:text-cyan-50">
-                  前往 Dashboard 檢查 execution runtime →
-                </a>
+                <div className="opacity-80">diagnostics surface {executionDiagnosticsSurface?.label || "執行狀態"} · {executionDiagnosticsSurface?.route || "/execution/status"}</div>
+                <div className="flex flex-wrap gap-2">
+                  <a href={executionOperationsSurface?.route || "/execution"} className="rounded-lg border border-white/15 px-3 py-1.5 text-cyan-100 hover:border-cyan-300/40 hover:text-cyan-50">
+                    前往 Bot 營運 →
+                  </a>
+                  <a href="/execution/status" className="rounded-lg border border-white/15 px-3 py-1.5 text-cyan-100 hover:border-cyan-300/40 hover:text-cyan-50">
+                    前往執行狀態 →
+                  </a>
+                </div>
               </div>
             </div>
 
@@ -2516,7 +2285,7 @@ export default function StrategyLab() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-slate-300">🧭 綜合能力</div>
-                    <div className="text-[11px] text-slate-500">用 Leaderboard 2.0 的五維能力看策略。</div>
+                    <div className="text-[11px] text-slate-500">五維能力摘要。</div>
                   </div>
                   <div className={`text-right text-lg font-bold ${decisionQualityTone(activeResult?.avg_decision_quality_score)}`}>
                     {formatDecimal(activeResult?.overall_score, 3)}
@@ -2620,7 +2389,7 @@ export default function StrategyLab() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-300">🏆 策略排行榜</h3>
-                    <div className="text-[11px] text-slate-500">系統自動搜尋並排序最佳組合；點選列可回填策略設定，不再依賴手動新增排行榜策略。</div>
+                    <div className="text-[11px] text-slate-500">自動搜尋最佳組合，點一下就能回填設定。</div>
                   </div>
                   <button onClick={() => loadLeaderboard(true)} className="text-xs text-blue-400 hover:text-blue-300">🔄 重新搜尋</button>
                 </div>
@@ -2718,7 +2487,21 @@ export default function StrategyLab() {
                   <div className="text-[11px] text-slate-500">{modelMeta.updated_at ? `更新 ${new Date(modelMeta.updated_at).toLocaleString("zh-TW")}` : "尚未建立快取"}</div>
                 </div>
                 <div className="space-y-3">
-                  {groupedModelLeaderboard.map((group) => (
+                  {modelMeta.warning && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                      {modelMeta.warning}
+                    </div>
+                  )}
+                  {modelMeta.leaderboard_warning && (
+                    <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-3 text-xs text-yellow-100 space-y-1">
+                      <div className="font-semibold text-yellow-200">排行榜治理提示</div>
+                      <div>{modelMeta.leaderboard_warning}</div>
+                      <div className="text-[11px] text-yellow-200/80">
+                        可比較 {modelMeta.comparable_count ?? modelLeaderboard.length} · placeholder {modelMeta.placeholder_count ?? placeholderModelRows.length} · evaluated {modelMeta.evaluated_row_count ?? ((modelMeta.comparable_count ?? modelLeaderboard.length) + (modelMeta.placeholder_count ?? placeholderModelRows.length))}
+                      </div>
+                    </div>
+                  )}
+                  {groupedModelLeaderboard.length > 0 ? groupedModelLeaderboard.map((group) => (
                     <div key={group.key} className="overflow-auto rounded-lg border border-slate-700/40">
                       <div className="border-b border-slate-800 bg-slate-950/30 px-3 py-2">
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
@@ -2781,7 +2564,49 @@ export default function StrategyLab() {
                         </tbody>
                       </table>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="rounded-lg border border-slate-700/40 bg-slate-950/20 px-3 py-4 text-sm text-slate-300">
+                      目前沒有可比較的模型排行榜列；請先查看下方 no-trade placeholder，確認 deployment profile 是否過嚴或仍需研究調參。
+                    </div>
+                  )}
+                  {placeholderModelRows.length > 0 && (
+                    <div className="overflow-auto rounded-lg border border-amber-500/20 bg-amber-500/5">
+                      <div className="border-b border-amber-500/20 bg-amber-500/10 px-3 py-2">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-amber-100">
+                          <span className="inline-flex rounded-full border border-amber-400/30 px-2 py-0.5 text-[11px]">No-trade placeholder</span>
+                          <span className="text-[11px] text-amber-200/80">這些模型在當前 deployment profile 下沒有產生任何交易，因此已從正式排行榜分離。</span>
+                        </div>
+                      </div>
+                      <table className="w-full min-w-[860px] text-xs">
+                        <thead className="bg-slate-950/20 text-slate-500 border-b border-slate-800">
+                          <tr>
+                            <th className="px-2 py-2 text-left">Model</th>
+                            <th className="px-2 py-2 text-right">Placeholder rank</th>
+                            <th className="px-2 py-2 text-right">Overall</th>
+                            <th className="px-2 py-2 text-right">ROI</th>
+                            <th className="px-2 py-2 text-right">Trades</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {placeholderModelRows.map((model) => (
+                            <tr key={`placeholder-${model.model_name}-${model.raw_rank ?? "na"}`} className="border-b border-slate-800/50 hover:bg-slate-800/20">
+                              <td className="px-2 py-2 text-left text-slate-200 font-medium">
+                                <div className="flex items-center gap-2">
+                                  <span>{model.model_name}</span>
+                                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${modelTierBadgeTone[String(model.model_tier || "control")] || modelTierBadgeTone.control}`}>{modelTierLabel(model)}</span>
+                                </div>
+                                <div className="mt-1 text-[10px] text-slate-500">{describeRankingReason(model)}</div>
+                              </td>
+                              <td className="px-2 py-2 text-right text-amber-200">{typeof model.raw_rank === "number" ? `#${model.raw_rank}` : "—"}</td>
+                              <td className="px-2 py-2 text-right text-amber-200">{formatDecimal(model.overall_score, 3)}</td>
+                              <td className={`px-2 py-2 text-right ${isFiniteNumber(model.avg_roi) && model.avg_roi >= 0 ? "text-green-400" : "text-red-400"}`}>{formatPct(model.avg_roi, 1, true)}</td>
+                              <td className="px-2 py-2 text-right text-amber-100">{formatDecimal(model.avg_trades, 0)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

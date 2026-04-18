@@ -59,6 +59,7 @@ CONFIDENCE_HIGH = 0.7   # BUY — high confidence price will rise enough for spo
 CONFIDENCE_LOW = 0.3    # HOLD — low confidence, avoid entering
 LIVE_MAX_LAYERS = 3
 LIVE_REGIME_BIAS200_MIN = -10.0
+EXACT_LIVE_STRUCTURE_BUCKET_MIN_SUPPORT_ROWS = 50
 # Heartbeat #715: bull ALLOW + D rows with very stretched 4H structure were still
 # passing the gate even though 19 historical rows at/above this pocket went 0/19.
 # Treat this as an explicit ALLOW-lane veto until the gate is retrained with a
@@ -1170,6 +1171,62 @@ def _maybe_apply_q15_exact_supported_component_patch(
     return updated_breakdown, patch_meta
 
 
+def _support_progress_snapshot(
+    current_rows: Any,
+    *,
+    minimum_rows: int = EXACT_LIVE_STRUCTURE_BUCKET_MIN_SUPPORT_ROWS,
+) -> Dict[str, Any]:
+    rows = max(int(current_rows or 0), 0)
+    minimum = max(int(minimum_rows or EXACT_LIVE_STRUCTURE_BUCKET_MIN_SUPPORT_ROWS), 1)
+    gap = max(minimum - rows, 0)
+    if rows >= minimum:
+        status = "exact_supported"
+    elif rows > 0:
+        status = "accumulating"
+    else:
+        status = "stalled_under_minimum"
+    return {
+        "status": status,
+        "current_rows": rows,
+        "minimum_support_rows": minimum,
+        "gap_to_minimum": gap,
+    }
+
+
+def _summarize_structure_bucket_support_route(
+    decision_quality_contract: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Expose exact-bucket support progress even when no deployment blocker is active."""
+    dq = decision_quality_contract if isinstance(decision_quality_contract, dict) else {}
+    support_mode = str(dq.get("decision_quality_structure_bucket_support_mode") or "")
+    support_rows = max(int(dq.get("decision_quality_structure_bucket_support_rows") or 0), 0)
+    exact_support_rows = max(int(dq.get("decision_quality_exact_live_structure_bucket_support_rows") or 0), 0)
+    current_rows = exact_support_rows or support_rows
+    minimum_rows = EXACT_LIVE_STRUCTURE_BUCKET_MIN_SUPPORT_ROWS
+    support_progress = _support_progress_snapshot(current_rows, minimum_rows=minimum_rows)
+
+    verdict: Optional[str]
+    if support_mode.startswith("exact_bucket_supported") or current_rows >= minimum_rows:
+        verdict = "exact_bucket_supported"
+    elif support_mode == "exact_bucket_present_but_below_minimum" or 0 < current_rows < minimum_rows:
+        verdict = "exact_bucket_present_but_below_minimum"
+    elif support_mode == "exact_bucket_unsupported_block":
+        verdict = "exact_bucket_unsupported_block"
+    else:
+        verdict = None
+
+    if verdict is None:
+        return {}
+
+    return {
+        "verdict": verdict,
+        "deployable": verdict == "exact_bucket_supported",
+        "support_progress": support_progress,
+        "minimum_support_rows": minimum_rows,
+        "current_live_structure_bucket_gap_to_minimum": support_progress.get("gap_to_minimum"),
+    }
+
+
 def _infer_deployment_blocker(
     decision_profile: Dict[str, Any],
     decision_quality_contract: Optional[Dict[str, Any]] = None,
@@ -1215,10 +1272,18 @@ def _infer_deployment_blocker(
         exact_support_rows = int(exact_scope_rows or 0)
     if support_rows <= 0 and exact_support_rows > 0:
         support_rows = exact_support_rows
+    support_mode_prefers_exact_rows = support_mode.startswith("exact_bucket_")
     current_live_structure_bucket_rows = (
-        int(exact_scope_rows or 0)
+        int(exact_support_rows or 0)
+        if support_mode_prefers_exact_rows and exact_support_rows > 0
+        else int(exact_scope_rows or 0)
         if exact_scope_matches_current_bucket
         else int(exact_support_rows or support_rows or 0)
+    )
+    minimum_support_rows = EXACT_LIVE_STRUCTURE_BUCKET_MIN_SUPPORT_ROWS
+    support_progress = _support_progress_snapshot(
+        current_live_structure_bucket_rows,
+        minimum_rows=minimum_support_rows,
     )
 
     missing_exact_scope_support = (
@@ -1228,7 +1293,7 @@ def _infer_deployment_blocker(
     )
     under_minimum_exact_scope_support = (
         exact_scope_matches_current_bucket
-        and 0 < current_live_structure_bucket_rows < 5
+        and 0 < current_live_structure_bucket_rows < minimum_support_rows
     )
 
     generic_blocker: Optional[Dict[str, Any]] = None
@@ -1244,11 +1309,16 @@ def _infer_deployment_blocker(
             "source": "decision_quality_contract",
             "structure_bucket": structure_bucket,
             "support_mode": support_mode or "exact_bucket_unsupported_block",
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_route_deployable": False,
             "current_live_structure_bucket_rows": current_live_structure_bucket_rows,
             "exact_live_structure_bucket_rows": exact_support_rows,
+            "minimum_support_rows": minimum_support_rows,
+            "current_live_structure_bucket_gap_to_minimum": support_progress.get("gap_to_minimum"),
+            "support_progress": support_progress,
             "guardrail_reason": support_reason,
         }
-    elif (structure_guardrail_applied and exact_support_rows < 5) or under_minimum_exact_scope_support:
+    elif (structure_guardrail_applied and exact_support_rows < minimum_support_rows) or under_minimum_exact_scope_support:
         generic_blocker = {
             "type": "under_minimum_exact_live_structure_bucket",
             "reason": (
@@ -1258,8 +1328,13 @@ def _infer_deployment_blocker(
             "source": "decision_quality_contract",
             "structure_bucket": structure_bucket,
             "support_mode": support_mode or "exact_bucket_present_but_below_minimum",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_route_deployable": False,
             "current_live_structure_bucket_rows": current_live_structure_bucket_rows,
             "exact_live_structure_bucket_rows": exact_support_rows,
+            "minimum_support_rows": minimum_support_rows,
+            "current_live_structure_bucket_gap_to_minimum": support_progress.get("gap_to_minimum"),
+            "support_progress": support_progress,
             "guardrail_reason": support_reason,
         }
 
@@ -1301,6 +1376,110 @@ def _infer_deployment_blocker(
             "decision_quality_sample_size": dq.get("decision_quality_sample_size"),
             "toxic_bucket": toxic_bucket or None,
             "bucket_diagnostics": toxic_bucket_diagnostics or None,
+        }
+
+    entry_quality_components = (
+        decision_profile.get("entry_quality_components")
+        if isinstance(decision_profile.get("entry_quality_components"), dict)
+        else {}
+    )
+    entry_quality = float(decision_profile.get("entry_quality") or 0.0)
+    trade_floor = float(entry_quality_components.get("trade_floor") or 0.55)
+    raw_allowed_layers = max(0, int(decision_profile.get("allowed_layers") or 0))
+    raw_allowed_layers_reason = str(decision_profile.get("allowed_layers_reason") or "")
+    decision_quality_label = str(dq.get("decision_quality_label") or "")
+    decision_quality_score = dq.get("decision_quality_score")
+    quality_below_trade_floor = False
+    if decision_quality_label == "D":
+        quality_below_trade_floor = True
+    elif decision_quality_score is not None:
+        try:
+            quality_below_trade_floor = float(decision_quality_score) < 0.35
+        except (TypeError, ValueError):
+            quality_below_trade_floor = False
+    if (
+        "q15" in structure_bucket
+        and support_progress.get("status") == "exact_supported"
+        and not bool(decision_profile.get("q15_exact_supported_component_patch_applied"))
+        and (
+            raw_allowed_layers <= 0
+            or raw_allowed_layers_reason == "entry_quality_below_trade_floor"
+            or entry_quality < trade_floor
+        )
+    ):
+        q15_support = _load_json_artifact(Q15_SUPPORT_AUDIT_PATH)
+        support_route = q15_support.get("support_route") if isinstance(q15_support.get("support_route"), dict) else {}
+        floor_cross = q15_support.get("floor_cross_legality") if isinstance(q15_support.get("floor_cross_legality"), dict) else {}
+        component_experiment = q15_support.get("component_experiment") if isinstance(q15_support.get("component_experiment"), dict) else {}
+        return {
+            "type": "decision_quality_below_trade_floor",
+            "reason": (
+                f"current live structure bucket `{structure_bucket}` 已完成 exact support closure（{current_live_structure_bucket_rows}/{minimum_support_rows}），"
+                f"但 top-level live baseline 仍停在 entry_quality={entry_quality:.4f}，低於 trade floor {trade_floor:.2f}；"
+                "目前只能維持明確 no-deploy governance，不可把 support closure 或 component-experiment readiness 誤讀成 deployment closure。"
+            ),
+            "source": "decision_quality_contract+q15_support_audit",
+            "structure_bucket": structure_bucket,
+            "support_mode": support_mode or "exact_bucket_supported",
+            "support_route_verdict": support_route.get("verdict") or "exact_bucket_supported",
+            "support_route_deployable": support_route.get("deployable") if support_route else True,
+            "current_live_structure_bucket_rows": current_live_structure_bucket_rows,
+            "exact_live_structure_bucket_rows": exact_support_rows or current_live_structure_bucket_rows,
+            "minimum_support_rows": minimum_support_rows,
+            "current_live_structure_bucket_gap_to_minimum": support_progress.get("gap_to_minimum"),
+            "support_progress": support_progress,
+            "entry_quality": round(entry_quality, 4),
+            "entry_quality_label": decision_profile.get("entry_quality_label"),
+            "trade_floor": trade_floor,
+            "trade_floor_gap": round(entry_quality - trade_floor, 4),
+            "allowed_layers_raw": raw_allowed_layers,
+            "allowed_layers_reason": raw_allowed_layers_reason or None,
+            "decision_quality_label": dq.get("decision_quality_label"),
+            "decision_quality_score": dq.get("decision_quality_score"),
+            "floor_cross_legality": floor_cross or None,
+            "component_experiment": component_experiment or None,
+        }
+
+    if (
+        "q15" in structure_bucket
+        and support_progress.get("status") == "exact_supported"
+        and bool(decision_profile.get("q15_exact_supported_component_patch_applied"))
+        and raw_allowed_layers > 0
+        and quality_below_trade_floor
+    ):
+        q15_support = _load_json_artifact(Q15_SUPPORT_AUDIT_PATH)
+        support_route = q15_support.get("support_route") if isinstance(q15_support.get("support_route"), dict) else {}
+        floor_cross = q15_support.get("floor_cross_legality") if isinstance(q15_support.get("floor_cross_legality"), dict) else {}
+        component_experiment = q15_support.get("component_experiment") if isinstance(q15_support.get("component_experiment"), dict) else {}
+        return {
+            "type": "decision_quality_below_trade_floor",
+            "reason": (
+                f"current live structure bucket `{structure_bucket}` 已完成 exact support closure（{current_live_structure_bucket_rows}/{minimum_support_rows}），"
+                f"且 q15 patch 已啟用並把 raw entry 拉到 entry_quality={entry_quality:.4f}（raw layers={raw_allowed_layers}），"
+                "但 final execution 仍被 decision-quality trade floor 擋住；目前必須維持 patch_active_but_execution_blocked，"
+                "不可把 q15 patch active 或 support closure 誤讀成 deployment closure。"
+            ),
+            "source": "decision_quality_contract+q15_support_audit",
+            "structure_bucket": structure_bucket,
+            "support_mode": support_mode or "exact_bucket_supported",
+            "support_route_verdict": support_route.get("verdict") or "exact_bucket_supported",
+            "support_route_deployable": support_route.get("deployable") if support_route else True,
+            "current_live_structure_bucket_rows": current_live_structure_bucket_rows,
+            "exact_live_structure_bucket_rows": exact_support_rows or current_live_structure_bucket_rows,
+            "minimum_support_rows": minimum_support_rows,
+            "current_live_structure_bucket_gap_to_minimum": support_progress.get("gap_to_minimum"),
+            "support_progress": support_progress,
+            "entry_quality": round(entry_quality, 4),
+            "entry_quality_label": decision_profile.get("entry_quality_label"),
+            "trade_floor": trade_floor,
+            "trade_floor_gap": round(entry_quality - trade_floor, 4),
+            "allowed_layers_raw": raw_allowed_layers,
+            "allowed_layers_raw_reason": raw_allowed_layers_reason or None,
+            "decision_quality_label": dq.get("decision_quality_label"),
+            "decision_quality_score": dq.get("decision_quality_score"),
+            "q15_exact_supported_component_patch_applied": True,
+            "floor_cross_legality": floor_cross or None,
+            "component_experiment": component_experiment or None,
         }
 
     if str(decision_profile.get("regime_label") or "") != "bull":
@@ -4050,6 +4229,7 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
         signal = "HOLD"
         confidence_level = "MEDIUM"
 
+    support_route = _summarize_structure_bucket_support_route(decision_quality_contract)
     result = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "features": features,
@@ -4063,6 +4243,11 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
         "target_col": getattr(getattr(predictor, '_global', predictor), '_target_col', DEFAULT_TARGET_COL),
         **execution_profile,
         **decision_quality_contract,
+        "support_route_verdict": support_route.get("verdict"),
+        "support_route_deployable": support_route.get("deployable"),
+        "support_progress": support_route.get("support_progress"),
+        "minimum_support_rows": support_route.get("minimum_support_rows"),
+        "current_live_structure_bucket_gap_to_minimum": support_route.get("current_live_structure_bucket_gap_to_minimum"),
     }
     logger.info(
         "Prediction: conf=%.4f, signal=%s, level=%s, gate=%s, quality=%.4f, layers=%s",
