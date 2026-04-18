@@ -205,7 +205,7 @@ def test_q35_audit_refreshes_stale_live_probe_for_current_row(tmp_path, monkeypa
 
 
 def test_q35_audit_main_runs_post_write_second_pass_refresh(monkeypatch, capsys):
-    call_state = {"probe_calls": 0, "write_calls": 0}
+    call_state = {"probe_calls": 0, "write_calls": 0, "force_refresh_flags": []}
     current = {
         "timestamp": "2026-04-15 19:35:36.534053",
         "symbol": "BTCUSDT",
@@ -257,8 +257,9 @@ def test_q35_audit_main_runs_post_write_second_pass_refresh(monkeypatch, capsys)
 
     monkeypatch.setattr(hb_q35_scaling_audit, "_build_row_context", _fake_build_row_context)
 
-    def _fake_load_probe(ts, bucket):
+    def _fake_load_probe(ts, bucket, force_refresh=False):
         call_state["probe_calls"] += 1
+        call_state["force_refresh_flags"].append(force_refresh)
         if call_state["probe_calls"] == 1:
             return {
                 "target_col": "simulated_pyramid_win",
@@ -344,6 +345,7 @@ def test_q35_audit_main_runs_post_write_second_pass_refresh(monkeypatch, capsys)
     output = json.loads(capsys.readouterr().out)
 
     assert call_state["probe_calls"] == 2
+    assert call_state["force_refresh_flags"] == [False, True]
     assert call_state["write_calls"] == 2
     assert output["deployment_grade_component_experiment"]["runtime_entry_quality"] == 0.6136
     assert output["deployment_grade_component_experiment"]["allowed_layers_gt_0"] is True
@@ -371,6 +373,51 @@ def test_q35_audit_reuses_aligned_probe_without_refresh(tmp_path, monkeypatch):
     )
 
     assert probe["entry_quality"] == 0.4523
+
+
+
+def test_q35_audit_force_refresh_bypasses_aligned_probe_cache(tmp_path, monkeypatch):
+    probe_path = tmp_path / "live_predict_probe.json"
+    probe_path.write_text(
+        json.dumps(
+            {
+                "feature_timestamp": "2026-04-18 07:41:19.009526",
+                "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                "entry_quality": 0.4858,
+                "q35_discriminative_redesign_applied": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hb_q35_scaling_audit, "PROBE_PATH", probe_path)
+
+    refreshed_probe = {
+        "feature_timestamp": "2026-04-18 07:41:19.009526",
+        "structure_bucket": "CAUTION|structure_quality_caution|q35",
+        "entry_quality": 0.6955,
+        "q35_discriminative_redesign_applied": True,
+        "entry_quality_components": {
+            "q35_discriminative_redesign": {"applied": True}
+        },
+    }
+    calls = []
+
+    def _fake_run(cmd, cwd=None, capture_output=None, text=None):
+        calls.append({"cmd": cmd, "cwd": cwd})
+        return _CompletedProcess(stdout=json.dumps(refreshed_probe))
+
+    monkeypatch.setattr(hb_q35_scaling_audit.subprocess, "run", _fake_run)
+
+    probe = hb_q35_scaling_audit._load_or_refresh_live_predict_probe(
+        "2026-04-18 07:41:19.009526",
+        "CAUTION|structure_quality_caution|q35",
+        force_refresh=True,
+    )
+
+    assert len(calls) == 1
+    assert probe["entry_quality"] == 0.6955
+    assert probe["q35_discriminative_redesign_applied"] is True
+    assert json.loads(probe_path.read_text(encoding="utf-8"))["entry_quality"] == 0.6955
 
 
 
@@ -623,6 +670,45 @@ def test_collect_live_predictor_diagnostics_preserves_deployment_blocker_fields(
     assert result["deployment_blocker_reason"] == "safe redesign 失敗，只剩 unsafe floor cross"
     assert result["deployment_blocker_source"] == "q35_scaling_audit+q15_support_audit"
     assert result["deployment_blocker_details"]["support_route_verdict"] == "exact_bucket_supported"
+
+
+def test_needs_q15_post_audit_runtime_resync_when_support_ready_but_probe_still_unpatched():
+    live_predictor_diagnostics = {
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "q15_exact_supported_component_patch_applied": False,
+        "allowed_layers_raw": 0,
+        "allowed_layers": 0,
+    }
+    q15_support_summary = {
+        "scope_applicability": {
+            "status": "current_live_q15_lane_active",
+            "active_for_current_live_row": True,
+            "current_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        },
+        "support_route": {
+            "verdict": "exact_bucket_supported",
+            "deployable": True,
+        },
+        "floor_cross_legality": {
+            "verdict": "legal_component_experiment_after_support_ready",
+            "legal_to_relax_runtime_gate": True,
+        },
+        "component_experiment": {
+            "verdict": "exact_supported_component_experiment_ready",
+            "feature": "feat_4h_bias50",
+            "machine_read_answer": {
+                "support_ready": True,
+                "entry_quality_ge_0_55": True,
+                "allowed_layers_gt_0": True,
+                "preserves_positive_discrimination": True,
+            },
+        },
+    }
+
+    assert hb_parallel_runner._needs_q15_post_audit_runtime_resync(
+        live_predictor_diagnostics,
+        q15_support_summary,
+    ) is True
 
 
 def test_q35_joint_component_experiment_quantifies_remaining_bias50_gap():

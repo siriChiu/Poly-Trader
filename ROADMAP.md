@@ -1,57 +1,66 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-18 18:40 CST_
+_最後更新：2026-04-18 19:50 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **q15 probe/audit truth sync 修復**：`scripts/hb_predict_probe.py` 現在會先 refresh `q15_support_audit`、在 support-ready 狀態改變時 replay prediction、audit 與 probe current-live 不一致時 force-refresh，避免 stale audit 把 live probe 誤寫成 patch-ready。
-- **model leaderboard placeholder contract 修復**：`server/routes/api.py` 現在會保留並快取 `placeholder_rows / placeholder_count / leaderboard_warning`；zero-trade models 不再被正常排行榜吞掉或重新偽裝成 top rank。
-- **cache loader 支援 placeholder-only snapshot**：placeholder-only cache 不再被當成空 cache 忽略，`/api/models/leaderboard` 可以正確回放 `count=0 / placeholder_count>0` 的 honest state。
-- **驗證完成**：
-  - `python -m pytest tests/test_hb_predict_probe.py tests/test_model_leaderboard.py tests/test_model_leaderboard_api_cache.py tests/test_hb_model_leaderboard_api_probe.py tests/test_strategy_leaderboard_contract.py tests/test_q15_support_audit.py -q` → `57 passed`
-  - `python -m pytest tests/test_frontend_decision_contract.py tests/test_server_startup.py -q` → `36 passed`
+- **q15 fast-heartbeat runtime resync**：`scripts/hb_parallel_runner.py` 現在會在 q15 support audit 已經說明 `exact_supported_component_experiment_ready`、但先前 live probe/drilldown 仍停在 pre-patch 狀態時，自動重跑 `hb_predict_probe.py` 與 `live_decision_quality_drilldown.py`，讓最終 `heartbeat_<run>_summary.json` 鎖定 resynced current-live truth。
+- **q15 current-live truth 已同步到 operator surface**：最新 fast heartbeat 與 `/execution/status` 都顯示 `q15 patch active`、`layers 1 → 0`、`support 96 / 50`、`runtime_closure_state=patch_active_but_execution_blocked`，不再回退成 `patch inactive / support missing`。
+- **回歸驗證完成**：
+  - `python -m pytest tests/test_hb_parallel_runner.py tests/test_hb_predict_probe.py tests/test_live_decision_quality_drilldown.py tests/test_execution_console_overview.py tests/test_server_startup.py tests/test_frontend_decision_contract.py -q` → `113 passed`
   - `cd web && npm run build` → PASS
+  - `python scripts/hb_parallel_runner.py --fast --hb 20260418b` → PASS（含 q15 runtime resync）
+  - Browser `/execution/status` → 顯示 `q15 patch active`、`layers 1 → 0`、`support 96 / 50`
 
 ---
 
 ## 主目標
 
-### 目標 A：把 q15 current-live lane 從「support 已 closure」推進到真正的 live closure
+### 目標 A：把 q15 從 patch-active raw capacity 推進到真正的 execution closure
 **目前真相**
-- `support_route_verdict=exact_bucket_supported`
-- `support_rows=96 / 50`
-- top-level live probe 仍是 `entry_quality=0.4181 / D / allowed_layers=0`
-- `q15_support_audit` 雖然已經產出 `exact_supported_component_experiment_ready`，但這仍是 audit/component experiment 語義，不是 live deployment closure
+- q15 已 `exact_bucket_supported (96 / 50)`
+- q15 patch 已把 raw path 拉到 `entry_quality=0.5501 / allowed_layers_raw=1`
+- final execution 仍被 `decision_quality_below_trade_floor` 壓回 `allowed_layers=0`
+- `/execution/status` 主 blocker 仍包含 venue/product readiness：`live exchange credential 尚未驗證 · order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證`
 
 **成功標準**
-- `hb_predict_probe.py` top-level live truth 要嘛真正達成 `entry_quality >= 0.55 && allowed_layers > 0`，要嘛維持明確 no-deploy governance；不能再讓 audit-ready 語義冒充 live-ready。
-- operator-facing surface 必須清楚分開 `support closure`、`component experiment ready`、`execution closure`。
+- 要嘛 final execution path 真正出現 `allowed_layers > 0`，且 operator surface 清楚說明為何可部署；
+- 要嘛把 no-deploy governance 收斂成明確的單一 closure 語義，讓 operator 能直接分辨是 **decision-quality blocker** 還是 **venue readiness blocker**，不再混成單一模糊 blocked 訊息。
 
-### 目標 B：把 model leaderboard 從 honest placeholder-only state 推進到 usable comparable ranking
+### 目標 B：把 model leaderboard 從 honest placeholder-only state 推進到 usable ranking
 **目前真相**
-- `/api/models/leaderboard` 已誠實回傳 `count=0 / placeholder_count=6`
-- 排名 bug 已修掉，但目前沒有任何可比較的 model row
+- `count=0 / comparable_count=0 / placeholder_count=6`
+- placeholder-only warning 與 stale-while-revalidate 仍正常運作
+- candidate profile governance 已對齊，不是目前主要 blocker
 
 **成功標準**
-- 要嘛至少出現 `comparable_count > 0` 的真正可比較 row，
-- 要嘛在 Strategy Lab / operator UX 上把 placeholder-only state 明確產品化，不讓使用者誤以為還有可部署名次。
+- 至少產生 `comparable_count > 0` 的真正可比較 row，
+- 或在 Strategy Lab / operator UX 上把 placeholder-only state 產品化到不再需要人工解讀「為什麼這一版還是空榜」。
+
+### 目標 C：維持 execution/runtime/frontend contract 同步
+**目前真相**
+- q15 resync 已修掉 fast heartbeat 與 `/execution/status` 的 stale current-live truth 問題
+- 但 execution surface 仍同時承載 runtime blocker 與 venue readiness blocker，後續容易再次語義混淆
+
+**成功標準**
+- heartbeat summary、`/execution/status`、Dashboard/Execution Console 對同一條 live lane 必須回報相同 closure state、相同 layers 轉換與相同 blocker hierarchy。
 
 ---
 
 ## 下一步
-1. **q15 live-vs-audit semantic split**
-   - 驗證：`python scripts/hb_predict_probe.py` 必須能清楚區分 live baseline 與 q15 component experiment；若 patch 未真的生效，不得再在 current-live surface 上看起來像已 closure。
-2. **model leaderboard trade-generation root cause**
-   - 驗證：`python scripts/hb_model_leaderboard_api_probe.py` 先維持 placeholder warning；修好後至少出現 `comparable_count > 0`。
-3. **維持回歸與前端 build 綠燈**
-   - 驗證：沿用本輪兩組 pytest + `npm run build`。
+1. **拆清 q15 final execution blocker vs venue readiness blocker**
+   - 驗證：`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、瀏覽器 `/execution/status`
+2. **追 leaderboard zero-trade 根因**
+   - 驗證：`python scripts/hb_model_leaderboard_api_probe.py` 或 cache/API payload 出現 `comparable_count>0`
+3. **維持 q15 resync 回歸與前端 build 綠燈**
+   - 驗證：沿用本輪 113 tests + `npm run build` + fast heartbeat
 
 ---
 
 ## 成功標準
-- q15 current-live blocker 以 live predictor truth 為主，不再被 stale audit 或 component experiment 混淆
-- model leaderboard 不再只是「誠實的空榜」，而是至少能提供一條可比較候選，或在 UI 上完成 placeholder-only 治理
-- heartbeat 仍維持：**issue 對齊 → patch → verify → docs overwrite → commit → push**
+- q15 current-live lane 不再只有 raw patch capacity，而是能清楚回答最終 execution 為何被放行或阻擋
+- model leaderboard 不再只是誠實的空榜，而是能提供至少一條可比較候選，或把 placeholder-only state 完整產品化
+- heartbeat 維持：**issue 對齊 → patch → verify → docs overwrite → commit → push**

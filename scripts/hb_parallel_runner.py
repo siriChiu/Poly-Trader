@@ -1435,6 +1435,11 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "regime_label": payload.get("regime_label"),
         "model_route_regime": payload.get("model_route_regime"),
         "regime_gate": payload.get("regime_gate"),
+        "current_live_structure_bucket": payload.get("current_live_structure_bucket") or payload.get("structure_bucket"),
+        "current_live_structure_bucket_rows": payload.get("current_live_structure_bucket_rows"),
+        "q15_exact_supported_component_patch_applied": payload.get("q15_exact_supported_component_patch_applied"),
+        "runtime_closure_state": payload.get("runtime_closure_state"),
+        "runtime_closure_summary": payload.get("runtime_closure_summary"),
         "entry_quality_label": payload.get("entry_quality_label"),
         "entry_quality_components": payload.get("entry_quality_components") or {},
         "allowed_layers_raw": payload.get("allowed_layers_raw"),
@@ -1473,6 +1478,86 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "decision_quality_recent_pathology_summary": payload.get("decision_quality_recent_pathology_summary") or {},
         "decision_quality_pathology_consensus": ((payload.get("decision_quality_scope_diagnostics") or {}).get("pathology_consensus") or {}),
     }
+
+
+def collect_live_decision_quality_drilldown_diagnostics(
+    drilldown_result: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    payload = None
+    stdout = (drilldown_result or {}).get("stdout") if drilldown_result else None
+    if stdout:
+        try:
+            payload = json.loads(stdout)
+        except Exception:
+            payload = None
+    if payload is None:
+        result_path = Path(PROJECT_ROOT) / "data" / "live_decision_quality_drilldown.json"
+        if not result_path.exists():
+            return {}
+        try:
+            payload = json.loads(result_path.read_text())
+        except Exception:
+            return {}
+    return {
+        "json": payload.get("json"),
+        "markdown": payload.get("markdown"),
+        "chosen_scope": payload.get("chosen_scope"),
+        "worst_pathology_scope": payload.get("worst_pathology_scope"),
+        "runtime_blocker": payload.get("runtime_blocker"),
+        "runtime_blocker_reason": payload.get("runtime_blocker_reason"),
+        "deployment_blocker": payload.get("deployment_blocker"),
+        "deployment_blocker_reason": payload.get("deployment_blocker_reason"),
+        "q15_exact_supported_component_patch_applied": payload.get("q15_exact_supported_component_patch_applied"),
+        "runtime_closure_state": payload.get("runtime_closure_state"),
+        "runtime_closure_summary": payload.get("runtime_closure_summary"),
+        "signal": payload.get("signal"),
+        "allowed_layers": payload.get("allowed_layers"),
+        "allowed_layers_reason": payload.get("allowed_layers_reason"),
+        "support_route_verdict": payload.get("support_route_verdict"),
+        "remaining_gap_to_floor": payload.get("remaining_gap_to_floor"),
+        "best_single_component": payload.get("best_single_component"),
+        "best_single_component_required_score_delta": payload.get("best_single_component_required_score_delta"),
+    }
+
+
+def _needs_q15_post_audit_runtime_resync(
+    live_predictor_diagnostics: Dict[str, Any] | None,
+    q15_support_summary: Dict[str, Any] | None,
+) -> bool:
+    live_predictor_diagnostics = live_predictor_diagnostics or {}
+    q15_support_summary = q15_support_summary or {}
+    if not live_predictor_diagnostics or not q15_support_summary:
+        return False
+
+    current_bucket = str(live_predictor_diagnostics.get("current_live_structure_bucket") or "")
+    if current_bucket != "CAUTION|structure_quality_caution|q15":
+        return False
+    if bool(live_predictor_diagnostics.get("q15_exact_supported_component_patch_applied")):
+        return False
+
+    scope = q15_support_summary.get("scope_applicability") or {}
+    support_route = q15_support_summary.get("support_route") or {}
+    floor = q15_support_summary.get("floor_cross_legality") or {}
+    component_experiment = q15_support_summary.get("component_experiment") or {}
+    machine_read = component_experiment.get("machine_read_answer") or {}
+
+    if scope.get("status") != "current_live_q15_lane_active" or not scope.get("active_for_current_live_row"):
+        return False
+    audit_bucket = str(scope.get("current_structure_bucket") or "")
+    if audit_bucket and audit_bucket != current_bucket:
+        return False
+    return bool(
+        support_route.get("verdict") == "exact_bucket_supported"
+        and support_route.get("deployable")
+        and floor.get("verdict") == "legal_component_experiment_after_support_ready"
+        and floor.get("legal_to_relax_runtime_gate")
+        and component_experiment.get("verdict") == "exact_supported_component_experiment_ready"
+        and component_experiment.get("feature") == "feat_4h_bias50"
+        and machine_read.get("support_ready")
+        and machine_read.get("entry_quality_ge_0_55")
+        and machine_read.get("allowed_layers_gt_0")
+        and machine_read.get("preserves_positive_discrimination")
+    )
 
 
 def collect_feature_ablation_diagnostics() -> Dict[str, Any]:
@@ -2370,28 +2455,7 @@ def main(argv=None):
         if len(lines) > 20:
             preview += "\n...\n" + "\n".join(lines[-8:])
         print(f"\n--- live_decision_quality_drilldown ---\n{preview}")
-        try:
-            drill_payload = json.loads(live_drilldown_result["stdout"])
-            live_drilldown_summary = {
-                "json": drill_payload.get("json"),
-                "markdown": drill_payload.get("markdown"),
-                "chosen_scope": drill_payload.get("chosen_scope"),
-                "worst_pathology_scope": drill_payload.get("worst_pathology_scope"),
-                "runtime_blocker": drill_payload.get("runtime_blocker"),
-                "runtime_blocker_reason": drill_payload.get("runtime_blocker_reason"),
-                "deployment_blocker": drill_payload.get("deployment_blocker"),
-                "deployment_blocker_reason": drill_payload.get("deployment_blocker_reason"),
-                "q15_exact_supported_component_patch_applied": drill_payload.get("q15_exact_supported_component_patch_applied"),
-                "signal": drill_payload.get("signal"),
-                "allowed_layers": drill_payload.get("allowed_layers"),
-                "allowed_layers_reason": drill_payload.get("allowed_layers_reason"),
-                "support_route_verdict": drill_payload.get("support_route_verdict"),
-                "remaining_gap_to_floor": drill_payload.get("remaining_gap_to_floor"),
-                "best_single_component": drill_payload.get("best_single_component"),
-                "best_single_component_required_score_delta": drill_payload.get("best_single_component_required_score_delta"),
-            }
-        except Exception:
-            live_drilldown_summary = {}
+    live_drilldown_summary = collect_live_decision_quality_drilldown_diagnostics(live_drilldown_result)
     if live_drilldown_result.get("stderr"):
         print(f"\n--- live_decision_quality_drilldown stderr ---\n{live_drilldown_result['stderr']}")
 
@@ -2552,6 +2616,41 @@ def main(argv=None):
             f"entry55={experiment_answer.get('entry_quality_ge_0_55')} "
             f"layers>0={experiment_answer.get('allowed_layers_gt_0')}"
         )
+
+    if _needs_q15_post_audit_runtime_resync(live_predictor_diagnostics, q15_support_summary):
+        print("🔄 Q15 runtime resync：support audit 已確認 patch-ready，但先前 live probe 尚未套用；重跑 probe + drilldown 以鎖定最終 current-live truth。")
+        write_progress(run_label, "q15_runtime_resync_probe")
+        predict_probe_result = run_predict_probe()
+        _persist_live_predictor_probe(predict_probe_result.get("stdout", ""))
+        live_predictor_diagnostics = collect_live_predictor_diagnostics(predict_probe_result)
+        print(
+            f"🧪 Q15 resynced live probe：{'通過' if predict_probe_result['success'] else '失敗'} "
+            f"(rc={predict_probe_result['returncode']})"
+        )
+        if predict_probe_result.get("stdout"):
+            lines = predict_probe_result["stdout"].split("\n")
+            preview = "\n".join(lines[:20])
+            if len(lines) > 20:
+                preview += "\n...\n" + "\n".join(lines[-8:])
+            print(f"\n--- hb_predict_probe (resynced) ---\n{preview}")
+        if predict_probe_result.get("stderr"):
+            print(f"\n--- hb_predict_probe (resynced) stderr ---\n{predict_probe_result['stderr']}")
+
+        write_progress(run_label, "q15_runtime_resync_drilldown")
+        live_drilldown_result = run_live_decision_quality_drilldown()
+        live_drilldown_summary = collect_live_decision_quality_drilldown_diagnostics(live_drilldown_result)
+        print(
+            f"🧭 Q15 resynced drilldown：{'通過' if live_drilldown_result['success'] else '失敗'} "
+            f"(rc={live_drilldown_result['returncode']})"
+        )
+        if live_drilldown_result.get("stdout"):
+            lines = live_drilldown_result["stdout"].split("\n")
+            preview = "\n".join(lines[:20])
+            if len(lines) > 20:
+                preview += "\n...\n" + "\n".join(lines[-8:])
+            print(f"\n--- live_decision_quality_drilldown (resynced) ---\n{preview}")
+        if live_drilldown_result.get("stderr"):
+            print(f"\n--- live_decision_quality_drilldown (resynced) stderr ---\n{live_drilldown_result['stderr']}")
 
     write_progress(run_label, "q15_bucket_root_cause")
     q15_bucket_root_cause_result = run_q15_bucket_root_cause()

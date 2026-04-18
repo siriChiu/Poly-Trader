@@ -1,48 +1,65 @@
 {
   "issues": [
     {
-      "id": "P0_q15_live_truth_below_trade_floor",
+      "id": "P0_q15_patch_active_but_execution_blocked",
       "priority": "P0",
       "status": "open",
-      "title": "current live q15 lane is exact-supported but the live predictor still sits below the trade floor",
+      "title": "current live q15 lane is exact-supported and patch-active, but final execution still resolves to 0 layers",
       "summary": {
         "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
         "support_route_verdict": "exact_bucket_supported",
         "support_rows": 96,
         "minimum_support_rows": 50,
-        "live_entry_quality": 0.4181,
-        "live_entry_quality_label": "D",
+        "q15_exact_supported_component_patch_applied": true,
+        "live_entry_quality": 0.5501,
+        "live_entry_quality_label": "C",
+        "allowed_layers_raw": 1,
         "allowed_layers": 0,
         "allowed_layers_reason": "decision_quality_below_trade_floor",
-        "q15_exact_supported_component_patch_applied": false,
-        "q15_component_experiment_verdict": "exact_supported_component_experiment_ready"
+        "runtime_closure_state": "patch_active_but_execution_blocked",
+        "execution_status_main_blocker": "live exchange credential 尚未驗證 · order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證"
       },
       "next_actions": [
-        "separate q15_support_audit component-experiment semantics from hb_predict_probe live baseline semantics on operator-facing surfaces",
-        "only treat q15 as deployable when the live predictor itself reaches entry_quality >= 0.55 and allowed_layers > 0",
-        "verify with python scripts/hb_predict_probe.py plus regression tests that live truth and audit semantics no longer conflict"
+        "separate final decision-quality blocker semantics from venue readiness blocker semantics on operator-facing surfaces",
+        "only treat q15 as deployable when the final execution path itself reaches allowed_layers > 0 and venue readiness blockers are cleared",
+        "verify with hb_parallel_runner fast mode, hb_predict_probe.py, live_decision_quality_drilldown.py, and /execution/status browser runtime"
       ],
-      "action": "push q15 from exact-supported research readiness to real live deployment truth or explicit no-deploy governance"
+      "action": "promote q15 from patch-active raw capacity to true execution closure or explicit no-deploy governance"
     },
     {
       "id": "P1_model_leaderboard_placeholder_only",
       "priority": "P1",
       "status": "open",
-      "title": "model leaderboard is now honest but still has zero comparable rows",
+      "title": "model leaderboard is honest but still has zero comparable rows",
       "summary": {
         "artifact": "/api/models/leaderboard",
         "count": 0,
         "comparable_count": 0,
         "placeholder_count": 6,
-        "evaluated_row_count": 6,
-        "leaderboard_warning": "目前 6 個模型都沒有產生任何交易；排行榜已降級為 placeholder 檢視，請勿把 #1 當成可部署排名。"
+        "leaderboard_warning": "目前 6 個模型都沒有產生任何交易；排行榜已降級為 placeholder 檢視，請勿把 #1 當成可部署排名。",
+        "candidate_alignment": "dual_role_split_but_aligned",
+        "governance_contract": "dual_role_governance_active"
       },
       "next_actions": [
-        "find why the six refresh models all produce avg_trades=0 under the canonical leaderboard path",
+        "find why the refresh shortlist still produces avg_trades=0 under the canonical leaderboard path",
         "keep placeholder-only warnings visible on Strategy Lab and operator surfaces until comparable_count > 0",
-        "verify with python scripts/hb_model_leaderboard_api_probe.py and only clear this issue once a comparable row exists or the placeholder-only UX is fully productized"
+        "verify with hb_model_leaderboard_api_probe.py or equivalent cache/API payload that a comparable row exists before clearing this issue"
       ],
       "action": "turn the honest placeholder-only leaderboard into a usable comparable ranking"
+    },
+    {
+      "id": "#H_AUTO_MODEL_STABILITY",
+      "priority": "P1",
+      "status": "open",
+      "title": "model stability still needs work (cv=0.6198, cv_std=0.0667, cv_worst=0.5557)",
+      "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。"
+    },
+    {
+      "id": "#H_AUTO_REGIME_DRIFT",
+      "priority": "P1",
+      "status": "open",
+      "title": "TW-IC 29 vs Global IC 14 — 信號強依賴近期資料",
+      "action": "市場 regime 可能已變化；優先用 regime-gated feature weighting / calibration，而不是把近期 bull pocket 當成全域可部署真相。"
     }
   ]
 }

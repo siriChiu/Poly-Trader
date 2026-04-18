@@ -1,63 +1,65 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-18 18:40 CST_
+_最後更新：2026-04-18 19:50 CST_
 
 只保留目前有效問題；每輪 heartbeat 必須覆蓋更新，不保留歷史流水帳。
 
 ---
 
 ## 當前主線事實
-- **q15 live lane 的 support closure 已成立，但 live predictor 仍是 trade-floor blocker**：`current_live_structure_bucket=CAUTION|structure_quality_caution|q15`、`support_route_verdict=exact_bucket_supported`、`support_rows=96/50`，但 `hb_predict_probe.py` 最新 top-level live truth 仍是 `entry_quality=0.4181 / D / allowed_layers=0 / allowed_layers_reason=decision_quality_below_trade_floor`。
-- **q15 stale-audit 假 patch-ready probe bug 已修掉**：`hb_predict_probe.py` 現在會先 refresh `q15_support_audit`、必要時 replay prediction、audit/probe 不一致時再 force-refresh，避免舊 audit 讓 probe 假裝已 patch active。
-- **model leaderboard zero-trade surface 已修成 placeholder-only governance**：`/api/models/leaderboard` / `hb_model_leaderboard_api_probe.py` 最新結果為 `count=0 / comparable_count=0 / placeholder_count=6 / evaluated_row_count=6`，並帶 `leaderboard_warning=目前 6 個模型都沒有產生任何交易；排行榜已降級為 placeholder 檢視，請勿把 #1 當成可部署排名。`
-- **驗證現況**：
-  - `python -m pytest tests/test_hb_predict_probe.py tests/test_model_leaderboard.py tests/test_model_leaderboard_api_cache.py tests/test_hb_model_leaderboard_api_probe.py tests/test_strategy_leaderboard_contract.py tests/test_q15_support_audit.py -q` → `57 passed`
-  - `python -m pytest tests/test_frontend_decision_contract.py tests/test_server_startup.py -q` → `36 passed`
-  - `cd web && npm run build` → PASS
+- **q15 live runtime truth 已完成 fast-runner resync**：`hb_parallel_runner.py --fast` 現在會在 `hb_q15_support_audit` 已判定 `exact_supported_component_experiment_ready`、但先前 probe/drilldown 仍停在 pre-patch 狀態時，自動重跑 `hb_predict_probe.py` 與 `live_decision_quality_drilldown.py`，避免 heartbeat 摘要繼續引用舊的 `patch_inactive_or_blocked` 真相。
+- **current live q15 row 現在是 support-closed + patch-active + execution-blocked**：`current_live_structure_bucket=CAUTION|structure_quality_caution|q15`、`support_route_verdict=exact_bucket_supported`、`support_rows=96/50`；resynced live probe 顯示 `q15_exact_supported_component_patch_applied=true`、`entry_quality=0.5501 / C`、`allowed_layers_raw=1`，但最終仍是 `allowed_layers=0 / allowed_layers_reason=decision_quality_below_trade_floor / runtime_closure_state=patch_active_but_execution_blocked`。
+- **operator-facing surface 已同步到最新 truth**：瀏覽器驗證 `/execution/status` 與 `data/heartbeat_20260418b_summary.json` 都顯示 `q15 patch active`、`layers 1 → 0`、`support 96 / 50`，不再把 support closure 誤讀成 deployment closure。
+- **venue readiness 仍未關閉**：`/execution/status` 主 blocker 仍是 `live exchange credential 尚未驗證 · order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證`；因此即使 q15 raw path 已開出 1 層 capacity，也不能視為 live-ready deployment。
+- **model leaderboard 仍是 placeholder-only**：目前仍是 `count=0 / comparable_count=0 / placeholder_count=6`，warning 仍明確要求不要把 `#1` 當成可部署排名；`leaderboard_feature_profile_probe` 顯示 `dual_role_governance_active / dual_role_split_but_aligned`，所以目前主 blocker 不再是 feature-profile governance drift，而是所有 refresh models 仍沒有產生 trade。
 
 ---
 
 ## Open Issues
 
-### P0. q15 current-live lane is exact-supported, but live predictor still remains below trade floor
+### P0. q15 patch is active, but final execution still resolves to 0 layers
 **現況**
 - `support_route_verdict=exact_bucket_supported`
 - `support_rows=96 / 50`
-- `hb_predict_probe.py` top-level live truth：`entry_quality=0.4181 / D / allowed_layers=0`
+- `q15_exact_supported_component_patch_applied=true`
+- `entry_quality=0.5501 / entry_quality_label=C`
+- `allowed_layers_raw=1 / allowed_layers=0`
 - `allowed_layers_reason=decision_quality_below_trade_floor`
-- `q15_exact_supported_component_patch_applied=false`
-- `q15_support_audit.component_experiment.verdict=exact_supported_component_experiment_ready`
+- `runtime_closure_state=patch_active_but_execution_blocked`
+- `/execution/status` 仍同時顯示 venue/product blocker：`live exchange credential 尚未驗證 · order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證`
 
 **風險**
-- support closure 已完成，但 live predictor 還沒跨過 trade floor；如果 operator 只看到 audit/component experiment ready，仍可能把研究型 patch readiness 誤讀成 deployment closure。
+- 若只看 support closure 或 raw `layers=1`，會誤判為 q15 已可部署；實際上 final execution 與 venue readiness 都尚未 closure。
 
 **下一步**
-- 把 `q15_support_audit` 的 component experiment 與 `hb_predict_probe` 的 live baseline 明確分層，不再讓兩者語義混淆。
-- 若要真正放行 q15，必須讓 live predictor 本身達到 `entry_quality >= 0.55` 且 `allowed_layers > 0`；否則就維持 machine-readable no-deploy governance。
-- 驗證方式：`python scripts/hb_predict_probe.py` 與相關 pytest 必須同時證明 top-level live truth 與 audit semantics 一致。
+- 釐清 `q15 patch active` 之後，究竟是 **final decision-quality gate** 還是 **venue readiness** 在扮演主 no-deploy blocker，避免 operator surface 混成單一模糊「blocked」。
+- 保持所有 surface 使用 `patch_active_but_execution_blocked` / `layers 1 → 0` 語義，不得回退成 `patch inactive` 或 `support still missing`。
+- 驗證方式：`python scripts/hb_parallel_runner.py --fast --hb <N>`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、瀏覽器檢查 `/execution/status`。
 
-### P1. model leaderboard is now honest, but still has zero comparable models
+### P1. model leaderboard is honest but still unusable for deployment choice
 **現況**
-- `/api/models/leaderboard` 最新 probe：`count=0 / comparable_count=0 / placeholder_count=6`
-- warning 已明確指出「placeholder-only」
-- zero-trade rows 不再偽裝成正常 top-ranked winners，但目前仍沒有任何可比較、可部署的 model row
+- `/api/models/leaderboard` / cache 仍是 `count=0 / comparable_count=0 / placeholder_count=6`
+- placeholder-only warning 正常存在
+- `leaderboard_feature_profile_probe` 顯示 `dual_role_governance_active / dual_role_split_but_aligned`
+- 目前沒有證據顯示 train-vs-leaderboard profile governance 失真；真正 blocker 是 refresh models 全部 `avg_trades=0`
 
 **風險**
-- Strategy Lab 雖然不再被假排行榜誤導，但現在仍缺少真正可比較的 deployment 候選；產品層面仍無法回答「目前哪個模型可部署」。
+- Strategy Lab 雖然不再造假正常排名，但產品仍無法回答「現在哪個模型可部署」。
 
 **下一步**
-- 追出為何 6 個 refresh models 全都 `avg_trades=0`，確認是 deployment profile、資料窗口、target semantics，還是 run/evaluation path 本身沒有產生 trade。
-- 在找出真正可交易 row 之前，所有 operator / Strategy Lab surface 都必須保留 placeholder-only warning，不得回退成正常排名語氣。
-- 驗證方式：`python scripts/hb_model_leaderboard_api_probe.py` 必須先維持 placeholder warning；之後若修好，至少要看到 `comparable_count>0`。
+- 直接追 `avg_trades=0` 的根因：deployment profile、資料窗口、entry rules、或 evaluation path 本身沒有產生 trade。
+- 在出現 `comparable_count > 0` 之前，所有 leaderboard/operator surfaces 都必須維持 placeholder-only 語氣。
+- 驗證方式：`python scripts/hb_model_leaderboard_api_probe.py` 或等價 cache/API payload 必須至少出現 `comparable_count>0`；否則 warning 不得消失。
 
 ---
 
 ## Not Issues
-- **q15 stale support audit 讓 probe 假裝 patch-ready / support-ready**：已修復；probe 現在會 refresh audit、必要時 replay prediction，避免直接相信舊 audit。
-- **model leaderboard cache 把 zero-trade rows 當正常 top-ranked rows**：已修復；placeholder rows 現在會被分離，`leaderboard_warning` 也會 machine-read 保留。
+- **q15 stale heartbeat summary / drilldown 沒有跟上 support-ready patch**：已修復；fast heartbeat 會在 q15 support audit 說明 patch-ready、但 probe 尚未套用時自動 resync probe + drilldown。
+- **q15 support closure 缺失**：已非 blocker；目前 support 是 `96/50 exact_bucket_supported`。
+- **leaderboard feature-profile governance drift**：目前 probe 顯示 `dual_role_split_but_aligned`，不是 zero-trade placeholder-only 的主因。
 
 ---
 
 ## Current Priority
-1. **把 q15 current-live 問題收斂成真正的 live deployment truth，而不是 audit-ready 假 closure**
-2. **把 model leaderboard 從「誠實但全 placeholder」推進到至少一條可比較的 deployment row**
+1. **把 q15 從 `patch_active_but_execution_blocked` 推進到真正的 execution/venue closure，或維持明確 no-deploy governance**
+2. **找出 leaderboard zero-trade 根因，產生至少一條 comparable deployment row**
