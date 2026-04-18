@@ -31,20 +31,57 @@ CORE_FEATURES = [
 ]
 
 
-def check_db():
-    conn = sqlite3.connect(str(ROOT / "poly_trader.db"))
-    simulated_win = conn.execute(
-        "SELECT AVG(simulated_pyramid_win) FROM labels WHERE simulated_pyramid_win IS NOT NULL"
-    ).fetchone()[0]
-    rows = conn.execute(
-        "SELECT simulated_pyramid_win FROM labels WHERE simulated_pyramid_win IS NOT NULL ORDER BY id DESC LIMIT 200"
-    ).fetchall()
+CANONICAL_BREAKER_HORIZON_MINUTES = 1440
+
+
+def _table_has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return any(str(row[1]) == column for row in rows)
+
+
+
+def _latest_zero_streak(
+    conn: sqlite3.Connection,
+    *,
+    horizon_minutes: int | None = None,
+    limit: int = 200,
+) -> int:
+    sql = "SELECT simulated_pyramid_win FROM labels WHERE simulated_pyramid_win IS NOT NULL"
+    params = []
+    if horizon_minutes is not None:
+        sql += " AND horizon_minutes = ?"
+        params.append(horizon_minutes)
+    sql += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(sql, params).fetchall()
     losing_streak = 0
     for r in rows:
         if r[0] == 0:
             losing_streak += 1
         else:
             break
+    return losing_streak
+
+
+
+def check_db():
+    conn = sqlite3.connect(str(ROOT / "poly_trader.db"))
+    simulated_win = conn.execute(
+        "SELECT AVG(simulated_pyramid_win) FROM labels WHERE simulated_pyramid_win IS NOT NULL"
+    ).fetchone()[0]
+    has_horizon_column = _table_has_column(conn, "labels", "horizon_minutes")
+    all_horizon_losing_streak = _latest_zero_streak(conn)
+
+    canonical_horizon_minutes = None
+    losing_streak = all_horizon_losing_streak
+    if has_horizon_column:
+        canonical_rows = conn.execute(
+            "SELECT COUNT(*) FROM labels WHERE simulated_pyramid_win IS NOT NULL AND horizon_minutes = ?",
+            (CANONICAL_BREAKER_HORIZON_MINUTES,),
+        ).fetchone()[0]
+        if canonical_rows:
+            canonical_horizon_minutes = CANONICAL_BREAKER_HORIZON_MINUTES
+            losing_streak = _latest_zero_streak(conn, horizon_minutes=canonical_horizon_minutes)
 
     latest = conn.execute("SELECT timestamp FROM raw_market_data ORDER BY timestamp DESC LIMIT 1").fetchone()
     conn.close()
@@ -63,8 +100,26 @@ def check_db():
     return {
         "simulated_win_avg": round(simulated_win, 4) if simulated_win is not None else 0.5,
         "losing_streak": losing_streak,
+        "all_horizon_losing_streak": all_horizon_losing_streak,
+        "canonical_horizon_minutes": canonical_horizon_minutes,
         "raw_latest_age_min": round(age_min, 1) if age_min is not None else None,
     }
+
+
+def upsert_issue(tracker, priority, issue_id, title, action="", status="open", summary=None):
+    """Update tracker metadata and overwrite machine-readable summary when provided."""
+    tracker.add(priority, issue_id, title, action, status)
+    issues = getattr(tracker, "issues", None)
+    if not isinstance(issues, list):
+        return
+    for issue in issues:
+        if issue.get("id") != issue_id:
+            continue
+        if summary is not None:
+            issue["summary"] = summary
+        issue["updated_at"] = datetime.utcnow().isoformat()
+        return
+
 
 
 def check_ic(ic_data, full_ic_data=None):
@@ -337,7 +392,8 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         )
         tracker.resolve("P0_q15_patch_active_but_execution_blocked")
         tracker.resolve("#H_AUTO_CURRENT_BUCKET_TOXICITY")
-        tracker.add(
+        upsert_issue(
+            tracker,
             "P0",
             "#H_AUTO_CIRCUIT_BREAKER",
             (
@@ -347,6 +403,16 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
             ),
             "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。"
             f" {release_text}",
+            summary={
+                "deployment_blocker": (live_predict_probe or {}).get("deployment_blocker"),
+                "horizon_minutes": (live_predict_probe or {}).get("horizon_minutes"),
+                "recent_window": recent_window,
+                "current_recent_window_wins": current_recent_wins,
+                "required_recent_window_wins": required_recent_wins,
+                "additional_recent_window_wins_needed": additional_wins_needed,
+                "streak": (live_predict_probe or {}).get("streak"),
+                "streak_must_be_below": streak_floor,
+            },
         )
     else:
         tracker.resolve("#H_AUTO_CIRCUIT_BREAKER")
@@ -387,11 +453,17 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         cv_worst_text = f"{cv_worst:.4f}" if isinstance(cv_worst, (int, float)) else "n/a"
         stability_issue = cv_std >= 0.10 or (isinstance(cv_worst, (int, float)) and cv_worst < 0.60)
         if stability_issue:
-            tracker.add(
+            upsert_issue(
+                tracker,
                 "P1",
                 "#H_AUTO_MODEL_STABILITY",
                 f"model stability still needs work (cv={cv:.4f}, cv_std={cv_std:.4f}, cv_worst={cv_worst_text})",
                 "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
+                summary={
+                    "cv_accuracy": cv,
+                    "cv_std": cv_std,
+                    "cv_worst": cv_worst,
+                },
             )
             tracker.resolve("P1_model_accuracy_stability")
         else:
@@ -949,11 +1021,23 @@ def main():
 
     # Rule 2: recent canonical loss streak > 30
     if db_stats["losing_streak"] > 30:
-        tracker.add(
+        canonical_horizon = db_stats.get("canonical_horizon_minutes")
+        streak_title = (
+            f"連續 {db_stats['losing_streak']} 筆 {canonical_horizon}m simulated_pyramid_win=0"
+            if canonical_horizon
+            else f"連續 {db_stats['losing_streak']} 筆 simulated_pyramid_win=0"
+        )
+        upsert_issue(
+            tracker,
             "P0",
             "#H_AUTO_STREAK",
-            f"連續 {db_stats['losing_streak']} 筆 simulated_pyramid_win=0",
+            streak_title,
             "檢查 recent canonical labels / regime breakdown / circuit breaker；必要時升級為 distribution-aware drift 調查",
+            summary={
+                "canonical_horizon_minutes": canonical_horizon,
+                "losing_streak": db_stats["losing_streak"],
+                "all_horizon_losing_streak": db_stats.get("all_horizon_losing_streak"),
+            },
         )
     else:
         tracker.resolve("#H_AUTO_STREAK")
@@ -1036,24 +1120,38 @@ def main():
         or live_label == "D"
         or narrowed_scope_pathology
     ):
-        tracker.add(
+        upsert_issue(
+            tracker,
             "P1",
             "#H_AUTO_LIVE_DQ_PATHOLOGY",
             "live predictor decision-quality contract is runtime-blocked by recent pathology, a toxic exact live lane, or a severe narrowed pathology lane",
             "把 hb_predict_probe 納入每輪 heartbeat 驗證，對 exact live lane、當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；"
             "優先檢查 exact lane 是否仍是 ALLOW 但 canonical true-negative share 已偏高，並交叉比對 recent same-scope / narrowed-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。"
             f" {live_predict_summary}",
+            summary={
+                "live_scope": live_predict_probe.get("decision_quality_calibration_scope") or "unknown",
+                "deployment_blocker": live_predict_probe.get("deployment_blocker"),
+                "window": drift_window,
+                "alerts": drift_alerts,
+                "allowed_layers": live_layers,
+            },
         )
     else:
         tracker.resolve("#H_AUTO_LIVE_DQ_PATHOLOGY")
 
     # Rule 8: TW-IC >> Global IC (regime-dependence indicator)
     if ic_stats["tw_pass"] > ic_stats["global_pass"] + 2:
-        tracker.add(
+        upsert_issue(
+            tracker,
             "P1",
             "#H_AUTO_REGIME_DRIFT",
             f"TW-IC {ic_stats['tw_pass']} vs Global IC {ic_stats['global_pass']} — 信號強依賴近期資料",
             "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
+            summary={
+                "global_pass": ic_stats["global_pass"],
+                "tw_pass": ic_stats["tw_pass"],
+                "total_features": ic_stats["total_features"],
+            },
         )
     else:
         tracker.resolve("#H_AUTO_REGIME_DRIFT")

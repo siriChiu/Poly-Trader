@@ -577,6 +577,95 @@ def test_build_strategy_params_uses_evidence_driven_profile_for_random_forest():
     assert params["entry"]["top_k_percent"] == pytest.approx(10.0)
 
 
+def test_deployment_profile_candidates_include_scan_backed_best_when_artifact_exists():
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2025-01-01", periods=2, freq="D"),
+            "close_price": [50000, 50010],
+            "simulated_pyramid_win": [1, 0],
+            "feat_4h_bias50": [0.0, 0.0],
+            "feat_4h_bias200": [0.0, 0.0],
+            "feat_nose": [0.4, 0.5],
+            "feat_pulse": [0.6, 0.6],
+            "feat_ear": [0.1, 0.1],
+        }
+    )
+    leaderboard = ModelLeaderboard(df)
+    leaderboard._strategy_param_scan_payload = {
+        "scan_results": [
+            {
+                "model_name": "xgboost",
+                "best": {
+                    "params": {
+                        "model_name": "xgboost",
+                        "entry": {"bias50_max": 3.0, "confidence_min": 0.55, "entry_quality_min": 0.5, "allowed_regimes": ["bull", "chop"]},
+                        "stop_loss": -0.05,
+                        "turning_point": {"enabled": True, "bottom_score_min": 0.56, "top_score_take_profit": 0.8},
+                        "editor_modules": ["turning_point"],
+                    }
+                },
+            }
+        ]
+    }
+
+    candidates = leaderboard._deployment_profile_candidates_for_model("xgboost")
+
+    assert candidates[0] == "scan_backed_best"
+    assert "balanced_conviction" in candidates
+
+
+def test_build_strategy_params_uses_scan_backed_best_params_when_available():
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2025-01-01", periods=2, freq="D"),
+            "close_price": [50000, 50010],
+            "simulated_pyramid_win": [1, 0],
+            "feat_4h_bias50": [0.0, 0.0],
+            "feat_4h_bias200": [0.0, 0.0],
+            "feat_nose": [0.4, 0.5],
+            "feat_pulse": [0.6, 0.6],
+            "feat_ear": [0.1, 0.1],
+        }
+    )
+    leaderboard = ModelLeaderboard(df)
+    leaderboard._strategy_param_scan_payload = {
+        "scan_results": [
+            {
+                "model_name": "xgboost",
+                "best": {
+                    "params": {
+                        "model_name": "xgboost",
+                        "entry": {
+                            "bias50_max": 3.0,
+                            "confidence_min": 0.55,
+                            "entry_quality_min": 0.5,
+                            "allowed_regimes": ["bull", "chop", "bear", "unknown"],
+                            "layer2_bias_max": 2.0,
+                            "layer3_bias_max": 0.5,
+                        },
+                        "layers": [0.25, 0.25, 0.5],
+                        "stop_loss": -0.05,
+                        "take_profit_bias": 999.0,
+                        "take_profit_roi": 999.0,
+                        "turning_point": {"enabled": True, "bottom_score_min": 0.56, "top_score_take_profit": 0.8},
+                        "editor_modules": ["turning_point"],
+                    }
+                },
+            }
+        ]
+    }
+    leaderboard._deployment_profile_override = "scan_backed_best"
+
+    params = leaderboard._build_strategy_params("xgboost")
+
+    assert params["deployment_profile"] == "scan_backed_best"
+    assert params["entry"]["bias50_max"] == pytest.approx(3.0)
+    assert params["entry"]["confidence_min"] == pytest.approx(0.55)
+    assert params["stop_loss"] == pytest.approx(-0.05)
+    assert params["turning_point"]["enabled"] is True
+    assert params["turning_point"]["bottom_score_min"] == pytest.approx(0.56)
+
+
 def test_evaluate_model_auto_selects_best_deployment_profile(monkeypatch):
     timestamps = pd.date_range("2025-01-01", periods=220, freq="D")
     df = pd.DataFrame(
@@ -1530,4 +1619,62 @@ def test_api_model_leaderboard_history_returns_recent_snapshot_rows(tmp_path, mo
     result = asyncio.run(api_module.api_model_leaderboard_history(limit=5))
 
     assert result["count"] == 1
+    assert result["history"][0]["id"] == 1
     assert result["history"][0]["target_col"] == "simulated_pyramid_win"
+
+
+def test_load_model_leaderboard_history_preserves_snapshot_ids(tmp_path):
+    db_path = tmp_path / "lb_history_helper.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        api_module._ensure_model_leaderboard_tables(conn)
+        conn.execute(
+            "INSERT INTO leaderboard_model_snapshots(created_at, updated_at, target_col, model_count, payload_json) VALUES (?, ?, ?, ?, ?)",
+            ("2026-04-18T14:12:52Z", 1776521572.2506027, "simulated_pyramid_win", 0, "{}"),
+        )
+        conn.execute(
+            "INSERT INTO leaderboard_model_snapshots(created_at, updated_at, target_col, model_count, payload_json) VALUES (?, ?, ?, ?, ?)",
+            ("2026-04-18T14:08:46Z", 1776521326.2036104, "simulated_pyramid_win", 0, "{}"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    history = api_module._load_model_leaderboard_history(db_path=str(db_path), limit=5)
+
+    assert [row["id"] for row in history] == [2, 1]
+    assert history[0]["created_at"] == "2026-04-18T14:08:46Z"
+    assert history[1]["created_at"] == "2026-04-18T14:12:52Z"
+
+
+def test_normalize_model_leaderboard_payload_backfills_snapshot_history_ids(tmp_path, monkeypatch):
+    db_path = tmp_path / "lb_history_normalize.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        api_module._ensure_model_leaderboard_tables(conn)
+        conn.execute(
+            "INSERT INTO leaderboard_model_snapshots(created_at, updated_at, target_col, model_count, payload_json) VALUES (?, ?, ?, ?, ?)",
+            ("2026-04-18T14:48:43.521912Z", 1776523723.5219226, "simulated_pyramid_win", 0, "{}"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(api_module, "DB_PATH", str(db_path))
+
+    normalized = api_module._normalize_model_leaderboard_payload(
+        {
+            "leaderboard": [],
+            "placeholder_rows": [],
+            "snapshot_history": [
+                {
+                    "created_at": "2026-04-18T14:48:43.521912Z",
+                    "updated_at": 1776523723.5219226,
+                    "target_col": "simulated_pyramid_win",
+                    "model_count": 0,
+                }
+            ],
+        }
+    )
+
+    assert normalized["snapshot_history"][0]["id"] == 1

@@ -21,13 +21,15 @@
 ### 允許做
 - 直接修 P0 / P1 問題
 - 為了完成 P0 / P1 所需的測試、文件、驗證、部署契約修正
+- **主動追根因並積極修復 P0 / P1**，不得只停留在觀測、摘要或重述現況
 
 ### 不允許做
 - 在 P0 / P1 尚未收斂時，做不對應 issue 的 side quest
 - 只改漂亮、只改報告、只重跑數字
 - 做完 patch 卻不回寫 issue / roadmap / heartbeat current state
+- **把 heartbeat 做成「只報告不修復」的被動巡檢**
 
-**硬規則：每次修改都必須能指出它對應哪一個 P0 / P1 issue。**
+**硬規則：每次修改都必須能指出它對應哪一個 P0 / P1 issue，且必須對該 issue 帶來實際修復進度。**
 
 ---
 
@@ -51,6 +53,8 @@
 Read ISSUES / ROADMAP / HEARTBEAT
 ↓
 鎖定本輪對應的 P0/P1 issue
+↓
+主動追根因，先修最能推進 P0/P1 的 blocker
 ↓
 做最少且直接的 patch
 ↓

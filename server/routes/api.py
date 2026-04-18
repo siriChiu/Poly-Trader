@@ -3018,6 +3018,9 @@ def _normalize_model_leaderboard_payload(payload: Dict[str, Any]) -> Dict[str, A
         }
         for row in comparable_rows
     ]
+    snapshot_history = list(normalized.get("snapshot_history") or [])
+    if snapshot_history and any(not isinstance(row, dict) or row.get("id") is None for row in snapshot_history):
+        normalized["snapshot_history"] = _load_model_leaderboard_history(db_path=DB_PATH)
     resolved_warning = leaderboard_warning or normalized.get("leaderboard_warning") or normalized.get("data_warning")
     normalized["leaderboard_warning"] = resolved_warning
     normalized["data_warning"] = resolved_warning
@@ -3102,21 +3105,14 @@ def _ensure_model_leaderboard_tables(conn: sqlite3.Connection) -> None:
 def _load_model_leaderboard_history(limit: int = _MODEL_LEADERBOARD_HISTORY_LIMIT, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
     db_path = db_path or DB_PATH
     conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     try:
         _ensure_model_leaderboard_tables(conn)
         rows = conn.execute(
-            "SELECT created_at, updated_at, target_col, model_count FROM leaderboard_model_snapshots ORDER BY id DESC LIMIT ?",
+            "SELECT id, created_at, updated_at, target_col, model_count FROM leaderboard_model_snapshots ORDER BY id DESC LIMIT ?",
             (int(limit),),
         ).fetchall()
-        return [
-            {
-                "created_at": row[0],
-                "updated_at": row[1],
-                "target_col": row[2],
-                "model_count": row[3],
-            }
-            for row in rows
-        ]
+        return [dict(row) for row in rows]
     finally:
         conn.close()
 

@@ -30,6 +30,87 @@ def test_check_db_uses_canonical_simulated_pyramid_win(tmp_path, monkeypatch):
     assert stats["raw_latest_age_min"] is not None
 
 
+def test_check_db_prefers_canonical_1440m_streak_over_mixed_horizon_tail(tmp_path, monkeypatch):
+    monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE raw_market_data (timestamp TEXT)")
+    conn.execute(
+        "CREATE TABLE labels (id INTEGER PRIMARY KEY, horizon_minutes INTEGER, simulated_pyramid_win INTEGER)"
+    )
+    conn.execute("INSERT INTO raw_market_data(timestamp) VALUES ('2026-04-11 03:52:09')")
+    conn.executemany(
+        "INSERT INTO labels(horizon_minutes, simulated_pyramid_win) VALUES (?, ?)",
+        [
+            (1440, 1),
+            (1440, 0),
+            (1440, 0),
+            (240, 1),
+            (1440, 0),
+            (1440, 0),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    stats = auto_propose_fixes.check_db()
+
+    assert stats["canonical_horizon_minutes"] == 1440
+    assert stats["losing_streak"] == 4
+    assert stats["all_horizon_losing_streak"] == 2
+
+
+def test_upsert_issue_overwrites_summary_on_existing_issue():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = [
+                {
+                    "id": "#H_AUTO_CIRCUIT_BREAKER",
+                    "priority": "P0",
+                    "title": "old title",
+                    "action": "old action",
+                    "status": "open",
+                    "summary": {"streak": 47, "current_recent_window_wins": 2},
+                }
+            ]
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+    tracker = DummyTracker()
+    auto_propose_fixes.upsert_issue(
+        tracker,
+        "P0",
+        "#H_AUTO_CIRCUIT_BREAKER",
+        "canonical circuit breaker active (0/15 wins in recent 50)",
+        "new action",
+        summary={"streak": 71, "current_recent_window_wins": 0, "required_recent_window_wins": 15},
+    )
+
+    assert tracker.issues[0]["title"] == "canonical circuit breaker active (0/15 wins in recent 50)"
+    assert tracker.issues[0]["action"] == "new action"
+    assert tracker.issues[0]["summary"] == {
+        "streak": 71,
+        "current_recent_window_wins": 0,
+        "required_recent_window_wins": 15,
+    }
+
+
 def test_load_recent_tw_history_reads_structured_ic_diagnostics(tmp_path, monkeypatch):
     monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
     data_dir = tmp_path / "data"

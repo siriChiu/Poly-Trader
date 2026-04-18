@@ -7,9 +7,10 @@
   3. Walk-Forward 驗證（Expanding Window），嚴格防過擬合
   4. 綜合排名：ROI + 勝率 + 穩定性 - 過擬合懲罰
 """
-import sys, os, json, math, time
+import sys, os, json, math, time, copy
 import numpy as np
 import pandas as pd
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
@@ -17,6 +18,9 @@ from dataclasses import dataclass, field, asdict
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backtesting.strategy_lab import run_hybrid_backtest, run_rule_backtest
 from model import train as train_module
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+STRATEGY_PARAM_SCAN_PATH = PROJECT_ROOT / "data" / "model_strategy_param_scan_latest.json"
 
 # ─── Anti-Overfitting 配置 ───
 WALK_FORWARD_WINDOW_MONTHS = 4  # 訓練視窗
@@ -239,6 +243,9 @@ class ModelLeaderboard:
         'random_forest',
     ]
     DEPLOYMENT_PROFILES: Dict[str, Dict[str, Any]] = {
+        'scan_backed_best': {
+            'entry_overrides': {},
+        },
         'standard': {
             'entry_overrides': {
                 'entry_quality_min': 0.55,
@@ -297,6 +304,21 @@ class ModelLeaderboard:
         self._feature_profile_meta_override: Optional[Dict[str, Any]] = None
         self._feature_ablation_payload = train_module._load_json_file(train_module.FEATURE_ABLATION_PATH)
         self._bull_pocket_payload = train_module._load_json_file(train_module.BULL_4H_POCKET_ABLATION_PATH)
+        self._strategy_param_scan_payload = train_module._load_json_file(STRATEGY_PARAM_SCAN_PATH)
+
+    def _scan_backed_best_params(self, model_name: str) -> Optional[Dict[str, Any]]:
+        payload = self._strategy_param_scan_payload or {}
+        scan_results = payload.get("scan_results") or []
+        for row in scan_results:
+            if not isinstance(row, dict):
+                continue
+            if str(row.get("model_name") or "") != str(model_name):
+                continue
+            best = row.get("best") if isinstance(row.get("best"), dict) else {}
+            params = best.get("params") if isinstance(best.get("params"), dict) else None
+            if params:
+                return copy.deepcopy(params)
+        return None
 
     def _get_walk_forward_splits(self) -> List[Tuple[str, str, str, str]]:
         """產生 Walk-Forward 折疊列表: (train_start, train_end, test_start, test_end)"""
@@ -372,7 +394,8 @@ class ModelLeaderboard:
             candidates = ['standard']
 
         default_name = self._default_deployment_profile_name(model_name)
-        ordered = [default_name] + candidates
+        scan_backed_params = self._scan_backed_best_params(model_name)
+        ordered = (["scan_backed_best"] if scan_backed_params else []) + [default_name] + candidates
         unique: List[str] = []
         for name in ordered:
             if name in self.DEPLOYMENT_PROFILES and name not in unique:
@@ -612,26 +635,60 @@ class ModelLeaderboard:
 
     def _build_strategy_params(self, model_name: str) -> Dict[str, Any]:
         profile = self._deployment_profile_for_model(model_name)
-        entry = {
-            'bias50_max': 1.0,
-            'nose_max': 0.40,
-            'pulse_min': 0,
-            'layer2_bias_max': -1.5,
-            'layer3_bias_max': -3.5,
-            'confidence_min': 0.45,
-            'entry_quality_min': 0.55,
-            'top_k_percent': 0.0,
-            'allowed_regimes': ['all'],
-        }
-        entry.update(profile.get('entry_overrides', {}))
-        return {
-            'entry': entry,
-            'layers': [0.20, 0.30, 0.50],
-            'stop_loss': -0.05,
-            'take_profit_bias': 4.0,
-            'take_profit_roi': 0.08,
-            'deployment_profile': profile['name'],
-        }
+        scan_backed_params = self._scan_backed_best_params(model_name) if profile.get('name') == 'scan_backed_best' else None
+
+        if isinstance(scan_backed_params, dict):
+            entry = {
+                'bias50_max': 1.0,
+                'nose_max': 0.40,
+                'pulse_min': 0,
+                'layer2_bias_max': -1.5,
+                'layer3_bias_max': -3.5,
+                'confidence_min': 0.45,
+                'entry_quality_min': 0.55,
+                'top_k_percent': 0.0,
+                'allowed_regimes': ['all'],
+            }
+            entry.update(dict(scan_backed_params.get('entry') or {}))
+            params: Dict[str, Any] = {
+                'entry': entry,
+                'layers': list(scan_backed_params.get('layers') or [0.20, 0.30, 0.50]),
+                'stop_loss': float(scan_backed_params.get('stop_loss', -0.05) or -0.05),
+                'take_profit_bias': float(scan_backed_params.get('take_profit_bias', 4.0) or 4.0),
+                'take_profit_roi': float(scan_backed_params.get('take_profit_roi', 0.08) or 0.08),
+                'deployment_profile': profile['name'],
+            }
+            if isinstance(scan_backed_params.get('turning_point'), dict):
+                params['turning_point'] = copy.deepcopy(scan_backed_params.get('turning_point') or {})
+            if isinstance(scan_backed_params.get('storm_unwind'), dict):
+                params['storm_unwind'] = copy.deepcopy(scan_backed_params.get('storm_unwind') or {})
+            if isinstance(scan_backed_params.get('capital_management'), dict):
+                params['capital_management'] = copy.deepcopy(scan_backed_params.get('capital_management') or {})
+            if isinstance(scan_backed_params.get('editor_modules'), list):
+                params['editor_modules'] = list(scan_backed_params.get('editor_modules') or [])
+        else:
+            entry = {
+                'bias50_max': 1.0,
+                'nose_max': 0.40,
+                'pulse_min': 0,
+                'layer2_bias_max': -1.5,
+                'layer3_bias_max': -3.5,
+                'confidence_min': 0.45,
+                'entry_quality_min': 0.55,
+                'top_k_percent': 0.0,
+                'allowed_regimes': ['all'],
+            }
+            params = {
+                'entry': entry,
+                'layers': [0.20, 0.30, 0.50],
+                'stop_loss': -0.05,
+                'take_profit_bias': 4.0,
+                'take_profit_roi': 0.08,
+                'deployment_profile': profile['name'],
+            }
+
+        params['entry'].update(profile.get('entry_overrides', {}))
+        return params
 
     def _train_model(self, X_train, y_train, model_name):
         """訓練單一模型"""

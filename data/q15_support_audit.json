@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-04-18 14:05:07.655417",
+  "generated_at": "2026-04-18 15:02:26.615581",
   "target_col": "simulated_pyramid_win",
   "current_live": {
-    "feature_timestamp": "2026-04-18 14:05:07.655417",
+    "feature_timestamp": "2026-04-18 15:02:26.615581",
     "signal": "CIRCUIT_BREAKER",
     "regime_label": "bull",
     "regime_gate": null,
@@ -56,7 +56,7 @@
       "history": [
         {
           "heartbeat": "current",
-          "timestamp": "2026-04-18T14:06:31.797538+00:00",
+          "timestamp": "2026-04-18T15:19:02.521919+00:00",
           "live_current_structure_bucket": null,
           "live_current_structure_bucket_rows": 0,
           "minimum_support_rows": 50,
@@ -69,7 +69,7 @@
   "floor_cross_legality": {
     "verdict": "runtime_blocker_preempts_floor_analysis",
     "legal_to_relax_runtime_gate": false,
-    "reason": "目前先被 runtime blocker 擋下（Recent 50-sample win rate: 4.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。",
+    "reason": "目前先被 runtime blocker 擋下（Consecutive loss streak: 74 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。",
     "remaining_gap_to_floor": null,
     "best_single_component": null,
     "best_single_component_required_score_delta": null,
@@ -78,7 +78,7 @@
   "component_experiment": {
     "verdict": "runtime_blocker_preempts_component_experiment",
     "feature": null,
-    "reason": "目前先被 runtime blocker 擋下（Recent 50-sample win rate: 4.00% < 30%），q15 component experiment 只能保留為背景研究。",
+    "reason": "目前先被 runtime blocker 擋下（Consecutive loss streak: 74 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。",
     "machine_read_answer": {
       "support_ready": false,
       "entry_quality_ge_0_55": false,
@@ -108,18 +108,19 @@
       "required_bias50_cap_for_floor": null,
       "current_bias50_value": null
     },
-    "unavailable_reason": "Recent 50-sample win rate: 4.00% < 30%",
+    "unavailable_reason": "Consecutive loss streak: 74 >= 50; Recent 50-sample win rate: 0.00% < 30%",
     "runtime_blocker": {
       "type": "circuit_breaker",
       "signal": "CIRCUIT_BREAKER",
       "model_type": "circuit_breaker",
-      "reason": "Recent 50-sample win rate: 4.00% < 30%",
-      "streak": 47,
-      "win_rate": 0.04,
-      "recent_window_win_rate": 0.04,
-      "recent_window_wins": 2,
+      "reason": "Consecutive loss streak: 74 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+      "streak": 74,
+      "win_rate": 0.0,
+      "recent_window_win_rate": 0.0,
+      "recent_window_wins": 0,
       "window_size": 50,
       "triggered_by": [
+        "streak",
         "recent_win_rate"
       ],
       "horizon_minutes": 1440,
@@ -127,23 +128,24 @@
       "release_condition": {
         "release_ready": false,
         "blocked_by": [
+          "streak",
           "recent_win_rate"
         ],
-        "streak_release_ready": true,
+        "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 47,
+        "current_streak": 74,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
-        "current_recent_window_win_rate": 0.04,
-        "current_recent_window_wins": 2,
+        "current_recent_window_win_rate": 0.0,
+        "current_recent_window_wins": 0,
         "required_recent_window_wins": 15,
-        "additional_recent_window_wins_needed": 13
+        "additional_recent_window_wins_needed": 15
       },
       "recent_window": {
         "window_size": 50,
-        "wins": 2,
-        "win_rate": 0.04,
+        "wins": 0,
+        "win_rate": 0.0,
         "floor": 0.3
       }
     }
@@ -152,13 +154,14 @@
     "type": "circuit_breaker",
     "signal": "CIRCUIT_BREAKER",
     "model_type": "circuit_breaker",
-    "reason": "Recent 50-sample win rate: 4.00% < 30%",
-    "streak": 47,
-    "win_rate": 0.04,
-    "recent_window_win_rate": 0.04,
-    "recent_window_wins": 2,
+    "reason": "Consecutive loss streak: 74 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+    "streak": 74,
+    "win_rate": 0.0,
+    "recent_window_win_rate": 0.0,
+    "recent_window_wins": 0,
     "window_size": 50,
     "triggered_by": [
+      "streak",
       "recent_win_rate"
     ],
     "horizon_minutes": 1440,
@@ -166,23 +169,24 @@
     "release_condition": {
       "release_ready": false,
       "blocked_by": [
+        "streak",
         "recent_win_rate"
       ],
-      "streak_release_ready": true,
+      "streak_release_ready": false,
       "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 47,
+      "current_streak": 74,
       "recent_window": 50,
       "recent_win_rate_must_be_at_least": 0.3,
-      "current_recent_window_win_rate": 0.04,
-      "current_recent_window_wins": 2,
+      "current_recent_window_win_rate": 0.0,
+      "current_recent_window_wins": 0,
       "required_recent_window_wins": 15,
-      "additional_recent_window_wins_needed": 13
+      "additional_recent_window_wins_needed": 15
     },
     "recent_window": {
       "window_size": 50,
-      "wins": 2,
-      "win_rate": 0.04,
+      "wins": 0,
+      "win_rate": 0.0,
       "floor": 0.3
     }
   },

@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-18 14:05:07.655417**
+- generated_at: **2026-04-18 15:02:26.615581**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
@@ -45,7 +45,7 @@
 - best_single_component: **None**
 - best_single_component_required_score_delta: **None**
 - best_single_component_can_cross_floor: **False**
-- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 4.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 74 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
@@ -55,7 +55,7 @@
 - entry_quality_ge_0_55: **False**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
-- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 4.00% < 30%），q15 component experiment 只能保留為背景研究。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 74 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
 - verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Next action

@@ -225,6 +225,7 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 - price/equity stacked synchronized charts 為正式視覺契約，舊 `/backtest` 只保留 redirect，不再作為獨立工作區
 - model leaderboard 現在保留 `deployment_profile`，並用更接近 OOS 高信念部署的 lane 來評估模型，而不是把所有模型都硬塞進單一 entry 規則
 - **Placeholder-only fallback contract（Heartbeat 2026-04-18）**：當 `/api/models/leaderboard` 回傳 `comparable_count=0` 但 `strategy_param_scan.best_strategy_candidates[]` 已存在時，Strategy Lab 不得只停在 generic no-trade placeholder。模型排行榜區塊必須直接顯示 fallback candidate cards（`name / model_name / ROI / win_rate / total_trades`）與 `載入候選` 動作，讓 operator 可以在 model leaderboard 尚未產生 comparable row 時，直接切回可交易的重掃策略工作區，而不是在 placeholder-only 空榜中卡住。
+- **Leaderboard snapshot history contract（Heartbeat 2026-04-18）**：`/api/models/leaderboard` 的 `snapshot_history[]` 不得再回傳缺 `id` 的半成品 row；至少要提供 `id / created_at / updated_at / target_col / model_count`。Strategy Lab 的 snapshot 卡片也不得把 key 綁死在 `row.id`：若舊 cache / stale payload 暫時缺 id，前端必須回退到 `created_at/updated_at` 產生穩定 key 與 label，避免 React duplicate-key warning 讓 placeholder-only leaderboard 的快照區塊出現隱性渲染錯亂。
 - **Runtime blocker sync（Heartbeat 2026-04-17）**：Strategy Lab 也必須直接讀 `/api/status` 的 `execution_reconciliation / execution_surface_contract / execution_metadata_smoke`，至少把 summary-level runtime blocker、metadata freshness 與 canonical execution route 提示顯示在回測工作區，避免使用者把 DQ / backtest 工作區誤讀成 live-ready execution truth
 
 ### 6. 可視化層

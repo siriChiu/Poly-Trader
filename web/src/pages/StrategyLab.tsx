@@ -564,10 +564,11 @@ interface SkippedModel {
 }
 
 interface LeaderboardHistoryRow {
-  id: number;
+  id?: number;
   created_at: string;
   target_col?: string | null;
   model_count?: number | null;
+  updated_at?: string | number | null;
 }
 
 interface StrategyParamScanCandidate {
@@ -1168,6 +1169,21 @@ const saveStrategyLabCache = (payload: typeof STRATEGY_LAB_MEMORY_CACHE) => {
   } catch {
     // ignore quota / serialization failures
   }
+};
+
+const snapshotHistoryKey = (prefix: "strategy" | "model", row: LeaderboardHistoryRow, index: number) => {
+  return `${prefix}-${row.id ?? row.created_at ?? row.updated_at ?? `row-${index}`}`;
+};
+
+const snapshotHistoryLabel = (prefix: "策略" | "模型", row: LeaderboardHistoryRow, index: number) => {
+  const createdAt = row.created_at || (typeof row.updated_at === "string" ? row.updated_at : null);
+  if (!createdAt) {
+    return `${prefix} 快照 #${row.id ?? index + 1}`;
+  }
+  if (row.id != null) {
+    return `${prefix} #${row.id} · ${new Date(createdAt).toLocaleString("zh-TW")}`;
+  }
+  return `${prefix} 快照 · ${new Date(createdAt).toLocaleString("zh-TW")}`;
 };
 
 export default function StrategyLab() {
@@ -2755,11 +2771,11 @@ export default function StrategyLab() {
                   </div>
                   <div className="rounded-xl border border-slate-700/40 bg-slate-950/30 p-3 space-y-3 text-xs text-slate-400">
                     <div className="text-sm font-semibold text-slate-300">排行榜快照</div>
-                    {(strategyMeta.snapshot_history || []).slice(0, 3).map((row) => (
-                      <div key={`strategy-${row.id}`} className="rounded border border-slate-700/30 bg-slate-800/20 p-2">策略 #{row.id} · {new Date(row.created_at).toLocaleString("zh-TW")}</div>
+                    {(strategyMeta.snapshot_history || []).slice(0, 3).map((row, index) => (
+                      <div key={snapshotHistoryKey("strategy", row, index)} className="rounded border border-slate-700/30 bg-slate-800/20 p-2">{snapshotHistoryLabel("策略", row, index)}</div>
                     ))}
-                    {(modelMeta.snapshot_history || []).slice(0, 3).map((row) => (
-                      <div key={`model-${row.id}`} className="rounded border border-slate-700/30 bg-slate-800/20 p-2">模型 #{row.id} · {new Date(row.created_at).toLocaleString("zh-TW")}</div>
+                    {(modelMeta.snapshot_history || []).slice(0, 3).map((row, index) => (
+                      <div key={snapshotHistoryKey("model", row, index)} className="rounded border border-slate-700/30 bg-slate-800/20 p-2">{snapshotHistoryLabel("模型", row, index)}</div>
                     ))}
                   </div>
                 </div>

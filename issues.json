@@ -1,102 +1,82 @@
 {
-  "updated_at": "2026-04-18T22:16:05+08:00",
   "issues": [
     {
-      "id": "#H_AUTO_CIRCUIT_BREAKER",
+      "id": "P0_canonical_circuit_breaker_active",
       "priority": "P0",
       "status": "open",
-      "title": "canonical circuit breaker active (2/15 wins in recent 50)",
+      "title": "canonical circuit breaker remains the current-live blocker (0/15 wins in recent 50)",
       "summary": {
         "deployment_blocker": "circuit_breaker_active",
         "horizon_minutes": 1440,
         "recent_window": 50,
-        "current_recent_window_wins": 2,
+        "current_recent_window_wins": 0,
         "required_recent_window_wins": 15,
-        "additional_recent_window_wins_needed": 13,
-        "streak": 47,
-        "streak_must_be_below": 50
-      },
-      "action": "先把 current-live blocker 維持在 canonical breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。",
-      "updated_at": "2026-04-18T22:16:05+08:00"
-    },
-    {
-      "id": "#H_AUTO_STREAK",
-      "priority": "P0",
-      "status": "open",
-      "title": "連續 47 筆 simulated_pyramid_win=0",
-      "summary": {
-        "losing_streak": 47,
-        "drift_window": 1000,
-        "drift_interpretation": "distribution_pathology",
-        "dominant_regime": "bull",
-        "dominant_regime_share": 0.89
-      },
-      "action": "檢查 recent canonical labels / regime breakdown / 4H shifts / circuit breaker release window，找出 tail pathology 的直接根因。",
-      "updated_at": "2026-04-18T22:16:05+08:00"
-    },
-    {
-      "id": "P1_canonical_model_leaderboard_placeholder_only",
-      "priority": "P1",
-      "status": "open",
-      "title": "canonical model leaderboard is still placeholder-only",
-      "summary": {
-        "count": 0,
-        "comparable_count": 0,
-        "placeholder_count": 4,
-        "stale": false,
-        "refreshing": false,
-        "leaderboard_warning": "目前 4 個模型都沒有產生任何交易；排行榜已降級為 placeholder 檢視，請勿把 #1 當成可部署排名。",
-        "strategy_param_scan_fallback_available": true,
-        "strategy_param_scan_candidate_count": 6,
-        "ui_direct_load_verified": true,
-        "verified_candidate_name": "Auto Leaderboard · 重掃 rule_baseline #01"
-      },
-      "action": "讓 canonical leaderboard 產生至少一條 comparable row；在做到前，維持 placeholder-only honesty，並在 /lab 直接提供 strategy_param_scan fallback candidates 與 load action。",
-      "updated_at": "2026-04-18T22:16:05+08:00"
-    },
-    {
-      "id": "#H_AUTO_MODEL_STABILITY",
-      "priority": "P1",
-      "status": "open",
-      "title": "model stability still needs work (cv=0.6198, cv_std=0.0667, cv_worst=0.5557)",
-      "summary": {
-        "cv_accuracy": 0.6198,
-        "cv_std": 0.0667,
-        "cv_worst": 0.5557
-      },
-      "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
-      "updated_at": "2026-04-18T22:16:05+08:00"
-    },
-    {
-      "id": "#H_AUTO_LIVE_DQ_PATHOLOGY",
-      "priority": "P1",
-      "status": "open",
-      "title": "live predictor decision-quality contract remains runtime-blocked by recent pathology",
-      "summary": {
-        "live_scope": "unknown",
-        "deployment_blocker": "circuit_breaker_active",
-        "window": 1000,
-        "alerts": [
-          "label_imbalance",
-          "regime_shift"
-        ],
+        "additional_recent_window_wins_needed": 15,
+        "streak": 74,
         "allowed_layers": 0
       },
-      "action": "把 hb_predict_probe 納入每輪 heartbeat 驗證，對 recent same-scope / narrowed-scope pathology 與 execution guardrail 做 root-cause drill-down。",
-      "updated_at": "2026-04-18T22:16:05+08:00"
+      "next_actions": [
+        "keep hb_predict_probe.py and hb_circuit_breaker_audit.py as the primary truth for current-live blocker semantics",
+        "do not let q15/q35 support narratives override circuit-breaker release math until the breaker is actually cleared",
+        "verify with hb_parallel_runner fast mode, hb_predict_probe.py, hb_circuit_breaker_audit.py, and /execution/status"
+      ],
+      "action": "clear the canonical circuit breaker by fixing recent-window release math or keep explicit no-deploy governance"
     },
     {
-      "id": "#H_AUTO_REGIME_DRIFT",
+      "id": "P0_recent_canonical_tail_pathology",
+      "priority": "P0",
+      "status": "open",
+      "title": "recent canonical tail is still pathological (74 consecutive simulated_pyramid_win=0)",
+      "summary": {
+        "primary_window": 1000,
+        "interpretation": "distribution_pathology",
+        "dominant_regime": "bull",
+        "dominant_regime_share": 0.917,
+        "recent_100_win_rate": 0.25,
+        "losing_streak": 74
+      },
+      "next_actions": [
+        "drill into recent 50/100/1000 canonical rows for target path, regime mix, 4H shifts, and release-window examples",
+        "convert the tail-pathology diagnosis into a regression patch instead of leaving it as observation-only",
+        "verify with recent_drift_report.py, hb_predict_probe.py, and targeted regression tests"
+      ],
+      "action": "turn the pathological recent tail into a reproducible root cause and fix"
+    },
+    {
+      "id": "P1_scan_backed_best_needs_profile_promotion",
       "priority": "P1",
       "status": "open",
-      "title": "TW-IC 30 vs Global IC 14 — 信號強依賴近期資料",
+      "title": "scan_backed_best has restored comparable rows, but still needs graduation into a stable code-backed profile",
       "summary": {
-        "global_pass": 14,
-        "tw_pass": 30,
-        "total_features": 30
+        "count": 5,
+        "comparable_count": 5,
+        "placeholder_count": 1,
+        "top_model": "logistic_regression",
+        "top_deployment_profile": "scan_backed_best",
+        "top_overall_score": 0.7723,
+        "top_avg_roi": 0.0092
       },
-      "action": "市場 regime 可能已變化；考慮 regime-gated feature weighting，但不得先忽略 current-live breaker。",
-      "updated_at": "2026-04-18T22:16:05+08:00"
+      "next_actions": [
+        "promote scan-winning params into clearly named code-backed deployment profiles",
+        "keep comparable_count > 0 while reducing long-term dependence on artifact-only params",
+        "verify with /api/models/leaderboard, hb_model_leaderboard_api_probe.py, and /lab"
+      ],
+      "action": "convert the recovered comparable rows into a stable, productized canonical leaderboard profile set"
+    },
+    {
+      "id": "P1_execution_venue_readiness_unverified",
+      "priority": "P1",
+      "status": "open",
+      "title": "venue readiness is still unverified even after breaker-first governance",
+      "summary": {
+        "status_surface": "/api/status",
+        "main_blocker": "live exchange credential 尚未驗證 · order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證"
+      },
+      "next_actions": [
+        "keep venue-readiness blockers visible on operator surfaces even when breaker math changes",
+        "only treat live operations as ready after credentials, order ack, and fill lifecycle each have runtime proof"
+      ],
+      "action": "prevent any false live-ready interpretation while venue lifecycle is still unverified"
     }
   ]
 }
