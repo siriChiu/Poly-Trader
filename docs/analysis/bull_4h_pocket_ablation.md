@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-04-18 13:44:34 UTC**
+- generated_at: **2026-04-18 14:06:15 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -9,7 +9,7 @@
 
 ## Cohorts
 
-- bull_all rows: **1209** / win_rate **0.7353** / recommended **`core_plus_macro_plus_all_4h`**
+- bull_all rows: **1209** / win_rate **0.7345** / recommended **`core_plus_macro_plus_4h_structure_shift`**
 - bull_collapse_q35 rows: **420** / win_rate **0.7048** / recommended **`core_plus_macro`**
 - bull_exact_live_lane_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
 - bull_live_exact_lane_bucket_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
@@ -19,27 +19,27 @@
 
 | profile | n_features | cv_mean | cv_std | cv_worst | brier | top10 |
 |---|---:|---:|---:|---:|---:|---:|
-| core_plus_macro_plus_all_4h | 20 | 0.6458 | 0.2327 | 0.4378 | 0.2132 | 0.9048 |
-| core_plus_macro_plus_4h_structure_shift | 13 | 0.6428 | 0.2291 | 0.4378 | 0.2278 | 0.8286 |
-| core_plus_macro_plus_4h_momentum | 13 | 0.6328 | 0.2499 | 0.3632 | 0.2390 | 0.9048 |
-| core_plus_macro_plus_4h_trend | 13 | 0.6299 | 0.2532 | 0.3483 | 0.2243 | 0.9238 |
-| core_plus_macro | 10 | 0.5881 | 0.3076 | 0.1393 | 0.2599 | 0.9238 |
-| current_full_minus_4h_structure_shift | 128 | 0.5612 | 0.3174 | 0.0647 | 0.3130 | 0.9524 |
-| current_full | 131 | 0.5592 | 0.3179 | 0.0597 | 0.3097 | 0.9524 |
-| current_full_minus_4h | 121 | 0.5552 | 0.3140 | 0.0597 | 0.3210 | 0.9429 |
+| core_plus_macro_plus_4h_structure_shift | 13 | 0.6448 | 0.2335 | 0.4328 | 0.2264 | 0.8667 |
+| core_plus_macro_plus_all_4h | 20 | 0.6438 | 0.2343 | 0.4328 | 0.2129 | 0.8286 |
+| core_plus_macro_plus_4h_momentum | 13 | 0.6328 | 0.2521 | 0.3582 | 0.2400 | 0.8952 |
+| core_plus_macro_plus_4h_trend | 13 | 0.6289 | 0.2566 | 0.3383 | 0.2225 | 0.9333 |
+| core_plus_macro | 10 | 0.5960 | 0.2987 | 0.1741 | 0.2575 | 0.9333 |
+| current_full | 131 | 0.5582 | 0.3194 | 0.0547 | 0.3128 | 0.9524 |
+| current_full_minus_4h_structure_shift | 128 | 0.5572 | 0.3184 | 0.0547 | 0.3146 | 0.9619 |
+| current_full_minus_4h | 121 | 0.5502 | 0.3118 | 0.0547 | 0.3201 | 0.9524 |
 
 ## Bull collapse-pocket ranking
 
 | profile | n_features | cv_mean | cv_std | cv_worst | brier | top10 |
 |---|---:|---:|---:|---:|---:|---:|
-| core_plus_macro | 10 | 0.2214 | 0.1500 | 0.0714 | 0.4253 | 0.5000 |
-| core_plus_macro_plus_4h_structure_shift | 13 | 0.2214 | 0.1500 | 0.0714 | 0.4253 | 0.5000 |
-| core_plus_macro_plus_4h_trend | 13 | 0.2214 | 0.1500 | 0.0714 | 0.4253 | 0.5000 |
-| core_plus_macro_plus_4h_momentum | 13 | 0.2214 | 0.1500 | 0.0714 | 0.4253 | 0.5000 |
-| core_plus_macro_plus_all_4h | 20 | 0.2214 | 0.1500 | 0.0714 | 0.4253 | 0.5000 |
-| current_full_minus_4h_structure_shift | 128 | 0.2214 | 0.1500 | 0.0714 | 0.4253 | 0.5000 |
-| current_full_minus_4h | 121 | 0.2214 | 0.1500 | 0.0714 | 0.4253 | 0.5000 |
-| current_full | 131 | 0.2214 | 0.1500 | 0.0714 | 0.4253 | 0.5000 |
+| core_plus_macro | 10 | 0.2071 | 0.1500 | 0.0571 | 0.4348 | 0.5000 |
+| core_plus_macro_plus_4h_structure_shift | 13 | 0.2071 | 0.1500 | 0.0571 | 0.4348 | 0.5000 |
+| core_plus_macro_plus_4h_trend | 13 | 0.2071 | 0.1500 | 0.0571 | 0.4348 | 0.5000 |
+| core_plus_macro_plus_4h_momentum | 13 | 0.2071 | 0.1500 | 0.0571 | 0.4348 | 0.5000 |
+| core_plus_macro_plus_all_4h | 20 | 0.2071 | 0.1500 | 0.0571 | 0.4348 | 0.5000 |
+| current_full_minus_4h_structure_shift | 128 | 0.2071 | 0.1500 | 0.0571 | 0.4348 | 0.5000 |
+| current_full_minus_4h | 121 | 0.2071 | 0.1500 | 0.0571 | 0.4348 | 0.5000 |
+| current_full | 131 | 0.2071 | 0.1500 | 0.0571 | 0.4348 | 0.5000 |
 
 ## Live-bucket proxy ranking
 
@@ -102,10 +102,10 @@
 ## Notes
 
 - collapse features under inspection: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
-- thresholds (bull q35): {"feat_4h_dist_swing_low": 2.0569, "feat_4h_dist_bb_lower": 1.518, "feat_4h_bb_pct_b": 0.4554}
+- thresholds (bull q35): {"feat_4h_dist_swing_low": 2.0592, "feat_4h_dist_bb_lower": 1.5198, "feat_4h_bb_pct_b": 0.4558}
 - exact live structure bucket: `None` rows=None
 - supported neighbor buckets from exact scope: []
-- best bull-all profile: **core_plus_macro_plus_all_4h**
+- best bull-all profile: **core_plus_macro_plus_4h_structure_shift**
 - best bull-collapse profile: **core_plus_macro**
 - best live-bucket proxy profile: **None**
 - If live-bucket proxy stays tiny and unstable while supported-neighbor buckets remain healthier, the next fix should become a support-aware deployment blocker / fallback policy rather than a broader feature expansion.

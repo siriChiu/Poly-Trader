@@ -1,34 +1,38 @@
 {
-  "updated_at": "2026-04-18T21:46:45+08:00",
+  "updated_at": "2026-04-18T22:16:05+08:00",
   "issues": [
     {
       "id": "#H_AUTO_CIRCUIT_BREAKER",
       "priority": "P0",
       "status": "open",
-      "title": "canonical circuit breaker active (4/15 wins in recent 50)",
+      "title": "canonical circuit breaker active (2/15 wins in recent 50)",
       "summary": {
         "deployment_blocker": "circuit_breaker_active",
+        "horizon_minutes": 1440,
         "recent_window": 50,
-        "current_recent_window_wins": 4,
+        "current_recent_window_wins": 2,
         "required_recent_window_wins": 15,
-        "additional_recent_window_wins_needed": 11,
-        "streak": 45,
+        "additional_recent_window_wins_needed": 13,
+        "streak": 47,
         "streak_must_be_below": 50
       },
-      "action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。recent 50 需至少 15 勝，當前 4 勝，還差 11 勝；同時 streak 必須 < 50。"
+      "action": "先把 current-live blocker 維持在 canonical breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。",
+      "updated_at": "2026-04-18T22:16:05+08:00"
     },
     {
       "id": "#H_AUTO_STREAK",
       "priority": "P0",
       "status": "open",
-      "title": "連續 45 筆 simulated_pyramid_win=0",
+      "title": "連續 47 筆 simulated_pyramid_win=0",
       "summary": {
-        "losing_streak": 45,
+        "losing_streak": 47,
         "drift_window": 1000,
         "drift_interpretation": "distribution_pathology",
-        "dominant_regime": "bull"
+        "dominant_regime": "bull",
+        "dominant_regime_share": 0.89
       },
-      "action": "檢查 recent canonical labels / regime breakdown / circuit breaker；必要時升級為 distribution-aware drift 調查。"
+      "action": "檢查 recent canonical labels / regime breakdown / 4H shifts / circuit breaker release window，找出 tail pathology 的直接根因。",
+      "updated_at": "2026-04-18T22:16:05+08:00"
     },
     {
       "id": "P1_canonical_model_leaderboard_placeholder_only",
@@ -39,12 +43,16 @@
         "count": 0,
         "comparable_count": 0,
         "placeholder_count": 4,
-        "stale": true,
-        "refreshing": true,
-        "refresh_reason": "cache_stale",
-        "leaderboard_warning": "目前 4 個模型都沒有產生任何交易；排行榜已降級為 placeholder 檢視，請勿把 #1 當成可部署排名。"
+        "stale": false,
+        "refreshing": false,
+        "leaderboard_warning": "目前 4 個模型都沒有產生任何交易；排行榜已降級為 placeholder 檢視，請勿把 #1 當成可部署排名。",
+        "strategy_param_scan_fallback_available": true,
+        "strategy_param_scan_candidate_count": 6,
+        "ui_direct_load_verified": true,
+        "verified_candidate_name": "Auto Leaderboard · 重掃 rule_baseline #01"
       },
-      "action": "讓 canonical leaderboard 產生至少一條 comparable row；在做到前，維持 placeholder-only warning，並以 /api/models/leaderboard 與 /lab 驗證。"
+      "action": "讓 canonical leaderboard 產生至少一條 comparable row；在做到前，維持 placeholder-only honesty，並在 /lab 直接提供 strategy_param_scan fallback candidates 與 load action。",
+      "updated_at": "2026-04-18T22:16:05+08:00"
     },
     {
       "id": "#H_AUTO_MODEL_STABILITY",
@@ -56,21 +64,26 @@
         "cv_std": 0.0667,
         "cv_worst": 0.5557
       },
-      "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。"
+      "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
+      "updated_at": "2026-04-18T22:16:05+08:00"
     },
     {
       "id": "#H_AUTO_LIVE_DQ_PATHOLOGY",
       "priority": "P1",
       "status": "open",
-      "title": "live predictor decision-quality contract is runtime-blocked by recent pathology, a toxic exact live lane, or a severe narrowed pathology lane",
+      "title": "live predictor decision-quality contract remains runtime-blocked by recent pathology",
       "summary": {
         "live_scope": "unknown",
         "deployment_blocker": "circuit_breaker_active",
         "window": 1000,
-        "alerts": ["label_imbalance", "regime_shift"],
+        "alerts": [
+          "label_imbalance",
+          "regime_shift"
+        ],
         "allowed_layers": 0
       },
-      "action": "把 hb_predict_probe 納入每輪 heartbeat 驗證，對 exact live lane、當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；先確認 execution guardrail 是否只是正確地把壞 pocket 擋下。"
+      "action": "把 hb_predict_probe 納入每輪 heartbeat 驗證，對 recent same-scope / narrowed-scope pathology 與 execution guardrail 做 root-cause drill-down。",
+      "updated_at": "2026-04-18T22:16:05+08:00"
     },
     {
       "id": "#H_AUTO_REGIME_DRIFT",
@@ -82,7 +95,8 @@
         "tw_pass": 30,
         "total_features": 30
       },
-      "action": "市場 regime 可能已變化；考慮 regime-gated feature weighting，但不得先忽略 current-live circuit breaker。"
+      "action": "市場 regime 可能已變化；考慮 regime-gated feature weighting，但不得先忽略 current-live breaker。",
+      "updated_at": "2026-04-18T22:16:05+08:00"
     }
   ]
 }

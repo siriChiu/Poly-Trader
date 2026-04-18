@@ -570,6 +570,33 @@ interface LeaderboardHistoryRow {
   model_count?: number | null;
 }
 
+interface StrategyParamScanCandidate {
+  name?: string | null;
+  model_name?: string | null;
+  roi?: number | null;
+  win_rate?: number | null;
+  total_trades?: number | null;
+}
+
+interface StrategyParamScanVariant {
+  model_name?: string | null;
+  variant?: string | null;
+  roi?: number | null;
+  win_rate?: number | null;
+  max_drawdown?: number | null;
+  profit_factor?: number | null;
+  total_trades?: number | null;
+}
+
+interface StrategyParamScanSummary {
+  generated_at?: string | null;
+  saved_strategy_count?: number | null;
+  best_strategy_candidates?: StrategyParamScanCandidate[];
+  combined_top_variants?: StrategyParamScanVariant[];
+  source_artifact?: string | null;
+  warning?: string | null;
+}
+
 interface ModelLeaderboardMeta {
   refreshing?: boolean;
   cached?: boolean;
@@ -591,6 +618,7 @@ interface ModelLeaderboardMeta {
   score_dimensions?: ScoreDimensionMeta[];
   storage?: { canonical_store?: string; cache_store?: string } | null;
   snapshot_history?: LeaderboardHistoryRow[];
+  strategy_param_scan?: StrategyParamScanSummary | null;
 }
 
 interface StrategyQuadrantPoint {
@@ -1246,9 +1274,15 @@ export default function StrategyLab() {
       .filter((group) => group.rows.length > 0);
   }, [sortedModelLeaderboard]);
   const placeholderModelRows = Array.isArray(modelMeta.placeholder_rows) ? modelMeta.placeholder_rows : [];
+  const modelStrategyParamScan = modelMeta.strategy_param_scan ?? null;
+  const modelFallbackCandidates = Array.isArray(modelStrategyParamScan?.best_strategy_candidates)
+    ? modelStrategyParamScan.best_strategy_candidates.filter((candidate) => Boolean(candidate))
+    : [];
   const strategyCapitalMode = useCallback((entry: StrategyEntry) => {
     const fromResults = entry.last_results?.capital_mode;
-    if (fromResults === "classic_pyramid" || fromResults === "reserve_90") return fromResults;
+    if (fromResults === "reserve_90" || fromResults === "classic_pyramid") {
+      return fromResults;
+    }
     const fromParams = entry.definition?.params?.capital_management?.mode;
     return fromParams === "reserve_90" ? "reserve_90" : "classic_pyramid";
   }, []);
@@ -1539,6 +1573,7 @@ export default function StrategyLab() {
         score_dimensions: Array.isArray(data?.score_dimensions) ? data.score_dimensions : [],
         storage: data?.storage ?? null,
         snapshot_history: Array.isArray(data?.snapshot_history) ? data.snapshot_history : [],
+        strategy_param_scan: data?.strategy_param_scan ?? null,
       };
       setModelLeaderboard(nextModelLeaderboard);
       setModelQuadrantPoints(nextModelQuadrants);
@@ -2498,6 +2533,58 @@ export default function StrategyLab() {
                       <div>{modelMeta.leaderboard_warning}</div>
                       <div className="text-[11px] text-yellow-200/80">
                         可比較 {modelMeta.comparable_count ?? modelLeaderboard.length} · placeholder {modelMeta.placeholder_count ?? placeholderModelRows.length} · evaluated {modelMeta.evaluated_row_count ?? ((modelMeta.comparable_count ?? modelLeaderboard.length) + (modelMeta.placeholder_count ?? placeholderModelRows.length))}
+                      </div>
+                    </div>
+                  )}
+                  {(modelMeta.comparable_count ?? modelLeaderboard.length) === 0 && modelFallbackCandidates.length > 0 && (
+                    <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-3 text-xs text-cyan-50 space-y-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-cyan-100">placeholder-only fallback：策略參數重掃候選</div>
+                          <div className="mt-1 text-[11px] text-cyan-200/80">
+                            {modelStrategyParamScan?.warning || "canonical model leaderboard 仍是 placeholder-only；請改看策略參數重掃候選。"}
+                          </div>
+                        </div>
+                        <div className="text-right text-[11px] text-cyan-200/80">
+                          <div>已儲存策略 {modelStrategyParamScan?.saved_strategy_count ?? modelFallbackCandidates.length}</div>
+                          <div>
+                            {modelStrategyParamScan?.generated_at
+                              ? `generated ${new Date(modelStrategyParamScan.generated_at).toLocaleString("zh-TW")}`
+                              : "generated —"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid gap-2 xl:grid-cols-2">
+                        {modelFallbackCandidates.slice(0, 4).map((candidate) => (
+                          <div
+                            key={`${candidate.name || "candidate"}-${candidate.model_name || "unknown"}`}
+                            className="rounded-lg border border-cyan-400/20 bg-slate-950/30 px-3 py-3"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate font-medium text-cyan-50">{candidate.name || "未命名候選"}</div>
+                                <div className="mt-1 text-[11px] text-cyan-200/80">
+                                  {(candidate.model_name || "unknown model")} · ROI {formatPct(candidate.roi, 1, true)} · 勝率 {formatPct(candidate.win_rate)} · Trades {formatDecimal(candidate.total_trades, 0)}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={!candidate.name}
+                                onClick={async () => {
+                                  if (!candidate.name) return;
+                                  await selectStrategyByName(candidate.name);
+                                  setActiveTab("workspace");
+                                }}
+                                className={`rounded-lg border px-3 py-1.5 text-[11px] font-medium ${candidate.name ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-100 hover:border-cyan-300/60 hover:text-cyan-50" : "border-slate-700/50 bg-slate-900/50 text-slate-500"}`}
+                              >
+                                載入候選 →
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="text-[11px] text-cyan-200/80">
+                        這批候選來自 strategy_param_scan；先載入可交易策略，再回頭決定是否要繼續放寬 model deployment profile。
                       </div>
                     </div>
                   )}

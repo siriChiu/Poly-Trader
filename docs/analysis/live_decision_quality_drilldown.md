@@ -1,6 +1,6 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-18 13:43:25.809469**
+- feature_timestamp: **2026-04-18 14:05:07.655417**
 - target: `simulated_pyramid_win`
 - live path: **bull / None / None**
 - signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
@@ -8,10 +8,10 @@
 - allowed_layers_raw_reason: `circuit_breaker_preempts_runtime_sizing`
 - allowed_layers_reason: `circuit_breaker_blocks_trade`
 - execution_guardrail_reason: `circuit_breaker_blocks_trade`
-- runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 8.00% < 30%`
-- deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 8.00% < 30%`
+- runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 4.00% < 30%`
+- deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 4.00% < 30%`
 - q15 exact-supported patch: **inactive** | support_route `None` | floor_cross `None`
-- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 8.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 4/50，至少還差 11 勝。 同時 recent pathology=recent drift primary window 1000 rows; shows distribution_pathology; dominant_regime=bull (89%); alerts=['label_imbalance', 'regime_shift']。**
+- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 4.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 2/50，至少還差 13 勝。 同時 recent pathology=recent drift primary window 1000 rows; shows distribution_pathology; dominant_regime=bull (89%); alerts=['label_imbalance', 'regime_shift']。**
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
 
 ## Entry-quality component breakdown
@@ -29,7 +29,7 @@
 - best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
 - single-component floor crossers: None
 - bias50 fully relaxed: entry≈**None** / layers≈**None** / required_bias50_cap≈**None**
-- unavailable_reason: `Recent 50-sample win rate: 8.00% < 30%`
+- unavailable_reason: `Recent 50-sample win rate: 4.00% < 30%`
 
 ## Scope comparison
 

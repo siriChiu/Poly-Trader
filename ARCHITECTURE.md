@@ -224,6 +224,7 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 - 圖表資料採用 local cache + incremental kline append，避免切頁或 refresh 時整包重抓
 - price/equity stacked synchronized charts 為正式視覺契約，舊 `/backtest` 只保留 redirect，不再作為獨立工作區
 - model leaderboard 現在保留 `deployment_profile`，並用更接近 OOS 高信念部署的 lane 來評估模型，而不是把所有模型都硬塞進單一 entry 規則
+- **Placeholder-only fallback contract（Heartbeat 2026-04-18）**：當 `/api/models/leaderboard` 回傳 `comparable_count=0` 但 `strategy_param_scan.best_strategy_candidates[]` 已存在時，Strategy Lab 不得只停在 generic no-trade placeholder。模型排行榜區塊必須直接顯示 fallback candidate cards（`name / model_name / ROI / win_rate / total_trades`）與 `載入候選` 動作，讓 operator 可以在 model leaderboard 尚未產生 comparable row 時，直接切回可交易的重掃策略工作區，而不是在 placeholder-only 空榜中卡住。
 - **Runtime blocker sync（Heartbeat 2026-04-17）**：Strategy Lab 也必須直接讀 `/api/status` 的 `execution_reconciliation / execution_surface_contract / execution_metadata_smoke`，至少把 summary-level runtime blocker、metadata freshness 與 canonical execution route 提示顯示在回測工作區，避免使用者把 DQ / backtest 工作區誤讀成 live-ready execution truth
 
 ### 6. 可視化層
