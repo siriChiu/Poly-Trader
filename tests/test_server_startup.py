@@ -1319,3 +1319,139 @@ def test_build_live_runtime_closure_surface_exposes_exact_vs_spillover_summary(m
     assert "bull|ALLOW" in scope_summary["summary"]
     assert "exact-vs-spillover" in result["runtime_closure_summary"]
     assert "bull|ALLOW" in result["runtime_closure_summary"]
+
+
+def test_build_live_runtime_closure_surface_surfaces_bull_caution_patch_summary(monkeypatch, tmp_path):
+    from backtesting import strategy_lab
+
+    monkeypatch.setattr(
+        strategy_lab,
+        "build_regime_aware_sleeve_routing",
+        lambda **_: {"active_ratio_text": "0/4", "current_regime": "bull", "current_regime_gate": "BLOCK"},
+    )
+
+    artifact_path = tmp_path / "bull_4h_pocket_ablation.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-19 07:10:00",
+                "collapse_features": [
+                    "feat_4h_dist_swing_low",
+                    "feat_4h_dist_bb_lower",
+                    "feat_4h_bb_pct_b",
+                ],
+                "min_collapse_flags": 2,
+                "cohorts": {
+                    "bull_collapse_q35": {
+                        "rows": 472,
+                        "base_win_rate": 0.7458,
+                        "recommended_profile": "core_plus_macro",
+                        "profiles": {
+                            "core_plus_macro": {
+                                "cv_mean_accuracy": 0.6123,
+                            }
+                        },
+                    }
+                },
+                "support_pathology_summary": {
+                    "preferred_support_cohort": "bull_exact_live_lane_proxy",
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_rows": 0,
+                    "current_live_structure_bucket_gap_to_minimum": 50,
+                    "recommended_action": "維持 0 layers；優先查 exact bucket 缺口與 same-bucket pathology，而不是再重訓。",
+                },
+                "live_context": {
+                    "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+                    "support_route_deployable": False,
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_BULL_4H_POCKET_ABLATION_PATH", artifact_path)
+
+    payload = {
+        "signal": "CIRCUIT_BREAKER",
+        "reason": "Consecutive loss streak: 237 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+        "deployment_blocker": "circuit_breaker_active",
+        "deployment_blocker_details": {
+            "recent_window": {"window_size": 50, "wins": 0, "win_rate": 0.0, "floor": 0.3},
+            "release_condition": {
+                "recent_window": 50,
+                "current_recent_window_wins": 0,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 15,
+                "recent_win_rate_must_be_at_least": 0.3,
+                "current_streak": 237,
+                "streak_must_be_below": 50,
+            },
+        },
+        "support_progress": {"current_rows": 0, "minimum_support_rows": 50, "gap_to_minimum": 50},
+        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+        "support_route_deployable": False,
+        "regime_label": "bull",
+        "regime_gate": "BLOCK",
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "rows": 0,
+                "win_rate": None,
+                "avg_pnl": None,
+                "avg_quality": None,
+                "avg_drawdown_penalty": None,
+                "avg_time_underwater": None,
+                "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                "current_live_structure_bucket_rows": 0,
+                "alerts": ["no_rows"],
+            },
+            "regime_label+entry_quality_label": {
+                "rows": 200,
+                "win_rate": 0.0,
+                "avg_pnl": -0.0100,
+                "avg_quality": -0.2868,
+                "avg_drawdown_penalty": 0.3869,
+                "avg_time_underwater": 0.9055,
+                "spillover_vs_exact_live_lane": {
+                    "extra_rows": 200,
+                    "extra_row_share": 1.0,
+                    "win_rate_delta_vs_exact": None,
+                    "avg_pnl_delta_vs_exact": None,
+                    "avg_quality_delta_vs_exact": None,
+                    "avg_drawdown_penalty_delta_vs_exact": None,
+                    "avg_time_underwater_delta_vs_exact": None,
+                    "worst_extra_regime_gate": {
+                        "regime_gate": "bull|CAUTION",
+                        "rows": 113,
+                        "win_rate": 0.0,
+                        "avg_pnl": -0.0109,
+                        "avg_quality": -0.2947,
+                        "avg_drawdown_penalty": 0.3817,
+                        "avg_time_underwater": 0.8180,
+                    },
+                    "worst_extra_regime_gate_feature_contrast": {
+                        "top_mean_shift_features": [
+                            {"feature": "feat_4h_bias200", "reference_mean": 7.5204, "current_mean": 9.8682, "mean_delta": 2.3478},
+                            {"feature": "feat_4h_dist_bb_lower", "reference_mean": 0.8140, "current_mean": 3.0734, "mean_delta": 2.2594},
+                        ],
+                    },
+                },
+            },
+        },
+    }
+
+    result = api_module._build_live_runtime_closure_surface(payload)
+
+    scope_summary = result["decision_quality_scope_pathology_summary"]
+    patch_summary = scope_summary["recommended_patch"]
+    assert scope_summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|CAUTION"
+    assert patch_summary["status"] == "reference_only_until_exact_support_ready"
+    assert patch_summary["recommended_profile"] == "core_plus_macro"
+    assert patch_summary["collapse_features"] == [
+        "feat_4h_dist_swing_low",
+        "feat_4h_dist_bb_lower",
+        "feat_4h_bb_pct_b",
+    ]
+    assert patch_summary["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
+    assert patch_summary["gap_to_minimum"] == 50
+    assert "不可直接放行 runtime" in patch_summary["reason"]

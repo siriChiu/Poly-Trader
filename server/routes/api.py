@@ -27,6 +27,11 @@ from server.dependencies import (
     set_runtime_status,
 )
 from server.features_engine import get_engine, normalize_feature
+from server.live_pathology_summary import (
+    build_live_pathology_patch_summary as shared_build_live_pathology_patch_summary,
+    build_live_pathology_scope_summary as shared_build_live_pathology_scope_summary,
+    load_bull_4h_pocket_ablation_summary as shared_load_bull_4h_pocket_ablation_summary,
+)
 from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized, OrderLifecycleEvent
 from feature_engine.feature_history_policy import (
     FEATURE_KEY_MAP,
@@ -84,6 +89,7 @@ _EXECUTION_METADATA_EXTERNAL_MONITOR_INSTALL_CONTRACT_PATH = (
     Path(__file__).resolve().parents[2] / "data" / "execution_metadata_external_monitor_install_contract.json"
 )
 _Q15_SUPPORT_AUDIT_PATH = Path(__file__).resolve().parents[2] / "data" / "q15_support_audit.json"
+_BULL_4H_POCKET_ABLATION_PATH = Path(__file__).resolve().parents[2] / "data" / "bull_4h_pocket_ablation.json"
 _EXECUTION_METADATA_EXTERNAL_MONITOR_COMMAND = (
     f"cd {Path(__file__).resolve().parents[2]} && "
     f"{Path(__file__).resolve().parents[2] / 'venv' / 'bin' / 'python'} "
@@ -1025,119 +1031,30 @@ def _build_execution_surface_contract() -> Dict[str, Any]:
 
 
 def _build_live_pathology_scope_summary(scope_diagnostics: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    if not isinstance(scope_diagnostics, dict) or not scope_diagnostics:
-        return None
+    return shared_build_live_pathology_scope_summary(scope_diagnostics)
 
-    exact_scope = scope_diagnostics.get("regime_label+regime_gate+entry_quality_label")
-    if not isinstance(exact_scope, dict) or not exact_scope:
-        return None
 
-    def _is_number(value: Any) -> bool:
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
-
-    def _fmt_pct(value: Any, digits: int = 1, *, signed: bool = False) -> str:
-        if not _is_number(value):
-            return "—"
-        val = float(value)
-        prefix = "+" if signed and val > 0 else ""
-        return f"{prefix}{val:.{digits}%}"
-
-    def _fmt_float(value: Any, digits: int = 3, *, signed: bool = False) -> str:
-        if not _is_number(value):
-            return "—"
-        val = float(value)
-        prefix = "+" if signed and val > 0 else ""
-        return f"{prefix}{val:.{digits}f}"
-
-    exact_live_lane = {
-        "scope": "regime_label+regime_gate+entry_quality_label",
-        "rows": exact_scope.get("rows"),
-        "win_rate": exact_scope.get("win_rate"),
-        "avg_pnl": exact_scope.get("avg_pnl"),
-        "avg_quality": exact_scope.get("avg_quality"),
-        "avg_drawdown_penalty": exact_scope.get("avg_drawdown_penalty"),
-        "avg_time_underwater": exact_scope.get("avg_time_underwater"),
-        "current_live_structure_bucket": exact_scope.get("current_live_structure_bucket"),
-        "current_live_structure_bucket_rows": exact_scope.get("current_live_structure_bucket_rows"),
-    }
-
-    candidate_scopes = [
-        ("regime_label+entry_quality_label", "同 regime + quality 寬 scope"),
-        ("entry_quality_label", "同 quality 寬 scope"),
-        ("regime_label", "同 regime 寬 scope"),
-        ("regime_gate", "同 gate 寬 scope"),
-    ]
-
-    best_candidate: Optional[Dict[str, Any]] = None
-    best_rank: Optional[tuple[Any, ...]] = None
-    for scope_name, scope_label in candidate_scopes:
-        scope_payload = scope_diagnostics.get(scope_name)
-        if not isinstance(scope_payload, dict) or not scope_payload:
-            continue
-        spillover = scope_payload.get("spillover_vs_exact_live_lane")
-        if not isinstance(spillover, dict) or not spillover:
-            continue
-
-        extra_rows = int(spillover.get("extra_rows") or 0)
-        worst_pocket = spillover.get("worst_extra_regime_gate")
-        if extra_rows <= 0 or not isinstance(worst_pocket, dict) or not worst_pocket:
-            continue
-
-        pocket_quality = float(worst_pocket.get("avg_quality")) if _is_number(worst_pocket.get("avg_quality")) else float("inf")
-        pocket_win_rate = float(worst_pocket.get("win_rate")) if _is_number(worst_pocket.get("win_rate")) else float("inf")
-        pocket_rows = int(worst_pocket.get("rows") or 0)
-        rank = (
-            0 if pocket_quality < 0 else 1,
-            pocket_quality,
-            pocket_win_rate,
-            -extra_rows,
-            -pocket_rows,
-        )
-        if best_rank is None or rank < best_rank:
-            best_rank = rank
-            best_candidate = {
-                "focus_scope": scope_name,
-                "focus_scope_label": scope_label,
-                "focus_scope_rows": scope_payload.get("rows"),
-                "spillover": {
-                    "extra_rows": extra_rows,
-                    "extra_row_share": spillover.get("extra_row_share"),
-                    "win_rate_delta_vs_exact": spillover.get("win_rate_delta_vs_exact"),
-                    "avg_pnl_delta_vs_exact": spillover.get("avg_pnl_delta_vs_exact"),
-                    "avg_quality_delta_vs_exact": spillover.get("avg_quality_delta_vs_exact"),
-                    "avg_drawdown_penalty_delta_vs_exact": spillover.get("avg_drawdown_penalty_delta_vs_exact"),
-                    "avg_time_underwater_delta_vs_exact": spillover.get("avg_time_underwater_delta_vs_exact"),
-                    "worst_extra_regime_gate": worst_pocket,
-                    "top_mean_shift_features": (
-                        (spillover.get("worst_extra_regime_gate_feature_contrast") or {}).get("top_mean_shift_features")
-                        if isinstance(spillover.get("worst_extra_regime_gate_feature_contrast"), dict)
-                        else []
-                    ) or [],
-                },
-            }
-
-    if not best_candidate:
-        return None
-
-    spillover = best_candidate["spillover"]
-    worst_pocket = spillover.get("worst_extra_regime_gate") if isinstance(spillover, dict) else {}
-    summary = (
-        f"{best_candidate['focus_scope_label']} 出現 {worst_pocket.get('regime_gate') or 'unknown'} spillover，"
-        f"{int(spillover.get('extra_rows') or 0)} rows / WR {_fmt_pct(worst_pocket.get('win_rate'))}"
-        f" / 品質 {_fmt_float(worst_pocket.get('avg_quality'))}，"
-        f"明顯劣於 exact live lane WR {_fmt_pct(exact_live_lane.get('win_rate'))}"
-        f" / 品質 {_fmt_float(exact_live_lane.get('avg_quality'))}。"
+def _load_bull_4h_pocket_ablation_summary(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    return shared_load_bull_4h_pocket_ablation_summary(
+        path or _BULL_4H_POCKET_ABLATION_PATH,
+        warn=logger.warning,
     )
 
-    return {
-        **best_candidate,
-        "exact_live_lane": exact_live_lane,
-        "summary": summary,
-    }
 
+def _build_live_pathology_patch_summary(
+    confidence_payload: Dict[str, Any],
+    scope_summary: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    return shared_build_live_pathology_patch_summary(
+        confidence_payload,
+        scope_summary,
+        artifact_path=_BULL_4H_POCKET_ABLATION_PATH,
+        warn=logger.warning,
+    )
 
 
 def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+
     from backtesting import strategy_lab
 
     payload = confidence_payload or {}
@@ -1153,6 +1070,12 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
     scope_diagnostics = payload.get("decision_quality_scope_diagnostics") if isinstance(payload.get("decision_quality_scope_diagnostics"), dict) else {}
     exact_scope = scope_diagnostics.get("regime_label+regime_gate+entry_quality_label") if isinstance(scope_diagnostics.get("regime_label+regime_gate+entry_quality_label"), dict) else {}
     scope_pathology_summary = _build_live_pathology_scope_summary(scope_diagnostics)
+    spillover_patch_summary = _build_live_pathology_patch_summary(payload, scope_pathology_summary)
+    if isinstance(scope_pathology_summary, dict) and isinstance(spillover_patch_summary, dict):
+        scope_pathology_summary = {
+            **scope_pathology_summary,
+            "recommended_patch": spillover_patch_summary,
+        }
     calibration_exact_lane_rows = exact_scope.get("current_live_structure_bucket_rows")
     calibration_exact_lane_alerts = exact_scope.get("alerts") if isinstance(exact_scope.get("alerts"), list) else []
 

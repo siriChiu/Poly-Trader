@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "live_decision_quality_drilldown.py"
@@ -253,3 +254,164 @@ def test_drilldown_markdown_mentions_runtime_closure_summaries():
     assert "capacity opened but signal still HOLD" in source
     assert "patch active but execution still blocked" in source
     assert "runtime closure summary" in source
+
+
+def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_path, monkeypatch):
+    probe_path = tmp_path / "live_predict_probe.json"
+    out_json = tmp_path / "live_decision_quality_drilldown.json"
+    out_md = tmp_path / "live_decision_quality_drilldown.md"
+    q35_path = tmp_path / "q35_scaling_audit.json"
+    q35_path.write_text("{}", encoding="utf-8")
+
+    probe_payload = {
+        "feature_timestamp": "2026-04-19 07:15:00",
+        "target_col": "simulated_pyramid_win",
+        "signal": "CIRCUIT_BREAKER",
+        "confidence": 0.5,
+        "should_trade": False,
+        "regime_label": "bull",
+        "regime_gate": "BLOCK",
+        "entry_quality": 0.3467,
+        "entry_quality_label": "D",
+        "entry_quality_components": {
+            "entry_quality": 0.3467,
+            "trade_floor": 0.55,
+            "base_quality": 0.3791,
+            "base_quality_weight": 0.75,
+            "structure_quality": 0.2494,
+            "structure_quality_weight": 0.25,
+            "base_components": [],
+            "structure_components": [],
+        },
+        "deployment_blocker": "circuit_breaker_active",
+        "deployment_blocker_reason": "Consecutive loss streak: 237 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+        "deployment_blocker_source": "circuit_breaker",
+        "deployment_blocker_details": {
+            "recent_window": {"window_size": 50, "wins": 0, "win_rate": 0.0, "floor": 0.3},
+            "release_condition": {"required_recent_window_wins": 15, "additional_recent_window_wins_needed": 15},
+        },
+        "allowed_layers_raw": 0,
+        "allowed_layers_raw_reason": "regime_gate_block",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+        "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+        "runtime_closure_state": "circuit_breaker_active",
+        "runtime_closure_summary": "circuit breaker active",
+        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+        "floor_cross_verdict": "runtime_blocker_preempts_floor_analysis",
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "q15_exact_supported_component_patch_applied": False,
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "rows": 0,
+                "win_rate": None,
+                "avg_pnl": None,
+                "avg_quality": None,
+                "avg_drawdown_penalty": None,
+                "avg_time_underwater": None,
+                "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                "current_live_structure_bucket_rows": 0,
+            },
+            "regime_label+entry_quality_label": {
+                "rows": 200,
+                "win_rate": 0.0,
+                "avg_pnl": -0.01,
+                "avg_quality": -0.2868,
+                "avg_drawdown_penalty": 0.3869,
+                "avg_time_underwater": 0.9055,
+                "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                "current_live_structure_bucket_rows": 0,
+                "spillover_vs_exact_live_lane": {
+                    "extra_rows": 200,
+                    "extra_row_share": 1.0,
+                    "worst_extra_regime_gate": {
+                        "regime_gate": "bull|CAUTION",
+                        "rows": 113,
+                        "win_rate": 0.0,
+                        "avg_pnl": -0.0109,
+                        "avg_quality": -0.2947,
+                        "avg_drawdown_penalty": 0.3817,
+                        "avg_time_underwater": 0.818,
+                    },
+                    "worst_extra_regime_gate_feature_contrast": {
+                        "top_mean_shift_features": [
+                            {"feature": "feat_4h_bias200", "reference_mean": 7.52, "current_mean": 9.86, "mean_delta": 2.34}
+                        ]
+                    },
+                },
+            },
+            "pathology_consensus": {
+                "shared_top_shift_features": [
+                    {"feature": "feat_4h_dist_bb_lower", "scope_count": 2}
+                ],
+                "worst_pathology_scope": {
+                    "scope": "regime_label+entry_quality_label",
+                    "rows": 200,
+                    "win_rate": 0.0,
+                    "avg_quality": -0.2868,
+                },
+            },
+        },
+        "decision_quality_scope_pathology_summary": {
+            "focus_scope": "regime_label+entry_quality_label",
+            "focus_scope_label": "同 regime + quality 寬 scope",
+            "focus_scope_rows": 200,
+            "summary": "同 regime + quality 寬 scope 出現 bull|CAUTION spillover。",
+            "exact_live_lane": {
+                "scope": "regime_label+regime_gate+entry_quality_label",
+                "rows": 0,
+                "win_rate": None,
+                "avg_pnl": None,
+                "avg_quality": None,
+                "avg_drawdown_penalty": None,
+                "avg_time_underwater": None,
+                "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                "current_live_structure_bucket_rows": 0,
+            },
+            "spillover": {
+                "extra_rows": 200,
+                "extra_row_share": 1.0,
+                "worst_extra_regime_gate": {
+                    "regime_gate": "bull|CAUTION",
+                    "rows": 113,
+                    "win_rate": 0.0,
+                    "avg_pnl": -0.0109,
+                    "avg_quality": -0.2947,
+                    "avg_drawdown_penalty": 0.3817,
+                    "avg_time_underwater": 0.818,
+                },
+                "top_mean_shift_features": [
+                    {"feature": "feat_4h_dist_bb_lower", "reference_mean": 0.81, "current_mean": 3.07, "mean_delta": 2.26}
+                ],
+            },
+            "recommended_patch": {
+                "status": "reference_only_until_exact_support_ready",
+                "reason": "bull|CAUTION spillover 已有正式 patch 建議（core_plus_macro），目前只能作治理 / 訓練參考，不可直接放行 runtime。",
+                "recommended_profile": "core_plus_macro",
+                "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+                "gap_to_minimum": 50,
+                "collapse_features": [
+                    "feat_4h_dist_swing_low",
+                    "feat_4h_dist_bb_lower",
+                    "feat_4h_bb_pct_b",
+                ],
+                "recommended_action": "維持 0 layers；優先查 exact bucket 缺口與 same-bucket pathology，而不是再重訓。",
+            },
+        },
+    }
+    probe_path.write_text(json.dumps(probe_payload, ensure_ascii=False), encoding="utf-8")
+
+    monkeypatch.setattr(live_drilldown, "PROBE_PATH", probe_path)
+    monkeypatch.setattr(live_drilldown, "OUT_JSON", out_json)
+    monkeypatch.setattr(live_drilldown, "OUT_MD", out_md)
+    monkeypatch.setattr(live_drilldown, "Q35_AUDIT_PATH", q35_path)
+
+    live_drilldown.main()
+
+    payload = json.loads(out_json.read_text(encoding="utf-8"))
+    markdown = out_md.read_text(encoding="utf-8")
+
+    assert payload["recommended_patch"]["recommended_profile"] == "core_plus_macro"
+    assert payload["recommended_patch"]["status"] == "reference_only_until_exact_support_ready"
+    assert "recommended_patch: **core_plus_macro**" in markdown
+    assert "recommended_patch_features: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b" in markdown

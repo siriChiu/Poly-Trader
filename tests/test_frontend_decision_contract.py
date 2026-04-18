@@ -257,6 +257,25 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         assert snippet in source
     assert 'Execution runtime blocker sync' not in source
 
+
+def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
+    source = _read("components/LivePathologySummaryCard.tsx")
+    required_snippets = [
+        'type RecommendedPatchSummary = {',
+        'recommended_patch?: RecommendedPatchSummary | null;',
+        'const recommendedPatch = summary.recommended_patch ?? null;',
+        'const formatPatchStatus = (status?: string | null) => {',
+        'reference_only_until_exact_support_ready',
+        '先當治理參考，不可直接放行',
+        '建議正式 patch',
+        'recommendedPatch.recommended_profile',
+        'recommendedPatch.support_route_verdict',
+        'recommendedPatch.recommended_action',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
 def test_global_styles_use_premium_exchange_visual_tokens():
     css_source = _read("index.css")
     tailwind_source = (ROOT / "web" / "tailwind.config.js").read_text(encoding="utf-8")

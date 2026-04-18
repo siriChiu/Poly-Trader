@@ -39,6 +39,25 @@ type SpilloverSummary = {
   top_mean_shift_features?: TopMeanShiftFeature[] | null;
 };
 
+type RecommendedPatchSummary = {
+  status?: string | null;
+  reason?: string | null;
+  spillover_regime_gate?: string | null;
+  spillover_rows?: number | null;
+  recommended_profile?: string | null;
+  recommended_profile_source?: string | null;
+  collapse_features?: string[] | null;
+  min_collapse_flags?: number | null;
+  preferred_support_cohort?: string | null;
+  support_route_verdict?: string | null;
+  support_route_deployable?: boolean | null;
+  current_live_structure_bucket?: string | null;
+  current_live_structure_bucket_rows?: number | null;
+  minimum_support_rows?: number | null;
+  gap_to_minimum?: number | null;
+  recommended_action?: string | null;
+};
+
 export type DecisionQualityScopePathologySummary = {
   focus_scope?: string | null;
   focus_scope_label?: string | null;
@@ -46,6 +65,7 @@ export type DecisionQualityScopePathologySummary = {
   summary?: string | null;
   exact_live_lane?: LaneSummary | null;
   spillover?: SpilloverSummary | null;
+  recommended_patch?: RecommendedPatchSummary | null;
 };
 
 type Props = {
@@ -78,6 +98,17 @@ const formatMeanShift = (shift: TopMeanShiftFeature) => {
   return `${feature} ${reference}→${current} (Δ ${delta})`;
 };
 
+const formatPatchStatus = (status?: string | null) => {
+  switch (status) {
+    case "reference_only_until_exact_support_ready":
+      return "先當治理參考，不可直接放行";
+    case "deployable_patch_candidate":
+      return "已達可部署 patch 候選";
+    default:
+      return status || "patch 狀態未提供";
+  }
+};
+
 export default function LivePathologySummaryCard({
   summary,
   title = "🧬 Live lane / spillover 對照",
@@ -88,11 +119,15 @@ export default function LivePathologySummaryCard({
   const exactLane = summary.exact_live_lane ?? null;
   const spillover = summary.spillover ?? null;
   const spilloverPocket = spillover?.worst_extra_regime_gate ?? null;
+  const recommendedPatch = summary.recommended_patch ?? null;
   const topShifts = Array.isArray(spillover?.top_mean_shift_features)
     ? spillover.top_mean_shift_features.slice(0, 3)
     : [];
+  const collapseFeatures = Array.isArray(recommendedPatch?.collapse_features)
+    ? recommendedPatch.collapse_features.slice(0, 4)
+    : [];
 
-  if (!summary.summary && !exactLane && !spilloverPocket) return null;
+  if (!summary.summary && !exactLane && !spilloverPocket && !recommendedPatch) return null;
 
   return (
     <div className={`rounded-xl border border-amber-700/40 bg-amber-950/10 p-4 text-xs text-amber-50 space-y-3 ${className}`.trim()}>
@@ -168,6 +203,49 @@ export default function LivePathologySummaryCard({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {recommendedPatch && (
+        <div className="rounded-lg border border-sky-500/20 bg-sky-950/10 px-3 py-3 text-sky-50 space-y-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">建議正式 patch</div>
+              <div className="mt-1 text-sm font-semibold text-sky-100">
+                {recommendedPatch.recommended_profile || "未提供 profile"}
+              </div>
+            </div>
+            <div className="rounded-full border border-sky-500/30 bg-sky-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-sky-200">
+              {formatPatchStatus(recommendedPatch.status)}
+            </div>
+          </div>
+          <div className="space-y-1 text-[11px] leading-5 text-sky-50/90">
+            <div>
+              spillover {recommendedPatch.spillover_regime_gate || "—"}
+              {recommendedPatch.spillover_rows != null ? ` · rows ${recommendedPatch.spillover_rows}` : ""}
+            </div>
+            <div>
+              support {recommendedPatch.current_live_structure_bucket_rows ?? "—"}
+              /
+              {recommendedPatch.minimum_support_rows ?? "—"}
+              {recommendedPatch.gap_to_minimum != null ? ` · gap ${recommendedPatch.gap_to_minimum}` : ""}
+            </div>
+            <div>
+              support route {recommendedPatch.support_route_verdict || "—"}
+              {recommendedPatch.preferred_support_cohort ? ` · cohort ${recommendedPatch.preferred_support_cohort}` : ""}
+            </div>
+            {recommendedPatch.reason && <div>{recommendedPatch.reason}</div>}
+            {recommendedPatch.recommended_action && <div>action {recommendedPatch.recommended_action}</div>}
+          </div>
+          {collapseFeatures.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {collapseFeatures.map((feature) => (
+                <div key={feature} className="rounded-full border border-sky-500/20 bg-black/10 px-3 py-1.5 text-[11px] text-sky-50/90">
+                  {feature}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

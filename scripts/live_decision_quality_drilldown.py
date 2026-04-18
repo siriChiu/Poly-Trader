@@ -9,12 +9,19 @@ chosen calibration scope, broader spillover lane, and shared 4H collapse shifts.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from server.live_pathology_summary import build_live_pathology_scope_surface
+
 PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 Q35_AUDIT_PATH = PROJECT_ROOT / "data" / "q35_scaling_audit.json"
+BULL_4H_POCKET_ABLATION_PATH = PROJECT_ROOT / "data" / "bull_4h_pocket_ablation.json"
 OUT_JSON = PROJECT_ROOT / "data" / "live_decision_quality_drilldown.json"
 OUT_MD = PROJECT_ROOT / "docs" / "analysis" / "live_decision_quality_drilldown.md"
 
@@ -262,6 +269,18 @@ def main() -> None:
     payload = json.loads(PROBE_PATH.read_text(encoding="utf-8"))
     diags = payload.get("decision_quality_scope_diagnostics") or {}
     consensus = diags.get("pathology_consensus") or {}
+    scope_pathology_summary = payload.get("decision_quality_scope_pathology_summary")
+    if not isinstance(scope_pathology_summary, dict):
+        scope_pathology_summary = build_live_pathology_scope_surface(
+            payload,
+            diags if isinstance(diags, dict) else {},
+            artifact_path=BULL_4H_POCKET_ABLATION_PATH,
+        )
+    recommended_patch = (
+        scope_pathology_summary.get("recommended_patch")
+        if isinstance(scope_pathology_summary, dict)
+        else None
+    )
     runtime_blocker = _runtime_blocker_summary(payload)
     deployment_blocker = _deployment_blocker_summary(payload)
 
@@ -316,6 +335,8 @@ def main() -> None:
         "recent_pathology_summary": payload.get("decision_quality_recent_pathology_summary"),
         "shared_top_shift_features": consensus.get("shared_top_shift_features") or [],
         "worst_pathology_scope": consensus.get("worst_pathology_scope") or {},
+        "decision_quality_scope_pathology_summary": scope_pathology_summary,
+        "recommended_patch": recommended_patch,
     }
 
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
@@ -339,6 +360,10 @@ def main() -> None:
     bias50_cf = gap_attr.get("bias50_floor_counterfactual") or {}
     q15_patch = report.get("q15_exact_supported_component_patch") or {}
     q15_patch_machine_read = q15_patch.get("machine_read_answer") or {}
+    recommended_patch = report.get("recommended_patch") or {}
+    recommended_patch_features = ", ".join(recommended_patch.get("collapse_features") or []) or "None"
+    recommended_patch_status = recommended_patch.get("status") or "None"
+    recommended_patch_profile = recommended_patch.get("recommended_profile") or "None"
     runtime_closure_state = report.get("runtime_closure_state") or (
         "support_closed_but_trade_floor_blocked"
         if (
@@ -419,6 +444,10 @@ def main() -> None:
         f"- q15 exact-supported patch: **{'active' if report['q15_exact_supported_component_patch_applied'] else 'inactive'}** | support_route `{report.get('support_route_verdict')}` | floor_cross `{report.get('floor_cross_verdict')}`",
         f"- runtime closure summary: **{runtime_closure_summary}**",
         f"- q15 patch machine-read: support_ready={q15_patch_machine_read.get('support_ready')} / entry_quality_ge_0_55={q15_patch_machine_read.get('entry_quality_ge_0_55')} / allowed_layers_gt_0={q15_patch_machine_read.get('allowed_layers_gt_0')} / preserves_positive_discrimination_status=`{q15_patch_machine_read.get('preserves_positive_discrimination_status')}`",
+        f"- recommended_patch: **{recommended_patch_profile}** / status `{recommended_patch_status}` / support_route `{recommended_patch.get('support_route_verdict')}` / gap `{recommended_patch.get('gap_to_minimum')}`",
+        f"- recommended_patch_features: {recommended_patch_features}",
+        f"- recommended_patch_reason: {recommended_patch.get('reason')}",
+        f"- recommended_patch_action: {recommended_patch.get('recommended_action')}",
         "",
         "## Entry-quality component breakdown",
         "",
@@ -479,6 +508,10 @@ def main() -> None:
         "allowed_layers": report.get("allowed_layers"),
         "allowed_layers_reason": report.get("allowed_layers_reason"),
         "support_route_verdict": report.get("support_route_verdict"),
+        "recommended_patch_profile": recommended_patch_profile,
+        "recommended_patch_status": recommended_patch_status,
+        "recommended_patch_support_route": recommended_patch.get("support_route_verdict"),
+        "recommended_patch_gap_to_minimum": recommended_patch.get("gap_to_minimum"),
         "remaining_gap_to_floor": gap_attr.get("remaining_gap_to_floor"),
         "best_single_component": (best_component.get("feature") if best_component else None),
         "best_single_component_required_score_delta": (best_component.get("required_score_delta_to_cross_floor") if best_component else None),

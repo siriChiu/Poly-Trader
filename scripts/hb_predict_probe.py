@@ -21,10 +21,12 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from database.models import init_db
 from model.predictor import load_latest_features, load_predictor, predict
+from server.live_pathology_summary import build_live_pathology_scope_surface
 
 DB_URL = f"sqlite:///{PROJECT_ROOT / 'poly_trader.db'}"
 OUT_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 Q15_SUPPORT_AUDIT_PATH = PROJECT_ROOT / "data" / "q15_support_audit.json"
+BULL_4H_POCKET_ABLATION_PATH = PROJECT_ROOT / "data" / "bull_4h_pocket_ablation.json"
 FOUR_H_COLS = [
     "feat_4h_bias50",
     "feat_4h_bias20",
@@ -383,6 +385,13 @@ def _build_probe_payload(
         runtime_result["support_route_deployable"] = support_route.get("deployable")
     if support_progress:
         runtime_result["support_progress"] = support_progress
+    runtime_result["current_live_structure_bucket"] = current_live_structure_bucket
+    runtime_result["current_live_structure_bucket_rows"] = current_live_structure_bucket_rows
+    scope_pathology_summary = build_live_pathology_scope_surface(
+        runtime_result,
+        result.get("decision_quality_scope_diagnostics") if isinstance(result.get("decision_quality_scope_diagnostics"), dict) else {},
+        artifact_path=BULL_4H_POCKET_ABLATION_PATH,
+    )
     breaker_release = deployment_blocker_details.get("release_condition") if isinstance(deployment_blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = deployment_blocker_details.get("recent_window") if isinstance(deployment_blocker_details.get("recent_window"), dict) else {}
     release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
@@ -463,6 +472,7 @@ def _build_probe_payload(
         "decision_quality_calibration_window": result.get("decision_quality_calibration_window"),
         "decision_quality_sample_size": result.get("decision_quality_sample_size"),
         "decision_quality_scope_diagnostics": result.get("decision_quality_scope_diagnostics"),
+        "decision_quality_scope_pathology_summary": scope_pathology_summary,
         "decision_quality_reference_from": result.get("decision_quality_reference_from"),
         "decision_quality_guardrail_applied": result.get("decision_quality_guardrail_applied"),
         "decision_quality_guardrail_reason": result.get("decision_quality_guardrail_reason"),
