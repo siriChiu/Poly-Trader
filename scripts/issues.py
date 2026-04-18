@@ -16,6 +16,76 @@ from datetime import datetime
 
 ISSUES_JSON = Path(__file__).parent.parent / "issues.json"
 
+# Keep current-state canonical issue IDs concise. When the structured tracker already
+# carries a hand-curated canonical issue, drop the equivalent auto-proposed duplicate
+# and merge its fresher machine-readable summary into the canonical record.
+CANONICAL_DUPLICATE_IDS = {
+    "P0_circuit_breaker_active": ["#H_AUTO_CIRCUIT_BREAKER"],
+    "P1_q15_exact_support_stalled_under_breaker": ["#H_AUTO_CURRENT_BUCKET_SUPPORT"],
+}
+
+
+def _merge_issue_records(primary: dict, duplicate: dict) -> dict:
+    merged = dict(primary)
+    if not merged.get("title") and duplicate.get("title"):
+        merged["title"] = duplicate["title"]
+    if not merged.get("action") and duplicate.get("action"):
+        merged["action"] = duplicate.get("action")
+
+    primary_summary = merged.get("summary")
+    duplicate_summary = duplicate.get("summary")
+    if isinstance(primary_summary, dict) and isinstance(duplicate_summary, dict):
+        merged["summary"] = {**primary_summary, **duplicate_summary}
+    elif duplicate_summary is not None and primary_summary in (None, "", {}):
+        merged["summary"] = duplicate_summary
+
+    for timestamp_key, chooser in (("created_at", min), ("updated_at", max)):
+        primary_ts = merged.get(timestamp_key)
+        duplicate_ts = duplicate.get(timestamp_key)
+        if primary_ts and duplicate_ts:
+            merged[timestamp_key] = chooser(primary_ts, duplicate_ts)
+        elif duplicate_ts and not primary_ts:
+            merged[timestamp_key] = duplicate_ts
+
+    if merged.get("hb_detected") in (None, "") and duplicate.get("hb_detected") not in (None, ""):
+        merged["hb_detected"] = duplicate.get("hb_detected")
+
+    return merged
+
+
+def _dedupe_open_issues(issues: list[dict]) -> list[dict]:
+    open_issues = [dict(issue) for issue in issues if issue.get("status") == "open"]
+    if not open_issues:
+        return []
+
+    issue_by_id = {issue.get("id"): issue for issue in open_issues if issue.get("id")}
+    merged_canonicals: dict[str, dict] = {}
+    suppressed_ids: set[str] = set()
+
+    for canonical_id, duplicate_ids in CANONICAL_DUPLICATE_IDS.items():
+        canonical = issue_by_id.get(canonical_id)
+        if not canonical:
+            continue
+        merged = dict(canonical)
+        for duplicate_id in duplicate_ids:
+            duplicate = issue_by_id.get(duplicate_id)
+            if not duplicate:
+                continue
+            merged = _merge_issue_records(merged, duplicate)
+            suppressed_ids.add(duplicate_id)
+        merged_canonicals[canonical_id] = merged
+
+    deduped = []
+    seen_ids = set()
+    for issue in open_issues:
+        issue_id = issue.get("id")
+        if issue_id in suppressed_ids or issue_id in seen_ids:
+            continue
+        deduped_issue = merged_canonicals.get(issue_id, issue)
+        deduped.append(deduped_issue)
+        seen_ids.add(issue_id)
+    return deduped
+
 
 def _normalize_issue(issue: dict) -> dict:
     """Backfill legacy/manual issue payloads into the machine-readable action shape.
@@ -94,15 +164,15 @@ class IssueTracker:
         return False
 
     def active_ids(self):
-        return {i["id"] for i in self.issues if i["status"] == "open"}
+        return {i["id"] for i in _dedupe_open_issues(self.issues) if i.get("id")}
 
     def by_priority(self, priority):
-        return [i for i in self.issues if i["priority"] == priority and i["status"] == "open"]
+        return [i for i in _dedupe_open_issues(self.issues) if i.get("priority") == priority]
 
     def save(self):
         """Persist only open issues so issues.json stays current-state-only."""
         ISSUES_JSON.parent.mkdir(parents=True, exist_ok=True)
-        open_issues = [i for i in self.issues if i.get("status") == "open"]
+        open_issues = _dedupe_open_issues(self.issues)
         with open(ISSUES_JSON, 'w') as f:
             json.dump({"issues": open_issues}, f, indent=2, ensure_ascii=False)
 

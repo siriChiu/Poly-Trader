@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-04-18 20:15:41 UTC**
+- generated_at: **2026-04-18 21:35:44 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -9,8 +9,8 @@
 
 ## Cohorts
 
-- bull_all rows: **1338** / win_rate **0.6286** / recommended **`core_plus_macro_plus_4h_trend`**
-- bull_collapse_q35 rows: **470** / win_rate **0.7447** / recommended **`core_plus_macro`**
+- bull_all rows: **1343** / win_rate **0.6262** / recommended **`core_plus_macro_plus_4h_trend`**
+- bull_collapse_q35 rows: **472** / win_rate **0.7458** / recommended **`core_plus_macro`**
 - bull_exact_live_lane_proxy rows: **106** / win_rate **0.0000** / recommended **`None`**
 - bull_live_exact_lane_bucket_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
 - bull_supported_neighbor_buckets_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
@@ -19,27 +19,27 @@
 
 | profile | n_features | cv_mean | cv_std | cv_worst | brier | top10 |
 |---|---:|---:|---:|---:|---:|---:|
-| core_plus_macro_plus_4h_trend | 13 | 0.6682 | 0.2949 | 0.1794 | 0.1692 | 0.8804 |
-| core_plus_macro_plus_4h_momentum | 13 | 0.6682 | 0.2949 | 0.1794 | 0.1808 | 0.8804 |
-| core_plus_macro_plus_all_4h | 20 | 0.6670 | 0.2957 | 0.1794 | 0.1732 | 0.9457 |
-| core_plus_macro | 10 | 0.6200 | 0.2752 | 0.1794 | 0.2057 | 0.8804 |
-| current_full | 131 | 0.5673 | 0.2819 | 0.1794 | 0.2116 | 1.0000 |
-| current_full_minus_4h | 121 | 0.5661 | 0.2824 | 0.1794 | 0.2155 | 1.0000 |
-| current_full_minus_4h_structure_shift | 128 | 0.5650 | 0.2809 | 0.1794 | 0.2059 | 0.9891 |
-| core_plus_macro_plus_4h_structure_shift | 13 | 0.5549 | 0.2794 | 0.1794 | 0.1895 | 0.9130 |
+| core_plus_macro_plus_4h_trend | 13 | 0.6570 | 0.3036 | 0.1570 | 0.1732 | 0.8804 |
+| core_plus_macro_plus_4h_momentum | 13 | 0.6570 | 0.3036 | 0.1570 | 0.1863 | 0.8913 |
+| core_plus_macro_plus_all_4h | 20 | 0.6558 | 0.3046 | 0.1570 | 0.1764 | 0.9457 |
+| core_plus_macro | 10 | 0.6043 | 0.2819 | 0.1570 | 0.2105 | 0.8804 |
+| core_plus_macro_plus_4h_structure_shift | 13 | 0.5774 | 0.2779 | 0.1570 | 0.1940 | 0.9457 |
+| current_full | 131 | 0.5516 | 0.2908 | 0.1570 | 0.2186 | 1.0000 |
+| current_full_minus_4h | 121 | 0.5493 | 0.2898 | 0.1570 | 0.2247 | 1.0000 |
+| current_full_minus_4h_structure_shift | 128 | 0.5482 | 0.2883 | 0.1570 | 0.2136 | 1.0000 |
 
 ## Bull collapse-pocket ranking
 
 | profile | n_features | cv_mean | cv_std | cv_worst | brier | top10 |
 |---|---:|---:|---:|---:|---:|---:|
-| core_plus_macro | 10 | 0.0769 | 0.0000 | 0.0769 | 0.4862 | 1.0000 |
-| core_plus_macro_plus_4h_structure_shift | 13 | 0.0769 | 0.0000 | 0.0769 | 0.4862 | 1.0000 |
-| core_plus_macro_plus_4h_trend | 13 | 0.0769 | 0.0000 | 0.0769 | 0.4862 | 1.0000 |
-| core_plus_macro_plus_4h_momentum | 13 | 0.0769 | 0.0000 | 0.0769 | 0.4862 | 1.0000 |
-| core_plus_macro_plus_all_4h | 20 | 0.0769 | 0.0000 | 0.0769 | 0.4862 | 1.0000 |
-| current_full_minus_4h_structure_shift | 128 | 0.0769 | 0.0000 | 0.0769 | 0.4862 | 1.0000 |
-| current_full_minus_4h | 121 | 0.0769 | 0.0000 | 0.0769 | 0.4862 | 1.0000 |
-| current_full | 131 | 0.0769 | 0.0000 | 0.0769 | 0.4862 | 1.0000 |
+| core_plus_macro | 10 | 0.0513 | 0.0000 | 0.0513 | 0.5025 | 1.0000 |
+| core_plus_macro_plus_4h_structure_shift | 13 | 0.0513 | 0.0000 | 0.0513 | 0.5025 | 1.0000 |
+| core_plus_macro_plus_4h_trend | 13 | 0.0513 | 0.0000 | 0.0513 | 0.5025 | 1.0000 |
+| core_plus_macro_plus_4h_momentum | 13 | 0.0513 | 0.0000 | 0.0513 | 0.5025 | 1.0000 |
+| core_plus_macro_plus_all_4h | 20 | 0.0513 | 0.0000 | 0.0513 | 0.5025 | 1.0000 |
+| current_full_minus_4h_structure_shift | 128 | 0.0513 | 0.0000 | 0.0513 | 0.5025 | 1.0000 |
+| current_full_minus_4h | 121 | 0.0513 | 0.0000 | 0.0513 | 0.5025 | 1.0000 |
+| current_full | 131 | 0.0513 | 0.0000 | 0.0513 | 0.5025 | 1.0000 |
 
 ## Live-bucket proxy ranking
 
@@ -102,7 +102,7 @@
 ## Notes
 
 - collapse features under inspection: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
-- thresholds (bull q35): {"feat_4h_dist_swing_low": 2.6198, "feat_4h_dist_bb_lower": 1.6021, "feat_4h_bb_pct_b": 0.4847}
+- thresholds (bull q35): {"feat_4h_dist_swing_low": 2.6787, "feat_4h_dist_bb_lower": 1.6039, "feat_4h_bb_pct_b": 0.4862}
 - exact live structure bucket: `BLOCK|bull_q15_bias50_overextended_block|q15` rows=0
 - supported neighbor buckets from exact scope: []
 - best bull-all profile: **core_plus_macro_plus_4h_trend**

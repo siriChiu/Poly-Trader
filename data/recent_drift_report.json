@@ -1,25 +1,25 @@
 {
   "target_col": "simulated_pyramid_win",
   "horizon_minutes": 1440,
-  "generated_at": "2026-04-18T21:13:11.721014+00:00",
+  "generated_at": "2026-04-18T21:53:16.801117+00:00",
   "source_meta": {
-    "label_rows": 22175,
-    "latest_label_timestamp": "2026-04-17 21:29:49.821627"
+    "label_rows": 22176,
+    "latest_label_timestamp": "2026-04-17 22:29:49.821627"
   },
   "full_sample": {
-    "rows": 22175,
-    "win_rate": 0.6317,
+    "rows": 22176,
+    "win_rate": 0.6316,
     "feature_count": 56,
     "regime_counts": {
       "chop": 10770,
       "bear": 1375,
-      "bull": 9882,
+      "bull": 9883,
       "neutral": 148
     },
     "regime_pct": {
       "chop": 0.4857,
       "bear": 0.062,
-      "bull": 0.4456,
+      "bull": 0.4457,
       "neutral": 0.0067
     }
   },
@@ -29,14 +29,14 @@
       "wins": 0,
       "losses": 100,
       "win_rate": 0.0,
-      "win_rate_delta_vs_full": -0.6317,
+      "win_rate_delta_vs_full": -0.6316,
       "unique_targets": [
         0
       ],
       "constant_target": true,
       "dominant_regime": "bull",
       "dominant_regime_share": 1.0,
-      "dominant_regime_delta_vs_full": 0.5544,
+      "dominant_regime_delta_vs_full": 0.5543,
       "regime_counts": {
         "bull": 100
       },
@@ -47,11 +47,11 @@
         "simulated_win_rate": 0.0,
         "spot_long_win_rate": 0.0,
         "avg_simulated_pnl": -0.0095,
-        "avg_simulated_quality": -0.286,
-        "avg_drawdown_penalty": 0.3876,
-        "avg_time_underwater": 0.8992,
+        "avg_simulated_quality": -0.2865,
+        "avg_drawdown_penalty": 0.3873,
+        "avg_time_underwater": 0.9023,
         "avg_future_return_pct": -0.0218,
-        "avg_future_max_runup": 0.0019,
+        "avg_future_max_runup": 0.0018,
         "avg_future_max_drawdown": -0.0243
       },
       "feature_diagnostics": {
@@ -63,9 +63,9 @@
           "weekend_share": 0.0,
           "weekend_dominant": false,
           "weekday_count": 100,
-          "weekday_market_open_count": 17,
-          "weekday_market_closed_count": 83,
-          "weekday_market_closed_share": 0.83,
+          "weekday_market_open_count": 16,
+          "weekday_market_closed_count": 84,
+          "weekday_market_closed_share": 0.84,
           "weekday_market_closed_dominant": false
         },
         "low_variance_count": 28,
@@ -96,18 +96,33 @@
           },
           {
             "feature": "feat_body",
-            "recent_std": 0.1389,
-            "baseline_std": 18785.2917,
+            "recent_std": 0.1394,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0,
             "recent_range": 0.5732,
             "baseline_range": 1272817.1727,
             "recent_distinct": 100,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0073,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
             "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_claw_intensity",
+            "recent_std": 0.0005,
+            "baseline_std": 0.1835,
+            "std_ratio": 0.0027,
+            "recent_range": 0.0015,
+            "baseline_range": 0.9639,
+            "recent_distinct": 19,
+            "baseline_distinct": 683,
+            "distinct_ratio": 0.0278,
+            "expected_static_reason": null,
+            "expected_compressed_reason": null,
+            "expected_compressed_details": null,
+            "overlay_only_reason": "research_sparse_source"
           },
           {
             "feature": "feat_scales_ssr",
@@ -125,21 +140,6 @@
             "overlay_only_reason": "research_sparse_source"
           },
           {
-            "feature": "feat_claw_intensity",
-            "recent_std": 0.0005,
-            "baseline_std": 0.1835,
-            "std_ratio": 0.0028,
-            "recent_range": 0.0015,
-            "baseline_range": 0.9639,
-            "recent_distinct": 19,
-            "baseline_distinct": 683,
-            "distinct_ratio": 0.0278,
-            "expected_static_reason": null,
-            "expected_compressed_reason": null,
-            "expected_compressed_details": null,
-            "overlay_only_reason": "research_sparse_source"
-          },
-          {
             "feature": "feat_ear",
             "recent_std": 0.0021,
             "baseline_std": 0.6857,
@@ -147,8 +147,8 @@
             "recent_range": 0.0087,
             "baseline_range": 10.9755,
             "recent_distinct": 100,
-            "baseline_distinct": 21978,
-            "distinct_ratio": 0.0046,
+            "baseline_distinct": 21979,
+            "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -242,18 +242,33 @@
         "compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.1389,
-            "baseline_std": 18785.2917,
+            "recent_std": 0.1394,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0,
             "recent_range": 0.5732,
             "baseline_range": 1272817.1727,
             "recent_distinct": 100,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0073,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
             "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_claw_intensity",
+            "recent_std": 0.0005,
+            "baseline_std": 0.1835,
+            "std_ratio": 0.0027,
+            "recent_range": 0.0015,
+            "baseline_range": 0.9639,
+            "recent_distinct": 19,
+            "baseline_distinct": 683,
+            "distinct_ratio": 0.0278,
+            "expected_static_reason": null,
+            "expected_compressed_reason": null,
+            "expected_compressed_details": null,
+            "overlay_only_reason": "research_sparse_source"
           },
           {
             "feature": "feat_scales_ssr",
@@ -271,21 +286,6 @@
             "overlay_only_reason": "research_sparse_source"
           },
           {
-            "feature": "feat_claw_intensity",
-            "recent_std": 0.0005,
-            "baseline_std": 0.1835,
-            "std_ratio": 0.0028,
-            "recent_range": 0.0015,
-            "baseline_range": 0.9639,
-            "recent_distinct": 19,
-            "baseline_distinct": 683,
-            "distinct_ratio": 0.0278,
-            "expected_static_reason": null,
-            "expected_compressed_reason": null,
-            "expected_compressed_details": null,
-            "overlay_only_reason": "research_sparse_source"
-          },
-          {
             "feature": "feat_ear",
             "recent_std": 0.0021,
             "baseline_std": 0.6857,
@@ -293,8 +293,8 @@
             "recent_range": 0.0087,
             "baseline_range": 10.9755,
             "recent_distinct": 100,
-            "baseline_distinct": 21978,
-            "distinct_ratio": 0.0046,
+            "baseline_distinct": 21979,
+            "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -308,7 +308,7 @@
             "recent_range": 0.0054,
             "baseline_range": 0.8909,
             "recent_distinct": 100,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0073,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -336,13 +336,13 @@
         "expected_compressed_examples": [
           {
             "feature": "feat_4h_dist_bb_lower",
-            "recent_std": 0.219,
+            "recent_std": 0.2255,
             "baseline_std": 2.2541,
-            "std_ratio": 0.0972,
-            "recent_range": 0.8377,
+            "std_ratio": 0.1,
+            "recent_range": 1.1663,
             "baseline_range": 24.0661,
             "recent_distinct": 99,
-            "baseline_distinct": 15666,
+            "baseline_distinct": 15667,
             "distinct_ratio": 0.0063,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_band_floor_compression",
@@ -358,36 +358,36 @@
               "min_required_proxies": 3,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 94.4464,
-                  "baseline_std": 18464.6277,
+                  "recent_std": 94.1232,
+                  "baseline_std": 18464.2535,
                   "std_ratio": 0.0051,
-                  "recent_mean": 77373.8669,
-                  "baseline_mean": 83421.9681,
-                  "mean_delta": -6048.1012
+                  "recent_mean": 77375.3424,
+                  "baseline_mean": 83421.6965,
+                  "mean_delta": -6046.354
                 },
                 "raw_volatility": {
                   "recent_std": 0.0,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.0329,
+                  "std_ratio": 0.0326,
                   "recent_mean": 0.0049,
                   "baseline_mean": 0.0042,
                   "mean_delta": 0.0007
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0551,
+                  "recent_std": 0.0568,
                   "baseline_std": 0.3218,
-                  "std_ratio": 0.1713,
-                  "recent_mean": 0.9113,
+                  "std_ratio": 0.1764,
+                  "recent_mean": 0.909,
                   "baseline_mean": 0.5682,
-                  "mean_delta": 0.3432
+                  "mean_delta": 0.3409
                 },
                 "feat_4h_dist_swing_low": {
-                  "recent_std": 0.1166,
-                  "baseline_std": 3.5228,
-                  "std_ratio": 0.0331,
-                  "recent_mean": 5.2499,
-                  "baseline_mean": 3.1694,
-                  "mean_delta": 2.0805
+                  "recent_std": 0.1173,
+                  "baseline_std": 3.5227,
+                  "std_ratio": 0.0333,
+                  "recent_mean": 5.2494,
+                  "baseline_mean": 3.1695,
+                  "mean_delta": 2.0799
                 }
               }
             },
@@ -395,13 +395,13 @@
           },
           {
             "feature": "feat_4h_macd_hist",
-            "recent_std": 9.6846,
-            "baseline_std": 496.5089,
-            "std_ratio": 0.0195,
-            "recent_range": 40.3218,
+            "recent_std": 9.7205,
+            "baseline_std": 496.4983,
+            "std_ratio": 0.0196,
+            "recent_range": 41.7942,
             "baseline_range": 4853.2592,
             "recent_distinct": 99,
-            "baseline_distinct": 6771,
+            "baseline_distinct": 6772,
             "distinct_ratio": 0.0146,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_momentum_compression",
@@ -418,44 +418,44 @@
               "min_required_proxies": 4,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 94.4464,
-                  "baseline_std": 18464.6277,
+                  "recent_std": 94.1232,
+                  "baseline_std": 18464.2535,
                   "std_ratio": 0.0051,
-                  "recent_mean": 77373.8669,
-                  "baseline_mean": 83421.9681,
-                  "mean_delta": -6048.1012
+                  "recent_mean": 77375.3424,
+                  "baseline_mean": 83421.6965,
+                  "mean_delta": -6046.354
                 },
                 "raw_volatility": {
                   "recent_std": 0.0,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.0329,
+                  "std_ratio": 0.0326,
                   "recent_mean": 0.0049,
                   "baseline_mean": 0.0042,
                   "mean_delta": 0.0007
                 },
                 "feat_4h_bias50": {
-                  "recent_std": 0.1361,
-                  "baseline_std": 2.6116,
-                  "std_ratio": 0.0521,
-                  "recent_mean": 5.2629,
-                  "baseline_mean": 1.4854,
-                  "mean_delta": 3.7775
+                  "recent_std": 0.1409,
+                  "baseline_std": 2.6117,
+                  "std_ratio": 0.054,
+                  "recent_mean": 5.2594,
+                  "baseline_mean": 1.4855,
+                  "mean_delta": 3.7739
                 },
                 "feat_4h_rsi14": {
-                  "recent_std": 0.7298,
-                  "baseline_std": 10.0824,
-                  "std_ratio": 0.0724,
-                  "recent_mean": 69.508,
-                  "baseline_mean": 56.0776,
-                  "mean_delta": 13.4304
+                  "recent_std": 0.7521,
+                  "baseline_std": 10.0825,
+                  "std_ratio": 0.0746,
+                  "recent_mean": 69.4963,
+                  "baseline_mean": 56.0781,
+                  "mean_delta": 13.4182
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0551,
+                  "recent_std": 0.0568,
                   "baseline_std": 0.3218,
-                  "std_ratio": 0.1713,
-                  "recent_mean": 0.9113,
+                  "std_ratio": 0.1764,
+                  "recent_mean": 0.909,
                   "baseline_mean": 0.5682,
-                  "mean_delta": 0.3432
+                  "mean_delta": 0.3409
                 }
               }
             },
@@ -463,13 +463,13 @@
           },
           {
             "feature": "feat_4h_rsi14",
-            "recent_std": 0.7298,
-            "baseline_std": 10.0824,
-            "std_ratio": 0.0724,
-            "recent_range": 3.1015,
+            "recent_std": 0.7521,
+            "baseline_std": 10.0825,
+            "std_ratio": 0.0746,
+            "recent_range": 3.1997,
             "baseline_range": 73.7753,
             "recent_distinct": 99,
-            "baseline_distinct": 6770,
+            "baseline_distinct": 6771,
             "distinct_ratio": 0.0146,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_short_trend_oscillator_compression",
@@ -486,44 +486,44 @@
               "min_required_proxies": 4,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 94.4464,
-                  "baseline_std": 18464.6277,
+                  "recent_std": 94.1232,
+                  "baseline_std": 18464.2535,
                   "std_ratio": 0.0051,
-                  "recent_mean": 77373.8669,
-                  "baseline_mean": 83421.9681,
-                  "mean_delta": -6048.1012
+                  "recent_mean": 77375.3424,
+                  "baseline_mean": 83421.6965,
+                  "mean_delta": -6046.354
                 },
                 "raw_volatility": {
                   "recent_std": 0.0,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.0329,
+                  "std_ratio": 0.0326,
                   "recent_mean": 0.0049,
                   "baseline_mean": 0.0042,
                   "mean_delta": 0.0007
                 },
                 "feat_4h_bias20": {
-                  "recent_std": 0.1291,
+                  "recent_std": 0.1353,
                   "baseline_std": 1.6614,
-                  "std_ratio": 0.0777,
-                  "recent_mean": 3.0848,
-                  "baseline_mean": 0.6213,
-                  "mean_delta": 2.4635
+                  "std_ratio": 0.0815,
+                  "recent_mean": 3.0809,
+                  "baseline_mean": 0.6214,
+                  "mean_delta": 2.4595
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0551,
+                  "recent_std": 0.0568,
                   "baseline_std": 0.3218,
-                  "std_ratio": 0.1713,
-                  "recent_mean": 0.9113,
+                  "std_ratio": 0.1764,
+                  "recent_mean": 0.909,
                   "baseline_mean": 0.5682,
-                  "mean_delta": 0.3432
+                  "mean_delta": 0.3409
                 },
                 "feat_4h_macd_hist": {
-                  "recent_std": 9.6846,
-                  "baseline_std": 496.5089,
-                  "std_ratio": 0.0195,
-                  "recent_mean": 205.8678,
-                  "baseline_mean": 47.8565,
-                  "mean_delta": 158.0113
+                  "recent_std": 9.7205,
+                  "baseline_std": 496.4983,
+                  "std_ratio": 0.0196,
+                  "recent_mean": 205.8531,
+                  "baseline_mean": 47.8627,
+                  "mean_delta": 157.9904
                 }
               }
             },
@@ -531,13 +531,13 @@
           },
           {
             "feature": "feat_4h_dist_swing_low",
-            "recent_std": 0.1166,
-            "baseline_std": 3.5228,
-            "std_ratio": 0.0331,
+            "recent_std": 0.1173,
+            "baseline_std": 3.5227,
+            "std_ratio": 0.0333,
             "recent_range": 0.5314,
             "baseline_range": 126.9125,
             "recent_distinct": 99,
-            "baseline_distinct": 15562,
+            "baseline_distinct": 15563,
             "distinct_ratio": 0.0064,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_support_cluster_compression",
@@ -553,36 +553,36 @@
               "min_required_proxies": 3,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 94.4464,
-                  "baseline_std": 18464.6277,
+                  "recent_std": 94.1232,
+                  "baseline_std": 18464.2535,
                   "std_ratio": 0.0051,
-                  "recent_mean": 77373.8669,
-                  "baseline_mean": 83421.9681,
-                  "mean_delta": -6048.1012
+                  "recent_mean": 77375.3424,
+                  "baseline_mean": 83421.6965,
+                  "mean_delta": -6046.354
                 },
                 "raw_volatility": {
                   "recent_std": 0.0,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.0329,
+                  "std_ratio": 0.0326,
                   "recent_mean": 0.0049,
                   "baseline_mean": 0.0042,
                   "mean_delta": 0.0007
                 },
                 "feat_4h_dist_bb_lower": {
-                  "recent_std": 0.219,
+                  "recent_std": 0.2255,
                   "baseline_std": 2.2541,
-                  "std_ratio": 0.0972,
-                  "recent_mean": 3.08,
+                  "std_ratio": 0.1,
+                  "recent_mean": 3.0703,
                   "baseline_mean": 2.5859,
-                  "mean_delta": 0.4941
+                  "mean_delta": 0.4844
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0551,
+                  "recent_std": 0.0568,
                   "baseline_std": 0.3218,
-                  "std_ratio": 0.1713,
-                  "recent_mean": 0.9113,
+                  "std_ratio": 0.1764,
+                  "recent_mean": 0.909,
                   "baseline_mean": 0.5682,
-                  "mean_delta": 0.3432
+                  "mean_delta": 0.3409
                 }
               }
             },
@@ -590,13 +590,13 @@
           },
           {
             "feature": "feat_4h_bias50",
-            "recent_std": 0.1361,
-            "baseline_std": 2.6116,
-            "std_ratio": 0.0521,
-            "recent_range": 0.5779,
+            "recent_std": 0.1409,
+            "baseline_std": 2.6117,
+            "std_ratio": 0.054,
+            "recent_range": 0.6378,
             "baseline_range": 29.659,
             "recent_distinct": 99,
-            "baseline_distinct": 15666,
+            "baseline_distinct": 15667,
             "distinct_ratio": 0.0063,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_trend_compression",
@@ -613,44 +613,44 @@
               "min_required_proxies": 4,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 94.4464,
-                  "baseline_std": 18464.6277,
+                  "recent_std": 94.1232,
+                  "baseline_std": 18464.2535,
                   "std_ratio": 0.0051,
-                  "recent_mean": 77373.8669,
-                  "baseline_mean": 83421.9681,
-                  "mean_delta": -6048.1012
+                  "recent_mean": 77375.3424,
+                  "baseline_mean": 83421.6965,
+                  "mean_delta": -6046.354
                 },
                 "raw_volatility": {
                   "recent_std": 0.0,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.0329,
+                  "std_ratio": 0.0326,
                   "recent_mean": 0.0049,
                   "baseline_mean": 0.0042,
                   "mean_delta": 0.0007
                 },
                 "feat_4h_rsi14": {
-                  "recent_std": 0.7298,
-                  "baseline_std": 10.0824,
-                  "std_ratio": 0.0724,
-                  "recent_mean": 69.508,
-                  "baseline_mean": 56.0776,
-                  "mean_delta": 13.4304
+                  "recent_std": 0.7521,
+                  "baseline_std": 10.0825,
+                  "std_ratio": 0.0746,
+                  "recent_mean": 69.4963,
+                  "baseline_mean": 56.0781,
+                  "mean_delta": 13.4182
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0551,
+                  "recent_std": 0.0568,
                   "baseline_std": 0.3218,
-                  "std_ratio": 0.1713,
-                  "recent_mean": 0.9113,
+                  "std_ratio": 0.1764,
+                  "recent_mean": 0.909,
                   "baseline_mean": 0.5682,
-                  "mean_delta": 0.3432
+                  "mean_delta": 0.3409
                 },
                 "feat_4h_macd_hist": {
-                  "recent_std": 9.6846,
-                  "baseline_std": 496.5089,
-                  "std_ratio": 0.0195,
-                  "recent_mean": 205.8678,
-                  "baseline_mean": 47.8565,
-                  "mean_delta": 158.0113
+                  "recent_std": 9.7205,
+                  "baseline_std": 496.4983,
+                  "std_ratio": 0.0196,
+                  "recent_mean": 205.8531,
+                  "baseline_mean": 47.8627,
+                  "mean_delta": 157.9904
                 }
               }
             },
@@ -660,9 +660,9 @@
         "overlay_only_examples": [
           {
             "feature": "feat_claw",
-            "recent_std": 0.0028,
+            "recent_std": 0.0027,
             "baseline_std": 0.3833,
-            "std_ratio": 0.0073,
+            "std_ratio": 0.0072,
             "recent_range": 0.0082,
             "baseline_range": 1.662,
             "recent_distinct": 19,
@@ -677,7 +677,7 @@
             "feature": "feat_claw_intensity",
             "recent_std": 0.0005,
             "baseline_std": 0.1835,
-            "std_ratio": 0.0028,
+            "std_ratio": 0.0027,
             "recent_range": 0.0015,
             "baseline_range": 0.9639,
             "recent_distinct": 19,
@@ -692,12 +692,12 @@
             "feature": "feat_fang_pcr",
             "recent_std": 0.0003,
             "baseline_std": 0.0104,
-            "std_ratio": 0.0276,
+            "std_ratio": 0.0275,
             "recent_range": 0.0009,
             "baseline_range": 0.0693,
-            "recent_distinct": 80,
+            "recent_distinct": 79,
             "baseline_distinct": 3409,
-            "distinct_ratio": 0.0235,
+            "distinct_ratio": 0.0232,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -723,13 +723,13 @@
         "unexpected_compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.1389,
-            "baseline_std": 18785.2917,
+            "recent_std": 0.1394,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0,
             "recent_range": 0.5732,
             "baseline_range": 1272817.1727,
             "recent_distinct": 100,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0073,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -744,8 +744,8 @@
             "recent_range": 0.0087,
             "baseline_range": 10.9755,
             "recent_distinct": 100,
-            "baseline_distinct": 21978,
-            "distinct_ratio": 0.0046,
+            "baseline_distinct": 21979,
+            "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -759,7 +759,7 @@
             "recent_range": 0.0054,
             "baseline_range": 0.8909,
             "recent_distinct": 100,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0073,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -774,7 +774,7 @@
             "recent_range": 0.0062,
             "baseline_range": 0.9772,
             "recent_distinct": 99,
-            "baseline_distinct": 21769,
+            "baseline_distinct": 21770,
             "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -783,14 +783,14 @@
           },
           {
             "feature": "feat_vix",
-            "recent_std": 0.0584,
-            "baseline_std": 5.0601,
-            "std_ratio": 0.0115,
-            "recent_range": 0.32,
+            "recent_std": 0.054,
+            "baseline_std": 5.06,
+            "std_ratio": 0.0107,
+            "recent_range": 0.29,
             "baseline_range": 42.59,
-            "recent_distinct": 23,
+            "recent_distinct": 22,
             "baseline_distinct": 1435,
-            "distinct_ratio": 0.016,
+            "distinct_ratio": 0.0153,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -831,33 +831,18 @@
         ]
       },
       "target_path_diagnostics": {
-        "window_start_timestamp": "2026-04-17 19:46:49.611979",
-        "window_end_timestamp": "2026-04-17 21:29:49.821627",
+        "window_start_timestamp": "2026-04-17 19:48:03.281485",
+        "window_end_timestamp": "2026-04-17 22:29:49.821627",
         "latest_target": 0,
         "tail_target_streak": {
           "target": 0,
           "count": 100,
-          "start_timestamp": "2026-04-17 19:46:49.611979",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "start_timestamp": "2026-04-17 19:48:03.281485",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
             "bull": 100
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -886,6 +871,21 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
@@ -893,27 +893,12 @@
         "longest_target_streak": {
           "target": 0,
           "count": 100,
-          "start_timestamp": "2026-04-17 19:46:49.611979",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "start_timestamp": "2026-04-17 19:48:03.281485",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
             "bull": 100
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -942,6 +927,21 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
@@ -949,27 +949,12 @@
         "longest_zero_target_streak": {
           "target": 0,
           "count": 100,
-          "start_timestamp": "2026-04-17 19:46:49.611979",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "start_timestamp": "2026-04-17 19:48:03.281485",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
             "bull": 100
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -998,6 +983,21 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
@@ -1014,21 +1014,6 @@
           "bull:0": 100
         },
         "recent_examples": [
-          {
-            "label_id": 71595,
-            "timestamp": "2026-04-17 21:22:41.186850",
-            "symbol": "BTCUSDT",
-            "target": 0,
-            "regime": "bull",
-            "spot_long_win": 0.0,
-            "simulated_pyramid_pnl": -0.0093,
-            "simulated_pyramid_quality": -0.2926,
-            "simulated_pyramid_drawdown_penalty": 0.3827,
-            "simulated_pyramid_time_underwater": 0.9953,
-            "future_return_pct": -0.022,
-            "future_max_drawdown": -0.0257,
-            "future_max_runup": 0.0
-          },
           {
             "label_id": 71596,
             "timestamp": "2026-04-17 21:24:06.051968",
@@ -1088,38 +1073,53 @@
             "future_return_pct": -0.0216,
             "future_max_drawdown": -0.0253,
             "future_max_runup": 0.0
+          },
+          {
+            "label_id": 71654,
+            "timestamp": "2026-04-17 22:29:49.821627",
+            "symbol": "BTCUSDT",
+            "target": 0,
+            "regime": "bull",
+            "spot_long_win": 0.0,
+            "simulated_pyramid_pnl": -0.01,
+            "simulated_pyramid_quality": -0.2981,
+            "simulated_pyramid_drawdown_penalty": 0.3675,
+            "simulated_pyramid_time_underwater": 0.9953,
+            "future_return_pct": -0.0222,
+            "future_max_drawdown": -0.025,
+            "future_max_runup": 0.0
           }
         ]
       },
       "reference_window_comparison": {
         "current_rows": 100,
         "reference_rows": 100,
-        "current_start_timestamp": "2026-04-17 19:46:49.611979",
-        "current_end_timestamp": "2026-04-17 21:29:49.821627",
-        "reference_start_timestamp": "2026-04-17 14:27:23.940678",
-        "reference_end_timestamp": "2026-04-17 19:45:35.854815",
+        "current_start_timestamp": "2026-04-17 19:48:03.281485",
+        "current_end_timestamp": "2026-04-17 22:29:49.821627",
+        "reference_start_timestamp": "2026-04-17 14:27:52.171389",
+        "reference_end_timestamp": "2026-04-17 19:46:49.611979",
         "current_quality": {
           "win_rate": 0.0,
           "spot_long_win_rate": 0.0,
           "avg_simulated_pnl": -0.0095,
-          "avg_simulated_quality": -0.286,
-          "avg_drawdown_penalty": 0.3876,
-          "avg_time_underwater": 0.8992
+          "avg_simulated_quality": -0.2865,
+          "avg_drawdown_penalty": 0.3873,
+          "avg_time_underwater": 0.9023
         },
         "reference_quality": {
           "win_rate": 0.0,
           "spot_long_win_rate": 0.0,
           "avg_simulated_pnl": -0.0105,
-          "avg_simulated_quality": -0.2833,
-          "avg_drawdown_penalty": 0.3677,
-          "avg_time_underwater": 0.7816
+          "avg_simulated_quality": -0.2831,
+          "avg_drawdown_penalty": 0.3682,
+          "avg_time_underwater": 0.7798
         },
         "win_rate_delta_vs_reference": 0.0,
         "spot_long_win_rate_delta_vs_reference": 0.0,
         "avg_simulated_pnl_delta_vs_reference": 0.001,
-        "avg_simulated_quality_delta_vs_reference": -0.0027,
-        "avg_drawdown_penalty_delta_vs_reference": 0.0199,
-        "avg_time_underwater_delta_vs_reference": 0.1176,
+        "avg_simulated_quality_delta_vs_reference": -0.0034,
+        "avg_drawdown_penalty_delta_vs_reference": 0.0191,
+        "avg_time_underwater_delta_vs_reference": 0.1225,
         "current_dominant_regime": "bull",
         "reference_dominant_regime": "bull",
         "regime_share_deltas": {
@@ -1135,42 +1135,42 @@
         "top_mean_shift_features": [
           {
             "feature": "feat_4h_vol_ratio",
-            "current_mean": 0.2462,
-            "reference_mean": 1.5755,
-            "mean_delta": -1.3293,
-            "delta_vs_baseline_std": 2.3776,
+            "current_mean": 0.239,
+            "reference_mean": 1.563,
+            "mean_delta": -1.324,
+            "delta_vs_baseline_std": 2.3681,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_mind",
-            "current_mean": 0.0006,
-            "reference_mean": 0.0363,
-            "mean_delta": -0.0357,
-            "delta_vs_baseline_std": 0.725,
+            "current_mean": 0.0003,
+            "reference_mean": 0.0362,
+            "mean_delta": -0.0359,
+            "delta_vs_baseline_std": 0.7283,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_bb_pct_b",
-            "current_mean": 0.9113,
-            "reference_mean": 1.1255,
-            "mean_delta": -0.2141,
-            "delta_vs_baseline_std": 0.6653,
+            "current_mean": 0.909,
+            "reference_mean": 1.1223,
+            "mean_delta": -0.2133,
+            "delta_vs_baseline_std": 0.6628,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_tunnel_distance",
-            "current_mean": -0.0006,
-            "reference_mean": 0.0138,
-            "mean_delta": -0.0144,
-            "delta_vs_baseline_std": 0.5533,
+            "current_mean": -0.0005,
+            "reference_mean": 0.0135,
+            "mean_delta": -0.0141,
+            "delta_vs_baseline_std": 0.541,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_choppiness",
-            "current_mean": 0.9351,
-            "reference_mean": 0.8546,
-            "mean_delta": 0.0805,
-            "delta_vs_baseline_std": 0.5176,
+            "current_mean": 0.9352,
+            "reference_mean": 0.8559,
+            "mean_delta": 0.0793,
+            "delta_vs_baseline_std": 0.5101,
             "overlay_only_reason": null
           }
         ]
@@ -1184,10 +1184,10 @@
     },
     "250": {
       "rows": 250,
-      "wins": 14,
-      "losses": 236,
-      "win_rate": 0.056,
-      "win_rate_delta_vs_full": -0.5757,
+      "wins": 13,
+      "losses": 237,
+      "win_rate": 0.052,
+      "win_rate_delta_vs_full": -0.5796,
       "unique_targets": [
         0,
         1
@@ -1195,7 +1195,7 @@
       "constant_target": false,
       "dominant_regime": "bull",
       "dominant_regime_share": 1.0,
-      "dominant_regime_delta_vs_full": 0.5544,
+      "dominant_regime_delta_vs_full": 0.5543,
       "regime_counts": {
         "bull": 250
       },
@@ -1203,14 +1203,14 @@
         "bull": 1.0
       },
       "quality_metrics": {
-        "simulated_win_rate": 0.056,
-        "spot_long_win_rate": 0.056,
-        "avg_simulated_pnl": -0.0088,
-        "avg_simulated_quality": -0.2277,
-        "avg_drawdown_penalty": 0.3524,
-        "avg_time_underwater": 0.7214,
-        "avg_future_return_pct": -0.0186,
-        "avg_future_max_runup": 0.0053,
+        "simulated_win_rate": 0.052,
+        "spot_long_win_rate": 0.052,
+        "avg_simulated_pnl": -0.0089,
+        "avg_simulated_quality": -0.2314,
+        "avg_drawdown_penalty": 0.3533,
+        "avg_time_underwater": 0.7239,
+        "avg_future_return_pct": -0.0187,
+        "avg_future_max_runup": 0.0051,
         "avg_future_max_drawdown": -0.0212
       },
       "feature_diagnostics": {
@@ -1255,13 +1255,13 @@
           },
           {
             "feature": "feat_body",
-            "recent_std": 0.9028,
-            "baseline_std": 18785.2917,
+            "recent_std": 0.9008,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0,
             "recent_range": 2.9317,
             "baseline_range": 1272817.1727,
             "recent_distinct": 250,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0183,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1275,9 +1275,9 @@
             "std_ratio": 0.0086,
             "recent_range": 0.0003,
             "baseline_range": 0.1363,
-            "recent_distinct": 150,
+            "recent_distinct": 149,
             "baseline_distinct": 2807,
-            "distinct_ratio": 0.0534,
+            "distinct_ratio": 0.0531,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -1291,7 +1291,7 @@
             "recent_range": 0.0378,
             "baseline_range": 10.9755,
             "recent_distinct": 250,
-            "baseline_distinct": 21978,
+            "baseline_distinct": 21979,
             "distinct_ratio": 0.0114,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1300,13 +1300,13 @@
           },
           {
             "feature": "feat_tongue",
-            "recent_std": 0.0035,
+            "recent_std": 0.0034,
             "baseline_std": 0.2419,
-            "std_ratio": 0.0146,
+            "std_ratio": 0.0142,
             "recent_range": 0.0217,
             "baseline_range": 0.8909,
             "recent_distinct": 250,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0182,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1401,13 +1401,13 @@
         "compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.9028,
-            "baseline_std": 18785.2917,
+            "recent_std": 0.9008,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0,
             "recent_range": 2.9317,
             "baseline_range": 1272817.1727,
             "recent_distinct": 250,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0183,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1421,9 +1421,9 @@
             "std_ratio": 0.0086,
             "recent_range": 0.0003,
             "baseline_range": 0.1363,
-            "recent_distinct": 150,
+            "recent_distinct": 149,
             "baseline_distinct": 2807,
-            "distinct_ratio": 0.0534,
+            "distinct_ratio": 0.0531,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -1437,7 +1437,7 @@
             "recent_range": 0.0378,
             "baseline_range": 10.9755,
             "recent_distinct": 250,
-            "baseline_distinct": 21978,
+            "baseline_distinct": 21979,
             "distinct_ratio": 0.0114,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1446,13 +1446,13 @@
           },
           {
             "feature": "feat_tongue",
-            "recent_std": 0.0035,
+            "recent_std": 0.0034,
             "baseline_std": 0.2419,
-            "std_ratio": 0.0146,
+            "std_ratio": 0.0142,
             "recent_range": 0.0217,
             "baseline_range": 0.8909,
             "recent_distinct": 250,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0182,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1461,13 +1461,13 @@
           },
           {
             "feature": "feat_vwap_dev",
-            "recent_std": 0.0069,
+            "recent_std": 0.0068,
             "baseline_std": 0.2269,
-            "std_ratio": 0.0304,
+            "std_ratio": 0.0298,
             "recent_range": 0.0419,
             "baseline_range": 0.9772,
             "recent_distinct": 248,
-            "baseline_distinct": 21769,
+            "baseline_distinct": 21770,
             "distinct_ratio": 0.0114,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1495,13 +1495,13 @@
         "expected_compressed_examples": [
           {
             "feature": "feat_4h_bias200",
-            "recent_std": 0.6349,
-            "baseline_std": 5.4816,
-            "std_ratio": 0.1158,
+            "recent_std": 0.6231,
+            "baseline_std": 5.4817,
+            "std_ratio": 0.1137,
             "recent_range": 3.8163,
             "baseline_range": 40.7284,
             "recent_distinct": 249,
-            "baseline_distinct": 15665,
+            "baseline_distinct": 15666,
             "distinct_ratio": 0.0159,
             "expected_static_reason": null,
             "expected_compressed_reason": "underlying_price_and_volatility_compression",
@@ -1515,17 +1515,17 @@
               "min_required_proxies": 2,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 457.8751,
-                  "baseline_std": 18464.6277,
-                  "std_ratio": 0.0248,
-                  "recent_mean": 77301.1603,
-                  "baseline_mean": 83421.9681,
-                  "mean_delta": -6120.8078
+                  "recent_std": 448.7558,
+                  "baseline_std": 18464.2535,
+                  "std_ratio": 0.0243,
+                  "recent_mean": 77307.426,
+                  "baseline_mean": 83421.6965,
+                  "mean_delta": -6114.2705
                 },
                 "raw_volatility": {
                   "recent_std": 0.0001,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.0975,
+                  "std_ratio": 0.0976,
                   "recent_mean": 0.005,
                   "baseline_mean": 0.0042,
                   "mean_delta": 0.0008
@@ -1538,8 +1538,8 @@
             "feature": "feat_atr_pct",
             "recent_std": 0.0,
             "baseline_std": 0.0011,
-            "std_ratio": 0.0394,
-            "recent_range": 0.0004,
+            "std_ratio": 0.0388,
+            "recent_range": 0.0003,
             "baseline_range": 0.022,
             "recent_distinct": 245,
             "baseline_distinct": 18354,
@@ -1557,7 +1557,7 @@
                 "raw_volatility": {
                   "recent_std": 0.0001,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.0975,
+                  "std_ratio": 0.0976,
                   "recent_mean": 0.005,
                   "baseline_mean": 0.0042,
                   "mean_delta": 0.0008
@@ -1575,9 +1575,9 @@
             "std_ratio": 0.0086,
             "recent_range": 0.0003,
             "baseline_range": 0.1363,
-            "recent_distinct": 150,
+            "recent_distinct": 149,
             "baseline_distinct": 2807,
-            "distinct_ratio": 0.0534,
+            "distinct_ratio": 0.0531,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -1588,13 +1588,13 @@
         "unexpected_compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.9028,
-            "baseline_std": 18785.2917,
+            "recent_std": 0.9008,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0,
             "recent_range": 2.9317,
             "baseline_range": 1272817.1727,
             "recent_distinct": 250,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0183,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1609,7 +1609,7 @@
             "recent_range": 0.0378,
             "baseline_range": 10.9755,
             "recent_distinct": 250,
-            "baseline_distinct": 21978,
+            "baseline_distinct": 21979,
             "distinct_ratio": 0.0114,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1618,13 +1618,13 @@
           },
           {
             "feature": "feat_tongue",
-            "recent_std": 0.0035,
+            "recent_std": 0.0034,
             "baseline_std": 0.2419,
-            "std_ratio": 0.0146,
+            "std_ratio": 0.0142,
             "recent_range": 0.0217,
             "baseline_range": 0.8909,
             "recent_distinct": 250,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0182,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1633,13 +1633,13 @@
           },
           {
             "feature": "feat_vwap_dev",
-            "recent_std": 0.0069,
+            "recent_std": 0.0068,
             "baseline_std": 0.2269,
-            "std_ratio": 0.0304,
+            "std_ratio": 0.0298,
             "recent_range": 0.0419,
             "baseline_range": 0.9772,
             "recent_distinct": 248,
-            "baseline_distinct": 21769,
+            "baseline_distinct": 21770,
             "distinct_ratio": 0.0114,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1648,14 +1648,14 @@
           },
           {
             "feature": "feat_vix",
-            "recent_std": 0.1841,
-            "baseline_std": 5.0601,
-            "std_ratio": 0.0364,
+            "recent_std": 0.1797,
+            "baseline_std": 5.06,
+            "std_ratio": 0.0355,
             "recent_range": 1.2,
             "baseline_range": 42.59,
-            "recent_distinct": 66,
+            "recent_distinct": 65,
             "baseline_distinct": 1435,
-            "distinct_ratio": 0.046,
+            "distinct_ratio": 0.0453,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -1696,33 +1696,18 @@
         ]
       },
       "target_path_diagnostics": {
-        "window_start_timestamp": "2026-04-17 09:26:09.339694",
-        "window_end_timestamp": "2026-04-17 21:29:49.821627",
+        "window_start_timestamp": "2026-04-17 09:34:33.272928",
+        "window_end_timestamp": "2026-04-17 22:29:49.821627",
         "latest_target": 0,
         "tail_target_streak": {
           "target": 0,
-          "count": 235,
+          "count": 236,
           "start_timestamp": "2026-04-17 13:41:12.414408",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
-            "bull": 235
+            "bull": 236
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -1751,34 +1736,34 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
         },
         "longest_target_streak": {
           "target": 0,
-          "count": 235,
+          "count": 236,
           "start_timestamp": "2026-04-17 13:41:12.414408",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
-            "bull": 235
+            "bull": 236
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -1807,34 +1792,34 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
         },
         "longest_zero_target_streak": {
           "target": 0,
-          "count": 235,
+          "count": 236,
           "start_timestamp": "2026-04-17 13:41:12.414408",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
-            "bull": 235
+            "bull": 236
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -1864,16 +1849,31 @@
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
               "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
+              "future_max_runup": 0.0
             }
           ]
         },
         "longest_one_target_streak": {
           "target": 1,
-          "count": 13,
-          "start_timestamp": "2026-04-17 09:26:09.339694",
+          "count": 12,
+          "start_timestamp": "2026-04-17 09:34:33.272928",
           "end_timestamp": "2026-04-17 13:07:36.766469",
           "regime_counts": {
-            "bull": 13
+            "bull": 12
           },
           "examples": [
             {
@@ -1924,25 +1924,10 @@
           ]
         },
         "target_regime_breakdown": {
-          "bull:1": 14,
-          "bull:0": 236
+          "bull:1": 13,
+          "bull:0": 237
         },
         "recent_examples": [
-          {
-            "label_id": 71595,
-            "timestamp": "2026-04-17 21:22:41.186850",
-            "symbol": "BTCUSDT",
-            "target": 0,
-            "regime": "bull",
-            "spot_long_win": 0.0,
-            "simulated_pyramid_pnl": -0.0093,
-            "simulated_pyramid_quality": -0.2926,
-            "simulated_pyramid_drawdown_penalty": 0.3827,
-            "simulated_pyramid_time_underwater": 0.9953,
-            "future_return_pct": -0.022,
-            "future_max_drawdown": -0.0257,
-            "future_max_runup": 0.0
-          },
           {
             "label_id": 71596,
             "timestamp": "2026-04-17 21:24:06.051968",
@@ -2002,38 +1987,53 @@
             "future_return_pct": -0.0216,
             "future_max_drawdown": -0.0253,
             "future_max_runup": 0.0
+          },
+          {
+            "label_id": 71654,
+            "timestamp": "2026-04-17 22:29:49.821627",
+            "symbol": "BTCUSDT",
+            "target": 0,
+            "regime": "bull",
+            "spot_long_win": 0.0,
+            "simulated_pyramid_pnl": -0.01,
+            "simulated_pyramid_quality": -0.2981,
+            "simulated_pyramid_drawdown_penalty": 0.3675,
+            "simulated_pyramid_time_underwater": 0.9953,
+            "future_return_pct": -0.0222,
+            "future_max_drawdown": -0.025,
+            "future_max_runup": 0.0
           }
         ]
       },
       "reference_window_comparison": {
         "current_rows": 250,
         "reference_rows": 250,
-        "current_start_timestamp": "2026-04-17 09:26:09.339694",
-        "current_end_timestamp": "2026-04-17 21:29:49.821627",
-        "reference_start_timestamp": "2026-04-15 14:00:00.000000",
-        "reference_end_timestamp": "2026-04-17 09:05:37.991594",
+        "current_start_timestamp": "2026-04-17 09:34:33.272928",
+        "current_end_timestamp": "2026-04-17 22:29:49.821627",
+        "reference_start_timestamp": "2026-04-15 14:00:29.765243",
+        "reference_end_timestamp": "2026-04-17 09:26:09.339694",
         "current_quality": {
-          "win_rate": 0.056,
-          "spot_long_win_rate": 0.056,
-          "avg_simulated_pnl": -0.0088,
-          "avg_simulated_quality": -0.2277,
-          "avg_drawdown_penalty": 0.3524,
-          "avg_time_underwater": 0.7214
+          "win_rate": 0.052,
+          "spot_long_win_rate": 0.052,
+          "avg_simulated_pnl": -0.0089,
+          "avg_simulated_quality": -0.2314,
+          "avg_drawdown_penalty": 0.3533,
+          "avg_time_underwater": 0.7239
         },
         "reference_quality": {
-          "win_rate": 0.712,
-          "spot_long_win_rate": 0.284,
-          "avg_simulated_pnl": 0.0073,
-          "avg_simulated_quality": 0.3494,
-          "avg_drawdown_penalty": 0.1305,
+          "win_rate": 0.716,
+          "spot_long_win_rate": 0.288,
+          "avg_simulated_pnl": 0.0074,
+          "avg_simulated_quality": 0.3522,
+          "avg_drawdown_penalty": 0.1307,
           "avg_time_underwater": 0.3668
         },
-        "win_rate_delta_vs_reference": -0.656,
-        "spot_long_win_rate_delta_vs_reference": -0.228,
-        "avg_simulated_pnl_delta_vs_reference": -0.0161,
-        "avg_simulated_quality_delta_vs_reference": -0.5771,
-        "avg_drawdown_penalty_delta_vs_reference": 0.2219,
-        "avg_time_underwater_delta_vs_reference": 0.3546,
+        "win_rate_delta_vs_reference": -0.664,
+        "spot_long_win_rate_delta_vs_reference": -0.236,
+        "avg_simulated_pnl_delta_vs_reference": -0.0163,
+        "avg_simulated_quality_delta_vs_reference": -0.5836,
+        "avg_drawdown_penalty_delta_vs_reference": 0.2226,
+        "avg_time_underwater_delta_vs_reference": 0.3571,
         "current_dominant_regime": "bull",
         "reference_dominant_regime": "bull",
         "regime_share_deltas": {
@@ -2056,42 +2056,42 @@
         "top_mean_shift_features": [
           {
             "feature": "feat_4h_bb_pct_b",
-            "current_mean": 1.0257,
-            "reference_mean": 0.5297,
-            "mean_delta": 0.496,
-            "delta_vs_baseline_std": 1.5412,
+            "current_mean": 1.0254,
+            "reference_mean": 0.5303,
+            "mean_delta": 0.4951,
+            "delta_vs_baseline_std": 1.5384,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_bias20",
-            "current_mean": 3.1542,
-            "reference_mean": 1.2341,
-            "mean_delta": 1.9201,
-            "delta_vs_baseline_std": 1.1557,
+            "current_mean": 3.1584,
+            "reference_mean": 1.2337,
+            "mean_delta": 1.9247,
+            "delta_vs_baseline_std": 1.1585,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_vol_ratio",
-            "current_mean": 1.0593,
-            "reference_mean": 0.451,
-            "mean_delta": 0.6083,
-            "delta_vs_baseline_std": 1.088,
+            "current_mean": 1.0575,
+            "reference_mean": 0.4525,
+            "mean_delta": 0.605,
+            "delta_vs_baseline_std": 1.0821,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_rsi14",
-            "current_mean": 70.0714,
-            "reference_mean": 59.3844,
-            "mean_delta": 10.687,
-            "delta_vs_baseline_std": 1.06,
+            "current_mean": 70.0818,
+            "reference_mean": 59.3927,
+            "mean_delta": 10.6891,
+            "delta_vs_baseline_std": 1.0602,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_bias50",
-            "current_mean": 5.3186,
-            "reference_mean": 2.7445,
-            "mean_delta": 2.5741,
-            "delta_vs_baseline_std": 0.9856,
+            "current_mean": 5.3233,
+            "reference_mean": 2.7462,
+            "mean_delta": 2.5771,
+            "delta_vs_baseline_std": 0.9868,
             "overlay_only_reason": null
           }
         ]
@@ -2108,7 +2108,7 @@
       "wins": 192,
       "losses": 308,
       "win_rate": 0.384,
-      "win_rate_delta_vs_full": -0.2477,
+      "win_rate_delta_vs_full": -0.2476,
       "unique_targets": [
         0,
         1
@@ -2116,7 +2116,7 @@
       "constant_target": false,
       "dominant_regime": "bull",
       "dominant_regime_share": 0.992,
-      "dominant_regime_delta_vs_full": 0.5464,
+      "dominant_regime_delta_vs_full": 0.5463,
       "regime_counts": {
         "bull": 496,
         "chop": 4
@@ -2128,13 +2128,13 @@
       "quality_metrics": {
         "simulated_win_rate": 0.384,
         "spot_long_win_rate": 0.17,
-        "avg_simulated_pnl": -0.0007,
-        "avg_simulated_quality": 0.0608,
-        "avg_drawdown_penalty": 0.2415,
-        "avg_time_underwater": 0.5441,
-        "avg_future_return_pct": -0.0041,
+        "avg_simulated_pnl": -0.0008,
+        "avg_simulated_quality": 0.0604,
+        "avg_drawdown_penalty": 0.242,
+        "avg_time_underwater": 0.5454,
+        "avg_future_return_pct": -0.0042,
         "avg_future_max_runup": 0.0124,
-        "avg_future_max_drawdown": -0.0138
+        "avg_future_max_drawdown": -0.0139
       },
       "feature_diagnostics": {
         "feature_count": 56,
@@ -2145,9 +2145,9 @@
           "weekend_share": 0.0,
           "weekend_dominant": false,
           "weekday_count": 500,
-          "weekday_market_open_count": 274,
-          "weekday_market_closed_count": 226,
-          "weekday_market_closed_share": 0.452,
+          "weekday_market_open_count": 273,
+          "weekday_market_closed_count": 227,
+          "weekday_market_closed_share": 0.454,
           "weekday_market_closed_dominant": false
         },
         "low_variance_count": 9,
@@ -2163,13 +2163,13 @@
         "low_variance_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 1.1848,
-            "baseline_std": 18785.2917,
+            "recent_std": 1.1862,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0001,
             "recent_range": 4.6944,
             "baseline_range": 1272817.1727,
             "recent_distinct": 498,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0364,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2184,7 +2184,7 @@
             "recent_range": 0.0426,
             "baseline_range": 10.9755,
             "recent_distinct": 498,
-            "baseline_distinct": 21978,
+            "baseline_distinct": 21979,
             "distinct_ratio": 0.0227,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2199,7 +2199,7 @@
             "recent_range": 0.0246,
             "baseline_range": 0.8909,
             "recent_distinct": 498,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0362,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2308,13 +2308,13 @@
         "compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 1.1848,
-            "baseline_std": 18785.2917,
+            "recent_std": 1.1862,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0001,
             "recent_range": 4.6944,
             "baseline_range": 1272817.1727,
             "recent_distinct": 498,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0364,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2329,7 +2329,7 @@
             "recent_range": 0.0426,
             "baseline_range": 10.9755,
             "recent_distinct": 498,
-            "baseline_distinct": 21978,
+            "baseline_distinct": 21979,
             "distinct_ratio": 0.0227,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2344,7 +2344,7 @@
             "recent_range": 0.0246,
             "baseline_range": 0.8909,
             "recent_distinct": 498,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0362,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2421,13 +2421,13 @@
         "unexpected_compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 1.1848,
-            "baseline_std": 18785.2917,
+            "recent_std": 1.1862,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0001,
             "recent_range": 4.6944,
             "baseline_range": 1272817.1727,
             "recent_distinct": 498,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0364,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2442,7 +2442,7 @@
             "recent_range": 0.0426,
             "baseline_range": 10.9755,
             "recent_distinct": 498,
-            "baseline_distinct": 21978,
+            "baseline_distinct": 21979,
             "distinct_ratio": 0.0227,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2457,7 +2457,7 @@
             "recent_range": 0.0246,
             "baseline_range": 0.8909,
             "recent_distinct": 498,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0362,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2481,14 +2481,14 @@
           },
           {
             "feature": "feat_vix",
-            "recent_std": 0.3573,
-            "baseline_std": 5.0601,
-            "std_ratio": 0.0706,
+            "recent_std": 0.3575,
+            "baseline_std": 5.06,
+            "std_ratio": 0.0707,
             "recent_range": 2.1,
             "baseline_range": 42.59,
-            "recent_distinct": 106,
+            "recent_distinct": 105,
             "baseline_distinct": 1435,
-            "distinct_ratio": 0.0739,
+            "distinct_ratio": 0.0732,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -2529,33 +2529,18 @@
         ]
       },
       "target_path_diagnostics": {
-        "window_start_timestamp": "2026-04-15 14:00:00.000000",
-        "window_end_timestamp": "2026-04-17 21:29:49.821627",
+        "window_start_timestamp": "2026-04-15 14:00:29.765243",
+        "window_end_timestamp": "2026-04-17 22:29:49.821627",
         "latest_target": 0,
         "tail_target_streak": {
           "target": 0,
-          "count": 235,
+          "count": 236,
           "start_timestamp": "2026-04-17 13:41:12.414408",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
-            "bull": 235
+            "bull": 236
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -2584,34 +2569,34 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
         },
         "longest_target_streak": {
           "target": 0,
-          "count": 235,
+          "count": 236,
           "start_timestamp": "2026-04-17 13:41:12.414408",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
-            "bull": 235
+            "bull": 236
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -2640,34 +2625,34 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
         },
         "longest_zero_target_streak": {
           "target": 0,
-          "count": 235,
+          "count": 236,
           "start_timestamp": "2026-04-17 13:41:12.414408",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
-            "bull": 235
+            "bull": 236
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -2696,6 +2681,21 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
@@ -2758,26 +2758,11 @@
           ]
         },
         "target_regime_breakdown": {
-          "bull:0": 308,
           "bull:1": 188,
+          "bull:0": 308,
           "chop:1": 4
         },
         "recent_examples": [
-          {
-            "label_id": 71595,
-            "timestamp": "2026-04-17 21:22:41.186850",
-            "symbol": "BTCUSDT",
-            "target": 0,
-            "regime": "bull",
-            "spot_long_win": 0.0,
-            "simulated_pyramid_pnl": -0.0093,
-            "simulated_pyramid_quality": -0.2926,
-            "simulated_pyramid_drawdown_penalty": 0.3827,
-            "simulated_pyramid_time_underwater": 0.9953,
-            "future_return_pct": -0.022,
-            "future_max_drawdown": -0.0257,
-            "future_max_runup": 0.0
-          },
           {
             "label_id": 71596,
             "timestamp": "2026-04-17 21:24:06.051968",
@@ -2837,38 +2822,53 @@
             "future_return_pct": -0.0216,
             "future_max_drawdown": -0.0253,
             "future_max_runup": 0.0
+          },
+          {
+            "label_id": 71654,
+            "timestamp": "2026-04-17 22:29:49.821627",
+            "symbol": "BTCUSDT",
+            "target": 0,
+            "regime": "bull",
+            "spot_long_win": 0.0,
+            "simulated_pyramid_pnl": -0.01,
+            "simulated_pyramid_quality": -0.2981,
+            "simulated_pyramid_drawdown_penalty": 0.3675,
+            "simulated_pyramid_time_underwater": 0.9953,
+            "future_return_pct": -0.0222,
+            "future_max_drawdown": -0.025,
+            "future_max_runup": 0.0
           }
         ]
       },
       "reference_window_comparison": {
         "current_rows": 500,
         "reference_rows": 500,
-        "current_start_timestamp": "2026-04-15 14:00:00.000000",
-        "current_end_timestamp": "2026-04-17 21:29:49.821627",
-        "reference_start_timestamp": "2026-04-13 20:21:41.974911",
-        "reference_end_timestamp": "2026-04-15 13:54:50.884908",
+        "current_start_timestamp": "2026-04-15 14:00:29.765243",
+        "current_end_timestamp": "2026-04-17 22:29:49.821627",
+        "reference_start_timestamp": "2026-04-13 20:23:14.873820",
+        "reference_end_timestamp": "2026-04-15 14:00:00.000000",
         "current_quality": {
           "win_rate": 0.384,
           "spot_long_win_rate": 0.17,
-          "avg_simulated_pnl": -0.0007,
-          "avg_simulated_quality": 0.0608,
-          "avg_drawdown_penalty": 0.2415,
-          "avg_time_underwater": 0.5441
+          "avg_simulated_pnl": -0.0008,
+          "avg_simulated_quality": 0.0604,
+          "avg_drawdown_penalty": 0.242,
+          "avg_time_underwater": 0.5454
         },
         "reference_quality": {
-          "win_rate": 0.926,
-          "spot_long_win_rate": 0.354,
+          "win_rate": 0.924,
+          "spot_long_win_rate": 0.352,
           "avg_simulated_pnl": 0.011,
-          "avg_simulated_quality": 0.4859,
-          "avg_drawdown_penalty": 0.1106,
-          "avg_time_underwater": 0.4655
+          "avg_simulated_quality": 0.4844,
+          "avg_drawdown_penalty": 0.1108,
+          "avg_time_underwater": 0.4657
         },
-        "win_rate_delta_vs_reference": -0.542,
-        "spot_long_win_rate_delta_vs_reference": -0.184,
-        "avg_simulated_pnl_delta_vs_reference": -0.0117,
-        "avg_simulated_quality_delta_vs_reference": -0.4251,
-        "avg_drawdown_penalty_delta_vs_reference": 0.1309,
-        "avg_time_underwater_delta_vs_reference": 0.0786,
+        "win_rate_delta_vs_reference": -0.54,
+        "spot_long_win_rate_delta_vs_reference": -0.182,
+        "avg_simulated_pnl_delta_vs_reference": -0.0118,
+        "avg_simulated_quality_delta_vs_reference": -0.424,
+        "avg_drawdown_penalty_delta_vs_reference": 0.1312,
+        "avg_time_underwater_delta_vs_reference": 0.0797,
         "current_dominant_regime": "bull",
         "reference_dominant_regime": "bull",
         "regime_share_deltas": {
@@ -2892,42 +2892,42 @@
         "top_mean_shift_features": [
           {
             "feature": "feat_vwap_dev",
-            "current_mean": -0.1916,
-            "reference_mean": -0.2798,
-            "mean_delta": 0.0881,
-            "delta_vs_baseline_std": 0.3885,
+            "current_mean": -0.1915,
+            "reference_mean": -0.2795,
+            "mean_delta": 0.088,
+            "delta_vs_baseline_std": 0.3879,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_vol_ratio",
-            "current_mean": 0.7551,
-            "reference_mean": 0.5396,
-            "mean_delta": 0.2156,
-            "delta_vs_baseline_std": 0.3856,
+            "current_mean": 0.755,
+            "reference_mean": 0.5398,
+            "mean_delta": 0.2153,
+            "delta_vs_baseline_std": 0.385,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_bias200",
-            "current_mean": 8.0614,
-            "reference_mean": 6.1084,
-            "mean_delta": 1.9529,
-            "delta_vs_baseline_std": 0.3563,
+            "current_mean": 8.0668,
+            "reference_mean": 6.1131,
+            "mean_delta": 1.9537,
+            "delta_vs_baseline_std": 0.3564,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_local_top_score",
-            "current_mean": 0.4201,
-            "reference_mean": 0.3487,
-            "mean_delta": 0.0714,
-            "delta_vs_baseline_std": 0.3181,
+            "current_mean": 0.4203,
+            "reference_mean": 0.349,
+            "mean_delta": 0.0713,
+            "delta_vs_baseline_std": 0.3177,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_local_bottom_score",
-            "current_mean": 0.3002,
-            "reference_mean": 0.3662,
+            "current_mean": 0.3,
+            "reference_mean": 0.366,
             "mean_delta": -0.066,
-            "delta_vs_baseline_std": 0.2891,
+            "delta_vs_baseline_std": 0.2893,
             "overlay_only_reason": null
           }
         ]
@@ -2940,10 +2940,10 @@
     },
     "1000": {
       "rows": 1000,
-      "wins": 655,
-      "losses": 345,
-      "win_rate": 0.655,
-      "win_rate_delta_vs_full": 0.0233,
+      "wins": 654,
+      "losses": 346,
+      "win_rate": 0.654,
+      "win_rate_delta_vs_full": 0.0224,
       "unique_targets": [
         0,
         1
@@ -2951,7 +2951,7 @@
       "constant_target": false,
       "dominant_regime": "bull",
       "dominant_regime_share": 0.996,
-      "dominant_regime_delta_vs_full": 0.5504,
+      "dominant_regime_delta_vs_full": 0.5503,
       "regime_counts": {
         "bull": 996,
         "chop": 4
@@ -2961,14 +2961,14 @@
         "chop": 0.004
       },
       "quality_metrics": {
-        "simulated_win_rate": 0.655,
-        "spot_long_win_rate": 0.262,
+        "simulated_win_rate": 0.654,
+        "spot_long_win_rate": 0.261,
         "avg_simulated_pnl": 0.0051,
-        "avg_simulated_quality": 0.2734,
-        "avg_drawdown_penalty": 0.176,
-        "avg_time_underwater": 0.5048,
+        "avg_simulated_quality": 0.2724,
+        "avg_drawdown_penalty": 0.1764,
+        "avg_time_underwater": 0.5056,
         "avg_future_return_pct": -0.0003,
-        "avg_future_max_runup": 0.0143,
+        "avg_future_max_runup": 0.0142,
         "avg_future_max_drawdown": -0.0104
       },
       "feature_diagnostics": {
@@ -2998,13 +2998,13 @@
         "low_variance_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 1.1356,
-            "baseline_std": 18785.2917,
+            "recent_std": 1.1363,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0001,
             "recent_range": 4.8033,
             "baseline_range": 1272817.1727,
             "recent_distinct": 998,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0729,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3019,7 +3019,7 @@
             "recent_range": 0.0479,
             "baseline_range": 10.9755,
             "recent_distinct": 997,
-            "baseline_distinct": 21978,
+            "baseline_distinct": 21979,
             "distinct_ratio": 0.0454,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3034,7 +3034,7 @@
             "recent_range": 0.0315,
             "baseline_range": 0.8909,
             "recent_distinct": 998,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0725,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3045,12 +3045,12 @@
             "feature": "feat_scales_ssr",
             "recent_std": 0.0004,
             "baseline_std": 0.0048,
-            "std_ratio": 0.0819,
+            "std_ratio": 0.0817,
             "recent_range": 0.0015,
             "baseline_range": 0.1363,
-            "recent_distinct": 638,
+            "recent_distinct": 637,
             "baseline_distinct": 2807,
-            "distinct_ratio": 0.2273,
+            "distinct_ratio": 0.2269,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -3143,13 +3143,13 @@
         "compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 1.1356,
-            "baseline_std": 18785.2917,
+            "recent_std": 1.1363,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0001,
             "recent_range": 4.8033,
             "baseline_range": 1272817.1727,
             "recent_distinct": 998,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0729,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3164,7 +3164,7 @@
             "recent_range": 0.0479,
             "baseline_range": 10.9755,
             "recent_distinct": 997,
-            "baseline_distinct": 21978,
+            "baseline_distinct": 21979,
             "distinct_ratio": 0.0454,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3179,7 +3179,7 @@
             "recent_range": 0.0315,
             "baseline_range": 0.8909,
             "recent_distinct": 998,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0725,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3190,12 +3190,12 @@
             "feature": "feat_scales_ssr",
             "recent_std": 0.0004,
             "baseline_std": 0.0048,
-            "std_ratio": 0.0819,
+            "std_ratio": 0.0817,
             "recent_range": 0.0015,
             "baseline_range": 0.1363,
-            "recent_distinct": 638,
+            "recent_distinct": 637,
             "baseline_distinct": 2807,
-            "distinct_ratio": 0.2273,
+            "distinct_ratio": 0.2269,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -3240,12 +3240,12 @@
             "feature": "feat_scales_ssr",
             "recent_std": 0.0004,
             "baseline_std": 0.0048,
-            "std_ratio": 0.0819,
+            "std_ratio": 0.0817,
             "recent_range": 0.0015,
             "baseline_range": 0.1363,
-            "recent_distinct": 638,
+            "recent_distinct": 637,
             "baseline_distinct": 2807,
-            "distinct_ratio": 0.2273,
+            "distinct_ratio": 0.2269,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -3256,13 +3256,13 @@
         "unexpected_compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 1.1356,
-            "baseline_std": 18785.2917,
+            "recent_std": 1.1363,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0001,
             "recent_range": 4.8033,
             "baseline_range": 1272817.1727,
             "recent_distinct": 998,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0729,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3277,7 +3277,7 @@
             "recent_range": 0.0479,
             "baseline_range": 10.9755,
             "recent_distinct": 997,
-            "baseline_distinct": 21978,
+            "baseline_distinct": 21979,
             "distinct_ratio": 0.0454,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3292,7 +3292,7 @@
             "recent_range": 0.0315,
             "baseline_range": 0.8909,
             "recent_distinct": 998,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0725,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3301,9 +3301,9 @@
           },
           {
             "feature": "feat_vix",
-            "recent_std": 0.552,
-            "baseline_std": 5.0601,
-            "std_ratio": 0.1091,
+            "recent_std": 0.5516,
+            "baseline_std": 5.06,
+            "std_ratio": 0.109,
             "recent_range": 2.21,
             "baseline_range": 42.59,
             "recent_distinct": 138,
@@ -3364,33 +3364,18 @@
         ]
       },
       "target_path_diagnostics": {
-        "window_start_timestamp": "2026-04-13 20:21:41.974911",
-        "window_end_timestamp": "2026-04-17 21:29:49.821627",
+        "window_start_timestamp": "2026-04-13 20:23:14.873820",
+        "window_end_timestamp": "2026-04-17 22:29:49.821627",
         "latest_target": 0,
         "tail_target_streak": {
           "target": 0,
-          "count": 235,
+          "count": 236,
           "start_timestamp": "2026-04-17 13:41:12.414408",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
-            "bull": 235
+            "bull": 236
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -3419,6 +3404,21 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
@@ -3481,28 +3481,13 @@
         },
         "longest_zero_target_streak": {
           "target": 0,
-          "count": 235,
+          "count": 236,
           "start_timestamp": "2026-04-17 13:41:12.414408",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
-            "bull": 235
+            "bull": 236
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -3531,6 +3516,21 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
@@ -3592,26 +3592,11 @@
           ]
         },
         "target_regime_breakdown": {
-          "bull:1": 651,
-          "bull:0": 345,
+          "bull:1": 650,
+          "bull:0": 346,
           "chop:1": 4
         },
         "recent_examples": [
-          {
-            "label_id": 71595,
-            "timestamp": "2026-04-17 21:22:41.186850",
-            "symbol": "BTCUSDT",
-            "target": 0,
-            "regime": "bull",
-            "spot_long_win": 0.0,
-            "simulated_pyramid_pnl": -0.0093,
-            "simulated_pyramid_quality": -0.2926,
-            "simulated_pyramid_drawdown_penalty": 0.3827,
-            "simulated_pyramid_time_underwater": 0.9953,
-            "future_return_pct": -0.022,
-            "future_max_drawdown": -0.0257,
-            "future_max_runup": 0.0
-          },
           {
             "label_id": 71596,
             "timestamp": "2026-04-17 21:24:06.051968",
@@ -3671,50 +3656,65 @@
             "future_return_pct": -0.0216,
             "future_max_drawdown": -0.0253,
             "future_max_runup": 0.0
+          },
+          {
+            "label_id": 71654,
+            "timestamp": "2026-04-17 22:29:49.821627",
+            "symbol": "BTCUSDT",
+            "target": 0,
+            "regime": "bull",
+            "spot_long_win": 0.0,
+            "simulated_pyramid_pnl": -0.01,
+            "simulated_pyramid_quality": -0.2981,
+            "simulated_pyramid_drawdown_penalty": 0.3675,
+            "simulated_pyramid_time_underwater": 0.9953,
+            "future_return_pct": -0.0222,
+            "future_max_drawdown": -0.025,
+            "future_max_runup": 0.0
           }
         ]
       },
       "reference_window_comparison": {
         "current_rows": 1000,
         "reference_rows": 1000,
-        "current_start_timestamp": "2026-04-13 20:21:41.974911",
-        "current_end_timestamp": "2026-04-17 21:29:49.821627",
-        "reference_start_timestamp": "2026-04-10 09:43:24.755177",
-        "reference_end_timestamp": "2026-04-13 20:20:09.571614",
+        "current_start_timestamp": "2026-04-13 20:23:14.873820",
+        "current_end_timestamp": "2026-04-17 22:29:49.821627",
+        "reference_start_timestamp": "2026-04-10 09:44:34.368002",
+        "reference_end_timestamp": "2026-04-13 20:21:41.974911",
         "current_quality": {
-          "win_rate": 0.655,
-          "spot_long_win_rate": 0.262,
+          "win_rate": 0.654,
+          "spot_long_win_rate": 0.261,
           "avg_simulated_pnl": 0.0051,
-          "avg_simulated_quality": 0.2734,
-          "avg_drawdown_penalty": 0.176,
-          "avg_time_underwater": 0.5048
+          "avg_simulated_quality": 0.2724,
+          "avg_drawdown_penalty": 0.1764,
+          "avg_time_underwater": 0.5056
         },
         "reference_quality": {
           "win_rate": 0.551,
-          "spot_long_win_rate": 0.389,
+          "spot_long_win_rate": 0.39,
           "avg_simulated_pnl": 0.0045,
           "avg_simulated_quality": 0.2162,
           "avg_drawdown_penalty": 0.1601,
-          "avg_time_underwater": 0.5577
+          "avg_time_underwater": 0.5579
         },
-        "win_rate_delta_vs_reference": 0.104,
-        "spot_long_win_rate_delta_vs_reference": -0.127,
+        "win_rate_delta_vs_reference": 0.103,
+        "spot_long_win_rate_delta_vs_reference": -0.129,
         "avg_simulated_pnl_delta_vs_reference": 0.0006,
-        "avg_simulated_quality_delta_vs_reference": 0.0572,
-        "avg_drawdown_penalty_delta_vs_reference": 0.0159,
-        "avg_time_underwater_delta_vs_reference": -0.0529,
+        "avg_simulated_quality_delta_vs_reference": 0.0562,
+        "avg_drawdown_penalty_delta_vs_reference": 0.0163,
+        "avg_time_underwater_delta_vs_reference": -0.0523,
         "current_dominant_regime": "bull",
         "reference_dominant_regime": "chop",
         "regime_share_deltas": {
           "bull": {
             "current_share": 0.996,
-            "reference_share": 0.232,
-            "share_delta": 0.764
+            "reference_share": 0.233,
+            "share_delta": 0.763
           },
           "chop": {
             "current_share": 0.004,
-            "reference_share": 0.768,
-            "share_delta": -0.764
+            "reference_share": 0.767,
+            "share_delta": -0.763
           }
         },
         "new_unexpected_frozen_features": [],
@@ -3725,42 +3725,42 @@
         "top_mean_shift_features": [
           {
             "feature": "feat_4h_bias20",
-            "current_mean": 2.2158,
-            "reference_mean": -0.6732,
-            "mean_delta": 2.889,
-            "delta_vs_baseline_std": 1.739,
+            "current_mean": 2.2172,
+            "reference_mean": -0.671,
+            "mean_delta": 2.8882,
+            "delta_vs_baseline_std": 1.7384,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_adx",
             "current_mean": 0.9842,
-            "reference_mean": 0.7254,
-            "mean_delta": 0.2588,
-            "delta_vs_baseline_std": 1.5535,
+            "reference_mean": 0.7257,
+            "mean_delta": 0.2585,
+            "delta_vs_baseline_std": 1.552,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_rsi14",
-            "current_mean": 64.2096,
-            "reference_mean": 50.2762,
-            "mean_delta": 13.9335,
-            "delta_vs_baseline_std": 1.382,
+            "current_mean": 64.2154,
+            "reference_mean": 50.2889,
+            "mean_delta": 13.9265,
+            "delta_vs_baseline_std": 1.3813,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_ma_order",
             "current_mean": 0.996,
-            "reference_mean": 0.2611,
-            "mean_delta": 0.7349,
-            "delta_vs_baseline_std": 1.0691,
+            "reference_mean": 0.2619,
+            "mean_delta": 0.7341,
+            "delta_vs_baseline_std": 1.0679,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_bb_pct_b",
-            "current_mean": 0.7403,
-            "reference_mean": 0.433,
-            "mean_delta": 0.3073,
-            "delta_vs_baseline_std": 0.9547,
+            "current_mean": 0.74,
+            "reference_mean": 0.4336,
+            "mean_delta": 0.3064,
+            "delta_vs_baseline_std": 0.952,
             "overlay_only_reason": null
           }
         ]
@@ -3784,14 +3784,14 @@
       "wins": 0,
       "losses": 100,
       "win_rate": 0.0,
-      "win_rate_delta_vs_full": -0.6317,
+      "win_rate_delta_vs_full": -0.6316,
       "unique_targets": [
         0
       ],
       "constant_target": true,
       "dominant_regime": "bull",
       "dominant_regime_share": 1.0,
-      "dominant_regime_delta_vs_full": 0.5544,
+      "dominant_regime_delta_vs_full": 0.5543,
       "regime_counts": {
         "bull": 100
       },
@@ -3802,11 +3802,11 @@
         "simulated_win_rate": 0.0,
         "spot_long_win_rate": 0.0,
         "avg_simulated_pnl": -0.0095,
-        "avg_simulated_quality": -0.286,
-        "avg_drawdown_penalty": 0.3876,
-        "avg_time_underwater": 0.8992,
+        "avg_simulated_quality": -0.2865,
+        "avg_drawdown_penalty": 0.3873,
+        "avg_time_underwater": 0.9023,
         "avg_future_return_pct": -0.0218,
-        "avg_future_max_runup": 0.0019,
+        "avg_future_max_runup": 0.0018,
         "avg_future_max_drawdown": -0.0243
       },
       "feature_diagnostics": {
@@ -3818,9 +3818,9 @@
           "weekend_share": 0.0,
           "weekend_dominant": false,
           "weekday_count": 100,
-          "weekday_market_open_count": 17,
-          "weekday_market_closed_count": 83,
-          "weekday_market_closed_share": 0.83,
+          "weekday_market_open_count": 16,
+          "weekday_market_closed_count": 84,
+          "weekday_market_closed_share": 0.84,
           "weekday_market_closed_dominant": false
         },
         "low_variance_count": 28,
@@ -3851,18 +3851,33 @@
           },
           {
             "feature": "feat_body",
-            "recent_std": 0.1389,
-            "baseline_std": 18785.2917,
+            "recent_std": 0.1394,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0,
             "recent_range": 0.5732,
             "baseline_range": 1272817.1727,
             "recent_distinct": 100,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0073,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
             "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_claw_intensity",
+            "recent_std": 0.0005,
+            "baseline_std": 0.1835,
+            "std_ratio": 0.0027,
+            "recent_range": 0.0015,
+            "baseline_range": 0.9639,
+            "recent_distinct": 19,
+            "baseline_distinct": 683,
+            "distinct_ratio": 0.0278,
+            "expected_static_reason": null,
+            "expected_compressed_reason": null,
+            "expected_compressed_details": null,
+            "overlay_only_reason": "research_sparse_source"
           },
           {
             "feature": "feat_scales_ssr",
@@ -3880,21 +3895,6 @@
             "overlay_only_reason": "research_sparse_source"
           },
           {
-            "feature": "feat_claw_intensity",
-            "recent_std": 0.0005,
-            "baseline_std": 0.1835,
-            "std_ratio": 0.0028,
-            "recent_range": 0.0015,
-            "baseline_range": 0.9639,
-            "recent_distinct": 19,
-            "baseline_distinct": 683,
-            "distinct_ratio": 0.0278,
-            "expected_static_reason": null,
-            "expected_compressed_reason": null,
-            "expected_compressed_details": null,
-            "overlay_only_reason": "research_sparse_source"
-          },
-          {
             "feature": "feat_ear",
             "recent_std": 0.0021,
             "baseline_std": 0.6857,
@@ -3902,8 +3902,8 @@
             "recent_range": 0.0087,
             "baseline_range": 10.9755,
             "recent_distinct": 100,
-            "baseline_distinct": 21978,
-            "distinct_ratio": 0.0046,
+            "baseline_distinct": 21979,
+            "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -3997,18 +3997,33 @@
         "compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.1389,
-            "baseline_std": 18785.2917,
+            "recent_std": 0.1394,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0,
             "recent_range": 0.5732,
             "baseline_range": 1272817.1727,
             "recent_distinct": 100,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0073,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
             "overlay_only_reason": null
+          },
+          {
+            "feature": "feat_claw_intensity",
+            "recent_std": 0.0005,
+            "baseline_std": 0.1835,
+            "std_ratio": 0.0027,
+            "recent_range": 0.0015,
+            "baseline_range": 0.9639,
+            "recent_distinct": 19,
+            "baseline_distinct": 683,
+            "distinct_ratio": 0.0278,
+            "expected_static_reason": null,
+            "expected_compressed_reason": null,
+            "expected_compressed_details": null,
+            "overlay_only_reason": "research_sparse_source"
           },
           {
             "feature": "feat_scales_ssr",
@@ -4026,21 +4041,6 @@
             "overlay_only_reason": "research_sparse_source"
           },
           {
-            "feature": "feat_claw_intensity",
-            "recent_std": 0.0005,
-            "baseline_std": 0.1835,
-            "std_ratio": 0.0028,
-            "recent_range": 0.0015,
-            "baseline_range": 0.9639,
-            "recent_distinct": 19,
-            "baseline_distinct": 683,
-            "distinct_ratio": 0.0278,
-            "expected_static_reason": null,
-            "expected_compressed_reason": null,
-            "expected_compressed_details": null,
-            "overlay_only_reason": "research_sparse_source"
-          },
-          {
             "feature": "feat_ear",
             "recent_std": 0.0021,
             "baseline_std": 0.6857,
@@ -4048,8 +4048,8 @@
             "recent_range": 0.0087,
             "baseline_range": 10.9755,
             "recent_distinct": 100,
-            "baseline_distinct": 21978,
-            "distinct_ratio": 0.0046,
+            "baseline_distinct": 21979,
+            "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -4063,7 +4063,7 @@
             "recent_range": 0.0054,
             "baseline_range": 0.8909,
             "recent_distinct": 100,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0073,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -4091,13 +4091,13 @@
         "expected_compressed_examples": [
           {
             "feature": "feat_4h_dist_bb_lower",
-            "recent_std": 0.219,
+            "recent_std": 0.2255,
             "baseline_std": 2.2541,
-            "std_ratio": 0.0972,
-            "recent_range": 0.8377,
+            "std_ratio": 0.1,
+            "recent_range": 1.1663,
             "baseline_range": 24.0661,
             "recent_distinct": 99,
-            "baseline_distinct": 15666,
+            "baseline_distinct": 15667,
             "distinct_ratio": 0.0063,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_band_floor_compression",
@@ -4113,36 +4113,36 @@
               "min_required_proxies": 3,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 94.4464,
-                  "baseline_std": 18464.6277,
+                  "recent_std": 94.1232,
+                  "baseline_std": 18464.2535,
                   "std_ratio": 0.0051,
-                  "recent_mean": 77373.8669,
-                  "baseline_mean": 83421.9681,
-                  "mean_delta": -6048.1012
+                  "recent_mean": 77375.3424,
+                  "baseline_mean": 83421.6965,
+                  "mean_delta": -6046.354
                 },
                 "raw_volatility": {
                   "recent_std": 0.0,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.0329,
+                  "std_ratio": 0.0326,
                   "recent_mean": 0.0049,
                   "baseline_mean": 0.0042,
                   "mean_delta": 0.0007
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0551,
+                  "recent_std": 0.0568,
                   "baseline_std": 0.3218,
-                  "std_ratio": 0.1713,
-                  "recent_mean": 0.9113,
+                  "std_ratio": 0.1764,
+                  "recent_mean": 0.909,
                   "baseline_mean": 0.5682,
-                  "mean_delta": 0.3432
+                  "mean_delta": 0.3409
                 },
                 "feat_4h_dist_swing_low": {
-                  "recent_std": 0.1166,
-                  "baseline_std": 3.5228,
-                  "std_ratio": 0.0331,
-                  "recent_mean": 5.2499,
-                  "baseline_mean": 3.1694,
-                  "mean_delta": 2.0805
+                  "recent_std": 0.1173,
+                  "baseline_std": 3.5227,
+                  "std_ratio": 0.0333,
+                  "recent_mean": 5.2494,
+                  "baseline_mean": 3.1695,
+                  "mean_delta": 2.0799
                 }
               }
             },
@@ -4150,13 +4150,13 @@
           },
           {
             "feature": "feat_4h_macd_hist",
-            "recent_std": 9.6846,
-            "baseline_std": 496.5089,
-            "std_ratio": 0.0195,
-            "recent_range": 40.3218,
+            "recent_std": 9.7205,
+            "baseline_std": 496.4983,
+            "std_ratio": 0.0196,
+            "recent_range": 41.7942,
             "baseline_range": 4853.2592,
             "recent_distinct": 99,
-            "baseline_distinct": 6771,
+            "baseline_distinct": 6772,
             "distinct_ratio": 0.0146,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_momentum_compression",
@@ -4173,44 +4173,44 @@
               "min_required_proxies": 4,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 94.4464,
-                  "baseline_std": 18464.6277,
+                  "recent_std": 94.1232,
+                  "baseline_std": 18464.2535,
                   "std_ratio": 0.0051,
-                  "recent_mean": 77373.8669,
-                  "baseline_mean": 83421.9681,
-                  "mean_delta": -6048.1012
+                  "recent_mean": 77375.3424,
+                  "baseline_mean": 83421.6965,
+                  "mean_delta": -6046.354
                 },
                 "raw_volatility": {
                   "recent_std": 0.0,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.0329,
+                  "std_ratio": 0.0326,
                   "recent_mean": 0.0049,
                   "baseline_mean": 0.0042,
                   "mean_delta": 0.0007
                 },
                 "feat_4h_bias50": {
-                  "recent_std": 0.1361,
-                  "baseline_std": 2.6116,
-                  "std_ratio": 0.0521,
-                  "recent_mean": 5.2629,
-                  "baseline_mean": 1.4854,
-                  "mean_delta": 3.7775
+                  "recent_std": 0.1409,
+                  "baseline_std": 2.6117,
+                  "std_ratio": 0.054,
+                  "recent_mean": 5.2594,
+                  "baseline_mean": 1.4855,
+                  "mean_delta": 3.7739
                 },
                 "feat_4h_rsi14": {
-                  "recent_std": 0.7298,
-                  "baseline_std": 10.0824,
-                  "std_ratio": 0.0724,
-                  "recent_mean": 69.508,
-                  "baseline_mean": 56.0776,
-                  "mean_delta": 13.4304
+                  "recent_std": 0.7521,
+                  "baseline_std": 10.0825,
+                  "std_ratio": 0.0746,
+                  "recent_mean": 69.4963,
+                  "baseline_mean": 56.0781,
+                  "mean_delta": 13.4182
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0551,
+                  "recent_std": 0.0568,
                   "baseline_std": 0.3218,
-                  "std_ratio": 0.1713,
-                  "recent_mean": 0.9113,
+                  "std_ratio": 0.1764,
+                  "recent_mean": 0.909,
                   "baseline_mean": 0.5682,
-                  "mean_delta": 0.3432
+                  "mean_delta": 0.3409
                 }
               }
             },
@@ -4218,13 +4218,13 @@
           },
           {
             "feature": "feat_4h_rsi14",
-            "recent_std": 0.7298,
-            "baseline_std": 10.0824,
-            "std_ratio": 0.0724,
-            "recent_range": 3.1015,
+            "recent_std": 0.7521,
+            "baseline_std": 10.0825,
+            "std_ratio": 0.0746,
+            "recent_range": 3.1997,
             "baseline_range": 73.7753,
             "recent_distinct": 99,
-            "baseline_distinct": 6770,
+            "baseline_distinct": 6771,
             "distinct_ratio": 0.0146,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_short_trend_oscillator_compression",
@@ -4241,44 +4241,44 @@
               "min_required_proxies": 4,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 94.4464,
-                  "baseline_std": 18464.6277,
+                  "recent_std": 94.1232,
+                  "baseline_std": 18464.2535,
                   "std_ratio": 0.0051,
-                  "recent_mean": 77373.8669,
-                  "baseline_mean": 83421.9681,
-                  "mean_delta": -6048.1012
+                  "recent_mean": 77375.3424,
+                  "baseline_mean": 83421.6965,
+                  "mean_delta": -6046.354
                 },
                 "raw_volatility": {
                   "recent_std": 0.0,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.0329,
+                  "std_ratio": 0.0326,
                   "recent_mean": 0.0049,
                   "baseline_mean": 0.0042,
                   "mean_delta": 0.0007
                 },
                 "feat_4h_bias20": {
-                  "recent_std": 0.1291,
+                  "recent_std": 0.1353,
                   "baseline_std": 1.6614,
-                  "std_ratio": 0.0777,
-                  "recent_mean": 3.0848,
-                  "baseline_mean": 0.6213,
-                  "mean_delta": 2.4635
+                  "std_ratio": 0.0815,
+                  "recent_mean": 3.0809,
+                  "baseline_mean": 0.6214,
+                  "mean_delta": 2.4595
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0551,
+                  "recent_std": 0.0568,
                   "baseline_std": 0.3218,
-                  "std_ratio": 0.1713,
-                  "recent_mean": 0.9113,
+                  "std_ratio": 0.1764,
+                  "recent_mean": 0.909,
                   "baseline_mean": 0.5682,
-                  "mean_delta": 0.3432
+                  "mean_delta": 0.3409
                 },
                 "feat_4h_macd_hist": {
-                  "recent_std": 9.6846,
-                  "baseline_std": 496.5089,
-                  "std_ratio": 0.0195,
-                  "recent_mean": 205.8678,
-                  "baseline_mean": 47.8565,
-                  "mean_delta": 158.0113
+                  "recent_std": 9.7205,
+                  "baseline_std": 496.4983,
+                  "std_ratio": 0.0196,
+                  "recent_mean": 205.8531,
+                  "baseline_mean": 47.8627,
+                  "mean_delta": 157.9904
                 }
               }
             },
@@ -4286,13 +4286,13 @@
           },
           {
             "feature": "feat_4h_dist_swing_low",
-            "recent_std": 0.1166,
-            "baseline_std": 3.5228,
-            "std_ratio": 0.0331,
+            "recent_std": 0.1173,
+            "baseline_std": 3.5227,
+            "std_ratio": 0.0333,
             "recent_range": 0.5314,
             "baseline_range": 126.9125,
             "recent_distinct": 99,
-            "baseline_distinct": 15562,
+            "baseline_distinct": 15563,
             "distinct_ratio": 0.0064,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_support_cluster_compression",
@@ -4308,36 +4308,36 @@
               "min_required_proxies": 3,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 94.4464,
-                  "baseline_std": 18464.6277,
+                  "recent_std": 94.1232,
+                  "baseline_std": 18464.2535,
                   "std_ratio": 0.0051,
-                  "recent_mean": 77373.8669,
-                  "baseline_mean": 83421.9681,
-                  "mean_delta": -6048.1012
+                  "recent_mean": 77375.3424,
+                  "baseline_mean": 83421.6965,
+                  "mean_delta": -6046.354
                 },
                 "raw_volatility": {
                   "recent_std": 0.0,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.0329,
+                  "std_ratio": 0.0326,
                   "recent_mean": 0.0049,
                   "baseline_mean": 0.0042,
                   "mean_delta": 0.0007
                 },
                 "feat_4h_dist_bb_lower": {
-                  "recent_std": 0.219,
+                  "recent_std": 0.2255,
                   "baseline_std": 2.2541,
-                  "std_ratio": 0.0972,
-                  "recent_mean": 3.08,
+                  "std_ratio": 0.1,
+                  "recent_mean": 3.0703,
                   "baseline_mean": 2.5859,
-                  "mean_delta": 0.4941
+                  "mean_delta": 0.4844
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0551,
+                  "recent_std": 0.0568,
                   "baseline_std": 0.3218,
-                  "std_ratio": 0.1713,
-                  "recent_mean": 0.9113,
+                  "std_ratio": 0.1764,
+                  "recent_mean": 0.909,
                   "baseline_mean": 0.5682,
-                  "mean_delta": 0.3432
+                  "mean_delta": 0.3409
                 }
               }
             },
@@ -4345,13 +4345,13 @@
           },
           {
             "feature": "feat_4h_bias50",
-            "recent_std": 0.1361,
-            "baseline_std": 2.6116,
-            "std_ratio": 0.0521,
-            "recent_range": 0.5779,
+            "recent_std": 0.1409,
+            "baseline_std": 2.6117,
+            "std_ratio": 0.054,
+            "recent_range": 0.6378,
             "baseline_range": 29.659,
             "recent_distinct": 99,
-            "baseline_distinct": 15666,
+            "baseline_distinct": 15667,
             "distinct_ratio": 0.0063,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_trend_compression",
@@ -4368,44 +4368,44 @@
               "min_required_proxies": 4,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 94.4464,
-                  "baseline_std": 18464.6277,
+                  "recent_std": 94.1232,
+                  "baseline_std": 18464.2535,
                   "std_ratio": 0.0051,
-                  "recent_mean": 77373.8669,
-                  "baseline_mean": 83421.9681,
-                  "mean_delta": -6048.1012
+                  "recent_mean": 77375.3424,
+                  "baseline_mean": 83421.6965,
+                  "mean_delta": -6046.354
                 },
                 "raw_volatility": {
                   "recent_std": 0.0,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.0329,
+                  "std_ratio": 0.0326,
                   "recent_mean": 0.0049,
                   "baseline_mean": 0.0042,
                   "mean_delta": 0.0007
                 },
                 "feat_4h_rsi14": {
-                  "recent_std": 0.7298,
-                  "baseline_std": 10.0824,
-                  "std_ratio": 0.0724,
-                  "recent_mean": 69.508,
-                  "baseline_mean": 56.0776,
-                  "mean_delta": 13.4304
+                  "recent_std": 0.7521,
+                  "baseline_std": 10.0825,
+                  "std_ratio": 0.0746,
+                  "recent_mean": 69.4963,
+                  "baseline_mean": 56.0781,
+                  "mean_delta": 13.4182
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0551,
+                  "recent_std": 0.0568,
                   "baseline_std": 0.3218,
-                  "std_ratio": 0.1713,
-                  "recent_mean": 0.9113,
+                  "std_ratio": 0.1764,
+                  "recent_mean": 0.909,
                   "baseline_mean": 0.5682,
-                  "mean_delta": 0.3432
+                  "mean_delta": 0.3409
                 },
                 "feat_4h_macd_hist": {
-                  "recent_std": 9.6846,
-                  "baseline_std": 496.5089,
-                  "std_ratio": 0.0195,
-                  "recent_mean": 205.8678,
-                  "baseline_mean": 47.8565,
-                  "mean_delta": 158.0113
+                  "recent_std": 9.7205,
+                  "baseline_std": 496.4983,
+                  "std_ratio": 0.0196,
+                  "recent_mean": 205.8531,
+                  "baseline_mean": 47.8627,
+                  "mean_delta": 157.9904
                 }
               }
             },
@@ -4415,9 +4415,9 @@
         "overlay_only_examples": [
           {
             "feature": "feat_claw",
-            "recent_std": 0.0028,
+            "recent_std": 0.0027,
             "baseline_std": 0.3833,
-            "std_ratio": 0.0073,
+            "std_ratio": 0.0072,
             "recent_range": 0.0082,
             "baseline_range": 1.662,
             "recent_distinct": 19,
@@ -4432,7 +4432,7 @@
             "feature": "feat_claw_intensity",
             "recent_std": 0.0005,
             "baseline_std": 0.1835,
-            "std_ratio": 0.0028,
+            "std_ratio": 0.0027,
             "recent_range": 0.0015,
             "baseline_range": 0.9639,
             "recent_distinct": 19,
@@ -4447,12 +4447,12 @@
             "feature": "feat_fang_pcr",
             "recent_std": 0.0003,
             "baseline_std": 0.0104,
-            "std_ratio": 0.0276,
+            "std_ratio": 0.0275,
             "recent_range": 0.0009,
             "baseline_range": 0.0693,
-            "recent_distinct": 80,
+            "recent_distinct": 79,
             "baseline_distinct": 3409,
-            "distinct_ratio": 0.0235,
+            "distinct_ratio": 0.0232,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -4478,13 +4478,13 @@
         "unexpected_compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.1389,
-            "baseline_std": 18785.2917,
+            "recent_std": 0.1394,
+            "baseline_std": 18784.8657,
             "std_ratio": 0.0,
             "recent_range": 0.5732,
             "baseline_range": 1272817.1727,
             "recent_distinct": 100,
-            "baseline_distinct": 13683,
+            "baseline_distinct": 13684,
             "distinct_ratio": 0.0073,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -4499,8 +4499,8 @@
             "recent_range": 0.0087,
             "baseline_range": 10.9755,
             "recent_distinct": 100,
-            "baseline_distinct": 21978,
-            "distinct_ratio": 0.0046,
+            "baseline_distinct": 21979,
+            "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -4514,7 +4514,7 @@
             "recent_range": 0.0054,
             "baseline_range": 0.8909,
             "recent_distinct": 100,
-            "baseline_distinct": 13759,
+            "baseline_distinct": 13760,
             "distinct_ratio": 0.0073,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -4529,7 +4529,7 @@
             "recent_range": 0.0062,
             "baseline_range": 0.9772,
             "recent_distinct": 99,
-            "baseline_distinct": 21769,
+            "baseline_distinct": 21770,
             "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -4538,14 +4538,14 @@
           },
           {
             "feature": "feat_vix",
-            "recent_std": 0.0584,
-            "baseline_std": 5.0601,
-            "std_ratio": 0.0115,
-            "recent_range": 0.32,
+            "recent_std": 0.054,
+            "baseline_std": 5.06,
+            "std_ratio": 0.0107,
+            "recent_range": 0.29,
             "baseline_range": 42.59,
-            "recent_distinct": 23,
+            "recent_distinct": 22,
             "baseline_distinct": 1435,
-            "distinct_ratio": 0.016,
+            "distinct_ratio": 0.0153,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -4586,33 +4586,18 @@
         ]
       },
       "target_path_diagnostics": {
-        "window_start_timestamp": "2026-04-17 19:46:49.611979",
-        "window_end_timestamp": "2026-04-17 21:29:49.821627",
+        "window_start_timestamp": "2026-04-17 19:48:03.281485",
+        "window_end_timestamp": "2026-04-17 22:29:49.821627",
         "latest_target": 0,
         "tail_target_streak": {
           "target": 0,
           "count": 100,
-          "start_timestamp": "2026-04-17 19:46:49.611979",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "start_timestamp": "2026-04-17 19:48:03.281485",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
             "bull": 100
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -4641,6 +4626,21 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
@@ -4648,27 +4648,12 @@
         "longest_target_streak": {
           "target": 0,
           "count": 100,
-          "start_timestamp": "2026-04-17 19:46:49.611979",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "start_timestamp": "2026-04-17 19:48:03.281485",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
             "bull": 100
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -4697,6 +4682,21 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
@@ -4704,27 +4704,12 @@
         "longest_zero_target_streak": {
           "target": 0,
           "count": 100,
-          "start_timestamp": "2026-04-17 19:46:49.611979",
-          "end_timestamp": "2026-04-17 21:29:49.821627",
+          "start_timestamp": "2026-04-17 19:48:03.281485",
+          "end_timestamp": "2026-04-17 22:29:49.821627",
           "regime_counts": {
             "bull": 100
           },
           "examples": [
-            {
-              "label_id": 71597,
-              "timestamp": "2026-04-17 21:25:31.414656",
-              "symbol": "BTCUSDT",
-              "target": 0,
-              "regime": "bull",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0092,
-              "simulated_pyramid_quality": -0.2893,
-              "simulated_pyramid_drawdown_penalty": 0.3752,
-              "simulated_pyramid_time_underwater": 0.9953,
-              "future_return_pct": -0.0216,
-              "future_max_drawdown": -0.0254,
-              "future_max_runup": 0.0
-            },
             {
               "label_id": 71598,
               "timestamp": "2026-04-17 21:27:31.748471",
@@ -4753,6 +4738,21 @@
               "simulated_pyramid_time_underwater": 0.9953,
               "future_return_pct": -0.0216,
               "future_max_drawdown": -0.0253,
+              "future_max_runup": 0.0
+            },
+            {
+              "label_id": 71654,
+              "timestamp": "2026-04-17 22:29:49.821627",
+              "symbol": "BTCUSDT",
+              "target": 0,
+              "regime": "bull",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.01,
+              "simulated_pyramid_quality": -0.2981,
+              "simulated_pyramid_drawdown_penalty": 0.3675,
+              "simulated_pyramid_time_underwater": 0.9953,
+              "future_return_pct": -0.0222,
+              "future_max_drawdown": -0.025,
               "future_max_runup": 0.0
             }
           ]
@@ -4769,21 +4769,6 @@
           "bull:0": 100
         },
         "recent_examples": [
-          {
-            "label_id": 71595,
-            "timestamp": "2026-04-17 21:22:41.186850",
-            "symbol": "BTCUSDT",
-            "target": 0,
-            "regime": "bull",
-            "spot_long_win": 0.0,
-            "simulated_pyramid_pnl": -0.0093,
-            "simulated_pyramid_quality": -0.2926,
-            "simulated_pyramid_drawdown_penalty": 0.3827,
-            "simulated_pyramid_time_underwater": 0.9953,
-            "future_return_pct": -0.022,
-            "future_max_drawdown": -0.0257,
-            "future_max_runup": 0.0
-          },
           {
             "label_id": 71596,
             "timestamp": "2026-04-17 21:24:06.051968",
@@ -4843,38 +4828,53 @@
             "future_return_pct": -0.0216,
             "future_max_drawdown": -0.0253,
             "future_max_runup": 0.0
+          },
+          {
+            "label_id": 71654,
+            "timestamp": "2026-04-17 22:29:49.821627",
+            "symbol": "BTCUSDT",
+            "target": 0,
+            "regime": "bull",
+            "spot_long_win": 0.0,
+            "simulated_pyramid_pnl": -0.01,
+            "simulated_pyramid_quality": -0.2981,
+            "simulated_pyramid_drawdown_penalty": 0.3675,
+            "simulated_pyramid_time_underwater": 0.9953,
+            "future_return_pct": -0.0222,
+            "future_max_drawdown": -0.025,
+            "future_max_runup": 0.0
           }
         ]
       },
       "reference_window_comparison": {
         "current_rows": 100,
         "reference_rows": 100,
-        "current_start_timestamp": "2026-04-17 19:46:49.611979",
-        "current_end_timestamp": "2026-04-17 21:29:49.821627",
-        "reference_start_timestamp": "2026-04-17 14:27:23.940678",
-        "reference_end_timestamp": "2026-04-17 19:45:35.854815",
+        "current_start_timestamp": "2026-04-17 19:48:03.281485",
+        "current_end_timestamp": "2026-04-17 22:29:49.821627",
+        "reference_start_timestamp": "2026-04-17 14:27:52.171389",
+        "reference_end_timestamp": "2026-04-17 19:46:49.611979",
         "current_quality": {
           "win_rate": 0.0,
           "spot_long_win_rate": 0.0,
           "avg_simulated_pnl": -0.0095,
-          "avg_simulated_quality": -0.286,
-          "avg_drawdown_penalty": 0.3876,
-          "avg_time_underwater": 0.8992
+          "avg_simulated_quality": -0.2865,
+          "avg_drawdown_penalty": 0.3873,
+          "avg_time_underwater": 0.9023
         },
         "reference_quality": {
           "win_rate": 0.0,
           "spot_long_win_rate": 0.0,
           "avg_simulated_pnl": -0.0105,
-          "avg_simulated_quality": -0.2833,
-          "avg_drawdown_penalty": 0.3677,
-          "avg_time_underwater": 0.7816
+          "avg_simulated_quality": -0.2831,
+          "avg_drawdown_penalty": 0.3682,
+          "avg_time_underwater": 0.7798
         },
         "win_rate_delta_vs_reference": 0.0,
         "spot_long_win_rate_delta_vs_reference": 0.0,
         "avg_simulated_pnl_delta_vs_reference": 0.001,
-        "avg_simulated_quality_delta_vs_reference": -0.0027,
-        "avg_drawdown_penalty_delta_vs_reference": 0.0199,
-        "avg_time_underwater_delta_vs_reference": 0.1176,
+        "avg_simulated_quality_delta_vs_reference": -0.0034,
+        "avg_drawdown_penalty_delta_vs_reference": 0.0191,
+        "avg_time_underwater_delta_vs_reference": 0.1225,
         "current_dominant_regime": "bull",
         "reference_dominant_regime": "bull",
         "regime_share_deltas": {
@@ -4890,42 +4890,42 @@
         "top_mean_shift_features": [
           {
             "feature": "feat_4h_vol_ratio",
-            "current_mean": 0.2462,
-            "reference_mean": 1.5755,
-            "mean_delta": -1.3293,
-            "delta_vs_baseline_std": 2.3776,
+            "current_mean": 0.239,
+            "reference_mean": 1.563,
+            "mean_delta": -1.324,
+            "delta_vs_baseline_std": 2.3681,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_mind",
-            "current_mean": 0.0006,
-            "reference_mean": 0.0363,
-            "mean_delta": -0.0357,
-            "delta_vs_baseline_std": 0.725,
+            "current_mean": 0.0003,
+            "reference_mean": 0.0362,
+            "mean_delta": -0.0359,
+            "delta_vs_baseline_std": 0.7283,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_bb_pct_b",
-            "current_mean": 0.9113,
-            "reference_mean": 1.1255,
-            "mean_delta": -0.2141,
-            "delta_vs_baseline_std": 0.6653,
+            "current_mean": 0.909,
+            "reference_mean": 1.1223,
+            "mean_delta": -0.2133,
+            "delta_vs_baseline_std": 0.6628,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_tunnel_distance",
-            "current_mean": -0.0006,
-            "reference_mean": 0.0138,
-            "mean_delta": -0.0144,
-            "delta_vs_baseline_std": 0.5533,
+            "current_mean": -0.0005,
+            "reference_mean": 0.0135,
+            "mean_delta": -0.0141,
+            "delta_vs_baseline_std": 0.541,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_choppiness",
-            "current_mean": 0.9351,
-            "reference_mean": 0.8546,
-            "mean_delta": 0.0805,
-            "delta_vs_baseline_std": 0.5176,
+            "current_mean": 0.9352,
+            "reference_mean": 0.8559,
+            "mean_delta": 0.0793,
+            "delta_vs_baseline_std": 0.5101,
             "overlay_only_reason": null
           }
         ]
