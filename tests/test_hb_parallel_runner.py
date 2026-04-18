@@ -1952,9 +1952,118 @@ def test_feature_group_ablation_cache_hit_uses_semantic_label_signature_when_ava
     monkeypatch.setattr(
         hb_parallel_runner,
         "_current_canonical_label_signature",
-        lambda: {"label_rows": 21854, "latest_label_timestamp": "2026-04-17 10:00:00"},
+        lambda: {"label_rows": 21855, "latest_label_timestamp": "2026-04-17 07:30:00"},
+    )
+    bounded_hit = hb_parallel_runner._feature_group_ablation_cache_hit()
+    assert bounded_hit is not None
+    assert bounded_hit["reason"] == "bounded_label_drift_feature_group_ablation_artifact_reused"
+    assert bounded_hit["details"]["label_drift"]["row_delta"] == 2
+
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "_current_canonical_label_signature",
+        lambda: {"label_rows": 21870, "latest_label_timestamp": "2026-04-17 14:30:00"},
     )
     assert hb_parallel_runner._feature_group_ablation_cache_hit() is None
+
+
+def test_bull_4h_pocket_cache_hit_reuses_semantic_match_with_bounded_label_drift(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    scripts_dir = tmp_path / "scripts"
+    model_dir = tmp_path / "model"
+    for directory in (data_dir, scripts_dir, model_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    artifact_path = data_dir / "bull_4h_pocket_ablation.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-17T10:30:00+00:00",
+                "source_meta": {
+                    "label_rows": 21913,
+                    "latest_label_timestamp": "2026-04-17 04:05:06",
+                    "horizon_minutes": 1440,
+                    "target_col": "simulated_pyramid_win",
+                },
+                "live_context": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "entry_quality_label": "C",
+                    "decision_quality_label": "D",
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 0,
+                    "exact_scope_rows": 0,
+                    "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket",
+                    "decision_quality_calibration_scope": "regime_label",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    dep_mtime = 1713344400
+    for dep_path in [
+        scripts_dir / "bull_4h_pocket_ablation.py",
+        scripts_dir / "feature_group_ablation.py",
+        model_dir / "predictor.py",
+        model_dir / "train.py",
+    ]:
+        dep_path.write_text("# test\n", encoding="utf-8")
+        os.utime(dep_path, (dep_mtime, dep_mtime))
+
+    live_probe_path = data_dir / "live_predict_probe.json"
+    live_probe_path.write_text(
+        json.dumps(
+            {
+                "regime_label": "bull",
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "B",
+                "decision_quality_label": "D",
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                "current_live_structure_bucket_rows": 0,
+                "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket",
+                "decision_quality_calibration_scope": "regime_label",
+                "decision_quality_scope_diagnostics": {
+                    "regime_label+regime_gate+entry_quality_label": {"rows": 0}
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    os.utime(live_probe_path, (4102440000, 4102440000))
+
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "_current_canonical_label_signature",
+        lambda: {"label_rows": 21915, "latest_label_timestamp": "2026-04-17 05:00:00"},
+    )
+
+    hit = hb_parallel_runner._bull_4h_pocket_cache_hit()
+
+    assert hit is not None
+    assert hit["reason"] == "bounded_label_drift_bull_4h_pocket_artifact_reused"
+    assert hit["details"]["semantic_signature"]["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert hit["details"]["label_drift"]["row_delta"] == 2
+
+    live_probe_path.write_text(
+        json.dumps(
+            {
+                "regime_label": "bull",
+                "regime_gate": "ALLOW",
+                "entry_quality_label": "C",
+                "decision_quality_label": "D",
+                "current_live_structure_bucket": "ALLOW|base_allow|q65",
+                "current_live_structure_bucket_rows": 0,
+                "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+                "decision_quality_calibration_scope": "regime_label",
+                "decision_quality_scope_diagnostics": {
+                    "regime_label+regime_gate+entry_quality_label": {"rows": 0}
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert hb_parallel_runner._bull_4h_pocket_cache_hit() is None
 
 
 def test_leaderboard_candidate_cache_hit_uses_semantic_alignment_signature(tmp_path, monkeypatch):
@@ -2063,6 +2172,119 @@ def test_leaderboard_candidate_cache_hit_uses_semantic_alignment_signature(tmp_p
     assert hit is not None
     assert hit["reason"] == "fresh_leaderboard_candidate_artifact_reused"
     assert hit["details"]["selected_feature_profile"] == "core_only"
+
+
+def test_leaderboard_candidate_cache_hit_refreshes_semantic_drift_when_probe_artifact_can_be_realigned(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    scripts_dir = tmp_path / "scripts"
+    model_dir = tmp_path / "model"
+    server_routes_dir = tmp_path / "server" / "routes"
+    backtesting_dir = tmp_path / "backtesting"
+    for directory in (data_dir, scripts_dir, model_dir, server_routes_dir, backtesting_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    artifact_path = data_dir / "leaderboard_feature_profile_probe.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2099-04-17T10:30:00+00:00",
+                "top_model": {"selected_feature_profile": "core_only"},
+                "alignment": {
+                    "current_alignment_inputs_stale": False,
+                    "global_recommended_profile": "core_only",
+                    "train_selected_profile": "core_plus_macro",
+                    "train_selected_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "live_current_structure_bucket_rows": 9,
+                    "live_execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+                    "live_regime_gate": "CAUTION",
+                    "live_entry_quality_label": "C",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    (scripts_dir / "hb_leaderboard_candidate_probe.py").write_text("# test\n", encoding="utf-8")
+    (server_routes_dir / "api.py").write_text("# test\n", encoding="utf-8")
+    (backtesting_dir / "model_leaderboard.py").write_text("# test\n", encoding="utf-8")
+    (model_dir / "last_metrics.json").write_text(
+        json.dumps(
+            {
+                "feature_profile": "core_plus_macro",
+                "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "feature_group_ablation.json").write_text(
+        json.dumps({"recommended_profile": "core_only", "generated_at": "2099-04-17T10:29:00+00:00"}),
+        encoding="utf-8",
+    )
+    (data_dir / "bull_4h_pocket_ablation.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2099-04-17T10:29:00+00:00",
+                "live_context": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "q15_support_audit.json").write_text(
+        json.dumps(
+            {
+                "support_route": {
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "minimum_support_rows": 50,
+                },
+                "current_live": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "C",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def _fake_refresh(path):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["generated_at"] = "2099-04-17T10:35:00+00:00"
+        payload["leaderboard_payload_source"] = "latest_persisted_snapshot"
+        payload["alignment"] = {
+            **payload["alignment"],
+            "live_current_structure_bucket_rows": 0,
+        }
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        fresh = 4102440000
+        os.utime(path, (fresh, fresh))
+        return payload
+
+    monkeypatch.setattr(hb_parallel_runner, "_refresh_leaderboard_candidate_alignment_snapshot", _fake_refresh)
+
+    hit = hb_parallel_runner._leaderboard_candidate_cache_hit()
+
+    assert hit is not None
+    assert hit["reason"] == "refreshed_leaderboard_candidate_artifact_reused"
+    assert hit["details"]["refresh_applied"] is True
+    assert hit["details"]["semantic_signature"]["live_current_structure_bucket_rows"] == 0
+    assert hit["details"]["leaderboard_payload_source"] == "latest_persisted_snapshot"
 
 
 def test_leaderboard_candidate_cache_hit_refreshes_alignment_snapshot_when_only_code_freshness_is_stale(tmp_path, monkeypatch):
@@ -2570,6 +2792,11 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
                     "selected_feature_profile_blocker_applied": False,
                     "selected_feature_profile_blocker_reason": None,
                 },
+                "leaderboard_snapshot_created_at": "2026-04-14T06:51:24Z",
+                "leaderboard_payload_source": "latest_persisted_snapshot",
+                "leaderboard_payload_updated_at": "2026-04-14T12:39:00Z",
+                "leaderboard_payload_cache_age_sec": 120,
+                "leaderboard_payload_stale": False,
                 "alignment": {
                     "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
                     "profile_split": {
@@ -2635,6 +2862,8 @@ def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_
     assert diag["current_alignment_inputs_stale"] is False
     assert diag["current_alignment_recency"]["inputs_current"] is True
     assert diag["artifact_recency"]["alignment_snapshot_stale"] is True
+    assert diag["leaderboard_payload_source"] == "latest_persisted_snapshot"
+    assert diag["leaderboard_payload_stale"] is False
     assert diag["live_current_structure_bucket_rows"] == 0
     assert diag["minimum_support_rows"] == 50
     assert diag["live_current_structure_bucket_gap_to_minimum"] == 50

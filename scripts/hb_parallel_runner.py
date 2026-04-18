@@ -42,13 +42,15 @@ FAST_SERIAL_TIMEOUTS = {
     "hb_predict_probe": 20,
     "live_decision_quality_drilldown": 20,
     "hb_circuit_breaker_audit": 20,
-    "feature_group_ablation": 20,
+    "feature_group_ablation": 45,
     "bull_4h_pocket_ablation": 20,
     "hb_leaderboard_candidate_probe": 20,
     "hb_q15_support_audit": 20,
     "hb_q15_bucket_root_cause": 20,
     "hb_q15_boundary_replay": 20,
 }
+FAST_CACHE_REUSE_MAX_LABEL_DELTA = 12
+FAST_CACHE_REUSE_MAX_LABEL_TIME_DRIFT_SECONDS = 6 * 3600
 
 TASKS = [
     {"name": "full_ic", "label": "🔍 Full IC", "cmd": [PYTHON, "scripts/full_ic.py"]},
@@ -136,16 +138,27 @@ def _artifact_is_newer_than_dependencies(
 def _refresh_leaderboard_candidate_alignment_snapshot(
     artifact_path: Path,
 ) -> Dict[str, Any] | None:
+    try:
+        from scripts import hb_leaderboard_candidate_probe as leaderboard_probe
+    except Exception:
+        leaderboard_probe = None
+
+    if leaderboard_probe is not None:
+        try:
+            rebuilt = leaderboard_probe.build_probe_result(allow_rebuild=False)
+        except Exception:
+            rebuilt = None
+        if rebuilt:
+            artifact_path.write_text(json.dumps(rebuilt, ensure_ascii=False, indent=2), encoding="utf-8")
+            return rebuilt
+
     payload = _read_json_file(artifact_path)
     if not payload:
         return None
     top_model = payload.get("top_model") or {}
     if not isinstance(top_model, dict) or not top_model:
         return None
-
-    try:
-        from scripts import hb_leaderboard_candidate_probe as leaderboard_probe
-    except Exception:
+    if leaderboard_probe is None:
         return None
 
     now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -185,6 +198,101 @@ def _current_canonical_label_signature() -> Dict[str, Any]:
         "label_rows": row_count,
         "latest_label_timestamp": latest_timestamp,
     }
+
+
+def _bounded_canonical_label_drift(
+    source_meta: Dict[str, Any] | None,
+    current_signature: Dict[str, Any] | None,
+) -> Dict[str, Any] | None:
+    source_meta = source_meta or {}
+    current_signature = current_signature or {}
+    if source_meta.get("horizon_minutes") != 1440:
+        return None
+    if source_meta.get("target_col") != "simulated_pyramid_win":
+        return None
+
+    try:
+        source_rows = int(source_meta.get("label_rows") or 0)
+        current_rows = int(current_signature.get("label_rows") or 0)
+    except (TypeError, ValueError):
+        return None
+
+    row_delta = current_rows - source_rows
+    if row_delta < 0 or row_delta > FAST_CACHE_REUSE_MAX_LABEL_DELTA:
+        return None
+
+    source_ts = _safe_parse_datetime(source_meta.get("latest_label_timestamp"))
+    current_ts = _safe_parse_datetime(current_signature.get("latest_label_timestamp"))
+    if source_ts is None or current_ts is None or current_ts < source_ts:
+        return None
+
+    time_delta_seconds = (current_ts - source_ts).total_seconds()
+    if time_delta_seconds > FAST_CACHE_REUSE_MAX_LABEL_TIME_DRIFT_SECONDS:
+        return None
+
+    return {
+        "row_delta": row_delta,
+        "time_delta_seconds": round(time_delta_seconds, 1),
+        "source_label_rows": source_rows,
+        "current_label_rows": current_rows,
+        "source_latest_label_timestamp": source_meta.get("latest_label_timestamp"),
+        "current_latest_label_timestamp": current_signature.get("latest_label_timestamp"),
+    }
+
+
+def _bull_pocket_semantic_signature_from_live_context(live_context: Dict[str, Any] | None) -> Dict[str, Any] | None:
+    live_context = live_context or {}
+    if not isinstance(live_context, dict):
+        return None
+    current_live_structure_bucket = live_context.get("current_live_structure_bucket")
+    regime_gate = live_context.get("regime_gate")
+    entry_quality_label = live_context.get("entry_quality_label")
+    if current_live_structure_bucket is None and regime_gate is None and entry_quality_label is None:
+        return None
+
+    exact_scope_metrics = live_context.get("exact_scope_metrics") or {}
+    exact_scope_rows = live_context.get("exact_scope_rows")
+    if exact_scope_rows is None and isinstance(exact_scope_metrics, dict):
+        exact_scope_rows = exact_scope_metrics.get("rows")
+
+    current_live_structure_bucket_rows = int(live_context.get("current_live_structure_bucket_rows") or 0)
+    exact_scope_rows_int = int(exact_scope_rows or 0)
+    if current_live_structure_bucket_rows == 0 and exact_scope_rows_int == 0:
+        entry_quality_label = None
+
+    return {
+        "regime_label": live_context.get("regime_label"),
+        "regime_gate": regime_gate,
+        "entry_quality_label": entry_quality_label,
+        "decision_quality_label": live_context.get("decision_quality_label"),
+        "current_live_structure_bucket": current_live_structure_bucket,
+        "current_live_structure_bucket_rows": current_live_structure_bucket_rows,
+        "exact_scope_rows": exact_scope_rows_int,
+        "execution_guardrail_reason": live_context.get("execution_guardrail_reason"),
+        "decision_quality_calibration_scope": live_context.get("decision_quality_calibration_scope"),
+    }
+
+
+def _current_bull_pocket_semantic_signature() -> Dict[str, Any] | None:
+    live_probe = _read_json_file(Path(PROJECT_ROOT) / "data" / "live_predict_probe.json")
+    if not live_probe:
+        return None
+    exact_scope = (live_probe.get("decision_quality_scope_diagnostics") or {}).get(
+        "regime_label+regime_gate+entry_quality_label"
+    ) or {}
+    return _bull_pocket_semantic_signature_from_live_context(
+        {
+            "regime_label": live_probe.get("regime_label"),
+            "regime_gate": live_probe.get("regime_gate"),
+            "entry_quality_label": live_probe.get("entry_quality_label"),
+            "decision_quality_label": live_probe.get("decision_quality_label"),
+            "current_live_structure_bucket": live_probe.get("current_live_structure_bucket") or live_probe.get("structure_bucket"),
+            "current_live_structure_bucket_rows": live_probe.get("current_live_structure_bucket_rows"),
+            "exact_scope_rows": exact_scope.get("rows"),
+            "execution_guardrail_reason": live_probe.get("execution_guardrail_reason"),
+            "decision_quality_calibration_scope": live_probe.get("decision_quality_calibration_scope"),
+        }
+    )
 
 
 def _recent_drift_cache_hit() -> Dict[str, Any] | None:
@@ -346,35 +454,40 @@ def _leaderboard_candidate_cache_hit() -> Dict[str, Any] | None:
     payload = _read_json_file(artifact_path)
     if not payload:
         return None
-    artifact_signature = _leaderboard_candidate_semantic_signature(payload)
-    if artifact_signature is None:
-        return None
+
     current_signature = _current_leaderboard_candidate_semantic_signature()
-    if artifact_signature != current_signature:
-        return None
+    artifact_signature = _leaderboard_candidate_semantic_signature(payload)
     dependency_paths = [
         Path(PROJECT_ROOT) / "scripts" / "hb_leaderboard_candidate_probe.py",
         Path(PROJECT_ROOT) / "server" / "routes" / "api.py",
         Path(PROJECT_ROOT) / "backtesting" / "model_leaderboard.py",
     ]
-    artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
-    stale_dependencies = _stale_dependency_paths(artifact_time, dependency_paths)
     cache_reason = "fresh_leaderboard_candidate_artifact_reused"
     refresh_applied = False
 
-    if stale_dependencies:
+    def _attempt_refresh() -> None:
+        nonlocal payload, artifact_signature, cache_reason, refresh_applied
         refreshed_payload = _refresh_leaderboard_candidate_alignment_snapshot(artifact_path)
         if refreshed_payload:
             payload = refreshed_payload
             artifact_signature = _leaderboard_candidate_semantic_signature(payload)
-            artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
-            stale_dependencies = _stale_dependency_paths(artifact_time, dependency_paths)
             refresh_applied = True
             cache_reason = "refreshed_leaderboard_candidate_artifact_reused"
-        if artifact_signature != current_signature:
-            return None
+
+    if artifact_signature != current_signature:
+        _attempt_refresh()
+    if artifact_signature is None or artifact_signature != current_signature:
+        return None
+
+    artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
+    stale_dependencies = _stale_dependency_paths(artifact_time, dependency_paths)
+    if stale_dependencies:
+        _attempt_refresh()
+        artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
+        stale_dependencies = _stale_dependency_paths(artifact_time, dependency_paths)
     if stale_dependencies:
         return None
+
     return {
         "artifact_path": str(artifact_path),
         "reason": cache_reason,
@@ -383,6 +496,8 @@ def _leaderboard_candidate_cache_hit() -> Dict[str, Any] | None:
             "selected_feature_profile": ((payload.get("top_model") or {}).get("selected_feature_profile")),
             "semantic_signature": artifact_signature,
             "refresh_applied": refresh_applied,
+            "leaderboard_payload_source": payload.get("leaderboard_payload_source"),
+            "leaderboard_payload_updated_at": payload.get("leaderboard_payload_updated_at"),
         },
     }
 
@@ -399,13 +514,14 @@ def _feature_group_ablation_cache_hit() -> Dict[str, Any] | None:
     source_meta = payload.get("source_meta") or {}
     current_signature = _current_canonical_label_signature()
     if source_meta:
+        label_drift = _bounded_canonical_label_drift(source_meta, current_signature)
         expected_signature = {
             "label_rows": current_signature.get("label_rows"),
             "latest_label_timestamp": current_signature.get("latest_label_timestamp"),
             "horizon_minutes": 1440,
             "target_col": "simulated_pyramid_win",
         }
-        if source_meta != expected_signature:
+        if source_meta != expected_signature and label_drift is None:
             return None
         dependency_paths = [
             Path(PROJECT_ROOT) / "scripts" / "feature_group_ablation.py",
@@ -417,12 +533,17 @@ def _feature_group_ablation_cache_hit() -> Dict[str, Any] | None:
             return None
         return {
             "artifact_path": str(artifact_path),
-            "reason": "fresh_feature_group_ablation_artifact_reused",
+            "reason": (
+                "fresh_feature_group_ablation_artifact_reused"
+                if source_meta == expected_signature
+                else "bounded_label_drift_feature_group_ablation_artifact_reused"
+            ),
             "details": {
                 "generated_at": payload.get("generated_at"),
                 "recommended_profile": payload.get("recommended_profile"),
                 "recent_rows": payload.get("recent_rows"),
                 "source_meta": source_meta,
+                "label_drift": label_drift,
             },
         }
 
@@ -444,6 +565,55 @@ def _feature_group_ablation_cache_hit() -> Dict[str, Any] | None:
 
 
 def _bull_4h_pocket_cache_hit() -> Dict[str, Any] | None:
+    artifact_path = Path(PROJECT_ROOT) / "data" / "bull_4h_pocket_ablation.json"
+    if not artifact_path.exists():
+        return None
+
+    payload = _read_json_file(artifact_path)
+    if payload:
+        source_meta = payload.get("source_meta") or {}
+        artifact_live_signature = _bull_pocket_semantic_signature_from_live_context(payload.get("live_context") or {})
+        current_live_signature = _current_bull_pocket_semantic_signature()
+        current_signature = _current_canonical_label_signature()
+        expected_signature = {
+            "label_rows": current_signature.get("label_rows"),
+            "latest_label_timestamp": current_signature.get("latest_label_timestamp"),
+            "horizon_minutes": 1440,
+            "target_col": "simulated_pyramid_win",
+        }
+        label_drift = _bounded_canonical_label_drift(source_meta, current_signature) if source_meta else None
+        dependency_paths = [
+            Path(PROJECT_ROOT) / "scripts" / "bull_4h_pocket_ablation.py",
+            Path(PROJECT_ROOT) / "scripts" / "feature_group_ablation.py",
+            Path(PROJECT_ROOT) / "model" / "predictor.py",
+            Path(PROJECT_ROOT) / "model" / "train.py",
+        ]
+        artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
+        if (
+            source_meta
+            and artifact_live_signature is not None
+            and current_live_signature is not None
+            and artifact_live_signature == current_live_signature
+            and (source_meta == expected_signature or label_drift is not None)
+            and _artifact_is_newer_than_dependencies(artifact_time, dependency_paths)
+        ):
+            return {
+                "artifact_path": str(artifact_path),
+                "reason": (
+                    "fresh_bull_4h_pocket_artifact_reused"
+                    if source_meta == expected_signature
+                    else "bounded_label_drift_bull_4h_pocket_artifact_reused"
+                ),
+                "details": {
+                    "generated_at": payload.get("generated_at"),
+                    "feature_timestamp": ((payload.get("live_context") or {}).get("feature_timestamp")),
+                    "current_live_structure_bucket": ((payload.get("live_context") or {}).get("current_live_structure_bucket")),
+                    "source_meta": source_meta,
+                    "label_drift": label_drift,
+                    "semantic_signature": artifact_live_signature,
+                },
+            }
+
     return _artifact_cache_hit_from_dependencies(
         artifact_relpath="data/bull_4h_pocket_ablation.json",
         reason="fresh_bull_4h_pocket_artifact_reused",
@@ -1737,6 +1907,11 @@ def collect_leaderboard_candidate_diagnostics() -> Dict[str, Any]:
         "support_blocker_state": alignment.get("support_blocker_state"),
         "proxy_boundary_verdict": alignment.get("proxy_boundary_verdict"),
         "leaderboard_snapshot_created_at": alignment.get("leaderboard_snapshot_created_at"),
+        "leaderboard_payload_source": payload.get("leaderboard_payload_source"),
+        "leaderboard_payload_updated_at": payload.get("leaderboard_payload_updated_at"),
+        "leaderboard_payload_cache_age_sec": payload.get("leaderboard_payload_cache_age_sec"),
+        "leaderboard_payload_stale": payload.get("leaderboard_payload_stale"),
+        "leaderboard_payload_error": payload.get("leaderboard_payload_error"),
         "alignment_evaluated_at": alignment.get("alignment_evaluated_at"),
         "current_alignment_inputs_stale": alignment.get("current_alignment_inputs_stale"),
         "current_alignment_recency": alignment.get("current_alignment_recency") or {},
@@ -2340,6 +2515,7 @@ def main(argv=None):
             f"closure={leaderboard_candidate_diagnostics.get('governance_current_closure')} "
             f"support={support_progress.get('status')} Δ={support_progress.get('delta_vs_previous')} "
             f"runtime_inputs_current={current_alignment.get('inputs_current')} "
+            f"payload_source={leaderboard_candidate_diagnostics.get('leaderboard_payload_source')} "
             f"snapshot_stale={(leaderboard_candidate_diagnostics.get('artifact_recency') or {}).get('alignment_snapshot_stale')} "
             f"live_bucket_rows={leaderboard_candidate_diagnostics.get('live_current_structure_bucket_rows')}"
             f" blocked={blocked_text or 'none'}"

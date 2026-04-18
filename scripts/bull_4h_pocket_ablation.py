@@ -85,10 +85,20 @@ def _safe_topk_win_rate(y_true: pd.Series, proba: np.ndarray, top_k: float = TOP
 
 
 def _load_frame() -> tuple[pd.DataFrame, pd.Series, pd.Series]:
-    X, y, regimes = feature_group_module._load_training_frame()
+    loaded = feature_group_module._load_training_frame()
+    X, y, regimes = loaded[:3]
     frame = X.copy()
     frame["regime_label"] = regimes.values
     return frame, y, regimes
+
+
+def _load_frame_with_source_meta() -> tuple[pd.DataFrame, pd.Series, pd.Series, dict[str, Any]]:
+    loaded = feature_group_module._load_training_frame()
+    X, y, regimes = loaded[:3]
+    source_meta = loaded[3] if len(loaded) > 3 and isinstance(loaded[3], dict) else {}
+    frame = X.copy()
+    frame["regime_label"] = regimes.values
+    return frame, y, regimes, source_meta
 
 
 def _derive_live_bucket_columns(frame: pd.DataFrame) -> pd.DataFrame:
@@ -1038,7 +1048,7 @@ def _write_markdown(payload: dict[str, Any]) -> None:
 
 
 def main() -> None:
-    frame, y, _ = _load_frame()
+    frame, y, _, source_meta = _load_frame_with_source_meta()
     frame = _derive_live_bucket_columns(frame)
     all_columns = [
         c for c in frame.columns
@@ -1081,6 +1091,7 @@ def main() -> None:
 
     payload = {
         "generated_at": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M:%S"),
+        "source_meta": source_meta,
         "target_col": TARGET_COL,
         "collapse_features": COLLAPSE_FEATURES,
         "collapse_quantile": COLLAPSE_QUANTILE,
