@@ -233,7 +233,7 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 ### 6. 可視化層
 顯示每個特徵的 IC、勝率、風險貢獻、spot-long 勝率、回測摘要與會議整理。
 
-**Heartbeat 2026-04-19 live lane-vs-spillover UI contract**：`/api/status` 的 `execution.live_runtime_truth` 不得只把 live pathology 藏在長篇 `runtime_closure_summary`。後端必須額外輸出 `decision_quality_scope_pathology_summary={focus_scope, exact_live_lane, spillover, summary}`，而 `web/src/pages/Dashboard.tsx` 與 `web/src/pages/StrategyLab.tsx` 必須透過 `LivePathologySummaryCard` 直接把「exact live lane」與「broader spillover」並排顯示。這個 surface 的目的，是讓 operator 一眼看懂：當前 current-live bucket 與更寬 bull|ALLOW spillover pocket 並不是同一條真相，避免再把 broader toxic rows 誤讀成 exact live lane 的部署依據。
+**Heartbeat 2026-04-19 live lane-vs-spillover UI contract**：`/api/status` 的 `execution.live_runtime_truth` 不得只把 live pathology 藏在長篇 `runtime_closure_summary`。後端必須額外輸出 `decision_quality_scope_pathology_summary={focus_scope, exact_live_lane, spillover, summary}`，而 `web/src/pages/Dashboard.tsx` 與 `web/src/pages/StrategyLab.tsx` 必須透過 `LivePathologySummaryCard` 直接把「exact live lane」與「broader spillover」並排顯示。當 exact live lane rows=0 時，後端仍必須用 **current live row gate inputs** 當對照基準輸出 spillover 4H feature contrast（`feature_shift_reference=current_live_row_gate_inputs`），避免 UI 退回只有 WR/品質空值、卻看不到 spillover 與當前 live row 結構差異的假對齊。這個 surface 的目的，是讓 operator 一眼看懂：當前 current-live bucket 與更寬 bull|ALLOW spillover pocket 並不是同一條真相，避免再把 broader toxic rows 誤讀成 exact live lane 的部署依據。
 
 ### 7. Execution runtime surface
 Execution surface 現在採 **operations / diagnostics split**：`/execution` 承載 operator workflow（run control、manual trade、automation toggle、capital preview），`Dashboard` 保留 canonical diagnostics / guardrail / recovery proof chain，底層共同消費 `/api/status` 與 `/api/trade` contract。

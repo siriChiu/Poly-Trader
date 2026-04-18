@@ -826,6 +826,12 @@ def _build_live_decision_profile(features: Optional[Dict], max_layers: int = LIV
         "entry_quality": entry_quality,
         "entry_quality_label": _quality_label(entry_quality),
         "entry_quality_components": entry_quality_breakdown,
+        "live_gate_inputs": {
+            "feat_4h_bias200": _round_optional(_f("feat_4h_bias200")),
+            "feat_4h_bb_pct_b": _round_optional(bb_pct_b_value),
+            "feat_4h_dist_bb_lower": _round_optional(dist_bb_lower_value),
+            "feat_4h_dist_swing_low": _round_optional(dist_swing_low_value),
+        },
         "allowed_layers": allowed_layers,
         "allowed_layers_reason": raw_allowed_layers_reason,
         "allowed_layers_raw_reason": raw_allowed_layers_reason,
@@ -1766,6 +1772,44 @@ def _longest_binary_streak(rows: List[Dict[str, Any]], key: str, target_value: i
     }
 
 
+def _live_scope_reference_row(decision_profile: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(decision_profile, dict):
+        return {}
+    live_gate_inputs = decision_profile.get("live_gate_inputs")
+    if not isinstance(live_gate_inputs, dict):
+        live_gate_inputs = {}
+
+    row: Dict[str, Any] = {
+        "timestamp": "__current_live__",
+        "symbol": "LIVE",
+        "regime_label": decision_profile.get("regime_label"),
+        "regime_gate": decision_profile.get("regime_gate"),
+        "entry_quality_label": decision_profile.get("entry_quality_label"),
+        "structure_bucket": decision_profile.get("structure_bucket"),
+        "simulated_pyramid_win": decision_profile.get("expected_win_rate"),
+        "simulated_pyramid_pnl": decision_profile.get("expected_pyramid_pnl"),
+        "simulated_pyramid_quality": decision_profile.get("expected_pyramid_quality"),
+        "simulated_pyramid_drawdown_penalty": decision_profile.get("expected_drawdown_penalty"),
+        "simulated_pyramid_time_underwater": decision_profile.get("expected_time_underwater"),
+    }
+    for feature_key in (
+        "feat_4h_bias200",
+        "feat_4h_bb_pct_b",
+        "feat_4h_dist_bb_lower",
+        "feat_4h_dist_swing_low",
+    ):
+        row[feature_key] = live_gate_inputs.get(feature_key)
+
+    has_gate_inputs = any(row.get(key) is not None for key in (
+        "feat_4h_bias200",
+        "feat_4h_bb_pct_b",
+        "feat_4h_dist_bb_lower",
+        "feat_4h_dist_swing_low",
+    ))
+    return row if has_gate_inputs else {}
+
+
+
 def _feature_mean_snapshot(
     rows: List[Dict[str, Any]],
     reference_rows: List[Dict[str, Any]],
@@ -2431,6 +2475,7 @@ def _scope_spillover_vs_exact_live_lane(
     exact_scoped_rows: List[Dict[str, Any]],
     scope_info: Dict[str, Any],
     exact_scope_info: Dict[str, Any],
+    live_reference_row: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     scope_rows = int(scope_info.get("rows") or 0)
     exact_rows = int(exact_scope_info.get("rows") or 0)
@@ -2472,6 +2517,13 @@ def _scope_spillover_vs_exact_live_lane(
     worst_spillover_feature_snapshot = None
     worst_spillover_gate_path_summary = None
     exact_live_gate_path_summary = _summarize_gate_path(exact_scoped_rows)
+    reference_rows = list(exact_scoped_rows)
+    feature_shift_reference = "exact_live_lane"
+    if not reference_rows and isinstance(live_reference_row, dict) and live_reference_row:
+        reference_rows = [live_reference_row]
+        feature_shift_reference = "current_live_row_gate_inputs"
+    elif not reference_rows:
+        feature_shift_reference = None
     if worst_spillover_regime_gate and worst_spillover_regime_gate.get("regime_gate"):
         target_regime_gate = worst_spillover_regime_gate.get("regime_gate")
         worst_spillover_rows = [
@@ -2480,12 +2532,12 @@ def _scope_spillover_vs_exact_live_lane(
         ]
         worst_spillover_contrast = _reference_window_contrast(
             worst_spillover_rows,
-            exact_scoped_rows,
+            reference_rows,
             feature_keys=gate_input_features,
         )
         worst_spillover_feature_snapshot = _feature_mean_snapshot(
             worst_spillover_rows,
-            exact_scoped_rows,
+            reference_rows,
             feature_keys=gate_input_features,
         )
         worst_spillover_gate_path_summary = _summarize_gate_path(worst_spillover_rows)
@@ -2503,6 +2555,7 @@ def _scope_spillover_vs_exact_live_lane(
         "worst_extra_regime_gate_feature_snapshot": worst_spillover_feature_snapshot,
         "worst_extra_regime_gate_path_summary": worst_spillover_gate_path_summary,
         "exact_live_gate_path_summary": exact_live_gate_path_summary,
+        "feature_shift_reference": feature_shift_reference,
         "win_rate_delta_vs_exact": _round_optional(
             None if scope_win_rate is None or exact_win_rate is None else float(scope_win_rate) - float(exact_win_rate)
         ),
@@ -2634,6 +2687,7 @@ def _build_decision_quality_scope_diagnostics(
     exact_live_scope_name = "regime_label+regime_gate+entry_quality_label"
     exact_live_scope = diagnostics.get(exact_live_scope_name) or {}
     exact_live_scope_rows = scope_rows.get(exact_live_scope_name) or []
+    live_reference_row = _live_scope_reference_row(decision_profile)
     diagnostics.setdefault(exact_live_scope_name, {})["spillover_vs_exact_live_lane"] = None
     for scope_name in (
         "regime_gate+entry_quality_label",
@@ -2649,6 +2703,7 @@ def _build_decision_quality_scope_diagnostics(
             exact_live_scope_rows,
             scope_info,
             exact_live_scope,
+            live_reference_row=live_reference_row,
         )
 
     focus_scopes = (
@@ -3549,7 +3604,15 @@ def _summarize_decision_quality_contract(
         expected_drawdown_penalty = _max_optional(expected_drawdown_penalty, pathology_summary.get("avg_drawdown_penalty"))
         expected_time_underwater = _max_optional(expected_time_underwater, pathology_summary.get("avg_time_underwater"))
 
-    scope_diagnostics = _build_decision_quality_scope_diagnostics(rows, decision_profile)
+    scope_reference_profile = {
+        **decision_profile,
+        "expected_win_rate": expected_win_rate,
+        "expected_pyramid_pnl": expected_pnl,
+        "expected_pyramid_quality": expected_quality,
+        "expected_drawdown_penalty": expected_drawdown_penalty,
+        "expected_time_underwater": expected_time_underwater,
+    }
+    scope_diagnostics = _build_decision_quality_scope_diagnostics(rows, scope_reference_profile)
     exact_live_lane_guardrail = _exact_live_lane_toxicity_guardrail(
         decision_profile,
         chosen_scope,

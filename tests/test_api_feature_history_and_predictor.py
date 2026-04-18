@@ -2082,6 +2082,109 @@ def test_decision_quality_scope_diagnostics_expose_narrow_and_broad_pathology_la
     }
 
 
+
+def test_scope_spillover_uses_current_live_gate_inputs_when_exact_lane_missing():
+    rows = []
+    for idx, (bias200, bb_pct_b, dist_bb_lower, dist_swing_low) in enumerate(
+        [
+            (9.8, 0.9, 3.0, 5.1),
+            (10.0, 0.92, 3.1, 5.2),
+            (9.9, 0.91, 3.05, 5.3),
+        ]
+    ):
+        rows.append(
+            {
+                "timestamp": f"2026-04-18T0{idx}:00:00",
+                "symbol": "BTCUSDT",
+                "regime_label": "bull",
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                "feat_4h_bias200": bias200,
+                "feat_4h_dist_bb_lower": dist_bb_lower,
+                "feat_4h_dist_swing_low": dist_swing_low,
+                "feat_4h_bb_pct_b": bb_pct_b,
+                "simulated_pyramid_win": 0.0,
+                "simulated_pyramid_pnl": -0.0109,
+                "simulated_pyramid_quality": -0.2947,
+                "simulated_pyramid_drawdown_penalty": 0.3822,
+                "simulated_pyramid_time_underwater": 0.8202,
+            }
+        )
+
+    diags = predictor_module._build_decision_quality_scope_diagnostics(
+        rows,
+        {
+            "regime_label": "bull",
+            "regime_gate": "BLOCK",
+            "entry_quality_label": "D",
+            "structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "live_gate_inputs": {
+                "feat_4h_bias200": 10.8,
+                "feat_4h_bb_pct_b": 0.23,
+                "feat_4h_dist_bb_lower": 0.6648,
+                "feat_4h_dist_swing_low": 3.0927,
+            },
+            "expected_win_rate": 0.0,
+            "expected_pyramid_pnl": -0.0095,
+            "expected_pyramid_quality": -0.2865,
+            "expected_drawdown_penalty": 0.3873,
+            "expected_time_underwater": 0.9023,
+        },
+    )
+
+    regime_scope = diags["regime_label+entry_quality_label"]
+    assert regime_scope["rows"] == 3
+    spillover = regime_scope["spillover_vs_exact_live_lane"]
+    assert spillover["extra_rows"] == 3
+    assert spillover["feature_shift_reference"] == "current_live_row_gate_inputs"
+    assert spillover["win_rate_delta_vs_exact"] is None
+    assert spillover["worst_extra_regime_gate"] == {
+        "regime_gate": "bull|CAUTION",
+        "regime": "bull",
+        "gate": "CAUTION",
+        "rows": 3,
+        "win_rate": 0.0,
+        "avg_pnl": -0.0109,
+        "avg_quality": -0.2947,
+        "avg_drawdown_penalty": 0.3822,
+        "avg_time_underwater": 0.8202,
+    }
+    assert spillover["worst_extra_regime_gate_feature_snapshot"] == {
+        "feat_4h_bias200": {"current_mean": 9.9, "reference_mean": 10.8, "mean_delta": -0.9},
+        "feat_4h_bb_pct_b": {"current_mean": 0.91, "reference_mean": 0.23, "mean_delta": 0.68},
+        "feat_4h_dist_bb_lower": {"current_mean": 3.05, "reference_mean": 0.6648, "mean_delta": 2.3852},
+        "feat_4h_dist_swing_low": {"current_mean": 5.2, "reference_mean": 3.0927, "mean_delta": 2.1073},
+    }
+    assert spillover["worst_extra_regime_gate_feature_contrast"] == {
+        "current_quality": {
+            "win_rate": 0.0,
+            "avg_simulated_pnl": -0.0109,
+            "avg_simulated_quality": -0.2947,
+            "avg_drawdown_penalty": 0.3822,
+            "avg_time_underwater": 0.8202,
+        },
+        "reference_quality": {
+            "win_rate": 0.0,
+            "avg_simulated_pnl": -0.0095,
+            "avg_simulated_quality": -0.2865,
+            "avg_drawdown_penalty": 0.3873,
+            "avg_time_underwater": 0.9023,
+        },
+        "win_rate_delta_vs_reference": 0.0,
+        "avg_simulated_pnl_delta_vs_reference": -0.0014,
+        "avg_simulated_quality_delta_vs_reference": -0.0082,
+        "avg_drawdown_penalty_delta_vs_reference": -0.0051,
+        "avg_time_underwater_delta_vs_reference": -0.0821,
+        "top_mean_shift_features": [
+            {"feature": "feat_4h_dist_bb_lower", "current_mean": 3.05, "reference_mean": 0.6648, "mean_delta": 2.3852},
+            {"feature": "feat_4h_dist_swing_low", "current_mean": 5.2, "reference_mean": 3.0927, "mean_delta": 2.1073},
+            {"feature": "feat_4h_bias200", "current_mean": 9.9, "reference_mean": 10.8, "mean_delta": -0.9},
+        ],
+    }
+
+
+
 def test_decision_quality_contract_clamps_to_worse_regime_specific_d_lane_when_broader_scope_hides_bull_pathology():
     def _stamp(day: str, idx: int) -> str:
         hour, minute = divmod(idx, 60)
