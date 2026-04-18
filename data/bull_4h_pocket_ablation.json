@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-18 18:50:18",
+  "generated_at": "2026-04-18 19:53:38",
   "source_meta": {
     "label_rows": 22075,
     "latest_label_timestamp": "2026-04-17T19:48:03.281485",
@@ -20,7 +20,7 @@
     "feat_4h_bb_pct_b": 0.4683
   },
   "live_context": {
-    "feature_timestamp": "2026-04-18 18:49:43.144791",
+    "feature_timestamp": "2026-04-18 19:24:58.625590",
     "regime_label": "bull",
     "regime_gate": "BLOCK",
     "entry_quality_label": "D",
@@ -34,37 +34,37 @@
     "support_route_verdict": "exact_bucket_present_but_below_minimum",
     "support_route_deployable": false,
     "support_progress": {
-      "status": "regressed_under_minimum",
-      "reason": "current q15 exact support 較上一輪回落，需檢查 current bucket / support artifact 是否切換或退化。",
+      "status": "stalled_under_minimum",
+      "reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "current_rows": 41,
       "minimum_support_rows": 50,
       "gap_to_minimum": 9,
-      "delta_vs_previous": -10,
-      "previous_rows": 51,
-      "previous_route_changed": true,
-      "previous_support_route_verdict": "exact_bucket_supported",
-      "previous_support_governance_route": "exact_live_bucket_supported",
-      "stagnant_run_count": 0,
-      "stalled_support_accumulation": false,
+      "delta_vs_previous": 0,
+      "previous_rows": 41,
+      "previous_route_changed": false,
+      "previous_support_route_verdict": "exact_bucket_present_but_below_minimum",
+      "previous_support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "stagnant_run_count": 2,
+      "stalled_support_accumulation": true,
       "escalate_to_blocker": false,
       "history": [
         {
           "heartbeat": "current",
-          "timestamp": "2026-04-18T18:50:12.014492+00:00",
+          "timestamp": "2026-04-18T19:49:06.763486+00:00",
           "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
           "live_current_structure_bucket_rows": 41,
           "minimum_support_rows": 50,
           "support_route_verdict": "exact_bucket_present_but_below_minimum",
-          "support_governance_route": "exact_live_bucket_supported"
+          "support_governance_route": "exact_live_bucket_present_but_below_minimum"
         },
         {
           "heartbeat": "fast",
-          "timestamp": "2026-04-18T18:31:53.069142+00:00",
+          "timestamp": "2026-04-18T18:50:58.331248+00:00",
           "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
-          "live_current_structure_bucket_rows": 51,
+          "live_current_structure_bucket_rows": 41,
           "minimum_support_rows": 50,
-          "support_route_verdict": "exact_bucket_supported",
-          "support_governance_route": "exact_live_bucket_supported"
+          "support_route_verdict": "exact_bucket_present_but_below_minimum",
+          "support_governance_route": "exact_live_bucket_present_but_below_minimum"
         }
       ]
     },

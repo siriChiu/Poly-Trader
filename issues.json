@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-19T03:30:00+08:00",
+  "generated_at": "2026-04-19T03:57:40+08:00",
   "issues": [
     {
       "id": "P0_circuit_breaker_active",
@@ -24,10 +24,10 @@
       "action": "hold breaker-first truth as the only deployment blocker until release math is truly cleared"
     },
     {
-      "id": "P0_q15_exact_support_stalled_under_minimum",
-      "priority": "P0",
+      "id": "P1_q15_exact_support_under_minimum_governance_synced",
+      "priority": "P1",
       "status": "open",
-      "title": "q15 exact support is stalled below minimum while train profile still claims exact-supported production",
+      "title": "q15 exact support remains below minimum, but governance is correctly synced to support-aware production fallback",
       "summary": {
         "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
         "live_current_structure_bucket_rows": 41,
@@ -35,19 +35,17 @@
         "gap_to_minimum": 9,
         "support_progress_status": "stalled_under_minimum",
         "stagnant_run_count": 2,
-        "dual_profile_state": "train_exact_supported_profile_stale_under_minimum",
-        "train_selected_profile": "core_plus_macro_plus_4h_structure_shift",
+        "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
+        "train_selected_profile": "core_plus_macro",
+        "train_selected_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
         "leaderboard_selected_profile": "core_only",
-        "governance_payload_source": "model_leaderboard_cache",
-        "candidate_probe_runtime_sec": 1.401,
-        "comparable_count": 0,
-        "placeholder_count": 6
+        "governance_contract": "dual_role_governance_active"
       },
       "next_actions": [
-        "rerun full train/support-aware profile refresh so feature_profile_meta no longer claims exact-supported production while support remains 41/50",
+        "keep production metadata on support-aware core_plus_macro until exact bucket reaches at least 50 rows",
         "verify with hb_leaderboard_candidate_probe.py, hb_model_leaderboard_api_probe.py, hb_predict_probe.py, and the /lab governance banner"
       ],
-      "action": "sync train/runtime/leaderboard governance back to under-minimum support truth"
+      "action": "preserve synced support-aware fallback semantics while exact support remains under minimum"
     },
     {
       "id": "P1_bull_spillover_pathology_persists",
@@ -78,7 +76,7 @@
       "status": "open",
       "title": "venue readiness is still unverified",
       "summary": {
-        "status_surface": "/lab live deployment sync",
+        "status_surface": "/execution/status and /lab live deployment sync",
         "main_blocker": "live exchange credential 尚未驗證 · order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證"
       },
       "next_actions": [
