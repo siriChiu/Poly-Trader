@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-19 01:32 CST_
+_最後更新：2026-04-19 01:35 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
@@ -9,8 +9,8 @@ _最後更新：2026-04-19 01:32 CST_
 ## 已完成
 - **deployment profile 產品化可見化已落地**：`backtesting/model_leaderboard.py` 的 promoted deployment profiles 已能穩定對齊 scan winner signature，leaderboard top row 現在是 `stable_turning_point_bull_chop_strict_v1 / code_backed_promoted_from_scan`，不再只停在 `scan_backed_best`。
 - **leaderboard stale-cache semantic drift 已修復**：`scripts/hb_leaderboard_candidate_probe.py` 現在會在 cache 缺少 `selected_feature_profile / selected_deployment_profile` 時自動 live rebuild；`hb_model_leaderboard_api_probe.py` 目前為 `stale=false / comparable_count=5 / placeholder_count=1`。
-- **Strategy Lab 已接上 leaderboard governance contract**：`/api/models/leaderboard` 現在會一起回傳 `leaderboard_governance`，`StrategyLab.tsx` 也已顯示 `Global 排名` vs `Production 配置`，讓 global ranking winner 與 production profile split 變得可見。
-- **q15 exact support 已恢復達標**：current live bucket `CAUTION|structure_quality_caution|q15` 現在 `66 >= 50` rows，support shortage 不再是主 blocker；真正 blocker 仍是 breaker。
+- **leaderboard governance split 已推到 operator surface**：`/api/models/leaderboard` 現在會一起回傳 `leaderboard_governance`，`StrategyLab.tsx` 也已顯示 `Global 排名` vs `Production 配置`，讓 global ranking winner 與 production profile split 變得可見。
+- **q15 exact support 仍維持 closure**：current live bucket `CAUTION|structure_quality_caution|q15` 目前 `55 >= 50` rows，support shortage 不是主 blocker；真正 blocker 仍是 breaker。
 
 ---
 
@@ -19,7 +19,7 @@ _最後更新：2026-04-19 01:32 CST_
 ### 目標 A：維持 breaker release math 作為唯一 current-live 真相，直到真正解除
 **目前真相**
 - canonical `1440m` recent `50` 只贏 `0/50`
-- `streak=102`
+- `streak=123`
 - 距離 release floor `15/50` 還差 `15` 勝
 
 **成功標準**
@@ -31,8 +31,8 @@ _最後更新：2026-04-19 01:32 CST_
 - primary drift window = `100`
 - `interpretation=distribution_pathology`
 - `dominant_regime=bull 100%`
-- canonical tail 已 `102x0`
-- `feat_4h_bias50` 仍是 current q15 lane 的最大單點 floor-gap component（`remaining_gap_to_floor=0.1707`）
+- canonical tail 已 `123x0`
+- `feat_4h_bias50` 仍是 current q15 lane 的最大單點 floor-gap component（`remaining_gap_to_floor≈0.1785`）
 
 **成功標準**
 - 能清楚指出 recent `50 / 100 / 1000` 為何持續形成 loss tail；
@@ -44,6 +44,7 @@ _最後更新：2026-04-19 01:32 CST_
 - candidate probe 仍顯示 `post_threshold_governance_contract_needs_leaderboard_sync`
 - leaderboard global winner = `core_only`
 - train/runtime production profile = `core_plus_macro_plus_4h_structure_shift`
+- current live exact-supported q15 bucket rows = `55 / 50`
 
 **成功標準**
 - heartbeat / docs / operator payload 都能清楚區分 `global shrinkage winner` 與 `exact-supported production profile` 的角色；
