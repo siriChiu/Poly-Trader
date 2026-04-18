@@ -81,10 +81,39 @@ def _timestamp_to_iso(value: Any) -> str | None:
     return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _payload_has_rows(payload: dict[str, Any] | None) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    helper = getattr(api_module, "_model_leaderboard_payload_has_rows", None)
+    if callable(helper):
+        try:
+            return bool(helper(payload))
+        except Exception:
+            pass
+    return bool(
+        payload.get("leaderboard")
+        or payload.get("placeholder_rows")
+        or payload.get("placeholder_models")
+    )
+
+
+def _normalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    helper = getattr(api_module, "_normalize_model_leaderboard_payload", None)
+    if callable(helper):
+        try:
+            normalized = helper(payload)
+        except Exception:
+            normalized = payload
+        return normalized if isinstance(normalized, dict) else payload
+    return payload
+
+
 def _payload_missing_selection_fields(payload: dict[str, Any]) -> bool:
     if not isinstance(payload, dict):
         return True
-    rows = payload.get("leaderboard") or payload.get("placeholder_rows") or []
+    rows = payload.get("leaderboard") or payload.get("placeholder_rows") or payload.get("placeholder_models") or []
     if not isinstance(rows, list) or not rows:
         return True
     first = rows[0] if isinstance(rows[0], dict) else {}
@@ -105,13 +134,13 @@ def _load_leaderboard_payload(*, allow_rebuild: bool = True) -> tuple[dict[str, 
             if isinstance(cached, dict):
                 cached_payload = cached.get("payload") if isinstance(cached.get("payload"), dict) else None
                 legacy_payload = cached if cached_payload is None and isinstance(cached.get("leaderboard"), list) else None
-                if cached_payload is not None and cached_payload.get("leaderboard"):
-                    payload = cached_payload
+                if cached_payload is not None and _payload_has_rows(cached_payload):
+                    payload = _normalize_payload(cached_payload)
                     updated_at = float(cached.get("updated_at") or 0.0)
                     source_error = cached.get("error")
                     source = "model_leaderboard_cache"
-                elif legacy_payload is not None and legacy_payload.get("leaderboard"):
-                    payload = legacy_payload
+                elif legacy_payload is not None and _payload_has_rows(legacy_payload):
+                    payload = _normalize_payload(legacy_payload)
                     updated_at = Path(cache_path).stat().st_mtime
                     source_error = None
                     source = "model_leaderboard_cache"
@@ -128,8 +157,8 @@ def _load_leaderboard_payload(*, allow_rebuild: bool = True) -> tuple[dict[str, 
             cache_error = cache_error or str(exc)
         if isinstance(snapshot, dict):
             snapshot_payload = snapshot.get("payload")
-            if isinstance(snapshot_payload, dict) and snapshot_payload.get("leaderboard"):
-                payload = snapshot_payload
+            if isinstance(snapshot_payload, dict) and _payload_has_rows(snapshot_payload):
+                payload = _normalize_payload(snapshot_payload)
                 updated_at = float(snapshot.get("updated_at") or 0.0)
                 source_error = snapshot.get("error")
                 source = "latest_persisted_snapshot"
@@ -150,7 +179,7 @@ def _load_leaderboard_payload(*, allow_rebuild: bool = True) -> tuple[dict[str, 
         stale = None
 
     if not payload and allow_rebuild:
-        payload = api_module._build_model_leaderboard_payload()
+        payload = _normalize_payload(api_module._build_model_leaderboard_payload())
         updated_at = time.time()
         source_error = None
         source = "live_rebuild"
@@ -177,11 +206,15 @@ def _load_leaderboard_payload(*, allow_rebuild: bool = True) -> tuple[dict[str, 
 def _top_model_payload(payload: dict[str, Any]) -> dict[str, Any]:
     leaderboard = payload.get("leaderboard") or []
     placeholder_rows = payload.get("placeholder_rows") or []
+    placeholder_models = payload.get("placeholder_models") or []
     top_source = "leaderboard"
     rows = leaderboard
     if not rows and placeholder_rows:
         rows = placeholder_rows
         top_source = "placeholder_rows"
+    elif not rows and placeholder_models:
+        rows = placeholder_models
+        top_source = "placeholder_models"
     top = rows[0] if rows else {}
     return {
         "model_name": top.get("model_name"),
@@ -754,7 +787,7 @@ def _build_alignment(
 
 def build_probe_result(*, allow_rebuild: bool = True, generated_at: str | None = None) -> dict[str, Any] | None:
     payload, payload_meta = _load_leaderboard_payload(allow_rebuild=allow_rebuild)
-    if not payload.get("leaderboard"):
+    if not _payload_has_rows(payload):
         return None
     top_model = _top_model_payload(payload)
     snapshot_history = payload.get("snapshot_history") or []

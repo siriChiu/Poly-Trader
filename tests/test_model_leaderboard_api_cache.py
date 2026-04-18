@@ -105,6 +105,50 @@ def test_api_model_leaderboard_exposes_leaderboard_governance_payload(monkeypatc
 
 
 
+def test_api_model_leaderboard_prefers_fresher_governance_probe_over_cached_payload(monkeypatch, tmp_path):
+    monkeypatch.setattr(api_module, "_load_model_leaderboard_cache_file", lambda: None)
+    monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: None)
+    governance_path = tmp_path / "leaderboard_feature_profile_probe.json"
+    governance_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-19T03:29:22Z",
+                "alignment": {
+                    "dual_profile_state": "train_exact_supported_profile_stale_under_minimum",
+                    "leaderboard_selected_profile": "core_only",
+                    "governance_contract": {
+                        "verdict": "train_profile_contract_stale_against_current_support",
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_LEADERBOARD_GOVERNANCE_PROBE_PATH", governance_path)
+    _seed_cache(
+        monkeypatch,
+        payload={
+            "leaderboard": [{"model_name": "xgboost", "overall_score": 0.88}],
+            "quadrant_points": [{"model_name": "xgboost", "overall_score": 0.88}],
+            "count": 1,
+            "leaderboard_governance": {
+                "generated_at": "2026-04-18T18:50:30Z",
+                "dual_profile_state": "stale_cached_state",
+                "governance_contract": {"verdict": "stale_cached_verdict"},
+            },
+        },
+        updated_at=time.time(),
+    )
+
+    payload = asyncio.run(api_module.api_model_leaderboard())
+
+    assert payload["leaderboard_governance"]["generated_at"] == "2026-04-19T03:29:22Z"
+    assert payload["leaderboard_governance"]["dual_profile_state"] == "train_exact_supported_profile_stale_under_minimum"
+    assert payload["leaderboard_governance"]["governance_contract"]["verdict"] == "train_profile_contract_stale_against_current_support"
+
+
+
 def test_api_model_leaderboard_returns_refreshing_shell_when_no_cache(monkeypatch):
     monkeypatch.setattr(api_module, "_load_model_leaderboard_cache_file", lambda: None)
     calls = {"count": 0}

@@ -3356,6 +3356,24 @@ def _load_leaderboard_governance_summary(path: Optional[Path] = None) -> Optiona
 
 
 
+def _should_override_leaderboard_governance(
+    current: Optional[Dict[str, Any]],
+    candidate: Optional[Dict[str, Any]],
+) -> bool:
+    if not isinstance(candidate, dict):
+        return False
+    if not isinstance(current, dict):
+        return True
+    candidate_dt = _parse_utc_datetime(candidate.get("generated_at"))
+    current_dt = _parse_utc_datetime(current.get("generated_at"))
+    if candidate_dt is None:
+        return False
+    if current_dt is None:
+        return True
+    return candidate_dt >= current_dt
+
+
+
 def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str, Any]:
     from backtesting.model_leaderboard import ModelLeaderboard
 
@@ -3631,10 +3649,12 @@ async def api_model_leaderboard(force: bool = False) -> Dict[str, Any]:
         last_refresh_reason = _MODEL_LB_CACHE.get("last_refresh_reason")
 
     payload = _normalize_model_leaderboard_payload(payload) if isinstance(payload, dict) else payload
-    if isinstance(payload, dict) and payload.get("leaderboard_governance") is None:
-        governance_payload = _load_leaderboard_governance_summary()
-        if governance_payload is not None:
-            payload = {**payload, "leaderboard_governance": governance_payload}
+    governance_payload = _load_leaderboard_governance_summary()
+    if isinstance(payload, dict) and _should_override_leaderboard_governance(
+        payload.get("leaderboard_governance"),
+        governance_payload,
+    ):
+        payload = {**payload, "leaderboard_governance": governance_payload}
 
     now = time.time()
     age_sec = now - updated_at if updated_at else None

@@ -1,6 +1,6 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-18 18:49:43.144791**
+- feature_timestamp: **2026-04-18 19:24:58.625590**
 - target: `simulated_pyramid_win`
 - live path: **bull / BLOCK / D**
 - signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
@@ -16,18 +16,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.3612** / trade_floor **0.55** / gap **-0.1888**
-- base_quality: **0.4227** × weight **0.75**
-- structure_quality: **0.1765** × weight **0.25**
-- base components: feat_4h_bias50=0.0173 (w=0.4, contrib=0.0069), feat_nose=0.4904 (w=0.18, contrib=0.0883), feat_pulse=0.658 (w=0.27, contrib=0.1776), feat_ear=0.9993 (w=0.15, contrib=0.1499)
-- structure components: feat_4h_bb_pct_b=0.1594 (w=0.34, contrib=0.0542), feat_4h_dist_bb_lower=0.0578 (w=0.33, contrib=0.0191), feat_4h_dist_swing_low=0.3128 (w=0.33, contrib=0.1032)
+- final entry_quality: **0.3867** / trade_floor **0.55** / gap **-0.1633**
+- base_quality: **0.4587** × weight **0.75**
+- structure_quality: **0.1709** × weight **0.25**
+- base components: feat_4h_bias50=0.0244 (w=0.4, contrib=0.0098), feat_nose=0.5907 (w=0.18, contrib=0.1063), feat_pulse=0.7142 (w=0.27, contrib=0.1928), feat_ear=0.9982 (w=0.15, contrib=0.1497)
+- structure components: feat_4h_bb_pct_b=0.1497 (w=0.34, contrib=0.0509), feat_4h_dist_bb_lower=0.0543 (w=0.33, contrib=0.0179), feat_4h_dist_swing_low=0.3094 (w=0.33, contrib=0.1021)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.1888**
-- base_group_max_entry_gain: **0.433** | structure_group_max_entry_gain: **0.2059**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.6293, max_gain≈0.2948）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.6293)
+- remaining_gap_to_floor: **0.1633**
+- base_group_max_entry_gain: **0.4061** | structure_group_max_entry_gain: **0.2073**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.5443, max_gain≈0.2927）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.5443)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 

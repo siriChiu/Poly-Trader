@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-19T02:58:00+08:00",
+  "generated_at": "2026-04-19T03:30:00+08:00",
   "issues": [
     {
       "id": "P0_circuit_breaker_active",
@@ -18,64 +18,59 @@
         "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15"
       },
       "next_actions": [
-        "keep hb_predict_probe.py and hb_circuit_breaker_audit.py as the primary truth for current-live blocker semantics",
-        "keep all operator surfaces breaker-first until recent 50 recovers to at least 15 wins and streak < 50",
-        "verify with hb_predict_probe.py, hb_circuit_breaker_audit.py fast, and browser checks on / and /lab"
+        "keep hb_predict_probe.py and the operator surfaces breaker-first until recent 50 recovers to at least 15 wins and streak < 50",
+        "verify with hb_predict_probe.py, /lab live deployment sync, and /execution/status"
       ],
       "action": "hold breaker-first truth as the only deployment blocker until release math is truly cleared"
     },
     {
-      "id": "P0_bull_spillover_tail_pathology",
+      "id": "P0_q15_exact_support_stalled_under_minimum",
       "priority": "P0",
       "status": "open",
-      "title": "recent bull exact-vs-spillover pathology is still unresolved",
+      "title": "q15 exact support is stalled below minimum while train profile still claims exact-supported production",
       "summary": {
-        "recent_window": 100,
-        "recent_100_win_rate": 0.0,
-        "recent_100_streak": 100,
-        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "live_current_structure_bucket_rows": 41,
+        "minimum_support_rows": 50,
+        "gap_to_minimum": 9,
+        "support_progress_status": "stalled_under_minimum",
+        "stagnant_run_count": 2,
+        "dual_profile_state": "train_exact_supported_profile_stale_under_minimum",
+        "train_selected_profile": "core_plus_macro_plus_4h_structure_shift",
+        "leaderboard_selected_profile": "core_only",
+        "governance_payload_source": "model_leaderboard_cache",
+        "candidate_probe_runtime_sec": 1.401,
+        "comparable_count": 0,
+        "placeholder_count": 6
+      },
+      "next_actions": [
+        "rerun full train/support-aware profile refresh so feature_profile_meta no longer claims exact-supported production while support remains 41/50",
+        "verify with hb_leaderboard_candidate_probe.py, hb_model_leaderboard_api_probe.py, hb_predict_probe.py, and the /lab governance banner"
+      ],
+      "action": "sync train/runtime/leaderboard governance back to under-minimum support truth"
+    },
+    {
+      "id": "P1_bull_spillover_pathology_persists",
+      "priority": "P1",
+      "status": "open",
+      "title": "exact live lane and broader bull spillover still disagree sharply",
+      "summary": {
         "exact_live_lane_rows": 41,
         "exact_live_lane_win_rate": 1.0,
         "exact_live_lane_quality": 0.697,
+        "exact_live_lane_pnl": 0.022,
         "spillover_scope": "bull|ALLOW",
         "spillover_rows": 159,
         "spillover_win_rate": 0.0,
         "spillover_quality": -0.276,
-        "top_shift_features": [
-          "feat_4h_bias200",
-          "feat_4h_dist_swing_low",
-          "feat_4h_dist_bb_lower"
-        ]
+        "spillover_pnl": -0.0103,
+        "recent_zero_streak": 100
       },
       "next_actions": [
         "turn the broader bull spillover pocket into a reproducible gate/calibration/training patch instead of leaving it as a visualization-only diagnosis",
-        "verify with recent_drift_report.py, hb_predict_probe.py, targeted pytest, and the Dashboard/Strategy Lab pathology card"
+        "verify with live_decision_quality_drilldown.json, hb_predict_probe.py, targeted pytest, and the /lab live pathology card"
       ],
       "action": "convert exact-live-lane vs spillover evidence into a productized runtime fix"
-    },
-    {
-      "id": "P1_leaderboard_governance_stale_under_minimum_support",
-      "priority": "P1",
-      "status": "open",
-      "title": "train/leaderboard governance is stale against current under-minimum support truth",
-      "summary": {
-        "dual_profile_state": "train_exact_supported_profile_stale_under_minimum",
-        "governance_contract": "train_profile_contract_stale_against_current_support",
-        "current_closure": "train_still_claims_exact_supported_profile_but_live_bucket_under_minimum",
-        "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
-        "live_current_structure_bucket_rows": 41,
-        "minimum_support_rows": 50,
-        "comparable_count": 0,
-        "placeholder_count": 4,
-        "candidate_probe_status": "timeout_prone",
-        "api_probe_status": "healthy_cached_payload"
-      },
-      "next_actions": [
-        "refresh support-aware profile selection and train metadata so production-profile claims fall back to under-minimum-support truth",
-        "stabilize hb_leaderboard_candidate_probe.py runtime so direct probe output matches the cached API governance payload",
-        "verify with hb_model_leaderboard_api_probe.py, hb_leaderboard_candidate_probe.py, /api/models/leaderboard, and /lab"
-      ],
-      "action": "remove stale exact-supported production-profile semantics from train/runtime/leaderboard surfaces"
     },
     {
       "id": "P1_execution_venue_readiness_unverified",
@@ -83,7 +78,7 @@
       "status": "open",
       "title": "venue readiness is still unverified",
       "summary": {
-        "status_surface": "/api/status",
+        "status_surface": "/lab live deployment sync",
         "main_blocker": "live exchange credential 尚未驗證 · order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證"
       },
       "next_actions": [

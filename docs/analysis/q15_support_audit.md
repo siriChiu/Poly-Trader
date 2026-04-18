@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-18 18:49:43.144791**
+- generated_at: **2026-04-18 19:24:58.625590**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
@@ -30,20 +30,20 @@
 - supported neighbor rows: **0**
 - reason: current q15 exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
-- support_progress.status: **regressed_under_minimum**
+- support_progress.status: **stalled_under_minimum**
 - support_progress.current_rows / minimum: **41 / 50**
-- support_progress.previous_rows: **51**
-- support_progress.delta_vs_previous: **-10**
-- support_progress.stagnant_run_count: **0**
+- support_progress.previous_rows: **41**
+- support_progress.delta_vs_previous: **0**
+- support_progress.stagnant_run_count: **2**
 - support_progress.escalate_to_blocker: **False**
-- support_progress.reason: current q15 exact support 較上一輪回落，需檢查 current bucket / support artifact 是否切換或退化。
+- support_progress.reason: current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。
 
 ## Floor-cross legality
 - verdict: **runtime_blocker_preempts_floor_analysis**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.1888**
+- remaining_gap_to_floor: **0.1633**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.6293**
+- best_single_component_required_score_delta: **0.5443**
 - best_single_component_can_cross_floor: **True**
 - reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 137 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 

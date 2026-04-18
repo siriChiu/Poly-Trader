@@ -961,6 +961,59 @@ def test_load_leaderboard_payload_prefers_latest_snapshot_when_cache_is_empty(tm
 
 
 
+def test_load_leaderboard_payload_keeps_placeholder_only_cache_without_rebuild(tmp_path, monkeypatch):
+    cache_path = tmp_path / "model_leaderboard_cache.json"
+    stale_updated_at = 1_713_100_000.0
+    cache_path.write_text(
+        json.dumps(
+            {
+                "payload": {
+                    "target_col": "simulated_pyramid_win",
+                    "count": 0,
+                    "leaderboard": [],
+                    "placeholder_models": [
+                        {
+                            "rank": None,
+                            "model_name": "rule_baseline",
+                            "selected_feature_profile": "core_only",
+                            "selected_deployment_profile": "standard",
+                            "ranking_status": "no_trade_placeholder",
+                            "ranking_warning": "placeholder warning",
+                            "placeholder_reason": "no_trades_generated_under_current_deployment_profile",
+                        }
+                    ],
+                },
+                "updated_at": stale_updated_at,
+                "error": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hb_leaderboard_candidate_probe.api_module, "MODEL_LB_CACHE_PATH", cache_path, raising=False)
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_load_latest_model_leaderboard_snapshot_payload",
+        lambda: None,
+    )
+    monkeypatch.setattr(hb_leaderboard_candidate_probe.time, "time", lambda: stale_updated_at + 3600)
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_build_model_leaderboard_payload",
+        lambda: (_ for _ in ()).throw(AssertionError("live rebuild should not run for placeholder-only cache")),
+    )
+
+    payload, meta = hb_leaderboard_candidate_probe._load_leaderboard_payload(allow_rebuild=True)
+
+    assert meta["source"] == "model_leaderboard_cache"
+    assert meta["stale"] is True
+    assert hb_leaderboard_candidate_probe._payload_has_rows(payload) is True
+    top_model = hb_leaderboard_candidate_probe._top_model_payload(payload)
+    assert top_model["model_name"] == "rule_baseline"
+    assert top_model["selected_feature_profile"] == "core_only"
+    assert top_model["selected_deployment_profile"] == "standard"
+
+
+
 def test_load_leaderboard_payload_rebuilds_when_cached_payload_is_stale_and_missing_selection_fields(tmp_path, monkeypatch):
     cache_path = tmp_path / "model_leaderboard_cache.json"
     stale_updated_at = 1_713_100_000.0
@@ -1108,6 +1161,55 @@ def test_build_probe_result_uses_newest_snapshot_timestamp(monkeypatch):
     assert result["leaderboard_snapshot_created_at"] == "2026-04-18T09:00:00.767984Z"
     assert captured["leaderboard_snapshot_created_at"] == "2026-04-18T09:00:00.767984Z"
     assert captured["alignment_evaluated_at"] == "2026-04-18T09:00:03.579117Z"
+
+
+
+def test_build_probe_result_supports_placeholder_only_payload(monkeypatch):
+    payload = {
+        "target_col": "simulated_pyramid_win",
+        "count": 0,
+        "leaderboard": [],
+        "placeholder_rows": [
+            {
+                "model_name": "rule_baseline",
+                "selected_feature_profile": "core_only",
+                "selected_deployment_profile": "standard",
+            }
+        ],
+        "placeholder_count": 1,
+        "snapshot_history": [{"created_at": "2026-04-18T09:00:00.767984Z"}],
+    }
+    meta = {
+        "source": "model_leaderboard_cache",
+        "updated_at": "2026-04-18T09:00:00.767984Z",
+        "cache_age_sec": 2,
+        "stale": False,
+        "error": None,
+        "cache_error": None,
+    }
+
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe,
+        "_load_leaderboard_payload",
+        lambda allow_rebuild=True: (payload, meta),
+    )
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe,
+        "_build_alignment",
+        lambda top_model, leaderboard_snapshot_created_at=None, alignment_evaluated_at=None: {"ok": True},
+    )
+
+    result = hb_leaderboard_candidate_probe.build_probe_result(
+        allow_rebuild=False,
+        generated_at="2026-04-18T09:00:03.579117Z",
+    )
+
+    assert result is not None
+    assert result["leaderboard_count"] == 0
+    assert result["top_model"]["model_name"] == "rule_baseline"
+    assert result["top_model"]["top_model_source"] == "placeholder_rows"
+    assert result["top_model"]["selected_feature_profile"] == "core_only"
+    assert result["top_model"]["selected_deployment_profile"] == "standard"
 
 
 
