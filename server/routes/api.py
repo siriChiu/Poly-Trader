@@ -56,6 +56,7 @@ router = APIRouter()
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = str(PROJECT_ROOT / "poly_trader.db")
 MODEL_LB_CACHE_PATH = PROJECT_ROOT / "data" / "model_leaderboard_cache.json"
+_LEADERBOARD_GOVERNANCE_PROBE_PATH = PROJECT_ROOT / "data" / "leaderboard_feature_profile_probe.json"
 _STRATEGY_PARAM_SCAN_PATH = PROJECT_ROOT / "data" / "model_strategy_param_scan_latest.json"
 _MODEL_LB_STALE_AFTER_SEC = 900
 _MODEL_LB_REFRESH_COOLDOWN_SEC = 300
@@ -3214,11 +3215,33 @@ def _load_strategy_param_scan_summary(path: Optional[Path] = None) -> Optional[D
 
 
 
+def _load_leaderboard_governance_summary(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    artifact_path = path or _LEADERBOARD_GOVERNANCE_PROBE_PATH
+    try:
+        if not artifact_path.exists():
+            return None
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Failed to load leaderboard governance probe: %s", exc)
+        return None
+    if not isinstance(payload, dict):
+        return None
+    alignment = payload.get("alignment")
+    if not isinstance(alignment, dict):
+        return None
+    governance = dict(alignment)
+    governance["generated_at"] = payload.get("generated_at")
+    governance["source_artifact"] = str(artifact_path)
+    return governance
+
+
+
 def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str, Any]:
     from backtesting.model_leaderboard import ModelLeaderboard
 
     db_path = db_path or DB_PATH
     strategy_param_scan = _load_strategy_param_scan_summary()
+    leaderboard_governance = _load_leaderboard_governance_summary()
     data_df = load_model_leaderboard_frame(db_path)
     if data_df.empty:
         return {
@@ -3238,6 +3261,7 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
             "overfit_accuracy_threshold": _OVERFIT_ACCURACY_THRESHOLD,
             "target_candidates": [],
             "strategy_param_scan": strategy_param_scan,
+            "leaderboard_governance": leaderboard_governance,
         }
 
     target_col = "simulated_pyramid_win" if "simulated_pyramid_win" in data_df.columns else "label_spot_long_win"
@@ -3285,6 +3309,7 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
         "target_candidates": _summarize_target_candidates(data_df, _OVERFIT_GAP_THRESHOLD, _OVERFIT_ACCURACY_THRESHOLD),
         "data_warning": leaderboard_warning,
         "strategy_param_scan": strategy_param_scan,
+        "leaderboard_governance": leaderboard_governance,
     })
     return payload
 
@@ -3486,6 +3511,10 @@ async def api_model_leaderboard(force: bool = False) -> Dict[str, Any]:
         last_refresh_reason = _MODEL_LB_CACHE.get("last_refresh_reason")
 
     payload = _normalize_model_leaderboard_payload(payload) if isinstance(payload, dict) else payload
+    if isinstance(payload, dict) and payload.get("leaderboard_governance") is None:
+        governance_payload = _load_leaderboard_governance_summary()
+        if governance_payload is not None:
+            payload = {**payload, "leaderboard_governance": governance_payload}
 
     now = time.time()
     age_sec = now - updated_at if updated_at else None

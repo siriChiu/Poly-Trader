@@ -179,3 +179,62 @@ def test_run_probe_suppresses_background_refresh_logs(monkeypatch):
     assert result["suppressed_stderr"] == {"suppressed": False, "line_count": 0, "preview": []}
     assert result["refresh_completed"] is True
     assert call_count["value"] == 2
+
+
+def test_run_probe_preserves_leaderboard_governance_summary(monkeypatch):
+    payload = {
+        "cached": True,
+        "refreshing": False,
+        "stale": False,
+        "updated_at": "2026-04-18T17:28:03Z",
+        "cache_age_sec": 3,
+        "count": 5,
+        "comparable_count": 5,
+        "placeholder_count": 1,
+        "target_col": "simulated_pyramid_win",
+        "leaderboard_governance": {
+            "generated_at": "2026-04-18T17:32:42Z",
+            "dual_profile_state": "post_threshold_profile_governance_stalled",
+            "train_selected_profile": "core_plus_macro_plus_4h_structure_shift",
+            "train_selected_profile_source": "bull_4h_pocket_ablation.exact_supported_profile",
+            "leaderboard_selected_profile": "core_only",
+            "leaderboard_selected_profile_source": "feature_group_ablation.recommended_profile",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "live_current_structure_bucket_rows": 55,
+            "minimum_support_rows": 50,
+            "profile_split": {
+                "global_profile": "core_only",
+                "production_profile": "core_plus_macro_plus_4h_structure_shift",
+            },
+            "governance_contract": {
+                "verdict": "post_threshold_governance_contract_needs_leaderboard_sync",
+                "current_closure": "exact_supported_but_leaderboard_not_synced",
+            },
+            "ignored_large_field": {"should": "not be copied"},
+        },
+    }
+
+    async def fake_api_model_leaderboard():
+        return dict(payload)
+
+    clock = _FakeClock()
+    monkeypatch.setattr(hb_model_leaderboard_api_probe.api_module, "api_model_leaderboard", fake_api_model_leaderboard)
+    monkeypatch.setattr(hb_model_leaderboard_api_probe.time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(hb_model_leaderboard_api_probe.asyncio, "sleep", clock.sleep)
+
+    result = asyncio.run(
+        hb_model_leaderboard_api_probe.run_probe(max_wait_sec=5.0, poll_interval_sec=1.0)
+    )
+
+    governance = result["leaderboard_governance"]
+    assert governance["dual_profile_state"] == "post_threshold_profile_governance_stalled"
+    assert governance["train_selected_profile"] == "core_plus_macro_plus_4h_structure_shift"
+    assert governance["profile_split"] == {
+        "global_profile": "core_only",
+        "production_profile": "core_plus_macro_plus_4h_structure_shift",
+    }
+    assert governance["governance_contract"] == {
+        "verdict": "post_threshold_governance_contract_needs_leaderboard_sync",
+        "current_closure": "exact_supported_but_leaderboard_not_synced",
+    }
+    assert "ignored_large_field" not in governance

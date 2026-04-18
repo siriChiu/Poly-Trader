@@ -478,6 +478,12 @@ interface ModelLeaderboardEntry {
   selected_deployment_profile?: string;
   selected_deployment_profile_label?: string;
   selected_deployment_profile_source?: string;
+  feature_profile?: string;
+  feature_profile_source?: string;
+  selected_feature_profile?: string;
+  selected_feature_profile_source?: string;
+  selected_feature_profile_blocker_applied?: boolean;
+  selected_feature_profile_blocker_reason?: string | null;
   avg_roi: number;
   avg_win_rate: number;
   avg_trades: number;
@@ -603,6 +609,45 @@ interface StrategyParamScanSummary {
   warning?: string | null;
 }
 
+interface LeaderboardGovernanceSummary {
+  generated_at?: string | null;
+  source_artifact?: string | null;
+  dual_profile_state?: string | null;
+  train_selected_profile?: string | null;
+  train_selected_profile_source?: string | null;
+  leaderboard_selected_profile?: string | null;
+  leaderboard_selected_profile_source?: string | null;
+  live_current_structure_bucket?: string | null;
+  live_current_structure_bucket_rows?: number | null;
+  minimum_support_rows?: number | null;
+  current_alignment_inputs_stale?: boolean;
+  profile_split?: {
+    global_profile?: string | null;
+    global_profile_role?: string | null;
+    production_profile?: string | null;
+    production_profile_role?: string | null;
+    split_required?: boolean;
+    verdict?: string | null;
+    reason?: string | null;
+  } | null;
+  governance_contract?: {
+    verdict?: string | null;
+    treat_as_parity_blocker?: boolean;
+    current_closure?: string | null;
+    reason?: string | null;
+    recommended_action?: string | null;
+    support_governance_route?: string | null;
+    live_current_structure_bucket_rows?: number | null;
+    minimum_support_rows?: number | null;
+    support_progress?: {
+      status?: string | null;
+      current_rows?: number | null;
+      minimum_support_rows?: number | null;
+      gap_to_minimum?: number | null;
+    } | null;
+  } | null;
+}
+
 interface ModelLeaderboardMeta {
   refreshing?: boolean;
   cached?: boolean;
@@ -625,6 +670,7 @@ interface ModelLeaderboardMeta {
   storage?: { canonical_store?: string; cache_store?: string } | null;
   snapshot_history?: LeaderboardHistoryRow[];
   strategy_param_scan?: StrategyParamScanSummary | null;
+  leaderboard_governance?: LeaderboardGovernanceSummary | null;
 }
 
 interface StrategyQuadrantPoint {
@@ -838,6 +884,31 @@ const deploymentProfileSourceLabel = (model: ModelLeaderboardEntry) => {
   if (source === "artifact_scan") return "artifact scan";
   if (source === "code_backed") return "code-backed";
   return source || "source unknown";
+};
+const featureProfileDisplayName = (model: ModelLeaderboardEntry) => (
+  model.selected_feature_profile
+  || model.feature_profile
+  || "current_full"
+);
+const featureProfileSourceLabel = (model: ModelLeaderboardEntry) => {
+  const source = model.selected_feature_profile_source || model.feature_profile_source || null;
+  if (source === "feature_group_ablation.recommended_profile") return "global shrinkage winner";
+  if (source === "bull_4h_pocket_ablation.exact_supported_profile") return "bull exact-supported production";
+  if (source === "bull_4h_pocket_ablation.support_aware_profile") return "support-aware production";
+  return source || "source unknown";
+};
+const governanceRoleLabel = (role?: string | null) => {
+  if (role === "global_shrinkage_winner") return "global shrinkage winner";
+  if (role === "bull_exact_supported_production_profile") return "bull exact-supported production";
+  if (role === "support_aware_production_profile") return "support-aware production";
+  return role || "role unknown";
+};
+const governanceSupportRows = (governance?: LeaderboardGovernanceSummary | null) => {
+  const supportProgress = governance?.governance_contract?.support_progress;
+  const currentRows = supportProgress?.current_rows ?? governance?.live_current_structure_bucket_rows ?? governance?.governance_contract?.live_current_structure_bucket_rows;
+  const minimumRows = supportProgress?.minimum_support_rows ?? governance?.minimum_support_rows ?? governance?.governance_contract?.minimum_support_rows;
+  if (!isFiniteNumber(currentRows) || !isFiniteNumber(minimumRows)) return "support —";
+  return `support ${formatDecimal(currentRows, 0)} / ${formatDecimal(minimumRows, 0)}`;
 };
 const describeStrategyRankingReason = (result?: StrategyResult | null) => {
   if (!result) return "尚未回測，無 canonical decision-quality ranking evidence";
@@ -1310,6 +1381,9 @@ export default function StrategyLab() {
   }, [sortedModelLeaderboard]);
   const placeholderModelRows = Array.isArray(modelMeta.placeholder_rows) ? modelMeta.placeholder_rows : [];
   const modelStrategyParamScan = modelMeta.strategy_param_scan ?? null;
+  const leaderboardGovernance = modelMeta.leaderboard_governance ?? null;
+  const governanceContract = leaderboardGovernance?.governance_contract ?? null;
+  const profileSplit = leaderboardGovernance?.profile_split ?? null;
   const modelFallbackCandidates = Array.isArray(modelStrategyParamScan?.best_strategy_candidates)
     ? modelStrategyParamScan.best_strategy_candidates.filter((candidate) => Boolean(candidate))
     : [];
@@ -1609,6 +1683,7 @@ export default function StrategyLab() {
         storage: data?.storage ?? null,
         snapshot_history: Array.isArray(data?.snapshot_history) ? data.snapshot_history : [],
         strategy_param_scan: data?.strategy_param_scan ?? null,
+        leaderboard_governance: data?.leaderboard_governance ?? null,
       };
       setModelLeaderboard(nextModelLeaderboard);
       setModelQuadrantPoints(nextModelQuadrants);
@@ -2571,6 +2646,36 @@ export default function StrategyLab() {
                       </div>
                     </div>
                   )}
+                  {profileSplit?.split_required && governanceContract && (
+                    <div className={`rounded-lg border px-3 py-3 text-xs space-y-2 ${governanceContract.treat_as_parity_blocker ? "border-rose-500/30 bg-rose-500/10 text-rose-50" : "border-cyan-500/30 bg-cyan-500/10 text-cyan-50"}`}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold">排行榜治理同步</div>
+                          <div className="mt-1 text-[11px] opacity-80">{governanceContract.reason || profileSplit.reason || "目前排行榜需要把 global ranking 與 production profile split 顯式同步到 operator surface。"}</div>
+                        </div>
+                        <div className="text-right text-[11px] opacity-80">
+                          <div>{leaderboardGovernance?.generated_at ? `generated ${new Date(leaderboardGovernance.generated_at).toLocaleString("zh-TW")}` : "generated —"}</div>
+                          <div>{governanceSupportRows(leaderboardGovernance)}</div>
+                        </div>
+                      </div>
+                      <div className="grid gap-2 xl:grid-cols-2">
+                        <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
+                          <div className="text-[11px] text-slate-300">Global 排名</div>
+                          <div className="mt-1 font-medium text-slate-100">{profileSplit.global_profile || leaderboardGovernance?.leaderboard_selected_profile || "—"}</div>
+                          <div className="mt-1 text-[11px] text-slate-400">{governanceRoleLabel(profileSplit.global_profile_role)}</div>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
+                          <div className="text-[11px] text-slate-300">Production 配置</div>
+                          <div className="mt-1 font-medium text-slate-100">{profileSplit.production_profile || leaderboardGovernance?.train_selected_profile || "—"}</div>
+                          <div className="mt-1 text-[11px] text-slate-400">{governanceRoleLabel(profileSplit.production_profile_role)}</div>
+                        </div>
+                      </div>
+                      <div className="text-[11px] opacity-80">
+                        closure：{governanceContract.current_closure || leaderboardGovernance?.dual_profile_state || "—"}
+                        {leaderboardGovernance?.live_current_structure_bucket ? ` · live bucket ${leaderboardGovernance.live_current_structure_bucket}` : ""}
+                      </div>
+                    </div>
+                  )}
                   {(modelMeta.comparable_count ?? modelLeaderboard.length) === 0 && modelFallbackCandidates.length > 0 && (
                     <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-3 text-xs text-cyan-50 space-y-3">
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2674,6 +2779,7 @@ export default function StrategyLab() {
                                 </div>
                                 <div className="mt-1 text-[10px] text-slate-500">{model.model_tier_reason || describeRankingReason(model)}</div>
                                 <div className="mt-1 text-[10px] text-slate-600">deployment: {deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)} · {typeof model.rank_delta === "number" ? (model.rank_delta > 0 ? `↑${model.rank_delta}` : model.rank_delta < 0 ? `↓${Math.abs(model.rank_delta)}` : "—") : "—"}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">feature: {featureProfileDisplayName(model)} · {featureProfileSourceLabel(model)}{model.selected_feature_profile_blocker_applied && model.selected_feature_profile_blocker_reason ? ` · blocker ${model.selected_feature_profile_blocker_reason}` : ""}</div>
                               </td>
                               <td className="px-2 py-2 text-right text-emerald-300">{formatDecimal(model.overall_score, 3)}</td>
                               <td className="px-2 py-2 text-right text-cyan-300">{formatDecimal(model.reliability_score, 3)}</td>
@@ -2719,6 +2825,7 @@ export default function StrategyLab() {
                                 </div>
                                 <div className="mt-1 text-[10px] text-slate-500">{describeRankingReason(model)}</div>
                                 <div className="mt-1 text-[10px] text-slate-600">deployment: {deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">feature: {featureProfileDisplayName(model)} · {featureProfileSourceLabel(model)}{model.selected_feature_profile_blocker_applied && model.selected_feature_profile_blocker_reason ? ` · blocker ${model.selected_feature_profile_blocker_reason}` : ""}</div>
                               </td>
                               <td className="px-2 py-2 text-right text-amber-200">{typeof model.raw_rank === "number" ? `#${model.raw_rank}` : "—"}</td>
                               <td className="px-2 py-2 text-right text-amber-200">{formatDecimal(model.overall_score, 3)}</td>

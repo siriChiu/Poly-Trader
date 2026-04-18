@@ -1,4 +1,5 @@
 import asyncio
+import json
 import time
 
 from server.routes import api as api_module
@@ -43,6 +44,64 @@ def test_api_model_leaderboard_returns_cached_payload_without_blocking(monkeypat
     assert payload["leaderboard"][0]["model_name"] == "xgboost"
     assert payload["refreshing"] is False
     assert "cache_age_sec" in payload
+
+
+
+def test_api_model_leaderboard_exposes_leaderboard_governance_payload(monkeypatch, tmp_path):
+    monkeypatch.setattr(api_module, "_load_model_leaderboard_cache_file", lambda: None)
+    monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: None)
+    governance_path = tmp_path / "leaderboard_feature_profile_probe.json"
+    governance_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-19T01:02:03Z",
+                "alignment": {
+                    "dual_profile_state": "post_threshold_profile_governance_stalled",
+                    "train_selected_profile": "core_plus_macro_plus_4h_structure_shift",
+                    "train_selected_profile_source": "bull_4h_pocket_ablation.exact_supported_profile",
+                    "leaderboard_selected_profile": "core_only",
+                    "leaderboard_selected_profile_source": "feature_group_ablation.recommended_profile",
+                    "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                    "live_current_structure_bucket_rows": 69,
+                    "minimum_support_rows": 50,
+                    "profile_split": {
+                        "global_profile": "core_only",
+                        "global_profile_role": "global_shrinkage_winner",
+                        "production_profile": "core_plus_macro_plus_4h_structure_shift",
+                        "production_profile_role": "bull_exact_supported_production_profile",
+                        "split_required": True,
+                        "verdict": "dual_role_required",
+                    },
+                    "governance_contract": {
+                        "verdict": "post_threshold_governance_contract_needs_leaderboard_sync",
+                        "treat_as_parity_blocker": True,
+                        "current_closure": "exact_supported_but_leaderboard_not_synced",
+                        "minimum_support_rows": 50,
+                        "live_current_structure_bucket_rows": 69,
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_LEADERBOARD_GOVERNANCE_PROBE_PATH", governance_path)
+    _seed_cache(
+        monkeypatch,
+        payload={
+            "leaderboard": [{"model_name": "xgboost", "overall_score": 0.88}],
+            "quadrant_points": [{"model_name": "xgboost", "overall_score": 0.88}],
+            "count": 1,
+        },
+        updated_at=time.time(),
+    )
+
+    payload = asyncio.run(api_module.api_model_leaderboard())
+
+    assert payload["leaderboard_governance"]["generated_at"] == "2026-04-19T01:02:03Z"
+    assert payload["leaderboard_governance"]["dual_profile_state"] == "post_threshold_profile_governance_stalled"
+    assert payload["leaderboard_governance"]["profile_split"]["production_profile"] == "core_plus_macro_plus_4h_structure_shift"
+    assert payload["leaderboard_governance"]["governance_contract"]["verdict"] == "post_threshold_governance_contract_needs_leaderboard_sync"
 
 
 
