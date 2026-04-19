@@ -1020,6 +1020,30 @@ def test_compute_regime_gate_downgrades_borderline_allow_q35_to_caution():
     assert gate == "CAUTION"
 
 
+@pytest.mark.parametrize(
+    ("bb_pct_b_value", "dist_bb_lower_value", "dist_swing_low_value"),
+    [
+        (0.45, 5.0, 6.0),
+        (0.75, 6.2, 7.1),
+    ],
+)
+def test_compute_regime_gate_blocks_bull_high_bias200_overheat_pocket(
+    bb_pct_b_value,
+    dist_bb_lower_value,
+    dist_swing_low_value,
+):
+    gate = strategy_lab._compute_regime_gate(
+        9.2,
+        "bull",
+        -10.0,
+        bb_pct_b_value=bb_pct_b_value,
+        dist_bb_lower_value=dist_bb_lower_value,
+        dist_swing_low_value=dist_swing_low_value,
+    )
+
+    assert gate == "BLOCK"
+
+
 def test_run_rule_backtest_records_regime_gate_and_entry_quality():
     result = strategy_lab.run_rule_backtest(
         prices=[100.0, 98.0, 96.0, 108.0],

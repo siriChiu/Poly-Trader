@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import CandlestickChart from "../components/CandlestickChart";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
+import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { fetchApi, useApi } from "../hooks/useApi";
 import { useGlobalProgressTask } from "../hooks/useGlobalProgress";
 import { getSenseConfig } from "../config/senses";
@@ -267,6 +268,19 @@ interface StrategyLabRuntimeStatusResponse {
       label?: string;
       age_minutes?: number | null;
     } | null;
+    venues?: Array<{
+      venue?: string;
+      ok?: boolean;
+      enabled_in_config?: boolean;
+      credentials_configured?: boolean;
+      error?: string | null;
+      contract?: {
+        step_size?: string | number | null;
+        tick_size?: string | number | null;
+        min_qty?: number | null;
+        min_cost?: number | null;
+      } | null;
+    }>;
   } | null;
   execution_reconciliation?: {
     status?: string;
@@ -2130,6 +2144,7 @@ export default function StrategyLab() {
       ? "text-emerald-200"
       : "text-slate-200";
   const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;
+  const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];
   const lifecycleTimeline = executionReconciliation?.lifecycle_timeline ?? null;
   const lifecycleTimelineEvents = Array.isArray(lifecycleTimeline?.events) ? lifecycleTimeline.events : [];
   const runtimeSyncIssues = Array.isArray(executionReconciliation?.issues) ? executionReconciliation.issues : [];
@@ -2412,6 +2427,7 @@ export default function StrategyLab() {
                 <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide opacity-60">venue blockers</div>
                   <div className="mt-1 font-medium">{venueReadinessBlockers.length ? venueReadinessBlockers.join(" · ") : executionSurfaceContract?.operator_message || "目前沒有額外 venue blocker 摘要"}</div>
+                  <VenueReadinessSummary venues={venueChecks} className="mt-2" compact />
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide opacity-60">runtime closure</div>

@@ -122,6 +122,8 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
         'const executionDiagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;',
         'const executionReconciliation = runtimeStatus?.execution_reconciliation ?? null;',
         'const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;',
+        'const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];',
+        'VenueReadinessSummary',
         '💼 Execution 摘要',
         'Dashboard 只保留 Bot 營運摘要',
         'const liveScopePathologySummary =',
@@ -225,6 +227,8 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'const executionOperationsSurface = executionSurfaceContract?.operations_surface ?? null;',
         'const executionDiagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;',
         'const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;',
+        'const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];',
+        'VenueReadinessSummary',
         'const liveRuntimeClosureState = liveDecisionStatus?.runtime_closure_state ?? liveRuntimeTruth?.runtime_closure_state ?? null;',
         'const liveRuntimeClosureSummary = liveDecisionStatus?.runtime_closure_summary ?? liveRuntimeTruth?.runtime_closure_summary ?? null;',
         'const liveRouting = liveRuntimeTruth?.sleeve_routing ?? null;',
@@ -271,6 +275,25 @@ def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
         'recommendedPatch.recommended_profile',
         'recommendedPatch.support_route_verdict',
         'recommendedPatch.recommended_action',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_venue_readiness_summary_component_surfaces_per_venue_contract():
+    source = _read("components/VenueReadinessSummary.tsx")
+    required_snippets = [
+        'type VenueReadinessItem = {',
+        'type VenueReadinessSummaryProps = {',
+        'const readinessTone = (item: VenueReadinessItem) => {',
+        'const readinessLabel = (item: VenueReadinessItem) => {',
+        'const blockerSummary = item.blockers?.length ? item.blockers.join(" · ") : defaultProofSummary;',
+        'config {item.enabled_in_config ? "enabled" : "disabled"}',
+        'creds {item.credentials_configured ? "configured" : "public-only"}',
+        'metadata {item.ok ? "OK" : "FAIL"}',
+        'missing runtime proof',
+        'step {item.contract?.step_size ?? "—"}',
+        'tick {item.contract?.tick_size ?? "—"}',
     ]
     for snippet in required_snippets:
         assert snippet in source

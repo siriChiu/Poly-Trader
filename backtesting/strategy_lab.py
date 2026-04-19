@@ -337,6 +337,12 @@ OVEREXTENDED_4H_DIST_SWING_LOW_MIN = 11.0
 # predictor by fail-closing these weak-structure bull pockets before they appear as
 # valid runtime/backtest candidates.
 BULL_Q15_BIAS50_OVEREXTENDED_MIN = 1.8
+# P0 recent-pathology fix: the breaker-driving bull tail also includes q35/q65 rows
+# where bias200 is extremely hot while structure is only mediocre, not fully broken.
+# Mirror predictor.py so backtests do not keep advertising these lanes as CAUTION/
+# ALLOW candidates.
+BULL_HIGH_BIAS200_OVERHEAT_MIN = 9.0
+BULL_HIGH_BIAS200_OVERHEAT_MAX_STRUCTURE_QUALITY = 0.75
 
 
 def _sanitize_json_like(value: Any) -> Any:
@@ -540,6 +546,12 @@ def _compute_regime_gate(
         bias50_value=bias50_value,
     ):
         return "BLOCK"
+    if base_gate == "ALLOW" and _is_bull_high_bias200_overheat_pocket(
+        regime=regime,
+        bias200_value=bias200_value,
+        structure_quality=structure_quality,
+    ):
+        return "BLOCK"
     # Heartbeat #718 parity: borderline ALLOW+q35 setups were too sparse to treat as
     # trustworthy ALLOW lanes. Keep Strategy Lab aligned with live predictor by
     # downgrading weak-but-not-collapsed 4H structure to CAUTION.
@@ -574,6 +586,23 @@ def _is_bull_q15_bias50_overextended_pocket(
         return False
     quality = float(structure_quality)
     return 0.15 <= quality < 0.35 and float(bias50_value) >= BULL_Q15_BIAS50_OVEREXTENDED_MIN
+
+
+def _is_bull_high_bias200_overheat_pocket(
+    *,
+    regime: Optional[str],
+    bias200_value: Optional[float],
+    structure_quality: Optional[float],
+) -> bool:
+    if str(regime or "").lower() != "bull":
+        return False
+    if bias200_value is None or structure_quality is None:
+        return False
+    quality = float(structure_quality)
+    return (
+        0.35 <= quality < BULL_HIGH_BIAS200_OVERHEAT_MAX_STRUCTURE_QUALITY
+        and float(bias200_value) >= BULL_HIGH_BIAS200_OVERHEAT_MIN
+    )
 
 
 def _compute_4h_structure_quality(

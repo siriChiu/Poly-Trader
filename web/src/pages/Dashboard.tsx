@@ -7,6 +7,7 @@ import AdviceCard from "../components/AdviceCard";
 import FeatureChart from "../components/FeatureChart";
 import CandlestickChart from "../components/CandlestickChart";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
+import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { buildWsUrl, useApi, fetchApi } from "../hooks/useApi";
 import ConfidenceIndicator from "../components/ConfidenceIndicator";
 import { ALL_SENSES, getSenseConfig } from "../config/senses";
@@ -902,6 +903,7 @@ export default function Dashboard() {
       ? "text-emerald-200"
       : "text-slate-300";
   const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;
+  const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
   const metadataSmokeAutoRefresh = metadataSmokeGovernance?.auto_refresh ?? null;
@@ -1096,6 +1098,7 @@ export default function Dashboard() {
             <div className="mt-1 font-semibold">{executionSurfaceContract?.live_ready ? "Ready" : "Blocked"}</div>
             <div className="mt-1 text-[11px] opacity-80">{executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()} · {executionVenueLabel}</div>
             <div className="mt-1 text-[11px] opacity-80">{executionSurfaceContract?.live_ready_blockers?.join(" · ") || executionSurfaceContract?.operator_message || "目前沒有額外 blocker 摘要"}</div>
+            <VenueReadinessSummary venues={venueChecks} className="mt-2" compact />
           </div>
           <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
             <div className="text-[11px] opacity-70">資金 / 曝險</div>

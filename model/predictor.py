@@ -71,6 +71,12 @@ LIVE_4H_OVEREXTENDED_DIST_SWING_LOW_MIN = 11.0
 # bias50 remains stretched. Fail-close these lanes before they are surfaced as live
 # CAUTION entries or allowed through exact-support heuristics.
 LIVE_BULL_Q15_BIAS50_OVEREXTENDED_MIN = 1.8
+# P0 recent-pathology fix: the breaker-driving bull tail no longer lives only in q15.
+# Recent 199-row bull pockets across q35/q65 went 0% win-rate once bias200 reached an
+# extreme overheat zone while structure stayed merely "okay" instead of obviously
+# collapsed. Fail-close these lanes before they advertise CAUTION/ALLOW semantics.
+LIVE_BULL_HIGH_BIAS200_OVERHEAT_MIN = 9.0
+LIVE_BULL_HIGH_BIAS200_OVERHEAT_MAX_STRUCTURE_QUALITY = 0.75
 
 # P0 #H426: Bull regime signal inversion
 # Legacy short-selling logic needed inversion in bull markets.
@@ -415,6 +421,13 @@ def _compute_live_regime_gate_debug(
         ):
             final_gate = "BLOCK"
             final_reason = "bull_q15_bias50_overextended_block"
+        elif _is_live_bull_high_bias200_overheat_pocket(
+            regime=regime,
+            bias200_value=bias200_value,
+            structure_quality=structure_quality,
+        ):
+            final_gate = "BLOCK"
+            final_reason = "bull_high_bias200_overheat_block"
         # Heartbeat #718: ALLOW+q35 produced a live bull path that looked permissive
         # but had almost no historical support (2 rows in the 24h calibration set).
         # Treat borderline 4H structure (<0.65) as CAUTION so runtime semantics stop
@@ -490,6 +503,23 @@ def _is_live_bull_q15_bias50_overextended_pocket(
         return False
     quality = float(structure_quality)
     return 0.15 <= quality < 0.35 and float(bias50_value) >= LIVE_BULL_Q15_BIAS50_OVEREXTENDED_MIN
+
+
+def _is_live_bull_high_bias200_overheat_pocket(
+    *,
+    regime: Optional[str],
+    bias200_value: Optional[float],
+    structure_quality: Optional[float],
+) -> bool:
+    if str(regime or "").lower() != "bull":
+        return False
+    if bias200_value is None or structure_quality is None:
+        return False
+    quality = float(structure_quality)
+    return (
+        0.35 <= quality < LIVE_BULL_HIGH_BIAS200_OVERHEAT_MAX_STRUCTURE_QUALITY
+        and float(bias200_value) >= LIVE_BULL_HIGH_BIAS200_OVERHEAT_MIN
+    )
 
 
 def _live_4h_structure_component_breakdown(

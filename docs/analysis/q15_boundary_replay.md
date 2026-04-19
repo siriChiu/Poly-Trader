@@ -1,6 +1,6 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-04-18 23:45:18.269444**
+- generated_at: **2026-04-19 00:18:39.001837**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_replay_not_applicable**
 - reason: 目前 q15 root-cause verdict 不是 boundary_sensitivity_candidate，boundary replay 不是本輪主路徑。
@@ -9,26 +9,26 @@
 - signal: **CIRCUIT_BREAKER**
 - regime/gate: **bull / BLOCK**
 - structure bucket: **BLOCK|bull_q15_bias50_overextended_block|q15**
-- structure_quality: **0.229**
-- entry_quality: **0.3715** (trade_floor_gap=-0.1785)
+- structure_quality: **0.2542**
+- entry_quality: **0.3243** (trade_floor_gap=-0.2257)
 - support_route: **exact_bucket_missing_exact_lane_proxy_only**
 - floor_cross_legality: **runtime_blocker_preempts_floor_analysis**
 
 ## Boundary replay
 - legacy bucket rows: **0**
-- replay bucket: **BLOCK|structure_quality_block|q00**
-- replay bucket rows: **0**
+- replay bucket: **BLOCK|bull_high_bias200_overheat_block|q35**
+- replay bucket rows: **113**
 - generated_rows_via_boundary_only: **0**
-- preexisting_rows_in_replay_bucket: **0**
-- generated_row_share: **None**
-- dominant_neighbor_bucket: **BLOCK|structure_quality_block|q00** rows=106
+- preexisting_rows_in_replay_bucket: **113**
+- generated_row_share: **0.0**
+- dominant_neighbor_bucket: **BLOCK|bull_high_bias200_overheat_block|q35** rows=120
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.2674 → 0.6233**
-- structure_quality: **0.229 → 0.35**
-- bucket_after: **BLOCK|structure_quality_block|q00**
-- entry_quality: **0.3715 → 0.4017**
-- trade_floor_gap_after: **-0.1483**
+- raw before/after: **0.3253 → 0.6071**
+- structure_quality: **0.2542 → 0.35**
+- bucket_after: **BLOCK|bull_high_bias200_overheat_block|q35**
+- entry_quality: **0.3243 → 0.3483**
+- trade_floor_gap_after: **-0.2017**
 - allowed_layers_after: **0** (regime_gate_block)
 - counterfactual verdict: **bucket_proxy_only_not_trade_floor_fix**
 - counterfactual reason: 只把 feat_4h_bb_pct_b 補到剛好跨 q35，只會把結構 bucket 從 q15 改成 q35；entry_quality 仍低於 trade floor，allowed_layers 仍是 0，表示它更像 bucket proxy，而不是 deployable floor fix。
