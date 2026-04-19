@@ -1495,6 +1495,10 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
             payload = json.loads(result_path.read_text())
         except Exception:
             return {}
+    deployment_blocker_details = payload.get("deployment_blocker_details") or {}
+    support_progress = payload.get("support_progress")
+    if not isinstance(support_progress, dict):
+        support_progress = deployment_blocker_details.get("support_progress") or {}
     return {
         "target_col": payload.get("target_col"),
         "used_model": payload.get("used_model"),
@@ -1530,7 +1534,13 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "deployment_blocker": payload.get("deployment_blocker"),
         "deployment_blocker_reason": payload.get("deployment_blocker_reason"),
         "deployment_blocker_source": payload.get("deployment_blocker_source"),
-        "deployment_blocker_details": payload.get("deployment_blocker_details") or {},
+        "deployment_blocker_details": deployment_blocker_details,
+        "support_route_verdict": payload.get("support_route_verdict") or deployment_blocker_details.get("support_route_verdict"),
+        "support_route_deployable": payload.get("support_route_deployable") if payload.get("support_route_deployable") is not None else deployment_blocker_details.get("support_route_deployable"),
+        "support_governance_route": payload.get("support_governance_route") or deployment_blocker_details.get("support_governance_route"),
+        "support_progress": support_progress,
+        "minimum_support_rows": payload.get("minimum_support_rows") if payload.get("minimum_support_rows") is not None else deployment_blocker_details.get("minimum_support_rows"),
+        "current_live_structure_bucket_gap_to_minimum": payload.get("current_live_structure_bucket_gap_to_minimum") if payload.get("current_live_structure_bucket_gap_to_minimum") is not None else deployment_blocker_details.get("current_live_structure_bucket_gap_to_minimum"),
         "decision_quality_calibration_scope": payload.get("decision_quality_calibration_scope"),
         "decision_quality_calibration_window": payload.get("decision_quality_calibration_window"),
         "decision_quality_sample_size": payload.get("decision_quality_sample_size"),
@@ -1609,9 +1619,7 @@ def _needs_q15_post_audit_runtime_resync(
         return False
 
     current_bucket = str(live_predictor_diagnostics.get("current_live_structure_bucket") or "")
-    if current_bucket != "CAUTION|structure_quality_caution|q15":
-        return False
-    if bool(live_predictor_diagnostics.get("q15_exact_supported_component_patch_applied")):
+    if "q15" not in current_bucket:
         return False
 
     scope = q15_support_summary.get("scope_applicability") or {}
@@ -1619,12 +1627,32 @@ def _needs_q15_post_audit_runtime_resync(
     floor = q15_support_summary.get("floor_cross_legality") or {}
     component_experiment = q15_support_summary.get("component_experiment") or {}
     machine_read = component_experiment.get("machine_read_answer") or {}
+    support_progress = support_route.get("support_progress") if isinstance(support_route.get("support_progress"), dict) else {}
 
     if scope.get("status") != "current_live_q15_lane_active" or not scope.get("active_for_current_live_row"):
         return False
     audit_bucket = str(scope.get("current_structure_bucket") or "")
     if audit_bucket and audit_bucket != current_bucket:
         return False
+
+    live_support_route_verdict = live_predictor_diagnostics.get("support_route_verdict")
+    live_support_governance_route = live_predictor_diagnostics.get("support_governance_route")
+    live_support_progress = live_predictor_diagnostics.get("support_progress") or {}
+
+    if support_route.get("verdict") and support_route.get("verdict") != live_support_route_verdict:
+        return True
+    if support_route.get("support_governance_route") and support_route.get("support_governance_route") != live_support_governance_route:
+        return True
+    for key in ("status", "current_rows", "minimum_support_rows", "gap_to_minimum"):
+        audit_value = support_progress.get(key)
+        if audit_value is None:
+            continue
+        if live_support_progress.get(key) != audit_value:
+            return True
+
+    if bool(live_predictor_diagnostics.get("q15_exact_supported_component_patch_applied")):
+        return False
+
     return bool(
         support_route.get("verdict") == "exact_bucket_supported"
         and support_route.get("deployable")

@@ -660,6 +660,15 @@ def test_collect_live_predictor_diagnostics_preserves_deployment_blocker_fields(
         "deployment_blocker_source": "q35_scaling_audit+q15_support_audit",
         "deployment_blocker_details": {
             "support_route_verdict": "exact_bucket_supported",
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_progress": {
+                "status": "supported",
+                "current_rows": 55,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 0,
+            },
             "unsafe_floor_cross_candidate": {"weights": {"feat_ear": 1.0}},
         },
     }
@@ -671,6 +680,11 @@ def test_collect_live_predictor_diagnostics_preserves_deployment_blocker_fields(
     assert result["deployment_blocker_reason"] == "safe redesign 失敗，只剩 unsafe floor cross"
     assert result["deployment_blocker_source"] == "q35_scaling_audit+q15_support_audit"
     assert result["deployment_blocker_details"]["support_route_verdict"] == "exact_bucket_supported"
+    assert result["support_route_verdict"] == "exact_bucket_supported"
+    assert result["support_governance_route"] == "exact_live_bucket_proxy_available"
+    assert result["minimum_support_rows"] == 50
+    assert result["current_live_structure_bucket_gap_to_minimum"] == 0
+    assert result["support_progress"]["current_rows"] == 55
 
 
 def test_needs_q15_post_audit_runtime_resync_when_support_ready_but_probe_still_unpatched():
@@ -702,6 +716,60 @@ def test_needs_q15_post_audit_runtime_resync_when_support_ready_but_probe_still_
                 "entry_quality_ge_0_55": True,
                 "allowed_layers_gt_0": True,
                 "preserves_positive_discrimination": True,
+            },
+        },
+    }
+
+    assert hb_parallel_runner._needs_q15_post_audit_runtime_resync(
+        live_predictor_diagnostics,
+        q15_support_summary,
+    ) is True
+
+
+def test_needs_q15_post_audit_runtime_resync_when_support_route_truth_changes_under_breaker():
+    live_predictor_diagnostics = {
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "q15_exact_supported_component_patch_applied": False,
+        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+        "support_governance_route": "exact_live_lane_proxy_available",
+        "support_progress": {
+            "status": "stalled_under_minimum",
+            "current_rows": 0,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 50,
+        },
+        "allowed_layers_raw": 0,
+        "allowed_layers": 0,
+    }
+    q15_support_summary = {
+        "scope_applicability": {
+            "status": "current_live_q15_lane_active",
+            "active_for_current_live_row": True,
+            "current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        },
+        "support_route": {
+            "verdict": "exact_bucket_missing_proxy_reference_only",
+            "deployable": False,
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+        },
+        "floor_cross_legality": {
+            "verdict": "runtime_blocker_preempts_floor_analysis",
+            "legal_to_relax_runtime_gate": False,
+        },
+        "component_experiment": {
+            "verdict": "runtime_blocker_preempts_component_experiment",
+            "feature": "feat_4h_bias50",
+            "machine_read_answer": {
+                "support_ready": False,
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+                "preserves_positive_discrimination": None,
             },
         },
     }

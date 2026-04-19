@@ -1454,6 +1454,17 @@ def test_sync_current_state_governance_issues_refreshes_canonical_q15_and_patch_
                     },
                 },
                 {
+                    "id": "P1_reference_only_patch_visibility",
+                    "priority": "P1",
+                    "title": "legacy reference-only patch visibility issue",
+                    "action": "legacy patch action",
+                    "status": "open",
+                    "summary": {
+                        "recommended_patch": "core_plus_macro",
+                        "recommended_patch_status": "reference_only_until_exact_support_ready",
+                    },
+                },
+                {
                     "id": "P1_bull_caution_spillover_patch_reference_only",
                     "priority": "P1",
                     "title": "bull|CAUTION spillover patch is productized, but must remain reference-only until exact support recovers",
@@ -1592,6 +1603,9 @@ def test_sync_current_state_governance_issues_refreshes_canonical_q15_and_patch_
         "feat_4h_dist_bb_lower",
         "feat_4h_bb_pct_b",
     ]
+
+    legacy_patch_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_reference_only_patch_visibility")
+    assert legacy_patch_issue["status"] == "resolved"
 
 
 def test_sync_current_state_governance_issues_prefers_live_support_route_and_refreshes_breaker_context():

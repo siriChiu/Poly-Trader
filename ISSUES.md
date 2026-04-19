@@ -1,20 +1,23 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-19 16:24 CST_
+_最後更新：2026-04-19 17:41:32 CST_
 
 只保留目前有效問題；每輪 heartbeat 必須覆蓋更新，不保留歷史流水帳。
 
 ---
 
 ## 當前主線事實
-- **fast collect + direct probe refresh 成功**：`Raw=31111 (+2) / Features=22529 (+2) / Labels=62632 (+8)`；`240m / 1440m` freshness 仍屬 lookahead 的 expected lag，資料管線不是 frozen。
-- **canonical current-live 唯一 deployment blocker 仍是 circuit breaker**：`deployment_blocker=circuit_breaker_active`、`streak=264`、`recent 50 wins=0/50`、`additional_recent_window_wins_needed=15`、`allowed_layers=0`、`runtime_closure_state=circuit_breaker_active`。
-- **current live bucket 維持 `CAUTION|base_caution_regime_or_bias|q15`**：`regime=chop`、`gate=CAUTION`、`entry_quality=0.4124 (D)`；exact support 仍是 **0/50**，`support_route_verdict=exact_bucket_missing_exact_lane_proxy_only`、`support_progress.status=stalled_under_minimum`、`gap_to_minimum=50`、`remaining_gap_to_floor=0.1376`、`best_single_component=feat_4h_bias50`。
-- **recent canonical 250 rows 仍是 distribution pathology**：`win_rate=0.0000`、`dominant_regime=bull(100%)`、`avg_pnl=-0.0103`、`avg_quality=-0.2862`、`tail_streak=250x0`；主 shifts 為 `feat_4h_bb_pct_b`、`feat_4h_bias20`、`feat_4h_rsi14`。
-- **support-aware patch 仍是 reference-only**：`recommended_patch=core_plus_macro`、`recommended_patch_status=reference_only_until_exact_support_ready`、`spillover_regime_gate=bull|CAUTION`、`spillover_rows=199`、`support_route_verdict=exact_bucket_missing_exact_lane_proxy_only`、`gap_to_minimum=50`。
-- **canonical model leaderboard 已從 placeholder-only 轉成可比較 rows**：`/api/models/leaderboard` 現為 `count=6 / comparable_count=6 / placeholder_count=0`，`evaluation_fold_window=latest_bounded_walk_forward`、`evaluation_max_folds=4`；browser `/lab` 已顯示真實模型排行，且 Strategy Lab 明確標示「排行榜回測固定使用最近兩年」。
-- **venue readiness 仍只有 public metadata proof**：`binance=config enabled + public-only + metadata OK`、`okx=config disabled + public-only + metadata OK`；`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證。
-- **fin_netflow 仍是 source_auth_blocked**：`COINGLASS_API_KEY` 缺失；forward archive 已累積 `2582` snapshots，但 `archive_window_coverage_pct=0.0%`。
+- **本輪 heartbeat #20260419ab 已完成 fast collect + runtime/product docs 閉環**：`Raw=31124 (+1) / Features=22542 (+1) / Labels=62636 (+0)`；`240m / 1440m` label freshness 仍屬 lookahead 的 `expected_horizon_lag`，資料管線不是 frozen。
+- **本輪產品化 patch 已落地：q15 support truth 在 breaker 下也會強制 resync**：`scripts/hb_parallel_runner.py` 現在會把 `support_route_verdict / support_governance_route / support_progress / minimum_support_rows / current_live_structure_bucket_gap_to_minimum` 從 live probe `deployment_blocker_details` 拉到頂層 diagnostics；只要 q15 audit 在 breaker 下改寫 support truth，就會 second-pass 重跑 `hb_predict_probe.py` + `live_decision_quality_drilldown.py`，避免 `/execution`、`/execution/status`、`/lab`、`issues.json` 繼續吃 stale pre-audit q15 truth。
+- **本輪產品化 patch 已落地：reference-only patch issue 不再雙開**：`scripts/auto_propose_fixes.py` 會在 canonical `P1_bull_caution_spillover_patch_reference_only` 開啟時自動 resolve 舊的 `P1_reference_only_patch_visibility`；`issues.json` 現在只保留單一 reference-only patch issue，符合 current-state-only 治理。
+- **canonical current-live 唯一 deployment blocker 仍是 circuit breaker**：`deployment_blocker=circuit_breaker_active`、`streak=265`、`recent 50 wins=0/50`、`additional_recent_window_wins_needed=15`、`allowed_layers=0`、`runtime_closure_state=circuit_breaker_active`。
+- **current live bucket 維持 `CAUTION|base_caution_regime_or_bias|q15`**：`regime=chop`、`gate=CAUTION`、`entry_quality=0.4688 (D)`；exact support 仍是 **0/50**，`support_route_verdict=exact_bucket_missing_proxy_reference_only`、`support_governance_route=exact_live_bucket_proxy_available`、`support_progress.status=stalled_under_minimum`、`gap_to_minimum=50`、`remaining_gap_to_floor=0.0812`、`best_single_component=feat_4h_bias50`。
+- **recent canonical 250 rows 仍是 distribution pathology**：`win_rate=0.0000`、`dominant_regime=bull(100%)`、`avg_pnl=-0.0103`、`avg_quality=-0.2867`、`tail_streak=250x0`；主 shifts 為 `feat_4h_bb_pct_b`、`feat_4h_bias20`、`feat_4h_rsi14`，新增 `feat_vwap_dev` 壓縮。
+- **support-aware patch 仍是 reference-only**：`recommended_patch=core_plus_macro`、`recommended_patch_status=reference_only_until_exact_support_ready`、`spillover_regime_gate=bull|CAUTION`、`spillover_rows=199`、`reference_source=live_scope_spillover`。
+- **canonical leaderboard / Strategy Lab contract 仍守住**：`/api/models/leaderboard` 為 `count=6 / comparable_count=6 / placeholder_count=0`，`evaluation_fold_window=latest_bounded_walk_forward`、`evaluation_max_folds=4`；top row 仍是 `rule_baseline / core_only / scan_backed_best`；browser `/lab` 仍明示「排行榜回測固定使用最近兩年」。
+- **venue readiness 仍只有 metadata proof**：`binance=config enabled + public-only + metadata OK`、`okx=config disabled + public-only + metadata OK`；`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證。
+- **fin_netflow 仍是 source_auth_blocked**：`COINGLASS_API_KEY` 缺失；forward archive 已累積 `2595` snapshots，但 `archive_window_coverage_pct=0.0%`。
+- **驗證證據已齊**：`pytest tests/test_auto_propose_fixes.py tests/test_hb_parallel_runner.py -q` = `85 passed`；先前 runtime/frontend regression suite `175 passed`；`cd web && npm run build` 通過；browser `/execution`、`/execution/status`、`/lab` 均可打開並顯示 breaker-first truth。
 
 ---
 
@@ -23,7 +26,7 @@ _最後更新：2026-04-19 16:24 CST_
 ### P0. canonical circuit breaker remains the only current-live deployment blocker
 **現況**
 - `deployment_blocker=circuit_breaker_active`
-- `streak=264`
+- `streak=265`
 - `recent_window=50`
 - `current_recent_window_wins=0`
 - `required_recent_window_wins=15`
@@ -45,45 +48,48 @@ _最後更新：2026-04-19 16:24 CST_
 - `dominant_regime=bull`
 - `dominant_regime_share=1.0000`
 - `avg_pnl=-0.0103`
-- `avg_quality=-0.2862`
+- `avg_quality=-0.2867`
+- `avg_drawdown_penalty=0.3778`
 - `alerts=['constant_target','regime_concentration','regime_shift']`
 - `tail_streak=250x0`
 - top feature shifts：`feat_4h_bb_pct_b`、`feat_4h_bias20`、`feat_4h_rsi14`
+- new compressed：`feat_vwap_dev`
 
 **風險**
-- 這個 recent canonical tail 仍是 breaker 的根因；若只看 broader history、model ranking 或 venue blockers，會掩蓋 current pathological slice。
+- 若 breaker 根因被 broader history、leaderboard 勝負或 venue 診斷稀釋，修復會再次偏離 pathological slice 本身。
 
 **下一步**
 - 以 recent canonical rows 為主做 feature variance / distinct-count / target-path drilldown，避免把 blocker 誤寫成 generic leaderboard 或 venue 議題。
 - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`。
 
-### P1. q15 exact support is still stalled under breaker (0/50)
+### P1. q15 exact support remains under minimum under breaker (0/50)
 **現況**
 - `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15`
 - `live_current_structure_bucket_rows=0`
 - `minimum_support_rows=50`
 - `gap_to_minimum=50`
-- `support_route_verdict=exact_bucket_missing_exact_lane_proxy_only`
-- `support_governance_route=exact_live_lane_proxy_available`
+- `support_route_verdict=exact_bucket_missing_proxy_reference_only`
+- `support_governance_route=exact_live_bucket_proxy_available`
 - `support_progress.status=stalled_under_minimum`
-- `remaining_gap_to_floor=0.1376`
+- `remaining_gap_to_floor=0.0812`
 - `best_single_component=feat_4h_bias50`
+- `governance_contract=dual_role_governance_active`
 
 **風險**
-- 如果 probe / docs / UI 把 `0/50 + missing exact lane + stalled_under_minimum` 藏掉，operator 會誤判 q15 support 已接近 closure。
+- 若 probe / docs / UI 再退回舊的 `exact_bucket_missing_exact_lane_proxy_only`，operator 會誤判 q15 support lane 與治理路徑。
 
 **下一步**
-- 維持 `0/50 + exact_bucket_missing_exact_lane_proxy_only + stalled_under_minimum + gap_to_minimum=50` 在 probe / API / UI / docs / `issues.json` 一致 machine-read。
+- 維持 `0/50 + exact_bucket_missing_proxy_reference_only + stalled_under_minimum + gap_to_minimum=50` 在 probe / API / UI / docs / `issues.json` 一致 machine-read。
 - 驗證：`python scripts/hb_q15_support_audit.py`、`python scripts/hb_predict_probe.py`、browser `/lab`、browser `/execution/status`。
 
 ### P1. support-aware `core_plus_macro` patch must stay visible but reference-only
 **現況**
 - `recommended_patch=core_plus_macro`
 - `recommended_patch_status=reference_only_until_exact_support_ready`
-- `spillover_regime_gate=bull|CAUTION`
+- `actual_live_spillover_scope=bull|CAUTION`
 - `spillover_rows=199`
 - `reference_source=live_scope_spillover`
-- `support_route_verdict=exact_bucket_missing_exact_lane_proxy_only`
+- `support_route_verdict=exact_bucket_missing_proxy_reference_only`
 - `gap_to_minimum=50`
 
 **風險**
@@ -98,15 +104,16 @@ _最後更新：2026-04-19 16:24 CST_
 - `/api/models/leaderboard`: `count=6`、`comparable_count=6`、`placeholder_count=0`
 - `evaluation_fold_window=latest_bounded_walk_forward`
 - `evaluation_max_folds=4`
-- top model（目前 API）=`random_forest / core_only`
-- browser `/lab` 已顯示真實模型排行，且明示「排行榜回測固定使用最近兩年」
+- top model（目前 API）=`rule_baseline / core_only / scan_backed_best`
+- governance state=`dual_role_governance_active`（global winner=`core_only`，train support-aware profile=`core_plus_macro`）
+- browser `/lab` 已顯示最近兩年回測 policy，且可讀到 `circuit_breaker_active`
 
 **風險**
-- 若 payload 回退到 full-history placeholder 或重算超出 cron 預算，canonical model surface 會再次退回不可比較狀態。
+- 若 payload 回退到 placeholder-only、profile governance drift、或排行榜重算超出 cron 預算，canonical model surface 會再次退回不可比較狀態。
 
 **下一步**
 - 維持 `/api/models/leaderboard`、Strategy Lab 工作區與模型排行都使用 latest bounded walk-forward + 兩年預設區間，不可回退成 placeholder-only 或短窗過擬合。
-- 驗證：browser `/lab`、browser `fetch('/api/models/leaderboard')`、`pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q`。
+- 驗證：browser `/lab`、`curl http://127.0.0.1:8000/api/models/leaderboard`、`pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q`。
 
 ### P1. venue readiness is still unverified
 **現況**
@@ -126,7 +133,7 @@ _最後更新：2026-04-19 16:24 CST_
 - `fin_netflow=source_auth_blocked`
 - `latest_status=auth_missing`
 - blocker 根因：`COINGLASS_API_KEY is missing`
-- `forward_archive_rows=2582`
+- `forward_archive_rows=2595`
 - `archive_window_coverage_pct=0.0%`
 
 **風險**
@@ -139,10 +146,11 @@ _最後更新：2026-04-19 16:24 CST_
 ---
 
 ## Not Issues
-- **data pipeline frozen**：不是；本輪 collect 實際新增 `+2 raw / +2 features / +8 labels`。
-- **240m / 1440m freshness lag**：不是 blocker；目前仍屬 lookahead horizon 的 expected lag。
-- **canonical model leaderboard placeholder-only**：不是 current issue；`/api/models/leaderboard` 已恢復 `6` 筆 comparable rows，browser `/lab` 可見真實模型排行。
-- **Strategy Lab 排行榜回測區間語義不明**：不是 current regression；UI 已明示「排行榜回測固定使用最近兩年」，且預設區間會落在最近 730 天。
+- **data pipeline frozen**：不是；本輪 collect 實際新增 `+1 raw / +1 features / +0 labels`，且 active horizons freshness 仍屬 expected lag。
+- **q15 route/support-progress drift**：不是 current regression；`hb_parallel_runner.py` 已在 breaker 下對 support truth 變更強制 resync probe / drilldown。
+- **legacy duplicate patch-visibility issue id**：不是 current issue；`auto_propose_fixes.py` 已自動 resolve `P1_reference_only_patch_visibility`，只保留 canonical `P1_bull_caution_spillover_patch_reference_only`。
+- **canonical model leaderboard placeholder-only**：不是 current issue；`/api/models/leaderboard` 維持 `6` 筆 comparable rows。
+- **Strategy Lab 最近兩年 policy 消失**：不是 current regression；browser `/lab` 仍保留「排行榜回測固定使用最近兩年」。
 
 ---
 
@@ -150,5 +158,5 @@ _最後更新：2026-04-19 16:24 CST_
 1. **維持 breaker-first truth，讓 current-live blocker 始終是 release math，而不是 q15 / venue / spillover 雜訊**
 2. **把 recent canonical 250 rows pathology 當成 breaker 根因持續鑽深，不被 broader history 或 leaderboard 勝負稀釋**
 3. **把 q15 `0/50` 與 reference-only `core_plus_macro` patch 一起維持 machine-read，可見且不可被升級成 deployable**
-4. **守住已恢復的 canonical leaderboard comparable rows 與 Strategy Lab 兩年回測 contract，不讓它回退成 placeholder-only 或短窗假樂觀**
+4. **守住 canonical leaderboard comparable rows、dual-role governance、以及 Strategy Lab 兩年回測 contract**
 5. **持續保留 per-venue blockers 與 source auth blockers，可見直到 credentials / ack / fill / CoinGlass auth 真正 closure**

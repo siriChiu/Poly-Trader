@@ -447,6 +447,7 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         and str(recommended_patch.get("status") or "") == "reference_only_until_exact_support_ready"
     ):
         patch_profile = recommended_patch.get("recommended_profile")
+        tracker.resolve("P1_reference_only_patch_visibility")
         upsert_issue(
             tracker,
             "P1",
@@ -470,6 +471,7 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         )
     else:
         tracker.resolve("P1_bull_caution_spillover_patch_reference_only")
+        tracker.resolve("P1_reference_only_patch_visibility")
 
     if circuit_breaker_active:
         release_condition = (((live_predict_probe or {}).get("deployment_blocker_details") or {}).get("release_condition") or {})
