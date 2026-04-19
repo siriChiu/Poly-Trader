@@ -151,6 +151,495 @@ def collect_current_state_docs_sync_status() -> Dict[str, Any]:
     }
 
 
+def _format_local_timestamp_for_docs(value: datetime | None = None) -> str:
+    current = value or datetime.now().astimezone()
+    return current.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+
+def _format_pct_for_docs(value: Any, digits: int = 1) -> str:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    return f"{numeric * 100:.{digits}f}%"
+
+
+def _format_number_for_docs(value: Any, digits: int = 4, signed: bool = False) -> str:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    prefix = "+" if signed and numeric > 0 else ""
+    return f"{prefix}{numeric:.{digits}f}"
+
+
+def _load_open_current_state_issues() -> list[Dict[str, Any]]:
+    issues_path = Path(PROJECT_ROOT) / "issues.json"
+    payload = _read_json_file(issues_path) or {}
+    issues = payload.get("issues") or []
+    filtered: list[Dict[str, Any]] = []
+    for issue in issues:
+        if not isinstance(issue, dict):
+            continue
+        if issue.get("status", "open") != "open":
+            continue
+        issue_id = str(issue.get("id") or "")
+        if issue_id.startswith("#H_AUTO_"):
+            continue
+        filtered.append(issue)
+
+    priority_rank = {"P0": 0, "P1": 1, "P2": 2}
+    filtered.sort(
+        key=lambda item: (
+            priority_rank.get(str(item.get("priority") or "P9"), 9),
+            str(item.get("id") or ""),
+        )
+    )
+    return filtered
+
+
+def _verification_lines(issue: Dict[str, Any]) -> list[str]:
+    verify = issue.get("verify") or []
+    if isinstance(verify, list):
+        return [str(item).strip() for item in verify if str(item).strip()]
+    if isinstance(verify, str) and verify.strip():
+        return [verify.strip()]
+    return []
+
+
+def _issue_action_text(issue: Dict[str, Any]) -> str:
+    action = issue.get("action") or issue.get("next_action")
+    if isinstance(action, str) and action.strip():
+        return action.strip()
+    return "待補 current-state action"
+
+
+def _generic_issue_current_lines(issue: Dict[str, Any]) -> list[str]:
+    summary = issue.get("summary") or {}
+    if not isinstance(summary, dict) or not summary:
+        return []
+    parts: list[str] = []
+    for key, value in summary.items():
+        if isinstance(value, list):
+            rendered = ", ".join(str(item) for item in value[:4])
+            if len(value) > 4:
+                rendered += f" … (+{len(value) - 4})"
+        else:
+            rendered = str(value)
+        parts.append(f"`{key}={rendered}`")
+        if len(parts) >= 6:
+            break
+    if not parts:
+        return []
+    return ["目前真相：" + " / ".join(parts)]
+
+
+def _issue_current_lines(
+    issue: Dict[str, Any],
+    *,
+    counts: Dict[str, Any] | None,
+    source_blockers: Dict[str, Any] | None,
+    drift_diagnostics: Dict[str, Any] | None,
+    live_predictor_diagnostics: Dict[str, Any] | None,
+    q15_support_audit: Dict[str, Any] | None,
+    circuit_breaker_audit: Dict[str, Any] | None,
+    leaderboard_candidate_diagnostics: Dict[str, Any] | None,
+) -> list[str]:
+    issue_id = str(issue.get("id") or "")
+    counts = counts or {}
+    source_blockers = source_blockers or {}
+    drift_diagnostics = drift_diagnostics or {}
+    live_predictor_diagnostics = live_predictor_diagnostics or {}
+    q15_support_audit = q15_support_audit or {}
+    circuit_breaker_audit = circuit_breaker_audit or {}
+    leaderboard_candidate_diagnostics = leaderboard_candidate_diagnostics or {}
+    governance_contract = leaderboard_candidate_diagnostics.get("governance_contract") or {}
+    governance_verdict = governance_contract.get("verdict") if isinstance(governance_contract, dict) else governance_contract
+    governance_current_closure = (
+        leaderboard_candidate_diagnostics.get("governance_current_closure")
+        or (governance_contract.get("current_closure") if isinstance(governance_contract, dict) else None)
+    )
+    support_aware_profile = (
+        leaderboard_candidate_diagnostics.get("support_aware_production_profile")
+        or leaderboard_candidate_diagnostics.get("train_selected_profile")
+        or (governance_contract.get("production_profile") if isinstance(governance_contract, dict) else None)
+    )
+
+    if issue_id == "P0_circuit_breaker_active":
+        release = (live_predictor_diagnostics.get("deployment_blocker_details") or {}).get("release_condition") or {}
+        support_route = q15_support_audit.get("support_route") or {}
+        return [
+            "目前真相："
+            f"`deployment_blocker={live_predictor_diagnostics.get('deployment_blocker') or '—'}` / "
+            f"`streak={live_predictor_diagnostics.get('streak')}` / "
+            f"`recent {release.get('recent_window') or live_predictor_diagnostics.get('window_size') or '—'} wins="
+            f"{release.get('current_recent_window_wins', live_predictor_diagnostics.get('recent_window_wins', '—'))}/"
+            f"{release.get('recent_window', live_predictor_diagnostics.get('window_size', '—'))}` / "
+            f"`additional_recent_window_wins_needed={release.get('additional_recent_window_wins_needed', '—')}`",
+            "same-bucket truth："
+            f"`bucket={live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
+            f"`support={live_predictor_diagnostics.get('current_live_structure_bucket_rows', '—')}/"
+            f"{live_predictor_diagnostics.get('minimum_support_rows', '—')}` / "
+            f"`support_route_verdict={live_predictor_diagnostics.get('support_route_verdict') or support_route.get('verdict') or '—'}` / "
+            f"`support_governance_route={live_predictor_diagnostics.get('support_governance_route') or support_route.get('support_governance_route') or '—'}`",
+        ]
+
+    if issue_id == "P0_recent_distribution_pathology":
+        primary_summary = drift_diagnostics.get("primary_summary") or {}
+        primary_window = drift_diagnostics.get("primary_window") or primary_summary.get("window") or "—"
+        feature_diag = primary_summary.get("feature_diagnostics") or {}
+        return [
+            "目前真相："
+            f"`window={primary_window}` / `win_rate={_format_pct_for_docs(primary_summary.get('win_rate'), 1)}` / "
+            f"`dominant_regime={primary_summary.get('dominant_regime') or '—'}({_format_pct_for_docs(primary_summary.get('dominant_regime_share'), 1)})` / "
+            f"`avg_quality={_format_number_for_docs(primary_summary.get('avg_quality'), 4, signed=True)}` / "
+            f"`avg_pnl={_format_number_for_docs(primary_summary.get('avg_pnl'), 4, signed=True)}`",
+            "病態切片："
+            f"`alerts={','.join(drift_diagnostics.get('primary_alerts') or []) or '—'}` / "
+            f"`tail_streak={(primary_summary.get('target_path_diagnostics') or {}).get('tail_target_streak', {}).get('count', '—')}` / "
+            f"`low_variance={feature_diag.get('low_variance_count', '—')}` / "
+            f"`low_distinct={feature_diag.get('low_distinct_count', '—')}` / "
+            f"`null_heavy={feature_diag.get('null_heavy_count', '—')}`",
+        ]
+
+    if issue_id == "P1_leaderboard_recent_window_contract":
+        return [
+            "目前真相："
+            f"`leaderboard_count={leaderboard_candidate_diagnostics.get('leaderboard_count', '—')}` / "
+            f"`selected_feature_profile={leaderboard_candidate_diagnostics.get('selected_feature_profile') or '—'}` / "
+            f"`support_aware_profile={support_aware_profile or '—'}` / "
+            f"`governance_contract={governance_verdict or '—'}` / "
+            f"`current_closure={governance_current_closure or '—'}`",
+        ]
+
+    if issue_id == "P1_execution_venue_readiness_unverified":
+        return [
+            "目前真相："
+            "`binance=config enabled + public-only + metadata OK` / "
+            "`okx=config disabled + public-only + metadata OK` / "
+            "`missing_runtime_proof=live exchange credential, order ack lifecycle, fill lifecycle`",
+        ]
+
+    if issue_id == "P1_fin_netflow_auth_blocked":
+        fin_blocker = None
+        for blocker in source_blockers.get("blocked_features") or []:
+            if isinstance(blocker, dict) and blocker.get("key") == "fin_netflow":
+                fin_blocker = blocker
+                break
+        if fin_blocker:
+            return [
+                "目前真相："
+                f"`quality_flag={fin_blocker.get('quality_flag')}` / "
+                f"`latest_status={fin_blocker.get('raw_snapshot_latest_status')}` / "
+                f"`forward_archive_rows={fin_blocker.get('raw_snapshot_events')}` / "
+                f"`archive_window_coverage_pct={fin_blocker.get('archive_window_coverage_pct')}`",
+            ]
+
+    if issue_id in {"P1_bull_caution_spillover_patch_reference_only", "P1_q15_exact_support_stalled_under_breaker"}:
+        support_route = q15_support_audit.get("support_route") or {}
+        support_progress = support_route.get("support_progress") or {}
+        return [
+            "目前真相："
+            f"`bucket={live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
+            f"`support={support_progress.get('current_rows', live_predictor_diagnostics.get('current_live_structure_bucket_rows', '—'))}/"
+            f"{support_progress.get('minimum_support_rows', live_predictor_diagnostics.get('minimum_support_rows', '—'))}` / "
+            f"`gap={support_progress.get('gap_to_minimum', live_predictor_diagnostics.get('current_live_structure_bucket_gap_to_minimum', '—'))}` / "
+            f"`support_route_verdict={support_route.get('verdict', live_predictor_diagnostics.get('support_route_verdict') or '—')}` / "
+            f"`governance_route={support_route.get('support_governance_route', live_predictor_diagnostics.get('support_governance_route') or '—')}`",
+        ]
+
+    return _generic_issue_current_lines(issue)
+
+
+def overwrite_current_state_docs(
+    run_label: str,
+    counts: Dict[str, Any] | None,
+    source_blockers: Dict[str, Any] | None,
+    drift_diagnostics: Dict[str, Any] | None,
+    live_predictor_diagnostics: Dict[str, Any] | None,
+    live_decision_drilldown: Dict[str, Any] | None,
+    q15_support_audit: Dict[str, Any] | None,
+    circuit_breaker_audit: Dict[str, Any] | None,
+    leaderboard_candidate_diagnostics: Dict[str, Any] | None,
+) -> Dict[str, Any]:
+    counts = counts or {}
+    source_blockers = source_blockers or {}
+    drift_diagnostics = drift_diagnostics or {}
+    live_predictor_diagnostics = live_predictor_diagnostics or {}
+    live_decision_drilldown = live_decision_drilldown or {}
+    q15_support_audit = q15_support_audit or {}
+    circuit_breaker_audit = circuit_breaker_audit or {}
+    leaderboard_candidate_diagnostics = leaderboard_candidate_diagnostics or {}
+    issues = _load_open_current_state_issues()
+
+    updated_at = _format_local_timestamp_for_docs()
+    release = (live_predictor_diagnostics.get("deployment_blocker_details") or {}).get("release_condition") or {}
+    support_progress = (q15_support_audit.get("support_route") or {}).get("support_progress") or {}
+    primary_summary = drift_diagnostics.get("primary_summary") or {}
+    primary_window = drift_diagnostics.get("primary_window") or primary_summary.get("window") or "—"
+    governance_contract = leaderboard_candidate_diagnostics.get("governance_contract") or {}
+    governance_verdict = governance_contract.get("verdict") if isinstance(governance_contract, dict) else governance_contract
+    governance_current_closure = (
+        leaderboard_candidate_diagnostics.get("governance_current_closure")
+        or (governance_contract.get("current_closure") if isinstance(governance_contract, dict) else None)
+    )
+    support_aware_profile = (
+        leaderboard_candidate_diagnostics.get("support_aware_production_profile")
+        or leaderboard_candidate_diagnostics.get("train_selected_profile")
+        or (governance_contract.get("production_profile") if isinstance(governance_contract, dict) else None)
+    )
+
+    counts_line = (
+        f"`Raw={counts.get('raw_market_data', '—')} / "
+        f"Features={counts.get('features_normalized', '—')} / "
+        f"Labels={counts.get('labels', '—')}`"
+    )
+    blocker_line = (
+        f"`deployment_blocker={live_predictor_diagnostics.get('deployment_blocker') or '—'}` / "
+        f"`streak={live_predictor_diagnostics.get('streak', '—')}` / "
+        f"`recent_window_wins={release.get('current_recent_window_wins', live_predictor_diagnostics.get('recent_window_wins', '—'))}/"
+        f"{release.get('recent_window', live_predictor_diagnostics.get('window_size', '—'))}` / "
+        f"`additional_recent_window_wins_needed={release.get('additional_recent_window_wins_needed', '—')}`"
+    )
+    support_line = (
+        f"`current_live_structure_bucket={live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
+        f"`support={support_progress.get('current_rows', live_predictor_diagnostics.get('current_live_structure_bucket_rows', '—'))}/"
+        f"{support_progress.get('minimum_support_rows', live_predictor_diagnostics.get('minimum_support_rows', '—'))}` / "
+        f"`gap={support_progress.get('gap_to_minimum', live_predictor_diagnostics.get('current_live_structure_bucket_gap_to_minimum', '—'))}` / "
+        f"`support_route_verdict={(q15_support_audit.get('support_route') or {}).get('verdict', live_predictor_diagnostics.get('support_route_verdict') or '—')}`"
+    )
+    pathology_line = (
+        f"`window={primary_window}` / "
+        f"`win_rate={_format_pct_for_docs(primary_summary.get('win_rate'), 1)}` / "
+        f"`dominant_regime={primary_summary.get('dominant_regime') or '—'}({_format_pct_for_docs(primary_summary.get('dominant_regime_share'), 1)})` / "
+        f"`avg_quality={_format_number_for_docs(primary_summary.get('avg_quality'), 4, signed=True)}` / "
+        f"`avg_pnl={_format_number_for_docs(primary_summary.get('avg_pnl'), 4, signed=True)}` / "
+        f"`alerts={','.join(drift_diagnostics.get('primary_alerts') or []) or '—'}`"
+    )
+    leaderboard_line = (
+        f"`leaderboard_count={leaderboard_candidate_diagnostics.get('leaderboard_count', '—')}` / "
+        f"`selected_feature_profile={leaderboard_candidate_diagnostics.get('selected_feature_profile') or '—'}` / "
+        f"`support_aware_profile={support_aware_profile or '—'}` / "
+        f"`governance_contract={governance_verdict or '—'}` / "
+        f"`current_closure={governance_current_closure or '—'}`"
+    )
+    fin_blocker = None
+    for blocker in source_blockers.get("blocked_features") or []:
+        if isinstance(blocker, dict) and blocker.get("key") == "fin_netflow":
+            fin_blocker = blocker
+            break
+    fin_line = (
+        f"`quality_flag={fin_blocker.get('quality_flag')}` / "
+        f"`latest_status={fin_blocker.get('raw_snapshot_latest_status')}` / "
+        f"`forward_archive_rows={fin_blocker.get('raw_snapshot_events')}` / "
+        f"`archive_window_coverage_pct={fin_blocker.get('archive_window_coverage_pct')}`"
+        if fin_blocker
+        else "`fin_netflow` blocker 資訊暫缺"
+    )
+
+    issues_lines = [
+        "# ISSUES.md — Current State Only",
+        "",
+        f"_最後更新：{updated_at}_",
+        "",
+        "只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。",
+        "",
+        "---",
+        "",
+        "## 當前主線事實",
+        f"- **最新 fast heartbeat #{run_label} 已完成 collect + diagnostics refresh**",
+        f"  - {counts_line}",
+        f"  - `simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`",
+        "- **canonical current-live blocker 仍是 breaker-first truth**",
+        f"  - {blocker_line}",
+        f"  - {support_line}",
+        "- **recent canonical window 仍是 distribution pathology**",
+        f"  - {pathology_line}",
+        "- **leaderboard / governance 仍維持 dual-role contract**",
+        f"  - {leaderboard_line}",
+        "- **source / venue blockers 仍開啟**",
+        f"  - `blocked_sparse_features={source_blockers.get('blocked_count', '—')}` / `{source_blockers.get('counts_by_history_class', {})}`",
+        f"  - fin_netflow：{fin_line}",
+        "  - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof",
+        "- **heartbeat current-state docs overwrite sync 已自動化**",
+        "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
+        "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
+        "",
+        "---",
+        "",
+        "## Open Issues",
+        "",
+    ]
+
+    for issue in issues:
+        issues_lines.append(f"### {issue.get('priority', 'P?')}. {issue.get('title')}")
+        for line in _issue_current_lines(
+            issue,
+            counts=counts,
+            source_blockers=source_blockers,
+            drift_diagnostics=drift_diagnostics,
+            live_predictor_diagnostics=live_predictor_diagnostics,
+            q15_support_audit=q15_support_audit,
+            circuit_breaker_audit=circuit_breaker_audit,
+            leaderboard_candidate_diagnostics=leaderboard_candidate_diagnostics,
+        ):
+            issues_lines.append(f"- {line}")
+        issues_lines.append(f"- 下一步：{_issue_action_text(issue)}")
+        verify_lines = _verification_lines(issue)
+        if verify_lines:
+            issues_lines.append("- 驗證：")
+            issues_lines.extend([f"  - {item}" for item in verify_lines])
+        issues_lines.append("")
+
+    issues_lines.extend(
+        [
+            "---",
+            "",
+            "## Current Priority",
+            "1. **維持 breaker-first truth，同時保留 q15 same-bucket support rows 可 machine-read**",
+            "2. **持續沿 recent canonical pathological slice 追根因，不要 generic 化 blocker**",
+            "3. **守住 q15 reference-only patch、leaderboard dual-role governance、venue/source blockers 可見性**",
+            "4. **讓 heartbeat 自動 overwrite sync current-state docs，不再把 docs drift 留給人工補寫**",
+            "",
+        ]
+    )
+
+    roadmap_lines = [
+        "# ROADMAP.md — Current Plan Only",
+        "",
+        f"_最後更新：{updated_at}_",
+        "",
+        "只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。",
+        "",
+        "---",
+        "",
+        "## 已完成",
+        f"- **fast heartbeat #{run_label} 已完成 collect + diagnostics refresh**",
+        f"  - {counts_line}",
+        f"  - {blocker_line}",
+        f"  - {pathology_line}",
+        "- **current-state docs overwrite sync 已自動化**",
+        "  - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
+        "  - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫",
+        "- **本輪 current-state docs 已同步到最新 artifacts**",
+        "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊",
+        "",
+        "---",
+        "",
+        "## 主目標",
+        "",
+        "### 目標 A：維持 breaker release math 作為唯一 current-live blocker",
+        "**目前真相**",
+        f"- {blocker_line}",
+        f"- {support_line}",
+        "**成功標準**",
+        "- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker。",
+        "- q15 same-bucket truth (`bucket / rows / minimum / gap / support route`) 仍在 top-level surfaces 可 machine-read。",
+        "",
+        "### 目標 B：持續把 recent canonical pathological slice 當成 breaker 根因來鑽",
+        "**目前真相**",
+        f"- {pathology_line}",
+        "**成功標準**",
+        "- drift / probe / docs 能直接指出 pathological slice、adverse streak 與 top feature shifts，而不是退回 generic leaderboard / venue 摘要。",
+        "",
+        "### 目標 C：守住 q15 `0/50 + reference-only patch` 真相",
+        "**目前真相**",
+        f"- {support_line}",
+        f"- `recommended_patch={live_decision_drilldown.get('recommended_patch_profile') or '—'}` / `status={live_decision_drilldown.get('recommended_patch_status') or '—'}` / `reference_scope={live_decision_drilldown.get('recommended_patch_reference_scope') or '—'}`",
+        "**成功標準**",
+        "- probe / drilldown / `/api/status` / `/execution/status` / `/lab` / docs 全都承認 q15 exact support 未達 minimum rows，recommended patch 只能作治理 / 訓練參考。",
+        "",
+        "### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth",
+        "**目前真相**",
+        f"- {leaderboard_line}",
+        f"- fin_netflow：{fin_line}",
+        "- venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證",
+        "- docs automation：markdown docs 不再允許落後 live artifacts",
+        "**成功標準**",
+        "- Strategy Lab 不回退 placeholder-only；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。",
+        "",
+        "---",
+        "",
+        "## 下一輪 gate",
+        "1. **維持 breaker-first truth + q15 current-live bucket visibility across API / UI / docs**",
+        "   - 驗證：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`",
+        "   - 升級 blocker：若 breaker release math 被 support / floor-gap / venue 話題覆蓋，或 q15 same-bucket rows 再次從 top-level surfaces 消失",
+        "2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**",
+        "   - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`",
+        "   - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據",
+        "3. **守住 q15 reference-only patch、leaderboard governance、venue/source blockers 與 docs automation 閉環**",
+        "   - 驗證：browser `/lab`、`curl http://127.0.0.1:8000/api/models/leaderboard`、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status",
+        "   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts",
+        "",
+        "---",
+        "",
+        "## 成功標準",
+        "- current-live blocker 清楚且唯一：**breaker release math**",
+        "- current live q15 truth 維持：**0/50 + exact_bucket_missing_proxy_reference_only + reference_only_until_exact_support_ready**",
+        "- recent canonical pathological slice 仍以同一個 current window 為主敘事，不被 generic 問題稀釋",
+        "- leaderboard 維持 dual-role governance；venue/source blockers 持續可見",
+        "- heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**",
+        "",
+    ]
+
+    orid_lines = [
+        "# ORID_DECISIONS.md — Current ORID Only",
+        "",
+        f"_最後更新：{updated_at}_",
+        "",
+        "---",
+        "",
+        f"## 心跳 #{run_label} ORID",
+        "",
+        "### O｜客觀事實",
+        f"- collect + diagnostics refresh 完成：{counts_line}；`simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`。",
+        f"- current-live blocker：{blocker_line}。",
+        f"- q15 same-bucket truth：{support_line}。",
+        f"- recent pathological slice：{pathology_line}。",
+        f"- leaderboard / governance：{leaderboard_line}。",
+        f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle。",
+        "- 本輪產品化 patch：heartbeat runner 現在會在 `auto_propose_fixes.py` 後自動 overwrite sync `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`，避免 markdown docs 落後最新 machine-readable artifacts。",
+        "",
+        "### R｜感受直覺",
+        "- 這輪最危險的產品問題不是數字不夠，而是 heartbeat 原本只會提醒 docs stale，卻不會自己完成 docs overwrite；這會讓 repo current-state 與 live artifacts 再次 split-brain。",
+        "- breaker-first truth 沒變，但如果 markdown docs 還停在舊的 streak / 舊的 q15 rows，operator 看到的仍然是假 current state。",
+        "",
+        "### I｜意義洞察",
+        "1. **closed-loop heartbeat 不能只更新 issues.json**：current-state markdown docs 也必須自動跟上，否則心跳在治理層仍然是不完整的。",
+        "2. **真正主 blocker 仍是 breaker + pathological slice**：docs automation 只是把 current truth 對齊，不是把 venue / q15 patch 提前升級成主敘事。",
+        "3. **把 docs overwrite 內建進 runner 才符合 productization**：這能把 current-state 治理從人工補寫，升級成 cron-safe contract。",
+        "",
+        "### D｜決策行動",
+        "- **Owner**：heartbeat runner / current-state governance lane",
+        "- **Action**：在 `auto_propose_fixes.py` 之後直接 overwrite sync `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`，讓 docs 跟 `issues.json / live artifacts` 同輪收斂。",
+        "- **Artifacts**：`scripts/hb_parallel_runner.py`、`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`。",
+        "- **Verify**：`pytest tests/test_hb_parallel_runner.py -q`（或 targeted docs-sync tests）、`python scripts/hb_parallel_runner.py --fast --hb <run>`、確認不再出現 docs stale warning。",
+        "- **If fail**：只要 docs 再次落後 `issues.json / live probe / drilldown`，就把 heartbeat 升級回 current-state governance blocker，因為這代表 cron 還沒有真正完成 docs overwrite 閉環。",
+        "",
+    ]
+
+    docs_to_write = {
+        Path(PROJECT_ROOT) / "ISSUES.md": "\n".join(issues_lines).rstrip() + "\n",
+        Path(PROJECT_ROOT) / "ROADMAP.md": "\n".join(roadmap_lines).rstrip() + "\n",
+        Path(PROJECT_ROOT) / "ORID_DECISIONS.md": "\n".join(orid_lines).rstrip() + "\n",
+    }
+
+    written_docs: list[str] = []
+    errors: list[str] = []
+    for path, content in docs_to_write.items():
+        try:
+            path.write_text(content, encoding="utf-8")
+            written_docs.append(path.name)
+        except Exception as exc:
+            errors.append(f"{path.name}: {exc}")
+
+    return {
+        "success": not errors,
+        "written_docs": written_docs,
+        "errors": errors,
+    }
+
+
 def _artifact_timestamp_from_payload(payload: Dict[str, Any] | None, artifact_path: str | Path | None) -> datetime | None:
     payload = payload or {}
     for key in ("generated_at", "alignment_evaluated_at"):
@@ -1454,6 +1943,7 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
         return {}
     primary = payload.get("primary_window") or {}
     summary = primary.get("summary") or {}
+    quality_metrics = summary.get("quality_metrics") or {}
     target_path = summary.get("target_path_diagnostics") or {}
     tail_streak = target_path.get("tail_target_streak") or {}
     return {
@@ -1470,6 +1960,9 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
             "dominant_regime": summary.get("dominant_regime"),
             "dominant_regime_share": summary.get("dominant_regime_share"),
             "drift_interpretation": summary.get("drift_interpretation"),
+            "avg_pnl": summary.get("avg_pnl", quality_metrics.get("avg_simulated_pnl")),
+            "avg_quality": summary.get("avg_quality", quality_metrics.get("avg_simulated_quality")),
+            "avg_drawdown_penalty": summary.get("avg_drawdown_penalty", quality_metrics.get("avg_drawdown_penalty")),
             "feature_diagnostics": summary.get("feature_diagnostics") or {},
             "target_path_diagnostics": {
                 "window_start_timestamp": target_path.get("window_start_timestamp"),
@@ -1626,6 +2119,10 @@ def collect_live_decision_quality_drilldown_diagnostics(
         "allowed_layers": payload.get("allowed_layers"),
         "allowed_layers_reason": payload.get("allowed_layers_reason"),
         "support_route_verdict": payload.get("support_route_verdict"),
+        "recommended_patch_profile": payload.get("recommended_patch_profile"),
+        "recommended_patch_status": payload.get("recommended_patch_status"),
+        "recommended_patch_reference_scope": payload.get("recommended_patch_reference_scope"),
+        "recommended_patch_reference_source": payload.get("recommended_patch_reference_source"),
         "remaining_gap_to_floor": payload.get("remaining_gap_to_floor"),
         "best_single_component": payload.get("best_single_component"),
         "best_single_component_required_score_delta": payload.get("best_single_component_required_score_delta"),
@@ -2957,7 +3454,22 @@ def main(argv=None):
 
     write_progress(run_label, "auto_propose")
     auto_propose_result = run_auto_propose(run_label)
+    docs_sync_write = overwrite_current_state_docs(
+        run_label,
+        counts,
+        source_blockers,
+        drift_diagnostics,
+        live_predictor_diagnostics,
+        live_drilldown_summary,
+        q15_support_summary,
+        circuit_breaker_audit_summary,
+        leaderboard_candidate_diagnostics,
+    )
     docs_sync = collect_current_state_docs_sync_status()
+    docs_sync["auto_synced"] = docs_sync_write.get("success", False)
+    docs_sync["written_docs"] = docs_sync_write.get("written_docs") or []
+    if docs_sync_write.get("errors"):
+        docs_sync["errors"] = docs_sync_write.get("errors")
     print(
         f"🛠️  自動修復建議：{'通過' if auto_propose_result['success'] else '失敗'} "
         f"(rc={auto_propose_result['returncode']})"
@@ -2970,6 +3482,9 @@ def main(argv=None):
         print(f"\n--- auto_propose_fixes ---\n{preview}")
     if auto_propose_result.get("stderr"):
         print(f"\n--- auto_propose_fixes stderr ---\n{auto_propose_result['stderr']}")
+    if docs_sync_write.get("success"):
+        written_docs_text = ", ".join(docs_sync_write.get("written_docs") or []) or "none"
+        print(f"📝 current-state docs：已 overwrite sync {written_docs_text}")
     if not docs_sync.get("ok", True):
         stale_docs_text = ", ".join(docs_sync.get("stale_docs") or []) or "unknown"
         reference_text = ", ".join(docs_sync.get("reference_artifacts") or []) or "none"

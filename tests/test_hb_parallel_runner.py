@@ -1360,6 +1360,180 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
 
 
 
+def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_circuit_breaker_active",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "canonical circuit breaker remains the only current-live deployment blocker",
+                        "action": "keep breaker-first truth visible",
+                        "verify": ["browser /execution/status"],
+                    },
+                    {
+                        "id": "P1_leaderboard_recent_window_contract",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe",
+                        "action": "keep Strategy Lab aligned with leaderboard payload",
+                        "verify": ["browser /lab"],
+                    },
+                ]
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260420z",
+        {
+            "raw_market_data": 31157,
+            "features_normalized": 22575,
+            "labels": 62767,
+            "simulated_pyramid_win_rate": 0.5735,
+        },
+        {
+            "blocked_count": 8,
+            "counts_by_history_class": {"archive_required": 3, "snapshot_only": 4, "short_window_public_api": 1},
+            "blocked_features": [
+                {
+                    "key": "fin_netflow",
+                    "quality_flag": "source_auth_blocked",
+                    "raw_snapshot_latest_status": "auth_missing",
+                    "raw_snapshot_events": 2628,
+                    "archive_window_coverage_pct": 0.0,
+                }
+            ],
+        },
+        {
+            "primary_window": "250",
+            "primary_alerts": ["label_imbalance", "regime_concentration"],
+            "primary_summary": {
+                "win_rate": 0.004,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 1.0,
+                "avg_quality": -0.2517,
+                "avg_pnl": -0.0079,
+                "feature_diagnostics": {
+                    "low_variance_count": 10,
+                    "low_distinct_count": 11,
+                    "null_heavy_count": 10,
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 83},
+                },
+            },
+        },
+        {
+            "deployment_blocker": "circuit_breaker_active",
+            "streak": 83,
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "recent_window": 50,
+                    "current_recent_window_wins": 0,
+                    "additional_recent_window_wins_needed": 15,
+                }
+            },
+        },
+        {
+            "recommended_patch_profile": "core_plus_macro_plus_all_4h",
+            "recommended_patch_status": "reference_only_until_exact_support_ready",
+            "recommended_patch_reference_scope": "bull|CAUTION",
+        },
+        {
+            "support_route": {
+                "verdict": "exact_bucket_missing_proxy_reference_only",
+                "support_progress": {
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                },
+            }
+        },
+        {"root_cause": {"verdict": "canonical_breaker_active"}},
+        {
+            "leaderboard_count": 4,
+            "selected_feature_profile": "core_only",
+            "support_aware_production_profile": "core_plus_macro",
+            "governance_contract": "dual_role_governance_active",
+            "current_closure": "global_ranking_vs_support_aware_production_split",
+        },
+    )
+
+    assert result["success"] is True
+    assert set(result["written_docs"]) == {"ISSUES.md", "ROADMAP.md", "ORID_DECISIONS.md"}
+
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+
+    assert "heartbeat runner overwrite sync" in issues_md
+    assert "P0. canonical circuit breaker remains the only current-live deployment blocker" in issues_md
+    assert "current-state docs overwrite sync 已自動化" in roadmap_md
+    assert "心跳 #20260420z ORID" in orid_md
+
+
+
+def test_collect_current_state_docs_sync_status_is_clean_after_overwrite(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_circuit_breaker_active",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "canonical circuit breaker remains the only current-live deployment blocker",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260420z",
+        {},
+        {},
+        {},
+        {"deployment_blocker_details": {"release_condition": {}}},
+        {},
+        {"support_route": {"support_progress": {}}},
+        {},
+        {},
+    )
+    assert result["success"] is True
+
+    status = hb_parallel_runner.collect_current_state_docs_sync_status()
+
+    assert status["ok"] is True
+    assert status["stale_docs"] == []
+
+
+
 def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
 
@@ -2038,7 +2212,7 @@ def test_collect_q15_boundary_replay_diagnostics_reads_replay_and_counterfactual
     assert diag["carry_forward"] == ["先讀 data/q15_boundary_replay.json"]
 
 
-def test_main_runs_q15_support_audit_after_leaderboard_probe(monkeypatch):
+def test_main_runs_q15_support_audit_after_leaderboard_probe(tmp_path, monkeypatch):
     order = []
 
     class Args:
@@ -2064,6 +2238,7 @@ def test_main_runs_q15_support_audit_after_leaderboard_probe(monkeypatch):
     def _ok(stdout: str = ""):
         return {"success": True, "returncode": 0, "stdout": stdout, "stderr": ""}
 
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     monkeypatch.setattr(hb_parallel_runner, "TASKS", [])
     monkeypatch.setattr(hb_parallel_runner, "parse_args", lambda argv=None: Args())
     monkeypatch.setattr(hb_parallel_runner, "resolve_run_label", lambda args: "test")
