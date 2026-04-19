@@ -37,6 +37,8 @@ def test_execution_status_route_and_page_contract():
     assert '<Route path="/execution/status" element={<ExecutionStatus />} />' in app_source
     required_snippets = [
         'const { data: runtimeStatus, loading, error, refresh } = useApi<ExecutionStatusResponse>("/api/status", 60000);',
+        'const currentLiveBlocker = liveRuntimeTruth?.deployment_blocker || null;',
+        'const primaryRuntimeMessage = liveRuntimeTruth?.deployment_blocker_reason',
         '執行狀態 / Diagnostics',
         '先看 blocker，再決定是否介入',
         '回到 Bot 營運',
@@ -49,6 +51,8 @@ def test_execution_status_route_and_page_contract():
         '營運入口',
         'operations {operationsSurface?.label || "Bot 營運"}',
         'diagnostics {diagnosticsSurface?.label || "Execution 狀態"}',
+        'detail={`blocker ${currentLiveBlocker || "unavailable"} · ${primaryRuntimeMessage} · scope ${executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only"}`}',
+        'venue blockers {liveReadyBlockers.length > 0 ? liveReadyBlockers.join(" · ") : "none"}',
     ]
     for snippet in required_snippets:
         assert snippet in page_source
@@ -68,8 +72,8 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         'const totalUnrealizedPnl = runLedgerPreviews.reduce(',
         'const totalCapitalInUse = runLedgerPreviews.reduce(',
         'const profitableRuns = executionRunRecords.filter(',
-        'const rawPrimaryBlockedReason = liveReadyBlockers[0]',
-        '|| liveRuntimeTruth?.deployment_blocker_reason',
+        'const rawPrimaryBlockedReason = liveRuntimeTruth?.deployment_blocker_reason',
+        'const blockedReasonSummary = Array.from(new Set([',
         'const deploymentStatusDetail = executionSurfaceContract?.live_ready',
         'liveRuntimeTruth?.runtime_closure_summary || liveRuntimeTruth?.deployment_blocker_reason || primaryBlockedReason',
         'Bot 營運 / Live Ops',
@@ -104,6 +108,15 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         assert snippet in source
     assert 'Bot 市集' not in source
     assert '進階診斷（需要時再展開）' not in source
+
+
+def test_execution_surfaces_keep_current_live_blocker_ahead_of_venue_readiness_copy():
+    status_source = _read("pages/ExecutionStatus.tsx")
+    console_source = _read("pages/ExecutionConsole.tsx")
+
+    assert status_source.index('liveRuntimeTruth?.deployment_blocker_reason') < status_source.index('liveReadyBlockers[0]')
+    assert console_source.index('liveRuntimeTruth?.deployment_blocker_reason') < console_source.index('liveReadyBlockers[0]')
+    assert 'liveReadyBlockers.length > 0 ? liveReadyBlockers.join(" · ") : primaryRuntimeMessage' not in status_source
 
 def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces():
     source = _read("pages/Dashboard.tsx")

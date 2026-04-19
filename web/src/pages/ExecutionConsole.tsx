@@ -600,16 +600,20 @@ export default function ExecutionConsole() {
   const profitableRuns = executionRunRecords.filter((run) => (run.runtime_binding_snapshot?.shared_symbol_ledger_preview?.unrealized_pnl ?? 0) > 0).length;
   const deployableCapital = executionCapitalPlan?.deployable_capital ?? balanceFree;
   const hasBlockedState = !executionSurfaceContract?.live_ready;
-  const rawPrimaryBlockedReason = liveReadyBlockers[0]
-    || liveRuntimeTruth?.deployment_blocker_reason
+  const rawPrimaryBlockedReason = liveRuntimeTruth?.deployment_blocker_reason
     || liveRuntimeTruth?.deployment_blocker
     || liveRuntimeTruth?.execution_guardrail_reason
+    || liveReadyBlockers[0]
     || executionSurfaceContract?.operator_message
     || null;
   const primaryBlockedReason = humanizeExecutionReason(rawPrimaryBlockedReason);
-  const blockedReasonSummary = liveReadyBlockers.length > 0
-    ? liveReadyBlockers.map((item) => humanizeExecutionReason(item)).join(" · ")
-    : primaryBlockedReason;
+  const blockedReasonSummary = Array.from(new Set([
+    rawPrimaryBlockedReason,
+    ...liveReadyBlockers,
+  ]
+    .map((item) => humanizeExecutionReason(item))
+    .filter((item) => item && item !== "尚未提供 blocker 摘要。")))
+    .join(" · ") || primaryBlockedReason;
   const deploymentStatusLabel = executionSurfaceContract?.live_ready ? "Ready" : "Blocked";
   const deploymentStatusDetail = executionSurfaceContract?.live_ready
     ? (liveRuntimeTruth?.runtime_closure_summary || executionSurfaceContract?.operator_message || "目前已滿足主要部署條件。")

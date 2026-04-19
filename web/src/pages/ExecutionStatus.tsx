@@ -407,9 +407,11 @@ export default function ExecutionStatus() {
   const reconciliationTone = getStatusTone(executionReconciliation?.status);
   const healthTone = getStatusTone(accountSummary?.degraded ? "degraded" : accountSummary?.health?.connected ? "connected" : "warning");
 
-  const primaryRuntimeMessage = liveReadyBlockers[0]
-    || liveRuntimeTruth?.deployment_blocker_reason
+  const currentLiveBlocker = liveRuntimeTruth?.deployment_blocker || null;
+  const primaryRuntimeMessage = liveRuntimeTruth?.deployment_blocker_reason
+    || liveRuntimeTruth?.deployment_blocker
     || liveRuntimeTruth?.execution_guardrail_reason
+    || liveReadyBlockers[0]
     || executionSurfaceContract?.operator_message
     || "目前沒有額外 blocker 摘要。";
 
@@ -475,7 +477,7 @@ export default function ExecutionStatus() {
           <MetricCard
             title="可部署"
             value={executionSurfaceContract?.live_ready ? "可進場" : "仍阻塞"}
-            detail={`scope ${executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only"} · ${primaryRuntimeMessage}`}
+            detail={`blocker ${currentLiveBlocker || "unavailable"} · ${primaryRuntimeMessage} · scope ${executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only"}`}
             tone={readinessTone}
           />
           <MetricCard
@@ -517,9 +519,10 @@ export default function ExecutionStatus() {
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">主 blocker</div>
-                <div className="mt-2 font-semibold text-white">{liveReadyBlockers.length > 0 ? liveReadyBlockers.join(" · ") : primaryRuntimeMessage}</div>
+                <div className="mt-2 font-semibold text-white">{primaryRuntimeMessage}</div>
                 <div className="mt-2 text-slate-400">deployment blocker {liveRuntimeTruth?.deployment_blocker || "none"}</div>
                 <div className="text-slate-400">execution guardrail {liveRuntimeTruth?.execution_guardrail_reason || "none"}</div>
+                <div className="text-slate-400">venue blockers {liveReadyBlockers.length > 0 ? liveReadyBlockers.join(" · ") : "none"}</div>
               </div>
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">部署計算</div>
