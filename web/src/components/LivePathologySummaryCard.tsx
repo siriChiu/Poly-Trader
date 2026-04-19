@@ -126,6 +126,9 @@ export default function LivePathologySummaryCard({
   const collapseFeatures = Array.isArray(recommendedPatch?.collapse_features)
     ? recommendedPatch.collapse_features.slice(0, 4)
     : [];
+  const spilloverLabel = summary.focus_scope_label
+    ? `${summary.focus_scope_label} spillover pocket`
+    : "broader-scope spillover pocket";
 
   if (!summary.summary && !exactLane && !spilloverPocket && !recommendedPatch) return null;
 
@@ -171,13 +174,14 @@ export default function LivePathologySummaryCard({
         </div>
 
         <div className="rounded-lg border border-red-500/20 bg-red-950/10 px-3 py-3 text-red-50">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-red-200/80">broader spillover</div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-red-200/80">{spilloverLabel}</div>
           <div className="mt-1 text-sm font-semibold text-red-100">
             {spilloverPocket?.regime_gate || summary.focus_scope_label || "no spillover"}
           </div>
           <div className="mt-2 space-y-1 text-[11px] leading-5 text-red-50/85">
             <div>
-              spillover rows {spillover?.extra_rows ?? "—"}
+              focus scope rows {summary.focus_scope_rows ?? "—"}
+              {spillover?.extra_rows != null ? ` · spillover rows ${spillover.extra_rows}` : ""}
               {spillover?.extra_row_share != null ? ` (${formatPct(spillover.extra_row_share)})` : ""}
             </div>
             <div>

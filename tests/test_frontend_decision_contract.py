@@ -280,6 +280,18 @@ def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
         assert snippet in source
 
 
+def test_live_pathology_summary_card_surfaces_focus_scope_vs_spillover_context():
+    source = _read("components/LivePathologySummaryCard.tsx")
+    required_snippets = [
+        'const spilloverLabel = summary.focus_scope_label',
+        'spillover pocket',
+        'focus scope rows {summary.focus_scope_rows ?? "—"}',
+        'spillover rows ${spillover.extra_rows}',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
 def test_venue_readiness_summary_component_surfaces_per_venue_contract():
     source = _read("components/VenueReadinessSummary.tsx")
     required_snippets = [
