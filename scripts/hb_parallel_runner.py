@@ -71,6 +71,7 @@ Q15_BOUNDARY_REPLAY_CMD = [PYTHON, "scripts/hb_q15_boundary_replay.py"]
 CIRCUIT_BREAKER_AUDIT_CMD = [PYTHON, "scripts/hb_circuit_breaker_audit.py"]
 FEATURE_ABLATION_CMD = [PYTHON, "scripts/feature_group_ablation.py"]
 BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
+BULL_4H_POCKET_ABLATION_REFRESH_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py", "--refresh-live-context"]
 LEADERBOARD_CANDIDATE_PROBE_CMD = [PYTHON, "scripts/hb_leaderboard_candidate_probe.py"]
 
 
@@ -1165,7 +1166,8 @@ def run_feature_group_ablation() -> Dict[str, Any]:
 
 
 def run_bull_4h_pocket_ablation() -> Dict[str, Any]:
-    return _run_serial_command(BULL_4H_POCKET_ABLATION_CMD)
+    cmd = BULL_4H_POCKET_ABLATION_REFRESH_CMD if _CURRENT_HEARTBEAT_FAST_MODE else BULL_4H_POCKET_ABLATION_CMD
+    return _run_serial_command(cmd)
 
 
 def refresh_train_prerequisites(needs_train: bool) -> Dict[str, Any]:
@@ -2061,6 +2063,8 @@ def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
 
     artifact_live_context = payload.get("live_context") or {}
     support_summary = payload.get("support_pathology_summary") or {}
+    refresh_mode = str(payload.get("refresh_mode") or "")
+    live_specific_profiles_fresh = bool(payload.get("live_specific_profiles_fresh", True))
     artifact_live_signature = _bull_pocket_semantic_signature_from_live_context(artifact_live_context)
     current_live_signature = _current_bull_pocket_semantic_signature()
     semantic_mismatch = bool(
@@ -2069,7 +2073,7 @@ def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
         and artifact_live_signature != current_live_signature
     )
     live_context = artifact_live_context
-    live_specific_reference_only = False
+    live_specific_reference_only = refresh_mode == "live_context_only" and not live_specific_profiles_fresh
 
     if semantic_mismatch and current_live_signature:
         live_context = {
@@ -2104,13 +2108,22 @@ def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
         ),
     }
     if live_specific_reference_only:
-        production_profile_role.update({
-            "role": "reference_only_stale_live_context",
-            "source": "bull_4h_pocket_ablation.reference_only",
-            "support_cohort": None,
-            "support_rows": None,
-            "reason": "bull 4H pocket artifact 的 live context 已和目前 live probe 脫節；本輪僅保留 bull_all / bull_collapse_q35 作為 reference-only，不能把 live-specific proxy cohorts 當成 current truth。",
-        })
+        if refresh_mode == "live_context_only" and not semantic_mismatch:
+            production_profile_role.update({
+                "role": "current_bucket_refresh_reference_only",
+                "source": "bull_4h_pocket_ablation.live_context_refresh",
+                "support_cohort": None,
+                "support_rows": None,
+                "reason": "fast heartbeat 已用 current-bucket refresh lane 更新 current live support truth；bull_all / bull_collapse_q35 仍可作 reference-only patch，但 live-specific proxy cohorts 本輪不提供可部署治理語義。",
+            })
+        else:
+            production_profile_role.update({
+                "role": "reference_only_stale_live_context",
+                "source": "bull_4h_pocket_ablation.reference_only",
+                "support_cohort": None,
+                "support_rows": None,
+                "reason": "bull 4H pocket artifact 的 live context 已和目前 live probe 脫節；本輪僅保留 bull_all / bull_collapse_q35 作為 reference-only，不能把 live-specific proxy cohorts 當成 current truth。",
+            })
 
     support_summary_payload = {
         "blocker_state": support_summary.get("blocker_state"),
@@ -2130,21 +2143,28 @@ def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
         "recommended_action": support_summary.get("recommended_action"),
     }
     if live_specific_reference_only:
-        support_summary_payload.update({
-            "blocker_state": "reference_only_stale_live_context",
-            "preferred_support_cohort": None,
-            "exact_bucket_root_cause": None,
-            "bucket_comparison_takeaway": None,
-            "proxy_boundary_verdict": None,
-            "proxy_boundary_reason": "artifact live context is stale against current live probe; skip live-specific proxy diagnostics until bull_4h_pocket_ablation.py is rebuilt for the current live bucket.",
-            "proxy_boundary_diagnostics": {},
-            "bucket_evidence_comparison": {},
-            "exact_lane_bucket_verdict": None,
-            "exact_lane_bucket_reason": None,
-            "exact_lane_toxic_bucket": {},
-            "exact_lane_bucket_diagnostics": {},
-            "recommended_action": "Keep bull_collapse_q35 reference patch visible, but do not treat stale live-specific proxy cohorts as current runtime truth.",
-        })
+        if refresh_mode == "live_context_only" and not semantic_mismatch:
+            support_summary_payload.update({
+                "blocker_state": "current_bucket_refresh_reference_only",
+                "preferred_support_cohort": None,
+                "recommended_action": "Fast heartbeat 已更新 current live bucket / support truth；live-specific proxy cohorts 需等 full bull_4h_pocket_ablation.py rebuild，當前僅保留 bull_collapse_q35 reference patch 可見性。",
+            })
+        else:
+            support_summary_payload.update({
+                "blocker_state": "reference_only_stale_live_context",
+                "preferred_support_cohort": None,
+                "exact_bucket_root_cause": None,
+                "bucket_comparison_takeaway": None,
+                "proxy_boundary_verdict": None,
+                "proxy_boundary_reason": "artifact live context is stale against current live probe; skip live-specific proxy diagnostics until bull_4h_pocket_ablation.py is rebuilt for the current live bucket.",
+                "proxy_boundary_diagnostics": {},
+                "bucket_evidence_comparison": {},
+                "exact_lane_bucket_verdict": None,
+                "exact_lane_bucket_reason": None,
+                "exact_lane_toxic_bucket": {},
+                "exact_lane_bucket_diagnostics": {},
+                "recommended_action": "Keep bull_collapse_q35 reference patch visible, but do not treat stale live-specific proxy cohorts as current runtime truth.",
+            })
 
     return {
         "generated_at": payload.get("generated_at"),
@@ -2156,6 +2176,8 @@ def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
             "artifact_live_signature": artifact_live_signature or {},
             "current_live_signature": current_live_signature or {},
             "live_specific_reference_only": live_specific_reference_only,
+            "refresh_mode": refresh_mode or "full_rebuild",
+            "live_specific_profiles_fresh": live_specific_profiles_fresh,
         },
         "live_context": {
             "regime_label": live_context.get("regime_label"),
@@ -2755,7 +2777,7 @@ def main(argv=None):
         semantic_alignment = bull_pocket_summary.get("semantic_alignment") or {}
         semantic_note = ""
         if semantic_alignment.get("live_specific_reference_only"):
-            semantic_note = " reference_only_stale_live_context"
+            semantic_note = f" {semantic_alignment.get('refresh_mode') or 'reference_only'}"
         print(
             "🐂 Bull pocket："
             f"collapse_best={collapse.get('recommended_profile')} "

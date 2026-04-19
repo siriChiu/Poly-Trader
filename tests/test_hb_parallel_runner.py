@@ -2180,6 +2180,22 @@ def test_run_serial_command_uses_fast_mode_timeout_budget(monkeypatch):
     assert captured["progress"]["details"]["fast_mode_timeout"] is True
 
 
+def test_run_bull_4h_pocket_ablation_uses_refresh_lane_in_fast_mode(monkeypatch):
+    captured = {}
+
+    def _fake_run_serial(cmd, timeout=None, extra_env=None):
+        captured["cmd"] = cmd
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": "", "command": cmd}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", _fake_run_serial)
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", True)
+
+    result = hb_parallel_runner.run_bull_4h_pocket_ablation()
+
+    assert result["success"] is True
+    assert captured["cmd"] == hb_parallel_runner.BULL_4H_POCKET_ABLATION_REFRESH_CMD
+
+
 
 def test_run_serial_command_reuses_fresh_fast_artifact(monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", True)
@@ -3309,6 +3325,79 @@ def test_collect_bull_4h_pocket_diagnostics_marks_semantic_mismatch_reference_on
     assert diag["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
     assert diag["bull_live_exact_lane_bucket_proxy"] == {}
     assert diag["production_profile_role"]["role"] == "reference_only_stale_live_context"
+
+
+def test_collect_bull_4h_pocket_diagnostics_marks_current_bucket_refresh_reference_only(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "bull_4h_pocket_ablation.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-19T14:00:00Z",
+                "target_col": "simulated_pyramid_win",
+                "refresh_mode": "live_context_only",
+                "live_specific_profiles_fresh": False,
+                "live_context": {
+                    "regime_label": "bull",
+                    "regime_gate": "CAUTION",
+                    "entry_quality_label": "D",
+                    "decision_quality_label": "D",
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 2,
+                    "exact_scope_rows": 3,
+                    "execution_guardrail_reason": "decision_quality_below_trade_floor",
+                    "decision_quality_calibration_scope": "regime_label+entry_quality_label",
+                    "supported_neighbor_buckets": ["CAUTION|structure_quality_caution|q15"],
+                },
+                "support_pathology_summary": {
+                    "blocker_state": "exact_bucket_present_but_below_minimum",
+                    "preferred_support_cohort": "bull_live_exact_lane_bucket_proxy",
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 48,
+                    "exact_bucket_root_cause": "exact_bucket_present_but_below_minimum",
+                    "recommended_action": "refresh current bucket only",
+                },
+                "cohorts": {
+                    "bull_all": {"rows": 100, "base_win_rate": 0.61, "recommended_profile": "core_plus_macro_plus_all_4h", "profiles": {"core_plus_macro_plus_all_4h": {"cv_mean_accuracy": 0.63}}},
+                    "bull_collapse_q35": {"rows": 40, "base_win_rate": 0.51, "recommended_profile": "core_plus_macro", "profiles": {"core_plus_macro": {"cv_mean_accuracy": 0.70}}},
+                    "bull_exact_live_lane_proxy": {"rows": 3, "base_win_rate": 0.43, "recommended_profile": None, "profiles": {}},
+                    "bull_live_exact_lane_bucket_proxy": {"rows": 2, "base_win_rate": 0.50, "recommended_profile": None, "profiles": {}},
+                    "bull_supported_neighbor_buckets_proxy": {"rows": 1, "base_win_rate": 1.0, "recommended_profile": None, "profiles": {}},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "regime_label": "bull",
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "decision_quality_label": "D",
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                "current_live_structure_bucket_rows": 2,
+                "exact_scope_rows": 3,
+                "execution_guardrail_reason": "decision_quality_below_trade_floor",
+                "decision_quality_calibration_scope": "regime_label+entry_quality_label",
+                "decision_quality_scope_diagnostics": {
+                    "regime_label+regime_gate+entry_quality_label": {"rows": 3}
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    diag = hb_parallel_runner.collect_bull_4h_pocket_diagnostics()
+
+    assert diag["semantic_alignment"]["aligned"] is True
+    assert diag["semantic_alignment"]["refresh_mode"] == "live_context_only"
+    assert diag["semantic_alignment"]["live_specific_reference_only"] is True
+    assert diag["support_pathology_summary"]["blocker_state"] == "current_bucket_refresh_reference_only"
+    assert diag["production_profile_role"]["role"] == "current_bucket_refresh_reference_only"
+    assert diag["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
+    assert diag["bull_live_exact_lane_bucket_proxy"] == {}
 
 
 def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_path, monkeypatch):

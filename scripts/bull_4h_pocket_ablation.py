@@ -13,6 +13,7 @@ Outputs:
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import sys
@@ -73,6 +74,192 @@ DEFAULT_XGB_PARAMS = {
     "eval_metric": "logloss",
     "random_state": 42,
 }
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--refresh-live-context",
+        action="store_true",
+        help=(
+            "Fast current-bucket refresh lane: reuse cached bull/collapse profile rankings, "
+            "refresh current live support truth, and intentionally keep live-specific cohorts reference-only."
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def _read_existing_payload(path: Path | None = None) -> dict[str, Any]:
+    path = path or OUT_JSON
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _cohort_masks(
+    frame: pd.DataFrame,
+    live_context: dict[str, Any],
+) -> tuple[dict[str, pd.Series], dict[str, float]]:
+    bull_mask = frame["regime_label"] == "bull"
+    collapse_mask, thresholds = build_bull_collapse_mask(frame)
+    exact_live_lane_mask = (
+        bull_mask
+        & (frame["regime_gate"] == live_context.get("regime_gate"))
+        & (frame["entry_quality_label"] == live_context.get("entry_quality_label"))
+    )
+    current_bucket = live_context.get("current_live_structure_bucket")
+    live_bucket_mask = exact_live_lane_mask & (frame["structure_bucket"] == current_bucket)
+    broad_same_bucket_mask = (
+        (frame["regime_gate"] == live_context.get("regime_gate"))
+        & (frame["entry_quality_label"] == live_context.get("entry_quality_label"))
+        & (frame["structure_bucket"] == current_bucket)
+    )
+    supported_neighbor_buckets = set(live_context.get("supported_neighbor_buckets") or [])
+    supported_neighbor_mask = exact_live_lane_mask & frame["structure_bucket"].isin(supported_neighbor_buckets)
+    return {
+        "bull_all": bull_mask,
+        "bull_collapse_q35": collapse_mask,
+        "bull_exact_live_lane_proxy": exact_live_lane_mask,
+        "bull_live_exact_lane_bucket_proxy": live_bucket_mask,
+        "bull_supported_neighbor_buckets_proxy": supported_neighbor_mask,
+        "broad_same_bucket": broad_same_bucket_mask,
+    }, thresholds
+
+
+def _quick_cohort_summary(
+    y: pd.Series,
+    mask: pd.Series,
+    *,
+    existing: dict[str, Any] | None = None,
+    fallback_profile: str | None = None,
+    fallback_feature_count: int | None = None,
+    reuse_profiles: bool,
+) -> dict[str, Any]:
+    existing = existing or {}
+    cohort_y = y.loc[mask]
+    rows = int(mask.sum())
+    summary: dict[str, Any] = {
+        "rows": rows,
+        "base_win_rate": float(cohort_y.mean()) if len(cohort_y) else 0.0,
+        "recommended_profile": None,
+        "profiles": {},
+        "profile_metrics_reused": False,
+    }
+    for key, value in existing.items():
+        if key not in summary:
+            summary[key] = value
+    if not reuse_profiles:
+        return summary
+
+    profiles = existing.get("profiles") or {}
+    recommended_profile = existing.get("recommended_profile") or fallback_profile
+    if recommended_profile and recommended_profile not in profiles:
+        placeholder: dict[str, Any] = {"refresh_placeholder": True}
+        if fallback_feature_count is not None:
+            placeholder["feature_count"] = fallback_feature_count
+        profiles = {**profiles, recommended_profile: placeholder}
+
+    summary["recommended_profile"] = recommended_profile
+    summary["profiles"] = profiles
+    summary["profile_metrics_reused"] = bool(profiles)
+    return summary
+
+
+def _build_live_context_refresh_payload(
+    frame: pd.DataFrame,
+    y: pd.Series,
+    *,
+    source_meta: dict[str, Any],
+    all_columns: list[str],
+) -> dict[str, Any]:
+    live_context = _live_context()
+    existing_payload = _read_existing_payload()
+    existing_cohorts = existing_payload.get("cohorts") or {}
+    cohort_masks, thresholds = _cohort_masks(frame, live_context)
+    profiles = build_candidate_profiles(all_columns)
+
+    bull_all_existing = existing_cohorts.get("bull_all") or {}
+    collapse_existing = existing_cohorts.get("bull_collapse_q35") or {}
+    bull_reference_profile = (
+        collapse_existing.get("recommended_profile")
+        or bull_all_existing.get("recommended_profile")
+        or "core_plus_macro"
+    )
+
+    cohorts = {
+        "bull_all": _quick_cohort_summary(
+            y,
+            cohort_masks["bull_all"],
+            existing=bull_all_existing,
+            fallback_profile=bull_all_existing.get("recommended_profile") or bull_reference_profile,
+            fallback_feature_count=len(profiles.get(bull_all_existing.get("recommended_profile") or bull_reference_profile, [])),
+            reuse_profiles=True,
+        ),
+        "bull_collapse_q35": _quick_cohort_summary(
+            y,
+            cohort_masks["bull_collapse_q35"],
+            existing=collapse_existing,
+            fallback_profile=collapse_existing.get("recommended_profile") or bull_reference_profile,
+            fallback_feature_count=len(profiles.get(collapse_existing.get("recommended_profile") or bull_reference_profile, [])),
+            reuse_profiles=True,
+        ),
+        "bull_exact_live_lane_proxy": _quick_cohort_summary(
+            y,
+            cohort_masks["bull_exact_live_lane_proxy"],
+            existing=existing_cohorts.get("bull_exact_live_lane_proxy") or {},
+            reuse_profiles=False,
+        ),
+        "bull_live_exact_lane_bucket_proxy": _quick_cohort_summary(
+            y,
+            cohort_masks["bull_live_exact_lane_bucket_proxy"],
+            existing=existing_cohorts.get("bull_live_exact_lane_bucket_proxy") or {},
+            reuse_profiles=False,
+        ),
+        "bull_supported_neighbor_buckets_proxy": _quick_cohort_summary(
+            y,
+            cohort_masks["bull_supported_neighbor_buckets_proxy"],
+            existing=existing_cohorts.get("bull_supported_neighbor_buckets_proxy") or {},
+            reuse_profiles=False,
+        ),
+    }
+
+    payload = {
+        "generated_at": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M:%S"),
+        "source_meta": source_meta,
+        "target_col": TARGET_COL,
+        "collapse_features": COLLAPSE_FEATURES,
+        "collapse_quantile": COLLAPSE_QUANTILE,
+        "min_collapse_flags": MIN_COLLAPSE_FLAGS,
+        "collapse_thresholds": {k: None if not np.isfinite(v) else round(v, 4) for k, v in thresholds.items()},
+        "live_context": live_context,
+        "cohorts": cohorts,
+        "refresh_mode": "live_context_only",
+        "live_specific_profiles_fresh": False,
+        "refresh_details": {
+            "profile_metrics_source": "existing_artifact" if existing_payload else "none_available",
+            "reference_profiles_reused": bool(bull_all_existing.get("profiles") or collapse_existing.get("profiles")),
+            "live_specific_profiles_reference_only": True,
+        },
+    }
+    payload["proxy_boundary_diagnostics"] = _build_proxy_boundary_diagnostics(
+        frame,
+        y,
+        live_context=live_context,
+        exact_live_lane_mask=cohort_masks["bull_exact_live_lane_proxy"],
+        live_bucket_mask=cohort_masks["bull_live_exact_lane_bucket_proxy"],
+        broad_same_bucket_mask=cohort_masks["broad_same_bucket"],
+    )
+    payload["exact_lane_bucket_diagnostics"] = _build_exact_lane_bucket_diagnostics(
+        frame,
+        y,
+        live_context=live_context,
+        exact_live_lane_mask=cohort_masks["bull_exact_live_lane_proxy"],
+    )
+    payload["support_pathology_summary"] = _support_pathology_summary(payload)
+    return payload
 
 
 def _safe_topk_win_rate(y_true: pd.Series, proba: np.ndarray, top_k: float = TOP_K) -> tuple[float | None, int]:
@@ -961,6 +1148,7 @@ def _write_markdown(payload: dict[str, Any]) -> None:
         f"- min collapse flags: **{payload['min_collapse_flags']} / {len(payload['collapse_features'])}**",
         f"- live context: **{payload['live_context'].get('regime_label')} / {payload['live_context'].get('regime_gate')} / {payload['live_context'].get('entry_quality_label')}**",
         f"- live structure bucket: `{payload['live_context'].get('current_live_structure_bucket')}`",
+        f"- refresh mode: **{payload.get('refresh_mode') or 'full_rebuild'}**",
         "",
         "## Cohorts",
         "",
@@ -1081,80 +1269,77 @@ def _write_markdown(payload: dict[str, Any]) -> None:
     OUT_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
     frame, y, _, source_meta = _load_frame_with_source_meta()
     frame = _derive_live_bucket_columns(frame)
     all_columns = [
         c for c in frame.columns
         if c not in {"regime_label", "regime_gate", "regime_gate_reason", "structure_quality", "structure_bucket", "entry_quality", "entry_quality_label"}
     ]
-    profiles = build_candidate_profiles(all_columns)
-    live_context = _live_context()
-    bull_mask = frame["regime_label"] == "bull"
-    collapse_mask, thresholds = build_bull_collapse_mask(frame)
-    exact_live_lane_mask = (
-        bull_mask
-        & (frame["regime_gate"] == live_context.get("regime_gate"))
-        & (frame["entry_quality_label"] == live_context.get("entry_quality_label"))
-    )
-    current_bucket = live_context.get("current_live_structure_bucket")
-    live_bucket_mask = exact_live_lane_mask & (frame["structure_bucket"] == current_bucket)
-    broad_same_bucket_mask = (
-        (frame["regime_gate"] == live_context.get("regime_gate"))
-        & (frame["entry_quality_label"] == live_context.get("entry_quality_label"))
-        & (frame["structure_bucket"] == current_bucket)
-    )
-    supported_neighbor_buckets = set(live_context.get("supported_neighbor_buckets") or [])
-    supported_neighbor_mask = exact_live_lane_mask & frame["structure_bucket"].isin(supported_neighbor_buckets)
 
-    def _evaluate_cohort(mask: pd.Series) -> dict[str, Any]:
-        cohort_X = frame.loc[mask, all_columns].reset_index(drop=True)
-        cohort_y = y.loc[mask].reset_index(drop=True)
-        results = {
-            name: metrics
-            for name, columns in profiles.items()
-            if (metrics := _evaluate_subset(cohort_X, cohort_y, columns)) is not None
-        }
-        ranked = sorted(results.items(), key=lambda item: rank_profile(item[1]), reverse=True)
-        return {
-            "rows": int(mask.sum()),
-            "base_win_rate": float(cohort_y.mean()) if len(cohort_y) else 0.0,
-            "recommended_profile": ranked[0][0] if ranked else None,
-            "profiles": results,
-        }
+    if args.refresh_live_context:
+        payload = _build_live_context_refresh_payload(
+            frame,
+            y,
+            source_meta=source_meta,
+            all_columns=all_columns,
+        )
+    else:
+        profiles = build_candidate_profiles(all_columns)
+        live_context = _live_context()
+        cohort_masks, thresholds = _cohort_masks(frame, live_context)
 
-    payload = {
-        "generated_at": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M:%S"),
-        "source_meta": source_meta,
-        "target_col": TARGET_COL,
-        "collapse_features": COLLAPSE_FEATURES,
-        "collapse_quantile": COLLAPSE_QUANTILE,
-        "min_collapse_flags": MIN_COLLAPSE_FLAGS,
-        "collapse_thresholds": {k: None if not np.isfinite(v) else round(v, 4) for k, v in thresholds.items()},
-        "live_context": live_context,
-        "cohorts": {
-            "bull_all": _evaluate_cohort(bull_mask),
-            "bull_collapse_q35": _evaluate_cohort(collapse_mask),
-            "bull_exact_live_lane_proxy": _evaluate_cohort(exact_live_lane_mask),
-            "bull_live_exact_lane_bucket_proxy": _evaluate_cohort(live_bucket_mask),
-            "bull_supported_neighbor_buckets_proxy": _evaluate_cohort(supported_neighbor_mask),
-        },
-    }
-    payload["proxy_boundary_diagnostics"] = _build_proxy_boundary_diagnostics(
-        frame,
-        y,
-        live_context=live_context,
-        exact_live_lane_mask=exact_live_lane_mask,
-        live_bucket_mask=live_bucket_mask,
-        broad_same_bucket_mask=broad_same_bucket_mask,
-    )
-    payload["exact_lane_bucket_diagnostics"] = _build_exact_lane_bucket_diagnostics(
-        frame,
-        y,
-        live_context=live_context,
-        exact_live_lane_mask=exact_live_lane_mask,
-    )
-    payload["support_pathology_summary"] = _support_pathology_summary(payload)
+        def _evaluate_cohort(mask: pd.Series) -> dict[str, Any]:
+            cohort_X = frame.loc[mask, all_columns].reset_index(drop=True)
+            cohort_y = y.loc[mask].reset_index(drop=True)
+            results = {
+                name: metrics
+                for name, columns in profiles.items()
+                if (metrics := _evaluate_subset(cohort_X, cohort_y, columns)) is not None
+            }
+            ranked = sorted(results.items(), key=lambda item: rank_profile(item[1]), reverse=True)
+            return {
+                "rows": int(mask.sum()),
+                "base_win_rate": float(cohort_y.mean()) if len(cohort_y) else 0.0,
+                "recommended_profile": ranked[0][0] if ranked else None,
+                "profiles": results,
+            }
+
+        payload = {
+            "generated_at": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M:%S"),
+            "source_meta": source_meta,
+            "target_col": TARGET_COL,
+            "collapse_features": COLLAPSE_FEATURES,
+            "collapse_quantile": COLLAPSE_QUANTILE,
+            "min_collapse_flags": MIN_COLLAPSE_FLAGS,
+            "collapse_thresholds": {k: None if not np.isfinite(v) else round(v, 4) for k, v in thresholds.items()},
+            "live_context": live_context,
+            "cohorts": {
+                "bull_all": _evaluate_cohort(cohort_masks["bull_all"]),
+                "bull_collapse_q35": _evaluate_cohort(cohort_masks["bull_collapse_q35"]),
+                "bull_exact_live_lane_proxy": _evaluate_cohort(cohort_masks["bull_exact_live_lane_proxy"]),
+                "bull_live_exact_lane_bucket_proxy": _evaluate_cohort(cohort_masks["bull_live_exact_lane_bucket_proxy"]),
+                "bull_supported_neighbor_buckets_proxy": _evaluate_cohort(cohort_masks["bull_supported_neighbor_buckets_proxy"]),
+            },
+            "refresh_mode": "full_rebuild",
+            "live_specific_profiles_fresh": True,
+        }
+        payload["proxy_boundary_diagnostics"] = _build_proxy_boundary_diagnostics(
+            frame,
+            y,
+            live_context=live_context,
+            exact_live_lane_mask=cohort_masks["bull_exact_live_lane_proxy"],
+            live_bucket_mask=cohort_masks["bull_live_exact_lane_bucket_proxy"],
+            broad_same_bucket_mask=cohort_masks["broad_same_bucket"],
+        )
+        payload["exact_lane_bucket_diagnostics"] = _build_exact_lane_bucket_diagnostics(
+            frame,
+            y,
+            live_context=live_context,
+            exact_live_lane_mask=cohort_masks["bull_exact_live_lane_proxy"],
+        )
+        payload["support_pathology_summary"] = _support_pathology_summary(payload)
 
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
     OUT_JSON.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -1167,6 +1352,7 @@ def main() -> None:
         "bull_exact_live_lane_proxy_rows": payload["cohorts"]["bull_exact_live_lane_proxy"]["rows"],
         "bull_live_exact_lane_bucket_proxy_rows": payload["cohorts"]["bull_live_exact_lane_bucket_proxy"]["rows"],
         "bull_supported_neighbor_buckets_proxy_rows": payload["cohorts"]["bull_supported_neighbor_buckets_proxy"]["rows"],
+        "refresh_mode": payload.get("refresh_mode"),
     }, indent=2, ensure_ascii=False))
 
 
