@@ -1372,6 +1372,154 @@ def test_sync_current_state_governance_issues_prefers_live_supported_bucket_over
     assert "139 rows" in toxic_add[2]
 
 
+def test_sync_current_state_governance_issues_refreshes_leaderboard_recent_window_issue_summary():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = [
+                {
+                    "id": "P1_leaderboard_recent_window_contract",
+                    "priority": "P1",
+                    "title": "leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe",
+                    "action": "old action",
+                    "status": "open",
+                    "summary": {
+                        "leaderboard_count": 1,
+                        "comparable_count": 1,
+                        "placeholder_count": 0,
+                        "top_model": "rule_baseline",
+                        "top_profile": "current_full",
+                    },
+                }
+            ]
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "leaderboard_count": 6,
+            "top_model": {
+                "model_name": "random_forest",
+                "selected_feature_profile": "core_only",
+                "selected_deployment_profile": "stable_turning_point_all_regimes_relaxed_v1",
+            },
+            "leaderboard_current_state": {
+                "comparable_count": 6,
+                "placeholder_count": 0,
+            },
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "leaderboard_selected_profile": "core_only",
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "verdict": "dual_role_governance_active",
+                    "current_closure": "global_ranking_vs_support_aware_production_split",
+                    "production_profile": "core_plus_macro",
+                },
+            },
+        },
+        {},
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    issue = next(issue for issue in tracker.issues if issue["id"] == "P1_leaderboard_recent_window_contract")
+    assert issue["summary"]["leaderboard_count"] == 6
+    assert issue["summary"]["comparable_count"] == 6
+    assert issue["summary"]["placeholder_count"] == 0
+    assert issue["summary"]["top_model"] == "random_forest"
+    assert issue["summary"]["top_profile"] == "core_only"
+    assert issue["summary"]["top_deployment_profile"] == "stable_turning_point_all_regimes_relaxed_v1"
+    assert issue["summary"]["governance_contract"] == "dual_role_governance_active"
+
+
+def test_sync_current_state_governance_issues_reads_comparable_rows_from_top_model_probe_shape():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = [
+                {
+                    "id": "P1_leaderboard_recent_window_contract",
+                    "priority": "P1",
+                    "title": "leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe",
+                    "action": "old action",
+                    "status": "open",
+                    "summary": {},
+                }
+            ]
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "leaderboard_count": 6,
+            "top_model": {
+                "model_name": "random_forest",
+                "selected_feature_profile": "core_only",
+                "selected_deployment_profile": "stable_turning_point_all_regimes_relaxed_v1",
+                "comparable_count": 6,
+                "placeholder_count": 0,
+            },
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "leaderboard_selected_profile": "core_only",
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "verdict": "dual_role_governance_active",
+                    "current_closure": "global_ranking_vs_support_aware_production_split",
+                    "production_profile": "core_plus_macro",
+                },
+            },
+        },
+        {},
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    issue = next(issue for issue in tracker.issues if issue["id"] == "P1_leaderboard_recent_window_contract")
+    assert issue["title"] == "leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe"
+    assert issue["summary"]["comparable_count"] == 6
+    assert issue["summary"]["placeholder_count"] == 0
+
+
 def test_sync_current_state_governance_issues_resolves_stale_q15_issue_when_circuit_breaker_is_active():
     events = []
 

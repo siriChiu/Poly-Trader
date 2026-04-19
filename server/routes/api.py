@@ -3412,8 +3412,7 @@ def _load_latest_model_leaderboard_snapshot_payload(db_path: Optional[str] = Non
 
 def _load_model_leaderboard_cache_file() -> None:
     with _MODEL_LB_CACHE_LOCK:
-        in_memory_payload = _MODEL_LB_CACHE.get("payload")
-        if bool(_MODEL_LB_CACHE.get("refreshing")) or _model_leaderboard_payload_has_rows(in_memory_payload):
+        if bool(_MODEL_LB_CACHE.get("refreshing")):
             return
 
     loaded_payload: Optional[Dict[str, Any]] = None
@@ -3435,16 +3434,30 @@ def _load_model_leaderboard_cache_file() -> None:
                     loaded_error = None
         except Exception as exc:
             logger.warning("Failed to load model leaderboard cache: %s", exc)
-    if loaded_payload is None:
-        snapshot = _load_latest_model_leaderboard_snapshot_payload()
-        if snapshot:
-            loaded_payload = snapshot.get("payload")
-            loaded_updated_at = float(snapshot.get("updated_at") or 0.0)
-            loaded_error = snapshot.get("error")
+
+    snapshot = _load_latest_model_leaderboard_snapshot_payload()
+    if snapshot:
+        snapshot_payload = snapshot.get("payload") if isinstance(snapshot.get("payload"), dict) else None
+        snapshot_updated_at = float(snapshot.get("updated_at") or 0.0)
+        if snapshot_payload is not None and _model_leaderboard_payload_has_rows(snapshot_payload):
+            if loaded_payload is None or snapshot_updated_at > loaded_updated_at:
+                loaded_payload = snapshot_payload
+                loaded_updated_at = snapshot_updated_at
+                loaded_error = snapshot.get("error")
     if loaded_payload is not None:
         loaded_payload = _normalize_model_leaderboard_payload(loaded_payload)
         with _MODEL_LB_CACHE_LOCK:
-            if not _MODEL_LB_CACHE.get("refreshing") and not _model_leaderboard_payload_has_rows(_MODEL_LB_CACHE.get("payload")):
+            current_payload = _MODEL_LB_CACHE.get("payload")
+            current_updated_at = float(_MODEL_LB_CACHE.get("updated_at") or 0.0)
+            current_has_rows = _model_leaderboard_payload_has_rows(current_payload)
+            should_adopt_loaded_payload = (
+                not _MODEL_LB_CACHE.get("refreshing")
+                and (
+                    not current_has_rows
+                    or (loaded_updated_at > 0 and loaded_updated_at > current_updated_at)
+                )
+            )
+            if should_adopt_loaded_payload:
                 _MODEL_LB_CACHE["payload"] = loaded_payload
                 _MODEL_LB_CACHE["updated_at"] = loaded_updated_at
                 _MODEL_LB_CACHE["error"] = loaded_error

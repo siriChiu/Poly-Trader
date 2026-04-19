@@ -1794,6 +1794,126 @@ def test_api_model_leaderboard_returns_cached_payload_without_recompute(monkeypa
     assert result["cached"] is True
 
 
+
+def test_api_model_leaderboard_reload_newer_disk_cache_into_runtime(monkeypatch, tmp_path: Path):
+    cache_path = tmp_path / "model_leaderboard_cache.json"
+    disk_payload = {
+        "leaderboard": [
+            {
+                "rank": 1,
+                "model_name": "disk_model",
+                "deployment_profile": "stable_turning_point_all_regimes_relaxed_v1",
+                "selected_deployment_profile": "stable_turning_point_all_regimes_relaxed_v1",
+                "selected_feature_profile": "core_only",
+            }
+        ],
+        "count": 1,
+        "comparable_count": 1,
+        "placeholder_count": 0,
+    }
+    cache_path.write_text(
+        json.dumps({"payload": disk_payload, "updated_at": 4102444800.0, "error": None}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(api_module, "MODEL_LB_CACHE_PATH", cache_path)
+    monkeypatch.setattr(
+        api_module,
+        "_MODEL_LB_CACHE",
+        {
+            "payload": {"leaderboard": [{"model_name": "memory_model"}], "count": 1},
+            "updated_at": 4102444700.0,
+            "refreshing": False,
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: None)
+
+    import asyncio
+    result = asyncio.run(api_module.api_model_leaderboard())
+
+    assert result["leaderboard"][0]["model_name"] == "disk_model"
+    assert api_module._MODEL_LB_CACHE["payload"]["leaderboard"][0]["model_name"] == "disk_model"
+    assert api_module._MODEL_LB_CACHE["updated_at"] == 4102444800.0
+
+
+
+def test_api_model_leaderboard_prefers_newer_snapshot_over_older_disk_cache(monkeypatch, tmp_path: Path):
+    cache_path = tmp_path / "model_leaderboard_cache.json"
+    db_path = tmp_path / "leaderboard_snapshot.db"
+    cache_payload = {
+        "leaderboard": [
+            {
+                "rank": 1,
+                "model_name": "cache_model",
+                "deployment_profile": "standard",
+                "selected_deployment_profile": "standard",
+                "selected_feature_profile": "current_full",
+            }
+        ],
+        "count": 1,
+        "comparable_count": 1,
+        "placeholder_count": 0,
+    }
+    snapshot_payload = {
+        "leaderboard": [
+            {
+                "rank": 1,
+                "model_name": "snapshot_model",
+                "deployment_profile": "stable_turning_point_all_regimes_relaxed_v1",
+                "selected_deployment_profile": "stable_turning_point_all_regimes_relaxed_v1",
+                "selected_feature_profile": "core_only",
+            }
+        ],
+        "count": 1,
+        "comparable_count": 1,
+        "placeholder_count": 0,
+    }
+    cache_path.write_text(
+        json.dumps({"payload": cache_payload, "updated_at": 4102444700.0, "error": None}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    conn = sqlite3.connect(db_path)
+    try:
+        api_module._ensure_model_leaderboard_tables(conn)
+        conn.execute(
+            "INSERT INTO leaderboard_model_snapshots(created_at, updated_at, target_col, model_count, payload_json) VALUES (?, ?, ?, ?, ?)",
+            (
+                "2100-01-01T00:00:00Z",
+                4102444800.0,
+                "simulated_pyramid_win",
+                1,
+                json.dumps(snapshot_payload, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(api_module, "MODEL_LB_CACHE_PATH", cache_path)
+    monkeypatch.setattr(api_module, "DB_PATH", str(db_path))
+    monkeypatch.setattr(
+        api_module,
+        "_MODEL_LB_CACHE",
+        {
+            "payload": {"leaderboard": [{"model_name": "memory_model"}], "count": 1},
+            "updated_at": 4102444600.0,
+            "refreshing": False,
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: None)
+
+    import asyncio
+    result = asyncio.run(api_module.api_model_leaderboard())
+
+    assert result["leaderboard"][0]["model_name"] == "snapshot_model"
+    assert result["leaderboard"][0]["selected_feature_profile"] == "core_only"
+    assert api_module._MODEL_LB_CACHE["payload"]["leaderboard"][0]["model_name"] == "snapshot_model"
+    assert api_module._MODEL_LB_CACHE["updated_at"] == 4102444800.0
+
+
+
 def test_api_model_leaderboard_history_returns_recent_snapshot_rows(tmp_path, monkeypatch):
     db_path = tmp_path / "lb_history.db"
     conn = sqlite3.connect(db_path)

@@ -552,6 +552,59 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         for issue_id in alignment_issue_ids:
             tracker.resolve(issue_id)
 
+    leaderboard_current_state = (leaderboard_probe or {}).get("leaderboard_current_state") or {}
+    leaderboard_count = _as_int_or_none((leaderboard_probe or {}).get("leaderboard_count"))
+    top_model = (leaderboard_probe or {}).get("top_model") or {}
+    comparable_count = _first_non_null(
+        _as_int_or_none(leaderboard_current_state.get("comparable_count")),
+        _as_int_or_none(top_model.get("comparable_count")),
+    )
+    placeholder_count = _first_non_null(
+        _as_int_or_none(leaderboard_current_state.get("placeholder_count")),
+        _as_int_or_none(top_model.get("placeholder_count")),
+    )
+    top_model_name = top_model.get("model_name")
+    top_profile = _first_non_null(
+        alignment.get("leaderboard_selected_profile"),
+        alignment.get("selected_feature_profile"),
+        top_model.get("selected_feature_profile"),
+        top_model.get("feature_profile"),
+    )
+    top_deployment_profile = _first_non_null(
+        top_model.get("selected_deployment_profile"),
+        top_model.get("deployment_profile"),
+    )
+    if leaderboard_count is not None or comparable_count is not None or top_model_name:
+        leaderboard_issue_title = (
+            "leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe"
+            if (comparable_count or 0) > 0
+            else "leaderboard comparable rows are missing; keep the recent-window contract honest"
+        )
+        leaderboard_issue_action = (
+            "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
+            if (comparable_count or 0) > 0
+            else "Restore comparable leaderboard rows or keep placeholder-only state explicit; do not let Strategy Lab or docs imply a stable ranking when the recent-window contract is missing."
+        )
+        upsert_issue(
+            tracker,
+            "P1",
+            "P1_leaderboard_recent_window_contract",
+            leaderboard_issue_title,
+            leaderboard_issue_action,
+            summary={
+                "leaderboard_count": leaderboard_count,
+                "comparable_count": comparable_count,
+                "placeholder_count": placeholder_count,
+                "top_model": top_model_name,
+                "top_profile": top_profile,
+                "top_deployment_profile": top_deployment_profile,
+                "governance_contract": governance.get("verdict"),
+                "current_closure": governance.get("current_closure"),
+                "leaderboard_payload_source": (leaderboard_probe or {}).get("leaderboard_payload_source"),
+                "dual_profile_state": alignment.get("dual_profile_state"),
+            },
+        )
+
     cv = metrics.get("cv_accuracy")
     cv_std = metrics.get("cv_std")
     cv_worst = metrics.get("cv_worst")

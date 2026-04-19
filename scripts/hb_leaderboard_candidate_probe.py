@@ -149,17 +149,18 @@ def _load_leaderboard_payload(*, allow_rebuild: bool = True) -> tuple[dict[str, 
         except Exception as exc:
             cache_error = str(exc)
 
-    if not payload:
-        try:
-            snapshot = api_module._load_latest_model_leaderboard_snapshot_payload()
-        except Exception as exc:
-            snapshot = None
-            cache_error = cache_error or str(exc)
-        if isinstance(snapshot, dict):
-            snapshot_payload = snapshot.get("payload")
-            if isinstance(snapshot_payload, dict) and _payload_has_rows(snapshot_payload):
+    try:
+        snapshot = api_module._load_latest_model_leaderboard_snapshot_payload()
+    except Exception as exc:
+        snapshot = None
+        cache_error = cache_error or str(exc)
+    if isinstance(snapshot, dict):
+        snapshot_payload = snapshot.get("payload")
+        snapshot_updated_at = float(snapshot.get("updated_at") or 0.0)
+        if isinstance(snapshot_payload, dict) and _payload_has_rows(snapshot_payload):
+            if not payload or snapshot_updated_at > updated_at:
                 payload = _normalize_payload(snapshot_payload)
-                updated_at = float(snapshot.get("updated_at") or 0.0)
+                updated_at = snapshot_updated_at
                 source_error = snapshot.get("error")
                 source = "latest_persisted_snapshot"
 

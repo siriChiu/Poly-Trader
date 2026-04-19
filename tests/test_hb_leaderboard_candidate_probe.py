@@ -961,6 +961,63 @@ def test_load_leaderboard_payload_prefers_latest_snapshot_when_cache_is_empty(tm
 
 
 
+def test_load_leaderboard_payload_prefers_newer_snapshot_over_older_cache(tmp_path, monkeypatch):
+    cache_path = tmp_path / "model_leaderboard_cache.json"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "payload": {
+                    "target_col": "simulated_pyramid_win",
+                    "count": 1,
+                    "leaderboard": [
+                        {
+                            "selected_feature_profile": "current_full",
+                            "selected_deployment_profile": "standard",
+                            "model_name": "cache_model",
+                        }
+                    ],
+                },
+                "updated_at": 1713100000.0,
+                "error": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hb_leaderboard_candidate_probe.api_module, "MODEL_LB_CACHE_PATH", cache_path, raising=False)
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_load_latest_model_leaderboard_snapshot_payload",
+        lambda: {
+            "payload": {
+                "target_col": "simulated_pyramid_win",
+                "count": 1,
+                "leaderboard": [
+                    {
+                        "selected_feature_profile": "core_only",
+                        "selected_deployment_profile": "stable_turning_point_all_regimes_relaxed_v1",
+                        "model_name": "snapshot_model",
+                    }
+                ],
+                "snapshot_history": [{"created_at": "2026-04-14T13:08:04Z"}],
+            },
+            "updated_at": 1713103600.0,
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_build_model_leaderboard_payload",
+        lambda: (_ for _ in ()).throw(AssertionError("live rebuild should not run when newer snapshot exists")),
+    )
+
+    payload, meta = hb_leaderboard_candidate_probe._load_leaderboard_payload(allow_rebuild=False)
+
+    assert payload["leaderboard"][0]["model_name"] == "snapshot_model"
+    assert payload["leaderboard"][0]["selected_feature_profile"] == "core_only"
+    assert meta["source"] == "latest_persisted_snapshot"
+
+
+
 def test_load_leaderboard_payload_keeps_placeholder_only_cache_without_rebuild(tmp_path, monkeypatch):
     cache_path = tmp_path / "model_leaderboard_cache.json"
     stale_updated_at = 1_713_100_000.0

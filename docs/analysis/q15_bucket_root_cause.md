@@ -1,6 +1,6 @@
 # q15 Bucket Root Cause
 
-- generated_at: **2026-04-19 10:59:52.630476**
+- generated_at: **2026-04-19 12:51:32.658060**
 - target_col: **simulated_pyramid_win**
 - verdict: **runtime_blocker_preempts_bucket_root_cause**
 - candidate_patch_type: **None**
@@ -9,8 +9,8 @@
 ## Current live
 - live path: **chop / CAUTION / D**
 - structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
-- structure_quality: **0.2185**
-- gap_to_q35_boundary: **0.1315**
+- structure_quality: **0.2952**
+- gap_to_q35_boundary: **0.0548**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
 
@@ -18,18 +18,18 @@
 - rows: **2368**
 - bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q35': 1139, 'CAUTION|base_caution_regime_or_bias|q65': 434, 'CAUTION|base_caution_regime_or_bias|q00': 285, 'CAUTION|base_caution_regime_or_bias|q15': 284, 'CAUTION|base_caution_regime_or_bias|q85': 226}`
 - dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q35** (1139 rows)
-- near_boundary_window: `{'lower': 0.2185, 'upper': 0.35}`
-- near_boundary_rows: **160**
+- near_boundary_window: `{'lower': 0.2952, 'upper': 0.35}`
+- near_boundary_rows: **55**
 
 ## Decision
 - reason: 目前 live runtime 已先被 circuit breaker 擋下；q15 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。
-- candidate_patch: `{'type': None, 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.2921, 'current_normalized': 0.2921, 'needed_raw_delta_to_cross_q35': 0.3868, 'target_bucket_p25': 0.6494, 'target_bucket_median': 0.695, 'needed_raw_delta_to_target_p25': 0.3573, 'needed_raw_delta_to_target_median': 0.4029}`
+- candidate_patch: `{'type': None, 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.4314, 'current_normalized': 0.4314, 'needed_raw_delta_to_cross_q35': 0.1612, 'target_bucket_p25': 0.6494, 'target_bucket_median': 0.695, 'needed_raw_delta_to_target_p25': 0.218, 'needed_raw_delta_to_target_median': 0.2636}`
 - verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 q15 root-cause artifact。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.2921 / norm=0.2921 / Δto_cross_q35=0.3868 / target_p25=0.6494 / target_median=0.695
-- `feat_4h_dist_bb_lower`: current=0.8563 / norm=0.107 / Δto_cross_q35=3.1879 / target_p25=2.1292 / target_median=3.2021
-- `feat_4h_dist_swing_low`: current=2.5426 / norm=0.2543 / Δto_cross_q35=3.9848 / target_p25=2.0932 / target_median=3.6167
+- `feat_4h_bb_pct_b`: current=0.4314 / norm=0.4314 / Δto_cross_q35=0.1612 / target_p25=0.6494 / target_median=0.695
+- `feat_4h_dist_bb_lower`: current=1.2737 / norm=0.1592 / Δto_cross_q35=1.3285 / target_p25=2.1292 / target_median=3.2021
+- `feat_4h_dist_swing_low`: current=2.909 / norm=0.2909 / Δto_cross_q35=1.6606 / target_p25=2.0932 / target_median=3.6167
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 verdict 與 candidate_patch_feature。
