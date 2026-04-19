@@ -1678,6 +1678,65 @@ def test_collect_feature_ablation_diagnostics_reads_recommended_profile(tmp_path
     assert diag["bull_collapse_4h_features"] == ["feat_4h_dist_bb_lower"]
 
 
+def test_bull_4h_pocket_cache_hit_reuses_reference_only_artifact_when_live_regime_is_not_bull(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    source_meta = {
+        "label_rows": 22186,
+        "latest_label_timestamp": "2026-04-18T05:46:26.528674",
+        "horizon_minutes": 1440,
+        "target_col": "simulated_pyramid_win",
+    }
+    (data_dir / "bull_4h_pocket_ablation.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-19 03:53:26",
+                "source_meta": source_meta,
+                "live_context": {
+                    "feature_timestamp": "2026-04-19 03:51:42.255204",
+                    "regime_label": "bull",
+                    "regime_gate": "BLOCK",
+                    "entry_quality_label": "D",
+                    "decision_quality_label": "D",
+                    "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                    "current_live_structure_bucket_rows": 1,
+                    "exact_scope_rows": 199,
+                    "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_live_structure_bucket_blocks_trade; circuit_breaker_active",
+                    "decision_quality_calibration_scope": "regime_label+regime_gate+entry_quality_label",
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "_current_bull_pocket_semantic_signature",
+        lambda: {
+            "regime_label": "chop",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "decision_quality_label": "D",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 0,
+            "exact_scope_rows": 0,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            "decision_quality_calibration_scope": "global",
+        },
+    )
+    monkeypatch.setattr(hb_parallel_runner, "_current_canonical_label_signature", lambda: dict(source_meta))
+    monkeypatch.setattr(hb_parallel_runner, "_artifact_is_newer_than_dependencies", lambda *args, **kwargs: True)
+
+    cache_hit = hb_parallel_runner._bull_4h_pocket_cache_hit()
+
+    assert cache_hit is not None
+    assert cache_hit["reason"] == "fresh_non_bull_live_regime_reference_only_bull_4h_pocket_artifact_reused"
+    assert cache_hit["details"]["reference_only"] is True
+    assert cache_hit["details"]["current_live_signature"]["regime_label"] == "chop"
+    assert cache_hit["details"]["semantic_signature"]["regime_label"] == "bull"
+
+
 def test_collect_q15_support_audit_diagnostics_reads_support_and_floor_verdicts(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"

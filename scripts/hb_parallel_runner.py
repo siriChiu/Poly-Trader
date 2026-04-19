@@ -637,14 +637,15 @@ def _bull_4h_pocket_cache_hit() -> Dict[str, Any] | None:
             Path(PROJECT_ROOT) / "model" / "train.py",
         ]
         artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
-        if (
+        can_reuse_semantically = (
             source_meta
             and artifact_live_signature is not None
             and current_live_signature is not None
             and artifact_live_signature == current_live_signature
             and (source_meta == expected_signature or label_drift is not None)
             and _artifact_is_newer_than_dependencies(artifact_time, dependency_paths)
-        ):
+        )
+        if can_reuse_semantically:
             return {
                 "artifact_path": str(artifact_path),
                 "reason": (
@@ -659,6 +660,34 @@ def _bull_4h_pocket_cache_hit() -> Dict[str, Any] | None:
                     "source_meta": source_meta,
                     "label_drift": label_drift,
                     "semantic_signature": artifact_live_signature,
+                },
+            }
+
+        current_regime = str((current_live_signature or {}).get("regime_label") or "").strip().lower()
+        if (
+            current_regime
+            and current_regime != "bull"
+            and source_meta
+            and (source_meta == expected_signature or label_drift is not None)
+            and _artifact_is_newer_than_dependencies(artifact_time, dependency_paths)
+        ):
+            return {
+                "artifact_path": str(artifact_path),
+                "reason": (
+                    "fresh_non_bull_live_regime_reference_only_bull_4h_pocket_artifact_reused"
+                    if source_meta == expected_signature
+                    else "bounded_label_drift_non_bull_live_regime_reference_only_bull_4h_pocket_artifact_reused"
+                ),
+                "details": {
+                    "generated_at": payload.get("generated_at"),
+                    "feature_timestamp": ((payload.get("live_context") or {}).get("feature_timestamp")),
+                    "current_live_structure_bucket": ((payload.get("live_context") or {}).get("current_live_structure_bucket")),
+                    "source_meta": source_meta,
+                    "label_drift": label_drift,
+                    "semantic_signature": artifact_live_signature,
+                    "current_live_signature": current_live_signature,
+                    "reference_only": True,
+                    "reason": "current live regime is not bull, so keep bull 4H pocket ablation as reference-only instead of forcing a fast-mode rerun.",
                 },
             }
 

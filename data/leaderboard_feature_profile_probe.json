@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-04-19T03:56:11.695186Z",
-  "leaderboard_snapshot_created_at": "2026-04-19T03:56:10.404268Z",
+  "generated_at": "2026-04-19T05:25:56.131735Z",
+  "leaderboard_snapshot_created_at": "2026-04-19T05:25:55.038068Z",
   "leaderboard_payload_source": "model_leaderboard_cache",
-  "leaderboard_payload_updated_at": "2026-04-19T03:56:10.404268Z",
+  "leaderboard_payload_updated_at": "2026-04-19T05:25:55.038068Z",
   "leaderboard_payload_cache_age_sec": 1,
   "leaderboard_payload_stale": false,
   "leaderboard_payload_error": null,
@@ -169,8 +169,8 @@
     "train_exact_live_bucket_rows": 41,
     "leaderboard_selected_profile": "core_only",
     "leaderboard_selected_profile_source": "feature_group_ablation.recommended_profile",
-    "leaderboard_snapshot_created_at": "2026-04-19T03:56:10.404268Z",
-    "alignment_evaluated_at": "2026-04-19T03:56:11.695186Z",
+    "leaderboard_snapshot_created_at": "2026-04-19T05:25:55.038068Z",
+    "alignment_evaluated_at": "2026-04-19T05:25:56.131735Z",
     "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
     "profile_split": {
       "global_profile": "core_only",
@@ -188,47 +188,75 @@
       "treat_as_parity_blocker": false,
       "current_closure": "global_ranking_vs_support_aware_production_split",
       "reason": "目前 global winner 與 production winner 扮演不同角色：leaderboard 保留 global shrinkage winner 作排名基線，train / runtime 則沿用 support-aware 或 exact-supported production profile 描述 current live bull lane。這是治理分工，不是 parity drift。",
-      "recommended_action": "文件與 heartbeat 應把 split 明寫為雙角色治理；在 exact support 未達標前，不要把 production profile fallback 誤報為 parity blocker。",
+      "recommended_action": "current live exact support 已連續停滯，下一輪若仍未增加應升級成 #PROFILE_GOVERNANCE_STALLED blocker。",
       "global_profile": "core_only",
       "global_profile_role": "global_shrinkage_winner",
       "production_profile": "core_plus_macro",
       "production_profile_role": "support_aware_production_profile",
-      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_lane_proxy_available",
       "split_required": true,
       "minimum_support_rows": 50,
-      "live_current_structure_bucket_rows": 1,
-      "live_current_structure_bucket_gap_to_minimum": 49,
+      "live_current_structure_bucket_rows": 0,
+      "live_current_structure_bucket_gap_to_minimum": 50,
       "support_progress": {
         "status": "stalled_under_minimum",
-        "reason": "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
-        "current_rows": 1,
+        "reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
+        "current_rows": 0,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 49,
+        "gap_to_minimum": 50,
         "delta_vs_previous": 0,
-        "previous_rows": 1,
+        "previous_rows": 0,
         "previous_route_changed": false,
-        "previous_support_governance_route": "exact_live_bucket_present_but_below_minimum",
-        "stagnant_run_count": 2,
+        "previous_support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+        "previous_support_governance_route": "exact_live_lane_proxy_available",
+        "stagnant_run_count": 5,
         "stalled_support_accumulation": true,
-        "escalate_to_blocker": false,
+        "escalate_to_blocker": true,
         "history": [
           {
-            "heartbeat": "20260419p",
-            "timestamp": "2026-04-19T03:56:11.696236+00:00",
-            "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
-            "live_current_structure_bucket_rows": 1,
+            "heartbeat": "current",
+            "timestamp": "2026-04-19T05:23:21.227605+00:00",
+            "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "live_current_structure_bucket_rows": 0,
             "minimum_support_rows": 50,
-            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-            "governance_verdict": null
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_governance_route": "exact_live_lane_proxy_available"
           },
           {
-            "heartbeat": "20260419m",
-            "timestamp": "2026-04-19T02:59:51.168011+00:00",
-            "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
-            "live_current_structure_bucket_rows": 1,
+            "heartbeat": "20260419s",
+            "timestamp": "2026-04-19T05:05:36.046775+00:00",
+            "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "live_current_structure_bucket_rows": 0,
             "minimum_support_rows": 50,
-            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-            "governance_verdict": "dual_role_governance_active"
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_governance_route": "exact_live_lane_proxy_available"
+          },
+          {
+            "heartbeat": "20260419r",
+            "timestamp": "2026-04-19T04:52:50.402818+00:00",
+            "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_governance_route": "exact_live_lane_proxy_available"
+          },
+          {
+            "heartbeat": "20260419o",
+            "timestamp": "2026-04-19T03:32:14.633702+00:00",
+            "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+            "support_governance_route": "exact_live_bucket_proxy_available"
+          },
+          {
+            "heartbeat": "20260419n",
+            "timestamp": "2026-04-19T03:07:18.481344+00:00",
+            "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+            "support_governance_route": "exact_live_bucket_proxy_available"
           }
         ]
       }
@@ -270,44 +298,72 @@
         "blocker_reason": "under_minimum_exact_live_structure_bucket"
       }
     ],
-    "live_regime_gate": "BLOCK",
+    "live_regime_gate": "CAUTION",
     "live_entry_quality_label": "D",
-    "live_execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_live_structure_bucket_blocks_trade; circuit_breaker_active",
-    "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
-    "live_current_structure_bucket_rows": 1,
+    "live_execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+    "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+    "live_current_structure_bucket_rows": 0,
     "minimum_support_rows": 50,
-    "live_current_structure_bucket_gap_to_minimum": 49,
+    "live_current_structure_bucket_gap_to_minimum": 50,
     "support_progress": {
       "status": "stalled_under_minimum",
-      "reason": "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
-      "current_rows": 1,
+      "reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
+      "current_rows": 0,
       "minimum_support_rows": 50,
-      "gap_to_minimum": 49,
+      "gap_to_minimum": 50,
       "delta_vs_previous": 0,
-      "previous_rows": 1,
+      "previous_rows": 0,
       "previous_route_changed": false,
-      "previous_support_governance_route": "exact_live_bucket_present_but_below_minimum",
-      "stagnant_run_count": 2,
+      "previous_support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+      "previous_support_governance_route": "exact_live_lane_proxy_available",
+      "stagnant_run_count": 5,
       "stalled_support_accumulation": true,
-      "escalate_to_blocker": false,
+      "escalate_to_blocker": true,
       "history": [
         {
-          "heartbeat": "20260419p",
-          "timestamp": "2026-04-19T03:56:11.696236+00:00",
-          "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
-          "live_current_structure_bucket_rows": 1,
+          "heartbeat": "current",
+          "timestamp": "2026-04-19T05:23:21.227605+00:00",
+          "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+          "live_current_structure_bucket_rows": 0,
           "minimum_support_rows": 50,
-          "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-          "governance_verdict": null
+          "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+          "support_governance_route": "exact_live_lane_proxy_available"
         },
         {
-          "heartbeat": "20260419m",
-          "timestamp": "2026-04-19T02:59:51.168011+00:00",
-          "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
-          "live_current_structure_bucket_rows": 1,
+          "heartbeat": "20260419s",
+          "timestamp": "2026-04-19T05:05:36.046775+00:00",
+          "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+          "live_current_structure_bucket_rows": 0,
           "minimum_support_rows": 50,
-          "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-          "governance_verdict": "dual_role_governance_active"
+          "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+          "support_governance_route": "exact_live_lane_proxy_available"
+        },
+        {
+          "heartbeat": "20260419r",
+          "timestamp": "2026-04-19T04:52:50.402818+00:00",
+          "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+          "live_current_structure_bucket_rows": 0,
+          "minimum_support_rows": 50,
+          "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+          "support_governance_route": "exact_live_lane_proxy_available"
+        },
+        {
+          "heartbeat": "20260419o",
+          "timestamp": "2026-04-19T03:32:14.633702+00:00",
+          "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+          "live_current_structure_bucket_rows": 0,
+          "minimum_support_rows": 50,
+          "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+          "support_governance_route": "exact_live_bucket_proxy_available"
+        },
+        {
+          "heartbeat": "20260419n",
+          "timestamp": "2026-04-19T03:07:18.481344+00:00",
+          "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+          "live_current_structure_bucket_rows": 0,
+          "minimum_support_rows": 50,
+          "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+          "support_governance_route": "exact_live_bucket_proxy_available"
         }
       ]
     },
@@ -353,6 +409,6 @@
     "bull_live_exact_bucket_proxy_profile": null,
     "bull_live_exact_bucket_proxy_rows": 0,
     "bull_exact_live_bucket_proxy_rows": 0,
-    "support_governance_route": "exact_live_bucket_present_but_below_minimum"
+    "support_governance_route": "exact_live_lane_proxy_available"
   }
 }
