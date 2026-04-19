@@ -141,6 +141,7 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
         "regime_label": "bull",
         "regime_gate": "ALLOW",
         "structure_bucket": "A",
+        "current_live_structure_bucket": "A",
         "entry_quality": 0.5501,
         "entry_quality_label": "C",
         "allowed_layers": 1,
@@ -149,6 +150,7 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
         "allowed_layers_raw_reason": "entry_quality_C_single_layer",
         "q15_exact_supported_component_patch_applied": True,
         "support_route_verdict": "exact_bucket_supported",
+        "support_governance_route": "exact_live_bucket_supported",
         "support_progress": {"current_rows": 77, "minimum_support_rows": 50},
         "decision_quality_scope_diagnostics": {
             "regime_label+regime_gate+entry_quality_label": {
@@ -198,6 +200,11 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["execution"]["live_runtime_truth"]["regime_label"] == "bull"
     assert payload["execution"]["live_runtime_truth"]["regime_gate"] == "ALLOW"
     assert payload["execution"]["live_runtime_truth"]["structure_bucket"] == "A"
+    assert payload["execution"]["live_runtime_truth"]["current_live_structure_bucket"] == "A"
+    assert payload["execution"]["live_runtime_truth"]["current_live_structure_bucket_rows"] == 77
+    assert payload["execution"]["live_runtime_truth"]["minimum_support_rows"] == 50
+    assert payload["execution"]["live_runtime_truth"]["current_live_structure_bucket_gap_to_minimum"] == 0
+    assert payload["execution"]["live_runtime_truth"]["support_governance_route"] == "exact_live_bucket_supported"
     assert payload["execution"]["live_runtime_truth"]["sleeve_routing"]["current_regime"] == "bull"
     assert payload["execution"]["live_runtime_truth"]["sleeve_routing"]["current_regime_gate"] == "ALLOW"
     assert payload["execution"]["live_runtime_truth"]["sleeve_routing"]["active_ratio_text"] == "3/4"
@@ -603,6 +610,10 @@ def test_build_live_runtime_closure_surface_marks_exact_supported_q15_trade_floo
     assert payload["runtime_closure_state"] == "support_closed_but_trade_floor_blocked"
     assert payload["deployment_blocker"] == "decision_quality_below_trade_floor"
     assert payload["support_route_verdict"] == "exact_bucket_supported"
+    assert payload["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
+    assert payload["current_live_structure_bucket_rows"] == 96
+    assert payload["minimum_support_rows"] == 50
+    assert payload["current_live_structure_bucket_gap_to_minimum"] == 0
     assert payload["support_rows_text"] == "96 / 50"
     assert "已完成 exact support closure" in payload["runtime_closure_summary"]
     assert "不可把 support closure 誤讀成 deployment closure" in payload["runtime_closure_summary"]

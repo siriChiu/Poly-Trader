@@ -1064,17 +1064,49 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
     from backtesting import strategy_lab
 
     payload = confidence_payload or {}
+    blocker_details = payload.get("deployment_blocker_details") if isinstance(payload.get("deployment_blocker_details"), dict) else {}
     patch_active = bool(payload.get("q15_exact_supported_component_patch_applied"))
     signal = str(payload.get("signal") or "unknown")
     regime_label = payload.get("regime_label")
     regime_gate = payload.get("regime_gate")
-    structure_bucket = payload.get("current_live_structure_bucket") or payload.get("structure_bucket")
+    scope_diagnostics = payload.get("decision_quality_scope_diagnostics") if isinstance(payload.get("decision_quality_scope_diagnostics"), dict) else {}
+    exact_scope = scope_diagnostics.get("regime_label+regime_gate+entry_quality_label") if isinstance(scope_diagnostics.get("regime_label+regime_gate+entry_quality_label"), dict) else {}
+    current_live_structure_bucket = (
+        payload.get("current_live_structure_bucket")
+        or payload.get("decision_quality_live_structure_bucket")
+        or blocker_details.get("current_live_structure_bucket")
+        or payload.get("structure_bucket")
+        or exact_scope.get("current_live_structure_bucket")
+    )
+    structure_bucket = current_live_structure_bucket or payload.get("structure_bucket")
     allowed_layers = payload.get("allowed_layers")
     support_progress = payload.get("support_progress") if isinstance(payload.get("support_progress"), dict) else {}
     current_rows = support_progress.get("current_rows")
+    if current_rows is None:
+        current_rows = payload.get("current_live_structure_bucket_rows")
+    if current_rows is None:
+        current_rows = blocker_details.get("current_live_structure_bucket_rows")
+    if current_rows is None:
+        current_rows = exact_scope.get("current_live_structure_bucket_rows")
     minimum_rows = support_progress.get("minimum_support_rows")
-    scope_diagnostics = payload.get("decision_quality_scope_diagnostics") if isinstance(payload.get("decision_quality_scope_diagnostics"), dict) else {}
-    exact_scope = scope_diagnostics.get("regime_label+regime_gate+entry_quality_label") if isinstance(scope_diagnostics.get("regime_label+regime_gate+entry_quality_label"), dict) else {}
+    if minimum_rows is None:
+        minimum_rows = payload.get("minimum_support_rows")
+    if minimum_rows is None:
+        minimum_rows = blocker_details.get("minimum_support_rows")
+    gap_to_minimum = payload.get("current_live_structure_bucket_gap_to_minimum")
+    if gap_to_minimum is None:
+        gap_to_minimum = blocker_details.get("current_live_structure_bucket_gap_to_minimum")
+    if gap_to_minimum is None and current_rows is not None and minimum_rows is not None:
+        try:
+            gap_to_minimum = max(int(minimum_rows) - int(current_rows), 0)
+        except (TypeError, ValueError):
+            gap_to_minimum = None
+    support_route_deployable = payload.get("support_route_deployable")
+    if support_route_deployable is None:
+        support_route_deployable = blocker_details.get("support_route_deployable")
+    support_governance_route = payload.get("support_governance_route")
+    if support_governance_route is None:
+        support_governance_route = blocker_details.get("support_governance_route")
     scope_pathology_summary = _build_live_pathology_scope_summary(scope_diagnostics)
     spillover_patch_summary = _build_live_pathology_patch_summary(payload, scope_pathology_summary)
     if isinstance(scope_pathology_summary, dict) and isinstance(spillover_patch_summary, dict):
@@ -1211,6 +1243,10 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "regime_label": regime_label,
         "regime_gate": regime_gate,
         "structure_bucket": structure_bucket,
+        "current_live_structure_bucket": current_live_structure_bucket,
+        "current_live_structure_bucket_rows": current_rows,
+        "minimum_support_rows": minimum_rows,
+        "current_live_structure_bucket_gap_to_minimum": gap_to_minimum,
         "confidence": payload.get("confidence"),
         "entry_quality": payload.get("entry_quality"),
         "entry_quality_label": payload.get("entry_quality_label"),
@@ -1226,6 +1262,8 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "deployment_blocker_details": payload.get("deployment_blocker_details"),
         "q15_exact_supported_component_patch_applied": patch_active,
         "support_route_verdict": payload.get("support_route_verdict"),
+        "support_route_deployable": support_route_deployable,
+        "support_governance_route": support_governance_route,
         "support_progress": support_progress or None,
         "support_rows_text": f"{current_rows} / {minimum_rows}" if current_rows is not None and minimum_rows is not None else None,
         "runtime_exact_support_rows": current_rows,
