@@ -31,6 +31,7 @@ from feature_engine.feature_history_policy import (
     compute_sqlite_feature_coverage,
 )
 from scripts.hb_collect import summarize_label_horizons
+from scripts.issues import IssueTracker
 
 PYTHON = os.path.join(PROJECT_ROOT, 'venv', 'bin', 'python')
 DB_PATH = os.path.join(PROJECT_ROOT, 'poly_trader.db')
@@ -51,6 +52,7 @@ FAST_SERIAL_TIMEOUTS = {
 }
 FAST_CACHE_REUSE_MAX_LABEL_DELTA = 12
 FAST_CACHE_REUSE_MAX_LABEL_TIME_DRIFT_SECONDS = 6 * 3600
+FAST_HEARTBEAT_CRON_BUDGET_SECONDS = 240
 
 TASKS = [
     {"name": "full_ic", "label": "🔍 Full IC", "cmd": [PYTHON, "scripts/full_ic.py"]},
@@ -171,6 +173,48 @@ def _format_number_for_docs(value: Any, digits: int = 4, signed: bool = False) -
         return "—"
     prefix = "+" if signed and numeric > 0 else ""
     return f"{prefix}{numeric:.{digits}f}"
+
+
+def _current_support_bucket(
+    live_predictor_diagnostics: Dict[str, Any] | None,
+    q15_support_audit: Dict[str, Any] | None,
+) -> str:
+    live_predictor_diagnostics = live_predictor_diagnostics or {}
+    q15_support_audit = q15_support_audit or {}
+
+    bucket = live_predictor_diagnostics.get("current_live_structure_bucket")
+    if bucket:
+        return str(bucket)
+
+    current_live = q15_support_audit.get("current_live") or {}
+    if isinstance(current_live, dict):
+        bucket = current_live.get("current_live_structure_bucket") or current_live.get("structure_bucket")
+        if bucket:
+            return str(bucket)
+
+    support_route = q15_support_audit.get("support_route") or {}
+    support_progress = support_route.get("support_progress") or {}
+    history = support_progress.get("history") or []
+    if history and isinstance(history[0], dict):
+        bucket = history[0].get("live_current_structure_bucket")
+        if bucket:
+            return str(bucket)
+
+    return ""
+
+
+def _support_scope_label(current_bucket: str | None) -> str:
+    bucket = str(current_bucket or "").strip()
+    if "q15" in bucket:
+        return "q15 current-live bucket"
+    return "current live bucket"
+
+
+def _support_truth_label(current_bucket: str | None) -> str:
+    bucket = str(current_bucket or "").strip()
+    if "q15" in bucket:
+        return "current live q15 truth"
+    return "current live bucket support truth"
 
 
 def _load_open_current_state_issues() -> list[Dict[str, Any]]:
@@ -388,6 +432,9 @@ def overwrite_current_state_docs(
         or leaderboard_candidate_diagnostics.get("train_selected_profile")
         or (governance_contract.get("production_profile") if isinstance(governance_contract, dict) else None)
     )
+    current_support_bucket = _current_support_bucket(live_predictor_diagnostics, q15_support_audit)
+    support_scope_label = _support_scope_label(current_support_bucket)
+    support_truth_label = _support_truth_label(current_support_bucket)
 
     counts_line = (
         f"`Raw={counts.get('raw_market_data', '—')} / "
@@ -496,9 +543,9 @@ def overwrite_current_state_docs(
             "---",
             "",
             "## Current Priority",
-            "1. **維持 breaker-first truth，同時保留 q15 same-bucket support rows 可 machine-read**",
+            f"1. **維持 breaker-first truth，同時保留 {support_scope_label} support rows 可 machine-read**",
             "2. **持續沿 recent canonical pathological slice 追根因，不要 generic 化 blocker**",
-            "3. **守住 q15 reference-only patch、leaderboard dual-role governance、venue/source blockers 可見性**",
+            f"3. **守住 {support_scope_label} support / reference-only patch、leaderboard dual-role governance、venue/source blockers 可見性**",
             "4. **讓 heartbeat 自動 overwrite sync current-state docs，不再把 docs drift 留給人工補寫**",
             "",
         ]
@@ -541,7 +588,7 @@ def overwrite_current_state_docs(
         f"- {support_line}",
         "**成功標準**",
         "- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker。",
-        "- q15 same-bucket truth (`bucket / rows / minimum / gap / support route`) 仍在 top-level surfaces 可 machine-read。",
+        f"- {support_scope_label} truth (`bucket / rows / minimum / gap / support route`) 仍在 top-level surfaces 可 machine-read。",
         "",
         "### 目標 B：持續把 recent canonical pathological slice 當成 breaker 根因來鑽",
         "**目前真相**",
@@ -549,12 +596,12 @@ def overwrite_current_state_docs(
         "**成功標準**",
         "- drift / probe / docs 能直接指出 pathological slice、adverse streak 與 top feature shifts，而不是退回 generic leaderboard / venue 摘要。",
         "",
-        "### 目標 C：守住 q15 `0/50 + reference-only patch` 真相",
+        f"### 目標 C：守住 {support_scope_label} support + reference-only patch 真相",
         "**目前真相**",
         f"- {support_line}",
         f"- `recommended_patch={live_decision_drilldown.get('recommended_patch_profile') or '—'}` / `status={live_decision_drilldown.get('recommended_patch_status') or '—'}` / `reference_scope={live_decision_drilldown.get('recommended_patch_reference_scope') or '—'}`",
         "**成功標準**",
-        "- probe / drilldown / `/api/status` / `/execution/status` / `/lab` / docs 全都承認 q15 exact support 未達 minimum rows，recommended patch 只能作治理 / 訓練參考。",
+        f"- probe / drilldown / `/api/status` / `/execution/status` / `/lab` / docs 全都承認 {support_scope_label} exact support 未達 minimum rows，recommended patch 只能作治理 / 訓練參考。",
         "",
         "### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth",
         "**目前真相**",
@@ -568,13 +615,13 @@ def overwrite_current_state_docs(
         "---",
         "",
         "## 下一輪 gate",
-        "1. **維持 breaker-first truth + q15 current-live bucket visibility across API / UI / docs**",
+        f"1. **維持 breaker-first truth + {support_scope_label} visibility across API / UI / docs**",
         "   - 驗證：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`",
-        "   - 升級 blocker：若 breaker release math 被 support / floor-gap / venue 話題覆蓋，或 q15 same-bucket rows 再次從 top-level surfaces 消失",
+        f"   - 升級 blocker：若 breaker release math 被 support / floor-gap / venue 話題覆蓋，或 {support_scope_label} rows 再次從 top-level surfaces 消失",
         "2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**",
         "   - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`",
         "   - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據",
-        "3. **守住 q15 reference-only patch、leaderboard governance、venue/source blockers 與 docs automation 閉環**",
+        f"3. **守住 {support_scope_label} support / reference-only patch、leaderboard governance、venue/source blockers 與 docs automation 閉環**",
         "   - 驗證：browser `/lab`、`curl http://127.0.0.1:8000/api/models/leaderboard`、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status",
         "   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts",
         "",
@@ -582,7 +629,7 @@ def overwrite_current_state_docs(
         "",
         "## 成功標準",
         "- current-live blocker 清楚且唯一：**breaker release math**",
-        f"- current live q15 truth 維持：**0/50 + {support_success_verdict} + {support_success_status}**",
+        f"- {support_truth_label} 維持：**0/50 + {support_success_verdict} + {support_success_status}**",
         "- recent canonical pathological slice 仍以同一個 current window 為主敘事，不被 generic 問題稀釋",
         "- leaderboard 維持 dual-role governance；venue/source blockers 持續可見",
         "- heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**",
@@ -601,7 +648,7 @@ def overwrite_current_state_docs(
         "### O｜客觀事實",
         f"- collect + diagnostics refresh 完成：{counts_line}；`simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`。",
         f"- current-live blocker：{blocker_line}。",
-        f"- q15 same-bucket truth：{support_line}。",
+        f"- {support_scope_label} truth：{support_line}。",
         f"- recent pathological slice：{pathology_line}。",
         f"- leaderboard / governance：{leaderboard_line}。",
         f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle。",
@@ -609,11 +656,11 @@ def overwrite_current_state_docs(
         "",
         "### R｜感受直覺",
         "- 這輪最危險的產品問題不是數字不夠，而是 heartbeat 原本只會提醒 docs stale，卻不會自己完成 docs overwrite；這會讓 repo current-state 與 live artifacts 再次 split-brain。",
-        "- breaker-first truth 沒變，但如果 markdown docs 還停在舊的 streak / 舊的 q15 rows，operator 看到的仍然是假 current state。",
+        "- breaker-first truth 沒變，但如果 markdown docs 還停在舊的 streak / 舊的 bucket rows，operator 看到的仍然是假 current state。",
         "",
         "### I｜意義洞察",
         "1. **closed-loop heartbeat 不能只更新 issues.json**：current-state markdown docs 也必須自動跟上，否則心跳在治理層仍然是不完整的。",
-        "2. **真正主 blocker 仍是 breaker + pathological slice**：docs automation 只是把 current truth 對齊，不是把 venue / q15 patch 提前升級成主敘事。",
+        "2. **真正主 blocker 仍是 breaker + pathological slice**：docs automation 只是把 current truth 對齊，不是把 current-bucket support / venue patch 提前升級成主敘事。",
         "3. **把 docs overwrite 內建進 runner 才符合 productization**：這能把 current-state 治理從人工補寫，升級成 cron-safe contract。",
         "",
         "### D｜決策行動",
@@ -1819,6 +1866,98 @@ def _build_serial_result_summary(
         "diagnostics_available": bool(diagnostics),
         "fallback_artifact_used": bool(result and not result.get("success", False) and bool(diagnostics) and artifact_exists),
         **artifact_snapshot,
+    }
+
+
+def sync_fast_heartbeat_timeout_issue(
+    run_label: str,
+    *,
+    fast_mode: bool,
+    elapsed_seconds: float,
+    collect_result: Dict[str, Any] | None,
+    parallel_results: Dict[str, Dict[str, Any]] | None,
+    serial_results: Dict[str, Dict[str, Any]] | None,
+) -> Dict[str, Any]:
+    issue_id = "P1_fast_heartbeat_timeout_regression"
+    if not fast_mode:
+        return {"issue_id": issue_id, "status": "skipped_non_fast"}
+
+    completed_lanes: list[str] = []
+    if (collect_result or {}).get("attempted") or (collect_result or {}).get("success"):
+        completed_lanes.append("hb_collect")
+
+    for name, result in (parallel_results or {}).items():
+        if isinstance(result, dict) and any(key in result for key in ("success", "stdout", "stderr", "returncode")):
+            completed_lanes.append(name)
+
+    timed_out_lanes: list[str] = []
+    for name, payload in (serial_results or {}).items():
+        if isinstance(payload, dict) and isinstance(payload.get("result"), dict):
+            result_payload = payload.get("result") or {}
+        elif isinstance(payload, dict):
+            result_payload = payload
+        else:
+            continue
+        if result_payload.get("attempted") or result_payload.get("cached") or result_payload.get("success") or result_payload.get("returncode") is not None:
+            completed_lanes.append(name)
+        if result_payload.get("returncode") == -1 and "TIMEOUT after" in str(result_payload.get("stderr") or ""):
+            timed_out_lanes.append(name)
+
+    completed_lanes = list(dict.fromkeys(completed_lanes))
+    elapsed_seconds = round(float(elapsed_seconds or 0.0), 1)
+    within_budget = elapsed_seconds <= FAST_HEARTBEAT_CRON_BUDGET_SECONDS
+
+    tracker = IssueTracker.load()
+    if within_budget and not timed_out_lanes:
+        tracker.resolve(issue_id)
+        tracker.save()
+        return {
+            "issue_id": issue_id,
+            "status": "resolved",
+            "elapsed_seconds": elapsed_seconds,
+            "within_budget": True,
+            "completed_lanes": completed_lanes,
+            "timed_out_lanes": [],
+        }
+
+    tracker.add(
+        "P1",
+        issue_id,
+        "fast heartbeat still overruns cron budget when candidate-eval lane wakes up",
+        "Keep --fast bounded to collect/drift/probe/docs lanes; move leaderboard or candidate evaluation behind a stricter timeout / opt-in refresh path.",
+    )
+    summary = {
+        "reproduced": True,
+        "heartbeat": run_label,
+        "elapsed_seconds": elapsed_seconds,
+        "timed_out_before_completion": bool(timed_out_lanes) or not within_budget,
+        "completed_lanes_before_timeout": completed_lanes,
+        "timed_out_lanes": timed_out_lanes,
+        "cron_budget_seconds": FAST_HEARTBEAT_CRON_BUDGET_SECONDS,
+        "timeout_reason": (
+            f"serial lanes exceeded watchdog: {', '.join(timed_out_lanes)}"
+            if timed_out_lanes
+            else f"fast runner completed in {elapsed_seconds}s which exceeds the {FAST_HEARTBEAT_CRON_BUDGET_SECONDS}s cron budget"
+        ),
+    }
+    if not within_budget:
+        summary["elapsed_seconds_greater_than"] = FAST_HEARTBEAT_CRON_BUDGET_SECONDS
+
+    for issue in getattr(tracker, "issues", []):
+        if issue.get("id") != issue_id:
+            continue
+        issue["hb_detected"] = run_label
+        issue["summary"] = summary
+        issue["updated_at"] = datetime.utcnow().isoformat()
+        break
+    tracker.save()
+    return {
+        "issue_id": issue_id,
+        "status": "open",
+        "elapsed_seconds": elapsed_seconds,
+        "within_budget": within_budget,
+        "completed_lanes": completed_lanes,
+        "timed_out_lanes": timed_out_lanes,
     }
 
 
@@ -3463,22 +3602,6 @@ def main(argv=None):
 
     write_progress(run_label, "auto_propose")
     auto_propose_result = run_auto_propose(run_label)
-    docs_sync_write = overwrite_current_state_docs(
-        run_label,
-        counts,
-        source_blockers,
-        drift_diagnostics,
-        live_predictor_diagnostics,
-        live_drilldown_summary,
-        q15_support_summary,
-        circuit_breaker_audit_summary,
-        leaderboard_candidate_diagnostics,
-    )
-    docs_sync = collect_current_state_docs_sync_status()
-    docs_sync["auto_synced"] = docs_sync_write.get("success", False)
-    docs_sync["written_docs"] = docs_sync_write.get("written_docs") or []
-    if docs_sync_write.get("errors"):
-        docs_sync["errors"] = docs_sync_write.get("errors")
     print(
         f"🛠️  自動修復建議：{'通過' if auto_propose_result['success'] else '失敗'} "
         f"(rc={auto_propose_result['returncode']})"
@@ -3491,17 +3614,6 @@ def main(argv=None):
         print(f"\n--- auto_propose_fixes ---\n{preview}")
     if auto_propose_result.get("stderr"):
         print(f"\n--- auto_propose_fixes stderr ---\n{auto_propose_result['stderr']}")
-    if docs_sync_write.get("success"):
-        written_docs_text = ", ".join(docs_sync_write.get("written_docs") or []) or "none"
-        print(f"📝 current-state docs：已 overwrite sync {written_docs_text}")
-    if not docs_sync.get("ok", True):
-        stale_docs_text = ", ".join(docs_sync.get("stale_docs") or []) or "unknown"
-        reference_text = ", ".join(docs_sync.get("reference_artifacts") or []) or "none"
-        print(
-            "⚠️  current-state docs stale："
-            f"{stale_docs_text} older than latest artifacts ({reference_text})；"
-            "請先 overwrite sync docs 再 commit。"
-        )
 
     serial_result_payload = {
         "recent_drift_report": {
@@ -3564,6 +3676,55 @@ def main(argv=None):
             "artifact_path": Path(PROJECT_ROOT) / "issues.json",
         },
     }
+    fast_timeout_issue_sync = sync_fast_heartbeat_timeout_issue(
+        run_label,
+        fast_mode=args.fast,
+        elapsed_seconds=elapsed,
+        collect_result=collect_result,
+        parallel_results=results,
+        serial_results=serial_result_payload,
+    )
+    if args.fast:
+        if fast_timeout_issue_sync.get("status") == "resolved":
+            print(
+                "✅ Fast heartbeat cron budget："
+                f"completed in {fast_timeout_issue_sync.get('elapsed_seconds')}s within "
+                f"{FAST_HEARTBEAT_CRON_BUDGET_SECONDS}s budget; cleared stale timeout regression issue."
+            )
+        elif fast_timeout_issue_sync.get("status") == "open":
+            print(
+                "⚠️  Fast heartbeat cron budget："
+                f"elapsed={fast_timeout_issue_sync.get('elapsed_seconds')}s "
+                f"timed_out_lanes={fast_timeout_issue_sync.get('timed_out_lanes') or []}"
+            )
+
+    docs_sync_write = overwrite_current_state_docs(
+        run_label,
+        counts,
+        source_blockers,
+        drift_diagnostics,
+        live_predictor_diagnostics,
+        live_drilldown_summary,
+        q15_support_summary,
+        circuit_breaker_audit_summary,
+        leaderboard_candidate_diagnostics,
+    )
+    docs_sync = collect_current_state_docs_sync_status()
+    docs_sync["auto_synced"] = docs_sync_write.get("success", False)
+    docs_sync["written_docs"] = docs_sync_write.get("written_docs") or []
+    if docs_sync_write.get("errors"):
+        docs_sync["errors"] = docs_sync_write.get("errors")
+    if docs_sync_write.get("success"):
+        written_docs_text = ", ".join(docs_sync_write.get("written_docs") or []) or "none"
+        print(f"📝 current-state docs：已 overwrite sync {written_docs_text}")
+    if not docs_sync.get("ok", True):
+        stale_docs_text = ", ".join(docs_sync.get("stale_docs") or []) or "unknown"
+        reference_text = ", ".join(docs_sync.get("reference_artifacts") or []) or "none"
+        print(
+            "⚠️  current-state docs stale："
+            f"{stale_docs_text} older than latest artifacts ({reference_text})；"
+            "請先 overwrite sync docs 再 commit。"
+        )
 
     summary, summary_path = save_summary(
         run_label,

@@ -1518,7 +1518,7 @@ def test_collect_live_decision_quality_drilldown_diagnostics_falls_back_to_neste
 
 
 
-def test_overwrite_current_state_docs_uses_dynamic_q15_success_criteria_and_patch_visibility(tmp_path, monkeypatch):
+def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_bucket_is_not_q15(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -1545,10 +1545,12 @@ def test_overwrite_current_state_docs_uses_dynamic_q15_success_criteria_and_patc
         "recommended_patch_reference_scope": "bull|CAUTION",
     }
     live_predictor = {
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
         "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
         "deployment_blocker_details": {"release_condition": {}},
     }
     q15_support = {
+        "current_live": {"current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00"},
         "support_route": {
             "verdict": "exact_bucket_missing_exact_lane_proxy_only",
             "support_progress": {
@@ -1572,13 +1574,63 @@ def test_overwrite_current_state_docs_uses_dynamic_q15_success_criteria_and_patc
     )
 
     assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
     roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "current live bucket support rows 可 machine-read" in issues_md
     assert "recommended_patch=core_plus_macro_plus_all_4h" in roadmap_md
     assert "status=reference_only_until_exact_support_ready" in roadmap_md
     assert (
-        "current live q15 truth 維持：**0/50 + exact_bucket_missing_exact_lane_proxy_only + "
+        "current live bucket support truth 維持：**0/50 + exact_bucket_missing_exact_lane_proxy_only + "
         "reference_only_until_exact_support_ready**"
     ) in roadmap_md
+    assert "current live q15 truth" not in roadmap_md
+
+
+
+def test_sync_fast_heartbeat_timeout_issue_resolves_stale_issue_when_run_finishes_within_budget(monkeypatch):
+    tracker = type(
+        "DummyTracker",
+        (),
+        {
+            "issues": [
+                {
+                    "id": "P1_fast_heartbeat_timeout_regression",
+                    "priority": "P1",
+                    "title": "fast heartbeat still overruns cron budget when candidate-eval lane wakes up",
+                    "action": "old action",
+                    "status": "open",
+                }
+            ],
+            "resolve": lambda self, issue_id: self.issues[0].update(status="resolved") or True,
+            "add": lambda self, *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not reopen fast timeout issue")),
+            "save": lambda self: None,
+        },
+    )()
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "IssueTracker",
+        type("IssueTrackerShim", (), {"load": staticmethod(lambda: tracker)}),
+    )
+
+    result = hb_parallel_runner.sync_fast_heartbeat_timeout_issue(
+        "20260420z",
+        fast_mode=True,
+        elapsed_seconds=88.4,
+        collect_result={"attempted": True, "success": True},
+        parallel_results={
+            "full_ic": {"success": True},
+            "regime_ic": {"success": True},
+        },
+        serial_results={
+            "recent_drift_report": {"result": {"attempted": False, "success": True, "cached": True, "returncode": 0}},
+            "hb_predict_probe": {"result": {"attempted": True, "success": True, "returncode": 0}},
+            "auto_propose_fixes": {"result": {"attempted": True, "success": True, "returncode": 0}},
+        },
+    )
+
+    assert result["status"] == "resolved"
+    assert result["within_budget"] is True
+    assert tracker.issues[0]["status"] == "resolved"
 
 
 
