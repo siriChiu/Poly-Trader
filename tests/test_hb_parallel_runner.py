@@ -780,6 +780,123 @@ def test_needs_q15_post_audit_runtime_resync_when_support_route_truth_changes_un
     ) is True
 
 
+def test_q15_post_audit_runtime_resync_reason_reports_patch_ready_probe_unpatched():
+    live_predictor_diagnostics = {
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "q15_exact_supported_component_patch_applied": False,
+        "allowed_layers_raw": 0,
+        "allowed_layers": 0,
+    }
+    q15_support_summary = {
+        "scope_applicability": {
+            "status": "current_live_q15_lane_active",
+            "active_for_current_live_row": True,
+            "current_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        },
+        "support_route": {
+            "verdict": "exact_bucket_supported",
+            "deployable": True,
+        },
+        "floor_cross_legality": {
+            "verdict": "legal_component_experiment_after_support_ready",
+            "legal_to_relax_runtime_gate": True,
+        },
+        "component_experiment": {
+            "verdict": "exact_supported_component_experiment_ready",
+            "feature": "feat_4h_bias50",
+            "machine_read_answer": {
+                "support_ready": True,
+                "entry_quality_ge_0_55": True,
+                "allowed_layers_gt_0": True,
+                "preserves_positive_discrimination": True,
+            },
+        },
+    }
+
+    assert (
+        hb_parallel_runner._q15_post_audit_runtime_resync_reason(
+            live_predictor_diagnostics,
+            q15_support_summary,
+        )
+        == "patch_ready_probe_unpatched"
+    )
+
+
+def test_q15_post_audit_runtime_resync_reason_reports_support_truth_drift():
+    live_predictor_diagnostics = {
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "q15_exact_supported_component_patch_applied": False,
+        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+        "support_governance_route": "exact_live_lane_proxy_available",
+        "support_progress": {
+            "status": "stalled_under_minimum",
+            "current_rows": 0,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 50,
+        },
+        "allowed_layers_raw": 0,
+        "allowed_layers": 0,
+    }
+    q15_support_summary = {
+        "scope_applicability": {
+            "status": "current_live_q15_lane_active",
+            "active_for_current_live_row": True,
+            "current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        },
+        "support_route": {
+            "verdict": "exact_bucket_missing_proxy_reference_only",
+            "deployable": False,
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+        },
+        "floor_cross_legality": {
+            "verdict": "runtime_blocker_preempts_floor_analysis",
+            "legal_to_relax_runtime_gate": False,
+        },
+        "component_experiment": {
+            "verdict": "runtime_blocker_preempts_component_experiment",
+            "feature": "feat_4h_bias50",
+            "machine_read_answer": {
+                "support_ready": False,
+                "entry_quality_ge_0_55": False,
+                "allowed_layers_gt_0": False,
+                "preserves_positive_discrimination": None,
+            },
+        },
+    }
+
+    assert (
+        hb_parallel_runner._q15_post_audit_runtime_resync_reason(
+            live_predictor_diagnostics,
+            q15_support_summary,
+        )
+        == "support_truth_changed_under_breaker"
+    )
+
+
+def test_format_q15_post_audit_runtime_resync_message_distinguishes_support_truth_drift():
+    message = hb_parallel_runner._format_q15_post_audit_runtime_resync_message(
+        "support_truth_changed_under_breaker"
+    )
+
+    assert "support truth 已更新" in message
+    assert "patch-ready" not in message
+
+
+def test_format_q15_post_audit_runtime_resync_message_distinguishes_patch_ready():
+    message = hb_parallel_runner._format_q15_post_audit_runtime_resync_message(
+        "patch_ready_probe_unpatched"
+    )
+
+    assert "patch-ready" in message
+    assert "support truth 已更新" not in message
+
+
 def test_q35_joint_component_experiment_quantifies_remaining_bias50_gap():
     runtime_current = {
         "regime_gate": "CAUTION",

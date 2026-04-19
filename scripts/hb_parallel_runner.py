@@ -1325,6 +1325,7 @@ def save_summary(
     feature_ablation=None,
     bull_4h_pocket_ablation=None,
     leaderboard_candidate_diagnostics=None,
+    q15_runtime_resync=None,
     auto_propose_result=None,
     docs_sync=None,
     progress_path=None,
@@ -1371,6 +1372,7 @@ def save_summary(
         "feature_ablation": feature_ablation or {},
         "bull_4h_pocket_ablation": bull_4h_pocket_ablation or {},
         "leaderboard_candidate_diagnostics": leaderboard_candidate_diagnostics or {},
+        "q15_runtime_resync": q15_runtime_resync or {"triggered": False, "reason": None, "message": None},
         "auto_propose": {
             "attempted": (auto_propose_result or {}).get("attempted", False),
             "success": (auto_propose_result or {}).get("success", False),
@@ -1609,18 +1611,18 @@ def collect_live_decision_quality_drilldown_diagnostics(
     }
 
 
-def _needs_q15_post_audit_runtime_resync(
+def _q15_post_audit_runtime_resync_reason(
     live_predictor_diagnostics: Dict[str, Any] | None,
     q15_support_summary: Dict[str, Any] | None,
-) -> bool:
+) -> str | None:
     live_predictor_diagnostics = live_predictor_diagnostics or {}
     q15_support_summary = q15_support_summary or {}
     if not live_predictor_diagnostics or not q15_support_summary:
-        return False
+        return None
 
     current_bucket = str(live_predictor_diagnostics.get("current_live_structure_bucket") or "")
     if "q15" not in current_bucket:
-        return False
+        return None
 
     scope = q15_support_summary.get("scope_applicability") or {}
     support_route = q15_support_summary.get("support_route") or {}
@@ -1630,30 +1632,19 @@ def _needs_q15_post_audit_runtime_resync(
     support_progress = support_route.get("support_progress") if isinstance(support_route.get("support_progress"), dict) else {}
 
     if scope.get("status") != "current_live_q15_lane_active" or not scope.get("active_for_current_live_row"):
-        return False
+        return None
     audit_bucket = str(scope.get("current_structure_bucket") or "")
     if audit_bucket and audit_bucket != current_bucket:
-        return False
+        return None
 
     live_support_route_verdict = live_predictor_diagnostics.get("support_route_verdict")
     live_support_governance_route = live_predictor_diagnostics.get("support_governance_route")
     live_support_progress = live_predictor_diagnostics.get("support_progress") or {}
 
-    if support_route.get("verdict") and support_route.get("verdict") != live_support_route_verdict:
-        return True
-    if support_route.get("support_governance_route") and support_route.get("support_governance_route") != live_support_governance_route:
-        return True
-    for key in ("status", "current_rows", "minimum_support_rows", "gap_to_minimum"):
-        audit_value = support_progress.get(key)
-        if audit_value is None:
-            continue
-        if live_support_progress.get(key) != audit_value:
-            return True
-
     if bool(live_predictor_diagnostics.get("q15_exact_supported_component_patch_applied")):
-        return False
+        return None
 
-    return bool(
+    if bool(
         support_route.get("verdict") == "exact_bucket_supported"
         and support_route.get("deployable")
         and floor.get("verdict") == "legal_component_experiment_after_support_ready"
@@ -1664,7 +1655,47 @@ def _needs_q15_post_audit_runtime_resync(
         and machine_read.get("entry_quality_ge_0_55")
         and machine_read.get("allowed_layers_gt_0")
         and machine_read.get("preserves_positive_discrimination")
-    )
+    ):
+        return "patch_ready_probe_unpatched"
+
+    if support_route.get("verdict") and support_route.get("verdict") != live_support_route_verdict:
+        return "support_truth_changed_under_breaker"
+    if support_route.get("support_governance_route") and support_route.get("support_governance_route") != live_support_governance_route:
+        return "support_truth_changed_under_breaker"
+    for key in ("status", "current_rows", "minimum_support_rows", "gap_to_minimum"):
+        audit_value = support_progress.get(key)
+        if audit_value is None:
+            continue
+        if live_support_progress.get(key) != audit_value:
+            return "support_truth_changed_under_breaker"
+
+    return None
+
+
+
+def _needs_q15_post_audit_runtime_resync(
+    live_predictor_diagnostics: Dict[str, Any] | None,
+    q15_support_summary: Dict[str, Any] | None,
+) -> bool:
+    return _q15_post_audit_runtime_resync_reason(
+        live_predictor_diagnostics,
+        q15_support_summary,
+    ) is not None
+
+
+
+def _format_q15_post_audit_runtime_resync_message(reason: str | None) -> str:
+    if reason == "support_truth_changed_under_breaker":
+        return (
+            "🔄 Q15 runtime resync：support truth 已更新（route / governance / progress 與先前 live probe 不一致）；"
+            "重跑 probe + drilldown 以鎖定最終 current-live truth。"
+        )
+    if reason == "patch_ready_probe_unpatched":
+        return (
+            "🔄 Q15 runtime resync：support audit 已確認 patch-ready，但先前 live probe 尚未套用；"
+            "重跑 probe + drilldown 以鎖定最終 current-live truth。"
+        )
+    return "🔄 Q15 runtime resync：重跑 probe + drilldown 以鎖定最終 current-live truth。"
 
 
 def collect_feature_ablation_diagnostics() -> Dict[str, Any]:
@@ -2724,8 +2755,16 @@ def main(argv=None):
             f"layers>0={experiment_answer.get('allowed_layers_gt_0')}"
         )
 
-    if _needs_q15_post_audit_runtime_resync(live_predictor_diagnostics, q15_support_summary):
-        print("🔄 Q15 runtime resync：support audit 已確認 patch-ready，但先前 live probe 尚未套用；重跑 probe + drilldown 以鎖定最終 current-live truth。")
+    q15_runtime_resync = {"triggered": False, "reason": None, "message": None}
+    resync_reason = _q15_post_audit_runtime_resync_reason(live_predictor_diagnostics, q15_support_summary)
+    if resync_reason:
+        resync_message = _format_q15_post_audit_runtime_resync_message(resync_reason)
+        q15_runtime_resync = {
+            "triggered": True,
+            "reason": resync_reason,
+            "message": resync_message,
+        }
+        print(resync_message)
         write_progress(run_label, "q15_runtime_resync_probe")
         predict_probe_result = run_predict_probe()
         _persist_live_predictor_probe(predict_probe_result.get("stdout", ""))
@@ -2917,6 +2956,7 @@ def main(argv=None):
         feature_ablation=feature_ablation_summary,
         bull_4h_pocket_ablation=bull_pocket_summary,
         leaderboard_candidate_diagnostics=leaderboard_candidate_diagnostics,
+        q15_runtime_resync=q15_runtime_resync,
         auto_propose_result=auto_propose_result,
         docs_sync=docs_sync,
         progress_path=progress_path,
