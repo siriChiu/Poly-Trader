@@ -386,8 +386,11 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
             },
             "recommended_patch": {
                 "status": "reference_only_until_exact_support_ready",
-                "reason": "bull|CAUTION spillover 已有正式 patch 建議（core_plus_macro），目前只能作治理 / 訓練參考，不可直接放行 runtime。",
+                "reason": "參考 patch 來自 bull|CAUTION（source: bull_4h_pocket_ablation.bull_collapse_q35），建議 profile=core_plus_macro；但 current live exact support 仍是 0/50；目前只能作治理 / 訓練參考，不可直接放行 runtime。",
                 "recommended_profile": "core_plus_macro",
+                "spillover_regime_gate": "bull|BLOCK",
+                "reference_patch_scope": "bull|CAUTION",
+                "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
                 "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
                 "gap_to_minimum": 50,
                 "collapse_features": [
@@ -413,5 +416,10 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
 
     assert payload["recommended_patch"]["recommended_profile"] == "core_plus_macro"
     assert payload["recommended_patch"]["status"] == "reference_only_until_exact_support_ready"
+    assert payload["recommended_patch"]["reference_patch_scope"] == "bull|CAUTION"
+    assert payload["recommended_patch"]["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
+    assert payload["recommended_patch"]["spillover_regime_gate"] == "bull|BLOCK"
     assert "recommended_patch: **core_plus_macro**" in markdown
+    assert "reference_scope `bull|CAUTION`" in markdown
+    assert "source `bull_4h_pocket_ablation.bull_collapse_q35`" in markdown
     assert "recommended_patch_features: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b" in markdown

@@ -1294,6 +1294,9 @@ def test_hb_predict_probe_surfaces_recommended_patch_summary_for_bull_caution_sp
     assert patch["status"] == "reference_only_until_exact_support_ready"
     assert patch["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
     assert patch["gap_to_minimum"] == 50
+    assert patch["reference_patch_scope"] == "bull|CAUTION"
+    assert patch["spillover_regime_gate"] == "bull|CAUTION"
+    assert patch["reference_source"] == "live_scope_spillover"
     assert patch["collapse_features"] == [
         "feat_4h_dist_swing_low",
         "feat_4h_dist_bb_lower",

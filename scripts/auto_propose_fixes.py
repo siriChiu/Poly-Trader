@@ -455,7 +455,7 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
             "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.",
             summary={
                 "actual_live_spillover_scope": actual_live_spillover_scope,
-                "reference_patch_scope": recommended_patch.get("spillover_regime_gate"),
+                "reference_patch_scope": recommended_patch.get("reference_patch_scope") or recommended_patch.get("spillover_regime_gate"),
                 "exact_live_lane_rows": _as_int_or_none(((pathology_summary.get("exact_live_lane") or {}) if isinstance(pathology_summary, dict) else {}).get("rows")),
                 "recommended_patch": patch_profile,
                 "recommended_patch_status": recommended_patch.get("status"),

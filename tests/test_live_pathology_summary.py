@@ -124,5 +124,6 @@ def test_build_live_pathology_scope_surface_preserves_artifact_patch_when_live_s
         "feat_4h_dist_bb_lower",
         "feat_4h_bb_pct_b",
     ]
-    assert patch["spillover_regime_gate"] == "bull|CAUTION"
+    assert patch["spillover_regime_gate"] == "bull|BLOCK"
+    assert patch["reference_patch_scope"] == "bull|CAUTION"
     assert patch["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"

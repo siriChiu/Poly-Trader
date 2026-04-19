@@ -1540,7 +1540,8 @@ def test_sync_current_state_governance_issues_refreshes_canonical_q15_and_patch_
                 "recommended_patch": {
                     "status": "reference_only_until_exact_support_ready",
                     "recommended_profile": "core_plus_macro",
-                    "spillover_regime_gate": "bull|CAUTION",
+                    "spillover_regime_gate": "bull|BLOCK",
+                    "reference_patch_scope": "bull|CAUTION",
                     "support_route_verdict": "exact_bucket_present_but_below_minimum",
                     "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
                     "current_live_structure_bucket_rows": 1,

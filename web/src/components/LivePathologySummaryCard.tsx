@@ -43,6 +43,8 @@ type RecommendedPatchSummary = {
   status?: string | null;
   reason?: string | null;
   spillover_regime_gate?: string | null;
+  reference_patch_scope?: string | null;
+  reference_source?: string | null;
   spillover_rows?: number | null;
   recommended_profile?: string | null;
   recommended_profile_source?: string | null;
@@ -225,8 +227,12 @@ export default function LivePathologySummaryCard({
           </div>
           <div className="space-y-1 text-[11px] leading-5 text-sky-50/90">
             <div>
-              spillover {recommendedPatch.spillover_regime_gate || "—"}
+              live spillover {recommendedPatch.spillover_regime_gate || "—"}
               {recommendedPatch.spillover_rows != null ? ` · rows ${recommendedPatch.spillover_rows}` : ""}
+            </div>
+            <div>
+              reference patch {recommendedPatch.reference_patch_scope || recommendedPatch.spillover_regime_gate || "—"}
+              {recommendedPatch.reference_source ? ` · via ${recommendedPatch.reference_source}` : ""}
             </div>
             <div>
               support {recommendedPatch.current_live_structure_bucket_rows ?? "—"}

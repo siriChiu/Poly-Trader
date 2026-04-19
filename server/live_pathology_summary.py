@@ -155,6 +155,7 @@ def build_live_pathology_patch_summary(
         return None
 
     spillover_regime_gate = str(worst_pocket.get("regime_gate") or "").strip()
+    reference_patch_scope = spillover_regime_gate
 
     resolved_artifact_path = artifact_path or DEFAULT_BULL_4H_POCKET_ABLATION_PATH
     ablation = load_bull_4h_pocket_ablation_summary(resolved_artifact_path, warn=warn)
@@ -228,23 +229,25 @@ def build_live_pathology_patch_summary(
         )
         if not fallback_applicable:
             return None
-        spillover_regime_gate = "bull|CAUTION"
+        reference_patch_scope = "bull|CAUTION"
         reference_source = "bull_4h_pocket_ablation.bull_collapse_q35"
 
     reference_only = not bool(support_route_deployable)
     if minimum_rows is not None and current_rows is not None and current_rows < minimum_rows:
         reference_only = True
     status = "reference_only_until_exact_support_ready" if reference_only else "deployable_patch_candidate"
+    reference_patch_scope_text = reference_patch_scope or "—"
+    reference_source_text = reference_source or "—"
     if reference_only:
         reason = (
-            f"bull|CAUTION spillover 已有正式 patch 建議（{recommended_profile}），"
-            f"但 current live exact support 仍是 {current_rows if current_rows is not None else '—'}"
+            f"參考 patch 來自 {reference_patch_scope_text}（source: {reference_source_text}），"
+            f"建議 profile={recommended_profile}；但 current live exact support 仍是 {current_rows if current_rows is not None else '—'}"
             f"/{minimum_rows if minimum_rows is not None else '—'}；"
             "目前只能作治理 / 訓練參考，不可直接放行 runtime。"
         )
     else:
         reason = (
-            f"bull|CAUTION spillover 可直接對應到 {recommended_profile} patch；"
+            f"參考 patch 來自 {reference_patch_scope_text}（source: {reference_source_text}），可直接對應到 {recommended_profile} patch；"
             "exact support 已達 deployable 條件，可把它視為正式 runtime / training patch 候選。"
         )
 
@@ -252,6 +255,7 @@ def build_live_pathology_patch_summary(
         "status": status,
         "reason": reason,
         "spillover_regime_gate": spillover_regime_gate,
+        "reference_patch_scope": reference_patch_scope,
         "spillover_rows": spillover.get("extra_rows"),
         "recommended_profile": recommended_profile,
         "recommended_profile_source": "bull_4h_pocket_ablation.bull_collapse_q35",
