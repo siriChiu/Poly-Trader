@@ -9,9 +9,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from server.live_pathology_summary import build_live_pathology_scope_surface
 
 
-def test_build_live_pathology_scope_surface_preserves_artifact_patch_when_live_spillover_turns_block_only(tmp_path):
-    artifact_path = tmp_path / "bull_4h_pocket_ablation.json"
-    artifact_path.write_text(
+def _write_bull_patch_artifact(path: Path) -> None:
+    path.write_text(
         json.dumps(
             {
                 "generated_at": "2026-04-19T00:32:00Z",
@@ -44,6 +43,11 @@ def test_build_live_pathology_scope_surface_preserves_artifact_patch_when_live_s
         ),
         encoding="utf-8",
     )
+
+
+def test_build_live_pathology_scope_surface_preserves_artifact_patch_when_live_spillover_turns_block_only(tmp_path):
+    artifact_path = tmp_path / "bull_4h_pocket_ablation.json"
+    _write_bull_patch_artifact(artifact_path)
 
     confidence_payload = {
         "regime_label": "bull",
@@ -127,3 +131,88 @@ def test_build_live_pathology_scope_surface_preserves_artifact_patch_when_live_s
     assert patch["spillover_regime_gate"] == "bull|BLOCK"
     assert patch["reference_patch_scope"] == "bull|CAUTION"
     assert patch["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
+
+
+def test_build_live_pathology_scope_surface_keeps_reference_patch_visible_for_non_bull_live_rows(tmp_path):
+    artifact_path = tmp_path / "bull_4h_pocket_ablation.json"
+    _write_bull_patch_artifact(artifact_path)
+
+    confidence_payload = {
+        "regime_label": "chop",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+        "support_route_deployable": False,
+        "support_progress": {
+            "current_rows": 0,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 50,
+        },
+    }
+    scope_diagnostics = {
+        "regime_label+regime_gate+entry_quality_label": {
+            "rows": 0,
+            "win_rate": None,
+            "avg_pnl": None,
+            "avg_quality": None,
+            "avg_drawdown_penalty": None,
+            "avg_time_underwater": None,
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 0,
+        },
+        "entry_quality_label": {
+            "rows": 199,
+            "win_rate": 0.0,
+            "avg_pnl": -0.0099,
+            "avg_quality": -0.2854,
+            "avg_drawdown_penalty": 0.381,
+            "avg_time_underwater": 0.8503,
+            "spillover_vs_exact_live_lane": {
+                "extra_rows": 199,
+                "extra_row_share": 1.0,
+                "win_rate_delta_vs_exact": None,
+                "avg_pnl_delta_vs_exact": None,
+                "avg_quality_delta_vs_exact": None,
+                "avg_drawdown_penalty_delta_vs_exact": None,
+                "avg_time_underwater_delta_vs_exact": None,
+                "worst_extra_regime_gate": {
+                    "regime_gate": "bull|BLOCK",
+                    "regime": "bull",
+                    "gate": "BLOCK",
+                    "rows": 199,
+                    "win_rate": 0.0,
+                    "avg_pnl": -0.0099,
+                    "avg_quality": -0.2854,
+                    "avg_drawdown_penalty": 0.381,
+                    "avg_time_underwater": 0.8503,
+                },
+                "worst_extra_regime_gate_feature_contrast": {
+                    "top_mean_shift_features": [
+                        {
+                            "feature": "feat_4h_bias200",
+                            "reference_mean": 7.2021,
+                            "current_mean": 9.9266,
+                            "mean_delta": 2.7245,
+                        }
+                    ]
+                },
+            },
+        },
+    }
+
+    summary = build_live_pathology_scope_surface(
+        confidence_payload,
+        scope_diagnostics,
+        artifact_path=artifact_path,
+    )
+
+    patch = summary["recommended_patch"]
+    assert summary["focus_scope"] == "entry_quality_label"
+    assert summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|BLOCK"
+    assert patch["status"] == "reference_only_until_exact_support_ready"
+    assert patch["recommended_profile"] == "core_plus_macro"
+    assert patch["spillover_regime_gate"] == "bull|BLOCK"
+    assert patch["reference_patch_scope"] == "bull|CAUTION"
+    assert patch["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
+    assert patch["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
+    assert patch["current_live_structure_bucket_rows"] == 0
+    assert patch["gap_to_minimum"] == 50

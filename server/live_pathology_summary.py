@@ -218,11 +218,14 @@ def build_live_pathology_patch_summary(
             exact_support_missing = True
         elif str(support_route_verdict or "").startswith("exact_bucket_missing"):
             exact_support_missing = True
+
+        spillover_is_bull_pocket = spillover_regime_gate.startswith("bull|")
         fallback_applicable = (
             exact_support_missing
             and bool(recommended_profile)
             and (
-                current_regime == "bull"
+                spillover_is_bull_pocket
+                or current_regime == "bull"
                 or "bull_" in current_live_bucket
                 or "|bull_" in current_live_bucket
             )

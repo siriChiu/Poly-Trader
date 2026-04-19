@@ -1302,3 +1302,173 @@ def test_hb_predict_probe_surfaces_recommended_patch_summary_for_bull_caution_sp
         "feat_4h_dist_bb_lower",
         "feat_4h_bb_pct_b",
     ]
+
+
+def test_hb_predict_probe_surfaces_reference_patch_summary_for_non_bull_live_rows_with_bull_block_spillover(monkeypatch, capsys, tmp_path):
+    session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+    q15_audit_path = tmp_path / "q15_support_audit.json"
+    q15_audit_path.write_text("{}", encoding="utf-8")
+    bull_patch_path = tmp_path / "bull_4h_pocket_ablation.json"
+    bull_patch_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-19 07:10:00",
+                "collapse_features": [
+                    "feat_4h_dist_swing_low",
+                    "feat_4h_dist_bb_lower",
+                    "feat_4h_bb_pct_b",
+                ],
+                "min_collapse_flags": 2,
+                "cohorts": {
+                    "bull_collapse_q35": {
+                        "rows": 472,
+                        "base_win_rate": 0.7458,
+                        "recommended_profile": "core_plus_macro",
+                        "profiles": {
+                            "core_plus_macro": {
+                                "cv_mean_accuracy": 0.6123,
+                            }
+                        },
+                    }
+                },
+                "support_pathology_summary": {
+                    "preferred_support_cohort": "bull_exact_live_lane_proxy",
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_rows": 0,
+                    "current_live_structure_bucket_gap_to_minimum": 50,
+                    "recommended_action": "維持 0 layers；優先查 exact bucket 缺口與 same-bucket pathology，而不是再重訓。",
+                },
+                "live_context": {
+                    "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+                    "support_route_deployable": False,
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit_path)
+    monkeypatch.setattr(hb_predict_probe, "BULL_4H_POCKET_ABLATION_PATH", bull_patch_path)
+    monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
+    monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"chop": object()}))
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "load_latest_features",
+        lambda _session: {
+            "timestamp": "2026-04-19 07:15:00",
+            "regime_label": "chop",
+            "feat_4h_bias50": 1.96,
+        },
+    )
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "predict",
+        lambda _session, _predictor, _regime_models: {
+            "target_col": "simulated_pyramid_win",
+            "used_model": "circuit_breaker",
+            "model_type": "circuit_breaker",
+            "signal": "CIRCUIT_BREAKER",
+            "confidence": 0.5,
+            "should_trade": False,
+            "reason": "Consecutive loss streak: 256 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+            "streak": 256,
+            "recent_window_wins": 0,
+            "window_size": 50,
+            "triggered_by": ["streak", "recent_win_rate"],
+            "horizon_minutes": 1440,
+            "regime_label": "chop",
+            "model_route_regime": "chop",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 0,
+            "entry_quality": 0.3792,
+            "entry_quality_label": "D",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "allowed_layers_raw": 0,
+            "allowed_layers_raw_reason": "entry_quality_below_trade_floor",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            "deployment_blocker": "circuit_breaker_active",
+            "deployment_blocker_reason": "Consecutive loss streak: 256 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+            "deployment_blocker_source": "circuit_breaker",
+            "deployment_blocker_details": {
+                "recent_window": {"window_size": 50, "wins": 0, "win_rate": 0.0, "floor": 0.3},
+                "release_condition": {
+                    "streak_must_be_below": 50,
+                    "current_streak": 256,
+                    "recent_window": 50,
+                    "recent_win_rate_must_be_at_least": 0.3,
+                    "current_recent_window_wins": 0,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 15,
+                },
+            },
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_route_deployable": False,
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "rows": 0,
+                    "win_rate": None,
+                    "avg_pnl": None,
+                    "avg_quality": None,
+                    "avg_drawdown_penalty": None,
+                    "avg_time_underwater": None,
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                    "current_live_structure_bucket_rows": 0,
+                    "alerts": ["no_rows"],
+                },
+                "entry_quality_label": {
+                    "rows": 199,
+                    "win_rate": 0.0,
+                    "avg_pnl": -0.0099,
+                    "avg_quality": -0.2854,
+                    "avg_drawdown_penalty": 0.381,
+                    "avg_time_underwater": 0.8503,
+                    "spillover_vs_exact_live_lane": {
+                        "extra_rows": 199,
+                        "extra_row_share": 1.0,
+                        "worst_extra_regime_gate": {
+                            "regime_gate": "bull|BLOCK",
+                            "rows": 199,
+                            "win_rate": 0.0,
+                            "avg_pnl": -0.0099,
+                            "avg_quality": -0.2854,
+                            "avg_drawdown_penalty": 0.381,
+                            "avg_time_underwater": 0.8503,
+                        },
+                        "worst_extra_regime_gate_feature_contrast": {
+                            "top_mean_shift_features": [
+                                {"feature": "feat_4h_bias200", "reference_mean": 7.2021, "current_mean": 9.9266, "mean_delta": 2.7245},
+                            ]
+                        },
+                    },
+                },
+            },
+        },
+    )
+
+    hb_predict_probe.main()
+    payload = json.loads(capsys.readouterr().out)
+
+    summary = payload["decision_quality_scope_pathology_summary"]
+    patch = summary["recommended_patch"]
+    assert summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|BLOCK"
+    assert patch["recommended_profile"] == "core_plus_macro"
+    assert patch["status"] == "reference_only_until_exact_support_ready"
+    assert patch["reference_patch_scope"] == "bull|CAUTION"
+    assert patch["spillover_regime_gate"] == "bull|BLOCK"
+    assert patch["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
+    assert patch["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
+    assert patch["current_live_structure_bucket_rows"] == 0
