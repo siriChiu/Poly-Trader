@@ -486,3 +486,34 @@ def test_fetch_api_formats_structured_reject_payloads_for_trade_guardrails():
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+def test_use_api_supports_local_backend_timeout_fallback_for_dev_runtime():
+    source = _read("hooks/useApi.ts")
+    required_snippets = [
+        'const ACTIVE_API_BASE_STORAGE_KEY = "poly_trader.active_api_base";',
+        'const DEV_LOCAL_API_CANDIDATE_PORTS = [8000, 8001] as const;',
+        'window.localStorage.setItem(ACTIVE_API_BASE_STORAGE_KEY, base);',
+        'const requestCandidates = getApiRequestCandidates();',
+        'const timeoutMs = getRequestTimeoutMs(endpoint);',
+        'export async function fetchApiResponse(endpoint: string, options?: RequestInit): Promise<Response> {',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_candlestick_chart_uses_fetch_api_response_for_kline_requests():
+    source = _read("components/CandlestickChart.tsx")
+    required_snippets = [
+        'import { fetchApiResponse } from "../hooks/useApi";',
+        'const incrementalResp = await fetchApiResponse(`/api/chart/klines?${incrementalParams.toString()}`);',
+        'const resp = await fetchApiResponse(`/api/chart/klines?${params.toString()}`);',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_dashboard_websocket_recomputes_ws_url_on_each_retry():
+    source = _read("pages/Dashboard.tsx")
+    assert 'const url = buildWsUrl("/ws/live");' in source
+    assert source.index('const connect = () => {') < source.index('const url = buildWsUrl("/ws/live");')

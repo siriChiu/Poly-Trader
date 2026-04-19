@@ -779,12 +779,12 @@ export default function Dashboard() {
 
   // WebSocket
   useEffect(() => {
-    const url = buildWsUrl("/ws/live");
     let ws: WebSocket | null = null;
     let timer: number;
 
     const connect = () => {
       try {
+        const url = buildWsUrl("/ws/live");
         ws = new WebSocket(url);
         ws.onopen = () => setWsConnected(true);
         ws.onmessage = (event) => {

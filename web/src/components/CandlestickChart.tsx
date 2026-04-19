@@ -14,7 +14,7 @@ import {
   SeriesMarker,
   Time,
 } from "lightweight-charts";
-import { buildApiUrl } from "../hooks/useApi";
+import { fetchApiResponse } from "../hooks/useApi";
 
 interface KlineResponse {
   symbol: string;
@@ -988,8 +988,7 @@ export default function CandlestickChart({
           const incrementalParams = new URLSearchParams({ symbol, interval, limit: `${limit}`, append_after: `${lastCachedCandle.time * 1000}` });
           if (since) incrementalParams.set("since", `${since}`);
           if (until) incrementalParams.set("until", `${until}`);
-          const incrementalResp = await fetch(buildApiUrl(`/api/chart/klines?${incrementalParams.toString()}`));
-          if (!incrementalResp.ok) throw new Error(`${incrementalResp.status}`);
+          const incrementalResp = await fetchApiResponse(`/api/chart/klines?${incrementalParams.toString()}`);
           const incrementalPayload: KlineResponse = await incrementalResp.json();
           if (!incrementalPayload.candles?.length) {
             setProgress(toChartProgress(6));
@@ -1006,8 +1005,7 @@ export default function CandlestickChart({
           return;
         }
 
-        const resp = await fetch(buildApiUrl(`/api/chart/klines?${params.toString()}`));
-        if (!resp.ok) throw new Error(`${resp.status}`);
+        const resp = await fetchApiResponse(`/api/chart/klines?${params.toString()}`);
         const payload: KlineResponse = await resp.json();
         saveCachedChartPayload(cacheKey, payload);
         await applyChartData(payload, { updateViewport: true });

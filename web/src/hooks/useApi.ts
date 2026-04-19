@@ -6,14 +6,99 @@ import { beginGlobalProgress, endGlobalProgress, updateGlobalProgress } from "./
 
 const RAW_BASE = (import.meta as any)?.env?.VITE_API_BASE?.trim?.() || "";
 export const API_BASE = RAW_BASE.replace(/\/$/, "");
+const ACTIVE_API_BASE_STORAGE_KEY = "poly_trader.active_api_base";
+const DEV_LOCAL_API_CANDIDATE_PORTS = [8000, 8001] as const;
+const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
+const CHART_REQUEST_TIMEOUT_MS = 15000;
+
+let activeApiBaseMemo: string | null = null;
+
+function getStoredActiveApiBase(): string | null {
+  if (activeApiBaseMemo) return activeApiBaseMemo;
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(ACTIVE_API_BASE_STORAGE_KEY);
+    if (stored) {
+      activeApiBaseMemo = stored.replace(/\/$/, "");
+      return activeApiBaseMemo;
+    }
+  } catch {
+    // Ignore localStorage access issues in strict/private contexts.
+  }
+  return null;
+}
+
+function persistActiveApiBase(base: string | null): void {
+  activeApiBaseMemo = base ? base.replace(/\/$/, "") : null;
+  if (typeof window === "undefined") return;
+  try {
+    if (base) {
+      window.localStorage.setItem(ACTIVE_API_BASE_STORAGE_KEY, base);
+    } else {
+      window.localStorage.removeItem(ACTIVE_API_BASE_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore localStorage access issues in strict/private contexts.
+  }
+}
+
+function isLocalDevHost(hostname: string): boolean {
+  return hostname === "127.0.0.1" || hostname === "localhost";
+}
+
+function getDevApiCandidateBases(): string[] {
+  if (API_BASE || typeof window === "undefined") return [];
+  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+  const host = window.location.hostname || "127.0.0.1";
+  const currentPort = Number.parseInt(window.location.port || "0", 10);
+  const alreadyOnBackendPort = DEV_LOCAL_API_CANDIDATE_PORTS.includes(currentPort as (typeof DEV_LOCAL_API_CANDIDATE_PORTS)[number]);
+  if (!isLocalDevHost(host) || alreadyOnBackendPort) return [];
+  const preferred = getStoredActiveApiBase();
+  const candidates = DEV_LOCAL_API_CANDIDATE_PORTS.map((port) => `${protocol}//${host}:${port}`);
+  if (preferred && candidates.includes(preferred)) {
+    return [preferred, ...candidates.filter((candidate) => candidate !== preferred)];
+  }
+  return candidates;
+}
+
+function buildApiUrlForBase(endpoint: string, base: string | null): string {
+  return base ? `${base}${endpoint}` : endpoint;
+}
+
+function getApiRequestCandidates(): string[] {
+  if (API_BASE) return [API_BASE];
+  const devCandidates = getDevApiCandidateBases();
+  if (devCandidates.length) return devCandidates;
+  const preferred = getStoredActiveApiBase();
+  return [preferred ?? ""];
+}
+
+function getRequestTimeoutMs(endpoint: string): number {
+  return endpoint.startsWith("/api/chart/klines")
+    ? CHART_REQUEST_TIMEOUT_MS
+    : DEFAULT_REQUEST_TIMEOUT_MS;
+}
+
+function attachAbortSignal(controller: AbortController, signal?: AbortSignal): (() => void) | null {
+  if (!signal) return null;
+  if (signal.aborted) {
+    controller.abort(signal.reason);
+    return null;
+  }
+  const relayAbort = () => controller.abort(signal.reason);
+  signal.addEventListener("abort", relayAbort, { once: true });
+  return () => signal.removeEventListener("abort", relayAbort);
+}
 
 export function buildApiUrl(endpoint: string): string {
-  return `${API_BASE}${endpoint}`;
+  const preferredBase = API_BASE || getStoredActiveApiBase();
+  return buildApiUrlForBase(endpoint, preferredBase);
 }
 
 export function buildWsUrl(path: string): string {
-  if (API_BASE) {
-    const httpUrl = new URL(API_BASE, window.location.origin);
+  const preferredBase = API_BASE || getStoredActiveApiBase();
+  if (preferredBase) {
+    const httpUrl = new URL(preferredBase, window.location.origin);
     httpUrl.protocol = httpUrl.protocol === "https:" ? "wss:" : "ws:";
     httpUrl.pathname = path;
     httpUrl.search = "";
@@ -76,7 +161,7 @@ const setCachedApiResponse = (endpoint: string, data: unknown) => {
   API_MEMORY_CACHE.set(endpoint, { data, updatedAt: Date.now() });
 };
 
-async function fetchJsonTracked<T>(endpoint: string, options?: RequestInit): Promise<T> {
+async function fetchTrackedResponse(endpoint: string, options?: RequestInit): Promise<Response> {
   const taskId = beginGlobalProgress({
     kind: "network",
     tone: "blue",
@@ -87,19 +172,72 @@ async function fetchJsonTracked<T>(endpoint: string, options?: RequestInit): Pro
   });
 
   try {
-    const resp = await fetch(buildApiUrl(endpoint), options);
-    updateGlobalProgress(taskId, { progress: 45, detail: `${endpoint} · 已收到回應` });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
-      throw new Error(formatApiErrorDetail(err.detail ?? err) || `${resp.status}`);
+    const requestCandidates = getApiRequestCandidates();
+    const method = String(options?.method || "GET").toUpperCase();
+    const canFallback = !API_BASE && requestCandidates.length > 1 && ["GET", "HEAD"].includes(method);
+    let lastError: Error | null = null;
+
+    for (let index = 0; index < requestCandidates.length; index += 1) {
+      const base = requestCandidates[index];
+      const requestUrl = buildApiUrlForBase(endpoint, base);
+      const controller = new AbortController();
+      const detachAbort = attachAbortSignal(controller, options?.signal ?? undefined);
+      const timeoutMs = getRequestTimeoutMs(endpoint);
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const resp = await fetch(requestUrl, { ...options, signal: controller.signal });
+        if (base) persistActiveApiBase(base);
+        updateGlobalProgress(taskId, { progress: 45, detail: `${endpoint} · 已收到回應` });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+          throw new Error(formatApiErrorDetail(err.detail ?? err) || `${resp.status}`);
+        }
+        updateGlobalProgress(taskId, { progress: 100, detail: `${endpoint} · 完成` });
+        return resp;
+      } catch (error: any) {
+        const isTimeout = controller.signal.aborted && !options?.signal?.aborted;
+        const isNetworkError = error instanceof TypeError;
+        const normalizedError = isTimeout
+          ? Object.assign(new Error(`API timeout after ${timeoutMs}ms`), { name: "AbortError" })
+          : (error instanceof Error ? error : new Error(String(error)));
+
+        if ((isTimeout || isNetworkError) && base === getStoredActiveApiBase()) {
+          persistActiveApiBase(null);
+        }
+        lastError = normalizedError;
+
+        const canRetryCurrent = canFallback && index < requestCandidates.length - 1 && (isTimeout || isNetworkError);
+        if (canRetryCurrent) {
+          const nextBase = requestCandidates[index + 1];
+          updateGlobalProgress(taskId, {
+            progress: 20,
+            detail: `${endpoint} · ${base || "same-origin"} 無回應，改試 ${nextBase || "same-origin"}`,
+          });
+          continue;
+        }
+        throw normalizedError;
+      } finally {
+        window.clearTimeout(timeoutId);
+        detachAbort?.();
+      }
     }
-    const json = await resp.json();
-    setCachedApiResponse(endpoint, json);
-    updateGlobalProgress(taskId, { progress: 100, detail: `${endpoint} · 完成` });
-    return json;
+
+    throw lastError ?? new Error(`Failed to fetch ${endpoint}`);
   } finally {
     endGlobalProgress(taskId);
   }
+}
+
+async function fetchJsonTracked<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const resp = await fetchTrackedResponse(endpoint, options);
+  const json = await resp.json();
+  setCachedApiResponse(endpoint, json);
+  return json;
+}
+
+export async function fetchApiResponse(endpoint: string, options?: RequestInit): Promise<Response> {
+  return fetchTrackedResponse(endpoint, options);
 }
 
 export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
