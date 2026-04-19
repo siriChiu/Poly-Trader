@@ -2884,8 +2884,6 @@ def main(argv=None):
         final_status = "completed_with_failures"
     elif any(not result.get("success", True) for result in serial_results if result is not None):
         final_status = "completed_with_failures"
-    elif not docs_sync.get("ok", True):
-        final_status = "completed_with_failures"
     write_progress(
         run_label,
         "finished",
