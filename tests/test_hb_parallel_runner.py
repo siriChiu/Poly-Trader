@@ -3179,6 +3179,138 @@ def test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support(tmp_path, 
     assert diag["bull_live_exact_lane_bucket_proxy"]["rows"] == 8
 
 
+def test_current_leaderboard_candidate_semantic_signature_prefers_live_probe_bucket_over_stale_bull_artifact(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    model_dir = tmp_path / "model"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    model_dir.mkdir(parents=True, exist_ok=True)
+
+    (data_dir / "feature_group_ablation.json").write_text(json.dumps({"recommended_profile": "core_only"}), encoding="utf-8")
+    (data_dir / "bull_4h_pocket_ablation.json").write_text(
+        json.dumps(
+            {
+                "live_context": {
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                    "current_live_structure_bucket_rows": 0,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "q15_support_audit.json").write_text(
+        json.dumps(
+            {
+                "support_route": {"support_governance_route": "exact_live_lane_proxy_available", "minimum_support_rows": 50},
+                "current_live": {
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                    "current_live_structure_bucket_rows": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                "current_live_structure_bucket_rows": 1,
+                "minimum_support_rows": 50,
+                "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_dir / "last_metrics.json").write_text(
+        json.dumps({"feature_profile": "core_plus_macro", "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile"}),
+        encoding="utf-8",
+    )
+
+    signature = hb_parallel_runner._current_leaderboard_candidate_semantic_signature()
+
+    assert signature["live_current_structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert signature["live_current_structure_bucket_rows"] == 1
+    assert signature["minimum_support_rows"] == 50
+    assert signature["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
+    assert signature["train_selected_profile"] == "core_plus_macro"
+
+
+def test_collect_bull_4h_pocket_diagnostics_marks_semantic_mismatch_reference_only(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "bull_4h_pocket_ablation.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-19T06:30:04Z",
+                "target_col": "simulated_pyramid_win",
+                "collapse_features": ["feat_4h_bb_pct_b"],
+                "collapse_thresholds": {"feat_4h_bb_pct_b": 0.48},
+                "live_context": {
+                    "regime_label": "chop",
+                    "regime_gate": "CAUTION",
+                    "entry_quality_label": "D",
+                    "decision_quality_label": "D",
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                    "current_live_structure_bucket_rows": 0,
+                    "exact_scope_rows": 0,
+                    "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_live_structure_bucket_blocks_trade; circuit_breaker_active",
+                    "decision_quality_calibration_scope": "global",
+                },
+                "support_pathology_summary": {
+                    "blocker_state": "exact_lane_proxy_fallback_only",
+                    "preferred_support_cohort": "bull_exact_live_lane_proxy",
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 50,
+                    "exact_bucket_root_cause": "same_lane_exists_but_q15_missing",
+                    "recommended_action": "old",
+                },
+                "cohorts": {
+                    "bull_all": {"rows": 100, "base_win_rate": 0.61, "recommended_profile": "core_plus_macro_plus_4h_trend", "profiles": {"core_plus_macro_plus_4h_trend": {"cv_mean_accuracy": 0.63}}},
+                    "bull_collapse_q35": {"rows": 40, "base_win_rate": 0.51, "recommended_profile": "core_plus_macro", "profiles": {"core_plus_macro": {"cv_mean_accuracy": 0.70}}},
+                    "bull_exact_live_lane_proxy": {"rows": 7, "base_win_rate": 0.43, "recommended_profile": "core_plus_macro", "profiles": {"core_plus_macro": {"cv_mean_accuracy": 0.54}}},
+                    "bull_live_exact_lane_bucket_proxy": {"rows": 2, "base_win_rate": 0.50, "recommended_profile": "core_plus_macro", "profiles": {"core_plus_macro": {"cv_mean_accuracy": 0.52}}},
+                    "bull_supported_neighbor_buckets_proxy": {"rows": 5, "base_win_rate": 0.60, "recommended_profile": "core_plus_macro", "profiles": {"core_plus_macro": {"cv_mean_accuracy": 0.57}}}
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "regime_label": "bull",
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "decision_quality_label": "D",
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                "current_live_structure_bucket_rows": 1,
+                "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_live_structure_bucket_blocks_trade; circuit_breaker_active",
+                "decision_quality_calibration_scope": "regime_label+entry_quality_label",
+                "decision_quality_scope_diagnostics": {
+                    "regime_label+regime_gate+entry_quality_label": {"rows": 1}
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    diag = hb_parallel_runner.collect_bull_4h_pocket_diagnostics()
+
+    assert diag["semantic_alignment"]["aligned"] is False
+    assert diag["semantic_alignment"]["live_specific_reference_only"] is True
+    assert diag["live_context"]["regime_label"] == "bull"
+    assert diag["live_context"]["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert diag["live_context"]["current_live_structure_bucket_rows"] == 1
+    assert diag["support_pathology_summary"]["blocker_state"] == "reference_only_stale_live_context"
+    assert diag["bull_collapse_q35"]["recommended_profile"] == "core_plus_macro"
+    assert diag["bull_live_exact_lane_bucket_proxy"] == {}
+    assert diag["production_profile_role"]["role"] == "reference_only_stale_live_context"
+
+
 def test_collect_leaderboard_candidate_diagnostics_reads_dual_profile_state(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"

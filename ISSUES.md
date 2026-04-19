@@ -1,28 +1,30 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-19 21:40:43 CST_
+_最後更新：2026-04-19 22:18:37 CST_
 
 只保留目前有效問題；每輪 heartbeat 必須覆蓋更新，不保留歷史流水帳。
 
 ---
 
 ## 當前主線事實
-- **本輪 heartbeat #20260419aj 已完成 fast collect + verify 閉環**：`Raw=31142 (+1) / Features=22560 (+1) / Labels=62671 (+3)`；active horizons `240m / 1440m` freshness 都是 `expected_horizon_lag`，資料管線不是 frozen。
-- **本輪產品化 patch 已落地：rows-aware support-route truth**
-  - `model/predictor.py::_summarize_structure_bucket_support_route()` 不再把 `exact_bucket_supported_*` mode hint 直接當成 support closure；現在必須先看 `current_live_structure_bucket_rows` 是否達到 `minimum_support_rows`。
-  - 這修掉了 current live `q35` exact bucket 只有 `1/50` 時，probe / drilldown 仍假性顯示 `exact_bucket_supported` 的 false-open bug。
-  - regression 已補齊：`tests/test_api_feature_history_and_predictor.py::test_summarize_structure_bucket_support_route_does_not_false_open_below_minimum_support`。
+- **本輪 heartbeat `--fast` 已完成 end-to-end 閉環**：`Raw=31144 (+1) / Features=22562 (+1) / Labels=62676 (+2)`；active horizons `240m / 1440m` freshness 都是 `expected_horizon_lag`，資料管線不是 frozen。
+- **本輪產品化 patch #1：leaderboard current-live signature 改成以 live probe 為主**
+  - `scripts/hb_parallel_runner.py::_current_leaderboard_candidate_semantic_signature()` 現在優先讀 `data/live_predict_probe.json` 的 `current_live_structure_bucket / rows / support_governance_route / minimum_support_rows`。
+  - 這修掉了舊的 `bull_4h_pocket_ablation.json` q15/chop live_context 把實際 bull/q35 current truth 誤判成 cache mismatch 的 bug；`hb_leaderboard_candidate_probe` 不再因 stale bull artifact 被迫重跑並拖慢 fast heartbeat。
+- **本輪產品化 patch #2：bull pocket timeout fallback 改成 reference-only，不再假裝 stale q15 truth 是 current live**
+  - 若 `bull_4h_pocket_ablation.py` 在 fast-mode 20s budget 內逾時，且現有 artifact live signature 與最新 `live_predict_probe` 不一致，`collect_bull_4h_pocket_diagnostics()` 現在會標成 `reference_only_stale_live_context`。
+  - 這代表 heartbeat 會保留 `bull_all / bull_collapse_q35` 的 reference-only patch 可見性，但不再把 stale q15/chop live-specific proxy cohorts 說成 current bull/q35 truth。
 - **驗證證據已齊**
-  - `pytest tests/test_api_feature_history_and_predictor.py tests/test_hb_predict_probe.py -q` = `80 passed`
-  - `python scripts/hb_parallel_runner.py --fast --hb 20260419aj` 完成 collect / IC / drift / probe / auto-propose 閉環
-  - `data/live_predict_probe.json` 與 `data/live_decision_quality_drilldown.json` 現在一致顯示：`support_route_verdict=exact_bucket_present_but_below_minimum`、`current_live_structure_bucket=CAUTION|structure_quality_caution|q35`、`current_live_structure_bucket_rows=1`、`minimum_support_rows=50`、`gap_to_minimum=49`
-  - `recommended_patch=core_plus_macro` 仍正確維持 `reference_only_until_exact_support_ready`，不再被錯誤包裝成 support 已 closure
-- **canonical current-live 唯一 deployment blocker 仍是 circuit breaker**：`deployment_blocker=circuit_breaker_active`、`recent 50 wins=1/50`、`additional_recent_window_wins_needed=14`、`streak=1`、`allowed_layers=0`、`runtime_closure_state=circuit_breaker_active`。
-- **current live support truth 已切回 rows-aware q35 語義**：`current_live_structure_bucket=CAUTION|structure_quality_caution|q35`、`current_live_structure_bucket_rows=1`、`minimum_support_rows=50`、`support_route_verdict=exact_bucket_present_but_below_minimum`、`support_governance_route=exact_live_bucket_present_but_below_minimum`、`remaining_gap_to_floor=0.1963`、`best_single_component=feat_4h_bias50`。
-- **recent canonical 250 rows 仍是 distribution pathology**：`win_rate=0.0040`、`dominant_regime=bull(100%)`、`avg_pnl=-0.0099`、`avg_quality=-0.2816`、`avg_drawdown_penalty=0.3739`、`adverse_streak=248x0`；top shifts=`feat_4h_bb_pct_b`、`feat_4h_bias20`、`feat_eye`；new compressed=`feat_vwap_dev`。
-- **leaderboard recent-window contract 仍一致**：`/api/models/leaderboard` / probe / docs 目前都是 `count=6 / comparable_count=6 / placeholder_count=0`；top row=`rule_baseline / core_only / scan_backed_best`；`governance=dual_role_governance_active`、`closure=global_ranking_vs_support_aware_production_split`。
-- **support-aware patch 仍是 reference-only**：`recommended_patch=core_plus_macro`、`recommended_patch_status=reference_only_until_exact_support_ready`、`reference_patch_scope=bull|CAUTION`、`support_route_verdict=exact_bucket_present_but_below_minimum`、`gap_to_minimum=49`。
-- **venue / source blockers 仍未 closure**：Binance / OKX 仍缺 `live exchange credential / order ack lifecycle / fill lifecycle`；`fin_netflow` 仍是 `source_auth_blocked`，根因是 `COINGLASS_API_KEY` 缺失，`archive_window_coverage_pct=0.0%`。
+  - `pytest tests/test_hb_parallel_runner.py::test_current_leaderboard_candidate_semantic_signature_prefers_live_probe_bucket_over_stale_bull_artifact tests/test_hb_parallel_runner.py::test_collect_bull_4h_pocket_diagnostics_marks_semantic_mismatch_reference_only tests/test_hb_parallel_runner.py::test_collect_bull_4h_pocket_diagnostics_reads_live_bucket_support tests/test_hb_parallel_runner.py::test_leaderboard_candidate_cache_hit_uses_semantic_alignment_signature -q` → `4 passed`
+  - `python scripts/hb_parallel_runner.py --fast` → 完成，並寫出 `data/heartbeat_fast_summary.json`
+  - browser `/lab`：顯示 `current live blocker = circuit_breaker_active`、`support 1/50`、`recommended patch = core_plus_macro (reference-only)`、venue blockers 可見
+  - browser `/execution/status`：顯示 `deployment blocker = circuit_breaker_active`、`support 1/50`、`current bucket = CAUTION|structure_quality_caution|q35`、venue blockers 仍可見
+- **canonical current-live blocker 仍只有 circuit breaker**：`deployment_blocker=circuit_breaker_active`、`recent 50 wins=1/50`、`streak=3`、`allowed_layers=0`、`runtime_closure_state=circuit_breaker_active`。
+- **current live support truth 仍是 q35 under-minimum**：`current_live_structure_bucket=CAUTION|structure_quality_caution|q35`、`current_live_structure_bucket_rows=1`、`minimum_support_rows=50`、`gap_to_minimum=49`、`support_route_verdict=exact_bucket_present_but_below_minimum`、`recommended_patch=core_plus_macro`、`recommended_patch_status=reference_only_until_exact_support_ready`。
+- **recent canonical 250 rows 仍是 distribution pathology**：`win_rate=0.0040`、`dominant_regime=bull(100%)`、`avg_pnl=-0.0099`、`avg_quality=-0.2813`、`avg_drawdown_penalty=0.3739`、`adverse_streak=246x0`；top shifts=`feat_4h_bb_pct_b`、`feat_4h_bias20`、`feat_eye`；new compressed=`feat_vwap_dev`。
+- **leaderboard current truth 仍健康**：`count=6 / comparable_count=6 / placeholder_count=0`；top row=`rule_baseline / core_only / scan_backed_best`；`governance=dual_role_governance_active`、`closure=global_ranking_vs_support_aware_production_split`、`payload_source=latest_persisted_snapshot`。
+- **bull pocket live-specific cohorts 仍未能在 fast mode 20s 內重建**：本輪 `bull_4h_pocket_ablation.py` 仍 `TIMEOUT after 20s`，但 current live q35 truth 已不再被舊 q15 artifact 污染。
+- **venue / source blockers 仍未 closure**：Binance / OKX 仍缺 `live exchange credential / order ack lifecycle / fill lifecycle`；`fin_netflow` 仍是 `source_auth_blocked`，根因是 `COINGLASS_API_KEY` 缺失。
 
 ---
 
@@ -35,15 +37,15 @@ _最後更新：2026-04-19 21:40:43 CST_
 - `current_recent_window_wins=1`
 - `required_recent_window_wins=15`
 - `additional_recent_window_wins_needed=14`
-- `streak=1`
+- `streak=3`
 - `allowed_layers=0`
 - `runtime_closure_state=circuit_breaker_active`
 
 **風險**
-- 若 `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 任一 surface 再把 q35 support、spillover patch 或 venue 摘要排到 breaker release math 前面，operator 會失去唯一 current-live blocker 真相。
+- 若 `/`、`/execution/status`、`/lab`、probe、drilldown、docs 任一 surface 把 q35 support 或 reference-only patch 排到 breaker release math 前面，operator 會失去唯一 current-live blocker 真相。
 
 **下一步**
-- 維持 breaker-first truth 在 `/`、`/execution`、`/execution/status`、`/lab`、`hb_predict_probe.py`、`live_decision_quality_drilldown.py`、`issues.json`、`ISSUES.md` 一致。
+- 維持 breaker-first truth 在 `/`、`/execution/status`、`/lab`、`hb_predict_probe.py`、`live_decision_quality_drilldown.py`、`issues.json`、`ISSUES.md` 一致。
 - 驗證：browser `/lab`、browser `/execution/status`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`。
 
 ### P0. recent canonical 250 rows remains a distribution pathology
@@ -53,41 +55,35 @@ _最後更新：2026-04-19 21:40:43 CST_
 - `dominant_regime=bull`
 - `dominant_regime_share=1.0000`
 - `avg_pnl=-0.0099`
-- `avg_quality=-0.2816`
+- `avg_quality=-0.2813`
 - `avg_drawdown_penalty=0.3739`
 - `alerts=['label_imbalance','regime_concentration','regime_shift']`
-- `adverse_streak=248x0`
+- `adverse_streak=246x0`
 - top feature shifts=`feat_4h_bb_pct_b`、`feat_4h_bias20`、`feat_eye`
 - new compressed=`feat_vwap_dev`
 
 **風險**
-- 若 breaker 根因被 broader leaderboard、venue readiness、或 generic model-stability 討論稀釋，修復會再次偏離 pathological slice 本身。
+- 若 breaker 根因被 generic leaderboard / venue 話題稀釋，heartbeat 會再次偏離真正的 pathological slice。
 
 **下一步**
-- 以 recent canonical rows 為主做 feature variance / target-path / gate-path drilldown，不要再把 blocker 重述成 generic leaderboard 或 venue 問題。
+- 以 recent canonical rows 為主做 feature variance / target-path / gate-path drilldown，不要把 blocker 重述成 generic leaderboard 或 venue 問題。
 - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`。
 
-### P1. current-live q35 exact support remains under minimum under breaker (1/50)
+### P1. bull pocket fast-mode rebuild is still over budget; current live only has reference-only fallback
 **現況**
-- `current_live_structure_bucket=CAUTION|structure_quality_caution|q35`
-- `current_live_structure_bucket_rows=1`
-- `minimum_support_rows=50`
-- `gap_to_minimum=49`
-- `support_route_verdict=exact_bucket_present_but_below_minimum`
-- `support_governance_route=exact_live_bucket_present_but_below_minimum`
-- `remaining_gap_to_floor=0.1963`
-- `best_single_component=feat_4h_bias50`
-- `recommended_patch=core_plus_macro`
-- `recommended_patch_status=reference_only_until_exact_support_ready`
+- `bull_4h_pocket_ablation.py` 在 fast mode 仍 `TIMEOUT after 20s`
+- 本輪 fallback 狀態：`reference_only_stale_live_context`
+- current live truth 已由 probe 提供：`bull / CAUTION / q35 / 1 row`
+- reference-only patch 仍可見：`bull_collapse_q35 -> core_plus_macro`
 
 **風險**
-- 若 probe / docs / UI 再退回舊的 `exact_bucket_supported` 語義，或把 `1/50` 說成 support 已 closure，operator 會把 reference-only patch 誤判成 deployable runtime fix。
+- 若後續 heartbeat 再把 stale bull artifact 當成 current live proxy truth，會重新污染 q35 support / governance / leaderboard 判讀。
 
 **下一步**
-- 維持 `1/50 + exact_bucket_present_but_below_minimum + reference_only_until_exact_support_ready` 在 probe / drilldown / API / UI / docs 一致 machine-read。
-- 驗證：`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/hb_parallel_runner.py --fast --hb <run>`。
+- 讓 bull pocket 在 fast path 內要嘛完成重建，要嘛有更便宜的 current-bucket refresh lane；在此之前，維持 `reference_only_stale_live_context` 明示 fallback。
+- 驗證：`python scripts/hb_parallel_runner.py --fast`、`data/heartbeat_fast_summary.json`、`data/leaderboard_feature_profile_probe.json`。
 
-### P1. leaderboard recent-window contract is stable again; keep runtime + docs in sync
+### P1. leaderboard recent-window contract is stable again; keep it stable and cron-safe
 **現況**
 - `/api/models/leaderboard`: `count=6`、`comparable_count=6`、`placeholder_count=0`
 - top row=`rule_baseline / core_only / scan_backed_best`
@@ -96,31 +92,31 @@ _最後更新：2026-04-19 21:40:43 CST_
 - `leaderboard_payload_source=latest_persisted_snapshot`
 
 **風險**
-- 若 runtime 或 probe 再讓舊快照或過期 cache 遮蔽 current truth，Strategy Lab / docs 會重新出現 split-brain：API 與 current-state 對 top model / profile 說出不同真相。
+- 若 current-live signature 再被 stale bull artifact 影響，candidate probe 會重新誤判 cache mismatch，拖慢 fast heartbeat 並重新導致 leaderboard / docs split-brain。
 
 **下一步**
-- 維持 cache-vs-snapshot freshness arbitration、latest bounded walk-forward、與 probe-driven current-state sync；避免 placeholder-only / stale top model 回歸。
-- 驗證：`pytest tests/test_model_leaderboard.py tests/test_hb_leaderboard_candidate_probe.py tests/test_auto_propose_fixes.py -q`、`curl http://127.0.0.1:8000/api/models/leaderboard`、browser `/lab`。
+- 維持 live-probe-priority current signature 與 payload freshness arbitration，不讓 stale bull artifact 重新覆蓋 current q35 truth。
+- 驗證：`python scripts/hb_parallel_runner.py --fast`、`pytest tests/test_hb_parallel_runner.py -q`、browser `/lab`。
 
 ### P1. venue readiness is still unverified
 **現況**
-- `binance`: `config enabled + public-only + metadata OK`
-- `okx`: `config disabled + public-only + metadata OK`
+- `binance=config enabled + public-only + metadata OK`
+- `okx=config disabled + public-only + metadata OK`
 - 缺的 runtime proof：`live exchange credential`、`order ack lifecycle`、`fill lifecycle`
 
 **風險**
 - breaker 未來解除後，若 venue blockers 被弱化成摘要字串或完全消失，使用者會被誤導成已可實盤。
 
 **下一步**
-- 持續保留 per-venue blockers，但它們必須永遠位於 breaker-first current blocker 之後。
-- 驗證：browser `/execution`、browser `/execution/status`、browser `/lab`、`data/execution_metadata_smoke.json`。
+- 維持 per-venue blockers 在 `/execution/status`、`/lab`、`ISSUES.md` 可見，但永遠排在 breaker-first current blocker 之後。
+- 驗證：browser `/execution/status`、browser `/lab`、`data/execution_metadata_smoke.json`。
 
 ### P1. fin_netflow source_auth_blocked remains open
 **現況**
 - `fin_netflow=source_auth_blocked`
 - `latest_status=auth_missing`
 - blocker 根因：`COINGLASS_API_KEY is missing`
-- `forward_archive_rows=2613`
+- `forward_archive_rows=2615`
 - `archive_window_coverage_pct=0.0%`
 
 **風險**
@@ -133,16 +129,16 @@ _最後更新：2026-04-19 21:40:43 CST_
 ---
 
 ## Not Issues
-- **data pipeline frozen**：不是；本輪 collect 實際新增 `+1 raw / +1 features / +3 labels`，且 active horizons freshness 仍屬 expected lag。
-- **current live q35 support 已 closure**：不是；本輪 rows-aware patch 與 live artifacts 已證明 current live exact bucket 只有 `1/50`，必須維持 `exact_bucket_present_but_below_minimum`。
-- **leaderboard split-brain**：不是 current issue；probe / API / docs 目前一致顯示 `rule_baseline / core_only / scan_backed_best`。
-- **reference-only patch 消失**：不是 current issue；`core_plus_macro` 仍在 probe / drilldown / issues.json 可見，且 status 正確為 `reference_only_until_exact_support_ready`。
+- **data pipeline frozen**：不是；本輪 collect 實際新增 `+1 raw / +1 features / +2 labels`，且 active horizons freshness 仍屬 expected lag。
+- **leaderboard split-brain**：不是 current issue；leaderboard probe、`/lab`、`/execution/status` 目前都對齊 bull/q35 current truth 與 dual-role governance。
+- **stale bull q15 artifact 仍污染 current live q35 truth**：不是 current issue；本輪已改成 `live-probe-priority signature + reference_only_stale_live_context`，不再把舊 q15/chop artifact 當成 current live proxy truth。
+- **reference-only patch 消失**：不是 current issue；`core_plus_macro` 仍在 probe / drilldown / `/lab` 可見，且 status 正確為 `reference_only_until_exact_support_ready`。
 
 ---
 
 ## Current Priority
-1. **維持 breaker-first truth across `/` / `/execution` / `/execution/status` / `/lab` / probe / drilldown / docs**
-2. **把 current-live q35 `1/50` support truth 與 reference-only `core_plus_macro` patch 一起 machine-read，避免再退回假 closure**
-3. **把 recent canonical 250-row pathology 當成 breaker 根因持續鑽深，不被 broader leaderboard / venue 討論稀釋**
-4. **守住 leaderboard recent-window contract：runtime API、persisted snapshot、probe、`issues.json`、browser `/lab` 同步顯示同一個 top model / profile 真相**
-5. **持續保留 per-venue blockers 與 source auth blockers，可見直到 credentials / ack / fill / CoinGlass auth 真正 closure**
+1. **維持 breaker-first truth across `/` / `/execution/status` / `/lab` / probe / drilldown / docs**
+2. **把 q35 `1/50 + exact_bucket_present_but_below_minimum + reference_only_until_exact_support_ready` 固定成所有 surface 的同一個 machine-read truth**
+3. **讓 bull pocket fast-path 不再 timeout 或至少有 current-bucket refresh lane；在此之前嚴格維持 reference-only fallback**
+4. **守住 leaderboard recent-window contract：candidate probe 不再被 stale bull artifact 誤導成 cache mismatch**
+5. **持續保留 per-venue blockers 與 CoinGlass auth blocker，可見直到真實 closure**

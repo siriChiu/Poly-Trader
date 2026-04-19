@@ -442,21 +442,40 @@ def _current_leaderboard_candidate_semantic_signature() -> Dict[str, Any]:
     live_context = bull_pocket.get("live_context") or {}
     support_route = q15_support.get("support_route") or {}
     current_live = q15_support.get("current_live") or {}
+    deployment_blocker_details = live_probe.get("deployment_blocker_details") or {}
     feature_profile_source = last_metrics.get("feature_profile_source") or (last_metrics.get("feature_profile_meta") or {}).get("source")
-    live_current_structure_bucket = live_context.get("current_live_structure_bucket")
-    if live_current_structure_bucket is None:
-        live_current_structure_bucket = current_live.get("current_live_structure_bucket")
-    live_current_structure_bucket_rows = live_context.get("current_live_structure_bucket_rows")
+
+    live_current_structure_bucket = (
+        live_probe.get("current_live_structure_bucket")
+        or live_probe.get("structure_bucket")
+        or live_context.get("current_live_structure_bucket")
+        or current_live.get("current_live_structure_bucket")
+    )
+    live_current_structure_bucket_rows = live_probe.get("current_live_structure_bucket_rows")
+    if live_current_structure_bucket_rows is None:
+        live_current_structure_bucket_rows = live_context.get("current_live_structure_bucket_rows")
     if live_current_structure_bucket_rows is None:
         live_current_structure_bucket_rows = current_live.get("current_live_structure_bucket_rows")
-    minimum_support_rows = live_context.get("minimum_support_rows")
+
+    minimum_support_rows = live_probe.get("minimum_support_rows")
+    if minimum_support_rows is None:
+        minimum_support_rows = deployment_blocker_details.get("minimum_support_rows")
+    if minimum_support_rows is None:
+        minimum_support_rows = live_context.get("minimum_support_rows")
     if minimum_support_rows is None:
         minimum_support_rows = support_route.get("minimum_support_rows")
+
+    support_governance_route = (
+        live_probe.get("support_governance_route")
+        or deployment_blocker_details.get("support_governance_route")
+        or support_route.get("support_governance_route")
+    )
+
     return {
         "global_recommended_profile": feature_ablation.get("recommended_profile"),
         "train_selected_profile": last_metrics.get("feature_profile"),
         "train_selected_profile_source": feature_profile_source,
-        "support_governance_route": support_route.get("support_governance_route"),
+        "support_governance_route": support_governance_route,
         "minimum_support_rows": int(minimum_support_rows or 0),
         "live_current_structure_bucket": live_current_structure_bucket,
         "live_current_structure_bucket_rows": int(live_current_structure_bucket_rows or 0),
@@ -2040,13 +2059,104 @@ def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
             "recommended_metrics": ((cohort.get("profiles") or {}).get(cohort.get("recommended_profile")) or {}),
         }
 
-    live_context = payload.get("live_context") or {}
+    artifact_live_context = payload.get("live_context") or {}
     support_summary = payload.get("support_pathology_summary") or {}
+    artifact_live_signature = _bull_pocket_semantic_signature_from_live_context(artifact_live_context)
+    current_live_signature = _current_bull_pocket_semantic_signature()
+    semantic_mismatch = bool(
+        artifact_live_signature
+        and current_live_signature
+        and artifact_live_signature != current_live_signature
+    )
+    live_context = artifact_live_context
+    live_specific_reference_only = False
+
+    if semantic_mismatch and current_live_signature:
+        live_context = {
+            **artifact_live_context,
+            "regime_label": current_live_signature.get("regime_label"),
+            "regime_gate": current_live_signature.get("regime_gate"),
+            "entry_quality_label": current_live_signature.get("entry_quality_label"),
+            "decision_quality_label": current_live_signature.get("decision_quality_label"),
+            "current_live_structure_bucket": current_live_signature.get("current_live_structure_bucket"),
+            "current_live_structure_bucket_rows": current_live_signature.get("current_live_structure_bucket_rows"),
+            "exact_scope_rows": current_live_signature.get("exact_scope_rows"),
+            "execution_guardrail_reason": current_live_signature.get("execution_guardrail_reason"),
+            "decision_quality_calibration_scope": current_live_signature.get("decision_quality_calibration_scope"),
+        }
+        live_specific_reference_only = True
+
+    production_profile_role = {
+        "profile": (cohorts.get("bull_all") or {}).get("recommended_profile"),
+        "role": "bull_exact_supported_production_profile" if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported" else "support_aware_production_profile",
+        "source": (
+            "bull_4h_pocket_ablation.exact_supported_profile"
+            if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported"
+            else "bull_4h_pocket_ablation.support_aware_profile"
+        ),
+        "support_cohort": "bull_all" if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported" else support_summary.get("preferred_support_cohort"),
+        "support_rows": (cohorts.get("bull_all") or {}).get("rows") if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported" else ((cohorts.get(support_summary.get("preferred_support_cohort") or "") or {}).get("rows")),
+        "exact_live_bucket_rows": live_context.get("current_live_structure_bucket_rows"),
+        "reason": (
+            "exact live bucket 已達 minimum support，production 應以 bull exact-supported lane 作為治理與訓練語義。"
+            if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported"
+            else "exact bucket 尚未充分支持，production 仍需保留 support-aware lane 作為治理語義。"
+        ),
+    }
+    if live_specific_reference_only:
+        production_profile_role.update({
+            "role": "reference_only_stale_live_context",
+            "source": "bull_4h_pocket_ablation.reference_only",
+            "support_cohort": None,
+            "support_rows": None,
+            "reason": "bull 4H pocket artifact 的 live context 已和目前 live probe 脫節；本輪僅保留 bull_all / bull_collapse_q35 作為 reference-only，不能把 live-specific proxy cohorts 當成 current truth。",
+        })
+
+    support_summary_payload = {
+        "blocker_state": support_summary.get("blocker_state"),
+        "preferred_support_cohort": support_summary.get("preferred_support_cohort"),
+        "minimum_support_rows": support_summary.get("minimum_support_rows"),
+        "current_live_structure_bucket_gap_to_minimum": support_summary.get("current_live_structure_bucket_gap_to_minimum"),
+        "exact_bucket_root_cause": support_summary.get("exact_bucket_root_cause"),
+        "bucket_comparison_takeaway": support_summary.get("bucket_comparison_takeaway"),
+        "proxy_boundary_verdict": support_summary.get("proxy_boundary_verdict"),
+        "proxy_boundary_reason": support_summary.get("proxy_boundary_reason"),
+        "proxy_boundary_diagnostics": support_summary.get("proxy_boundary_diagnostics") or {},
+        "bucket_evidence_comparison": support_summary.get("bucket_evidence_comparison") or {},
+        "exact_lane_bucket_verdict": support_summary.get("exact_lane_bucket_verdict"),
+        "exact_lane_bucket_reason": support_summary.get("exact_lane_bucket_reason"),
+        "exact_lane_toxic_bucket": support_summary.get("exact_lane_toxic_bucket") or {},
+        "exact_lane_bucket_diagnostics": support_summary.get("exact_lane_bucket_diagnostics") or {},
+        "recommended_action": support_summary.get("recommended_action"),
+    }
+    if live_specific_reference_only:
+        support_summary_payload.update({
+            "blocker_state": "reference_only_stale_live_context",
+            "preferred_support_cohort": None,
+            "exact_bucket_root_cause": None,
+            "bucket_comparison_takeaway": None,
+            "proxy_boundary_verdict": None,
+            "proxy_boundary_reason": "artifact live context is stale against current live probe; skip live-specific proxy diagnostics until bull_4h_pocket_ablation.py is rebuilt for the current live bucket.",
+            "proxy_boundary_diagnostics": {},
+            "bucket_evidence_comparison": {},
+            "exact_lane_bucket_verdict": None,
+            "exact_lane_bucket_reason": None,
+            "exact_lane_toxic_bucket": {},
+            "exact_lane_bucket_diagnostics": {},
+            "recommended_action": "Keep bull_collapse_q35 reference patch visible, but do not treat stale live-specific proxy cohorts as current runtime truth.",
+        })
+
     return {
         "generated_at": payload.get("generated_at"),
         "target_col": payload.get("target_col"),
         "collapse_features": payload.get("collapse_features") or [],
         "collapse_thresholds": payload.get("collapse_thresholds") or {},
+        "semantic_alignment": {
+            "aligned": not semantic_mismatch,
+            "artifact_live_signature": artifact_live_signature or {},
+            "current_live_signature": current_live_signature or {},
+            "live_specific_reference_only": live_specific_reference_only,
+        },
         "live_context": {
             "regime_label": live_context.get("regime_label"),
             "regime_gate": live_context.get("regime_gate"),
@@ -2057,45 +2167,13 @@ def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
             "supported_neighbor_buckets": live_context.get("supported_neighbor_buckets") or [],
             "collapse_feature_snapshot": live_context.get("collapse_feature_snapshot") or {},
         },
-        "support_pathology_summary": {
-            "blocker_state": support_summary.get("blocker_state"),
-            "preferred_support_cohort": support_summary.get("preferred_support_cohort"),
-            "minimum_support_rows": support_summary.get("minimum_support_rows"),
-            "current_live_structure_bucket_gap_to_minimum": support_summary.get("current_live_structure_bucket_gap_to_minimum"),
-            "exact_bucket_root_cause": support_summary.get("exact_bucket_root_cause"),
-            "bucket_comparison_takeaway": support_summary.get("bucket_comparison_takeaway"),
-            "proxy_boundary_verdict": support_summary.get("proxy_boundary_verdict"),
-            "proxy_boundary_reason": support_summary.get("proxy_boundary_reason"),
-            "proxy_boundary_diagnostics": support_summary.get("proxy_boundary_diagnostics") or {},
-            "bucket_evidence_comparison": support_summary.get("bucket_evidence_comparison") or {},
-            "exact_lane_bucket_verdict": support_summary.get("exact_lane_bucket_verdict"),
-            "exact_lane_bucket_reason": support_summary.get("exact_lane_bucket_reason"),
-            "exact_lane_toxic_bucket": support_summary.get("exact_lane_toxic_bucket") or {},
-            "exact_lane_bucket_diagnostics": support_summary.get("exact_lane_bucket_diagnostics") or {},
-            "recommended_action": support_summary.get("recommended_action"),
-        },
-        "production_profile_role": {
-            "profile": (cohorts.get("bull_all") or {}).get("recommended_profile"),
-            "role": "bull_exact_supported_production_profile" if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported" else "support_aware_production_profile",
-            "source": (
-                "bull_4h_pocket_ablation.exact_supported_profile"
-                if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported"
-                else "bull_4h_pocket_ablation.support_aware_profile"
-            ),
-            "support_cohort": "bull_all" if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported" else support_summary.get("preferred_support_cohort"),
-            "support_rows": (cohorts.get("bull_all") or {}).get("rows") if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported" else ((cohorts.get(support_summary.get("preferred_support_cohort") or "") or {}).get("rows")),
-            "exact_live_bucket_rows": live_context.get("current_live_structure_bucket_rows"),
-            "reason": (
-                "exact live bucket 已達 minimum support，production 應以 bull exact-supported lane 作為治理與訓練語義。"
-                if support_summary.get("exact_bucket_root_cause") == "exact_bucket_supported"
-                else "exact bucket 尚未充分支持，production 仍需保留 support-aware lane 作為治理語義。"
-            ),
-        },
+        "support_pathology_summary": support_summary_payload,
+        "production_profile_role": production_profile_role,
         "bull_all": _cohort_summary("bull_all"),
         "bull_collapse_q35": _cohort_summary("bull_collapse_q35"),
-        "bull_exact_live_lane_proxy": _cohort_summary("bull_exact_live_lane_proxy"),
-        "bull_live_exact_lane_bucket_proxy": _cohort_summary("bull_live_exact_lane_bucket_proxy"),
-        "bull_supported_neighbor_buckets_proxy": _cohort_summary("bull_supported_neighbor_buckets_proxy"),
+        "bull_exact_live_lane_proxy": {} if live_specific_reference_only else _cohort_summary("bull_exact_live_lane_proxy"),
+        "bull_live_exact_lane_bucket_proxy": {} if live_specific_reference_only else _cohort_summary("bull_live_exact_lane_bucket_proxy"),
+        "bull_supported_neighbor_buckets_proxy": {} if live_specific_reference_only else _cohort_summary("bull_supported_neighbor_buckets_proxy"),
     }
 
 
@@ -2674,12 +2752,17 @@ def main(argv=None):
         live_bucket = bull_pocket_summary.get("bull_live_exact_lane_bucket_proxy") or {}
         neighbors = bull_pocket_summary.get("bull_supported_neighbor_buckets_proxy") or {}
         live_context = bull_pocket_summary.get("live_context") or {}
+        semantic_alignment = bull_pocket_summary.get("semantic_alignment") or {}
+        semantic_note = ""
+        if semantic_alignment.get("live_specific_reference_only"):
+            semantic_note = " reference_only_stale_live_context"
         print(
             "🐂 Bull pocket："
             f"collapse_best={collapse.get('recommended_profile')} "
             f"live_bucket_rows={live_bucket.get('rows')} best={live_bucket.get('recommended_profile')} "
             f"neighbor_rows={neighbors.get('rows')} best={neighbors.get('recommended_profile')} "
             f"current_bucket_rows={live_context.get('current_live_structure_bucket_rows')}"
+            f"{semantic_note}"
         )
 
     write_progress(run_label, "leaderboard_candidate_probe")
