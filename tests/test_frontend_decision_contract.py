@@ -63,6 +63,27 @@ def test_execution_status_route_and_page_contract():
         assert snippet in page_source
 
 
+def test_use_api_cancels_superseded_requests_and_ignores_stale_timeouts():
+    source = _read("hooks/useApi.ts")
+    required_snippets = [
+        'import { useEffect, useState, useCallback, useRef } from "react";',
+        'const requestSeqRef = useRef(0);',
+        'const activeControllerRef = useRef<AbortController | null>(null);',
+        'const cancelActiveRequest = useCallback(() => {',
+        'requestSeqRef.current += 1;',
+        'activeControllerRef.current?.abort();',
+        'const requestSeq = requestSeqRef.current;',
+        'const controller = new AbortController();',
+        'activeControllerRef.current = controller;',
+        'const json = await fetchJsonTracked<T>(endpoint, { signal: controller.signal });',
+        'if (controller.signal.aborted || requestSeq !== requestSeqRef.current) return;',
+        'if (activeControllerRef.current === controller) {',
+        'cancelActiveRequest();',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
 def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout():
     source = _read("pages/ExecutionConsole.tsx")
     required_snippets = [

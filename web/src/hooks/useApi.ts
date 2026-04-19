@@ -1,7 +1,7 @@
 /**
  * useApi — Generic API fetch hooks + fetchApi helper
  */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { beginGlobalProgress, endGlobalProgress, updateGlobalProgress } from "./useGlobalProgress";
 
 const RAW_BASE = (import.meta as any)?.env?.VITE_API_BASE?.trim?.() || "";
@@ -249,23 +249,47 @@ export function useApi<T>(endpoint: string, refreshMs?: number) {
   const [data, setData] = useState<T | null>(() => getCachedApiResponse<T>(endpoint, cacheMaxAgeMs));
   const [loading, setLoading] = useState(data == null);
   const [error, setError] = useState<string | null>(null);
+  const requestSeqRef = useRef(0);
+  const activeControllerRef = useRef<AbortController | null>(null);
+
+  const cancelActiveRequest = useCallback(() => {
+    requestSeqRef.current += 1;
+    activeControllerRef.current?.abort();
+    activeControllerRef.current = null;
+  }, []);
 
   const fetch_ = useCallback(async () => {
+    requestSeqRef.current += 1;
+    const requestSeq = requestSeqRef.current;
+    activeControllerRef.current?.abort();
+    const controller = new AbortController();
+    activeControllerRef.current = controller;
+
     const cached = getCachedApiResponse<T>(endpoint, cacheMaxAgeMs);
     if (cached != null) {
       setData(cached);
+      setError(null);
       setLoading(false);
     } else {
+      setError(null);
       setLoading(true);
     }
+
     try {
-      const json = await fetchJsonTracked<T>(endpoint);
+      const json = await fetchJsonTracked<T>(endpoint, { signal: controller.signal });
+      if (controller.signal.aborted || requestSeq !== requestSeqRef.current) return;
       setData(json);
       setError(null);
     } catch (e: any) {
-      setError(e.message);
+      if (controller.signal.aborted || requestSeq !== requestSeqRef.current) return;
+      setError(e?.message || String(e));
     } finally {
-      setLoading(false);
+      if (activeControllerRef.current === controller) {
+        activeControllerRef.current = null;
+      }
+      if (!controller.signal.aborted && requestSeq === requestSeqRef.current) {
+        setLoading(false);
+      }
     }
   }, [endpoint, cacheMaxAgeMs]);
 
@@ -273,9 +297,15 @@ export function useApi<T>(endpoint: string, refreshMs?: number) {
     fetch_();
     if (refreshMs) {
       const timer = setInterval(fetch_, refreshMs);
-      return () => clearInterval(timer);
+      return () => {
+        clearInterval(timer);
+        cancelActiveRequest();
+      };
     }
-  }, [fetch_, refreshMs]);
+    return () => {
+      cancelActiveRequest();
+    };
+  }, [cancelActiveRequest, fetch_, refreshMs]);
 
   return { data, loading, error, refresh: fetch_ };
 }

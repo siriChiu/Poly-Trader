@@ -2952,6 +2952,7 @@ def main(argv=None):
     run_label = resolve_run_label(args)
     _CURRENT_HEARTBEAT_RUN_LABEL = run_label
     _CURRENT_HEARTBEAT_FAST_MODE = bool(args.fast)
+    run_start_monotonic = time.monotonic()
     progress_path = write_progress(
         run_label,
         "collect",
@@ -3061,8 +3062,8 @@ def main(argv=None):
             )
 
     print(f"心跳 #{run_label} 平行執行 — {len(tasks)} 個 tasks（{'fast' if args.fast else 'full'} 模式）")
-    start = datetime.now()
-    start_monotonic = time.monotonic()
+    parallel_start = datetime.now()
+    parallel_start_monotonic = time.monotonic()
     results = {}
     task_names = [task["name"] for task in tasks]
     write_progress(
@@ -3080,7 +3081,7 @@ def main(argv=None):
     with concurrent.futures.ProcessPoolExecutor(max_workers=min(len(tasks), 5)) as ex:
         future_to_name = {ex.submit(run_task, t): t["name"] for t in tasks}
         pending_futures = set(future_to_name)
-        last_completion_at = start_monotonic
+        last_completion_at = parallel_start_monotonic
         watchdog_heartbeats = 0
         while pending_futures:
             done, pending_futures = concurrent.futures.wait(
@@ -3090,7 +3091,7 @@ def main(argv=None):
             )
             if not done:
                 watchdog_heartbeats += 1
-                elapsed_seconds = round(time.monotonic() - start_monotonic, 1)
+                elapsed_seconds = round(time.monotonic() - run_start_monotonic, 1)
                 since_last_completion = round(time.monotonic() - last_completion_at, 1)
                 pending_names = [future_to_name[future] for future in pending_futures]
                 write_progress(
@@ -3133,7 +3134,7 @@ def main(argv=None):
                         "failed": sum(1 for result in results.values() if not result["success"]),
                         "last_completed_task": name,
                         "last_completed_success": ok,
-                        "elapsed_seconds": round(time.monotonic() - start_monotonic, 1),
+                        "elapsed_seconds": round(time.monotonic() - run_start_monotonic, 1),
                         "watchdog": {
                             "heartbeat_count": watchdog_heartbeats,
                             "seconds_since_last_completion": 0.0,
@@ -3142,9 +3143,9 @@ def main(argv=None):
                 )
                 print(f"  [{'✅' if ok else '❌'}] {name}")
 
-    elapsed = (datetime.now() - start).total_seconds()
+    run_elapsed_seconds = round(time.monotonic() - run_start_monotonic, 1)
     passed = sum(1 for r in results.values() if r["success"])
-    print(f"\n  {passed}/{len(results)} 通過（{elapsed:.1f}s）")
+    print(f"\n  {passed}/{len(results)} 通過（{run_elapsed_seconds:.1f}s）")
 
     for name, r in results.items():
         if r.get("stdout"):
@@ -3679,7 +3680,7 @@ def main(argv=None):
     fast_timeout_issue_sync = sync_fast_heartbeat_timeout_issue(
         run_label,
         fast_mode=args.fast,
-        elapsed_seconds=elapsed,
+        elapsed_seconds=run_elapsed_seconds,
         collect_result=collect_result,
         parallel_results=results,
         serial_results=serial_result_payload,
@@ -3732,7 +3733,7 @@ def main(argv=None):
         source_blockers,
         collect_result,
         results,
-        elapsed,
+        elapsed=run_elapsed_seconds,
         fast_mode=args.fast,
         ic_diagnostics=ic_diagnostics,
         drift_diagnostics=drift_diagnostics,
