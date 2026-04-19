@@ -778,7 +778,7 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
   return (
     <div
       ref={containerRef}
-      className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4 space-y-3"
+      className="app-surface-card space-y-3"
     >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -796,15 +796,15 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
           )}
         </h2>
 
-        <div className="flex items-center gap-2">
+        <div className="app-segmented-control">
           {TIMEFRAMES.map((tf) => (
             <button
               key={tf.days}
               onClick={() => setDays(tf.days)}
-              className={`px-3 py-1 text-xs rounded-lg transition ${
+              className={`app-segmented-button ${
                 days === tf.days
-                  ? "bg-blue-600 text-white"
-                  : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                  ? "app-segmented-button-active"
+                  : ""
               }`}
             >
               {tf.label}

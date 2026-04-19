@@ -2953,6 +2953,9 @@ def _serialize_model_scores(scores: List[Any], leaderboard) -> List[Dict[str, An
             "feature_profile_support_cohort": status.get("feature_profile_support_cohort"),
             "feature_profile_support_rows": status.get("feature_profile_support_rows"),
             "feature_profile_exact_live_bucket_rows": status.get("feature_profile_exact_live_bucket_rows"),
+            "evaluation_fold_window": status.get("evaluation_fold_window"),
+            "evaluation_fold_indices": status.get("evaluation_fold_indices", []),
+            "evaluation_fold_count": status.get("evaluation_fold_count"),
             "avg_roi": float(getattr(score, "avg_roi", 0.0) or 0.0),
             "avg_win_rate": float(getattr(score, "avg_win_rate", 0.0) or 0.0),
             "avg_trades": float(getattr(score, "avg_trades", 0.0) or 0.0),
@@ -3326,6 +3329,8 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
             "overfit_gap_threshold": _OVERFIT_GAP_THRESHOLD,
             "overfit_accuracy_threshold": _OVERFIT_ACCURACY_THRESHOLD,
             "target_candidates": [],
+            "evaluation_fold_window": "latest_bounded_walk_forward",
+            "evaluation_max_folds": getattr(ModelLeaderboard, "EVALUATION_MAX_FOLDS", None),
             "strategy_param_scan": strategy_param_scan,
             "leaderboard_governance": leaderboard_governance,
         }
@@ -3373,6 +3378,8 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
         "overfit_gap_threshold": _OVERFIT_GAP_THRESHOLD,
         "overfit_accuracy_threshold": _OVERFIT_ACCURACY_THRESHOLD,
         "target_candidates": _summarize_target_candidates(data_df, _OVERFIT_GAP_THRESHOLD, _OVERFIT_ACCURACY_THRESHOLD),
+        "evaluation_fold_window": "latest_bounded_walk_forward",
+        "evaluation_max_folds": getattr(leaderboard, "EVALUATION_MAX_FOLDS", None),
         "data_warning": leaderboard_warning,
         "strategy_param_scan": strategy_param_scan,
         "leaderboard_governance": leaderboard_governance,
@@ -4518,6 +4525,47 @@ def _filter_strategy_rows_by_backtest_range(
     }
 
 
+
+def _resolve_default_strategy_backtest_range(
+    *,
+    requested_start: Optional[str],
+    requested_end: Optional[str],
+    available_start: Optional[str],
+    available_end: Optional[str],
+    lookback_days: int = 730,
+) -> tuple[Optional[str], Optional[str], Dict[str, Any]]:
+    if requested_start or requested_end:
+        return requested_start, requested_end, {
+            "mode": "explicit_range",
+            "lookback_days": int(lookback_days),
+            "requested_range_was_empty": False,
+        }
+
+    available_start_dt = _parse_backtest_timestamp(available_start) if available_start else None
+    available_end_dt = _parse_backtest_timestamp(available_end) if available_end else None
+    if available_end_dt is None:
+        return requested_start, requested_end, {
+            "mode": "unavailable",
+            "lookback_days": int(lookback_days),
+            "requested_range_was_empty": True,
+        }
+
+    default_start_dt = available_end_dt - timedelta(days=max(int(lookback_days), 1))
+    if available_start_dt and default_start_dt < available_start_dt:
+        default_start_dt = available_start_dt
+
+    return (
+        _iso_utc_timestamp(default_start_dt),
+        _iso_utc_timestamp(available_end_dt),
+        {
+            "mode": "latest_two_year_default",
+            "lookback_days": int(lookback_days),
+            "requested_range_was_empty": True,
+        },
+    )
+
+
+
 def _get_sqlite_db_path(db) -> Optional[str]:
     try:
         bind = db.get_bind()
@@ -4661,6 +4709,13 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
     if not rows:
         return {"error": "No data available for backtest"}
 
+    requested_start, requested_end, backtest_policy = _resolve_default_strategy_backtest_range(
+        requested_start=requested_start,
+        requested_end=requested_end,
+        available_start=_iso_utc_timestamp(rows[0][0]) if rows else None,
+        available_end=_iso_utc_timestamp(rows[-1][0]) if rows else None,
+    )
+
     active_rows = list(rows)
     range_meta = {
         "requested": {
@@ -4676,9 +4731,11 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
         "missing_start_days": 0.0,
         "missing_end_days": 0.0,
         "row_count": len(rows),
+        "policy": backtest_policy,
     }
     if requested_start or requested_end:
         active_rows, range_meta = _filter_strategy_rows_by_backtest_range(rows, start=requested_start, end=requested_end)
+        range_meta["policy"] = backtest_policy
         if auto_backfill and range_meta.get("backfill_required"):
             _set_strategy_job_progress(job_id, 14, "回測範圍超出本地資料，正在回填原始行情。", stage_key="backfill_raw")
             backfill_session = get_db()
@@ -4700,6 +4757,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
             _set_strategy_job_progress(job_id, 21, "回填完成，正在重新載入回測資料。", stage_key="reload_data")
             rows = _load_strategy_data()
             active_rows, range_meta = _filter_strategy_rows_by_backtest_range(rows, start=requested_start, end=requested_end)
+            range_meta["policy"] = backtest_policy
         if not active_rows:
             return {"error": "No rows available inside requested backtest range"}
     elif not active_rows:
@@ -4895,8 +4953,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
             **decision_profile,
             **canonical_quality_profile,
         }
-        if requested_start or requested_end:
-            results_dict["backtest_range"] = range_meta
+        results_dict["backtest_range"] = range_meta
         contract_meta = _strategy_decision_contract_meta(
             horizon_minutes=int(results_dict.get("decision_quality_horizon_minutes") or 1440)
         )

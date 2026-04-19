@@ -390,6 +390,38 @@ def test_filter_strategy_rows_by_backtest_range_reports_missing_history():
     assert meta["effective"]["start"].startswith("2025-04-03")
 
 
+
+def test_resolve_default_strategy_backtest_range_uses_latest_two_year_window_when_missing():
+    start, end, policy = api_module._resolve_default_strategy_backtest_range(
+        requested_start=None,
+        requested_end=None,
+        available_start="2023-01-01T00:00:00Z",
+        available_end="2026-04-16T00:40:26Z",
+    )
+
+    assert start.startswith("2024-04-16")
+    assert end.startswith("2026-04-16")
+    assert policy["mode"] == "latest_two_year_default"
+    assert policy["lookback_days"] == 730
+    assert policy["requested_range_was_empty"] is True
+
+
+
+def test_resolve_default_strategy_backtest_range_preserves_explicit_range():
+    start, end, policy = api_module._resolve_default_strategy_backtest_range(
+        requested_start="2025-01-01T00:00:00Z",
+        requested_end="2025-12-31T00:00:00Z",
+        available_start="2023-01-01T00:00:00Z",
+        available_end="2026-04-16T00:40:26Z",
+    )
+
+    assert start.startswith("2025-01-01")
+    assert end.startswith("2025-12-31")
+    assert policy["mode"] == "explicit_range"
+    assert policy["requested_range_was_empty"] is False
+
+
+
 def test_api_strategy_data_range_uses_loaded_strategy_rows(monkeypatch):
     rows = [
         ("2025-04-03 13:00:00", 100.0),

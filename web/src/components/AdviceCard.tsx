@@ -59,7 +59,7 @@ export default function AdviceCard({ score = 50, summary = "分析中...", descr
   const config = ACTION_CONFIG[action] || ACTION_CONFIG.hold;
 
   return (
-    <div className={`bg-gradient-to-br ${config.bg} rounded-xl border border-slate-700/50 p-4 space-y-3 h-full`}>
+    <div className={`app-surface-card bg-gradient-to-br ${config.bg} space-y-3 h-full`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className={`text-5xl font-mono font-bold transition-all duration-500 ${getScoreLevel(score)}`}>{score}</div>
@@ -102,11 +102,11 @@ export default function AdviceCard({ score = 50, summary = "分析中...", descr
       {tradeStatus && <div className="bg-green-900/30 border border-green-700/30 rounded-lg px-3 py-2 text-green-400 text-xs text-center">{tradeStatus}</div>}
 
       <div className="flex gap-2">
-        <button onClick={() => handleTrade("buy")} className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${confirmTrade === "buy" ? "bg-green-500 text-white animate-pulse" : "bg-green-600/40 text-green-400 hover:bg-green-600/60 border border-green-600/30"}`}>
+        <button onClick={() => handleTrade("buy")} className={`app-button-primary flex-1 text-sm font-bold ${confirmTrade === "buy" ? "animate-pulse bg-green-500 border-green-400" : "bg-green-600/40 text-green-100 hover:bg-green-600/60 border-green-600/30 shadow-none"}`}>
           {confirmTrade === "buy" ? "✓ 確認買入" : "🟢 買入"}
         </button>
-        <button onClick={() => setConfirmTrade(null)} className="flex-1 py-2.5 rounded-lg font-bold text-sm bg-slate-700/60 text-slate-400 hover:bg-slate-700 border border-slate-600/30 transition-all">⚪ 觀望</button>
-        <button onClick={() => handleTrade("reduce")} className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${confirmTrade === "reduce" ? "bg-orange-500 text-white animate-pulse" : "bg-orange-600/40 text-orange-400 hover:bg-orange-600/60 border border-orange-600/30"}`}>
+        <button onClick={() => setConfirmTrade(null)} className="app-button-secondary flex-1 text-sm font-bold">⚪ 觀望</button>
+        <button onClick={() => handleTrade("reduce")} className={`app-button-primary flex-1 text-sm font-bold ${confirmTrade === "reduce" ? "animate-pulse bg-orange-500 border-orange-400" : "bg-orange-600/40 text-orange-100 hover:bg-orange-600/60 border-orange-600/30 shadow-none"}`}>
           {confirmTrade === "reduce" ? "✓ 確認減碼" : "🟠 減碼"}
         </button>
       </div>

@@ -337,10 +337,60 @@ def test_global_styles_use_premium_exchange_visual_tokens():
         '.exchange-subpanel',
         '.exchange-chip',
         '.btn-secondary',
+        '.app-shell',
+        '.app-page-shell',
+        '.app-page-header',
+        '.app-surface-card',
+        '.app-surface-muted',
+        '.app-segmented-control',
+        '.app-segmented-button',
+        '.app-control-input',
+        '.app-button-primary',
+        '.app-button-secondary',
     ]
     for snippet in required_css:
         assert snippet in css_source
     assert "accent: '#7132f5'" in tailwind_source
+
+
+
+def test_frontend_pages_share_unified_shell_and_surface_classes():
+    app_source = _read("App.tsx")
+    dashboard_source = _read("pages/Dashboard.tsx")
+    strategy_lab_source = _read("pages/StrategyLab.tsx")
+    senses_source = _read("pages/Senses.tsx")
+    execution_console_source = _read("pages/ExecutionConsole.tsx")
+    execution_status_source = _read("pages/ExecutionStatus.tsx")
+    component_sources = [
+        _read("components/BacktestSummary.tsx"),
+        _read("components/VenueReadinessSummary.tsx"),
+        _read("components/LivePathologySummaryCard.tsx"),
+        _read("components/FeatureChart.tsx"),
+        _read("components/AdviceCard.tsx"),
+        _read("components/ConfidenceIndicator.tsx"),
+        _read("components/SenseModule.tsx"),
+    ]
+
+    assert 'className="app-shell' in app_source
+    assert 'app-nav-link' in app_source
+    for source in [dashboard_source, strategy_lab_source, senses_source, execution_console_source, execution_status_source]:
+        assert 'app-page-shell' in source
+        assert 'app-page-header' in source
+    assert any('app-surface-card' in source for source in component_sources)
+
+
+
+def test_strategy_lab_surfaces_two_year_leaderboard_backtest_policy():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'const LEADERBOARD_BACKTEST_WINDOW_MONTHS = 24;',
+        'const LEADERBOARD_BACKTEST_WINDOW_DAYS = 730;',
+        'const LEADERBOARD_BACKTEST_POLICY_LABEL = "排行榜回測固定使用最近兩年";',
+        'applyBacktestPreset("2y")',
+        '排行榜回測固定使用最近兩年，降低短窗策略過擬合。',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
 
 
 def test_candlestick_chart_uses_stable_empty_prop_defaults_to_avoid_render_loops():

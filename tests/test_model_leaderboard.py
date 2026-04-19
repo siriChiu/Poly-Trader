@@ -104,6 +104,60 @@ def test_walk_forward_splits_handles_integer_month_count():
     assert all(len(split) == 4 for split in splits)
 
 
+def test_evaluate_model_prefers_latest_bounded_walk_forward_splits(monkeypatch):
+    timestamps = pd.date_range("2024-01-01", periods=900, freq="12h")
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "close_price": [50000 + i for i in range(len(timestamps))],
+            "simulated_pyramid_win": [i % 2 for i in range(len(timestamps))],
+            "feat_4h_bias50": [0.0] * len(timestamps),
+            "feat_nose": [0.5] * len(timestamps),
+            "feat_pulse": [0.5] * len(timestamps),
+            "feat_ear": [0.1] * len(timestamps),
+        }
+    )
+    leaderboard = ModelLeaderboard(df, target_col="simulated_pyramid_win")
+    splits = leaderboard._get_walk_forward_splits()
+    expected_indices = list(range(len(splits) - leaderboard.EVALUATION_MAX_FOLDS, len(splits)))
+
+    monkeypatch.setattr(model_leaderboard_module, "MIN_TRAIN_SAMPLES", 1)
+    monkeypatch.setattr(leaderboard, "_deployment_profile_candidates_for_model", lambda model_name: ["standard"])
+    monkeypatch.setattr(
+        leaderboard,
+        "_feature_profile_candidates_for_frame",
+        lambda feature_cols: [{"name": "core_only", "meta": {"source": "test"}}],
+    )
+
+    def fake_run_single_fold(train_df, test_df, model_name):
+        fold = model_leaderboard_module.FoldResult(
+            fold=0,
+            train_start=str(train_df["timestamp"].min().date()),
+            train_end=str(train_df["timestamp"].max().date()),
+            test_start=str(test_df["timestamp"].min().date()),
+            test_end=str(test_df["timestamp"].max().date()),
+            train_samples=len(train_df),
+            test_samples=len(test_df),
+            total_trades=1,
+            roi=0.01,
+            win_rate=0.5,
+            avg_entry_quality=0.56,
+            avg_allowed_layers=1.0,
+        )
+        return fold, None, None, 0.61, 0.57
+
+    monkeypatch.setattr(leaderboard, "_run_single_fold", fake_run_single_fold)
+
+    score = leaderboard.evaluate_model("xgboost")
+
+    assert score is not None
+    assert [fold.fold for fold in score.folds] == expected_indices
+    status = leaderboard.last_model_statuses["xgboost"]
+    assert status["evaluation_fold_window"] == "latest_bounded_walk_forward"
+    assert status["evaluation_fold_indices"] == expected_indices
+    assert status["evaluation_fold_count"] == leaderboard.EVALUATION_MAX_FOLDS
+
+
 def test_load_model_leaderboard_frame_falls_back_to_timestamp_join(leaderboard_db: Path):
     df = load_model_leaderboard_frame(str(leaderboard_db))
 

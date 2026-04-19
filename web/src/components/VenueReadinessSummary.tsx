@@ -53,7 +53,7 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
         return (
           <div
             key={item.venue || "unknown"}
-            className={`rounded-lg border px-3 py-2 text-[11px] leading-5 ${readinessTone(item)}`}
+            className={`app-surface-muted px-3 py-2 text-[11px] leading-5 ${readinessTone(item)}`}
           >
             <div className="flex items-start justify-between gap-3">
               <div>

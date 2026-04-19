@@ -143,11 +143,12 @@ export default function Senses() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+    <div className="app-page-shell">
+      <div className="app-page-header flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-xl font-bold text-slate-100">🎛️ 特徵管理</h2>
-          <p className="text-sm text-slate-500">把特徵改成「市場面向」來看：短線微結構、技術指標、宏觀風險、4H 結構。</p>
+          <div className="app-page-kicker">Feature control plane</div>
+          <h2 className="app-page-title">🎛️ 特徵管理</h2>
+          <p className="app-page-subtitle mt-1">把特徵改成「市場面向」來看：短線微結構、技術指標、宏觀風險、4H 結構。</p>
         </div>
         <div className="flex items-center gap-3 text-sm">
           {saving && <span className="text-blue-400 animate-pulse">儲存中...</span>}

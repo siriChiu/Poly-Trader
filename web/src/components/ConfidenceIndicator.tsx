@@ -190,7 +190,7 @@ export default function ConfidenceIndicator({
     : null;
 
   return (
-    <div className={`rounded-xl border p-5 ${lv.bg}`}>
+    <div className={`app-surface-card ${lv.bg}`}>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div>
           <div className="text-sm font-semibold text-slate-300">{lv.emoji} 即時決策品質</div>

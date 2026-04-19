@@ -135,7 +135,7 @@ export default function LivePathologySummaryCard({
   if (!summary.summary && !exactLane && !spilloverPocket && !recommendedPatch) return null;
 
   return (
-    <div className={`rounded-xl border border-amber-700/40 bg-amber-950/10 p-4 text-xs text-amber-50 space-y-3 ${className}`.trim()}>
+    <div className={`app-surface-card border-amber-700/40 bg-amber-950/10 text-xs text-amber-50 space-y-3 ${className}`.trim()}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold">{title}</div>

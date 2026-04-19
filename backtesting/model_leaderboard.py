@@ -253,8 +253,9 @@ def _deployment_profile_signature(params: Optional[Dict[str, Any]]) -> str:
 
 class ModelLeaderboard:
     """模型排行榜"""
-
+    EVALUATION_MAX_FOLDS = 4
     SUPPORTED_MODELS = [
+
         'rule_baseline', 'logistic_regression', 'xgboost',
         'lightgbm', 'catboost', 'random_forest', 'mlp', 'svm', 'ensemble'
     ]
@@ -542,6 +543,22 @@ class ModelLeaderboard:
              (data_start + pd.DateOffset(months=6)).strftime('%Y-%m-%d'),
              data_end.strftime('%Y-%m-%d'))
         ]
+
+    def _evaluation_splits(self) -> List[Tuple[int, Tuple[str, str, str, str]]]:
+        """Use the most recent bounded walk-forward windows for ranking.
+
+        The leaderboard is an operator-facing product surface. Using the oldest
+        windows only can freeze the ranking into a placeholder-only state even
+        when recent production-aligned deployment profiles already generate
+        trades. Keep the runtime budget bounded, but bias the evaluation slice to
+        the latest walk-forward windows so the leaderboard reflects current
+        deployable behavior rather than stale early-history inactivity.
+        """
+        splits = self._get_walk_forward_splits()
+        if len(splits) <= self.EVALUATION_MAX_FOLDS:
+            return list(enumerate(splits))
+        start = max(0, len(splits) - self.EVALUATION_MAX_FOLDS)
+        return list(enumerate(splits[start:], start=start))
 
     def _default_deployment_profile_name(self, model_name: str) -> str:
         promoted = self.PROMOTED_SCAN_DEFAULT_DEPLOYMENT_PROFILES.get(model_name)
@@ -1145,7 +1162,7 @@ class ModelLeaderboard:
 
     def evaluate_model(self, model_name: str) -> Optional[ModelScore]:
         """評估單一模型的 Walk-Forward 表現"""
-        splits = self._get_walk_forward_splits()
+        evaluation_splits = self._evaluation_splits()
         candidate_profiles = self._deployment_profile_candidates_for_model(model_name)
         feature_profile_candidates = self._feature_profile_candidates_for_frame(
             [c for c in self.data.columns if c.startswith('feat_')]
@@ -1160,10 +1177,17 @@ class ModelLeaderboard:
             for deployment_name in candidate_profiles
             for feature_candidate in feature_profile_candidates
         }
-        self.last_model_statuses[model_name] = {"status": "pending", "reason": None, "detail": None}
+        self.last_model_statuses[model_name] = {
+            "status": "pending",
+            "reason": None,
+            "detail": None,
+            "evaluation_fold_window": "latest_bounded_walk_forward",
+            "evaluation_fold_indices": [idx for idx, _ in evaluation_splits],
+            "evaluation_fold_count": len(evaluation_splits),
+        }
 
         try:
-            for i, (ts, te, test_s, test_e) in enumerate(splits[:4]):  # 最多跑 4 折避免太慢
+            for split_index, (ts, te, test_s, test_e) in evaluation_splits:
                 train_df = self.data[(self.data['timestamp'] >= ts) & (self.data['timestamp'] < te)]
                 test_df = self.data[(self.data['timestamp'] >= test_s) & (self.data['timestamp'] < test_e)]
 
@@ -1183,7 +1207,7 @@ class ModelLeaderboard:
                         if result is None:
                             continue
                         fr, _, _, train_acc, test_acc = result
-                        fr.fold = i
+                        fr.fold = split_index
                         run = candidate_runs[(profile_name, feature_profile_name)]
                         run["folds"].append(fr)
                         run["train_accs"].append(train_acc)
@@ -1262,6 +1286,9 @@ class ModelLeaderboard:
             "reason": None,
             "detail": None,
             "folds": len(scores.folds),
+            "evaluation_fold_window": "latest_bounded_walk_forward",
+            "evaluation_fold_indices": [idx for idx, _ in evaluation_splits],
+            "evaluation_fold_count": len(evaluation_splits),
             "selected_deployment_profile": scores.deployment_profile,
             "selected_deployment_profile_label": scores.deployment_profile_label or scores.deployment_profile,
             "selected_deployment_profile_source": scores.deployment_profile_source or 'code_backed',

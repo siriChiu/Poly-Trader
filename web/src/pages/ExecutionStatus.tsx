@@ -424,8 +424,8 @@ export default function ExecutionStatus() {
   }, [lifecycleAudit, lifecycleContract]);
 
   return (
-    <div className="space-y-5 text-white">
-      <section className="rounded-[24px] border border-white/8 bg-[#13182b] p-5 shadow-[0_24px_80px_rgba(6,10,24,0.45)]">
+    <div className="app-page-shell text-white">
+      <section className="app-page-header exchange-panel">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <div className="inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold tracking-[0.2em] text-cyan-100">

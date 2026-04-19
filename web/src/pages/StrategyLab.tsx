@@ -775,8 +775,36 @@ const DEFAULT_PARAMS = {
 const MODEL_OPTIONS = ["rule_baseline", "logistic_regression", "xgboost", "lightgbm", "catboost", "random_forest", "mlp", "svm"] as const;
 
 const AUTO_STRATEGY_PREFIX = "Auto Leaderboard · ";
+const LEADERBOARD_BACKTEST_WINDOW_MONTHS = 24;
+const LEADERBOARD_BACKTEST_WINDOW_DAYS = 730;
+const LEADERBOARD_BACKTEST_POLICY_LABEL = "排行榜回測固定使用最近兩年";
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+const toDateTimeLocalValue = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 16);
+};
+const resolveLatestTwoYearBacktestRange = (availableStart?: string | null, availableEnd?: string | null) => {
+  if (!availableEnd) {
+    return { start: "", end: "" };
+  }
+  const end = new Date(availableEnd);
+  if (Number.isNaN(end.getTime())) {
+    return { start: "", end: "" };
+  }
+  const start = new Date(end);
+  start.setMonth(start.getMonth() - LEADERBOARD_BACKTEST_WINDOW_MONTHS);
+  if (availableStart) {
+    const floor = new Date(availableStart);
+    if (!Number.isNaN(floor.getTime()) && start < floor) {
+      return { start: floor.toISOString().slice(0, 16), end: end.toISOString().slice(0, 16) };
+    }
+  }
+  return { start: start.toISOString().slice(0, 16), end: end.toISOString().slice(0, 16) };
+};
+
 const formatStrategyDisplayName = (strategy?: Pick<StrategyEntry, "name" | "metadata"> | null) => {
   const raw = strategy?.metadata?.title || strategy?.name || "—";
   return raw.startsWith(AUTO_STRATEGY_PREFIX) ? raw.slice(AUTO_STRATEGY_PREFIX.length) : raw;
@@ -1550,10 +1578,22 @@ export default function StrategyLab() {
     setTpRoi(Math.round((params.take_profit_roi ?? DEFAULT_PARAMS.take_profit_roi) * 100));
     setInitialCapital(Math.round(Number(params.initial_capital ?? 10000)));
     const backtestRange = typeof params.backtest_range === "object" && params.backtest_range ? params.backtest_range : {};
-    const rangeStart = backtestRange.start || strategy.last_results?.backtest_range?.requested_start || strategy.last_results?.chart_context?.start || "";
-    const rangeEnd = backtestRange.end || strategy.last_results?.backtest_range?.requested_end || strategy.last_results?.chart_context?.end || "";
-    setChartStart(rangeStart ? new Date(rangeStart).toISOString().slice(0, 16) : "");
-    setChartEnd(rangeEnd ? new Date(rangeEnd).toISOString().slice(0, 16) : "");
+    const resultRange = strategy.last_results?.backtest_range ?? null;
+    const availableRangeStart = backtestRange.start
+      || resultRange?.available?.start
+      || resultRange?.effective?.start
+      || strategyDataRange?.start
+      || strategy.last_results?.chart_context?.start
+      || "";
+    const availableRangeEnd = backtestRange.end
+      || resultRange?.available?.end
+      || resultRange?.effective?.end
+      || strategyDataRange?.end
+      || strategy.last_results?.chart_context?.end
+      || "";
+    const latestTwoYearRange = resolveLatestTwoYearBacktestRange(availableRangeStart, availableRangeEnd);
+    setChartStart(latestTwoYearRange.start);
+    setChartEnd(latestTwoYearRange.end);
     setInvestmentHorizon((params.investment_horizon as keyof typeof investmentHorizonLabels) || "medium");
     setActiveModules(inferModulesFromStrategy(strategy));
   };
@@ -1599,9 +1639,14 @@ export default function StrategyLab() {
       setChartEnd(availableEnd.toISOString().slice(0, 16));
       return;
     }
-    const months = preset === "6m" ? 6 : preset === "1y" ? 12 : 24;
+    const months = preset === "6m" ? 6 : preset === "1y" ? 12 : LEADERBOARD_BACKTEST_WINDOW_MONTHS;
     const nextStart = new Date(availableEnd);
     nextStart.setMonth(nextStart.getMonth() - months);
+    if (availableStart && nextStart < availableStart) {
+      setChartStart(availableStart.toISOString().slice(0, 16));
+      setChartEnd(availableEnd.toISOString().slice(0, 16));
+      return;
+    }
     setChartStart(nextStart.toISOString().slice(0, 16));
     setChartEnd(availableEnd.toISOString().slice(0, 16));
   };
@@ -1731,6 +1776,9 @@ export default function StrategyLab() {
     try {
       const data = await fetchApi("/api/strategy_data_range") as { start?: string | null; end?: string | null; count?: number; span_days?: number | null };
       setStrategyDataRange(data ?? null);
+      if (data?.end) {
+        applyBacktestPreset("2y");
+      }
       return data;
     } catch (err) {
       console.error("Strategy data range error:", err);
@@ -1820,14 +1868,17 @@ export default function StrategyLab() {
       progress: toStageProgress(0, STAGE_TOTALS.run_strategy),
     });
     try {
+      const fallbackTwoYearRange = resolveLatestTwoYearBacktestRange(strategyDataRange?.start, strategyDataRange?.end);
+      const effectiveChartStart = chartStart || fallbackTwoYearRange.start;
+      const effectiveChartEnd = chartEnd || fallbackTwoYearRange.end;
       const body = {
         name,
         type: strategyType,
         initial_capital: initialCapital,
         auto_backfill: true,
         backtest_range: {
-          start: chartStart ? new Date(chartStart).toISOString() : null,
-          end: chartEnd ? new Date(chartEnd).toISOString() : null,
+          start: effectiveChartStart ? new Date(effectiveChartStart).toISOString() : null,
+          end: effectiveChartEnd ? new Date(effectiveChartEnd).toISOString() : null,
         },
         params: {
           model_name: selectedModelName,
@@ -1835,8 +1886,8 @@ export default function StrategyLab() {
           investment_horizon: investmentHorizon,
           editor_modules: activeModules,
           backtest_range: {
-            start: chartStart ? new Date(chartStart).toISOString() : null,
-            end: chartEnd ? new Date(chartEnd).toISOString() : null,
+            start: effectiveChartStart ? new Date(effectiveChartStart).toISOString() : null,
+            end: effectiveChartEnd ? new Date(effectiveChartEnd).toISOString() : null,
           },
           entry: {
             bias50_max: bias50Max,
@@ -2004,11 +2055,20 @@ export default function StrategyLab() {
   ];
 
   useEffect(() => {
-    const start = activeResult?.chart_context?.start ? new Date(activeResult.chart_context.start).toISOString().slice(0, 16) : "";
-    const end = activeResult?.chart_context?.end ? new Date(activeResult.chart_context.end).toISOString().slice(0, 16) : "";
-    setChartStart(start);
-    setChartEnd(end);
-  }, [activeResult?.chart_context?.start, activeResult?.chart_context?.end]);
+    const latestTwoYearRange = resolveLatestTwoYearBacktestRange(
+      strategyDataRange?.start || activeResult?.backtest_range?.effective?.start || activeResult?.chart_context?.start || null,
+      strategyDataRange?.end || activeResult?.backtest_range?.effective?.end || activeResult?.chart_context?.end || null,
+    );
+    setChartStart(latestTwoYearRange.start);
+    setChartEnd(latestTwoYearRange.end);
+  }, [
+    activeResult?.backtest_range?.effective?.start,
+    activeResult?.backtest_range?.effective?.end,
+    activeResult?.chart_context?.start,
+    activeResult?.chart_context?.end,
+    strategyDataRange?.start,
+    strategyDataRange?.end,
+  ]);
 
   const benchmarkCards = [
     activeResult?.benchmarks?.buy_hold,
@@ -2174,39 +2234,46 @@ export default function StrategyLab() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-slate-200">🧪 策略實驗室</h2>
-          <span className="text-xs text-slate-500">點排行榜可快速載入</span>
+    <div className="app-page-shell">
+      <div className="app-page-header">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="app-page-kicker">Strategy workspace</div>
+            <h2 className="app-page-title">🧪 策略實驗室</h2>
+            <span className="text-sm text-slate-400">點排行榜可快速載入</span>
+          </div>
+          <div className="app-segmented-control text-sm">
+            <button
+              type="button"
+              onClick={() => setActiveTab("workspace")}
+              className={`app-segmented-button ${activeTab === "workspace" ? "app-segmented-button-active" : ""}`}
+            >
+              工作區
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("leaderboard")}
+              className={`app-segmented-button ${activeTab === "leaderboard" ? "app-segmented-button-active" : ""}`}
+            >
+              排行榜
+            </button>
+          </div>
         </div>
-        <div className="inline-flex rounded-lg border border-slate-700/60 bg-slate-900/70 p-1 text-sm">
-          <button
-            type="button"
-            onClick={() => setActiveTab("workspace")}
-            className={`rounded-md px-3 py-1.5 ${activeTab === "workspace" ? "bg-cyan-500/20 text-cyan-200" : "text-slate-400 hover:text-slate-200"}`}
-          >
-            工作區
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("leaderboard")}
-            className={`rounded-md px-3 py-1.5 ${activeTab === "leaderboard" ? "bg-cyan-500/20 text-cyan-200" : "text-slate-400 hover:text-slate-200"}`}
-          >
-            排行榜
-          </button>
+        <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/8 px-4 py-3 text-sm leading-6 text-cyan-50/90">
+          <span className="font-semibold text-cyan-100">{LEADERBOARD_BACKTEST_POLICY_LABEL}</span>
+          <span className="ml-2 text-cyan-100/80">排行榜回測固定使用最近兩年，降低短窗策略過擬合。</span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[360px,minmax(0,1fr)] 2xl:grid-cols-[380px,minmax(0,1fr)] gap-4 items-start">
         <div className="space-y-4 self-start min-w-0">
-          <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4">
+          <div className="app-surface-card">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-slate-300">⚙️ 策略編輯器</h3>
                 <div className="mt-1 text-[11px] leading-5 text-slate-500">只保留必要設定，其他資訊交給右側摘要。</div>
               </div>
-              <div className="rounded-lg border border-slate-700/50 bg-slate-950/40 px-3 py-2 text-right">
+              <div className="app-surface-muted text-right">
                 <div className="text-[10px] text-slate-500">目前策略</div>
                 <div className="text-sm font-semibold text-slate-100">{formatStrategyDisplayName(selectedStrategy)}</div>
                 <div className="text-[11px] text-emerald-300">{activeMeta.model_name || "rule_based"}</div>
@@ -2215,7 +2282,7 @@ export default function StrategyLab() {
             <div className="mt-3 space-y-3">
               <div>
                 <label className="text-xs text-slate-500">實驗名稱（僅工作區）</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200" />
+                <input value={name} onChange={(e) => setName(e.target.value)} className="app-control-input mt-1" />
               </div>
 
               <div className="rounded-xl border border-cyan-700/30 bg-cyan-950/10 px-3 py-3 text-[11px] leading-5 text-cyan-100 space-y-2">
@@ -2237,7 +2304,7 @@ export default function StrategyLab() {
                             key={module.id}
                             type="button"
                             onClick={() => toggleModule(module.id)}
-                            className={`rounded-2xl border px-3 py-3 text-left transition-all ${active ? "border-[#7132f5]/55 bg-[#7132f5]/10 shadow-[0_12px_30px_rgba(113,50,245,0.18)]" : "border-white/8 bg-white/[0.03] hover:border-white/16 hover:bg-white/[0.05]"}`}
+                            className={`app-target-card ${active ? "app-target-card-active" : ""}`}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
@@ -2259,7 +2326,7 @@ export default function StrategyLab() {
                 ))}
               </div>
 
-              <div className="rounded-xl border border-slate-700/40 bg-slate-950/30 px-3 py-3 text-xs text-slate-300 space-y-3">
+              <div className="app-surface-muted px-3 py-3 text-xs text-slate-300 space-y-3">
                 <div>
                   <div className="text-slate-500">目前組合</div>
                   <div className="mt-1 font-semibold text-slate-100">{compositeModuleLabel}</div>
@@ -2285,7 +2352,7 @@ export default function StrategyLab() {
                 )}
               </div>
 
-              <button onClick={handleRun} disabled={workspaceBusy} className={`w-full py-2.5 rounded-xl font-semibold text-sm transition ${workspaceBusy ? "bg-slate-700 text-slate-400" : "bg-[#7132f5] text-white shadow-[0_12px_30px_rgba(113,50,245,0.22)] hover:bg-[#5f28d8]"}`}>
+              <button onClick={handleRun} disabled={workspaceBusy} className={`${workspaceBusy ? "app-button-secondary text-slate-400" : "app-button-primary"} w-full font-semibold text-sm`}>
                 {running ? "⏳ 回測中..." : loadingStrategy ? "⏳ 載入策略中..." : initialLoading ? "⏳ 初始化中..." : "▶ 執行回測"}
               </button>
               {runStrategyProgressCard && (
@@ -2341,38 +2408,41 @@ export default function StrategyLab() {
           {error && <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-4 text-red-400 text-sm">{error}</div>}
 
           <div className={activeTab === "workspace" ? "space-y-4" : "hidden"}>
-            <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-4">
+            <div className="app-surface-card space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-wrap items-end gap-3">
                     <div>
                       <div className="text-[11px] text-slate-500">回測開始</div>
-                      <input type="datetime-local" value={chartStart} onChange={(e) => setChartStart(e.target.value)} className="mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200" />
+                      <input type="datetime-local" value={chartStart} onChange={(e) => setChartStart(e.target.value)} className="app-control-input mt-1 text-xs" />
                     </div>
                     <div>
                       <div className="text-[11px] text-slate-500">回測結束</div>
-                      <input type="datetime-local" value={chartEnd} onChange={(e) => setChartEnd(e.target.value)} className="mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200" />
+                      <input type="datetime-local" value={chartEnd} onChange={(e) => setChartEnd(e.target.value)} className="app-control-input mt-1 text-xs" />
                     </div>
                     <div>
                       <div className="text-[11px] text-slate-500">起始資金 ($)</div>
-                      <input type="number" min="100" step="100" value={initialCapital} onChange={(e) => setInitialCapital(parseInt(e.target.value || "0", 10))} className="mt-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 w-[120px]" />
+                      <input type="number" min="100" step="100" value={initialCapital} onChange={(e) => setInitialCapital(parseInt(e.target.value || "0", 10))} className="app-control-input mt-1 w-[140px] text-xs" />
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-[11px]">
                     <span className="text-slate-500">快速區間</span>
-                    {[
-                      ["6m", "近 6 個月"],
-                      ["1y", "近 1 年"],
-                      ["2y", "近 2 年"],
-                      ["max", "全部可用資料"],
-                    ].map(([preset, label]) => (
-                      <button key={preset} type="button" onClick={() => applyBacktestPreset(preset as "6m" | "1y" | "2y" | "max")} className="rounded border border-slate-700/60 bg-slate-900/70 px-2 py-1 text-slate-300 hover:border-cyan-500/50 hover:text-cyan-100">
-                        {label}
-                      </button>
-                    ))}
+                    <div className="app-segmented-control">
+                      {[
+                        ["6m", "近 6 個月"],
+                        ["1y", "近 1 年"],
+                        ["2y", "近 2 年"],
+                        ["max", "全部可用資料"],
+                      ].map(([preset, label]) => (
+                        <button key={preset} type="button" onClick={() => applyBacktestPreset(preset as "6m" | "1y" | "2y" | "max")} className="app-segmented-button">
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div className={`rounded-lg border px-3 py-2 text-[11px] ${activeResult?.backtest_range?.backfill_required ? "border-amber-700/40 bg-amber-950/10 text-amber-100" : "border-slate-700/50 bg-slate-950/30 text-slate-400"}`}>
                     <div>可用特徵資料：{strategyDataRange?.start ? new Date(strategyDataRange.start).toLocaleDateString("zh-TW") : "—"} → {strategyDataRange?.end ? new Date(strategyDataRange.end).toLocaleDateString("zh-TW") : "—"}</div>
+                    <div className="mt-1 text-cyan-100/85">{LEADERBOARD_BACKTEST_POLICY_LABEL} · 最近 {LEADERBOARD_BACKTEST_WINDOW_DAYS} 天。</div>
                     <div>
                       {activeResult?.backtest_range?.backfill_required
                         ? `缺少約 ${Math.round(activeResult.backtest_range.missing_start_days || 0)} 天較早資料，需先回填。`

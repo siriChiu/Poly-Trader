@@ -19,28 +19,22 @@ const NAV_ITEMS = [
 export default function App() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <div className="min-h-screen bg-dark-950">
-        <nav className="sticky top-0 z-50 border-b border-white/6 bg-dark-900/80 backdrop-blur-xl shadow-[0_12px_40px_rgba(6,10,24,0.28)]">
+      <div className="app-shell bg-dark-950">
+        <nav className="app-nav-shell sticky top-0 z-50">
           <div className="w-full px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-14">
+            <div className="flex min-h-[64px] flex-col gap-3 py-3 lg:h-16 lg:flex-row lg:items-center lg:justify-between lg:py-0">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🔮</span>
                 <span className="text-lg font-bold text-dark-100">Poly-Trader</span>
                 <span className="text-xs text-dark-500 ml-1">v2.0</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex flex-wrap items-center gap-2">
                 {NAV_ITEMS.map((item) => (
                   <NavLink
                     key={item.to}
                     to={item.to}
                     end={item.end}
-                    className={({ isActive }) =>
-                      `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                        isActive
-                          ? 'bg-accent/20 text-accent'
-                          : 'text-dark-400 hover:text-dark-200 hover:bg-dark-800'
-                      }`
-                    }
+                    className={({ isActive }) => `app-nav-link ${isActive ? 'app-nav-link-active' : ''}`}
                   >
                     {item.label}
                   </NavLink>
@@ -51,8 +45,8 @@ export default function App() {
         </nav>
         <GlobalTopProgress />
 
-        <main className="w-full px-4 sm:px-6 lg:px-8 py-6">
-          <React.Suspense fallback={<div className="rounded-xl border border-dark-700 bg-dark-900/70 px-4 py-6 text-sm text-dark-300">頁面載入中…</div>}>
+        <main className="w-full px-4 py-6 sm:px-6 lg:px-8">
+          <React.Suspense fallback={<div className="app-surface-card text-sm text-dark-300">頁面載入中…</div>}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/execution" element={<ExecutionConsole />} />

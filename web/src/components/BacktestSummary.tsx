@@ -43,7 +43,7 @@ export default function BacktestSummary({
   const dqAvailable = avgDecisionQualityScore !== null && avgDecisionQualityScore !== undefined;
 
   return (
-    <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4 space-y-4">
+    <div className="app-surface-card space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-slate-300">📊 回測摘要</h3>

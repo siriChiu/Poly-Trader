@@ -1033,39 +1033,41 @@ export default function Dashboard() {
   const isDataStale = !lastUpdate && !wsConnected && !sensesData;
 
   return (
-    <div className="space-y-4">
+    <div className="app-page-shell">
       {/* Top bar */}
-      <div className="flex flex-wrap items-center justify-between bg-slate-900/60 rounded-xl border border-slate-700/50 px-4 py-2 text-xs gap-2">
-        <div className="flex items-center gap-3">
-          <span className="font-bold text-slate-300">🐰 Poly-Trader</span>
-          {/* 狀態指示器 */}
-          <span className={`flex items-center gap-1 ${wsConnected ? "text-green-400" : "text-orange-400"}`}>
-            <span className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-400" : "bg-orange-400"}`} />
-            {wsConnected ? "即時連線" : "離線"}
-          </span>
-          {lastUpdate && (
-            <span className="text-slate-500">更新: {lastUpdate}</span>
-          )}
-          {/* 模型準確率 — show top IC features dynamically */}
-          {modelStats?.ic_values && Object.keys(modelStats.ic_values).length > 0 && (
-            <span className="flex items-center gap-1 text-slate-400">
-              📊 樣本:{modelStats.sample_count}
-              {(() => {
-                const topIcs = Object.entries(modelStats.ic_values)
-                  .filter(([k, v]) => typeof v === "number")
-                  .sort((a, b) => Math.abs(b[1] as number) - Math.abs(a[1] as number))
-                  .slice(0, 3);
-                return topIcs.map(([name, val]) => (
-                  <span key={name} className="text-xs opacity-70">
-                    | {name.replace("4h_", "4H ")} IC: {(val as number) > 0 ? '+' : ''}{(val as number).toFixed(3)}
-                  </span>
-                ));
-              })()}
+      <div className="app-page-header">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-bold text-slate-300">🐰 Poly-Trader</span>
+            {/* 狀態指示器 */}
+            <span className={`flex items-center gap-1 ${wsConnected ? "text-green-400" : "text-orange-400"}`}>
+              <span className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-400" : "bg-orange-400"}`} />
+              {wsConnected ? "即時連線" : "離線"}
             </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3 text-slate-500">
-          {apiError && <span className="text-red-400">API 連線異常</span>}
+            {lastUpdate && (
+              <span className="text-slate-500">更新: {lastUpdate}</span>
+            )}
+            {/* 模型準確率 — show top IC features dynamically */}
+            {modelStats?.ic_values && Object.keys(modelStats.ic_values).length > 0 && (
+              <span className="flex items-center gap-1 text-slate-400">
+                📊 樣本:{modelStats.sample_count}
+                {(() => {
+                  const topIcs = Object.entries(modelStats.ic_values)
+                    .filter(([k, v]) => typeof v === "number")
+                    .sort((a, b) => Math.abs(b[1] as number) - Math.abs(a[1] as number))
+                    .slice(0, 3);
+                  return topIcs.map(([name, val]) => (
+                    <span key={name} className="text-xs opacity-70">
+                      | {name.replace("4h_", "4H ")} IC: {(val as number) > 0 ? '+' : ''}{(val as number).toFixed(3)}
+                    </span>
+                  ));
+                })()}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-slate-500">
+            {apiError && <span className="text-red-400">API 連線異常</span>}
+          </div>
         </div>
       </div>
 

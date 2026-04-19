@@ -50,7 +50,7 @@ export default function SenseModule({
 
   return (
     <div
-      className={`rounded-lg border p-3 transition-all ${
+      className={`app-surface-muted p-3 transition-all ${
         enabled
           ? "border-slate-600/50 bg-slate-800/50"
           : "border-slate-700/30 bg-slate-800/20 opacity-50"

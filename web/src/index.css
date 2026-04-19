@@ -3,12 +3,36 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: dark;
+    --app-bg-top: rgba(113, 50, 245, 0.2);
+    --app-bg-side: rgba(56, 189, 248, 0.08);
+    --app-bg-glow: rgba(34, 197, 94, 0.07);
+    --app-surface: rgba(15, 23, 42, 0.78);
+    --app-surface-strong: rgba(12, 18, 34, 0.9);
+    --app-surface-soft: rgba(15, 23, 42, 0.56);
+    --app-line: rgba(255, 255, 255, 0.08);
+    --app-line-strong: rgba(255, 255, 255, 0.14);
+    --app-shadow: 0 24px 70px rgba(6, 10, 24, 0.34);
+    --app-shadow-soft: 0 16px 42px rgba(6, 10, 24, 0.24);
+    --app-accent-shadow: 0 16px 36px rgba(113, 50, 245, 0.22);
+  }
+
   body {
     @apply text-dark-100 antialiased;
     background:
-      radial-gradient(circle at top, rgba(113, 50, 245, 0.18), transparent 28%),
-      radial-gradient(circle at 85% 0%, rgba(34, 197, 94, 0.08), transparent 20%),
+      radial-gradient(circle at top, var(--app-bg-top), transparent 28%),
+      radial-gradient(circle at 82% 0%, var(--app-bg-side), transparent 22%),
+      radial-gradient(circle at 18% 12%, var(--app-bg-glow), transparent 18%),
       linear-gradient(180deg, #060913 0%, #0b1020 48%, #070b14 100%);
+  }
+
+  a,
+  button,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
   }
 
   ::selection {
@@ -32,6 +56,222 @@
 }
 
 @layer components {
+  .app-shell {
+    @apply min-h-screen text-dark-100;
+  }
+
+  .app-nav-shell {
+    border-bottom: 1px solid var(--app-line);
+    background: rgba(11, 16, 32, 0.82);
+    box-shadow: 0 12px 40px rgba(6, 10, 24, 0.28);
+    backdrop-filter: blur(18px);
+  }
+
+  .app-nav-link {
+    @apply inline-flex items-center justify-center rounded-xl text-sm font-medium transition;
+    min-height: 44px;
+    padding: 0.625rem 1rem;
+    color: rgb(148 163 184);
+    border: 1px solid transparent;
+  }
+
+  .app-nav-link:hover {
+    color: rgb(241 245 249);
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .app-nav-link-active {
+    color: rgb(255 255 255);
+    border-color: rgba(113, 50, 245, 0.3);
+    background: rgba(113, 50, 245, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(113, 50, 245, 0.14);
+  }
+
+  .app-page-shell {
+    @apply space-y-5 text-dark-100;
+  }
+
+  .app-page-header {
+    @apply rounded-[28px] border px-5 py-5;
+    border-color: var(--app-line);
+    background: linear-gradient(180deg, rgba(19, 24, 43, 0.92) 0%, rgba(15, 21, 40, 0.88) 100%);
+    box-shadow: var(--app-shadow);
+  }
+
+  .app-page-kicker {
+    @apply text-[11px] font-semibold uppercase tracking-[0.22em] text-dark-500;
+  }
+
+  .app-page-title {
+    @apply mt-3 text-3xl font-semibold tracking-tight text-white;
+  }
+
+  .app-page-subtitle {
+    @apply mt-2 max-w-4xl text-sm leading-6 text-dark-300;
+  }
+
+  .app-surface-card {
+    @apply rounded-[24px] border p-4;
+    background: var(--app-surface);
+    border-color: var(--app-line);
+    box-shadow: var(--app-shadow-soft);
+    backdrop-filter: blur(14px);
+  }
+
+  .app-surface-hero {
+    @apply rounded-[28px] border p-5;
+    background: linear-gradient(180deg, rgba(19, 24, 43, 0.94) 0%, rgba(15, 21, 40, 0.9) 100%);
+    border-color: var(--app-line);
+    box-shadow: var(--app-shadow);
+  }
+
+  .app-surface-muted {
+    @apply rounded-[20px] border p-3;
+    background: var(--app-surface-soft);
+    border-color: var(--app-line);
+  }
+
+  .app-stat-card {
+    @apply rounded-[20px] border p-4;
+    background: rgba(21, 27, 49, 0.88);
+    border-color: var(--app-line);
+  }
+
+  .app-chip {
+    @apply inline-flex items-center rounded-full text-[11px] font-medium text-slate-200;
+    min-height: 32px;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .app-chip-accent {
+    border-color: rgba(113, 50, 245, 0.3);
+    background: rgba(113, 50, 245, 0.14);
+    color: rgb(237 233 254);
+  }
+
+  .app-chip-success {
+    border-color: rgba(34, 197, 94, 0.26);
+    background: rgba(34, 197, 94, 0.12);
+    color: rgb(220 252 231);
+  }
+
+  .app-chip-warning {
+    border-color: rgba(245, 158, 11, 0.24);
+    background: rgba(245, 158, 11, 0.12);
+    color: rgb(254 243 199);
+  }
+
+  .app-chip-danger {
+    border-color: rgba(244, 63, 94, 0.24);
+    background: rgba(244, 63, 94, 0.12);
+    color: rgb(255 228 230);
+  }
+
+  .app-button-primary,
+  .app-button-secondary,
+  .app-button-ghost {
+    @apply inline-flex items-center justify-center rounded-xl font-medium transition;
+    min-height: 44px;
+    padding: 0.625rem 1rem;
+  }
+
+  .app-button-primary {
+    @apply text-white;
+    background: #7132f5;
+    border: 1px solid rgba(113, 50, 245, 0.34);
+    box-shadow: var(--app-accent-shadow);
+  }
+
+  .app-button-primary:hover {
+    background: #5f28d8;
+  }
+
+  .app-button-secondary {
+    @apply text-slate-100;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .app-button-secondary:hover,
+  .app-button-ghost:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .app-button-ghost {
+    @apply text-slate-300;
+    border: 1px solid transparent;
+    background: transparent;
+  }
+
+  .app-control-input {
+    @apply w-full rounded-xl border text-sm text-dark-100 outline-none transition;
+    min-height: 44px;
+    padding: 0.625rem 0.875rem;
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(30, 41, 59, 0.72);
+  }
+
+  .app-control-input:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+
+  .app-control-input:focus {
+    border-color: rgba(113, 50, 245, 0.45);
+    box-shadow: 0 0 0 3px rgba(113, 50, 245, 0.16);
+  }
+
+  .app-control-input::placeholder {
+    color: rgb(100 116 139);
+  }
+
+  .app-segmented-control {
+    @apply inline-flex flex-wrap items-center gap-2 rounded-2xl border p-1;
+    border-color: var(--app-line);
+    background: rgba(15, 21, 40, 0.82);
+  }
+
+  .app-segmented-button {
+    @apply inline-flex items-center justify-center rounded-xl text-sm font-medium transition;
+    min-height: 44px;
+    padding: 0.625rem 1rem;
+    color: rgb(148 163 184);
+  }
+
+  .app-segmented-button:hover {
+    color: rgb(241 245 249);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .app-segmented-button-active {
+    color: rgb(224 242 254);
+    background: rgba(56, 189, 248, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.14);
+  }
+
+  .app-target-card {
+    @apply rounded-2xl border text-left transition-all;
+    min-height: 88px;
+    padding: 1rem;
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .app-target-card:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
+  }
+
+  .app-target-card-active {
+    border-color: rgba(113, 50, 245, 0.42);
+    background: rgba(113, 50, 245, 0.12);
+    box-shadow: 0 12px 30px rgba(113, 50, 245, 0.18);
+  }
+
   .card {
     @apply border rounded-2xl p-4;
     background: rgba(30, 41, 59, 0.8);
