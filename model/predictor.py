@@ -1328,12 +1328,16 @@ def _summarize_structure_bucket_support_route(
     support_progress = _support_progress_snapshot(current_rows, minimum_rows=minimum_rows)
 
     verdict: Optional[str]
-    if support_mode.startswith("exact_bucket_supported") or current_rows >= minimum_rows:
+    if current_rows >= minimum_rows:
         verdict = "exact_bucket_supported"
-    elif support_mode == "exact_bucket_present_but_below_minimum" or 0 < current_rows < minimum_rows:
+    elif 0 < current_rows < minimum_rows:
         verdict = "exact_bucket_present_but_below_minimum"
     elif support_mode == "exact_bucket_unsupported_block":
         verdict = "exact_bucket_unsupported_block"
+    elif support_mode == "exact_bucket_present_but_below_minimum":
+        verdict = "exact_bucket_present_but_below_minimum"
+    elif support_mode.startswith("exact_bucket_supported"):
+        verdict = "exact_bucket_supported"
     else:
         verdict = None
 

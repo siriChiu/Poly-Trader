@@ -1041,6 +1041,22 @@ def test_structure_bucket_support_guardrail_replays_q35_runtime_redesign_support
     assert guarded["expected_time_underwater"] == pytest.approx(0.6795)
 
 
+def test_summarize_structure_bucket_support_route_does_not_false_open_below_minimum_support():
+    summary = predictor_module._summarize_structure_bucket_support_route(
+        {
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_supported_via_q35_runtime_redesign",
+            "decision_quality_structure_bucket_support_rows": 1,
+            "decision_quality_exact_live_structure_bucket_support_rows": 1,
+        }
+    )
+
+    assert summary["verdict"] == "exact_bucket_present_but_below_minimum"
+    assert summary["deployable"] is False
+    assert summary["support_progress"]["current_rows"] == 1
+    assert summary["minimum_support_rows"] == 50
+    assert summary["current_live_structure_bucket_gap_to_minimum"] == 49
+
+
 def test_structure_bucket_support_guardrail_replays_q15_exact_supported_runtime(tmp_path, monkeypatch):
     q15_path = tmp_path / "q15_support_audit.json"
     q15_path.write_text(
