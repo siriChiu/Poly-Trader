@@ -339,17 +339,32 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         _as_int_or_none(support_progress.get("minimum_support_rows")),
         0,
     )
-    route = governance.get("support_governance_route") or (live_predict_probe or {}).get("support_route_verdict")
+    support_route_verdict = _first_non_null(
+        (live_predict_probe or {}).get("support_route_verdict"),
+        governance.get("support_route_verdict"),
+        support_progress.get("support_route_verdict"),
+    )
+    support_governance_route = _first_non_null(
+        governance.get("support_governance_route"),
+        support_progress.get("support_governance_route"),
+    )
     live_bucket_blocked = (
         "unsupported_exact_live_structure_bucket" in live_support_reason
         or "under_minimum_exact_live_structure_bucket" in live_support_reason
     )
     live_bucket_meets_minimum = bool(current_bucket) and minimum_rows > 0 and int(current_rows or 0) >= int(minimum_rows or 0)
-    route_indicates_support_gap = route in {
+    support_gap_markers = {
         "exact_live_bucket_present_but_below_minimum",
+        "exact_bucket_present_but_below_minimum",
+        "exact_bucket_missing_exact_lane_proxy_only",
+        "exact_bucket_missing_proxy_reference_only",
         "no_support_proxy",
         "insufficient_support_everywhere",
     }
+    route_indicates_support_gap = (
+        support_route_verdict in support_gap_markers
+        or support_governance_route in support_gap_markers
+    )
     current_bucket_support_active = bool(current_bucket) and minimum_rows > 0 and (
         live_bucket_blocked
         or (int(current_rows or 0) < int(minimum_rows or 0) and (route_indicates_support_gap or not live_bucket_meets_minimum))
@@ -366,6 +381,9 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         for issue_id in stale_q35_issue_ids:
             tracker.resolve(issue_id)
 
+    support_progress_status = support_progress.get("status") or (
+        "stalled_under_minimum" if int(current_rows or 0) <= 0 else "present_but_below_minimum"
+    )
     if current_bucket_support_active:
         support_state = "exact support is missing" if int(current_rows or 0) <= 0 else "support remains under minimum"
         tracker.add(
@@ -376,6 +394,72 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         )
     else:
         tracker.resolve("#H_AUTO_CURRENT_BUCKET_SUPPORT")
+
+    if current_bucket_support_active and "q15" in str(current_bucket or ""):
+        upsert_issue(
+            tracker,
+            "P1",
+            "P1_q15_exact_support_stalled_under_breaker",
+            f"q15 exact support remains under minimum under breaker ({current_rows}/{minimum_rows})",
+            "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible in probe/API/UI/docs even when circuit_breaker_active is the primary blocker.",
+            summary={
+                "current_live_structure_bucket": current_bucket,
+                "live_current_structure_bucket_rows": int(current_rows or 0),
+                "minimum_support_rows": int(minimum_rows or 0),
+                "gap_to_minimum": max(int(minimum_rows or 0) - int(current_rows or 0), 0),
+                "support_route_verdict": support_route_verdict,
+                "support_governance_route": support_governance_route,
+                "support_progress_status": support_progress_status,
+                "leaderboard_selected_profile": alignment.get("leaderboard_selected_profile")
+                or alignment.get("selected_feature_profile")
+                or (leaderboard_probe or {}).get("selected_feature_profile"),
+                "train_selected_profile": governance.get("production_profile") or governance.get("production_profile_name"),
+                "governance_contract": governance.get("verdict"),
+            },
+        )
+    else:
+        tracker.resolve("P1_q15_exact_support_stalled_under_breaker")
+
+    pathology_summary = (live_predict_probe or {}).get("decision_quality_scope_pathology_summary") or {}
+    recommended_patch = pathology_summary.get("recommended_patch") if isinstance(pathology_summary, dict) else None
+    spillover_summary = pathology_summary.get("spillover") if isinstance(pathology_summary, dict) else None
+    worst_extra_regime_gate = (
+        spillover_summary.get("worst_extra_regime_gate")
+        if isinstance(spillover_summary, dict)
+        else None
+    )
+    actual_live_spillover_scope = (
+        worst_extra_regime_gate.get("regime_gate") if isinstance(worst_extra_regime_gate, dict) else None
+    )
+    if (
+        isinstance(recommended_patch, dict)
+        and recommended_patch.get("recommended_profile")
+        and str(recommended_patch.get("status") or "") == "reference_only_until_exact_support_ready"
+    ):
+        patch_profile = recommended_patch.get("recommended_profile")
+        upsert_issue(
+            tracker,
+            "P1",
+            "P1_bull_caution_spillover_patch_reference_only",
+            f"support-aware {patch_profile} patch must stay visible but reference-only",
+            "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.",
+            summary={
+                "actual_live_spillover_scope": actual_live_spillover_scope,
+                "reference_patch_scope": recommended_patch.get("spillover_regime_gate"),
+                "exact_live_lane_rows": _as_int_or_none(((pathology_summary.get("exact_live_lane") or {}) if isinstance(pathology_summary, dict) else {}).get("rows")),
+                "recommended_patch": patch_profile,
+                "recommended_patch_status": recommended_patch.get("status"),
+                "support_route_verdict": recommended_patch.get("support_route_verdict"),
+                "current_live_structure_bucket": recommended_patch.get("current_live_structure_bucket") or current_bucket,
+                "current_live_structure_bucket_rows": _as_int_or_none(recommended_patch.get("current_live_structure_bucket_rows")),
+                "minimum_support_rows": _as_int_or_none(recommended_patch.get("minimum_support_rows")),
+                "gap_to_minimum": _as_int_or_none(recommended_patch.get("gap_to_minimum")),
+                "reference_source": recommended_patch.get("reference_source"),
+                "collapse_features": recommended_patch.get("collapse_features") or [],
+            },
+        )
+    else:
+        tracker.resolve("P1_bull_caution_spillover_patch_reference_only")
 
     if circuit_breaker_active:
         release_condition = (((live_predict_probe or {}).get("deployment_blocker_details") or {}).get("release_condition") or {})
@@ -412,6 +496,13 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
                 "additional_recent_window_wins_needed": additional_wins_needed,
                 "streak": (live_predict_probe or {}).get("streak"),
                 "streak_must_be_below": streak_floor,
+                "current_live_structure_bucket": current_bucket,
+                "current_live_structure_bucket_rows": int(current_rows or 0),
+                "minimum_support_rows": int(minimum_rows or 0),
+                "gap_to_minimum": max(int(minimum_rows or 0) - int(current_rows or 0), 0),
+                "support_route_verdict": support_route_verdict,
+                "support_governance_route": support_governance_route,
+                "runtime_closure_state": runtime_closure_state,
             },
         )
     else:

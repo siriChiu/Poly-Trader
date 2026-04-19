@@ -155,8 +155,6 @@ def build_live_pathology_patch_summary(
         return None
 
     spillover_regime_gate = str(worst_pocket.get("regime_gate") or "").strip()
-    if spillover_regime_gate != "bull|CAUTION":
-        return None
 
     resolved_artifact_path = artifact_path or DEFAULT_BULL_4H_POCKET_ABLATION_PATH
     ablation = load_bull_4h_pocket_ablation_summary(resolved_artifact_path, warn=warn)
@@ -205,6 +203,34 @@ def build_live_pathology_patch_summary(
     if support_route_deployable is None:
         support_route_deployable = live_context.get("support_route_deployable")
 
+    reference_source = "live_scope_spillover"
+    if spillover_regime_gate != "bull|CAUTION":
+        current_live_bucket = str(
+            confidence_payload.get("current_live_structure_bucket")
+            or confidence_payload.get("structure_bucket")
+            or support_summary.get("current_live_structure_bucket")
+            or ""
+        ).strip()
+        current_regime = str(confidence_payload.get("regime_label") or "").strip()
+        exact_support_missing = False
+        if minimum_rows is not None and current_rows is not None and current_rows < minimum_rows:
+            exact_support_missing = True
+        elif str(support_route_verdict or "").startswith("exact_bucket_missing"):
+            exact_support_missing = True
+        fallback_applicable = (
+            exact_support_missing
+            and bool(recommended_profile)
+            and (
+                current_regime == "bull"
+                or "bull_" in current_live_bucket
+                or "|bull_" in current_live_bucket
+            )
+        )
+        if not fallback_applicable:
+            return None
+        spillover_regime_gate = "bull|CAUTION"
+        reference_source = "bull_4h_pocket_ablation.bull_collapse_q35"
+
     reference_only = not bool(support_route_deployable)
     if minimum_rows is not None and current_rows is not None and current_rows < minimum_rows:
         reference_only = True
@@ -229,6 +255,7 @@ def build_live_pathology_patch_summary(
         "spillover_rows": spillover.get("extra_rows"),
         "recommended_profile": recommended_profile,
         "recommended_profile_source": "bull_4h_pocket_ablation.bull_collapse_q35",
+        "reference_source": reference_source,
         "collapse_features": ablation.get("collapse_features") or [],
         "min_collapse_flags": ablation.get("min_collapse_flags"),
         "preferred_support_cohort": support_summary.get("preferred_support_cohort"),

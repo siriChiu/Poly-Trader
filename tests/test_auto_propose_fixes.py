@@ -1381,6 +1381,273 @@ def test_sync_current_state_governance_issues_resolves_stale_q15_issue_when_circ
     assert not any(event[0] == "add" and event[1] == "#H_AUTO_CURRENT_BUCKET_SUPPORT" for event in events)
 
 
+def test_sync_current_state_governance_issues_refreshes_canonical_q15_and_patch_issues_from_live_probe():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = [
+                {
+                    "id": "P1_q15_exact_support_stalled_under_breaker",
+                    "priority": "P1",
+                    "title": "q15 exact support remains 0/50 and stalled under breaker",
+                    "action": "old q15 action",
+                    "status": "open",
+                    "summary": {
+                        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                        "live_current_structure_bucket_rows": 0,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 50,
+                        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+                    },
+                },
+                {
+                    "id": "P1_bull_caution_spillover_patch_reference_only",
+                    "priority": "P1",
+                    "title": "bull|CAUTION spillover patch is productized, but must remain reference-only until exact support recovers",
+                    "action": "old patch action",
+                    "status": "open",
+                    "summary": {
+                        "recommended_patch": "core_plus_macro",
+                        "recommended_patch_status": "reference_only_until_exact_support_ready",
+                        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+                        "gap_to_minimum": 50,
+                    },
+                },
+            ]
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "selected_feature_profile": "core_only",
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "verdict": "dual_role_governance_active",
+                    "production_profile": "core_plus_macro",
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 1,
+                    "support_progress": {
+                        "current_rows": 1,
+                        "minimum_support_rows": 50,
+                        "status": "present_but_below_minimum",
+                        "history": [
+                            {
+                                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15"
+                            }
+                        ],
+                    },
+                },
+            }
+        },
+        {
+            "signal": "CIRCUIT_BREAKER",
+            "deployment_blocker": "circuit_breaker_active",
+            "runtime_closure_state": "circuit_breaker_active",
+            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "current_live_structure_bucket_rows": 1,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            "decision_quality_scope_pathology_summary": {
+                "spillover": {
+                    "worst_extra_regime_gate": {
+                        "regime_gate": "bull|BLOCK",
+                    }
+                },
+                "exact_live_lane": {
+                    "rows": 199,
+                },
+                "recommended_patch": {
+                    "status": "reference_only_until_exact_support_ready",
+                    "recommended_profile": "core_plus_macro",
+                    "spillover_regime_gate": "bull|CAUTION",
+                    "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                    "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                    "current_live_structure_bucket_rows": 1,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 49,
+                    "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
+                    "collapse_features": [
+                        "feat_4h_dist_swing_low",
+                        "feat_4h_dist_bb_lower",
+                        "feat_4h_bb_pct_b",
+                    ],
+                },
+            },
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "current_recent_window_wins": 0,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 15,
+                    "recent_window": 50,
+                    "streak_must_be_below": 50,
+                }
+            },
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    q15_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q15_exact_support_stalled_under_breaker")
+    assert q15_issue["status"] == "open"
+    assert "1/50" in q15_issue["title"]
+    assert q15_issue["summary"]["live_current_structure_bucket_rows"] == 1
+    assert q15_issue["summary"]["gap_to_minimum"] == 49
+    assert q15_issue["summary"]["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
+    assert q15_issue["summary"]["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
+    assert q15_issue["summary"]["leaderboard_selected_profile"] == "core_only"
+    assert q15_issue["summary"]["train_selected_profile"] == "core_plus_macro"
+    assert q15_issue["summary"]["governance_contract"] == "dual_role_governance_active"
+
+    patch_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_bull_caution_spillover_patch_reference_only")
+    assert patch_issue["status"] == "open"
+    assert patch_issue["title"] == "support-aware core_plus_macro patch must stay visible but reference-only"
+    assert patch_issue["summary"]["actual_live_spillover_scope"] == "bull|BLOCK"
+    assert patch_issue["summary"]["reference_patch_scope"] == "bull|CAUTION"
+    assert patch_issue["summary"]["current_live_structure_bucket_rows"] == 1
+    assert patch_issue["summary"]["gap_to_minimum"] == 49
+    assert patch_issue["summary"]["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
+    assert patch_issue["summary"]["collapse_features"] == [
+        "feat_4h_dist_swing_low",
+        "feat_4h_dist_bb_lower",
+        "feat_4h_bb_pct_b",
+    ]
+
+
+def test_sync_current_state_governance_issues_prefers_live_support_route_and_refreshes_breaker_context():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = [
+                {
+                    "id": "P1_q15_exact_support_stalled_under_breaker",
+                    "priority": "P1",
+                    "title": "old q15 support title",
+                    "action": "old q15 action",
+                    "status": "open",
+                    "summary": {
+                        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                        "live_current_structure_bucket_rows": 1,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 49,
+                        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                    },
+                }
+            ]
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "selected_feature_profile": "core_only",
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "verdict": "dual_role_governance_active",
+                    "production_profile": "core_plus_macro",
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 0,
+                    "support_progress": {
+                        "current_rows": 0,
+                        "minimum_support_rows": 50,
+                        "status": "no_recent_comparable_history",
+                        "history": [
+                            {
+                                "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15"
+                            }
+                        ],
+                    },
+                },
+            }
+        },
+        {
+            "signal": "CIRCUIT_BREAKER",
+            "deployment_blocker": "circuit_breaker_active",
+            "runtime_closure_state": "circuit_breaker_active",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            "horizon_minutes": 1440,
+            "streak": 240,
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "current_recent_window_wins": 0,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 15,
+                    "recent_window": 50,
+                    "streak_must_be_below": 50,
+                }
+            },
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    q15_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q15_exact_support_stalled_under_breaker")
+    assert q15_issue["summary"]["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
+    assert q15_issue["summary"]["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
+    assert q15_issue["summary"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
+    assert q15_issue["summary"]["live_current_structure_bucket_rows"] == 0
+    assert q15_issue["summary"]["gap_to_minimum"] == 50
+
+    breaker_issue = next(issue for issue in tracker.issues if issue["id"] == "#H_AUTO_CIRCUIT_BREAKER")
+    assert breaker_issue["summary"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
+    assert breaker_issue["summary"]["runtime_closure_state"] == "circuit_breaker_active"
+    assert breaker_issue["summary"]["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
+
+
+
 def test_sync_current_state_governance_issues_adds_alignment_blocker_when_current_inputs_stale():
     events = []
 
