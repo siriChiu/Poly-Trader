@@ -194,6 +194,95 @@ def test_hb_predict_probe_falls_back_to_generic_support_progress_for_q35_blocker
     assert payload["component_experiment_verdict"] is None
 
 
+def test_hb_predict_probe_infers_support_governance_route_from_reference_patch(monkeypatch, capsys, tmp_path):
+    session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+    q15_audit_path = tmp_path / "q15_support_audit.json"
+    q15_audit_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit_path)
+    monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
+    monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"chop": object()}))
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "load_latest_features",
+        lambda _session: {
+            "timestamp": "2026-04-18 18:52:15.079637",
+            "regime_label": "chop",
+            "feat_4h_bias50": 0.5342,
+        },
+    )
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "predict",
+        lambda _session, _predictor, _regime_models: {
+            "target_col": "simulated_pyramid_win",
+            "used_model": "circuit_breaker",
+            "model_type": "circuit_breaker",
+            "signal": "CIRCUIT_BREAKER",
+            "confidence": 0.5,
+            "regime_label": "chop",
+            "model_route_regime": "chop",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+            "entry_quality": 0.5237,
+            "entry_quality_label": "D",
+            "allowed_layers_raw": 0,
+            "allowed_layers_raw_reason": "entry_quality_below_trade_floor",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            "deployment_blocker": "circuit_breaker_active",
+            "deployment_blocker_reason": "Consecutive loss streak: 145 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+            "deployment_blocker_source": "circuit_breaker",
+            "deployment_blocker_details": {
+                "support_mode": "exact_bucket_unsupported_block",
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 50,
+                "support_progress": {
+                    "status": "stalled_under_minimum",
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                },
+                "support_route_verdict": "exact_bucket_unsupported_block",
+                "support_route_deployable": False,
+            },
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_route_deployable": False,
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+        },
+    )
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "build_live_pathology_scope_surface",
+        lambda *_args, **_kwargs: {
+            "summary": "spillover reference available",
+            "recommended_patch": {
+                "preferred_support_cohort": "bull_exact_live_lane_proxy",
+                "support_route_verdict": "exact_bucket_unsupported_block",
+            },
+        },
+    )
+
+    hb_predict_probe.main()
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["support_governance_route"] == "exact_live_lane_proxy_available"
+    assert payload["deployment_blocker_details"]["support_governance_route"] == "exact_live_lane_proxy_available"
+    assert payload["decision_quality_scope_pathology_summary"]["recommended_patch"]["preferred_support_cohort"] == "bull_exact_live_lane_proxy"
+
+
 def test_hb_predict_probe_uses_result_support_route_when_q35_override_is_exact_supported(monkeypatch, capsys, tmp_path):
     session = DummySession()
     out_path = tmp_path / "live_predict_probe.json"

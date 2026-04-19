@@ -356,6 +356,7 @@ def test_infer_deployment_blocker_flags_under_minimum_exact_live_structure_bucke
     assert blocker is not None
     assert blocker["type"] == "under_minimum_exact_live_structure_bucket"
     assert blocker["source"] == "decision_quality_contract"
+    assert blocker["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
     assert blocker["current_live_structure_bucket_rows"] == 2
     assert blocker["exact_live_structure_bucket_rows"] == 2
     assert guarded["deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
@@ -558,6 +559,7 @@ def test_infer_deployment_blocker_flags_generic_unsupported_exact_bucket_for_all
     assert blocker["type"] == "unsupported_exact_live_structure_bucket"
     assert blocker["source"] == "decision_quality_contract"
     assert blocker["structure_bucket"] == "ALLOW|base_allow|q65"
+    assert blocker["support_governance_route"] == "no_support_proxy"
     assert blocker["current_live_structure_bucket_rows"] == 0
     assert blocker["exact_live_structure_bucket_rows"] == 0
     assert guarded["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
@@ -593,6 +595,7 @@ def test_infer_deployment_blocker_uses_exact_scope_no_rows_even_without_structur
     assert blocker is not None
     assert blocker["type"] == "unsupported_exact_live_structure_bucket"
     assert blocker["structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert blocker["support_governance_route"] == "exact_live_bucket_proxy_available"
     assert blocker["current_live_structure_bucket_rows"] == 0
     assert blocker["exact_live_structure_bucket_rows"] == 0
     assert blocker["support_mode"] == "exact_bucket_unsupported_block"

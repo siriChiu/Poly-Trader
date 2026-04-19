@@ -54,6 +54,66 @@ def _parse_isoish_timestamp(value) -> datetime | None:
     return parsed
 
 
+
+def _support_governance_route_from_patch(recommended_patch: dict | None) -> str | None:
+    if not isinstance(recommended_patch, dict):
+        return None
+    cohort = str(recommended_patch.get("preferred_support_cohort") or "")
+    if not cohort:
+        return None
+    if "exact_live_bucket_proxy" in cohort or "exact_bucket_proxy" in cohort:
+        return "exact_live_bucket_proxy_available"
+    if "exact_live_lane_proxy" in cohort or "exact_lane_proxy" in cohort:
+        return "exact_live_lane_proxy_available"
+    if "neighbor" in cohort or "support_aware" in cohort:
+        return "supported_neighbor_only"
+    return None
+
+
+
+def _infer_support_governance_route(
+    *,
+    support_route: dict,
+    deployment_blocker_details: dict,
+    current_live_structure_bucket_rows,
+    minimum_support_rows,
+    scope_pathology_summary: dict | None,
+) -> str | None:
+    existing = support_route.get("support_governance_route")
+    if existing is None:
+        existing = deployment_blocker_details.get("support_governance_route")
+    if existing is not None:
+        return existing
+
+    verdict = support_route.get("verdict") or deployment_blocker_details.get("support_route_verdict")
+    try:
+        current_rows = max(int(current_live_structure_bucket_rows or 0), 0)
+    except (TypeError, ValueError):
+        current_rows = 0
+    try:
+        minimum_rows = max(int(minimum_support_rows or 0), 0)
+    except (TypeError, ValueError):
+        minimum_rows = 0
+
+    if current_rows > 0:
+        if minimum_rows <= 0 or current_rows >= minimum_rows or verdict == "exact_bucket_supported":
+            return "exact_live_bucket_supported"
+        return "exact_live_bucket_present_but_below_minimum"
+
+    if verdict == "exact_bucket_unsupported_block":
+        patch_route = _support_governance_route_from_patch(
+            (scope_pathology_summary or {}).get("recommended_patch")
+            if isinstance(scope_pathology_summary, dict)
+            else None
+        )
+        if patch_route is not None:
+            return patch_route
+        return "no_support_proxy"
+
+    return None
+
+
+
 def _load_q15_support_audit(current_live_structure_bucket: str | None) -> dict | None:
     if not current_live_structure_bucket or "q15" not in str(current_live_structure_bucket):
         return None
@@ -392,6 +452,26 @@ def _build_probe_payload(
         result.get("decision_quality_scope_diagnostics") if isinstance(result.get("decision_quality_scope_diagnostics"), dict) else {},
         artifact_path=BULL_4H_POCKET_ABLATION_PATH,
     )
+    support_governance_route = _infer_support_governance_route(
+        support_route=support_route,
+        deployment_blocker_details=deployment_blocker_details,
+        current_live_structure_bucket_rows=(
+            support_progress.get("current_rows")
+            if isinstance(support_progress, dict) and support_progress.get("current_rows") is not None
+            else current_live_structure_bucket_rows
+        ),
+        minimum_support_rows=(
+            support_progress.get("minimum_support_rows")
+            if isinstance(support_progress, dict) and support_progress.get("minimum_support_rows") is not None
+            else deployment_blocker_details.get("minimum_support_rows")
+        ),
+        scope_pathology_summary=scope_pathology_summary if isinstance(scope_pathology_summary, dict) else None,
+    )
+    if support_governance_route is not None:
+        if support_route:
+            support_route["support_governance_route"] = support_governance_route
+        deployment_blocker_details["support_governance_route"] = support_governance_route
+        runtime_result["support_governance_route"] = support_governance_route
     breaker_release = deployment_blocker_details.get("release_condition") if isinstance(deployment_blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = deployment_blocker_details.get("recent_window") if isinstance(deployment_blocker_details.get("recent_window"), dict) else {}
     release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
@@ -440,6 +520,7 @@ def _build_probe_payload(
         "deployment_blocker_details": deployment_blocker_details,
         "support_route_verdict": support_route.get("verdict"),
         "support_route_deployable": support_route.get("deployable"),
+        "support_governance_route": support_governance_route,
         "support_progress": support_progress or None,
         "minimum_support_rows": (
             support_progress.get("minimum_support_rows")

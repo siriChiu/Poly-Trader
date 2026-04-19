@@ -504,6 +504,13 @@ def overwrite_current_state_docs(
         ]
     )
 
+    support_success_status = live_decision_drilldown.get('recommended_patch_status') or '—'
+    support_success_verdict = (
+        (q15_support_audit.get('support_route') or {}).get('verdict')
+        or live_predictor_diagnostics.get('support_route_verdict')
+        or '—'
+    )
+
     roadmap_lines = [
         "# ROADMAP.md — Current Plan Only",
         "",
@@ -575,7 +582,7 @@ def overwrite_current_state_docs(
         "",
         "## 成功標準",
         "- current-live blocker 清楚且唯一：**breaker release math**",
-        "- current live q15 truth 維持：**0/50 + exact_bucket_missing_proxy_reference_only + reference_only_until_exact_support_ready**",
+        f"- current live q15 truth 維持：**0/50 + {support_success_verdict} + {support_success_status}**",
         "- recent canonical pathological slice 仍以同一個 current window 為主敘事，不被 generic 問題稀釋",
         "- leaderboard 維持 dual-role governance；venue/source blockers 持續可見",
         "- heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**",
@@ -2103,6 +2110,8 @@ def collect_live_decision_quality_drilldown_diagnostics(
             payload = json.loads(result_path.read_text())
         except Exception:
             return {}
+
+    recommended_patch = payload.get("recommended_patch") if isinstance(payload.get("recommended_patch"), dict) else {}
     return {
         "json": payload.get("json"),
         "markdown": payload.get("markdown"),
@@ -2119,10 +2128,10 @@ def collect_live_decision_quality_drilldown_diagnostics(
         "allowed_layers": payload.get("allowed_layers"),
         "allowed_layers_reason": payload.get("allowed_layers_reason"),
         "support_route_verdict": payload.get("support_route_verdict"),
-        "recommended_patch_profile": payload.get("recommended_patch_profile"),
-        "recommended_patch_status": payload.get("recommended_patch_status"),
-        "recommended_patch_reference_scope": payload.get("recommended_patch_reference_scope"),
-        "recommended_patch_reference_source": payload.get("recommended_patch_reference_source"),
+        "recommended_patch_profile": payload.get("recommended_patch_profile") or recommended_patch.get("recommended_profile"),
+        "recommended_patch_status": payload.get("recommended_patch_status") or recommended_patch.get("status"),
+        "recommended_patch_reference_scope": payload.get("recommended_patch_reference_scope") or recommended_patch.get("reference_patch_scope"),
+        "recommended_patch_reference_source": payload.get("recommended_patch_reference_source") or recommended_patch.get("reference_source"),
         "remaining_gap_to_floor": payload.get("remaining_gap_to_floor"),
         "best_single_component": payload.get("best_single_component"),
         "best_single_component_required_score_delta": payload.get("best_single_component_required_score_delta"),

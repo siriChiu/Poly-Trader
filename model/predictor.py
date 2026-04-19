@@ -1315,6 +1315,71 @@ def _support_progress_snapshot(
     }
 
 
+def _support_governance_route(
+    *,
+    verdict: Optional[str],
+    support_mode: str = "",
+    support_rows: Any = 0,
+    exact_support_rows: Any = 0,
+    supported_neighbor_buckets: Optional[List[str]] = None,
+    minimum_rows: int = EXACT_LIVE_STRUCTURE_BUCKET_MIN_SUPPORT_ROWS,
+    same_bucket_proxy_rows: Any = 0,
+) -> Optional[str]:
+    buckets = [str(bucket) for bucket in (supported_neighbor_buckets or []) if str(bucket)]
+    try:
+        support_rows_int = max(int(support_rows or 0), 0)
+    except (TypeError, ValueError):
+        support_rows_int = 0
+    try:
+        exact_rows_int = max(int(exact_support_rows or 0), 0)
+    except (TypeError, ValueError):
+        exact_rows_int = 0
+    try:
+        same_bucket_proxy_rows_int = max(int(same_bucket_proxy_rows or 0), 0)
+    except (TypeError, ValueError):
+        same_bucket_proxy_rows_int = 0
+    minimum_rows_int = max(int(minimum_rows or EXACT_LIVE_STRUCTURE_BUCKET_MIN_SUPPORT_ROWS), 1)
+
+    if exact_rows_int >= minimum_rows_int:
+        return "exact_live_bucket_supported"
+    if 0 < exact_rows_int < minimum_rows_int:
+        return "exact_live_bucket_present_but_below_minimum"
+    if verdict == "exact_bucket_present_but_below_minimum":
+        return "exact_live_bucket_present_but_below_minimum"
+    if verdict == "exact_bucket_supported" or support_mode.startswith("exact_bucket_supported"):
+        return "exact_live_bucket_supported"
+    if verdict == "exact_bucket_unsupported_block":
+        if same_bucket_proxy_rows_int > 0 or support_rows_int > 0:
+            return "exact_live_bucket_proxy_available"
+        if buckets:
+            return "exact_live_lane_proxy_available"
+        return "no_support_proxy"
+    return None
+
+
+def _same_bucket_proxy_rows_from_scope_diagnostics(
+    scope_diagnostics: Any,
+    *,
+    current_structure_bucket: Any,
+    exact_scope_name: str = "regime_label+regime_gate+entry_quality_label",
+) -> int:
+    if not isinstance(scope_diagnostics, dict) or not current_structure_bucket:
+        return 0
+    bucket = str(current_structure_bucket)
+    best_rows = 0
+    for scope_name, scope_info in scope_diagnostics.items():
+        if scope_name == exact_scope_name or not isinstance(scope_info, dict):
+            continue
+        if str(scope_info.get("current_live_structure_bucket") or "") != bucket:
+            continue
+        try:
+            best_rows = max(best_rows, int(scope_info.get("current_live_structure_bucket_rows") or 0))
+        except (TypeError, ValueError):
+            continue
+    return best_rows
+
+
+
 def _summarize_structure_bucket_support_route(
     decision_quality_contract: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -1323,6 +1388,20 @@ def _summarize_structure_bucket_support_route(
     support_mode = str(dq.get("decision_quality_structure_bucket_support_mode") or "")
     support_rows = max(int(dq.get("decision_quality_structure_bucket_support_rows") or 0), 0)
     exact_support_rows = max(int(dq.get("decision_quality_exact_live_structure_bucket_support_rows") or 0), 0)
+    supported_neighbor_buckets = [
+        str(bucket)
+        for bucket in (dq.get("decision_quality_structure_bucket_supported_neighbor_buckets") or [])
+        if str(bucket)
+    ]
+    scope_diagnostics = dq.get("decision_quality_scope_diagnostics") if isinstance(dq.get("decision_quality_scope_diagnostics"), dict) else {}
+    current_structure_bucket = (
+        dq.get("decision_quality_live_structure_bucket")
+        or (scope_diagnostics.get("regime_label+regime_gate+entry_quality_label") or {}).get("current_live_structure_bucket")
+    )
+    same_bucket_proxy_rows = _same_bucket_proxy_rows_from_scope_diagnostics(
+        scope_diagnostics,
+        current_structure_bucket=current_structure_bucket,
+    )
     current_rows = exact_support_rows or support_rows
     minimum_rows = EXACT_LIVE_STRUCTURE_BUCKET_MIN_SUPPORT_ROWS
     support_progress = _support_progress_snapshot(current_rows, minimum_rows=minimum_rows)
@@ -1347,6 +1426,15 @@ def _summarize_structure_bucket_support_route(
     return {
         "verdict": verdict,
         "deployable": verdict == "exact_bucket_supported",
+        "support_governance_route": _support_governance_route(
+            verdict=verdict,
+            support_mode=support_mode,
+            support_rows=support_rows,
+            exact_support_rows=exact_support_rows,
+            supported_neighbor_buckets=supported_neighbor_buckets,
+            minimum_rows=minimum_rows,
+            same_bucket_proxy_rows=same_bucket_proxy_rows,
+        ),
         "support_progress": support_progress,
         "minimum_support_rows": minimum_rows,
         "current_live_structure_bucket_gap_to_minimum": support_progress.get("gap_to_minimum"),
@@ -1382,11 +1470,20 @@ def _infer_deployment_blocker(
     support_mode = str(dq.get("decision_quality_structure_bucket_support_mode") or "")
     support_reason = dq.get("decision_quality_structure_bucket_guardrail_reason")
     structure_guardrail_applied = bool(dq.get("decision_quality_structure_bucket_guardrail_applied"))
+    supported_neighbor_buckets = [
+        str(bucket)
+        for bucket in (dq.get("decision_quality_structure_bucket_supported_neighbor_buckets") or [])
+        if str(bucket)
+    ]
 
     scope_diagnostics = dq.get("decision_quality_scope_diagnostics") or {}
     exact_scope_info = scope_diagnostics.get("regime_label+regime_gate+entry_quality_label") or {}
     exact_scope_matches_current_bucket = (
         str(exact_scope_info.get("current_live_structure_bucket") or "") == structure_bucket
+    )
+    same_bucket_proxy_rows = _same_bucket_proxy_rows_from_scope_diagnostics(
+        scope_diagnostics,
+        current_structure_bucket=structure_bucket,
     )
     exact_scope_rows = (
         int(exact_scope_info.get("current_live_structure_bucket_rows") or 0)
@@ -1437,6 +1534,15 @@ def _infer_deployment_blocker(
             "support_mode": support_mode or "exact_bucket_unsupported_block",
             "support_route_verdict": "exact_bucket_unsupported_block",
             "support_route_deployable": False,
+            "support_governance_route": _support_governance_route(
+                verdict="exact_bucket_unsupported_block",
+                support_mode=support_mode or "exact_bucket_unsupported_block",
+                support_rows=support_rows,
+                exact_support_rows=exact_support_rows,
+                supported_neighbor_buckets=supported_neighbor_buckets,
+                minimum_rows=minimum_support_rows,
+                same_bucket_proxy_rows=same_bucket_proxy_rows,
+            ),
             "current_live_structure_bucket_rows": current_live_structure_bucket_rows,
             "exact_live_structure_bucket_rows": exact_support_rows,
             "minimum_support_rows": minimum_support_rows,
@@ -1456,6 +1562,15 @@ def _infer_deployment_blocker(
             "support_mode": support_mode or "exact_bucket_present_but_below_minimum",
             "support_route_verdict": "exact_bucket_present_but_below_minimum",
             "support_route_deployable": False,
+            "support_governance_route": _support_governance_route(
+                verdict="exact_bucket_present_but_below_minimum",
+                support_mode=support_mode or "exact_bucket_present_but_below_minimum",
+                support_rows=support_rows,
+                exact_support_rows=exact_support_rows,
+                supported_neighbor_buckets=supported_neighbor_buckets,
+                minimum_rows=minimum_support_rows,
+                same_bucket_proxy_rows=same_bucket_proxy_rows,
+            ),
             "current_live_structure_bucket_rows": current_live_structure_bucket_rows,
             "exact_live_structure_bucket_rows": exact_support_rows,
             "minimum_support_rows": minimum_support_rows,

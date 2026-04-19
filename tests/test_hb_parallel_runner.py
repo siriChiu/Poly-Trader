@@ -1490,6 +1490,98 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
 
 
 
+def test_collect_live_decision_quality_drilldown_diagnostics_falls_back_to_nested_recommended_patch(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "live_decision_quality_drilldown.json").write_text(
+        json.dumps(
+            {
+                "recommended_patch": {
+                    "recommended_profile": "core_plus_macro_plus_all_4h",
+                    "status": "reference_only_until_exact_support_ready",
+                    "reference_patch_scope": "bull|CAUTION",
+                    "reference_source": "live_scope_spillover",
+                }
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    diag = hb_parallel_runner.collect_live_decision_quality_drilldown_diagnostics()
+
+    assert diag["recommended_patch_profile"] == "core_plus_macro_plus_all_4h"
+    assert diag["recommended_patch_status"] == "reference_only_until_exact_support_ready"
+    assert diag["recommended_patch_reference_scope"] == "bull|CAUTION"
+    assert diag["recommended_patch_reference_source"] == "live_scope_spillover"
+
+
+
+def test_overwrite_current_state_docs_uses_dynamic_q15_success_criteria_and_patch_visibility(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_circuit_breaker_active",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "canonical circuit breaker remains the only current-live deployment blocker",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    live_drilldown = {
+        "recommended_patch_profile": "core_plus_macro_plus_all_4h",
+        "recommended_patch_status": "reference_only_until_exact_support_ready",
+        "recommended_patch_reference_scope": "bull|CAUTION",
+    }
+    live_predictor = {
+        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+        "deployment_blocker_details": {"release_condition": {}},
+    }
+    q15_support = {
+        "support_route": {
+            "verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_progress": {
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+        }
+    }
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260420z",
+        {},
+        {},
+        {"primary_summary": {}},
+        live_predictor,
+        live_drilldown,
+        q15_support,
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "recommended_patch=core_plus_macro_plus_all_4h" in roadmap_md
+    assert "status=reference_only_until_exact_support_ready" in roadmap_md
+    assert (
+        "current live q15 truth 維持：**0/50 + exact_bucket_missing_exact_lane_proxy_only + "
+        "reference_only_until_exact_support_ready**"
+    ) in roadmap_md
+
+
+
 def test_collect_current_state_docs_sync_status_is_clean_after_overwrite(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
