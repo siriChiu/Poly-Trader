@@ -241,12 +241,14 @@ def _normalize_timestamp_key(value: Any) -> Optional[str]:
 
 
 def _compute_decision_profile(trades: List[Dict[str, Any]]) -> Dict[str, Any]:
+    default_gate_summary: Dict[str, int] = {"ALLOW": 0, "CAUTION": 0, "BLOCK": 0}
     if not trades:
         return {
             "avg_entry_quality": None,
             "avg_allowed_layers": 0.0,
             "avg_trade_quality": None,
             "dominant_regime_gate": None,
+            "regime_gate_summary": default_gate_summary,
         }
 
     entry_quality_vals = [
@@ -268,16 +270,20 @@ def _compute_decision_profile(trades: List[Dict[str, Any]]) -> Dict[str, Any]:
         gate = trade.get("regime_gate")
         if gate is None:
             continue
-        gate_counts[str(gate)] = gate_counts.get(str(gate), 0) + 1
+        gate_key = str(gate)
+        gate_counts[gate_key] = gate_counts.get(gate_key, 0) + 1
     dominant_regime_gate = None
     if gate_counts:
         dominant_regime_gate = max(gate_counts.items(), key=lambda item: (item[1], item[0]))[0]
+
+    regime_gate_summary = {**default_gate_summary, **gate_counts}
 
     return {
         "avg_entry_quality": None if not entry_quality_vals else round(sum(entry_quality_vals) / len(entry_quality_vals), 4),
         "avg_allowed_layers": round(sum(allowed_layers_vals) / len(allowed_layers_vals), 4) if allowed_layers_vals else 0.0,
         "avg_trade_quality": None if not trade_quality_vals else round(sum(trade_quality_vals) / len(trade_quality_vals), 4),
         "dominant_regime_gate": dominant_regime_gate,
+        "regime_gate_summary": regime_gate_summary,
     }
 
 
@@ -4560,6 +4566,21 @@ def _build_strategy_score_series(
 def _decorate_strategy_entry(entry: Dict[str, Any], db=None) -> Dict[str, Any]:
     enriched = dict(entry)
     last_results = dict(entry.get("last_results") or {})
+
+    trades = last_results.get("trades") or []
+    total_trades = int(last_results.get("total_trades") or 0)
+    can_backfill_decision_profile = bool(trades) and (total_trades <= 0 or total_trades <= len(trades))
+    if can_backfill_decision_profile:
+        decision_profile = _compute_decision_profile(trades)
+        for key, value in decision_profile.items():
+            if key == "regime_gate_summary":
+                existing_summary = last_results.get(key)
+                if not isinstance(existing_summary, dict) or not existing_summary:
+                    last_results[key] = value
+                continue
+            if last_results.get(key) is None:
+                last_results[key] = value
+
     if db is not None:
         quality_profile = _compute_strategy_decision_quality_profile(last_results.get("trades") or [], db=db)
         for key, value in quality_profile.items():

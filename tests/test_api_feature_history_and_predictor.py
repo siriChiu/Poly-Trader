@@ -3628,6 +3628,7 @@ def test_backtest_route_uses_canonical_features_and_returns_decision_quality(mon
     assert result["avg_decision_quality_score"] == 0.4315
     assert result["decision_quality_label"] == "C"
     assert result["dominant_regime_gate"] == "ALLOW"
+    assert result["regime_gate_summary"] == {"ALLOW": result["total_trades"], "CAUTION": 0, "BLOCK": 0}
     assert result["avg_allowed_layers"] == 3.0
     assert result["avg_entry_quality"] is not None
     assert result["trades"][0]["entry_quality_label"] in {"A", "B", "C", "D"}

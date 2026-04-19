@@ -843,6 +843,39 @@ def test_decorate_strategy_entry_surfaces_turning_point_exit_gate():
     assert enriched["overall_score"] is not None
 
 
+def test_compute_decision_profile_returns_gate_summary():
+    profile = api_module._compute_decision_profile(
+        [
+            {"entry_quality": 0.72, "allowed_layers": 3, "regime_gate": "ALLOW", "pnl": 120.0},
+            {"entry_quality": 0.51, "allowed_layers": 1, "regime_gate": "CAUTION", "pnl": -30.0},
+            {"entry_quality": 0.48, "allowed_layers": 0, "regime_gate": "CAUTION", "pnl": -10.0},
+        ]
+    )
+
+    assert profile["dominant_regime_gate"] == "CAUTION"
+    assert profile["regime_gate_summary"] == {"ALLOW": 1, "CAUTION": 2, "BLOCK": 0}
+
+
+def test_decorate_strategy_entry_backfills_gate_summary_from_complete_trades():
+    entry = {
+        "name": "Legacy Strategy",
+        "run_count": 1,
+        "last_results": {
+            "total_trades": 3,
+            "trades": [
+                {"entry_quality": 0.72, "allowed_layers": 3, "regime_gate": "ALLOW", "pnl": 120.0},
+                {"entry_quality": 0.51, "allowed_layers": 1, "regime_gate": "CAUTION", "pnl": -30.0},
+                {"entry_quality": 0.48, "allowed_layers": 0, "regime_gate": "CAUTION", "pnl": -10.0},
+            ],
+        },
+    }
+
+    enriched = _decorate_strategy_entry(entry)
+
+    assert enriched["last_results"]["dominant_regime_gate"] == "CAUTION"
+    assert enriched["last_results"]["regime_gate_summary"] == {"ALLOW": 1, "CAUTION": 2, "BLOCK": 0}
+
+
 def test_api_strategy_leaderboard_prefers_auto_generated_candidates(monkeypatch):
     class DummyDB:
         def close(self):
