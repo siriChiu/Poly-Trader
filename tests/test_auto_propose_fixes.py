@@ -1731,3 +1731,35 @@ def test_sync_current_state_governance_issues_adds_alignment_blocker_when_curren
     align_add = next(event for event in events if event[0] == "add" and event[1] == "#H_AUTO_ALIGNMENT_GOVERNANCE")
     assert "alignment_snapshot_stale" in align_add[2]
     assert align_add[3] == "refresh alignment artifacts"
+
+
+def test_sync_current_state_governance_issues_resolves_legacy_alignment_issue_when_alignment_is_current():
+    events = []
+
+    class DummyTracker:
+        def add(self, priority, issue_id, title, action="", status="open"):
+            events.append(("add", issue_id, title, action, status))
+
+        def resolve(self, issue_id):
+            events.append(("resolve", issue_id))
+            return True
+
+    auto_propose_fixes.sync_current_state_governance_issues(
+        DummyTracker(),
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "governance_contract": {
+                    "current_closure": "global_ranking_vs_support_aware_production_split",
+                    "treat_as_parity_blocker": False,
+                },
+            }
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    assert ("resolve", "P1_leaderboard_alignment_snapshot_stale") in events
+    assert not any(
+        event[0] == "add" and event[1] == "#H_AUTO_ALIGNMENT_GOVERNANCE"
+        for event in events
+    )

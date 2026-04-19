@@ -534,6 +534,10 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         tracker.resolve("#H_AUTO_CURRENT_BUCKET_TOXICITY")
 
     alignment_issue_ids = ["P1_alignment_artifacts_need_refresh", "#H_AUTO_ALIGNMENT_GOVERNANCE"]
+    legacy_alignment_issue_ids = ["P1_leaderboard_alignment_snapshot_stale"]
+    for issue_id in legacy_alignment_issue_ids:
+        tracker.resolve(issue_id)
+
     alignment_blocked = bool(alignment.get("current_alignment_inputs_stale")) or bool(governance.get("treat_as_parity_blocker"))
     if alignment_blocked:
         tracker.add(
