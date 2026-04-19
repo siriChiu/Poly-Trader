@@ -1063,6 +1063,96 @@ def test_load_leaderboard_payload_rebuilds_when_cached_payload_is_stale_and_miss
 
 
 
+def test_build_probe_result_live_rebuilds_stale_cached_payload(monkeypatch):
+    stale_payload = {
+        "target_col": "simulated_pyramid_win",
+        "count": 0,
+        "leaderboard": [],
+        "placeholder_models": [
+            {
+                "model_name": "rule_baseline",
+                "selected_feature_profile": "core_only",
+                "selected_deployment_profile": "standard",
+            }
+        ],
+        "snapshot_history": [{"created_at": "2026-04-19T01:41:54Z"}],
+    }
+    rebuilt_payload = {
+        "target_col": "simulated_pyramid_win",
+        "count": 0,
+        "leaderboard": [],
+        "placeholder_models": [
+            {
+                "model_name": "rule_baseline",
+                "selected_feature_profile": "core_plus_macro",
+                "selected_deployment_profile": "scan_backed_best",
+            }
+        ],
+        "snapshot_history": [{"created_at": "2026-04-19T02:30:00Z"}],
+    }
+    writes = {}
+
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe,
+        "_load_leaderboard_payload",
+        lambda allow_rebuild=True: (
+            stale_payload,
+            {
+                "source": "model_leaderboard_cache",
+                "updated_at": "2026-04-19T01:41:54Z",
+                "cache_age_sec": 1200,
+                "stale": True,
+                "error": None,
+                "cache_error": None,
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_build_model_leaderboard_payload",
+        lambda: rebuilt_payload,
+    )
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_write_model_leaderboard_cache",
+        lambda payload, updated_at, error=None: writes.update(
+            {"cache_payload": payload, "cache_updated_at": updated_at, "cache_error": error}
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_persist_model_leaderboard_snapshot",
+        lambda payload: writes.update({"snapshot_payload": payload}),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe,
+        "_build_alignment",
+        lambda top_model, leaderboard_snapshot_created_at=None, alignment_evaluated_at=None: {
+            "selected_feature_profile": top_model.get("selected_feature_profile"),
+            "leaderboard_snapshot_created_at": leaderboard_snapshot_created_at,
+            "alignment_evaluated_at": alignment_evaluated_at,
+        },
+    )
+
+    result = hb_leaderboard_candidate_probe.build_probe_result(
+        allow_rebuild=True,
+        generated_at="2026-04-19T02:30:05Z",
+    )
+
+    assert result is not None
+    assert result["leaderboard_payload_source"] == "live_rebuild"
+    assert result["leaderboard_payload_stale"] is False
+    assert result["top_model"]["selected_feature_profile"] == "core_plus_macro"
+    assert result["alignment"]["selected_feature_profile"] == "core_plus_macro"
+    cached_top = hb_leaderboard_candidate_probe._top_model_payload(writes["cache_payload"])
+    snapshot_top = hb_leaderboard_candidate_probe._top_model_payload(writes["snapshot_payload"])
+    assert cached_top["selected_feature_profile"] == "core_plus_macro"
+    assert snapshot_top["selected_feature_profile"] == "core_plus_macro"
+
+
+
 def test_main_suppresses_known_sklearn_feature_name_warnings(tmp_path, monkeypatch):
     out_path = tmp_path / "leaderboard_feature_profile_probe.json"
     monkeypatch.setattr(hb_leaderboard_candidate_probe, "OUT_PATH", out_path)

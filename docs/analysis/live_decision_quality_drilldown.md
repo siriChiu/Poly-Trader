@@ -1,37 +1,37 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-19 01:59:09.405321**
+- feature_timestamp: **2026-04-19 02:32:04.610613**
 - target: `simulated_pyramid_win`
-- live path: **bull / BLOCK / D**
+- live path: **chop / CAUTION / D**
 - signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
 - layers: **0 → 0**
-- allowed_layers_raw_reason: `regime_gate_block`
-- allowed_layers_reason: `decision_quality_below_trade_floor; unsupported_live_structure_bucket_blocks_trade; circuit_breaker_active`
-- execution_guardrail_reason: `decision_quality_below_trade_floor; unsupported_live_structure_bucket_blocks_trade; circuit_breaker_active`
-- runtime_blocker: `circuit_breaker` | reason: `Consecutive loss streak: 241 >= 50; Recent 50-sample win rate: 0.00% < 30%`
-- deployment_blocker: `circuit_breaker_active` | reason: `Consecutive loss streak: 241 >= 50; Recent 50-sample win rate: 0.00% < 30%`
-- q15 exact-supported patch: **inactive** | support_route `exact_bucket_present_but_below_minimum` | floor_cross `runtime_blocker_preempts_floor_analysis`
-- runtime closure summary: **circuit breaker active：Consecutive loss streak: 241 >= 50; Recent 50-sample win rate: 0.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 0/50，至少還差 15 勝。 同時 recent pathology=recent scope slice 100 rows shows distribution_pathology alerts=['constant_target'] win_rate=0.0 avg_pnl=-0.0095 avg_quality=-0.2878 window=2026-04-17 19:52:33.657204->2026-04-18 02:56:16.458595 adverse_streak=100x0 (2026-04-17 19:52:33.657204->2026-04-18 02:56:16.458595) vs sibling prev_win_rate=0.0 Δwin_rate=0.0 prev_quality=-0.2833 Δquality=-0.0045 prev_pnl=-0.0105 Δpnl=0.001 top_shifts=feat_4h_dist_bb_lower(3.8549→3.0015), feat_4h_bb_pct_b(1.1104→0.8914), feat_4h_dist_swing_low(5.3944→5.2283)。**
+- allowed_layers_raw_reason: `entry_quality_below_trade_floor`
+- allowed_layers_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
+- execution_guardrail_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
+- runtime_blocker: `circuit_breaker` | reason: `Consecutive loss streak: 242 >= 50; Recent 50-sample win rate: 0.00% < 30%`
+- deployment_blocker: `circuit_breaker_active` | reason: `Consecutive loss streak: 242 >= 50; Recent 50-sample win rate: 0.00% < 30%`
+- q15 exact-supported patch: **inactive** | support_route `exact_bucket_missing_exact_lane_proxy_only` | floor_cross `runtime_blocker_preempts_floor_analysis`
+- runtime closure summary: **circuit breaker active：Consecutive loss streak: 242 >= 50; Recent 50-sample win rate: 0.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 0/50，至少還差 15 勝。 同時 recent pathology=recent scope slice 100 rows shows distribution_pathology alerts=['constant_target'] win_rate=0.0 avg_pnl=-0.0095 avg_quality=-0.2877 window=2026-04-17 19:53:47.553832->2026-04-18 03:16:11.524145 adverse_streak=100x0 (2026-04-17 19:53:47.553832->2026-04-18 03:16:11.524145) vs sibling prev_win_rate=0.0 Δwin_rate=0.0 prev_quality=-0.2838 Δquality=-0.0039 prev_pnl=-0.0106 Δpnl=0.0011 top_shifts=feat_4h_dist_bb_lower(3.8403→2.9907), feat_4h_bb_pct_b(1.1061→0.8887), feat_4h_dist_swing_low(5.387→5.2265)。**
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
-- recommended_patch: **core_plus_macro** / status `reference_only_until_exact_support_ready` / support_route `exact_bucket_present_but_below_minimum` / gap `49`
-- recommended_patch_features: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
-- recommended_patch_reason: bull|CAUTION spillover 已有正式 patch 建議（core_plus_macro），但 current live exact support 仍是 1/50；目前只能作治理 / 訓練參考，不可直接放行 runtime。
-- recommended_patch_action: 維持部署 blocker；exact bucket 已出現但仍低於 minimum support，proxy 只可作治理參考。
+- recommended_patch: **None** / status `None` / support_route `None` / gap `None`
+- recommended_patch_features: None
+- recommended_patch_reason: None
+- recommended_patch_action: None
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.4135** / trade_floor **0.55** / gap **-0.1365**
-- base_quality: **0.4736** × weight **0.75**
-- structure_quality: **0.2333** × weight **0.25**
-- base components: feat_4h_bias50=0.0641 (w=0.4, contrib=0.0256), feat_nose=0.6136 (w=0.18, contrib=0.1104), feat_pulse=0.6966 (w=0.27, contrib=0.1881), feat_ear=0.9961 (w=0.15, contrib=0.1494)
-- structure components: feat_4h_bb_pct_b=0.2886 (w=0.34, contrib=0.0981), feat_4h_dist_bb_lower=0.1044 (w=0.33, contrib=0.0345), feat_4h_dist_swing_low=0.3052 (w=0.33, contrib=0.1007)
+- final entry_quality: **0.4206** / trade_floor **0.55** / gap **-0.1294**
+- base_quality: **0.4935** × weight **0.75**
+- structure_quality: **0.202** × weight **0.25**
+- base components: feat_4h_bias50=0.1032 (w=0.4, contrib=0.0413), feat_nose=0.6555 (w=0.18, contrib=0.118), feat_pulse=0.6952 (w=0.27, contrib=0.1877), feat_ear=0.9771 (w=0.15, contrib=0.1466)
+- structure components: feat_4h_bb_pct_b=0.2338 (w=0.34, contrib=0.0795), feat_4h_dist_bb_lower=0.0849 (w=0.33, contrib=0.028), feat_4h_dist_swing_low=0.2863 (w=0.33, contrib=0.0945)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.1365**
-- base_group_max_entry_gain: **0.3948** | structure_group_max_entry_gain: **0.1917**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.455, max_gain≈0.2808）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.455)
+- remaining_gap_to_floor: **0.1294**
+- base_group_max_entry_gain: **0.3798** | structure_group_max_entry_gain: **0.1995**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.4313, max_gain≈0.269）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.4313)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -39,15 +39,15 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label+regime_gate+entry_quality_label` | 199 | 0.0 | -0.2855 | 0.3789 | 0.8483 | 1 | True |
-| exact `regime_label+regime_gate+entry_quality_label` | 199 | 0.0 | -0.2855 | 0.3789 | 0.8483 | 1 | True |
-| narrow `regime_label+entry_quality_label` | 199 | 0.0 | -0.2855 | 0.3789 | 0.8483 | 1 | True |
-| broad `regime_gate+entry_quality_label` | 199 | 0.0 | -0.2855 | 0.3789 | 0.8483 | 1 | True |
+| chosen `global` | 200 | 0.0 | -0.2858 | 0.3791 | 0.8468 | 0 | True |
+| exact `regime_label+regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
+| narrow `regime_label+entry_quality_label` | 0 | None | None | None | None | 0 | False |
+| broad `regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
 
 ## Shared shifts
 
-- feat_4h_dist_bb_lower (x4), feat_4h_bb_pct_b (x4), feat_4h_dist_swing_low (x4)
-- worst_pathology_scope: **regime_label+regime_gate+entry_quality_label** rows=199 win_rate=0.0 quality=-0.2855
+- None
+- worst_pathology_scope: **entry_quality_label** rows=199 win_rate=0.0 quality=-0.2856
 
 ## Interpretation
 

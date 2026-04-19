@@ -203,6 +203,34 @@ def _load_leaderboard_payload(*, allow_rebuild: bool = True) -> tuple[dict[str, 
     return payload if isinstance(payload, dict) else {}, meta
 
 
+
+def _live_rebuild_leaderboard_payload() -> tuple[dict[str, Any], dict[str, Any]]:
+    payload = _normalize_payload(api_module._build_model_leaderboard_payload())
+    updated_at = time.time()
+    write_cache = getattr(api_module, "_write_model_leaderboard_cache", None)
+    persist_snapshot = getattr(api_module, "_persist_model_leaderboard_snapshot", None)
+
+    if callable(write_cache):
+        try:
+            write_cache(payload, updated_at)
+        except Exception:
+            pass
+    if callable(persist_snapshot):
+        try:
+            persist_snapshot(payload)
+        except Exception:
+            pass
+
+    return payload, {
+        "source": "live_rebuild",
+        "updated_at": _timestamp_to_iso(updated_at),
+        "cache_age_sec": 0,
+        "stale": False,
+        "error": None,
+        "cache_error": None,
+    }
+
+
 def _top_model_payload(payload: dict[str, Any]) -> dict[str, Any]:
     leaderboard = payload.get("leaderboard") or []
     placeholder_rows = payload.get("placeholder_rows") or []
@@ -787,6 +815,11 @@ def _build_alignment(
 
 def build_probe_result(*, allow_rebuild: bool = True, generated_at: str | None = None) -> dict[str, Any] | None:
     payload, payload_meta = _load_leaderboard_payload(allow_rebuild=allow_rebuild)
+    if allow_rebuild and payload and payload_meta.get("stale"):
+        try:
+            payload, payload_meta = _live_rebuild_leaderboard_payload()
+        except Exception:
+            pass
     if not _payload_has_rows(payload):
         return None
     top_model = _top_model_payload(payload)

@@ -2415,6 +2415,37 @@ def test_leaderboard_candidate_cache_hit_refreshes_semantic_drift_when_probe_art
     assert hit["details"]["leaderboard_payload_source"] == "latest_persisted_snapshot"
 
 
+
+def test_refresh_leaderboard_candidate_alignment_snapshot_uses_rebuild_path(tmp_path, monkeypatch):
+    artifact_path = tmp_path / "leaderboard_feature_profile_probe.json"
+    artifact_path.write_text(
+        json.dumps({"top_model": {"selected_feature_profile": "core_only"}}),
+        encoding="utf-8",
+    )
+
+    import scripts.hb_leaderboard_candidate_probe as real_probe
+
+    called = {}
+
+    def _fake_build_probe_result(*, allow_rebuild=True, generated_at=None):
+        called["allow_rebuild"] = allow_rebuild
+        return {
+            "generated_at": "2026-04-19T02:30:05Z",
+            "top_model": {"selected_feature_profile": "core_plus_macro"},
+            "alignment": {"selected_feature_profile": "core_plus_macro"},
+        }
+
+    monkeypatch.setattr(real_probe, "build_probe_result", _fake_build_probe_result)
+
+    refreshed = hb_parallel_runner._refresh_leaderboard_candidate_alignment_snapshot(artifact_path)
+
+    assert called["allow_rebuild"] is True
+    assert refreshed["top_model"]["selected_feature_profile"] == "core_plus_macro"
+    saved = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert saved["top_model"]["selected_feature_profile"] == "core_plus_macro"
+
+
+
 def test_leaderboard_candidate_cache_hit_refreshes_alignment_snapshot_when_only_code_freshness_is_stale(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"

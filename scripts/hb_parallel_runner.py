@@ -193,7 +193,7 @@ def _refresh_leaderboard_candidate_alignment_snapshot(
 
     if leaderboard_probe is not None:
         try:
-            rebuilt = leaderboard_probe.build_probe_result(allow_rebuild=False)
+            rebuilt = leaderboard_probe.build_probe_result(allow_rebuild=True)
         except Exception:
             rebuilt = None
         if rebuilt:
