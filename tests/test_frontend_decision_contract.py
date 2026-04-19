@@ -155,6 +155,20 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
         assert snippet in source
     assert 'Execution 狀態面板' not in source
 
+
+def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_readiness_copy():
+    source = _read("pages/Dashboard.tsx")
+    required_snippets = [
+        'const dashboardCurrentLiveBlocker = liveRuntimeTruth?.deployment_blocker || null;',
+        'const dashboardPrimaryRuntimeMessage = liveRuntimeTruth?.deployment_blocker_reason',
+        'const dashboardVenueBlockers = Array.isArray(executionSurfaceContract?.live_ready_blockers)',
+        'current live blocker {dashboardCurrentLiveBlocker || "unavailable"}',
+        'venue blockers {dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.join(" · ") : "none"}',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+    assert source.index('liveRuntimeTruth?.deployment_blocker_reason') < source.index('executionSurfaceContract?.live_ready_blockers')
+
 def test_signal_banner_declares_dashboard_as_canonical_execution_route_until_upgraded():
     source = _read("components/SignalBanner.tsx")
     required_snippets = [

@@ -52,6 +52,9 @@ type LiveRuntimeTruth = {
   allowed_layers_raw?: number | null;
   allowed_layers_raw_reason?: string | null;
   allowed_layers_reason?: string | null;
+  deployment_blocker?: string | null;
+  deployment_blocker_reason?: string | null;
+  execution_guardrail_reason?: string | null;
   support_rows_text?: string | null;
   support_route_verdict?: string | null;
   q15_exact_supported_component_patch_applied?: boolean | null;
@@ -903,6 +906,15 @@ export default function Dashboard() {
       ? "text-emerald-200"
       : "text-slate-300";
   const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;
+  const dashboardCurrentLiveBlocker = liveRuntimeTruth?.deployment_blocker || null;
+  const dashboardPrimaryRuntimeMessage = liveRuntimeTruth?.deployment_blocker_reason
+    || liveRuntimeTruth?.deployment_blocker
+    || liveRuntimeTruth?.execution_guardrail_reason
+    || executionSurfaceContract?.operator_message
+    || null;
+  const dashboardVenueBlockers = Array.isArray(executionSurfaceContract?.live_ready_blockers)
+    ? executionSurfaceContract.live_ready_blockers
+    : [];
   const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
@@ -1099,7 +1111,8 @@ export default function Dashboard() {
             <div className="text-[11px] opacity-70">部署狀態</div>
             <div className="mt-1 font-semibold">{executionSurfaceContract?.live_ready ? "Ready" : "Blocked"}</div>
             <div className="mt-1 text-[11px] opacity-80">{executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()} · {executionVenueLabel}</div>
-            <div className="mt-1 text-[11px] opacity-80">{executionSurfaceContract?.live_ready_blockers?.join(" · ") || executionSurfaceContract?.operator_message || "目前沒有額外 blocker 摘要"}</div>
+            <div className="mt-1 text-[11px] opacity-80">current live blocker {dashboardCurrentLiveBlocker || "unavailable"} · {dashboardPrimaryRuntimeMessage || "目前沒有額外 blocker 摘要"}</div>
+            <div className="mt-1 text-[11px] opacity-70">venue blockers {dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.join(" · ") : "none"}</div>
             <VenueReadinessSummary venues={venueChecks} className="mt-2" compact />
           </div>
           <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
