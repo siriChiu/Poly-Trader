@@ -102,6 +102,54 @@ def _file_mtime(path: str | Path | None) -> datetime | None:
         return None
 
 
+def collect_current_state_docs_sync_status() -> Dict[str, Any]:
+    root = Path(PROJECT_ROOT)
+    doc_paths = {
+        "ISSUES.md": root / "ISSUES.md",
+        "ROADMAP.md": root / "ROADMAP.md",
+    }
+    reference_paths = [
+        ("issues.json", root / "issues.json"),
+        ("data/live_predict_probe.json", root / "data" / "live_predict_probe.json"),
+        ("data/live_decision_quality_drilldown.json", root / "data" / "live_decision_quality_drilldown.json"),
+    ]
+
+    reference_mtimes = {
+        label: _file_mtime(path)
+        for label, path in reference_paths
+    }
+    available_reference_mtimes = [mtime for mtime in reference_mtimes.values() if mtime is not None]
+    latest_reference_mtime = max(available_reference_mtimes) if available_reference_mtimes else None
+
+    docs: Dict[str, Any] = {}
+    stale_docs: list[str] = []
+    for label, path in doc_paths.items():
+        mtime = _file_mtime(path)
+        docs[label] = {
+            "path": str(path),
+            "mtime": mtime.isoformat() if mtime is not None else None,
+            "exists": mtime is not None,
+        }
+        if latest_reference_mtime is not None and (mtime is None or mtime < latest_reference_mtime):
+            stale_docs.append(label)
+
+    return {
+        "ok": not stale_docs,
+        "stale_docs": stale_docs,
+        "reference_artifacts": [label for label, mtime in reference_mtimes.items() if mtime is not None],
+        "latest_reference_mtime": latest_reference_mtime.isoformat() if latest_reference_mtime is not None else None,
+        "references": {
+            label: {
+                "path": str(path),
+                "mtime": reference_mtimes[label].isoformat() if reference_mtimes[label] is not None else None,
+                "exists": reference_mtimes[label] is not None,
+            }
+            for label, path in reference_paths
+        },
+        "docs": docs,
+    }
+
+
 def _artifact_timestamp_from_payload(payload: Dict[str, Any] | None, artifact_path: str | Path | None) -> datetime | None:
     payload = payload or {}
     for key in ("generated_at", "alignment_evaluated_at"):
@@ -1249,6 +1297,7 @@ def save_summary(
     bull_4h_pocket_ablation=None,
     leaderboard_candidate_diagnostics=None,
     auto_propose_result=None,
+    docs_sync=None,
     progress_path=None,
     serial_results=None,
 ):
@@ -1300,6 +1349,7 @@ def save_summary(
             "stdout_preview": (auto_propose_result or {}).get("stdout", "")[:2000],
             "stderr_preview": (auto_propose_result or {}).get("stderr", "")[:1000],
         },
+        "docs_sync": docs_sync or {"ok": True, "stale_docs": [], "reference_artifacts": []},
         "runtime_progress": {
             "path": str(progress_path) if progress_path else None,
             "snapshot": runtime_progress_snapshot,
@@ -2706,6 +2756,7 @@ def main(argv=None):
 
     write_progress(run_label, "auto_propose")
     auto_propose_result = run_auto_propose(run_label)
+    docs_sync = collect_current_state_docs_sync_status()
     print(
         f"🛠️  自動修復建議：{'通過' if auto_propose_result['success'] else '失敗'} "
         f"(rc={auto_propose_result['returncode']})"
@@ -2718,6 +2769,14 @@ def main(argv=None):
         print(f"\n--- auto_propose_fixes ---\n{preview}")
     if auto_propose_result.get("stderr"):
         print(f"\n--- auto_propose_fixes stderr ---\n{auto_propose_result['stderr']}")
+    if not docs_sync.get("ok", True):
+        stale_docs_text = ", ".join(docs_sync.get("stale_docs") or []) or "unknown"
+        reference_text = ", ".join(docs_sync.get("reference_artifacts") or []) or "none"
+        print(
+            "⚠️  current-state docs stale："
+            f"{stale_docs_text} older than latest artifacts ({reference_text})；"
+            "請先 overwrite sync docs 再 commit。"
+        )
 
     serial_result_payload = {
         "recent_drift_report": {
@@ -2802,6 +2861,7 @@ def main(argv=None):
         bull_4h_pocket_ablation=bull_pocket_summary,
         leaderboard_candidate_diagnostics=leaderboard_candidate_diagnostics,
         auto_propose_result=auto_propose_result,
+        docs_sync=docs_sync,
         progress_path=progress_path,
         serial_results=serial_result_payload,
     )
@@ -2823,6 +2883,8 @@ def main(argv=None):
     elif any(not result.get("success") for result in results.values()):
         final_status = "completed_with_failures"
     elif any(not result.get("success", True) for result in serial_results if result is not None):
+        final_status = "completed_with_failures"
+    elif not docs_sync.get("ok", True):
         final_status = "completed_with_failures"
     write_progress(
         run_label,

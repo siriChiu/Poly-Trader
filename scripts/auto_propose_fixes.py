@@ -44,19 +44,29 @@ def _latest_zero_streak(
     conn: sqlite3.Connection,
     *,
     horizon_minutes: int | None = None,
-    limit: int = 200,
+    limit: int | None = None,
 ) -> int:
     sql = "SELECT simulated_pyramid_win FROM labels WHERE simulated_pyramid_win IS NOT NULL"
     params = []
     if horizon_minutes is not None:
         sql += " AND horizon_minutes = ?"
         params.append(horizon_minutes)
-    sql += " ORDER BY id DESC LIMIT ?"
-    params.append(limit)
-    rows = conn.execute(sql, params).fetchall()
+
+    if _table_has_column(conn, "labels", "timestamp"):
+        # Keep breaker/streak math aligned with hb_circuit_breaker_audit.py.
+        # Ordering by timestamp first avoids out-of-order backfill/update rows,
+        # and removing the hard 200-row cap prevents truncating real streaks.
+        sql += " ORDER BY timestamp DESC, id DESC"
+    else:
+        sql += " ORDER BY id DESC"
+
+    if limit is not None:
+        sql += " LIMIT ?"
+        params.append(limit)
+
     losing_streak = 0
-    for r in rows:
-        if r[0] == 0:
+    for (value,) in conn.execute(sql, params):
+        if int(value or 0) == 0:
             losing_streak += 1
         else:
             break

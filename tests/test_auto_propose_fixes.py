@@ -60,6 +60,60 @@ def test_check_db_prefers_canonical_1440m_streak_over_mixed_horizon_tail(tmp_pat
     assert stats["all_horizon_losing_streak"] == 2
 
 
+def test_check_db_does_not_truncate_canonical_streaks_beyond_200_rows(tmp_path, monkeypatch):
+    monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE raw_market_data (timestamp TEXT)")
+    conn.execute(
+        "CREATE TABLE labels (id INTEGER PRIMARY KEY, timestamp TEXT, horizon_minutes INTEGER, simulated_pyramid_win INTEGER)"
+    )
+    conn.execute("INSERT INTO raw_market_data(timestamp) VALUES ('2026-04-11 03:52:09')")
+    rows = []
+    for minute in range(241):
+        ts = f"2026-04-11 00:{minute // 60:02d}:{minute % 60:02d}"
+        simulated_win = 1 if minute == 0 else 0
+        rows.append((ts, 1440, simulated_win))
+    conn.executemany(
+        "INSERT INTO labels(timestamp, horizon_minutes, simulated_pyramid_win) VALUES (?, ?, ?)",
+        rows,
+    )
+    conn.commit()
+    conn.close()
+
+    stats = auto_propose_fixes.check_db()
+
+    assert stats["canonical_horizon_minutes"] == 1440
+    assert stats["losing_streak"] == 240
+
+
+def test_check_db_orders_streak_by_timestamp_not_insert_order(tmp_path, monkeypatch):
+    monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE raw_market_data (timestamp TEXT)")
+    conn.execute(
+        "CREATE TABLE labels (id INTEGER PRIMARY KEY, timestamp TEXT, horizon_minutes INTEGER, simulated_pyramid_win INTEGER)"
+    )
+    conn.execute("INSERT INTO raw_market_data(timestamp) VALUES ('2026-04-11 03:52:09')")
+    conn.executemany(
+        "INSERT INTO labels(timestamp, horizon_minutes, simulated_pyramid_win) VALUES (?, ?, ?)",
+        [
+            ("2026-04-11 00:00:00", 1440, 0),
+            ("2026-04-11 00:10:00", 1440, 0),
+            ("2026-04-11 00:20:00", 1440, 1),
+            # Insert an older row after the latest win to mimic backfill/out-of-order IDs.
+            ("2026-04-10 23:50:00", 1440, 0),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    stats = auto_propose_fixes.check_db()
+
+    assert stats["losing_streak"] == 0
+
+
 def test_upsert_issue_overwrites_summary_on_existing_issue():
     class DummyTracker:
         def __init__(self):

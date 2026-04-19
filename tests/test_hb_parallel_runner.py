@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import time
 from pathlib import Path
 
 from model import q35_bias50_calibration as q35_calibration_module
@@ -1138,6 +1139,42 @@ def test_collect_q35_scaling_audit_diagnostics_includes_deployment_component_exp
     assert summary["base_stack_redesign_experiment"]["best_floor_candidate"]["current_entry_quality_after"] == 0.839
 
 
+def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    issues_md = tmp_path / "ISSUES.md"
+    roadmap_md = tmp_path / "ROADMAP.md"
+    issues_json = tmp_path / "issues.json"
+    probe_json = data_dir / "live_predict_probe.json"
+    drilldown_json = data_dir / "live_decision_quality_drilldown.json"
+
+    issues_md.write_text("old issues", encoding="utf-8")
+    roadmap_md.write_text("old roadmap", encoding="utf-8")
+    issues_json.write_text("{}", encoding="utf-8")
+    probe_json.write_text("{}", encoding="utf-8")
+    drilldown_json.write_text("{}", encoding="utf-8")
+
+    now = time.time()
+    os.utime(issues_md, (now - 20, now - 20))
+    os.utime(roadmap_md, (now - 10, now - 10))
+    os.utime(issues_json, (now + 5, now + 5))
+    os.utime(probe_json, (now + 6, now + 6))
+    os.utime(drilldown_json, (now + 7, now + 7))
+
+    status = hb_parallel_runner.collect_current_state_docs_sync_status()
+
+    assert status["ok"] is False
+    assert status["stale_docs"] == ["ISSUES.md", "ROADMAP.md"]
+    assert status["reference_artifacts"] == [
+        "issues.json",
+        "data/live_predict_probe.json",
+        "data/live_decision_quality_drilldown.json",
+    ]
+
+
+
 def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
 
@@ -1208,6 +1245,7 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
         bull_4h_pocket_ablation={"bull_collapse_q35": {"recommended_profile": "core_plus_macro"}, "production_profile_role": {"role": "support_aware_production_profile"}},
         leaderboard_candidate_diagnostics={"selected_feature_profile": "core_only", "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback", "profile_split": {"verdict": "dual_role_required"}},
         auto_propose_result={"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""},
+        docs_sync={"ok": False, "stale_docs": ["ISSUES.md"], "reference_artifacts": ["issues.json"]},
         serial_results={
             "recent_drift_report": {
                 "result": {"attempted": True, "success": False, "returncode": -1, "stdout": "", "stderr": "TIMEOUT after 30s"},
@@ -1245,6 +1283,8 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert summary["leaderboard_candidate_diagnostics"]["selected_feature_profile"] == "core_only"
     assert summary["leaderboard_candidate_diagnostics"]["profile_split"]["verdict"] == "dual_role_required"
     assert summary["auto_propose"]["success"] is True
+    assert summary["docs_sync"]["ok"] is False
+    assert summary["docs_sync"]["stale_docs"] == ["ISSUES.md"]
     assert summary["serial_results"]["recent_drift_report"]["timed_out"] is True
     assert summary["serial_results"]["recent_drift_report"]["fallback_artifact_used"] is True
     assert summary["serial_results"]["recent_drift_report"]["artifact_path"] == str(recent_drift_path)
@@ -1273,6 +1313,8 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert saved["leaderboard_candidate_diagnostics"]["dual_profile_state"] == "leaderboard_global_winner_vs_train_support_fallback"
     assert saved["leaderboard_candidate_diagnostics"]["profile_split"]["verdict"] == "dual_role_required"
     assert saved["auto_propose"]["stdout_preview"] == "ok"
+    assert saved["docs_sync"]["ok"] is False
+    assert saved["docs_sync"]["reference_artifacts"] == ["issues.json"]
     assert saved["serial_results"]["recent_drift_report"]["fallback_artifact_used"] is True
     assert saved["serial_results"]["recent_drift_report"]["timed_out"] is True
 
