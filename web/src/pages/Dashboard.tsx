@@ -775,7 +775,7 @@ export default function Dashboard() {
   const { data: featureCoverageData } = useApi<FeatureCoverageResponse>("/api/features/coverage?days=30", 60000);
   const { data: confidenceData } = useApi<ConfidenceData>("/api/predict/confidence", 60000);
   const { data: modelStats } = useApi<ModelStats>("/api/model/stats", 60000);
-  const { data: runtimeStatus, refresh: refreshRuntimeStatus } = useApi<RuntimeStatusResponse>("/api/status", 60000);
+  const { data: runtimeStatus, loading: runtimeStatusLoading, error: runtimeStatusError, refresh: refreshRuntimeStatus } = useApi<RuntimeStatusResponse>("/api/status", 60000);
 
   // WebSocket
   useEffect(() => {
@@ -850,6 +850,7 @@ export default function Dashboard() {
 
   const advice = liveAdvice || sensesData?.recommendation;
   const maturitySummary = featureCoverageData?.maturity_counts ?? null;
+  const runtimeStatusPending = runtimeStatusLoading && !runtimeStatus && !runtimeStatusError;
   const executionSummary = runtimeStatus?.execution ?? null;
   const accountSummary = runtimeStatus?.account ?? null;
   const executionReconciliation = runtimeStatus?.execution_reconciliation ?? null;
@@ -912,9 +913,16 @@ export default function Dashboard() {
     || liveRuntimeTruth?.execution_guardrail_reason
     || executionSurfaceContract?.operator_message
     || null;
+  const dashboardCurrentLiveBlockerLabel = runtimeStatusPending ? "同步中" : (dashboardCurrentLiveBlocker || "unavailable");
+  const dashboardPrimaryRuntimeMessageLabel = runtimeStatusPending
+    ? "正在同步 /api/status"
+    : (dashboardPrimaryRuntimeMessage || (runtimeStatusError ? `無法取得 /api/status：${runtimeStatusError}` : "目前沒有額外 blocker 摘要"));
   const dashboardVenueBlockers = Array.isArray(executionSurfaceContract?.live_ready_blockers)
     ? executionSurfaceContract.live_ready_blockers
     : [];
+  const dashboardVenueBlockersLabel = runtimeStatusPending
+    ? "同步中"
+    : (dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.join(" · ") : "none");
   const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
@@ -924,7 +932,9 @@ export default function Dashboard() {
   const externalMonitorInstallContract = metadataSmokeExternalMonitor?.install_contract ?? null;
   const externalMonitorTickingState = metadataSmokeExternalMonitor?.ticking_state ?? null;
   const metadataSmokeFreshnessTone = getSmokeFreshnessTone(metadataSmokeFreshness?.status);
-  const metadataSmokeFreshnessLabel = getSmokeFreshnessLabel(metadataSmokeFreshness?.status);
+  const metadataSmokeFreshnessLabel = runtimeStatusPending
+    ? "同步中"
+    : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "UNAVAILABLE");
   const metadataSmokeGovernanceTone = getSmokeGovernanceTone(metadataSmokeGovernance?.status);
   const externalMonitorTickingTone = getExternalMonitorTickingTone(externalMonitorTickingState?.status);
   const rawContinuity = runtimeStatus?.raw_continuity ?? null;
@@ -987,13 +997,19 @@ export default function Dashboard() {
       : rawContinuity?.status === "error"
         ? "border-red-700/40 bg-red-950/30 text-red-200"
         : "border-slate-700/40 bg-slate-950/30 text-slate-300";
-  const continuityLabel = rawContinuity?.status === "clean"
-    ? "raw 連續性正常"
-    : rawContinuity?.status === "repaired"
-      ? "啟動時已自動回填資料斷點"
-      : rawContinuity?.status === "error"
-        ? "啟動檢查失敗"
-        : "尚未收到啟動檢查結果";
+  const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
+  const reconciliationSummaryLabel = runtimeStatusPending
+    ? "正在向 /api/status 取得 reconciliation / recovery 摘要。"
+    : (executionReconciliation?.summary || "尚未收到 reconciliation 摘要。");
+  const continuityLabel = runtimeStatusPending
+    ? "同步 /api/status 中"
+    : rawContinuity?.status === "clean"
+      ? "raw 連續性正常"
+      : rawContinuity?.status === "repaired"
+        ? "啟動時已自動回填資料斷點"
+        : rawContinuity?.status === "error"
+          ? "啟動檢查失敗"
+          : "尚未收到啟動檢查結果";
 
   const handleTrade = useCallback(async (side: string) => {
     if (side === "hold") return;
@@ -1111,8 +1127,8 @@ export default function Dashboard() {
             <div className="text-[11px] opacity-70">部署狀態</div>
             <div className="mt-1 font-semibold">{executionSurfaceContract?.live_ready ? "Ready" : "Blocked"}</div>
             <div className="mt-1 text-[11px] opacity-80">{executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()} · {executionVenueLabel}</div>
-            <div className="mt-1 text-[11px] opacity-80">current live blocker {dashboardCurrentLiveBlocker || "unavailable"} · {dashboardPrimaryRuntimeMessage || "目前沒有額外 blocker 摘要"}</div>
-            <div className="mt-1 text-[11px] opacity-70">venue blockers {dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.join(" · ") : "none"}</div>
+            <div className="mt-1 text-[11px] opacity-80">current live blocker {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
+            <div className="mt-1 text-[11px] opacity-70">venue blockers {dashboardVenueBlockersLabel}</div>
             <VenueReadinessSummary venues={venueChecks} className="mt-2" compact />
           </div>
           <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
@@ -1123,12 +1139,12 @@ export default function Dashboard() {
           <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
             <div className="text-[11px] opacity-70">Metadata freshness</div>
             <div className="mt-1 font-semibold">{metadataSmokeFreshnessLabel}</div>
-            <div className="mt-1 text-[11px] opacity-80">{metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "尚未產生 smoke artifact"}</div>
+            <div className="mt-1 text-[11px] opacity-80">{runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : (metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "尚未產生 smoke artifact")}</div>
           </div>
           <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
             <div className="text-[11px] opacity-70">Reconciliation / recovery</div>
-            <div className="mt-1 font-semibold">{executionReconciliation?.status || "unavailable"}</div>
-            <div className="mt-1 text-[11px] opacity-80">{executionReconciliation?.summary || "尚未收到 reconciliation 摘要。"}</div>
+            <div className="mt-1 font-semibold">{reconciliationStatusLabel}</div>
+            <div className="mt-1 text-[11px] opacity-80">{reconciliationSummaryLabel}</div>
           </div>
         </div>
         <LivePathologySummaryCard
@@ -1142,7 +1158,9 @@ export default function Dashboard() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="font-semibold">🩹 啟動檢查 / continuity</div>
           <div className="text-[11px] opacity-80">
-            {rawContinuity?.checked_at ? `檢查時間 ${new Date(rawContinuity.checked_at).toLocaleString("zh-TW")}` : "等待啟動檢查結果"}
+            {runtimeStatusPending
+              ? "正在向 /api/status 取得啟動檢查結果"
+              : (rawContinuity?.checked_at ? `檢查時間 ${new Date(rawContinuity.checked_at).toLocaleString("zh-TW")}` : "等待啟動檢查結果")}
           </div>
         </div>
         <div className="mt-1 leading-5">{continuityLabel}</div>

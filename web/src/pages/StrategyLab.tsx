@@ -1371,8 +1371,8 @@ export default function StrategyLab() {
   const [capitalModeFilter, setCapitalModeFilter] = useState<"all" | "classic_pyramid" | "reserve_90">("all");
   const [strategySleeveFilter, setStrategySleeveFilter] = useState<string>("all");
   const [activeModules, setActiveModules] = useState<EditorModuleId[]>(["pyramid_sl_tp", "turning_point"]);
-  const { data: runtimeStatus } = useApi<StrategyLabRuntimeStatusResponse>("/api/status", 60000);
-  const { data: liveDecisionStatus } = useApi<StrategyLabLiveDecisionResponse>("/api/predict/confidence", 60000);
+  const { data: runtimeStatus, loading: runtimeStatusLoading, error: runtimeStatusError } = useApi<StrategyLabRuntimeStatusResponse>("/api/status", 60000);
+  const { data: liveDecisionStatus, loading: liveDecisionStatusLoading, error: liveDecisionStatusError } = useApi<StrategyLabLiveDecisionResponse>("/api/predict/confidence", 60000);
 
   useEffect(() => {
     const cached = Object.keys(STRATEGY_LAB_MEMORY_CACHE).length ? STRATEGY_LAB_MEMORY_CACHE : loadStrategyLabCache();
@@ -2210,6 +2210,9 @@ export default function StrategyLab() {
   const runtimeSyncIssues = Array.isArray(executionReconciliation?.issues) ? executionReconciliation.issues : [];
   const liveExecutionBlockers = Array.isArray(executionSurfaceContract?.live_ready_blockers) ? executionSurfaceContract.live_ready_blockers : [];
   const venueReadinessBlockers = liveExecutionBlockers;
+  const runtimeStatusPending = runtimeStatusLoading && !runtimeStatus && !runtimeStatusError;
+  const liveRuntimePending = liveDecisionStatusLoading && !liveDecisionStatus && !liveDecisionStatusError;
+  const liveExecutionSyncPending = runtimeStatusPending && liveRuntimePending;
   const currentLiveBlocker = liveDecisionStatus?.deployment_blocker ?? liveRuntimeTruth?.deployment_blocker ?? null;
   const currentLiveBlockerSummary =
     liveDecisionStatus?.deployment_blocker_reason
@@ -2217,6 +2220,28 @@ export default function StrategyLab() {
     ?? liveRuntimeClosureSummary
     ?? "尚未取得 current live blocker。";
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
+  const currentLiveBlockerLabel = liveExecutionSyncPending ? "同步中" : (currentLiveBlocker || "unknown");
+  const currentLiveBlockerSummaryLabel = liveExecutionSyncPending
+    ? "正在同步 live blocker / runtime closure"
+    : currentLiveBlockerSummary;
+  const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
+  const reconciliationCheckedAtLabel = runtimeStatusPending
+    ? "正在向 /api/status 取得 execution sync 狀態"
+    : (executionReconciliation?.checked_at ? new Date(executionReconciliation.checked_at).toLocaleString("zh-TW") : "尚未取得 /api/status");
+  const runtimeClosureStateLabel = liveExecutionSyncPending ? "同步中" : (liveRuntimeClosureState || "unknown");
+  const runtimeClosureSummaryLabel = liveExecutionSyncPending
+    ? "正在同步 runtime closure summary。"
+    : (liveRuntimeClosureSummary || "尚未取得 runtime closure summary。");
+  const activeSleevesLabel = liveExecutionSyncPending ? "同步中" : (liveRouting?.active_ratio_text || "0/0");
+  const activeSleevesSummaryLabel = liveExecutionSyncPending
+    ? "正在同步 regime / gate 路由"
+    : `${liveRouting?.current_regime || liveDecisionStatus?.regime_label || "—"} · gate ${liveRouting?.current_regime_gate || liveDecisionStatus?.regime_gate || "—"}`;
+  const metadataSmokeFreshnessLabel = runtimeStatusPending
+    ? "同步中"
+    : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
+  const venueReadinessBlockersLabel = liveExecutionSyncPending
+    ? "同步中"
+    : (venueReadinessBlockers.length ? venueReadinessBlockers.join(" · ") : executionSurfaceContract?.operator_message || "目前沒有額外 venue blocker 摘要");
   const lifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
   const lifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
   const lifecycleArtifactChecklist = Array.isArray(lifecycleContract?.artifact_checklist)
@@ -2484,37 +2509,37 @@ export default function StrategyLab() {
                   </div>
                 </div>
                 <div className="text-right text-xs">
-                  <div className="font-semibold">{executionReconciliation?.status || "unavailable"}</div>
-                  <div className="opacity-70">{executionReconciliation?.checked_at ? new Date(executionReconciliation.checked_at).toLocaleString("zh-TW") : "尚未取得 /api/status"}</div>
+                  <div className="font-semibold">{reconciliationStatusLabel}</div>
+                  <div className="opacity-70">{reconciliationCheckedAtLabel}</div>
                 </div>
               </div>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5 text-xs">
                 <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide opacity-60">current live blocker</div>
-                  <div className="mt-1 font-medium">{currentLiveBlocker || "unknown"}</div>
-                  <div className="opacity-80">{currentLiveBlockerSummary}</div>
+                  <div className="mt-1 font-medium">{currentLiveBlockerLabel}</div>
+                  <div className="opacity-80">{currentLiveBlockerSummaryLabel}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide opacity-60">venue blockers</div>
-                  <div className="mt-1 font-medium">{venueReadinessBlockers.length ? venueReadinessBlockers.join(" · ") : executionSurfaceContract?.operator_message || "目前沒有額外 venue blocker 摘要"}</div>
+                  <div className="mt-1 font-medium">{venueReadinessBlockersLabel}</div>
                   <VenueReadinessSummary venues={venueChecks} className="mt-2" compact />
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide opacity-60">runtime closure</div>
-                  <div className="mt-1 font-medium">{liveRuntimeClosureState || "unknown"}</div>
-                  <div className="opacity-80">{liveRuntimeClosureSummary || "尚未取得 runtime closure summary。"}</div>
+                  <div className="mt-1 font-medium">{runtimeClosureStateLabel}</div>
+                  <div className="opacity-80">{runtimeClosureSummaryLabel}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide opacity-60">active sleeves</div>
-                  <div className="mt-1 font-medium">{liveRouting?.active_ratio_text || "0/0"}</div>
-                  <div className="opacity-80">{liveRouting?.current_regime || liveDecisionStatus?.regime_label || "—"} · gate {liveRouting?.current_regime_gate || liveDecisionStatus?.regime_gate || "—"}</div>
+                  <div className="mt-1 font-medium">{activeSleevesLabel}</div>
+                  <div className="opacity-80">{activeSleevesSummaryLabel}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide opacity-60">metadata freshness</div>
                   <div className={`mt-1 font-medium ${metadataFreshnessTone(metadataSmokeFreshness?.status)}`}>
-                    {metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable"}
+                    {metadataSmokeFreshnessLabel}
                   </div>
-                  <div className="opacity-80">generated {metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "—"}</div>
+                  <div className="opacity-80">{runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : `generated ${metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "—"}`}</div>
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 text-xs">

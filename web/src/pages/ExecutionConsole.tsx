@@ -573,6 +573,11 @@ export default function ExecutionConsole() {
   const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
+  const runtimeStatusPending = loading && !runtimeStatus && !error;
+  const metadataSmokeFreshnessLabel = runtimeStatusPending
+    ? "同步中"
+    : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
+  const supportAlignmentLabel = runtimeStatusPending ? "同步中" : (liveRuntimeTruth?.support_alignment_status || "unavailable");
 
   const positions = Array.isArray(accountSummary?.positions) ? accountSummary.positions : [];
   const openOrders = Array.isArray(accountSummary?.open_orders) ? accountSummary.open_orders : [];
@@ -717,7 +722,7 @@ export default function ExecutionConsole() {
                 {executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞"}
               </span>
               <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(metadataSmokeFreshness?.status)}`}>
-                freshness {metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable"}
+                freshness {metadataSmokeFreshnessLabel}
               </span>
             </div>
           </div>
@@ -1116,7 +1121,7 @@ export default function ExecutionConsole() {
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Support</div>
                 <div className="mt-1 font-semibold text-white">{liveRuntimeTruth?.support_rows_text || `${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`}</div>
-                <div className="text-[11px] text-slate-400">{liveRuntimeTruth?.support_alignment_status || "unavailable"}</div>
+                <div className="text-[11px] text-slate-400">{supportAlignmentLabel}</div>
               </div>
             </div>
             {liveReadyBlockers.length > 0 && (
@@ -1214,13 +1219,13 @@ export default function ExecutionConsole() {
           </div>
           <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Metadata freshness</div>
-            <div className="mt-2 text-base font-semibold text-white">{metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable"}</div>
-            <div className="mt-2">generated {formatTime(metadataSmoke?.generated_at)} · age {metadataSmokeFreshness?.age_minutes != null ? `${metadataSmokeFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}</div>
+            <div className="mt-2 text-base font-semibold text-white">{metadataSmokeFreshnessLabel}</div>
+            <div className="mt-2">{runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : `generated ${formatTime(metadataSmoke?.generated_at)} · age ${metadataSmokeFreshness?.age_minutes != null ? `${metadataSmokeFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}`}</div>
           </div>
           <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Reconciliation / recovery</div>
-            <div className="mt-2 text-base font-semibold text-white">{executionReconciliation?.status || "unavailable"}</div>
-            <div className="mt-2">{executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得 reconciliation 摘要。"}</div>
+            <div className="mt-2 text-base font-semibold text-white">{runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable")}</div>
+            <div className="mt-2">{runtimeStatusPending ? "正在向 /api/status 取得 reconciliation / recovery 摘要。" : (executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得 reconciliation 摘要。")}</div>
           </div>
         </div>
       </section>

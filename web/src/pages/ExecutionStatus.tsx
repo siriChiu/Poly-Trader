@@ -367,6 +367,7 @@ function MetricCard({ title, value, detail, tone }: { title: string; value: stri
 
 export default function ExecutionStatus() {
   const { data: runtimeStatus, loading, error, refresh } = useApi<ExecutionStatusResponse>("/api/status", 60000);
+  const runtimeStatusPending = loading && !runtimeStatus && !error;
 
   const executionSurfaceContract = runtimeStatus?.execution_surface_contract ?? null;
   const operationsSurface = executionSurfaceContract?.operations_surface ?? null;
@@ -408,12 +409,23 @@ export default function ExecutionStatus() {
   const healthTone = getStatusTone(accountSummary?.degraded ? "degraded" : accountSummary?.health?.connected ? "connected" : "warning");
 
   const currentLiveBlocker = liveRuntimeTruth?.deployment_blocker || null;
-  const primaryRuntimeMessage = liveRuntimeTruth?.deployment_blocker_reason
-    || liveRuntimeTruth?.deployment_blocker
-    || liveRuntimeTruth?.execution_guardrail_reason
-    || liveReadyBlockers[0]
-    || executionSurfaceContract?.operator_message
-    || "目前沒有額外 blocker 摘要。";
+  const primaryRuntimeMessage = runtimeStatusPending
+    ? "正在同步 /api/status"
+    : (liveRuntimeTruth?.deployment_blocker_reason
+      || liveRuntimeTruth?.deployment_blocker
+      || liveRuntimeTruth?.execution_guardrail_reason
+      || liveReadyBlockers[0]
+      || executionSurfaceContract?.operator_message
+      || "目前沒有額外 blocker 摘要。");
+  const currentLiveBlockerLabel = runtimeStatusPending ? "同步中" : (currentLiveBlocker || "unavailable");
+  const metadataFreshnessLabel = runtimeStatusPending
+    ? "同步中"
+    : (metadataFreshness?.label || metadataFreshness?.status || "unavailable");
+  const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
+  const supportAlignmentLabel = runtimeStatusPending ? "同步中" : (liveRuntimeTruth?.support_alignment_status || "unavailable");
+  const venueBlockersLabel = runtimeStatusPending
+    ? "同步中"
+    : (liveReadyBlockers.length > 0 ? liveReadyBlockers.join(" · ") : "none");
 
   const lifecycleSummary = useMemo(() => {
     return [
@@ -446,7 +458,7 @@ export default function ExecutionStatus() {
                 {executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞"}
               </span>
               <span className={`rounded-full border px-2.5 py-1 ${metadataTone}`}>
-                freshness {metadataFreshness?.label || metadataFreshness?.status || "unavailable"}
+                freshness {metadataFreshnessLabel}
               </span>
             </div>
           </div>
@@ -477,19 +489,23 @@ export default function ExecutionStatus() {
           <MetricCard
             title="可部署"
             value={executionSurfaceContract?.live_ready ? "可進場" : "仍阻塞"}
-            detail={`blocker ${currentLiveBlocker || "unavailable"} · ${primaryRuntimeMessage} · scope ${executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only"}`}
+            detail={`blocker ${currentLiveBlockerLabel} · ${primaryRuntimeMessage} · scope ${executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only"}`}
             tone={readinessTone}
           />
           <MetricCard
             title="資料新鮮度"
-            value={metadataFreshness?.label || metadataFreshness?.status || "unavailable"}
-            detail={`generated ${formatTime(metadataSmoke?.generated_at)} · age ${metadataFreshness?.age_minutes != null ? `${metadataFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}`}
+            value={metadataFreshnessLabel}
+            detail={runtimeStatusPending
+              ? "正在向 /api/status 取得 metadata smoke。"
+              : `generated ${formatTime(metadataSmoke?.generated_at)} · age ${metadataFreshness?.age_minutes != null ? `${metadataFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}`}
             tone={metadataTone}
           />
           <MetricCard
             title="對帳狀態"
-            value={executionReconciliation?.status || "unavailable"}
-            detail={`${executionReconciliation?.summary || "尚未取得 reconciliation 摘要。"} · ${lifecycleSummary}`}
+            value={reconciliationStatusLabel}
+            detail={runtimeStatusPending
+              ? "正在向 /api/status 取得 reconciliation / recovery 摘要。"
+              : `${executionReconciliation?.summary || "尚未取得 reconciliation 摘要。"} · ${lifecycleSummary}`}
             tone={reconciliationTone}
           />
           <MetricCard
@@ -520,9 +536,9 @@ export default function ExecutionStatus() {
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">主 blocker</div>
                 <div className="mt-2 font-semibold text-white">{primaryRuntimeMessage}</div>
-                <div className="mt-2 text-slate-400">deployment blocker {liveRuntimeTruth?.deployment_blocker || "none"}</div>
+                <div className="mt-2 text-slate-400">deployment blocker {runtimeStatusPending ? "同步中" : (liveRuntimeTruth?.deployment_blocker || "none")}</div>
                 <div className="text-slate-400">execution guardrail {liveRuntimeTruth?.execution_guardrail_reason || "none"}</div>
-                <div className="text-slate-400">venue blockers {liveReadyBlockers.length > 0 ? liveReadyBlockers.join(" · ") : "none"}</div>
+                <div className="text-slate-400">venue blockers {venueBlockersLabel}</div>
               </div>
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">部署計算</div>
@@ -530,7 +546,7 @@ export default function ExecutionStatus() {
                 <div className="mt-2 text-slate-400">raw reason {liveRuntimeTruth?.allowed_layers_raw_reason || "—"}</div>
                 <div className="text-slate-400">final reason {liveRuntimeTruth?.allowed_layers_reason || "—"}</div>
                 <div className="mt-2 text-slate-400">support {liveRuntimeTruth?.support_rows_text || `${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`}</div>
-                <div className="text-slate-400">alignment {liveRuntimeTruth?.support_alignment_status || "unavailable"}</div>
+                <div className="text-slate-400">alignment {supportAlignmentLabel}</div>
               </div>
             </div>
 
@@ -637,7 +653,7 @@ export default function ExecutionStatus() {
             <div className="text-lg font-semibold text-white">場館狀態</div>
             <div className="mt-1 text-sm text-slate-400">generated {formatTime(metadataSmoke?.generated_at)} · governance {metadataGovernance?.status || "unknown"}</div>
             <div className={`mt-3 rounded-2xl border px-3 py-3 text-sm ${metadataTone}`}>
-              <div className="font-semibold">freshness {metadataFreshness?.label || metadataFreshness?.status || "unavailable"}</div>
+              <div className="font-semibold">freshness {metadataFreshnessLabel}</div>
               <div className="mt-1">artifact age {metadataFreshness?.age_minutes != null ? `${metadataFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}</div>
               <div className="mt-2 opacity-90">{metadataGovernance?.operator_message || "尚未取得 governance 訊息。"}</div>
               {metadataGovernance?.escalation_message && (
@@ -696,7 +712,7 @@ export default function ExecutionStatus() {
             </div>
           </div>
           <div className="text-right text-xs text-slate-200">
-            <div className="font-semibold">{executionReconciliation?.status || "unavailable"}</div>
+            <div className="font-semibold">{reconciliationStatusLabel}</div>
             <div className="opacity-80">{formatTime(executionReconciliation?.checked_at)}</div>
           </div>
         </div>
