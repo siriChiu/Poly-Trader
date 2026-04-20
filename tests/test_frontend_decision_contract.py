@@ -738,6 +738,24 @@ def test_candlestick_chart_hover_uses_raw_score_values_for_percent_labels():
 
 
 
+def test_candlestick_chart_promotes_strategy_score_overlay_over_model_confidence_line():
+    source = _read("components/CandlestickChart.tsx")
+    required_snippets = [
+        'title: "策略分數",',
+        'title: "進場品質",',
+        'const strategyScoreData = toScoreLine((point) => point.score);',
+        'const entryQualityData = toScoreLine((point) => point.entry_quality);',
+        'scoreSeriesRef.current?.setData(strategyScoreData);',
+        'confidenceSeriesRef.current?.setData(entryQualityData);',
+        '上圖疊加策略分數與進場品質',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+    assert 'title: "模型信心",' not in source
+    assert 'confidenceSeriesRef.current?.setData(confidenceData);' not in source
+
+
+
 def test_fetch_api_formats_structured_reject_payloads_for_trade_guardrails():
     source = _read("hooks/useApi.ts")
     required_snippets = [

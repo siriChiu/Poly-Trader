@@ -820,10 +820,10 @@ const resolveLatestTwoYearBacktestRange = (availableStart?: string | null, avail
   if (availableStart) {
     const floor = new Date(availableStart);
     if (!Number.isNaN(floor.getTime()) && start < floor) {
-      return { start: floor.toISOString().slice(0, 16), end: end.toISOString().slice(0, 16) };
+      return { start: formatDateTimeLocal(floor), end: formatDateTimeLocal(end) };
     }
   }
-  return { start: start.toISOString().slice(0, 16), end: end.toISOString().slice(0, 16) };
+  return { start: formatDateTimeLocal(start), end: formatDateTimeLocal(end) };
 };
 
 const deriveEditableStrategyName = (rawName?: string | null) => {
@@ -1517,6 +1517,31 @@ export default function StrategyLab() {
     activeResult?.chart_context?.end,
     selectedStrategy?.definition?.params?.backtest_range,
   ]);
+  const activeBacktestSyncRange = useMemo(() => {
+    const definitionRange = typeof selectedStrategy?.definition?.params?.backtest_range === "object" && selectedStrategy?.definition?.params?.backtest_range
+      ? selectedStrategy.definition.params.backtest_range as { start?: string | null; end?: string | null }
+      : null;
+    return {
+      start: activeResult?.backtest_range?.requested?.start
+        || activeResult?.backtest_range?.effective?.start
+        || definitionRange?.start
+        || activeResult?.chart_context?.start
+        || null,
+      end: activeResult?.backtest_range?.requested?.end
+        || activeResult?.backtest_range?.effective?.end
+        || definitionRange?.end
+        || activeResult?.chart_context?.end
+        || null,
+    };
+  }, [
+    activeResult?.backtest_range?.requested?.start,
+    activeResult?.backtest_range?.requested?.end,
+    activeResult?.backtest_range?.effective?.start,
+    activeResult?.backtest_range?.effective?.end,
+    activeResult?.chart_context?.start,
+    activeResult?.chart_context?.end,
+    selectedStrategy?.definition?.params?.backtest_range,
+  ]);
   const activeMeta: StrategyMetadata = {
     ...(selectedStrategy?.metadata || {}),
     title: selectedStrategy?.metadata?.title || name,
@@ -1532,13 +1557,13 @@ export default function StrategyLab() {
   const selectedStrategySourceLabel = selectedStrategyIsSystemGenerated
     ? (selectedStrategy?.metadata?.source_label || "系統生成排行榜")
     : (selectedStrategy?.metadata?.source_label || "手動策略");
-  const activeDisplayRangeInput = {
-    start: toDateTimeLocalValue(activeBacktestDisplayRange.start),
-    end: toDateTimeLocalValue(activeBacktestDisplayRange.end),
+  const activeSyncRangeInput = {
+    start: toDateTimeLocalValue(activeBacktestSyncRange.start),
+    end: toDateTimeLocalValue(activeBacktestSyncRange.end),
   };
   const strategyResultStale = Boolean(
     activeResult
-    && ((chartStart || "") !== (activeDisplayRangeInput.start || "") || (chartEnd || "") !== (activeDisplayRangeInput.end || ""))
+    && ((chartStart || "") !== (activeSyncRangeInput.start || "") || (chartEnd || "") !== (activeSyncRangeInput.end || ""))
   );
   const sortedModelLeaderboard = useMemo(() => {
     const rows = [...modelLeaderboard];
@@ -1799,20 +1824,20 @@ export default function StrategyLab() {
       ? new Date(availableRangeOverride.start)
       : (strategyDataRange?.start ? new Date(strategyDataRange.start) : null);
     if (preset === "max") {
-      setChartStart(availableStart ? availableStart.toISOString().slice(0, 16) : "");
-      setChartEnd(availableEnd.toISOString().slice(0, 16));
+      setChartStart(availableStart ? formatDateTimeLocal(availableStart) : "");
+      setChartEnd(formatDateTimeLocal(availableEnd));
       return;
     }
     const months = preset === "6m" ? 6 : preset === "1y" ? 12 : LEADERBOARD_BACKTEST_WINDOW_MONTHS;
     const nextStart = new Date(availableEnd);
     nextStart.setMonth(nextStart.getMonth() - months);
     if (availableStart && nextStart < availableStart) {
-      setChartStart(availableStart.toISOString().slice(0, 16));
-      setChartEnd(availableEnd.toISOString().slice(0, 16));
+      setChartStart(formatDateTimeLocal(availableStart));
+      setChartEnd(formatDateTimeLocal(availableEnd));
       return;
     }
-    setChartStart(nextStart.toISOString().slice(0, 16));
-    setChartEnd(availableEnd.toISOString().slice(0, 16));
+    setChartStart(formatDateTimeLocal(nextStart));
+    setChartEnd(formatDateTimeLocal(availableEnd));
   };
 
   const selectStrategyByName = async (
@@ -2245,22 +2270,6 @@ export default function StrategyLab() {
     `信心 ${confidenceMin}% · 品質 ${entryQualityMin}%`,
     investmentHorizonLabels[investmentHorizon],
   ];
-
-  useEffect(() => {
-    const latestTwoYearRange = resolveLatestTwoYearBacktestRange(
-      strategyDataRange?.start || activeResult?.backtest_range?.effective?.start || activeResult?.chart_context?.start || null,
-      strategyDataRange?.end || activeResult?.backtest_range?.effective?.end || activeResult?.chart_context?.end || null,
-    );
-    setChartStart(latestTwoYearRange.start);
-    setChartEnd(latestTwoYearRange.end);
-  }, [
-    activeResult?.backtest_range?.effective?.start,
-    activeResult?.backtest_range?.effective?.end,
-    activeResult?.chart_context?.start,
-    activeResult?.chart_context?.end,
-    strategyDataRange?.start,
-    strategyDataRange?.end,
-  ]);
 
   const benchmarkCards = [
     activeResult?.benchmarks?.buy_hold,

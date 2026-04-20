@@ -473,7 +473,7 @@ export default function CandlestickChart({
     const scoreSeriesHandle = priceChart.addLineSeries({
       color: "#22c55e",
       lineWidth: 2,
-      title: "進場分數",
+      title: "策略分數",
       priceScaleId: "left",
       priceFormat: { type: "price", precision: 1, minMove: 0.1 },
       lineStyle: 0,
@@ -481,7 +481,7 @@ export default function CandlestickChart({
     const confidenceSeriesHandle = priceChart.addLineSeries({
       color: "#38bdf8",
       lineWidth: 2,
-      title: "模型信心",
+      title: "進場品質",
       priceScaleId: "left",
       priceFormat: { type: "price", precision: 1, minMove: 0.1 },
       lineStyle: 2,
@@ -772,11 +772,10 @@ export default function CandlestickChart({
             .filter((row): row is LineData<Time> => !!row)
         ).map((row) => [Number(row.time), row.value])
       );
-      const scoreData = toScoreLine((point) => point.score);
-      const confidenceData = toScoreLine((point) => point.model_confidence);
+      const strategyScoreData = toScoreLine((point) => point.score);
       const entryQualityData = toScoreLine((point) => point.entry_quality);
-      scoreSeriesRef.current?.setData(scoreData.length > 0 ? scoreData : entryQualityData);
-      confidenceSeriesRef.current?.setData(confidenceData);
+      scoreSeriesRef.current?.setData(strategyScoreData);
+      confidenceSeriesRef.current?.setData(entryQualityData);
       scoreRawLookupRef.current = toRawScoreLookup((point) => point.score);
       if (scoreRawLookupRef.current.size === 0) {
         scoreRawLookupRef.current = toRawScoreLookup((point) => point.entry_quality);
@@ -784,7 +783,7 @@ export default function CandlestickChart({
       entryQualityRawLookupRef.current = toRawScoreLookup((point) => point.entry_quality);
       confidenceRawLookupRef.current = toRawScoreLookup((point) => point.model_confidence);
       setProgress(toChartProgress(3));
-      setProgressDetail("模型 / 進場分數已整理完成，正在對齊權益曲線");
+      setProgressDetail("策略 / 進場分數已整理完成，正在對齊權益曲線");
 
       const baseEquity = equityCurve[0]?.equity ?? 0;
       const toMetric = equityModeMeta.transform;
@@ -1047,7 +1046,7 @@ export default function CandlestickChart({
           </div>
           <div className="rounded-lg border border-emerald-700/30 bg-emerald-950/10 px-3 py-2 text-emerald-100">
             <div className="text-emerald-300">分數圖層</div>
-            <div>上圖疊加進場分數，Hybrid 另顯示模型信心</div>
+            <div>上圖疊加策略分數與進場品質</div>
           </div>
           <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 px-3 py-2 text-cyan-100">
             <div className="text-cyan-300">權益圖</div>
@@ -1075,7 +1074,7 @@ export default function CandlestickChart({
             <div className="font-medium text-slate-100">{hover ? `${hover.ma20Text} / ${hover.ma60Text}` : "—"}</div>
           </div>
           <div className="rounded-lg border border-emerald-700/30 bg-emerald-950/10 px-3 py-2">
-            <div className="text-emerald-300">分數 / 品質</div>
+            <div className="text-emerald-300">策略 / 品質</div>
             <div className="font-medium text-emerald-100">{hover ? `${hover.scoreText} / ${hover.entryQualityText}` : "—"}</div>
             <div className="mt-1 text-[10px] text-emerald-300/80">模型信心 {hover?.confidenceText || "—"}</div>
           </div>
@@ -1090,7 +1089,7 @@ export default function CandlestickChart({
 
       <div className="px-4 pt-4 pb-2">
         <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
-          <span>上圖：BTC/USDT 價格、買賣點、模型/進場分數</span>
+          <span>上圖：BTC/USDT 價格、買賣點、策略/進場分數</span>
           <span>{interval}</span>
         </div>
         <div ref={priceContainerRef} className="w-full h-[360px] min-h-[360px]" />
