@@ -223,6 +223,74 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     ]
 
 
+def test_overlay_confidence_with_live_predict_probe_prefers_fresh_probe_truth(tmp_path):
+    probe_path = tmp_path / "live_predict_probe.json"
+    probe_path.write_text(json.dumps({
+        "feature_timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+        "current_live_structure_bucket_rows": 0,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 50,
+        "support_route_verdict": "exact_bucket_unsupported_block",
+        "support_governance_route": "exact_live_lane_proxy_available",
+        "support_progress": {
+            "status": "stalled_under_minimum",
+            "current_rows": 0,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 50,
+        },
+        "deployment_blocker": "circuit_breaker_active",
+        "deployment_blocker_details": {
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+        },
+        "runtime_closure_state": "circuit_breaker_active",
+    }), encoding="utf-8")
+
+    merged = api_module._overlay_confidence_with_live_predict_probe({
+        "feature_timestamp": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat().replace("+00:00", "Z"),
+        "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "current_live_structure_bucket_rows": 40,
+        "minimum_support_rows": 40,
+        "support_route_verdict": "exact_bucket_supported",
+        "support_progress": {"current_rows": 40, "minimum_support_rows": 40, "gap_to_minimum": 0},
+    }, path=probe_path, stale_after_sec=1800)
+
+    assert merged["structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q35"
+    assert merged["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q35"
+    assert merged["current_live_structure_bucket_rows"] == 0
+    assert merged["minimum_support_rows"] == 50
+    assert merged["support_route_verdict"] == "exact_bucket_unsupported_block"
+    assert merged["support_progress"]["current_rows"] == 0
+    assert merged["deployment_blocker_details"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q35"
+    assert merged["live_predict_probe_overlay_applied"] is True
+
+
+
+def test_overlay_confidence_with_live_predict_probe_skips_stale_artifact(tmp_path):
+    probe_path = tmp_path / "live_predict_probe.json"
+    probe_path.write_text(json.dumps({
+        "feature_timestamp": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat().replace("+00:00", "Z"),
+        "structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+        "current_live_structure_bucket_rows": 0,
+    }), encoding="utf-8")
+
+    current = {
+        "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "current_live_structure_bucket_rows": 40,
+    }
+    merged = api_module._overlay_confidence_with_live_predict_probe(current, path=probe_path, stale_after_sec=60)
+
+    assert merged == current
+
+
+
 def test_api_status_passes_db_session_into_execution_service(monkeypatch):
     captured = {}
     db_session = object()

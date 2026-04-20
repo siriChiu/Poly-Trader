@@ -1,24 +1,24 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-20 17:42:56 CST_
+_最後更新：2026-04-20 18:31:12 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #20260420-174023 已完成 collect + diagnostics refresh**
-  - `Raw=31247 / Features=22665 / Labels=63012`
-  - `deployment_blocker=circuit_breaker_active` / `streak=0` / `recent_window_wins=10/50` / `additional_recent_window_wins_needed=5`
-  - `window=500` / `win_rate=2.2%` / `dominant_regime=bull(92.0%)` / `avg_quality=-0.2369` / `avg_pnl=-0.0081` / `alerts=label_imbalance,regime_concentration,regime_shift`
+- **fast heartbeat #fast 已完成 collect + diagnostics refresh**
+  - `Raw=31252 / Features=22670 / Labels=63021`
+  - `deployment_blocker=circuit_breaker_active` / `streak=0` / `recent_window_wins=13/50` / `additional_recent_window_wins_needed=2`
+  - `window=500` / `win_rate=3.2%` / `dominant_regime=bull(91.0%)` / `avg_quality=-0.2295` / `avg_pnl=-0.0079` / `alerts=label_imbalance,regime_concentration,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
+- **`/api/predict/confidence` runtime truth overlay 已落地**
+  - `get_confidence_prediction()` 現在會 overlay 最新 `data/live_predict_probe.json`，讓 Dashboard / Strategy Lab / live confidence consumers 與 `/api/status` 共用同一份 breaker / bucket / support 真相
+  - 驗證：`pytest tests/test_server_startup.py -q`、`curl :8001/api/predict/confidence`、browser `/execution/status` / `/lab`
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
-- **Execution Console public-only 語義已延伸到 sleeve / run 資金卡**
-  - `/execution` 不再把缺失的共享盈虧 / 資金使用 / 預算渲染成 `— USDT`；未提供 run ledger 時改顯示 `preview unavailable`，缺憑證時改顯示 `public-only / metadata only`
-  - 驗證：`pytest tests/test_frontend_decision_contract.py -q`、`cd web && npm run build`、browser `/execution`
 
 ---
 
@@ -26,7 +26,7 @@ _最後更新：2026-04-20 17:42:56 CST_
 
 ### 目標 A：維持 breaker release math 作為唯一 current-live blocker
 **目前真相**
-- `deployment_blocker=circuit_breaker_active` / `streak=0` / `recent_window_wins=10/50` / `additional_recent_window_wins_needed=5`
+- `deployment_blocker=circuit_breaker_active` / `streak=0` / `recent_window_wins=13/50` / `additional_recent_window_wins_needed=2`
 - `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_exact_lane_proxy_only`
 **成功標準**
 - `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker。
@@ -34,7 +34,7 @@ _最後更新：2026-04-20 17:42:56 CST_
 
 ### 目標 B：持續把 recent canonical pathological slice 當成 breaker 根因來鑽
 **目前真相**
-- `window=500` / `win_rate=2.2%` / `dominant_regime=bull(92.0%)` / `avg_quality=-0.2369` / `avg_pnl=-0.0081` / `alerts=label_imbalance,regime_concentration,regime_shift`
+- `window=500` / `win_rate=3.2%` / `dominant_regime=bull(91.0%)` / `avg_quality=-0.2295` / `avg_pnl=-0.0079` / `alerts=label_imbalance,regime_concentration,regime_shift`
 **成功標準**
 - drift / probe / docs 能直接指出 pathological slice、adverse streak 與 top feature shifts，而不是退回 generic leaderboard / venue 摘要。
 
@@ -48,7 +48,7 @@ _最後更新：2026-04-20 17:42:56 CST_
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2718` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2723` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**

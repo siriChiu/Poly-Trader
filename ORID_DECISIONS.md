@@ -1,20 +1,19 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-20 17:42:56 CST_
+_最後更新：2026-04-20 18:29:11 CST_
 
 ---
 
-## 心跳 #20260420-174023 ORID
+## 心跳 #fast ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31247 / Features=22665 / Labels=63012`；`simulated_pyramid_win=57.15%`。
-- current-live blocker：`deployment_blocker=circuit_breaker_active` / `streak=0` / `recent_window_wins=10/50` / `additional_recent_window_wins_needed=5`。
+- collect + diagnostics refresh 完成：`Raw=31252 / Features=22670 / Labels=63021`；`simulated_pyramid_win=57.16%`。
+- current-live blocker：`deployment_blocker=circuit_breaker_active` / `streak=0` / `recent_window_wins=13/50` / `additional_recent_window_wins_needed=2`。
 - current live bucket truth：`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_exact_lane_proxy_only`。
-- recent pathological slice：`window=500` / `win_rate=2.2%` / `dominant_regime=bull(92.0%)` / `avg_quality=-0.2369` / `avg_pnl=-0.0081` / `alerts=label_imbalance,regime_concentration,regime_shift`。
+- recent pathological slice：`window=500` / `win_rate=3.2%` / `dominant_regime=bull(91.0%)` / `avg_quality=-0.2295` / `avg_pnl=-0.0079` / `alerts=label_imbalance,regime_concentration,regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2718` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2723` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
-- Execution Console：sleeve / run 資金卡不再把缺值渲染成 `— USDT`；無 run ledger 改顯示 `preview unavailable`，無憑證時改顯示 `public-only / metadata only`。
 
 ### R｜感受直覺
 - 這輪最需要防止的誤讀，是把 `0/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；breaker 仍是唯一 current-live blocker。

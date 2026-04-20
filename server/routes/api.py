@@ -66,6 +66,7 @@ _LIVE_PREDICT_PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 _STRATEGY_PARAM_SCAN_PATH = PROJECT_ROOT / "data" / "model_strategy_param_scan_latest.json"
 _MODEL_LB_STALE_AFTER_SEC = 900
 _MODEL_LB_REFRESH_COOLDOWN_SEC = 300
+_LIVE_PREDICT_PROBE_RUNTIME_STALE_AFTER_SEC = 1800
 _MODEL_LB_CACHE: Dict[str, Any] = {
     "payload": None,
     "updated_at": None,
@@ -2641,7 +2642,8 @@ async def get_confidence_prediction() -> Dict[str, Any]:
             regime_models = None
         result = predictor_module.predict(session, predictor, regime_models)
         result = result if isinstance(result, dict) else {}
-        return _enrich_confidence_with_q15_support_audit(dict(result))
+        result = _enrich_confidence_with_q15_support_audit(dict(result))
+        return _overlay_confidence_with_live_predict_probe(result)
     finally:
         close = getattr(session, "close", None)
         if callable(close):
@@ -3329,15 +3331,80 @@ def _load_leaderboard_governance_summary(path: Optional[Path] = None) -> Optiona
 
 
 
-def _load_leaderboard_live_truth_overlay(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+def _load_live_predict_probe_payload(
+    path: Optional[Path] = None,
+    *,
+    log_context: str = "live predict probe",
+) -> Optional[Dict[str, Any]]:
     artifact_path = path or _LIVE_PREDICT_PROBE_PATH
     try:
         if not artifact_path.exists():
             return None
         payload = json.loads(artifact_path.read_text(encoding="utf-8"))
     except Exception as exc:
-        logger.warning("Failed to load live predict probe for leaderboard governance overlay: %s", exc)
+        logger.warning("Failed to load %s: %s", log_context, exc)
         return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+
+def _overlay_confidence_with_live_predict_probe(
+    payload: Dict[str, Any],
+    path: Optional[Path] = None,
+    *,
+    stale_after_sec: Optional[float] = None,
+) -> Dict[str, Any]:
+    current = dict(payload or {})
+    probe_payload = _load_live_predict_probe_payload(path, log_context="live predict probe runtime overlay")
+    if not isinstance(probe_payload, dict):
+        return current
+
+    probe_dt = _parse_utc_datetime(probe_payload.get("generated_at") or probe_payload.get("feature_timestamp"))
+    if probe_dt is None:
+        return current
+
+    max_age = _LIVE_PREDICT_PROBE_RUNTIME_STALE_AFTER_SEC if stale_after_sec is None else stale_after_sec
+    if max_age is not None:
+        try:
+            max_age_seconds = float(max_age)
+        except (TypeError, ValueError):
+            max_age_seconds = None
+        if max_age_seconds is not None and max_age_seconds >= 0:
+            age_seconds = (datetime.now(timezone.utc) - probe_dt).total_seconds()
+            if age_seconds > max_age_seconds:
+                return current
+
+    merged = dict(current)
+    for key, value in probe_payload.items():
+        if value is not None:
+            merged[key] = value
+
+    current_details = current.get("deployment_blocker_details") if isinstance(current.get("deployment_blocker_details"), dict) else {}
+    probe_details = probe_payload.get("deployment_blocker_details") if isinstance(probe_payload.get("deployment_blocker_details"), dict) else {}
+    if current_details or probe_details:
+        merged_details = dict(current_details)
+        for key, value in probe_details.items():
+            if value is not None:
+                merged_details[key] = value
+        merged["deployment_blocker_details"] = merged_details
+
+    current_bucket = probe_payload.get("current_live_structure_bucket") or probe_payload.get("structure_bucket")
+    if current_bucket is not None:
+        merged["current_live_structure_bucket"] = current_bucket
+        merged["structure_bucket"] = current_bucket
+
+    merged["live_predict_probe_overlay_applied"] = True
+    merged["live_predict_probe_overlay_generated_at"] = probe_dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    merged["live_predict_probe_overlay_source_artifact"] = str(path or _LIVE_PREDICT_PROBE_PATH)
+    return merged
+
+
+
+def _load_leaderboard_live_truth_overlay(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    artifact_path = path or _LIVE_PREDICT_PROBE_PATH
+    payload = _load_live_predict_probe_payload(artifact_path, log_context="live predict probe for leaderboard governance overlay")
     if not isinstance(payload, dict):
         return None
 
