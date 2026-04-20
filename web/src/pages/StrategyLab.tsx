@@ -2482,7 +2482,7 @@ export default function StrategyLab() {
         </div>
         <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/8 px-4 py-3 text-sm leading-6 text-cyan-50/90">
           <span className="font-semibold text-cyan-100">{LEADERBOARD_BACKTEST_POLICY_LABEL}</span>
-          <span className="ml-2 text-cyan-100/80">排行榜回測固定使用最近兩年，降低短窗策略過擬合。</span>
+          <span className="ml-2 text-cyan-100/80">最近 730 天（約 24 個月），降低短窗策略過擬合。</span>
         </div>
       </div>
 
