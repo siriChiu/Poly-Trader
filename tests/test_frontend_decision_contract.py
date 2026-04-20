@@ -514,7 +514,14 @@ def test_use_api_supports_local_backend_timeout_fallback_for_dev_runtime():
     required_snippets = [
         'const ACTIVE_API_BASE_STORAGE_KEY = "poly_trader.active_api_base";',
         'const DEV_LOCAL_API_CANDIDATE_PORTS = [8000, 8001] as const;',
+        'const DEV_API_DISCOVERY_TIMEOUT_MS = 1200;',
+        'let prewarmActiveApiBasePromise: Promise<void> | null = null;',
         'window.localStorage.setItem(ACTIVE_API_BASE_STORAGE_KEY, base);',
+        'async function probeApiBaseHealth(base: string): Promise<boolean> {',
+        'const resp = await fetch(buildApiUrlForBase("/health", base), {',
+        'async function prewarmDevApiBase(): Promise<void> {',
+        'export async function prewarmActiveApiBase(): Promise<string | null> {',
+        'await prewarmDevApiBase();',
         'const requestCandidates = getApiRequestCandidates();',
         'const timeoutMs = getRequestTimeoutMs(endpoint);',
         'export async function fetchApiResponse(endpoint: string, options?: RequestInit): Promise<Response> {',
@@ -537,6 +544,7 @@ def test_candlestick_chart_uses_fetch_api_response_for_kline_requests():
 def test_dashboard_websocket_recomputes_ws_url_on_each_retry():
     source = _read("pages/Dashboard.tsx")
     assert 'const url = buildWsUrl("/ws/live");' in source or 'const wsCandidates = buildWsCandidateUrls("/ws/live");' in source
+    assert 'prewarmActiveApiBase' in source
     assert source.index('const connect = () => {') < source.index('const connectAttempt = (attemptIndex: number) => {') if 'const connectAttempt = (attemptIndex: number) => {' in source else source.index('const connect = () => {') < source.index('const url = buildWsUrl("/ws/live");')
 
 
@@ -556,6 +564,8 @@ def test_dashboard_websocket_falls_back_to_next_candidate_when_handshake_stalls(
     source = _read("pages/Dashboard.tsx")
     required_snippets = [
         'buildWsCandidateUrls',
+        'prewarmActiveApiBase',
+        'void prewarmActiveApiBase().catch(() => null).then(() => {',
         'const wsCandidates = buildWsCandidateUrls("/ws/live");',
         'const connectAttempt = (attemptIndex: number) => {',
         'const openTimeout = window.setTimeout(() => {',

@@ -8,7 +8,7 @@ import FeatureChart from "../components/FeatureChart";
 import CandlestickChart from "../components/CandlestickChart";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
-import { buildWsCandidateUrls, rememberActiveApiBaseFromWsUrl, useApi, fetchApi } from "../hooks/useApi";
+import { buildWsCandidateUrls, rememberActiveApiBaseFromWsUrl, useApi, fetchApi, prewarmActiveApiBase } from "../hooks/useApi";
 import ConfidenceIndicator from "../components/ConfidenceIndicator";
 import { ALL_SENSES, getSenseConfig } from "../config/senses";
 
@@ -790,82 +790,85 @@ export default function Dashboard() {
     };
 
     const connect = () => {
-      const wsCandidates = buildWsCandidateUrls("/ws/live");
-      const connectAttempt = (attemptIndex: number) => {
+      void prewarmActiveApiBase().catch(() => null).then(() => {
         if (disposed) return;
-        if (attemptIndex >= wsCandidates.length) {
-          scheduleReconnect();
-          return;
-        }
-
-        const url = wsCandidates[attemptIndex];
-        const candidate = new WebSocket(url);
-        ws = candidate;
-        let opened = false;
-        let advanced = false;
-
-        const openTimeout = window.setTimeout(() => {
-          if (disposed || opened || advanced) return;
-          advanced = true;
-          try {
-            candidate.close();
-          } catch {}
-          connectAttempt(attemptIndex + 1);
-        }, 1500);
-
-        candidate.onopen = () => {
-          if (disposed || advanced) {
-            candidate.close();
-            return;
-          }
-          opened = true;
-          window.clearTimeout(openTimeout);
-          rememberActiveApiBaseFromWsUrl(url);
-          setWsConnected(true);
-        };
-
-        candidate.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data);
-            if (msg.type === "senses_update" || msg.type === "connected") {
-              const data = msg.data;
-              if (data?.scores) setLiveScores(data.scores);
-              if (data?.recommendation) setLiveAdvice(data.recommendation);
-              if (data?.timestamp) setLastUpdate(new Date(data.timestamp).toLocaleTimeString("zh-TW"));
-            }
-          } catch {}
-        };
-
-        candidate.onerror = () => {
-          setWsConnected(false);
-          if (disposed || opened || advanced) return;
-          advanced = true;
-          window.clearTimeout(openTimeout);
-          try {
-            candidate.close();
-          } catch {}
-          connectAttempt(attemptIndex + 1);
-        };
-
-        candidate.onclose = () => {
-          if (ws === candidate) {
-            ws = null;
-          }
-          setWsConnected(false);
-          window.clearTimeout(openTimeout);
+        const wsCandidates = buildWsCandidateUrls("/ws/live");
+        const connectAttempt = (attemptIndex: number) => {
           if (disposed) return;
-          if (!opened) {
-            if (!advanced) {
-              advanced = true;
-              connectAttempt(attemptIndex + 1);
-            }
+          if (attemptIndex >= wsCandidates.length) {
+            scheduleReconnect();
             return;
           }
-          scheduleReconnect();
-        };
-      };
 
-      connectAttempt(0);
+          const url = wsCandidates[attemptIndex];
+          const candidate = new WebSocket(url);
+          ws = candidate;
+          let opened = false;
+          let advanced = false;
+
+          const openTimeout = window.setTimeout(() => {
+            if (disposed || opened || advanced) return;
+            advanced = true;
+            try {
+              candidate.close();
+            } catch {}
+            connectAttempt(attemptIndex + 1);
+          }, 1500);
+
+          candidate.onopen = () => {
+            if (disposed || advanced) {
+              candidate.close();
+              return;
+            }
+            opened = true;
+            window.clearTimeout(openTimeout);
+            rememberActiveApiBaseFromWsUrl(url);
+            setWsConnected(true);
+          };
+
+          candidate.onmessage = (event) => {
+            try {
+              const msg = JSON.parse(event.data);
+              if (msg.type === "senses_update" || msg.type === "connected") {
+                const data = msg.data;
+                if (data?.scores) setLiveScores(data.scores);
+                if (data?.recommendation) setLiveAdvice(data.recommendation);
+                if (data?.timestamp) setLastUpdate(new Date(data.timestamp).toLocaleTimeString("zh-TW"));
+              }
+            } catch {}
+          };
+
+          candidate.onerror = () => {
+            setWsConnected(false);
+            if (disposed || opened || advanced) return;
+            advanced = true;
+            window.clearTimeout(openTimeout);
+            try {
+              candidate.close();
+            } catch {}
+            connectAttempt(attemptIndex + 1);
+          };
+
+          candidate.onclose = () => {
+            if (ws === candidate) {
+              ws = null;
+            }
+            setWsConnected(false);
+            window.clearTimeout(openTimeout);
+            if (disposed) return;
+            if (!opened) {
+              if (!advanced) {
+                advanced = true;
+                connectAttempt(attemptIndex + 1);
+              }
+              return;
+            }
+            scheduleReconnect();
+          };
+        };
+
+        connectAttempt(0);
+      });
     };
 
     connect();

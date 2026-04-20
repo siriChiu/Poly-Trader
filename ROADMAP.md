@@ -1,22 +1,23 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-20 08:30:20 CST_
+_最後更新：2026-04-20 08:56:14 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=31186 / Features=22604 / Labels=62909`
-  - `deployment_blocker=circuit_breaker_active` / `streak=191` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
-  - `window=100` / `win_rate=0.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=-0.2363` / `avg_pnl=-0.0095`
-- **Dashboard dev-runtime WebSocket failover 已 productize**
-  - `web/src/hooks/useApi.ts` 新增 `buildWsCandidateUrls()` 與 `rememberActiveApiBaseFromWsUrl()`
-  - `web/src/pages/Dashboard.tsx` 現在會對 `8000 → 8001` 做 handshake-timeout fallback，不再被卡在假性 `離線`
-  - 驗證：`pytest tests/test_frontend_decision_contract.py -q`、`cd web && npm run build`、browser `/` 顯示 `即時連線`
-- **current-state docs overwrite sync 仍維持有效**
-  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
+- **shared dev-runtime active-backend failover 已 productize 到共用 API/WS layer**
+  - `web/src/hooks/useApi.ts` 新增 `/health` prewarm，會先在 `8000/8001` 中找出健康 lane，持久化 active backend base，再讓 `/api/status`、chart 與其他 GET/HEAD requests 共用同一條 fallback。
+  - `web/src/pages/Dashboard.tsx` 的 `/ws/live` 在首次連線與 retry 前先 prewarm active backend，再依健康 lane 重排 candidates。
+  - 驗證：`pytest tests/test_frontend_decision_contract.py -q`、`cd web && npm run build`、browser `/`、browser `/execution/status`。
+- **本輪已刷新 current-state runtime artifacts**
+  - `python scripts/hb_predict_probe.py`
+  - `python scripts/live_decision_quality_drilldown.py`
+  - `python scripts/recent_drift_report.py`
+  - 產出：`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`docs/analysis/live_decision_quality_drilldown.md`
+- **current-state docs overwrite sync 已完成**
+  - `ISSUES.md` / `ROADMAP.md` / `ARCHITECTURE.md` 已改成反映本輪 shared prewarm + current blocker truth
 
 ---
 
@@ -27,7 +28,7 @@ _最後更新：2026-04-20 08:30:20 CST_
 - `deployment_blocker=circuit_breaker_active` / `streak=191` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
 - `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q00` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`
 **成功標準**
-- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker。
+- `/`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker。
 - current live bucket truth（`bucket / rows / gap / support route`）仍在 top-level surfaces 可 machine-read。
 
 ### 目標 B：持續把 recent canonical pathological slice 當成 breaker 根因來鑽
@@ -45,12 +46,12 @@ _最後更新：2026-04-20 08:30:20 CST_
 **成功標準**
 - `/api/status`、`/execution/status`、`/lab`、docs 都維持 same current-live truth：reference-only patch 不被誤升級、leaderboard 不回退 placeholder-only、venue/source blockers 持續可見。
 
-### 目標 D：守住 Dashboard / Strategy Lab 的 dev-runtime failover UX
+### 目標 D：守住 shared active-backend prewarm，不讓 frontend 回退成假性同步中
 **目前真相**
-- 本輪已修復 Dashboard WebSocket 在 `8000` reload lane 卡住時的假性離線。
-- 仍需防止其他 surface 在 `8000/8001` lane 漂移時退回 stale loading / unavailable 假陰性。
+- `useApi.ts` 已先用 `/health` 對 `8000/8001` 做短超時 prewarm，再把 active backend base 套用到 `/api/status`、chart 與其他 GET/HEAD requests。
+- `Dashboard.tsx` 的 `/ws/live` 也會在首次連線與 retry 前先做同一條 prewarm。
 **成功標準**
-- Dashboard / Strategy Lab 在 active backend lane 切換時仍能自動接上健康 lane；operator 不會先看到假性 `離線`、`UNKNOWN` 或長時間卡住的 loading copy。
+- `/`、`/execution/status`、`/lab` 在 fresh session / active backend lane 漂移時，仍能收斂到健康 lane，不會長時間停在 `同步中 / UNKNOWN / unavailable` 假陰性。
 
 ---
 
@@ -61,9 +62,9 @@ _最後更新：2026-04-20 08:30:20 CST_
 2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**
    - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`
    - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據
-3. **守住 reference-only patch、leaderboard governance、venue/source blockers 與 frontend failover UX**
-   - 驗證：browser `/`、browser `/lab`、`curl http://127.0.0.1:8001/api/models/leaderboard`、`pytest tests/test_frontend_decision_contract.py tests/test_model_leaderboard.py tests/test_strategy_lab.py -q`
-   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 Dashboard / Strategy Lab 再次出現假性離線/stale loading
+3. **守住 reference-only patch、leaderboard governance、venue/source blockers 與 shared active-backend prewarm**
+   - 驗證：browser `/`、browser `/execution/status`、browser `/lab`、`curl http://127.0.0.1:8001/api/models/leaderboard`、`pytest tests/test_frontend_decision_contract.py tests/test_model_leaderboard.py tests/test_strategy_lab.py -q`
+   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失，或 frontend 再次出現長時間 `同步中 / UNKNOWN / unavailable`
 
 ---
 
@@ -72,4 +73,4 @@ _最後更新：2026-04-20 08:30:20 CST_
 - current live bucket truth 維持：**0/50 + exact_bucket_unsupported_block + reference_only_until_exact_support_ready**
 - recent canonical pathological slice 仍以同一個 current window 為主敘事，不被 generic 問題稀釋
 - leaderboard 維持 dual-role governance；venue/source blockers 持續可見
-- Dashboard / Strategy Lab 在 dev-runtime lane failover 下不再先顯示假性離線
+- frontend shared active-backend prewarm/failover 持續把 `/`、`/execution/status`、`/lab` 收斂到健康 lane，不先顯示假性 blocker

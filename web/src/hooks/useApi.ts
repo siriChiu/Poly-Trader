@@ -10,8 +10,10 @@ const ACTIVE_API_BASE_STORAGE_KEY = "poly_trader.active_api_base";
 const DEV_LOCAL_API_CANDIDATE_PORTS = [8000, 8001] as const;
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 const CHART_REQUEST_TIMEOUT_MS = 15000;
+const DEV_API_DISCOVERY_TIMEOUT_MS = 1200;
 
 let activeApiBaseMemo: string | null = null;
+let prewarmActiveApiBasePromise: Promise<void> | null = null;
 
 function getStoredActiveApiBase(): string | null {
   if (activeApiBaseMemo) return activeApiBaseMemo;
@@ -71,6 +73,63 @@ function getApiRequestCandidates(): string[] {
   if (devCandidates.length) return devCandidates;
   const preferred = getStoredActiveApiBase();
   return [preferred ?? ""];
+}
+
+async function probeApiBaseHealth(base: string): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), DEV_API_DISCOVERY_TIMEOUT_MS);
+  try {
+    const resp = await fetch(buildApiUrlForBase("/health", base), {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function prewarmDevApiBase(): Promise<void> {
+  if (API_BASE || typeof window === "undefined") return;
+
+  const initialCandidates = getDevApiCandidateBases();
+  if (!initialCandidates.length) return;
+  if (prewarmActiveApiBasePromise) return prewarmActiveApiBasePromise;
+
+  prewarmActiveApiBasePromise = (async () => {
+    const preferred = getStoredActiveApiBase();
+    if (preferred) {
+      const preferredHealthy = await probeApiBaseHealth(preferred);
+      if (preferredHealthy) {
+        persistActiveApiBase(preferred);
+        return;
+      }
+      persistActiveApiBase(null);
+    }
+
+    const probeCandidates = getDevApiCandidateBases();
+    let resolved = false;
+
+    await Promise.all(probeCandidates.map(async (base) => {
+      const healthy = await probeApiBaseHealth(base);
+      if (healthy && !resolved) {
+        resolved = true;
+        persistActiveApiBase(base);
+      }
+    }));
+  })().finally(() => {
+    prewarmActiveApiBasePromise = null;
+  });
+
+  return prewarmActiveApiBasePromise;
+}
+
+export async function prewarmActiveApiBase(): Promise<string | null> {
+  await prewarmDevApiBase();
+  return getStoredActiveApiBase();
 }
 
 function getRequestTimeoutMs(endpoint: string): number {
@@ -199,6 +258,7 @@ async function fetchTrackedResponse(endpoint: string, options?: RequestInit): Pr
   });
 
   try {
+    await prewarmDevApiBase();
     const requestCandidates = getApiRequestCandidates();
     const method = String(options?.method || "GET").toUpperCase();
     const canFallback = !API_BASE && requestCandidates.length > 1 && ["GET", "HEAD"].includes(method);
