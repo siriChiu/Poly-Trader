@@ -1,32 +1,33 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-20 11:11:33 CST_
+_最後更新：2026-04-20 12:18:53 CST_
 
 ---
 
-## 心跳 #fast ORID
+## 心跳 #20260420-1216 ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31203 / Features=22621 / Labels=62932`；`simulated_pyramid_win=57.17%`。
-- current-live blocker：`deployment_blocker=circuit_breaker_active` / `streak=8` / `recent_window_wins=3/50` / `additional_recent_window_wins_needed=12`。
-- q15 current-live bucket truth：`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=8/50` / `gap=42` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
-- recent pathological slice：`window=250` / `win_rate=1.6%` / `dominant_regime=bull(96.8%)` / `avg_quality=-0.2152` / `avg_pnl=-0.0068` / `alerts=label_imbalance,regime_concentration,regime_shift`。
-- leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2674` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
-- 本輪產品化 patch：heartbeat runner 現在會在 `auto_propose_fixes.py` 後自動 overwrite sync `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`，避免 markdown docs 落後最新 machine-readable artifacts。
+- collect + diagnostics refresh 完成：`Raw=31211 / Features=22629 / Labels=62946`；`simulated_pyramid_win=57.17%`。
+- current-live blocker：`deployment_blocker=circuit_breaker_active` / `streak=14` / `recent_window_wins=3/50` / `additional_recent_window_wins_needed=12`。
+- q15 current-live bucket truth：`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=10/50` / `gap=40` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
+- recent pathological slice：`window=250` / `win_rate=1.6%` / `dominant_regime=bull(96.0%)` / `avg_quality=-0.2124` / `avg_pnl=-0.0067` / `alerts=label_imbalance,regime_concentration,regime_shift`。
+- 本輪產品化 patch：`web/src/pages/Dashboard.tsx` 將 Dashboard 首次 `/ws/live` 連線改成 defer bootstrap，避開 React.StrictMode probe 自己把 socket 關掉造成的假性 console warning。
+- 回歸保護：`tests/test_frontend_decision_contract.py` 新增 strict-mode-safe bootstrap regression；`pytest tests/test_frontend_decision_contract.py tests/test_hb_parallel_runner.py -q` 103 passed。
+- runtime/browser 證據：`cd web && npm run build` 通過；browser `/` console 只剩 Vite / React info，無 `closed before the connection is established`。
+- 文件覆蓋：`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` 已按最新 artifacts 與前端 patch 覆寫同步。
 
 ### R｜感受直覺
-- 這輪最危險的產品問題不是數字不夠，而是 heartbeat 原本只會提醒 docs stale，卻不會自己完成 docs overwrite；這會讓 repo current-state 與 live artifacts 再次 split-brain。
-- breaker-first truth 沒變，但如果 markdown docs 還停在舊的 streak / 舊的 bucket rows，operator 看到的仍然是假 current state。
+- 當 breaker-first truth 已經是主敘事時，Dashboard 首屏還冒出自傷型 WebSocket warning，會把 operator 注意力從真正 blocker 拉走，這是產品化噪音，不是小瑕疵。
+- 這種 warning 最危險的地方在於它看起來像 lane failover 又壞了，但其實是前端自己在開發探測週期裡先把 socket 關掉。
 
 ### I｜意義洞察
-1. **closed-loop heartbeat 不能只更新 issues.json**：current-state markdown docs 也必須自動跟上，否則心跳在治理層仍然是不完整的。
-2. **真正主 blocker 仍是 breaker + pathological slice**：docs automation 只是把 current truth 對齊，不是把 current-bucket support / venue patch 提前升級成主敘事。
-3. **把 docs overwrite 內建進 runner 才符合 productization**：這能把 current-state 治理從人工補寫，升級成 cron-safe contract。
+1. **首屏 console 乾淨度也是產品契約的一部分**：即時頁面如果一進來就報假錯，operator 很難相信 blocker / venue / recovery 診斷是真訊號。
+2. **這不是後端壞掉，而是前端 bootstrap 時機錯了**：HTTP/WS lane 都可用，但 StrictMode 的 mount→cleanup→mount 會把同步開啟的 WS 變成自我取消。
+3. **最小有效修補是延後第一次 socket 建立，而不是亂改 lane 選擇**：保持現有 failover / retry 邏輯不變，只消除自傷型 handshake 噪音。
 
 ### D｜決策行動
-- **Owner**：heartbeat runner / current-state governance lane
-- **Action**：在 `auto_propose_fixes.py` 之後直接 overwrite sync `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`，讓 docs 跟 `issues.json / live artifacts` 同輪收斂。
-- **Artifacts**：`scripts/hb_parallel_runner.py`、`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`。
-- **Verify**：`pytest tests/test_hb_parallel_runner.py -q`（或 targeted docs-sync tests）、`python scripts/hb_parallel_runner.py --fast --hb <run>`、確認不再出現 docs stale warning。
-- **If fail**：只要 docs 再次落後 `issues.json / live probe / drilldown`，就把 heartbeat 升級回 current-state governance blocker，因為這代表 cron 還沒有真正完成 docs overwrite 閉環。
+- **Owner**：Dashboard runtime / operator-experience lane
+- **Action**：首次載入先排入 bootstrap timer，再建立 WebSocket；cleanup 時同步清掉 bootstrap / reconnect timers，避免 StrictMode probe 啟動真實 handshake。
+- **Artifacts**：`web/src/pages/Dashboard.tsx`、`tests/test_frontend_decision_contract.py`、`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`
+- **Verify**：`python scripts/hb_parallel_runner.py --fast --hb 20260420-1216`、`pytest tests/test_frontend_decision_contract.py tests/test_hb_parallel_runner.py -q`、`cd web && npm run build`、browser `/` + console clean
+- **If fail**：只要 Dashboard 首屏再出現自傷型 WS warning，就升級回 dev-runtime/operator-experience blocker，因為它會污染 current-live blocker 判讀與首屏信任感。

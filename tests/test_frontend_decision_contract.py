@@ -602,3 +602,17 @@ def test_dashboard_websocket_falls_back_to_next_candidate_when_handshake_stalls(
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+def test_dashboard_websocket_bootstrap_is_strict_mode_safe():
+    source = _read("pages/Dashboard.tsx")
+    main_source = _read("main.tsx")
+    required_dashboard_snippets = [
+        'let connectBootstrapTimer = 0;',
+        'connectBootstrapTimer = window.setTimeout(() => {',
+        'window.clearTimeout(connectBootstrapTimer);',
+        'closed before the connection is established',
+    ]
+    for snippet in required_dashboard_snippets:
+        assert snippet in source
+    assert '<React.StrictMode>' in main_source

@@ -780,6 +780,7 @@ export default function Dashboard() {
   // WebSocket
   useEffect(() => {
     let ws: WebSocket | null = null;
+    let connectBootstrapTimer = 0;
     let reconnectTimer = 0;
     let disposed = false;
 
@@ -871,9 +872,16 @@ export default function Dashboard() {
       });
     };
 
-    connect();
+    // Defer the first socket open by one macrotask so React.StrictMode's
+    // development-only mount→cleanup→mount probe can cancel the bootstrap
+    // timer before a real handshake starts. This keeps dev console output free
+    // of self-inflicted "closed before the connection is established" noise.
+    connectBootstrapTimer = window.setTimeout(() => {
+      connect();
+    }, 0);
     return () => {
       disposed = true;
+      window.clearTimeout(connectBootstrapTimer);
       window.clearTimeout(reconnectTimer);
       ws?.close();
     };
