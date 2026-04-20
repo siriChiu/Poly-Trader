@@ -8,7 +8,7 @@ import FeatureChart from "../components/FeatureChart";
 import CandlestickChart from "../components/CandlestickChart";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
-import { buildWsUrl, useApi, fetchApi } from "../hooks/useApi";
+import { buildWsCandidateUrls, rememberActiveApiBaseFromWsUrl, useApi, fetchApi } from "../hooks/useApi";
 import ConfidenceIndicator from "../components/ConfidenceIndicator";
 import { ALL_SENSES, getSenseConfig } from "../config/senses";
 
@@ -780,14 +780,51 @@ export default function Dashboard() {
   // WebSocket
   useEffect(() => {
     let ws: WebSocket | null = null;
-    let timer: number;
+    let reconnectTimer = 0;
+    let disposed = false;
+
+    const scheduleReconnect = () => {
+      if (disposed) return;
+      window.clearTimeout(reconnectTimer);
+      reconnectTimer = window.setTimeout(connect, 5000);
+    };
 
     const connect = () => {
-      try {
-        const url = buildWsUrl("/ws/live");
-        ws = new WebSocket(url);
-        ws.onopen = () => setWsConnected(true);
-        ws.onmessage = (event) => {
+      const wsCandidates = buildWsCandidateUrls("/ws/live");
+      const connectAttempt = (attemptIndex: number) => {
+        if (disposed) return;
+        if (attemptIndex >= wsCandidates.length) {
+          scheduleReconnect();
+          return;
+        }
+
+        const url = wsCandidates[attemptIndex];
+        const candidate = new WebSocket(url);
+        ws = candidate;
+        let opened = false;
+        let advanced = false;
+
+        const openTimeout = window.setTimeout(() => {
+          if (disposed || opened || advanced) return;
+          advanced = true;
+          try {
+            candidate.close();
+          } catch {}
+          connectAttempt(attemptIndex + 1);
+        }, 1500);
+
+        candidate.onopen = () => {
+          if (disposed || advanced) {
+            candidate.close();
+            return;
+          }
+          opened = true;
+          window.clearTimeout(openTimeout);
+          rememberActiveApiBaseFromWsUrl(url);
+          setWsConnected(true);
+        };
+
+        candidate.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data);
             if (msg.type === "senses_update" || msg.type === "connected") {
@@ -798,18 +835,45 @@ export default function Dashboard() {
             }
           } catch {}
         };
-        ws.onclose = () => {
+
+        candidate.onerror = () => {
           setWsConnected(false);
-          timer = window.setTimeout(connect, 5000);
+          if (disposed || opened || advanced) return;
+          advanced = true;
+          window.clearTimeout(openTimeout);
+          try {
+            candidate.close();
+          } catch {}
+          connectAttempt(attemptIndex + 1);
         };
-        ws.onerror = () => setWsConnected(false);
-      } catch {
-        setWsConnected(false);
-        timer = window.setTimeout(connect, 5000);
-      }
+
+        candidate.onclose = () => {
+          if (ws === candidate) {
+            ws = null;
+          }
+          setWsConnected(false);
+          window.clearTimeout(openTimeout);
+          if (disposed) return;
+          if (!opened) {
+            if (!advanced) {
+              advanced = true;
+              connectAttempt(attemptIndex + 1);
+            }
+            return;
+          }
+          scheduleReconnect();
+        };
+      };
+
+      connectAttempt(0);
     };
+
     connect();
-    return () => { clearTimeout(timer); ws?.close(); };
+    return () => {
+      disposed = true;
+      window.clearTimeout(reconnectTimer);
+      ws?.close();
+    };
   }, []);
 
   // 更新最後更新時間

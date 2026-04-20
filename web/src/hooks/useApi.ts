@@ -95,10 +95,9 @@ export function buildApiUrl(endpoint: string): string {
   return buildApiUrlForBase(endpoint, preferredBase);
 }
 
-export function buildWsUrl(path: string): string {
-  const preferredBase = API_BASE || getStoredActiveApiBase();
-  if (preferredBase) {
-    const httpUrl = new URL(preferredBase, window.location.origin);
+function toWebSocketUrl(base: string | null, path: string): string {
+  if (base) {
+    const httpUrl = new URL(base, window.location.origin);
     httpUrl.protocol = httpUrl.protocol === "https:" ? "wss:" : "ws:";
     httpUrl.pathname = path;
     httpUrl.search = "";
@@ -107,9 +106,37 @@ export function buildWsUrl(path: string): string {
   }
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const isViteDev = window.location.port === "5173";
-  const host = isViteDev ? `${window.location.hostname}:8000` : window.location.host;
-  return `${protocol}//${host}${path}`;
+  return `${protocol}//${window.location.host}${path}`;
+}
+
+export function buildWsCandidateUrls(path: string): string[] {
+  const preferredBase = API_BASE || getStoredActiveApiBase();
+  const devCandidates = !API_BASE ? getDevApiCandidateBases() : [];
+  if (preferredBase) {
+    const fallbackCandidates = devCandidates.filter((candidate) => candidate !== preferredBase);
+    return [toWebSocketUrl(preferredBase, path), ...fallbackCandidates.map((candidate) => toWebSocketUrl(candidate, path))];
+  }
+  if (devCandidates.length) {
+    return devCandidates.map((candidate) => toWebSocketUrl(candidate, path));
+  }
+  return [toWebSocketUrl(preferredBase, path)];
+}
+
+export function rememberActiveApiBaseFromWsUrl(wsUrl: string): void {
+  try {
+    const url = new URL(wsUrl, window.location.origin);
+    url.protocol = url.protocol === "wss:" ? "https:" : "http:";
+    url.pathname = "";
+    url.search = "";
+    url.hash = "";
+    persistActiveApiBase(url.toString().replace(/\/$/, ""));
+  } catch {
+    // Ignore invalid WS URLs and leave the current active base untouched.
+  }
+}
+
+export function buildWsUrl(path: string): string {
+  return buildWsCandidateUrls(path)[0];
 }
 
 const toRequestLabel = (endpoint: string) => {

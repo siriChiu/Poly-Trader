@@ -536,5 +536,31 @@ def test_candlestick_chart_uses_fetch_api_response_for_kline_requests():
 
 def test_dashboard_websocket_recomputes_ws_url_on_each_retry():
     source = _read("pages/Dashboard.tsx")
-    assert 'const url = buildWsUrl("/ws/live");' in source
-    assert source.index('const connect = () => {') < source.index('const url = buildWsUrl("/ws/live");')
+    assert 'const url = buildWsUrl("/ws/live");' in source or 'const wsCandidates = buildWsCandidateUrls("/ws/live");' in source
+    assert source.index('const connect = () => {') < source.index('const connectAttempt = (attemptIndex: number) => {') if 'const connectAttempt = (attemptIndex: number) => {' in source else source.index('const connect = () => {') < source.index('const url = buildWsUrl("/ws/live");')
+
+
+def test_use_api_exposes_websocket_candidate_urls_for_dev_backend_failover():
+    source = _read("hooks/useApi.ts")
+    required_snippets = [
+        'function toWebSocketUrl(base: string | null, path: string): string {',
+        'export function buildWsCandidateUrls(path: string): string[] {',
+        'return devCandidates.map((candidate) => toWebSocketUrl(candidate, path));',
+        'return [toWebSocketUrl(preferredBase, path)];',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_dashboard_websocket_falls_back_to_next_candidate_when_handshake_stalls():
+    source = _read("pages/Dashboard.tsx")
+    required_snippets = [
+        'buildWsCandidateUrls',
+        'const wsCandidates = buildWsCandidateUrls("/ws/live");',
+        'const connectAttempt = (attemptIndex: number) => {',
+        'const openTimeout = window.setTimeout(() => {',
+        'connectAttempt(attemptIndex + 1);',
+        'window.clearTimeout(openTimeout);',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
