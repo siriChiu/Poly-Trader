@@ -1307,6 +1307,42 @@ const saveStrategyLabCache = (payload: typeof STRATEGY_LAB_MEMORY_CACHE) => {
   }
 };
 
+const extractStrategyLeaderboardList = (payload: any): StrategyEntry[] => {
+  if (Array.isArray(payload?.strategies)) return payload.strategies;
+  if (Array.isArray(payload?.data?.strategies)) return payload.data.strategies;
+  return Array.isArray(payload) ? payload : [];
+};
+
+const fetchStrategyLeaderboardPayload = async (endpoint: string) => {
+  let primaryPayload: any = null;
+  try {
+    primaryPayload = await fetchApi(endpoint);
+  } catch {
+    primaryPayload = null;
+  }
+
+  if (extractStrategyLeaderboardList(primaryPayload).length > 0 || typeof window === "undefined") {
+    return primaryPayload;
+  }
+
+  try {
+    const fallbackResponse = await window.fetch(endpoint, {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    });
+    if (!fallbackResponse.ok) {
+      return primaryPayload;
+    }
+    const fallbackPayload = await fallbackResponse.json();
+    if (extractStrategyLeaderboardList(fallbackPayload).length > 0) {
+      return fallbackPayload;
+    }
+    return primaryPayload ?? fallbackPayload;
+  } catch {
+    return primaryPayload;
+  }
+};
+
 const snapshotHistoryKey = (prefix: "strategy" | "model", row: LeaderboardHistoryRow, index: number) => {
   return `${prefix}-${row.id ?? row.created_at ?? row.updated_at ?? `row-${index}`}`;
 };
@@ -1693,10 +1729,10 @@ export default function StrategyLab() {
   };
 
   const loadLeaderboard = async (forceRefresh = false) => {
+    const endpoint = `/api/strategies/leaderboard${forceRefresh ? "?refresh=true" : ""}`;
     try {
-      const res = await fetchApi(`/api/strategies/leaderboard${forceRefresh ? "?refresh=true" : ""}`) as any;
-      const list = res?.strategies ?? res?.data?.strategies ?? (Array.isArray(res) ? res : []);
-      const nextStrategies = list || [];
+      const res = await fetchStrategyLeaderboardPayload(endpoint) as any;
+      const nextStrategies = extractStrategyLeaderboardList(res);
       const nextQuadrantPoints = Array.isArray(res?.quadrant_points) ? res.quadrant_points : [];
       const nextMeta = {
         target_col: res?.target_col ?? res?.data?.target_col ?? "simulated_pyramid_win",
@@ -1837,6 +1873,23 @@ export default function StrategyLab() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (initialLoading || strategies.length > 0) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      loadLeaderboard(false);
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [initialLoading, strategies.length]);
+
+  useEffect(() => {
+    if (selectedStrategy || loadingStrategyName || strategies.length === 0) {
+      return;
+    }
+    void selectStrategyByName(strategies[0].name);
+  }, [loadingStrategyName, selectedStrategy, strategies]);
 
   useEffect(() => {
     if (!modelMeta.refreshing) {

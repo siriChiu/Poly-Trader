@@ -355,6 +355,24 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
     assert 'Execution runtime blocker sync' not in source
 
 
+def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'const extractStrategyLeaderboardList = (payload: any): StrategyEntry[] => {',
+        'const fetchStrategyLeaderboardPayload = async (endpoint: string) => {',
+        'const fallbackResponse = await window.fetch(endpoint, {',
+        'credentials: "same-origin"',
+        'const res = await fetchStrategyLeaderboardPayload(endpoint) as any;',
+        'const nextStrategies = extractStrategyLeaderboardList(res);',
+        'if (initialLoading || strategies.length > 0) {',
+        'loadLeaderboard(false);',
+        'if (selectedStrategy || loadingStrategyName || strategies.length === 0) {',
+        'void selectStrategyByName(strategies[0].name);',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
 def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
     source = _read("components/LivePathologySummaryCard.tsx")
     required_snippets = [

@@ -1,18 +1,18 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-20 13:27:55 CST_
+_最後更新：2026-04-20 13:54:53 CST_
 
 ---
 
 ## 心跳 #fast ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31219 / Features=22637 / Labels=62951`；`simulated_pyramid_win=57.16%`。
-- current-live blocker：`deployment_blocker=circuit_breaker_active` / `streak=16` / `recent_window_wins=3/50` / `additional_recent_window_wins_needed=12`。
-- current live bucket truth：`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q00` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_exact_lane_proxy_only`。
-- recent pathological slice：`window=250` / `win_rate=1.6%` / `dominant_regime=bull(95.2%)` / `avg_quality=-0.2114` / `avg_pnl=-0.0066` / `alerts=label_imbalance,regime_concentration,regime_shift`。
+- collect + diagnostics refresh 完成：`Raw=31222 / Features=22640 / Labels=62956`；`simulated_pyramid_win=57.16%`。
+- current-live blocker：`deployment_blocker=circuit_breaker_active` / `streak=18` / `recent_window_wins=3/50` / `additional_recent_window_wins_needed=12`。
+- q15 current-live bucket truth：`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=14/50` / `gap=36` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
+- recent pathological slice：`window=250` / `win_rate=1.6%` / `dominant_regime=bull(94.4%)` / `avg_quality=-0.2106` / `avg_pnl=-0.0066` / `alerts=label_imbalance,regime_concentration,regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2690` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2693` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化 patch：heartbeat runner 現在會在 `auto_propose_fixes.py` 後自動 overwrite sync `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`，避免 markdown docs 落後最新 machine-readable artifacts。
 
 ### R｜感受直覺
