@@ -62,6 +62,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = str(PROJECT_ROOT / "poly_trader.db")
 MODEL_LB_CACHE_PATH = PROJECT_ROOT / "data" / "model_leaderboard_cache.json"
 _LEADERBOARD_GOVERNANCE_PROBE_PATH = PROJECT_ROOT / "data" / "leaderboard_feature_profile_probe.json"
+_LIVE_PREDICT_PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 _STRATEGY_PARAM_SCAN_PATH = PROJECT_ROOT / "data" / "model_strategy_param_scan_latest.json"
 _MODEL_LB_STALE_AFTER_SEC = 900
 _MODEL_LB_REFRESH_COOLDOWN_SEC = 300
@@ -3321,7 +3322,122 @@ def _load_leaderboard_governance_summary(path: Optional[Path] = None) -> Optiona
     governance = dict(alignment)
     governance["generated_at"] = payload.get("generated_at")
     governance["source_artifact"] = str(artifact_path)
+    live_truth = _load_leaderboard_live_truth_overlay()
+    if isinstance(live_truth, dict):
+        governance = _overlay_leaderboard_governance_live_truth(governance, live_truth)
     return governance
+
+
+
+def _load_leaderboard_live_truth_overlay(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    artifact_path = path or _LIVE_PREDICT_PROBE_PATH
+    try:
+        if not artifact_path.exists():
+            return None
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Failed to load live predict probe for leaderboard governance overlay: %s", exc)
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    blocker_details = payload.get("deployment_blocker_details") if isinstance(payload.get("deployment_blocker_details"), dict) else {}
+    support_progress = payload.get("support_progress") if isinstance(payload.get("support_progress"), dict) else {}
+    if not support_progress:
+        support_progress = blocker_details.get("support_progress") if isinstance(blocker_details.get("support_progress"), dict) else {}
+
+    current_bucket = (
+        payload.get("current_live_structure_bucket")
+        or blocker_details.get("current_live_structure_bucket")
+        or payload.get("structure_bucket")
+    )
+    current_rows = support_progress.get("current_rows")
+    if current_rows is None:
+        current_rows = payload.get("current_live_structure_bucket_rows")
+    if current_rows is None:
+        current_rows = blocker_details.get("current_live_structure_bucket_rows")
+    minimum_rows = support_progress.get("minimum_support_rows")
+    if minimum_rows is None:
+        minimum_rows = payload.get("minimum_support_rows")
+    if minimum_rows is None:
+        minimum_rows = blocker_details.get("minimum_support_rows")
+    gap_to_minimum = payload.get("current_live_structure_bucket_gap_to_minimum")
+    if gap_to_minimum is None:
+        gap_to_minimum = blocker_details.get("current_live_structure_bucket_gap_to_minimum")
+    if gap_to_minimum is None:
+        gap_to_minimum = support_progress.get("gap_to_minimum")
+    if gap_to_minimum is None and current_rows is not None and minimum_rows is not None:
+        try:
+            gap_to_minimum = max(int(minimum_rows) - int(current_rows), 0)
+        except (TypeError, ValueError):
+            gap_to_minimum = None
+
+    if current_bucket is None and current_rows is None and minimum_rows is None and not support_progress:
+        return None
+
+    return {
+        "generated_at": payload.get("generated_at") or payload.get("feature_timestamp"),
+        "source_artifact": str(artifact_path),
+        "live_current_structure_bucket": current_bucket,
+        "live_current_structure_bucket_rows": current_rows,
+        "minimum_support_rows": minimum_rows,
+        "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
+        "support_route_verdict": payload.get("support_route_verdict") or blocker_details.get("support_route_verdict"),
+        "support_governance_route": payload.get("support_governance_route") or blocker_details.get("support_governance_route"),
+        "support_progress": support_progress or None,
+        "live_regime_gate": payload.get("regime_gate"),
+        "live_entry_quality_label": payload.get("entry_quality_label"),
+        "live_execution_guardrail_reason": payload.get("execution_guardrail_reason") or payload.get("allowed_layers_reason"),
+    }
+
+
+
+def _overlay_leaderboard_governance_live_truth(
+    governance: Dict[str, Any],
+    live_truth: Dict[str, Any],
+) -> Dict[str, Any]:
+    governance_dt = _parse_utc_datetime(governance.get("generated_at"))
+    live_truth_dt = _parse_utc_datetime(live_truth.get("generated_at"))
+    if live_truth_dt is None:
+        return governance
+    if governance_dt is not None and live_truth_dt < governance_dt:
+        return governance
+
+    merged = dict(governance)
+    for key in (
+        "live_current_structure_bucket",
+        "live_current_structure_bucket_rows",
+        "minimum_support_rows",
+        "live_current_structure_bucket_gap_to_minimum",
+        "support_route_verdict",
+        "support_governance_route",
+        "support_progress",
+        "live_regime_gate",
+        "live_entry_quality_label",
+        "live_execution_guardrail_reason",
+    ):
+        value = live_truth.get(key)
+        if value is not None:
+            merged[key] = value
+
+    governance_contract = dict(merged.get("governance_contract") or {})
+    if live_truth.get("support_governance_route") is not None:
+        governance_contract["support_governance_route"] = live_truth.get("support_governance_route")
+    if live_truth.get("live_current_structure_bucket_rows") is not None:
+        governance_contract["live_current_structure_bucket_rows"] = live_truth.get("live_current_structure_bucket_rows")
+    if live_truth.get("minimum_support_rows") is not None:
+        governance_contract["minimum_support_rows"] = live_truth.get("minimum_support_rows")
+    if live_truth.get("live_current_structure_bucket_gap_to_minimum") is not None:
+        governance_contract["live_current_structure_bucket_gap_to_minimum"] = live_truth.get("live_current_structure_bucket_gap_to_minimum")
+    if isinstance(live_truth.get("support_progress"), dict):
+        governance_contract["support_progress"] = live_truth.get("support_progress")
+    if governance_contract:
+        merged["governance_contract"] = governance_contract
+
+    merged["live_truth_generated_at"] = live_truth.get("generated_at")
+    merged["live_truth_source_artifact"] = live_truth.get("source_artifact")
+    merged["live_truth_overlay_applied"] = True
+    return merged
 
 
 

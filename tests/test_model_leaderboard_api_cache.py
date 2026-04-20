@@ -149,6 +149,93 @@ def test_api_model_leaderboard_prefers_fresher_governance_probe_over_cached_payl
 
 
 
+def test_api_model_leaderboard_overlays_fresher_live_support_truth_into_governance(monkeypatch, tmp_path):
+    monkeypatch.setattr(api_module, "_load_model_leaderboard_cache_file", lambda: None)
+    monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: None)
+    governance_path = tmp_path / "leaderboard_feature_profile_probe.json"
+    governance_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-19T23:28:35Z",
+                "alignment": {
+                    "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
+                    "train_selected_profile": "core_plus_macro",
+                    "leaderboard_selected_profile": "core_only",
+                    "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+                    "live_current_structure_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "profile_split": {
+                        "global_profile": "core_only",
+                        "production_profile": "core_plus_macro",
+                        "split_required": True,
+                    },
+                    "governance_contract": {
+                        "verdict": "dual_role_governance_active",
+                        "live_current_structure_bucket_rows": 0,
+                        "minimum_support_rows": 50,
+                        "support_progress": {
+                            "current_rows": 0,
+                            "minimum_support_rows": 50,
+                            "gap_to_minimum": 50,
+                        },
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    live_probe_path = tmp_path / "live_predict_probe.json"
+    live_probe_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-20T07:04:52Z",
+                "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                "current_live_structure_bucket_rows": 19,
+                "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                "support_governance_route": "exact_live_lane_proxy_available",
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
+                "support_progress": {
+                    "status": "accumulating",
+                    "current_rows": 19,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 31,
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_LEADERBOARD_GOVERNANCE_PROBE_PATH", governance_path)
+    monkeypatch.setattr(api_module, "_LIVE_PREDICT_PROBE_PATH", live_probe_path)
+    _seed_cache(
+        monkeypatch,
+        payload={
+            "leaderboard": [{"model_name": "xgboost", "overall_score": 0.88}],
+            "quadrant_points": [{"model_name": "xgboost", "overall_score": 0.88}],
+            "count": 1,
+        },
+        updated_at=time.time(),
+    )
+
+    payload = asyncio.run(api_module.api_model_leaderboard())
+    governance = payload["leaderboard_governance"]
+
+    assert governance["profile_split"]["production_profile"] == "core_plus_macro"
+    assert governance["live_current_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
+    assert governance["live_current_structure_bucket_rows"] == 19
+    assert governance["minimum_support_rows"] == 50
+    assert governance["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
+    assert governance["support_governance_route"] == "exact_live_lane_proxy_available"
+    assert governance["governance_contract"]["live_current_structure_bucket_rows"] == 19
+    assert governance["governance_contract"]["support_progress"]["current_rows"] == 19
+    assert governance["live_truth_overlay_applied"] is True
+    assert governance["live_truth_generated_at"] == "2026-04-20T07:04:52Z"
+
+
+
 def test_api_model_leaderboard_returns_refreshing_shell_when_no_cache(monkeypatch):
     monkeypatch.setattr(api_module, "_load_model_leaderboard_cache_file", lambda: None)
     calls = {"count": 0}
