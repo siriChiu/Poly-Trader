@@ -842,6 +842,10 @@ def test_hb_predict_probe_replays_when_refreshed_q15_audit_invalidates_patch(mon
     assert payload["runtime_closure_state"] == "patch_inactive_or_blocked"
     assert payload["support_route_verdict"] == "exact_bucket_missing_proxy_reference_only"
     assert payload["component_experiment_verdict"] == "reference_only_until_exact_support_ready"
+    assert "current live bucket CAUTION|structure_quality_caution|q15" in payload["runtime_closure_summary"]
+    assert "exact support" in payload["runtime_closure_summary"]
+    assert "reference-only" in payload["runtime_closure_summary"]
+    assert "q15 patch" not in payload["runtime_closure_summary"]
     assert json.loads(out_path.read_text()) == payload
 
 

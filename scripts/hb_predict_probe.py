@@ -21,6 +21,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from database.models import init_db
 from model.predictor import load_latest_features, load_predictor, predict
+from model.runtime_closure import (
+    runtime_patch_name as shared_runtime_patch_name,
+    build_runtime_closure_state as shared_runtime_closure_state,
+    build_runtime_closure_summary as shared_runtime_closure_summary,
+)
 from server.live_pathology_summary import build_live_pathology_scope_surface
 
 DB_URL = f"sqlite:///{PROJECT_ROOT / 'poly_trader.db'}"
@@ -268,35 +273,12 @@ def _q15_audit_current_live_matches_probe(payload: dict | None, probe: dict | No
 
 
 def _runtime_patch_name(result: dict) -> str | None:
-    if result.get("q15_exact_supported_component_patch_applied"):
-        return "q15 patch"
-    if result.get("q35_discriminative_redesign_applied"):
-        return "q35 discriminative redesign"
-    return None
+    return shared_runtime_patch_name(result)
 
 
 
 def _runtime_closure_state(result: dict) -> str:
-    patch_name = _runtime_patch_name(result)
-    blocker = str(result.get("deployment_blocker") or "")
-    support_route_verdict = str(result.get("support_route_verdict") or "")
-    if result.get("signal") == "CIRCUIT_BREAKER":
-        return "circuit_breaker_active"
-    if blocker.startswith("exact_live_lane_toxic_"):
-        return "deployment_guardrail_blocks_trade"
-    if blocker == "decision_quality_below_trade_floor" and support_route_verdict == "exact_bucket_supported" and not patch_name:
-        return "support_closed_but_trade_floor_blocked"
-    if patch_name and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0:
-        return "capacity_opened_signal_hold"
-    if patch_name and (
-        result.get("deployment_blocker")
-        or result.get("execution_guardrail_applied")
-        or (result.get("allowed_layers") or 0) <= 0
-    ):
-        return "patch_active_but_execution_blocked"
-    if patch_name:
-        return "patch_active"
-    return "patch_inactive_or_blocked"
+    return shared_runtime_closure_state(result)
 
 
 
@@ -308,75 +290,17 @@ def _runtime_closure_summary(
     release_gap,
     current_wins,
     breaker_release: dict,
+    scope_pathology_summary: dict | None = None,
 ) -> str | None:
-    patch_name = _runtime_patch_name(result)
-    if result.get("signal") == "CIRCUIT_BREAKER":
-        return (
-            f"circuit breaker active：{result.get('reason')}; release condition = streak < {breaker_release.get('streak_must_be_below', 50)} 且 recent {release_window} win rate >= {((release_floor if isinstance(release_floor, (int, float)) else 0.3) * 100):.0f}%"
-            + (
-                f"；目前 recent {release_window} 只贏 {current_wins}/{release_window}，至少還差 {release_gap} 勝。"
-                if release_gap not in (None, 0) and current_wins is not None
-                else "。"
-            )
-            + (
-                f" 同時 recent pathology={result.get('decision_quality_recent_pathology_reason')}。"
-                if result.get("decision_quality_recent_pathology_applied")
-                and result.get("decision_quality_recent_pathology_reason")
-                else ""
-            )
-        )
-    blocker = str(result.get("deployment_blocker") or "")
-    blocker_reason = result.get("deployment_blocker_reason") or result.get("execution_guardrail_reason") or result.get("allowed_layers_reason")
-    if blocker.startswith("exact_live_lane_toxic_"):
-        bucket = result.get("current_live_structure_bucket") or result.get("structure_bucket") or "unknown_bucket"
-        return (
-            f"current live bucket {bucket} 已具 exact support，但 runtime 仍被 {blocker} 擋住；"
-            f"{blocker_reason or 'exact live lane 毒性治理仍未解除'}。"
-            "目前保持 hold-only，不可把 support closure 誤讀成 deployment closure。"
-        )
-    if blocker == "decision_quality_below_trade_floor" and str(result.get("support_route_verdict") or "") == "exact_bucket_supported" and not patch_name:
-        bucket = result.get("current_live_structure_bucket") or result.get("structure_bucket") or "unknown_bucket"
-        entry_quality = float(result.get("entry_quality") or 0.0)
-        trade_floor = None
-        entry_quality_components = result.get("entry_quality_components")
-        if isinstance(entry_quality_components, dict):
-            try:
-                trade_floor = float(entry_quality_components.get("trade_floor")) if entry_quality_components.get("trade_floor") is not None else None
-            except (TypeError, ValueError):
-                trade_floor = None
-        support_progress = result.get("support_progress") if isinstance(result.get("support_progress"), dict) else {}
-        current_rows = support_progress.get("current_rows")
-        minimum_rows = support_progress.get("minimum_support_rows")
-        component_verdict = result.get("component_experiment_verdict")
-        entry_label = result.get("entry_quality_label") or "—"
-        return (
-            f"current live bucket {bucket} 已完成 exact support closure"
-            + (f"（{current_rows}/{minimum_rows}）" if current_rows is not None and minimum_rows is not None else "")
-            + f"，但 top-level live baseline 仍停在 entry_quality={entry_quality:.4f} ({entry_label})"
-            + (f" < trade floor {trade_floor:.2f}" if trade_floor is not None else "")
-            + "；目前維持明確 no-deploy governance。"
-            + (f" q15 audit 的 {component_verdict} 只代表研究型 component experiment readiness，" if component_verdict else " ")
-            + "不可把 support closure 誤讀成 deployment closure。"
-        )
-    if patch_name and result.get("signal") == "HOLD" and (result.get("allowed_layers") or 0) > 0:
-        return (
-            f"{patch_name} 已啟用；runtime 已開出 {int(result.get('allowed_layers') or 0)} 層 deployment capacity，"
-            "但 signal 仍是 HOLD，不等於自動 BUY。"
-        )
-    if patch_name and (
-        result.get("deployment_blocker")
-        or result.get("execution_guardrail_applied")
-        or (result.get("allowed_layers") or 0) <= 0
-    ):
-        blocker = result.get("deployment_blocker") or result.get("execution_guardrail_reason") or result.get("allowed_layers_reason") or "unknown_guardrail"
-        raw_layers = int(result.get("allowed_layers_raw") or result.get("allowed_layers") or 0)
-        return (
-            f"{patch_name} 已啟用並把 entry_quality 拉到 {float(result.get('entry_quality') or 0.0):.4f}（raw layers={raw_layers}），"
-            f"但最終 execution 仍被 {blocker} 擋住；目前不可把 patch active 誤讀成可部署。"
-        )
-    if patch_name:
-        return f"{patch_name} active，但當前 runtime 狀態不屬於 capacity_opened_signal_hold。"
-    return None
+    return shared_runtime_closure_summary(
+        result,
+        release_window=release_window,
+        release_floor=release_floor,
+        release_gap=release_gap,
+        current_wins=current_wins,
+        breaker_release=breaker_release,
+        scope_pathology_summary=scope_pathology_summary,
+    )
 
 
 
@@ -546,6 +470,7 @@ def _build_probe_payload(
             release_gap=release_gap,
             current_wins=current_wins,
             breaker_release=breaker_release,
+            scope_pathology_summary=scope_pathology_summary,
         ),
         "q15_support_audit": q15_support_audit,
         "decision_quality_horizon_minutes": result.get("decision_quality_horizon_minutes"),

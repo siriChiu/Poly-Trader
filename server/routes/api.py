@@ -33,6 +33,7 @@ from server.live_pathology_summary import (
     load_bull_4h_pocket_ablation_summary as shared_load_bull_4h_pocket_ablation_summary,
 )
 from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized, OrderLifecycleEvent
+from model.runtime_closure import build_runtime_closure_state, build_runtime_closure_summary
 from feature_engine.feature_history_policy import (
     FEATURE_KEY_MAP,
     assess_feature_quality,
@@ -1147,87 +1148,46 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
                 "需檢查 runtime current-live row / support bucket 是否切換。"
             )
 
-    if signal == "CIRCUIT_BREAKER":
-        runtime_closure_state = "circuit_breaker_active"
-        blocker_details = payload.get("deployment_blocker_details") if isinstance(payload.get("deployment_blocker_details"), dict) else {}
-        breaker_release = blocker_details.get("release_condition") if isinstance(blocker_details.get("release_condition"), dict) else {}
-        breaker_recent_window = blocker_details.get("recent_window") if isinstance(blocker_details.get("recent_window"), dict) else {}
-        release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
-        release_floor = breaker_release.get("recent_win_rate_must_be_at_least")
-        if release_floor is None:
-            release_floor = breaker_recent_window.get("floor")
-        current_wins = breaker_release.get("current_recent_window_wins")
-        if current_wins is None:
-            current_wins = breaker_recent_window.get("wins")
-        wins_gap = breaker_release.get("additional_recent_window_wins_needed")
-        release_math = ""
-        if current_wins is not None:
-            release_math = (
-                f"目前 recent {release_window} 只贏 {int(current_wins)}/{int(release_window)}"
-                + (f"，至少還差 {int(wins_gap)} 勝" if wins_gap is not None else "")
-                + "。"
-            )
-        release_condition_text = "release condition = streak < 50 且 recent 50 win rate >= 30%。"
-        if release_floor is not None:
-            try:
-                release_condition_text = (
-                    f"release condition = streak < 50 且 recent {int(release_window)} win rate >= {float(release_floor):.0%}。"
-                )
-            except (TypeError, ValueError):
-                release_condition_text = (
-                    f"release condition = streak < 50 且 recent {int(release_window)} win rate 達到 release floor。"
-                )
-        runtime_closure_summary = (
-            "canonical live path 目前由 circuit breaker 擋下；"
-            f"{payload.get('reason') or '需檢查 recent 50 win rate / streak'}。"
-            f"{release_condition_text}"
-            f"{release_math}"
-            + (
-                f" recent pathology={payload.get('decision_quality_recent_pathology_reason')}。"
-                if payload.get("decision_quality_recent_pathology_applied")
-                and payload.get("decision_quality_recent_pathology_reason")
-                else ""
-            )
-            + (
-                f" exact-vs-spillover={scope_pathology_summary.get('summary')}"
-                if isinstance(scope_pathology_summary, dict) and scope_pathology_summary.get("summary")
-                else ""
-            )
-        )
-    elif payload.get("deployment_blocker") == "decision_quality_below_trade_floor" and payload.get("support_route_verdict") == "exact_bucket_supported" and not patch_active:
-        runtime_closure_state = "support_closed_but_trade_floor_blocked"
-        try:
-            trade_floor = float((payload.get("entry_quality_components") or {}).get("trade_floor"))
-        except (TypeError, ValueError, AttributeError):
-            trade_floor = None
-        component_verdict = payload.get("component_experiment_verdict")
-        runtime_closure_summary = (
-            f"current live bucket {structure_bucket or 'unknown_bucket'} 已完成 exact support closure"
-            + (f"（{current_rows}/{minimum_rows}）" if current_rows is not None and minimum_rows is not None else "")
-            + f"，但 top-level live baseline 仍停在 entry_quality={float(payload.get('entry_quality') or 0.0):.4f} ({payload.get('entry_quality_label') or '—'})"
-            + (f" < trade floor {trade_floor:.2f}" if trade_floor is not None else "")
-            + "；目前維持明確 no-deploy governance。"
-            + (f" q15 audit 的 {component_verdict} 只代表研究型 component experiment readiness，" if component_verdict else " ")
-            + "不可把 support closure 誤讀成 deployment closure。"
-        )
-    elif patch_active and signal == "HOLD" and (allowed_layers or 0) > 0:
-        runtime_closure_state = "capacity_opened_signal_hold"
-        runtime_closure_summary = "q15 patch active，runtime 已開出 1 層 deployment capacity，但 signal 仍是 HOLD；這不是 patch missing，也不是自動 BUY readiness。"
-    elif patch_active:
-        blocker = payload.get("deployment_blocker") or payload.get("execution_guardrail_reason") or payload.get("allowed_layers_reason")
-        if payload.get("deployment_blocker") or payload.get("execution_guardrail_applied") or (allowed_layers or 0) <= 0:
-            runtime_closure_state = "patch_active_but_execution_blocked"
-            runtime_closure_summary = (
-                f"q15 patch active，並把 raw entry 拉到 {float(payload.get('entry_quality') or 0.0):.4f}"
-                f"（raw layers={int(payload.get('allowed_layers_raw') or 0)}），"
-                f"但最終 execution 仍被 {blocker or 'unknown_guardrail'} 擋住；不可把 patch active 誤讀成可部署。"
-            )
-        else:
-            runtime_closure_state = "patch_active"
-            runtime_closure_summary = "q15 patch active，但當前 runtime 狀態不屬於 capacity_opened_signal_hold。"
-    else:
-        runtime_closure_state = "patch_inactive_or_blocked"
-        runtime_closure_summary = "q15 patch 尚未 active 或目前仍被其他條件阻擋。"
+    breaker_release = blocker_details.get("release_condition") if isinstance(blocker_details.get("release_condition"), dict) else {}
+    breaker_recent_window = blocker_details.get("recent_window") if isinstance(blocker_details.get("recent_window"), dict) else {}
+    release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
+    release_floor = breaker_release.get("recent_win_rate_must_be_at_least")
+    if release_floor is None:
+        release_floor = breaker_recent_window.get("floor")
+    current_wins = breaker_release.get("current_recent_window_wins")
+    if current_wins is None:
+        current_wins = breaker_recent_window.get("wins")
+    wins_gap = breaker_release.get("additional_recent_window_wins_needed")
+
+    runtime_payload = {
+        **payload,
+        "current_live_structure_bucket": current_live_structure_bucket,
+        "current_live_structure_bucket_rows": current_rows,
+        "minimum_support_rows": minimum_rows,
+        "current_live_structure_bucket_gap_to_minimum": gap_to_minimum,
+        "support_route_deployable": support_route_deployable,
+        "support_governance_route": support_governance_route,
+    }
+    if support_progress:
+        runtime_payload["support_progress"] = support_progress
+    if current_live_structure_bucket and not runtime_payload.get("structure_bucket"):
+        runtime_payload["structure_bucket"] = current_live_structure_bucket
+
+    runtime_closure_state = build_runtime_closure_state(runtime_payload)
+    runtime_closure_summary = build_runtime_closure_summary(
+        runtime_payload,
+        release_window=int(release_window),
+        release_floor=release_floor,
+        release_gap=wins_gap,
+        current_wins=current_wins,
+        breaker_release=breaker_release,
+        scope_pathology_summary=scope_pathology_summary if isinstance(scope_pathology_summary, dict) else None,
+    ) or (
+        payload.get("deployment_blocker_reason")
+        or payload.get("execution_guardrail_reason")
+        or payload.get("allowed_layers_reason")
+        or "runtime closure summary unavailable"
+    )
 
     sleeve_routing = strategy_lab.build_regime_aware_sleeve_routing(
         regime_label=regime_label,
@@ -1262,6 +1222,8 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "deployment_blocker_reason": payload.get("deployment_blocker_reason"),
         "deployment_blocker_source": payload.get("deployment_blocker_source"),
         "deployment_blocker_details": payload.get("deployment_blocker_details"),
+        "q35_discriminative_redesign_applied": payload.get("q35_discriminative_redesign_applied"),
+        "q35_discriminative_redesign": payload.get("q35_discriminative_redesign"),
         "q15_exact_supported_component_patch_applied": patch_active,
         "support_route_verdict": payload.get("support_route_verdict"),
         "support_route_deployable": support_route_deployable,

@@ -727,8 +727,95 @@ def test_build_live_runtime_closure_surface_keeps_q15_patch_active_execution_blo
     assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
     assert payload["deployment_blocker"] == "decision_quality_below_trade_floor"
     assert payload["support_route_verdict"] == "exact_bucket_supported"
-    assert "q15 patch active" in payload["runtime_closure_summary"]
+    assert "q15 patch 已啟用" in payload["runtime_closure_summary"]
     assert "decision_quality_below_trade_floor" in payload["runtime_closure_summary"]
+
+
+def test_build_live_runtime_closure_surface_describes_exact_support_blocker_without_stale_q15_copy():
+    payload = api_module._build_live_runtime_closure_surface(
+        {
+            "signal": "HOLD",
+            "regime_label": "chop",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "entry_quality": 0.4303,
+            "entry_quality_label": "D",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "allowed_layers": 0,
+            "allowed_layers_raw": 0,
+            "allowed_layers_raw_reason": "entry_quality_below_trade_floor",
+            "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; unsupported_exact_live_structure_bucket",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; unsupported_exact_live_structure_bucket",
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "deployment_blocker_reason": "current live structure bucket 缺少 exact live lane 歷史支持；在 exact bucket 出現前，broader / proxy rows 只能作治理參考，不可作 deployment 放行依據。",
+            "deployment_blocker_source": "decision_quality_contract",
+            "deployment_blocker_details": {
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 50,
+                "support_route_verdict": "exact_bucket_unsupported_block",
+            },
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+        }
+    )
+
+    assert payload["runtime_closure_state"] == "patch_inactive_or_blocked"
+    assert "current live bucket CAUTION|base_caution_regime_or_bias|q35" in payload["runtime_closure_summary"]
+    assert "0/50" in payload["runtime_closure_summary"]
+    assert "exact support" in payload["runtime_closure_summary"]
+    assert "reference-only" in payload["runtime_closure_summary"]
+    assert "q15 patch" not in payload["runtime_closure_summary"]
+
+
+def test_build_live_runtime_closure_surface_keeps_q35_redesign_runtime_copy():
+    payload = api_module._build_live_runtime_closure_surface(
+        {
+            "signal": "HOLD",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "entry_quality": 0.5514,
+            "entry_quality_label": "C",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "q35_discriminative_redesign_applied": True,
+            "q35_discriminative_redesign": {"applied": True, "weights": {"feat_nose": 0.8, "feat_ear": 0.2}},
+            "allowed_layers": 0,
+            "allowed_layers_raw": 1,
+            "allowed_layers_raw_reason": "entry_quality_C_single_layer",
+            "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket",
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "deployment_blocker_reason": "exact bucket rows still zero",
+            "deployment_blocker_source": "decision_quality_contract",
+            "deployment_blocker_details": {
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 50,
+                "support_route_verdict": "exact_bucket_unsupported_block",
+            },
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+        }
+    )
+
+    assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
+    assert "q35 discriminative redesign" in payload["runtime_closure_summary"]
+    assert "unsupported_exact_live_structure_bucket" in payload["runtime_closure_summary"]
+    assert "q15 patch" not in payload["runtime_closure_summary"]
 
 
 def test_build_execution_reconciliation_summary_flags_missing_open_order_when_snapshot_fresh():
