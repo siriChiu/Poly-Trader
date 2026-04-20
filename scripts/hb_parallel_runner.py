@@ -204,6 +204,77 @@ def _current_support_bucket(
     return ""
 
 
+def _q15_support_audit_bucket(q15_support_audit: Dict[str, Any] | None) -> str:
+    q15_support_audit = q15_support_audit or {}
+
+    current_live = q15_support_audit.get("current_live") or {}
+    if isinstance(current_live, dict):
+        bucket = current_live.get("current_live_structure_bucket") or current_live.get("structure_bucket")
+        if bucket:
+            return str(bucket)
+
+    support_route = q15_support_audit.get("support_route") or {}
+    support_progress = support_route.get("support_progress") or {}
+    history = support_progress.get("history") or []
+    for row in history:
+        if not isinstance(row, dict):
+            continue
+        bucket = row.get("live_current_structure_bucket")
+        if bucket:
+            return str(bucket)
+
+    return ""
+
+
+def _support_truth_context(
+    live_predictor_diagnostics: Dict[str, Any] | None,
+    q15_support_audit: Dict[str, Any] | None,
+) -> Dict[str, Any]:
+    live_predictor_diagnostics = live_predictor_diagnostics or {}
+    q15_support_audit = q15_support_audit or {}
+
+    current_bucket = _current_support_bucket(live_predictor_diagnostics, q15_support_audit)
+    context: Dict[str, Any] = {
+        "current_bucket": current_bucket,
+        "current_rows": live_predictor_diagnostics.get("current_live_structure_bucket_rows"),
+        "minimum_rows": live_predictor_diagnostics.get("minimum_support_rows"),
+        "gap_to_minimum": live_predictor_diagnostics.get("current_live_structure_bucket_gap_to_minimum"),
+        "support_route_verdict": live_predictor_diagnostics.get("support_route_verdict"),
+        "support_governance_route": live_predictor_diagnostics.get("support_governance_route"),
+        "source": "live_predictor",
+    }
+
+    audit_bucket = _q15_support_audit_bucket(q15_support_audit)
+    use_q15_support_audit = "q15" in str(current_bucket or "") and (
+        not audit_bucket or audit_bucket == current_bucket
+    )
+    if use_q15_support_audit:
+        support_route = q15_support_audit.get("support_route") or {}
+        support_progress = support_route.get("support_progress") or {}
+        if support_progress.get("current_rows") is not None:
+            context["current_rows"] = support_progress.get("current_rows")
+        if support_progress.get("minimum_support_rows") is not None:
+            context["minimum_rows"] = support_progress.get("minimum_support_rows")
+        if support_progress.get("gap_to_minimum") is not None:
+            context["gap_to_minimum"] = support_progress.get("gap_to_minimum")
+        if support_route.get("verdict") is not None:
+            context["support_route_verdict"] = support_route.get("verdict")
+        if support_route.get("support_governance_route") is not None:
+            context["support_governance_route"] = support_route.get("support_governance_route")
+        context["source"] = "q15_support_audit"
+
+    if context.get("gap_to_minimum") in (None, ""):
+        try:
+            current_rows = int(context.get("current_rows"))
+            minimum_rows = int(context.get("minimum_rows"))
+        except (TypeError, ValueError):
+            pass
+        else:
+            context["gap_to_minimum"] = max(minimum_rows - current_rows, 0)
+
+    return context
+
+
 def _support_scope_label(current_bucket: str | None) -> str:
     bucket = str(current_bucket or "").strip()
     if "q15" in bucket:
@@ -304,6 +375,12 @@ def _issue_current_lines(
         leaderboard_candidate_diagnostics.get("governance_current_closure")
         or (governance_contract.get("current_closure") if isinstance(governance_contract, dict) else None)
     )
+    support_context = _support_truth_context(live_predictor_diagnostics, q15_support_audit)
+    support_current_rows = support_context.get("current_rows", "—")
+    support_minimum_rows = support_context.get("minimum_rows", "—")
+    support_gap = support_context.get("gap_to_minimum", "—")
+    support_route_verdict = support_context.get("support_route_verdict") or "—"
+    support_governance_route = support_context.get("support_governance_route") or "—"
     support_aware_profile = (
         leaderboard_candidate_diagnostics.get("support_aware_production_profile")
         or leaderboard_candidate_diagnostics.get("train_selected_profile")
@@ -312,7 +389,6 @@ def _issue_current_lines(
 
     if issue_id == "P0_circuit_breaker_active":
         release = (live_predictor_diagnostics.get("deployment_blocker_details") or {}).get("release_condition") or {}
-        support_route = q15_support_audit.get("support_route") or {}
         deployment_blocker = str(live_predictor_diagnostics.get("deployment_blocker") or "")
         if deployment_blocker == "circuit_breaker_active":
             return [
@@ -325,22 +401,20 @@ def _issue_current_lines(
                 f"`additional_recent_window_wins_needed={release.get('additional_recent_window_wins_needed', '—')}`",
                 "same-bucket truth："
                 f"`bucket={live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
-                f"`support={live_predictor_diagnostics.get('current_live_structure_bucket_rows', '—')}/"
-                f"{live_predictor_diagnostics.get('minimum_support_rows', '—')}` / "
-                f"`support_route_verdict={live_predictor_diagnostics.get('support_route_verdict') or support_route.get('verdict') or '—'}` / "
-                f"`support_governance_route={live_predictor_diagnostics.get('support_governance_route') or support_route.get('support_governance_route') or '—'}`",
+                f"`support={support_current_rows}/{support_minimum_rows}` / "
+                f"`support_route_verdict={support_route_verdict}` / "
+                f"`support_governance_route={support_governance_route}`",
             ]
         return [
             "目前真相："
             f"`deployment_blocker={live_predictor_diagnostics.get('deployment_blocker') or '—'}` / "
             f"`bucket={live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
-            f"`support={live_predictor_diagnostics.get('current_live_structure_bucket_rows', '—')}/"
-            f"{live_predictor_diagnostics.get('minimum_support_rows', '—')}` / "
-            f"`gap={live_predictor_diagnostics.get('current_live_structure_bucket_gap_to_minimum', '—')}` / "
+            f"`support={support_current_rows}/{support_minimum_rows}` / "
+            f"`gap={support_gap}` / "
             f"`runtime_closure_state={live_predictor_diagnostics.get('runtime_closure_state') or '—'}`",
             "same-bucket truth："
-            f"`support_route_verdict={live_predictor_diagnostics.get('support_route_verdict') or support_route.get('verdict') or '—'}` / "
-            f"`support_governance_route={live_predictor_diagnostics.get('support_governance_route') or support_route.get('support_governance_route') or '—'}` / "
+            f"`support_route_verdict={support_route_verdict}` / "
+            f"`support_governance_route={support_governance_route}` / "
             f"`recommended_patch_status={issue.get('summary', {}).get('recommended_patch_status', '—')}`",
         ]
 
@@ -395,17 +469,31 @@ def _issue_current_lines(
                 f"`archive_window_coverage_pct={fin_blocker.get('archive_window_coverage_pct')}`",
             ]
 
-    if issue_id in {"P1_bull_caution_spillover_patch_reference_only", "P1_q15_exact_support_stalled_under_breaker"}:
-        support_route = q15_support_audit.get("support_route") or {}
-        support_progress = support_route.get("support_progress") or {}
+    if issue_id == "P1_q15_exact_support_stalled_under_breaker":
         return [
             "目前真相："
-            f"`bucket={live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
-            f"`support={support_progress.get('current_rows', live_predictor_diagnostics.get('current_live_structure_bucket_rows', '—'))}/"
-            f"{support_progress.get('minimum_support_rows', live_predictor_diagnostics.get('minimum_support_rows', '—'))}` / "
-            f"`gap={support_progress.get('gap_to_minimum', live_predictor_diagnostics.get('current_live_structure_bucket_gap_to_minimum', '—'))}` / "
-            f"`support_route_verdict={support_route.get('verdict', live_predictor_diagnostics.get('support_route_verdict') or '—')}` / "
-            f"`governance_route={support_route.get('support_governance_route', live_predictor_diagnostics.get('support_governance_route') or '—')}`",
+            f"`bucket={support_context.get('current_bucket') or live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
+            f"`support={support_current_rows}/{support_minimum_rows}` / "
+            f"`gap={support_gap}` / "
+            f"`support_route_verdict={support_route_verdict}` / "
+            f"`governance_route={support_governance_route}`",
+        ]
+
+    if issue_id == "P1_bull_caution_spillover_patch_reference_only":
+        summary = issue.get("summary") or {}
+        summary_bucket = summary.get("current_live_structure_bucket") or live_predictor_diagnostics.get("current_live_structure_bucket") or "—"
+        summary_rows = summary.get("current_live_structure_bucket_rows", support_current_rows)
+        summary_minimum = summary.get("minimum_support_rows", support_minimum_rows)
+        summary_gap = summary.get("gap_to_minimum", support_gap)
+        summary_verdict = summary.get("support_route_verdict") or support_route_verdict
+        summary_governance = summary.get("support_governance_route") or support_governance_route
+        return [
+            "目前真相："
+            f"`bucket={summary_bucket}` / "
+            f"`support={summary_rows}/{summary_minimum}` / "
+            f"`gap={summary_gap}` / "
+            f"`support_route_verdict={summary_verdict}` / "
+            f"`governance_route={summary_governance}`",
         ]
 
     return _generic_issue_current_lines(issue)
@@ -434,7 +522,6 @@ def overwrite_current_state_docs(
 
     updated_at = _format_local_timestamp_for_docs()
     release = (live_predictor_diagnostics.get("deployment_blocker_details") or {}).get("release_condition") or {}
-    support_progress = (q15_support_audit.get("support_route") or {}).get("support_progress") or {}
     primary_summary = drift_diagnostics.get("primary_summary") or {}
     primary_window = drift_diagnostics.get("primary_window") or primary_summary.get("window") or "—"
     governance_contract = leaderboard_candidate_diagnostics.get("governance_contract") or {}
@@ -451,23 +538,20 @@ def overwrite_current_state_docs(
     current_support_bucket = _current_support_bucket(live_predictor_diagnostics, q15_support_audit)
     support_scope_label = _support_scope_label(current_support_bucket)
     support_truth_label = _support_truth_label(current_support_bucket)
-    support_current_rows = support_progress.get(
+    support_context = _support_truth_context(live_predictor_diagnostics, q15_support_audit)
+    support_current_rows = support_context.get(
         "current_rows",
         live_predictor_diagnostics.get("current_live_structure_bucket_rows", "—"),
     )
-    support_minimum_rows = support_progress.get(
-        "minimum_support_rows",
+    support_minimum_rows = support_context.get(
+        "minimum_rows",
         live_predictor_diagnostics.get("minimum_support_rows", "—"),
     )
-    support_gap = support_progress.get(
+    support_gap = support_context.get(
         "gap_to_minimum",
         live_predictor_diagnostics.get("current_live_structure_bucket_gap_to_minimum", "—"),
     )
-    support_route_verdict = (
-        (q15_support_audit.get("support_route") or {}).get("verdict")
-        or live_predictor_diagnostics.get("support_route_verdict")
-        or "—"
-    )
+    support_route_verdict = support_context.get("support_route_verdict") or "—"
 
     counts_line = (
         f"`Raw={counts.get('raw_market_data', '—')} / "

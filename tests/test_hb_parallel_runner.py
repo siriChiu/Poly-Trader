@@ -1561,14 +1561,19 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
     }
     live_predictor = {
         "deployment_blocker": "unsupported_exact_live_structure_bucket",
-        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+        "current_live_structure_bucket_rows": 0,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 50,
+        "support_route_verdict": "exact_bucket_unsupported_block",
+        "support_governance_route": "exact_live_lane_proxy_available",
         "deployment_blocker_details": {"release_condition": {}},
     }
     q15_support = {
-        "current_live": {"current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00"},
+        "current_live": {"current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15"},
         "support_route": {
             "verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_governance_route": "exact_bucket_missing_proxy_reference_only",
             "support_progress": {
                 "current_rows": 0,
                 "minimum_support_rows": 50,
@@ -1597,15 +1602,89 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
     assert "recommended_patch=core_plus_macro_plus_all_4h" in roadmap_md
     assert "status=reference_only_until_exact_support_ready" in roadmap_md
     assert (
-        "current live bucket support truth 維持：**0/50 + exact_bucket_missing_exact_lane_proxy_only + "
+        "current live bucket support truth 維持：**0/50 + exact_bucket_unsupported_block + "
         "reference_only_until_exact_support_ready**"
     ) in roadmap_md
+    assert "`support_route_verdict=exact_bucket_unsupported_block`" in issues_md
     assert "current live q15 truth" not in roadmap_md
     assert "breaker-first truth" not in issues_md
     assert "breaker release math 作為唯一 current-live blocker" not in roadmap_md
     assert "### 目標 A：維持 current-live exact-support blocker 作為唯一 current-live blocker" in roadmap_md
     assert "current-live blocker 清楚且唯一：**unsupported_exact_live_structure_bucket**" in roadmap_md
     assert "維持 current-live exact-support truth" in orid_md
+
+
+def test_overwrite_current_state_docs_keeps_reference_only_patch_truth_from_issue_summary(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P1_bull_caution_spillover_patch_reference_only",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only",
+                        "action": "keep patch summary consistent",
+                        "summary": {
+                            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                            "current_live_structure_bucket_rows": 0,
+                            "minimum_support_rows": 50,
+                            "gap_to_minimum": 50,
+                            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+                            "support_governance_route": "exact_live_lane_proxy_available",
+                        },
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260420patch",
+        {},
+        {},
+        {"primary_summary": {}},
+        {
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {
+            "recommended_patch_profile": "core_plus_macro_plus_all_4h",
+            "recommended_patch_status": "reference_only_until_exact_support_ready",
+            "recommended_patch_reference_scope": "bull|CAUTION",
+        },
+        {
+            "current_live": {"current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15"},
+            "support_route": {
+                "verdict": "exact_bucket_present_but_below_minimum",
+                "support_governance_route": "exact_bucket_present_but_below_minimum",
+                "support_progress": {
+                    "current_rows": 7,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 43,
+                },
+            },
+        },
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    assert "support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only" in issues_md
+    assert "`support_route_verdict=exact_bucket_missing_exact_lane_proxy_only`" in issues_md
+    assert "`support=0/50`" in issues_md
 
 
 

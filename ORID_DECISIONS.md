@@ -1,18 +1,18 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-20 20:25:24 CST_
+_最後更新：2026-04-20 20:57:31 CST_
 
 ---
 
-## 心跳 #fast ORID
+## 心跳 #20260420-2042 ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31257 / Features=22675 / Labels=63040`；`simulated_pyramid_win=57.18%`。
+- collect + diagnostics refresh 完成：`Raw=31260 / Features=22678 / Labels=63042`；`simulated_pyramid_win=57.18%`。
 - current-live blocker：`deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
-- current live bucket truth：`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_exact_lane_proxy_only`。
-- recent pathological slice：`window=500` / `win_rate=4.4%` / `dominant_regime=bull(90.0%)` / `avg_quality=-0.2209` / `avg_pnl=-0.0076` / `alerts=label_imbalance,regime_concentration,regime_shift`。
+- current live bucket truth：`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`。
+- recent pathological slice：`window=500` / `win_rate=4.6%` / `dominant_regime=bull(90.0%)` / `avg_quality=-0.2196` / `avg_pnl=-0.0076` / `alerts=label_imbalance,regime_concentration,regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2728` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2731` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
 
 ### R｜感受直覺
@@ -20,7 +20,7 @@ _最後更新：2026-04-20 20:25:24 CST_
 - current live 已落在 `chop/CAUTION/CAUTION|base_caution_regime_or_bias|q35`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket 或舊 bucket 當成現在的 runtime 真相。
 
 ### I｜意義洞察
-1. **support accumulation ≠ deployment closure**：`support=0/50` 且 `support_route_verdict=exact_bucket_missing_exact_lane_proxy_only` 只代表治理前進，還不能把 reference patch 升級成 runtime patch。
+1. **support accumulation ≠ deployment closure**：`support=0/50` 且 `support_route_verdict=exact_bucket_unsupported_block` 只代表治理前進，還不能把 reference patch 升級成 runtime patch。
 2. **真正主 blocker 已切到 current live bucket exact-support shortage**：recent pathological slice 仍是造成 `unsupported_exact_live_structure_bucket` 的根因切片，不能再沿用 breaker-first 舊敘事。
 3. **docs overwrite sync 的角色是護欄，不是主 blocker**：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。
 
