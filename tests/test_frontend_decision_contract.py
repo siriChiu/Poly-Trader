@@ -548,6 +548,11 @@ def test_live_pathology_summary_card_supports_compact_summary_mode_for_workspace
         'if (compact) {',
         'const compactTopShifts = topShifts.slice(0, 2);',
         'const compactPatchLabel = recommendedPatch?.recommended_profile',
+        'const currentBucketSupportRows = recommendedPatch?.current_live_structure_bucket_rows ?? exactLane?.current_live_structure_bucket_rows;',
+        'const currentBucketSupportMinimum = recommendedPatch?.minimum_support_rows ?? null;',
+        'const currentBucketSupportLabel = currentBucketSupportRows != null',
+        'exact lane rows {exactLane?.rows ?? "—"}',
+        '{currentBucketSupportLabel}',
     ]
     for snippet in required_snippets:
         assert snippet in source

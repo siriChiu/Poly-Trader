@@ -140,6 +140,11 @@ export default function LivePathologySummaryCard({
   const compactPatchLabel = recommendedPatch?.recommended_profile
     || recommendedPatch?.reference_patch_scope
     || (recommendedPatch ? formatPatchStatus(recommendedPatch.status) : null);
+  const currentBucketSupportRows = recommendedPatch?.current_live_structure_bucket_rows ?? exactLane?.current_live_structure_bucket_rows;
+  const currentBucketSupportMinimum = recommendedPatch?.minimum_support_rows ?? null;
+  const currentBucketSupportLabel = currentBucketSupportRows != null
+    ? ` · current bucket ${currentBucketSupportRows}${currentBucketSupportMinimum != null ? `/${currentBucketSupportMinimum}` : ""}`
+    : "";
 
   if (compact) {
     return (
@@ -163,8 +168,11 @@ export default function LivePathologySummaryCard({
               WR {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)}
             </div>
             <div className="text-emerald-50/80">
-              {(exactLane?.current_live_structure_bucket || exactLane?.scope || "未提供 bucket")}
-              {exactLane?.rows != null ? ` · rows ${exactLane.rows}` : ""}
+              {exactLane?.current_live_structure_bucket || exactLane?.scope || "未提供 bucket"}
+            </div>
+            <div className="text-emerald-50/80">
+              exact lane rows {exactLane?.rows ?? "—"}
+              {currentBucketSupportLabel}
             </div>
           </div>
 
@@ -237,7 +245,7 @@ export default function LivePathologySummaryCard({
           <div className="mt-2 space-y-1 text-[11px] leading-5 text-emerald-50/85">
             <div>
               rows {exactLane?.rows ?? "—"}
-              {exactLane?.current_live_structure_bucket_rows != null ? ` · current bucket ${exactLane.current_live_structure_bucket_rows}` : ""}
+              {currentBucketSupportLabel}
             </div>
             <div>{exactLane?.current_live_structure_bucket || "未提供 current live structure bucket"}</div>
             <div>
