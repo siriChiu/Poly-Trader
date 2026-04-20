@@ -2059,6 +2059,15 @@ def test_sync_current_state_governance_issues_replaces_breaker_p0_when_exact_sup
             "support_governance_route": "exact_live_lane_proxy_available",
             "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade",
             "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade",
+            "decision_quality_scope_pathology_summary": {
+                "recommended_patch": {
+                    "recommended_profile": "core_plus_macro_plus_all_4h",
+                    "status": "reference_only_until_exact_support_ready",
+                    "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+                    "reference_patch_scope": "bull|CAUTION",
+                    "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
+                }
+            },
         },
         {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
     )
@@ -2072,6 +2081,10 @@ def test_sync_current_state_governance_issues_replaces_breaker_p0_when_exact_sup
     assert primary_issue["summary"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q35"
     assert primary_issue["summary"]["gap_to_minimum"] == 50
     assert primary_issue["summary"]["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
+    assert primary_issue["summary"]["recommended_patch"] == "core_plus_macro_plus_all_4h"
+    assert primary_issue["summary"]["recommended_patch_status"] == "reference_only_until_exact_support_ready"
+    assert primary_issue["summary"]["reference_patch_scope"] == "bull|CAUTION"
+    assert primary_issue["summary"]["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
 
     auto_breaker = next((issue for issue in tracker.issues if issue["id"] == "#H_AUTO_CIRCUIT_BREAKER"), None)
     assert auto_breaker is None or auto_breaker["status"] == "resolved"

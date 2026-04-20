@@ -357,6 +357,7 @@ def _issue_current_lines(
     source_blockers: Dict[str, Any] | None,
     drift_diagnostics: Dict[str, Any] | None,
     live_predictor_diagnostics: Dict[str, Any] | None,
+    live_decision_drilldown: Dict[str, Any] | None,
     q15_support_audit: Dict[str, Any] | None,
     circuit_breaker_audit: Dict[str, Any] | None,
     leaderboard_candidate_diagnostics: Dict[str, Any] | None,
@@ -366,6 +367,7 @@ def _issue_current_lines(
     source_blockers = source_blockers or {}
     drift_diagnostics = drift_diagnostics or {}
     live_predictor_diagnostics = live_predictor_diagnostics or {}
+    live_decision_drilldown = live_decision_drilldown or {}
     q15_support_audit = q15_support_audit or {}
     circuit_breaker_audit = circuit_breaker_audit or {}
     leaderboard_candidate_diagnostics = leaderboard_candidate_diagnostics or {}
@@ -405,6 +407,15 @@ def _issue_current_lines(
                 f"`support_route_verdict={support_route_verdict}` / "
                 f"`support_governance_route={support_governance_route}`",
             ]
+        summary = issue.get("summary") if isinstance(issue.get("summary"), dict) else {}
+        patch_profile = summary.get("recommended_patch") or live_decision_drilldown.get("recommended_patch_profile") or "—"
+        patch_status = summary.get("recommended_patch_status") or live_decision_drilldown.get("recommended_patch_status") or "—"
+        patch_reference_scope = (
+            summary.get("reference_patch_scope")
+            or summary.get("recommended_patch_reference_scope")
+            or live_decision_drilldown.get("recommended_patch_reference_scope")
+            or "—"
+        )
         return [
             "目前真相："
             f"`deployment_blocker={live_predictor_diagnostics.get('deployment_blocker') or '—'}` / "
@@ -415,7 +426,9 @@ def _issue_current_lines(
             "same-bucket truth："
             f"`support_route_verdict={support_route_verdict}` / "
             f"`support_governance_route={support_governance_route}` / "
-            f"`recommended_patch_status={issue.get('summary', {}).get('recommended_patch_status', '—')}`",
+            f"`recommended_patch={patch_profile}` / "
+            f"`recommended_patch_status={patch_status}` / "
+            f"`reference_scope={patch_reference_scope}`",
         ]
 
     if issue_id == "P0_recent_distribution_pathology":
@@ -703,6 +716,7 @@ def overwrite_current_state_docs(
             source_blockers=source_blockers,
             drift_diagnostics=drift_diagnostics,
             live_predictor_diagnostics=live_predictor_diagnostics,
+            live_decision_drilldown=live_decision_drilldown,
             q15_support_audit=q15_support_audit,
             circuit_breaker_audit=circuit_breaker_audit,
             leaderboard_candidate_diagnostics=leaderboard_candidate_diagnostics,

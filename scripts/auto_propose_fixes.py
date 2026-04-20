@@ -444,6 +444,17 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
     actual_live_spillover_scope = (
         worst_extra_regime_gate.get("regime_gate") if isinstance(worst_extra_regime_gate, dict) else None
     )
+    current_blocker_patch_summary = {}
+    if isinstance(recommended_patch, dict) and recommended_patch.get("recommended_profile"):
+        current_blocker_patch_summary = {
+            "recommended_patch": recommended_patch.get("recommended_profile"),
+            "recommended_patch_status": recommended_patch.get("status"),
+            "recommended_patch_support_route": recommended_patch.get("support_route_verdict"),
+            "reference_patch_scope": recommended_patch.get("reference_patch_scope")
+            or recommended_patch.get("spillover_regime_gate"),
+            "reference_source": recommended_patch.get("reference_source"),
+        }
+
     if (
         isinstance(recommended_patch, dict)
         and recommended_patch.get("recommended_profile")
@@ -559,6 +570,7 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
                     "support_route_verdict": support_route_verdict,
                     "support_governance_route": support_governance_route,
                     "runtime_closure_state": runtime_closure_state,
+                    **current_blocker_patch_summary,
                 },
             )
         elif live_blocker:
@@ -577,6 +589,7 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
                     "support_route_verdict": support_route_verdict,
                     "support_governance_route": support_governance_route,
                     "runtime_closure_state": runtime_closure_state,
+                    **current_blocker_patch_summary,
                 },
             )
         else:

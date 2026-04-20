@@ -1606,6 +1606,9 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
         "reference_only_until_exact_support_ready**"
     ) in roadmap_md
     assert "`support_route_verdict=exact_bucket_unsupported_block`" in issues_md
+    assert "`recommended_patch=core_plus_macro_plus_all_4h`" in issues_md
+    assert "`recommended_patch_status=reference_only_until_exact_support_ready`" in issues_md
+    assert "`reference_scope=bull|CAUTION`" in issues_md
     assert "current live q15 truth" not in roadmap_md
     assert "breaker-first truth" not in issues_md
     assert "breaker release math 作為唯一 current-live blocker" not in roadmap_md
