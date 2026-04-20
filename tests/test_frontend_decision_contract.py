@@ -264,6 +264,39 @@ def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_r
         assert snippet in source
     assert source.index('liveRuntimeTruth?.deployment_blocker_reason') < source.index('executionSurfaceContract?.live_ready_blockers')
 
+
+def test_dashboard_advice_card_downgrades_trade_ctas_until_runtime_is_ready():
+    dashboard_source = _read("pages/Dashboard.tsx")
+    advice_source = _read("components/AdviceCard.tsx")
+
+    dashboard_snippets = [
+        'const adviceCardExecutionActionState: "syncing" | "blocked" | "ready" = runtimeStatusPending || !liveRuntimeTruth',
+        'const adviceCardExecutionBlockerReason = runtimeStatusPending',
+        'executionActionState={adviceCardExecutionActionState}',
+        'executionBlockerLabel={dashboardCurrentLiveBlockerLabel}',
+        'executionBlockerReason={adviceCardExecutionBlockerReason}',
+    ]
+    advice_snippets = [
+        'executionActionState?: "syncing" | "blocked" | "ready";',
+        'executionBlockerLabel?: string;',
+        'executionBlockerReason?: string;',
+        'const tradeActionsDisabled = executionActionState !== "ready" || isSubmittingTrade;',
+        'Dashboard 建議卡暫不提供快捷下單，避免 current live blocker truth 尚未到位前出現誤導 CTA。',
+        'Dashboard 建議卡只保留分析摘要，快捷交易請改到執行狀態 / Bot 營運頁。',
+        '⏳ current live blocker 同步中',
+        '🚫 current live blocker · ${executionBlockerLabel || "blocked"}',
+        'href="/execution/status"',
+        '查看阻塞原因',
+        'href="/execution"',
+        '前往 Bot 營運',
+        '指令已交由 Bot 營運處理，請以下方 execution feedback 為準。',
+    ]
+    for snippet in dashboard_snippets:
+        assert snippet in dashboard_source
+    for snippet in advice_snippets:
+        assert snippet in advice_source
+
+
 def test_signal_banner_declares_dashboard_as_canonical_execution_route_until_upgraded():
     source = _read("components/SignalBanner.tsx")
     required_snippets = [

@@ -1,4 +1,4 @@
-# Circuit Breaker Audit（Heartbeat #fast）
+# Circuit Breaker Audit（Heartbeat #20260421-0023）
 
 ## 結論
 - verdict: **breaker_clear**
@@ -15,11 +15,11 @@
 - triggered: **False** via []
 - release_ready: **True**
 - streak: 0 / threshold 50
-- recent 50: win_rate=0.7 wins=35 losses=15
+- recent 50: win_rate=0.76 wins=38 losses=12
 
 ## Release condition
 - streak < 50
 - recent 50 win_rate >= 30%
-- aligned_scope_now: streak=0, win_rate=0.7
+- aligned_scope_now: streak=0, win_rate=0.76
 - additional recent-window wins needed: 0
-- tail pathology: losses=15 / wins=35 / loss_share=0.3
+- tail pathology: losses=12 / wins=38 / loss_share=0.24

@@ -9,7 +9,10 @@ interface Props {
   descriptions?: string[];
   action?: string;
   timestamp?: string;
-  onTrade?: (side: string) => void;
+  onTrade?: (side: string) => Promise<void> | void;
+  executionActionState?: "syncing" | "blocked" | "ready";
+  executionBlockerLabel?: string;
+  executionBlockerReason?: string;
   maturitySummary?: {
     core: number;
     research: number;
@@ -35,21 +38,44 @@ function getScoreLevel(score: number): string {
   return "text-red-400";
 }
 
-export default function AdviceCard({ score = 50, summary = "分析中...", descriptions = [], action = "hold", timestamp, onTrade, maturitySummary }: Props) {
+export default function AdviceCard({
+  score = 50,
+  summary = "分析中...",
+  descriptions = [],
+  action = "hold",
+  timestamp,
+  onTrade,
+  executionActionState = "syncing",
+  executionBlockerLabel,
+  executionBlockerReason,
+  maturitySummary,
+}: Props) {
   const [confirmTrade, setConfirmTrade] = useState<string | null>(null);
   const [tradeStatus, setTradeStatus] = useState<string | null>(null);
+  const [isSubmittingTrade, setIsSubmittingTrade] = useState(false);
   const [prevScore, setPrevScore] = useState(score);
   const [delta, setDelta] = useState(0);
 
   useEffect(() => { setDelta(score - prevScore); setPrevScore(score); }, [score]);
 
-  const handleTrade = (side: string) => {
+  const tradeActionsDisabled = executionActionState !== "ready" || isSubmittingTrade;
+  const executionActionSummary = executionActionState === "syncing"
+    ? "正在同步 /api/status；Dashboard 建議卡暫不提供快捷下單，避免 current live blocker truth 尚未到位前出現誤導 CTA。"
+    : (executionBlockerReason || "目前 current live blocker 尚未解除；Dashboard 建議卡只保留分析摘要，快捷交易請改到執行狀態 / Bot 營運頁。");
+
+  const handleTrade = async (side: string) => {
+    if (tradeActionsDisabled) return;
     if (confirmTrade === side) {
       const label = side === "buy" ? "買入" : side === "reduce" ? "減碼" : "觀望";
-      setTradeStatus(`✅ ${label}指令已提交 (Dry Run)`);
-      onTrade?.(side);
-      setConfirmTrade(null);
-      setTimeout(() => setTradeStatus(null), 5000);
+      setTradeStatus(`⏳ ${label} 指令已交由 Bot 營運處理，請以下方 execution feedback 為準。`);
+      setIsSubmittingTrade(true);
+      try {
+        await onTrade?.(side);
+      } finally {
+        setIsSubmittingTrade(false);
+        setConfirmTrade(null);
+        setTimeout(() => setTradeStatus(null), 5000);
+      }
     } else {
       setConfirmTrade(side);
       setTimeout(() => setConfirmTrade(null), 5000);
@@ -101,15 +127,36 @@ export default function AdviceCard({ score = 50, summary = "分析中...", descr
 
       {tradeStatus && <div className="bg-green-900/30 border border-green-700/30 rounded-lg px-3 py-2 text-green-400 text-xs text-center">{tradeStatus}</div>}
 
-      <div className="flex gap-2">
-        <button onClick={() => handleTrade("buy")} className={`app-button-primary flex-1 text-sm font-bold ${confirmTrade === "buy" ? "animate-pulse bg-green-500 border-green-400" : "bg-green-600/40 text-green-100 hover:bg-green-600/60 border-green-600/30 shadow-none"}`}>
-          {confirmTrade === "buy" ? "✓ 確認買入" : "🟢 買入"}
-        </button>
-        <button onClick={() => setConfirmTrade(null)} className="app-button-secondary flex-1 text-sm font-bold">⚪ 觀望</button>
-        <button onClick={() => handleTrade("reduce")} className={`app-button-primary flex-1 text-sm font-bold ${confirmTrade === "reduce" ? "animate-pulse bg-orange-500 border-orange-400" : "bg-orange-600/40 text-orange-100 hover:bg-orange-600/60 border-orange-600/30 shadow-none"}`}>
-          {confirmTrade === "reduce" ? "✓ 確認減碼" : "🟠 減碼"}
-        </button>
-      </div>
+      {tradeActionsDisabled ? (
+        <>
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-100">
+            <div className="font-semibold">
+              {executionActionState === "syncing"
+                ? "⏳ current live blocker 同步中"
+                : `🚫 current live blocker · ${executionBlockerLabel || "blocked"}`}
+            </div>
+            <div className="mt-1">{executionActionSummary}</div>
+          </div>
+          <div className="flex gap-2">
+            <a href="/execution/status" className="app-button-secondary flex-1 text-center text-sm font-semibold">
+              查看阻塞原因
+            </a>
+            <a href="/execution" className="app-button-secondary flex-1 text-center text-sm font-semibold">
+              前往 Bot 營運
+            </a>
+          </div>
+        </>
+      ) : (
+        <div className="flex gap-2">
+          <button onClick={() => void handleTrade("buy")} disabled={isSubmittingTrade} className={`app-button-primary flex-1 text-sm font-bold ${confirmTrade === "buy" ? "animate-pulse bg-green-500 border-green-400" : "bg-green-600/40 text-green-100 hover:bg-green-600/60 border-green-600/30 shadow-none"}`}>
+            {confirmTrade === "buy" ? "✓ 確認買入" : "🟢 買入"}
+          </button>
+          <button onClick={() => setConfirmTrade(null)} disabled={isSubmittingTrade} className="app-button-secondary flex-1 text-sm font-bold">⚪ 觀望</button>
+          <button onClick={() => void handleTrade("reduce")} disabled={isSubmittingTrade} className={`app-button-primary flex-1 text-sm font-bold ${confirmTrade === "reduce" ? "animate-pulse bg-orange-500 border-orange-400" : "bg-orange-600/40 text-orange-100 hover:bg-orange-600/60 border-orange-600/30 shadow-none"}`}>
+            {confirmTrade === "reduce" ? "✓ 確認減碼" : "🟠 減碼"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

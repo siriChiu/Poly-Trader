@@ -1003,6 +1003,12 @@ export default function Dashboard() {
   const dashboardVenueBlockersLabel = runtimeStatusPending
     ? "同步中"
     : (dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.join(" · ") : "none");
+  const adviceCardExecutionActionState: "syncing" | "blocked" | "ready" = runtimeStatusPending || !liveRuntimeTruth
+    ? "syncing"
+    : (dashboardCurrentLiveBlocker ? "blocked" : "ready");
+  const adviceCardExecutionBlockerReason = runtimeStatusPending
+    ? "正在同步 /api/status；Dashboard 建議卡暫不提供快捷下單，避免 current live blocker truth 尚未到位前出現誤導 CTA。"
+    : dashboardPrimaryRuntimeMessageLabel;
   const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
@@ -1338,6 +1344,9 @@ export default function Dashboard() {
                 action={advice.action}
                 timestamp={advice.timestamp || lastUpdate}
                 onTrade={handleTrade}
+                executionActionState={adviceCardExecutionActionState}
+                executionBlockerLabel={dashboardCurrentLiveBlockerLabel}
+                executionBlockerReason={adviceCardExecutionBlockerReason}
                 maturitySummary={maturitySummary || undefined}
               />
             </div>
