@@ -679,6 +679,10 @@ def test_dashboard_websocket_bootstrap_is_strict_mode_safe():
     main_source = _read("main.tsx")
     required_dashboard_snippets = [
         'let connectBootstrapTimer = 0;',
+        'const closeSocketWithoutHandshakeNoise = (socket: WebSocket | null) => {',
+        'if (socket.readyState !== WebSocket.OPEN) return;',
+        'closeSocketWithoutHandshakeNoise(candidate);',
+        'closeSocketWithoutHandshakeNoise(ws);',
         'connectBootstrapTimer = window.setTimeout(() => {',
         'window.clearTimeout(connectBootstrapTimer);',
         'closed before the connection is established',

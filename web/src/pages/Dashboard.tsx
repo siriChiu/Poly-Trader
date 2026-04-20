@@ -785,6 +785,14 @@ export default function Dashboard() {
     let reconnectTimer = 0;
     let disposed = false;
 
+    const closeSocketWithoutHandshakeNoise = (socket: WebSocket | null) => {
+      if (!socket) return;
+      if (socket.readyState !== WebSocket.OPEN) return;
+      try {
+        socket.close();
+      } catch {}
+    };
+
     const scheduleReconnect = () => {
       if (disposed) return;
       window.clearTimeout(reconnectTimer);
@@ -811,9 +819,7 @@ export default function Dashboard() {
           const openTimeout = window.setTimeout(() => {
             if (disposed || opened || advanced) return;
             advanced = true;
-            try {
-              candidate.close();
-            } catch {}
+            closeSocketWithoutHandshakeNoise(candidate);
             connectAttempt(attemptIndex + 1);
           }, 1500);
 
@@ -845,9 +851,7 @@ export default function Dashboard() {
             if (disposed || opened || advanced) return;
             advanced = true;
             window.clearTimeout(openTimeout);
-            try {
-              candidate.close();
-            } catch {}
+            closeSocketWithoutHandshakeNoise(candidate);
             connectAttempt(attemptIndex + 1);
           };
 
@@ -884,7 +888,7 @@ export default function Dashboard() {
       disposed = true;
       window.clearTimeout(connectBootstrapTimer);
       window.clearTimeout(reconnectTimer);
-      ws?.close();
+      closeSocketWithoutHandshakeNoise(ws);
     };
   }, []);
 
