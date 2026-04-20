@@ -2091,6 +2091,90 @@ def test_sync_current_state_governance_issues_replaces_breaker_p0_when_exact_sup
 
 
 
+def test_sync_current_state_governance_issues_prefers_live_probe_support_governance_route_over_stale_governance_contract():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "selected_feature_profile": "core_only",
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "verdict": "dual_role_governance_active",
+                    "production_profile": "core_plus_macro",
+                    "support_governance_route": "exact_live_lane_proxy_available",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 12,
+                    "support_progress": {
+                        "current_rows": 12,
+                        "minimum_support_rows": 50,
+                        "status": "present_but_below_minimum",
+                        "history": [
+                            {
+                                "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35"
+                            }
+                        ],
+                    },
+                },
+            }
+        },
+        {
+            "signal": "HOLD",
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "runtime_closure_state": "patch_active_but_execution_blocked",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "current_live_structure_bucket_rows": 12,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "allowed_layers_reason": "under_minimum_exact_live_structure_bucket",
+            "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+            "decision_quality_scope_pathology_summary": {
+                "recommended_patch": {
+                    "recommended_profile": "core_plus_macro_plus_all_4h",
+                    "status": "reference_only_until_exact_support_ready",
+                    "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                    "reference_patch_scope": "bull|CAUTION",
+                    "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
+                }
+            },
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    primary_issue = next(issue for issue in tracker.issues if issue["id"] == "P0_circuit_breaker_active")
+    assert primary_issue["summary"]["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
+
+
 def test_sync_current_state_governance_issues_adds_alignment_blocker_when_current_inputs_stale():
     events = []
 

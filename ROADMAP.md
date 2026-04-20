@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-21 03:25:55 CST_
+_最後更新：2026-04-21 03:44:16 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
@@ -8,17 +8,14 @@ _最後更新：2026-04-21 03:25:55 CST_
 
 ## 已完成
 - **fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=31291 / Features=22709 / Labels=63096`
+  - `Raw=31293 / Features=22711 / Labels=63102`
   - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `window=500` / `win_rate=10.8%` / `dominant_regime=bull(85.8%)` / `avg_quality=-0.1729` / `avg_pnl=-0.0062` / `alerts=label_imbalance,regime_shift`
+  - `window=500` / `win_rate=11.0%` / `dominant_regime=bull(85.6%)` / `avg_quality=-0.1712` / `avg_pnl=-0.0061` / `alerts=label_imbalance,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
-- **Strategy Lab 兩年排行榜政策文案已去重並鎖 regression**
-  - UI 改成 `最近 730 天（約 24 個月），降低短窗策略過擬合。`，避免工作區首屏重複朗讀 policy label
-  - 驗證：browser `/lab`、`pytest tests/test_frontend_decision_contract.py tests/test_strategy_lab.py tests/test_model_leaderboard.py -q`、`cd web && npm run build`
 
 ---
 
@@ -34,7 +31,7 @@ _最後更新：2026-04-21 03:25:55 CST_
 
 ### 目標 B：持續把 recent canonical pathological slice 當成 current blocker 根因來鑽
 **目前真相**
-- `window=500` / `win_rate=10.8%` / `dominant_regime=bull(85.8%)` / `avg_quality=-0.1729` / `avg_pnl=-0.0062` / `alerts=label_imbalance,regime_shift`
+- `window=500` / `win_rate=11.0%` / `dominant_regime=bull(85.6%)` / `avg_quality=-0.1712` / `avg_pnl=-0.0061` / `alerts=label_imbalance,regime_shift`
 **成功標準**
 - drift / probe / docs 能直接指出 pathological slice、adverse streak 與 top feature shifts，而不是退回 generic leaderboard / venue 摘要。
 
@@ -48,7 +45,7 @@ _最後更新：2026-04-21 03:25:55 CST_
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2761` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2763` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**

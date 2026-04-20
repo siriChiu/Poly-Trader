@@ -320,6 +320,9 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
     live_signal = str((live_predict_probe or {}).get("signal") or "").strip()
     live_blocker = str((live_predict_probe or {}).get("deployment_blocker") or "").strip()
     runtime_closure_state = str((live_predict_probe or {}).get("runtime_closure_state") or "").strip()
+    live_blocker_details = (live_predict_probe or {}).get("deployment_blocker_details") or {}
+    if not isinstance(live_blocker_details, dict):
+        live_blocker_details = {}
     live_support_reason = " ".join(
         str(value or "")
         for value in [
@@ -354,10 +357,13 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
     )
     support_route_verdict = _first_non_null(
         (live_predict_probe or {}).get("support_route_verdict"),
+        live_blocker_details.get("support_route_verdict"),
         governance.get("support_route_verdict"),
         support_progress.get("support_route_verdict"),
     )
     support_governance_route = _first_non_null(
+        (live_predict_probe or {}).get("support_governance_route"),
+        live_blocker_details.get("support_governance_route"),
         governance.get("support_governance_route"),
         support_progress.get("support_governance_route"),
     )

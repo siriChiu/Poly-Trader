@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-20 19:20:15.579228**
+- generated_at: **2026-04-20 19:42:49.088202**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
