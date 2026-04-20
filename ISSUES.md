@@ -1,41 +1,40 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-21 01:53:40 CST_
+_最後更新：2026-04-21 02:41:31 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 fast heartbeat #20260421-0147 已完成 collect + diagnostics refresh**
-  - `Raw=31277 / Features=22695 / Labels=63086`
+- **最新 fast heartbeat #fast 已完成 collect + diagnostics refresh**
+  - `Raw=31287 / Features=22705 / Labels=63090`
   - `simulated_pyramid_win=57.22%`
 - **canonical current-live blocker 已切到 current-live exact-support truth**
-  - `deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`
+  - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
+  - `current_live_structure_bucket=CAUTION|structure_quality_caution|q35` / `support=12/50` / `gap=38` / `support_route_verdict=exact_bucket_present_but_below_minimum`
 - **recent canonical window 仍是 distribution pathology**
-  - `window=500` / `win_rate=9.6%` / `dominant_regime=bull(87.0%)` / `avg_quality=-0.1829` / `avg_pnl=-0.0065` / `alerts=label_imbalance,regime_shift`
+  - `window=500` / `win_rate=10.2%` / `dominant_regime=bull(86.4%)` / `avg_quality=-0.1781` / `avg_pnl=-0.0063` / `alerts=label_imbalance,regime_shift`
 - **leaderboard / governance 仍維持 dual-role contract**
   - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- **Strategy Lab operator rerun 現在保護系統排行榜列，並顯式暴露手動模型控制**
-  - `Auto Leaderboard · ...` 會標記 `source=auto_leaderboard / immutable=true`；operator rerun 另存 `Manual Copy · ...`，只有 system refresh 會用 `allow_internal_overwrite=true` 回寫 auto rows
-  - `/lab` 現在顯示策略類型 + 手動選擇模型、system-generated badge、以及「只更新圖表 / 區間，尚未重新執行回測」提示；`rule_baseline` 重掃請求維持 `type=rule_based`
-  - 驗證：`pytest tests/test_strategy_lab_manual_model_and_auto_contract.py tests/test_rescan_models_and_refresh_strategy_leaderboard.py -q`、`npm run build`、`python scripts/rescan_models_and_refresh_strategy_leaderboard.py`、browser `/lab`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2747` / `archive_window_coverage_pct=0.0`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2757` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環
+- **operator-facing blocker copy 已統一 humanize**
+  - Dashboard / Execution Console / Execution Status / Strategy Lab / ConfidenceIndicator 現在共用 `web/src/utils/runtimeCopy.ts`
+  - 目的：避免 `under_minimum_exact_live_structure_bucket`、venue blocker codes、runtime reason 在不同頁面出現 raw token / underscore copy drift
 
 ---
 
 ## Open Issues
 
-### P0. current live bucket CAUTION|base_caution_regime_or_bias|q35 exact support is missing and remains the deployment blocker (0/50)
-- 目前真相：`deployment_blocker=unsupported_exact_live_structure_bucket` / `bucket=CAUTION|base_caution_regime_or_bias|q35` / `support=0/50` / `gap=50` / `runtime_closure_state=patch_inactive_or_blocked`
-- same-bucket truth：`support_route_verdict=exact_bucket_unsupported_block` / `support_governance_route=exact_live_lane_proxy_available` / `recommended_patch=core_plus_macro_plus_all_4h` / `recommended_patch_status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`
+### P0. current live bucket CAUTION|structure_quality_caution|q35 exact support remains under minimum and remains the deployment blocker (12/50)
+- 目前真相：`deployment_blocker=under_minimum_exact_live_structure_bucket` / `bucket=CAUTION|structure_quality_caution|q35` / `support=12/50` / `gap=38` / `runtime_closure_state=patch_active_but_execution_blocked`
+- same-bucket truth：`support_route_verdict=exact_bucket_present_but_below_minimum` / `support_governance_route=exact_live_bucket_present_but_below_minimum` / `recommended_patch=core_plus_macro_plus_all_4h` / `recommended_patch_status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`
 - 下一步：把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。
 - 驗證：
   - browser /
@@ -46,15 +45,15 @@ _最後更新：2026-04-21 01:53:40 CST_
   - python scripts/live_decision_quality_drilldown.py
 
 ### P0. recent canonical window 500 rows = distribution_pathology
-- 目前真相：`window=500` / `win_rate=9.6%` / `dominant_regime=bull(87.0%)` / `avg_quality=-0.1829` / `avg_pnl=-0.0065`
-- 病態切片：`alerts=label_imbalance,regime_shift` / `tail_streak=42` / `low_variance=9` / `low_distinct=10` / `null_heavy=10`
-- 下一步：直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['label_imbalance', 'regime_shift'], win_rate=0.0960, delta_vs_full=-0.5289, dominant_regime=bull(87.00%), interpretation=distribution_pathology, avg_pnl=-0.0065, avg_quality=-0.1829, avg_dd_penalty=0.3212, spot_long_win_rate=0.0000, feature_diag=variance:9/56, frozen:0, compressed:9, expected_static:3, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=42x1 since 2026-04-19 10:13:18.192660 -> 2026-04-19 18:12:21.923884, adverse_streak=221x0 since 2026-04-17 15:20:37.894484 -> 2026-04-18 13:43:25.809469, prev_win_rate=0.75, delta_vs_prev=-0.654, prev_quality=0.338, quality_delta_vs_prev=-0.5209, prev_pnl=0.0055, pnl_delta_vs_prev=-0.012, top_shift_examples=feat_eye(0.9854→-1.7405,Δσ=0.7112)/feat_local_top_score(0.4156→0.2786,Δσ=0.6101)/feat_local_bottom_score(0.3045→0.43,Δσ=0.5497), new_compressed=feat_vwap_dev, compressed_examples=feat_body(0.0001/500)/feat_ear(0.0062/498)/feat_tongue(0.0096/500), expected_static_examples=feat_dxy[weekend_macro_market_closed]/feat_nq_return_24h[weekend_macro_market_closed]/feat_vix[weekend_macro_market_closed], overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-19 18:09:49.118789:1:chop:0.4831/2026-04-19 18:11:04.214577:1:chop:0.4936/2026-04-19 18:12:21.923884:1:chop:0.4855, adverse_examples=2026-04-18 13:00:00.000000:0:bull:-0.2342/2026-04-18 13:36:43.970223:0:bull:-0.2119/2026-04-18 13:43:25.809469:0:bull:-0.2137
+- 目前真相：`window=500` / `win_rate=10.2%` / `dominant_regime=bull(86.4%)` / `avg_quality=-0.1781` / `avg_pnl=-0.0063`
+- 病態切片：`alerts=label_imbalance,regime_shift` / `tail_streak=45` / `low_variance=9` / `low_distinct=10` / `null_heavy=10`
+- 下一步：直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['label_imbalance', 'regime_shift'], win_rate=0.1020, delta_vs_full=-0.5229, dominant_regime=bull(86.40%), interpretation=distribution_pathology, avg_pnl=-0.0063, avg_quality=-0.1781, avg_dd_penalty=0.3207, spot_long_win_rate=0.0000, feature_diag=variance:9/56, frozen:0, compressed:9, expected_static:3, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=45x1 since 2026-04-19 10:13:18.192660 -> 2026-04-19 19:27:03.796200, adverse_streak=218x0 since 2026-04-17 15:23:38.908981 -> 2026-04-18 13:43:25.809469, prev_win_rate=0.744, delta_vs_prev=-0.642, prev_quality=0.3337, quality_delta_vs_prev=-0.5118, prev_pnl=0.0054, pnl_delta_vs_prev=-0.0117, top_shift_examples=feat_eye(0.9958→-1.8099,Δσ=0.7318)/feat_local_top_score(0.4166→0.2758,Δσ=0.6265)/feat_local_bottom_score(0.304→0.4334,Δσ=0.567), new_compressed=feat_vwap_dev, compressed_examples=feat_body(0.0001/500)/feat_ear(0.0063/498)/feat_tongue(0.0097/500), expected_static_examples=feat_dxy[weekend_macro_market_closed]/feat_nq_return_24h[weekend_macro_market_closed]/feat_vix[weekend_macro_market_closed], overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-19 18:53:30.205488:1:chop:0.568/2026-04-19 19:16:39.534820:1:chop:0.521/2026-04-19 19:27:03.796200:1:chop:0.5249, adverse_examples=2026-04-18 13:00:00.000000:0:bull:-0.2342/2026-04-18 13:36:43.970223:0:bull:-0.2119/2026-04-18 13:43:25.809469:0:bull:-0.2137
 - 驗證：
   - python scripts/recent_drift_report.py
   - python scripts/hb_predict_probe.py
 
 ### P1. support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only
-- 目前真相：`bucket=CAUTION|base_caution_regime_or_bias|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block` / `governance_route=exact_live_lane_proxy_available`
+- 目前真相：`bucket=CAUTION|structure_quality_caution|q35` / `support=12/50` / `gap=38` / `support_route_verdict=exact_bucket_present_but_below_minimum` / `governance_route=exact_live_bucket_present_but_below_minimum`
 - 下一步：Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.
 
 ### P1. venue readiness is still unverified
@@ -67,7 +66,7 @@ _最後更新：2026-04-21 01:53:40 CST_
   - data/execution_metadata_smoke.json
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2747` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2757` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json
@@ -75,12 +74,11 @@ _最後更新：2026-04-21 01:53:40 CST_
 
 ### P1. leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe
 - 目前真相：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- 補強真相：`Auto Leaderboard · ...` rows 現在帶 `source=auto_leaderboard / immutable=true`；operator rerun 會另存 `Manual Copy · ...`；`rule_baseline` 重掃維持 `type=rule_based`；editor 直接提供 `strategy_type + model_name` controls 與 stale-result warning
-- 下一步：Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; maintain the immutable auto-row / manual-copy contract so operator reruns never overwrite system-generated leaderboard rows.
+- 下一步：Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.
 - 驗證：
   - browser /lab
   - curl http://127.0.0.1:8000/api/models/leaderboard
-  - pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py tests/test_strategy_lab_manual_model_and_auto_contract.py tests/test_rescan_models_and_refresh_strategy_leaderboard.py -q
+  - pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q
 
 ---
 

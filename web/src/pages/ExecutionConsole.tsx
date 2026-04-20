@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { fetchApi, useApi } from "../hooks/useApi";
 import { ExecutionHero, ExecutionMetricCard, ExecutionPill, ExecutionSectionCard } from "../components/execution/ExecutionSurface";
+import { humanizeExecutionReason } from "../utils/runtimeCopy";
 
 type SurfaceInfo = {
   route?: string;
@@ -493,26 +494,6 @@ function getStatusTone(status?: string | null): string {
   return "border-cyan-500/30 bg-cyan-500/10 text-cyan-100";
 }
 
-function humanizeExecutionReason(value?: string | null): string {
-  const normalized = String(value || "").trim();
-  if (!normalized) return "尚未提供 blocker 摘要。";
-  const lower = normalized.toLowerCase();
-  const mappings: Array<[string, string]> = [
-    ["live exchange credential", "交易所憑證尚未驗證。"],
-    ["order ack lifecycle", "委託確認流程尚未驗證。"],
-    ["fill lifecycle", "成交回補流程尚未驗證。"],
-    ["unsupported_exact_live_structure_bucket", "目前結構 bucket 尚未通過可部署條件。"],
-    ["decision_quality_below_trade_floor", "目前決策品質不足，暫不建議進場。"],
-    ["circuit_breaker_active", "目前觸發保護機制，暫停部署。"],
-    ["patch_inactive_or_blocked", "目前 q15 patch 尚未啟用，或仍被其他條件阻擋。"],
-    ["unsupported", "目前條件尚未通過可部署檢查。"],
-  ];
-  for (const [token, message] of mappings) {
-    if (lower.includes(token)) return message;
-  }
-  return normalized.replace(/[_|]+/g, " ").trim();
-}
-
 function readRecordString(record: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
     const value = record[key];
@@ -702,7 +683,13 @@ export default function ExecutionConsole() {
     : "尚未建立 stateful run；先在上方 Bot 卡啟動，這裡才會出現事件與狀態。";
   const liveReadinessSummary = runtimeStatusPending
     ? "正在向 /api/status 取得 live readiness。"
-    : (liveRuntimeTruth?.deployment_blocker || liveRuntimeTruth?.execution_guardrail_reason || executionSurfaceContract?.operator_message || "尚未提供 readiness 訊息。");
+    : humanizeExecutionReason(
+      liveRuntimeTruth?.deployment_blocker_reason
+      || liveRuntimeTruth?.deployment_blocker
+      || liveRuntimeTruth?.execution_guardrail_reason
+      || executionSurfaceContract?.operator_message
+      || "尚未提供 readiness 訊息。"
+    );
   const runActionTone = runActionState.tone === "success"
     ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
     : runActionState.tone === "error"

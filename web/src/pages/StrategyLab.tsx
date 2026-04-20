@@ -17,6 +17,7 @@ import { ExecutionWorkspaceMetric, ExecutionWorkspaceSummary } from "../componen
 import { fetchApi, useApi } from "../hooks/useApi";
 import { useGlobalProgressTask } from "../hooks/useGlobalProgress";
 import { getSenseConfig } from "../config/senses";
+import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
 
 interface RegimeBreakdownEntry {
   regime: string;
@@ -2411,10 +2412,12 @@ export default function StrategyLab() {
     ?? liveRuntimeClosureSummary
     ?? "尚未取得 current live blocker。";
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
-  const currentLiveBlockerLabel = liveExecutionSyncPending ? "同步中" : (currentLiveBlocker || "unknown");
+  const currentLiveBlockerLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeCurrentLiveBlockerLabel(currentLiveBlocker || "unknown");
   const currentLiveBlockerSummaryLabel = liveExecutionSyncPending
     ? "正在同步 live blocker / runtime closure"
-    : currentLiveBlockerSummary;
+    : humanizeExecutionReason(currentLiveBlockerSummary);
   const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
   const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;
@@ -2424,7 +2427,7 @@ export default function StrategyLab() {
   const runtimeClosureStateLabel = liveExecutionSyncPending ? "同步中" : (liveRuntimeClosureState || "unknown");
   const runtimeClosureSummaryLabel = liveExecutionSyncPending
     ? "正在同步 runtime closure summary。"
-    : (liveRuntimeClosureSummary || "尚未取得 runtime closure summary。");
+    : humanizeExecutionReason(liveRuntimeClosureSummary || "尚未取得 runtime closure summary。");
   const activeSleevesLabel = liveExecutionSyncPending ? "同步中" : (liveRouting?.active_ratio_text || "0/0");
   const activeSleevesSummaryLabel = liveExecutionSyncPending
     ? "正在同步 regime / gate 路由"
@@ -2434,7 +2437,7 @@ export default function StrategyLab() {
     : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
   const venueReadinessBlockersLabel = liveExecutionSyncPending
     ? "同步中"
-    : (venueReadinessBlockers.length ? venueReadinessBlockers.join(" · ") : executionSurfaceContract?.operator_message || "目前沒有額外 venue blocker 摘要");
+    : (venueReadinessBlockers.length ? venueReadinessBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : humanizeExecutionReason(executionSurfaceContract?.operator_message || "目前沒有額外 venue blocker 摘要"));
   const lifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
   const lifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
   const lifecycleArtifactChecklist = Array.isArray(lifecycleContract?.artifact_checklist)

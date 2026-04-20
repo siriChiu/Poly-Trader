@@ -3,6 +3,7 @@
  * 將 live predictor 的 canonical decision-quality contract 直接顯示在 Dashboard。
  */
 import React from "react";
+import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
 
 interface Props {
   confidence: number;        // 0~1 long-win probability proxy
@@ -269,11 +270,11 @@ export default function ConfidenceIndicator({
             <div>
               <div className="text-sm font-semibold text-amber-200">目前 blocker</div>
               <div className="mt-1 text-xs leading-5 text-amber-100/80">
-                {deploymentBlockerReason || deploymentBlocker}
+                {humanizeExecutionReason(deploymentBlockerReason || deploymentBlocker)}
               </div>
             </div>
             <div className="rounded-full border border-amber-700/50 bg-amber-950/40 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
-              {deploymentBlocker}
+              {humanizeCurrentLiveBlockerLabel(deploymentBlocker)}
             </div>
           </div>
 

@@ -12,6 +12,7 @@ import { ExecutionWorkspaceMetric, ExecutionWorkspaceSummary } from "../componen
 import { buildWsCandidateUrls, rememberActiveApiBaseFromWsUrl, useApi, fetchApi, prewarmActiveApiBase } from "../hooks/useApi";
 import ConfidenceIndicator from "../components/ConfidenceIndicator";
 import { ALL_SENSES, getSenseConfig } from "../config/senses";
+import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
 
 interface SensesResponse {
   senses: Record<string, any>;
@@ -993,16 +994,20 @@ export default function Dashboard() {
     || liveRuntimeTruth?.execution_guardrail_reason
     || executionSurfaceContract?.operator_message
     || null;
-  const dashboardCurrentLiveBlockerLabel = runtimeStatusPending ? "同步中" : (dashboardCurrentLiveBlocker || "unavailable");
+  const dashboardCurrentLiveBlockerLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeCurrentLiveBlockerLabel(dashboardCurrentLiveBlocker || "unavailable");
   const dashboardPrimaryRuntimeMessageLabel = runtimeStatusPending
     ? "正在同步 /api/status"
-    : (dashboardPrimaryRuntimeMessage || (runtimeStatusError ? `無法取得 /api/status：${runtimeStatusError}` : "目前沒有額外 blocker 摘要"));
+    : humanizeExecutionReason(
+      dashboardPrimaryRuntimeMessage || (runtimeStatusError ? `無法取得 /api/status：${runtimeStatusError}` : "目前沒有額外 blocker 摘要")
+    );
   const dashboardVenueBlockers = Array.isArray(executionSurfaceContract?.live_ready_blockers)
     ? executionSurfaceContract.live_ready_blockers
     : [];
   const dashboardVenueBlockersLabel = runtimeStatusPending
     ? "同步中"
-    : (dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.join(" · ") : "none");
+    : (dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "none");
   const adviceCardExecutionActionState: "syncing" | "blocked" | "ready" = runtimeStatusPending || !liveRuntimeTruth
     ? "syncing"
     : (dashboardCurrentLiveBlocker ? "blocked" : "ready");

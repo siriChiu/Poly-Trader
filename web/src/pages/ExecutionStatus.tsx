@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { useApi } from "../hooks/useApi";
 import { ExecutionHero, ExecutionMetricCard, ExecutionPill, ExecutionSectionCard } from "../components/execution/ExecutionSurface";
+import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
 
 type SurfaceInfo = {
   route?: string;
@@ -428,13 +429,17 @@ export default function ExecutionStatus() {
   const currentLiveBlocker = liveRuntimeTruth?.deployment_blocker || null;
   const primaryRuntimeMessage = runtimeStatusPending
     ? "正在同步 /api/status"
-    : (liveRuntimeTruth?.deployment_blocker_reason
+    : humanizeExecutionReason(
+      liveRuntimeTruth?.deployment_blocker_reason
       || liveRuntimeTruth?.deployment_blocker
       || liveRuntimeTruth?.execution_guardrail_reason
       || liveReadyBlockers[0]
       || executionSurfaceContract?.operator_message
-      || "目前沒有額外 blocker 摘要。");
-  const currentLiveBlockerLabel = runtimeStatusPending ? "同步中" : (currentLiveBlocker || "unavailable");
+      || "目前沒有額外 blocker 摘要。"
+    );
+  const currentLiveBlockerLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeCurrentLiveBlockerLabel(currentLiveBlocker || "unavailable");
   const metadataFreshnessLabel = runtimeStatusPending
     ? "同步中"
     : (metadataFreshness?.label || metadataFreshness?.status || "unavailable");
@@ -442,7 +447,7 @@ export default function ExecutionStatus() {
   const supportAlignmentLabel = runtimeStatusPending ? "同步中" : (liveRuntimeTruth?.support_alignment_status || "unavailable");
   const venueBlockersLabel = runtimeStatusPending
     ? "同步中"
-    : (liveReadyBlockers.length > 0 ? liveReadyBlockers.join(" · ") : "none");
+    : (liveReadyBlockers.length > 0 ? liveReadyBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "none");
 
   const lifecycleSummary = useMemo(() => {
     return [

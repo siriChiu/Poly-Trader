@@ -39,8 +39,10 @@ def test_execution_status_route_and_page_contract():
         'const { data: runtimeStatus, loading, error, refresh } = useApi<ExecutionStatusResponse>("/api/status", 60000);',
         'const runtimeStatusPending = loading && !runtimeStatus && !error;',
         'const currentLiveBlocker = liveRuntimeTruth?.deployment_blocker || null;',
-        'const currentLiveBlockerLabel = runtimeStatusPending ? "同步中" : (currentLiveBlocker || "unavailable");',
+        'const currentLiveBlockerLabel = runtimeStatusPending',
+        'humanizeCurrentLiveBlockerLabel(currentLiveBlocker || "unavailable")',
         'const primaryRuntimeMessage = runtimeStatusPending',
+        'humanizeExecutionReason(',
         'const metadataFreshnessLabel = runtimeStatusPending',
         'const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");',
         'const venueBlockersLabel = runtimeStatusPending',
@@ -91,10 +93,10 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         'const { data: executionOverview, loading: overviewLoading, error: overviewError, refresh: refreshExecutionOverview } = useApi<ExecutionOverviewResponse>("/api/execution/overview", 60000);',
         'const { data: executionRuns, loading: runsLoading, error: runsError, refresh: refreshExecutionRuns } = useApi<ExecutionRunsResponse>("/api/execution/runs", 60000);',
         'function formatSignedNumber(value: number | null | undefined, digits = 2): string {',
-        'function humanizeExecutionReason(value?: string | null): string {',
-        '交易所憑證尚未驗證。',
-        '目前結構 bucket 尚未通過可部署條件。',
-        '目前決策品質不足，暫不建議進場。',
+        'import { humanizeExecutionReason } from "../utils/runtimeCopy";',
+        'const liveReadinessSummary = runtimeStatusPending',
+        'liveRuntimeTruth?.deployment_blocker_reason',
+        '尚未提供 readiness 訊息。',
         'const totalUnrealizedPnl = runLedgerPreviews.reduce(',
         'const totalCapitalInUse = runLedgerPreviews.reduce(',
         'const profitableRuns = executionRunRecords.filter(',
@@ -252,17 +254,53 @@ def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_r
     source = _read("pages/Dashboard.tsx")
     required_snippets = [
         'const dashboardCurrentLiveBlocker = liveRuntimeTruth?.deployment_blocker || null;',
-        'const dashboardCurrentLiveBlockerLabel = runtimeStatusPending ? "同步中" : (dashboardCurrentLiveBlocker || "unavailable");',
+        'const dashboardCurrentLiveBlockerLabel = runtimeStatusPending',
+        'humanizeCurrentLiveBlockerLabel(dashboardCurrentLiveBlocker || "unavailable")',
         'const dashboardPrimaryRuntimeMessage = liveRuntimeTruth?.deployment_blocker_reason',
         'const dashboardPrimaryRuntimeMessageLabel = runtimeStatusPending',
+        'humanizeExecutionReason(',
         'const dashboardVenueBlockers = Array.isArray(executionSurfaceContract?.live_ready_blockers)',
         'const dashboardVenueBlockersLabel = runtimeStatusPending',
+        'dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ")',
         'current live blocker {dashboardCurrentLiveBlockerLabel}',
         'venue blockers {dashboardVenueBlockersLabel}',
     ]
     for snippet in required_snippets:
         assert snippet in source
     assert source.index('liveRuntimeTruth?.deployment_blocker_reason') < source.index('executionSurfaceContract?.live_ready_blockers')
+
+
+def test_execution_surfaces_humanize_blocker_labels_and_reasons_via_shared_runtime_copy():
+    runtime_copy_source = _read("utils/runtimeCopy.ts")
+    required_runtime_copy_snippets = [
+        'export function humanizeExecutionReason(value?: string | null): string {',
+        'export function humanizeCurrentLiveBlockerLabel(value?: string | null): string {',
+        '"under_minimum_exact_live_structure_bucket"',
+        '"exact support 未達最小樣本"',
+        '"unsupported_exact_live_structure_bucket"',
+        '"exact support 尚未建立"',
+        '"decision_quality_below_trade_floor"',
+        '"決策品質未達門檻"',
+    ]
+    for snippet in required_runtime_copy_snippets:
+        assert snippet in runtime_copy_source
+
+    dashboard_source = _read("pages/Dashboard.tsx")
+    execution_console_source = _read("pages/ExecutionConsole.tsx")
+    execution_status_source = _read("pages/ExecutionStatus.tsx")
+    strategy_lab_source = _read("pages/StrategyLab.tsx")
+
+    assert 'import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";' in dashboard_source
+    assert 'import { humanizeExecutionReason } from "../utils/runtimeCopy";' in execution_console_source
+    assert 'import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";' in execution_status_source
+    assert 'import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";' in strategy_lab_source
+
+    assert 'const dashboardCurrentLiveBlockerLabel = runtimeStatusPending ? "同步中" : (dashboardCurrentLiveBlocker || "unavailable");' not in dashboard_source
+    assert 'function humanizeExecutionReason(value?: string | null): string {' not in execution_console_source
+    assert 'const liveReadinessSummary = runtimeStatusPending' in execution_console_source
+    assert 'liveRuntimeTruth?.deployment_blocker_reason' in execution_console_source
+    assert 'const currentLiveBlockerLabel = runtimeStatusPending ? "同步中" : (currentLiveBlocker || "unavailable");' not in execution_status_source
+    assert 'const currentLiveBlockerLabel = liveExecutionSyncPending ? "同步中" : (currentLiveBlocker || "unknown");' not in strategy_lab_source
 
 
 def test_dashboard_advice_card_downgrades_trade_ctas_until_runtime_is_ready():
@@ -325,6 +363,7 @@ def test_signal_banner_declares_dashboard_as_canonical_execution_route_until_upg
 def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_states():
     source = _read("components/ConfidenceIndicator.tsx")
     required_snippets = [
+        'import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";',
         'const q15PatchExecutionBlocked = Boolean(',
         'const q15PatchCapacityOpened = Boolean(',
         'const breakerRecentWindow = deploymentBlockerDetails?.recent_window ?? null;',
@@ -336,6 +375,8 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
         'capacity opened but signal still HOLD',
         'patch active 只證明 runtime floor-cross 元件已落地，不等於目前可部署',
         'q15 patch 已經吃到 current live row，但 execution 仍被 exact live bucket blocker / guardrail 壓住',
+        'humanizeExecutionReason(deploymentBlockerReason || deploymentBlocker)',
+        'humanizeCurrentLiveBlockerLabel(deploymentBlocker)',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -384,8 +425,10 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;',
         'const runtimeStatusPending = runtimeStatusLoading && !runtimeStatus && !runtimeStatusError;',
         'const liveExecutionSyncPending = runtimeStatusPending && liveRuntimePending;',
-        'const currentLiveBlockerLabel = liveExecutionSyncPending ? "同步中" : (currentLiveBlocker || "unknown");',
+        'const currentLiveBlockerLabel = liveExecutionSyncPending',
+        'humanizeCurrentLiveBlockerLabel(currentLiveBlocker || "unknown")',
         'const currentLiveBlockerSummaryLabel = liveExecutionSyncPending',
+        'humanizeExecutionReason(currentLiveBlockerSummary)',
         'const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
         'const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;',
         'const metadataSmokeFreshnessLabel = runtimeStatusPending',
