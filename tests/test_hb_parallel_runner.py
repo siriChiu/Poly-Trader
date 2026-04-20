@@ -35,8 +35,17 @@ def test_parse_args_allows_fast_without_hb():
     args = hb_parallel_runner.parse_args(["--fast"])
 
     assert args.fast is True
+    assert args.fast_refresh_candidates is False
     assert args.no_collect is False
     assert hb_parallel_runner.resolve_run_label(args) == "fast"
+
+
+def test_parse_args_allows_fast_candidate_refresh_opt_in():
+    args = hb_parallel_runner.parse_args(["--fast", "--fast-refresh-candidates", "--hb", "hb123"])
+
+    assert args.fast is True
+    assert args.fast_refresh_candidates is True
+    assert args.hb == "hb123"
 
 
 def test_parse_args_requires_hb_for_full_mode():
@@ -1633,6 +1642,58 @@ def test_sync_fast_heartbeat_timeout_issue_resolves_stale_issue_when_run_finishe
     assert tracker.issues[0]["status"] == "resolved"
 
 
+def test_sync_fast_heartbeat_timeout_issue_tracks_skipped_candidate_lanes_without_reopening(monkeypatch):
+    tracker = type(
+        "DummyTracker",
+        (),
+        {
+            "issues": [
+                {
+                    "id": "P1_fast_heartbeat_timeout_regression",
+                    "priority": "P1",
+                    "title": "fast heartbeat still overruns cron budget when candidate-eval lane wakes up",
+                    "action": "old action",
+                    "status": "open",
+                }
+            ],
+            "resolve": lambda self, issue_id: self.issues[0].update(status="resolved") or True,
+            "add": lambda self, *args, **kwargs: (_ for _ in ()).throw(AssertionError("skipped lanes should not reopen fast timeout issue")),
+            "save": lambda self: None,
+        },
+    )()
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "IssueTracker",
+        type("IssueTrackerShim", (), {"load": staticmethod(lambda: tracker)}),
+    )
+
+    result = hb_parallel_runner.sync_fast_heartbeat_timeout_issue(
+        "20260420z",
+        fast_mode=True,
+        elapsed_seconds=61.2,
+        collect_result={"attempted": True, "success": True},
+        parallel_results={
+            "full_ic": {"success": True},
+            "regime_ic": {"success": True},
+        },
+        serial_results={
+            "feature_group_ablation": {"result": {"skipped": True, "skip_reason": "fast_mode_candidate_refresh_disabled"}},
+            "bull_4h_pocket_ablation": {"result": {"skipped": True, "skip_reason": "fast_mode_candidate_refresh_disabled"}},
+            "hb_leaderboard_candidate_probe": {"result": {"skipped": True, "skip_reason": "fast_mode_candidate_refresh_disabled"}},
+            "recent_drift_report": {"result": {"attempted": False, "success": True, "cached": True, "returncode": 0}},
+            "hb_predict_probe": {"result": {"attempted": True, "success": True, "returncode": 0}},
+            "auto_propose_fixes": {"result": {"attempted": True, "success": True, "returncode": 0}},
+        },
+    )
+
+    assert result["status"] == "resolved"
+    assert result["skipped_lanes"] == [
+        "feature_group_ablation",
+        "bull_4h_pocket_ablation",
+        "hb_leaderboard_candidate_probe",
+    ]
+    assert tracker.issues[0]["status"] == "resolved"
+
 
 def test_collect_current_state_docs_sync_status_is_clean_after_overwrite(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
@@ -2356,11 +2417,12 @@ def test_collect_q15_boundary_replay_diagnostics_reads_replay_and_counterfactual
     assert diag["carry_forward"] == ["先讀 data/q15_boundary_replay.json"]
 
 
-def test_main_runs_q15_support_audit_after_leaderboard_probe(tmp_path, monkeypatch):
+def test_main_fast_mode_skips_candidate_refresh_lanes_by_default(tmp_path, monkeypatch):
     order = []
 
     class Args:
         fast = True
+        fast_refresh_candidates = False
         hb = "test"
         no_collect = True
         no_train = True
@@ -2415,9 +2477,9 @@ def test_main_runs_q15_support_audit_after_leaderboard_probe(tmp_path, monkeypat
     monkeypatch.setattr(hb_parallel_runner, "run_live_decision_quality_drilldown", lambda: order.append("drilldown") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "run_circuit_breaker_audit", lambda run_label: _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_circuit_breaker_audit_diagnostics", lambda: {})
-    monkeypatch.setattr(hb_parallel_runner, "run_feature_group_ablation", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_feature_group_ablation", lambda: order.append("feature_ablation") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_feature_ablation_diagnostics", lambda: {})
-    monkeypatch.setattr(hb_parallel_runner, "run_bull_4h_pocket_ablation", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_bull_4h_pocket_ablation", lambda: order.append("bull_pocket") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_bull_4h_pocket_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_leaderboard_candidate_probe", lambda run_label=None: order.append("leaderboard") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", lambda: {})
@@ -2432,7 +2494,97 @@ def test_main_runs_q15_support_audit_after_leaderboard_probe(tmp_path, monkeypat
 
     hb_parallel_runner.main(["--fast", "--hb", "test"])
 
-    assert order == ["q35", "predict_probe", "drilldown", "leaderboard", "q15", "q15_root", "q15_replay"]
+    assert order == ["q35", "predict_probe", "drilldown", "q15", "q15_root", "q15_replay"]
+
+
+def test_main_fast_mode_opt_in_refreshes_candidate_lanes(tmp_path, monkeypatch):
+    order = []
+
+    class Args:
+        fast = True
+        fast_refresh_candidates = True
+        hb = "test"
+        no_collect = True
+        no_train = True
+        no_dw = True
+
+    class FakeExecutor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def submit(self, fn, task):
+            raise AssertionError("submit() should not be called when TASKS is empty in this test")
+
+    def _ok(stdout: str = ""):
+        return {"success": True, "returncode": 0, "stdout": stdout, "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    monkeypatch.setattr(hb_parallel_runner, "TASKS", [])
+    monkeypatch.setattr(hb_parallel_runner, "parse_args", lambda argv=None: Args())
+    monkeypatch.setattr(hb_parallel_runner, "resolve_run_label", lambda args: "test")
+    monkeypatch.setattr(hb_parallel_runner, "run_collect_step", lambda skip=False: {"attempted": False, "success": True, "returncode": 0, "stdout": "", "stderr": ""})
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "quick_counts",
+        lambda: {
+            "raw_market_data": 1,
+            "features_normalized": 1,
+            "labels": 1,
+            "simulated_pyramid_win_rate": 0.5,
+            "latest_raw_timestamp": "2026-04-15 00:00:00",
+            "label_horizons": [],
+        },
+    )
+    monkeypatch.setattr(hb_parallel_runner, "collect_source_blockers", lambda: {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []})
+    monkeypatch.setattr(hb_parallel_runner, "print_source_blockers", lambda payload: None)
+    monkeypatch.setattr(hb_parallel_runner, "refresh_train_prerequisites", lambda needs_train: {})
+    monkeypatch.setattr(hb_parallel_runner.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
+    monkeypatch.setattr(hb_parallel_runner.concurrent.futures, "as_completed", lambda future_to_name: [])
+    monkeypatch.setattr(hb_parallel_runner, "collect_ic_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_recent_drift_report", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_recent_drift_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q35_scaling_audit", lambda: order.append("q35") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q35_scaling_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_predict_probe", lambda: order.append("predict_probe") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "_persist_live_predictor_probe", lambda stdout: None)
+    monkeypatch.setattr(hb_parallel_runner, "collect_live_predictor_diagnostics", lambda result: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_live_decision_quality_drilldown", lambda: order.append("drilldown") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_circuit_breaker_audit", lambda run_label: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_circuit_breaker_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_feature_group_ablation", lambda: order.append("feature_ablation") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_feature_ablation_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_bull_4h_pocket_ablation", lambda: order.append("bull_pocket") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_bull_4h_pocket_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_leaderboard_candidate_probe", lambda run_label=None: order.append("leaderboard") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_support_audit", lambda: order.append("q15") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_bucket_root_cause", lambda: order.append("q15_root") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_bucket_root_cause_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_boundary_replay", lambda: order.append("q15_replay") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_boundary_replay_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_auto_propose", lambda run_label=None: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "save_summary", lambda *args, **kwargs: ({}, "/tmp/heartbeat_test_summary.json"))
+
+    hb_parallel_runner.main(["--fast", "--fast-refresh-candidates", "--hb", "test"])
+
+    assert order == [
+        "q35",
+        "predict_probe",
+        "drilldown",
+        "feature_ablation",
+        "bull_pocket",
+        "leaderboard",
+        "q15",
+        "q15_root",
+        "q15_replay",
+    ]
 
 
 def test_write_progress_persists_machine_readable_artifact(tmp_path, monkeypatch):

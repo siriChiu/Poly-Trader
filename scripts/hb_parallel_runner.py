@@ -4,6 +4,7 @@
 Usage:
   python scripts/hb_parallel_runner.py --hb N [--no-train] [--no-dw]
   python scripts/hb_parallel_runner.py --fast [--hb LABEL]
+  python scripts/hb_parallel_runner.py --fast --fast-refresh-candidates [--hb LABEL]
 """
 
 from __future__ import annotations
@@ -1369,10 +1370,38 @@ def _build_cached_serial_result(command_name: str, cache_hit: Dict[str, Any]) ->
     }
 
 
+def _build_skipped_serial_result(
+    command_name: str,
+    *,
+    reason: str,
+    artifact_path: str | Path | None = None,
+) -> Dict[str, Any]:
+    return {
+        "attempted": False,
+        "success": True,
+        "returncode": None,
+        "stdout": "",
+        "stderr": "",
+        "command": [command_name],
+        "skipped": True,
+        "skip_reason": reason,
+        "artifact_path": str(artifact_path) if artifact_path else None,
+    }
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--hb", type=str, required=False, help="Heartbeat label. Required for full runs; optional in --fast mode.")
     parser.add_argument("--fast", action="store_true", help="Quick diagnostic mode for cron. If --hb is omitted, uses the label 'fast'.")
+    parser.add_argument(
+        "--fast-refresh-candidates",
+        action="store_true",
+        help=(
+            "In fast mode, also rerun candidate-evaluation lanes "
+            "(feature_group_ablation / bull_4h_pocket_ablation / hb_leaderboard_candidate_probe). "
+            "Default fast mode reuses existing candidate artifacts instead."
+        ),
+    )
     parser.add_argument("--no-train", action="store_true")
     parser.add_argument("--no-dw", action="store_true")
     parser.add_argument("--no-collect", action="store_true", help="Skip heartbeat data collection before diagnostics.")
@@ -1858,6 +1887,8 @@ def _build_serial_result_summary(
         "success": result.get("success", False),
         "returncode": result.get("returncode"),
         "timed_out": timed_out,
+        "skipped": bool(result.get("skipped")),
+        "skip_reason": result.get("skip_reason"),
         "cached": bool(result.get("cached")),
         "cache_reason": result.get("cache_reason"),
         "cache_details": result.get("cache_details") or {},
@@ -1891,6 +1922,7 @@ def sync_fast_heartbeat_timeout_issue(
             completed_lanes.append(name)
 
     timed_out_lanes: list[str] = []
+    skipped_lanes: list[str] = []
     for name, payload in (serial_results or {}).items():
         if isinstance(payload, dict) and isinstance(payload.get("result"), dict):
             result_payload = payload.get("result") or {}
@@ -1898,12 +1930,16 @@ def sync_fast_heartbeat_timeout_issue(
             result_payload = payload
         else:
             continue
+        if result_payload.get("skipped"):
+            skipped_lanes.append(name)
+            continue
         if result_payload.get("attempted") or result_payload.get("cached") or result_payload.get("success") or result_payload.get("returncode") is not None:
             completed_lanes.append(name)
         if result_payload.get("returncode") == -1 and "TIMEOUT after" in str(result_payload.get("stderr") or ""):
             timed_out_lanes.append(name)
 
     completed_lanes = list(dict.fromkeys(completed_lanes))
+    skipped_lanes = list(dict.fromkeys(skipped_lanes))
     elapsed_seconds = round(float(elapsed_seconds or 0.0), 1)
     within_budget = elapsed_seconds <= FAST_HEARTBEAT_CRON_BUDGET_SECONDS
 
@@ -1917,6 +1953,7 @@ def sync_fast_heartbeat_timeout_issue(
             "elapsed_seconds": elapsed_seconds,
             "within_budget": True,
             "completed_lanes": completed_lanes,
+            "skipped_lanes": skipped_lanes,
             "timed_out_lanes": [],
         }
 
@@ -1932,6 +1969,7 @@ def sync_fast_heartbeat_timeout_issue(
         "elapsed_seconds": elapsed_seconds,
         "timed_out_before_completion": bool(timed_out_lanes) or not within_budget,
         "completed_lanes_before_timeout": completed_lanes,
+        "skipped_lanes": skipped_lanes,
         "timed_out_lanes": timed_out_lanes,
         "cron_budget_seconds": FAST_HEARTBEAT_CRON_BUDGET_SECONDS,
         "timeout_reason": (
@@ -1957,6 +1995,7 @@ def sync_fast_heartbeat_timeout_issue(
         "elapsed_seconds": elapsed_seconds,
         "within_budget": within_budget,
         "completed_lanes": completed_lanes,
+        "skipped_lanes": skipped_lanes,
         "timed_out_lanes": timed_out_lanes,
     }
 
@@ -2960,6 +2999,7 @@ def main(argv=None):
             "mode": "fast" if args.fast else "full",
             "tasks_requested": [task["name"] for task in TASKS],
             "fast": bool(args.fast),
+            "fast_refresh_candidates": bool(getattr(args, "fast_refresh_candidates", False)),
             "no_collect": bool(args.no_collect),
             "no_train": bool(args.no_train),
             "no_dw": bool(args.no_dw),
@@ -3374,21 +3414,46 @@ def main(argv=None):
             f"aligned={aligned_scope.get('triggered_by')} release_ready={aligned_scope.get('release_ready')}"
         )
 
+    refresh_candidate_eval_lanes = (not args.fast) or bool(getattr(args, "fast_refresh_candidates", False))
+
     if feature_ablation_result is None:
-        feature_ablation_result = run_feature_group_ablation()
-        feature_ablation_summary = collect_feature_ablation_diagnostics()
-        print(
-            f"📚 Feature-group ablation：{'通過' if feature_ablation_result['success'] else '失敗'} "
-            f"(rc={feature_ablation_result['returncode']})"
-        )
-        if feature_ablation_result.get("stdout"):
-            lines = feature_ablation_result["stdout"].split("\n")
-            preview = "\n".join(lines[:20])
-            if len(lines) > 20:
-                preview += "\n...\n" + "\n".join(lines[-8:])
-            print(f"\n--- feature_group_ablation ---\n{preview}")
-        if feature_ablation_result.get("stderr"):
-            print(f"\n--- feature_group_ablation stderr ---\n{feature_ablation_result['stderr']}")
+        if refresh_candidate_eval_lanes:
+            feature_ablation_result = run_feature_group_ablation()
+            feature_ablation_summary = collect_feature_ablation_diagnostics()
+            print(
+                f"📚 Feature-group ablation：{'通過' if feature_ablation_result['success'] else '失敗'} "
+                f"(rc={feature_ablation_result['returncode']})"
+            )
+            if feature_ablation_result.get("stdout"):
+                lines = feature_ablation_result["stdout"].split("\n")
+                preview = "\n".join(lines[:20])
+                if len(lines) > 20:
+                    preview += "\n...\n" + "\n".join(lines[-8:])
+                print(f"\n--- feature_group_ablation ---\n{preview}")
+            if feature_ablation_result.get("stderr"):
+                print(f"\n--- feature_group_ablation stderr ---\n{feature_ablation_result['stderr']}")
+        else:
+            artifact_path = Path(PROJECT_ROOT) / "data" / "feature_group_ablation.json"
+            feature_ablation_result = _build_skipped_serial_result(
+                "feature_group_ablation",
+                reason="fast_mode_candidate_refresh_disabled",
+                artifact_path=artifact_path,
+            )
+            feature_ablation_summary = collect_feature_ablation_diagnostics()
+            write_progress(
+                run_label,
+                "feature_group_ablation",
+                status="skipped",
+                details={
+                    "skip_reason": "fast_mode_candidate_refresh_disabled",
+                    "artifact_path": str(artifact_path),
+                    "refresh_with": "--fast --fast-refresh-candidates",
+                },
+            )
+            print(
+                "⏭️  Feature-group ablation：fast mode 預設跳過 candidate refresh；"
+                "沿用既有 artifact 做 docs/governance 摘要。"
+            )
     if feature_ablation_summary:
         recommended = feature_ablation_summary.get("recommended_metrics") or {}
         current_full = feature_ablation_summary.get("current_full_metrics") or {}
@@ -3401,20 +3466,43 @@ def main(argv=None):
         )
 
     if bull_pocket_result is None:
-        bull_pocket_result = run_bull_4h_pocket_ablation()
-        bull_pocket_summary = collect_bull_4h_pocket_diagnostics()
-        print(
-            f"🐂 Bull 4H pocket ablation：{'通過' if bull_pocket_result['success'] else '失敗'} "
-            f"(rc={bull_pocket_result['returncode']})"
-        )
-        if bull_pocket_result.get("stdout"):
-            lines = bull_pocket_result["stdout"].split("\n")
-            preview = "\n".join(lines[:20])
-            if len(lines) > 20:
-                preview += "\n...\n" + "\n".join(lines[-8:])
-            print(f"\n--- bull_4h_pocket_ablation ---\n{preview}")
-        if bull_pocket_result.get("stderr"):
-            print(f"\n--- bull_4h_pocket_ablation stderr ---\n{bull_pocket_result['stderr']}")
+        if refresh_candidate_eval_lanes:
+            bull_pocket_result = run_bull_4h_pocket_ablation()
+            bull_pocket_summary = collect_bull_4h_pocket_diagnostics()
+            print(
+                f"🐂 Bull 4H pocket ablation：{'通過' if bull_pocket_result['success'] else '失敗'} "
+                f"(rc={bull_pocket_result['returncode']})"
+            )
+            if bull_pocket_result.get("stdout"):
+                lines = bull_pocket_result["stdout"].split("\n")
+                preview = "\n".join(lines[:20])
+                if len(lines) > 20:
+                    preview += "\n...\n" + "\n".join(lines[-8:])
+                print(f"\n--- bull_4h_pocket_ablation ---\n{preview}")
+            if bull_pocket_result.get("stderr"):
+                print(f"\n--- bull_4h_pocket_ablation stderr ---\n{bull_pocket_result['stderr']}")
+        else:
+            artifact_path = Path(PROJECT_ROOT) / "data" / "bull_4h_pocket_ablation.json"
+            bull_pocket_result = _build_skipped_serial_result(
+                "bull_4h_pocket_ablation",
+                reason="fast_mode_candidate_refresh_disabled",
+                artifact_path=artifact_path,
+            )
+            bull_pocket_summary = collect_bull_4h_pocket_diagnostics()
+            write_progress(
+                run_label,
+                "bull_4h_pocket_ablation",
+                status="skipped",
+                details={
+                    "skip_reason": "fast_mode_candidate_refresh_disabled",
+                    "artifact_path": str(artifact_path),
+                    "refresh_with": "--fast --fast-refresh-candidates",
+                },
+            )
+            print(
+                "⏭️  Bull 4H pocket ablation：fast mode 預設跳過 candidate refresh；"
+                "沿用既有 artifact 做 live-support governance 摘要。"
+            )
     if bull_pocket_summary:
         collapse = bull_pocket_summary.get("bull_collapse_q35") or {}
         live_bucket = bull_pocket_summary.get("bull_live_exact_lane_bucket_proxy") or {}
@@ -3434,20 +3522,43 @@ def main(argv=None):
         )
 
     write_progress(run_label, "leaderboard_candidate_probe")
-    leaderboard_probe_result = run_leaderboard_candidate_probe(run_label)
-    leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
-    print(
-        f"🏁 Leaderboard candidate probe：{'通過' if leaderboard_probe_result['success'] else '失敗'} "
-        f"(rc={leaderboard_probe_result['returncode']})"
-    )
-    if leaderboard_probe_result.get("stdout"):
-        lines = leaderboard_probe_result["stdout"].split("\n")
-        preview = "\n".join(lines[:20])
-        if len(lines) > 20:
-            preview += "\n...\n" + "\n".join(lines[-8:])
-        print(f"\n--- hb_leaderboard_candidate_probe ---\n{preview}")
-    if leaderboard_probe_result.get("stderr"):
-        print(f"\n--- hb_leaderboard_candidate_probe stderr ---\n{leaderboard_probe_result['stderr']}")
+    if refresh_candidate_eval_lanes:
+        leaderboard_probe_result = run_leaderboard_candidate_probe(run_label)
+        leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
+        print(
+            f"🏁 Leaderboard candidate probe：{'通過' if leaderboard_probe_result['success'] else '失敗'} "
+            f"(rc={leaderboard_probe_result['returncode']})"
+        )
+        if leaderboard_probe_result.get("stdout"):
+            lines = leaderboard_probe_result["stdout"].split("\n")
+            preview = "\n".join(lines[:20])
+            if len(lines) > 20:
+                preview += "\n...\n" + "\n".join(lines[-8:])
+            print(f"\n--- hb_leaderboard_candidate_probe ---\n{preview}")
+        if leaderboard_probe_result.get("stderr"):
+            print(f"\n--- hb_leaderboard_candidate_probe stderr ---\n{leaderboard_probe_result['stderr']}")
+    else:
+        artifact_path = Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json"
+        leaderboard_probe_result = _build_skipped_serial_result(
+            "hb_leaderboard_candidate_probe",
+            reason="fast_mode_candidate_refresh_disabled",
+            artifact_path=artifact_path,
+        )
+        leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
+        write_progress(
+            run_label,
+            "leaderboard_candidate_probe",
+            status="skipped",
+            details={
+                "skip_reason": "fast_mode_candidate_refresh_disabled",
+                "artifact_path": str(artifact_path),
+                "refresh_with": "--fast --fast-refresh-candidates",
+            },
+        )
+        print(
+            "⏭️  Leaderboard candidate probe：fast mode 預設跳過 candidate refresh；"
+            "沿用既有 artifact 做 governance 摘要。"
+        )
     if leaderboard_candidate_diagnostics:
         blocked = leaderboard_candidate_diagnostics.get("blocked_candidate_profiles") or []
         blocked_text = ",".join(

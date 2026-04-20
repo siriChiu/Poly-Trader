@@ -1,24 +1,21 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-20 07:29:32 CST_
+_最後更新：2026-04-20 08:02:42 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #20260420-0712 已完成 collect + diagnostics refresh**
-  - `Raw=31184 / Features=22602 / Labels=62902`
-  - `deployment_blocker=circuit_breaker_active` / `streak=186` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
-  - `window=100` / `win_rate=0.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=-0.2343` / `avg_pnl=-0.0094` / `alerts=constant_target,regime_concentration,regime_shift`
+- **fast heartbeat #20260420-0801 已完成 collect + diagnostics refresh**
+  - `Raw=31185 / Features=22603 / Labels=62907`
+  - `deployment_blocker=circuit_breaker_active` / `streak=190` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
+  - `window=100` / `win_rate=0.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=-0.2363` / `avg_pnl=-0.0095` / `alerts=constant_target,regime_concentration,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
-- **本輪 runtime truth telemetry 已補強**
-  - `scripts/hb_parallel_runner.py` 已改成 run-level monotonic elapsed，fast heartbeat 的 progress / summary / cron-budget issue 會對整輪 run 給出單調且正確的 elapsed
-  - `web/src/hooks/useApi.ts` 已加入 superseded-request cancel + stale-timeout guard；在 `:8000` timeout、`:8001` 正常的 dev runtime 下，Dashboard / Strategy Lab / Execution Status 仍可穩定載入
 
 ---
 
@@ -26,7 +23,7 @@ _最後更新：2026-04-20 07:29:32 CST_
 
 ### 目標 A：維持 breaker release math 作為唯一 current-live blocker
 **目前真相**
-- `deployment_blocker=circuit_breaker_active` / `streak=186` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
+- `deployment_blocker=circuit_breaker_active` / `streak=190` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
 - `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q00` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_exact_lane_proxy_only`
 **成功標準**
 - `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker。
@@ -34,7 +31,7 @@ _最後更新：2026-04-20 07:29:32 CST_
 
 ### 目標 B：持續把 recent canonical pathological slice 當成 breaker 根因來鑽
 **目前真相**
-- `window=100` / `win_rate=0.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=-0.2343` / `avg_pnl=-0.0094` / `alerts=constant_target,regime_concentration,regime_shift`
+- `window=100` / `win_rate=0.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=-0.2363` / `avg_pnl=-0.0095` / `alerts=constant_target,regime_concentration,regime_shift`
 **成功標準**
 - drift / probe / docs 能直接指出 pathological slice、adverse streak 與 top feature shifts，而不是退回 generic leaderboard / venue 摘要。
 
@@ -48,7 +45,7 @@ _最後更新：2026-04-20 07:29:32 CST_
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2655` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2656` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
