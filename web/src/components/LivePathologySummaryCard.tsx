@@ -74,6 +74,7 @@ type Props = {
   summary?: DecisionQualityScopePathologySummary | null;
   title?: string;
   className?: string;
+  compact?: boolean;
 };
 
 const isFiniteNumber = (value: number | null | undefined): value is number => (
@@ -115,6 +116,7 @@ export default function LivePathologySummaryCard({
   summary,
   title = "🧬 Live lane / spillover 對照",
   className = "",
+  compact = false,
 }: Props) {
   if (!summary) return null;
 
@@ -133,6 +135,78 @@ export default function LivePathologySummaryCard({
     : "broader-scope spillover pocket";
 
   if (!summary.summary && !exactLane && !spilloverPocket && !recommendedPatch) return null;
+
+  const compactTopShifts = topShifts.slice(0, 2);
+  const compactPatchLabel = recommendedPatch?.recommended_profile
+    || recommendedPatch?.reference_patch_scope
+    || (recommendedPatch ? formatPatchStatus(recommendedPatch.status) : null);
+
+  if (compact) {
+    return (
+      <div className={`app-surface-card border-amber-700/40 bg-amber-950/10 text-xs text-amber-50 space-y-3 ${className}`.trim()}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">{title}</div>
+            <div className="mt-1 text-[11px] leading-5 text-amber-100/80">
+              摘要版只保留 current-live lane、spillover 與 patch 治理真相；完整 diagnostics 請看執行狀態。
+            </div>
+          </div>
+          <div className="rounded-full border border-amber-500/30 bg-amber-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-amber-200">
+            {summary.focus_scope_label || summary.focus_scope || "scope"}
+          </div>
+        </div>
+
+        <div className="grid gap-2 xl:grid-cols-3">
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/10 px-3 py-2 text-[11px] leading-5 text-emerald-50">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">exact lane</div>
+            <div className="mt-1 font-semibold text-emerald-100">
+              WR {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)}
+            </div>
+            <div className="text-emerald-50/80">
+              {(exactLane?.current_live_structure_bucket || exactLane?.scope || "未提供 bucket")}
+              {exactLane?.rows != null ? ` · rows ${exactLane.rows}` : ""}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-red-500/20 bg-red-950/10 px-3 py-2 text-[11px] leading-5 text-red-50">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-red-200/80">spillover</div>
+            <div className="mt-1 font-semibold text-red-100">
+              {spilloverPocket?.regime_gate || spilloverLabel || "no spillover"}
+            </div>
+            <div className="text-red-50/80">
+              {spillover?.extra_rows != null ? `spillover rows ${spillover.extra_rows}` : "spillover rows —"}
+              {spillover?.extra_row_share != null ? ` (${formatPct(spillover.extra_row_share)})` : ""}
+            </div>
+            <div className="text-red-50/80">
+              Δ WR {formatPct(spillover?.win_rate_delta_vs_exact ?? null, 1, true)} · Δ 品質 {formatDecimal(spillover?.avg_quality_delta_vs_exact ?? null, 3, true)}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-sky-500/20 bg-sky-950/10 px-3 py-2 text-[11px] leading-5 text-sky-50">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">patch</div>
+            <div className="mt-1 font-semibold text-sky-100">{compactPatchLabel || "未提供 patch"}</div>
+            <div className="text-sky-50/80">
+              support {recommendedPatch?.current_live_structure_bucket_rows ?? "—"}/{recommendedPatch?.minimum_support_rows ?? "—"}
+              {recommendedPatch?.gap_to_minimum != null ? ` · gap ${recommendedPatch.gap_to_minimum}` : ""}
+            </div>
+            <div className="text-sky-50/80">
+              {recommendedPatch?.support_route_verdict || formatPatchStatus(recommendedPatch?.status) || "patch 狀態未提供"}
+            </div>
+          </div>
+        </div>
+
+        {compactTopShifts.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {compactTopShifts.map((shift, index) => (
+              <div key={`${shift.feature || "compact-shift"}-${index}`} className="rounded-full border border-amber-500/20 bg-black/10 px-3 py-1.5 text-[11px] text-amber-50/90">
+                {formatMeanShift(shift)}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`app-surface-card border-amber-700/40 bg-amber-950/10 text-xs text-amber-50 space-y-3 ${className}`.trim()}>

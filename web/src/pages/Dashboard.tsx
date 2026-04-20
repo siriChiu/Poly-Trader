@@ -1217,6 +1217,7 @@ export default function Dashboard() {
             summary={liveScopePathologySummary}
             className="mt-1"
             title="🧬 Live lane / spillover 對照"
+            compact
           />
         )}
       >

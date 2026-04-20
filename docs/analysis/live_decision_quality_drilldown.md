@@ -1,6 +1,6 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-20 08:27:10.537710**
+- feature_timestamp: **2026-04-20 08:52:33.425639**
 - target: `simulated_pyramid_win`
 - live path: **chop / CAUTION / D**
 - signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
@@ -11,27 +11,27 @@
 - runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 10.00% < 30%`
 - deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 10.00% < 30%`
 - q15 exact-supported patch: **inactive** | support_route `exact_bucket_present_but_below_minimum` | floor_cross `runtime_blocker_preempts_floor_analysis`
-- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 10.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 5/50，至少還差 10 勝。 同時 recent pathology=recent scope slice 32 rows shows distribution_pathology alerts=['label_imbalance'] win_rate=0.1562 avg_pnl=-0.0034 avg_quality=-0.1148 window=2026-04-19 01:29:25.283211->2026-04-19 09:03:25.590680 adverse_streak=12x0 (2026-04-19 03:00:46.401451->2026-04-19 07:09:05.404250)。**
+- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 10.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 5/50，至少還差 10 勝。 同時 recent pathology=recent scope slice 34 rows shows distribution_pathology alerts=['label_imbalance'] win_rate=0.1471 avg_pnl=-0.0035 avg_quality=-0.1205 window=2026-04-19 01:29:25.283211->2026-04-19 09:39:46.015793 adverse_streak=12x0 (2026-04-19 03:00:46.401451->2026-04-19 07:09:05.404250)。**
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
-- recommended_patch: **core_plus_macro_plus_all_4h** / status `reference_only_until_exact_support_ready` / support_route `exact_bucket_present_but_below_minimum` / gap `18` / reference_scope `bull|CAUTION` / source `bull_4h_pocket_ablation.bull_collapse_q35`
+- recommended_patch: **core_plus_macro_plus_all_4h** / status `reference_only_until_exact_support_ready` / support_route `exact_bucket_present_but_below_minimum` / gap `16` / reference_scope `bull|CAUTION` / source `bull_4h_pocket_ablation.bull_collapse_q35`
 - recommended_patch_features: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
-- recommended_patch_reason: 參考 patch 來自 bull|CAUTION（source: bull_4h_pocket_ablation.bull_collapse_q35），建議 profile=core_plus_macro_plus_all_4h；但 current live exact support 仍是 32/50；目前只能作治理 / 訓練參考，不可直接放行 runtime。
+- recommended_patch_reason: 參考 patch 來自 bull|CAUTION（source: bull_4h_pocket_ablation.bull_collapse_q35），建議 profile=core_plus_macro_plus_all_4h；但 current live exact support 仍是 34/50；目前只能作治理 / 訓練參考，不可直接放行 runtime。
 - recommended_patch_action: 維持 0 layers；優先查 exact bucket 缺口與 same-bucket pathology，而不是再重訓。
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.431** / trade_floor **0.55** / gap **-0.119**
-- base_quality: **0.4788** × weight **0.75**
-- structure_quality: **0.2878** × weight **0.25**
-- base components: feat_4h_bias50=0.378 (w=0.4, contrib=0.1512), feat_nose=0.3947 (w=0.18, contrib=0.071), feat_pulse=0.4037 (w=0.27, contrib=0.109), feat_ear=0.9835 (w=0.15, contrib=0.1475)
-- structure components: feat_4h_bb_pct_b=0.4724 (w=0.34, contrib=0.1606), feat_4h_dist_bb_lower=0.1865 (w=0.33, contrib=0.0615), feat_4h_dist_swing_low=0.1988 (w=0.33, contrib=0.0656)
+- final entry_quality: **0.4731** / trade_floor **0.55** / gap **-0.0769**
+- base_quality: **0.5429** × weight **0.75**
+- structure_quality: **0.2636** × weight **0.25**
+- base components: feat_4h_bias50=0.4086 (w=0.4, contrib=0.1634), feat_nose=0.569 (w=0.18, contrib=0.1024), feat_pulse=0.4877 (w=0.27, contrib=0.1317), feat_ear=0.969 (w=0.15, contrib=0.1453)
+- structure components: feat_4h_bb_pct_b=0.4319 (w=0.34, contrib=0.1469), feat_4h_dist_bb_lower=0.1702 (w=0.33, contrib=0.0562), feat_4h_dist_swing_low=0.1835 (w=0.33, contrib=0.0606)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.119**
-- base_group_max_entry_gain: **0.391** | structure_group_max_entry_gain: **0.178**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.3967, max_gain≈0.1866）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.3967), feat_pulse (Δscore≈0.5877)
+- remaining_gap_to_floor: **0.0769**
+- base_group_max_entry_gain: **0.3428** | structure_group_max_entry_gain: **0.1842**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.2563, max_gain≈0.1774）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.2563), feat_pulse (Δscore≈0.3798)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -39,15 +39,15 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label+regime_gate+entry_quality_label` | 32 | 0.1562 | -0.1148 | 0.366 | 0.6973 | 32 | True |
-| exact `regime_label+regime_gate+entry_quality_label` | 32 | 0.1562 | -0.1148 | 0.366 | 0.6973 | 32 | True |
-| narrow `regime_label+entry_quality_label` | 32 | 0.1562 | -0.1148 | 0.366 | 0.6973 | 32 | True |
-| broad `regime_gate+entry_quality_label` | 32 | 0.1562 | -0.1148 | 0.366 | 0.6973 | 32 | True |
+| chosen `regime_label+regime_gate+entry_quality_label` | 34 | 0.1471 | -0.1205 | 0.365 | 0.6977 | 34 | True |
+| exact `regime_label+regime_gate+entry_quality_label` | 34 | 0.1471 | -0.1205 | 0.365 | 0.6977 | 34 | True |
+| narrow `regime_label+entry_quality_label` | 34 | 0.1471 | -0.1205 | 0.365 | 0.6977 | 34 | True |
+| broad `regime_gate+entry_quality_label` | 34 | 0.1471 | -0.1205 | 0.365 | 0.6977 | 34 | True |
 
 ## Shared shifts
 
 - None
-- worst_pathology_scope: **entry_quality_label** rows=200 win_rate=0.025 quality=-0.199
+- worst_pathology_scope: **entry_quality_label** rows=200 win_rate=0.025 quality=-0.1993
 
 ## Interpretation
 

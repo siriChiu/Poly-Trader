@@ -57,6 +57,30 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
           ? "order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證"
           : "live exchange credential 尚未驗證 · order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證";
         const blockerSummary = item.blockers?.length ? item.blockers.join(" · ") : defaultProofSummary;
+        if (compact) {
+          return (
+            <div
+              key={item.venue || "unknown"}
+              className={`app-surface-muted px-3 py-2 text-[11px] leading-5 ${readinessTone(item)}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold uppercase tracking-wide">{item.venue || "unknown"}</div>
+                  <div className="opacity-80">{readinessLabel(item)}</div>
+                </div>
+                <div className="text-right opacity-80">{readinessBadgeLabel(item)}</div>
+              </div>
+              <div className="mt-2 opacity-90">
+                config {item.enabled_in_config ? "enabled" : "disabled"} · creds {item.credentials_configured ? "configured" : "public-only"} · metadata {item.ok ? "OK" : "FAIL"}
+              </div>
+              <div className="opacity-90">
+                step {item.contract?.step_size ?? "—"} · tick {item.contract?.tick_size ?? "—"} · min qty {formatScalar(item.contract?.min_qty)}
+              </div>
+              <div className="opacity-90">proof pending · {blockerSummary}</div>
+              {item.error ? <div className="mt-1 opacity-90">{item.error}</div> : null}
+            </div>
+          );
+        }
         return (
           <div
             key={item.venue || "unknown"}

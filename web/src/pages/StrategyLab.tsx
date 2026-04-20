@@ -2626,6 +2626,7 @@ export default function StrategyLab() {
             <LivePathologySummaryCard
               summary={liveScopePathologySummary}
               title="🧬 Live lane / spillover 對照"
+              compact
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">

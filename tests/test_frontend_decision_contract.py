@@ -430,6 +430,28 @@ def test_live_pathology_summary_card_surfaces_focus_scope_vs_spillover_context()
         assert snippet in source
 
 
+def test_live_pathology_summary_card_supports_compact_summary_mode_for_workspace_surfaces():
+    source = _read("components/LivePathologySummaryCard.tsx")
+    required_snippets = [
+        'compact?: boolean;',
+        'compact = false,',
+        'if (compact) {',
+        'const compactTopShifts = topShifts.slice(0, 2);',
+        'const compactPatchLabel = recommendedPatch?.recommended_profile',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_dashboard_and_strategy_lab_use_compact_live_pathology_cards_on_summary_surfaces():
+    dashboard_source = _read("pages/Dashboard.tsx")
+    strategy_lab_source = _read("pages/StrategyLab.tsx")
+    assert 'LivePathologySummaryCard' in dashboard_source
+    assert 'compact' in dashboard_source.split('LivePathologySummaryCard', 1)[1]
+    assert 'LivePathologySummaryCard' in strategy_lab_source
+    assert 'compact' in strategy_lab_source.split('LivePathologySummaryCard', 1)[1]
+
+
 def test_venue_readiness_summary_component_surfaces_per_venue_contract():
     source = _read("components/VenueReadinessSummary.tsx")
     required_snippets = [
@@ -447,6 +469,17 @@ def test_venue_readiness_summary_component_surfaces_per_venue_contract():
         'missing runtime proof',
         'step {item.contract?.step_size ?? "—"}',
         'tick {item.contract?.tick_size ?? "—"}',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_venue_readiness_summary_supports_compact_operator_summary_mode():
+    source = _read("components/VenueReadinessSummary.tsx")
+    required_snippets = [
+        'if (compact) {',
+        'proof pending · {blockerSummary}',
+        'config {item.enabled_in_config ? "enabled" : "disabled"} · creds {item.credentials_configured ? "configured" : "public-only"} · metadata {item.ok ? "OK" : "FAIL"}',
     ]
     for snippet in required_snippets:
         assert snippet in source
