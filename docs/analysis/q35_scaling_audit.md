@@ -1,19 +1,25 @@
 # Q35 Scaling Audit
 
-- generated_at: **2026-04-20 08:52:33.425639**
-- overall_verdict: **reference_only_current_bucket_outside_q35**
-- structure_scaling_verdict: **reference_only_current_bucket_outside_q35**
-- scope_applicability: **reference_only_current_bucket_outside_q35**
-- reason: current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。
-- applicability_note: current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。
+- generated_at: **2026-04-20 09:40:27.742431**
+- overall_verdict: **runtime_blocker_preempts_q35_scaling**
+- structure_scaling_verdict: **runtime_blocker_preempts_q35_scaling**
+- scope_applicability: **current_live_q35_lane_active**
+- reason: Recent 50-sample win rate: 20.00% < 30%
+- applicability_note: current live row 仍位於 q35 lane；本輪 q35 scaling / bias50 calibration 結論可直接視為 live governance 主路徑。
 
-## Reference-only current row
+## Runtime blocker preempt
+
+- blocker: **circuit_breaker_active** from **circuit_breaker**
+- summary: circuit breaker active：Recent 50-sample win rate: 20.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 10/50，至少還差 5 勝。
+- allowed_layers: **0** (`decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`)
+
+## Current live row
 
 - regime/gate/quality: **chop / CAUTION / D**
-- structure_bucket: **CAUTION|base_caution_regime_or_bias|q15**
-- feat_4h_bias50: **0.357**
-- structure_quality: **0.2636**
+- structure_bucket: **CAUTION|base_caution_regime_or_bias|q35**
+- feat_4h_bias50: **0.9371**
+- structure_quality: **0.354**
 
 ## Recommended action
 
-- current live row 已離開 q35 lane；本輪 q35 audit 保留為 reference-only。下一步應直接跟 current live bucket 的 support / runtime blocker，而不是再為 q35 calibration 重跑 historical lane 分析。
+- 先解除 canonical circuit breaker 或至少接近 release condition，再重跑 q35 scaling audit；在 breaker 仍有效時，不得把 q35 formula / calibration 當成本輪 live blocker 主敘事。

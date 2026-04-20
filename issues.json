@@ -7,18 +7,18 @@
       "title": "canonical circuit breaker remains the only current-live deployment blocker",
       "summary": {
         "deployment_blocker": "circuit_breaker_active",
-        "streak": 10,
+        "streak": 0,
         "recent_window": 50,
-        "current_recent_window_wins": 5,
+        "current_recent_window_wins": 10,
         "required_recent_window_wins": 15,
-        "additional_recent_window_wins_needed": 10,
+        "additional_recent_window_wins_needed": 5,
         "allowed_layers": 0,
         "runtime_closure_state": "circuit_breaker_active",
-        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-        "current_live_structure_bucket_rows": 34,
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+        "current_live_structure_bucket_rows": 0,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 16,
-        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "gap_to_minimum": 50,
+        "support_route_verdict": "exact_bucket_unsupported_block",
         "support_governance_route": "exact_live_lane_proxy_available",
         "horizon_minutes": 1440,
         "streak_must_be_below": 50
@@ -32,8 +32,8 @@
         "python scripts/hb_predict_probe.py",
         "python scripts/live_decision_quality_drilldown.py"
       ],
-      "updated_at": "2026-04-20T08:53:56.661579",
-      "action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 5 勝，還差 10 勝；同時 streak 必須 < 50。",
+      "updated_at": "2026-04-20T09:41:43.199840",
+      "action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 10 勝，還差 5 勝；同時 streak 必須 < 50。",
       "created_at": "2026-04-19T09:33:07.393601"
     },
     {
@@ -43,12 +43,12 @@
       "title": "recent canonical 250 rows remains a distribution pathology",
       "summary": {
         "window": "500",
-        "win_rate": 0.012,
+        "win_rate": 0.022,
         "dominant_regime": "bull",
-        "dominant_regime_share": 0.932,
-        "avg_pnl": -0.0083,
-        "avg_quality": -0.2433,
-        "avg_drawdown_penalty": 0.3215,
+        "dominant_regime_share": 0.92,
+        "avg_pnl": -0.0081,
+        "avg_quality": -0.2369,
+        "avg_drawdown_penalty": 0.3213,
         "alerts": [
           "label_imbalance",
           "regime_concentration",
@@ -60,15 +60,15 @@
           "feat_4h_bias200"
         ],
         "new_compressed_feature": "feat_vwap_dev",
-        "tail_streak": "10x0"
+        "tail_streak": "5x1"
       },
       "next_action": "Keep drilling the pathological slice itself instead of diluting the root cause into generic leaderboard or venue discussions.",
       "verify": [
         "python scripts/recent_drift_report.py",
         "python scripts/hb_predict_probe.py"
       ],
-      "updated_at": "2026-04-20T08:53:56.661608",
-      "action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['label_imbalance', 'regime_concentration', 'regime_shift'], win_rate=0.0120, delta_vs_full=-0.6122, dominant_regime=bull(93.20%), interpretation=distribution_pathology, avg_pnl=-0.0083, avg_quality=-0.2433, avg_dd_penalty=0.3215, spot_long_win_rate=0.0000, feature_diag=variance:8/56, frozen:0, compressed:8, expected_static:2, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=10x0 since 2026-04-19 08:15:03.461206 -> 2026-04-19 09:39:46.015793, adverse_streak=264x0 since 2026-04-17 13:52:20.547302 -> 2026-04-18 13:43:25.809469, prev_win_rate=0.836, delta_vs_prev=-0.824, prev_quality=0.4009, quality_delta_vs_prev=-0.6442, prev_pnl=0.0072, pnl_delta_vs_prev=-0.0155, top_shift_examples=feat_eye(0.5223→-1.3563,Δσ=0.4905)/feat_vwap_dev(-0.2587→-0.1485,Δσ=0.4882)/feat_4h_bias200(6.174→8.7398,Δσ=0.4685), new_compressed=feat_vwap_dev, compressed_examples=feat_body(0.0/500)/feat_ear(0.0081/498)/feat_tongue(0.0097/500), expected_static_examples=feat_dxy[weekend_macro_market_closed]/feat_vix[weekend_macro_market_closed], overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-19 09:03:25.590680:0:chop:-0.2314/2026-04-19 09:31:48.728103:0:chop:-0.2175/2026-04-19 09:39:46.015793:0:chop:-0.2046, adverse_examples=2026-04-18 13:00:00.000000:0:bull:-0.2342/2026-04-18 13:36:43.970223:0:bull:-0.2119/2026-04-18 13:43:25.809469:0:bull:-0.2137",
+      "updated_at": "2026-04-20T09:41:43.199864",
+      "action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['label_imbalance', 'regime_concentration', 'regime_shift'], win_rate=0.0220, delta_vs_full=-0.6023, dominant_regime=bull(92.00%), interpretation=distribution_pathology, avg_pnl=-0.0081, avg_quality=-0.2369, avg_dd_penalty=0.3213, spot_long_win_rate=0.0000, feature_diag=variance:8/56, frozen:0, compressed:8, expected_static:2, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=5x1 since 2026-04-19 10:13:18.192660 -> 2026-04-19 10:39:24.709918, adverse_streak=258x0 since 2026-04-17 14:01:09.936074 -> 2026-04-18 13:43:25.809469, prev_win_rate=0.824, delta_vs_prev=-0.802, prev_quality=0.3922, quality_delta_vs_prev=-0.6291, prev_pnl=0.007, pnl_delta_vs_prev=-0.0151, top_shift_examples=feat_eye(0.6506→-1.5447,Δσ=0.5731)/feat_vwap_dev(-0.2569→-0.1489,Δσ=0.4786)/feat_4h_bias200(6.221→8.6988,Δσ=0.4525), new_compressed=feat_vwap_dev, compressed_examples=feat_body(0.0/500)/feat_ear(0.0073/498)/feat_tongue(0.0086/500), expected_static_examples=feat_dxy[weekend_macro_market_closed]/feat_vix[weekend_macro_market_closed], overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-19 10:34:41.702699:1:chop:0.3125/2026-04-19 10:37:05.427829:1:chop:0.3175/2026-04-19 10:39:24.709918:1:chop:0.3167, adverse_examples=2026-04-18 13:00:00.000000:0:bull:-0.2342/2026-04-18 13:36:43.970223:0:bull:-0.2119/2026-04-18 13:43:25.809469:0:bull:-0.2137",
       "created_at": "2026-04-19T09:33:07.393619"
     },
     {
@@ -94,7 +94,7 @@
         "curl http://127.0.0.1:8000/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-20T08:53:56.661589",
+      "updated_at": "2026-04-20T09:41:43.199849",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -148,7 +148,7 @@
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-19T09:33:07.393608",
-      "updated_at": "2026-04-20T08:53:56.661594",
+      "updated_at": "2026-04-20T09:41:43.199853",
       "hb_detected": null,
       "summary": {
         "cv_accuracy": 0.6076420198376916,
@@ -160,10 +160,10 @@
       "id": "#H_AUTO_LIVE_DQ_PATHOLOGY",
       "priority": "P1",
       "title": "live predictor decision-quality contract is runtime-blocked by recent pathology, a toxic exact live lane, or a severe narrowed pathology lane",
-      "action": "把 hb_predict_probe 納入每輪 heartbeat 驗證，對 exact live lane、當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；優先檢查 exact lane 是否仍是 ALLOW 但 canonical true-negative share 已偏高，並交叉比對 recent same-scope / narrowed-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。 live_scope=regime_label+regime_gate+entry_quality_label, regime=chop/CAUTION, label=D, sample_size=34, window=34, alerts=['label_imbalance'], expected_win_rate=0.1471, expected_pnl=-0.0035, expected_quality=-0.1205, layers=0→0, top_shifts=n/a, exact_live_lane=(rows=34,wr=0.1471,q=-0.1205,dd=0.365,tuw=0.6977,recent500_dom=chop|CAUTION@1.0,targets=loss:29/win:5,true_negative_rows=29@0.8529,final_gate=CAUTION:34), exact_lane_status=toxic_allow_lane, scope_matrix=regime_label+regime_gate+entry_quality_label:rows=34,wr=0.1471,q=-0.1205,dd=0.365,tuw=0.6977,alerts=['label_imbalance'],recent500_dominant=chop@1.0,recent500_gate_dominant=CAUTION@1.0,recent500_regime_gate_dominant=chop|CAUTION@1.0,recent500_regimes=chop:34,recent500_gates=CAUTION:34,recent500_regime_gates=chop|CAUTION:34; regime_gate+entry_quality_label:rows=34,wr=0.1471,q=-0.1205,dd=0.365,tuw=0.6977,alerts=['label_imbalance'],recent500_dominant=chop@1.0,recent500_gate_dominant=CAUTION@1.0,recent500_regime_gate_dominant=chop|CAUTION@1.0,recent500_regimes=chop:34,recent500_gates=CAUTION:34,recent500_regime_gates=chop|CAUTION:34; regime_label+entry_quality_label:rows=34,wr=0.1471,q=-0.1205,dd=0.365,tuw=0.6977,alerts=['label_imbalance'],recent500_dominant=chop@1.0,recent500_gate_dominant=CAUTION@1.0,recent500_regime_gate_dominant=chop|CAUTION@1.0,recent500_regimes=chop:34,recent500_gates=CAUTION:34,recent500_regime_gates=chop|CAUTION:34; entry_quality_label:rows=200,wr=0.025,q=-0.1993,dd=0.2607,tuw=0.7612,alerts=['label_imbalance'],recent500_dominant=bull@0.83,recent500_gate_dominant=BLOCK@0.83,recent500_regime_gate_dominant=bull|BLOCK@0.83,recent500_regimes=bull:166/chop:34,recent500_gates=BLOCK:166/CAUTION:34,recent500_regime_gates=bull|BLOCK:166/chop|CAUTION:34,spillover_rows=166,spillover_share=0.83,spillover_wr_delta=-0.1221,spillover_q_delta=-0.0788,spillover_pnl_delta=-0.0031,spillover_gate_dominant=BLOCK@1.0,spillover_regime_gate_dominant=bull|BLOCK@1.0,spillover_gates=BLOCK:166,spillover_regime_gates=bull|BLOCK:166,spillover_worst=bull|BLOCK(rows=166,wr=0.0,q=-0.2154,pnl=-0.0072,dd=0.2393,tuw=0.7743),spillover_feature_shift=feat_4h_bias200(6.8681→7.485,Δ=0.6169)/feat_4h_dist_swing_low(2.6976→3.2291,Δ=0.5315)/feat_4h_dist_bb_lower(0.8393→0.6178,Δ=-0.2215),spillover_gate_inputs=feat_4h_bias200(6.8681→7.485,Δ=0.6169)/feat_4h_bb_pct_b(0.2873→0.2139,Δ=-0.0734)/feat_4h_dist_bb_lower(0.8393→0.6178,Δ=-0.2215)/feat_4h_dist_swing_low(2.6976→3.2291,Δ=0.5315),spillover_gate_path=final[BLOCK:2/CAUTION:164]|reason[structure_quality_block:2/structure_quality_caution:164]|base[ALLOW:166]|avg_structure=0.2048|structure_q[min:0.1462,p25:0.1793,p50:0.2081,p75:0.2214,max:0.29]|structure_bands[block:2,caution:164,allow:0]|targets[loss:166]|pnl_signs[negative:166/positive:0/zero:0]|quality_signs[negative:166/positive:0/zero:0]|true_negative_rows=166@1.0|avg_bias200=7.485|missing_rows=0,exact_gate_path=final[CAUTION:34]|reason[base_caution_regime_or_bias:34]|base[CAUTION:34]|avg_structure=0.2213|structure_q[min:0.1831,p25:0.21,p50:0.2182,p75:0.2301,max:0.2645]|structure_bands[block:0,caution:34,allow:0]|targets[loss:29/win:5]|pnl_signs[negative:29/positive:5/zero:0]|quality_signs[negative:29/positive:5/zero:0]|true_negative_rows=29@0.8529|avg_bias200=6.8681|missing_rows=0, worst_scope=entry_quality_label(wr=0.025,q=-0.1993,rows=200,dd=0.2607,tuw=0.7612,recent500_dominant=bull@0.83,recent500_gate_dominant=BLOCK@0.83,recent500_regime_gate_dominant=bull|BLOCK@0.83,recent500_regimes=bull:166/chop:34,recent500_gates=BLOCK:166/CAUTION:34,recent500_regime_gates=bull|BLOCK:166/chop|CAUTION:34)",
+      "action": "把 hb_predict_probe 納入每輪 heartbeat 驗證，對 exact live lane、當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；優先檢查 exact lane 是否仍是 ALLOW 但 canonical true-negative share 已偏高，並交叉比對 recent same-scope / narrowed-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。 live_scope=regime_label+regime_gate+entry_quality_label, regime=chop/CAUTION, label=D, sample_size=40, window=40, alerts=[], expected_win_rate=0.25, expected_pnl=-0.0029, expected_quality=-0.0663, layers=0→0, top_shifts=n/a, exact_live_lane=(rows=40,wr=0.25,q=-0.0663,dd=0.3618,tuw=0.6973,recent500_dom=chop|CAUTION@1.0,targets=loss:30/win:10,true_negative_rows=30@0.75,final_gate=CAUTION:40), exact_lane_status=toxic_allow_lane, scope_matrix=regime_label+regime_gate+entry_quality_label:rows=40,wr=0.25,q=-0.0663,dd=0.3618,tuw=0.6973,alerts=[],recent500_dominant=chop@1.0,recent500_gate_dominant=CAUTION@1.0,recent500_regime_gate_dominant=chop|CAUTION@1.0,recent500_regimes=chop:40,recent500_gates=CAUTION:40,recent500_regime_gates=chop|CAUTION:40; regime_gate+entry_quality_label:rows=40,wr=0.25,q=-0.0663,dd=0.3618,tuw=0.6973,alerts=[],recent500_dominant=chop@1.0,recent500_gate_dominant=CAUTION@1.0,recent500_regime_gate_dominant=chop|CAUTION@1.0,recent500_regimes=chop:40,recent500_gates=CAUTION:40,recent500_regime_gates=chop|CAUTION:40; regime_label+entry_quality_label:rows=40,wr=0.25,q=-0.0663,dd=0.3618,tuw=0.6973,alerts=[],recent500_dominant=chop@1.0,recent500_gate_dominant=CAUTION@1.0,recent500_regime_gate_dominant=chop|CAUTION@1.0,recent500_regimes=chop:40,recent500_gates=CAUTION:40,recent500_regime_gates=chop|CAUTION:40; entry_quality_label:rows=200,wr=0.05,q=-0.1866,dd=0.2639,tuw=0.7542,alerts=['label_imbalance'],recent500_dominant=bull@0.8,recent500_gate_dominant=BLOCK@0.8,recent500_regime_gate_dominant=bull|BLOCK@0.8,recent500_regimes=bull:160/chop:40,recent500_gates=BLOCK:160/CAUTION:40,recent500_regime_gates=bull|BLOCK:160/chop|CAUTION:40,spillover_rows=160,spillover_share=0.8,spillover_wr_delta=-0.2,spillover_q_delta=-0.1203,spillover_pnl_delta=-0.0036,spillover_gate_dominant=BLOCK@1.0,spillover_regime_gate_dominant=bull|BLOCK@1.0,spillover_gates=BLOCK:160,spillover_regime_gates=bull|BLOCK:160,spillover_worst=bull|BLOCK(rows=160,wr=0.0,q=-0.2167,pnl=-0.0074,dd=0.2394,tuw=0.7684),spillover_feature_shift=feat_4h_bias200(6.8117→7.4772,Δ=0.6655)/feat_4h_dist_swing_low(2.6463→3.2222,Δ=0.5759)/feat_4h_dist_bb_lower(0.8188→0.6149,Δ=-0.2039),spillover_gate_inputs=feat_4h_bias200(6.8117→7.4772,Δ=0.6655)/feat_4h_bb_pct_b(0.2801→0.2129,Δ=-0.0672)/feat_4h_dist_bb_lower(0.8188→0.6149,Δ=-0.2039)/feat_4h_dist_swing_low(2.6463→3.2222,Δ=0.5759),spillover_gate_path=final[BLOCK:2/CAUTION:158]|reason[structure_quality_block:2/structure_quality_caution:158]|base[ALLOW:160]|avg_structure=0.2041|structure_q[min:0.1462,p25:0.1791,p50:0.2073,p75:0.2212,max:0.29]|structure_bands[block:2,caution:158,allow:0]|targets[loss:160]|pnl_signs[negative:160/positive:0/zero:0]|quality_signs[negative:160/positive:0/zero:0]|true_negative_rows=160@1.0|avg_bias200=7.4772|missing_rows=0,exact_gate_path=final[CAUTION:40]|reason[base_caution_regime_or_bias:40]|base[CAUTION:40]|avg_structure=0.2163|structure_q[min:0.1712,p25:0.1959,p50:0.2178,p75:0.2256,max:0.2645]|structure_bands[block:0,caution:40,allow:0]|targets[loss:30/win:10]|pnl_signs[negative:30/positive:10/zero:0]|quality_signs[negative:30/positive:10/zero:0]|true_negative_rows=30@0.75|avg_bias200=6.8117|missing_rows=0, worst_scope=entry_quality_label(wr=0.05,q=-0.1866,rows=200,dd=0.2639,tuw=0.7542,recent500_dominant=bull@0.8,recent500_gate_dominant=BLOCK@0.8,recent500_regime_gate_dominant=bull|BLOCK@0.8,recent500_regimes=bull:160/chop:40,recent500_gates=BLOCK:160/CAUTION:40,recent500_regime_gates=bull|BLOCK:160/chop|CAUTION:40)",
       "status": "open",
       "created_at": "2026-04-19T09:33:07.393623",
-      "updated_at": "2026-04-20T08:53:56.661614",
+      "updated_at": "2026-04-20T09:41:43.199869",
       "hb_detected": null,
       "summary": {
         "live_scope": "regime_label+regime_gate+entry_quality_label",
@@ -178,53 +178,56 @@
       }
     },
     {
-      "id": "P1_q15_exact_support_stalled_under_breaker",
-      "priority": "P1",
-      "title": "q15 exact support remains under minimum under breaker (34/50)",
-      "action": "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible in probe/API/UI/docs even when circuit_breaker_active is the primary blocker.",
-      "status": "open",
-      "created_at": "2026-04-20T05:27:54.196159",
-      "updated_at": "2026-04-20T08:53:56.661564",
-      "hb_detected": null,
-      "summary": {
-        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-        "live_current_structure_bucket_rows": 34,
-        "minimum_support_rows": 50,
-        "gap_to_minimum": 16,
-        "support_route_verdict": "exact_bucket_present_but_below_minimum",
-        "support_governance_route": "exact_live_lane_proxy_available",
-        "support_progress_status": "stalled_under_minimum",
-        "leaderboard_selected_profile": "core_only",
-        "train_selected_profile": "core_plus_macro",
-        "governance_contract": "dual_role_governance_active"
-      }
-    },
-    {
       "id": "P1_bull_caution_spillover_patch_reference_only",
       "priority": "P1",
       "title": "support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only",
       "action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.",
       "status": "open",
       "created_at": "2026-04-20T06:13:35.648062",
-      "updated_at": "2026-04-20T08:53:56.661572",
+      "updated_at": "2026-04-20T09:41:43.199833",
       "hb_detected": null,
       "summary": {
         "actual_live_spillover_scope": "bull|BLOCK",
         "reference_patch_scope": "bull|CAUTION",
-        "exact_live_lane_rows": 34,
+        "exact_live_lane_rows": 40,
         "recommended_patch": "core_plus_macro_plus_all_4h",
         "recommended_patch_status": "reference_only_until_exact_support_ready",
-        "support_route_verdict": "exact_bucket_present_but_below_minimum",
-        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-        "current_live_structure_bucket_rows": 34,
+        "support_route_verdict": "exact_bucket_unsupported_block",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+        "current_live_structure_bucket_rows": 0,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 16,
+        "gap_to_minimum": 50,
         "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
         "collapse_features": [
           "feat_4h_dist_swing_low",
           "feat_4h_dist_bb_lower",
           "feat_4h_bb_pct_b"
         ]
+      }
+    },
+    {
+      "id": "#H_AUTO_CURRENT_BUCKET_SUPPORT",
+      "priority": "P1",
+      "title": "current live bucket CAUTION|base_caution_regime_or_bias|q35 exact support is missing (0/50)",
+      "action": "以 current live structure bucket 為主追 exact support / governance route；不要沿用舊 q35 blocker 當成本輪主 blocker。",
+      "status": "open",
+      "created_at": "2026-04-20T09:41:43.199819",
+      "updated_at": "2026-04-20T09:41:43.199824",
+      "hb_detected": null
+    },
+    {
+      "id": "#H_AUTO_REGIME_DRIFT",
+      "priority": "P1",
+      "title": "TW-IC 21 vs Global IC 14 — 信號強依賴近期資料",
+      "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
+      "status": "open",
+      "created_at": "2026-04-20T09:41:43.199871",
+      "updated_at": "2026-04-20T09:41:43.199873",
+      "hb_detected": null,
+      "summary": {
+        "global_pass": 14,
+        "tw_pass": 21,
+        "total_features": 30
       }
     }
   ]

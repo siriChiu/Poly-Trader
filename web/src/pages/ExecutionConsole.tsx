@@ -116,6 +116,11 @@ type ExecutionConsoleRuntimeStatusResponse = {
       total?: number;
       currency?: string;
     } | null;
+    health?: {
+      connected?: boolean;
+      credentials_configured?: boolean;
+      error?: string;
+    } | null;
     positions?: Array<Record<string, unknown>>;
     open_orders?: Array<Record<string, unknown>>;
   } | null;
@@ -593,6 +598,13 @@ export default function ExecutionConsole() {
   const balanceCurrency = accountSummary?.balance?.currency || "USDT";
   const balanceFree = typeof accountSummary?.balance?.free === "number" ? accountSummary.balance.free : null;
   const balanceTotal = typeof accountSummary?.balance?.total === "number" ? accountSummary.balance.total : null;
+  const accountCredentialsConfigured = Boolean(accountSummary?.health?.credentials_configured ?? executionSummary?.health?.credentials_configured);
+  const accountBalanceUnavailableLabel = !accountCredentialsConfigured
+    ? "public-only / metadata only"
+    : "balance unavailable";
+  const accountBalanceUnavailableReason = !accountCredentialsConfigured
+    ? "private balance unavailable until exchange credentials are configured"
+    : "balance unavailable in latest account snapshot";
   const allocatedCapital = balanceTotal != null && balanceFree != null ? Math.max(balanceTotal - balanceFree, 0) : null;
   const lastOrder = guardrails?.last_order ?? null;
   const lastReject = guardrails?.last_reject ?? null;
@@ -643,26 +655,38 @@ export default function ExecutionConsole() {
   const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || "unknown");
   const automationStatusLabel = runtimeStatusPending ? "automation 同步中" : `automation ${automationEnabled ? "ON" : "OFF"}`;
   const liveReadyStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
-  const balanceTotalLabel = runtimeStatusPending ? "同步中" : `${formatNumber(balanceTotal)} ${balanceCurrency}`;
+  const balanceTotalLabel = runtimeStatusPending
+    ? "同步中"
+    : (balanceTotal !== null ? `${formatNumber(balanceTotal)} ${balanceCurrency}` : accountBalanceUnavailableLabel);
   const balanceBreakdownLabel = runtimeStatusPending
     ? "正在向 /api/status 取得 account snapshot。"
-    : `可用 ${formatNumber(balanceFree)} · 已分配 ${formatNumber(allocatedCapital)}`;
-  const sharedPnlLabel = runsPending ? `同步中 ${balanceCurrency}` : `${formatSignedNumber(runLedgerPreviews.length > 0 ? totalUnrealizedPnl : null)} ${balanceCurrency}`;
+    : (balanceFree !== null && allocatedCapital !== null
+      ? `可用 ${formatNumber(balanceFree)} · 已分配 ${formatNumber(allocatedCapital)}`
+      : accountBalanceUnavailableReason);
+  const sharedPnlLabel = runsPending
+    ? `同步中 ${balanceCurrency}`
+    : (runLedgerPreviews.length > 0 ? `${formatSignedNumber(totalUnrealizedPnl)} ${balanceCurrency}` : "preview unavailable");
   const sharedPnlSummaryLabel = runsPending
     ? "正在向 /api/execution/runs 取得共享盈虧預覽。"
     : (runLedgerPreviews.length > 0 ? `共享帳戶預覽 · ${executionRunRecords.length} 個 run` : "尚未取得共享盈虧預覽");
   const capitalInUseLabel = executionConsoleInitialSyncPending
     ? `同步中 ${balanceCurrency}`
-    : `${formatNumber(runLedgerPreviews.length > 0 ? totalCapitalInUse : allocatedCapital)} ${balanceCurrency}`;
+    : (runLedgerPreviews.length > 0
+      ? `${formatNumber(totalCapitalInUse)} ${balanceCurrency}`
+      : (allocatedCapital !== null ? `${formatNumber(allocatedCapital)} ${balanceCurrency}` : accountBalanceUnavailableLabel));
   const capitalInUseSummaryLabel = executionConsoleInitialSyncPending
     ? "正在同步共享帳戶預覽 / 預算。"
-    : (runLedgerPreviews.length > 0 ? "依目前 run ledger preview 匯總" : "暫以帳戶已分配資金表示");
+    : (runLedgerPreviews.length > 0
+      ? "依目前 run ledger preview 匯總"
+      : (allocatedCapital !== null ? "暫以帳戶已分配資金表示" : accountBalanceUnavailableReason));
   const deployableCapitalLabel = overviewPending || runtimeStatusPending
     ? `同步中 ${balanceCurrency}`
-    : `${formatNumber(deployableCapital)} ${balanceCurrency}`;
+    : (deployableCapital !== null ? `${formatNumber(deployableCapital)} ${balanceCurrency}` : accountBalanceUnavailableLabel);
   const deployableCapitalSummaryLabel = overviewPending || runtimeStatusPending
     ? "正在向 /api/status 與 /api/execution/overview 取得 deployable capital。"
-    : `allocation ${executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves"}`;
+    : (deployableCapital !== null
+      ? `allocation ${executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves"}`
+      : accountBalanceUnavailableReason);
   const runningRunsLabel = runsPending ? "同步中" : String(executionRunsSummary?.running_runs ?? 0);
   const runningRunsSummaryLabel = runsPending
     ? "正在向 /api/execution/runs 取得 run control / events。"
@@ -977,6 +1001,18 @@ export default function ExecutionConsole() {
                 const linkedRun = runsByProfileId.get(profileId) || card.current_run || null;
                 const profileStrategyBinding = card.strategy_binding ?? null;
                 const ledgerPreview = linkedRun?.runtime_binding_snapshot?.shared_symbol_ledger_preview ?? null;
+                const profileSharedPreviewValue = typeof ledgerPreview?.unrealized_pnl === "number"
+                  ? `${formatSignedNumber(ledgerPreview.unrealized_pnl)} ${ledgerPreview?.currency || balanceCurrency}`
+                  : "preview unavailable";
+                const profileSharedPreviewDetail = typeof ledgerPreview?.capital_in_use === "number"
+                  ? `資金使用中 ${formatNumber(ledgerPreview.capital_in_use)} ${ledgerPreview?.currency || balanceCurrency}`
+                  : "資金使用中 preview unavailable";
+                const profileBudgetValue = typeof card.planned_budget_amount === "number"
+                  ? `${formatNumber(card.planned_budget_amount)} ${balanceCurrency}`
+                  : accountBalanceUnavailableLabel;
+                const profileBudgetDetail = typeof card.planned_budget_amount === "number"
+                  ? `win ${formatPercent(profileStrategyBinding?.avg_expected_win_rate, 1)}`
+                  : `${accountBalanceUnavailableReason} · win ${formatPercent(profileStrategyBinding?.avg_expected_win_rate, 1)}`;
                 const canStart = Boolean(profileId) && ["ready_control_plane", "resume_available"].includes(card.control_contract?.start_status || "");
                 const canPause = Boolean(linkedRun?.action_contract?.can_pause && linkedRun?.run_id);
                 const canStop = Boolean(linkedRun?.action_contract?.can_stop && linkedRun?.run_id);
@@ -1017,15 +1053,15 @@ export default function ExecutionConsole() {
                       </div>
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500">共享盈虧預覽</div>
-                        <div className={`mt-1 text-sm font-semibold ${(ledgerPreview?.unrealized_pnl ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-                          {formatSignedNumber(ledgerPreview?.unrealized_pnl)} {ledgerPreview?.currency || balanceCurrency}
+                        <div className={`mt-1 text-sm font-semibold ${typeof ledgerPreview?.unrealized_pnl === "number" ? ((ledgerPreview.unrealized_pnl ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300") : "text-white"}`}>
+                          {profileSharedPreviewValue}
                         </div>
-                        <div className="text-[11px] text-slate-400">資金使用中 {formatNumber(ledgerPreview?.capital_in_use)} {ledgerPreview?.currency || balanceCurrency}</div>
+                        <div className="text-[11px] text-slate-400">{profileSharedPreviewDetail}</div>
                       </div>
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500">預算 / 勝率</div>
-                        <div className="mt-1 text-sm font-semibold text-white">{formatNumber(card.planned_budget_amount)} {balanceCurrency}</div>
-                        <div className="text-[11px] text-slate-400">win {formatPercent(profileStrategyBinding?.avg_expected_win_rate, 1)}</div>
+                        <div className="mt-1 text-sm font-semibold text-white">{profileBudgetValue}</div>
+                        <div className="text-[11px] text-slate-400">{profileBudgetDetail}</div>
                       </div>
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500">DQ</div>
@@ -1109,6 +1145,18 @@ export default function ExecutionConsole() {
                 const runStrategyBinding = run.strategy_binding ?? null;
                 const latestMessage = run.latest_event?.message || run.last_event_message || "尚未取得 run event";
                 const ledgerPreview = run.runtime_binding_snapshot?.shared_symbol_ledger_preview ?? null;
+                const runBudgetValue = typeof run.budget_amount === "number"
+                  ? `${formatNumber(run.budget_amount)} ${run.capital_currency || balanceCurrency}`
+                  : accountBalanceUnavailableLabel;
+                const runBudgetDetail = typeof run.budget_amount === "number"
+                  ? `ratio ${formatNumber(run.budget_ratio, 3)}`
+                  : accountBalanceUnavailableReason;
+                const runSharedPreviewValue = typeof ledgerPreview?.unrealized_pnl === "number"
+                  ? `${formatSignedNumber(ledgerPreview.unrealized_pnl)} ${ledgerPreview?.currency || balanceCurrency}`
+                  : "preview unavailable";
+                const runSharedPreviewDetail = typeof ledgerPreview?.capital_in_use === "number"
+                  ? `資金使用中 ${formatNumber(ledgerPreview.capital_in_use)} ${ledgerPreview?.currency || balanceCurrency}`
+                  : "資金使用中 preview unavailable";
                 return (
                   <div key={run.run_id || `${run.profile_id}-${run.start_time}`} className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -1123,13 +1171,13 @@ export default function ExecutionConsole() {
                     <div className="mt-3 grid grid-cols-2 gap-2 text-[12px] xl:grid-cols-4">
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500">預算</div>
-                        <div className="mt-1 font-semibold text-white">{formatNumber(run.budget_amount)} {run.capital_currency || balanceCurrency}</div>
-                        <div className="text-slate-400">ratio {formatNumber(run.budget_ratio, 3)}</div>
+                        <div className="mt-1 font-semibold text-white">{runBudgetValue}</div>
+                        <div className="text-slate-400">{runBudgetDetail}</div>
                       </div>
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500">共享盈虧預覽</div>
-                        <div className={`mt-1 font-semibold ${(ledgerPreview?.unrealized_pnl ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{formatSignedNumber(ledgerPreview?.unrealized_pnl)} {ledgerPreview?.currency || balanceCurrency}</div>
-                        <div className="text-slate-400">資金使用中 {formatNumber(ledgerPreview?.capital_in_use)} {ledgerPreview?.currency || balanceCurrency}</div>
+                        <div className={`mt-1 font-semibold ${typeof ledgerPreview?.unrealized_pnl === "number" ? ((ledgerPreview.unrealized_pnl ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300") : "text-white"}`}>{runSharedPreviewValue}</div>
+                        <div className="text-slate-400">{runSharedPreviewDetail}</div>
                       </div>
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500">策略能力</div>

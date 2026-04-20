@@ -164,6 +164,40 @@ def test_execution_console_keeps_initial_sync_copy_until_status_overview_and_run
         assert snippet in source
 
 
+def test_execution_console_explains_public_only_balance_and_capital_unavailability():
+    source = _read("pages/ExecutionConsole.tsx")
+    required_snippets = [
+        'const accountCredentialsConfigured = Boolean(accountSummary?.health?.credentials_configured ?? executionSummary?.health?.credentials_configured);',
+        'const accountBalanceUnavailableLabel = !accountCredentialsConfigured',
+        'private balance unavailable until exchange credentials are configured',
+        'balanceTotal !== null',
+        'accountBalanceUnavailableLabel',
+        'accountBalanceUnavailableReason',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_execution_console_bot_cards_do_not_render_null_capital_as_em_dash_usdt():
+    source = _read("pages/ExecutionConsole.tsx")
+    required_snippets = [
+        'const profileSharedPreviewValue = typeof ledgerPreview?.unrealized_pnl === "number"',
+        'const profileSharedPreviewDetail = typeof ledgerPreview?.capital_in_use === "number"',
+        'const profileBudgetValue = typeof card.planned_budget_amount === "number"',
+        'const profileBudgetDetail = typeof card.planned_budget_amount === "number"',
+        'const runBudgetValue = typeof run.budget_amount === "number"',
+        'const runSharedPreviewValue = typeof ledgerPreview?.unrealized_pnl === "number"',
+        'const runSharedPreviewDetail = typeof ledgerPreview?.capital_in_use === "number"',
+        '"preview unavailable"',
+        '"資金使用中 preview unavailable"',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+    assert '{formatSignedNumber(ledgerPreview?.unrealized_pnl)} {ledgerPreview?.currency || balanceCurrency}' not in source
+    assert '{formatNumber(card.planned_budget_amount)} {balanceCurrency}' not in source
+    assert '{formatNumber(run.budget_amount)} {run.capital_currency || balanceCurrency}' not in source
+
+
 def test_execution_surfaces_keep_current_live_blocker_ahead_of_venue_readiness_copy():
     status_source = _read("pages/ExecutionStatus.tsx")
     console_source = _read("pages/ExecutionConsole.tsx")
