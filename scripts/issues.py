@@ -21,6 +21,7 @@ ISSUES_JSON = Path(__file__).parent.parent / "issues.json"
 # and merge its fresher machine-readable summary into the canonical record.
 CANONICAL_DUPLICATE_IDS = {
     "P0_circuit_breaker_active": ["#H_AUTO_CIRCUIT_BREAKER"],
+    "P0_recent_distribution_pathology": ["#H_AUTO_RECENT_PATHOLOGY"],
     "P1_q15_exact_support_stalled_under_breaker": ["#H_AUTO_CURRENT_BUCKET_SUPPORT"],
 }
 
@@ -101,6 +102,11 @@ def _normalize_issue(issue: dict) -> dict:
     normalized = dict(issue)
     action = normalized.get("action")
     if action:
+        return normalized
+
+    next_action = normalized.get("next_action")
+    if isinstance(next_action, str) and next_action.strip():
+        normalized["action"] = next_action.strip()
         return normalized
 
     next_actions = normalized.get("next_actions")

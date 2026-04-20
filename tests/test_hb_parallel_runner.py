@@ -1495,6 +1495,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "heartbeat runner overwrite sync" in issues_md
     assert "P0. canonical circuit breaker remains the only current-live deployment blocker" in issues_md
     assert "current-state docs overwrite sync 已自動化" in roadmap_md
+    assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in roadmap_md
+    assert "不要硬綁單一 port" in roadmap_md
     assert "心跳 #20260420z ORID" in orid_md
 
 

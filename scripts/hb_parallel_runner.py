@@ -636,7 +636,7 @@ def overwrite_current_state_docs(
         "   - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`",
         "   - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據",
         f"3. **守住 {support_scope_label} support / reference-only patch、leaderboard governance、venue/source blockers 與 docs automation 閉環**",
-        "   - 驗證：browser `/lab`、`curl http://127.0.0.1:8000/api/models/leaderboard`、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status",
+        "   - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status",
         "   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts",
         "",
         "---",

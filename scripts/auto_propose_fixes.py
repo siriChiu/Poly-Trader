@@ -266,6 +266,9 @@ def issue_action_text(item):
     action = item.get("action")
     if isinstance(action, str) and action.strip():
         return action.strip()
+    next_action = item.get("next_action")
+    if isinstance(next_action, str) and next_action.strip():
+        return next_action.strip()
     next_actions = item.get("next_actions")
     if isinstance(next_actions, list):
         steps = [str(step).strip() for step in next_actions if str(step).strip()]
@@ -1242,13 +1245,51 @@ def main():
         )
     )
     if drift_is_negative_pathology:
-        tracker.add(
+        drift_feature_diag = drift_primary_summary.get("feature_diagnostics") or {}
+        drift_target_path = drift_primary_summary.get("target_path_diagnostics") or {}
+        drift_reference_comparison = drift_primary_summary.get("reference_window_comparison") or {}
+        tail_streak = drift_target_path.get("tail_target_streak") or {}
+        top_shift_source = (
+            drift_primary_summary.get("top_mean_shift_features")
+            or drift_reference_comparison.get("top_mean_shift_features")
+            or []
+        )
+        top_shift_features = [
+            item.get("feature") if isinstance(item, dict) else item
+            for item in top_shift_source
+            if (item.get("feature") if isinstance(item, dict) else item)
+        ]
+        new_compressed = drift_primary_summary.get("new_compressed_features")
+        if not isinstance(new_compressed, list) or not new_compressed:
+            new_compressed = drift_reference_comparison.get("new_unexpected_compressed_features") or []
+        if not isinstance(new_compressed, list) or not new_compressed:
+            new_compressed = drift_feature_diag.get("new_unexpected_compressed_features") or []
+        pathology_summary = {
+            "window": drift_window,
+            "win_rate": drift_primary_summary.get("win_rate"),
+            "dominant_regime": drift_primary_summary.get("dominant_regime"),
+            "dominant_regime_share": drift_primary_summary.get("dominant_regime_share"),
+            "avg_pnl": drift_avg_pnl,
+            "avg_quality": drift_avg_quality,
+            "avg_drawdown_penalty": drift_quality.get("avg_drawdown_penalty"),
+            "alerts": drift_alerts,
+            "top_shift_features": top_shift_features[:3],
+            "new_compressed_feature": new_compressed[0] if new_compressed else None,
+            "tail_streak": (
+                f"{tail_streak.get('count')}x{tail_streak.get('target')}"
+                if tail_streak.get("count") is not None and tail_streak.get("target") is not None
+                else None
+            ),
+        }
+        upsert_issue(
+            tracker,
             "P0",
             "#H_AUTO_RECENT_PATHOLOGY",
             f"recent canonical window {drift_window} rows = distribution_pathology",
             "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；"
             "維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。"
             f" {drift_summary}",
+            summary=pathology_summary,
         )
     else:
         tracker.resolve("#H_AUTO_RECENT_PATHOLOGY")

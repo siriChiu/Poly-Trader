@@ -58,6 +58,32 @@ def test_issue_tracker_load_backfills_action_from_next_actions(tmp_path, monkeyp
     assert tracker.issues[0]["action"] == "先確認 current live bucket 是否仍是 q35；只追 exact support 是否累積"
 
 
+def test_issue_tracker_load_backfills_action_from_next_action(tmp_path, monkeypatch):
+    target = tmp_path / "issues.json"
+    monkeypatch.setattr(issues_module, "ISSUES_JSON", target)
+    target.write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P1_execution_venue_readiness_unverified",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "venue readiness is still unverified",
+                        "next_action": "Keep venue blockers visible on operator-facing surfaces.",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    tracker = issues_module.IssueTracker.load()
+
+    assert tracker.issues[0]["action"] == "Keep venue blockers visible on operator-facing surfaces."
+
+
 def test_issue_tracker_save_merges_auto_breaker_duplicate_into_canonical_issue(tmp_path, monkeypatch):
     target = tmp_path / "issues.json"
     monkeypatch.setattr(issues_module, "ISSUES_JSON", target)
@@ -101,6 +127,55 @@ def test_issue_tracker_save_merges_auto_breaker_duplicate_into_canonical_issue(t
     assert saved["summary"]["recent_window"] == 50
     assert saved["summary"]["required_recent_window_wins"] == 15
     assert saved["summary"]["streak"] == 235
+    assert saved["hb_detected"] == "fast"
+
+
+def test_issue_tracker_save_merges_recent_pathology_duplicate_into_canonical_issue(tmp_path, monkeypatch):
+    target = tmp_path / "issues.json"
+    monkeypatch.setattr(issues_module, "ISSUES_JSON", target)
+
+    tracker = issues_module.IssueTracker()
+    tracker.issues = [
+        {
+            "id": "P0_recent_distribution_pathology",
+            "priority": "P0",
+            "status": "open",
+            "title": "recent canonical 250 rows remains a distribution pathology",
+            "action": "Keep drilling the pathological slice itself.",
+            "summary": {"window": 250, "win_rate": 0.0, "dominant_regime": "bull"},
+            "created_at": "2026-04-19T17:05:36",
+            "updated_at": "2026-04-19T17:05:36",
+        },
+        {
+            "id": "#H_AUTO_RECENT_PATHOLOGY",
+            "priority": "P0",
+            "status": "open",
+            "title": "recent canonical window 250 rows = distribution_pathology",
+            "action": "Use the fresh drift artifact instead of stale manual stats.",
+            "summary": {
+                "window": "250",
+                "win_rate": 0.016,
+                "dominant_regime_share": 0.988,
+                "avg_quality": -0.2188,
+                "alerts": ["label_imbalance", "regime_concentration", "regime_shift"],
+            },
+            "created_at": "2026-04-20T01:56:34",
+            "updated_at": "2026-04-20T01:56:34",
+            "hb_detected": "fast",
+        },
+    ]
+
+    tracker.save()
+
+    payload = json.loads(target.read_text())
+    assert [issue["id"] for issue in payload["issues"]] == ["P0_recent_distribution_pathology"]
+    saved = payload["issues"][0]
+    assert saved["action"] == "Use the fresh drift artifact instead of stale manual stats."
+    assert saved["summary"]["window"] == "250"
+    assert saved["summary"]["win_rate"] == 0.016
+    assert saved["summary"]["dominant_regime"] == "bull"
+    assert saved["summary"]["avg_quality"] == -0.2188
+    assert saved["summary"]["alerts"] == ["label_imbalance", "regime_concentration", "regime_shift"]
     assert saved["hb_detected"] == "fast"
 
 
