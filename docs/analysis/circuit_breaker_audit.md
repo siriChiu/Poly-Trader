@@ -7,19 +7,19 @@
 
 ## Mixed scope（現況錯誤口徑）
 - triggered: **False** via []
-- streak: 6 / threshold 50
+- streak: 10 / threshold 50
 - recent 50: win_rate=0.32 wins=16 losses=34
-- streak horizons: {'240': 6}
+- streak horizons: {'240': 10}
 
 ## Aligned scope（1440m canonical live horizon）
 - triggered: **True** via ['recent_win_rate']
 - release_ready: **False**
-- streak: 18 / threshold 50
+- streak: 19 / threshold 50
 - recent 50: win_rate=0.06 wins=3 losses=47
 
 ## Release condition
 - streak < 50
 - recent 50 win_rate >= 30%
-- aligned_scope_now: streak=18, win_rate=0.06
+- aligned_scope_now: streak=19, win_rate=0.06
 - additional recent-window wins needed: 12
 - tail pathology: losses=47 / wins=3 / loss_share=0.94

@@ -650,6 +650,14 @@ def overwrite_current_state_docs(
         "",
     ]
 
+    patch_profile = live_decision_drilldown.get("recommended_patch_profile") or "—"
+    patch_status = live_decision_drilldown.get("recommended_patch_status") or "—"
+    patch_reference_scope = live_decision_drilldown.get("recommended_patch_reference_scope") or "—"
+    live_regime = live_predictor_diagnostics.get("regime_label") or "—"
+    live_gate = live_predictor_diagnostics.get("regime_gate") or "—"
+    live_bucket = live_predictor_diagnostics.get("current_live_structure_bucket") or "—"
+    docs_sync_line = "current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth"
+
     orid_lines = [
         "# ORID_DECISIONS.md — Current ORID Only",
         "",
@@ -666,23 +674,23 @@ def overwrite_current_state_docs(
         f"- recent pathological slice：{pathology_line}。",
         f"- leaderboard / governance：{leaderboard_line}。",
         f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle。",
-        "- 本輪產品化 patch：heartbeat runner 現在會在 `auto_propose_fixes.py` 後自動 overwrite sync `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`，避免 markdown docs 落後最新 machine-readable artifacts。",
+        f"- 本輪產品化前進：{docs_sync_line}；`recommended_patch={patch_profile}` / `status={patch_status}` / `reference_scope={patch_reference_scope}`。",
         "",
         "### R｜感受直覺",
-        "- 這輪最危險的產品問題不是數字不夠，而是 heartbeat 原本只會提醒 docs stale，卻不會自己完成 docs overwrite；這會讓 repo current-state 與 live artifacts 再次 split-brain。",
-        "- breaker-first truth 沒變，但如果 markdown docs 還停在舊的 streak / 舊的 bucket rows，operator 看到的仍然是假 current state。",
+        f"- 這輪最需要防止的誤讀，是把 `{support_current_rows}/{support_minimum_rows}` 的 same-bucket support 或 `{patch_reference_scope}` 參考 patch 誤讀成已可部署；breaker 仍是唯一 current-live blocker。",
+        f"- current live 已落在 `{live_regime}/{live_gate}/{live_bucket}`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket 或舊 bucket 當成現在的 runtime 真相。",
         "",
         "### I｜意義洞察",
-        "1. **closed-loop heartbeat 不能只更新 issues.json**：current-state markdown docs 也必須自動跟上，否則心跳在治理層仍然是不完整的。",
-        "2. **真正主 blocker 仍是 breaker + pathological slice**：docs automation 只是把 current truth 對齊，不是把 current-bucket support / venue patch 提前升級成主敘事。",
-        "3. **把 docs overwrite 內建進 runner 才符合 productization**：這能把 current-state 治理從人工補寫，升級成 cron-safe contract。",
+        f"1. **support accumulation ≠ deployment closure**：`support={support_current_rows}/{support_minimum_rows}` 且 `support_route_verdict={support_route_verdict}` 只代表治理前進，還不能把 reference patch 升級成 runtime patch。",
+        "2. **真正主 blocker 仍是 breaker + recent pathological slice**：目前該追的是 release math 與 recent canonical 250-row pathology，不是把 q15/q35 support 或 venue 話題誤升級成唯一根因。",
+        f"3. **docs overwrite sync 的角色是護欄，不是主 blocker**：{docs_sync_line} 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。",
         "",
         "### D｜決策行動",
-        "- **Owner**：heartbeat runner / current-state governance lane",
-        "- **Action**：在 `auto_propose_fixes.py` 之後直接 overwrite sync `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`，讓 docs 跟 `issues.json / live artifacts` 同輪收斂。",
-        "- **Artifacts**：`scripts/hb_parallel_runner.py`、`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`。",
-        "- **Verify**：`pytest tests/test_hb_parallel_runner.py -q`（或 targeted docs-sync tests）、`python scripts/hb_parallel_runner.py --fast --hb <run>`、確認不再出現 docs stale warning。",
-        "- **If fail**：只要 docs 再次落後 `issues.json / live probe / drilldown`，就把 heartbeat 升級回 current-state governance blocker，因為這代表 cron 還沒有真正完成 docs overwrite 閉環。",
+        "- **Owner**：current-live runtime / governance lane",
+        f"- **Action**：維持 breaker-first truth，並把 {support_scope_label} support 與 recommended patch 持續顯示為 `reference_only`；下一步沿 recent pathological slice 與 release math 繼續追根因。",
+        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。",
+        "- **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。",
+        "- **If fail**：只要 docs / UI 再次隱藏 breaker-first truth、漏掉 support rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。",
         "",
     ]
 

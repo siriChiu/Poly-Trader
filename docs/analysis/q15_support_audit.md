@@ -1,15 +1,15 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-20 05:52:01.160266**
+- generated_at: **2026-04-20 06:18:10.229366**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
 - signal: **CIRCUIT_BREAKER**
-- regime / gate / label: **chop / CAUTION / C**
+- regime / gate / label: **chop / CAUTION / D**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q15**
-- current_live_structure_bucket_rows: **14**
-- allowed_layers: **0** (decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active)
-- execution_guardrail_reason: **decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active**
+- current_live_structure_bucket_rows: **15**
+- allowed_layers: **0** (decision_quality_below_trade_floor; circuit_breaker_active)
+- execution_guardrail_reason: **decision_quality_below_trade_floor; circuit_breaker_active**
 
 ## Scope applicability
 - status: **current_live_q15_lane_active**
@@ -24,32 +24,32 @@
 - deployable: **False**
 - governance_reference_only: **True**
 - preferred_support_cohort: **bull_exact_live_lane_proxy**
-- current bucket gap to minimum: **36**
+- current bucket gap to minimum: **35**
 - exact-bucket proxy rows: **0**
 - exact-lane proxy rows: **1015**
 - supported neighbor rows: **649**
 - reason: current q15 exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
-- support_progress.status: **accumulating**
-- support_progress.current_rows / minimum: **14 / 50**
-- support_progress.previous_rows: **10**
-- support_progress.delta_vs_previous: **4**
-- support_progress.stagnant_run_count: **0**
+- support_progress.status: **stalled_under_minimum**
+- support_progress.current_rows / minimum: **15 / 50**
+- support_progress.previous_rows: **15**
+- support_progress.delta_vs_previous: **0**
+- support_progress.stagnant_run_count: **2**
 - support_progress.escalate_to_blocker: **False**
-- support_progress.reason: current q15 exact support 仍低於 minimum，但同 bucket rows 較上一輪增加。
+- support_progress.reason: current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。
 
 ## Floor-cross legality
 - verdict: **runtime_blocker_preempts_floor_analysis**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0**
-- best_single_component: **None**
-- best_single_component_required_score_delta: **None**
-- best_single_component_can_cross_floor: **False**
+- remaining_gap_to_floor: **0.0282**
+- best_single_component: **feat_4h_bias50**
+- best_single_component_required_score_delta: **0.094**
+- best_single_component_can_cross_floor: **True**
 - reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 6.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
-- feature: **None**
+- feature: **feat_4h_bias50**
 - mode: **None**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**

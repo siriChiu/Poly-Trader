@@ -1498,6 +1498,10 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in roadmap_md
     assert "不要硬綁單一 port" in roadmap_md
     assert "心跳 #20260420z ORID" in orid_md
+    assert "support accumulation ≠ deployment closure" in orid_md
+    assert "support=0/50" in orid_md
+    assert "recommended_patch=core_plus_macro_plus_all_4h" in orid_md
+    assert "heartbeat runner 現在會在 `auto_propose_fixes.py` 後自動 overwrite sync" not in orid_md
 
 
 
