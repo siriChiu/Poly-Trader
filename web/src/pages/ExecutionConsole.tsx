@@ -574,6 +574,9 @@ export default function ExecutionConsole() {
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
   const runtimeStatusPending = loading && !runtimeStatus && !error;
+  const overviewPending = overviewLoading && !executionOverview && !overviewError;
+  const runsPending = runsLoading && !executionRuns && !runsError;
+  const executionConsoleInitialSyncPending = runtimeStatusPending || overviewPending || runsPending;
   const metadataSmokeFreshnessLabel = runtimeStatusPending
     ? "同步中"
     : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
@@ -604,30 +607,72 @@ export default function ExecutionConsole() {
   const totalCapitalInUse = runLedgerPreviews.reduce((sum, item) => sum + (typeof item.capital_in_use === "number" ? item.capital_in_use : 0), 0);
   const profitableRuns = executionRunRecords.filter((run) => (run.runtime_binding_snapshot?.shared_symbol_ledger_preview?.unrealized_pnl ?? 0) > 0).length;
   const deployableCapital = executionCapitalPlan?.deployable_capital ?? balanceFree;
-  const hasBlockedState = !executionSurfaceContract?.live_ready;
+  const hasBlockedState = !runtimeStatusPending && !executionSurfaceContract?.live_ready;
   const rawPrimaryBlockedReason = liveRuntimeTruth?.deployment_blocker_reason
     || liveRuntimeTruth?.deployment_blocker
     || liveRuntimeTruth?.execution_guardrail_reason
     || liveReadyBlockers[0]
     || executionSurfaceContract?.operator_message
     || null;
-  const primaryBlockedReason = humanizeExecutionReason(rawPrimaryBlockedReason);
-  const blockedReasonSummary = Array.from(new Set([
-    rawPrimaryBlockedReason,
-    ...liveReadyBlockers,
-  ]
-    .map((item) => humanizeExecutionReason(item))
-    .filter((item) => item && item !== "尚未提供 blocker 摘要。")))
-    .join(" · ") || primaryBlockedReason;
-  const deploymentStatusLabel = executionSurfaceContract?.live_ready ? "Ready" : "Blocked";
-  const deploymentStatusDetail = executionSurfaceContract?.live_ready
-    ? (liveRuntimeTruth?.runtime_closure_summary || executionSurfaceContract?.operator_message || "目前已滿足主要部署條件。")
-    : (liveRuntimeTruth?.runtime_closure_summary || liveRuntimeTruth?.deployment_blocker_reason || primaryBlockedReason);
+  const primaryBlockedReason = runtimeStatusPending ? "正在同步 /api/status" : humanizeExecutionReason(rawPrimaryBlockedReason);
+  const blockedReasonSummary = runtimeStatusPending
+    ? "正在同步 /api/status"
+    : (Array.from(new Set([
+      rawPrimaryBlockedReason,
+      ...liveReadyBlockers,
+    ]
+      .map((item) => humanizeExecutionReason(item))
+      .filter((item) => item && item !== "尚未提供 blocker 摘要。")))
+      .join(" · ") || primaryBlockedReason);
+  const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "Ready" : "Blocked");
+  const deploymentStatusDetail = runtimeStatusPending
+    ? "正在向 /api/status 取得 current live blocker / runtime closure。"
+    : (executionSurfaceContract?.live_ready
+      ? (liveRuntimeTruth?.runtime_closure_summary || executionSurfaceContract?.operator_message || "目前已滿足主要部署條件。")
+      : (liveRuntimeTruth?.runtime_closure_summary || liveRuntimeTruth?.deployment_blocker_reason || primaryBlockedReason));
   const automationEnabled = Boolean(runtimeStatus?.automation);
   const dryRunEnabled = Boolean(runtimeStatus?.dry_run);
   const executionSymbol = runtimeStatus?.symbol || "BTCUSDT";
-  const executionModeLabel = executionSummary?.mode || (dryRunEnabled ? "dry_run" : "paper");
-  const executionVenueLabel = executionSummary?.venue || "unknown";
+  const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || (dryRunEnabled ? "dry_run" : "paper"));
+  const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || "unknown");
+  const automationStatusLabel = runtimeStatusPending ? "automation 同步中" : `automation ${automationEnabled ? "ON" : "OFF"}`;
+  const liveReadyStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
+  const balanceTotalLabel = runtimeStatusPending ? "同步中" : `${formatNumber(balanceTotal)} ${balanceCurrency}`;
+  const balanceBreakdownLabel = runtimeStatusPending
+    ? "正在向 /api/status 取得 account snapshot。"
+    : `可用 ${formatNumber(balanceFree)} · 已分配 ${formatNumber(allocatedCapital)}`;
+  const sharedPnlLabel = runsPending ? `同步中 ${balanceCurrency}` : `${formatSignedNumber(runLedgerPreviews.length > 0 ? totalUnrealizedPnl : null)} ${balanceCurrency}`;
+  const sharedPnlSummaryLabel = runsPending
+    ? "正在向 /api/execution/runs 取得共享盈虧預覽。"
+    : (runLedgerPreviews.length > 0 ? `共享帳戶預覽 · ${executionRunRecords.length} 個 run` : "尚未取得共享盈虧預覽");
+  const capitalInUseLabel = executionConsoleInitialSyncPending
+    ? `同步中 ${balanceCurrency}`
+    : `${formatNumber(runLedgerPreviews.length > 0 ? totalCapitalInUse : allocatedCapital)} ${balanceCurrency}`;
+  const capitalInUseSummaryLabel = executionConsoleInitialSyncPending
+    ? "正在同步共享帳戶預覽 / 預算。"
+    : (runLedgerPreviews.length > 0 ? "依目前 run ledger preview 匯總" : "暫以帳戶已分配資金表示");
+  const deployableCapitalLabel = overviewPending || runtimeStatusPending
+    ? `同步中 ${balanceCurrency}`
+    : `${formatNumber(deployableCapital)} ${balanceCurrency}`;
+  const deployableCapitalSummaryLabel = overviewPending || runtimeStatusPending
+    ? "正在向 /api/status 與 /api/execution/overview 取得 deployable capital。"
+    : `allocation ${executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves"}`;
+  const runningRunsLabel = runsPending ? "同步中" : String(executionRunsSummary?.running_runs ?? 0);
+  const runningRunsSummaryLabel = runsPending
+    ? "正在向 /api/execution/runs 取得 run control / events。"
+    : `獲利中 ${profitableRuns} · paused ${executionRunsSummary?.paused_runs ?? 0} · total ${executionRunsSummary?.total_runs ?? executionRunRecords.length}`;
+  const executionStrategySummaryLabel = overviewPending
+    ? "正在向 /api/execution/overview 取得 strategy / sleeve coverage。"
+    : `saved strategies ${executionStrategySummary?.strategy_count ?? 0} · covered sleeves ${executionStrategySummary?.covered_sleeves ?? 0}/${executionStrategySummary?.total_sleeves ?? 0} · missing ${(executionStrategySummary?.missing_sleeves || []).join(" / ") || "none"}`;
+  const executionProfileCardsEmptyState = overviewPending
+    ? "正在向 /api/execution/overview 取得 bot profile cards。"
+    : "尚未取得 bot profile cards；先確認 /api/execution/overview 是否可用。";
+  const executionRunsEmptyState = runsPending
+    ? "正在向 /api/execution/runs 取得 run control / events。"
+    : "尚未建立 stateful run；先在上方 Bot 卡啟動，這裡才會出現事件與狀態。";
+  const liveReadinessSummary = runtimeStatusPending
+    ? "正在向 /api/status 取得 live readiness。"
+    : (liveRuntimeTruth?.deployment_blocker || liveRuntimeTruth?.execution_guardrail_reason || executionSurfaceContract?.operator_message || "尚未提供 readiness 訊息。");
   const runActionTone = runActionState.tone === "success"
     ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
     : runActionState.tone === "error"
@@ -715,11 +760,11 @@ export default function ExecutionConsole() {
             <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-300">
               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{executionModeLabel.toUpperCase()}</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{executionVenueLabel}</span>
-              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(automationEnabled ? "ok" : "warning")}`}>
-                automation {automationEnabled ? "ON" : "OFF"}
+              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(runtimeStatusPending ? "pending" : (automationEnabled ? "ok" : "warning"))}`}>
+                {automationStatusLabel}
               </span>
-              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(executionSurfaceContract?.live_ready ? "ok" : "blocked")}`}>
-                {executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞"}
+              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(runtimeStatusPending ? "pending" : (executionSurfaceContract?.live_ready ? "ok" : "blocked"))}`}>
+                {liveReadyStatusLabel}
               </span>
               <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(metadataSmokeFreshness?.status)}`}>
                 freshness {metadataSmokeFreshnessLabel}
@@ -785,30 +830,30 @@ export default function ExecutionConsole() {
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
           <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">資產總覽</div>
-          <div className="mt-2 text-3xl font-semibold text-white">{formatNumber(balanceTotal)} {balanceCurrency}</div>
-          <div className="mt-2 text-sm text-slate-400">可用 {formatNumber(balanceFree)} · 已分配 {formatNumber(allocatedCapital)}</div>
+          <div className="mt-2 text-3xl font-semibold text-white">{balanceTotalLabel}</div>
+          <div className="mt-2 text-sm text-slate-400">{balanceBreakdownLabel}</div>
         </div>
         <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
           <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">共享盈虧預覽</div>
           <div className={`mt-2 text-3xl font-semibold ${totalUnrealizedPnl > 0 ? "text-emerald-300" : totalUnrealizedPnl < 0 ? "text-rose-300" : "text-white"}`}>
-            {formatSignedNumber(runLedgerPreviews.length > 0 ? totalUnrealizedPnl : null)} {balanceCurrency}
+            {sharedPnlLabel}
           </div>
-          <div className="mt-2 text-sm text-slate-400">{runLedgerPreviews.length > 0 ? `共享帳戶預覽 · ${executionRunRecords.length} 個 run` : "尚未取得共享盈虧預覽"}</div>
+          <div className="mt-2 text-sm text-slate-400">{sharedPnlSummaryLabel}</div>
         </div>
         <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
           <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">資金使用中</div>
-          <div className="mt-2 text-3xl font-semibold text-white">{formatNumber(runLedgerPreviews.length > 0 ? totalCapitalInUse : allocatedCapital)} {balanceCurrency}</div>
-          <div className="mt-2 text-sm text-slate-400">{runLedgerPreviews.length > 0 ? "依目前 run ledger preview 匯總" : "暫以帳戶已分配資金表示"}</div>
+          <div className="mt-2 text-3xl font-semibold text-white">{capitalInUseLabel}</div>
+          <div className="mt-2 text-sm text-slate-400">{capitalInUseSummaryLabel}</div>
         </div>
         <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
           <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">可部署資金</div>
-          <div className="mt-2 text-3xl font-semibold text-white">{formatNumber(deployableCapital)} {balanceCurrency}</div>
-          <div className="mt-2 text-sm text-slate-400">allocation {executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves"}</div>
+          <div className="mt-2 text-3xl font-semibold text-white">{deployableCapitalLabel}</div>
+          <div className="mt-2 text-sm text-slate-400">{deployableCapitalSummaryLabel}</div>
         </div>
         <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
           <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">運行中 Bot</div>
-          <div className="mt-2 text-3xl font-semibold text-white">{executionRunsSummary?.running_runs ?? 0}</div>
-          <div className="mt-2 text-sm text-slate-400">獲利中 {profitableRuns} · paused {executionRunsSummary?.paused_runs ?? 0} · total {executionRunsSummary?.total_runs ?? executionRunRecords.length}</div>
+          <div className="mt-2 text-3xl font-semibold text-white">{runningRunsLabel}</div>
+          <div className="mt-2 text-sm text-slate-400">{runningRunsSummaryLabel}</div>
         </div>
         <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
           <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">部署狀態</div>
@@ -828,8 +873,8 @@ export default function ExecutionConsole() {
                 </div>
               </div>
               <div className="text-right text-xs text-slate-400">
-                <div>策略來源 {executionStrategySummary?.strategy_count ?? 0}</div>
-                <div>資金規則 {executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves"}</div>
+                <div>策略來源 {overviewPending ? "同步中" : (executionStrategySummary?.strategy_count ?? 0)}</div>
+                <div>資金規則 {overviewPending ? "同步中" : (executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves")}</div>
               </div>
             </div>
             {(overviewLoading || overviewError) && (
@@ -841,7 +886,7 @@ export default function ExecutionConsole() {
               <div className="mt-3 text-sm text-slate-300">{executionOverview.operator_message}</div>
             )}
             <div className="mt-2 text-xs text-slate-400">
-              saved strategies {executionStrategySummary?.strategy_count ?? 0} · covered sleeves {executionStrategySummary?.covered_sleeves ?? 0}/{executionStrategySummary?.total_sleeves ?? 0} · missing {(executionStrategySummary?.missing_sleeves || []).join(" / ") || "none"}
+              {executionStrategySummaryLabel}
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {executionProfileCards.length > 0 ? executionProfileCards.map((card) => {
@@ -953,7 +998,7 @@ export default function ExecutionConsole() {
                 );
               }) : (
                 <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-5 text-sm text-slate-300">
-                  尚未取得 bot profile cards；先確認 /api/execution/overview 是否可用。
+                  {executionProfileCardsEmptyState}
                 </div>
               )}
             </div>
@@ -964,7 +1009,9 @@ export default function ExecutionConsole() {
               <div>
                 <div className="text-lg font-semibold text-white">運行中</div>
                 <div className="mt-1 text-sm text-slate-400">
-                  running {executionRunsSummary?.running_runs ?? 0} · paused {executionRunsSummary?.paused_runs ?? 0} · stopped {executionRunsSummary?.stopped_runs ?? 0} · total {executionRunsSummary?.total_runs ?? executionRunRecords.length}
+                  {runsPending
+                    ? "正在向 /api/execution/runs 取得 run control / events。"
+                    : `running ${executionRunsSummary?.running_runs ?? 0} · paused ${executionRunsSummary?.paused_runs ?? 0} · stopped ${executionRunsSummary?.stopped_runs ?? 0} · total ${executionRunsSummary?.total_runs ?? executionRunRecords.length}`}
                 </div>
               </div>
               <div className="text-xs text-slate-400">run control beta</div>
@@ -1044,7 +1091,7 @@ export default function ExecutionConsole() {
                 );
               }) : (
                 <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-5 text-sm text-slate-300">
-                  尚未建立 stateful run；先在上方 Bot 卡啟動，這裡才會出現事件與狀態。
+                  {executionRunsEmptyState}
                 </div>
               )}
             </div>
@@ -1056,10 +1103,10 @@ export default function ExecutionConsole() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-lg font-semibold text-white">應急手動操作</div>
-                <div className="mt-1 text-sm text-slate-400">{executionSymbol} · {executionModeLabel} · {executionVenueLabel}</div>
+                <div className="mt-1 text-sm text-slate-400">{runtimeStatusPending ? "正在向 /api/status 取得 symbol / mode / venue。" : `${executionSymbol} · ${executionModeLabel} · ${executionVenueLabel}`}</div>
               </div>
-              <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(automationEnabled ? "ok" : "warning")}`}>
-                automation {automationEnabled ? "ON" : "OFF"}
+              <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(runtimeStatusPending ? "pending" : (automationEnabled ? "ok" : "warning"))}`}>
+                {automationStatusLabel}
               </div>
             </div>
             <div className="mt-2 text-[12px] text-slate-400">僅供人工介入，不是 Bot 營運的主流程。</div>
@@ -1105,10 +1152,10 @@ export default function ExecutionConsole() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-lg font-semibold text-white">部署狀態</div>
-                <div className="mt-1 text-sm text-slate-400">{liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—"} · gate {liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—"} · bucket {liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—"}</div>
+                <div className="mt-1 text-sm text-slate-400">{runtimeStatusPending ? "正在向 /api/status 取得 regime / gate / bucket。" : `${liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—"} · gate ${liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—"} · bucket ${liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—"}`}</div>
               </div>
-              <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(executionSurfaceContract?.live_ready ? "ok" : "blocked")}`}>
-                {executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞"}
+              <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(runtimeStatusPending ? "pending" : (executionSurfaceContract?.live_ready ? "ok" : "blocked"))}`}>
+                {liveReadyStatusLabel}
               </div>
             </div>
             <div className="mt-3 text-sm text-slate-300">{deploymentStatusDetail}</div>
@@ -1124,7 +1171,7 @@ export default function ExecutionConsole() {
                 <div className="text-[11px] text-slate-400">{supportAlignmentLabel}</div>
               </div>
             </div>
-            {liveReadyBlockers.length > 0 && (
+            {(runtimeStatusPending || liveReadyBlockers.length > 0) && (
               <div className="mt-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
                 {blockedReasonSummary}
               </div>
@@ -1214,8 +1261,8 @@ export default function ExecutionConsole() {
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Live readiness</div>
-            <div className="mt-2 text-base font-semibold text-white">{executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞"}</div>
-            <div className="mt-2">{liveRuntimeTruth?.deployment_blocker || liveRuntimeTruth?.execution_guardrail_reason || executionSurfaceContract?.operator_message || "尚未提供 readiness 訊息。"}</div>
+            <div className="mt-2 text-base font-semibold text-white">{runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞")}</div>
+            <div className="mt-2">{liveReadinessSummary}</div>
           </div>
           <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Metadata freshness</div>

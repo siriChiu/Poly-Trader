@@ -99,8 +99,8 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         'const totalCapitalInUse = runLedgerPreviews.reduce(',
         'const profitableRuns = executionRunRecords.filter(',
         'const rawPrimaryBlockedReason = liveRuntimeTruth?.deployment_blocker_reason',
-        'const blockedReasonSummary = Array.from(new Set([',
-        'const deploymentStatusDetail = executionSurfaceContract?.live_ready',
+        'const blockedReasonSummary = runtimeStatusPending',
+        'const deploymentStatusDetail = runtimeStatusPending',
         'liveRuntimeTruth?.runtime_closure_summary || liveRuntimeTruth?.deployment_blocker_reason || primaryBlockedReason',
         'Bot 營運 / Live Ops',
         '先看我的 Bot、資金使用與盈虧預覽',
@@ -134,6 +134,34 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         assert snippet in source
     assert 'Bot 市集' not in source
     assert '進階診斷（需要時再展開）' not in source
+
+
+def test_execution_console_keeps_initial_sync_copy_until_status_overview_and_runs_finish_loading():
+    source = _read("pages/ExecutionConsole.tsx")
+    required_snippets = [
+        'const runtimeStatusPending = loading && !runtimeStatus && !error;',
+        'const overviewPending = overviewLoading && !executionOverview && !overviewError;',
+        'const runsPending = runsLoading && !executionRuns && !runsError;',
+        'const executionConsoleInitialSyncPending = runtimeStatusPending || overviewPending || runsPending;',
+        'const hasBlockedState = !runtimeStatusPending && !executionSurfaceContract?.live_ready;',
+        'const primaryBlockedReason = runtimeStatusPending ? "正在同步 /api/status" : humanizeExecutionReason(rawPrimaryBlockedReason);',
+        'const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "Ready" : "Blocked");',
+        '正在向 /api/status 取得 current live blocker / runtime closure。',
+        'const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || (dryRunEnabled ? "dry_run" : "paper"));',
+        'const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || "unknown");',
+        'const automationStatusLabel = runtimeStatusPending ? "automation 同步中" : `automation ${automationEnabled ? "ON" : "OFF"}`;',
+        'const liveReadyStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
+        'const executionStrategySummaryLabel = overviewPending',
+        '正在向 /api/execution/overview 取得 strategy / sleeve coverage。',
+        'const executionProfileCardsEmptyState = overviewPending',
+        '正在向 /api/execution/overview 取得 bot profile cards。',
+        'const executionRunsEmptyState = runsPending',
+        '正在向 /api/execution/runs 取得 run control / events。',
+        'const liveReadinessSummary = runtimeStatusPending',
+        '正在向 /api/status 取得 live readiness。',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
 
 
 def test_execution_surfaces_keep_current_live_blocker_ahead_of_venue_readiness_copy():

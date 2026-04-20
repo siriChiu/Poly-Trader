@@ -1,6 +1,6 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-20 00:47:15.429720**
+- feature_timestamp: **2026-04-20 01:12:29.611301**
 - target: `simulated_pyramid_win`
 - live path: **chop / CAUTION / D**
 - signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
@@ -20,18 +20,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.4611** / trade_floor **0.55** / gap **-0.0889**
-- base_quality: **0.5727** × weight **0.75**
-- structure_quality: **0.1261** × weight **0.25**
-- base components: feat_4h_bias50=0.5029 (w=0.4, contrib=0.2012), feat_nose=0.632 (w=0.18, contrib=0.1138), feat_pulse=0.4215 (w=0.27, contrib=0.1138), feat_ear=0.96 (w=0.15, contrib=0.144)
-- structure components: feat_4h_bb_pct_b=0.1822 (w=0.34, contrib=0.062), feat_4h_dist_bb_lower=0.0711 (w=0.33, contrib=0.0235), feat_4h_dist_swing_low=0.1231 (w=0.33, contrib=0.0406)
+- final entry_quality: **0.4653** / trade_floor **0.55** / gap **-0.0847**
+- base_quality: **0.5723** × weight **0.75**
+- structure_quality: **0.1443** × weight **0.25**
+- base components: feat_4h_bias50=0.4797 (w=0.4, contrib=0.1919), feat_nose=0.5533 (w=0.18, contrib=0.0996), feat_pulse=0.5009 (w=0.27, contrib=0.1353), feat_ear=0.9706 (w=0.15, contrib=0.1456)
+- structure components: feat_4h_bb_pct_b=0.2131 (w=0.34, contrib=0.0724), feat_4h_dist_bb_lower=0.083 (w=0.33, contrib=0.0274), feat_4h_dist_swing_low=0.1348 (w=0.33, contrib=0.0445)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0889**
-- base_group_max_entry_gain: **0.3204** | structure_group_max_entry_gain: **0.2184**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.2963, max_gain≈0.1491）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.2963), feat_pulse (Δscore≈0.439)
+- remaining_gap_to_floor: **0.0847**
+- base_group_max_entry_gain: **0.3208** | structure_group_max_entry_gain: **0.214**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.2823, max_gain≈0.1561）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.2823), feat_pulse (Δscore≈0.4183)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
