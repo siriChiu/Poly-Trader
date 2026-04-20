@@ -8,6 +8,7 @@ import FeatureChart from "../components/FeatureChart";
 import CandlestickChart from "../components/CandlestickChart";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
+import { ExecutionWorkspaceMetric, ExecutionWorkspaceSummary } from "../components/execution/ExecutionWorkspaceSummary";
 import { buildWsCandidateUrls, rememberActiveApiBaseFromWsUrl, useApi, fetchApi, prewarmActiveApiBase } from "../hooks/useApi";
 import ConfidenceIndicator from "../components/ConfidenceIndicator";
 import { ALL_SENSES, getSenseConfig } from "../config/senses";
@@ -1187,60 +1188,62 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className={`rounded-xl border px-4 py-3 text-xs ${executionTone}`}>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="font-semibold">💼 Execution 摘要</div>
-            <div className="mt-1 text-[11px] leading-5 opacity-80">
-              Dashboard 只保留 Bot 營運摘要；blocked 原因、metadata freshness、reconciliation / recovery 已移到「執行狀態」。
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 text-[11px]">
+      <ExecutionWorkspaceSummary
+        title="💼 Execution 摘要"
+        subtitle="Dashboard 只保留 Bot 營運摘要；blocked 原因、metadata freshness、reconciliation / recovery 已移到「執行狀態」。"
+        className={executionTone}
+        actions={(
+          <>
             <a
               href={executionOperationsSurface?.route || "/execution"}
-              className="rounded-lg border border-white/15 px-3 py-1.5 text-cyan-100 hover:border-cyan-300/40 hover:text-cyan-50"
+              className="app-button-secondary"
             >
               前往 Bot 營運 →
             </a>
             <a
               href="/execution/status"
-              className="rounded-lg border border-white/15 px-3 py-1.5 text-cyan-100 hover:border-cyan-300/40 hover:text-cyan-50"
+              className="app-button-secondary"
             >
               前往執行狀態 →
             </a>
-          </div>
-        </div>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
-            <div className="text-[11px] opacity-70">部署狀態</div>
-            <div className="mt-1 font-semibold">{executionSurfaceContract?.live_ready ? "Ready" : "Blocked"}</div>
-            <div className="mt-1 text-[11px] opacity-80">{executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()} · {executionVenueLabel}</div>
-            <div className="mt-1 text-[11px] opacity-80">current live blocker {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
-            <div className="mt-1 text-[11px] opacity-70">venue blockers {dashboardVenueBlockersLabel}</div>
-            <VenueReadinessSummary venues={venueChecks} className="mt-2" compact />
-          </div>
-          <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
-            <div className="text-[11px] opacity-70">資金 / 曝險</div>
-            <div className="mt-1 font-semibold">{accountBalanceSummaryValue}</div>
-            <div className="mt-1 text-[11px] opacity-80">total {accountBalanceSummaryTotal} · 倉位 {positionCount} · 掛單 {openOrderCount}</div>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
-            <div className="text-[11px] opacity-70">Metadata freshness</div>
-            <div className="mt-1 font-semibold">{metadataSmokeFreshnessLabel}</div>
-            <div className="mt-1 text-[11px] opacity-80">{runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : (metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "尚未產生 smoke artifact")}</div>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
-            <div className="text-[11px] opacity-70">Reconciliation / recovery</div>
-            <div className="mt-1 font-semibold">{reconciliationStatusLabel}</div>
-            <div className="mt-1 text-[11px] opacity-80">{reconciliationSummaryLabel}</div>
-          </div>
-        </div>
-        <LivePathologySummaryCard
-          summary={liveScopePathologySummary}
-          className="mt-3"
-          title="🧬 Live lane / spillover 對照"
+          </>
+        )}
+        footer={(
+          <LivePathologySummaryCard
+            summary={liveScopePathologySummary}
+            className="mt-1"
+            title="🧬 Live lane / spillover 對照"
+          />
+        )}
+      >
+        <ExecutionWorkspaceMetric
+          label="部署狀態"
+          value={executionSurfaceContract?.live_ready ? "Ready" : "Blocked"}
+          detail={(
+            <>
+              <div>{executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()} · {executionVenueLabel}</div>
+              <div>current live blocker {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
+              <div className="opacity-70">venue blockers {dashboardVenueBlockersLabel}</div>
+            </>
+          )}
+          extra={<VenueReadinessSummary venues={venueChecks} className="mt-2" compact />}
         />
-      </div>
+        <ExecutionWorkspaceMetric
+          label="資金 / 曝險"
+          value={accountBalanceSummaryValue}
+          detail={<div>total {accountBalanceSummaryTotal} · 倉位 {positionCount} · 掛單 {openOrderCount}</div>}
+        />
+        <ExecutionWorkspaceMetric
+          label="Metadata freshness"
+          value={metadataSmokeFreshnessLabel}
+          detail={runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : (metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "尚未產生 smoke artifact")}
+        />
+        <ExecutionWorkspaceMetric
+          label="Reconciliation / recovery"
+          value={reconciliationStatusLabel}
+          detail={reconciliationSummaryLabel}
+        />
+      </ExecutionWorkspaceSummary>
 
       <div className={`rounded-xl border px-4 py-3 text-xs ${continuityTone}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">

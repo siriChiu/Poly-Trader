@@ -1012,11 +1012,11 @@ def _build_execution_surface_contract() -> Dict[str, Any]:
             "upgrade_prerequisite": "下一步必須把 per-bot capital / position / order attribution 與 capital actions 接上 run-owned ledger，才能從 operator-view 升級成完整 execution console。",
         },
         "diagnostics_surface": {
-            "route": "/",
-            "label": "Dashboard / Execution 狀態面板",
+            "route": "/execution/status",
+            "label": "執行狀態 / Diagnostics",
             "role": "diagnostics-canonical",
             "status": "proof-chain",
-            "message": "Dashboard 仍是 execution diagnostics / guardrail / recovery proof chain 的 canonical surface。",
+            "message": "Execution Status 已拆成獨立 diagnostics / guardrail / recovery surface；Dashboard 只保留 execution summary。",
         },
         "shortcut_surface": {
             "name": "signal_banner",

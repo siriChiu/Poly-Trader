@@ -13,6 +13,7 @@ import {
 import CandlestickChart from "../components/CandlestickChart";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
+import { ExecutionWorkspaceMetric, ExecutionWorkspaceSummary } from "../components/execution/ExecutionWorkspaceSummary";
 import { fetchApi, useApi } from "../hooks/useApi";
 import { useGlobalProgressTask } from "../hooks/useGlobalProgress";
 import { getSenseConfig } from "../config/senses";
@@ -836,10 +837,22 @@ const decisionQualityTone = (value: number | null | undefined) => {
   if (value >= 0.3) return "text-yellow-300";
   return "text-red-300";
 };
-const executionSyncTone = (status?: string | null) => {
-  if (status === "healthy") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-100";
-  if (status === "warning") return "border-amber-700/40 bg-amber-950/20 text-amber-100";
-  if (status === "degraded") return "border-red-700/40 bg-red-950/20 text-red-100";
+const executionSyncTone = ({
+  pending,
+  liveReady,
+  blocker,
+  reconciliationStatus,
+}: {
+  pending: boolean;
+  liveReady: boolean;
+  blocker?: string | null;
+  reconciliationStatus?: string | null;
+}) => {
+  if (pending) return "border-slate-700/40 bg-slate-950/20 text-slate-200";
+  if (!liveReady || blocker) return "border-rose-700/40 bg-rose-950/20 text-rose-100";
+  if (reconciliationStatus === "healthy") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-100";
+  if (reconciliationStatus === "warning") return "border-amber-700/40 bg-amber-950/20 text-amber-100";
+  if (reconciliationStatus === "degraded") return "border-red-700/40 bg-red-950/20 text-red-100";
   return "border-slate-700/40 bg-slate-950/20 text-slate-200";
 };
 const metadataFreshnessTone = (status?: string | null) => {
@@ -2277,7 +2290,9 @@ export default function StrategyLab() {
   const currentLiveBlockerSummaryLabel = liveExecutionSyncPending
     ? "正在同步 live blocker / runtime closure"
     : currentLiveBlockerSummary;
+  const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
+  const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;
   const reconciliationCheckedAtLabel = runtimeStatusPending
     ? "正在向 /api/status 取得 execution sync 狀態"
     : (executionReconciliation?.checked_at ? new Date(executionReconciliation.checked_at).toLocaleString("zh-TW") : "尚未取得 /api/status");
@@ -2553,60 +2568,61 @@ export default function StrategyLab() {
               />
             </div>
 
-            <div className={`rounded-xl border p-4 space-y-3 ${executionSyncTone(executionReconciliation?.status)}`}>
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <div className="text-sm font-semibold">Live 部署同步</div>
-                  <div className="mt-1 text-[11px] leading-5 opacity-80">
-                    只同步 live truth；blocked 與 recovery 請到「執行狀態」。
-                  </div>
-                </div>
+            <ExecutionWorkspaceSummary
+              title="Live 部署同步"
+              subtitle="current live blocker 優先；對帳 healthy 只代表對帳 / runtime mirror 健康，不等於目前可部署。"
+              className={executionSyncTone({
+                pending: liveExecutionSyncPending,
+                liveReady: Boolean(executionSurfaceContract?.live_ready),
+                blocker: currentLiveBlocker,
+                reconciliationStatus: executionReconciliation?.status,
+              })}
+              gridClassName="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5"
+              aside={(
                 <div className="text-right text-xs">
-                  <div className="font-semibold">{reconciliationStatusLabel}</div>
-                  <div className="opacity-70">{reconciliationCheckedAtLabel}</div>
+                  <div className="font-semibold">{liveDeployStatusLabel}</div>
+                  <div className="opacity-70">current live blocker {currentLiveBlockerLabel}</div>
+                  <div className="mt-1 opacity-60">{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}</div>
                 </div>
-              </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5 text-xs">
-                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide opacity-60">current live blocker</div>
-                  <div className="mt-1 font-medium">{currentLiveBlockerLabel}</div>
-                  <div className="opacity-80">{currentLiveBlockerSummaryLabel}</div>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide opacity-60">venue blockers</div>
-                  <div className="mt-1 font-medium">{venueReadinessBlockersLabel}</div>
-                  <VenueReadinessSummary venues={venueChecks} className="mt-2" compact />
-                </div>
-                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide opacity-60">runtime closure</div>
-                  <div className="mt-1 font-medium">{runtimeClosureStateLabel}</div>
-                  <div className="opacity-80">{runtimeClosureSummaryLabel}</div>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide opacity-60">active sleeves</div>
-                  <div className="mt-1 font-medium">{activeSleevesLabel}</div>
-                  <div className="opacity-80">{activeSleevesSummaryLabel}</div>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-slate-950/20 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide opacity-60">metadata freshness</div>
-                  <div className={`mt-1 font-medium ${metadataFreshnessTone(metadataSmokeFreshness?.status)}`}>
-                    {metadataSmokeFreshnessLabel}
-                  </div>
-                  <div className="opacity-80">{runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : `generated ${metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "—"}`}</div>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="opacity-80">diagnostics surface {executionDiagnosticsSurface?.label || "執行狀態"} · {executionDiagnosticsSurface?.route || "/execution/status"}</div>
-                <div className="flex flex-wrap gap-2">
-                  <a href={executionOperationsSurface?.route || "/execution"} className="rounded-lg border border-white/15 px-3 py-1.5 text-cyan-100 hover:border-cyan-300/40 hover:text-cyan-50">
+              )}
+              actions={(
+                <>
+                  <a href={executionOperationsSurface?.route || "/execution"} className="app-button-secondary">
                     前往 Bot 營運 →
                   </a>
-                  <a href="/execution/status" className="rounded-lg border border-white/15 px-3 py-1.5 text-cyan-100 hover:border-cyan-300/40 hover:text-cyan-50">
+                  <a href="/execution/status" className="app-button-secondary">
                     前往執行狀態 →
                   </a>
-                </div>
-              </div>
-            </div>
+                </>
+              )}
+              footer={<div className="text-xs opacity-80">diagnostics surface {executionDiagnosticsSurface?.label || "執行狀態"} · {executionDiagnosticsSurface?.route || "/execution/status"}</div>}
+            >
+              <ExecutionWorkspaceMetric
+                label="current live blocker"
+                value={currentLiveBlockerLabel}
+                detail={currentLiveBlockerSummaryLabel}
+              />
+              <ExecutionWorkspaceMetric
+                label="venue blockers"
+                value={venueReadinessBlockersLabel}
+                extra={<VenueReadinessSummary venues={venueChecks} className="mt-2" compact />}
+              />
+              <ExecutionWorkspaceMetric
+                label="runtime closure"
+                value={runtimeClosureStateLabel}
+                detail={runtimeClosureSummaryLabel}
+              />
+              <ExecutionWorkspaceMetric
+                label="active sleeves"
+                value={activeSleevesLabel}
+                detail={activeSleevesSummaryLabel}
+              />
+              <ExecutionWorkspaceMetric
+                label="metadata freshness"
+                value={<span className={metadataFreshnessTone(metadataSmokeFreshness?.status)}>{metadataSmokeFreshnessLabel}</span>}
+                detail={runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : `generated ${metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "—"}`}
+              />
+            </ExecutionWorkspaceSummary>
             <LivePathologySummaryCard
               summary={liveScopePathologySummary}
               title="🧬 Live lane / spillover 對照"

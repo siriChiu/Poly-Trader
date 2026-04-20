@@ -61,3 +61,24 @@ def test_execution_status_keeps_diagnostics_collapsed_by_default_and_reuses_shar
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+def test_dashboard_and_strategy_lab_share_execution_workspace_summary_component():
+    shared_source = _read("components/execution/ExecutionWorkspaceSummary.tsx")
+    dashboard_source = _read("pages/Dashboard.tsx")
+    strategy_lab_source = _read("pages/StrategyLab.tsx")
+
+    assert "export function ExecutionWorkspaceSummary" in shared_source
+    assert "export function ExecutionWorkspaceMetric" in shared_source
+
+    for source in [dashboard_source, strategy_lab_source]:
+        assert "ExecutionWorkspaceSummary" in source
+        assert "ExecutionWorkspaceMetric" in source
+
+    for snippet in [
+        "Execution 摘要",
+        "Live 部署同步",
+        "前往 Bot 營運 →",
+        "前往執行狀態 →",
+    ]:
+        assert snippet in (dashboard_source + strategy_lab_source)
