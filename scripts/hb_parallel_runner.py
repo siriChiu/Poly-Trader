@@ -32,7 +32,7 @@ from feature_engine.feature_history_policy import (
     compute_sqlite_feature_coverage,
 )
 from scripts.hb_collect import summarize_label_horizons
-from scripts.issues import IssueTracker
+from scripts.issues import IssueTracker, normalize_verify_steps
 
 PYTHON = os.path.join(PROJECT_ROOT, 'venv', 'bin', 'python')
 DB_PATH = os.path.join(PROJECT_ROOT, 'poly_trader.db')
@@ -315,7 +315,7 @@ def _load_open_current_state_issues() -> list[Dict[str, Any]]:
 
 
 def _verification_lines(issue: Dict[str, Any]) -> list[str]:
-    verify = issue.get("verify") or []
+    verify = normalize_verify_steps(issue.get("verify") or [])
     if isinstance(verify, list):
         return [str(item).strip() for item in verify if str(item).strip()]
     if isinstance(verify, str) and verify.strip():

@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-20 22:15:35.699412**
+- generated_at: **2026-04-20 23:49:40.799393**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
@@ -34,7 +34,7 @@
 - support_progress.current_rows / minimum: **12 / 50**
 - support_progress.previous_rows: **12**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **4**
+- support_progress.stagnant_run_count: **5**
 - support_progress.escalate_to_blocker: **True**
 - support_progress.reason: current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。
 

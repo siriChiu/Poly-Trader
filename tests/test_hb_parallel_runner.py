@@ -1392,7 +1392,10 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
                         "status": "open",
                         "title": "leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe",
                         "action": "keep Strategy Lab aligned with leaderboard payload",
-                        "verify": ["browser /lab"],
+                        "verify": [
+                            "browser /lab",
+                            "curl http://127.0.0.1:8000/api/models/leaderboard",
+                        ],
                     },
                 ]
             },
@@ -1494,6 +1497,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
 
     assert "heartbeat runner overwrite sync" in issues_md
     assert "P0. canonical circuit breaker remains the only current-live deployment blocker" in issues_md
+    assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in issues_md
+    assert "curl http://127.0.0.1:8000/api/models/leaderboard" not in issues_md
     assert "current-state docs overwrite sync 已自動化" in roadmap_md
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in roadmap_md
     assert "不要硬綁單一 port" in roadmap_md

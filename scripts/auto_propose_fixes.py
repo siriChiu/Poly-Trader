@@ -22,7 +22,7 @@ from datetime import datetime
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
-from scripts.issues import IssueTracker
+from scripts.issues import IssueTracker, normalize_verify_steps
 
 CORE_FEATURES = [
     "feat_eye", "feat_ear", "feat_nose", "feat_tongue", "feat_body",
@@ -116,7 +116,7 @@ def check_db():
     }
 
 
-def upsert_issue(tracker, priority, issue_id, title, action="", status="open", summary=None):
+def upsert_issue(tracker, priority, issue_id, title, action="", status="open", summary=None, verify=None):
     """Update tracker metadata and overwrite machine-readable summary when provided."""
     tracker.add(priority, issue_id, title, action, status)
     issues = getattr(tracker, "issues", None)
@@ -127,6 +127,12 @@ def upsert_issue(tracker, priority, issue_id, title, action="", status="open", s
             continue
         if summary is not None:
             issue["summary"] = summary
+        if verify is not None:
+            normalized_verify = normalize_verify_steps(verify)
+            if normalized_verify in (None, "", []):
+                issue.pop("verify", None)
+            else:
+                issue["verify"] = normalized_verify
         issue["updated_at"] = datetime.utcnow().isoformat()
         return
 
@@ -684,6 +690,11 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
                 "leaderboard_payload_source": (leaderboard_probe or {}).get("leaderboard_payload_source"),
                 "dual_profile_state": alignment.get("dual_profile_state"),
             },
+            verify=[
+                "browser /lab",
+                "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
+                "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q",
+            ],
         )
 
     cv = metrics.get("cv_accuracy")

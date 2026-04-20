@@ -11,10 +11,13 @@ Usage:
 """
 import json
 import os
+import re
 from pathlib import Path
 from datetime import datetime
 
 ISSUES_JSON = Path(__file__).parent.parent / "issues.json"
+ACTIVE_BACKEND_URL_PLACEHOLDER = "http://127.0.0.1:<active-backend>"
+_LOCAL_BACKEND_VERIFY_RE = re.compile(r"http://(?:127\.0\.0\.1|localhost):8000(?=/)")
 
 # Keep current-state canonical issue IDs concise. When the structured tracker already
 # carries a hand-curated canonical issue, drop the equivalent auto-proposed duplicate
@@ -44,6 +47,25 @@ def _sync_action_fields(issue: dict) -> dict:
         synced.pop("next_actions", None)
     return synced
 
+
+def _normalize_verify_item(item: str) -> str:
+    text = str(item or "").strip()
+    if not text:
+        return ""
+    return _LOCAL_BACKEND_VERIFY_RE.sub(ACTIVE_BACKEND_URL_PLACEHOLDER, text)
+
+
+def normalize_verify_steps(verify):
+    if isinstance(verify, list):
+        normalized_items = []
+        for item in verify:
+            normalized = _normalize_verify_item(item)
+            if normalized:
+                normalized_items.append(normalized)
+        return normalized_items
+    if isinstance(verify, str):
+        return _normalize_verify_item(verify)
+    return verify
 
 
 def _merge_issue_records(primary: dict, duplicate: dict) -> dict:
@@ -131,6 +153,12 @@ def _normalize_issue(issue: dict) -> dict:
     loaded payload instead of printing blank arrows.
     """
     normalized = dict(issue)
+    if "verify" in normalized:
+        normalized_verify = normalize_verify_steps(normalized.get("verify"))
+        if normalized_verify in (None, "", []):
+            normalized.pop("verify", None)
+        else:
+            normalized["verify"] = normalized_verify
     action = normalized.get("action")
     if action:
         return _sync_action_fields(normalized)

@@ -1,6 +1,6 @@
 # q15 Bucket Root Cause
 
-- generated_at: **2026-04-20 22:15:35.699412**
+- generated_at: **2026-04-20 23:49:40.799393**
 - target_col: **simulated_pyramid_win**
 - verdict: **current_row_already_above_q35_boundary**
 - candidate_patch_type: **support_accumulation**
@@ -9,7 +9,7 @@
 ## Current live
 - live path: **bull / CAUTION / C**
 - structure_bucket: `CAUTION|structure_quality_caution|q35`
-- structure_quality: **0.4559**
+- structure_quality: **0.4114**
 - gap_to_q35_boundary: **0.0**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `under_minimum_exact_live_structure_bucket`
@@ -18,18 +18,18 @@
 - rows: **1**
 - bucket_counts: `{'CAUTION|structure_quality_caution|q35': 1}`
 - dominant_neighbor_bucket: **None** (0 rows)
-- near_boundary_window: `{'lower': 0.4559, 'upper': 0.35}`
+- near_boundary_window: `{'lower': 0.4114, 'upper': 0.35}`
 - near_boundary_rows: **0**
 
 ## Decision
 - reason: 目前 live row 已不在 q15/q35 邊界下方，問題改成 exact support 累積，不是 bucket repair。
-- candidate_patch: `{'type': 'support_accumulation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.7573, 'current_normalized': 0.7573, 'needed_raw_delta_to_cross_q35': 0.0, 'target_bucket_p25': None, 'target_bucket_median': None, 'needed_raw_delta_to_target_p25': None, 'needed_raw_delta_to_target_median': None}`
+- candidate_patch: `{'type': 'support_accumulation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.6807, 'current_normalized': 0.6807, 'needed_raw_delta_to_cross_q35': 0.0, 'target_bucket_p25': None, 'target_bucket_median': None, 'needed_raw_delta_to_target_p25': None, 'needed_raw_delta_to_target_median': None}`
 - verify_next: 確認 current_live_structure_bucket_rows 是否增加到 minimum_support_rows。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.7573 / norm=0.7573 / Δto_cross_q35=0.0 / target_p25=None / target_median=None
-- `feat_4h_dist_bb_lower`: current=2.3287 / norm=0.2911 / Δto_cross_q35=0.0 / target_p25=None / target_median=None
-- `feat_4h_dist_swing_low`: current=3.1014 / norm=0.3101 / Δto_cross_q35=0.0 / target_p25=None / target_median=None
+- `feat_4h_bb_pct_b`: current=0.6807 / norm=0.6807 / Δto_cross_q35=0.0 / target_p25=None / target_median=None
+- `feat_4h_dist_bb_lower`: current=2.1028 / norm=0.2628 / Δto_cross_q35=0.0 / target_p25=None / target_median=None
+- `feat_4h_dist_swing_low`: current=2.823 / norm=0.2823 / Δto_cross_q35=0.0 / target_p25=None / target_median=None
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 verdict 與 candidate_patch_feature。
