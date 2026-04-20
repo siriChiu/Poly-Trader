@@ -287,6 +287,25 @@ def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_r
     assert source.index('liveRuntimeTruth?.deployment_blocker_reason') < source.index('executionSurfaceContract?.live_ready_blockers')
 
 
+def test_dashboard_header_does_not_claim_offline_when_snapshot_data_is_loaded():
+    source = _read("pages/Dashboard.tsx")
+    required_snippets = [
+        'const hasDashboardSnapshotData = Boolean(',
+        'const dashboardTransportMode: "live" | "syncing" | "snapshot" | "offline" = wsConnected',
+        'const dashboardTransportLabel = dashboardTransportMode === "live"',
+        '? "即時連線"',
+        '? "同步中"',
+        '? "快照模式"',
+        ': "離線";',
+        'const dashboardTransportTone = dashboardTransportMode === "live"',
+        'const dashboardTransportDotTone = dashboardTransportMode === "live"',
+        '{dashboardTransportLabel}',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+    assert '{wsConnected ? "即時連線" : "離線"}' not in source
+
+
 def test_execution_surfaces_humanize_blocker_labels_and_reasons_via_shared_runtime_copy():
     runtime_copy_source = _read("utils/runtimeCopy.ts")
     required_runtime_copy_snippets = [

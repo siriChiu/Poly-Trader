@@ -1,24 +1,24 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-21 04:51:30 CST_
+_最後更新：2026-04-21 05:12:20 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #20260421-0446 已完成 collect + diagnostics refresh**
-  - `Raw=31303 / Features=22721 / Labels=63106`
+- **fast heartbeat #20260421-0508 已完成 collect + diagnostics refresh**
+  - `Raw=31307 / Features=22725 / Labels=63110`
   - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `window=500` / `win_rate=11.6%` / `dominant_regime=bull(85.0%)` / `avg_quality=-0.1660` / `avg_pnl=-0.0060` / `alerts=label_imbalance,regime_shift`
+  - `window=500` / `win_rate=12.0%` / `dominant_regime=bull(84.6%)` / `avg_quality=-0.1623` / `avg_pnl=-0.0058` / `alerts=label_imbalance,regime_shift`
+- **Dashboard 首屏 transport truth 已修正**
+  - Dashboard header 現在會把 `WebSocket disconnected + API snapshot healthy` 顯示為 `快照模式`，首次載入時則顯示 `同步中`，不再把 healthy snapshot state 誤寫成 `離線`
+  - 驗證：browser `/`、`pytest tests/test_frontend_decision_contract.py -q`、`cd web && npm run build`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
-- **Dashboard / ExecutionStatus initial-sync loading contract 已補齊**
-  - `Dashboard.tsx` 的 `💼 Execution 摘要` 與 `ExecutionStatus.tsx` hero / `可部署` metric 在第一次 `/api/status` 載入時改顯示 `同步中`
-  - 不再先渲染 `Blocked / unknown / automation OFF` 假陰性狀態；browser 初始 snapshot 與 frontend contract test 已驗證
 
 ---
 
@@ -31,11 +31,10 @@ _最後更新：2026-04-21 04:51:30 CST_
 **成功標準**
 - `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `under_minimum_exact_live_structure_bucket` 視為唯一 current-live deployment blocker，且不再誤回退成 breaker-first 舊敘事。
 - current live bucket truth (`bucket / rows / minimum / gap / support route`) 仍在 top-level surfaces 可 machine-read。
-- Dashboard `💼 Execution 摘要` 與 `/execution/status` 首屏在 `/api/status` 未返回前必須顯示 `同步中`，不得再先洩漏 `Blocked / unknown / automation OFF` 假陰性狀態。
 
 ### 目標 B：持續把 recent canonical pathological slice 當成 current blocker 根因來鑽
 **目前真相**
-- `window=500` / `win_rate=11.6%` / `dominant_regime=bull(85.0%)` / `avg_quality=-0.1660` / `avg_pnl=-0.0060` / `alerts=label_imbalance,regime_shift`
+- `window=500` / `win_rate=12.0%` / `dominant_regime=bull(84.6%)` / `avg_quality=-0.1623` / `avg_pnl=-0.0058` / `alerts=label_imbalance,regime_shift`
 **成功標準**
 - drift / probe / docs 能直接指出 pathological slice、adverse streak 與 top feature shifts，而不是退回 generic leaderboard / venue 摘要。
 
@@ -49,7 +48,7 @@ _最後更新：2026-04-21 04:51:30 CST_
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2773` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2777` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**

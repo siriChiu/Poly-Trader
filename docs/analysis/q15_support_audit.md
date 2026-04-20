@@ -1,11 +1,11 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-20 20:47:17.285088**
+- generated_at: **2026-04-20 21:10:05.044722**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
 - signal: **HOLD**
-- regime / gate / label: **bull / CAUTION / C**
+- regime / gate / label: **bull / CAUTION / D**
 - current_live_structure_bucket: **CAUTION|structure_quality_caution|q35**
 - current_live_structure_bucket_rows: **12**
 - allowed_layers: **0** (under_minimum_exact_live_structure_bucket)
@@ -34,22 +34,22 @@
 - support_progress.current_rows / minimum: **12 / 50**
 - support_progress.previous_rows: **12**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **2**
-- support_progress.escalate_to_blocker: **False**
+- support_progress.stagnant_run_count: **3**
+- support_progress.escalate_to_blocker: **True**
 - support_progress.reason: current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。
 
 ## Floor-cross legality
-- verdict: **floor_crossed_but_support_not_ready**
+- verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0**
-- best_single_component: **None**
-- best_single_component_required_score_delta: **None**
-- best_single_component_can_cross_floor: **False**
-- reason: 即使 entry floor 已跨過，exact q15 support 仍未達標，不能把 proxy/neighbor 當 deployment 放行證據。
+- remaining_gap_to_floor: **0.0929**
+- best_single_component: **feat_4h_bias50**
+- best_single_component_required_score_delta: **0.3097**
+- best_single_component_can_cross_floor: **True**
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.3097），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**
-- feature: **None**
+- feature: **feat_4h_bias50**
 - mode: **None**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**

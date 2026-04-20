@@ -932,6 +932,41 @@ export default function Dashboard() {
   const advice = liveAdvice || sensesData?.recommendation;
   const maturitySummary = featureCoverageData?.maturity_counts ?? null;
   const runtimeStatusPending = runtimeStatusLoading && !runtimeStatus && !runtimeStatusError;
+  const hasDashboardSnapshotData = Boolean(
+    lastUpdate
+    || sensesData
+    || runtimeStatus
+    || confidenceData
+    || featureCoverageData
+  );
+  const dashboardTransportMode: "live" | "syncing" | "snapshot" | "offline" = wsConnected
+    ? "live"
+    : (runtimeStatusPending && !hasDashboardSnapshotData)
+      ? "syncing"
+      : hasDashboardSnapshotData
+        ? "snapshot"
+        : "offline";
+  const dashboardTransportLabel = dashboardTransportMode === "live"
+    ? "即時連線"
+    : dashboardTransportMode === "syncing"
+      ? "同步中"
+      : dashboardTransportMode === "snapshot"
+        ? "快照模式"
+        : "離線";
+  const dashboardTransportTone = dashboardTransportMode === "live"
+    ? "text-green-400"
+    : dashboardTransportMode === "syncing"
+      ? "text-amber-300"
+      : dashboardTransportMode === "snapshot"
+        ? "text-sky-300"
+        : "text-orange-400";
+  const dashboardTransportDotTone = dashboardTransportMode === "live"
+    ? "bg-green-400"
+    : dashboardTransportMode === "syncing"
+      ? "bg-amber-300"
+      : dashboardTransportMode === "snapshot"
+        ? "bg-sky-300"
+        : "bg-orange-400";
   const executionSummary = runtimeStatus?.execution ?? null;
   const accountSummary = runtimeStatus?.account ?? null;
   const executionReconciliation = runtimeStatus?.execution_reconciliation ?? null;
@@ -1173,9 +1208,9 @@ export default function Dashboard() {
           <div className="flex flex-wrap items-center gap-3">
             <span className="font-bold text-slate-300">🐰 Poly-Trader</span>
             {/* 狀態指示器 */}
-            <span className={`flex items-center gap-1 ${wsConnected ? "text-green-400" : "text-orange-400"}`}>
-              <span className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-400" : "bg-orange-400"}`} />
-              {wsConnected ? "即時連線" : "離線"}
+            <span className={`flex items-center gap-1 ${dashboardTransportTone}`}>
+              <span className={`w-2 h-2 rounded-full ${dashboardTransportDotTone}`} />
+              {dashboardTransportLabel}
             </span>
             {lastUpdate && (
               <span className="text-slate-500">更新: {lastUpdate}</span>
