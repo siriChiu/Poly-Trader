@@ -1789,12 +1789,19 @@ def _apply_deployment_blocker_to_execution_profile(
     raw_layers = max(0, int(guarded.get("allowed_layers_raw", guarded.get("allowed_layers") or 0) or 0))
     guarded["allowed_layers_raw"] = raw_layers
     guarded["allowed_layers"] = 0
-    reasons = [r for r in str(guarded.get("execution_guardrail_reason") or "").split("; ") if r]
     blocker_reason = str(deployment_blocker.get("type") or "").strip()
-    toxic_guardrail_reason = f"{blocker_reason}_blocks_trade" if blocker_reason.startswith("exact_live_lane_toxic_") else None
-    if blocker_reason and blocker_reason not in reasons and toxic_guardrail_reason not in reasons:
-        reasons.append(blocker_reason)
-    final_reason = "; ".join(reasons) if reasons else None
+    exact_support_pending_blocker = blocker_reason in {
+        "unsupported_exact_live_structure_bucket",
+        "under_minimum_exact_live_structure_bucket",
+    }
+    if exact_support_pending_blocker:
+        final_reason = blocker_reason or None
+    else:
+        reasons = [r for r in str(guarded.get("execution_guardrail_reason") or "").split("; ") if r]
+        toxic_guardrail_reason = f"{blocker_reason}_blocks_trade" if blocker_reason.startswith("exact_live_lane_toxic_") else None
+        if blocker_reason and blocker_reason not in reasons and toxic_guardrail_reason not in reasons:
+            reasons.append(blocker_reason)
+        final_reason = "; ".join(reasons) if reasons else None
     guarded["execution_guardrail_applied"] = True
     guarded["execution_guardrail_reason"] = final_reason
     guarded["allowed_layers_reason"] = final_reason or raw_reason

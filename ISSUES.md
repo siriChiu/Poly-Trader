@@ -1,6 +1,6 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-21 02:41:31 CST_
+_最後更新：2026-04-21 03:06:32 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
@@ -8,7 +8,7 @@ _最後更新：2026-04-21 02:41:31 CST_
 
 ## 當前主線事實
 - **最新 fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=31287 / Features=22705 / Labels=63090`
+  - `Raw=31290 / Features=22708 / Labels=63092`
   - `simulated_pyramid_win=57.22%`
 - **canonical current-live blocker 已切到 current-live exact-support truth**
   - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
@@ -19,14 +19,11 @@ _最後更新：2026-04-21 02:41:31 CST_
   - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2757` / `archive_window_coverage_pct=0.0`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2760` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環
-- **operator-facing blocker copy 已統一 humanize**
-  - Dashboard / Execution Console / Execution Status / Strategy Lab / ConfidenceIndicator 現在共用 `web/src/utils/runtimeCopy.ts`
-  - 目的：避免 `under_minimum_exact_live_structure_bucket`、venue blocker codes、runtime reason 在不同頁面出現 raw token / underscore copy drift
 
 ---
 
@@ -66,7 +63,7 @@ _最後更新：2026-04-21 02:41:31 CST_
   - data/execution_metadata_smoke.json
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2757` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2760` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json

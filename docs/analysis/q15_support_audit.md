@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-20 18:36:25.251411**
+- generated_at: **2026-04-20 19:05:10.052445**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
@@ -8,8 +8,8 @@
 - regime / gate / label: **bull / CAUTION / C**
 - current_live_structure_bucket: **CAUTION|structure_quality_caution|q35**
 - current_live_structure_bucket_rows: **12**
-- allowed_layers: **0** (decision_quality_below_trade_floor; under_minimum_exact_live_structure_bucket)
-- execution_guardrail_reason: **decision_quality_below_trade_floor; under_minimum_exact_live_structure_bucket**
+- allowed_layers: **0** (under_minimum_exact_live_structure_bucket)
+- execution_guardrail_reason: **under_minimum_exact_live_structure_bucket**
 
 ## Scope applicability
 - status: **current_live_not_q15_lane**

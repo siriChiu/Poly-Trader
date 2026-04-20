@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-21 02:41:31 CST_
+_最後更新：2026-04-21 03:06:32 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
@@ -8,7 +8,7 @@ _最後更新：2026-04-21 02:41:31 CST_
 
 ## 已完成
 - **fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=31287 / Features=22705 / Labels=63090`
+  - `Raw=31290 / Features=22708 / Labels=63092`
   - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
   - `window=500` / `win_rate=10.2%` / `dominant_regime=bull(86.4%)` / `avg_quality=-0.1781` / `avg_pnl=-0.0063` / `alerts=label_imbalance,regime_shift`
 - **current-state docs overwrite sync 已自動化**
@@ -16,9 +16,6 @@ _最後更新：2026-04-21 02:41:31 CST_
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
-- **operator-facing blocker copy 已統一 humanize**
-  - Dashboard / Execution Console / Execution Status / Strategy Lab / ConfidenceIndicator 共用 `web/src/utils/runtimeCopy.ts`
-  - `under_minimum_exact_live_structure_bucket`、venue blockers、runtime closure reason 不再在不同頁面各自漂移成 raw token 或舊 copy
 
 ---
 
@@ -48,7 +45,7 @@ _最後更新：2026-04-21 02:41:31 CST_
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2757` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2760` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**

@@ -361,10 +361,8 @@ def test_infer_deployment_blocker_flags_under_minimum_exact_live_structure_bucke
     assert blocker["exact_live_structure_bucket_rows"] == 2
     assert guarded["deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
     assert guarded["allowed_layers"] == 0
-    assert guarded["allowed_layers_reason"] == (
-        "unsupported_exact_live_structure_bucket_blocks_trade; under_minimum_exact_live_structure_bucket"
-    )
-    assert "under_minimum_exact_live_structure_bucket" in guarded["execution_guardrail_reason"]
+    assert guarded["allowed_layers_reason"] == "under_minimum_exact_live_structure_bucket"
+    assert guarded["execution_guardrail_reason"] == "under_minimum_exact_live_structure_bucket"
 
 
 def test_infer_deployment_blocker_flags_exact_supported_q15_live_trade_floor_blocker(tmp_path, monkeypatch):
@@ -564,10 +562,8 @@ def test_infer_deployment_blocker_flags_generic_unsupported_exact_bucket_for_all
     assert blocker["exact_live_structure_bucket_rows"] == 0
     assert guarded["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
     assert guarded["allowed_layers"] == 0
-    assert guarded["allowed_layers_reason"] == (
-        "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; unsupported_exact_live_structure_bucket"
-    )
-
+    assert guarded["allowed_layers_reason"] == "unsupported_exact_live_structure_bucket"
+    assert guarded["execution_guardrail_reason"] == "unsupported_exact_live_structure_bucket"
 
 def test_infer_deployment_blocker_uses_exact_scope_no_rows_even_without_structure_guardrail():
     blocker = predictor_module._infer_deployment_blocker(
@@ -3384,6 +3380,7 @@ def test_predict_confidence_route_unpacks_load_predictor_tuple(monkeypatch):
 
     monkeypatch.setattr(predictor_module, "predict", _fake_predict)
     monkeypatch.setattr(api_module, "_load_q15_support_audit_summary", lambda _bucket=None: None)
+    monkeypatch.setattr(api_module, "_overlay_confidence_with_live_predict_probe", lambda payload: payload)
 
     result = asyncio.run(api_module.get_confidence_prediction())
 
@@ -3454,6 +3451,7 @@ def test_get_confidence_prediction_enriches_q15_support_blocker_from_audit(monke
             "component_experiment": {"verdict": "reference_only_until_exact_support_ready"},
         },
     )
+    monkeypatch.setattr(api_module, "_overlay_confidence_with_live_predict_probe", lambda payload: payload)
 
     result = asyncio.run(api_module.get_confidence_prediction())
 
@@ -3542,6 +3540,7 @@ def test_get_confidence_prediction_prefers_q15_audit_support_progress_even_when_
             "component_experiment": {"verdict": "runtime_blocker_preempts_component_experiment"},
         },
     )
+    monkeypatch.setattr(api_module, "_overlay_confidence_with_live_predict_probe", lambda payload: payload)
 
     result = asyncio.run(api_module.get_confidence_prediction())
 
