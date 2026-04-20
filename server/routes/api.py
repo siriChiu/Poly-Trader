@@ -5611,7 +5611,13 @@ async def api_get_strategy(name: str) -> Dict[str, Any]:
     strategy = load_strategy(name)
     if strategy is None:
         raise HTTPException(status_code=404, detail=f"Strategy '{name}' not found")
-    return strategy
+
+    db = get_db()
+    try:
+        return _decorate_strategy_entry(strategy, db=db)
+    finally:
+        if hasattr(db, "close"):
+            db.close()
 
 
 @router.get("/strategy_data_range")

@@ -914,6 +914,61 @@ def test_decorate_strategy_entry_surfaces_turning_point_exit_gate():
     assert enriched["overall_score"] is not None
 
 
+def test_api_get_strategy_decorates_detail_payload(monkeypatch):
+    class DummyDB:
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    strategy_entry = {
+        "name": "Auto Leaderboard · 測試策略",
+        "definition": {"type": "hybrid", "params": {"model_name": "xgboost"}},
+        "run_count": 3,
+        "last_results": {
+            "roi": 0.18,
+            "win_rate": 0.62,
+            "max_drawdown": 0.09,
+            "profit_factor": 1.55,
+            "total_trades": 24,
+            "wins": 15,
+            "losses": 9,
+            "avg_allowed_layers": 1.8,
+            "avg_decision_quality_score": 0.33,
+            "avg_expected_time_underwater": 0.27,
+            "decision_quality_horizon_minutes": 1440,
+            "trades": [
+                {
+                    "timestamp": "2026-04-01T00:00:00Z",
+                    "entry": 100.0,
+                    "exit": 110.0,
+                    "pnl": 50.0,
+                    "reason": "tp_roi",
+                    "allowed_layers": 2,
+                    "entry_quality": 0.64,
+                    "regime_gate": "CAUTION",
+                }
+            ],
+        },
+    }
+    db = DummyDB()
+
+    monkeypatch.setattr(strategy_lab, "load_strategy", lambda name: strategy_entry if name == strategy_entry["name"] else None)
+    monkeypatch.setattr(api_module, "get_db", lambda: db)
+
+    payload = asyncio.run(api_module.api_get_strategy(strategy_entry["name"]))
+
+    assert payload["name"] == strategy_entry["name"]
+    assert payload["last_results"]["overall_score"] is not None
+    assert payload["last_results"]["reliability_score"] is not None
+    assert payload["last_results"]["target_label"] == "Canonical Decision Quality"
+    assert payload["last_results"]["sort_semantics"] is not None
+    assert payload["decision_contract"]["target_col"] == "simulated_pyramid_win"
+    assert payload["last_results"]["trades"][0]["reason"] == "tp_roi"
+    assert db.closed is True
+
+
 def test_compute_decision_profile_returns_gate_summary():
     profile = api_module._compute_decision_profile(
         [

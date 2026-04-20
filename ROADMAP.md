@@ -1,20 +1,19 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-21 05:34:33 CST_
+_最後更新：2026-04-21 06:19:59 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=31309 / Features=22727 / Labels=63117`
+- **fast heartbeat #20260421-0611 已完成 collect + diagnostics refresh**
+  - `Raw=31313 / Features=22731 / Labels=63126`
   - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `window=500` / `win_rate=12.2%` / `dominant_regime=bull(84.4%)` / `avg_quality=-0.1604` / `avg_pnl=-0.0058` / `alerts=label_imbalance,regime_shift`
-- **Dashboard AdviceCard headline 已 blocker-first 化**
-  - blocked / syncing 時優先顯示 `先解除 blocker` / `先同步 runtime blocker`，避免首頁用偏多/買入標題蓋過 current-live blocker
-  - 原始多空訊號保留為次級 `訊號分析仍為...`，避免 operator 同時失去方向上下文
-  - 驗證：browser `/`、`pytest tests/test_frontend_decision_contract.py -q`、`cd web && npm run build`
+  - `window=500` / `win_rate=12.8%` / `dominant_regime=bull(83.8%)` / `avg_quality=-0.1547` / `avg_pnl=-0.0056` / `alerts=label_imbalance,regime_shift`
+- **Strategy Lab detail API 已與 leaderboard canonical DQ contract 對齊**
+  - `/api/strategies/{name}` 現在會先做 `_decorate_strategy_entry()`，避免載入 Auto Leaderboard 策略後丟失 `overall_score / reliability_score / decision_contract / trade summary`
+  - 驗證：`pytest tests/test_strategy_lab.py -q`、`curl http://127.0.0.1:8001/api/strategies/<name>`、browser `/lab`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
@@ -35,7 +34,7 @@ _最後更新：2026-04-21 05:34:33 CST_
 
 ### 目標 B：持續把 recent canonical pathological slice 當成 current blocker 根因來鑽
 **目前真相**
-- `window=500` / `win_rate=12.2%` / `dominant_regime=bull(84.4%)` / `avg_quality=-0.1604` / `avg_pnl=-0.0058` / `alerts=label_imbalance,regime_shift`
+- `window=500` / `win_rate=12.8%` / `dominant_regime=bull(83.8%)` / `avg_quality=-0.1547` / `avg_pnl=-0.0056` / `alerts=label_imbalance,regime_shift`
 **成功標準**
 - drift / probe / docs 能直接指出 pathological slice、adverse streak 與 top feature shifts，而不是退回 generic leaderboard / venue 摘要。
 
@@ -49,7 +48,7 @@ _最後更新：2026-04-21 05:34:33 CST_
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2779` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2783` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
