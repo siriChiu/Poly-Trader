@@ -1,34 +1,34 @@
 {
-  "generated_at": "2026-04-20 04:34:39.688050",
+  "generated_at": "2026-04-20 05:26:36.901992",
   "target_col": "simulated_pyramid_win",
   "current_live": {
     "regime_label": "chop",
     "regime_gate": "CAUTION",
     "entry_quality_label": "D",
-    "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-    "structure_quality": 0.2055,
+    "structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+    "structure_quality": 0.1369,
     "q15_threshold": 0.15,
     "q35_threshold": 0.35,
-    "gap_to_q35_boundary": 0.1445,
+    "gap_to_q35_boundary": 0.2131,
     "non_null_4h_feature_count": 10,
-    "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active"
+    "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active"
   },
   "exact_live_lane": {
-    "rows": 2351,
+    "rows": 2352,
     "bucket_counts": {
       "CAUTION|base_caution_regime_or_bias|q35": 1139,
       "CAUTION|base_caution_regime_or_bias|q65": 434,
       "CAUTION|base_caution_regime_or_bias|q00": 285,
-      "CAUTION|base_caution_regime_or_bias|q15": 267,
+      "CAUTION|base_caution_regime_or_bias|q15": 268,
       "CAUTION|base_caution_regime_or_bias|q85": 226
     },
     "dominant_neighbor_bucket": "CAUTION|base_caution_regime_or_bias|q35",
     "dominant_neighbor_rows": 1139,
     "near_boundary_window": {
-      "lower": 0.2055,
+      "lower": 0.1369,
       "upper": 0.35
     },
-    "near_boundary_rows": 193
+    "near_boundary_rows": 292
   },
   "verdict": "runtime_blocker_preempts_bucket_root_cause",
   "candidate_patch_type": null,
@@ -37,59 +37,59 @@
   "candidate_patch": {
     "type": null,
     "feature": "feat_4h_bb_pct_b",
-    "current_raw": 0.3288,
-    "current_normalized": 0.3288,
-    "needed_raw_delta_to_cross_q35": 0.425,
+    "current_raw": 0.2127,
+    "current_normalized": 0.2127,
+    "needed_raw_delta_to_cross_q35": 0.6268,
     "target_bucket_p25": 0.6494,
     "target_bucket_median": 0.695,
-    "needed_raw_delta_to_target_p25": 0.3206,
-    "needed_raw_delta_to_target_median": 0.3662
+    "needed_raw_delta_to_target_p25": 0.4367,
+    "needed_raw_delta_to_target_median": 0.4823
   },
   "component_deltas": {
     "feat_4h_bb_pct_b": {
-      "current_raw": 0.3288,
-      "current_normalized": 0.3288,
+      "current_raw": 0.2127,
+      "current_normalized": 0.2127,
       "target_bucket_rows": 1139,
       "target_bucket_mean": 0.7081,
       "target_bucket_median": 0.695,
       "target_bucket_p25": 0.6494,
       "target_bucket_p75": 0.7435,
-      "delta_vs_target_median": -0.3662,
-      "delta_vs_target_p25": -0.3206,
-      "needed_raw_delta_to_target_p25": 0.3206,
-      "needed_raw_delta_to_target_median": 0.3662,
-      "needed_raw_delta_to_cross_q35": 0.425,
-      "weighted_contribution": 0.1118
+      "delta_vs_target_median": -0.4823,
+      "delta_vs_target_p25": -0.4367,
+      "needed_raw_delta_to_target_p25": 0.4367,
+      "needed_raw_delta_to_target_median": 0.4823,
+      "needed_raw_delta_to_cross_q35": 0.6268,
+      "weighted_contribution": 0.0723
     },
     "feat_4h_dist_bb_lower": {
-      "current_raw": 1.0241,
-      "current_normalized": 0.128,
+      "current_raw": 0.6658,
+      "current_normalized": 0.0832,
       "target_bucket_rows": 1139,
       "target_bucket_mean": 3.316,
       "target_bucket_median": 3.2021,
       "target_bucket_p25": 2.1292,
       "target_bucket_p75": 4.498,
-      "delta_vs_target_median": -2.178,
-      "delta_vs_target_p25": -1.1051,
-      "needed_raw_delta_to_target_p25": 1.1051,
-      "needed_raw_delta_to_target_median": 2.178,
-      "needed_raw_delta_to_cross_q35": 3.503,
-      "weighted_contribution": 0.0422
+      "delta_vs_target_median": -2.5363,
+      "delta_vs_target_p25": -1.4634,
+      "needed_raw_delta_to_target_p25": 1.4634,
+      "needed_raw_delta_to_target_median": 2.5363,
+      "needed_raw_delta_to_cross_q35": 5.1661,
+      "weighted_contribution": 0.0275
     },
     "feat_4h_dist_swing_low": {
-      "current_raw": 1.5602,
-      "current_normalized": 0.156,
+      "current_raw": 1.1231,
+      "current_normalized": 0.1123,
       "target_bucket_rows": 1139,
       "target_bucket_mean": 3.44,
       "target_bucket_median": 3.6167,
       "target_bucket_p25": 2.0932,
       "target_bucket_p75": 4.4769,
-      "delta_vs_target_median": -2.0565,
-      "delta_vs_target_p25": -0.533,
-      "needed_raw_delta_to_target_p25": 0.533,
-      "needed_raw_delta_to_target_median": 2.0565,
-      "needed_raw_delta_to_cross_q35": 4.3788,
-      "weighted_contribution": 0.0515
+      "delta_vs_target_median": -2.4936,
+      "delta_vs_target_p25": -0.9701,
+      "needed_raw_delta_to_target_p25": 0.9701,
+      "needed_raw_delta_to_target_median": 2.4936,
+      "needed_raw_delta_to_cross_q35": 6.4576,
+      "weighted_contribution": 0.0371
     }
   },
   "verify_next": "先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 q15 root-cause artifact。",

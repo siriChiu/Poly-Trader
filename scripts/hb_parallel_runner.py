@@ -2896,6 +2896,167 @@ def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
     }
 
 
+def _current_leaderboard_support_progress() -> Dict[str, Any]:
+    data_dir = Path(PROJECT_ROOT) / "data"
+    live_probe = _read_json_file(data_dir / "live_predict_probe.json")
+    q15_support = _read_json_file(data_dir / "q15_support_audit.json")
+    current_signature = _current_leaderboard_candidate_semantic_signature() or {}
+    current_bucket = current_signature.get("live_current_structure_bucket")
+
+    deployment_blocker_details = live_probe.get("deployment_blocker_details") or {}
+    probe_progress = live_probe.get("support_progress")
+    if not isinstance(probe_progress, dict) or not probe_progress:
+        probe_progress = deployment_blocker_details.get("support_progress") or {}
+    probe_progress = dict(probe_progress) if isinstance(probe_progress, dict) else {}
+    probe_timestamp = _safe_parse_datetime(
+        live_probe.get("feature_timestamp")
+        or deployment_blocker_details.get("feature_timestamp")
+        or live_probe.get("generated_at")
+    )
+
+    support_route = q15_support.get("support_route") or {}
+    current_live = q15_support.get("current_live") or {}
+    q15_progress = support_route.get("support_progress")
+    q15_progress = dict(q15_progress) if isinstance(q15_progress, dict) else {}
+    q15_timestamp = _safe_parse_datetime(
+        current_live.get("feature_timestamp")
+        or q15_support.get("generated_at")
+        or current_live.get("generated_at")
+    )
+    if (
+        current_bucket
+        and current_bucket == current_live.get("current_live_structure_bucket")
+        and q15_progress
+    ):
+        if probe_progress:
+            if probe_timestamp and (q15_timestamp is None or probe_timestamp > q15_timestamp):
+                return probe_progress
+            if q15_timestamp is None and probe_timestamp is not None:
+                return probe_progress
+            if (
+                probe_progress.get("status") != q15_progress.get("status")
+                or probe_progress.get("delta_vs_previous") != q15_progress.get("delta_vs_previous")
+                or probe_progress.get("current_rows") != q15_progress.get("current_rows")
+            ):
+                return probe_progress
+        return q15_progress
+
+    return probe_progress
+
+
+
+def _overlay_current_leaderboard_candidate_truth(diag: Dict[str, Any]) -> Dict[str, Any]:
+    diag = dict(diag or {})
+    current_signature = _current_leaderboard_candidate_semantic_signature() or {}
+    current_progress = _current_leaderboard_support_progress()
+    if not current_signature and not current_progress:
+        return diag
+
+    def _as_int(value: Any) -> int | None:
+        if value is None or value == "":
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    current_bucket = current_signature.get("live_current_structure_bucket")
+    current_rows = _as_int(current_signature.get("live_current_structure_bucket_rows"))
+    current_minimum = _as_int(current_signature.get("minimum_support_rows"))
+    current_route = current_signature.get("support_governance_route")
+    has_current_live_truth = any(
+        value is not None and value != ""
+        for value in (
+            current_bucket,
+            current_route,
+            current_signature.get("live_regime_gate"),
+            current_signature.get("live_entry_quality_label"),
+            current_signature.get("live_execution_guardrail_reason"),
+        )
+    ) or bool((current_rows or 0) > 0 or (current_minimum or 0) > 0)
+    if not has_current_live_truth:
+        current_signature = {}
+        current_bucket = None
+        current_rows = None
+        current_minimum = None
+        current_route = None
+
+    diag_progress = diag.get("support_progress") if isinstance(diag.get("support_progress"), dict) else {}
+    progress_mismatch = bool(current_progress) and (
+        not diag_progress
+        or _as_int(diag_progress.get("current_rows")) != _as_int(current_progress.get("current_rows"))
+        or diag_progress.get("status") != current_progress.get("status")
+        or _as_int(diag_progress.get("delta_vs_previous")) != _as_int(current_progress.get("delta_vs_previous"))
+    )
+    live_truth_mismatch = bool(current_signature) and (
+        diag.get("live_current_structure_bucket") != current_bucket
+        or _as_int(diag.get("live_current_structure_bucket_rows")) != current_rows
+        or (current_minimum is not None and _as_int(diag.get("minimum_support_rows")) != current_minimum)
+        or (current_route and diag.get("support_governance_route") != current_route)
+        or (
+            current_signature.get("live_regime_gate") is not None
+            and diag.get("live_regime_gate") != current_signature.get("live_regime_gate")
+        )
+        or (
+            current_signature.get("live_entry_quality_label") is not None
+            and diag.get("live_entry_quality_label") != current_signature.get("live_entry_quality_label")
+        )
+        or (
+            current_signature.get("live_execution_guardrail_reason") is not None
+            and diag.get("live_execution_guardrail_reason") != current_signature.get("live_execution_guardrail_reason")
+        )
+    )
+    if not live_truth_mismatch and not progress_mismatch:
+        return diag
+
+    recency = dict(diag.get("current_alignment_recency") or {})
+    recency["inputs_current"] = False
+    recency["live_truth_overlay_applied"] = True
+    if live_truth_mismatch:
+        recency["source_live_current_structure_bucket"] = diag.get("live_current_structure_bucket")
+        recency["source_live_current_structure_bucket_rows"] = diag.get("live_current_structure_bucket_rows")
+        recency["source_support_governance_route"] = diag.get("support_governance_route")
+        diag["current_alignment_inputs_stale"] = True
+
+    if current_signature:
+        if current_bucket is not None:
+            diag["live_current_structure_bucket"] = current_bucket
+        if current_rows is not None:
+            diag["live_current_structure_bucket_rows"] = current_rows
+        if current_minimum is not None:
+            diag["minimum_support_rows"] = current_minimum
+        if current_route:
+            diag["support_governance_route"] = current_route
+        if current_signature.get("live_regime_gate") is not None:
+            diag["live_regime_gate"] = current_signature.get("live_regime_gate")
+        if current_signature.get("live_entry_quality_label") is not None:
+            diag["live_entry_quality_label"] = current_signature.get("live_entry_quality_label")
+        if current_signature.get("live_execution_guardrail_reason") is not None:
+            diag["live_execution_guardrail_reason"] = current_signature.get("live_execution_guardrail_reason")
+
+    minimum_rows = _as_int(diag.get("minimum_support_rows")) or 0
+    live_rows = _as_int(diag.get("live_current_structure_bucket_rows")) or 0
+    diag["live_current_structure_bucket_gap_to_minimum"] = max(minimum_rows - live_rows, 0)
+    diag["current_alignment_recency"] = recency
+
+    if current_progress:
+        diag["support_progress"] = current_progress
+
+    governance_contract = dict(diag.get("governance_contract") or {})
+    if diag.get("support_governance_route"):
+        governance_contract["support_governance_route"] = diag.get("support_governance_route")
+    governance_contract["minimum_support_rows"] = minimum_rows
+    governance_contract["live_current_structure_bucket_rows"] = live_rows
+    governance_contract["live_current_structure_bucket_gap_to_minimum"] = diag.get("live_current_structure_bucket_gap_to_minimum")
+    if current_progress:
+        governance_contract["support_progress"] = current_progress
+    if governance_contract:
+        diag["governance_contract"] = governance_contract
+
+    return diag
+
+
+
 def collect_leaderboard_candidate_diagnostics() -> Dict[str, Any]:
     result_path = Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json"
     if not result_path.exists():
@@ -2909,7 +3070,7 @@ def collect_leaderboard_candidate_diagnostics() -> Dict[str, Any]:
     alignment = payload.get("alignment") or {}
     blocked_candidates = alignment.get("blocked_candidate_profiles") or []
     governance_contract = alignment.get("governance_contract") or {}
-    return {
+    diag = {
         "generated_at": payload.get("generated_at"),
         "target_col": payload.get("target_col"),
         "leaderboard_count": payload.get("leaderboard_count"),
@@ -2956,6 +3117,7 @@ def collect_leaderboard_candidate_diagnostics() -> Dict[str, Any]:
         "bull_exact_live_bucket_proxy_rows": alignment.get("bull_exact_live_bucket_proxy_rows"),
         "blocked_candidate_profiles": blocked_candidates,
     }
+    return _overlay_current_leaderboard_candidate_truth(diag)
 
 
 def print_source_blockers(source_blockers: Dict[str, Any]) -> None:

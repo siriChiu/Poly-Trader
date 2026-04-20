@@ -4102,6 +4102,255 @@ def test_collect_leaderboard_candidate_diagnostics_surfaces_train_contract_stale
     assert diag["support_progress"]["delta_vs_previous"] == -1
 
 
+def test_collect_leaderboard_candidate_diagnostics_overlays_current_live_support_truth(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    model_dir = tmp_path / "model"
+    data_dir.mkdir()
+    model_dir.mkdir()
+
+    (data_dir / "leaderboard_feature_profile_probe.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-19T23:28:35.744192Z",
+                "target_col": "simulated_pyramid_win",
+                "leaderboard_count": 6,
+                "leaderboard_payload_source": "latest_persisted_snapshot",
+                "top_model": {
+                    "selected_feature_profile": "core_only",
+                    "selected_feature_profile_source": "feature_group_ablation.recommended_profile",
+                    "selected_feature_profile_blocker_applied": False,
+                    "selected_feature_profile_blocker_reason": None,
+                },
+                "alignment": {
+                    "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
+                    "support_governance_route": "exact_live_lane_proxy_available",
+                    "current_alignment_inputs_stale": False,
+                    "current_alignment_recency": {"inputs_current": True},
+                    "artifact_recency": {"alignment_snapshot_stale": False},
+                    "global_recommended_profile": "core_only",
+                    "train_selected_profile": "core_plus_macro",
+                    "train_selected_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+                    "live_regime_gate": "CAUTION",
+                    "live_entry_quality_label": "D",
+                    "live_execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+                    "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+                    "live_current_structure_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_gap_to_minimum": 50,
+                    "support_progress": {
+                        "status": "stalled_under_minimum",
+                        "current_rows": 0,
+                        "delta_vs_previous": 0,
+                    },
+                    "governance_contract": {
+                        "verdict": "dual_role_governance_active",
+                        "current_closure": "global_ranking_vs_support_aware_production_split",
+                        "support_governance_route": "exact_live_lane_proxy_available",
+                        "minimum_support_rows": 50,
+                        "live_current_structure_bucket_rows": 0,
+                        "live_current_structure_bucket_gap_to_minimum": 50,
+                        "support_progress": {
+                            "status": "stalled_under_minimum",
+                            "current_rows": 0,
+                        },
+                    },
+                    "blocked_candidate_profiles": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "feature_group_ablation.json").write_text(
+        json.dumps({"recommended_profile": "core_only"}),
+        encoding="utf-8",
+    )
+    (data_dir / "bull_4h_pocket_ablation.json").write_text(
+        json.dumps(
+            {
+                "live_context": {
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+                    "current_live_structure_bucket_rows": 0,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_dir / "last_metrics.json").write_text(
+        json.dumps(
+            {
+                "feature_profile": "core_plus_macro",
+                "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
+                "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                "current_live_structure_bucket_rows": 12,
+                "minimum_support_rows": 50,
+                "support_governance_route": "exact_live_lane_proxy_available",
+                "deployment_blocker_details": {
+                    "support_progress": {
+                        "status": "accumulating",
+                        "current_rows": 12,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 38,
+                        "delta_vs_previous": 1,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "q15_support_audit.json").write_text(
+        json.dumps(
+            {
+                "current_live": {
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                    "current_live_structure_bucket_rows": 12,
+                },
+                "support_route": {
+                    "support_governance_route": "exact_live_lane_proxy_available",
+                    "minimum_support_rows": 50,
+                    "support_progress": {
+                        "status": "accumulating",
+                        "reason": "current q15 exact support 仍低於 minimum，但同 bucket rows 較上一輪增加。",
+                        "current_rows": 12,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 38,
+                        "delta_vs_previous": 1,
+                        "previous_rows": 11,
+                        "previous_route_changed": False,
+                        "previous_support_route_verdict": "exact_bucket_present_but_below_minimum",
+                        "previous_support_governance_route": "exact_live_lane_proxy_available",
+                        "stagnant_run_count": 0,
+                        "stalled_support_accumulation": False,
+                        "escalate_to_blocker": False,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    diag = hb_parallel_runner.collect_leaderboard_candidate_diagnostics()
+
+    assert diag["live_current_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
+    assert diag["live_current_structure_bucket_rows"] == 12
+    assert diag["minimum_support_rows"] == 50
+    assert diag["live_current_structure_bucket_gap_to_minimum"] == 38
+    assert diag["support_governance_route"] == "exact_live_lane_proxy_available"
+    assert diag["support_progress"]["status"] == "accumulating"
+    assert diag["support_progress"]["current_rows"] == 12
+    assert diag["governance_contract"]["live_current_structure_bucket_rows"] == 12
+    assert diag["governance_contract"]["support_progress"]["current_rows"] == 12
+    assert diag["current_alignment_inputs_stale"] is True
+    assert diag["current_alignment_recency"]["inputs_current"] is False
+    assert diag["current_alignment_recency"]["live_truth_overlay_applied"] is True
+
+
+def test_collect_leaderboard_candidate_diagnostics_prefers_live_probe_progress_when_q15_audit_is_stale(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    model_dir = tmp_path / "model"
+    data_dir.mkdir()
+    model_dir.mkdir()
+
+    (data_dir / "leaderboard_feature_profile_probe.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-20T05:00:00Z",
+                "target_col": "simulated_pyramid_win",
+                "leaderboard_count": 6,
+                "top_model": {"selected_feature_profile": "core_only"},
+                "alignment": {
+                    "current_alignment_inputs_stale": False,
+                    "current_alignment_recency": {"inputs_current": True},
+                    "global_recommended_profile": "core_only",
+                    "train_selected_profile": "core_plus_macro",
+                    "train_selected_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+                    "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+                    "live_current_structure_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "support_progress": {"status": "stalled_under_minimum", "current_rows": 0, "delta_vs_previous": 0},
+                    "governance_contract": {
+                        "verdict": "dual_role_governance_active",
+                        "current_closure": "global_ranking_vs_support_aware_production_split",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "feature_group_ablation.json").write_text(json.dumps({"recommended_profile": "core_only"}), encoding="utf-8")
+    (data_dir / "bull_4h_pocket_ablation.json").write_text(json.dumps({"live_context": {}}), encoding="utf-8")
+    (model_dir / "last_metrics.json").write_text(
+        json.dumps({"feature_profile": "core_plus_macro", "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile"}),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "feature_timestamp": "2026-04-20 05:20:20.413713",
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
+                "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                "current_live_structure_bucket_rows": 12,
+                "minimum_support_rows": 50,
+                "support_governance_route": "exact_live_lane_proxy_available",
+                "deployment_blocker_details": {
+                    "support_progress": {
+                        "status": "accumulating",
+                        "current_rows": 12,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 38,
+                        "delta_vs_previous": 1,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "q15_support_audit.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-20 05:02:10.161496",
+                "current_live": {
+                    "feature_timestamp": "2026-04-20 05:02:10.161496",
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                    "current_live_structure_bucket_rows": 12,
+                },
+                "support_route": {
+                    "support_governance_route": "exact_live_lane_proxy_available",
+                    "minimum_support_rows": 50,
+                    "support_progress": {
+                        "status": "stalled_under_minimum",
+                        "current_rows": 12,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 38,
+                        "delta_vs_previous": 0,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    diag = hb_parallel_runner.collect_leaderboard_candidate_diagnostics()
+
+    assert diag["support_progress"]["status"] == "accumulating"
+    assert diag["support_progress"]["delta_vs_previous"] == 1
+    assert diag["governance_contract"]["support_progress"]["status"] == "accumulating"
+    assert diag["governance_contract"]["support_progress"]["delta_vs_previous"] == 1
+
+
 def test_refresh_train_prerequisites_runs_both_artifacts_when_train_is_needed(monkeypatch):
     calls = []
 
