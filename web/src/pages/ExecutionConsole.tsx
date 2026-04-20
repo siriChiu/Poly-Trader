@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { fetchApi, useApi } from "../hooks/useApi";
+import { ExecutionHero, ExecutionMetricCard, ExecutionPill, ExecutionSectionCard } from "../components/execution/ExecutionSurface";
 
 type SurfaceInfo = {
   route?: string;
@@ -544,12 +545,17 @@ export default function ExecutionConsole() {
     tone: "idle",
     message: "",
   });
+  const [naturalCommand, setNaturalCommand] = useState("");
+
+  const refreshExecutionWorkspace = async () => {
+    await Promise.all([refreshRuntimeStatus(), refreshExecutionOverview(), refreshExecutionRuns()]);
+  };
 
   const handleRunAction = async (endpoint: string, pendingLabel: string, successLabel: string) => {
     setRunActionState({ tone: "pending", message: pendingLabel });
     try {
       const resp = await fetchApi<{ operator_message?: string }>(endpoint, { method: "POST" });
-      await Promise.all([refreshExecutionRuns(), refreshExecutionOverview(), refreshRuntimeStatus()]);
+      await refreshExecutionWorkspace();
       setRunActionState({ tone: "success", message: resp.operator_message || successLabel });
     } catch (err: any) {
       setRunActionState({ tone: "error", message: err?.message || "execution run 操作失敗" });
@@ -684,22 +690,23 @@ export default function ExecutionConsole() {
       ? "border-rose-500/20 bg-rose-500/10 text-rose-100"
       : "border-cyan-500/20 bg-cyan-500/10 text-cyan-100";
 
-  const handleOperatorTrade = async (side: "buy" | "reduce") => {
+  const handleOperatorTrade = async (side: "buy" | "reduce", qty = 0.001) => {
     const label = side === "buy" ? "買入" : "減碼";
+    const normalizedQty = Number.isFinite(qty) && qty > 0 ? qty : 0.001;
     setOperatorActionState({
       tone: "pending",
-      message: `${label} 指令送出中… ${executionSymbol} 會送到 /api/trade，完成後自動刷新 runtime。`,
+      message: `${label} 指令送出中… ${executionSymbol} 會送到 /api/trade，數量 ${formatNumber(normalizedQty, 6)}，完成後自動刷新 runtime。`,
     });
     try {
       const resp = await fetchApi<any>("/api/trade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ side, symbol: executionSymbol, qty: 0.001 }),
+        body: JSON.stringify({ side, symbol: executionSymbol, qty: normalizedQty }),
       });
       await refreshRuntimeStatus();
       const order = resp?.order ?? null;
       const normalization = resp?.normalization ?? null;
-      const normalizedQty = typeof normalization?.normalized?.qty === "number" ? normalization.normalized.qty : (typeof order?.qty === "number" ? order.qty : null);
+      const normalizedQtyFromContract = typeof normalization?.normalized?.qty === "number" ? normalization.normalized.qty : (typeof order?.qty === "number" ? order.qty : null);
       const normalizedPrice = typeof normalization?.normalized?.price === "number" ? normalization.normalized.price : null;
       const stepSize = normalization?.contract?.step_size;
       const tickSize = normalization?.contract?.tick_size;
@@ -709,7 +716,7 @@ export default function ExecutionConsole() {
       ].filter(Boolean).join(" · ");
       setOperatorActionState({
         tone: "success",
-        message: `${label} 已提交：模式 ${order?.mode || (resp?.dry_run ? "dry_run" : executionModeLabel)} · venue ${resp?.venue || executionVenueLabel}${normalizedQty != null ? ` · normalized qty ${formatNumber(normalizedQty, 6)}` : ""}${normalizedPrice != null ? ` · normalized price ${formatNumber(normalizedPrice, 2)}` : ""}${contractSummary ? ` · contract ${contractSummary}` : ""}`,
+        message: `${label} 已提交：模式 ${order?.mode || (resp?.dry_run ? "dry_run" : executionModeLabel)} · venue ${resp?.venue || executionVenueLabel}${normalizedQtyFromContract != null ? ` · normalized qty ${formatNumber(normalizedQtyFromContract, 6)}` : ""}${normalizedPrice != null ? ` · normalized price ${formatNumber(normalizedPrice, 2)}` : ""}${contractSummary ? ` · contract ${contractSummary}` : ""}`,
       });
     } catch (err: any) {
       await refreshRuntimeStatus();
@@ -745,65 +752,142 @@ export default function ExecutionConsole() {
     }
   };
 
+  const handleNaturalLanguageAction = async (rawCommand?: string) => {
+    const command = String(rawCommand ?? naturalCommand).trim();
+    if (!command) {
+      setOperatorActionState({
+        tone: "error",
+        message: "請直接輸入自然語句，例如：買 0.001 BTC、減碼 0.001、切到自動、查看阻塞原因。",
+      });
+      return;
+    }
+
+    setNaturalCommand("");
+
+    if (/(查看|前往).*(阻塞|診斷|狀態)|execution\s*status|blocker/i.test(command)) {
+      setOperatorActionState({
+        tone: "success",
+        message: "已導向執行狀態頁，請先看 blocker / freshness / recovery。",
+      });
+      window.location.href = "/execution/status";
+      return;
+    }
+
+    if (/(策略|實驗室|lab)/i.test(command) && /(前往|打開|開|去)/i.test(command)) {
+      setOperatorActionState({
+        tone: "success",
+        message: "已導向策略實驗室。",
+      });
+      window.location.href = "/lab";
+      return;
+    }
+
+    if (/(刷新|重新整理|同步|reload|refresh)/i.test(command)) {
+      setOperatorActionState({
+        tone: "pending",
+        message: "正在同步 execution workspace…",
+      });
+      try {
+        await refreshExecutionWorkspace();
+        setOperatorActionState({
+          tone: "success",
+          message: "已重新整理 Bot 營運、run control 與 runtime status。",
+        });
+      } catch (err: any) {
+        setOperatorActionState({
+          tone: "error",
+          message: `重新整理失敗：${err?.message || "未知錯誤"}`,
+        });
+      }
+      return;
+    }
+
+    if (/(切|開|改).*(自動)|自動模式|automation\s*on/i.test(command)) {
+      await handleAutomationToggle(true);
+      return;
+    }
+
+    if (/(切|關|改).*(手動)|關自動|手動模式|automation\s*off/i.test(command)) {
+      await handleAutomationToggle(false);
+      return;
+    }
+
+    const qtyMatch = command.match(/([0-9]+(?:\.[0-9]+)?)/);
+    const qty = qtyMatch ? Number(qtyMatch[1]) : 0.001;
+
+    if (/(減碼|賣|平倉|reduce|sell)/i.test(command)) {
+      await handleOperatorTrade("reduce", qty);
+      return;
+    }
+
+    if (/(買入|買|加碼|buy)/i.test(command)) {
+      await handleOperatorTrade("buy", qty);
+      return;
+    }
+
+    setOperatorActionState({
+      tone: "error",
+      message: "暫時只支援：買入 / 減碼 / 切到自動 / 切到手動 / 查看阻塞原因 / 前往策略實驗室 / 重新整理。",
+    });
+  };
+
   return (
-    <div className="app-page-shell text-white">
-      <section className="app-page-header exchange-panel">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div>
-            <div className="inline-flex items-center rounded-full border border-[#7132f5]/30 bg-[#7132f5]/15 px-3 py-1 text-[11px] font-semibold tracking-[0.2em] text-[#d6c9ff]">
-              Bot 營運 / Live Ops
-            </div>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">先看我的 Bot、資金使用與盈虧預覽</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              主頁只放營運關鍵：Bot 狀態、資金、盈虧；診斷與恢復集中到「執行狀態」。
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-300">
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{executionModeLabel.toUpperCase()}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{executionVenueLabel}</span>
-              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(runtimeStatusPending ? "pending" : (automationEnabled ? "ok" : "warning"))}`}>
-                {automationStatusLabel}
-              </span>
-              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(runtimeStatusPending ? "pending" : (executionSurfaceContract?.live_ready ? "ok" : "blocked"))}`}>
-                {liveReadyStatusLabel}
-              </span>
-              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(metadataSmokeFreshness?.status)}`}>
-                freshness {metadataSmokeFreshnessLabel}
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 text-sm">
+    <div className="execution-shell app-page-shell text-white">
+      <ExecutionHero
+        className="app-page-header"
+        eyebrow="Bot 營運 / Live Ops"
+        title="先看我的 Bot、資金使用與盈虧預覽"
+        subtitle="主頁只放營運關鍵：Bot 狀態、資金、盈虧；診斷與恢復集中到「執行狀態」。"
+        statusPills={(
+          <>
+            <ExecutionPill>{executionModeLabel.toUpperCase()}</ExecutionPill>
+            <ExecutionPill>{executionVenueLabel}</ExecutionPill>
+            <ExecutionPill className={getStatusTone(runtimeStatusPending ? "pending" : (automationEnabled ? "ok" : "warning"))}>
+              {automationStatusLabel}
+            </ExecutionPill>
+            <ExecutionPill className={getStatusTone(runtimeStatusPending ? "pending" : (executionSurfaceContract?.live_ready ? "ok" : "blocked"))}>
+              {liveReadyStatusLabel}
+            </ExecutionPill>
+            <ExecutionPill className={getStatusTone(metadataSmokeFreshness?.status)}>
+              freshness {metadataSmokeFreshnessLabel}
+            </ExecutionPill>
+          </>
+        )}
+        actions={(
+          <>
             <button
               type="button"
-              onClick={() => Promise.all([refreshRuntimeStatus(), refreshExecutionOverview(), refreshExecutionRuns()])}
-              className="rounded-xl border border-[#7132f5]/35 bg-[#7132f5] px-4 py-2 font-medium text-white transition hover:bg-[#5f28d8]"
+              onClick={() => refreshExecutionWorkspace()}
+              className="app-button-primary"
             >
               重新整理
             </button>
-            <a href="/lab" className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 font-medium text-slate-100 transition hover:border-[#7132f5]/35 hover:text-white">
+            <a href="/lab" className="app-button-secondary">
               選策略
             </a>
-            <a href="/execution/status" className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 font-medium text-slate-100 transition hover:border-[#7132f5]/35 hover:text-white">
+            <a href="/execution/status" className="app-button-secondary">
               執行狀態
             </a>
-          </div>
-        </div>
+          </>
+        )}
+      >
         {executionSurfaceContract?.operator_message && !hasBlockedState && (
-          <div className="mt-4 rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-slate-200">
+          <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-slate-200">
             {executionSurfaceContract.operator_message}
           </div>
         )}
         {(loading || error) && (
-          <div className="mt-4 rounded-2xl border border-white/8 bg-[#0d1324] px-4 py-3 text-sm text-slate-300">
+          <div className="rounded-2xl border border-white/8 bg-[#0d1324] px-4 py-3 text-sm text-slate-300">
             {loading ? "/api/status 載入中…" : `載入失敗：${error}`}
           </div>
         )}
         {runActionState.tone !== "idle" && runActionState.message && (
-          <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${runActionTone}`}>
+          <div className={`rounded-2xl border px-4 py-3 text-sm ${runActionTone}`}>
             {runActionState.message}
           </div>
         )}
         {hasBlockedState && (
-          <div className="mt-4 rounded-[24px] border border-amber-400/30 bg-[linear-gradient(135deg,rgba(245,158,11,0.18),rgba(113,50,245,0.14))] p-4 shadow-[0_18px_40px_rgba(245,158,11,0.12)]">
+          <div className="rounded-[24px] border border-amber-400/30 bg-[linear-gradient(135deg,rgba(245,158,11,0.18),rgba(113,50,245,0.14))] p-4 shadow-[0_18px_40px_rgba(245,158,11,0.12)]">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/80">blocked</div>
@@ -816,8 +900,8 @@ export default function ExecutionConsole() {
                 </a>
                 <button
                   type="button"
-                  onClick={() => Promise.all([refreshRuntimeStatus(), refreshExecutionOverview(), refreshExecutionRuns()])}
-                  className="rounded-xl border border-white/15 bg-white/8 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/12"
+                  onClick={() => refreshExecutionWorkspace()}
+                  className="app-button-secondary"
                 >
                   重新整理
                 </button>
@@ -825,41 +909,40 @@ export default function ExecutionConsole() {
             </div>
           </div>
         )}
-      </section>
+      </ExecutionHero>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-        <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">資產總覽</div>
-          <div className="mt-2 text-3xl font-semibold text-white">{balanceTotalLabel}</div>
-          <div className="mt-2 text-sm text-slate-400">{balanceBreakdownLabel}</div>
-        </div>
-        <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">共享盈虧預覽</div>
-          <div className={`mt-2 text-3xl font-semibold ${totalUnrealizedPnl > 0 ? "text-emerald-300" : totalUnrealizedPnl < 0 ? "text-rose-300" : "text-white"}`}>
-            {sharedPnlLabel}
-          </div>
-          <div className="mt-2 text-sm text-slate-400">{sharedPnlSummaryLabel}</div>
-        </div>
-        <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">資金使用中</div>
-          <div className="mt-2 text-3xl font-semibold text-white">{capitalInUseLabel}</div>
-          <div className="mt-2 text-sm text-slate-400">{capitalInUseSummaryLabel}</div>
-        </div>
-        <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">可部署資金</div>
-          <div className="mt-2 text-3xl font-semibold text-white">{deployableCapitalLabel}</div>
-          <div className="mt-2 text-sm text-slate-400">{deployableCapitalSummaryLabel}</div>
-        </div>
-        <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">運行中 Bot</div>
-          <div className="mt-2 text-3xl font-semibold text-white">{runningRunsLabel}</div>
-          <div className="mt-2 text-sm text-slate-400">{runningRunsSummaryLabel}</div>
-        </div>
-        <div className="rounded-[20px] border border-white/6 bg-[#151b31] p-4">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">部署狀態</div>
-          <div className="mt-2 text-3xl font-semibold text-white">{deploymentStatusLabel}</div>
-          <div className="mt-2 text-sm text-slate-400">{deploymentStatusDetail}</div>
-        </div>
+        <ExecutionMetricCard
+          title="資產總覽"
+          value={balanceTotalLabel}
+          detail={balanceBreakdownLabel}
+        />
+        <ExecutionMetricCard
+          title="共享盈虧預覽"
+          value={sharedPnlLabel}
+          detail={sharedPnlSummaryLabel}
+          toneClass={totalUnrealizedPnl > 0 ? "text-emerald-300" : totalUnrealizedPnl < 0 ? "text-rose-300" : "text-white"}
+        />
+        <ExecutionMetricCard
+          title="資金使用中"
+          value={capitalInUseLabel}
+          detail={capitalInUseSummaryLabel}
+        />
+        <ExecutionMetricCard
+          title="可部署資金"
+          value={deployableCapitalLabel}
+          detail={deployableCapitalSummaryLabel}
+        />
+        <ExecutionMetricCard
+          title="運行中 Bot"
+          value={runningRunsLabel}
+          detail={runningRunsSummaryLabel}
+        />
+        <ExecutionMetricCard
+          title="部署狀態"
+          value={deploymentStatusLabel}
+          detail={deploymentStatusDetail}
+        />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.55fr_0.95fr]">
@@ -1099,42 +1182,56 @@ export default function ExecutionConsole() {
         </div>
 
         <div className="space-y-4">
-          <section className="rounded-[24px] border border-white/6 bg-[#151b31] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-lg font-semibold text-white">應急手動操作</div>
-                <div className="mt-1 text-sm text-slate-400">{runtimeStatusPending ? "正在向 /api/status 取得 symbol / mode / venue。" : `${executionSymbol} · ${executionModeLabel} · ${executionVenueLabel}`}</div>
-              </div>
+          <ExecutionSectionCard
+            title="自然語句操作"
+            subtitle={runtimeStatusPending ? "正在向 /api/status 取得 symbol / mode / venue。" : `${executionSymbol} · ${executionModeLabel} · ${executionVenueLabel} · 舊的「應急手動操作」已整併到這裡`}
+            aside={(
               <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(runtimeStatusPending ? "pending" : (automationEnabled ? "ok" : "warning"))}`}>
                 {automationStatusLabel}
               </div>
-            </div>
-            <div className="mt-2 text-[12px] text-slate-400">僅供人工介入，不是 Bot 營運的主流程。</div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
-              <button
-                type="button"
-                disabled={operatorActionState.tone === "pending"}
-                onClick={() => handleOperatorTrade("buy")}
-                className="rounded-xl border border-emerald-500/30 bg-emerald-500/12 px-3 py-3 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                買入 0.001 BTC
-              </button>
-              <button
-                type="button"
-                disabled={operatorActionState.tone === "pending"}
-                onClick={() => handleOperatorTrade("reduce")}
-                className="rounded-xl border border-amber-500/30 bg-amber-500/12 px-3 py-3 text-sm font-medium text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                減碼 0.001 BTC
-              </button>
-              <button
-                type="button"
-                disabled={operatorActionState.tone === "pending"}
-                onClick={() => handleAutomationToggle(!automationEnabled)}
-                className="rounded-xl border border-[#7132f5]/35 bg-[#7132f5]/15 px-3 py-3 text-sm font-medium text-[#e4dbff] transition hover:bg-[#7132f5]/25 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {automationEnabled ? "切到手動模式" : "切到自動模式"}
-              </button>
+            )}
+          >
+            <div className="text-sm text-slate-300">自然語句會優先幫你判斷是交易、模式切換還是前往診斷；不需要先找對按鈕。</div>
+            <div className="mt-3 flex flex-col gap-3">
+              <input
+                value={naturalCommand}
+                onChange={(event) => setNaturalCommand(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void handleNaturalLanguageAction();
+                  }
+                }}
+                className="execution-command-input"
+                placeholder="例如：買 0.001 BTC / 減碼 0.001 / 切到自動 / 查看阻塞原因"
+              />
+              <div className="flex flex-wrap gap-2">
+                {[
+                  "買入 0.001 BTC",
+                  "減碼 0.001 BTC",
+                  automationEnabled ? "切到手動模式" : "切到自動模式",
+                  "查看阻塞原因",
+                  "重新整理",
+                ].map((command) => (
+                  <button
+                    key={command}
+                    type="button"
+                    disabled={operatorActionState.tone === "pending"}
+                    onClick={() => void handleNaturalLanguageAction(command)}
+                    className="app-button-secondary"
+                  >
+                    {command}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={operatorActionState.tone === "pending"}
+                  onClick={() => void handleNaturalLanguageAction()}
+                  className="app-button-primary"
+                >
+                  執行語句
+                </button>
+              </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-300">
               <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(guardrails?.kill_switch ? "blocked" : "ok")}`}>kill switch {guardrails?.kill_switch ? "ON" : "off"}</span>
@@ -1146,7 +1243,7 @@ export default function ExecutionConsole() {
                 {operatorActionState.message}
               </div>
             )}
-          </section>
+          </ExecutionSectionCard>
 
           <section className="rounded-[24px] border border-white/6 bg-[#151b31] p-4">
             <div className="flex items-center justify-between gap-3">
@@ -1246,36 +1343,39 @@ export default function ExecutionConsole() {
         </div>
       </section>
 
-      <section className="rounded-[24px] border border-white/6 bg-[#151b31] p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
-            <div className="text-lg font-semibold text-white">執行狀態</div>
-            <div className="mt-1 text-sm leading-6 text-slate-300">
-              blocked 原因、metadata freshness、reconciliation / recovery 已移到獨立頁；這裡只保留營運摘要與入口。
+      <details className="execution-card">
+        <summary className="cursor-pointer list-none text-lg font-semibold text-white">進階營運細節（需要時再展開）</summary>
+        <div className="mt-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <div className="text-lg font-semibold text-white">執行狀態</div>
+              <div className="mt-1 text-sm leading-6 text-slate-300">
+                blocked 原因、metadata freshness、reconciliation / recovery 已移到獨立頁；這裡只保留營運摘要與入口。
+              </div>
+            </div>
+            <a href="/execution/status" className="app-button-secondary">
+              前往執行狀態 →
+            </a>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">Live readiness</div>
+              <div className="mt-2 text-base font-semibold text-white">{runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞")}</div>
+              <div className="mt-2">{liveReadinessSummary}</div>
+            </div>
+            <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">Metadata freshness</div>
+              <div className="mt-2 text-base font-semibold text-white">{metadataSmokeFreshnessLabel}</div>
+              <div className="mt-2">{runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : `generated ${formatTime(metadataSmoke?.generated_at)} · age ${metadataSmokeFreshness?.age_minutes != null ? `${metadataSmokeFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}`}</div>
+            </div>
+            <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">Reconciliation / recovery</div>
+              <div className="mt-2 text-base font-semibold text-white">{runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable")}</div>
+              <div className="mt-2">{runtimeStatusPending ? "正在向 /api/status 取得 reconciliation / recovery 摘要。" : (executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得 reconciliation 摘要。")}</div>
             </div>
           </div>
-          <a href="/execution/status" className="inline-flex rounded-xl border border-cyan-400/35 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20">
-            前往執行狀態 →
-          </a>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">Live readiness</div>
-            <div className="mt-2 text-base font-semibold text-white">{runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞")}</div>
-            <div className="mt-2">{liveReadinessSummary}</div>
-          </div>
-          <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">Metadata freshness</div>
-            <div className="mt-2 text-base font-semibold text-white">{metadataSmokeFreshnessLabel}</div>
-            <div className="mt-2">{runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : `generated ${formatTime(metadataSmoke?.generated_at)} · age ${metadataSmokeFreshness?.age_minutes != null ? `${metadataSmokeFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}`}</div>
-          </div>
-          <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">Reconciliation / recovery</div>
-            <div className="mt-2 text-base font-semibold text-white">{runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable")}</div>
-            <div className="mt-2">{runtimeStatusPending ? "正在向 /api/status 取得 reconciliation / recovery 摘要。" : (executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得 reconciliation 摘要。")}</div>
-          </div>
-        </div>
-      </section>
+      </details>
     </div>
   );
 }

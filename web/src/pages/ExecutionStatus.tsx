@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { useApi } from "../hooks/useApi";
+import { ExecutionHero, ExecutionMetricCard, ExecutionPill, ExecutionSectionCard } from "../components/execution/ExecutionSurface";
 
 type SurfaceInfo = {
   route?: string;
@@ -452,102 +453,95 @@ export default function ExecutionStatus() {
   }, [lifecycleAudit, lifecycleContract]);
 
   return (
-    <div className="app-page-shell text-white">
-      <section className="app-page-header exchange-panel">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div>
-            <div className="inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold tracking-[0.2em] text-cyan-100">
-              執行狀態 / Diagnostics
-            </div>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">先看 blocker，再決定是否介入</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              這頁只保留執行診斷：可部署、資料新鮮度、對帳與恢復。
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-300">
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{runtimeStatus?.symbol || "BTCUSDT"}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{executionSummary?.mode || (runtimeStatus?.dry_run ? "dry_run" : "unknown")}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{executionSummary?.venue || "unknown"}</span>
-              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(runtimeStatus?.automation ? "ok" : "warning")}`}>
-                automation {runtimeStatus?.automation ? "ON" : "OFF"}
-              </span>
-              <span className={`rounded-full border px-2.5 py-1 ${readinessTone}`}>
-                {executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞"}
-              </span>
-              <span className={`rounded-full border px-2.5 py-1 ${metadataTone}`}>
-                freshness {metadataFreshnessLabel}
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 text-sm">
+    <div className="execution-shell app-page-shell text-white">
+      <ExecutionHero
+        className="app-page-header"
+        eyebrow="執行狀態 / Diagnostics"
+        title="先看 blocker，再決定是否介入"
+        subtitle="這頁只保留執行診斷：可部署、資料新鮮度、對帳與恢復。"
+        statusPills={(
+          <>
+            <ExecutionPill>{runtimeStatus?.symbol || "BTCUSDT"}</ExecutionPill>
+            <ExecutionPill>{executionSummary?.mode || (runtimeStatus?.dry_run ? "dry_run" : "unknown")}</ExecutionPill>
+            <ExecutionPill>{executionSummary?.venue || "unknown"}</ExecutionPill>
+            <ExecutionPill className={getStatusTone(runtimeStatus?.automation ? "ok" : "warning")}>
+              automation {runtimeStatus?.automation ? "ON" : "OFF"}
+            </ExecutionPill>
+            <ExecutionPill className={readinessTone}>
+              {executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞"}
+            </ExecutionPill>
+            <ExecutionPill className={metadataTone}>
+              freshness {metadataFreshnessLabel}
+            </ExecutionPill>
+          </>
+        )}
+        actions={(
+          <>
             <button
               type="button"
               onClick={() => refresh()}
-              className="rounded-xl border border-cyan-400/35 bg-cyan-500 px-4 py-2 font-medium text-slate-950 transition hover:bg-cyan-400"
+              className="app-button-primary"
             >
               重新整理
             </button>
-            <a href="/execution" className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 font-medium text-slate-100 transition hover:border-cyan-300/35 hover:text-white">
+            <a href="/execution" className="app-button-secondary">
               回到 Bot 營運
             </a>
-            <a href="/lab" className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 font-medium text-slate-100 transition hover:border-cyan-300/35 hover:text-white">
+            <a href="/lab" className="app-button-secondary">
               回到策略實驗室
             </a>
-          </div>
-        </div>
-
+          </>
+        )}
+      >
         {(loading || error) && (
-          <div className="mt-4 rounded-2xl border border-white/8 bg-[#0d1324] px-4 py-3 text-sm text-slate-300">
+          <div className="rounded-2xl border border-white/8 bg-[#0d1324] px-4 py-3 text-sm text-slate-300">
             {loading ? "/api/status 載入中…" : `載入失敗：${error}`}
           </div>
         )}
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ExecutionMetricCard
             title="可部署"
             value={executionSurfaceContract?.live_ready ? "可進場" : "仍阻塞"}
             detail={`blocker ${currentLiveBlockerLabel} · ${primaryRuntimeMessage} · scope ${executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only"}`}
-            tone={readinessTone}
+            toneClass={readinessTone.includes("amber") ? "text-amber-100" : readinessTone.includes("emerald") || readinessTone.includes("cyan") ? "text-emerald-200" : "text-white"}
           />
-          <MetricCard
+          <ExecutionMetricCard
             title="資料新鮮度"
             value={metadataFreshnessLabel}
             detail={runtimeStatusPending
               ? "正在向 /api/status 取得 metadata smoke。"
               : `generated ${formatTime(metadataSmoke?.generated_at)} · age ${metadataFreshness?.age_minutes != null ? `${metadataFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}`}
-            tone={metadataTone}
+            toneClass={metadataTone.includes("amber") ? "text-amber-100" : metadataTone.includes("emerald") || metadataTone.includes("cyan") ? "text-emerald-200" : "text-white"}
           />
-          <MetricCard
+          <ExecutionMetricCard
             title="對帳狀態"
             value={reconciliationStatusLabel}
             detail={runtimeStatusPending
               ? "正在向 /api/status 取得 reconciliation / recovery 摘要。"
               : `${executionReconciliation?.summary || "尚未取得 reconciliation 摘要。"} · ${lifecycleSummary}`}
-            tone={reconciliationTone}
+            toneClass={reconciliationTone.includes("rose") ? "text-rose-200" : reconciliationTone.includes("amber") ? "text-amber-100" : "text-white"}
           />
-          <MetricCard
+          <ExecutionMetricCard
             title="帳戶快照"
             value={accountBalanceSummaryValue}
             detail={`${accountBalanceSummaryFree} · 倉位 ${accountSummary?.position_count ?? positions.length} · 掛單 ${accountSummary?.open_order_count ?? openOrders.length}`}
-            tone={healthTone}
+            toneClass={healthTone.includes("rose") ? "text-rose-200" : healthTone.includes("amber") ? "text-amber-100" : "text-white"}
           />
         </div>
-      </section>
+      </ExecutionHero>
 
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-4">
-          <section className="rounded-[24px] border border-white/8 bg-[#151b31] p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-lg font-semibold text-white">部署診斷</div>
-                <div className="mt-1 text-sm text-slate-400">
-                  {liveRuntimeTruth?.runtime_closure_summary || primaryRuntimeMessage}
-                </div>
-              </div>
+          <ExecutionSectionCard
+            title="部署診斷"
+            subtitle={liveRuntimeTruth?.runtime_closure_summary || primaryRuntimeMessage}
+            aside={(
               <div className={`rounded-full border px-2.5 py-1 text-[11px] ${readinessTone}`}>
                 {liveRuntimeTruth?.runtime_closure_state || (executionSurfaceContract?.live_ready ? "ready" : "blocked")}
               </div>
-            </div>
-
+            )}
+          >
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">主 blocker</div>
@@ -598,7 +592,7 @@ export default function ExecutionStatus() {
                 </div>
               </div>
             </div>
-          </section>
+          </ExecutionSectionCard>
 
           <section className="rounded-[24px] border border-white/8 bg-[#151b31] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -680,8 +674,8 @@ export default function ExecutionStatus() {
             <VenueReadinessSummary venues={venueChecks} className="mt-4" />
           </section>
 
-          <details className="rounded-[24px] border border-white/8 bg-[#151b31] p-4">
-            <summary className="cursor-pointer list-none text-lg font-semibold text-white">系統契約 / timeline</summary>
+          <details className="execution-card">
+            <summary className="cursor-pointer list-none text-lg font-semibold text-white">進階診斷（需要時再展開）</summary>
             <div className="mt-4 space-y-3 text-sm text-slate-300">
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">Surface contract</div>
