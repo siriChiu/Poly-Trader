@@ -1020,6 +1020,19 @@ export default function Dashboard() {
   const balanceFree = typeof accountSummary?.balance?.free === "number" ? accountSummary.balance.free : null;
   const balanceTotal = typeof accountSummary?.balance?.total === "number" ? accountSummary.balance.total : null;
   const balanceCurrency = typeof accountSummary?.balance?.currency === "string" ? accountSummary.balance.currency : "USDT";
+  const accountCredentialsConfigured = Boolean(accountSummary?.health?.credentials_configured ?? executionHealth?.credentials_configured);
+  const accountBalanceUnavailableLabel = !accountCredentialsConfigured
+    ? "public-only / metadata only"
+    : "balance unavailable";
+  const accountBalanceUnavailableReason = !accountCredentialsConfigured
+    ? "private balance unavailable until exchange credentials are configured"
+    : "balance unavailable in latest account snapshot";
+  const accountBalanceSummaryValue = balanceFree !== null
+    ? `free ${balanceFree.toFixed(2)} ${balanceCurrency}`
+    : accountBalanceUnavailableLabel;
+  const accountBalanceSummaryTotal = balanceTotal !== null
+    ? `${balanceTotal.toFixed(2)} ${balanceCurrency}`
+    : accountBalanceUnavailableReason;
   const positions = Array.isArray(accountSummary?.positions) ? accountSummary.positions : [];
   const openOrders = Array.isArray(accountSummary?.open_orders) ? accountSummary.open_orders : [];
   const openOrderCount = typeof accountSummary?.open_order_count === "number" ? accountSummary.open_order_count : openOrders.length;
@@ -1208,8 +1221,8 @@ export default function Dashboard() {
           </div>
           <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
             <div className="text-[11px] opacity-70">資金 / 曝險</div>
-            <div className="mt-1 font-semibold">free {balanceFree !== null ? `${balanceFree.toFixed(2)} ${balanceCurrency}` : "—"}</div>
-            <div className="mt-1 text-[11px] opacity-80">total {balanceTotal !== null ? balanceTotal.toFixed(2) : "—"} · 倉位 {positionCount} · 掛單 {openOrderCount}</div>
+            <div className="mt-1 font-semibold">{accountBalanceSummaryValue}</div>
+            <div className="mt-1 text-[11px] opacity-80">total {accountBalanceSummaryTotal} · 倉位 {positionCount} · 掛單 {openOrderCount}</div>
           </div>
           <div className="rounded-lg border border-white/10 bg-slate-950/20 p-3">
             <div className="text-[11px] opacity-70">Metadata freshness</div>

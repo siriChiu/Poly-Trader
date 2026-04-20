@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { useApi } from "../hooks/useApi";
 
 type SurfaceInfo = {
@@ -403,6 +404,21 @@ export default function ExecutionStatus() {
     : [];
 
   const balanceCurrency = accountSummary?.balance?.currency || "USDT";
+  const balanceTotal = typeof accountSummary?.balance?.total === "number" ? accountSummary.balance.total : null;
+  const balanceFree = typeof accountSummary?.balance?.free === "number" ? accountSummary.balance.free : null;
+  const accountCredentialsConfigured = Boolean(accountSummary?.health?.credentials_configured);
+  const accountBalanceUnavailableLabel = !accountCredentialsConfigured
+    ? "public-only / metadata only"
+    : "balance unavailable";
+  const accountBalanceUnavailableReason = !accountCredentialsConfigured
+    ? "private balance unavailable until exchange credentials are configured"
+    : "balance unavailable in latest account snapshot";
+  const accountBalanceSummaryValue = balanceTotal !== null
+    ? `${formatNumber(balanceTotal)} ${balanceCurrency}`
+    : accountBalanceUnavailableLabel;
+  const accountBalanceSummaryFree = balanceFree !== null
+    ? `free ${balanceFree.toFixed(2)} ${balanceCurrency}`
+    : accountBalanceUnavailableReason;
   const readinessTone = getStatusTone(executionSurfaceContract?.live_ready ? "ready" : liveRuntimeTruth?.deployment_blocker || "blocked");
   const metadataTone = getStatusTone(metadataFreshness?.status);
   const reconciliationTone = getStatusTone(executionReconciliation?.status);
@@ -510,8 +526,8 @@ export default function ExecutionStatus() {
           />
           <MetricCard
             title="帳戶快照"
-            value={`${formatNumber(accountSummary?.balance?.total)} ${balanceCurrency}`}
-            detail={`free ${formatNumber(accountSummary?.balance?.free)} · 倉位 ${accountSummary?.position_count ?? positions.length} · 掛單 ${accountSummary?.open_order_count ?? openOrders.length}`}
+            value={accountBalanceSummaryValue}
+            detail={`${accountBalanceSummaryFree} · 倉位 ${accountSummary?.position_count ?? positions.length} · 掛單 ${accountSummary?.open_order_count ?? openOrders.length}`}
             tone={healthTone}
           />
         </div>
@@ -604,8 +620,8 @@ export default function ExecutionStatus() {
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">Balance</div>
-                <div className="mt-2 font-semibold text-white">{formatNumber(accountSummary?.balance?.total)} {balanceCurrency}</div>
-                <div className="mt-2 text-slate-400">free {formatNumber(accountSummary?.balance?.free)}</div>
+                <div className="mt-2 font-semibold text-white">{accountBalanceSummaryValue}</div>
+                <div className="mt-2 text-slate-400">{accountBalanceSummaryFree}</div>
               </div>
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">Positions</div>
@@ -661,24 +677,7 @@ export default function ExecutionStatus() {
               )}
             </div>
 
-            <div className="mt-4 space-y-3">
-              {venueChecks.length > 0 ? venueChecks.map((item) => (
-                <div key={item.venue || "unknown"} className={`rounded-[20px] border p-4 text-sm ${item.ok ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-50" : "border-rose-500/25 bg-rose-500/10 text-rose-50"}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-semibold">{item.venue || "unknown"}</div>
-                    <div>{item.ok ? "OK" : "FAIL"}</div>
-                  </div>
-                  <div className="mt-2">config {item.enabled_in_config ? "enabled" : "disabled"} · creds {item.credentials_configured ? "configured" : "public-only"}</div>
-                  <div className="mt-1 opacity-90">step {item.contract?.step_size ?? "—"} · tick {item.contract?.tick_size ?? "—"}</div>
-                  <div className="opacity-90">min qty {item.contract?.min_qty ?? "—"} · min cost {item.contract?.min_cost ?? "—"}</div>
-                  {item.error && <div className="mt-2 opacity-90">{item.error}</div>}
-                </div>
-              )) : (
-                <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-400">
-                  尚未取得 venue metadata smoke。
-                </div>
-              )}
-            </div>
+            <VenueReadinessSummary venues={venueChecks} className="mt-4" />
           </section>
 
           <details className="rounded-[24px] border border-white/8 bg-[#151b31] p-4">

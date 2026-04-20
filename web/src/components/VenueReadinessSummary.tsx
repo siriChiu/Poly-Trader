@@ -27,10 +27,17 @@ const readinessTone = (item: VenueReadinessItem) => {
 };
 
 const readinessLabel = (item: VenueReadinessItem) => {
-  if (!item.ok) return "metadata issue";
-  if (item.enabled_in_config && item.credentials_configured) return "metadata ready";
-  if (item.enabled_in_config) return "config enabled / public-only";
-  return "config disabled / public-only";
+  if (!item.ok) return "metadata contract failed";
+  if (item.enabled_in_config && item.credentials_configured) return "credentials configured / runtime proof pending";
+  if (item.enabled_in_config) return "public-only metadata lane";
+  return "disabled venue / metadata only";
+};
+
+const readinessBadgeLabel = (item: VenueReadinessItem) => {
+  if (!item.ok) return "METADATA-FAIL";
+  if (item.enabled_in_config && item.credentials_configured) return "CONFIGURED";
+  if (item.enabled_in_config) return "READ-ONLY";
+  return "DISABLED";
 };
 
 function formatScalar(value: string | number | null | undefined): string {
@@ -60,9 +67,10 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
                 <div className="font-semibold uppercase tracking-wide">{item.venue || "unknown"}</div>
                 <div className="opacity-80">{readinessLabel(item)}</div>
               </div>
-              <div className="text-right opacity-80">metadata {item.ok ? "OK" : "FAIL"}</div>
+              <div className="text-right opacity-80">{readinessBadgeLabel(item)}</div>
             </div>
             <div className="mt-2 opacity-90">config {item.enabled_in_config ? "enabled" : "disabled"} · creds {item.credentials_configured ? "configured" : "public-only"}</div>
+            <div className="opacity-90">metadata contract {item.ok ? "OK" : "FAIL"}</div>
             <div className="opacity-90">step {item.contract?.step_size ?? "—"} · tick {item.contract?.tick_size ?? "—"}</div>
             <div className="opacity-90">min qty {formatScalar(item.contract?.min_qty)} · min cost {formatScalar(item.contract?.min_cost)}</div>
             <div className="mt-2 opacity-90">missing runtime proof · {blockerSummary}</div>

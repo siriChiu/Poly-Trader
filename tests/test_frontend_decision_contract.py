@@ -396,13 +396,42 @@ def test_venue_readiness_summary_component_surfaces_per_venue_contract():
         'type VenueReadinessSummaryProps = {',
         'const readinessTone = (item: VenueReadinessItem) => {',
         'const readinessLabel = (item: VenueReadinessItem) => {',
+        'const readinessBadgeLabel = (item: VenueReadinessItem) => {',
+        'return "READ-ONLY";',
+        'return "DISABLED";',
         'const blockerSummary = item.blockers?.length ? item.blockers.join(" · ") : defaultProofSummary;',
         'config {item.enabled_in_config ? "enabled" : "disabled"}',
         'creds {item.credentials_configured ? "configured" : "public-only"}',
-        'metadata {item.ok ? "OK" : "FAIL"}',
+        'metadata contract {item.ok ? "OK" : "FAIL"}',
         'missing runtime proof',
         'step {item.contract?.step_size ?? "—"}',
         'tick {item.contract?.tick_size ?? "—"}',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_execution_status_reuses_shared_venue_readiness_component_and_explains_public_only_balances():
+    source = _read("pages/ExecutionStatus.tsx")
+    required_snippets = [
+        'import VenueReadinessSummary from "../components/VenueReadinessSummary";',
+        '<VenueReadinessSummary venues={venueChecks} className="mt-4" />',
+        'const accountBalanceUnavailableLabel = !accountCredentialsConfigured',
+        'private balance unavailable until exchange credentials are configured',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+    assert 'item.ok ? "OK" : "FAIL"' not in source
+
+
+def test_dashboard_execution_summary_explains_public_only_balance_unavailability():
+    source = _read("pages/Dashboard.tsx")
+    required_snippets = [
+        'const accountBalanceUnavailableLabel = !accountCredentialsConfigured',
+        'private balance unavailable until exchange credentials are configured',
+        'accountBalanceSummaryValue',
+        'accountBalanceSummaryTotal',
+        'total {accountBalanceSummaryTotal} · 倉位 {positionCount} · 掛單 {openOrderCount}',
     ]
     for snippet in required_snippets:
         assert snippet in source
