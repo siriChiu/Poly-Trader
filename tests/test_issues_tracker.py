@@ -97,6 +97,7 @@ def test_issue_tracker_save_merges_auto_breaker_duplicate_into_canonical_issue(t
     assert [issue["id"] for issue in payload["issues"]] == ["P0_circuit_breaker_active"]
     saved = payload["issues"][0]
     assert saved["title"] == "canonical circuit breaker remains the only current-live deployment blocker"
+    assert saved["action"] == "recent 50 still needs 15 wins"
     assert saved["summary"]["recent_window"] == 50
     assert saved["summary"]["required_recent_window_wins"] == 15
     assert saved["summary"]["streak"] == 235

@@ -29,7 +29,11 @@ def _merge_issue_records(primary: dict, duplicate: dict) -> dict:
     merged = dict(primary)
     if not merged.get("title") and duplicate.get("title"):
         merged["title"] = duplicate["title"]
-    if not merged.get("action") and duplicate.get("action"):
+
+    primary_updated_at = merged.get("updated_at")
+    duplicate_updated_at = duplicate.get("updated_at")
+    duplicate_is_newer = bool(duplicate_updated_at and (not primary_updated_at or duplicate_updated_at >= primary_updated_at))
+    if duplicate.get("action") and (not merged.get("action") or duplicate_is_newer):
         merged["action"] = duplicate.get("action")
 
     primary_summary = merged.get("summary")

@@ -436,6 +436,23 @@ def overwrite_current_state_docs(
     current_support_bucket = _current_support_bucket(live_predictor_diagnostics, q15_support_audit)
     support_scope_label = _support_scope_label(current_support_bucket)
     support_truth_label = _support_truth_label(current_support_bucket)
+    support_current_rows = support_progress.get(
+        "current_rows",
+        live_predictor_diagnostics.get("current_live_structure_bucket_rows", "—"),
+    )
+    support_minimum_rows = support_progress.get(
+        "minimum_support_rows",
+        live_predictor_diagnostics.get("minimum_support_rows", "—"),
+    )
+    support_gap = support_progress.get(
+        "gap_to_minimum",
+        live_predictor_diagnostics.get("current_live_structure_bucket_gap_to_minimum", "—"),
+    )
+    support_route_verdict = (
+        (q15_support_audit.get("support_route") or {}).get("verdict")
+        or live_predictor_diagnostics.get("support_route_verdict")
+        or "—"
+    )
 
     counts_line = (
         f"`Raw={counts.get('raw_market_data', '—')} / "
@@ -451,10 +468,9 @@ def overwrite_current_state_docs(
     )
     support_line = (
         f"`current_live_structure_bucket={live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
-        f"`support={support_progress.get('current_rows', live_predictor_diagnostics.get('current_live_structure_bucket_rows', '—'))}/"
-        f"{support_progress.get('minimum_support_rows', live_predictor_diagnostics.get('minimum_support_rows', '—'))}` / "
-        f"`gap={support_progress.get('gap_to_minimum', live_predictor_diagnostics.get('current_live_structure_bucket_gap_to_minimum', '—'))}` / "
-        f"`support_route_verdict={(q15_support_audit.get('support_route') or {}).get('verdict', live_predictor_diagnostics.get('support_route_verdict') or '—')}`"
+        f"`support={support_current_rows}/{support_minimum_rows}` / "
+        f"`gap={support_gap}` / "
+        f"`support_route_verdict={support_route_verdict}`"
     )
     pathology_line = (
         f"`window={primary_window}` / "
@@ -553,11 +569,8 @@ def overwrite_current_state_docs(
     )
 
     support_success_status = live_decision_drilldown.get('recommended_patch_status') or '—'
-    support_success_verdict = (
-        (q15_support_audit.get('support_route') or {}).get('verdict')
-        or live_predictor_diagnostics.get('support_route_verdict')
-        or '—'
-    )
+    support_success_verdict = support_route_verdict
+    support_truth_ratio = f"{support_current_rows}/{support_minimum_rows}"
 
     roadmap_lines = [
         "# ROADMAP.md — Current Plan Only",
@@ -630,7 +643,7 @@ def overwrite_current_state_docs(
         "",
         "## 成功標準",
         "- current-live blocker 清楚且唯一：**breaker release math**",
-        f"- {support_truth_label} 維持：**0/50 + {support_success_verdict} + {support_success_status}**",
+        f"- {support_truth_label} 維持：**{support_truth_ratio} + {support_success_verdict} + {support_success_status}**",
         "- recent canonical pathological slice 仍以同一個 current window 為主敘事，不被 generic 問題稀釋",
         "- leaderboard 維持 dual-role governance；venue/source blockers 持續可見",
         "- heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**",

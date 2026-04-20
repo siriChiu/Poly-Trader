@@ -1596,6 +1596,72 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
 
 
 
+def test_overwrite_current_state_docs_uses_dynamic_support_ratio_in_success_criteria(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_circuit_breaker_active",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "canonical circuit breaker remains the only current-live deployment blocker",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    live_drilldown = {
+        "recommended_patch_profile": "core_plus_macro_plus_all_4h",
+        "recommended_patch_status": "reference_only_until_exact_support_ready",
+        "recommended_patch_reference_scope": "bull|CAUTION",
+    }
+    live_predictor = {
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "current_live_structure_bucket_rows": 3,
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "minimum_support_rows": 50,
+        "deployment_blocker_details": {"release_condition": {}},
+    }
+    q15_support = {
+        "current_live": {"current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15"},
+        "support_route": {
+            "verdict": "exact_bucket_present_but_below_minimum",
+            "support_progress": {
+                "current_rows": 3,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 47,
+            },
+        }
+    }
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260420y",
+        {},
+        {},
+        {"primary_summary": {}},
+        live_predictor,
+        live_drilldown,
+        q15_support,
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    assert (
+        "current live q15 truth 維持：**3/50 + exact_bucket_present_but_below_minimum + "
+        "reference_only_until_exact_support_ready**"
+    ) in roadmap_md
+
+
+
 def test_sync_fast_heartbeat_timeout_issue_resolves_stale_issue_when_run_finishes_within_budget(monkeypatch):
     tracker = type(
         "DummyTracker",
