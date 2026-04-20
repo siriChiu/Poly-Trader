@@ -1030,8 +1030,8 @@ export default function Dashboard() {
   const externalMonitorTickingTone = getExternalMonitorTickingTone(externalMonitorTickingState?.status);
   const rawContinuity = runtimeStatus?.raw_continuity ?? null;
   const featureContinuity = runtimeStatus?.feature_continuity ?? null;
-  const executionModeLabel = executionSummary?.mode || accountSummary?.mode || "unknown";
-  const executionVenueLabel = executionSummary?.venue || accountSummary?.venue || "—";
+  const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || accountSummary?.mode || "unknown");
+  const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || accountSummary?.venue || "—");
   const executionHealth = executionSummary?.health ?? accountSummary?.health ?? null;
   const balanceFree = typeof accountSummary?.balance?.free === "number" ? accountSummary.balance.free : null;
   const balanceTotal = typeof accountSummary?.balance?.total === "number" ? accountSummary.balance.total : null;
@@ -1114,6 +1114,7 @@ export default function Dashboard() {
         : rawContinuity?.status === "error"
           ? "啟動檢查失敗"
           : "尚未收到啟動檢查結果";
+  const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "Ready" : "Blocked");
 
   const handleTrade = useCallback(async (side: string) => {
     if (side === "hold") return;
@@ -1234,7 +1235,7 @@ export default function Dashboard() {
       >
         <ExecutionWorkspaceMetric
           label="部署狀態"
-          value={executionSurfaceContract?.live_ready ? "Ready" : "Blocked"}
+          value={dashboardExecutionStatusValue}
           detail={(
             <>
               <div>{executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()} · {executionVenueLabel}</div>

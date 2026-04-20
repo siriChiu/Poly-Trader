@@ -421,7 +421,7 @@ export default function ExecutionStatus() {
   const accountBalanceSummaryFree = balanceFree !== null
     ? `free ${balanceFree.toFixed(2)} ${balanceCurrency}`
     : accountBalanceUnavailableReason;
-  const readinessTone = getStatusTone(executionSurfaceContract?.live_ready ? "ready" : liveRuntimeTruth?.deployment_blocker || "blocked");
+  const readinessTone = getStatusTone(runtimeStatusPending ? "pending" : (executionSurfaceContract?.live_ready ? "ready" : liveRuntimeTruth?.deployment_blocker || "blocked"));
   const metadataTone = getStatusTone(metadataFreshness?.status);
   const reconciliationTone = getStatusTone(executionReconciliation?.status);
   const healthTone = getStatusTone(accountSummary?.degraded ? "degraded" : accountSummary?.health?.connected ? "connected" : "warning");
@@ -448,6 +448,14 @@ export default function ExecutionStatus() {
   const venueBlockersLabel = runtimeStatusPending
     ? "同步中"
     : (liveReadyBlockers.length > 0 ? liveReadyBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "none");
+  const executionStatusSymbolLabel = runtimeStatusPending ? "同步中" : (runtimeStatus?.symbol || "BTCUSDT");
+  const executionStatusModeLabel = runtimeStatusPending
+    ? "同步中"
+    : (executionSummary?.mode || (runtimeStatus?.dry_run ? "dry_run" : "unknown"));
+  const executionStatusVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || "unknown");
+  const automationStatusLabel = runtimeStatusPending ? "automation 同步中" : `automation ${runtimeStatus?.automation ? "ON" : "OFF"}`;
+  const liveReadinessStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
+  const liveReadinessMetricValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可進場" : "仍阻塞");
 
   const lifecycleSummary = useMemo(() => {
     return [
@@ -466,14 +474,14 @@ export default function ExecutionStatus() {
         subtitle="這頁只保留執行診斷：可部署、資料新鮮度、對帳與恢復。"
         statusPills={(
           <>
-            <ExecutionPill>{runtimeStatus?.symbol || "BTCUSDT"}</ExecutionPill>
-            <ExecutionPill>{executionSummary?.mode || (runtimeStatus?.dry_run ? "dry_run" : "unknown")}</ExecutionPill>
-            <ExecutionPill>{executionSummary?.venue || "unknown"}</ExecutionPill>
-            <ExecutionPill className={getStatusTone(runtimeStatus?.automation ? "ok" : "warning")}>
-              automation {runtimeStatus?.automation ? "ON" : "OFF"}
+            <ExecutionPill>{executionStatusSymbolLabel}</ExecutionPill>
+            <ExecutionPill>{executionStatusModeLabel}</ExecutionPill>
+            <ExecutionPill>{executionStatusVenueLabel}</ExecutionPill>
+            <ExecutionPill className={runtimeStatusPending ? getStatusTone("pending") : getStatusTone(runtimeStatus?.automation ? "ok" : "warning")}>
+              {automationStatusLabel}
             </ExecutionPill>
             <ExecutionPill className={readinessTone}>
-              {executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞"}
+              {liveReadinessStatusLabel}
             </ExecutionPill>
             <ExecutionPill className={metadataTone}>
               freshness {metadataFreshnessLabel}
@@ -507,7 +515,7 @@ export default function ExecutionStatus() {
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <ExecutionMetricCard
             title="可部署"
-            value={executionSurfaceContract?.live_ready ? "可進場" : "仍阻塞"}
+            value={liveReadinessMetricValue}
             detail={`blocker ${currentLiveBlockerLabel} · ${primaryRuntimeMessage} · scope ${executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only"}`}
             toneClass={readinessTone.includes("amber") ? "text-amber-100" : readinessTone.includes("emerald") || readinessTone.includes("cyan") ? "text-emerald-200" : "text-white"}
           />
