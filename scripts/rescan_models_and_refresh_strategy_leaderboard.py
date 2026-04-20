@@ -306,6 +306,7 @@ def _build_backtest_request(row: Dict[str, Any], *, rank_within_model: int) -> D
         "name": strategy_name,
         "type": strategy_type,
         "initial_capital": 10000.0,
+        "allow_internal_overwrite": True,
         "params": params,
     }
 

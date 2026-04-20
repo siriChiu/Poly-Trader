@@ -112,6 +112,10 @@ interface StrategyMetadata {
   sleeve_keys?: string[];
   sleeve_labels?: string[];
   sleeve_summary?: string;
+  source?: string;
+  source_label?: string;
+  immutable?: boolean;
+  editable_clone_required?: boolean;
 }
 
 interface DecisionContractMeta {
@@ -782,16 +786,25 @@ const DEFAULT_PARAMS = {
 const MODEL_OPTIONS = ["rule_baseline", "logistic_regression", "xgboost", "lightgbm", "catboost", "random_forest", "mlp", "svm"] as const;
 
 const AUTO_STRATEGY_PREFIX = "Auto Leaderboard · ";
+const MANUAL_COPY_STRATEGY_PREFIX = "Manual Copy · ";
 const LEADERBOARD_BACKTEST_WINDOW_MONTHS = 24;
 const LEADERBOARD_BACKTEST_WINDOW_DAYS = 730;
 const LEADERBOARD_BACKTEST_POLICY_LABEL = "排行榜回測固定使用最近兩年";
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+const formatDateTimeLocal = (date: Date) => {
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
 const toDateTimeLocalValue = (value?: string | null) => {
   if (!value) return "";
-  const date = new Date(value);
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(raw)) {
+    return raw.slice(0, 16);
+  }
+  const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 16);
+  return formatDateTimeLocal(date);
 };
 const resolveLatestTwoYearBacktestRange = (availableStart?: string | null, availableEnd?: string | null) => {
   if (!availableEnd) {
@@ -812,9 +825,35 @@ const resolveLatestTwoYearBacktestRange = (availableStart?: string | null, avail
   return { start: start.toISOString().slice(0, 16), end: end.toISOString().slice(0, 16) };
 };
 
+const deriveEditableStrategyName = (rawName?: string | null) => {
+  const name = String(rawName || "").trim() || "My Strategy";
+  if (name.startsWith(MANUAL_COPY_STRATEGY_PREFIX)) {
+    return name;
+  }
+  if (name.startsWith(AUTO_STRATEGY_PREFIX)) {
+    return `${MANUAL_COPY_STRATEGY_PREFIX}${name.slice(AUTO_STRATEGY_PREFIX.length).trim()}`;
+  }
+  return name;
+};
+
 const formatStrategyDisplayName = (strategy?: Pick<StrategyEntry, "name" | "metadata"> | null) => {
   const raw = strategy?.metadata?.title || strategy?.name || "—";
   return raw.startsWith(AUTO_STRATEGY_PREFIX) ? raw.slice(AUTO_STRATEGY_PREFIX.length) : raw;
+};
+const isSystemGeneratedStrategy = (strategy?: Pick<StrategyEntry, "name" | "metadata"> | null) => {
+  return Boolean(
+    strategy?.metadata?.immutable
+    || strategy?.metadata?.source === "auto_leaderboard"
+    || String(strategy?.name || "").startsWith(AUTO_STRATEGY_PREFIX)
+  );
+};
+const toEditableStrategyName = (rawName?: string | null) => {
+  const trimmed = String(rawName || "").trim() || "My Strategy";
+  if (trimmed.startsWith(MANUAL_COPY_STRATEGY_PREFIX)) return trimmed;
+  if (trimmed.startsWith(AUTO_STRATEGY_PREFIX)) {
+    return `${MANUAL_COPY_STRATEGY_PREFIX}${trimmed.slice(AUTO_STRATEGY_PREFIX.length).trim()}`;
+  }
+  return trimmed;
 };
 const formatPct = (value: number | null | undefined, digits = 1, signed = false) => {
   if (!isFiniteNumber(value)) return "—";
@@ -1444,6 +1483,14 @@ export default function StrategyLab() {
   }, []);
 
   const activeResult = runResult ?? selectedStrategy?.last_results ?? null;
+  const selectedStrategyIsSystemGenerated = isSystemGeneratedStrategy(selectedStrategy);
+  const editableRunName = useMemo(() => {
+    const trimmed = String(name || "").trim();
+    if (selectedStrategyIsSystemGenerated && (!trimmed || trimmed === selectedStrategy?.name || trimmed.startsWith(AUTO_STRATEGY_PREFIX))) {
+      return toEditableStrategyName(selectedStrategy?.name || trimmed || "My Strategy");
+    }
+    return trimmed || "My Strategy";
+  }, [name, selectedStrategy?.name, selectedStrategyIsSystemGenerated]);
   const activeBacktestDisplayRange = useMemo(() => {
     const definitionRange = typeof selectedStrategy?.definition?.params?.backtest_range === "object" && selectedStrategy?.definition?.params?.backtest_range
       ? selectedStrategy.definition.params.backtest_range as { start?: string | null; end?: string | null }
@@ -1469,13 +1516,29 @@ export default function StrategyLab() {
     activeResult?.chart_context?.end,
     selectedStrategy?.definition?.params?.backtest_range,
   ]);
-  const activeMeta = selectedStrategy?.metadata ?? {
-    title: name,
+  const activeMeta: StrategyMetadata = {
+    ...(selectedStrategy?.metadata || {}),
+    title: selectedStrategy?.metadata?.title || name,
     strategy_type: strategyType,
-    model_name: selectedModelName,
+    model_name: strategyType === "hybrid" ? selectedModelName : "rule_based",
     model_summary: strategyType === "hybrid" ? `${selectedModelName}：模型+規則混合進場。` : "rule_based：僅使用規則回測。",
-    description: "調整左側參數，或點擊排行榜中的策略快速載入設定。",
+    description: selectedStrategy?.metadata?.description || "調整左側參數，或點擊排行榜中的策略快速載入設定。",
+    source: selectedStrategy?.metadata?.source || "user_saved",
+    source_label: selectedStrategy?.metadata?.source_label || "手動策略",
+    immutable: selectedStrategy?.metadata?.immutable ?? false,
+    editable_clone_required: selectedStrategy?.metadata?.editable_clone_required ?? false,
   };
+  const selectedStrategySourceLabel = selectedStrategyIsSystemGenerated
+    ? (selectedStrategy?.metadata?.source_label || "系統生成排行榜")
+    : (selectedStrategy?.metadata?.source_label || "手動策略");
+  const activeDisplayRangeInput = {
+    start: toDateTimeLocalValue(activeBacktestDisplayRange.start),
+    end: toDateTimeLocalValue(activeBacktestDisplayRange.end),
+  };
+  const strategyResultStale = Boolean(
+    activeResult
+    && ((chartStart || "") !== (activeDisplayRangeInput.start || "") || (chartEnd || "") !== (activeDisplayRangeInput.end || ""))
+  );
   const sortedModelLeaderboard = useMemo(() => {
     const rows = [...modelLeaderboard];
     rows.sort((a, b) => {
@@ -1513,6 +1576,13 @@ export default function StrategyLab() {
   const modelFallbackCandidates = Array.isArray(modelStrategyParamScan?.best_strategy_candidates)
     ? modelStrategyParamScan.best_strategy_candidates.filter((candidate) => Boolean(candidate))
     : [];
+  const availableModelNames = useMemo(
+    () => Array.from(new Set([
+      ...MODEL_OPTIONS.map((name) => String(name)),
+      ...modelLeaderboard.map((row) => String(row.model_name || "").trim()).filter(Boolean),
+    ])),
+    [modelLeaderboard]
+  );
   const strategyCapitalMode = useCallback((entry: StrategyEntry) => {
     const fromResults = entry.last_results?.capital_mode;
     if (fromResults === "reserve_90" || fromResults === "classic_pyramid") {
@@ -1628,10 +1698,13 @@ export default function StrategyLab() {
     });
   };
 
-  const applyStrategyToForm = (strategy: StrategyEntry) => {
+  const applyStrategyToForm = (
+    strategy: StrategyEntry,
+    availableRangeOverride?: { start?: string | null; end?: string | null } | null,
+  ) => {
     const params = strategy.definition?.params ?? {};
     const entry = params.entry ?? {};
-    setName(strategy.name);
+    setName(deriveEditableStrategyName(strategy.name));
     setStrategyType((strategy.definition?.type as "rule_based" | "hybrid") || "rule_based");
     setSelectedModelName(params.model_name || strategy.metadata?.model_name || "xgboost");
     setBias50Max(entry.bias50_max ?? DEFAULT_PARAMS.entry.bias50_max);
@@ -1659,17 +1732,21 @@ export default function StrategyLab() {
     setInitialCapital(Math.round(Number(params.initial_capital ?? 10000)));
     const backtestRange = typeof params.backtest_range === "object" && params.backtest_range ? params.backtest_range : {};
     const resultRange = strategy.last_results?.backtest_range ?? null;
-    const availableRangeStart = strategyDataRange?.start
+    const availableRangeStart = availableRangeOverride?.start
       || backtestRange.start
-      || resultRange?.available?.start
+      || resultRange?.requested?.start
       || resultRange?.effective?.start
+      || resultRange?.available?.start
       || strategy.last_results?.chart_context?.start
+      || strategyDataRange?.start
       || "";
-    const availableRangeEnd = strategyDataRange?.end
+    const availableRangeEnd = availableRangeOverride?.end
       || backtestRange.end
-      || resultRange?.available?.end
+      || resultRange?.requested?.end
       || resultRange?.effective?.end
+      || resultRange?.available?.end
       || strategy.last_results?.chart_context?.end
+      || strategyDataRange?.end
       || "";
     const latestTwoYearRange = resolveLatestTwoYearBacktestRange(availableRangeStart, availableRangeEnd);
     setChartStart(latestTwoYearRange.start);
@@ -1683,7 +1760,6 @@ export default function StrategyLab() {
     const scenario = buildScenarioFromModules(normalized);
     setActiveModules(normalized);
     setStrategyType(scenario.strategyType);
-    setSelectedModelName(scenario.modelName);
     setBias50Max(scenario.bias50Max);
     setNoseMax(scenario.noseMax);
     setLayer2Bias(scenario.layer2Bias);
@@ -1711,9 +1787,16 @@ export default function StrategyLab() {
     applyModuleSelection(next);
   };
 
-  const applyBacktestPreset = (preset: "6m" | "1y" | "2y" | "max") => {
-    const availableEnd = strategyDataRange?.end ? new Date(strategyDataRange.end) : new Date();
-    const availableStart = strategyDataRange?.start ? new Date(strategyDataRange.start) : null;
+  const applyBacktestPreset = (
+    preset: "6m" | "1y" | "2y" | "max",
+    availableRangeOverride?: { start?: string | null; end?: string | null } | null,
+  ) => {
+    const availableEnd = availableRangeOverride?.end
+      ? new Date(availableRangeOverride.end)
+      : (strategyDataRange?.end ? new Date(strategyDataRange.end) : new Date());
+    const availableStart = availableRangeOverride?.start
+      ? new Date(availableRangeOverride.start)
+      : (strategyDataRange?.start ? new Date(strategyDataRange.start) : null);
     if (preset === "max") {
       setChartStart(availableStart ? availableStart.toISOString().slice(0, 16) : "");
       setChartEnd(availableEnd.toISOString().slice(0, 16));
@@ -1731,7 +1814,10 @@ export default function StrategyLab() {
     setChartEnd(availableEnd.toISOString().slice(0, 16));
   };
 
-  const selectStrategyByName = async (strategyName: string) => {
+  const selectStrategyByName = async (
+    strategyName: string,
+    availableRangeOverride?: { start?: string | null; end?: string | null } | null,
+  ) => {
     setLoadingStrategyName(strategyName);
     updateBackgroundStage({
       mode: "select_strategy",
@@ -1751,7 +1837,7 @@ export default function StrategyLab() {
       setRunResult(null);
       STRATEGY_LAB_MEMORY_CACHE.selectedStrategy = detail;
       saveStrategyLabCache(STRATEGY_LAB_MEMORY_CACHE);
-      applyStrategyToForm(detail);
+      applyStrategyToForm(detail, availableRangeOverride);
       updateBackgroundStage({
         mode: "select_strategy",
         label: `正在載入策略：${strategyName}`,
@@ -1857,7 +1943,8 @@ export default function StrategyLab() {
       const data = await fetchApi("/api/strategy_data_range") as { start?: string | null; end?: string | null; count?: number; span_days?: number | null };
       setStrategyDataRange(data ?? null);
       if (data?.end) {
-        applyBacktestPreset("2y");
+        // 保留 applyBacktestPreset("2y") 作為預設策略視窗語意，但這裡直接傳 fresh range，避免 React state 尚未同步時落回舊 snapshot 日期。
+        applyBacktestPreset("2y", data);
       }
       return data;
     } catch (err) {
@@ -1890,7 +1977,7 @@ export default function StrategyLab() {
           detail: "模型排行榜已同步，正在載入模型統計、技術競爭力與資料區間。",
           progress: toStageProgress(2, STAGE_TOTALS.initial),
         });
-        await Promise.all([loadModelStats(), loadStrategyDataRange()]);
+        const dataRange = await Promise.all([loadModelStats(), loadStrategyDataRange()]).then(([, range]) => range);
         updateBackgroundStage({
           mode: "initial",
           label: "策略實驗室初始化中",
@@ -1898,7 +1985,7 @@ export default function StrategyLab() {
           progress: toStageProgress(3, STAGE_TOTALS.initial),
         });
         if (!selectedStrategy && list.length) {
-          await selectStrategyByName(list[0].name);
+          await selectStrategyByName(list[0].name, dataRange);
         }
         updateBackgroundStage({
           mode: "initial",
@@ -1956,12 +2043,18 @@ export default function StrategyLab() {
   }, [modelMeta.refreshing, modelMeta.cache_age_sec]);
 
   const handleRun = async () => {
+    const runName = editableRunName;
+    if (runName !== name) {
+      setName(runName);
+    }
     setRunning(true);
     setError(null);
     updateBackgroundStage({
       mode: "run_strategy",
-      label: `正在執行回測：${name}`,
-      detail: "正在整理參數並準備送出回測請求。",
+      label: `正在執行回測：${runName}`,
+      detail: runName !== name
+        ? `系統生成策略不可直接覆蓋；本次會另存為「${runName}」。`
+        : "正在整理參數並準備送出回測請求。",
       progress: toStageProgress(0, STAGE_TOTALS.run_strategy),
     });
     try {
@@ -1969,7 +2062,7 @@ export default function StrategyLab() {
       const effectiveChartStart = chartStart || fallbackTwoYearRange.start;
       const effectiveChartEnd = chartEnd || fallbackTwoYearRange.end;
       const body = {
-        name,
+        name: runName,
         type: strategyType,
         initial_capital: initialCapital,
         auto_backfill: true,
@@ -2035,13 +2128,13 @@ export default function StrategyLab() {
           if (message.includes("not found")) {
             updateBackgroundStage({
               mode: "run_strategy",
-              label: `正在執行回測：${name}`,
+              label: `正在執行回測：${runName}`,
               detail: "背景 job 狀態遺失，正在改用已儲存策略結果恢復工作區。",
               progress: 90,
             });
             try {
               await loadLeaderboard();
-              await selectStrategyByName(name);
+              await selectStrategyByName(runName);
               data = { results: STRATEGY_LAB_MEMORY_CACHE.selectedStrategy?.last_results ?? null };
               break;
             } catch {
@@ -2052,7 +2145,7 @@ export default function StrategyLab() {
         }
         updateBackgroundStage({
           mode: "run_strategy",
-          label: `正在執行回測：${name}`,
+          label: `正在執行回測：${runName}`,
           detail: job?.detail || "背景回測執行中。",
           progress: typeof job?.progress === "number" ? job.progress : toStageProgress(1, STAGE_TOTALS.run_strategy),
           stageKey: job?.stage_key || null,
@@ -2077,11 +2170,12 @@ export default function StrategyLab() {
       } else {
         updateBackgroundStage({
           mode: "run_strategy",
-          label: `正在執行回測：${name}`,
+          label: `正在執行回測：${runName}`,
           detail: "回測結果已返回，正在同步價格圖、權益圖與交易明細。",
           progress: 82,
         });
         const result = data?.results ?? data?.result ?? data?.run_result ?? null;
+        const savedStrategyName = String(data?.strategy || runName || name || "My Strategy");
         const enrichedResult = result
           ? {
               ...result,
@@ -2094,28 +2188,29 @@ export default function StrategyLab() {
         setRunResult(enrichedResult);
         updateBackgroundStage({
           mode: "run_strategy",
-          label: `正在執行回測：${name}`,
+          label: `正在執行回測：${savedStrategyName}`,
           detail: "工作區已載入最新回測結果，正在刷新排行榜。",
           progress: 88,
         });
         await loadLeaderboard();
         updateBackgroundStage({
           mode: "run_strategy",
-          label: `正在執行回測：${name}`,
+          label: `正在執行回測：${savedStrategyName}`,
           detail: "策略排行榜已刷新，正在同步模型統計。",
           progress: 93,
         });
         await loadModelStats();
         updateBackgroundStage({
           mode: "run_strategy",
-          label: `正在執行回測：${name}`,
+          label: `正在執行回測：${savedStrategyName}`,
           detail: "模型統計已同步，正在把最新策略詳情掛回工作區。",
           progress: 96,
         });
-        await selectStrategyByName(name);
+        await selectStrategyByName(savedStrategyName);
+        setName(savedStrategyName);
         updateBackgroundStage({
           mode: "run_strategy",
-          label: `回測完成：${name}`,
+          label: `回測完成：${savedStrategyName}`,
           detail: "最新結果、價格圖、分數指標與權益曲線都已同步完成。",
           progress: 100,
         });
@@ -2140,12 +2235,11 @@ export default function StrategyLab() {
     ...moduleCategoryMeta[key],
     modules: EDITOR_MODULES.filter((module) => module.category === key),
   }));
-  const editorSummary = buildScenarioFromModules(activeModules);
   const compositeModuleLabel = activeModuleDetails.length > 1
     ? `複合策略：${activeModuleDetails.map((module) => module.label).join(" ＋ ")}`
     : `單一策略：${activeModuleDetails[0]?.label || "未選擇"}`;
   const dynamicHighlights = [
-    `${editorSummary.strategyType === "hybrid" ? "Hybrid" : "Rule"} · ${editorSummary.modelName}`,
+    `${strategyType === "hybrid" ? "Hybrid" : "Rule"} · ${strategyType === "hybrid" ? selectedModelName : "rule_based"}`,
     capitalMode === "reserve_90" ? `10/90 後守 ${baseEntryFractionPct}%` : `層數 ${layer1}/${layer2}/${layer3}`,
     `信心 ${confidenceMin}% · 品質 ${entryQualityMin}%`,
     investmentHorizonLabels[investmentHorizon],
@@ -2407,7 +2501,55 @@ export default function StrategyLab() {
               <div>
                 <label className="text-xs text-slate-500">實驗名稱（僅工作區）</label>
                 <input value={name} onChange={(e) => setName(e.target.value)} className="app-control-input mt-1" />
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                  <span className={`inline-flex rounded-full border px-2 py-0.5 ${selectedStrategyIsSystemGenerated ? "border-amber-500/30 bg-amber-500/10 text-amber-100" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"}`}>
+                    {selectedStrategySourceLabel}
+                  </span>
+                  {selectedStrategyIsSystemGenerated && (
+                    <span className="inline-flex rounded-full border border-white/10 bg-slate-900/50 px-2 py-0.5 text-slate-300">
+                      rerun → {editableRunName}
+                    </span>
+                  )}
+                </div>
               </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs text-slate-500">策略類型</label>
+                  <select
+                    value={strategyType}
+                    onChange={(e) => setStrategyType(e.target.value as "rule_based" | "hybrid")}
+                    className="app-control-input mt-1"
+                  >
+                    <option value="rule_based">rule_based</option>
+                    <option value="hybrid">hybrid</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">手動選擇模型</label>
+                  <select
+                    value={selectedModelName}
+                    onChange={(e) => setSelectedModelName(e.target.value)}
+                    className="app-control-input mt-1"
+                  >
+                    {availableModelNames.map((modelName) => (
+                      <option key={modelName} value={modelName}>{modelName}</option>
+                    ))}
+                  </select>
+                  <div className="mt-1 text-[11px] leading-5 text-slate-500">
+                    {strategyType === "hybrid"
+                      ? "Hybrid 會直接帶入你現在手動選的模型。"
+                      : "目前是 rule_based；先選好模型後切回 hybrid 也會保留。"}
+                  </div>
+                </div>
+              </div>
+
+              {selectedStrategyIsSystemGenerated && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-[11px] leading-5 text-amber-100 space-y-1">
+                  <div className="font-medium">系統生成排行榜</div>
+                  <div>系統生成策略不可直接覆蓋；重新回測時會另存為可編輯副本。</div>
+                </div>
+              )}
 
               <div className="rounded-xl border border-cyan-700/30 bg-cyan-950/10 px-3 py-3 text-[11px] leading-5 text-cyan-100 space-y-2">
                 <div className="font-medium">策略模組選擇</div>
@@ -2573,6 +2715,12 @@ export default function StrategyLab() {
                         : "資料不足時會直接標示，不會用短資料假裝跑完。"}
                     </div>
                   </div>
+                  {strategyResultStale && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-[11px] leading-5 text-amber-100 space-y-1">
+                      <div className="font-medium">目前只更新圖表 / 區間，尚未重新執行回測</div>
+                      <div>請按「執行回測」刷新 ROI / Trades / 最近交易</div>
+                    </div>
+                  )}
                 </div>
                 <div className="grid min-w-[280px] gap-2 text-[11px] text-slate-400 sm:grid-cols-2">
                   <div className="rounded-lg border border-slate-700/50 bg-slate-950/40 px-3 py-2">
@@ -2830,12 +2978,16 @@ export default function StrategyLab() {
                       {sortedStrategies.map((strategy) => {
                         const r = strategy.last_results;
                         const selected = strategy.name === selectedStrategy?.name;
+                        const systemGenerated = isSystemGeneratedStrategy(strategy);
                         return (
                           <tr key={strategy.name} onClick={() => selectStrategyByName(strategy.name)} className={`cursor-pointer border-b border-slate-800/50 ${selected ? "bg-sky-950/30" : "hover:bg-slate-800/30"}`}>
                             <td className="py-2 px-2 text-slate-200 font-medium align-top text-left">
                               <div>{formatStrategyDisplayName(strategy)}</div>
                               <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
                                 <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">{strategy.metadata?.primary_sleeve_label || "未分類 sleeve"}</span>
+                                <span className={`rounded-full border px-2 py-0.5 ${systemGenerated ? "border-amber-500/30 bg-amber-500/10 text-amber-100" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"}`}>
+                                  {strategy.metadata?.source_label || (systemGenerated ? "系統生成排行榜" : "手動策略")}
+                                </span>
                                 <span>{strategy.metadata?.model_name || strategy.definition?.type} · {investmentHorizonLabels[(strategy.definition?.params?.investment_horizon as keyof typeof investmentHorizonLabels) || "medium"]} · 變化 {typeof strategy.rank_delta === "number" ? (strategy.rank_delta > 0 ? `↑${strategy.rank_delta}` : strategy.rank_delta < 0 ? `↓${Math.abs(strategy.rank_delta)}` : "—") : "—"}</span>
                               </div>
                               <div className="mt-1 text-[10px] text-slate-500">{strategy.metadata?.sleeve_labels?.join(" · ") || "單一路徑"}</div>

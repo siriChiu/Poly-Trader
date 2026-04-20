@@ -26,4 +26,5 @@ def test_build_backtest_request_keeps_hybrid_for_ml_models():
 
     assert request["name"] == "Auto Leaderboard · 重掃 xgboost Hybrid #01"
     assert request["type"] == "hybrid"
+    assert request["allow_internal_overwrite"] is True
     assert request["params"]["model_name"] == "xgboost"

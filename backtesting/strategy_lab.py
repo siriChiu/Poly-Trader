@@ -26,6 +26,7 @@ STRATEGY_SCHEMA_VERSION = 2
 INTERNAL_STRATEGY_PREFIXES = ("tmp_", "debug_", "scratch_", "auto_leaderboard_")
 INTERNAL_STRATEGY_NAMES = {"test", "unnamed", "unnamed_strategy"}
 AUTO_STRATEGY_NAME_PREFIX = "Auto Leaderboard · "
+MANUAL_COPY_STRATEGY_PREFIX = "Manual Copy · "
 
 
 @dataclass
@@ -81,6 +82,21 @@ def _coerce_int(value: Any, default: int = 0) -> int:
 def _is_internal_strategy(name: str, slug: Optional[str] = None) -> bool:
     normalized = (slug or _strategy_slug(name)).lower()
     return normalized in INTERNAL_STRATEGY_NAMES or any(normalized.startswith(prefix) for prefix in INTERNAL_STRATEGY_PREFIXES)
+
+
+def _is_auto_leaderboard_strategy(name: str, slug: Optional[str] = None) -> bool:
+    raw_name = str(name or "").strip()
+    normalized = (slug or _strategy_slug(raw_name)).lower()
+    return raw_name.startswith(AUTO_STRATEGY_NAME_PREFIX) or normalized.startswith("auto_leaderboard_")
+
+
+def derive_editable_strategy_name(name: str) -> str:
+    raw_name = str(name or "").strip() or "My Strategy"
+    if raw_name.startswith(MANUAL_COPY_STRATEGY_PREFIX):
+        return raw_name
+    if raw_name.startswith(AUTO_STRATEGY_NAME_PREFIX):
+        return f"{MANUAL_COPY_STRATEGY_PREFIX}{raw_name[len(AUTO_STRATEGY_NAME_PREFIX):].strip()}"
+    return raw_name
 
 
 def _sanitize_definition(strategy_def: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -508,6 +524,10 @@ def _build_strategy_metadata(name: str, definition: Dict[str, Any]) -> Dict[str,
     if secondary_labels:
         sleeve_summary += f"；附加：{'、'.join(secondary_labels)}"
 
+    is_auto_leaderboard = _is_auto_leaderboard_strategy(title)
+    source = "auto_leaderboard" if is_auto_leaderboard else "user_saved"
+    source_label = "系統生成排行榜" if is_auto_leaderboard else "手動策略"
+
     return {
         "title": title,
         "description": "；".join(description_bits),
@@ -520,7 +540,24 @@ def _build_strategy_metadata(name: str, definition: Dict[str, Any]) -> Dict[str,
         "sleeve_labels": sleeve_labels,
         "sleeves": sleeves,
         "sleeve_summary": sleeve_summary,
+        "source": source,
+        "source_label": source_label,
+        "immutable": is_auto_leaderboard,
+        "editable_clone_required": is_auto_leaderboard,
     }
+
+
+def _merge_strategy_metadata(name: str, definition: Dict[str, Any], metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    base = _build_strategy_metadata(name, definition)
+    incoming = _sanitize_json_like(metadata) if isinstance(metadata, dict) else {}
+    if not isinstance(incoming, dict):
+        incoming = {}
+    merged = dict(base)
+    merged.update(incoming)
+    for key, value in base.items():
+        if merged.get(key) in (None, "", [], {}):
+            merged[key] = value
+    return merged
 
 
 def _sanitize_regime_breakdown(items: Any) -> List[Dict[str, Any]]:
@@ -596,7 +633,7 @@ def _sanitize_strategy_record(data: Dict[str, Any], fallback_name: str = "") -> 
         "last_results": last_results,
         "run_count": run_count,
         "is_internal": bool(data.get("is_internal")) or _is_internal_strategy(name),
-        "metadata": _sanitize_json_like(data.get("metadata")) or _build_strategy_metadata(name, definition),
+        "metadata": _merge_strategy_metadata(name, definition, data.get("metadata")),
     }
 
 

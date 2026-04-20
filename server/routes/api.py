@@ -4888,7 +4888,12 @@ def _ensure_auto_generated_strategy_leaderboard(force: bool = False) -> Dict[str
 
 
 def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None) -> Dict[str, Any]:
-    from backtesting.strategy_lab import run_hybrid_backtest, run_rule_backtest, save_strategy
+    from backtesting.strategy_lab import (
+        derive_editable_strategy_name,
+        run_hybrid_backtest,
+        run_rule_backtest,
+        save_strategy,
+    )
     from scripts import backfill_backtest_range as backfill_module
 
     name = body.get("name", "unnamed_strategy")
@@ -4896,6 +4901,8 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
     params = body.get("params", {}) if isinstance(body.get("params"), dict) else {}
     initial = float(body.get("initial_capital", 10000.0) or 10000.0)
     auto_backfill = bool(body.get("auto_backfill", params.get("auto_backfill", False)))
+    allow_internal_overwrite = bool(body.get("allow_internal_overwrite"))
+    save_name = name if allow_internal_overwrite else derive_editable_strategy_name(name)
     requested_range = body.get("backtest_range") if isinstance(body.get("backtest_range"), dict) else {}
     requested_start = requested_range.get("start")
     requested_end = requested_range.get("end")
@@ -5158,9 +5165,10 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
 
         _set_strategy_job_progress(job_id, 92, "正在儲存策略、整理圖表上下文與輸出結果。", stage_key="save_results")
         normalized_results = _normalize_result_timestamps(results_dict)
-        save_strategy(name, strat_def, normalized_results)
+        save_strategy(save_name, strat_def, normalized_results)
         response = {
-            "strategy": name,
+            "strategy": save_name,
+            "requested_strategy_name": name,
             "type": stype,
             "params": params,
             "results": normalized_results,
