@@ -26,6 +26,18 @@ CANONICAL_DUPLICATE_IDS = {
 }
 
 
+def _sync_action_fields(issue: dict) -> dict:
+    synced = dict(issue)
+    action = synced.get("action")
+    if isinstance(action, str) and action.strip():
+        normalized_action = action.strip()
+        synced["action"] = normalized_action
+        synced["next_action"] = normalized_action
+        synced.pop("next_actions", None)
+    return synced
+
+
+
 def _merge_issue_records(primary: dict, duplicate: dict) -> dict:
     merged = dict(primary)
     if not merged.get("title") and duplicate.get("title"):
@@ -55,7 +67,7 @@ def _merge_issue_records(primary: dict, duplicate: dict) -> dict:
     if merged.get("hb_detected") in (None, "") and duplicate.get("hb_detected") not in (None, ""):
         merged["hb_detected"] = duplicate.get("hb_detected")
 
-    return merged
+    return _sync_action_fields(merged)
 
 
 def _dedupe_open_issues(issues: list[dict]) -> list[dict]:
@@ -102,22 +114,22 @@ def _normalize_issue(issue: dict) -> dict:
     normalized = dict(issue)
     action = normalized.get("action")
     if action:
-        return normalized
+        return _sync_action_fields(normalized)
 
     next_action = normalized.get("next_action")
     if isinstance(next_action, str) and next_action.strip():
         normalized["action"] = next_action.strip()
-        return normalized
+        return _sync_action_fields(normalized)
 
     next_actions = normalized.get("next_actions")
     if isinstance(next_actions, list):
         steps = [str(step).strip() for step in next_actions if str(step).strip()]
         if steps:
             normalized["action"] = "；".join(steps)
-            return normalized
+            return _sync_action_fields(normalized)
     elif isinstance(next_actions, str) and next_actions.strip():
         normalized["action"] = next_actions.strip()
-        return normalized
+        return _sync_action_fields(normalized)
 
     summary = normalized.get("summary")
     if isinstance(summary, dict):
@@ -126,7 +138,7 @@ def _normalize_issue(issue: dict) -> dict:
             if isinstance(value, str) and value.strip():
                 normalized["action"] = value.strip()
                 break
-    return normalized
+    return _sync_action_fields(normalized)
 
 
 class IssueTracker:
@@ -151,10 +163,16 @@ class IssueTracker:
                 i["title"] = title
                 i["priority"] = priority
                 i["action"] = action
+                if isinstance(action, str) and action.strip():
+                    i["next_action"] = action.strip()
+                    i.pop("next_actions", None)
+                else:
+                    i.pop("next_action", None)
+                    i.pop("next_actions", None)
                 i["status"] = status
                 i["updated_at"] = datetime.utcnow().isoformat()
                 return
-        self.issues.append({
+        issue = {
             "id": issue_id,
             "priority": priority,
             "title": title,
@@ -163,7 +181,8 @@ class IssueTracker:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "hb_detected": None,
-        })
+        }
+        self.issues.append(_sync_action_fields(issue))
 
     def resolve(self, issue_id):
         for i in self.issues:
@@ -182,7 +201,7 @@ class IssueTracker:
     def save(self):
         """Persist only open issues so issues.json stays current-state-only."""
         ISSUES_JSON.parent.mkdir(parents=True, exist_ok=True)
-        open_issues = _dedupe_open_issues(self.issues)
+        open_issues = [_sync_action_fields(issue) for issue in _dedupe_open_issues(self.issues)]
         with open(ISSUES_JSON, 'w') as f:
             json.dump({"issues": open_issues}, f, indent=2, ensure_ascii=False)
 

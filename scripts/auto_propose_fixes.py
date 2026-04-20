@@ -491,37 +491,96 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         )
         tracker.resolve("P0_q15_patch_active_but_execution_blocked")
         tracker.resolve("#H_AUTO_CURRENT_BUCKET_TOXICITY")
+        breaker_title = (
+            f"canonical circuit breaker active ({current_recent_wins}/{required_recent_wins} wins in recent {recent_window})"
+            if recent_window is not None and required_recent_wins is not None and current_recent_wins is not None
+            else "canonical circuit breaker active"
+        )
+        breaker_action = (
+            "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。"
+            f" {release_text}"
+        )
+        breaker_summary = {
+            "deployment_blocker": (live_predict_probe or {}).get("deployment_blocker"),
+            "horizon_minutes": (live_predict_probe or {}).get("horizon_minutes"),
+            "recent_window": recent_window,
+            "current_recent_window_wins": current_recent_wins,
+            "required_recent_window_wins": required_recent_wins,
+            "additional_recent_window_wins_needed": additional_wins_needed,
+            "streak": (live_predict_probe or {}).get("streak"),
+            "streak_must_be_below": streak_floor,
+            "current_live_structure_bucket": current_bucket,
+            "current_live_structure_bucket_rows": int(current_rows or 0),
+            "minimum_support_rows": int(minimum_rows or 0),
+            "gap_to_minimum": max(int(minimum_rows or 0) - int(current_rows or 0), 0),
+            "support_route_verdict": support_route_verdict,
+            "support_governance_route": support_governance_route,
+            "runtime_closure_state": runtime_closure_state,
+        }
         upsert_issue(
             tracker,
             "P0",
             "#H_AUTO_CIRCUIT_BREAKER",
-            (
-                f"canonical circuit breaker active ({current_recent_wins}/{required_recent_wins} wins in recent {recent_window})"
-                if recent_window is not None and required_recent_wins is not None and current_recent_wins is not None
-                else "canonical circuit breaker active"
-            ),
-            "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。"
-            f" {release_text}",
-            summary={
-                "deployment_blocker": (live_predict_probe or {}).get("deployment_blocker"),
-                "horizon_minutes": (live_predict_probe or {}).get("horizon_minutes"),
-                "recent_window": recent_window,
-                "current_recent_window_wins": current_recent_wins,
-                "required_recent_window_wins": required_recent_wins,
-                "additional_recent_window_wins_needed": additional_wins_needed,
-                "streak": (live_predict_probe or {}).get("streak"),
-                "streak_must_be_below": streak_floor,
-                "current_live_structure_bucket": current_bucket,
-                "current_live_structure_bucket_rows": int(current_rows or 0),
-                "minimum_support_rows": int(minimum_rows or 0),
-                "gap_to_minimum": max(int(minimum_rows or 0) - int(current_rows or 0), 0),
-                "support_route_verdict": support_route_verdict,
-                "support_governance_route": support_governance_route,
-                "runtime_closure_state": runtime_closure_state,
-            },
+            breaker_title,
+            breaker_action,
+            summary=breaker_summary,
+        )
+        upsert_issue(
+            tracker,
+            "P0",
+            "P0_circuit_breaker_active",
+            "canonical circuit breaker remains the only current-live deployment blocker",
+            breaker_action,
+            summary=breaker_summary,
         )
     else:
         tracker.resolve("#H_AUTO_CIRCUIT_BREAKER")
+        if current_bucket_support_active and live_blocker in {
+            "unsupported_exact_live_structure_bucket",
+            "under_minimum_exact_live_structure_bucket",
+        }:
+            support_state = (
+                "exact support is missing"
+                if int(current_rows or 0) <= 0 or live_blocker == "unsupported_exact_live_structure_bucket"
+                else "exact support remains under minimum"
+            )
+            upsert_issue(
+                tracker,
+                "P0",
+                "P0_circuit_breaker_active",
+                f"current live bucket {current_bucket} {support_state} and remains the deployment blocker ({current_rows}/{minimum_rows})",
+                "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
+                summary={
+                    "deployment_blocker": live_blocker,
+                    "current_live_structure_bucket": current_bucket,
+                    "current_live_structure_bucket_rows": int(current_rows or 0),
+                    "minimum_support_rows": int(minimum_rows or 0),
+                    "gap_to_minimum": max(int(minimum_rows or 0) - int(current_rows or 0), 0),
+                    "support_route_verdict": support_route_verdict,
+                    "support_governance_route": support_governance_route,
+                    "runtime_closure_state": runtime_closure_state,
+                },
+            )
+        elif live_blocker:
+            upsert_issue(
+                tracker,
+                "P0",
+                "P0_circuit_breaker_active",
+                f"current-live deployment blocker is {live_blocker}",
+                "把 current-live blocker 真相維持在 API / UI / docs；不要讓舊 breaker / support 敘事覆蓋最新 runtime truth。",
+                summary={
+                    "deployment_blocker": live_blocker,
+                    "current_live_structure_bucket": current_bucket,
+                    "current_live_structure_bucket_rows": int(current_rows or 0),
+                    "minimum_support_rows": int(minimum_rows or 0),
+                    "gap_to_minimum": max(int(minimum_rows or 0) - int(current_rows or 0), 0),
+                    "support_route_verdict": support_route_verdict,
+                    "support_governance_route": support_governance_route,
+                    "runtime_closure_state": runtime_closure_state,
+                },
+            )
+        else:
+            tracker.resolve("P0_circuit_breaker_active")
 
     toxic_blocker = str((live_predict_probe or {}).get("deployment_blocker") or "")
     toxic_current_bucket_active = bool(current_bucket) and (

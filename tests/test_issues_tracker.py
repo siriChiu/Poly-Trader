@@ -84,6 +84,38 @@ def test_issue_tracker_load_backfills_action_from_next_action(tmp_path, monkeypa
     assert tracker.issues[0]["action"] == "Keep venue blockers visible on operator-facing surfaces."
 
 
+def test_issue_tracker_add_updates_stale_next_action_for_existing_issue(tmp_path, monkeypatch):
+    target = tmp_path / "issues.json"
+    monkeypatch.setattr(issues_module, "ISSUES_JSON", target)
+
+    tracker = issues_module.IssueTracker()
+    tracker.issues = [
+        {
+            "id": "P0_circuit_breaker_active",
+            "priority": "P0",
+            "status": "open",
+            "title": "old blocker title",
+            "action": "old blocker action",
+            "next_action": "stale breaker-only next action",
+        }
+    ]
+
+    tracker.add(
+        "P0",
+        "P0_circuit_breaker_active",
+        "current live bucket q35 exact support is missing",
+        "Track exact-support truth instead of stale breaker copy.",
+    )
+    tracker.save()
+
+    payload = json.loads(target.read_text())
+    saved = payload["issues"][0]
+    assert saved["title"] == "current live bucket q35 exact support is missing"
+    assert saved["action"] == "Track exact-support truth instead of stale breaker copy."
+    assert saved["next_action"] == "Track exact-support truth instead of stale breaker copy."
+
+
+
 def test_issue_tracker_save_merges_auto_breaker_duplicate_into_canonical_issue(tmp_path, monkeypatch):
     target = tmp_path / "issues.json"
     monkeypatch.setattr(issues_module, "ISSUES_JSON", target)

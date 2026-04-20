@@ -1545,7 +1545,7 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
                         "id": "P0_circuit_breaker_active",
                         "priority": "P0",
                         "status": "open",
-                        "title": "canonical circuit breaker remains the only current-live deployment blocker",
+                        "title": "current live bucket exact support is missing and remains the deployment blocker",
                     }
                 ]
             },
@@ -1560,6 +1560,7 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
         "recommended_patch_reference_scope": "bull|CAUTION",
     }
     live_predictor = {
+        "deployment_blocker": "unsupported_exact_live_structure_bucket",
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
         "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
         "deployment_blocker_details": {"release_condition": {}},
@@ -1591,6 +1592,7 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
     assert result["success"] is True
     issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
     roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
     assert "current live bucket support rows 可 machine-read" in issues_md
     assert "recommended_patch=core_plus_macro_plus_all_4h" in roadmap_md
     assert "status=reference_only_until_exact_support_ready" in roadmap_md
@@ -1599,6 +1601,11 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
         "reference_only_until_exact_support_ready**"
     ) in roadmap_md
     assert "current live q15 truth" not in roadmap_md
+    assert "breaker-first truth" not in issues_md
+    assert "breaker release math 作為唯一 current-live blocker" not in roadmap_md
+    assert "### 目標 A：維持 current-live exact-support blocker 作為唯一 current-live blocker" in roadmap_md
+    assert "current-live blocker 清楚且唯一：**unsupported_exact_live_structure_bucket**" in roadmap_md
+    assert "維持 current-live exact-support truth" in orid_md
 
 
 

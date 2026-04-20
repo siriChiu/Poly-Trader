@@ -313,20 +313,35 @@ def _issue_current_lines(
     if issue_id == "P0_circuit_breaker_active":
         release = (live_predictor_diagnostics.get("deployment_blocker_details") or {}).get("release_condition") or {}
         support_route = q15_support_audit.get("support_route") or {}
+        deployment_blocker = str(live_predictor_diagnostics.get("deployment_blocker") or "")
+        if deployment_blocker == "circuit_breaker_active":
+            return [
+                "目前真相："
+                f"`deployment_blocker={live_predictor_diagnostics.get('deployment_blocker') or '—'}` / "
+                f"`streak={live_predictor_diagnostics.get('streak')}` / "
+                f"`recent {release.get('recent_window') or live_predictor_diagnostics.get('window_size') or '—'} wins="
+                f"{release.get('current_recent_window_wins', live_predictor_diagnostics.get('recent_window_wins', '—'))}/"
+                f"{release.get('recent_window', live_predictor_diagnostics.get('window_size', '—'))}` / "
+                f"`additional_recent_window_wins_needed={release.get('additional_recent_window_wins_needed', '—')}`",
+                "same-bucket truth："
+                f"`bucket={live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
+                f"`support={live_predictor_diagnostics.get('current_live_structure_bucket_rows', '—')}/"
+                f"{live_predictor_diagnostics.get('minimum_support_rows', '—')}` / "
+                f"`support_route_verdict={live_predictor_diagnostics.get('support_route_verdict') or support_route.get('verdict') or '—'}` / "
+                f"`support_governance_route={live_predictor_diagnostics.get('support_governance_route') or support_route.get('support_governance_route') or '—'}`",
+            ]
         return [
             "目前真相："
             f"`deployment_blocker={live_predictor_diagnostics.get('deployment_blocker') or '—'}` / "
-            f"`streak={live_predictor_diagnostics.get('streak')}` / "
-            f"`recent {release.get('recent_window') or live_predictor_diagnostics.get('window_size') or '—'} wins="
-            f"{release.get('current_recent_window_wins', live_predictor_diagnostics.get('recent_window_wins', '—'))}/"
-            f"{release.get('recent_window', live_predictor_diagnostics.get('window_size', '—'))}` / "
-            f"`additional_recent_window_wins_needed={release.get('additional_recent_window_wins_needed', '—')}`",
-            "same-bucket truth："
             f"`bucket={live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
             f"`support={live_predictor_diagnostics.get('current_live_structure_bucket_rows', '—')}/"
             f"{live_predictor_diagnostics.get('minimum_support_rows', '—')}` / "
+            f"`gap={live_predictor_diagnostics.get('current_live_structure_bucket_gap_to_minimum', '—')}` / "
+            f"`runtime_closure_state={live_predictor_diagnostics.get('runtime_closure_state') or '—'}`",
+            "same-bucket truth："
             f"`support_route_verdict={live_predictor_diagnostics.get('support_route_verdict') or support_route.get('verdict') or '—'}` / "
-            f"`support_governance_route={live_predictor_diagnostics.get('support_governance_route') or support_route.get('support_governance_route') or '—'}`",
+            f"`support_governance_route={live_predictor_diagnostics.get('support_governance_route') or support_route.get('support_governance_route') or '—'}` / "
+            f"`recommended_patch_status={issue.get('summary', {}).get('recommended_patch_status', '—')}`",
         ]
 
     if issue_id == "P0_recent_distribution_pathology":
@@ -500,6 +515,67 @@ def overwrite_current_state_docs(
         if fin_blocker
         else "`fin_netflow` blocker 資訊暫缺"
     )
+    patch_profile = live_decision_drilldown.get("recommended_patch_profile") or "—"
+    patch_status = live_decision_drilldown.get("recommended_patch_status") or "—"
+    patch_reference_scope = live_decision_drilldown.get("recommended_patch_reference_scope") or "—"
+    deployment_blocker = str(live_predictor_diagnostics.get("deployment_blocker") or "—")
+    breaker_root_cause = str(((circuit_breaker_audit.get("root_cause") or {}).get("verdict")) or "")
+    breaker_is_primary = deployment_blocker == "circuit_breaker_active" or breaker_root_cause in {
+        "canonical_breaker_active",
+        "breaker_active",
+    }
+    if breaker_is_primary:
+        facts_blocker_heading = "- **canonical current-live blocker 仍是 breaker-first truth**"
+        current_priority_line1 = f"1. **維持 breaker-first truth，同時保留 {support_scope_label} support rows 可 machine-read**"
+        goal_a_title = "### 目標 A：維持 breaker release math 作為唯一 current-live blocker"
+        goal_a_success = "- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker。"
+        next_gate_line1 = f"1. **維持 breaker-first truth + {support_scope_label} visibility across API / UI / docs**"
+        next_gate_line1_blocker = f"   - 升級 blocker：若 breaker release math 被 support / floor-gap / venue 話題覆蓋，或 {support_scope_label} rows 再次從 top-level surfaces 消失"
+        success_primary_line = "- current-live blocker 清楚且唯一：**breaker release math**"
+        orid_reflection_line = (
+            f"- 這輪最需要防止的誤讀，是把 `{support_current_rows}/{support_minimum_rows}` 的 same-bucket support 或 `{patch_reference_scope}` 參考 patch 誤讀成已可部署；breaker 仍是唯一 current-live blocker。"
+        )
+        orid_insight2 = "2. **真正主 blocker 仍是 breaker + recent pathological slice**：目前該追的是 release math 與 recent canonical pathology，不是把 q15/q35 support 或 venue 話題誤升級成唯一根因。"
+        orid_action_line = f"- **Action**：維持 breaker-first truth，並把 {support_scope_label} support 與 recommended patch 持續顯示為 `reference_only`；下一步沿 recent pathological slice 與 release math 繼續追根因。"
+        orid_fail_line = f"- **If fail**：只要 docs / UI 再次隱藏 breaker-first truth、漏掉 {support_scope_label} rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。"
+    elif deployment_blocker in {"unsupported_exact_live_structure_bucket", "under_minimum_exact_live_structure_bucket"}:
+        facts_blocker_heading = "- **canonical current-live blocker 已切到 current-live exact-support truth**"
+        current_priority_line1 = f"1. **維持 current-live exact-support blocker truth，同時保留 {support_scope_label} support rows 可 machine-read**"
+        goal_a_title = "### 目標 A：維持 current-live exact-support blocker 作為唯一 current-live blocker"
+        goal_a_success = (
+            f"- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `{deployment_blocker}` 視為唯一 current-live deployment blocker，且不再誤回退成 breaker-first 舊敘事。"
+        )
+        next_gate_line1 = f"1. **維持 current-live exact-support blocker + {support_scope_label} visibility across API / UI / docs**"
+        next_gate_line1_blocker = (
+            f"   - 升級 blocker：若 current-live blocker 被 breaker 舊敘事 / venue 話題覆蓋，或 {support_scope_label} rows 再次從 top-level surfaces 消失"
+        )
+        success_primary_line = f"- current-live blocker 清楚且唯一：**{deployment_blocker}**"
+        orid_reflection_line = (
+            f"- 這輪最需要防止的誤讀，是把 `{support_current_rows}/{support_minimum_rows}` 的 same-bucket support 或 `{patch_reference_scope}` 參考 patch 誤讀成已可部署；目前 live blocker 已切到 `{deployment_blocker}`。"
+        )
+        orid_insight2 = (
+            f"2. **真正主 blocker 已切到 {support_scope_label} exact-support shortage**：recent pathological slice 仍是造成 `{deployment_blocker}` 的根因切片，不能再沿用 breaker-first 舊敘事。"
+        )
+        orid_action_line = f"- **Action**：維持 current-live exact-support truth，並把 {support_scope_label} support 與 recommended patch 持續顯示為 `reference_only`；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。"
+        orid_fail_line = (
+            f"- **If fail**：只要 docs / UI 再次把 `{deployment_blocker}` 誤寫成 breaker-first、漏掉 {support_scope_label} rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。"
+        )
+    else:
+        facts_blocker_heading = "- **canonical current-live blocker 以 latest runtime truth 為主**"
+        current_priority_line1 = f"1. **維持 current-live blocker truth（{deployment_blocker}），同時保留 {support_scope_label} support rows 可 machine-read**"
+        goal_a_title = "### 目標 A：維持 latest runtime blocker 作為唯一 current-live blocker"
+        goal_a_success = (
+            f"- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `{deployment_blocker}` 視為唯一 current-live deployment blocker。"
+        )
+        next_gate_line1 = f"1. **維持 latest runtime blocker（{deployment_blocker}）+ {support_scope_label} visibility across API / UI / docs**"
+        next_gate_line1_blocker = (
+            f"   - 升級 blocker：若 current-live blocker 再被舊 breaker / support 敘事覆蓋，或 {support_scope_label} rows 再次從 top-level surfaces 消失"
+        )
+        success_primary_line = f"- current-live blocker 清楚且唯一：**{deployment_blocker}**"
+        orid_reflection_line = f"- 這輪最需要防止的誤讀，是讓舊 blocker 敘事覆蓋最新 `{deployment_blocker}` runtime truth。"
+        orid_insight2 = f"2. **真正主 blocker 以 latest runtime truth 為準**：目前 deployment blocker 是 `{deployment_blocker}`，後續 root-cause 與 docs 必須跟著這條 lane 收斂。"
+        orid_action_line = f"- **Action**：維持 latest runtime blocker truth，並把 {support_scope_label} support 與 recommended patch 持續顯示為 `reference_only`；下一步沿對應 runtime lane 繼續追根因。"
+        orid_fail_line = f"- **If fail**：只要 docs / UI 再次把 `{deployment_blocker}` 蓋回舊 blocker 敘事、漏掉 {support_scope_label} rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。"
 
     issues_lines = [
         "# ISSUES.md — Current State Only",
@@ -514,7 +590,7 @@ def overwrite_current_state_docs(
         f"- **最新 fast heartbeat #{run_label} 已完成 collect + diagnostics refresh**",
         f"  - {counts_line}",
         f"  - `simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`",
-        "- **canonical current-live blocker 仍是 breaker-first truth**",
+        facts_blocker_heading,
         f"  - {blocker_line}",
         f"  - {support_line}",
         "- **recent canonical window 仍是 distribution pathology**",
@@ -560,7 +636,7 @@ def overwrite_current_state_docs(
             "---",
             "",
             "## Current Priority",
-            f"1. **維持 breaker-first truth，同時保留 {support_scope_label} support rows 可 machine-read**",
+            current_priority_line1,
             "2. **持續沿 recent canonical pathological slice 追根因，不要 generic 化 blocker**",
             f"3. **守住 {support_scope_label} support / reference-only patch、leaderboard dual-role governance、venue/source blockers 可見性**",
             "4. **讓 heartbeat 自動 overwrite sync current-state docs，不再把 docs drift 留給人工補寫**",
@@ -596,15 +672,15 @@ def overwrite_current_state_docs(
         "",
         "## 主目標",
         "",
-        "### 目標 A：維持 breaker release math 作為唯一 current-live blocker",
+        goal_a_title,
         "**目前真相**",
         f"- {blocker_line}",
         f"- {support_line}",
         "**成功標準**",
-        "- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker。",
+        goal_a_success,
         f"- {support_scope_label} truth (`bucket / rows / minimum / gap / support route`) 仍在 top-level surfaces 可 machine-read。",
         "",
-        "### 目標 B：持續把 recent canonical pathological slice 當成 breaker 根因來鑽",
+        "### 目標 B：持續把 recent canonical pathological slice 當成 current blocker 根因來鑽",
         "**目前真相**",
         f"- {pathology_line}",
         "**成功標準**",
@@ -629,9 +705,9 @@ def overwrite_current_state_docs(
         "---",
         "",
         "## 下一輪 gate",
-        f"1. **維持 breaker-first truth + {support_scope_label} visibility across API / UI / docs**",
+        next_gate_line1,
         "   - 驗證：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`",
-        f"   - 升級 blocker：若 breaker release math 被 support / floor-gap / venue 話題覆蓋，或 {support_scope_label} rows 再次從 top-level surfaces 消失",
+        next_gate_line1_blocker,
         "2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**",
         "   - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`",
         "   - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據",
@@ -642,7 +718,7 @@ def overwrite_current_state_docs(
         "---",
         "",
         "## 成功標準",
-        "- current-live blocker 清楚且唯一：**breaker release math**",
+        success_primary_line,
         f"- {support_truth_label} 維持：**{support_truth_ratio} + {support_success_verdict} + {support_success_status}**",
         "- recent canonical pathological slice 仍以同一個 current window 為主敘事，不被 generic 問題稀釋",
         "- leaderboard 維持 dual-role governance；venue/source blockers 持續可見",
@@ -650,9 +726,6 @@ def overwrite_current_state_docs(
         "",
     ]
 
-    patch_profile = live_decision_drilldown.get("recommended_patch_profile") or "—"
-    patch_status = live_decision_drilldown.get("recommended_patch_status") or "—"
-    patch_reference_scope = live_decision_drilldown.get("recommended_patch_reference_scope") or "—"
     live_regime = live_predictor_diagnostics.get("regime_label") or "—"
     live_gate = live_predictor_diagnostics.get("regime_gate") or "—"
     live_bucket = live_predictor_diagnostics.get("current_live_structure_bucket") or "—"
@@ -677,20 +750,20 @@ def overwrite_current_state_docs(
         f"- 本輪產品化前進：{docs_sync_line}；`recommended_patch={patch_profile}` / `status={patch_status}` / `reference_scope={patch_reference_scope}`。",
         "",
         "### R｜感受直覺",
-        f"- 這輪最需要防止的誤讀，是把 `{support_current_rows}/{support_minimum_rows}` 的 same-bucket support 或 `{patch_reference_scope}` 參考 patch 誤讀成已可部署；breaker 仍是唯一 current-live blocker。",
+        orid_reflection_line,
         f"- current live 已落在 `{live_regime}/{live_gate}/{live_bucket}`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket 或舊 bucket 當成現在的 runtime 真相。",
         "",
         "### I｜意義洞察",
         f"1. **support accumulation ≠ deployment closure**：`support={support_current_rows}/{support_minimum_rows}` 且 `support_route_verdict={support_route_verdict}` 只代表治理前進，還不能把 reference patch 升級成 runtime patch。",
-        "2. **真正主 blocker 仍是 breaker + recent pathological slice**：目前該追的是 release math 與 recent canonical 250-row pathology，不是把 q15/q35 support 或 venue 話題誤升級成唯一根因。",
+        orid_insight2,
         f"3. **docs overwrite sync 的角色是護欄，不是主 blocker**：{docs_sync_line} 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。",
         "",
         "### D｜決策行動",
         "- **Owner**：current-live runtime / governance lane",
-        f"- **Action**：維持 breaker-first truth，並把 {support_scope_label} support 與 recommended patch 持續顯示為 `reference_only`；下一步沿 recent pathological slice 與 release math 繼續追根因。",
+        orid_action_line,
         "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。",
         "- **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。",
-        "- **If fail**：只要 docs / UI 再次隱藏 breaker-first truth、漏掉 support rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。",
+        orid_fail_line,
         "",
     ]
 

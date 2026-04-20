@@ -1984,6 +1984,100 @@ def test_sync_current_state_governance_issues_prefers_live_support_route_and_ref
 
 
 
+def test_sync_current_state_governance_issues_replaces_breaker_p0_when_exact_support_is_live_blocker():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = [
+                {
+                    "id": "P0_circuit_breaker_active",
+                    "priority": "P0",
+                    "title": "canonical circuit breaker remains the only current-live deployment blocker",
+                    "action": "old breaker action",
+                    "status": "open",
+                }
+            ]
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "selected_feature_profile": "core_only",
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "verdict": "dual_role_governance_active",
+                    "production_profile": "core_plus_macro",
+                    "support_governance_route": "exact_live_lane_proxy_available",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 0,
+                    "support_progress": {
+                        "current_rows": 0,
+                        "minimum_support_rows": 50,
+                        "status": "stalled_under_minimum",
+                        "history": [
+                            {
+                                "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35"
+                            }
+                        ],
+                    },
+                },
+            }
+        },
+        {
+            "signal": "HOLD",
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "runtime_closure_state": "patch_inactive_or_blocked",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade",
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade",
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    primary_issue = next(issue for issue in tracker.issues if issue["id"] == "P0_circuit_breaker_active")
+    assert primary_issue["status"] == "open"
+    assert "exact support" in primary_issue["title"]
+    assert "q35" in primary_issue["title"]
+    assert "proxy rows" in primary_issue["action"]
+    assert primary_issue["summary"]["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert primary_issue["summary"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q35"
+    assert primary_issue["summary"]["gap_to_minimum"] == 50
+    assert primary_issue["summary"]["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
+
+    auto_breaker = next((issue for issue in tracker.issues if issue["id"] == "#H_AUTO_CIRCUIT_BREAKER"), None)
+    assert auto_breaker is None or auto_breaker["status"] == "resolved"
+
+
+
 def test_sync_current_state_governance_issues_adds_alignment_blocker_when_current_inputs_stale():
     events = []
 

@@ -1,30 +1,32 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-20 19:17:47 CST_
+_最後更新：2026-04-20 20:25:24 CST_
 
 ---
 
 ## 心跳 #fast ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31254 / Features=22672 / Labels=63024`；`simulated_pyramid_win=57.16%`。
-- current-live blocker：`deployment_blocker=circuit_breaker_active` / `streak=0` / `recent_window_wins=14/50` / `additional_recent_window_wins_needed=1`。
+- collect + diagnostics refresh 完成：`Raw=31257 / Features=22675 / Labels=63040`；`simulated_pyramid_win=57.18%`。
+- current-live blocker：`deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - current live bucket truth：`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_exact_lane_proxy_only`。
-- recent pathological slice：`window=500` / `win_rate=3.6%` / `dominant_regime=bull(90.6%)` / `avg_quality=-0.2266` / `avg_pnl=-0.0078` / `alerts=label_imbalance,regime_concentration,regime_shift`。
-- 本輪產品化前進：Strategy Lab legacy saved strategy 的 `backtest_range` 缺口已修復；`/api/strategies/*` 與 `/lab` 不再把實際區間顯示成 `— → —`。
+- recent pathological slice：`window=500` / `win_rate=4.4%` / `dominant_regime=bull(90.0%)` / `avg_quality=-0.2209` / `avg_pnl=-0.0076` / `alerts=label_imbalance,regime_concentration,regime_shift`。
+- leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2728` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
 
 ### R｜感受直覺
-- 這輪最直接的 operator 痛點不是模型數字，而是 Strategy Lab 在已有回測結果時仍顯示空白區間，讓人誤以為最近兩年 contract 或回測範圍已壞掉。
-- breaker 仍是唯一 current-live blocker；range 修復只能算產品面修補，不能拿來掩蓋 canonical runtime blocker。
+- 這輪最需要防止的誤讀，是把 `0/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；目前 live blocker 已切到 `unsupported_exact_live_structure_bucket`。
+- current live 已落在 `chop/CAUTION/CAUTION|base_caution_regime_or_bias|q35`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket 或舊 bucket 當成現在的 runtime 真相。
 
 ### I｜意義洞察
-1. **產品 surface 的空白欄位也是治理 bug**：回測實際區間掉成 `— → —`，會讓 leaderboard recent-window contract 看起來像假資料或未載入，即使底層 definition / chart_context 其實都有範圍。
-2. **legacy strategy payload 需要讀時修復**：只靠新存檔格式不夠，既有 saved strategies 必須在 load path 上補回 `requested/effective/available`，否則 UI 再漂亮也只能讀到空值。
-3. **breaker-first truth 與 Strategy Lab UX 可以並行推進**：本輪沒有碰主 blocker 語義，但至少把 `/lab` 的可讀性與 API contract 往 production-quality 推進一格。
+1. **support accumulation ≠ deployment closure**：`support=0/50` 且 `support_route_verdict=exact_bucket_missing_exact_lane_proxy_only` 只代表治理前進，還不能把 reference patch 升級成 runtime patch。
+2. **真正主 blocker 已切到 current live bucket exact-support shortage**：recent pathological slice 仍是造成 `unsupported_exact_live_structure_bucket` 的根因切片，不能再沿用 breaker-first 舊敘事。
+3. **docs overwrite sync 的角色是護欄，不是主 blocker**：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。
 
 ### D｜決策行動
-- **Owner**：Strategy Lab / leaderboard product surface
-- **Action**：保留 breaker-first 主線，同時把 Strategy Lab actual-range contract 視為已完成的 P1 子修復；下一步繼續維持 recent-two-year / actual-range / leaderboard payload 一致。
-- **Artifacts**：`backtesting/strategy_lab.py`、`web/src/pages/StrategyLab.tsx`、`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`。
-- **Verify**：browser `/lab`、`python scripts/hb_strategy_range_probe.py`、`pytest tests/test_strategy_lab.py tests/test_strategy_lab_date_range_contract.py tests/test_frontend_decision_contract.py tests/test_model_leaderboard.py tests/test_server_startup.py -q`、`cd web && npm run build`。
-- **If fail**：只要 `/api/strategies/*` 再失去有效 `backtest_range`、`/lab` 再掉回 `— → —`，或 range contract 與 leaderboard 最近兩年政策分裂，就把它升級回 Strategy Lab product contract blocker。
+- **Owner**：current-live runtime / governance lane
+- **Action**：維持 current-live exact-support truth，並把 current live bucket support 與 recommended patch 持續顯示為 `reference_only`；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。
+- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
+- **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。
+- **If fail**：只要 docs / UI 再次把 `unsupported_exact_live_structure_bucket` 誤寫成 breaker-first、漏掉 current live bucket rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。

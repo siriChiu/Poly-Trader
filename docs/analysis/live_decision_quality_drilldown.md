@@ -1,17 +1,17 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-20 11:12:08.956224**
+- feature_timestamp: **2026-04-20 12:24:02.787647**
 - target: `simulated_pyramid_win`
 - live path: **chop / CAUTION / D**
-- signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
+- signal: **HOLD** @ confidence **0.1639**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: `entry_quality_below_trade_floor`
-- allowed_layers_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
-- execution_guardrail_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
-- runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 28.00% < 30%`
-- deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 28.00% < 30%`
+- allowed_layers_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; unsupported_exact_live_structure_bucket`
+- execution_guardrail_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; unsupported_exact_live_structure_bucket`
+- runtime_blocker: `None` | reason: `None`
+- deployment_blocker: `unsupported_exact_live_structure_bucket` | reason: `current live structure bucket 缺少 exact live lane 歷史支持；在 exact bucket 出現前，broader / proxy rows 只能作治理參考，不可作 deployment 放行依據。`
 - q15 exact-supported patch: **inactive** | support_route `exact_bucket_unsupported_block` | floor_cross `None`
-- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 28.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 14/50，至少還差 1 勝。**
+- runtime closure summary: **patch inactive or still blocked**
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
 - recommended_patch: **core_plus_macro_plus_all_4h** / status `reference_only_until_exact_support_ready` / support_route `exact_bucket_unsupported_block` / gap `50` / reference_scope `bull|CAUTION` / source `bull_4h_pocket_ablation.bull_collapse_q35`
 - recommended_patch_features: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
@@ -20,29 +20,29 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.4707** / trade_floor **0.55** / gap **-0.0793**
-- base_quality: **0.5094** × weight **0.75**
-- structure_quality: **0.3546** × weight **0.25**
-- base components: feat_4h_bias50=0.2918 (w=0.4, contrib=0.1167), feat_nose=0.3345 (w=0.18, contrib=0.0602), feat_pulse=0.6879 (w=0.27, contrib=0.1857), feat_ear=0.9782 (w=0.15, contrib=0.1467)
-- structure components: feat_4h_bb_pct_b=0.5863 (w=0.34, contrib=0.1994), feat_4h_dist_bb_lower=0.229 (w=0.33, contrib=0.0756), feat_4h_dist_swing_low=0.2415 (w=0.33, contrib=0.0797)
+- final entry_quality: **0.3704** / trade_floor **0.55** / gap **-0.1796**
+- base_quality: **0.3519** × weight **0.75**
+- structure_quality: **0.4259** × weight **0.25**
+- base components: feat_4h_bias50=0.2133 (w=0.4, contrib=0.0853), feat_nose=0.2777 (w=0.18, contrib=0.05), feat_pulse=0.2715 (w=0.27, contrib=0.0733), feat_ear=0.9553 (w=0.15, contrib=0.1433)
+- structure components: feat_4h_bb_pct_b=0.7073 (w=0.34, contrib=0.2405), feat_4h_dist_bb_lower=0.2724 (w=0.33, contrib=0.0899), feat_4h_dist_swing_low=0.2894 (w=0.33, contrib=0.0955)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0793**
-- base_group_max_entry_gain: **0.368** | structure_group_max_entry_gain: **0.1614**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.2643, max_gain≈0.2125）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.2643), feat_nose (Δscore≈0.5874)
-- bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
+- remaining_gap_to_floor: **0.1796**
+- base_group_max_entry_gain: **0.486** | structure_group_max_entry_gain: **0.1435**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.5987, max_gain≈0.236）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.5987)
+- bias50 fully relaxed: entry≈**0.6064** / layers≈**1** / required_bias50_cap≈**-1.66**
 - unavailable_reason: `None`
 
 ## Scope comparison
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label+regime_gate+entry_quality_label` | 47 | 0.3617 | 0.0062 | 0.3653 | 0.6748 | 0 | False |
-| exact `regime_label+regime_gate+entry_quality_label` | 47 | 0.3617 | 0.0062 | 0.3653 | 0.6748 | 0 | False |
-| narrow `regime_label+entry_quality_label` | 47 | 0.3617 | 0.0062 | 0.3653 | 0.6748 | 0 | False |
-| broad `regime_gate+entry_quality_label` | 47 | 0.3617 | 0.0062 | 0.3653 | 0.6748 | 0 | False |
+| chosen `regime_label+regime_gate+entry_quality_label` | 50 | 0.4 | 0.0316 | 0.3655 | 0.6713 | 0 | False |
+| exact `regime_label+regime_gate+entry_quality_label` | 50 | 0.4 | 0.0316 | 0.3655 | 0.6713 | 0 | False |
+| narrow `regime_label+entry_quality_label` | 50 | 0.4 | 0.0316 | 0.3655 | 0.6713 | 0 | False |
+| broad `regime_gate+entry_quality_label` | 51 | 0.4118 | 0.0375 | 0.3661 | 0.6762 | 0 | False |
 
 ## Shared shifts
 
