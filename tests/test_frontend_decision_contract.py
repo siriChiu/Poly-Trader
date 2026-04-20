@@ -319,6 +319,8 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'const liveExecutionSyncPending = runtimeStatusPending && liveRuntimePending;',
         'const currentLiveBlockerLabel = liveExecutionSyncPending ? "同步中" : (currentLiveBlocker || "unknown");',
         'const currentLiveBlockerSummaryLabel = liveExecutionSyncPending',
+        'const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
+        'const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;',
         'const metadataSmokeFreshnessLabel = runtimeStatusPending',
         'const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];',
         'VenueReadinessSummary',
@@ -333,7 +335,9 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         '先選 1 個主 preset，再疊加 modifier；只看摘要，不先讀長說明。',
         '已選取',
         'Live 部署同步',
-        '只同步 live truth；blocked 與 recovery 請到「執行狀態」。',
+        'current live blocker 優先；對帳 healthy 只代表對帳 / runtime mirror 健康，不等於目前可部署。',
+        'current live blocker {currentLiveBlockerLabel}',
+        '{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}',
         'const liveScopePathologySummary =',
         'liveRuntimeTruth?.decision_quality_scope_pathology_summary',
         'const currentLiveBlocker =',
@@ -353,6 +357,25 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
     for snippet in required_snippets:
         assert snippet in source
     assert 'Execution runtime blocker sync' not in source
+
+
+def test_strategy_lab_live_sync_card_keeps_blocked_status_ahead_of_reconciliation_health():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
+        'const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;',
+        'current live blocker 優先；對帳 healthy 只代表對帳 / runtime mirror 健康，不等於目前可部署。',
+        'pending: liveExecutionSyncPending,',
+        'liveReady: Boolean(executionSurfaceContract?.live_ready),',
+        'blocker: currentLiveBlocker,',
+        'reconciliationStatus: executionReconciliation?.status,',
+        '{liveDeployStatusLabel}',
+        'current live blocker {currentLiveBlockerLabel}',
+        '{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+    assert source.index('liveDeployStatusLabel') < source.index('reconciliationBadgeLabel')
 
 
 def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout():
