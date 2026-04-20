@@ -1579,16 +1579,16 @@ export default function StrategyLab() {
     setInitialCapital(Math.round(Number(params.initial_capital ?? 10000)));
     const backtestRange = typeof params.backtest_range === "object" && params.backtest_range ? params.backtest_range : {};
     const resultRange = strategy.last_results?.backtest_range ?? null;
-    const availableRangeStart = backtestRange.start
+    const availableRangeStart = strategyDataRange?.start
+      || backtestRange.start
       || resultRange?.available?.start
       || resultRange?.effective?.start
-      || strategyDataRange?.start
       || strategy.last_results?.chart_context?.start
       || "";
-    const availableRangeEnd = backtestRange.end
+    const availableRangeEnd = strategyDataRange?.end
+      || backtestRange.end
       || resultRange?.available?.end
       || resultRange?.effective?.end
-      || strategyDataRange?.end
       || strategy.last_results?.chart_context?.end
       || "";
     const latestTwoYearRange = resolveLatestTwoYearBacktestRange(availableRangeStart, availableRangeEnd);
