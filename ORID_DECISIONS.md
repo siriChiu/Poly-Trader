@@ -1,19 +1,19 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-21 05:12:20 CST_
+_最後更新：2026-04-21 05:34:33 CST_
 
 ---
 
-## 心跳 #20260421-0508 ORID
+## 心跳 #fast ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31307 / Features=22725 / Labels=63110`；`simulated_pyramid_win=57.24%`。
-- Dashboard 首屏 transport truth 已修正：初始載入顯示 `同步中`，API snapshot 已落地但 WebSocket 未接通時顯示 `快照模式`，不再把 healthy snapshot/polling state 誤標成 `離線`。
+- collect + diagnostics refresh 完成：`Raw=31309 / Features=22727 / Labels=63117`；`simulated_pyramid_win=57.23%`。
+- Dashboard AdviceCard headline 已 blocker-first 化：blocked / syncing 時頂部標題改顯示 `先解除 blocker` / `先同步 runtime blocker`，原始多空訊號退到次級 `訊號分析仍為...`，避免首頁把 current-live blocker 蓋掉。
 - current-live blocker：`deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - current live bucket truth：`current_live_structure_bucket=CAUTION|structure_quality_caution|q35` / `support=12/50` / `gap=38` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
-- recent pathological slice：`window=500` / `win_rate=12.0%` / `dominant_regime=bull(84.6%)` / `avg_quality=-0.1623` / `avg_pnl=-0.0058` / `alerts=label_imbalance,regime_shift`。
+- recent pathological slice：`window=500` / `win_rate=12.2%` / `dominant_regime=bull(84.4%)` / `avg_quality=-0.1604` / `avg_pnl=-0.0058` / `alerts=label_imbalance,regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2777` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2779` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
 
 ### R｜感受直覺

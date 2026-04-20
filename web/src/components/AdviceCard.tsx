@@ -82,17 +82,32 @@ export default function AdviceCard({
     }
   };
 
-  const config = ACTION_CONFIG[action] || ACTION_CONFIG.hold;
+  const signalConfig = ACTION_CONFIG[action] || ACTION_CONFIG.hold;
+  const displayConfig = executionActionState === "ready"
+    ? signalConfig
+    : executionActionState === "syncing"
+      ? {
+          text: "⏳ 先同步 runtime blocker",
+          color: "text-sky-300",
+          bg: "from-sky-950/30 to-slate-900",
+          icon: "⏳",
+        }
+      : {
+          text: `🚫 先解除 blocker · ${executionBlockerLabel || "blocked"}`,
+          color: "text-amber-300",
+          bg: "from-amber-950/30 to-slate-900",
+          icon: "🚫",
+        };
 
   return (
-    <div className={`app-surface-card bg-gradient-to-br ${config.bg} space-y-3 h-full`}>
+    <div className={`app-surface-card bg-gradient-to-br ${displayConfig.bg} space-y-3 h-full`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className={`text-5xl font-mono font-bold transition-all duration-500 ${getScoreLevel(score)}`}>{score}</div>
           {delta !== 0 && <div className={`text-sm font-bold ${delta > 0 ? "text-green-400" : "text-red-400"}`}>{delta > 0 ? "↑" : "↓"} {Math.abs(delta)}</div>}
         </div>
         <div className="text-right">
-          <div className={`text-base font-bold ${config.color}`}>{config.icon} {config.text}</div>
+          <div className={`text-base font-bold ${displayConfig.color}`}>{displayConfig.icon} {displayConfig.text}</div>
           {timestamp && <div className="text-xs text-slate-500 mt-0.5">{timestamp}</div>}
         </div>
       </div>
@@ -136,6 +151,9 @@ export default function AdviceCard({
                 : `🚫 current live blocker · ${executionBlockerLabel || "blocked"}`}
             </div>
             <div className="mt-1">{executionActionSummary}</div>
+            <div className="mt-2 text-[11px] text-amber-200/80">
+              訊號分析仍為：{signalConfig.text}
+            </div>
           </div>
           <div className="flex gap-2">
             <a href="/execution/status" className="app-button-secondary flex-1 text-center text-sm font-semibold">
