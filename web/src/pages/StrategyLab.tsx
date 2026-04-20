@@ -81,6 +81,12 @@ interface BacktestRangeMeta {
   backfill_required?: boolean;
   missing_start_days?: number | null;
   missing_end_days?: number | null;
+  requested?: {
+    start?: string | null;
+    end?: string | null;
+    count?: number;
+    span_days?: number | null;
+  };
   available?: {
     start?: string | null;
     end?: string | null;
@@ -1438,6 +1444,31 @@ export default function StrategyLab() {
   }, []);
 
   const activeResult = runResult ?? selectedStrategy?.last_results ?? null;
+  const activeBacktestDisplayRange = useMemo(() => {
+    const definitionRange = typeof selectedStrategy?.definition?.params?.backtest_range === "object" && selectedStrategy?.definition?.params?.backtest_range
+      ? selectedStrategy.definition.params.backtest_range as { start?: string | null; end?: string | null }
+      : null;
+    return {
+      start: activeResult?.backtest_range?.effective?.start
+        || activeResult?.backtest_range?.requested?.start
+        || definitionRange?.start
+        || activeResult?.chart_context?.start
+        || null,
+      end: activeResult?.backtest_range?.effective?.end
+        || activeResult?.backtest_range?.requested?.end
+        || definitionRange?.end
+        || activeResult?.chart_context?.end
+        || null,
+    };
+  }, [
+    activeResult?.backtest_range?.effective?.start,
+    activeResult?.backtest_range?.effective?.end,
+    activeResult?.backtest_range?.requested?.start,
+    activeResult?.backtest_range?.requested?.end,
+    activeResult?.chart_context?.start,
+    activeResult?.chart_context?.end,
+    selectedStrategy?.definition?.params?.backtest_range,
+  ]);
   const activeMeta = selectedStrategy?.metadata ?? {
     title: name,
     strategy_type: strategyType,
@@ -2547,7 +2578,7 @@ export default function StrategyLab() {
                   <div className="rounded-lg border border-slate-700/50 bg-slate-950/40 px-3 py-2">
                     <div>回測完成：{activeResult?.run_at ? new Date(activeResult.run_at).toLocaleString("zh-TW") : "—"}</div>
                     <div>交易筆數：{activeResult?.total_trades ?? "—"}</div>
-                    <div>實際區間：{activeResult?.backtest_range?.effective?.start ? new Date(activeResult.backtest_range.effective.start).toLocaleDateString("zh-TW") : "—"} → {activeResult?.backtest_range?.effective?.end ? new Date(activeResult.backtest_range.effective.end).toLocaleDateString("zh-TW") : "—"}</div>
+                    <div>實際區間：{activeBacktestDisplayRange.start ? new Date(activeBacktestDisplayRange.start).toLocaleDateString("zh-TW") : "—"} → {activeBacktestDisplayRange.end ? new Date(activeBacktestDisplayRange.end).toLocaleDateString("zh-TW") : "—"}</div>
                   </div>
                   <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 px-3 py-2 text-cyan-100">
                     <div className="font-medium">圖表提示</div>

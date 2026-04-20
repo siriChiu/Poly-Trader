@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-04-20 10:27:48.585965",
+  "generated_at": "2026-04-20 11:12:08.956224",
   "target_col": "simulated_pyramid_win",
   "current_live": {
     "regime_label": "chop",
     "regime_gate": "CAUTION",
     "entry_quality_label": "D",
     "structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-    "structure_quality": 0.3842,
+    "structure_quality": 0.3546,
     "q15_threshold": 0.15,
     "q35_threshold": 0.35,
     "gap_to_q35_boundary": 0.0,
@@ -14,18 +14,18 @@
     "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active"
   },
   "exact_live_lane": {
-    "rows": 2384,
+    "rows": 2386,
     "bucket_counts": {
       "CAUTION|base_caution_regime_or_bias|q35": 1139,
       "CAUTION|base_caution_regime_or_bias|q65": 434,
-      "CAUTION|base_caution_regime_or_bias|q15": 300,
+      "CAUTION|base_caution_regime_or_bias|q15": 302,
       "CAUTION|base_caution_regime_or_bias|q00": 285,
       "CAUTION|base_caution_regime_or_bias|q85": 226
     },
     "dominant_neighbor_bucket": "CAUTION|base_caution_regime_or_bias|q65",
     "dominant_neighbor_rows": 434,
     "near_boundary_window": {
-      "lower": 0.3842,
+      "lower": 0.3546,
       "upper": 0.35
     },
     "near_boundary_rows": 0
@@ -37,59 +37,59 @@
   "candidate_patch": {
     "type": null,
     "feature": "feat_4h_bb_pct_b",
-    "current_raw": 0.6372,
-    "current_normalized": 0.6372,
+    "current_raw": 0.5863,
+    "current_normalized": 0.5863,
     "needed_raw_delta_to_cross_q35": 0.0,
     "target_bucket_p25": 0.739,
     "target_bucket_median": 0.7798,
-    "needed_raw_delta_to_target_p25": 0.1018,
-    "needed_raw_delta_to_target_median": 0.1426
+    "needed_raw_delta_to_target_p25": 0.1527,
+    "needed_raw_delta_to_target_median": 0.1935
   },
   "component_deltas": {
     "feat_4h_bb_pct_b": {
-      "current_raw": 0.6372,
-      "current_normalized": 0.6372,
+      "current_raw": 0.5863,
+      "current_normalized": 0.5863,
       "target_bucket_rows": 434,
       "target_bucket_mean": 0.8388,
       "target_bucket_median": 0.7798,
       "target_bucket_p25": 0.739,
       "target_bucket_p75": 0.9559,
-      "delta_vs_target_median": -0.1426,
-      "delta_vs_target_p25": -0.1018,
-      "needed_raw_delta_to_target_p25": 0.1018,
-      "needed_raw_delta_to_target_median": 0.1426,
+      "delta_vs_target_median": -0.1935,
+      "delta_vs_target_p25": -0.1527,
+      "needed_raw_delta_to_target_p25": 0.1527,
+      "needed_raw_delta_to_target_median": 0.1935,
       "needed_raw_delta_to_cross_q35": 0.0,
-      "weighted_contribution": 0.2166
+      "weighted_contribution": 0.1994
     },
     "feat_4h_dist_bb_lower": {
-      "current_raw": 1.9808,
-      "current_normalized": 0.2476,
+      "current_raw": 1.8323,
+      "current_normalized": 0.229,
       "target_bucket_rows": 434,
       "target_bucket_mean": 6.1899,
       "target_bucket_median": 6.1466,
       "target_bucket_p25": 5.9567,
       "target_bucket_p75": 6.3981,
-      "delta_vs_target_median": -4.1658,
-      "delta_vs_target_p25": -3.9759,
-      "needed_raw_delta_to_target_p25": 3.9759,
-      "needed_raw_delta_to_target_median": 4.1658,
+      "delta_vs_target_median": -4.3143,
+      "delta_vs_target_p25": -4.1244,
+      "needed_raw_delta_to_target_p25": 4.1244,
+      "needed_raw_delta_to_target_median": 4.3143,
       "needed_raw_delta_to_cross_q35": 0.0,
-      "weighted_contribution": 0.0817
+      "weighted_contribution": 0.0756
     },
     "feat_4h_dist_swing_low": {
-      "current_raw": 2.602,
-      "current_normalized": 0.2602,
+      "current_raw": 2.4146,
+      "current_normalized": 0.2415,
       "target_bucket_rows": 434,
       "target_bucket_mean": 7.3541,
       "target_bucket_median": 7.7723,
       "target_bucket_p25": 6.0932,
       "target_bucket_p75": 8.1315,
-      "delta_vs_target_median": -5.1703,
-      "delta_vs_target_p25": -3.4912,
-      "needed_raw_delta_to_target_p25": 3.4912,
-      "needed_raw_delta_to_target_median": 5.1703,
+      "delta_vs_target_median": -5.3577,
+      "delta_vs_target_p25": -3.6786,
+      "needed_raw_delta_to_target_p25": 3.6786,
+      "needed_raw_delta_to_target_median": 5.3577,
       "needed_raw_delta_to_cross_q35": 0.0,
-      "weighted_contribution": 0.0859
+      "weighted_contribution": 0.0797
     }
   },
   "verify_next": "先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 q15 root-cause artifact。",

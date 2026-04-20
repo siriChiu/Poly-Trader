@@ -22,3 +22,14 @@ def test_strategy_lab_prefers_latest_strategy_data_range_over_saved_strategy_sna
     assert stale_end in source
     assert source.index(start_anchor) < source.index(stale_start)
     assert source.index(end_anchor) < source.index(stale_end)
+
+
+def test_strategy_lab_actual_range_display_falls_back_to_requested_or_definition_range():
+    source = _read("pages/StrategyLab.tsx")
+
+    assert 'const activeBacktestDisplayRange = useMemo(() => {' in source
+    assert 'activeResult?.backtest_range?.effective?.start' in source
+    assert 'activeResult?.backtest_range?.requested?.start' in source
+    assert 'selectedStrategy?.definition?.params?.backtest_range' in source
+    assert 'activeBacktestDisplayRange.start' in source
+    assert 'activeBacktestDisplayRange.end' in source

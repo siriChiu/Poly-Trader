@@ -363,6 +363,107 @@ def _sanitize_json_like(value: Any) -> Any:
     return value
 
 
+def _sanitize_backtest_range_bounds(value: Any) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    cleaned: Dict[str, Any] = {}
+    if value.get("start") is not None:
+        cleaned["start"] = value.get("start")
+    if value.get("end") is not None:
+        cleaned["end"] = value.get("end")
+    if value.get("count") is not None:
+        cleaned["count"] = _coerce_int(value.get("count"), 0)
+    if value.get("span_days") is not None:
+        cleaned["span_days"] = _coerce_float(value.get("span_days"))
+    return cleaned
+
+
+def _sanitize_backtest_range_meta(value: Any) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    cleaned: Dict[str, Any] = {}
+    requested = _sanitize_backtest_range_bounds(value.get("requested"))
+    if requested:
+        cleaned["requested"] = requested
+    effective = _sanitize_backtest_range_bounds(value.get("effective"))
+    if effective:
+        cleaned["effective"] = effective
+    available = _sanitize_backtest_range_bounds(value.get("available"))
+    if available:
+        cleaned["available"] = available
+    if value.get("backfill_required") is not None:
+        cleaned["backfill_required"] = bool(value.get("backfill_required"))
+    if value.get("coverage_ok") is not None:
+        cleaned["coverage_ok"] = bool(value.get("coverage_ok"))
+    if value.get("missing_start_days") is not None:
+        cleaned["missing_start_days"] = _coerce_float(value.get("missing_start_days"))
+    if value.get("missing_end_days") is not None:
+        cleaned["missing_end_days"] = _coerce_float(value.get("missing_end_days"))
+    if value.get("row_count") is not None:
+        cleaned["row_count"] = _coerce_int(value.get("row_count"), 0)
+    if value.get("policy") is not None:
+        cleaned["policy"] = _sanitize_json_like(value.get("policy"))
+    return cleaned
+
+
+def _merge_backtest_range_bounds(*candidates: Any) -> Dict[str, Any]:
+    merged: Dict[str, Any] = {}
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        for key in ("start", "end", "count", "span_days"):
+            value = candidate.get(key)
+            if value is not None and merged.get(key) is None:
+                merged[key] = value
+    return merged
+
+
+def _backfill_strategy_backtest_range(last_results: Optional[Dict[str, Any]], definition: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if not isinstance(last_results, dict):
+        return last_results
+
+    params = definition.get("params") if isinstance(definition, dict) else {}
+    params = params if isinstance(params, dict) else {}
+    definition_range = params.get("backtest_range") if isinstance(params.get("backtest_range"), dict) else {}
+    definition_requested = {
+        "start": definition_range.get("start"),
+        "end": definition_range.get("end"),
+    }
+
+    chart_context = last_results.get("chart_context") if isinstance(last_results.get("chart_context"), dict) else {}
+    chart_bounds = {
+        "start": chart_context.get("start"),
+        "end": chart_context.get("end"),
+    }
+
+    existing = _sanitize_backtest_range_meta(last_results.get("backtest_range"))
+    requested = _merge_backtest_range_bounds(existing.get("requested"), definition_requested)
+    effective = _merge_backtest_range_bounds(existing.get("effective"), requested, chart_bounds)
+    available = _merge_backtest_range_bounds(existing.get("available"), chart_bounds, effective)
+
+    if not (requested or effective or available):
+        return last_results
+
+    merged_meta = dict(existing)
+    if requested:
+        merged_meta["requested"] = requested
+    if effective:
+        merged_meta["effective"] = effective
+    if available:
+        merged_meta["available"] = available
+    if merged_meta.get("coverage_ok") is None and merged_meta.get("backfill_required") is None:
+        if requested.get("start") and requested.get("end") and effective.get("start") and effective.get("end"):
+            requested_matches_effective = (
+                requested.get("start") == effective.get("start")
+                and requested.get("end") == effective.get("end")
+            )
+            merged_meta["coverage_ok"] = requested_matches_effective
+            merged_meta["backfill_required"] = not requested_matches_effective
+
+    last_results["backtest_range"] = merged_meta
+    return last_results
+
+
 def _build_strategy_metadata(name: str, definition: Dict[str, Any]) -> Dict[str, Any]:
     params = definition.get("params") if isinstance(definition, dict) else {}
     if not isinstance(params, dict):
@@ -471,6 +572,7 @@ def _sanitize_results(results: Optional[Dict[str, Any]]) -> Optional[Dict[str, A
     cleaned["trades"] = _sanitize_json_like(results.get("trades") or [])
     cleaned["score_series"] = _sanitize_json_like(results.get("score_series") or [])
     cleaned["chart_context"] = _sanitize_json_like(results.get("chart_context") or {})
+    cleaned["backtest_range"] = _sanitize_backtest_range_meta(results.get("backtest_range") or {})
     return cleaned
 
 
@@ -480,6 +582,7 @@ def _sanitize_strategy_record(data: Dict[str, Any], fallback_name: str = "") -> 
     name = (data.get("name") or fallback_name or "Unnamed Strategy").strip()
     definition = _sanitize_definition(data.get("definition"))
     last_results = _sanitize_results(data.get("last_results"))
+    last_results = _backfill_strategy_backtest_range(last_results, definition)
     run_count = _coerce_int(data.get("run_count"), 0)
     if last_results is not None:
         run_count = max(run_count, 1)

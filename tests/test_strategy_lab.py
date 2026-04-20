@@ -123,6 +123,45 @@ def test_save_strategy_persists_detail_payload_and_strategy_metadata(isolated_st
     assert "三層金字塔" in loaded["metadata"]["description"]
 
 
+def test_save_strategy_reconstructs_backtest_range_when_legacy_results_dropped_it(isolated_strategies_dir: Path):
+    strategy_lab.save_strategy(
+        "Backtest Range Recovery",
+        {
+            "type": "hybrid",
+            "params": {
+                "model_name": "xgboost",
+                "backtest_range": {
+                    "start": "2024-04-19T22:40:00.000Z",
+                    "end": "2026-04-19T22:40:00.000Z",
+                },
+            },
+        },
+        {
+            "total_trades": 29,
+            "run_at": "2026-04-20T07:12:13.836010Z",
+            "chart_context": {
+                "symbol": "BTCUSDT",
+                "interval": "4h",
+                "start": "2025-04-06T17:00:00Z",
+                "end": "2026-04-19T22:34:02.344375Z",
+            },
+        },
+    )
+
+    loaded = strategy_lab.load_strategy("Backtest Range Recovery")
+
+    assert loaded is not None
+    recovered_range = loaded["last_results"]["backtest_range"]
+    assert recovered_range["requested"]["start"] == "2024-04-19T22:40:00.000Z"
+    assert recovered_range["requested"]["end"] == "2026-04-19T22:40:00.000Z"
+    assert recovered_range["effective"]["start"] == "2024-04-19T22:40:00.000Z"
+    assert recovered_range["effective"]["end"] == "2026-04-19T22:40:00.000Z"
+    assert recovered_range["available"]["start"] == "2025-04-06T17:00:00Z"
+    assert recovered_range["available"]["end"] == "2026-04-19T22:34:02.344375Z"
+    assert recovered_range["coverage_ok"] is True
+    assert recovered_range["backfill_required"] is False
+
+
 def test_save_strategy_persists_decision_profile_fields(isolated_strategies_dir: Path):
     strategy_lab.save_strategy(
         "Decision Profile Demo",
