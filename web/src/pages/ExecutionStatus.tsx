@@ -421,9 +421,28 @@ export default function ExecutionStatus() {
   const accountBalanceSummaryFree = balanceFree !== null
     ? `free ${balanceFree.toFixed(2)} ${balanceCurrency}`
     : accountBalanceUnavailableReason;
+  const lifecycleSummary = useMemo(() => {
+    return [
+      `stage ${lifecycleAudit?.stage || "unknown"}`,
+      `replay ${lifecycleContract?.replay_verdict || (lifecycleAudit?.restart_replay_required ? "required" : "not-required")}`,
+      `coverage ${lifecycleContract?.artifact_coverage || "unknown"}`,
+    ].join(" · ");
+  }, [lifecycleAudit, lifecycleContract]);
   const readinessTone = getStatusTone(runtimeStatusPending ? "pending" : (executionSurfaceContract?.live_ready ? "ready" : liveRuntimeTruth?.deployment_blocker || "blocked"));
   const metadataTone = getStatusTone(metadataFreshness?.status);
-  const reconciliationTone = getStatusTone(executionReconciliation?.status);
+  const reconciliationCoverageLimited = !runtimeStatusPending
+    && (executionReconciliation?.status || "").toLowerCase() === "healthy"
+    && (lifecycleAudit?.stage === "no_runtime_order" || lifecycleContract?.artifact_coverage === "not_applicable");
+  const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
+  const reconciliationHeadlineLabel = runtimeStatusPending
+    ? "同步中"
+    : (reconciliationCoverageLimited ? "limited evidence" : reconciliationStatusLabel);
+  const reconciliationHeadlineDetail = runtimeStatusPending
+    ? "正在向 /api/status 取得 reconciliation / recovery 摘要。"
+    : reconciliationCoverageLimited
+      ? `${executionReconciliation?.summary || "尚未取得 reconciliation 摘要。"} · 尚未有 runtime order，因此目前只能確認「沒有發現明顯對帳落差」，不可視為完整實單驗證。 · ${lifecycleSummary}`
+      : `${executionReconciliation?.summary || "尚未取得 reconciliation 摘要。"} · ${lifecycleSummary}`;
+  const reconciliationTone = getStatusTone(reconciliationCoverageLimited ? "warning" : executionReconciliation?.status);
   const healthTone = getStatusTone(accountSummary?.degraded ? "degraded" : accountSummary?.health?.connected ? "connected" : "warning");
 
   const currentLiveBlocker = liveRuntimeTruth?.deployment_blocker || null;
@@ -443,7 +462,6 @@ export default function ExecutionStatus() {
   const metadataFreshnessLabel = runtimeStatusPending
     ? "同步中"
     : (metadataFreshness?.label || metadataFreshness?.status || "unavailable");
-  const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
   const supportAlignmentLabel = runtimeStatusPending ? "同步中" : (liveRuntimeTruth?.support_alignment_status || "unavailable");
   const venueBlockersLabel = runtimeStatusPending
     ? "同步中"
@@ -456,14 +474,40 @@ export default function ExecutionStatus() {
   const automationStatusLabel = runtimeStatusPending ? "automation 同步中" : `automation ${runtimeStatus?.automation ? "ON" : "OFF"}`;
   const liveReadinessStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const liveReadinessMetricValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可進場" : "仍阻塞");
-
-  const lifecycleSummary = useMemo(() => {
-    return [
-      `stage ${lifecycleAudit?.stage || "unknown"}`,
-      `replay ${lifecycleContract?.replay_verdict || (lifecycleAudit?.restart_replay_required ? "required" : "not-required")}`,
-      `coverage ${lifecycleContract?.artifact_coverage || "unknown"}`,
-    ].join(" · ");
-  }, [lifecycleAudit, lifecycleContract]);
+  const accountVisibilityMetricValue = runtimeStatusPending
+    ? "同步中"
+    : (balanceTotal !== null ? `${formatNumber(balanceTotal)} ${balanceCurrency}` : (!accountCredentialsConfigured ? "metadata-only snapshot" : "balance unavailable"));
+  const accountVisibilityDetail = runtimeStatusPending
+    ? "正在向 /api/status 取得 account snapshot。"
+    : balanceTotal !== null
+      ? `free ${balanceFree !== null ? `${balanceFree.toFixed(2)} ${balanceCurrency}` : "—"} · 倉位 ${accountSummary?.position_count ?? positions.length} · 掛單 ${accountSummary?.open_order_count ?? openOrders.length}`
+      : !accountCredentialsConfigured
+        ? `僅取得 metadata；private balance 仍需配置交易所憑證。 · 倉位 ${accountSummary?.position_count ?? positions.length} · 掛單 ${accountSummary?.open_order_count ?? openOrders.length}`
+        : `${accountBalanceUnavailableReason} · 倉位 ${accountSummary?.position_count ?? positions.length} · 掛單 ${accountSummary?.open_order_count ?? openOrders.length}`;
+  const accountVisibilityStatusLabel = runtimeStatusPending
+    ? "同步中"
+    : (!accountCredentialsConfigured ? "metadata-only" : (balanceTotal !== null ? "full snapshot" : "balance unavailable"));
+  const accountSnapshotBadgeLabel = runtimeStatusPending
+    ? "syncing"
+    : accountSummary?.degraded
+      ? "degraded"
+      : (!accountCredentialsConfigured ? "metadata-only" : (accountSummary?.health?.connected ? "connected" : "review"));
+  const accountSnapshotBadgeTone = runtimeStatusPending
+    ? getStatusTone("pending")
+    : accountSummary?.degraded
+      ? getStatusTone("degraded")
+      : (!accountCredentialsConfigured ? getStatusTone("warning") : healthTone);
+  const executionStatusPostureLabel = runtimeStatusPending
+    ? "⏳ 整體狀態：同步中"
+    : (executionSurfaceContract?.live_ready ? "✅ 整體狀態：Ready" : `🚫 整體狀態：Blocked · ${currentLiveBlockerLabel}`);
+  const executionStatusPostureSummary = runtimeStatusPending
+    ? "正在同步 /api/status；在 runtime truth 到位前，不要把 fresh / healthy 當成 readiness。"
+    : executionSurfaceContract?.live_ready
+      ? `目前可部署；資料 ${metadataFreshnessLabel}、對帳 ${reconciliationHeadlineLabel}、帳戶 ${accountVisibilityStatusLabel}。`
+      : `先依 current-live blocker 行動；資料 ${metadataFreshnessLabel}、對帳 ${reconciliationHeadlineLabel}、帳戶 ${accountVisibilityStatusLabel} 只代表觀測層狀態，不等於可部署。`;
+  const executionStatusPostureTone = runtimeStatusPending
+    ? getStatusTone("pending")
+    : (executionSurfaceContract?.live_ready ? getStatusTone("ready") : getStatusTone("blocked"));
 
   return (
     <div className="execution-shell app-page-shell text-white">
@@ -471,7 +515,7 @@ export default function ExecutionStatus() {
         className="app-page-header"
         eyebrow="執行狀態 / Diagnostics"
         title="先看 blocker，再決定是否介入"
-        subtitle="這頁只保留執行診斷：可部署、資料新鮮度、對帳與恢復。"
+        subtitle="這頁只保留執行診斷：先看 current-live blocker；fresh / healthy 只代表觀測層正常，不代表可部署。"
         statusPills={(
           <>
             <ExecutionPill>{executionStatusSymbolLabel}</ExecutionPill>
@@ -512,6 +556,12 @@ export default function ExecutionStatus() {
           </div>
         )}
 
+        <div className={`rounded-[20px] border px-4 py-4 text-sm ${executionStatusPostureTone}`}>
+          <div className="text-[11px] uppercase tracking-[0.22em] opacity-80">overall execution posture</div>
+          <div className="mt-2 text-lg font-semibold text-white">{executionStatusPostureLabel}</div>
+          <div className="mt-2 leading-6 opacity-90">{executionStatusPostureSummary}</div>
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <ExecutionMetricCard
             title="可部署"
@@ -529,17 +579,15 @@ export default function ExecutionStatus() {
           />
           <ExecutionMetricCard
             title="對帳狀態"
-            value={reconciliationStatusLabel}
-            detail={runtimeStatusPending
-              ? "正在向 /api/status 取得 reconciliation / recovery 摘要。"
-              : `${executionReconciliation?.summary || "尚未取得 reconciliation 摘要。"} · ${lifecycleSummary}`}
+            value={reconciliationHeadlineLabel}
+            detail={reconciliationHeadlineDetail}
             toneClass={reconciliationTone.includes("rose") ? "text-rose-200" : reconciliationTone.includes("amber") ? "text-amber-100" : "text-white"}
           />
           <ExecutionMetricCard
-            title="帳戶快照"
-            value={accountBalanceSummaryValue}
-            detail={`${accountBalanceSummaryFree} · 倉位 ${accountSummary?.position_count ?? positions.length} · 掛單 ${accountSummary?.open_order_count ?? openOrders.length}`}
-            toneClass={healthTone.includes("rose") ? "text-rose-200" : healthTone.includes("amber") ? "text-amber-100" : "text-white"}
+            title="帳戶可見性"
+            value={accountVisibilityMetricValue}
+            detail={accountVisibilityDetail}
+            toneClass={accountSnapshotBadgeTone.includes("rose") ? "text-rose-200" : accountSnapshotBadgeTone.includes("amber") ? "text-amber-100" : "text-white"}
           />
         </div>
       </ExecutionHero>
@@ -613,8 +661,8 @@ export default function ExecutionStatus() {
                 <div className="text-lg font-semibold text-white">帳戶快照</div>
                 <div className="mt-1 text-sm text-slate-400">captured {formatTime(accountSummary?.captured_at)} · {accountSummary?.requested_symbol || "—"} → {accountSummary?.normalized_symbol || "—"}</div>
               </div>
-              <div className={`rounded-full border px-2.5 py-1 text-[11px] ${healthTone}`}>
-                {accountSummary?.degraded ? "degraded" : accountSummary?.health?.connected ? "connected" : "review"}
+              <div className={`rounded-full border px-2.5 py-1 text-[11px] ${accountSnapshotBadgeTone}`}>
+                {accountSnapshotBadgeLabel}
               </div>
             </div>
 
@@ -673,7 +721,7 @@ export default function ExecutionStatus() {
 
         <div className="space-y-4">
           <section className="rounded-[24px] border border-white/8 bg-[#151b31] p-4">
-            <div className="text-lg font-semibold text-white">場館狀態</div>
+            <div className="text-lg font-semibold text-white">場館前提與新鮮度</div>
             <div className="mt-1 text-sm text-slate-400">generated {formatTime(metadataSmoke?.generated_at)} · governance {metadataGovernance?.status || "unknown"}</div>
             <div className={`mt-3 rounded-2xl border px-3 py-3 text-sm ${metadataTone}`}>
               <div className="font-semibold">freshness {metadataFreshnessLabel}</div>
@@ -688,7 +736,7 @@ export default function ExecutionStatus() {
           </section>
 
           <details className="execution-card">
-            <summary className="cursor-pointer list-none text-lg font-semibold text-white">進階診斷（需要時再展開）</summary>
+            <summary className="cursor-pointer list-none text-lg font-semibold text-white">進階診斷（Surface contract / timeline；需要時再展開）</summary>
             <div className="mt-4 space-y-3 text-sm text-slate-300">
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">Surface contract</div>

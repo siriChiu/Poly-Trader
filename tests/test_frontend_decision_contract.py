@@ -221,6 +221,25 @@ def test_execution_surfaces_keep_current_live_blocker_ahead_of_venue_readiness_c
     assert console_source.index('liveRuntimeTruth?.deployment_blocker_reason') < console_source.index('liveReadyBlockers[0]')
     assert 'liveReadyBlockers.length > 0 ? liveReadyBlockers.join(" · ") : primaryRuntimeMessage' not in status_source
 
+
+def test_execution_status_contextualizes_observability_signals_under_blocked_posture():
+    source = _read("pages/ExecutionStatus.tsx")
+    required_snippets = [
+        'const reconciliationCoverageLimited = !runtimeStatusPending',
+        'const reconciliationHeadlineLabel = runtimeStatusPending',
+        'limited evidence',
+        'const accountVisibilityMetricValue = runtimeStatusPending',
+        'metadata-only snapshot',
+        'const executionStatusPostureLabel = runtimeStatusPending',
+        'const executionStatusPostureSummary = runtimeStatusPending',
+        'fresh / healthy 只代表觀測層正常，不代表可部署。',
+        'title="帳戶可見性"',
+        '場館前提與新鮮度',
+        '進階診斷（Surface contract / timeline；需要時再展開）',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
 def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces():
     source = _read("pages/Dashboard.tsx")
     required_snippets = [

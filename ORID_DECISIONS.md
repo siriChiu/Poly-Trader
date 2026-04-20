@@ -1,34 +1,30 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-21 06:19:59 CST_
+_最後更新：2026-04-21 06:42:14 CST_
 
 ---
 
-## 心跳 #20260421-0611 ORID
+## 心跳 #20260421-0642 ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31313 / Features=22731 / Labels=63126`；`simulated_pyramid_win=57.23%`。
-- `/api/strategies/{name}` 已補上 `_decorate_strategy_entry()`；Strategy Lab 載入 Auto Leaderboard 策略時，detail payload 不再回退成未裝飾的 raw strategy JSON。
-- current-live blocker：`deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
-- current live bucket truth：`current_live_structure_bucket=CAUTION|structure_quality_caution|q35` / `support=12/50` / `gap=38` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
-- recent pathological slice：`window=500` / `win_rate=12.8%` / `dominant_regime=bull(83.8%)` / `avg_quality=-0.1547` / `avg_pnl=-0.0056` / `alerts=label_imbalance,regime_shift`。
-- leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2783` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
-- 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
+- current-live blocker 仍是 `under_minimum_exact_live_structure_bucket`；`current_live_structure_bucket=CAUTION|structure_quality_caution|q35` / `support=12/50` / `gap=38` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
+- recent canonical window 500 仍是 `distribution_pathology`：`win_rate=12.8%` / `dominant_regime=bull(83.8%)` / `avg_quality=-0.1547` / `avg_pnl=-0.0056` / `alerts=label_imbalance,regime_shift`。
+- Browser QA 看到 `/execution/status` 先前會把 `fresh / healthy / public-only` 與 `blocked` 混在同一層，容易讓 operator 快速掃描時誤讀成「系統整體沒問題」。
+- 本輪已修正 `/execution/status`：加入 `overall execution posture`、把 `healthy + no_runtime_order` 降成 `limited evidence`、把私有憑證缺失改成 `metadata-only snapshot / metadata-only`、並把 `fresh / healthy` 明確定義成 observability-only。
+- 驗證已通過：`pytest tests/test_frontend_decision_contract.py -q`、`cd web && npm run build`、browser `/execution/status`、browser console 無 JS errors。
 
 ### R｜感受直覺
-- 這輪最需要防止的誤讀，是把 `12/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；目前 live blocker 已切到 `under_minimum_exact_live_structure_bucket`。
-- current live 已落在 `bull/CAUTION/CAUTION|structure_quality_caution|q35`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket 或舊 bucket 當成現在的 runtime 真相。
+- 如果 diagnostics page 把 `fresh / healthy` 與 `blocked` 放成同級訊號，operator 很容易在錯的情緒下做錯介入判斷。
+- 這不是單純 copy polish；它會直接影響「現在可不可以動 Bot / 放不放行」的現場判斷品質。
 
 ### I｜意義洞察
-1. **Strategy Lab detail route 也必須遵守 leaderboard 的 canonical DQ contract**：若 detail endpoint 只回 raw saved JSON，operator 在 `/lab` 點進排行榜策略後就會看到失真的 score / DQ 摘要，形成「排行榜可信、工作區不可信」的 split-brain。
-2. **support accumulation ≠ deployment closure**：`support=12/50` 且 `support_route_verdict=exact_bucket_present_but_below_minimum` 只代表治理前進，還不能把 reference patch 升級成 runtime patch。
-3. **真正主 blocker 已切到 current live bucket exact-support shortage**：recent pathological slice 仍是造成 `under_minimum_exact_live_structure_bucket` 的根因切片，不能再沿用 breaker-first 舊敘事。
-4. **docs overwrite sync 的角色是護欄，不是主 blocker**：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。
+1. **Execution diagnostics 的第一任務不是報綠燈，而是避免假綠燈。** `fresh` 只能代表 observability 正常，不能蓋掉 current-live blocker。
+2. **`healthy` 但 `no_runtime_order` 不等於「已驗證無誤」。** 若沒有 runtime order 可核對，正確語義應是 `limited evidence`，不是完整 reconciliation closure。
+3. **帳戶可見性必須說人話。** 在沒有私有憑證時，operator 需要看到的是 `metadata-only snapshot`，而不是模糊的 `review` 或只剩 technical detail。
 
 ### D｜決策行動
-- **Owner**：current-live runtime / governance lane
-- **Action**：維持 current-live exact-support truth，並把 current live bucket support 與 recommended patch 持續顯示為 `reference_only`；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。
-- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
-- **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。
-- **If fail**：只要 docs / UI 再次把 `under_minimum_exact_live_structure_bucket` 誤寫成 breaker-first、漏掉 current live bucket rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。
+- **Owner**：execution diagnostics / blocker-visibility lane
+- **Action**：把 `/execution/status` 固定為 blocker-first posture；保留 exact-support shortage 作為唯一 current-live blocker，並將 observability、reconciliation coverage、account visibility 明確降級成次級訊號。
+- **Artifacts**：`web/src/pages/ExecutionStatus.tsx`、`tests/test_frontend_decision_contract.py`、`ARCHITECTURE.md`、`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`
+- **Verify**：`pytest tests/test_frontend_decision_contract.py -q`、`cd web && npm run build`、browser `/execution/status`
+- **If fail**：只要 `/execution/status` 再次讓 `fresh / healthy / venue` 文案與 current-live blocker 同級，或把 `no_runtime_order` 包裝成完整驗證，就把這條 lane 升級回 blocker-truth regression。
