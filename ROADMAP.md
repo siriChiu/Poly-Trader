@@ -1,16 +1,16 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-20 21:47:52 CST_
+_最後更新：2026-04-20 22:08:27 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=31263 / Features=22681 / Labels=63050`
+- **fast heartbeat #20260420-2200 已完成 collect + diagnostics refresh**
+  - `Raw=31266 / Features=22684 / Labels=63051`
   - `deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `window=500` / `win_rate=5.0%` / `dominant_regime=bull(90.0%)` / `avg_quality=-0.2169` / `avg_pnl=-0.0075` / `alerts=label_imbalance,regime_concentration,regime_shift`
+  - `window=500` / `win_rate=5.2%` / `dominant_regime=bull(90.0%)` / `avg_quality=-0.2155` / `avg_pnl=-0.0074` / `alerts=label_imbalance,regime_concentration,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
@@ -31,7 +31,7 @@ _最後更新：2026-04-20 21:47:52 CST_
 
 ### 目標 B：持續把 recent canonical pathological slice 當成 current blocker 根因來鑽
 **目前真相**
-- `window=500` / `win_rate=5.0%` / `dominant_regime=bull(90.0%)` / `avg_quality=-0.2169` / `avg_pnl=-0.0075` / `alerts=label_imbalance,regime_concentration,regime_shift`
+- `window=500` / `win_rate=5.2%` / `dominant_regime=bull(90.0%)` / `avg_quality=-0.2155` / `avg_pnl=-0.0074` / `alerts=label_imbalance,regime_concentration,regime_shift`
 **成功標準**
 - drift / probe / docs 能直接指出 pathological slice、adverse streak 與 top feature shifts，而不是退回 generic leaderboard / venue 摘要。
 
@@ -45,7 +45,7 @@ _最後更新：2026-04-20 21:47:52 CST_
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2734` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2737` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**

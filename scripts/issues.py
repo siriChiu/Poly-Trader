@@ -25,6 +25,14 @@ CANONICAL_DUPLICATE_IDS = {
     "P1_q15_exact_support_stalled_under_breaker": ["#H_AUTO_CURRENT_BUCKET_SUPPORT"],
 }
 
+# Some canonical titles intentionally stay human-curated (for example the
+# breaker-first narrative). Others embed live metrics/window sizes and must be
+# refreshed from the newer machine-generated duplicate to stay current-state-only.
+CANONICAL_TITLE_REFRESH_IDS = {
+    "P0_recent_distribution_pathology",
+    "P1_q15_exact_support_stalled_under_breaker",
+}
+
 
 def _sync_action_fields(issue: dict) -> dict:
     synced = dict(issue)
@@ -40,12 +48,23 @@ def _sync_action_fields(issue: dict) -> dict:
 
 def _merge_issue_records(primary: dict, duplicate: dict) -> dict:
     merged = dict(primary)
-    if not merged.get("title") and duplicate.get("title"):
-        merged["title"] = duplicate["title"]
+    duplicate_title = duplicate.get("title")
+    primary_title = merged.get("title")
 
     primary_updated_at = merged.get("updated_at")
     duplicate_updated_at = duplicate.get("updated_at")
     duplicate_is_newer = bool(duplicate_updated_at and (not primary_updated_at or duplicate_updated_at >= primary_updated_at))
+
+    if not primary_title and duplicate_title:
+        merged["title"] = duplicate_title
+    elif (
+        duplicate_is_newer
+        and duplicate_title
+        and duplicate_title != primary_title
+        and merged.get("id") in CANONICAL_TITLE_REFRESH_IDS
+    ):
+        merged["title"] = duplicate_title
+
     if duplicate.get("action") and (not merged.get("action") or duplicate_is_newer):
         merged["action"] = duplicate.get("action")
 

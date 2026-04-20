@@ -1,25 +1,25 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-20 21:47:52 CST_
+_最後更新：2026-04-20 22:08:27 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=31263 / Features=22681 / Labels=63050`
+- **最新 fast heartbeat #20260420-2200 已完成 collect + diagnostics refresh**
+  - `Raw=31266 / Features=22684 / Labels=63051`
   - `simulated_pyramid_win=57.18%`
 - **canonical current-live blocker 已切到 current-live exact-support truth**
   - `deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
   - `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`
 - **recent canonical window 仍是 distribution pathology**
-  - `window=500` / `win_rate=5.0%` / `dominant_regime=bull(90.0%)` / `avg_quality=-0.2169` / `avg_pnl=-0.0075` / `alerts=label_imbalance,regime_concentration,regime_shift`
+  - `window=500` / `win_rate=5.2%` / `dominant_regime=bull(90.0%)` / `avg_quality=-0.2155` / `avg_pnl=-0.0074` / `alerts=label_imbalance,regime_concentration,regime_shift`
 - **leaderboard / governance 仍維持 dual-role contract**
   - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2734` / `archive_window_coverage_pct=0.0`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2737` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
@@ -41,10 +41,10 @@ _最後更新：2026-04-20 21:47:52 CST_
   - python scripts/hb_predict_probe.py
   - python scripts/live_decision_quality_drilldown.py
 
-### P0. recent canonical 250 rows remains a distribution pathology
-- 目前真相：`window=500` / `win_rate=5.0%` / `dominant_regime=bull(90.0%)` / `avg_quality=-0.2169` / `avg_pnl=-0.0075`
-- 病態切片：`alerts=label_imbalance,regime_concentration,regime_shift` / `tail_streak=19` / `low_variance=9` / `low_distinct=10` / `null_heavy=10`
-- 下一步：直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['label_imbalance', 'regime_concentration', 'regime_shift'], win_rate=0.0500, delta_vs_full=-0.5745, dominant_regime=bull(90.00%), interpretation=distribution_pathology, avg_pnl=-0.0075, avg_quality=-0.2169, avg_dd_penalty=0.3218, spot_long_win_rate=0.0000, feature_diag=variance:9/56, frozen:0, compressed:9, expected_static:3, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=19x1 since 2026-04-19 10:13:18.192660 -> 2026-04-19 14:14:04.455344, adverse_streak=244x0 since 2026-04-17 14:20:34.233058 -> 2026-04-18 13:43:25.809469, prev_win_rate=0.796, delta_vs_prev=-0.746, prev_quality=0.3721, quality_delta_vs_prev=-0.589, prev_pnl=0.0064, pnl_delta_vs_prev=-0.0139, top_shift_examples=feat_eye(0.8483→-1.6503,Δσ=0.6522)/feat_local_top_score(0.3998→0.292,Δσ=0.4799)/feat_vwap_dev(-0.2529→-0.1496,Δσ=0.4582), new_compressed=feat_vwap_dev, compressed_examples=feat_body(0.0001/500)/feat_ear(0.006/498)/feat_tongue(0.0091/500), expected_static_examples=feat_dxy[weekend_macro_market_closed]/feat_nq_return_24h[weekend_macro_market_closed]/feat_vix[weekend_macro_market_closed], overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-19 13:36:32.320348:1:bull:0.3643/2026-04-19 13:57:18.278666:1:bull:0.3829/2026-04-19 14:14:04.455344:1:bull:0.4035, adverse_examples=2026-04-18 13:00:00.000000:0:bull:-0.2342/2026-04-18 13:36:43.970223:0:bull:-0.2119/2026-04-18 13:43:25.809469:0:bull:-0.2137
+### P0. recent canonical window 500 rows = distribution_pathology
+- 目前真相：`window=500` / `win_rate=5.2%` / `dominant_regime=bull(90.0%)` / `avg_quality=-0.2155` / `avg_pnl=-0.0074`
+- 病態切片：`alerts=label_imbalance,regime_concentration,regime_shift` / `tail_streak=20` / `low_variance=9` / `low_distinct=10` / `null_heavy=10`
+- 下一步：直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['label_imbalance', 'regime_concentration', 'regime_shift'], win_rate=0.0520, delta_vs_full=-0.5725, dominant_regime=bull(90.00%), interpretation=distribution_pathology, avg_pnl=-0.0074, avg_quality=-0.2155, avg_dd_penalty=0.3219, spot_long_win_rate=0.0000, feature_diag=variance:9/56, frozen:0, compressed:9, expected_static:3, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=20x1 since 2026-04-19 10:13:18.192660 -> 2026-04-19 15:05:58.166926, adverse_streak=243x0 since 2026-04-17 14:21:59.654807 -> 2026-04-18 13:43:25.809469, prev_win_rate=0.794, delta_vs_prev=-0.742, prev_quality=0.3706, quality_delta_vs_prev=-0.5861, prev_pnl=0.0063, pnl_delta_vs_prev=-0.0137, top_shift_examples=feat_eye(0.8543→-1.6453,Δσ=0.6525)/feat_local_top_score(0.4006→0.2921,Δσ=0.4829)/feat_vwap_dev(-0.2526→-0.1496,Δσ=0.4567), new_compressed=feat_vwap_dev, compressed_examples=feat_body(0.0001/500)/feat_ear(0.006/498)/feat_tongue(0.0092/500), expected_static_examples=feat_dxy[weekend_macro_market_closed]/feat_nq_return_24h[weekend_macro_market_closed]/feat_vix[weekend_macro_market_closed], overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-19 13:57:18.278666:1:bull:0.3829/2026-04-19 14:14:04.455344:1:bull:0.4035/2026-04-19 15:05:58.166926:1:bull:0.3724, adverse_examples=2026-04-18 13:00:00.000000:0:bull:-0.2342/2026-04-18 13:36:43.970223:0:bull:-0.2119/2026-04-18 13:43:25.809469:0:bull:-0.2137
 - 驗證：
   - python scripts/recent_drift_report.py
   - python scripts/hb_predict_probe.py
@@ -63,7 +63,7 @@ _最後更新：2026-04-20 21:47:52 CST_
   - data/execution_metadata_smoke.json
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2734` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2737` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json

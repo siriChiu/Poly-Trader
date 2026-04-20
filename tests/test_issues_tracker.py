@@ -182,10 +182,10 @@ def test_issue_tracker_save_merges_recent_pathology_duplicate_into_canonical_iss
             "id": "#H_AUTO_RECENT_PATHOLOGY",
             "priority": "P0",
             "status": "open",
-            "title": "recent canonical window 250 rows = distribution_pathology",
+            "title": "recent canonical window 500 rows = distribution_pathology",
             "action": "Use the fresh drift artifact instead of stale manual stats.",
             "summary": {
-                "window": "250",
+                "window": "500",
                 "win_rate": 0.016,
                 "dominant_regime_share": 0.988,
                 "avg_quality": -0.2188,
@@ -202,8 +202,9 @@ def test_issue_tracker_save_merges_recent_pathology_duplicate_into_canonical_iss
     payload = json.loads(target.read_text())
     assert [issue["id"] for issue in payload["issues"]] == ["P0_recent_distribution_pathology"]
     saved = payload["issues"][0]
+    assert saved["title"] == "recent canonical window 500 rows = distribution_pathology"
     assert saved["action"] == "Use the fresh drift artifact instead of stale manual stats."
-    assert saved["summary"]["window"] == "250"
+    assert saved["summary"]["window"] == "500"
     assert saved["summary"]["win_rate"] == 0.016
     assert saved["summary"]["dominant_regime"] == "bull"
     assert saved["summary"]["avg_quality"] == -0.2188
