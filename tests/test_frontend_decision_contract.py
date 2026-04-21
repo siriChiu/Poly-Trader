@@ -247,6 +247,8 @@ def test_execution_surfaces_show_current_bucket_support_and_runtime_vs_calibrati
 
     shared_snippets = [
         'const supportRowsLabel = runtimeStatusPending',
+        'const supportRouteVerdictLabel = runtimeStatusPending',
+        'const supportGovernanceRouteLabel = runtimeStatusPending',
         'const supportAlignmentCountsLabel = runtimeStatusPending',
         'const supportAlignmentSummaryLabel = runtimeStatusPending',
         'runtime/calibration ${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`;',
@@ -258,12 +260,16 @@ def test_execution_surfaces_show_current_bucket_support_and_runtime_vs_calibrati
 
     for snippet in [
         'support {supportRowsLabel}',
+        'support route {supportRouteVerdictLabel}',
+        'governance route {supportGovernanceRouteLabel}',
         'alignment {supportAlignmentSummaryLabel}',
     ]:
         assert snippet in status_source
 
     for snippet in [
         '>{supportRowsLabel}</div>',
+        'support route {supportRouteVerdictLabel}',
+        'governance route {supportGovernanceRouteLabel}',
         '>{supportAlignmentSummaryLabel}</div>',
     ]:
         assert snippet in console_source
@@ -322,11 +328,14 @@ def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_r
         'const dashboardVenueBlockers = Array.isArray(executionSurfaceContract?.live_ready_blockers)',
         'const dashboardVenueBlockersLabel = runtimeStatusPending',
         'dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ")',
+        'const dashboardSupportRouteVerdictLabel = runtimeStatusPending',
+        'const dashboardSupportGovernanceRouteLabel = runtimeStatusPending',
         'const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || accountSummary?.mode || "unknown");',
         'const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || accountSummary?.venue || "—");',
         'const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "Ready" : "Blocked");',
         'value={dashboardExecutionStatusValue}',
         'current live blocker {dashboardCurrentLiveBlockerLabel}',
+        'support route {dashboardSupportRouteVerdictLabel} · governance route {dashboardSupportGovernanceRouteLabel}',
         'venue blockers {dashboardVenueBlockersLabel}',
     ]
     for snippet in required_snippets:
@@ -536,6 +545,10 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'VenueReadinessSummary',
         'const liveRuntimeClosureState = liveDecisionStatus?.runtime_closure_state ?? liveRuntimeTruth?.runtime_closure_state ?? null;',
         'const liveRuntimeClosureSummary = liveDecisionStatus?.runtime_closure_summary ?? liveRuntimeTruth?.runtime_closure_summary ?? null;',
+        'const liveSupportRouteVerdict = liveDecisionStatus?.support_route_verdict ?? liveRuntimeTruth?.support_route_verdict ?? null;',
+        'const liveSupportGovernanceRoute = liveDecisionStatus?.support_governance_route ?? liveRuntimeTruth?.support_governance_route ?? null;',
+        'const liveSupportRouteSummaryLabel = liveExecutionSyncPending',
+        'support route ${liveSupportRouteVerdict || "—"} · governance route ${liveSupportGovernanceRoute || "—"}`;',
         'const liveRouting = liveRuntimeTruth?.sleeve_routing ?? null;',
         'const liveActiveSleeves = Array.isArray(liveRouting?.active_sleeves) ? liveRouting.active_sleeves : [];',
         'const liveInactiveSleeves = Array.isArray(liveRouting?.inactive_sleeves) ? liveRouting.inactive_sleeves : [];',
@@ -621,7 +634,11 @@ def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
         'recommendedPatch.recommended_profile',
         'recommendedPatch.reference_patch_scope',
         'recommendedPatch.reference_source',
-        'recommendedPatch.support_route_verdict',
+        'support_governance_route?: string | null;',
+        'const supportRouteLabel = supportRouteVerdict || recommendedPatch?.support_route_verdict || null;',
+        'const supportGovernanceRouteLabel = supportGovernanceRoute || recommendedPatch?.support_governance_route || null;',
+        'support route {supportRouteLabel || "—"}',
+        'governance route ${supportGovernanceRouteLabel}',
         'recommendedPatch.recommended_action',
     ]
     for snippet in required_snippets:
@@ -674,6 +691,8 @@ def test_dashboard_and_strategy_lab_pass_support_alignment_to_compact_live_patho
         'supportAlignmentSummary={liveRuntimeTruth?.support_alignment_summary ?? null}',
         'runtimeExactSupportRows={liveRuntimeTruth?.runtime_exact_support_rows ?? null}',
         'calibrationExactLaneRows={liveRuntimeTruth?.calibration_exact_lane_rows ?? null}',
+        'supportRouteVerdict={liveRuntimeTruth?.support_route_verdict ?? null}',
+        'supportGovernanceRoute={liveRuntimeTruth?.support_governance_route ?? null}',
     ]:
         assert snippet in dashboard_source
     for snippet in [
@@ -681,6 +700,8 @@ def test_dashboard_and_strategy_lab_pass_support_alignment_to_compact_live_patho
         'supportAlignmentSummary={liveSupportAlignmentSummary}',
         'runtimeExactSupportRows={liveRuntimeExactSupportRows}',
         'calibrationExactLaneRows={liveCalibrationExactLaneRows}',
+        'supportRouteVerdict={liveSupportRouteVerdict}',
+        'supportGovernanceRoute={liveSupportGovernanceRoute}',
     ]:
         assert snippet in strategy_lab_source
 

@@ -184,6 +184,7 @@ interface StrategyLabLiveDecisionResponse {
   runtime_closure_summary?: string | null;
   q15_exact_supported_component_patch_applied?: boolean | null;
   support_route_verdict?: string | null;
+  support_governance_route?: string | null;
   support_progress?: {
     status?: string | null;
     current_rows?: number | null;
@@ -256,6 +257,8 @@ interface StrategyLabRuntimeStatusResponse {
       calibration_exact_lane_rows?: number | null;
       support_alignment_status?: string | null;
       support_alignment_summary?: string | null;
+      support_route_verdict?: string | null;
+      support_governance_route?: string | null;
       calibration_exact_lane_alerts?: string[] | null;
       decision_quality_recent_pathology_applied?: boolean | null;
       decision_quality_recent_pathology_reason?: string | null;
@@ -2349,6 +2352,8 @@ export default function StrategyLab() {
   const liveInactiveSleeves = Array.isArray(liveRouting?.inactive_sleeves) ? liveRouting.inactive_sleeves : [];
   const liveSupportAlignmentStatus = liveDecisionStatus?.support_alignment_status ?? liveRuntimeTruth?.support_alignment_status ?? null;
   const liveSupportAlignmentSummary = liveDecisionStatus?.support_alignment_summary ?? liveRuntimeTruth?.support_alignment_summary ?? null;
+  const liveSupportRouteVerdict = liveDecisionStatus?.support_route_verdict ?? liveRuntimeTruth?.support_route_verdict ?? null;
+  const liveSupportGovernanceRoute = liveDecisionStatus?.support_governance_route ?? liveRuntimeTruth?.support_governance_route ?? null;
   const liveRuntimeExactSupportRows = liveDecisionStatus?.runtime_exact_support_rows ?? liveRuntimeTruth?.runtime_exact_support_rows ?? null;
   const liveCalibrationExactLaneRows = liveDecisionStatus?.calibration_exact_lane_rows ?? liveRuntimeTruth?.calibration_exact_lane_rows ?? null;
   const liveRuntimeClosureState = liveDecisionStatus?.runtime_closure_state ?? liveRuntimeTruth?.runtime_closure_state ?? null;
@@ -2427,6 +2432,9 @@ export default function StrategyLab() {
   const currentLiveBlockerSummaryLabel = liveExecutionSyncPending
     ? "正在同步 live blocker / runtime closure"
     : humanizeExecutionReason(currentLiveBlockerSummary);
+  const liveSupportRouteSummaryLabel = liveExecutionSyncPending
+    ? "support route 同步中 · governance route 同步中"
+    : `support route ${liveSupportRouteVerdict || "—"} · governance route ${liveSupportGovernanceRoute || "—"}`;
   const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
   const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;
@@ -2791,7 +2799,12 @@ export default function StrategyLab() {
               <ExecutionWorkspaceMetric
                 label="current live blocker"
                 value={currentLiveBlockerLabel}
-                detail={currentLiveBlockerSummaryLabel}
+                detail={(
+                  <>
+                    <div>{currentLiveBlockerSummaryLabel}</div>
+                    <div className="opacity-70">{liveSupportRouteSummaryLabel}</div>
+                  </>
+                )}
               />
               <ExecutionWorkspaceMetric
                 label="venue blockers"
@@ -2822,6 +2835,8 @@ export default function StrategyLab() {
               supportAlignmentSummary={liveSupportAlignmentSummary}
               runtimeExactSupportRows={liveRuntimeExactSupportRows}
               calibrationExactLaneRows={liveCalibrationExactLaneRows}
+              supportRouteVerdict={liveSupportRouteVerdict}
+              supportGovernanceRoute={liveSupportGovernanceRoute}
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">

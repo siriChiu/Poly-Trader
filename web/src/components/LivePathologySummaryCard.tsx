@@ -52,6 +52,7 @@ type RecommendedPatchSummary = {
   min_collapse_flags?: number | null;
   preferred_support_cohort?: string | null;
   support_route_verdict?: string | null;
+  support_governance_route?: string | null;
   support_route_deployable?: boolean | null;
   current_live_structure_bucket?: string | null;
   current_live_structure_bucket_rows?: number | null;
@@ -79,6 +80,8 @@ type Props = {
   supportAlignmentSummary?: string | null;
   runtimeExactSupportRows?: number | null;
   calibrationExactLaneRows?: number | null;
+  supportRouteVerdict?: string | null;
+  supportGovernanceRoute?: string | null;
 };
 
 const isFiniteNumber = (value: number | null | undefined): value is number => (
@@ -136,6 +139,8 @@ export default function LivePathologySummaryCard({
   supportAlignmentSummary,
   runtimeExactSupportRows,
   calibrationExactLaneRows,
+  supportRouteVerdict,
+  supportGovernanceRoute,
 }: Props) {
   if (!summary) return null;
 
@@ -173,6 +178,8 @@ export default function LivePathologySummaryCard({
     : supportAlignmentStatus === "aligned"
       ? "text-emerald-200/90"
       : "text-slate-200/80";
+  const supportRouteLabel = supportRouteVerdict || recommendedPatch?.support_route_verdict || null;
+  const supportGovernanceRouteLabel = supportGovernanceRoute || recommendedPatch?.support_governance_route || null;
 
   if (compact) {
     return (
@@ -232,7 +239,8 @@ export default function LivePathologySummaryCard({
               {recommendedPatch?.gap_to_minimum != null ? ` · gap ${recommendedPatch.gap_to_minimum}` : ""}
             </div>
             <div className="text-sky-50/80">
-              {recommendedPatch?.support_route_verdict || formatPatchStatus(recommendedPatch?.status) || "patch 狀態未提供"}
+              {supportRouteLabel || formatPatchStatus(recommendedPatch?.status) || "patch 狀態未提供"}
+              {supportGovernanceRouteLabel ? ` · governance ${supportGovernanceRouteLabel}` : ""}
             </div>
           </div>
         </div>
@@ -366,7 +374,8 @@ export default function LivePathologySummaryCard({
               {recommendedPatch.gap_to_minimum != null ? ` · gap ${recommendedPatch.gap_to_minimum}` : ""}
             </div>
             <div>
-              support route {recommendedPatch.support_route_verdict || "—"}
+              support route {supportRouteLabel || "—"}
+              {supportGovernanceRouteLabel ? ` · governance route ${supportGovernanceRouteLabel}` : ""}
               {recommendedPatch.preferred_support_cohort ? ` · cohort ${recommendedPatch.preferred_support_cohort}` : ""}
             </div>
             {recommendedPatch.reason && <div>{recommendedPatch.reason}</div>}

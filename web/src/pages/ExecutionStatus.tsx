@@ -45,6 +45,8 @@ type LiveRuntimeTruth = {
   support_alignment_status?: string | null;
   support_alignment_summary?: string | null;
   support_rows_text?: string | null;
+  support_route_verdict?: string | null;
+  support_governance_route?: string | null;
   runtime_exact_support_rows?: number | null;
   calibration_exact_lane_rows?: number | null;
   sleeve_routing?: SleeveRoutingState | null;
@@ -466,6 +468,12 @@ export default function ExecutionStatus() {
   const supportRowsLabel = runtimeStatusPending
     ? "同步中"
     : (liveRuntimeTruth?.support_rows_text || "—");
+  const supportRouteVerdictLabel = runtimeStatusPending
+    ? "同步中"
+    : (liveRuntimeTruth?.support_route_verdict || "—");
+  const supportGovernanceRouteLabel = runtimeStatusPending
+    ? "同步中"
+    : (liveRuntimeTruth?.support_governance_route || "—");
   const supportAlignmentCountsLabel = runtimeStatusPending
     ? "runtime/calibration 同步中"
     : `runtime/calibration ${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`;
@@ -626,6 +634,8 @@ export default function ExecutionStatus() {
                 <div className="mt-2 text-slate-400">raw reason {liveRuntimeTruth?.allowed_layers_raw_reason || "—"}</div>
                 <div className="text-slate-400">final reason {liveRuntimeTruth?.allowed_layers_reason || "—"}</div>
                 <div className="mt-2 text-slate-400">support {supportRowsLabel}</div>
+                <div className="text-slate-400">support route {supportRouteVerdictLabel}</div>
+                <div className="text-slate-400">governance route {supportGovernanceRouteLabel}</div>
                 <div className="text-slate-400">{supportAlignmentCountsLabel}</div>
                 <div className="text-slate-400">alignment {supportAlignmentSummaryLabel}</div>
               </div>

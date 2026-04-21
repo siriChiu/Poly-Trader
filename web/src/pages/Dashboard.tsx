@@ -59,6 +59,7 @@ type LiveRuntimeTruth = {
   execution_guardrail_reason?: string | null;
   support_rows_text?: string | null;
   support_route_verdict?: string | null;
+  support_governance_route?: string | null;
   q15_exact_supported_component_patch_applied?: boolean | null;
   runtime_exact_support_rows?: number | null;
   calibration_exact_lane_rows?: number | null;
@@ -1043,6 +1044,12 @@ export default function Dashboard() {
   const dashboardVenueBlockersLabel = runtimeStatusPending
     ? "同步中"
     : (dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "none");
+  const dashboardSupportRouteVerdictLabel = runtimeStatusPending
+    ? "同步中"
+    : (liveRuntimeTruth?.support_route_verdict || "—");
+  const dashboardSupportGovernanceRouteLabel = runtimeStatusPending
+    ? "同步中"
+    : (liveRuntimeTruth?.support_governance_route || "—");
   const adviceCardExecutionActionState: "syncing" | "blocked" | "ready" = runtimeStatusPending || !liveRuntimeTruth
     ? "syncing"
     : (dashboardCurrentLiveBlocker ? "blocked" : "ready");
@@ -1269,6 +1276,8 @@ export default function Dashboard() {
             supportAlignmentSummary={liveRuntimeTruth?.support_alignment_summary ?? null}
             runtimeExactSupportRows={liveRuntimeTruth?.runtime_exact_support_rows ?? null}
             calibrationExactLaneRows={liveRuntimeTruth?.calibration_exact_lane_rows ?? null}
+            supportRouteVerdict={liveRuntimeTruth?.support_route_verdict ?? null}
+            supportGovernanceRoute={liveRuntimeTruth?.support_governance_route ?? null}
           />
         )}
       >
@@ -1279,6 +1288,7 @@ export default function Dashboard() {
             <>
               <div>{executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()} · {executionVenueLabel}</div>
               <div>current live blocker {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
+              <div className="opacity-70">support route {dashboardSupportRouteVerdictLabel} · governance route {dashboardSupportGovernanceRouteLabel}</div>
               <div className="opacity-70">venue blockers {dashboardVenueBlockersLabel}</div>
             </>
           )}
