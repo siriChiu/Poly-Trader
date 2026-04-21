@@ -668,11 +668,14 @@ def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout()
     source = _read("pages/StrategyLab.tsx")
     required_snippets = [
         'const extractStrategyLeaderboardList = (payload: any): StrategyEntry[] => {',
-        'const fetchStrategyLeaderboardPayload = async (endpoint: string) => {',
-        'const fallbackResponse = await window.fetch(endpoint, {',
+        'const fetchStrategyLabEndpointJson = async (endpoint: string) => {',
+        'const sameOriginResponse = await window.fetch(endpoint, {',
         'credentials: "same-origin"',
-        'const res = await fetchStrategyLeaderboardPayload(endpoint) as any;',
+        'return fetchApi(endpoint);',
+        'const res = await fetchStrategyLabEndpointJson(endpoint) as any;',
         'const nextStrategies = extractStrategyLeaderboardList(res);',
+        'const detail = await fetchStrategyLabEndpointJson(`/api/strategies/${encodeURIComponent(strategyName)}`) as StrategyEntry;',
+        'const data = await fetchStrategyLabEndpointJson("/api/strategy_data_range")',
         'if (initialLoading || strategies.length > 0) {',
         'loadLeaderboard(false);',
         'if (selectedStrategy || loadingStrategyName || strategies.length === 0) {',

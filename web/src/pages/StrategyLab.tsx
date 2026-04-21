@@ -1356,34 +1356,22 @@ const extractStrategyLeaderboardList = (payload: any): StrategyEntry[] => {
   return Array.isArray(payload) ? payload : [];
 };
 
-const fetchStrategyLeaderboardPayload = async (endpoint: string) => {
-  let primaryPayload: any = null;
-  try {
-    primaryPayload = await fetchApi(endpoint);
-  } catch {
-    primaryPayload = null;
+const fetchStrategyLabEndpointJson = async (endpoint: string) => {
+  if (typeof window !== "undefined") {
+    try {
+      const sameOriginResponse = await window.fetch(endpoint, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      if (sameOriginResponse.ok) {
+        return await sameOriginResponse.json();
+      }
+    } catch {
+      // Fall back to fetchApi below when same-origin proxy is unavailable.
+    }
   }
 
-  if (extractStrategyLeaderboardList(primaryPayload).length > 0 || typeof window === "undefined") {
-    return primaryPayload;
-  }
-
-  try {
-    const fallbackResponse = await window.fetch(endpoint, {
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-    });
-    if (!fallbackResponse.ok) {
-      return primaryPayload;
-    }
-    const fallbackPayload = await fallbackResponse.json();
-    if (extractStrategyLeaderboardList(fallbackPayload).length > 0) {
-      return fallbackPayload;
-    }
-    return primaryPayload ?? fallbackPayload;
-  } catch {
-    return primaryPayload;
-  }
+  return fetchApi(endpoint);
 };
 
 const snapshotHistoryKey = (prefix: "strategy" | "model", row: LeaderboardHistoryRow, index: number) => {
@@ -1850,7 +1838,7 @@ export default function StrategyLab() {
       progress: toStageProgress(0, STAGE_TOTALS.select_strategy),
     });
     try {
-      const detail = await fetchApi(`/api/strategies/${encodeURIComponent(strategyName)}`) as StrategyEntry;
+      const detail = await fetchStrategyLabEndpointJson(`/api/strategies/${encodeURIComponent(strategyName)}`) as StrategyEntry;
       updateBackgroundStage({
         mode: "select_strategy",
         label: `正在載入策略：${strategyName}`,
@@ -1885,7 +1873,7 @@ export default function StrategyLab() {
   const loadLeaderboard = async (forceRefresh = false) => {
     const endpoint = `/api/strategies/leaderboard${forceRefresh ? "?refresh=true" : ""}`;
     try {
-      const res = await fetchStrategyLeaderboardPayload(endpoint) as any;
+      const res = await fetchStrategyLabEndpointJson(endpoint) as any;
       const nextStrategies = extractStrategyLeaderboardList(res);
       const nextQuadrantPoints = Array.isArray(res?.quadrant_points) ? res.quadrant_points : [];
       const nextMeta = {
@@ -1964,7 +1952,7 @@ export default function StrategyLab() {
 
   const loadStrategyDataRange = async () => {
     try {
-      const data = await fetchApi("/api/strategy_data_range") as { start?: string | null; end?: string | null; count?: number; span_days?: number | null };
+      const data = await fetchStrategyLabEndpointJson("/api/strategy_data_range") as { start?: string | null; end?: string | null; count?: number; span_days?: number | null };
       setStrategyDataRange(data ?? null);
       if (data?.end) {
         // 保留 applyBacktestPreset("2y") 作為預設策略視窗語意，但這裡直接傳 fresh range，避免 React state 尚未同步時落回舊 snapshot 日期。

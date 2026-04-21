@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 
 from backtesting import strategy_lab
 from scripts import rescan_models_and_refresh_strategy_leaderboard as rescan_module
@@ -210,3 +211,16 @@ def test_api_strategy_leaderboard_dedupes_cross_model_duplicate_auto_strategies(
     assert payload["count"] == 1
     assert len(payload["strategies"]) == 1
     assert payload["strategies"][0]["name"] == "Auto Leaderboard · 重掃 catboost Hybrid #01"
+
+
+def test_strategy_lab_prefers_same_origin_strategy_fetches_for_dev_runtime():
+    source = (Path(__file__).resolve().parents[1] / "web/src/pages/StrategyLab.tsx").read_text(encoding="utf-8")
+    required_snippets = [
+        "const fetchStrategyLabEndpointJson = async (endpoint: string) => {",
+        "const sameOriginResponse = await window.fetch(endpoint, {",
+        "const res = await fetchStrategyLabEndpointJson(endpoint) as any;",
+        "const data = await fetchStrategyLabEndpointJson(\"/api/strategy_data_range\")",
+        "const detail = await fetchStrategyLabEndpointJson(`/api/strategies/${encodeURIComponent(strategyName)}`) as StrategyEntry;",
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
