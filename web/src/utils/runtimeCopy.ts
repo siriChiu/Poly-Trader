@@ -22,6 +22,42 @@ const CURRENT_LIVE_BLOCKER_LABEL_MAPPINGS: Array<[string, string]> = [
   ["exact_live_lane_toxic_sub_bucket_current_bucket", "exact lane toxic bucket"],
 ];
 
+const EXECUTION_OPERATOR_LABEL_MAPPINGS: Record<string, Array<[string, string]>> = {
+  status: [
+    ["blocked_preview", "阻塞中"],
+    ["inactive_preview", "待條件恢復"],
+    ["ready_control_plane", "可建立 run"],
+    ["resume_available", "可恢復 run"],
+    ["not-started", "尚未啟動"],
+    ["running", "運行中"],
+    ["paused", "已暫停"],
+    ["stopped", "已停止"],
+  ],
+  start_status: [
+    ["blocked_preview", "目前阻塞"],
+    ["inactive_preview", "待條件恢復"],
+    ["ready_control_plane", "可建立 run"],
+    ["resume_available", "可恢復 run"],
+    ["already_running", "run 進行中"],
+  ],
+  event: [
+    ["no event", "尚無事件"],
+    ["waiting", "等待首筆事件"],
+    ["started", "已啟動"],
+    ["resumed", "已恢復"],
+    ["paused", "已暫停"],
+    ["stopped", "已停止"],
+  ],
+  preview: [
+    ["unavailable", "待建立"],
+    ["shared_symbol_preview_only", "共享帳戶預覽"],
+    ["warning_commitment_unpriced", "共享預覽待補價"],
+  ],
+  allocation_rule: [
+    ["equal_split_active_sleeves", "active sleeves 均分"],
+  ],
+};
+
 export function humanizeExecutionReason(value?: string | null): string {
   const normalized = String(value || "").trim();
   if (!normalized) return "尚未提供 blocker 摘要。";
@@ -37,6 +73,26 @@ export function humanizeCurrentLiveBlockerLabel(value?: string | null): string {
   if (!normalized) return "unavailable";
   const lower = normalized.toLowerCase();
   for (const [token, label] of CURRENT_LIVE_BLOCKER_LABEL_MAPPINGS) {
+    if (lower.includes(token)) return label;
+  }
+  return normalized.replace(/[_|]+/g, " ").trim();
+}
+
+export function humanizeExecutionOperatorLabel(
+  value?: string | null,
+  kind: "status" | "start_status" | "event" | "preview" | "allocation_rule" = "status",
+): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    if (kind === "event") return "尚無事件";
+    if (kind === "preview") return "待建立";
+    if (kind === "allocation_rule") return "active sleeves 均分";
+    if (kind === "start_status") return "待條件恢復";
+    if (kind === "status") return "尚未啟動";
+    return "—";
+  }
+  const lower = normalized.toLowerCase();
+  for (const [token, label] of EXECUTION_OPERATOR_LABEL_MAPPINGS[kind] || []) {
     if (lower.includes(token)) return label;
   }
   return normalized.replace(/[_|]+/g, " ").trim();

@@ -54,7 +54,7 @@ def test_execution_status_keeps_diagnostics_collapsed_by_default_and_reuses_shar
         "ExecutionHero",
         "ExecutionSectionCard",
         "ExecutionMetricCard",
-        "進階診斷（需要時再展開）",
+        "進階診斷（Surface contract / timeline；需要時再展開）",
         "Venue lanes",
         "Timeline",
         "<details",

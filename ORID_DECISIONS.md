@@ -1,18 +1,18 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-21 13:36:48 CST_
+_最後更新：2026-04-21 14:53:01 CST_
 
 ---
 
-## 心跳 #20260421-htest ORID
+## 心跳 #fast ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31364 / Features=22782 / Labels=63224`；`simulated_pyramid_win=57.22%`。
+- collect + diagnostics refresh 完成：`Raw=31367 / Features=22785 / Labels=63238`；`simulated_pyramid_win=57.23%`。
 - current-live blocker：`deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - current live bucket truth：`current_live_structure_bucket=CAUTION|structure_quality_caution|q35` / `support=12/50` / `gap=38` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
-- recent pathological slice：`window=100` / `win_rate=100.0%` / `dominant_regime=chop(88.0%)` / `avg_quality=+0.5737` / `avg_pnl=+0.0162` / `alerts=constant_target,regime_shift`。
+- recent pathological slice：`window=100` / `win_rate=100.0%` / `dominant_regime=chop(88.0%)` / `avg_quality=+0.6025` / `avg_pnl=+0.0177` / `alerts=constant_target,regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2834` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2837` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
 
 ### R｜感受直覺

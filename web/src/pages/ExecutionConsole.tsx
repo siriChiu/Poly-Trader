@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { fetchApi, useApi } from "../hooks/useApi";
 import { ExecutionHero, ExecutionMetricCard, ExecutionPill, ExecutionSectionCard } from "../components/execution/ExecutionSurface";
-import { humanizeExecutionReason } from "../utils/runtimeCopy";
+import { humanizeExecutionOperatorLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
 
 type SurfaceInfo = {
   route?: string;
@@ -597,12 +597,21 @@ export default function ExecutionConsole() {
   const balanceFree = typeof accountSummary?.balance?.free === "number" ? accountSummary.balance.free : null;
   const balanceTotal = typeof accountSummary?.balance?.total === "number" ? accountSummary.balance.total : null;
   const accountCredentialsConfigured = Boolean(accountSummary?.health?.credentials_configured ?? executionSummary?.health?.credentials_configured);
+  const accountSnapshotUnavailableLabel = !accountCredentialsConfigured
+    ? "metadata-only snapshot"
+    : "balance unavailable";
+  const accountSnapshotUnavailableReason = !accountCredentialsConfigured
+    ? "僅同步公開 metadata；private balance 待交易所憑證。"
+    : "balance unavailable in latest account snapshot";
   const accountBalanceUnavailableLabel = !accountCredentialsConfigured
-    ? "public-only / metadata only"
+    ? "待 private balance"
     : "balance unavailable";
   const accountBalanceUnavailableReason = !accountCredentialsConfigured
-    ? "private balance unavailable until exchange credentials are configured"
-    : "balance unavailable in latest account snapshot";
+    ? "需 private balance 後才能計算 bot 預算與 deployable capital。"
+    : "balance unavailable in latest execution snapshot";
+  const sharedLedgerUnavailableLabel = !accountCredentialsConfigured
+    ? "尚無 run ledger"
+    : "shared ledger unavailable";
   const allocatedCapital = balanceTotal != null && balanceFree != null ? Math.max(balanceTotal - balanceFree, 0) : null;
   const lastOrder = guardrails?.last_order ?? null;
   const lastReject = guardrails?.last_reject ?? null;
@@ -655,40 +664,45 @@ export default function ExecutionConsole() {
   const liveReadyStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const balanceTotalLabel = runtimeStatusPending
     ? "同步中"
-    : (balanceTotal !== null ? `${formatNumber(balanceTotal)} ${balanceCurrency}` : accountBalanceUnavailableLabel);
+    : (balanceTotal !== null ? `${formatNumber(balanceTotal)} ${balanceCurrency}` : accountSnapshotUnavailableLabel);
   const balanceBreakdownLabel = runtimeStatusPending
     ? "正在向 /api/status 取得 account snapshot。"
     : (balanceFree !== null && allocatedCapital !== null
       ? `可用 ${formatNumber(balanceFree)} · 已分配 ${formatNumber(allocatedCapital)}`
-      : accountBalanceUnavailableReason);
+      : accountSnapshotUnavailableReason);
   const sharedPnlLabel = runsPending
     ? `同步中 ${balanceCurrency}`
-    : (runLedgerPreviews.length > 0 ? `${formatSignedNumber(totalUnrealizedPnl)} ${balanceCurrency}` : "preview unavailable");
+    : (runLedgerPreviews.length > 0 ? `${formatSignedNumber(totalUnrealizedPnl)} ${balanceCurrency}` : sharedLedgerUnavailableLabel);
   const sharedPnlSummaryLabel = runsPending
     ? "正在向 /api/execution/runs 取得共享盈虧預覽。"
-    : (runLedgerPreviews.length > 0 ? `共享帳戶預覽 · ${executionRunRecords.length} 個 run` : "尚未取得共享盈虧預覽");
+    : (runLedgerPreviews.length > 0 ? `共享帳戶預覽 · ${executionRunRecords.length} 個 run` : "先啟動 run 才會顯示共享盈虧預覽");
   const capitalInUseLabel = executionConsoleInitialSyncPending
     ? `同步中 ${balanceCurrency}`
     : (runLedgerPreviews.length > 0
       ? `${formatNumber(totalCapitalInUse)} ${balanceCurrency}`
-      : (allocatedCapital !== null ? `${formatNumber(allocatedCapital)} ${balanceCurrency}` : accountBalanceUnavailableLabel));
+      : (allocatedCapital !== null ? `${formatNumber(allocatedCapital)} ${balanceCurrency}` : sharedLedgerUnavailableLabel));
   const capitalInUseSummaryLabel = executionConsoleInitialSyncPending
     ? "正在同步共享帳戶預覽 / 預算。"
     : (runLedgerPreviews.length > 0
       ? "依目前 run ledger preview 匯總"
-      : (allocatedCapital !== null ? "暫以帳戶已分配資金表示" : accountBalanceUnavailableReason));
+      : (allocatedCapital !== null ? "暫以帳戶已分配資金表示" : "先啟動 run；若要顯示共享資金占用仍需 private balance。"));
   const deployableCapitalLabel = overviewPending || runtimeStatusPending
     ? `同步中 ${balanceCurrency}`
     : (deployableCapital !== null ? `${formatNumber(deployableCapital)} ${balanceCurrency}` : accountBalanceUnavailableLabel);
+  const allocationRuleLabel = humanizeExecutionOperatorLabel(
+    executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule,
+    "allocation_rule",
+  ) || "active sleeves 均分";
   const deployableCapitalSummaryLabel = overviewPending || runtimeStatusPending
     ? "正在向 /api/status 與 /api/execution/overview 取得 deployable capital。"
     : (deployableCapital !== null
-      ? `allocation ${executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves"}`
-      : accountBalanceUnavailableReason);
+      ? `allocation ${allocationRuleLabel}`
+      : `${accountBalanceUnavailableReason}${hasBlockedState ? " blocker 解除後才會得到真正 deployable capital。" : ""}`);
+  const configuredSleeveCount = executionStrategySummary?.total_sleeves ?? executionOverviewSummary?.total_profiles ?? executionProfileCards.length;
   const runningRunsLabel = runsPending ? "同步中" : String(executionRunsSummary?.running_runs ?? 0);
   const runningRunsSummaryLabel = runsPending
     ? "正在向 /api/execution/runs 取得 run control / events。"
-    : `獲利中 ${profitableRuns} · paused ${executionRunsSummary?.paused_runs ?? 0} · total ${executionRunsSummary?.total_runs ?? executionRunRecords.length}`;
+    : `running ${executionRunsSummary?.running_runs ?? 0} · 獲利中 ${profitableRuns} · total ${executionRunsSummary?.total_runs ?? executionRunRecords.length} · 已配置 sleeves ${configuredSleeveCount}`;
   const executionStrategySummaryLabel = overviewPending
     ? "正在向 /api/execution/overview 取得 strategy / sleeve coverage。"
     : `saved strategies ${executionStrategySummary?.strategy_count ?? 0} · covered sleeves ${executionStrategySummary?.covered_sleeves ?? 0}/${executionStrategySummary?.total_sleeves ?? 0} · missing ${(executionStrategySummary?.missing_sleeves || []).join(" / ") || "none"}`;
@@ -962,7 +976,7 @@ export default function ExecutionConsole() {
           detail={deployableCapitalSummaryLabel}
         />
         <ExecutionMetricCard
-          title="運行中 Bot"
+          title="運行中 Run"
           value={runningRunsLabel}
           detail={runningRunsSummaryLabel}
         />
@@ -980,12 +994,12 @@ export default function ExecutionConsole() {
               <div>
                 <div className="text-lg font-semibold text-white">我的 Bot</div>
                 <div className="mt-1 text-sm text-slate-400">
-                  已建立 Bot 的盈利能力與共享帳戶預覽。
+                  已配置 sleeve 策略與共享帳戶預覽；是否真的運行請看「運行中 Run」。
                 </div>
               </div>
               <div className="text-right text-xs text-slate-400">
                 <div>策略來源 {overviewPending ? "同步中" : (executionStrategySummary?.strategy_count ?? 0)}</div>
-                <div>資金規則 {overviewPending ? "同步中" : (executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule || "equal_split_active_sleeves")}</div>
+                <div>資金規則 {overviewPending ? "同步中" : allocationRuleLabel}</div>
               </div>
             </div>
             {(overviewLoading || overviewError) && (
@@ -1007,16 +1021,34 @@ export default function ExecutionConsole() {
                 const ledgerPreview = linkedRun?.runtime_binding_snapshot?.shared_symbol_ledger_preview ?? null;
                 const profileSharedPreviewValue = typeof ledgerPreview?.unrealized_pnl === "number"
                   ? `${formatSignedNumber(ledgerPreview.unrealized_pnl)} ${ledgerPreview?.currency || balanceCurrency}`
-                  : "preview unavailable";
+                  : (linkedRun ? "尚無共享預覽" : "未啟動 run");
                 const profileSharedPreviewDetail = typeof ledgerPreview?.capital_in_use === "number"
                   ? `資金使用中 ${formatNumber(ledgerPreview.capital_in_use)} ${ledgerPreview?.currency || balanceCurrency}`
-                  : "資金使用中 preview unavailable";
+                  : (linkedRun ? "run 已建立，但尚未鏡像共享資金占用" : "先啟動 run 才會建立共享帳戶預覽");
                 const profileBudgetValue = typeof card.planned_budget_amount === "number"
                   ? `${formatNumber(card.planned_budget_amount)} ${balanceCurrency}`
                   : accountBalanceUnavailableLabel;
                 const profileBudgetDetail = typeof card.planned_budget_amount === "number"
                   ? `win ${formatPercent(profileStrategyBinding?.avg_expected_win_rate, 1)}`
                   : `${accountBalanceUnavailableReason} · win ${formatPercent(profileStrategyBinding?.avg_expected_win_rate, 1)}`;
+                const profileLifecycleLabel = humanizeExecutionOperatorLabel(
+                  linkedRun?.state_label || linkedRun?.state || card.lifecycle_status || card.activation_status,
+                  "status",
+                );
+                const profileLatestEventLabel = humanizeExecutionOperatorLabel(
+                  linkedRun?.last_event_type || card.control_contract?.latest_event_type,
+                  "event",
+                );
+                const profilePositionStatusLabel = humanizeExecutionOperatorLabel(linkedRun?.state_label || linkedRun?.state, "status");
+                const profileNextActionLabel = humanizeExecutionOperatorLabel(card.control_contract?.start_status, "start_status");
+                const profileNextActionEventLabel = humanizeExecutionOperatorLabel(
+                  linkedRun?.latest_event?.event_type || linkedRun?.last_event_type || "waiting",
+                  "event",
+                );
+                const profilePreviewStatusLabel = humanizeExecutionOperatorLabel(
+                  ledgerPreview?.budget_alignment_status || ledgerPreview?.ownership_status,
+                  "preview",
+                );
                 const canStart = Boolean(profileId) && ["ready_control_plane", "resume_available"].includes(card.control_contract?.start_status || "");
                 const canPause = Boolean(linkedRun?.action_contract?.can_pause && linkedRun?.run_id);
                 const canStop = Boolean(linkedRun?.action_contract?.can_stop && linkedRun?.run_id);
@@ -1030,7 +1062,7 @@ export default function ExecutionConsole() {
                             {profileStrategyBinding?.primary_sleeve_label || card.strategy_binding?.title || "未分類"}
                           </span>
                           <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(linkedRun?.state || card.lifecycle_status || card.activation_status)}`}>
-                            {linkedRun?.state_label || linkedRun?.state || card.lifecycle_status || card.activation_status || "unknown"}
+                            {profileLifecycleLabel}
                           </span>
                           {ledgerPreview && (
                             <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-cyan-100">
@@ -1041,7 +1073,7 @@ export default function ExecutionConsole() {
                       </div>
                       <div className="text-right text-[11px] text-slate-500">
                         <div>{card.profile_id || card.key || "—"}</div>
-                        <div>{linkedRun?.last_event_type || card.control_contract?.latest_event_type || "no event"}</div>
+                        <div>{profileLatestEventLabel}</div>
                       </div>
                     </div>
 
@@ -1075,19 +1107,19 @@ export default function ExecutionConsole() {
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500">倉位 / 掛單</div>
                         <div className="mt-1 text-sm font-semibold text-white">{card.symbol_scoped_position_count ?? 0} / {card.symbol_scoped_open_order_count ?? 0}</div>
-                        <div className="text-[11px] text-slate-400">{linkedRun?.state_label || linkedRun?.state || "not-started"}</div>
+                        <div className="text-[11px] text-slate-400">{profilePositionStatusLabel}</div>
                       </div>
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500">下一步</div>
-                        <div className="mt-1 text-sm font-semibold text-white">{card.control_contract?.start_status || "—"}</div>
-                        <div className="text-[11px] text-slate-400">{linkedRun?.latest_event?.event_type || linkedRun?.last_event_type || "waiting"}</div>
+                        <div className="mt-1 text-sm font-semibold text-white">{profileNextActionLabel}</div>
+                        <div className="text-[11px] text-slate-400">{profileNextActionEventLabel}</div>
                       </div>
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-slate-400">
                       <span>routing {card.routing_reason || "—"}</span>
                       <span>start {card.control_contract?.start_reason || "—"}</span>
-                      <span>預覽 {ledgerPreview?.budget_alignment_status || ledgerPreview?.ownership_status || "unavailable"}</span>
+                      <span>預覽 {profilePreviewStatusLabel}</span>
                       <span>event {linkedRun?.latest_event?.message || linkedRun?.last_event_message || card.control_contract?.latest_event_message || "尚未建立 run event"}</span>
                     </div>
 
@@ -1157,10 +1189,10 @@ export default function ExecutionConsole() {
                   : accountBalanceUnavailableReason;
                 const runSharedPreviewValue = typeof ledgerPreview?.unrealized_pnl === "number"
                   ? `${formatSignedNumber(ledgerPreview.unrealized_pnl)} ${ledgerPreview?.currency || balanceCurrency}`
-                  : "preview unavailable";
+                  : "尚無共享預覽";
                 const runSharedPreviewDetail = typeof ledgerPreview?.capital_in_use === "number"
                   ? `資金使用中 ${formatNumber(ledgerPreview.capital_in_use)} ${ledgerPreview?.currency || balanceCurrency}`
-                  : "資金使用中 preview unavailable";
+                  : "run 已建立，但尚未鏡像共享資金占用";
                 return (
                   <div key={run.run_id || `${run.profile_id}-${run.start_time}`} className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4">
                     <div className="flex items-start justify-between gap-3">

@@ -106,7 +106,7 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         'const { data: executionOverview, loading: overviewLoading, error: overviewError, refresh: refreshExecutionOverview } = useApi<ExecutionOverviewResponse>("/api/execution/overview", 60000);',
         'const { data: executionRuns, loading: runsLoading, error: runsError, refresh: refreshExecutionRuns } = useApi<ExecutionRunsResponse>("/api/execution/runs", 60000);',
         'function formatSignedNumber(value: number | null | undefined, digits = 2): string {',
-        'import { humanizeExecutionReason } from "../utils/runtimeCopy";',
+        'import { humanizeExecutionOperatorLabel, humanizeExecutionReason } from "../utils/runtimeCopy";',
         'const liveReadinessSummary = runtimeStatusPending',
         'liveRuntimeTruth?.deployment_blocker_reason',
         '尚未提供 readiness 訊息。',
@@ -124,7 +124,7 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         '共享盈虧預覽',
         '資金使用中',
         '可部署資金',
-        '運行中 Bot',
+        '運行中 Run',
         '我的 Bot',
         '運行中',
         '應急手動操作',
@@ -184,7 +184,12 @@ def test_execution_console_explains_public_only_balance_and_capital_unavailabili
     required_snippets = [
         'const accountCredentialsConfigured = Boolean(accountSummary?.health?.credentials_configured ?? executionSummary?.health?.credentials_configured);',
         'const accountBalanceUnavailableLabel = !accountCredentialsConfigured',
-        'private balance unavailable until exchange credentials are configured',
+        'const accountSnapshotUnavailableLabel = !accountCredentialsConfigured',
+        'const sharedLedgerUnavailableLabel = !accountCredentialsConfigured',
+        'metadata-only snapshot',
+        '待 private balance',
+        '僅同步公開 metadata；private balance 待交易所憑證。',
+        '需 private balance 後才能計算 bot 預算與 deployable capital。',
         'balanceTotal !== null',
         'accountBalanceUnavailableLabel',
         'accountBalanceUnavailableReason',
@@ -203,14 +208,53 @@ def test_execution_console_bot_cards_do_not_render_null_capital_as_em_dash_usdt(
         'const runBudgetValue = typeof run.budget_amount === "number"',
         'const runSharedPreviewValue = typeof ledgerPreview?.unrealized_pnl === "number"',
         'const runSharedPreviewDetail = typeof ledgerPreview?.capital_in_use === "number"',
-        '"preview unavailable"',
-        '"資金使用中 preview unavailable"',
+        '尚無共享預覽',
+        '未啟動 run',
+        '先啟動 run 才會建立共享帳戶預覽',
+        'run 已建立，但尚未鏡像共享資金占用',
     ]
     for snippet in required_snippets:
         assert snippet in source
     assert '{formatSignedNumber(ledgerPreview?.unrealized_pnl)} {ledgerPreview?.currency || balanceCurrency}' not in source
     assert '{formatNumber(card.planned_budget_amount)} {balanceCurrency}' not in source
     assert '{formatNumber(run.budget_amount)} {run.capital_currency || balanceCurrency}' not in source
+    assert '"preview unavailable"' not in source
+    assert '"資金使用中 preview unavailable"' not in source
+
+
+def test_execution_console_humanizes_raw_control_plane_placeholders_on_bot_cards():
+    console_source = _read("pages/ExecutionConsole.tsx")
+    runtime_copy_source = _read("utils/runtimeCopy.ts")
+
+    required_console_snippets = [
+        'humanizeExecutionOperatorLabel',
+        'const allocationRuleLabel =',
+        'const profileLifecycleLabel =',
+        'const profileLatestEventLabel =',
+        'const profilePositionStatusLabel =',
+        'const profileNextActionLabel =',
+        'const profileNextActionEventLabel =',
+        'const profilePreviewStatusLabel =',
+    ]
+    for snippet in required_console_snippets:
+        assert snippet in console_source
+
+    required_runtime_copy_snippets = [
+        '["blocked_preview", "阻塞中"]',
+        '["inactive_preview", "待條件恢復"]',
+        '["not-started", "尚未啟動"]',
+        '["no event", "尚無事件"]',
+        '["waiting", "等待首筆事件"]',
+        '["equal_split_active_sleeves", "active sleeves 均分"]',
+    ]
+    for snippet in required_runtime_copy_snippets:
+        assert snippet in runtime_copy_source
+
+    assert 'blocked_preview' not in console_source
+    assert 'inactive_preview' not in console_source
+    assert '"no event"' not in console_source
+    assert '"not-started"' not in console_source
+    assert '"equal_split_active_sleeves"' not in console_source
 
 
 def test_execution_surfaces_keep_current_live_blocker_ahead_of_venue_readiness_copy():
@@ -383,7 +427,7 @@ def test_execution_surfaces_humanize_blocker_labels_and_reasons_via_shared_runti
     strategy_lab_source = _read("pages/StrategyLab.tsx")
 
     assert 'import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";' in dashboard_source
-    assert 'import { humanizeExecutionReason } from "../utils/runtimeCopy";' in execution_console_source
+    assert 'import { humanizeExecutionOperatorLabel, humanizeExecutionReason } from "../utils/runtimeCopy";' in execution_console_source
     assert 'import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";' in execution_status_source
     assert 'import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";' in strategy_lab_source
 

@@ -1,16 +1,16 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-21 13:36:48 CST_
+_最後更新：2026-04-21 14:53:01 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #20260421-htest 已完成 collect + diagnostics refresh**
-  - `Raw=31364 / Features=22782 / Labels=63224`
+- **fast heartbeat #fast 已完成 collect + diagnostics refresh**
+  - `Raw=31367 / Features=22785 / Labels=63238`
   - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `window=100` / `win_rate=100.0%` / `dominant_regime=chop(88.0%)` / `avg_quality=+0.5737` / `avg_pnl=+0.0162` / `alerts=constant_target,regime_shift`
+  - `window=100` / `win_rate=100.0%` / `dominant_regime=chop(88.0%)` / `avg_quality=+0.6025` / `avg_pnl=+0.0177` / `alerts=constant_target,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
@@ -31,7 +31,7 @@ _最後更新：2026-04-21 13:36:48 CST_
 
 ### 目標 B：持續把 recent canonical pathological slice 當成 current blocker 根因來鑽
 **目前真相**
-- `window=100` / `win_rate=100.0%` / `dominant_regime=chop(88.0%)` / `avg_quality=+0.5737` / `avg_pnl=+0.0162` / `alerts=constant_target,regime_shift`
+- `window=100` / `win_rate=100.0%` / `dominant_regime=chop(88.0%)` / `avg_quality=+0.6025` / `avg_pnl=+0.0177` / `alerts=constant_target,regime_shift`
 **成功標準**
 - drift / probe / docs 能直接指出 pathological slice、adverse streak 與 top feature shifts，而不是退回 generic leaderboard / venue 摘要。
 
@@ -45,7 +45,7 @@ _最後更新：2026-04-21 13:36:48 CST_
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2834` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2837` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
