@@ -44,7 +44,9 @@ def test_execution_status_route_and_page_contract():
         'const primaryRuntimeMessage = runtimeStatusPending',
         'humanizeExecutionReason(',
         'const metadataFreshnessLabel = runtimeStatusPending',
-        'const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");',
+        'const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(',
+        'const reconciliationStatusLabel = runtimeStatusPending',
+        'humanizeExecutionReconciliationStatusLabel(',
         'const venueBlockersLabel = runtimeStatusPending',
         'const executionStatusSymbolLabel = runtimeStatusPending ? "同步中" : (runtimeStatus?.symbol || "BTCUSDT");',
         'const executionStatusModeLabel = runtimeStatusPending',
@@ -106,7 +108,10 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         'const { data: executionOverview, loading: overviewLoading, error: overviewError, refresh: refreshExecutionOverview } = useApi<ExecutionOverviewResponse>("/api/execution/overview", 60000);',
         'const { data: executionRuns, loading: runsLoading, error: runsError, refresh: refreshExecutionRuns } = useApi<ExecutionRunsResponse>("/api/execution/runs", 60000);',
         'function formatSignedNumber(value: number | null | undefined, digits = 2): string {',
-        'import { humanizeExecutionOperatorLabel, humanizeExecutionReason } from "../utils/runtimeCopy";',
+        'humanizeExecutionOperatorLabel',
+        'humanizeExecutionReason',
+        'humanizeExecutionReconciliationStatusLabel',
+        'isExecutionReconciliationLimitedEvidence',
         'const liveReadinessSummary = runtimeStatusPending',
         'liveRuntimeTruth?.deployment_blocker_reason',
         '尚未提供 readiness 訊息。',
@@ -288,8 +293,9 @@ def test_execution_surfaces_keep_current_live_blocker_ahead_of_venue_readiness_c
 def test_execution_status_contextualizes_observability_signals_under_blocked_posture():
     source = _read("pages/ExecutionStatus.tsx")
     required_snippets = [
-        'const reconciliationCoverageLimited = !runtimeStatusPending',
+        'const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(',
         'const reconciliationHeadlineLabel = runtimeStatusPending',
+        'humanizeExecutionReconciliationStatusLabel(',
         'limited evidence',
         'const accountVisibilityMetricValue = runtimeStatusPending',
         'metadata-only snapshot',
@@ -356,7 +362,10 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
         'const executionReconciliation = runtimeStatus?.execution_reconciliation ?? null;',
         'const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;',
         'const metadataSmokeFreshnessLabel = runtimeStatusPending',
-        'const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");',
+        'const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(',
+        'const reconciliationStatusLabel = runtimeStatusPending',
+        'humanizeExecutionReconciliationStatusLabel(',
+        '尚未有 runtime order，因此目前只能確認「沒有發現明顯對帳落差」，不可視為完整實單驗證。',
         'const continuityLabel = runtimeStatusPending',
         'const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];',
         'VenueReadinessSummary',
@@ -431,6 +440,8 @@ def test_execution_surfaces_humanize_blocker_labels_and_reasons_via_shared_runti
     runtime_copy_source = _read("utils/runtimeCopy.ts")
     required_runtime_copy_snippets = [
         'export function humanizeExecutionReason(value?: string | null): string {',
+        'export function isExecutionReconciliationLimitedEvidence(',
+        'export function humanizeExecutionReconciliationStatusLabel(',
         'export function humanizeCurrentLiveBlockerLabel(value?: string | null): string {',
         '"under_minimum_exact_live_structure_bucket"',
         '"exact support 未達最小樣本"',
@@ -447,10 +458,22 @@ def test_execution_surfaces_humanize_blocker_labels_and_reasons_via_shared_runti
     execution_status_source = _read("pages/ExecutionStatus.tsx")
     strategy_lab_source = _read("pages/StrategyLab.tsx")
 
-    assert 'import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";' in dashboard_source
-    assert 'import { humanizeExecutionOperatorLabel, humanizeExecutionReason } from "../utils/runtimeCopy";' in execution_console_source
-    assert 'import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";' in execution_status_source
-    assert 'import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";' in strategy_lab_source
+    assert 'humanizeCurrentLiveBlockerLabel' in dashboard_source
+    assert 'humanizeExecutionReason' in dashboard_source
+    assert 'humanizeExecutionReconciliationStatusLabel' in dashboard_source
+    assert 'isExecutionReconciliationLimitedEvidence' in dashboard_source
+    assert 'humanizeExecutionOperatorLabel' in execution_console_source
+    assert 'humanizeExecutionReason' in execution_console_source
+    assert 'humanizeExecutionReconciliationStatusLabel' in execution_console_source
+    assert 'isExecutionReconciliationLimitedEvidence' in execution_console_source
+    assert 'humanizeCurrentLiveBlockerLabel' in execution_status_source
+    assert 'humanizeExecutionReason' in execution_status_source
+    assert 'humanizeExecutionReconciliationStatusLabel' in execution_status_source
+    assert 'isExecutionReconciliationLimitedEvidence' in execution_status_source
+    assert 'humanizeCurrentLiveBlockerLabel' in strategy_lab_source
+    assert 'humanizeExecutionReason' in strategy_lab_source
+    assert 'humanizeExecutionReconciliationStatusLabel' in strategy_lab_source
+    assert 'isExecutionReconciliationLimitedEvidence' in strategy_lab_source
 
     assert 'const dashboardCurrentLiveBlockerLabel = runtimeStatusPending ? "同步中" : (dashboardCurrentLiveBlocker || "unavailable");' not in dashboard_source
     assert 'function humanizeExecutionReason(value?: string | null): string {' not in execution_console_source
@@ -604,7 +627,11 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'const currentLiveBlockerSummaryLabel = liveExecutionSyncPending',
         'humanizeExecutionReason(currentLiveBlockerSummary)',
         'const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
+        'const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(',
+        'const reconciliationStatusLabel = runtimeStatusPending',
+        'humanizeExecutionReconciliationStatusLabel(',
         'const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;',
+        'const liveExecutionSyncSubtitle = liveExecutionSyncPending',
         'const metadataSmokeFreshnessLabel = runtimeStatusPending',
         'const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];',
         'VenueReadinessSummary',
@@ -625,7 +652,7 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         '先選 1 個主 preset，再疊加 modifier；只看摘要，不先讀長說明。',
         '已選取',
         'Live 部署同步',
-        'current live blocker 優先；對帳 healthy 只代表對帳 / runtime mirror 健康，不等於目前可部署。',
+        'subtitle={liveExecutionSyncSubtitle}',
         'current live blocker {currentLiveBlockerLabel}',
         '{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}',
         'const liveScopePathologySummary =',
@@ -653,8 +680,12 @@ def test_strategy_lab_live_sync_card_keeps_blocked_status_ahead_of_reconciliatio
     source = _read("pages/StrategyLab.tsx")
     required_snippets = [
         'const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
+        'const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(',
+        'const reconciliationStatusLabel = runtimeStatusPending',
+        'humanizeExecutionReconciliationStatusLabel(',
         'const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;',
-        'current live blocker 優先；對帳 healthy 只代表對帳 / runtime mirror 健康，不等於目前可部署。',
+        'const liveExecutionSyncSubtitle = liveExecutionSyncPending',
+        'subtitle={liveExecutionSyncSubtitle}',
         'pending: liveExecutionSyncPending,',
         'liveReady: Boolean(executionSurfaceContract?.live_ready),',
         'blocker: currentLiveBlocker,',

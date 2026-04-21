@@ -17,8 +17,14 @@ import { ExecutionWorkspaceMetric, ExecutionWorkspaceSummary } from "../componen
 import { fetchApi, useApi } from "../hooks/useApi";
 import { useGlobalProgressTask } from "../hooks/useGlobalProgress";
 import { getSenseConfig } from "../config/senses";
-import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
-import { humanizeQ15BucketRootCauseAction, humanizeQ15BucketRootCauseLabel } from "../utils/runtimeCopy";
+import {
+  humanizeCurrentLiveBlockerLabel,
+  humanizeExecutionReason,
+  humanizeExecutionReconciliationStatusLabel,
+  isExecutionReconciliationLimitedEvidence,
+  humanizeQ15BucketRootCauseAction,
+  humanizeQ15BucketRootCauseLabel,
+} from "../utils/runtimeCopy";
 
 interface RegimeBreakdownEntry {
   regime: string;
@@ -2487,9 +2493,27 @@ export default function StrategyLab() {
   const liveSupportRouteSummaryLabel = liveExecutionSyncPending
     ? "current bucket 同步中 · gap 同步中 · support route 同步中 · governance route 同步中"
     : `current bucket ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · support route ${liveSupportRouteVerdict || "—"} · governance route ${liveSupportGovernanceRoute || "—"}`;
+  const lifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
+  const lifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
   const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
-  const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
+  const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(
+    executionReconciliation?.status,
+    lifecycleAudit?.stage,
+    lifecycleContract?.artifact_coverage,
+  );
+  const reconciliationStatusLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeExecutionReconciliationStatusLabel(
+      executionReconciliation?.status,
+      lifecycleAudit?.stage,
+      lifecycleContract?.artifact_coverage,
+    );
   const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;
+  const liveExecutionSyncSubtitle = liveExecutionSyncPending
+    ? "current live blocker 優先；正在同步 execution sync / runtime mirror，不等於目前可部署。"
+    : reconciliationCoverageLimited
+      ? "current live blocker 優先；對帳 limited evidence 只代表對帳 / runtime mirror 狀態，不等於目前可部署。"
+      : `current live blocker 優先；對帳 ${reconciliationStatusLabel} 只代表對帳 / runtime mirror 狀態，不等於目前可部署。`;
   const reconciliationCheckedAtLabel = runtimeStatusPending
     ? "正在向 /api/status 取得 execution sync 狀態"
     : (executionReconciliation?.checked_at ? new Date(executionReconciliation.checked_at).toLocaleString("zh-TW") : "尚未取得 /api/status");
@@ -2507,8 +2531,6 @@ export default function StrategyLab() {
   const venueReadinessBlockersLabel = liveExecutionSyncPending
     ? "同步中"
     : (venueReadinessBlockers.length ? venueReadinessBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : humanizeExecutionReason(executionSurfaceContract?.operator_message || "目前沒有額外 venue blocker 摘要"));
-  const lifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
-  const lifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
   const lifecycleArtifactChecklist = Array.isArray(lifecycleContract?.artifact_checklist)
     ? lifecycleContract.artifact_checklist
     : [];
@@ -2831,7 +2853,7 @@ export default function StrategyLab() {
 
             <ExecutionWorkspaceSummary
               title="Live 部署同步"
-              subtitle="current live blocker 優先；對帳 healthy 只代表對帳 / runtime mirror 健康，不等於目前可部署。"
+              subtitle={liveExecutionSyncSubtitle}
               className={executionSyncTone({
                 pending: liveExecutionSyncPending,
                 liveReady: Boolean(executionSurfaceContract?.live_ready),

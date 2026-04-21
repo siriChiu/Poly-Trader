@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { fetchApi, useApi } from "../hooks/useApi";
 import { ExecutionHero, ExecutionMetricCard, ExecutionPill, ExecutionSectionCard } from "../components/execution/ExecutionSurface";
-import { humanizeExecutionOperatorLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
+import {
+  humanizeExecutionOperatorLabel,
+  humanizeExecutionReason,
+  humanizeExecutionReconciliationStatusLabel,
+  isExecutionReconciliationLimitedEvidence,
+} from "../utils/runtimeCopy";
 
 type SurfaceInfo = {
   route?: string;
@@ -574,6 +579,23 @@ export default function ExecutionConsole() {
   const metadataSmokeFreshnessLabel = runtimeStatusPending
     ? "同步中"
     : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
+  const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(
+    executionReconciliation?.status,
+    lifecycleAudit?.stage,
+    lifecycleContract?.artifact_coverage,
+  );
+  const reconciliationStatusLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeExecutionReconciliationStatusLabel(
+      executionReconciliation?.status,
+      lifecycleAudit?.stage,
+      lifecycleContract?.artifact_coverage,
+    );
+  const reconciliationSummaryLabel = runtimeStatusPending
+    ? "正在向 /api/status 取得 reconciliation / recovery 摘要。"
+    : reconciliationCoverageLimited
+      ? `${executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得 reconciliation 摘要。"} · 尚未有 runtime order，因此目前只能確認「沒有發現明顯對帳落差」，不可視為完整實單驗證。`
+      : (executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得 reconciliation 摘要。");
   const supportAlignmentLabel = runtimeStatusPending ? "同步中" : (liveRuntimeTruth?.support_alignment_status || "unavailable");
   const supportRowsLabel = runtimeStatusPending
     ? "同步中"
@@ -1474,8 +1496,8 @@ export default function ExecutionConsole() {
             </div>
             <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
               <div className="text-[11px] uppercase tracking-wide text-slate-500">Reconciliation / recovery</div>
-              <div className="mt-2 text-base font-semibold text-white">{runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable")}</div>
-              <div className="mt-2">{runtimeStatusPending ? "正在向 /api/status 取得 reconciliation / recovery 摘要。" : (executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得 reconciliation 摘要。")}</div>
+              <div className="mt-2 text-base font-semibold text-white">{reconciliationStatusLabel}</div>
+              <div className="mt-2">{reconciliationSummaryLabel}</div>
             </div>
           </div>
         </div>

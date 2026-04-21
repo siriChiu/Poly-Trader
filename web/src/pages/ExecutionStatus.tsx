@@ -2,8 +2,14 @@ import { useMemo } from "react";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { useApi } from "../hooks/useApi";
 import { ExecutionHero, ExecutionMetricCard, ExecutionPill, ExecutionSectionCard } from "../components/execution/ExecutionSurface";
-import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
-import { humanizeQ15BucketRootCauseAction, humanizeQ15BucketRootCauseLabel } from "../utils/runtimeCopy";
+import {
+  humanizeCurrentLiveBlockerLabel,
+  humanizeExecutionReason,
+  humanizeExecutionReconciliationStatusLabel,
+  isExecutionReconciliationLimitedEvidence,
+  humanizeQ15BucketRootCauseAction,
+  humanizeQ15BucketRootCauseLabel,
+} from "../utils/runtimeCopy";
 
 type SurfaceInfo = {
   route?: string;
@@ -449,10 +455,18 @@ export default function ExecutionStatus() {
   }, [lifecycleAudit, lifecycleContract]);
   const readinessTone = getStatusTone(runtimeStatusPending ? "pending" : (executionSurfaceContract?.live_ready ? "ready" : liveRuntimeTruth?.deployment_blocker || "blocked"));
   const metadataTone = getStatusTone(metadataFreshness?.status);
-  const reconciliationCoverageLimited = !runtimeStatusPending
-    && (executionReconciliation?.status || "").toLowerCase() === "healthy"
-    && (lifecycleAudit?.stage === "no_runtime_order" || lifecycleContract?.artifact_coverage === "not_applicable");
-  const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
+  const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(
+    executionReconciliation?.status,
+    lifecycleAudit?.stage,
+    lifecycleContract?.artifact_coverage,
+  );
+  const reconciliationStatusLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeExecutionReconciliationStatusLabel(
+      executionReconciliation?.status,
+      lifecycleAudit?.stage,
+      lifecycleContract?.artifact_coverage,
+    );
   const reconciliationHeadlineLabel = runtimeStatusPending
     ? "同步中"
     : (reconciliationCoverageLimited ? "limited evidence" : reconciliationStatusLabel);

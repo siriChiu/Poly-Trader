@@ -79,6 +79,31 @@ export function humanizeExecutionReason(value?: string | null): string {
   return normalized.replace(/[_|]+/g, " ").trim();
 }
 
+export function isExecutionReconciliationLimitedEvidence(
+  status?: string | null,
+  lifecycleStage?: string | null,
+  artifactCoverage?: string | null,
+): boolean {
+  const normalizedStatus = String(status || "").trim().toLowerCase();
+  if (normalizedStatus !== "healthy") return false;
+
+  const normalizedStage = String(lifecycleStage || "").trim().toLowerCase();
+  const normalizedCoverage = String(artifactCoverage || "").trim().toLowerCase();
+  return normalizedStage === "no_runtime_order" || normalizedCoverage === "not_applicable";
+}
+
+export function humanizeExecutionReconciliationStatusLabel(
+  status?: string | null,
+  lifecycleStage?: string | null,
+  artifactCoverage?: string | null,
+): string {
+  if (isExecutionReconciliationLimitedEvidence(status, lifecycleStage, artifactCoverage)) {
+    return "limited evidence";
+  }
+  const normalized = String(status || "").trim();
+  return normalized || "unavailable";
+}
+
 export function humanizeCurrentLiveBlockerLabel(value?: string | null): string {
   const normalized = String(value || "").trim();
   if (!normalized) return "unavailable";

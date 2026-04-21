@@ -12,7 +12,12 @@ import { ExecutionWorkspaceMetric, ExecutionWorkspaceSummary } from "../componen
 import { buildWsCandidateUrls, rememberActiveApiBaseFromWsUrl, useApi, fetchApi, prewarmActiveApiBase } from "../hooks/useApi";
 import ConfidenceIndicator from "../components/ConfidenceIndicator";
 import { ALL_SENSES, getSenseConfig } from "../config/senses";
-import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
+import {
+  humanizeCurrentLiveBlockerLabel,
+  humanizeExecutionReason,
+  humanizeExecutionReconciliationStatusLabel,
+  isExecutionReconciliationLimitedEvidence,
+} from "../utils/runtimeCopy";
 
 interface SensesResponse {
   senses: Record<string, any>;
@@ -1122,14 +1127,19 @@ export default function Dashboard() {
   const lastRejectRuleLines = formatGuardrailRules(lastRejectContext?.rules);
   const lastFailure = guardrails?.last_failure ?? null;
   const lastOrder = guardrails?.last_order ?? null;
-  const reconciliationTone = getReconciliationTone(executionReconciliation?.status);
+  const reconciliationLifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
+  const reconciliationRecoveryState = executionReconciliation?.recovery_state ?? null;
+  const reconciliationLifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
+  const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(
+    executionReconciliation?.status,
+    reconciliationLifecycleAudit?.stage,
+    reconciliationLifecycleContract?.artifact_coverage,
+  );
+  const reconciliationTone = getReconciliationTone(reconciliationCoverageLimited ? "warning" : executionReconciliation?.status);
   const reconciliationIssues = Array.isArray(executionReconciliation?.issues) ? executionReconciliation.issues : [];
   const reconciliationLatestTrade = executionReconciliation?.trade_history_alignment?.latest_trade ?? null;
   const reconciliationMatchedOpenOrder = executionReconciliation?.open_order_alignment?.matched_open_order ?? null;
   const reconciliationFreshness = executionReconciliation?.account_snapshot?.freshness ?? null;
-  const reconciliationLifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
-  const reconciliationRecoveryState = executionReconciliation?.recovery_state ?? null;
-  const reconciliationLifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
   const reconciliationArtifactChecklist = Array.isArray(reconciliationLifecycleContract?.artifact_checklist)
     ? reconciliationLifecycleContract.artifact_checklist
     : [];
@@ -1157,10 +1167,18 @@ export default function Dashboard() {
       : rawContinuity?.status === "error"
         ? "border-red-700/40 bg-red-950/30 text-red-200"
         : "border-slate-700/40 bg-slate-950/30 text-slate-300";
-  const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
+  const reconciliationStatusLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeExecutionReconciliationStatusLabel(
+      executionReconciliation?.status,
+      reconciliationLifecycleAudit?.stage,
+      reconciliationLifecycleContract?.artifact_coverage,
+    );
   const reconciliationSummaryLabel = runtimeStatusPending
     ? "正在向 /api/status 取得 reconciliation / recovery 摘要。"
-    : (executionReconciliation?.summary || "尚未收到 reconciliation 摘要。");
+    : reconciliationCoverageLimited
+      ? `${executionReconciliation?.summary || "尚未收到 reconciliation 摘要。"} · 尚未有 runtime order，因此目前只能確認「沒有發現明顯對帳落差」，不可視為完整實單驗證。`
+      : (executionReconciliation?.summary || "尚未收到 reconciliation 摘要。");
   const continuityLabel = runtimeStatusPending
     ? "同步 /api/status 中"
     : rawContinuity?.status === "clean"
