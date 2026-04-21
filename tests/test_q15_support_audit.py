@@ -51,6 +51,45 @@ def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
 
 
 
+def test_summarize_support_progress_uses_current_live_copy_for_non_q15_bucket(tmp_path):
+    for idx in range(2):
+        (tmp_path / f"heartbeat_{910 + idx}_summary.json").write_text(
+            json.dumps(
+                {
+                    "heartbeat": str(910 + idx),
+                    "timestamp": f"2026-04-21T12:0{idx}:00+00:00",
+                    "q15_support_audit": {
+                        "current_live": {
+                            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                            "current_live_structure_bucket_rows": 12,
+                        },
+                        "support_route": {
+                            "verdict": "exact_bucket_present_but_below_minimum",
+                            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                            "minimum_support_rows": 50,
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    progress = q15_support_audit._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q35",
+        support_route_verdict="exact_bucket_present_but_below_minimum",
+        support_governance_route="exact_live_bucket_present_but_below_minimum",
+        live_bucket_rows=12,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "stalled_under_minimum"
+    assert progress["reason"].startswith("current live exact support")
+    assert "q15" not in progress["reason"]
+
+
+
 def test_summarize_support_progress_tracks_bucket_accumulation_across_route_change(tmp_path):
     (tmp_path / "heartbeat_901_summary.json").write_text(
         json.dumps(

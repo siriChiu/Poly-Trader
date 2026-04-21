@@ -313,8 +313,18 @@ def _load_recent_support_history(
         except Exception:
             continue
         diag = payload.get("leaderboard_candidate_diagnostics") or {}
-        if not isinstance(diag, dict):
-            continue
+        if not isinstance(diag, dict) or not diag:
+            legacy_probe = payload.get("leaderboard_candidate_probe") or {}
+            legacy_alignment = legacy_probe.get("alignment") if isinstance(legacy_probe, dict) else {}
+            if isinstance(legacy_alignment, dict) and legacy_alignment:
+                diag = {
+                    "live_current_structure_bucket": legacy_alignment.get("live_current_structure_bucket"),
+                    "live_current_structure_bucket_rows": legacy_alignment.get("live_current_structure_bucket_rows"),
+                    "minimum_support_rows": legacy_alignment.get("minimum_support_rows"),
+                    "support_governance_route": legacy_alignment.get("support_governance_route"),
+                }
+            else:
+                continue
         heartbeat = str(payload.get("heartbeat") or path.stem)
         payload_timestamp = payload.get("timestamp")
         payload_dt = _parse_iso_datetime(payload_timestamp)
@@ -351,6 +361,9 @@ def _load_q15_support_progress_hint(
     minimum_support_rows: int,
 ) -> dict[str, Any] | None:
     q15_audit = _load_json(Q15_SUPPORT_AUDIT_PATH)
+    scope_applicability = q15_audit.get("scope_applicability") or {}
+    if scope_applicability and scope_applicability.get("active_for_current_live_row") is False:
+        return None
     current_live = q15_audit.get("current_live") or {}
     support_route = q15_audit.get("support_route") or {}
     support_progress = support_route.get("support_progress") or {}

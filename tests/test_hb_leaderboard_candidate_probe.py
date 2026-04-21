@@ -294,6 +294,80 @@ def test_summarize_support_progress_prefers_q15_audit_truth(tmp_path, monkeypatc
     assert progress["history"][1]["heartbeat"] == "1014"
 
 
+
+def test_summarize_support_progress_ignores_standby_q15_hint_for_non_q15_current_bucket(tmp_path, monkeypatch):
+    q15_audit = tmp_path / "q15_support_audit.json"
+    q15_audit.write_text(
+        json.dumps(
+            {
+                "scope_applicability": {
+                    "status": "current_live_not_q15_lane",
+                    "active_for_current_live_row": False,
+                    "current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "target_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                },
+                "current_live": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 12,
+                },
+                "support_route": {
+                    "minimum_support_rows": 50,
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "support_progress": {
+                        "status": "stalled_under_minimum",
+                        "reason": "from standby q15 audit",
+                        "current_rows": 12,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 38,
+                        "delta_vs_previous": 0,
+                        "previous_rows": 12,
+                        "previous_route_changed": False,
+                        "previous_support_route_verdict": "exact_bucket_present_but_below_minimum",
+                        "previous_support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                        "stagnant_run_count": 5,
+                        "stalled_support_accumulation": True,
+                        "escalate_to_blocker": True,
+                        "history": [],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit)
+    (tmp_path / "heartbeat_1024_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "1024",
+                "timestamp": "2026-04-21T12:00:19.772471+00:00",
+                "leaderboard_candidate_probe": {
+                    "alignment": {
+                        "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                        "live_current_structure_bucket_rows": 11,
+                        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    progress = hb_leaderboard_candidate_probe._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q35",
+        current_route="exact_live_bucket_present_but_below_minimum",
+        live_bucket_rows=12,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "accumulating"
+    assert progress["delta_vs_previous"] == 1
+    assert progress["reason"].startswith("current live exact support")
+    assert progress["reason"] != "from standby q15 audit"
+
+
+
 def test_build_alignment_marks_under_supported_exact_bucket(tmp_path, monkeypatch):
     last_metrics = tmp_path / "last_metrics.json"
     live_probe = tmp_path / "live_predict_probe.json"

@@ -179,6 +179,24 @@ def _load_recent_q15_support_history(
     ]
 
 
+def _support_copy_labels(current_bucket: Any) -> dict[str, str]:
+    bucket = str(current_bucket or "")
+    if "q15" in bucket:
+        return {
+            "bucket_label": "current q15 exact bucket",
+            "support_label": "current q15 exact support",
+            "path_label": "current q15 live path",
+            "compare_label": "同一 q15 bucket",
+        }
+    return {
+        "bucket_label": "current live exact bucket",
+        "support_label": "current live exact support",
+        "path_label": "current live path",
+        "compare_label": "同一 current live structure bucket",
+    }
+
+
+
 def _summarize_support_progress(
     *,
     current_bucket: Any,
@@ -189,6 +207,10 @@ def _summarize_support_progress(
     current_label: str | None,
     data_dir: Path | None = None,
 ) -> dict[str, Any]:
+    labels = _support_copy_labels(current_bucket)
+    bucket_label = labels["bucket_label"]
+    support_label = labels["support_label"]
+    compare_label = labels["compare_label"]
     current_rows = int(live_bucket_rows or 0)
     observed_at = datetime.now(timezone.utc)
     current_entry = {
@@ -231,21 +253,21 @@ def _summarize_support_progress(
     minimum = int(minimum_support_rows or 0)
     if current_rows >= minimum:
         status = "exact_supported"
-        reason = "current q15 exact bucket 已達 minimum support，可轉向 exact-supported deployment verify。"
+        reason = f"{bucket_label} 已達 minimum support，可轉向 exact-supported deployment verify。"
     elif previous is None:
         status = "no_recent_comparable_history"
-        reason = "目前找不到同一 q15 bucket 的最近 heartbeat 可比較；先持續累積 exact support。"
+        reason = f"目前找不到{compare_label}的最近 heartbeat 可比較；先持續累積 exact support。"
     elif delta_vs_previous and delta_vs_previous > 0:
         status = "accumulating"
-        reason = "current q15 exact support 仍低於 minimum，但同 bucket rows 較上一輪增加。"
+        reason = f"{support_label} 仍低於 minimum，但同 bucket rows 較上一輪增加。"
         if previous_route_changed:
             reason += " route 已切換，代表 support pathology 正在從缺樣本轉向 exact rows 累積。"
     elif delta_vs_previous == 0:
         status = "stalled_under_minimum"
-        reason = "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。"
+        reason = f"{support_label} 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。"
     else:
         status = "regressed_under_minimum"
-        reason = "current q15 exact support 較上一輪回落，需檢查 current bucket / support artifact 是否切換或退化。"
+        reason = f"{support_label} 較上一輪回落，需檢查 current bucket / support artifact 是否切換或退化。"
 
     return {
         "status": status,
@@ -274,14 +296,18 @@ def _support_route_decision(
     exact_bucket_root_cause: str,
     preferred_support_cohort: str | None,
     support_governance_route: str | None,
+    current_bucket: Any | None = None,
 ) -> dict[str, Any]:
+    labels = _support_copy_labels(current_bucket)
+    bucket_label = labels["bucket_label"]
+    path_label = labels["path_label"]
     if current_bucket_rows >= minimum_support_rows:
         return {
             "verdict": "exact_bucket_supported",
             "deployable": True,
             "governance_reference_only": False,
             "preferred_support_cohort": "exact_live_bucket",
-            "reason": "current q15 exact bucket 已達 minimum support，可直接用 exact bucket 做 deployment 級驗證。",
+            "reason": f"{bucket_label} 已達 minimum support，可直接用 exact bucket 做 deployment 級驗證。",
             "release_condition": "保持 current_live_structure_bucket_rows >= minimum_support_rows，且 live row 仍通過 entry-quality / execution guardrail。",
         }
 
@@ -300,11 +326,11 @@ def _support_route_decision(
                 "governance_reference_only": True,
                 "preferred_support_cohort": exact_bucket_preferred,
                 "reason": (
-                    "current q15 exact bucket 仍為 0 rows；即使已有 exact-bucket proxy，也只能作治理參考，"
+                    f"{bucket_label} 仍為 0 rows；即使已有 exact-bucket proxy，也只能作治理參考，"
                     "不能作 deployment 放行證據。"
                 ),
                 "release_condition": (
-                    "先把 current q15 exact bucket 補到 minimum support，再重查 entry floor；"
+                    f"先把 {bucket_label} 補到 minimum support，再重查 entry floor；"
                     "proxy / neighbor 只能保留為比較與校準參考。"
                 ),
                 "route_hint": route or "exact_live_bucket_proxy_available",
@@ -315,8 +341,8 @@ def _support_route_decision(
                 "deployable": False,
                 "governance_reference_only": True,
                 "preferred_support_cohort": preferred or "bull_exact_live_lane_proxy",
-                "reason": "current q15 exact bucket 缺樣本，只剩 same-lane proxy；這仍不足以解除 runtime blocker。",
-                "release_condition": "必須先生成 current q15 exact bucket 真樣本，proxy 不可直接轉成 deployment allowance。",
+                "reason": f"{bucket_label} 缺樣本，只剩 same-lane proxy；這仍不足以解除 runtime blocker。",
+                "release_condition": f"必須先生成 {bucket_label} 真樣本，proxy 不可直接轉成 deployment allowance。",
                 "route_hint": route or "exact_live_lane_proxy_only",
             }
         if supported_neighbor_rows >= minimum_support_rows:
@@ -325,8 +351,8 @@ def _support_route_decision(
                 "deployable": False,
                 "governance_reference_only": True,
                 "preferred_support_cohort": preferred or "bull_supported_neighbor_buckets_proxy",
-                "reason": "只有 neighbor bucket 有足夠支持；neighbor 只能當背景治理參考，不能替代 current q15 exact bucket。",
-                "release_condition": "先補 current q15 exact bucket 真樣本，不能用 neighbor 直接解除 blocker。",
+                "reason": f"只有 neighbor bucket 有足夠支持；neighbor 只能當背景治理參考，不能替代 {bucket_label}。",
+                "release_condition": f"先補 {bucket_label} 真樣本，不能用 neighbor 直接解除 blocker。",
                 "route_hint": route or "supported_neighbor_only",
             }
 
@@ -336,7 +362,7 @@ def _support_route_decision(
             "deployable": False,
             "governance_reference_only": True,
             "preferred_support_cohort": preferred,
-            "reason": "current q15 exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。",
+            "reason": f"{bucket_label} 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。",
             "release_condition": "exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。",
             "route_hint": route or root or "exact_bucket_present_but_below_minimum",
         }
@@ -346,7 +372,7 @@ def _support_route_decision(
         "deployable": False,
         "governance_reference_only": True,
         "preferred_support_cohort": preferred,
-        "reason": "current q15 live path 在 exact bucket / proxy / neighbor 都沒有 deployment 級支撐。",
+        "reason": f"{path_label} 在 exact bucket / proxy / neighbor 都沒有 deployment 級支撐。",
         "release_condition": "先擴充 exact bucket 或縮小治理範圍，否則不得調整 runtime gate。",
         "route_hint": route or root or "insufficient_support_everywhere",
     }
@@ -737,6 +763,7 @@ def build_report(
         exact_bucket_root_cause=str(support_summary.get("exact_bucket_root_cause") or ""),
         preferred_support_cohort=support_summary.get("preferred_support_cohort"),
         support_governance_route=alignment.get("support_governance_route"),
+        current_bucket=live_context.get("current_live_structure_bucket"),
     )
     effective_support_governance_route = alignment.get("support_governance_route")
     if support_route.get("deployable"):
