@@ -1762,6 +1762,129 @@ def test_overwrite_current_state_docs_uses_dynamic_support_ratio_in_success_crit
 
 
 
+def test_overwrite_current_state_docs_goal_c_says_support_met_when_exact_support_is_ready(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_current_live_deployment_blocker",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "current-live deployment blocker is exact_live_lane_toxic_sub_bucket_current_bucket",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    live_predictor = {
+        "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "current_live_structure_bucket_rows": 88,
+        "minimum_support_rows": 50,
+        "support_route_verdict": "exact_bucket_supported",
+        "deployment_blocker_details": {"release_condition": {}},
+    }
+    q15_support = {
+        "current_live": {"current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15"},
+        "support_route": {
+            "verdict": "exact_bucket_supported",
+            "support_progress": {
+                "current_rows": 88,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 0,
+            },
+        },
+    }
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260421a",
+        {},
+        {},
+        {"primary_summary": {}},
+        live_predictor,
+        {
+            "recommended_patch_profile": None,
+            "recommended_patch_status": None,
+            "recommended_patch_reference_scope": None,
+        },
+        q15_support,
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "q15 current-live bucket exact support 已達 minimum rows" in roadmap_md
+    assert "deployment blocker 仍以 `exact_live_lane_toxic_sub_bucket_current_bucket` 為準" in roadmap_md
+    assert "q15 current-live bucket exact support 未達 minimum rows" not in roadmap_md
+
+
+
+def test_overwrite_current_state_docs_refreshes_fin_netflow_issue_summary_from_live_source_blockers(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P1_fin_netflow_auth_blocked",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing",
+                        "summary": {
+                            "feature": "fin_netflow",
+                            "quality_flag": "source_auth_blocked",
+                            "latest_status": "auth_missing",
+                            "forward_archive_rows": 2593,
+                            "archive_window_coverage_pct": 0.0,
+                        },
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260421b",
+        {},
+        {
+            "blocked_features": [
+                {
+                    "key": "fin_netflow",
+                    "quality_flag": "source_auth_blocked",
+                    "raw_snapshot_latest_status": "auth_missing",
+                    "raw_snapshot_events": 2822,
+                    "archive_window_coverage_pct": 0.0,
+                }
+            ]
+        },
+        {"primary_summary": {}},
+        {"deployment_blocker_details": {"release_condition": {}}},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_payload = json.loads((tmp_path / "issues.json").read_text(encoding="utf-8"))
+    fin_issue = issues_payload["issues"][0]
+    assert fin_issue["summary"]["forward_archive_rows"] == 2822
+    assert fin_issue["summary"]["latest_status"] == "auth_missing"
+
+
+
 def test_sync_fast_heartbeat_timeout_issue_resolves_stale_issue_when_run_finishes_within_budget(monkeypatch):
     tracker = type(
         "DummyTracker",

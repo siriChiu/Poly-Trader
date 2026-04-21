@@ -289,6 +289,82 @@ def _support_truth_label(current_bucket: str | None) -> str:
     return "current live bucket support truth"
 
 
+def _support_goal_success_line(
+    support_scope_label: str,
+    support_route_verdict: Any,
+    support_current_rows: Any,
+    support_minimum_rows: Any,
+    deployment_blocker: str,
+) -> str:
+    verdict = str(support_route_verdict or "—")
+    try:
+        current_rows = int(support_current_rows)
+        minimum_rows = int(support_minimum_rows)
+    except (TypeError, ValueError):
+        current_rows = None
+        minimum_rows = None
+
+    support_met = verdict == "exact_bucket_supported"
+    if not support_met and current_rows is not None and minimum_rows is not None:
+        support_met = current_rows >= minimum_rows
+
+    if support_met:
+        blocker = deployment_blocker or "latest runtime blocker"
+        return (
+            f"- probe / drilldown / `/api/status` / `/execution/status` / `/lab` / docs 全都承認 "
+            f"{support_scope_label} exact support 已達 minimum rows；deployment blocker 仍以 `{blocker}` 為準，"
+            "不可把 support closure 誤讀成 deployment closure；recommended patch 若存在也只能作治理 / 訓練參考。"
+        )
+
+    return (
+        f"- probe / drilldown / `/api/status` / `/execution/status` / `/lab` / docs 全都承認 "
+        f"{support_scope_label} exact support 未達 minimum rows，recommended patch 只能作治理 / 訓練參考。"
+    )
+
+
+def _find_source_blocker(source_blockers: Dict[str, Any] | None, blocker_key: str) -> Dict[str, Any] | None:
+    for blocker in (source_blockers or {}).get("blocked_features") or []:
+        if isinstance(blocker, dict) and blocker.get("key") == blocker_key:
+            return blocker
+    return None
+
+
+def _sync_live_issue_summaries(
+    issues: list[Dict[str, Any]],
+    source_blockers: Dict[str, Any] | None,
+) -> bool:
+    fin_blocker = _find_source_blocker(source_blockers, "fin_netflow")
+    if not fin_blocker:
+        return False
+
+    updated = False
+    fin_summary = {
+        "feature": "fin_netflow",
+        "quality_flag": fin_blocker.get("quality_flag"),
+        "latest_status": fin_blocker.get("raw_snapshot_latest_status"),
+        "forward_archive_rows": fin_blocker.get("raw_snapshot_events"),
+        "archive_window_coverage_pct": fin_blocker.get("archive_window_coverage_pct"),
+    }
+    for issue in issues:
+        if issue.get("id") != "P1_fin_netflow_auth_blocked":
+            continue
+        current_summary = dict(issue.get("summary") or {})
+        if any(current_summary.get(key) != value for key, value in fin_summary.items()):
+            issue["summary"] = {**current_summary, **fin_summary}
+            issue["updated_at"] = datetime.utcnow().isoformat()
+            updated = True
+        break
+    return updated
+
+
+def _save_open_current_state_issues(issues: list[Dict[str, Any]]) -> None:
+    issues_path = Path(PROJECT_ROOT) / "issues.json"
+    issues_path.write_text(
+        json.dumps({"issues": issues}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 def _load_open_current_state_issues() -> list[Dict[str, Any]]:
     issues_path = Path(PROJECT_ROOT) / "issues.json"
     payload = _read_json_file(issues_path) or {}
@@ -532,6 +608,8 @@ def overwrite_current_state_docs(
     circuit_breaker_audit = circuit_breaker_audit or {}
     leaderboard_candidate_diagnostics = leaderboard_candidate_diagnostics or {}
     issues = _load_open_current_state_issues()
+    if _sync_live_issue_summaries(issues, source_blockers):
+        _save_open_current_state_issues(issues)
 
     updated_at = _format_local_timestamp_for_docs()
     release = (live_predictor_diagnostics.get("deployment_blocker_details") or {}).get("release_condition") or {}
@@ -789,7 +867,13 @@ def overwrite_current_state_docs(
         f"- {support_line}",
         f"- `recommended_patch={live_decision_drilldown.get('recommended_patch_profile') or '—'}` / `status={live_decision_drilldown.get('recommended_patch_status') or '—'}` / `reference_scope={live_decision_drilldown.get('recommended_patch_reference_scope') or '—'}`",
         "**成功標準**",
-        f"- probe / drilldown / `/api/status` / `/execution/status` / `/lab` / docs 全都承認 {support_scope_label} exact support 未達 minimum rows，recommended patch 只能作治理 / 訓練參考。",
+        _support_goal_success_line(
+            support_scope_label,
+            support_route_verdict,
+            support_current_rows,
+            support_minimum_rows,
+            deployment_blocker,
+        ),
         "",
         "### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth",
         "**目前真相**",
