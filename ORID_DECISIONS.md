@@ -1,19 +1,19 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-22 02:07:44 CST_
+_最後更新：2026-04-22 03:02:39 CST_
 
 ---
 
 ## 心跳 #fast ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31421 / Features=22839 / Labels=63351`；`simulated_pyramid_win=57.24%`。
+- collect + diagnostics refresh 完成：`Raw=31427 / Features=22845 / Labels=63359`；`simulated_pyramid_win=57.24%`。
 - current-live blocker：`deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - q15 current-live bucket truth：`current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_proxy_reference_only`。
-- latest recent-window diagnostics：`latest_window=100` / `win_rate=87.0%` / `dominant_regime=chop(87.0%)` / `avg_quality=+0.5404` / `avg_pnl=+0.0145` / `alerts=label_imbalance,regime_shift`。
-- current blocking pathological pocket：`blocking_window=500` / `win_rate=31.6%` / `dominant_regime=bull(65.0%)` / `avg_quality=+0.0263` / `avg_pnl=-0.0000` / `alerts=regime_shift`。
+- latest recent-window diagnostics：`latest_window=100` / `win_rate=84.0%` / `dominant_regime=chop(84.0%)` / `avg_quality=+0.5117` / `avg_pnl=+0.0135` / `alerts=label_imbalance,regime_shift`。
+- current blocking pathological pocket：`blocking_window=500` / `win_rate=31.6%` / `dominant_regime=bull(65.0%)` / `avg_quality=+0.0266` / `avg_pnl=-0.0000` / `alerts=regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2891` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2897` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
 
 ### R｜感受直覺
@@ -21,13 +21,13 @@ _最後更新：2026-04-22 02:07:44 CST_
 - current live 已落在 `bull/CAUTION/CAUTION|structure_quality_caution|q15`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket 或舊 bucket 當成現在的 runtime 真相。
 
 ### I｜意義洞察
-1. **support accumulation ≠ deployment closure**：`support=0/50` 且 `support_route_verdict=exact_bucket_missing_proxy_reference_only` 只代表治理前進，還不能把 reference patch 升級成 runtime patch。
+1. **support truth ≠ deployment closure**：`support=0/50` 且 `support_route_verdict=exact_bucket_missing_proxy_reference_only` 只代表治理前進，還不能把 reference-only patch 升級成 runtime patch。
 2. **真正主 blocker 已切到 q15 current-live bucket exact-support shortage**：recent pathological slice 仍是造成 `unsupported_exact_live_structure_bucket` 的根因切片，不能再沿用 breaker-first 舊敘事。
 3. **docs overwrite sync 的角色是護欄，不是主 blocker**：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。
 
 ### D｜決策行動
 - **Owner**：current-live runtime / governance lane
-- **Action**：維持 current-live exact-support truth，並把 q15 current-live bucket support 與 recommended patch 持續顯示為 `reference_only`；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。
+- **Action**：維持 current-live exact-support truth，並把 q15 current-live bucket support 與 reference-only patch 持續顯示清楚；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。
 - **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
 - **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。
-- **If fail**：只要 docs / UI 再次把 `unsupported_exact_live_structure_bucket` 誤寫成 breaker-first、漏掉 q15 current-live bucket rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。
+- **If fail**：只要 docs / UI 再次把 `unsupported_exact_live_structure_bucket` 誤寫成 breaker-first、漏掉 q15 current-live bucket rows，或把 reference-only patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。

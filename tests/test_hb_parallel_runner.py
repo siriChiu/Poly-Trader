@@ -1503,7 +1503,7 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in roadmap_md
     assert "不要硬綁單一 port" in roadmap_md
     assert "心跳 #20260420z ORID" in orid_md
-    assert "support accumulation ≠ deployment closure" in orid_md
+    assert "support truth ≠ deployment closure" in orid_md
     assert "support=0/50" in orid_md
     assert "recommended_patch=core_plus_macro_plus_all_4h" in orid_md
     assert "heartbeat runner 現在會在 `auto_propose_fixes.py` 後自動 overwrite sync" not in orid_md
@@ -1759,6 +1759,80 @@ def test_overwrite_current_state_docs_uses_dynamic_support_ratio_in_success_crit
         "current live q15 truth 維持：**3/50 + exact_bucket_present_but_below_minimum + "
         "reference_only_until_exact_support_ready**"
     ) in roadmap_md
+
+
+
+def test_overwrite_current_state_docs_drops_stale_reference_only_patch_copy_when_no_patch_exists(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_current_live_deployment_blocker",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "current-live deployment blocker is exact_live_lane_toxic_sub_bucket_current_bucket",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260422tox",
+        {},
+        {},
+        {"primary_summary": {}},
+        {
+            "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 117,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_governance_route": "exact_live_bucket_supported",
+            "runtime_closure_state": "deployment_guardrail_blocks_trade",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {
+            "recommended_patch_profile": "None",
+            "recommended_patch_status": "None",
+            "recommended_patch_reference_scope": None,
+        },
+        {
+            "current_live": {"current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15"},
+            "support_route": {
+                "verdict": "exact_bucket_supported",
+                "support_governance_route": "exact_live_bucket_supported",
+                "support_progress": {
+                    "current_rows": 117,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 0,
+                },
+            },
+        },
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+
+    assert "recommended_patch=None" not in issues_md
+    assert "recommended_patch=None" not in roadmap_md
+    assert "reference-only patch" not in issues_md
+    assert "reference-only patch" not in roadmap_md
+    assert "support truth / blocker truth" in issues_md
+    assert "support truth 與 deployment closure 邊界" in roadmap_md
+    assert "`recommended_patch=—` / `status=—` / `reference_scope=—`（本輪無 active recommended patch）" in roadmap_md
+    assert "support truth 與 deployment closure 邊界持續顯示清楚" in orid_md
 
 
 

@@ -322,6 +322,47 @@ def _support_goal_success_line(
     )
 
 
+_PATCH_EMPTY_DOC_MARKERS = {"", "-", "—", "none", "null", "n/a", "na"}
+
+
+def _normalize_patch_truth_value(value: Any) -> str:
+    if value is None:
+        return "—"
+    text = str(value).strip()
+    if not text:
+        return "—"
+    if text.lower() in _PATCH_EMPTY_DOC_MARKERS:
+        return "—"
+    return text
+
+
+def _patch_truth_doc_context(
+    patch_profile: Any,
+    patch_status: Any,
+    patch_reference_scope: Any,
+) -> Dict[str, Any]:
+    profile = _normalize_patch_truth_value(patch_profile)
+    status = _normalize_patch_truth_value(patch_status)
+    reference_scope = _normalize_patch_truth_value(patch_reference_scope)
+    has_patch = any(item != "—" for item in (profile, status, reference_scope))
+    reference_only = has_patch and status == "reference_only_until_exact_support_ready"
+    patch_label = "reference-only patch" if reference_only else ("recommended patch" if has_patch else "")
+    docs_line = f"`recommended_patch={profile}` / `status={status}` / `reference_scope={reference_scope}`"
+    if not has_patch:
+        docs_line += "（本輪無 active recommended patch）"
+    return {
+        "profile": profile,
+        "status": status,
+        "reference_scope": reference_scope,
+        "has_patch": has_patch,
+        "reference_only": reference_only,
+        "patch_label": patch_label,
+        "priority_focus_phrase": f"support / {patch_label}" if has_patch else "support truth / blocker truth",
+        "goal_title_suffix": f"support + {patch_label} 真相" if has_patch else "support truth 與 deployment closure 邊界",
+        "docs_line": docs_line,
+    }
+
+
 def _find_source_blocker(source_blockers: Dict[str, Any] | None, blocker_key: str) -> Dict[str, Any] | None:
     for blocker in (source_blockers or {}).get("blocked_features") or []:
         if isinstance(blocker, dict) and blocker.get("key") == blocker_key:
@@ -484,13 +525,12 @@ def _issue_current_lines(
                 f"`support_governance_route={support_governance_route}`",
             ]
         summary = issue.get("summary") if isinstance(issue.get("summary"), dict) else {}
-        patch_profile = summary.get("recommended_patch") or live_decision_drilldown.get("recommended_patch_profile") or "—"
-        patch_status = summary.get("recommended_patch_status") or live_decision_drilldown.get("recommended_patch_status") or "—"
-        patch_reference_scope = (
+        patch_context = _patch_truth_doc_context(
+            summary.get("recommended_patch") or live_decision_drilldown.get("recommended_patch_profile"),
+            summary.get("recommended_patch_status") or live_decision_drilldown.get("recommended_patch_status"),
             summary.get("reference_patch_scope")
             or summary.get("recommended_patch_reference_scope")
-            or live_decision_drilldown.get("recommended_patch_reference_scope")
-            or "—"
+            or live_decision_drilldown.get("recommended_patch_reference_scope"),
         )
         return [
             "目前真相："
@@ -502,9 +542,9 @@ def _issue_current_lines(
             "same-bucket truth："
             f"`support_route_verdict={support_route_verdict}` / "
             f"`support_governance_route={support_governance_route}` / "
-            f"`recommended_patch={patch_profile}` / "
-            f"`recommended_patch_status={patch_status}` / "
-            f"`reference_scope={patch_reference_scope}`",
+            f"`recommended_patch={patch_context['profile']}` / "
+            f"`recommended_patch_status={patch_context['status']}` / "
+            f"`reference_scope={patch_context['reference_scope']}`",
         ]
 
     if issue_id == "P0_recent_distribution_pathology":
@@ -811,9 +851,48 @@ def overwrite_current_state_docs(
         if fin_blocker
         else "`fin_netflow` blocker 資訊暫缺"
     )
-    patch_profile = live_decision_drilldown.get("recommended_patch_profile") or "—"
-    patch_status = live_decision_drilldown.get("recommended_patch_status") or "—"
-    patch_reference_scope = live_decision_drilldown.get("recommended_patch_reference_scope") or "—"
+    patch_context = _patch_truth_doc_context(
+        live_decision_drilldown.get("recommended_patch_profile"),
+        live_decision_drilldown.get("recommended_patch_status"),
+        live_decision_drilldown.get("recommended_patch_reference_scope"),
+    )
+    patch_profile = patch_context["profile"]
+    patch_status = patch_context["status"]
+    patch_reference_scope = patch_context["reference_scope"]
+    current_priority_line3 = (
+        f"3. **守住 {support_scope_label} {patch_context['priority_focus_phrase']}、"
+        "leaderboard dual-role governance、venue/source blockers 可見性**"
+    )
+    goal_c_title = f"### 目標 C：守住 {support_scope_label} {patch_context['goal_title_suffix']}"
+    next_gate_line3 = (
+        f"3. **守住 {support_scope_label} {patch_context['priority_focus_phrase']}、"
+        "leaderboard governance、venue/source blockers 與 docs automation 閉環**"
+    )
+    next_gate_line3_blocker = (
+        "   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts"
+        if patch_context["has_patch"]
+        else "   - 升級 blocker：若 support closure 被誤讀成 deployment closure、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts"
+    )
+    if patch_context["has_patch"]:
+        orid_support_action_clause = f"並把 {support_scope_label} support 與 {patch_context['patch_label']} 持續顯示清楚"
+        orid_support_fail_clause = f"或把 {patch_context['patch_label']} 誤包裝成可部署 truth"
+        if patch_context["reference_only"]:
+            support_orid_insight_line = (
+                f"1. **support truth ≠ deployment closure**：`support={support_current_rows}/{support_minimum_rows}` 且 "
+                f"`support_route_verdict={support_route_verdict}` 只代表治理前進，還不能把 {patch_context['patch_label']} 升級成 runtime patch。"
+            )
+        else:
+            support_orid_insight_line = (
+                f"1. **support truth ≠ deployment closure**：`support={support_current_rows}/{support_minimum_rows}` 且 "
+                f"`support_route_verdict={support_route_verdict}` 只代表 same-bucket support / patch 治理真相，不能跳過 runtime verify。"
+            )
+    else:
+        orid_support_action_clause = f"並把 {support_scope_label} support truth 與 deployment closure 邊界持續顯示清楚"
+        orid_support_fail_clause = "或把 support closure 誤讀成 deployment closure"
+        support_orid_insight_line = (
+            f"1. **support truth ≠ deployment closure**：`support={support_current_rows}/{support_minimum_rows}` 且 "
+            f"`support_route_verdict={support_route_verdict}` 只代表 same-bucket support 狀態，真正 deployment blocker 仍由 latest runtime truth 決定。"
+        )
     deployment_blocker = str(live_predictor_diagnostics.get("deployment_blocker") or "—")
     breaker_root_cause = str(((circuit_breaker_audit.get("root_cause") or {}).get("verdict")) or "")
     breaker_is_primary = deployment_blocker == "circuit_breaker_active" or breaker_root_cause in {
@@ -832,8 +911,8 @@ def overwrite_current_state_docs(
             f"- 這輪最需要防止的誤讀，是把 `{support_current_rows}/{support_minimum_rows}` 的 same-bucket support 或 `{patch_reference_scope}` 參考 patch 誤讀成已可部署；breaker 仍是唯一 current-live blocker。"
         )
         orid_insight2 = "2. **真正主 blocker 仍是 breaker + recent pathological slice**：目前該追的是 release math 與 recent canonical pathology，不是把 q15/q35 support 或 venue 話題誤升級成唯一根因。"
-        orid_action_line = f"- **Action**：維持 breaker-first truth，並把 {support_scope_label} support 與 recommended patch 持續顯示為 `reference_only`；下一步沿 recent pathological slice 與 release math 繼續追根因。"
-        orid_fail_line = f"- **If fail**：只要 docs / UI 再次隱藏 breaker-first truth、漏掉 {support_scope_label} rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。"
+        orid_action_line = f"- **Action**：維持 breaker-first truth，{orid_support_action_clause}；下一步沿 recent pathological slice 與 release math 繼續追根因。"
+        orid_fail_line = f"- **If fail**：只要 docs / UI 再次隱藏 breaker-first truth、漏掉 {support_scope_label} rows，{orid_support_fail_clause}，就把 heartbeat 升級回 current-state governance blocker。"
     elif deployment_blocker in {"unsupported_exact_live_structure_bucket", "under_minimum_exact_live_structure_bucket"}:
         facts_blocker_heading = "- **canonical current-live blocker 已切到 current-live exact-support truth**"
         current_priority_line1 = f"1. **維持 current-live exact-support blocker truth，同時保留 {support_scope_label} support rows 可 machine-read**"
@@ -852,9 +931,9 @@ def overwrite_current_state_docs(
         orid_insight2 = (
             f"2. **真正主 blocker 已切到 {support_scope_label} exact-support shortage**：recent pathological slice 仍是造成 `{deployment_blocker}` 的根因切片，不能再沿用 breaker-first 舊敘事。"
         )
-        orid_action_line = f"- **Action**：維持 current-live exact-support truth，並把 {support_scope_label} support 與 recommended patch 持續顯示為 `reference_only`；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。"
+        orid_action_line = f"- **Action**：維持 current-live exact-support truth，{orid_support_action_clause}；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。"
         orid_fail_line = (
-            f"- **If fail**：只要 docs / UI 再次把 `{deployment_blocker}` 誤寫成 breaker-first、漏掉 {support_scope_label} rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。"
+            f"- **If fail**：只要 docs / UI 再次把 `{deployment_blocker}` 誤寫成 breaker-first、漏掉 {support_scope_label} rows，{orid_support_fail_clause}，就把 heartbeat 升級回 current-state governance blocker。"
         )
     else:
         facts_blocker_heading = "- **canonical current-live blocker 以 latest runtime truth 為主**"
@@ -870,8 +949,8 @@ def overwrite_current_state_docs(
         success_primary_line = f"- current-live blocker 清楚且唯一：**{deployment_blocker}**"
         orid_reflection_line = f"- 這輪最需要防止的誤讀，是讓舊 blocker 敘事覆蓋最新 `{deployment_blocker}` runtime truth。"
         orid_insight2 = f"2. **真正主 blocker 以 latest runtime truth 為準**：目前 deployment blocker 是 `{deployment_blocker}`，後續 root-cause 與 docs 必須跟著這條 lane 收斂。"
-        orid_action_line = f"- **Action**：維持 latest runtime blocker truth，並把 {support_scope_label} support 與 recommended patch 持續顯示為 `reference_only`；下一步沿對應 runtime lane 繼續追根因。"
-        orid_fail_line = f"- **If fail**：只要 docs / UI 再次把 `{deployment_blocker}` 蓋回舊 blocker 敘事、漏掉 {support_scope_label} rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。"
+        orid_action_line = f"- **Action**：維持 latest runtime blocker truth，{orid_support_action_clause}；下一步沿對應 runtime lane 繼續追根因。"
+        orid_fail_line = f"- **If fail**：只要 docs / UI 再次把 `{deployment_blocker}` 蓋回舊 blocker 敘事、漏掉 {support_scope_label} rows，{orid_support_fail_clause}，就把 heartbeat 升級回 current-state governance blocker。"
 
     issues_lines = [
         "# ISSUES.md — Current State Only",
@@ -936,13 +1015,13 @@ def overwrite_current_state_docs(
             "## Current Priority",
             current_priority_line1,
             "2. **持續沿 recent canonical pathological slice 追根因，不要 generic 化 blocker**",
-            f"3. **守住 {support_scope_label} support / reference-only patch、leaderboard dual-role governance、venue/source blockers 可見性**",
+            current_priority_line3,
             "4. **讓 heartbeat 自動 overwrite sync current-state docs，不再把 docs drift 留給人工補寫**",
             "",
         ]
     )
 
-    support_success_status = live_decision_drilldown.get('recommended_patch_status') or '—'
+    support_success_status = patch_status
     support_success_verdict = support_route_verdict
     support_truth_ratio = f"{support_current_rows}/{support_minimum_rows}"
 
@@ -986,10 +1065,10 @@ def overwrite_current_state_docs(
         "**成功標準**",
         "- drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。",
         "",
-        f"### 目標 C：守住 {support_scope_label} support + reference-only patch 真相",
+        goal_c_title,
         "**目前真相**",
         f"- {support_line}",
-        f"- `recommended_patch={live_decision_drilldown.get('recommended_patch_profile') or '—'}` / `status={live_decision_drilldown.get('recommended_patch_status') or '—'}` / `reference_scope={live_decision_drilldown.get('recommended_patch_reference_scope') or '—'}`",
+        f"- {patch_context['docs_line']}",
         "**成功標準**",
         _support_goal_success_line(
             support_scope_label,
@@ -1017,9 +1096,9 @@ def overwrite_current_state_docs(
         "2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**",
         "   - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`",
         "   - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據",
-        f"3. **守住 {support_scope_label} support / reference-only patch、leaderboard governance、venue/source blockers 與 docs automation 閉環**",
+        next_gate_line3,
         "   - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status",
-        "   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts",
+        next_gate_line3_blocker,
         "",
         "---",
         "",
@@ -1061,7 +1140,7 @@ def overwrite_current_state_docs(
         f"- current live 已落在 `{live_regime}/{live_gate}/{live_bucket}`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket 或舊 bucket 當成現在的 runtime 真相。",
         "",
         "### I｜意義洞察",
-        f"1. **support accumulation ≠ deployment closure**：`support={support_current_rows}/{support_minimum_rows}` 且 `support_route_verdict={support_route_verdict}` 只代表治理前進，還不能把 reference patch 升級成 runtime patch。",
+        support_orid_insight_line,
         orid_insight2,
         f"3. **docs overwrite sync 的角色是護欄，不是主 blocker**：{docs_sync_line} 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。",
         "",
