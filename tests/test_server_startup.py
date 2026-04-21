@@ -1652,6 +1652,12 @@ def test_build_live_runtime_closure_surface_surfaces_bull_caution_patch_summary(
     scope_summary = result["decision_quality_scope_pathology_summary"]
     patch_summary = scope_summary["recommended_patch"]
     assert scope_summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|CAUTION"
+    assert result["recommended_patch"] == patch_summary
+    assert result["recommended_patch_profile"] == "core_plus_macro"
+    assert result["recommended_patch_status"] == "reference_only_until_exact_support_ready"
+    assert result["recommended_patch_reference_scope"] == "bull|CAUTION"
+    assert result["recommended_patch_reference_source"] == patch_summary["reference_source"]
+    assert "不可直接放行 runtime" in result["recommended_patch_reason"]
     assert patch_summary["status"] == "reference_only_until_exact_support_ready"
     assert patch_summary["recommended_profile"] == "core_plus_macro"
     assert patch_summary["collapse_features"] == [

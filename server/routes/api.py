@@ -1214,6 +1214,23 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
                 "需檢查 runtime current-live row / support bucket 是否切換。"
             )
 
+    recommended_patch_summary = spillover_patch_summary if isinstance(spillover_patch_summary, dict) else None
+    recommended_patch_profile = payload.get("recommended_patch_profile")
+    if recommended_patch_profile is None and recommended_patch_summary is not None:
+        recommended_patch_profile = recommended_patch_summary.get("recommended_profile")
+    recommended_patch_status = payload.get("recommended_patch_status")
+    if recommended_patch_status is None and recommended_patch_summary is not None:
+        recommended_patch_status = recommended_patch_summary.get("status")
+    recommended_patch_reference_scope = payload.get("recommended_patch_reference_scope")
+    if recommended_patch_reference_scope is None and recommended_patch_summary is not None:
+        recommended_patch_reference_scope = recommended_patch_summary.get("reference_patch_scope")
+    recommended_patch_reference_source = payload.get("recommended_patch_reference_source")
+    if recommended_patch_reference_source is None and recommended_patch_summary is not None:
+        recommended_patch_reference_source = recommended_patch_summary.get("reference_source")
+    recommended_patch_reason = payload.get("recommended_patch_reason")
+    if recommended_patch_reason is None and recommended_patch_summary is not None:
+        recommended_patch_reason = recommended_patch_summary.get("reason")
+
     breaker_release = blocker_details.get("release_condition") if isinstance(blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = blocker_details.get("recent_window") if isinstance(blocker_details.get("recent_window"), dict) else {}
     release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
@@ -1301,6 +1318,12 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "calibration_exact_lane_alerts": calibration_exact_lane_alerts,
         "support_alignment_status": support_alignment_status,
         "support_alignment_summary": support_alignment_summary,
+        "recommended_patch": recommended_patch_summary,
+        "recommended_patch_profile": recommended_patch_profile,
+        "recommended_patch_status": recommended_patch_status,
+        "recommended_patch_reference_scope": recommended_patch_reference_scope,
+        "recommended_patch_reference_source": recommended_patch_reference_source,
+        "recommended_patch_reason": recommended_patch_reason,
         "sleeve_routing": sleeve_routing,
         "q15_bucket_root_cause": payload.get("q15_bucket_root_cause"),
         "decision_quality_recent_pathology_applied": payload.get("decision_quality_recent_pathology_applied"),
