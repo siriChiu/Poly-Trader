@@ -7,7 +7,7 @@
       "action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "status": "open",
       "created_at": "2026-04-21T02:45:15.666678",
-      "updated_at": "2026-04-21T05:09:53.945949",
+      "updated_at": "2026-04-21T05:36:47.171149",
       "hb_detected": null,
       "next_action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "summary": {
@@ -67,7 +67,7 @@
       "action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.",
       "status": "open",
       "created_at": "2026-04-21T04:43:47.141745",
-      "updated_at": "2026-04-21T05:09:53.945940",
+      "updated_at": "2026-04-21T05:36:47.171143",
       "hb_detected": null,
       "next_action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.",
       "summary": {
@@ -114,46 +114,6 @@
       "action": "Keep per-venue blockers explicitly visible on Dashboard, /lab, and /execution/status until credentials, order ack lifecycle, and fill lifecycle each have runtime-backed proof."
     },
     {
-      "id": "P1_fast_heartbeat_timeout_regression",
-      "priority": "P1",
-      "title": "fast heartbeat still overruns cron budget when candidate-eval lane wakes up",
-      "action": "Keep --fast bounded to collect/drift/probe/docs lanes; move leaderboard or candidate evaluation behind a stricter timeout / opt-in refresh path.",
-      "status": "open",
-      "created_at": "2026-04-21T05:09:54.898551",
-      "updated_at": "2026-04-21T05:09:54.898564",
-      "hb_detected": "20260421-1305",
-      "next_action": "Keep --fast bounded to collect/drift/probe/docs lanes; move leaderboard or candidate evaluation behind a stricter timeout / opt-in refresh path.",
-      "summary": {
-        "reproduced": true,
-        "heartbeat": "20260421-1305",
-        "elapsed_seconds": 68.9,
-        "timed_out_before_completion": true,
-        "completed_lanes_before_timeout": [
-          "hb_collect",
-          "regime_ic",
-          "full_ic",
-          "recent_drift_report",
-          "hb_q35_scaling_audit",
-          "hb_predict_probe",
-          "live_decision_quality_drilldown",
-          "hb_circuit_breaker_audit",
-          "feature_group_ablation",
-          "bull_4h_pocket_ablation",
-          "hb_leaderboard_candidate_probe",
-          "hb_q15_support_audit",
-          "hb_q15_bucket_root_cause",
-          "hb_q15_boundary_replay",
-          "auto_propose_fixes"
-        ],
-        "skipped_lanes": [],
-        "timed_out_lanes": [
-          "feature_group_ablation"
-        ],
-        "cron_budget_seconds": 240,
-        "timeout_reason": "serial lanes exceeded watchdog: feature_group_ablation"
-      }
-    },
-    {
       "id": "P1_fin_netflow_auth_blocked",
       "priority": "P1",
       "status": "open",
@@ -162,7 +122,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 2830,
+        "forward_archive_rows": 2834,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -170,7 +130,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-21T05:09:54.899234",
+      "updated_at": "2026-04-21T05:36:48.135746",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -196,7 +156,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-21T05:09:53.945969",
+      "updated_at": "2026-04-21T05:36:47.171164",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     }
   ]
