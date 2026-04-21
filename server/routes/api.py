@@ -5594,8 +5594,8 @@ async def api_klines(
 
 @router.get("/strategies/leaderboard")
 async def api_strategy_leaderboard() -> Dict[str, Any]:
-    """回傳策略排行榜；若 auto leaderboard 候選存在，優先顯示 auto 候選。"""
-    from backtesting.strategy_lab import AUTO_STRATEGY_NAME_PREFIX, load_all_strategies
+    """回傳策略排行榜；顯示所有非系統產生的策略，並保留 system-generated 列供比較。"""
+    from backtesting.strategy_lab import load_all_strategies
 
     _ensure_auto_generated_strategy_leaderboard()
     db = get_db()
@@ -5606,14 +5606,10 @@ async def api_strategy_leaderboard() -> Dict[str, Any]:
         if hasattr(db, "close"):
             db.close()
 
-    auto_candidates = [
-        entry for entry in strategies
-        if str(entry.get("name") or "").startswith(AUTO_STRATEGY_NAME_PREFIX)
-    ]
-    if auto_candidates:
-        strategies = auto_candidates
-    else:
-        visible = [entry for entry in strategies if not bool(entry.get("is_internal"))]
+    visible = [entry for entry in strategies if not bool(entry.get("is_internal"))]
+    auto_rows = [entry for entry in strategies if bool((entry.get("metadata") or {}).get("source") == "auto_leaderboard")]
+    strategies = visible + [entry for entry in auto_rows if entry not in visible]
+    if not strategies:
         strategies = visible or strategies
 
     strategies.sort(key=_strategy_leaderboard_sort_key, reverse=True)

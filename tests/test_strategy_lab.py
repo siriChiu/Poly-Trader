@@ -1002,7 +1002,7 @@ def test_decorate_strategy_entry_backfills_gate_summary_from_complete_trades():
     assert enriched["last_results"]["regime_gate_summary"] == {"ALLOW": 1, "CAUTION": 2, "BLOCK": 0}
 
 
-def test_api_strategy_leaderboard_prefers_auto_generated_candidates(monkeypatch):
+def test_api_strategy_leaderboard_keeps_manual_rows_visible_when_auto_candidates_exist(monkeypatch):
     class DummyDB:
         def close(self):
             return None
@@ -1018,15 +1018,15 @@ def test_api_strategy_leaderboard_prefers_auto_generated_candidates(monkeypatch)
         strategy_lab,
         "load_all_strategies",
         lambda include_internal=False: [
-            {"name": f"{strategy_lab.AUTO_STRATEGY_NAME_PREFIX}平衡承接 #01", "last_results": {"overall_score": 0.8}},
-            {"name": "Manual Scratch", "last_results": {"overall_score": 0.1}},
+            {"name": f"{strategy_lab.AUTO_STRATEGY_NAME_PREFIX}平衡承接 #01", "is_internal": True, "metadata": {"source": "auto_leaderboard"}, "last_results": {"overall_score": 0.8}},
+            {"name": "Manual Scratch", "is_internal": False, "metadata": {"source": "user_saved"}, "last_results": {"overall_score": 0.9}},
         ],
     )
 
     payload = asyncio.run(api_module.api_strategy_leaderboard())
 
     assert called["ensure"] == 1
-    assert [row["name"] for row in payload["strategies"]] == [f"{strategy_lab.AUTO_STRATEGY_NAME_PREFIX}平衡承接 #01"]
+    assert [row["name"] for row in payload["strategies"]] == ["Manual Scratch", f"{strategy_lab.AUTO_STRATEGY_NAME_PREFIX}平衡承接 #01"]
 
 
 def test_api_strategy_leaderboard_rank_delta_uses_fresh_snapshot(monkeypatch, tmp_path: Path):

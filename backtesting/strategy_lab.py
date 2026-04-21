@@ -24,7 +24,7 @@ STRATEGIES_DIR.mkdir(parents=True, exist_ok=True)
 
 STRATEGY_SCHEMA_VERSION = 2
 INTERNAL_STRATEGY_PREFIXES = ("tmp_", "debug_", "scratch_", "auto_leaderboard_")
-INTERNAL_STRATEGY_NAMES = {"test", "unnamed", "unnamed_strategy"}
+INTERNAL_STRATEGY_NAMES = {"unnamed", "unnamed_strategy"}
 AUTO_STRATEGY_NAME_PREFIX = "Auto Leaderboard · "
 MANUAL_COPY_STRATEGY_PREFIX = "Manual Copy · "
 
@@ -637,7 +637,7 @@ def _sanitize_strategy_record(data: Dict[str, Any], fallback_name: str = "") -> 
         "definition": definition,
         "last_results": last_results,
         "run_count": run_count,
-        "is_internal": bool(data.get("is_internal")) or _is_internal_strategy(name),
+        "is_internal": _is_internal_strategy(name),
         "metadata": _merge_strategy_metadata(name, definition, data.get("metadata")),
     }
 
@@ -1859,7 +1859,7 @@ def save_strategy(name: str, strategy_def: Dict, results: Optional[Dict] = None)
             data["run_count"] = prev_runs + 1 if results is not None else prev_runs
             if results is None and existing.get("last_results") is not None:
                 data["last_results"] = existing.get("last_results")
-            data["is_internal"] = existing.get("is_internal", False) or data.get("is_internal", False)
+            data["is_internal"] = _is_internal_strategy(name)
             if results is None and existing.get("metadata"):
                 data["metadata"] = existing.get("metadata")
         except Exception:

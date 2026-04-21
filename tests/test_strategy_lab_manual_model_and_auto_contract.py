@@ -1,10 +1,16 @@
 from pathlib import Path
 
+import asyncio
 import pandas as pd
 import pytest
 
 from backtesting import strategy_lab
 from server.routes import api as api_module
+
+
+class _DummyDb:
+    def close(self):
+        return None
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +50,28 @@ def test_auto_leaderboard_strategy_metadata_marks_system_generated_and_immutable
     assert loaded["metadata"]["source_label"] == "系統生成排行榜"
     assert loaded["metadata"]["immutable"] is True
     assert loaded["metadata"]["editable_clone_required"] is True
+
+
+def test_manual_test_named_strategy_is_visible_and_not_internal(isolated_strategies_dir: Path):
+    strategy_lab.save_strategy(
+        "Test",
+        {
+            "type": "hybrid",
+            "params": {
+                "model_name": "xgboost",
+                "entry": {"bias50_max": 0.0},
+            },
+        },
+        {"roi": 0.08, "win_rate": 0.55},
+    )
+
+    loaded = strategy_lab.load_strategy("Test")
+    visible = strategy_lab.load_all_strategies(include_internal=False)
+
+    assert loaded is not None
+    assert loaded["is_internal"] is False
+    assert loaded["metadata"]["source"] == "user_saved"
+    assert [entry["name"] for entry in visible] == ["Test"]
 
 
 @pytest.fixture()
@@ -173,6 +201,70 @@ def test_execute_strategy_run_allows_internal_overwrite_for_auto_leaderboard_ref
     assert payload["requested_strategy_name"] == "Auto Leaderboard · 重掃 logistic_regression Hybrid #01"
     assert patched_strategy_run_env["name"] == "Auto Leaderboard · 重掃 logistic_regression Hybrid #01"
     assert patched_strategy_run_env["strategy_def"]["params"]["model_name"] == "logistic_regression"
+
+
+def test_api_strategy_leaderboard_keeps_manual_rows_visible_alongside_auto_rows(monkeypatch: pytest.MonkeyPatch):
+    manual_row = {
+        "name": "Test",
+        "is_internal": False,
+        "definition": {
+            "type": "hybrid",
+            "params": {"model_name": "xgboost", "entry": {"bias50_max": 0.0}},
+        },
+        "metadata": {
+            "source": "user_saved",
+            "source_label": "手動策略",
+            "immutable": False,
+            "editable_clone_required": False,
+        },
+        "last_results": {
+            "overall_score": 0.91,
+            "reliability_score": 0.75,
+            "return_power_score": 0.74,
+            "risk_control_score": 0.70,
+            "capital_efficiency_score": 0.68,
+            "roi": 0.11,
+            "max_drawdown": 0.04,
+            "total_trades": 12,
+        },
+    }
+    auto_row = {
+        "name": "Auto Leaderboard · 重掃 xgboost Hybrid #01",
+        "is_internal": True,
+        "definition": {
+            "type": "hybrid",
+            "params": {"model_name": "xgboost", "entry": {"bias50_max": 0.0}},
+        },
+        "metadata": {
+            "source": "auto_leaderboard",
+            "source_label": "系統生成排行榜",
+            "immutable": True,
+            "editable_clone_required": True,
+        },
+        "last_results": {
+            "overall_score": 0.88,
+            "reliability_score": 0.72,
+            "return_power_score": 0.71,
+            "risk_control_score": 0.69,
+            "capital_efficiency_score": 0.64,
+            "roi": 0.13,
+            "max_drawdown": 0.05,
+            "total_trades": 20,
+        },
+    }
+
+    monkeypatch.setattr(api_module, "_ensure_auto_generated_strategy_leaderboard", lambda force=False: None)
+    monkeypatch.setattr(api_module, "get_db", lambda: _DummyDb())
+    monkeypatch.setattr(strategy_lab, "load_all_strategies", lambda include_internal=True: [auto_row, manual_row])
+    monkeypatch.setattr(api_module, "_decorate_strategy_entry", lambda entry, db=None: entry)
+    monkeypatch.setattr(api_module, "_compact_strategy_leaderboard_entry", lambda entry: entry)
+    monkeypatch.setattr(api_module, "_load_recent_strategy_leaderboard_snapshots", lambda limit=12, db_path=None: [])
+    monkeypatch.setattr(api_module, "_compute_strategy_rank_deltas_against_latest_snapshot", lambda entries, db_path=None: {})
+
+    payload = asyncio.run(api_module.api_strategy_leaderboard())
+
+    assert payload["count"] == 2
+    assert [entry["name"] for entry in payload["strategies"]] == ["Test", "Auto Leaderboard · 重掃 xgboost Hybrid #01"]
 
 
 def test_strategy_lab_frontend_prefers_saved_backtest_range_after_initial_override():
