@@ -616,6 +616,10 @@ def test_live_pathology_summary_card_supports_compact_summary_mode_for_workspace
     source = _read("components/LivePathologySummaryCard.tsx")
     required_snippets = [
         'compact?: boolean;',
+        'supportAlignmentStatus?: string | null;',
+        'supportAlignmentSummary?: string | null;',
+        'runtimeExactSupportRows?: number | null;',
+        'calibrationExactLaneRows?: number | null;',
         'compact = false,',
         'if (compact) {',
         'const compactTopShifts = topShifts.slice(0, 2);',
@@ -623,11 +627,34 @@ def test_live_pathology_summary_card_supports_compact_summary_mode_for_workspace
         'const currentBucketSupportRows = recommendedPatch?.current_live_structure_bucket_rows ?? exactLane?.current_live_structure_bucket_rows;',
         'const currentBucketSupportMinimum = recommendedPatch?.minimum_support_rows ?? null;',
         'const currentBucketSupportLabel = currentBucketSupportRows != null',
+        'const supportAlignmentStatusLabel = formatSupportAlignmentStatus(supportAlignmentStatus);',
+        'const supportAlignmentCountsLabel = runtimeExactSupportRows != null || calibrationExactLaneRows != null',
+        'runtime/calibration ${runtimeExactSupportRows ?? "—"} / ${calibrationExactLaneRows ?? "—"}',
         'exact lane rows {exactLane?.rows ?? "—"}',
         '{currentBucketSupportLabel}',
+        '{supportAlignmentStatusLabel ? ` · ${supportAlignmentStatusLabel}` : ""}',
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+def test_dashboard_and_strategy_lab_pass_support_alignment_to_compact_live_pathology_cards():
+    dashboard_source = _read("pages/Dashboard.tsx")
+    strategy_lab_source = _read("pages/StrategyLab.tsx")
+    for snippet in [
+        'supportAlignmentStatus={liveRuntimeTruth?.support_alignment_status ?? null}',
+        'supportAlignmentSummary={liveRuntimeTruth?.support_alignment_summary ?? null}',
+        'runtimeExactSupportRows={liveRuntimeTruth?.runtime_exact_support_rows ?? null}',
+        'calibrationExactLaneRows={liveRuntimeTruth?.calibration_exact_lane_rows ?? null}',
+    ]:
+        assert snippet in dashboard_source
+    for snippet in [
+        'supportAlignmentStatus={liveSupportAlignmentStatus}',
+        'supportAlignmentSummary={liveSupportAlignmentSummary}',
+        'runtimeExactSupportRows={liveRuntimeExactSupportRows}',
+        'calibrationExactLaneRows={liveCalibrationExactLaneRows}',
+    ]:
+        assert snippet in strategy_lab_source
 
 
 def test_dashboard_and_strategy_lab_use_compact_live_pathology_cards_on_summary_surfaces():

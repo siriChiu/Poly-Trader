@@ -1,20 +1,19 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-21 09:15:35 CST_
+_最後更新：2026-04-21 10:07:53 CST_
 
 ---
 
 ## 心跳 #fast ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31334 / Features=22752 / Labels=63160`；`simulated_pyramid_win=57.22%`。
+- collect + diagnostics refresh 完成：`Raw=31344 / Features=22762 / Labels=63173`；`simulated_pyramid_win=57.22%`。
 - current-live blocker：`deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - current live bucket truth：`current_live_structure_bucket=CAUTION|structure_quality_caution|q35` / `support=12/50` / `gap=38` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
-- recent pathological slice：`window=500` / `win_rate=15.2%` / `dominant_regime=bull(81.4%)` / `avg_quality=-0.1317` / `avg_pnl=-0.0049` / `alerts=label_imbalance,regime_shift`。
+- recent pathological slice：`window=500` / `win_rate=16.6%` / `dominant_regime=bull(80.0%)` / `avg_quality=-0.1183` / `avg_pnl=-0.0045` / `alerts=label_imbalance,regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2804` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2814` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
-- Dashboard blocker-first headline 已去除重複 icon / copy；首頁 AdviceCard 現在維持單一 headline icon，避免 `🚫 🚫` / `⏳ ⏳` 類誤導性重複文案。
 
 ### R｜感受直覺
 - 這輪最需要防止的誤讀，是把 `12/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；目前 live blocker 已切到 `under_minimum_exact_live_structure_bucket`。

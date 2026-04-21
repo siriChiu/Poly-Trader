@@ -2818,6 +2818,10 @@ export default function StrategyLab() {
               summary={liveScopePathologySummary}
               title="🧬 Live lane / spillover 對照"
               compact
+              supportAlignmentStatus={liveSupportAlignmentStatus}
+              supportAlignmentSummary={liveSupportAlignmentSummary}
+              runtimeExactSupportRows={liveRuntimeExactSupportRows}
+              calibrationExactLaneRows={liveCalibrationExactLaneRows}
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">

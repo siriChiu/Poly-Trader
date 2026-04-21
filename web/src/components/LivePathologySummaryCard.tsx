@@ -75,6 +75,10 @@ type Props = {
   title?: string;
   className?: string;
   compact?: boolean;
+  supportAlignmentStatus?: string | null;
+  supportAlignmentSummary?: string | null;
+  runtimeExactSupportRows?: number | null;
+  calibrationExactLaneRows?: number | null;
 };
 
 const isFiniteNumber = (value: number | null | undefined): value is number => (
@@ -112,11 +116,26 @@ const formatPatchStatus = (status?: string | null) => {
   }
 };
 
+const formatSupportAlignmentStatus = (status?: string | null) => {
+  switch (status) {
+    case "runtime_ahead_of_calibration":
+      return "runtime 先於 calibration";
+    case "aligned":
+      return "runtime / calibration 已對齊";
+    default:
+      return status || null;
+  }
+};
+
 export default function LivePathologySummaryCard({
   summary,
   title = "🧬 Live lane / spillover 對照",
   className = "",
   compact = false,
+  supportAlignmentStatus,
+  supportAlignmentSummary,
+  runtimeExactSupportRows,
+  calibrationExactLaneRows,
 }: Props) {
   if (!summary) return null;
 
@@ -145,6 +164,15 @@ export default function LivePathologySummaryCard({
   const currentBucketSupportLabel = currentBucketSupportRows != null
     ? ` · current bucket ${currentBucketSupportRows}${currentBucketSupportMinimum != null ? `/${currentBucketSupportMinimum}` : ""}`
     : "";
+  const supportAlignmentStatusLabel = formatSupportAlignmentStatus(supportAlignmentStatus);
+  const supportAlignmentCountsLabel = runtimeExactSupportRows != null || calibrationExactLaneRows != null
+    ? `runtime/calibration ${runtimeExactSupportRows ?? "—"} / ${calibrationExactLaneRows ?? "—"}`
+    : null;
+  const supportAlignmentTone = supportAlignmentStatus === "runtime_ahead_of_calibration"
+    ? "text-amber-200/90"
+    : supportAlignmentStatus === "aligned"
+      ? "text-emerald-200/90"
+      : "text-slate-200/80";
 
   if (compact) {
     return (
@@ -174,6 +202,12 @@ export default function LivePathologySummaryCard({
               exact lane rows {exactLane?.rows ?? "—"}
               {currentBucketSupportLabel}
             </div>
+            {(supportAlignmentCountsLabel || supportAlignmentStatusLabel) && (
+              <div className={supportAlignmentTone}>
+                {supportAlignmentCountsLabel || "runtime/calibration — / —"}
+                {supportAlignmentStatusLabel ? ` · ${supportAlignmentStatusLabel}` : ""}
+              </div>
+            )}
           </div>
 
           <div className="rounded-lg border border-red-500/20 bg-red-950/10 px-3 py-2 text-[11px] leading-5 text-red-50">
@@ -247,6 +281,15 @@ export default function LivePathologySummaryCard({
               rows {exactLane?.rows ?? "—"}
               {currentBucketSupportLabel}
             </div>
+            {(supportAlignmentCountsLabel || supportAlignmentStatusLabel) && (
+              <div className={supportAlignmentTone}>
+                {supportAlignmentCountsLabel || "runtime/calibration — / —"}
+                {supportAlignmentStatusLabel ? ` · ${supportAlignmentStatusLabel}` : ""}
+              </div>
+            )}
+            {supportAlignmentSummary && (
+              <div className={supportAlignmentTone}>{supportAlignmentSummary}</div>
+            )}
             <div>{exactLane?.current_live_structure_bucket || "未提供 current live structure bucket"}</div>
             <div>
               WR {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)} · PnL {formatPct(exactLane?.avg_pnl ?? null, 2, true)}

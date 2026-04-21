@@ -1265,6 +1265,10 @@ export default function Dashboard() {
             className="mt-1"
             title="🧬 Live lane / spillover 對照"
             compact
+            supportAlignmentStatus={liveRuntimeTruth?.support_alignment_status ?? null}
+            supportAlignmentSummary={liveRuntimeTruth?.support_alignment_summary ?? null}
+            runtimeExactSupportRows={liveRuntimeTruth?.runtime_exact_support_rows ?? null}
+            calibrationExactLaneRows={liveRuntimeTruth?.calibration_exact_lane_rows ?? null}
           />
         )}
       >
