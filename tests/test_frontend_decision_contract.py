@@ -911,11 +911,12 @@ def test_strategy_lab_surfaces_two_year_leaderboard_backtest_policy():
         'const LEADERBOARD_BACKTEST_POLICY_LABEL = "排行榜回測固定使用最近兩年";',
         'applyBacktestPreset("2y")',
         ' · 固定視窗 730 天（約 24 個月），降低短窗策略過擬合。',
-        '{LEADERBOARD_BACKTEST_POLICY_LABEL} · 固定視窗 {LEADERBOARD_BACKTEST_WINDOW_DAYS} 天。',
     ]
     for snippet in required_snippets:
         assert snippet in source
     assert source.count('排行榜回測固定使用最近兩年') == 1
+    assert source.count('{LEADERBOARD_BACKTEST_POLICY_LABEL}') == 1
+    assert '{LEADERBOARD_BACKTEST_POLICY_LABEL} · 固定視窗 {LEADERBOARD_BACKTEST_WINDOW_DAYS} 天。' not in source
     assert '排行榜回測固定使用最近兩年最近 730 天' not in source
 
 

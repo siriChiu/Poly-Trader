@@ -26,7 +26,7 @@ from server.dependencies import (
     set_automation_enabled,
     set_runtime_status,
 )
-from server.features_engine import get_engine, normalize_feature
+from server.features_engine import ecdf_normalize, get_engine, normalize_feature
 from server.live_pathology_summary import (
     build_live_pathology_patch_summary as shared_build_live_pathology_patch_summary,
     build_live_pathology_scope_summary as shared_build_live_pathology_scope_summary,
@@ -5857,10 +5857,13 @@ _ECDF_ANCHORS = {
     'feat_nw_slope': (-0.03, 0.03), 'feat_adx': (0.0, 0.8),
     'feat_choppiness': (0.25, 0.75), 'feat_donchian_pos': (0.0, 1.0),
     'feat_nq_return_1h': (-0.03, 0.03), 'feat_nq_return_24h': (-0.08, 0.08),
-    'feat_claw': (0.0, 1.0), 'feat_claw_intensity': (0.0, 1.5),
-    'feat_fang_pcr': (0.5, 1.5), 'feat_fang_skew': (-0.5, 0.5),
-    'feat_fin_netflow': (-1.0, 1.0), 'feat_web_whale': (-1.0, 1.0),
-    'feat_scales_ssr': (0.5, 1.5), 'feat_nest_pred': (-1.0, 1.0),
+    # Sparse-source features below use transformed feature-space ranges (tanh / centered)
+    # rather than raw upstream ratios, so API history charts retain separation instead of
+    # hard-clipping everything to the 0.02 floor.
+    'feat_claw': (-0.91, 0.70), 'feat_claw_intensity': (0.02, 0.96),
+    'feat_fang_pcr': (-0.563, -0.531), 'feat_fang_skew': (-0.00001, 0.00001),
+    'feat_fin_netflow': (-1.0, 1.0), 'feat_web_whale': (0.0, 1.0),
+    'feat_scales_ssr': (-0.137, -0.134), 'feat_nest_pred': (0.005, 0.0115),
     'feat_4h_bias50': (-15.0, 10.0), 'feat_4h_bias20': (-10.0, 10.0),
     'feat_4h_bias200': (-20.0, 20.0),
     'feat_4h_rsi14': (10.0, 90.0), 'feat_4h_macd_hist': (-1500.0, 1500.0),
@@ -5878,11 +5881,4 @@ def normalize_for_api(raw_val, db_key):
     if not anchors:
         return max(0.0, min(1.0, (raw_val + 1) / 2))
     p5, p95 = anchors
-    span = p95 - p5
-    if span < 1e-10:
-        return 0.5
-    soft_margin = span * 0.5
-    soft_lo = p5 - soft_margin
-    soft_hi = p95 + soft_margin
-    if raw_val <= p5:
-        v = max(soft_lo, raw_val)
+    return float(ecdf_normalize(float(raw_val), float(p5), float(p95)))

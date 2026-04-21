@@ -799,6 +799,7 @@ const MANUAL_COPY_STRATEGY_PREFIX = "Manual Copy · ";
 const LEADERBOARD_BACKTEST_WINDOW_MONTHS = 24;
 const LEADERBOARD_BACKTEST_WINDOW_DAYS = 730;
 const LEADERBOARD_BACKTEST_POLICY_LABEL = "排行榜回測固定使用最近兩年";
+const WORKSPACE_BACKTEST_WINDOW_HINT = `工作區預設沿用 ${LEADERBOARD_BACKTEST_WINDOW_DAYS} 天固定視窗；切換其他快速區間後，需重新執行回測才會刷新 ROI / Trades。`;
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const formatDateTimeLocal = (date: Date) => {
@@ -2746,7 +2747,7 @@ export default function StrategyLab() {
                   </div>
                   <div className={`rounded-lg border px-3 py-2 text-[11px] ${activeResult?.backtest_range?.backfill_required ? "border-amber-700/40 bg-amber-950/10 text-amber-100" : "border-slate-700/50 bg-slate-950/30 text-slate-400"}`}>
                     <div>可用特徵資料：{strategyDataRange?.start ? new Date(strategyDataRange.start).toLocaleDateString("zh-TW") : "—"} → {strategyDataRange?.end ? new Date(strategyDataRange.end).toLocaleDateString("zh-TW") : "—"}</div>
-                    <div className="mt-1 text-cyan-100/85">{LEADERBOARD_BACKTEST_POLICY_LABEL} · 固定視窗 {LEADERBOARD_BACKTEST_WINDOW_DAYS} 天。</div>
+                    <div className="mt-1 text-cyan-100/85">{WORKSPACE_BACKTEST_WINDOW_HINT}</div>
                     <div>
                       {activeResult?.backtest_range?.backfill_required
                         ? `缺少約 ${Math.round(activeResult.backtest_range.missing_start_days || 0)} 天較早資料，需先回填。`
