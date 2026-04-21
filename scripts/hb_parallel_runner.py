@@ -1131,6 +1131,8 @@ def _artifact_is_newer_than_dependencies(
 
 def _refresh_leaderboard_candidate_alignment_snapshot(
     artifact_path: Path,
+    *,
+    allow_rebuild: bool = True,
 ) -> Dict[str, Any] | None:
     try:
         from scripts import hb_leaderboard_candidate_probe as leaderboard_probe
@@ -1139,7 +1141,7 @@ def _refresh_leaderboard_candidate_alignment_snapshot(
 
     if leaderboard_probe is not None:
         try:
-            rebuilt = leaderboard_probe.build_probe_result(allow_rebuild=True)
+            rebuilt = leaderboard_probe.build_probe_result(allow_rebuild=allow_rebuild)
         except Exception:
             rebuilt = None
         if rebuilt:
@@ -3343,18 +3345,24 @@ def _current_leaderboard_support_progress() -> Dict[str, Any]:
         and current_bucket == current_live.get("current_live_structure_bucket")
         and q15_progress
     ):
-        if probe_progress:
-            if probe_timestamp and (q15_timestamp is None or probe_timestamp > q15_timestamp):
-                return probe_progress
-            if q15_timestamp is None and probe_timestamp is not None:
-                return probe_progress
-            if (
-                probe_progress.get("status") != q15_progress.get("status")
-                or probe_progress.get("delta_vs_previous") != q15_progress.get("delta_vs_previous")
-                or probe_progress.get("current_rows") != q15_progress.get("current_rows")
-            ):
-                return probe_progress
-        return q15_progress
+        if not probe_progress:
+            return q15_progress
+
+        progress_mismatch = (
+            probe_progress.get("status") != q15_progress.get("status")
+            or probe_progress.get("delta_vs_previous") != q15_progress.get("delta_vs_previous")
+            or probe_progress.get("current_rows") != q15_progress.get("current_rows")
+        )
+
+        if q15_timestamp and probe_timestamp:
+            if q15_timestamp >= probe_timestamp:
+                return q15_progress
+            return probe_progress if progress_mismatch else q15_progress
+        if q15_timestamp and probe_timestamp is None:
+            return q15_progress
+        if probe_timestamp and q15_timestamp is None:
+            return probe_progress
+        return probe_progress if progress_mismatch else q15_progress
 
     return probe_progress
 
@@ -3364,8 +3372,6 @@ def _overlay_current_leaderboard_candidate_truth(diag: Dict[str, Any]) -> Dict[s
     diag = dict(diag or {})
     current_signature = _current_leaderboard_candidate_semantic_signature() or {}
     current_progress = _current_leaderboard_support_progress()
-    if not current_signature and not current_progress:
-        return diag
 
     def _as_int(value: Any) -> int | None:
         if value is None or value == "":
@@ -3374,6 +3380,36 @@ def _overlay_current_leaderboard_candidate_truth(diag: Dict[str, Any]) -> Dict[s
             return int(value)
         except (TypeError, ValueError):
             return None
+
+    def _sync_governance_contract(progress_override: Dict[str, Any] | None = None) -> None:
+        governance_contract = dict(diag.get("governance_contract") or {})
+        support_route = diag.get("support_governance_route")
+        minimum_rows = _as_int(diag.get("minimum_support_rows"))
+        live_rows = _as_int(diag.get("live_current_structure_bucket_rows"))
+        gap_to_minimum = diag.get("live_current_structure_bucket_gap_to_minimum")
+        if gap_to_minimum is None and minimum_rows is not None and live_rows is not None:
+            gap_to_minimum = max(minimum_rows - live_rows, 0)
+        support_progress = progress_override
+        if support_progress is None:
+            raw_progress = diag.get("support_progress")
+            support_progress = raw_progress if isinstance(raw_progress, dict) and raw_progress else None
+
+        if support_route:
+            governance_contract["support_governance_route"] = support_route
+        if minimum_rows is not None:
+            governance_contract["minimum_support_rows"] = minimum_rows
+        if live_rows is not None:
+            governance_contract["live_current_structure_bucket_rows"] = live_rows
+        if gap_to_minimum is not None:
+            governance_contract["live_current_structure_bucket_gap_to_minimum"] = gap_to_minimum
+        if support_progress:
+            governance_contract["support_progress"] = support_progress
+        if governance_contract:
+            diag["governance_contract"] = governance_contract
+
+    if not current_signature and not current_progress:
+        _sync_governance_contract()
+        return diag
 
     current_bucket = current_signature.get("live_current_structure_bucket")
     current_rows = _as_int(current_signature.get("live_current_structure_bucket_rows"))
@@ -3422,6 +3458,7 @@ def _overlay_current_leaderboard_candidate_truth(diag: Dict[str, Any]) -> Dict[s
         )
     )
     if not live_truth_mismatch and not progress_mismatch:
+        _sync_governance_contract(current_progress)
         return diag
 
     recency = dict(diag.get("current_alignment_recency") or {})
@@ -3457,16 +3494,7 @@ def _overlay_current_leaderboard_candidate_truth(diag: Dict[str, Any]) -> Dict[s
     if current_progress:
         diag["support_progress"] = current_progress
 
-    governance_contract = dict(diag.get("governance_contract") or {})
-    if diag.get("support_governance_route"):
-        governance_contract["support_governance_route"] = diag.get("support_governance_route")
-    governance_contract["minimum_support_rows"] = minimum_rows
-    governance_contract["live_current_structure_bucket_rows"] = live_rows
-    governance_contract["live_current_structure_bucket_gap_to_minimum"] = diag.get("live_current_structure_bucket_gap_to_minimum")
-    if current_progress:
-        governance_contract["support_progress"] = current_progress
-    if governance_contract:
-        diag["governance_contract"] = governance_contract
+    _sync_governance_contract(current_progress)
 
     return diag
 
@@ -4111,6 +4139,7 @@ def main(argv=None):
             f"{semantic_note}"
         )
 
+    leaderboard_artifact_path = Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json"
     write_progress(run_label, "leaderboard_candidate_probe")
     if refresh_candidate_eval_lanes:
         leaderboard_probe_result = run_leaderboard_candidate_probe(run_label)
@@ -4128,27 +4157,54 @@ def main(argv=None):
         if leaderboard_probe_result.get("stderr"):
             print(f"\n--- hb_leaderboard_candidate_probe stderr ---\n{leaderboard_probe_result['stderr']}")
     else:
-        artifact_path = Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json"
+        alignment_refresh_payload = None
+        alignment_refresh_applied = False
+        if leaderboard_artifact_path.exists():
+            alignment_refresh_payload = _refresh_leaderboard_candidate_alignment_snapshot(
+                leaderboard_artifact_path,
+                allow_rebuild=False,
+            )
+            alignment_refresh_applied = alignment_refresh_payload is not None
+
         leaderboard_probe_result = _build_skipped_serial_result(
             "hb_leaderboard_candidate_probe",
-            reason="fast_mode_candidate_refresh_disabled",
-            artifact_path=artifact_path,
+            reason=(
+                "fast_mode_alignment_refresh_only"
+                if alignment_refresh_applied
+                else "fast_mode_candidate_refresh_disabled"
+            ),
+            artifact_path=leaderboard_artifact_path,
         )
+        if alignment_refresh_applied:
+            leaderboard_probe_result["alignment_refresh_only"] = True
+            leaderboard_probe_result["refresh_applied"] = True
+            leaderboard_probe_result["generated_at"] = alignment_refresh_payload.get("generated_at")
         leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
         write_progress(
             run_label,
             "leaderboard_candidate_probe",
             status="skipped",
             details={
-                "skip_reason": "fast_mode_candidate_refresh_disabled",
-                "artifact_path": str(artifact_path),
+                "skip_reason": (
+                    "fast_mode_alignment_refresh_only"
+                    if alignment_refresh_applied
+                    else "fast_mode_candidate_refresh_disabled"
+                ),
+                "artifact_path": str(leaderboard_artifact_path),
+                "alignment_refresh_only": alignment_refresh_applied,
                 "refresh_with": "--fast --fast-refresh-candidates",
             },
         )
-        print(
-            "⏭️  Leaderboard candidate probe：fast mode 預設跳過 candidate refresh；"
-            "沿用既有 artifact 做 governance 摘要。"
-        )
+        if alignment_refresh_applied:
+            print(
+                "⏭️  Leaderboard candidate probe：fast mode 僅刷新 current-live alignment snapshot；"
+                "沿用既有 leaderboard payload 並更新 governance 對齊時間戳。"
+            )
+        else:
+            print(
+                "⏭️  Leaderboard candidate probe：fast mode 預設跳過 candidate refresh；"
+                "沿用既有 artifact 做 governance 摘要。"
+            )
     if leaderboard_candidate_diagnostics:
         blocked = leaderboard_candidate_diagnostics.get("blocked_candidate_profiles") or []
         blocked_text = ",".join(
@@ -4249,6 +4305,15 @@ def main(argv=None):
             print(f"\n--- live_decision_quality_drilldown (resynced) ---\n{preview}")
         if live_drilldown_result.get("stderr"):
             print(f"\n--- live_decision_quality_drilldown (resynced) stderr ---\n{live_drilldown_result['stderr']}")
+
+    if leaderboard_artifact_path.exists():
+        _refresh_leaderboard_candidate_alignment_snapshot(
+            leaderboard_artifact_path,
+            allow_rebuild=False,
+        )
+        refreshed_leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
+        if refreshed_leaderboard_candidate_diagnostics:
+            leaderboard_candidate_diagnostics = refreshed_leaderboard_candidate_diagnostics
 
     write_progress(run_label, "q15_bucket_root_cause")
     q15_bucket_root_cause_result = run_q15_bucket_root_cause()
