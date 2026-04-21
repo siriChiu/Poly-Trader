@@ -55,6 +55,9 @@ type RecommendedPatchSummary = {
   support_route_verdict?: string | null;
   support_governance_route?: string | null;
   support_route_deployable?: boolean | null;
+  current_live_regime_gate?: string | null;
+  patch_scope_matches_live?: boolean | null;
+  reference_only_cause?: string | null;
   current_live_structure_bucket?: string | null;
   current_live_structure_bucket_rows?: number | null;
   minimum_support_rows?: number | null;
@@ -113,6 +116,8 @@ const formatPatchStatus = (status?: string | null) => {
   switch (status) {
     case "reference_only_until_exact_support_ready":
       return "先當治理參考，不可直接放行";
+    case "reference_only_non_current_live_scope":
+      return "scope 不同，僅作治理參考";
     case "deployable_patch_candidate":
       return "已達可部署 patch 候選";
     default:
@@ -165,6 +170,7 @@ export default function LivePathologySummaryCard({
   const compactPatchLabel = recommendedPatch?.recommended_profile
     || recommendedPatch?.reference_patch_scope
     || (recommendedPatch ? formatPatchStatus(recommendedPatch.status) : null);
+  const compactPatchStatusLabel = recommendedPatch ? formatPatchStatus(recommendedPatch.status) : null;
   const currentBucketSupportRows = recommendedPatch?.current_live_structure_bucket_rows ?? exactLane?.current_live_structure_bucket_rows;
   const currentBucketSupportMinimum = recommendedPatch?.minimum_support_rows ?? null;
   const currentBucketSupportLabel = currentBucketSupportRows != null
@@ -253,7 +259,8 @@ export default function LivePathologySummaryCard({
               {recommendedPatch?.gap_to_minimum != null ? ` · gap ${recommendedPatch.gap_to_minimum}` : ""}
             </div>
             <div className="text-sky-50/80">
-              {supportRouteLabel || formatPatchStatus(recommendedPatch?.status) || "patch 狀態未提供"}
+              {compactPatchStatusLabel || "patch 狀態未提供"}
+              {supportRouteLabel ? ` · support route ${supportRouteLabel}` : ""}
               {supportGovernanceRouteLabel ? ` · governance ${supportGovernanceRouteLabel}` : ""}
             </div>
           </div>

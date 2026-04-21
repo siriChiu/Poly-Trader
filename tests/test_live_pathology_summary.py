@@ -7,6 +7,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from server.live_pathology_summary import (
+    build_live_pathology_patch_summary,
     build_live_pathology_scope_summary,
     build_live_pathology_scope_surface,
 )
@@ -219,6 +220,62 @@ def test_build_live_pathology_scope_surface_keeps_reference_patch_visible_for_no
     assert patch["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
     assert patch["current_live_structure_bucket_rows"] == 0
     assert patch["gap_to_minimum"] == 50
+
+
+def test_build_live_pathology_patch_summary_keeps_spillover_patch_reference_only_when_live_scope_differs(tmp_path):
+    artifact_path = tmp_path / "bull_4h_pocket_ablation.json"
+    _write_bull_patch_artifact(artifact_path)
+
+    confidence_payload = {
+        "regime_label": "chop",
+        "regime_gate": "CAUTION",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "support_route_verdict": "exact_bucket_supported",
+        "support_route_deployable": True,
+        "support_progress": {
+            "current_rows": 94,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 0,
+        },
+        "deployment_blocker": "circuit_breaker_active",
+    }
+    scope_summary = {
+        "focus_scope": "regime_gate",
+        "focus_scope_label": "同 gate 寬 scope",
+        "spillover": {
+            "extra_rows": 56,
+            "worst_extra_regime_gate": {
+                "regime_gate": "bull|CAUTION",
+                "rows": 53,
+                "win_rate": 0.2264,
+                "avg_pnl": -0.004,
+                "avg_quality": -0.0812,
+            },
+        },
+        "exact_live_lane": {
+            "rows": 144,
+            "win_rate": 0.9514,
+            "avg_pnl": 0.0153,
+            "avg_quality": 0.5661,
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 94,
+        },
+    }
+
+    patch = build_live_pathology_patch_summary(
+        confidence_payload,
+        scope_summary,
+        artifact_path=artifact_path,
+    )
+
+    assert patch["recommended_profile"] == "core_plus_macro"
+    assert patch["status"] == "reference_only_non_current_live_scope"
+    assert patch["current_live_regime_gate"] == "chop|CAUTION"
+    assert patch["reference_patch_scope"] == "bull|CAUTION"
+    assert patch["patch_scope_matches_live"] is False
+    assert patch["reference_only_cause"] == "non_current_live_scope"
+    assert "current live scope 是 chop|CAUTION" in patch["reason"]
+    assert "只可作治理 / 訓練參考" in patch["recommended_action"]
 
 
 def test_build_live_pathology_scope_summary_exposes_exact_lane_bucket_context():

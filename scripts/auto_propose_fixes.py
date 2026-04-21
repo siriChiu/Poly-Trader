@@ -38,6 +38,10 @@ CORE_FEATURES = [
 CANONICAL_BREAKER_HORIZON_MINUTES = 1440
 
 
+def _is_reference_only_patch_status(status: object) -> bool:
+    return str(status or "").startswith("reference_only_")
+
+
 def _table_has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
     rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
     return any(str(row[1]) == column for row in rows)
@@ -547,22 +551,42 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
             "reference_source": recommended_patch.get("reference_source"),
         }
 
+    patch_status = str(recommended_patch.get("status") or "") if isinstance(recommended_patch, dict) else ""
     if (
         isinstance(recommended_patch, dict)
         and recommended_patch.get("recommended_profile")
-        and str(recommended_patch.get("status") or "") == "reference_only_until_exact_support_ready"
+        and _is_reference_only_patch_status(patch_status)
     ):
         patch_profile = recommended_patch.get("recommended_profile")
         tracker.resolve("P1_reference_only_patch_visibility")
+        reference_patch_scope = recommended_patch.get("reference_patch_scope") or recommended_patch.get("spillover_regime_gate")
+        current_live_regime_gate = recommended_patch.get("current_live_regime_gate")
+        if patch_status == "reference_only_non_current_live_scope":
+            patch_title = (
+                f"support-aware {patch_profile} patch must stay visible but reference-only outside current live scope"
+            )
+            patch_action = (
+                "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, "
+                "live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, "
+                "so do not promote it to a deployable runtime patch even though exact support is available."
+            )
+        else:
+            patch_title = f"support-aware {patch_profile} patch must stay visible but reference-only"
+            patch_action = (
+                "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; "
+                "do not promote it from reference-only until current-live exact support reaches the minimum rows."
+            )
         upsert_issue(
             tracker,
             "P1",
             "P1_bull_caution_spillover_patch_reference_only",
-            f"support-aware {patch_profile} patch must stay visible but reference-only",
-            "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.",
+            patch_title,
+            patch_action,
             summary={
                 "actual_live_spillover_scope": actual_live_spillover_scope,
-                "reference_patch_scope": recommended_patch.get("reference_patch_scope") or recommended_patch.get("spillover_regime_gate"),
+                "reference_patch_scope": reference_patch_scope,
+                "current_live_regime_gate": current_live_regime_gate,
+                "reference_only_cause": recommended_patch.get("reference_only_cause"),
                 "exact_live_lane_rows": _as_int_or_none(((pathology_summary.get("exact_live_lane") or {}) if isinstance(pathology_summary, dict) else {}).get("rows")),
                 "recommended_patch": patch_profile,
                 "recommended_patch_status": recommended_patch.get("status"),

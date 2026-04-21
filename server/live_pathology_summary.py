@@ -209,15 +209,20 @@ def build_live_pathology_patch_summary(
     if support_route_deployable is None:
         support_route_deployable = live_context.get("support_route_deployable")
 
+    current_live_bucket = str(
+        confidence_payload.get("current_live_structure_bucket")
+        or confidence_payload.get("structure_bucket")
+        or support_summary.get("current_live_structure_bucket")
+        or ""
+    ).strip()
+    current_regime = str(confidence_payload.get("regime_label") or "").strip()
+    current_gate = str(confidence_payload.get("regime_gate") or "").strip()
+    current_live_regime_gate = (
+        f"{current_regime}|{current_gate}" if current_regime and current_gate else None
+    )
+
     reference_source = "live_scope_spillover"
     if spillover_regime_gate != "bull|CAUTION":
-        current_live_bucket = str(
-            confidence_payload.get("current_live_structure_bucket")
-            or confidence_payload.get("structure_bucket")
-            or support_summary.get("current_live_structure_bucket")
-            or ""
-        ).strip()
-        current_regime = str(confidence_payload.get("regime_label") or "").strip()
         exact_support_missing = False
         if minimum_rows is not None and current_rows is not None and current_rows < minimum_rows:
             exact_support_missing = True
@@ -240,23 +245,67 @@ def build_live_pathology_patch_summary(
         reference_patch_scope = "bull|CAUTION"
         reference_source = "bull_4h_pocket_ablation.bull_collapse_q35"
 
-    reference_only = not bool(support_route_deployable)
+    exact_support_not_ready = not bool(support_route_deployable)
     if minimum_rows is not None and current_rows is not None and current_rows < minimum_rows:
-        reference_only = True
-    status = "reference_only_until_exact_support_ready" if reference_only else "deployable_patch_candidate"
+        exact_support_not_ready = True
+    elif str(support_route_verdict or "").startswith("exact_bucket_missing"):
+        exact_support_not_ready = True
+
+    non_current_live_scope = False
+    if not exact_support_not_ready and reference_patch_scope and current_live_regime_gate:
+        non_current_live_scope = reference_patch_scope != current_live_regime_gate
+
+    reference_only_cause = None
+    if exact_support_not_ready:
+        reference_only_cause = "exact_support_not_ready"
+        status = "reference_only_until_exact_support_ready"
+    elif non_current_live_scope:
+        reference_only_cause = "non_current_live_scope"
+        status = "reference_only_non_current_live_scope"
+    else:
+        status = "deployable_patch_candidate"
+
+    reference_only = status.startswith("reference_only_")
     reference_patch_scope_text = reference_patch_scope or "—"
     reference_source_text = reference_source or "—"
-    if reference_only:
+    deployment_blocker = str(confidence_payload.get("deployment_blocker") or "").strip() or None
+    if reference_only_cause == "exact_support_not_ready":
         reason = (
             f"參考 patch 來自 {reference_patch_scope_text}（source: {reference_source_text}），"
             f"建議 profile={recommended_profile}；但 current live exact support 仍是 {current_rows if current_rows is not None else '—'}"
             f"/{minimum_rows if minimum_rows is not None else '—'}；"
             "目前只能作治理 / 訓練參考，不可直接放行 runtime。"
         )
+        recommended_action = (
+            f"維持 reference-only patch truth；current live exact support {current_rows if current_rows is not None else '—'}"
+            f"/{minimum_rows if minimum_rows is not None else '—'} 尚未達標，patch 只可作治理 / 訓練參考。"
+        )
+    elif reference_only_cause == "non_current_live_scope":
+        reason = (
+            f"參考 patch 來自 {reference_patch_scope_text}（source: {reference_source_text}），"
+            f"但 current live scope 是 {current_live_regime_gate or '—'}；"
+            "這代表 patch 描述的是 spillover / broader lane，而不是目前 current-live row 的 deploy patch。"
+            " 即使 exact support 已達 minimum rows，也只能作治理 / 訓練參考，不可直接放行 runtime。"
+        )
+        recommended_action = (
+            f"維持 reference-only patch 可見性；目前 current live 是 {current_live_regime_gate or '—'}，"
+            f"但 patch 來自 {reference_patch_scope_text} spillover。"
+            " 在 scope 對齊前，只可作治理 / 訓練參考，不可把它升級成 current-live deploy patch。"
+        )
     else:
+        blocker_clause = (
+            f" 目前 deployment blocker 仍以 {deployment_blocker} 為準。"
+            if deployment_blocker
+            else ""
+        )
         reason = (
             f"參考 patch 來自 {reference_patch_scope_text}（source: {reference_source_text}），可直接對應到 {recommended_profile} patch；"
             "exact support 已達 deployable 條件，可把它視為正式 runtime / training patch 候選。"
+            f"{blocker_clause}"
+        )
+        recommended_action = (
+            "same-scope exact support 已達 minimum rows，可進入 runtime / training patch 驗證；"
+            f"deployment blocker 仍以 {deployment_blocker or 'latest runtime truth'} 為準。"
         )
 
     return {
@@ -273,13 +322,14 @@ def build_live_pathology_patch_summary(
         "preferred_support_cohort": support_summary.get("preferred_support_cohort"),
         "support_route_verdict": support_route_verdict,
         "support_route_deployable": bool(support_route_deployable),
-        "current_live_structure_bucket": confidence_payload.get("current_live_structure_bucket")
-        or confidence_payload.get("structure_bucket")
-        or support_summary.get("current_live_structure_bucket"),
+        "current_live_regime_gate": current_live_regime_gate,
+        "patch_scope_matches_live": not non_current_live_scope,
+        "reference_only_cause": reference_only_cause,
+        "current_live_structure_bucket": current_live_bucket,
         "current_live_structure_bucket_rows": current_rows,
         "minimum_support_rows": minimum_rows,
         "gap_to_minimum": gap_to_minimum,
-        "recommended_action": support_summary.get("recommended_action"),
+        "recommended_action": recommended_action,
         "cohort_rows": cohort.get("rows"),
         "cohort_base_win_rate": cohort.get("base_win_rate"),
         "profile_cv_mean_accuracy": profile_metrics.get("cv_mean_accuracy"),

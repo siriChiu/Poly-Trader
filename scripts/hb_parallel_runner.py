@@ -345,7 +345,7 @@ def _patch_truth_doc_context(
     status = _normalize_patch_truth_value(patch_status)
     reference_scope = _normalize_patch_truth_value(patch_reference_scope)
     has_patch = any(item != "—" for item in (profile, status, reference_scope))
-    reference_only = has_patch and status == "reference_only_until_exact_support_ready"
+    reference_only = has_patch and status.startswith("reference_only_")
     patch_label = "reference-only patch" if reference_only else ("recommended patch" if has_patch else "")
     docs_line = f"`recommended_patch={profile}` / `status={status}` / `reference_scope={reference_scope}`"
     if not has_patch:

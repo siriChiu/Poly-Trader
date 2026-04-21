@@ -57,6 +57,19 @@ def test_parse_args_requires_hb_for_full_mode():
         raise AssertionError("Expected parser error when --hb missing in full mode")
 
 
+def test_patch_truth_doc_context_treats_any_reference_only_status_as_reference_only():
+    context = hb_parallel_runner._patch_truth_doc_context(
+        "core_plus_macro_plus_all_4h",
+        "reference_only_non_current_live_scope",
+        "bull|CAUTION",
+    )
+
+    assert context["reference_only"] is True
+    assert context["patch_label"] == "reference-only patch"
+    assert context["priority_focus_phrase"] == "support / reference-only patch"
+    assert "reference_only_non_current_live_scope" in context["docs_line"]
+
+
 def test_parse_collect_metadata_extracts_continuity_repair_json():
     payload = '{"inserted_total": 3, "bridge_inserted": 1, "used_bridge": true}'
     stdout = f"hello\nCONTINUITY_REPAIR_META: {payload}\nworld"

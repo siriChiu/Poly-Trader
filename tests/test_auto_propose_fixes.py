@@ -30,6 +30,12 @@ def test_check_db_uses_canonical_simulated_pyramid_win(tmp_path, monkeypatch):
     assert stats["raw_latest_age_min"] is not None
 
 
+def test_is_reference_only_patch_status_accepts_scope_mismatch_variant():
+    assert auto_propose_fixes._is_reference_only_patch_status("reference_only_until_exact_support_ready") is True
+    assert auto_propose_fixes._is_reference_only_patch_status("reference_only_non_current_live_scope") is True
+    assert auto_propose_fixes._is_reference_only_patch_status("deployable_patch_candidate") is False
+
+
 def test_check_db_prefers_canonical_1440m_streak_over_mixed_horizon_tail(tmp_path, monkeypatch):
     monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
     db_path = tmp_path / "poly_trader.db"
