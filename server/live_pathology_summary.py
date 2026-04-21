@@ -42,6 +42,11 @@ def build_live_pathology_scope_summary(scope_diagnostics: Optional[Dict[str, Any
         "avg_time_underwater": exact_scope.get("avg_time_underwater"),
         "current_live_structure_bucket": exact_scope.get("current_live_structure_bucket"),
         "current_live_structure_bucket_rows": exact_scope.get("current_live_structure_bucket_rows"),
+        "dominant_structure_bucket": (
+            (exact_scope.get("recent500_dominant_structure_bucket") or {}).get("structure_bucket")
+            if isinstance(exact_scope.get("recent500_dominant_structure_bucket"), dict)
+            else None
+        ),
     }
 
     candidate_scopes = [

@@ -15,6 +15,7 @@ type LaneSummary = {
   avg_time_underwater?: number | null;
   current_live_structure_bucket?: string | null;
   current_live_structure_bucket_rows?: number | null;
+  dominant_structure_bucket?: string | null;
 };
 
 type SpilloverPocket = {
@@ -167,8 +168,18 @@ export default function LivePathologySummaryCard({
   const currentBucketSupportRows = recommendedPatch?.current_live_structure_bucket_rows ?? exactLane?.current_live_structure_bucket_rows;
   const currentBucketSupportMinimum = recommendedPatch?.minimum_support_rows ?? null;
   const currentBucketSupportLabel = currentBucketSupportRows != null
-    ? ` · current bucket ${currentBucketSupportRows}${currentBucketSupportMinimum != null ? `/${currentBucketSupportMinimum}` : ""}`
-    : "";
+    ? `current bucket support ${currentBucketSupportRows}${currentBucketSupportMinimum != null ? `/${currentBucketSupportMinimum}` : ""}`
+    : null;
+  const exactLaneRowsLabel = exactLane?.rows != null
+    ? `exact lane cohort ${exactLane.rows}`
+    : "exact lane cohort —";
+  const exactLaneHistoricalBucket = exactLane?.dominant_structure_bucket || null;
+  const exactLaneHistoricalBucketLabel = exactLaneHistoricalBucket && exactLaneHistoricalBucket !== exactLane?.current_live_structure_bucket
+    ? `historical lane bucket ${exactLaneHistoricalBucket}`
+    : null;
+  const exactLaneCurrentBucketLabel = exactLane?.current_live_structure_bucket
+    ? `current bucket ${exactLane.current_live_structure_bucket}`
+    : (exactLane?.scope || "未提供 bucket");
   const supportAlignmentStatusLabel = formatSupportAlignmentStatus(supportAlignmentStatus);
   const supportAlignmentCountsLabel = runtimeExactSupportRows != null || calibrationExactLaneRows != null
     ? `runtime/calibration ${runtimeExactSupportRows ?? "—"} / ${calibrationExactLaneRows ?? "—"}`
@@ -203,12 +214,15 @@ export default function LivePathologySummaryCard({
               WR {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)}
             </div>
             <div className="text-emerald-50/80">
-              {exactLane?.current_live_structure_bucket || exactLane?.scope || "未提供 bucket"}
+              {exactLaneCurrentBucketLabel}
             </div>
             <div className="text-emerald-50/80">
-              exact lane rows {exactLane?.rows ?? "—"}
-              {currentBucketSupportLabel}
+              {exactLaneRowsLabel}
+              {currentBucketSupportLabel ? ` · ${currentBucketSupportLabel}` : ""}
             </div>
+            {exactLaneHistoricalBucketLabel && (
+              <div className="text-emerald-50/80">{exactLaneHistoricalBucketLabel}</div>
+            )}
             {(supportAlignmentCountsLabel || supportAlignmentStatusLabel) && (
               <div className={supportAlignmentTone}>
                 {supportAlignmentCountsLabel || "runtime/calibration — / —"}
@@ -286,8 +300,8 @@ export default function LivePathologySummaryCard({
           </div>
           <div className="mt-2 space-y-1 text-[11px] leading-5 text-emerald-50/85">
             <div>
-              rows {exactLane?.rows ?? "—"}
-              {currentBucketSupportLabel}
+              {exactLaneRowsLabel}
+              {currentBucketSupportLabel ? ` · ${currentBucketSupportLabel}` : ""}
             </div>
             {(supportAlignmentCountsLabel || supportAlignmentStatusLabel) && (
               <div className={supportAlignmentTone}>
@@ -298,7 +312,10 @@ export default function LivePathologySummaryCard({
             {supportAlignmentSummary && (
               <div className={supportAlignmentTone}>{supportAlignmentSummary}</div>
             )}
-            <div>{exactLane?.current_live_structure_bucket || "未提供 current live structure bucket"}</div>
+            <div>{exactLaneCurrentBucketLabel}</div>
+            {exactLaneHistoricalBucketLabel && (
+              <div>{exactLaneHistoricalBucketLabel}</div>
+            )}
             <div>
               WR {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)} · PnL {formatPct(exactLane?.avg_pnl ?? null, 2, true)}
             </div>

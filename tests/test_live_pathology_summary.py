@@ -6,7 +6,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from server.live_pathology_summary import build_live_pathology_scope_surface
+from server.live_pathology_summary import (
+    build_live_pathology_scope_summary,
+    build_live_pathology_scope_surface,
+)
 
 
 def _write_bull_patch_artifact(path: Path) -> None:
@@ -216,3 +219,62 @@ def test_build_live_pathology_scope_surface_keeps_reference_patch_visible_for_no
     assert patch["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
     assert patch["current_live_structure_bucket_rows"] == 0
     assert patch["gap_to_minimum"] == 50
+
+
+def test_build_live_pathology_scope_summary_exposes_exact_lane_bucket_context():
+    summary = build_live_pathology_scope_summary(
+        {
+            "regime_label+regime_gate+entry_quality_label": {
+                "rows": 12,
+                "win_rate": 1.0,
+                "avg_pnl": 0.0095,
+                "avg_quality": 0.4193,
+                "avg_drawdown_penalty": 0.3774,
+                "avg_time_underwater": 0.734,
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                "current_live_structure_bucket_rows": 0,
+                "recent500_dominant_structure_bucket": {
+                    "structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "count": 12,
+                    "share": 1.0,
+                },
+            },
+            "entry_quality_label": {
+                "rows": 197,
+                "spillover_vs_exact_live_lane": {
+                    "extra_rows": 185,
+                    "extra_row_share": 0.9391,
+                    "win_rate_delta_vs_exact": -0.2741,
+                    "avg_pnl_delta_vs_exact": 0.0008,
+                    "avg_quality_delta_vs_exact": -0.0501,
+                    "avg_drawdown_penalty_delta_vs_exact": -0.1618,
+                    "avg_time_underwater_delta_vs_exact": -0.3045,
+                    "worst_extra_regime_gate": {
+                        "regime_gate": "bull|BLOCK",
+                        "rows": 24,
+                        "win_rate": 0.0,
+                        "avg_pnl": -0.0069,
+                        "avg_quality": -0.2367,
+                        "avg_drawdown_penalty": 0.329,
+                        "avg_time_underwater": 0.847,
+                    },
+                    "worst_extra_regime_gate_feature_contrast": {
+                        "top_mean_shift_features": [
+                            {
+                                "feature": "feat_4h_dist_bb_lower",
+                                "reference_mean": 1.6764,
+                                "current_mean": 0.929,
+                                "mean_delta": -0.7474,
+                            }
+                        ]
+                    },
+                },
+            },
+        }
+    )
+
+    assert summary is not None
+    assert summary["exact_live_lane"]["dominant_structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert summary["exact_live_lane"]["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
+    assert summary["exact_live_lane"]["current_live_structure_bucket_rows"] == 0
+    assert summary["exact_live_lane"]["rows"] == 12
