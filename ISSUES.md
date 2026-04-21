@@ -1,29 +1,29 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-22 05:30:27 CST_
+_最後更新：2026-04-22 06:19:54 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 fast heartbeat #20260422g 已完成 collect + diagnostics refresh**
-  - `Raw=31437 / Features=22855 / Labels=63390`
-  - `simulated_pyramid_win=57.21%`
+- **最新 fast heartbeat #20260422h 已完成 collect + diagnostics refresh**
+  - `Raw=31442 / Features=22860 / Labels=63398`
+  - `simulated_pyramid_win=57.20%`
 - **canonical current-live blocker 仍是 breaker-first truth**
-  - `deployment_blocker=circuit_breaker_active` / `streak=36` / `recent_window_wins=14/50` / `additional_recent_window_wins_needed=1`
+  - `deployment_blocker=circuit_breaker_active` / `streak=41` / `recent_window_wins=9/50` / `additional_recent_window_wins_needed=6`
   - `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_proxy_reference_only`
 - **recent canonical diagnostics 已刷新**
-  - `latest_window=500` / `win_rate=31.6%` / `dominant_regime=bull(65.0%)` / `avg_quality=+0.0280` / `avg_pnl=0.0000` / `alerts=regime_shift`
+  - `latest_window=500` / `win_rate=31.6%` / `dominant_regime=bull(65.0%)` / `avg_quality=+0.0289` / `avg_pnl=0.0000` / `alerts=regime_shift`
+- **recent canonical drift 已進入 operator-facing surfaces**
+  - `/api/status` 現在同步輸出 `recent_canonical_drift`
+  - Dashboard 與 Strategy Lab 都會直接渲染 recent-window drift 摘要卡，不再只剩 artifact / docs 可見
 - **leaderboard / governance 仍維持 dual-role contract**
   - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2907` / `archive_window_coverage_pct=0.0`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2912` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof
-- **operator-facing observability posture 已修正為 limited-evidence aware**
-  - Dashboard / Execution Console / Execution Status / Strategy Lab 現在會在 `execution_reconciliation.status=healthy` 但 `lifecycle_audit.stage=no_runtime_order` 或 `artifact_coverage=not_applicable` 時降級成 `limited evidence`
-  - 避免把「尚無 runtime order」誤讀成完整 execution closure；已用 `pytest tests/test_frontend_decision_contract.py`、`npm run build` 與 browser `/` `/lab` `/execution/status` 驗證
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環
@@ -33,14 +33,14 @@ _最後更新：2026-04-22 05:30:27 CST_
 ## Open Issues
 
 ### P0. canonical circuit breaker remains the only current-live deployment blocker
-- 目前真相：`deployment_blocker=circuit_breaker_active` / `streak=36` / `recent 50 wins=14/50` / `additional_recent_window_wins_needed=1`
+- 目前真相：`deployment_blocker=circuit_breaker_active` / `streak=41` / `recent 50 wins=9/50` / `additional_recent_window_wins_needed=6`
 - same-bucket truth：`bucket=CAUTION|structure_quality_caution|q15` / `support=0/50` / `support_route_verdict=exact_bucket_missing_proxy_reference_only` / `support_governance_route=exact_live_bucket_proxy_available`
-- 下一步：先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 14 勝，還差 1 勝；同時 streak 必須 < 50。
+- 下一步：先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 9 勝，還差 6 勝；同時 streak 必須 < 50。
 
 ### P0. recent canonical window 500 rows = regime_concentration
-- 目前真相：`window=500` / `win_rate=31.6%` / `dominant_regime=bull(65.0%)` / `avg_quality=+0.0280` / `avg_pnl=0.0000` / `alerts=regime_shift`
+- 目前真相：`window=500` / `win_rate=31.6%` / `dominant_regime=bull(65.0%)` / `avg_quality=+0.0289` / `avg_pnl=0.0000` / `alerts=regime_shift`
 - 病態切片：`alerts=regime_shift` / `tail_streak=—` / `top_shift=feat_4h_bias20,feat_4h_bb_pct_b,feat_4h_rsi14` / `new_compressed=feat_vwap_dev`
-- 下一步：直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['regime_shift'], win_rate=0.3160, delta_vs_full=-0.3097, dominant_regime=bull(65.00%), interpretation=regime_concentration, avg_pnl=+0.0000, avg_quality=0.0280, avg_dd_penalty=0.2453, spot_long_win_rate=0.1600, feature_diag=variance:8/56, frozen:0, compressed:8, expected_static:2, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=36x0 since 2026-04-20 18:07:54.813003 -> 2026-04-20 22:15:35.699412, adverse_streak=191x0 since 2026-04-18 14:33:06.990329 -> 2026-04-19 01:10:17.732530, prev_win_rate=0.458, delta_vs_prev=-0.142, prev_quality=0.117, quality_delta_vs_prev=-0.089, prev_pnl=0.0003, pnl_delta_vs_prev=-0.0003, top_shift_examples=feat_4h_bias20(2.0827→0.1025,Δσ=1.1974)/feat_4h_bb_pct_b(0.7443→0.3974,Δσ=1.0795)/feat_4h_rsi14(63.9144→54.1483,Δσ=0.9749), new_compressed=feat_vwap_dev, compressed_examples=feat_body(0.0001/500)/feat_ear(0.0094/498)/feat_tongue(0.0131/500), expected_static_examples=feat_dxy[weekend_macro_market_closed]/feat_vix[weekend_macro_market_closed], overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-20 21:34:44.581293:0:bull:-0.1375/2026-04-20 21:36:01.039151:0:bull:-0.1484/2026-04-20 22:15:35.699412:0:bull:-0.2168, adverse_examples=2026-04-19 00:40:09.929353:0:bull:-0.2753/2026-04-19 01:01:04.227452:0:bull:-0.3173/2026-04-19 01:10:17.732530:0:bull:-0.2383
+- 下一步：直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['regime_shift'], win_rate=0.3160, delta_vs_full=-0.3096, dominant_regime=bull(65.00%), interpretation=regime_concentration, avg_pnl=+0.0000, avg_quality=0.0289, avg_dd_penalty=0.2438, spot_long_win_rate=0.1600, feature_diag=variance:8/56, frozen:0, compressed:8, expected_static:2, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=41x0 since 2026-04-20 18:07:54.813003 -> 2026-04-20 23:01:18.174397, adverse_streak=191x0 since 2026-04-18 14:33:06.990329 -> 2026-04-19 01:10:17.732530, prev_win_rate=0.448, delta_vs_prev=-0.132, prev_quality=0.11, quality_delta_vs_prev=-0.0811, prev_pnl=0.0002, pnl_delta_vs_prev=-0.0002, top_shift_examples=feat_4h_bias20(2.0956→0.0747,Δσ=1.2221)/feat_4h_bb_pct_b(0.7485→0.3957,Δσ=1.0978)/feat_4h_rsi14(64.0159→54.0068,Δσ=0.9992), new_compressed=feat_vwap_dev, compressed_examples=feat_body(0.0001/500)/feat_ear(0.0094/498)/feat_tongue(0.0131/500), expected_static_examples=feat_dxy[weekend_macro_market_closed]/feat_vix[weekend_macro_market_closed], overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-20 22:59:33.908527:0:bull:-0.1961/2026-04-20 23:00:02.606077:0:bull:-0.1966/2026-04-20 23:01:18.174397:0:bull:-0.1402, adverse_examples=2026-04-19 00:40:09.929353:0:bull:-0.2753/2026-04-19 01:01:04.227452:0:bull:-0.3173/2026-04-19 01:10:17.732530:0:bull:-0.2383
 - 驗證：
   - python scripts/recent_drift_report.py
   - python scripts/hb_predict_probe.py
@@ -59,7 +59,7 @@ _最後更新：2026-04-22 05:30:27 CST_
   - data/execution_metadata_smoke.json
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2907` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2912` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json

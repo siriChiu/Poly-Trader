@@ -1,18 +1,19 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-22 05:29:52 CST_
+_最後更新：2026-04-22 06:19:54 CST_
 
 ---
 
-## 心跳 #20260422g ORID
+## 心跳 #20260422h ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31437 / Features=22855 / Labels=63390`；`simulated_pyramid_win=57.21%`。
-- current-live blocker：`deployment_blocker=circuit_breaker_active` / `streak=36` / `recent_window_wins=14/50` / `additional_recent_window_wins_needed=1`。
+- collect + diagnostics refresh 完成：`Raw=31442 / Features=22860 / Labels=63398`；`simulated_pyramid_win=57.20%`。
+- current-live blocker：`deployment_blocker=circuit_breaker_active` / `streak=41` / `recent_window_wins=9/50` / `additional_recent_window_wins_needed=6`。
 - q15 current-live bucket truth：`current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_proxy_reference_only`。
-- latest recent-window diagnostics：`latest_window=500` / `win_rate=31.6%` / `dominant_regime=bull(65.0%)` / `avg_quality=+0.0280` / `avg_pnl=0.0000` / `alerts=regime_shift`。
+- latest recent-window diagnostics：`latest_window=500` / `win_rate=31.6%` / `dominant_regime=bull(65.0%)` / `avg_quality=+0.0289` / `avg_pnl=0.0000` / `alerts=regime_shift`。
+- recent canonical drift 已 productize 到 `/api/status`、Dashboard、Strategy Lab，operator 不必再回 artifact / docs 才看得到 current blocker pocket。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2907` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2912` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
 
 ### R｜感受直覺

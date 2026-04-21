@@ -7,6 +7,7 @@ import AdviceCard from "../components/AdviceCard";
 import FeatureChart from "../components/FeatureChart";
 import CandlestickChart from "../components/CandlestickChart";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
+import RecentCanonicalDriftCard, { type RecentCanonicalDriftSummary } from "../components/RecentCanonicalDriftCard";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { ExecutionWorkspaceMetric, ExecutionWorkspaceSummary } from "../components/execution/ExecutionWorkspaceSummary";
 import { buildWsCandidateUrls, rememberActiveApiBaseFromWsUrl, useApi, fetchApi, prewarmActiveApiBase } from "../hooks/useApi";
@@ -126,6 +127,7 @@ interface RuntimeStatusResponse {
     live_ready_blockers?: string[];
     operator_message?: string;
     live_runtime_truth?: LiveRuntimeTruth | null;
+    recent_canonical_drift?: RecentCanonicalDriftSummary | null;
   } | null;
   execution_metadata_smoke?: {
     available?: boolean;
@@ -266,6 +268,7 @@ interface RuntimeStatusResponse {
       [key: string]: unknown;
     } | null;
     live_runtime_truth?: LiveRuntimeTruth | null;
+    recent_canonical_drift?: RecentCanonicalDriftSummary | null;
     guardrails?: {
       kill_switch?: boolean;
       max_daily_loss_pct?: number;
@@ -321,6 +324,7 @@ interface RuntimeStatusResponse {
       live_runtime_truth?: LiveRuntimeTruth | null;
     } | null;
   } | null;
+  recent_canonical_drift?: RecentCanonicalDriftSummary | null;
   account?: {
     venue?: string;
     mode?: string;
@@ -984,6 +988,7 @@ export default function Dashboard() {
   const executionOperationsSurface = executionSurfaceContract?.operations_surface ?? null;
   const executionDiagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;
   const liveRuntimeTruth = executionSummary?.live_runtime_truth ?? executionSurfaceContract?.live_runtime_truth ?? null;
+  const recentCanonicalDrift = runtimeStatus?.execution?.recent_canonical_drift ?? executionSurfaceContract?.recent_canonical_drift ?? runtimeStatus?.recent_canonical_drift ?? null;
   const liveRecentPathologyApplied = Boolean(
     liveRuntimeTruth?.decision_quality_recent_pathology_applied ?? confidenceData?.decision_quality_recent_pathology_applied
   );
@@ -1299,18 +1304,26 @@ export default function Dashboard() {
           </>
         )}
         footer={(
-          <LivePathologySummaryCard
-            summary={liveScopePathologySummary}
-            className="mt-1"
-            title="🧬 Live lane / spillover 對照"
-            compact
-            supportAlignmentStatus={liveRuntimeTruth?.support_alignment_status ?? null}
-            supportAlignmentSummary={liveRuntimeTruth?.support_alignment_summary ?? null}
-            runtimeExactSupportRows={liveRuntimeTruth?.runtime_exact_support_rows ?? null}
-            calibrationExactLaneRows={liveRuntimeTruth?.calibration_exact_lane_rows ?? null}
-            supportRouteVerdict={liveRuntimeTruth?.support_route_verdict ?? null}
-            supportGovernanceRoute={liveRuntimeTruth?.support_governance_route ?? null}
-          />
+          <>
+            <LivePathologySummaryCard
+              summary={liveScopePathologySummary}
+              className="mt-1"
+              title="🧬 Live lane / spillover 對照"
+              compact
+              supportAlignmentStatus={liveRuntimeTruth?.support_alignment_status ?? null}
+              supportAlignmentSummary={liveRuntimeTruth?.support_alignment_summary ?? null}
+              runtimeExactSupportRows={liveRuntimeTruth?.runtime_exact_support_rows ?? null}
+              calibrationExactLaneRows={liveRuntimeTruth?.calibration_exact_lane_rows ?? null}
+              supportRouteVerdict={liveRuntimeTruth?.support_route_verdict ?? null}
+              supportGovernanceRoute={liveRuntimeTruth?.support_governance_route ?? null}
+            />
+            <RecentCanonicalDriftCard
+              summary={recentCanonicalDrift}
+              pending={runtimeStatusPending && !recentCanonicalDrift}
+              className="mt-3"
+              title="📉 Recent canonical drift"
+            />
+          </>
         )}
       >
         <ExecutionWorkspaceMetric

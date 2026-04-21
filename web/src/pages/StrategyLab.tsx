@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import CandlestickChart from "../components/CandlestickChart";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
+import RecentCanonicalDriftCard, { type RecentCanonicalDriftSummary } from "../components/RecentCanonicalDriftCard";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { ExecutionWorkspaceMetric, ExecutionWorkspaceSummary } from "../components/execution/ExecutionWorkspaceSummary";
 import { fetchApi, useApi } from "../hooks/useApi";
@@ -266,6 +267,7 @@ interface StrategyLabRuntimeStatusResponse {
     live_ready?: boolean;
     live_ready_blockers?: string[];
     operator_message?: string;
+    recent_canonical_drift?: RecentCanonicalDriftSummary | null;
     live_runtime_truth?: {
       runtime_closure_state?: string | null;
       runtime_closure_summary?: string | null;
@@ -327,6 +329,10 @@ interface StrategyLabRuntimeStatusResponse {
       } | null;
     }>;
   } | null;
+  execution?: {
+    recent_canonical_drift?: RecentCanonicalDriftSummary | null;
+  } | null;
+  recent_canonical_drift?: RecentCanonicalDriftSummary | null;
   execution_reconciliation?: {
     status?: string;
     summary?: string;
@@ -2364,6 +2370,7 @@ export default function StrategyLab() {
   const executionOperationsSurface = executionSurfaceContract?.operations_surface ?? null;
   const executionDiagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;
   const liveRuntimeTruth = executionSurfaceContract?.live_runtime_truth ?? null;
+  const recentCanonicalDrift = runtimeStatus?.execution?.recent_canonical_drift ?? executionSurfaceContract?.recent_canonical_drift ?? runtimeStatus?.recent_canonical_drift ?? null;
   const liveRouting = liveRuntimeTruth?.sleeve_routing ?? null;
   const liveActiveSleeves = Array.isArray(liveRouting?.active_sleeves) ? liveRouting.active_sleeves : [];
   const liveInactiveSleeves = Array.isArray(liveRouting?.inactive_sleeves) ? liveRouting.inactive_sleeves : [];
@@ -2935,6 +2942,12 @@ export default function StrategyLab() {
               calibrationExactLaneRows={liveCalibrationExactLaneRows}
               supportRouteVerdict={liveSupportRouteVerdict}
               supportGovernanceRoute={liveSupportGovernanceRoute}
+            />
+            <RecentCanonicalDriftCard
+              summary={recentCanonicalDrift}
+              pending={runtimeStatusPending && !recentCanonicalDrift}
+              className="mt-3"
+              title="📉 Recent canonical drift"
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">

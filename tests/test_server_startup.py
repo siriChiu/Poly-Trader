@@ -135,6 +135,18 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     monkeypatch.setattr(api_module, "is_automation_enabled", lambda: True)
     monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "binance"}, "execution": {"mode": "paper", "venue": "binance", "venues": {"binance": {"enabled": True}}}})
     monkeypatch.setattr(api_module, "_ensure_execution_metadata_smoke_governance", lambda cfg, symbol: {"all_ok": True, "ok_count": 2, "venues_checked": 2, "venues": [{"venue": "binance", "ok": True}], "governance": {"status": "healthy"}})
+    monkeypatch.setattr(api_module, "_load_recent_canonical_drift_summary", lambda: {
+        "generated_at": "2026-04-22T00:00:00Z",
+        "primary_window": {
+            "window": 500,
+            "alerts": ["regime_shift"],
+            "summary": {
+                "rows": 500,
+                "win_rate": 0.316,
+                "drift_interpretation": "regime_concentration",
+            },
+        },
+    })
     monkeypatch.setattr(api_module, "get_confidence_prediction", lambda: {
         "signal": "HOLD",
         "confidence": 0.346959,
@@ -195,6 +207,10 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["execution_surface_contract"]["shortcut_surface"]["upgrade_prerequisite"] == "必須先完整消費 /api/status 的 ticking_state、stale governance、guardrail context，才能升級第二 execution route。"
     assert payload["execution_surface_contract"]["readiness_scope"] == "runtime_governance_visibility_only"
     assert payload["execution_surface_contract"]["operator_message"].startswith("目前完成的是 execution governance / visibility closure，不是 live 或 canary readiness。")
+    assert payload["execution"]["recent_canonical_drift"]["primary_window"]["window"] == 500
+    assert payload["execution"]["recent_canonical_drift"]["primary_window"]["summary"]["drift_interpretation"] == "regime_concentration"
+    assert payload["execution_surface_contract"]["recent_canonical_drift"]["primary_window"]["alerts"] == ["regime_shift"]
+    assert payload["recent_canonical_drift"]["generated_at"] == "2026-04-22T00:00:00Z"
     assert payload["execution"]["live_runtime_truth"]["runtime_closure_state"] == "capacity_opened_signal_hold"
     assert payload["execution_surface_contract"]["live_runtime_truth"]["runtime_closure_state"] == "capacity_opened_signal_hold"
     assert payload["execution"]["live_runtime_truth"]["regime_label"] == "bull"

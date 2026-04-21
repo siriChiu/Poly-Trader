@@ -64,6 +64,7 @@ DB_PATH = str(PROJECT_ROOT / "poly_trader.db")
 MODEL_LB_CACHE_PATH = PROJECT_ROOT / "data" / "model_leaderboard_cache.json"
 _LEADERBOARD_GOVERNANCE_PROBE_PATH = PROJECT_ROOT / "data" / "leaderboard_feature_profile_probe.json"
 _LIVE_PREDICT_PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
+_RECENT_DRIFT_REPORT_PATH = PROJECT_ROOT / "data" / "recent_drift_report.json"
 _STRATEGY_PARAM_SCAN_PATH = PROJECT_ROOT / "data" / "model_strategy_param_scan_latest.json"
 _MODEL_LB_STALE_AFTER_SEC = 900
 _MODEL_LB_REFRESH_COOLDOWN_SEC = 300
@@ -2722,12 +2723,15 @@ async def api_status() -> Dict[str, Any]:
     maybe_confidence_payload = get_confidence_prediction()
     confidence_payload = await maybe_confidence_payload if hasattr(maybe_confidence_payload, "__await__") else maybe_confidence_payload
     live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload)
+    recent_canonical_drift = _load_recent_canonical_drift_summary()
     execution_summary["live_runtime_truth"] = live_runtime_truth
+    execution_summary["recent_canonical_drift"] = recent_canonical_drift
 
     execution_reconciliation = _build_execution_reconciliation_summary(db, symbol, account_snapshot, execution_summary)
     metadata_smoke = _ensure_execution_metadata_smoke_governance(cfg, symbol)
     execution_surface_contract = _build_execution_surface_contract()
     execution_surface_contract["live_runtime_truth"] = live_runtime_truth
+    execution_surface_contract["recent_canonical_drift"] = recent_canonical_drift
     operator_message = execution_surface_contract.get("operator_message") or ""
     if live_runtime_truth.get("runtime_closure_state") == "capacity_opened_signal_hold":
         operator_message = f"{operator_message} 目前 runtime 已開出 1 層 deployment capacity，但 signal 仍是 HOLD。".strip()
@@ -2745,6 +2749,7 @@ async def api_status() -> Dict[str, Any]:
         "execution_reconciliation": execution_reconciliation,
         "execution_metadata_smoke": metadata_smoke,
         "execution_surface_contract": execution_surface_contract,
+        "recent_canonical_drift": recent_canonical_drift,
     }
 
 
@@ -3398,6 +3403,78 @@ def _load_live_predict_probe_payload(
     if not isinstance(payload, dict):
         return None
     return payload
+
+
+
+def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    artifact_path = path or _RECENT_DRIFT_REPORT_PATH
+    try:
+        if not artifact_path.exists():
+            return None
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Failed to load recent canonical drift report: %s", exc)
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    primary = payload.get("primary_window") if isinstance(payload.get("primary_window"), dict) else {}
+    summary = primary.get("summary") if isinstance(primary.get("summary"), dict) else {}
+    quality = summary.get("quality_metrics") if isinstance(summary.get("quality_metrics"), dict) else {}
+    feature_diag = summary.get("feature_diagnostics") if isinstance(summary.get("feature_diagnostics"), dict) else {}
+    target_path = summary.get("target_path_diagnostics") if isinstance(summary.get("target_path_diagnostics"), dict) else {}
+    reference = summary.get("reference_window_comparison") if isinstance(summary.get("reference_window_comparison"), dict) else {}
+
+    if not primary and not summary:
+        return None
+
+    return {
+        "generated_at": payload.get("generated_at"),
+        "source_artifact": str(artifact_path),
+        "target_col": payload.get("target_col"),
+        "horizon_minutes": payload.get("horizon_minutes"),
+        "primary_window": {
+            "window": primary.get("window"),
+            "alerts": primary.get("alerts") if isinstance(primary.get("alerts"), list) else [],
+            "summary": {
+                "rows": summary.get("rows"),
+                "win_rate": summary.get("win_rate"),
+                "drift_interpretation": summary.get("drift_interpretation"),
+                "dominant_regime": summary.get("dominant_regime"),
+                "dominant_regime_share": summary.get("dominant_regime_share"),
+                "quality_metrics": {
+                    "avg_simulated_pnl": quality.get("avg_simulated_pnl"),
+                    "avg_simulated_quality": quality.get("avg_simulated_quality"),
+                    "avg_drawdown_penalty": quality.get("avg_drawdown_penalty"),
+                    "spot_long_win_rate": quality.get("spot_long_win_rate"),
+                },
+                "feature_diagnostics": {
+                    "feature_count": feature_diag.get("feature_count"),
+                    "low_variance_count": feature_diag.get("low_variance_count"),
+                    "compressed_count": feature_diag.get("compressed_count"),
+                    "expected_static_count": feature_diag.get("expected_static_count"),
+                    "expected_compressed_count": feature_diag.get("expected_compressed_count"),
+                    "overlay_only_count": feature_diag.get("overlay_only_count"),
+                    "null_heavy_count": feature_diag.get("null_heavy_count"),
+                    "low_distinct_count": feature_diag.get("low_distinct_count"),
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": target_path.get("tail_target_streak"),
+                    "longest_zero_target_streak": target_path.get("longest_zero_target_streak"),
+                    "longest_one_target_streak": target_path.get("longest_one_target_streak"),
+                },
+                "reference_window_comparison": {
+                    "prev_win_rate": reference.get("prev_win_rate"),
+                    "prev_quality": reference.get("prev_quality"),
+                    "prev_pnl": reference.get("prev_pnl"),
+                    "win_rate_delta": reference.get("win_rate_delta"),
+                    "quality_delta": reference.get("quality_delta"),
+                    "pnl_delta": reference.get("pnl_delta"),
+                    "top_mean_shift_features": reference.get("top_mean_shift_features") if isinstance(reference.get("top_mean_shift_features"), list) else [],
+                },
+            },
+        },
+    }
 
 
 

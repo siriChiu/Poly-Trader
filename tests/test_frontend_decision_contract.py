@@ -375,6 +375,11 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
         'liveRuntimeTruth?.decision_quality_scope_pathology_summary',
         'LivePathologySummaryCard',
         '🧬 Live lane / spillover 對照',
+        'const recentCanonicalDrift = runtimeStatus?.execution?.recent_canonical_drift ?? executionSurfaceContract?.recent_canonical_drift ?? runtimeStatus?.recent_canonical_drift ?? null;',
+        'RecentCanonicalDriftCard',
+        'summary={recentCanonicalDrift}',
+        'pending={runtimeStatusPending && !recentCanonicalDrift}',
+        'title="📉 Recent canonical drift"',
         '前往 Bot 營運 →',
         '前往執行狀態 →',
         '部署狀態',
@@ -698,6 +703,20 @@ def test_strategy_lab_live_sync_card_keeps_blocked_status_ahead_of_reconciliatio
     for snippet in required_snippets:
         assert snippet in source
     assert source.index('liveDeployStatusLabel') < source.index('reconciliationBadgeLabel')
+
+
+def test_strategy_lab_surfaces_recent_canonical_drift_summary_beside_live_lane_truth():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'const recentCanonicalDrift = runtimeStatus?.execution?.recent_canonical_drift ?? executionSurfaceContract?.recent_canonical_drift ?? runtimeStatus?.recent_canonical_drift ?? null;',
+        'RecentCanonicalDriftCard',
+        'summary={recentCanonicalDrift}',
+        'pending={runtimeStatusPending && !recentCanonicalDrift}',
+        'title="📉 Recent canonical drift"',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+    assert source.index('LivePathologySummaryCard') < source.index('RecentCanonicalDriftCard')
 
 
 def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout():
