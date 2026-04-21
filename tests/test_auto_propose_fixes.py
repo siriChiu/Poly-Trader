@@ -676,6 +676,7 @@ def test_main_recent_distribution_pathology_issue_carries_machine_readable_summa
     pathology_issue = next(issue for issue in tracker.issues if issue["id"] == "#H_AUTO_RECENT_PATHOLOGY")
     assert pathology_issue["summary"] == {
         "window": "250",
+        "interpretation": "distribution_pathology",
         "win_rate": 0.016,
         "dominant_regime": "bull",
         "dominant_regime_share": 0.988,
@@ -686,6 +687,127 @@ def test_main_recent_distribution_pathology_issue_carries_machine_readable_summa
         "top_shift_features": ["feat_4h_bb_pct_b", "feat_4h_bias20", "feat_4h_rsi14"],
         "new_compressed_feature": "feat_atr_pct",
         "tail_streak": "1x1",
+    }
+
+
+def test_main_recent_distribution_pathology_uses_blocking_window_when_primary_is_supported_extreme_trend(monkeypatch, capsys):
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue.update({
+                        "priority": priority,
+                        "title": title,
+                        "action": action,
+                        "status": status,
+                    })
+                    return
+            self.issues.append({
+                "id": issue_id,
+                "priority": priority,
+                "title": title,
+                "action": action,
+                "status": status,
+            })
+
+        def resolve(self, issue_id):
+            return True
+
+        def save(self):
+            return None
+
+        def by_priority(self, priority):
+            return [issue for issue in self.issues if issue["priority"] == priority and issue["status"] == "open"]
+
+    tracker = DummyTracker()
+    monkeypatch.setattr(auto_propose_fixes, "check_db", lambda: {
+        "simulated_win_avg": 0.5725,
+        "losing_streak": 0,
+        "raw_latest_age_min": 1.0,
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_full_ic_data", lambda: {"global_pass": 13, "tw_pass": 30, "total_features": 30})
+    monkeypatch.setattr(auto_propose_fixes, "check_ic", lambda ic_data, full_ic_data=None: {
+        "global_pass": 13,
+        "tw_pass": 30,
+        "total_core": 15,
+        "total_features": 30,
+        "no_data": [],
+        "low_data": [],
+        "best_ic": ("feat_vix", 0.2),
+        "worst_ic": ("feat_ear", 0.01),
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_tw_history", lambda limit=3, current_entry=None: [
+        {"heartbeat": "1025", "tw_pass": 30, "total_features": 30},
+    ])
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_drift_report", lambda: {
+        "primary_window": {
+            "window": "100",
+            "alerts": ["constant_target", "regime_concentration", "regime_shift"],
+            "summary": {
+                "win_rate": 1.0,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.92,
+                "drift_interpretation": "supported_extreme_trend",
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0191,
+                    "avg_simulated_quality": 0.6332,
+                    "avg_drawdown_penalty": 0.1420,
+                    "spot_long_win_rate": 0.74,
+                },
+            },
+        },
+        "blocking_window": {
+            "window": "500",
+            "alerts": ["regime_shift"],
+            "summary": {
+                "win_rate": 0.25,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.716,
+                "drift_interpretation": "regime_concentration",
+                "quality_metrics": {
+                    "avg_simulated_pnl": -0.0015,
+                    "avg_simulated_quality": -0.0335,
+                    "avg_drawdown_penalty": 0.2771,
+                    "spot_long_win_rate": 0.14,
+                },
+                "reference_window_comparison": {
+                    "new_unexpected_compressed_features": ["feat_atr_pct"],
+                    "top_mean_shift_features": [
+                        {"feature": "feat_4h_bias20"},
+                        {"feature": "feat_4h_rsi14"},
+                        {"feature": "feat_4h_bias50"},
+                    ],
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 100, "target": 1},
+                },
+            },
+        },
+    })
+    monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.62, "cv_accuracy": 0.608})
+    monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: tracker)}))
+
+    auto_propose_fixes.main()
+    _ = capsys.readouterr().out
+
+    pathology_issue = next(issue for issue in tracker.issues if issue["id"] == "#H_AUTO_RECENT_PATHOLOGY")
+    assert pathology_issue["title"] == "recent canonical window 500 rows = regime_concentration"
+    assert pathology_issue["summary"] == {
+        "window": "500",
+        "interpretation": "regime_concentration",
+        "win_rate": 0.25,
+        "dominant_regime": "bull",
+        "dominant_regime_share": 0.716,
+        "avg_pnl": -0.0015,
+        "avg_quality": -0.0335,
+        "avg_drawdown_penalty": 0.2771,
+        "alerts": ["regime_shift"],
+        "top_shift_features": ["feat_4h_bias20", "feat_4h_rsi14", "feat_4h_bias50"],
+        "new_compressed_feature": "feat_atr_pct",
+        "tail_streak": "100x1",
     }
 
 

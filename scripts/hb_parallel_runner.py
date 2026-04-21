@@ -511,9 +511,11 @@ def _issue_current_lines(
         latest_summary = drift_diagnostics.get("primary_summary") or {}
         latest_window = drift_diagnostics.get("primary_window") or latest_summary.get("window") or "—"
         latest_alerts = drift_diagnostics.get("primary_alerts") or []
-        blocker_summary = issue.get("summary") if isinstance(issue.get("summary"), dict) else {}
-        blocker_window = blocker_summary.get("window") or latest_window
-        blocker_alerts = blocker_summary.get("alerts") or latest_alerts
+        drift_blocking_summary = drift_diagnostics.get("blocking_summary") or {}
+        issue_summary = issue.get("summary") if isinstance(issue.get("summary"), dict) else {}
+        blocker_summary = drift_blocking_summary or issue_summary
+        blocker_window = drift_diagnostics.get("blocking_window") or blocker_summary.get("window") or latest_window
+        blocker_alerts = drift_diagnostics.get("blocking_alerts") or blocker_summary.get("alerts") or latest_alerts
         latest_signature = (
             str(latest_window),
             latest_summary.get("win_rate"),
@@ -753,9 +755,13 @@ def overwrite_current_state_docs(
     )
     blocking_pathology_line = None
     recent_pathology_issue = _find_open_issue(issues, "P0_recent_distribution_pathology")
-    if recent_pathology_issue:
+    drift_blocking_summary = drift_diagnostics.get("blocking_summary") or {}
+    recent_pathology_summary = drift_blocking_summary
+    if not recent_pathology_summary and recent_pathology_issue:
         recent_pathology_summary = recent_pathology_issue.get("summary") or {}
-        blocker_alerts = recent_pathology_summary.get("alerts") or []
+    blocker_alerts = drift_diagnostics.get("blocking_alerts") or recent_pathology_summary.get("alerts") or []
+    blocker_window = drift_diagnostics.get("blocking_window") or recent_pathology_summary.get("window")
+    if recent_pathology_summary:
         latest_signature = (
             str(primary_window),
             primary_summary.get("win_rate"),
@@ -766,7 +772,7 @@ def overwrite_current_state_docs(
             tuple(str(item) for item in primary_alerts),
         )
         blocker_signature = (
-            str(recent_pathology_summary.get("window") or "—"),
+            str(blocker_window or "—"),
             recent_pathology_summary.get("win_rate"),
             recent_pathology_summary.get("dominant_regime"),
             recent_pathology_summary.get("dominant_regime_share"),
@@ -777,7 +783,7 @@ def overwrite_current_state_docs(
         if blocker_signature != latest_signature:
             blocking_pathology_line = _format_recent_pathology_docs_line(
                 "blocking_window",
-                window=recent_pathology_summary.get("window"),
+                window=blocker_window,
                 win_rate=recent_pathology_summary.get("win_rate"),
                 dominant_regime=recent_pathology_summary.get("dominant_regime"),
                 dominant_regime_share=recent_pathology_summary.get("dominant_regime_share"),
@@ -2526,6 +2532,14 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
     quality_metrics = summary.get("quality_metrics") or {}
     target_path = summary.get("target_path_diagnostics") or {}
     tail_streak = target_path.get("tail_target_streak") or {}
+    blocking = payload.get("blocking_window") or {}
+    blocking_summary = blocking.get("summary") or {}
+    blocking_quality = blocking_summary.get("quality_metrics") or {}
+    blocking_reference = blocking_summary.get("reference_window_comparison") or {}
+    blocking_top_shift_source = blocking_summary.get("top_mean_shift_features") or blocking_reference.get("top_mean_shift_features") or []
+    blocking_new_compressed = blocking_summary.get("new_compressed_features")
+    if not isinstance(blocking_new_compressed, list) or not blocking_new_compressed:
+        blocking_new_compressed = blocking_reference.get("new_unexpected_compressed_features") or []
     return {
         "generated_at": payload.get("generated_at"),
         "target_col": payload.get("target_col"),
@@ -2558,6 +2572,25 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
                 "target_regime_breakdown": target_path.get("target_regime_breakdown") or {},
                 "recent_examples": target_path.get("recent_examples") or [],
             },
+        },
+        "blocking_window": blocking.get("window"),
+        "blocking_alerts": blocking.get("alerts") or [],
+        "blocking_summary": {
+            "rows": blocking_summary.get("rows"),
+            "win_rate": blocking_summary.get("win_rate"),
+            "win_rate_delta_vs_full": blocking_summary.get("win_rate_delta_vs_full"),
+            "dominant_regime": blocking_summary.get("dominant_regime"),
+            "dominant_regime_share": blocking_summary.get("dominant_regime_share"),
+            "drift_interpretation": blocking_summary.get("drift_interpretation"),
+            "avg_pnl": blocking_summary.get("avg_pnl", blocking_quality.get("avg_simulated_pnl")),
+            "avg_quality": blocking_summary.get("avg_quality", blocking_quality.get("avg_simulated_quality")),
+            "avg_drawdown_penalty": blocking_summary.get("avg_drawdown_penalty", blocking_quality.get("avg_drawdown_penalty")),
+            "top_shift_features": [
+                item.get("feature") if isinstance(item, dict) else item
+                for item in blocking_top_shift_source
+                if (item.get("feature") if isinstance(item, dict) else item)
+            ][:3],
+            "new_compressed_feature": blocking_new_compressed[0] if blocking_new_compressed else None,
         },
     }
 

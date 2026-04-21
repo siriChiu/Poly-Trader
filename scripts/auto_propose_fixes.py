@@ -276,6 +276,62 @@ def load_recent_drift_report():
     return {}
 
 
+def _recent_drift_window_payload(report, key="primary_window"):
+    payload = (report or {}).get(key) or {}
+    summary = payload.get("summary") or {}
+    return payload, summary
+
+
+def _blocking_recent_drift_window(report):
+    blocking, summary = _recent_drift_window_payload(report, "blocking_window")
+    if blocking and summary:
+        return blocking, summary
+
+    def _severity(alerts):
+        alerts = list(alerts or [])
+        score = 0
+        if "constant_target" in alerts:
+            score += 4
+        if "label_imbalance" in alerts:
+            score += 3
+        if "regime_concentration" in alerts:
+            score += 2
+        if "regime_shift" in alerts:
+            score += 1
+        return score
+
+    candidates = []
+    for window, summary in ((report or {}).get("windows") or {}).items():
+        if not isinstance(summary, dict):
+            continue
+        interpretation = summary.get("drift_interpretation")
+        if interpretation not in {"distribution_pathology", "regime_concentration"}:
+            continue
+        quality = summary.get("quality_metrics") or {}
+        win_rate = summary.get("win_rate")
+        avg_pnl = quality.get("avg_simulated_pnl")
+        avg_quality = quality.get("avg_simulated_quality")
+        spot_long_win = quality.get("spot_long_win_rate")
+        negative = any(
+            [
+                isinstance(win_rate, (int, float)) and win_rate <= 0.25,
+                isinstance(avg_pnl, (int, float)) and avg_pnl <= 0.0,
+                isinstance(avg_quality, (int, float)) and avg_quality <= 0.0,
+                isinstance(spot_long_win, (int, float)) and spot_long_win <= 0.20,
+            ]
+        )
+        if not negative:
+            continue
+        negativity = max(0.0, 0.5 - float(win_rate or 0.5)) + max(0.0, -float(avg_pnl or 0.0)) + max(0.0, -float(avg_quality or 0.0))
+        payload = {"window": str(window), "alerts": summary.get("alerts") or [], "summary": summary}
+        candidates.append(((_severity(payload["alerts"]), negativity, int(summary.get("rows") or 0)), payload))
+
+    if not candidates:
+        return {}, {}
+    payload = max(candidates, key=lambda item: item[0])[1]
+    return payload, payload.get("summary") or {}
+
+
 def load_live_predict_probe():
     path = ROOT / "data" / "live_predict_probe.json"
     if path.exists():
@@ -751,8 +807,7 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
                 tracker.resolve(issue_id)
 
 
-def summarize_recent_drift(report):
-    primary = (report or {}).get("primary_window") or {}
+def summarize_recent_drift_window(primary):
     summary = primary.get("summary") or {}
     if not primary:
         return "drift_report=missing"
@@ -918,6 +973,11 @@ def summarize_recent_drift(report):
         f"avg_dd_penalty={dd_text}, spot_long_win_rate={spot_long_text}, {feature_summary}"
         f"{tail_text}{adverse_text}{reference_text}{examples_text}{recent_examples_text}{adverse_examples_text}"
     )
+
+
+def summarize_recent_drift(report):
+    primary, _ = _recent_drift_window_payload(report, "primary_window")
+    return summarize_recent_drift_window(primary)
 
 
 def _format_recent_regime_counts(counts):
@@ -1274,8 +1334,11 @@ def main():
     live_predict_probe = load_live_predict_probe()
     leaderboard_candidate_probe = load_leaderboard_candidate_probe()
     live_predict_summary = summarize_live_predict_probe(live_predict_probe)
-    drift_primary = (recent_drift or {}).get("primary_window") or {}
-    drift_primary_summary = drift_primary.get("summary") or {}
+    drift_primary, drift_primary_summary = _recent_drift_window_payload(recent_drift, "primary_window")
+    drift_blocking, drift_blocking_summary = _blocking_recent_drift_window(recent_drift)
+    pathology_drift = drift_blocking or drift_primary
+    pathology_drift_summary = drift_blocking_summary or drift_primary_summary
+    pathology_drift_summary_text = summarize_recent_drift_window(pathology_drift)
 
     drift_interpretation = drift_primary_summary.get("drift_interpretation")
     drift_alerts = drift_primary.get("alerts") or []
@@ -1352,22 +1415,29 @@ def main():
         tracker.resolve("#H_AUTO_STALE")
 
     # Rule 6: recent canonical distribution pathology persists even when global/TW IC recover
+    pathology_interpretation = pathology_drift_summary.get("drift_interpretation")
+    pathology_alerts = pathology_drift.get("alerts") or []
+    pathology_window = pathology_drift.get("window")
+    pathology_quality = pathology_drift_summary.get("quality_metrics") or {}
+    pathology_avg_pnl = pathology_quality.get("avg_simulated_pnl")
+    pathology_avg_quality = pathology_quality.get("avg_simulated_quality")
+    pathology_spot_long_win = pathology_quality.get("spot_long_win_rate")
     drift_is_negative_pathology = (
-        drift_interpretation == "distribution_pathology"
-        and any(alert in drift_alerts for alert in ("constant_target", "label_imbalance"))
+        pathology_interpretation in {"distribution_pathology", "regime_concentration"}
+        and any(alert in pathology_alerts for alert in ("constant_target", "label_imbalance", "regime_concentration", "regime_shift"))
         and (
-            (isinstance(drift_avg_pnl, (int, float)) and drift_avg_pnl <= 0.0)
-            or (isinstance(drift_avg_quality, (int, float)) and drift_avg_quality <= 0.0)
-            or (isinstance(drift_spot_long_win, (int, float)) and drift_spot_long_win <= 0.20)
+            (isinstance(pathology_avg_pnl, (int, float)) and pathology_avg_pnl <= 0.0)
+            or (isinstance(pathology_avg_quality, (int, float)) and pathology_avg_quality <= 0.0)
+            or (isinstance(pathology_spot_long_win, (int, float)) and pathology_spot_long_win <= 0.20)
         )
     )
     if drift_is_negative_pathology:
-        drift_feature_diag = drift_primary_summary.get("feature_diagnostics") or {}
-        drift_target_path = drift_primary_summary.get("target_path_diagnostics") or {}
-        drift_reference_comparison = drift_primary_summary.get("reference_window_comparison") or {}
+        drift_feature_diag = pathology_drift_summary.get("feature_diagnostics") or {}
+        drift_target_path = pathology_drift_summary.get("target_path_diagnostics") or {}
+        drift_reference_comparison = pathology_drift_summary.get("reference_window_comparison") or {}
         tail_streak = drift_target_path.get("tail_target_streak") or {}
         top_shift_source = (
-            drift_primary_summary.get("top_mean_shift_features")
+            pathology_drift_summary.get("top_mean_shift_features")
             or drift_reference_comparison.get("top_mean_shift_features")
             or []
         )
@@ -1376,20 +1446,21 @@ def main():
             for item in top_shift_source
             if (item.get("feature") if isinstance(item, dict) else item)
         ]
-        new_compressed = drift_primary_summary.get("new_compressed_features")
+        new_compressed = pathology_drift_summary.get("new_compressed_features")
         if not isinstance(new_compressed, list) or not new_compressed:
             new_compressed = drift_reference_comparison.get("new_unexpected_compressed_features") or []
         if not isinstance(new_compressed, list) or not new_compressed:
             new_compressed = drift_feature_diag.get("new_unexpected_compressed_features") or []
         pathology_summary = {
-            "window": drift_window,
-            "win_rate": drift_primary_summary.get("win_rate"),
-            "dominant_regime": drift_primary_summary.get("dominant_regime"),
-            "dominant_regime_share": drift_primary_summary.get("dominant_regime_share"),
-            "avg_pnl": drift_avg_pnl,
-            "avg_quality": drift_avg_quality,
-            "avg_drawdown_penalty": drift_quality.get("avg_drawdown_penalty"),
-            "alerts": drift_alerts,
+            "window": pathology_window,
+            "interpretation": pathology_interpretation,
+            "win_rate": pathology_drift_summary.get("win_rate"),
+            "dominant_regime": pathology_drift_summary.get("dominant_regime"),
+            "dominant_regime_share": pathology_drift_summary.get("dominant_regime_share"),
+            "avg_pnl": pathology_avg_pnl,
+            "avg_quality": pathology_avg_quality,
+            "avg_drawdown_penalty": pathology_quality.get("avg_drawdown_penalty"),
+            "alerts": pathology_alerts,
             "top_shift_features": top_shift_features[:3],
             "new_compressed_feature": new_compressed[0] if new_compressed else None,
             "tail_streak": (
@@ -1402,10 +1473,10 @@ def main():
             tracker,
             "P0",
             "#H_AUTO_RECENT_PATHOLOGY",
-            f"recent canonical window {drift_window} rows = distribution_pathology",
+            f"recent canonical window {pathology_window} rows = {pathology_interpretation or 'distribution_pathology'}",
             "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；"
             "維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。"
-            f" {drift_summary}",
+            f" {pathology_drift_summary_text}",
             summary=pathology_summary,
         )
     else:

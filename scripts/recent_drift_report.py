@@ -899,16 +899,7 @@ def _window_summary(
 def _find_primary_window(window_summaries: dict[str, dict[str, Any]]) -> tuple[str | None, dict[str, Any] | None]:
     def score(item: tuple[str, dict[str, Any]]) -> tuple[int, float, int]:
         _, summary = item
-        alerts = summary.get("alerts", [])
-        severity = 0
-        if "constant_target" in alerts:
-            severity += 4
-        if "label_imbalance" in alerts:
-            severity += 3
-        if "regime_concentration" in alerts:
-            severity += 2
-        if "regime_shift" in alerts:
-            severity += 1
+        severity = _alert_severity(summary.get("alerts", []))
         delta = abs(summary.get("win_rate_delta_vs_full") or 0.0)
         rows = int(summary.get("rows") or 0)
         return (severity, delta, rows)
@@ -916,6 +907,57 @@ def _find_primary_window(window_summaries: dict[str, dict[str, Any]]) -> tuple[s
     if not window_summaries:
         return None, None
     label, summary = max(window_summaries.items(), key=score)
+    return label, summary
+
+
+def _alert_severity(alerts: list[str] | tuple[str, ...] | None) -> int:
+    alerts = list(alerts or [])
+    severity = 0
+    if "constant_target" in alerts:
+        severity += 4
+    if "label_imbalance" in alerts:
+        severity += 3
+    if "regime_concentration" in alerts:
+        severity += 2
+    if "regime_shift" in alerts:
+        severity += 1
+    return severity
+
+
+def _is_negative_blocking_window(summary: dict[str, Any]) -> bool:
+    interpretation = summary.get("drift_interpretation")
+    if interpretation not in {"distribution_pathology", "regime_concentration"}:
+        return False
+    quality = summary.get("quality_metrics") or {}
+    win_rate = _safe_float(summary.get("win_rate"))
+    avg_pnl = _safe_float(quality.get("avg_simulated_pnl"))
+    avg_quality = _safe_float(quality.get("avg_simulated_quality"))
+    spot_long_win = _safe_float(quality.get("spot_long_win_rate"))
+    return any(
+        [
+            isinstance(win_rate, float) and win_rate <= 0.25,
+            isinstance(avg_pnl, float) and avg_pnl <= 0.0,
+            isinstance(avg_quality, float) and avg_quality <= 0.0,
+            isinstance(spot_long_win, float) and spot_long_win <= 0.20,
+        ]
+    )
+
+
+def _find_blocking_window(window_summaries: dict[str, dict[str, Any]]) -> tuple[str | None, dict[str, Any] | None]:
+    def score(item: tuple[str, dict[str, Any]]) -> tuple[int, float, int]:
+        _, summary = item
+        quality = summary.get("quality_metrics") or {}
+        win_rate = _safe_float(summary.get("win_rate")) or 0.5
+        avg_pnl = _safe_float(quality.get("avg_simulated_pnl")) or 0.0
+        avg_quality = _safe_float(quality.get("avg_simulated_quality")) or 0.0
+        negativity = max(0.0, 0.5 - win_rate) + max(0.0, -avg_pnl) + max(0.0, -avg_quality)
+        rows = int(summary.get("rows") or 0)
+        return (_alert_severity(summary.get("alerts", [])), negativity, rows)
+
+    candidates = [item for item in window_summaries.items() if _is_negative_blocking_window(item[1])]
+    if not candidates:
+        return None, None
+    label, summary = max(candidates, key=score)
     return label, summary
 
 
@@ -999,6 +1041,8 @@ def build_report() -> dict[str, Any]:
 
     primary_window, primary_summary = _find_primary_window(window_summaries)
     primary_alerts = list((primary_summary or {}).get("alerts", []))
+    blocking_window, blocking_summary = _find_blocking_window(window_summaries)
+    blocking_alerts = list((blocking_summary or {}).get("alerts", []))
 
     latest_label_timestamp = rows[-1]["timestamp"] if rows else None
     report = {
@@ -1022,6 +1066,11 @@ def build_report() -> dict[str, Any]:
             "alerts": primary_alerts,
             "summary": primary_summary or {},
         },
+        "blocking_window": {
+            "window": blocking_window,
+            "alerts": blocking_alerts,
+            "summary": blocking_summary or {},
+        },
     }
     return report
 
@@ -1035,6 +1084,10 @@ def main() -> int:
     primary_window = primary.get("window")
     summary = primary.get("summary", {})
     alerts = primary.get("alerts", [])
+    blocking = report.get("blocking_window", {})
+    blocking_window = blocking.get("window")
+    blocking_summary = blocking.get("summary", {})
+    blocking_alerts = blocking.get("alerts", [])
 
     print("近期漂移報告")
     print("=" * 70)
@@ -1131,6 +1184,14 @@ def main() -> int:
                 for row in adverse_examples[-3:]
             )
             print(f"  ↳ adverse-streak examples: {adverse_preview}")
+    if blocking_window and blocking_window != primary_window:
+        blocking_quality = blocking_summary.get("quality_metrics") or {}
+        print(
+            f"阻塞病態視窗：最近 {blocking_window} 筆 | win_rate={blocking_summary.get('win_rate', 0):.4f} "
+            f"dominant_regime={blocking_summary.get('dominant_regime')} ({(blocking_summary.get('dominant_regime_share') or 0):.2%}) "
+            f"alerts={blocking_alerts} interpretation={blocking_summary.get('drift_interpretation')} "
+            f"avg_pnl={blocking_quality.get('avg_simulated_pnl')} avg_quality={blocking_quality.get('avg_simulated_quality')}"
+        )
     print(f"已儲存至 {OUT_PATH}")
 
     return 0

@@ -1386,3 +1386,35 @@ def test_find_primary_window_prefers_more_persistent_pathology_when_severity_and
 
     assert label == "250"
     assert summary["rows"] == 250
+
+
+def test_find_blocking_window_prefers_negative_pathology_over_supported_extreme_trend():
+    label, summary = recent_drift_report._find_blocking_window(
+        {
+            "100": {
+                "rows": 100,
+                "alerts": ["constant_target", "regime_concentration", "regime_shift"],
+                "win_rate": 1.0,
+                "drift_interpretation": "supported_extreme_trend",
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0191,
+                    "avg_simulated_quality": 0.6332,
+                    "spot_long_win_rate": 0.74,
+                },
+            },
+            "500": {
+                "rows": 500,
+                "alerts": ["regime_shift"],
+                "win_rate": 0.25,
+                "drift_interpretation": "regime_concentration",
+                "quality_metrics": {
+                    "avg_simulated_pnl": -0.0015,
+                    "avg_simulated_quality": -0.0335,
+                    "spot_long_win_rate": 0.14,
+                },
+            },
+        }
+    )
+
+    assert label == "500"
+    assert summary["drift_interpretation"] == "regime_concentration"

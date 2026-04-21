@@ -1853,6 +1853,79 @@ def test_overwrite_current_state_docs_separates_latest_recent_window_from_blocki
     assert "current blocking pathological pocket" in orid_md
 
 
+def test_overwrite_current_state_docs_prefers_fresh_drift_blocking_window_over_stale_issue_summary(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_recent_distribution_pathology",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "recent canonical window 250 rows = distribution_pathology",
+                        "action": "stale blocker pocket",
+                        "summary": {
+                            "window": "250",
+                            "win_rate": 0.48,
+                            "dominant_regime": "chop",
+                            "dominant_regime_share": 0.56,
+                            "avg_pnl": 0.0039,
+                            "avg_quality": 0.1686,
+                            "alerts": [],
+                        },
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260421blocking",
+        {},
+        {},
+        {
+            "primary_window": "100",
+            "primary_alerts": ["constant_target", "regime_concentration", "regime_shift"],
+            "primary_summary": {
+                "window": "100",
+                "win_rate": 1.0,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.92,
+                "avg_quality": 0.6332,
+                "avg_pnl": 0.0191,
+            },
+            "blocking_window": "500",
+            "blocking_alerts": ["regime_shift"],
+            "blocking_summary": {
+                "window": "500",
+                "win_rate": 0.25,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.716,
+                "avg_quality": -0.0335,
+                "avg_pnl": -0.0015,
+                "top_shift_features": ["feat_4h_bias20", "feat_4h_rsi14", "feat_4h_bias50"],
+                "new_compressed_feature": "feat_atr_pct",
+            },
+        },
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    assert "### P0. recent canonical window 250 rows = distribution_pathology" in issues_md
+    assert "目前真相：`window=500` / `win_rate=25.0%` / `dominant_regime=bull(71.6%)` / `avg_quality=-0.0335` / `avg_pnl=-0.0015` / `alerts=regime_shift`" in issues_md
+    assert "病態切片：`alerts=regime_shift` / `tail_streak=—` / `top_shift=feat_4h_bias20,feat_4h_rsi14,feat_4h_bias50` / `new_compressed=feat_atr_pct`" in issues_md
+
+
 
 def test_overwrite_current_state_docs_goal_c_says_support_met_when_exact_support_is_ready(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))

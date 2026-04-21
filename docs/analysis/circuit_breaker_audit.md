@@ -8,7 +8,7 @@
 ## Mixed scope（現況錯誤口徑）
 - triggered: **False** via []
 - streak: 0 / threshold 50
-- recent 50: win_rate=0.36 wins=18 losses=32
+- recent 50: win_rate=0.42 wins=21 losses=29
 - streak horizons: {}
 
 ## Aligned scope（1440m canonical live horizon）
