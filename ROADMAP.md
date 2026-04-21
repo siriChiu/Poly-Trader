@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-21 08:37:05 CST_
+_最後更新：2026-04-21 08:54:12 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
@@ -8,17 +8,14 @@ _最後更新：2026-04-21 08:37:05 CST_
 
 ## 已完成
 - **fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=31332 / Features=22749 / Labels=63156`
+  - `Raw=31333 / Features=22751 / Labels=63159`
   - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `window=500` / `win_rate=14.8%` / `dominant_regime=bull(81.8%)` / `avg_quality=-0.1353` / `avg_pnl=-0.0050` / `alerts=label_imbalance,regime_shift`
+  - `window=500` / `win_rate=15.0%` / `dominant_regime=bull(81.6%)` / `avg_quality=-0.1335` / `avg_pnl=-0.0050` / `alerts=label_imbalance,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
-- **Dashboard AdviceCard blocker-first 文案已產品化**
-  - blocked / syncing 時主摘要改為 current live blocker + 訊號背景；方向建議只保留在次級 `訊號分析仍為...`
-  - browser `/` 已驗證 blocked card 不再把 `綜合建議：...買入` 當成首頁主文案
 
 ---
 
@@ -34,7 +31,7 @@ _最後更新：2026-04-21 08:37:05 CST_
 
 ### 目標 B：持續把 recent canonical pathological slice 當成 current blocker 根因來鑽
 **目前真相**
-- `window=500` / `win_rate=14.8%` / `dominant_regime=bull(81.8%)` / `avg_quality=-0.1353` / `avg_pnl=-0.0050` / `alerts=label_imbalance,regime_shift`
+- `window=500` / `win_rate=15.0%` / `dominant_regime=bull(81.6%)` / `avg_quality=-0.1335` / `avg_pnl=-0.0050` / `alerts=label_imbalance,regime_shift`
 **成功標準**
 - drift / probe / docs 能直接指出 pathological slice、adverse streak 與 top feature shifts，而不是退回 generic leaderboard / venue 摘要。
 
@@ -48,7 +45,7 @@ _最後更新：2026-04-21 08:37:05 CST_
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2802` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2803` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
