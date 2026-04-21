@@ -23,11 +23,11 @@ interface Props {
 // Core strategy: SPOT LONG + pyramid entries.
 // High score = stronger long-entry quality.
 const ACTION_CONFIG: Record<string, { text: string; color: string; bg: string; icon: string }> = {
-  strong_buy: { text: "🟢 強烈建議買入 — 可考慮金字塔進場", color: "text-green-400", bg: "from-green-900/40 to-slate-900", icon: "🟢" },
-  buy: { text: "🟡 偏多格局 — 等待確認後買入", color: "text-yellow-400", bg: "from-yellow-900/30 to-slate-900", icon: "🟡" },
-  hold: { text: "⚪ 建議觀望 — 方向不明", color: "text-slate-300", bg: "from-slate-800/50 to-slate-900", icon: "⚪" },
-  hold_long: { text: "🔴 弱勢格局 — 暫停新增部位", color: "text-red-400", bg: "from-red-900/30 to-slate-900", icon: "🔴" },
-  reduce: { text: "🟠 偏弱格局 — 保守減碼", color: "text-orange-400", bg: "from-orange-900/30 to-slate-900", icon: "🔻" },
+  strong_buy: { text: "強烈建議買入 — 可考慮金字塔進場", color: "text-green-400", bg: "from-green-900/40 to-slate-900", icon: "🟢" },
+  buy: { text: "偏多格局 — 等待確認後買入", color: "text-yellow-400", bg: "from-yellow-900/30 to-slate-900", icon: "🟡" },
+  hold: { text: "建議觀望 — 方向不明", color: "text-slate-300", bg: "from-slate-800/50 to-slate-900", icon: "⚪" },
+  hold_long: { text: "弱勢格局 — 暫停新增部位", color: "text-red-400", bg: "from-red-900/30 to-slate-900", icon: "🔴" },
+  reduce: { text: "偏弱格局 — 保守減碼", color: "text-orange-400", bg: "from-orange-900/30 to-slate-900", icon: "🔻" },
 };
 
 function getScoreLevel(score: number): string {
@@ -100,13 +100,13 @@ export default function AdviceCard({
     ? signalConfig
     : executionActionState === "syncing"
       ? {
-          text: "⏳ 先同步 runtime blocker",
+          text: "先同步 runtime blocker",
           color: "text-sky-300",
           bg: "from-sky-950/30 to-slate-900",
           icon: "⏳",
         }
       : {
-          text: `🚫 先解除 blocker · ${blockerLabel}`,
+          text: `先解除 blocker · ${blockerLabel}`,
           color: "text-amber-300",
           bg: "from-amber-950/30 to-slate-900",
           icon: "🚫",
@@ -165,7 +165,7 @@ export default function AdviceCard({
             </div>
             <div className="mt-1">{executionActionSummary}</div>
             <div className="mt-2 text-[11px] text-amber-200/80">
-              訊號分析仍為：{signalConfig.text}
+              訊號分析仍為：{signalConfig.icon} {signalConfig.text}
             </div>
           </div>
           <div className="flex gap-2">

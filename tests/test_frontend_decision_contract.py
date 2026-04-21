@@ -377,8 +377,8 @@ def test_dashboard_advice_card_downgrades_trade_ctas_until_runtime_is_ready():
         'const blockerLabel = executionBlockerLabel || "blocked";',
         'const signalConfig = ACTION_CONFIG[action] || ACTION_CONFIG.hold;',
         'const displayConfig = executionActionState === "ready"',
-        'text: "⏳ 先同步 runtime blocker",',
-        'text: `🚫 先解除 blocker · ${blockerLabel}`',
+        'text: "先同步 runtime blocker",',
+        'text: `先解除 blocker · ${blockerLabel}`',
         'const summaryWithoutDirectionalCall = summary.replace(/\\s*綜合建議：.*$/u, "").trim();',
         'const displaySummary = executionActionState === "ready"',
         'Dashboard 正在同步 current live blocker；在 /api/status 完成前不把方向訊號當成可操作 CTA。',
@@ -388,7 +388,7 @@ def test_dashboard_advice_card_downgrades_trade_ctas_until_runtime_is_ready():
         '目前只保留分析摘要與阻塞後續動作；若要查看 current live blocker 詳情與恢復脈絡，請改到執行狀態 / Bot 營運頁。',
         '⏳ 快捷交易同步中',
         '🚫 Dashboard 快捷交易已停用',
-        '訊號分析仍為：{signalConfig.text}',
+        '訊號分析仍為：{signalConfig.icon} {signalConfig.text}',
         'href="/execution/status"',
         '查看阻塞原因',
         'href="/execution"',
@@ -400,6 +400,11 @@ def test_dashboard_advice_card_downgrades_trade_ctas_until_runtime_is_ready():
     for snippet in advice_snippets:
         assert snippet in advice_source
     assert advice_source.count('const blockerLabel = executionBlockerLabel || "blocked";') == 1
+    assert 'strong_buy: { text: "強烈建議買入 — 可考慮金字塔進場"' in advice_source
+    assert 'buy: { text: "偏多格局 — 等待確認後買入"' in advice_source
+    assert 'hold: { text: "建議觀望 — 方向不明"' in advice_source
+    assert 'hold_long: { text: "弱勢格局 — 暫停新增部位"' in advice_source
+    assert 'reduce: { text: "偏弱格局 — 保守減碼"' in advice_source
 
 
 def test_signal_banner_declares_dashboard_as_canonical_execution_route_until_upgraded():
