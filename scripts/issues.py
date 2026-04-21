@@ -18,12 +18,16 @@ from datetime import datetime
 ISSUES_JSON = Path(__file__).parent.parent / "issues.json"
 ACTIVE_BACKEND_URL_PLACEHOLDER = "http://127.0.0.1:<active-backend>"
 _LOCAL_BACKEND_VERIFY_RE = re.compile(r"http://(?:127\.0\.0\.1|localhost):8000(?=/)")
+CURRENT_LIVE_BLOCKER_ISSUE_ID = "P0_current_live_deployment_blocker"
+LEGACY_ISSUE_ID_REWRITES = {
+    "P0_circuit_breaker_active": CURRENT_LIVE_BLOCKER_ISSUE_ID,
+}
 
 # Keep current-state canonical issue IDs concise. When the structured tracker already
 # carries a hand-curated canonical issue, drop the equivalent auto-proposed duplicate
 # and merge its fresher machine-readable summary into the canonical record.
 CANONICAL_DUPLICATE_IDS = {
-    "P0_circuit_breaker_active": ["#H_AUTO_CIRCUIT_BREAKER"],
+    CURRENT_LIVE_BLOCKER_ISSUE_ID: ["P0_circuit_breaker_active", "#H_AUTO_CIRCUIT_BREAKER"],
     "P0_recent_distribution_pathology": ["#H_AUTO_RECENT_PATHOLOGY"],
     "P1_q15_exact_support_stalled_under_breaker": ["#H_AUTO_CURRENT_BUCKET_SUPPORT"],
 }
@@ -32,13 +36,23 @@ CANONICAL_DUPLICATE_IDS = {
 # breaker-first narrative). Others embed live metrics/window sizes and must be
 # refreshed from the newer machine-generated duplicate to stay current-state-only.
 CANONICAL_TITLE_REFRESH_IDS = {
+    CURRENT_LIVE_BLOCKER_ISSUE_ID,
     "P0_recent_distribution_pathology",
     "P1_q15_exact_support_stalled_under_breaker",
 }
 
 
+def _normalize_issue_id(issue_id):
+    if issue_id is None:
+        return issue_id
+    return LEGACY_ISSUE_ID_REWRITES.get(str(issue_id), str(issue_id))
+
+
 def _sync_action_fields(issue: dict) -> dict:
     synced = dict(issue)
+    issue_id = synced.get("id")
+    if issue_id is not None:
+        synced["id"] = _normalize_issue_id(issue_id)
     action = synced.get("action")
     if isinstance(action, str) and action.strip():
         normalized_action = action.strip()
@@ -205,8 +219,10 @@ class IssueTracker:
 
     def add(self, priority, issue_id, title, action="", status="open"):
         """Add or update an issue."""
+        normalized_issue_id = _normalize_issue_id(issue_id)
         for i in self.issues:
-            if i["id"] == issue_id:
+            if _normalize_issue_id(i.get("id")) == normalized_issue_id:
+                i["id"] = normalized_issue_id
                 i["title"] = title
                 i["priority"] = priority
                 i["action"] = action
@@ -220,7 +236,7 @@ class IssueTracker:
                 i["updated_at"] = datetime.utcnow().isoformat()
                 return
         issue = {
-            "id": issue_id,
+            "id": normalized_issue_id,
             "priority": priority,
             "title": title,
             "action": action,
@@ -232,8 +248,10 @@ class IssueTracker:
         self.issues.append(_sync_action_fields(issue))
 
     def resolve(self, issue_id):
+        normalized_issue_id = _normalize_issue_id(issue_id)
         for i in self.issues:
-            if i["id"] == issue_id:
+            if _normalize_issue_id(i.get("id")) == normalized_issue_id:
+                i["id"] = normalized_issue_id
                 i["status"] = "resolved"
                 i["updated_at"] = datetime.utcnow().isoformat()
                 return True

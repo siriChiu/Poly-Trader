@@ -2146,8 +2146,10 @@ def test_sync_current_state_governance_issues_replaces_breaker_p0_when_exact_sup
         {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
     )
 
-    primary_issue = next(issue for issue in tracker.issues if issue["id"] == "P0_circuit_breaker_active")
+    primary_issue = next(issue for issue in tracker.issues if issue["id"] == auto_propose_fixes.CURRENT_LIVE_BLOCKER_ISSUE_ID)
     assert primary_issue["status"] == "open"
+    legacy_issue = next(issue for issue in tracker.issues if issue["id"] == "P0_circuit_breaker_active")
+    assert legacy_issue["status"] == "resolved"
     assert "exact support" in primary_issue["title"]
     assert "q35" in primary_issue["title"]
     assert "proxy rows" in primary_issue["action"]
@@ -2245,7 +2247,7 @@ def test_sync_current_state_governance_issues_prefers_live_probe_support_governa
         {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
     )
 
-    primary_issue = next(issue for issue in tracker.issues if issue["id"] == "P0_circuit_breaker_active")
+    primary_issue = next(issue for issue in tracker.issues if issue["id"] == auto_propose_fixes.CURRENT_LIVE_BLOCKER_ISSUE_ID)
     assert primary_issue["summary"]["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
 
 

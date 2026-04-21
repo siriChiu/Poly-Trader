@@ -7,6 +7,7 @@ spec = importlib.util.spec_from_file_location("issues_test_module", MODULE_PATH)
 issues_module = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 spec.loader.exec_module(issues_module)
+CURRENT_LIVE_BLOCKER_ISSUE_ID = issues_module.CURRENT_LIVE_BLOCKER_ISSUE_ID
 
 
 def test_issue_tracker_save_persists_only_open_issues(tmp_path, monkeypatch):
@@ -84,6 +85,31 @@ def test_issue_tracker_load_backfills_action_from_next_action(tmp_path, monkeypa
     assert tracker.issues[0]["action"] == "Keep venue blockers visible on operator-facing surfaces."
 
 
+def test_issue_tracker_load_rewrites_legacy_current_live_blocker_id(tmp_path, monkeypatch):
+    target = tmp_path / "issues.json"
+    monkeypatch.setattr(issues_module, "ISSUES_JSON", target)
+    target.write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_circuit_breaker_active",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "legacy breaker-only id",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    tracker = issues_module.IssueTracker.load()
+
+    assert tracker.issues[0]["id"] == CURRENT_LIVE_BLOCKER_ISSUE_ID
+
+
 def test_issue_tracker_add_updates_stale_next_action_for_existing_issue(tmp_path, monkeypatch):
     target = tmp_path / "issues.json"
     monkeypatch.setattr(issues_module, "ISSUES_JSON", target)
@@ -91,7 +117,7 @@ def test_issue_tracker_add_updates_stale_next_action_for_existing_issue(tmp_path
     tracker = issues_module.IssueTracker()
     tracker.issues = [
         {
-            "id": "P0_circuit_breaker_active",
+            "id": CURRENT_LIVE_BLOCKER_ISSUE_ID,
             "priority": "P0",
             "status": "open",
             "title": "old blocker title",
@@ -102,7 +128,7 @@ def test_issue_tracker_add_updates_stale_next_action_for_existing_issue(tmp_path
 
     tracker.add(
         "P0",
-        "P0_circuit_breaker_active",
+        CURRENT_LIVE_BLOCKER_ISSUE_ID,
         "current live bucket q35 exact support is missing",
         "Track exact-support truth instead of stale breaker copy.",
     )
@@ -123,7 +149,7 @@ def test_issue_tracker_save_merges_auto_breaker_duplicate_into_canonical_issue(t
     tracker = issues_module.IssueTracker()
     tracker.issues = [
         {
-            "id": "P0_circuit_breaker_active",
+            "id": CURRENT_LIVE_BLOCKER_ISSUE_ID,
             "priority": "P0",
             "status": "open",
             "title": "canonical circuit breaker remains the only current-live deployment blocker",
@@ -152,9 +178,9 @@ def test_issue_tracker_save_merges_auto_breaker_duplicate_into_canonical_issue(t
     tracker.save()
 
     payload = json.loads(target.read_text())
-    assert [issue["id"] for issue in payload["issues"]] == ["P0_circuit_breaker_active"]
+    assert [issue["id"] for issue in payload["issues"]] == [CURRENT_LIVE_BLOCKER_ISSUE_ID]
     saved = payload["issues"][0]
-    assert saved["title"] == "canonical circuit breaker remains the only current-live deployment blocker"
+    assert saved["title"] == "canonical circuit breaker active (0/15 wins in recent 50)"
     assert saved["action"] == "recent 50 still needs 15 wins"
     assert saved["summary"]["recent_window"] == 50
     assert saved["summary"]["required_recent_window_wins"] == 15

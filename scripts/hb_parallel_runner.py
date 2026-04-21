@@ -389,7 +389,7 @@ def _issue_current_lines(
         or (governance_contract.get("production_profile") if isinstance(governance_contract, dict) else None)
     )
 
-    if issue_id == "P0_circuit_breaker_active":
+    if issue_id in {"P0_current_live_deployment_blocker", "P0_circuit_breaker_active"}:
         release = (live_predictor_diagnostics.get("deployment_blocker_details") or {}).get("release_condition") or {}
         deployment_blocker = str(live_predictor_diagnostics.get("deployment_blocker") or "")
         if deployment_blocker == "circuit_breaker_active":

@@ -1379,7 +1379,7 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
             {
                 "issues": [
                     {
-                        "id": "P0_circuit_breaker_active",
+                        "id": "P0_current_live_deployment_blocker",
                         "priority": "P0",
                         "status": "open",
                         "title": "canonical circuit breaker remains the only current-live deployment blocker",
@@ -1547,7 +1547,7 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
             {
                 "issues": [
                     {
-                        "id": "P0_circuit_breaker_active",
+                        "id": "P0_current_live_deployment_blocker",
                         "priority": "P0",
                         "status": "open",
                         "title": "current live bucket exact support is missing and remains the deployment blocker",
@@ -1705,7 +1705,7 @@ def test_overwrite_current_state_docs_uses_dynamic_support_ratio_in_success_crit
             {
                 "issues": [
                     {
-                        "id": "P0_circuit_breaker_active",
+                        "id": "P0_current_live_deployment_blocker",
                         "priority": "P0",
                         "status": "open",
                         "title": "canonical circuit breaker remains the only current-live deployment blocker",
@@ -1871,7 +1871,7 @@ def test_collect_current_state_docs_sync_status_is_clean_after_overwrite(tmp_pat
             {
                 "issues": [
                     {
-                        "id": "P0_circuit_breaker_active",
+                        "id": "P0_current_live_deployment_blocker",
                         "priority": "P0",
                         "status": "open",
                         "title": "canonical circuit breaker remains the only current-live deployment blocker",

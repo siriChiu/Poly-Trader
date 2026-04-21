@@ -22,7 +22,11 @@ from datetime import datetime
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
-from scripts.issues import IssueTracker, normalize_verify_steps
+from scripts.issues import (
+    CURRENT_LIVE_BLOCKER_ISSUE_ID,
+    IssueTracker,
+    normalize_verify_steps,
+)
 
 CORE_FEATURES = [
     "feat_eye", "feat_ear", "feat_nose", "feat_tongue", "feat_body",
@@ -135,6 +139,26 @@ def upsert_issue(tracker, priority, issue_id, title, action="", status="open", s
                 issue["verify"] = normalized_verify
         issue["updated_at"] = datetime.utcnow().isoformat()
         return
+
+
+def resolve_legacy_issue_id(tracker, legacy_issue_id):
+    """Resolve an exact legacy issue id without following alias rewrites.
+
+    The structured tracker rewrites legacy ids (for example
+    ``P0_circuit_breaker_active`` → ``P0_current_live_deployment_blocker``)
+    on load/save. During migration we still need to close the legacy record
+    without accidentally resolving the new canonical issue we just upserted.
+    """
+    issues = getattr(tracker, "issues", None)
+    if not isinstance(issues, list):
+        return False
+    for issue in issues:
+        if issue.get("id") != legacy_issue_id:
+            continue
+        issue["status"] = "resolved"
+        issue["updated_at"] = datetime.utcnow().isoformat()
+        return True
+    return False
 
 
 
@@ -551,11 +575,12 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         upsert_issue(
             tracker,
             "P0",
-            "P0_circuit_breaker_active",
+            CURRENT_LIVE_BLOCKER_ISSUE_ID,
             "canonical circuit breaker remains the only current-live deployment blocker",
             breaker_action,
             summary=breaker_summary,
         )
+        resolve_legacy_issue_id(tracker, "P0_circuit_breaker_active")
     else:
         tracker.resolve("#H_AUTO_CIRCUIT_BREAKER")
         if current_bucket_support_active and live_blocker in {
@@ -570,7 +595,7 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
             upsert_issue(
                 tracker,
                 "P0",
-                "P0_circuit_breaker_active",
+                CURRENT_LIVE_BLOCKER_ISSUE_ID,
                 f"current live bucket {current_bucket} {support_state} and remains the deployment blocker ({current_rows}/{minimum_rows})",
                 "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
                 summary={
@@ -585,11 +610,12 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
                     **current_blocker_patch_summary,
                 },
             )
+            resolve_legacy_issue_id(tracker, "P0_circuit_breaker_active")
         elif live_blocker:
             upsert_issue(
                 tracker,
                 "P0",
-                "P0_circuit_breaker_active",
+                CURRENT_LIVE_BLOCKER_ISSUE_ID,
                 f"current-live deployment blocker is {live_blocker}",
                 "把 current-live blocker 真相維持在 API / UI / docs；不要讓舊 breaker / support 敘事覆蓋最新 runtime truth。",
                 summary={
@@ -604,8 +630,10 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
                     **current_blocker_patch_summary,
                 },
             )
+            resolve_legacy_issue_id(tracker, "P0_circuit_breaker_active")
         else:
-            tracker.resolve("P0_circuit_breaker_active")
+            tracker.resolve(CURRENT_LIVE_BLOCKER_ISSUE_ID)
+            resolve_legacy_issue_id(tracker, "P0_circuit_breaker_active")
 
     toxic_blocker = str((live_predict_probe or {}).get("deployment_blocker") or "")
     toxic_current_bucket_active = bool(current_bucket) and (
