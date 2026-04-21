@@ -508,22 +508,70 @@ def _issue_current_lines(
         ]
 
     if issue_id == "P0_recent_distribution_pathology":
-        primary_summary = drift_diagnostics.get("primary_summary") or {}
-        primary_window = drift_diagnostics.get("primary_window") or primary_summary.get("window") or "—"
-        feature_diag = primary_summary.get("feature_diagnostics") or {}
-        return [
+        latest_summary = drift_diagnostics.get("primary_summary") or {}
+        latest_window = drift_diagnostics.get("primary_window") or latest_summary.get("window") or "—"
+        latest_alerts = drift_diagnostics.get("primary_alerts") or []
+        blocker_summary = issue.get("summary") if isinstance(issue.get("summary"), dict) else {}
+        blocker_window = blocker_summary.get("window") or latest_window
+        blocker_alerts = blocker_summary.get("alerts") or latest_alerts
+        latest_signature = (
+            str(latest_window),
+            latest_summary.get("win_rate"),
+            latest_summary.get("dominant_regime"),
+            latest_summary.get("dominant_regime_share"),
+            latest_summary.get("avg_quality"),
+            latest_summary.get("avg_pnl"),
+            tuple(str(item) for item in latest_alerts),
+        )
+        blocker_signature = (
+            str(blocker_window),
+            blocker_summary.get("win_rate", latest_summary.get("win_rate")),
+            blocker_summary.get("dominant_regime", latest_summary.get("dominant_regime")),
+            blocker_summary.get("dominant_regime_share", latest_summary.get("dominant_regime_share")),
+            blocker_summary.get("avg_quality", latest_summary.get("avg_quality")),
+            blocker_summary.get("avg_pnl", latest_summary.get("avg_pnl")),
+            tuple(str(item) for item in blocker_alerts),
+        )
+        blocker_top_shifts = blocker_summary.get("top_shift_features") or []
+        if isinstance(blocker_top_shifts, list):
+            blocker_top_shift_text = ",".join(str(item) for item in blocker_top_shifts[:3]) or "—"
+        else:
+            blocker_top_shift_text = str(blocker_top_shifts)
+        lines = [
             "目前真相："
-            f"`window={primary_window}` / `win_rate={_format_pct_for_docs(primary_summary.get('win_rate'), 1)}` / "
-            f"`dominant_regime={primary_summary.get('dominant_regime') or '—'}({_format_pct_for_docs(primary_summary.get('dominant_regime_share'), 1)})` / "
-            f"`avg_quality={_format_number_for_docs(primary_summary.get('avg_quality'), 4, signed=True)}` / "
-            f"`avg_pnl={_format_number_for_docs(primary_summary.get('avg_pnl'), 4, signed=True)}`",
-            "病態切片："
-            f"`alerts={','.join(drift_diagnostics.get('primary_alerts') or []) or '—'}` / "
-            f"`tail_streak={(primary_summary.get('target_path_diagnostics') or {}).get('tail_target_streak', {}).get('count', '—')}` / "
-            f"`low_variance={feature_diag.get('low_variance_count', '—')}` / "
-            f"`low_distinct={feature_diag.get('low_distinct_count', '—')}` / "
-            f"`null_heavy={feature_diag.get('null_heavy_count', '—')}`",
+            + _format_recent_pathology_docs_line(
+                "window",
+                window=blocker_window,
+                win_rate=blocker_summary.get("win_rate", latest_summary.get("win_rate")),
+                dominant_regime=blocker_summary.get("dominant_regime", latest_summary.get("dominant_regime")),
+                dominant_regime_share=blocker_summary.get("dominant_regime_share", latest_summary.get("dominant_regime_share")),
+                avg_quality=blocker_summary.get("avg_quality", latest_summary.get("avg_quality")),
+                avg_pnl=blocker_summary.get("avg_pnl", latest_summary.get("avg_pnl")),
+                alerts=blocker_alerts,
+            )
         ]
+        if blocker_signature != latest_signature:
+            lines.append(
+                "latest diagnostics："
+                + _format_recent_pathology_docs_line(
+                    "latest_window",
+                    window=latest_window,
+                    win_rate=latest_summary.get("win_rate"),
+                    dominant_regime=latest_summary.get("dominant_regime"),
+                    dominant_regime_share=latest_summary.get("dominant_regime_share"),
+                    avg_quality=latest_summary.get("avg_quality"),
+                    avg_pnl=latest_summary.get("avg_pnl"),
+                    alerts=latest_alerts,
+                )
+            )
+        lines.append(
+            "病態切片："
+            f"`alerts={','.join(str(item) for item in blocker_alerts) or '—'}` / "
+            f"`tail_streak={blocker_summary.get('tail_streak', '—')}` / "
+            f"`top_shift={blocker_top_shift_text or '—'}` / "
+            f"`new_compressed={blocker_summary.get('new_compressed_feature', '—')}`"
+        )
+        return lines
 
     if issue_id == "P1_leaderboard_recent_window_contract":
         return [
@@ -586,6 +634,36 @@ def _issue_current_lines(
         ]
 
     return _generic_issue_current_lines(issue)
+
+
+def _find_open_issue(issues: list[Dict[str, Any]], issue_id: str) -> Dict[str, Any] | None:
+    for issue in issues:
+        if issue.get("id") == issue_id and issue.get("status", "open") == "open":
+            return issue
+    return None
+
+
+
+def _format_recent_pathology_docs_line(
+    window_label: str,
+    *,
+    window: Any,
+    win_rate: Any,
+    dominant_regime: Any,
+    dominant_regime_share: Any,
+    avg_quality: Any,
+    avg_pnl: Any,
+    alerts: list[Any] | None,
+) -> str:
+    return (
+        f"`{window_label}={window if window not in (None, '') else '—'}` / "
+        f"`win_rate={_format_pct_for_docs(win_rate, 1)}` / "
+        f"`dominant_regime={dominant_regime or '—'}({_format_pct_for_docs(dominant_regime_share, 1)})` / "
+        f"`avg_quality={_format_number_for_docs(avg_quality, 4, signed=True)}` / "
+        f"`avg_pnl={_format_number_for_docs(avg_pnl, 4, signed=True)}` / "
+        f"`alerts={','.join(str(item) for item in (alerts or [])) or '—'}`"
+    )
+
 
 
 def overwrite_current_state_docs(
@@ -662,14 +740,51 @@ def overwrite_current_state_docs(
         f"`gap={support_gap}` / "
         f"`support_route_verdict={support_route_verdict}`"
     )
-    pathology_line = (
-        f"`window={primary_window}` / "
-        f"`win_rate={_format_pct_for_docs(primary_summary.get('win_rate'), 1)}` / "
-        f"`dominant_regime={primary_summary.get('dominant_regime') or '—'}({_format_pct_for_docs(primary_summary.get('dominant_regime_share'), 1)})` / "
-        f"`avg_quality={_format_number_for_docs(primary_summary.get('avg_quality'), 4, signed=True)}` / "
-        f"`avg_pnl={_format_number_for_docs(primary_summary.get('avg_pnl'), 4, signed=True)}` / "
-        f"`alerts={','.join(drift_diagnostics.get('primary_alerts') or []) or '—'}`"
+    primary_alerts = drift_diagnostics.get("primary_alerts") or []
+    pathology_line = _format_recent_pathology_docs_line(
+        "latest_window",
+        window=primary_window,
+        win_rate=primary_summary.get("win_rate"),
+        dominant_regime=primary_summary.get("dominant_regime"),
+        dominant_regime_share=primary_summary.get("dominant_regime_share"),
+        avg_quality=primary_summary.get("avg_quality"),
+        avg_pnl=primary_summary.get("avg_pnl"),
+        alerts=primary_alerts,
     )
+    blocking_pathology_line = None
+    recent_pathology_issue = _find_open_issue(issues, "P0_recent_distribution_pathology")
+    if recent_pathology_issue:
+        recent_pathology_summary = recent_pathology_issue.get("summary") or {}
+        blocker_alerts = recent_pathology_summary.get("alerts") or []
+        latest_signature = (
+            str(primary_window),
+            primary_summary.get("win_rate"),
+            primary_summary.get("dominant_regime"),
+            primary_summary.get("dominant_regime_share"),
+            primary_summary.get("avg_quality"),
+            primary_summary.get("avg_pnl"),
+            tuple(str(item) for item in primary_alerts),
+        )
+        blocker_signature = (
+            str(recent_pathology_summary.get("window") or "—"),
+            recent_pathology_summary.get("win_rate"),
+            recent_pathology_summary.get("dominant_regime"),
+            recent_pathology_summary.get("dominant_regime_share"),
+            recent_pathology_summary.get("avg_quality"),
+            recent_pathology_summary.get("avg_pnl"),
+            tuple(str(item) for item in blocker_alerts),
+        )
+        if blocker_signature != latest_signature:
+            blocking_pathology_line = _format_recent_pathology_docs_line(
+                "blocking_window",
+                window=recent_pathology_summary.get("window"),
+                win_rate=recent_pathology_summary.get("win_rate"),
+                dominant_regime=recent_pathology_summary.get("dominant_regime"),
+                dominant_regime_share=recent_pathology_summary.get("dominant_regime_share"),
+                avg_quality=recent_pathology_summary.get("avg_quality"),
+                avg_pnl=recent_pathology_summary.get("avg_pnl"),
+                alerts=blocker_alerts,
+            )
     leaderboard_line = (
         f"`leaderboard_count={leaderboard_candidate_diagnostics.get('leaderboard_count', '—')}` / "
         f"`selected_feature_profile={leaderboard_candidate_diagnostics.get('selected_feature_profile') or '—'}` / "
@@ -768,8 +883,9 @@ def overwrite_current_state_docs(
         facts_blocker_heading,
         f"  - {blocker_line}",
         f"  - {support_line}",
-        "- **recent canonical window 仍是 distribution pathology**",
+        "- **recent canonical diagnostics 已刷新**",
         f"  - {pathology_line}",
+        *([f"  - {blocking_pathology_line}"] if blocking_pathology_line else []),
         "- **leaderboard / governance 仍維持 dual-role contract**",
         f"  - {leaderboard_line}",
         "- **source / venue blockers 仍開啟**",
@@ -838,6 +954,7 @@ def overwrite_current_state_docs(
         f"  - {counts_line}",
         f"  - {blocker_line}",
         f"  - {pathology_line}",
+        *([f"  - {blocking_pathology_line}"] if blocking_pathology_line else []),
         "- **current-state docs overwrite sync 已自動化**",
         "  - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫",
@@ -856,11 +973,12 @@ def overwrite_current_state_docs(
         goal_a_success,
         f"- {support_scope_label} truth (`bucket / rows / minimum / gap / support route`) 仍在 top-level surfaces 可 machine-read。",
         "",
-        "### 目標 B：持續把 recent canonical pathological slice 當成 current blocker 根因來鑽",
+        "### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽",
         "**目前真相**",
         f"- {pathology_line}",
+        *([f"- {blocking_pathology_line}"] if blocking_pathology_line else []),
         "**成功標準**",
-        "- drift / probe / docs 能直接指出 pathological slice、adverse streak 與 top feature shifts，而不是退回 generic leaderboard / venue 摘要。",
+        "- drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。",
         "",
         f"### 目標 C：守住 {support_scope_label} support + reference-only patch 真相",
         "**目前真相**",
@@ -902,7 +1020,7 @@ def overwrite_current_state_docs(
         "## 成功標準",
         success_primary_line,
         f"- {support_truth_label} 維持：**{support_truth_ratio} + {support_success_verdict} + {support_success_status}**",
-        "- recent canonical pathological slice 仍以同一個 current window 為主敘事，不被 generic 問題稀釋",
+        "- recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋",
         "- leaderboard 維持 dual-role governance；venue/source blockers 持續可見",
         "- heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**",
         "",
@@ -926,7 +1044,8 @@ def overwrite_current_state_docs(
         f"- collect + diagnostics refresh 完成：{counts_line}；`simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`。",
         f"- current-live blocker：{blocker_line}。",
         f"- {support_scope_label} truth：{support_line}。",
-        f"- recent pathological slice：{pathology_line}。",
+        f"- latest recent-window diagnostics：{pathology_line}。",
+        *([f"- current blocking pathological pocket：{blocking_pathology_line}。"] if blocking_pathology_line else []),
         f"- leaderboard / governance：{leaderboard_line}。",
         f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle。",
         f"- 本輪產品化前進：{docs_sync_line}；`recommended_patch={patch_profile}` / `status={patch_status}` / `reference_scope={patch_reference_scope}`。",

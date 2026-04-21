@@ -1762,6 +1762,98 @@ def test_overwrite_current_state_docs_uses_dynamic_support_ratio_in_success_crit
 
 
 
+def test_overwrite_current_state_docs_separates_latest_recent_window_from_blocking_pathology_issue(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_current_live_deployment_blocker",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "current live bucket exact support remains under minimum",
+                    },
+                    {
+                        "id": "P0_recent_distribution_pathology",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "recent canonical window 500 rows = distribution_pathology",
+                        "action": "drill into the blocker pocket",
+                        "summary": {
+                            "window": "500",
+                            "win_rate": 0.2,
+                            "dominant_regime": "bull",
+                            "dominant_regime_share": 0.766,
+                            "avg_pnl": -0.0034,
+                            "avg_quality": -0.0847,
+                            "avg_drawdown_penalty": 0.2943,
+                            "alerts": ["label_imbalance", "regime_shift"],
+                        },
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260421split",
+        {"raw_market_data": 31367, "features_normalized": 22785, "labels": 63238},
+        {},
+        {
+            "primary_window": "100",
+            "primary_alerts": ["constant_target", "regime_shift"],
+            "primary_summary": {
+                "window": "100",
+                "win_rate": 1.0,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.88,
+                "avg_quality": 0.6025,
+                "avg_pnl": 0.0177,
+            },
+        },
+        {
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "current_live_structure_bucket_rows": 12,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 38,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {
+            "recommended_patch_profile": "core_plus_macro_plus_all_4h",
+            "recommended_patch_status": "reference_only_until_exact_support_ready",
+            "recommended_patch_reference_scope": "bull|CAUTION",
+        },
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+
+    assert "recent canonical diagnostics 已刷新" in issues_md
+    assert "`latest_window=100`" in issues_md
+    assert "`blocking_window=500`" in issues_md
+    assert "### P0. recent canonical window 500 rows = distribution_pathology" in issues_md
+    assert "目前真相：`window=500`" in issues_md
+    assert "latest diagnostics：`latest_window=100`" in issues_md
+    assert "`latest_window=100`" in roadmap_md
+    assert "`blocking_window=500`" in roadmap_md
+    assert "latest recent-window diagnostics" in orid_md
+    assert "current blocking pathological pocket" in orid_md
+
+
+
 def test_overwrite_current_state_docs_goal_c_says_support_met_when_exact_support_is_ready(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
