@@ -22,6 +22,17 @@ const CURRENT_LIVE_BLOCKER_LABEL_MAPPINGS: Array<[string, string]> = [
   ["exact_live_lane_toxic_sub_bucket_current_bucket", "exact lane toxic bucket"],
 ];
 
+const Q15_BUCKET_ROOT_CAUSE_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["boundary_sensitivity_candidate", "q15↔q35 邊界候選"],
+  ["structure_scoring_gap_not_boundary", "結構評分缺口"],
+  ["live_row_projection_missing_4h_inputs", "4H 投影缺值"],
+  ["missing_live_probe", "缺少 live probe"],
+];
+
+const Q15_BUCKET_ROOT_CAUSE_ACTION_MAPPINGS: Array<[string, string]> = [
+  ["bucket_boundary_review", "邊界複核"],
+];
+
 const EXECUTION_OPERATOR_LABEL_MAPPINGS: Record<string, Array<[string, string]>> = {
   status: [
     ["blocked_preview", "阻塞中"],
@@ -73,6 +84,26 @@ export function humanizeCurrentLiveBlockerLabel(value?: string | null): string {
   if (!normalized) return "unavailable";
   const lower = normalized.toLowerCase();
   for (const [token, label] of CURRENT_LIVE_BLOCKER_LABEL_MAPPINGS) {
+    if (lower.includes(token)) return label;
+  }
+  return normalized.replace(/[_|]+/g, " ").trim();
+}
+
+export function humanizeQ15BucketRootCauseLabel(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "尚未取得 q15 根因";
+  const lower = normalized.toLowerCase();
+  for (const [token, label] of Q15_BUCKET_ROOT_CAUSE_LABEL_MAPPINGS) {
+    if (lower.includes(token)) return label;
+  }
+  return normalized.replace(/[_|]+/g, " ").trim();
+}
+
+export function humanizeQ15BucketRootCauseAction(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "尚未提供候選 patch";
+  const lower = normalized.toLowerCase();
+  for (const [token, label] of Q15_BUCKET_ROOT_CAUSE_ACTION_MAPPINGS) {
     if (lower.includes(token)) return label;
   }
   return normalized.replace(/[_|]+/g, " ").trim();

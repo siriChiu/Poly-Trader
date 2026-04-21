@@ -92,6 +92,7 @@ _EXECUTION_METADATA_EXTERNAL_MONITOR_INSTALL_CONTRACT_PATH = (
     Path(__file__).resolve().parents[2] / "data" / "execution_metadata_external_monitor_install_contract.json"
 )
 _Q15_SUPPORT_AUDIT_PATH = Path(__file__).resolve().parents[2] / "data" / "q15_support_audit.json"
+_Q15_BUCKET_ROOT_CAUSE_PATH = Path(__file__).resolve().parents[2] / "data" / "q15_bucket_root_cause.json"
 _BULL_4H_POCKET_ABLATION_PATH = Path(__file__).resolve().parents[2] / "data" / "bull_4h_pocket_ablation.json"
 _EXECUTION_METADATA_EXTERNAL_MONITOR_COMMAND = (
     f"cd {Path(__file__).resolve().parents[2]} && "
@@ -833,6 +834,71 @@ def _enrich_confidence_with_q15_support_audit(result: Dict[str, Any]) -> Dict[st
     return enriched
 
 
+def _load_q15_bucket_root_cause_summary(current_structure_bucket: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    if not _Q15_BUCKET_ROOT_CAUSE_PATH.exists():
+        return None
+    try:
+        payload = json.loads(_Q15_BUCKET_ROOT_CAUSE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    current_live = payload.get("current_live") if isinstance(payload.get("current_live"), dict) else {}
+    exact_live_lane = payload.get("exact_live_lane") if isinstance(payload.get("exact_live_lane"), dict) else {}
+    candidate_patch = payload.get("candidate_patch") if isinstance(payload.get("candidate_patch"), dict) else {}
+
+    bucket = current_live.get("structure_bucket")
+    effective_bucket = current_structure_bucket or bucket
+    if current_structure_bucket and bucket and str(current_structure_bucket) != str(bucket):
+        return None
+    if effective_bucket and "q15" not in str(effective_bucket):
+        return None
+    if bucket and "q15" not in str(bucket):
+        return None
+
+    return {
+        "generated_at": payload.get("generated_at"),
+        "current_live_structure_bucket": bucket or current_structure_bucket,
+        "verdict": payload.get("verdict"),
+        "candidate_patch_type": payload.get("candidate_patch_type"),
+        "candidate_patch_feature": payload.get("candidate_patch_feature"),
+        "reason": payload.get("reason"),
+        "verify_next": payload.get("verify_next"),
+        "gap_to_q35_boundary": current_live.get("gap_to_q35_boundary"),
+        "dominant_neighbor_bucket": exact_live_lane.get("dominant_neighbor_bucket"),
+        "dominant_neighbor_rows": exact_live_lane.get("dominant_neighbor_rows"),
+        "near_boundary_rows": exact_live_lane.get("near_boundary_rows"),
+        "candidate_patch": candidate_patch or None,
+    }
+
+
+def _enrich_confidence_with_q15_bucket_root_cause(result: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return result
+
+    blocker_details = result.get("deployment_blocker_details") if isinstance(result.get("deployment_blocker_details"), dict) else {}
+    current_structure_bucket = (
+        result.get("current_live_structure_bucket")
+        or result.get("decision_quality_live_structure_bucket")
+        or blocker_details.get("current_live_structure_bucket")
+        or result.get("structure_bucket")
+    )
+    root_cause_summary = _load_q15_bucket_root_cause_summary(
+        str(current_structure_bucket) if current_structure_bucket is not None else None
+    )
+    if not root_cause_summary:
+        return result
+
+    enriched = dict(result)
+    details = dict(blocker_details)
+    details["q15_bucket_root_cause"] = root_cause_summary
+    enriched["deployment_blocker_details"] = details
+    enriched["q15_bucket_root_cause"] = root_cause_summary
+    return enriched
+
+
 def _load_execution_metadata_external_monitor_install_contract() -> Optional[Dict[str, Any]]:
     if not _EXECUTION_METADATA_EXTERNAL_MONITOR_INSTALL_CONTRACT_PATH.exists():
         return None
@@ -1236,6 +1302,7 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "support_alignment_status": support_alignment_status,
         "support_alignment_summary": support_alignment_summary,
         "sleeve_routing": sleeve_routing,
+        "q15_bucket_root_cause": payload.get("q15_bucket_root_cause"),
         "decision_quality_recent_pathology_applied": payload.get("decision_quality_recent_pathology_applied"),
         "decision_quality_recent_pathology_reason": payload.get("decision_quality_recent_pathology_reason"),
         "decision_quality_recent_pathology_window": payload.get("decision_quality_recent_pathology_window"),
@@ -2605,7 +2672,8 @@ async def get_confidence_prediction() -> Dict[str, Any]:
         result = predictor_module.predict(session, predictor, regime_models)
         result = result if isinstance(result, dict) else {}
         result = _enrich_confidence_with_q15_support_audit(dict(result))
-        return _overlay_confidence_with_live_predict_probe(result)
+        result = _overlay_confidence_with_live_predict_probe(result)
+        return _enrich_confidence_with_q15_bucket_root_cause(dict(result))
     finally:
         close = getattr(session, "close", None)
         if callable(close):

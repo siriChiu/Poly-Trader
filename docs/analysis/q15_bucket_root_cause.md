@@ -1,16 +1,16 @@
 # q15 Bucket Root Cause
 
-- generated_at: **2026-04-21 15:44:50.041186**
+- generated_at: **2026-04-21 16:47:59.250640**
 - target_col: **simulated_pyramid_win**
-- verdict: **same_lane_neighbor_bucket_dominates**
-- candidate_patch_type: **structure_component_scoring**
+- verdict: **boundary_sensitivity_candidate**
+- candidate_patch_type: **bucket_boundary_review**
 - candidate_patch_feature: **feat_4h_bb_pct_b**
 
 ## Current live
 - live path: **bull / CAUTION / D**
 - structure_bucket: `CAUTION|structure_quality_caution|q15`
-- structure_quality: **0.2827**
-- gap_to_q35_boundary: **0.0673**
+- structure_quality: **0.3459**
+- gap_to_q35_boundary: **0.0041**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `unsupported_exact_live_structure_bucket`
 
@@ -18,18 +18,18 @@
 - rows: **1040**
 - bucket_counts: `{'CAUTION|structure_quality_caution|q35': 661, 'CAUTION|structure_quality_caution|q15': 379}`
 - dominant_neighbor_bucket: **CAUTION|structure_quality_caution|q35** (661 rows)
-- near_boundary_window: `{'lower': 0.2827, 'upper': 0.35}`
-- near_boundary_rows: **116**
+- near_boundary_window: `{'lower': 0.3459, 'upper': 0.35}`
+- near_boundary_rows: **14**
 
 ## Decision
-- reason: same exact lane 有明顯鄰近 bucket 樣本，current row 與 q35 support 的差距主要來自結構 component，不是 generic breaker / q35 總體治理。
-- candidate_patch: `{'type': 'structure_component_scoring', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.4203, 'current_normalized': 0.4203, 'needed_raw_delta_to_cross_q35': 0.1979, 'target_bucket_p25': 0.4829, 'target_bucket_median': 0.6715, 'needed_raw_delta_to_target_p25': 0.0626, 'needed_raw_delta_to_target_median': 0.2512}`
-- verify_next: 比較 current row 與 dominant neighbor bucket 的 4H component 差值，再做最小 counterfactual。
+- reason: current_structure_quality 已貼近 q35 邊界，且 exact-lane 存在 near-boundary rows；可把 q15↔q35 分桶公式列入候選，但仍需先做 exact-support legality 驗證。
+- candidate_patch: `{'type': 'bucket_boundary_review', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.5254, 'current_normalized': 0.5254, 'needed_raw_delta_to_cross_q35': 0.0121, 'target_bucket_p25': 0.4829, 'target_bucket_median': 0.6715, 'needed_raw_delta_to_target_p25': -0.0425, 'needed_raw_delta_to_target_median': 0.1461}`
+- verify_next: 以歷史 lane 回放驗證 boundary review 不會把 0-row blocker 假裝成已解。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.4203 / norm=0.4203 / Δto_cross_q35=0.1979 / target_p25=0.4829 / target_median=0.6715
-- `feat_4h_dist_bb_lower`: current=1.3024 / norm=0.1628 / Δto_cross_q35=1.6315 / target_p25=1.5397 / target_median=2.0635
-- `feat_4h_dist_swing_low`: current=2.6095 / norm=0.261 / Δto_cross_q35=2.0394 / target_p25=2.0764 / target_median=4.194
+- `feat_4h_bb_pct_b`: current=0.5254 / norm=0.5254 / Δto_cross_q35=0.0121 / target_p25=0.4829 / target_median=0.6715
+- `feat_4h_dist_bb_lower`: current=1.638 / norm=0.2047 / Δto_cross_q35=0.0994 / target_p25=1.5397 / target_median=2.0635
+- `feat_4h_dist_swing_low`: current=3.0213 / norm=0.3021 / Δto_cross_q35=0.1242 / target_p25=2.0764 / target_median=4.194
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 verdict 與 candidate_patch_feature。

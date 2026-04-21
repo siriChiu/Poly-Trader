@@ -1,20 +1,21 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-21 23:46:17 CST_
+_最後更新：2026-04-22 00:51:08 CST_
 
 ---
 
 ## 心跳 #fast ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31412 / Features=22830 / Labels=63317`；`simulated_pyramid_win=57.27%`。
+- collect + diagnostics refresh 完成：`Raw=31414 / Features=22832 / Labels=63330`；`simulated_pyramid_win=57.27%`。
 - current-live blocker：`deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - q15 current-live bucket truth：`current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_proxy_reference_only`。
-- latest recent-window diagnostics：`latest_window=100` / `win_rate=100.0%` / `dominant_regime=chop(100.0%)` / `avg_quality=+0.6646` / `avg_pnl=+0.0187` / `alerts=constant_target,regime_concentration,regime_shift`。
-- current blocking pathological pocket：`blocking_window=500` / `win_rate=31.2%` / `dominant_regime=bull(65.4%)` / `avg_quality=+0.0212` / `avg_pnl=-0.0001` / `alerts=regime_shift`。
+- latest recent-window diagnostics：`latest_window=100` / `win_rate=100.0%` / `dominant_regime=chop(100.0%)` / `avg_quality=+0.6614` / `avg_pnl=+0.0183` / `alerts=constant_target,regime_concentration,regime_shift`。
+- current blocking pathological pocket：`blocking_window=500` / `win_rate=31.6%` / `dominant_regime=bull(65.0%)` / `avg_quality=+0.0243` / `avg_pnl=-0.0001` / `alerts=regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2882` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2884` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
+- q15 current-bucket root cause 已進入 `/api/status`、`/execution/status`、`/lab` operator-facing surface；本輪並重啟 stale `:8001` stable backend lane，消除 `q15_bucket_root_cause=null` 的 split-brain 假陰性。
 
 ### R｜感受直覺
 - 這輪最需要防止的誤讀，是把 `0/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；目前 live blocker 已切到 `unsupported_exact_live_structure_bucket`。

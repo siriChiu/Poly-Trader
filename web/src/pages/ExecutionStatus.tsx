@@ -3,6 +3,7 @@ import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { useApi } from "../hooks/useApi";
 import { ExecutionHero, ExecutionMetricCard, ExecutionPill, ExecutionSectionCard } from "../components/execution/ExecutionSurface";
 import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
+import { humanizeQ15BucketRootCauseAction, humanizeQ15BucketRootCauseLabel } from "../utils/runtimeCopy";
 
 type SurfaceInfo = {
   route?: string;
@@ -29,6 +30,18 @@ type SleeveRoutingState = {
   inactive_sleeves?: SleeveRoutingItem[] | null;
 };
 
+type Q15BucketRootCauseSummary = {
+  verdict?: string | null;
+  candidate_patch_type?: string | null;
+  candidate_patch_feature?: string | null;
+  reason?: string | null;
+  verify_next?: string | null;
+  gap_to_q35_boundary?: number | null;
+  dominant_neighbor_bucket?: string | null;
+  dominant_neighbor_rows?: number | null;
+  near_boundary_rows?: number | null;
+};
+
 type LiveRuntimeTruth = {
   runtime_closure_state?: string | null;
   runtime_closure_summary?: string | null;
@@ -49,6 +62,7 @@ type LiveRuntimeTruth = {
   support_governance_route?: string | null;
   runtime_exact_support_rows?: number | null;
   calibration_exact_lane_rows?: number | null;
+  q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
   sleeve_routing?: SleeveRoutingState | null;
 };
 
@@ -480,6 +494,16 @@ export default function ExecutionStatus() {
   const supportAlignmentSummaryLabel = runtimeStatusPending
     ? "正在同步 runtime / calibration support 對齊。"
     : (liveRuntimeTruth?.support_alignment_summary || supportAlignmentLabel || "—");
+  const q15BucketRootCause = liveRuntimeTruth?.q15_bucket_root_cause ?? null;
+  const q15BucketRootCauseLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeQ15BucketRootCauseLabel(q15BucketRootCause?.verdict || null);
+  const q15BucketRootCauseSummary = runtimeStatusPending
+    ? "正在同步 q15 current-bucket root cause。"
+    : (q15BucketRootCause?.reason || "尚未取得 q15 current bucket 根因。");
+  const q15BucketRootCauseActionLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeQ15BucketRootCauseAction(q15BucketRootCause?.candidate_patch_type || null);
   const venueBlockersLabel = runtimeStatusPending
     ? "同步中"
     : (liveReadyBlockers.length > 0 ? liveReadyBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "none");
@@ -620,7 +644,7 @@ export default function ExecutionStatus() {
               </div>
             )}
           >
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">主 blocker</div>
                 <div className="mt-2 font-semibold text-white">{primaryRuntimeMessage}</div>
@@ -638,6 +662,14 @@ export default function ExecutionStatus() {
                 <div className="text-slate-400">governance route {supportGovernanceRouteLabel}</div>
                 <div className="text-slate-400">{supportAlignmentCountsLabel}</div>
                 <div className="text-slate-400">alignment {supportAlignmentSummaryLabel}</div>
+              </div>
+              <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">q15 bucket root cause</div>
+                <div className="mt-2 font-semibold text-white">{q15BucketRootCauseLabel}</div>
+                <div className="mt-2 text-slate-400">{q15BucketRootCauseSummary}</div>
+                <div className="text-slate-400">candidate {q15BucketRootCause?.candidate_patch_feature || "—"} · {q15BucketRootCauseActionLabel}</div>
+                <div className="text-slate-400">near-boundary {q15BucketRootCause?.near_boundary_rows ?? "—"} · Δq35 {formatNumber(q15BucketRootCause?.gap_to_q35_boundary, 4)}</div>
+                <div className="text-slate-400">next {q15BucketRootCause?.verify_next || "—"}</div>
               </div>
             </div>
 

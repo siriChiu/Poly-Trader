@@ -291,6 +291,47 @@ def test_overlay_confidence_with_live_predict_probe_skips_stale_artifact(tmp_pat
 
 
 
+def test_enrich_confidence_with_q15_bucket_root_cause_surfaces_boundary_candidate(tmp_path, monkeypatch):
+    report_path = tmp_path / "q15_bucket_root_cause.json"
+    report_path.write_text(json.dumps({
+        "generated_at": "2026-04-21 16:01:00.665468",
+        "current_live": {
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "gap_to_q35_boundary": 0.0205,
+        },
+        "exact_live_lane": {
+            "dominant_neighbor_bucket": "CAUTION|structure_quality_caution|q35",
+            "dominant_neighbor_rows": 661,
+            "near_boundary_rows": 68,
+        },
+        "verdict": "boundary_sensitivity_candidate",
+        "candidate_patch_type": "bucket_boundary_review",
+        "candidate_patch_feature": "feat_4h_bb_pct_b",
+        "reason": "current_structure_quality 已貼近 q35 邊界。",
+        "verify_next": "以歷史 lane 回放驗證 boundary review 不會把 0-row blocker 假裝成已解。",
+        "candidate_patch": {
+            "type": "bucket_boundary_review",
+            "feature": "feat_4h_bb_pct_b",
+            "needed_raw_delta_to_cross_q35": 0.0603,
+        },
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_Q15_BUCKET_ROOT_CAUSE_PATH", report_path)
+
+    enriched = api_module._enrich_confidence_with_q15_bucket_root_cause({
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "deployment_blocker_details": {
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        },
+    })
+
+    assert enriched["q15_bucket_root_cause"]["verdict"] == "boundary_sensitivity_candidate"
+    assert enriched["q15_bucket_root_cause"]["candidate_patch_feature"] == "feat_4h_bb_pct_b"
+    assert enriched["q15_bucket_root_cause"]["gap_to_q35_boundary"] == 0.0205
+    assert enriched["q15_bucket_root_cause"]["dominant_neighbor_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert enriched["deployment_blocker_details"]["q15_bucket_root_cause"]["near_boundary_rows"] == 68
+
+
+
 def test_api_status_passes_db_session_into_execution_service(monkeypatch):
     captured = {}
     db_session = object()

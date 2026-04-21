@@ -18,6 +18,7 @@ import { fetchApi, useApi } from "../hooks/useApi";
 import { useGlobalProgressTask } from "../hooks/useGlobalProgress";
 import { getSenseConfig } from "../config/senses";
 import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
+import { humanizeQ15BucketRootCauseAction, humanizeQ15BucketRootCauseLabel } from "../utils/runtimeCopy";
 
 interface RegimeBreakdownEntry {
   regime: string;
@@ -145,6 +146,18 @@ interface SleeveRoutingState {
   summary?: string | null;
 }
 
+interface Q15BucketRootCauseSummary {
+  verdict?: string | null;
+  candidate_patch_type?: string | null;
+  candidate_patch_feature?: string | null;
+  reason?: string | null;
+  verify_next?: string | null;
+  gap_to_q35_boundary?: number | null;
+  dominant_neighbor_bucket?: string | null;
+  dominant_neighbor_rows?: number | null;
+  near_boundary_rows?: number | null;
+}
+
 interface StrategyLabLiveDecisionResponse {
   signal?: string | null;
   confidence?: number | null;
@@ -183,6 +196,7 @@ interface StrategyLabLiveDecisionResponse {
   runtime_closure_state?: string | null;
   runtime_closure_summary?: string | null;
   q15_exact_supported_component_patch_applied?: boolean | null;
+  q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
   support_route_verdict?: string | null;
   support_governance_route?: string | null;
   support_progress?: {
@@ -264,6 +278,7 @@ interface StrategyLabRuntimeStatusResponse {
         minimum_support_rows?: number | null;
         gap_to_minimum?: number | null;
       } | null;
+      q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
       calibration_exact_lane_alerts?: string[] | null;
       decision_quality_recent_pathology_applied?: boolean | null;
       decision_quality_recent_pathology_reason?: string | null;
@@ -2424,6 +2439,16 @@ export default function StrategyLab() {
   const currentLiveBlockerSummaryLabel = liveExecutionSyncPending
     ? "正在同步 live blocker / runtime closure"
     : humanizeExecutionReason(currentLiveBlockerSummary);
+  const q15BucketRootCause = liveDecisionStatus?.q15_bucket_root_cause ?? liveRuntimeTruth?.q15_bucket_root_cause ?? null;
+  const q15BucketRootCauseLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeQ15BucketRootCauseLabel(q15BucketRootCause?.verdict || null);
+  const q15BucketRootCauseSummary = liveExecutionSyncPending
+    ? "正在同步 q15 current-bucket root cause。"
+    : (q15BucketRootCause?.reason || "尚未取得 q15 current bucket 根因。");
+  const q15BucketRootCauseActionLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeQ15BucketRootCauseAction(q15BucketRootCause?.candidate_patch_type || null);
   const liveSupportCurrentRows = liveDecisionStatus?.support_progress?.current_rows
     ?? liveRuntimeTruth?.support_progress?.current_rows
     ?? null;
@@ -2835,6 +2860,18 @@ export default function StrategyLab() {
                 label="runtime closure"
                 value={runtimeClosureStateLabel}
                 detail={runtimeClosureSummaryLabel}
+              />
+              <ExecutionWorkspaceMetric
+                label="q15 root cause"
+                value={q15BucketRootCauseLabel}
+                detail={(
+                  <>
+                    <div>{q15BucketRootCauseSummary}</div>
+                    <div className="opacity-70">candidate {q15BucketRootCause?.candidate_patch_feature || "—"} · {q15BucketRootCauseActionLabel}</div>
+                    <div className="opacity-70">near-boundary {q15BucketRootCause?.near_boundary_rows ?? "—"} · Δq35 {formatDecimal(q15BucketRootCause?.gap_to_q35_boundary, 4)}</div>
+                    <div className="opacity-70">next {q15BucketRootCause?.verify_next || "—"}</div>
+                  </>
+                )}
               />
               <ExecutionWorkspaceMetric
                 label="active sleeves"

@@ -690,6 +690,43 @@ def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout()
         assert snippet in source
 
 
+def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candidate():
+    execution_status_source = _read("pages/ExecutionStatus.tsx")
+    strategy_lab_source = _read("pages/StrategyLab.tsx")
+    runtime_copy_source = _read("utils/runtimeCopy.ts")
+
+    for snippet in [
+        'type Q15BucketRootCauseSummary = {',
+        'humanizeQ15BucketRootCauseLabel',
+        'q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;',
+        'const q15BucketRootCause = liveRuntimeTruth?.q15_bucket_root_cause ?? null;',
+        'const q15BucketRootCauseLabel = runtimeStatusPending',
+        'const q15BucketRootCauseSummary = runtimeStatusPending',
+        'q15 bucket root cause',
+        'candidate {q15BucketRootCause?.candidate_patch_feature || "—"}',
+        'near-boundary {q15BucketRootCause?.near_boundary_rows ?? "—"}',
+        'next {q15BucketRootCause?.verify_next || "—"}',
+    ]:
+        assert snippet in execution_status_source
+
+    for snippet in [
+        'interface Q15BucketRootCauseSummary {',
+        'humanizeQ15BucketRootCauseLabel',
+        'q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;',
+        'const q15BucketRootCause = liveDecisionStatus?.q15_bucket_root_cause ?? liveRuntimeTruth?.q15_bucket_root_cause ?? null;',
+        'const q15BucketRootCauseLabel = liveExecutionSyncPending',
+        'const q15BucketRootCauseSummary = liveExecutionSyncPending',
+        'q15 root cause',
+        'candidate {q15BucketRootCause?.candidate_patch_feature || "—"}',
+        'near-boundary {q15BucketRootCause?.near_boundary_rows ?? "—"}',
+        'next {q15BucketRootCause?.verify_next || "—"}',
+    ]:
+        assert snippet in strategy_lab_source
+
+    assert 'boundary_sensitivity_candidate' in runtime_copy_source
+    assert 'bucket_boundary_review' in runtime_copy_source
+
+
 def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
     source = _read("components/LivePathologySummaryCard.tsx")
     required_snippets = [

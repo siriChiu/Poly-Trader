@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-21 15:44:50.041186**
+- generated_at: **2026-04-21 16:47:59.250640**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
@@ -34,18 +34,18 @@
 - support_progress.current_rows / minimum: **0 / 50**
 - support_progress.previous_rows: **0**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **2**
-- support_progress.escalate_to_blocker: **False**
+- support_progress.stagnant_run_count: **4**
+- support_progress.escalate_to_blocker: **True**
 - support_progress.reason: current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。
 
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.053**
+- remaining_gap_to_floor: **0.1534**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.1767**
+- best_single_component_required_score_delta: **0.5113**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.1767），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.5113），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**
