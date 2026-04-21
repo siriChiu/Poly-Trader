@@ -1,9 +1,7 @@
 """
-特徵之「耳」v3：市場共識模組
+特徵之「耳」v4：市場共識模組 - 改進版
 
-舊版問題：Polymarket 免費 API 返回 ~5.7e-8 概率，無任何資訊量
-新版方案：Binance Futures 資金費率 + 多空比綜合共識
-
+改進：使用資金費率變化和多空比變化的原始值，增加特徵變異數
 數據源（全部免費）：
 1. 資金費率歷史（Binance Futures API）
 2. 多空帳戶比（Binance Futures API）
@@ -22,7 +20,6 @@ logger = setup_logger(__name__)
 FUNDING_HIST_URL = "https://fapi.binance.com/fapi/v1/fundingRate"
 LSR_URL = "https://fapi.binance.com/futures/data/globalLongShortAccountRatio"
 
-
 def _create_session(retries: int = 3, backoff_factor: float = 0.5):
     session = requests.Session()
     retry = Retry(
@@ -36,7 +33,6 @@ def _create_session(retries: int = 3, backoff_factor: float = 0.5):
     session.mount("https://", adapter)
     return session
 
-
 def fetch_funding_history(symbol: str = "BTCUSDT", limit: int = 8) -> Optional[List[float]]:
     """最近 N 次資金費率"""
     try:
@@ -47,7 +43,6 @@ def fetch_funding_history(symbol: str = "BTCUSDT", limit: int = 8) -> Optional[L
     except Exception as e:
         logger.error(f"Funding history 失敗: {e}")
         return None
-
 
 def fetch_lsr_history(symbol: str = "BTCUSDT", period: str = "1h", limit: int = 12) -> Optional[List[float]]:
     """多空帳戶比歷史"""
@@ -61,61 +56,48 @@ def fetch_lsr_history(symbol: str = "BTCUSDT", period: str = "1h", limit: int = 
         logger.error(f"LSR history 失敗: {e}")
         return None
 
-
 def get_ear_feature(symbol: str = "BTCUSDT") -> Optional[dict]:
     """
-    計算市場共識特徵。
-    返回 prob (0~1), feat_ear_risk (0~1)
+    計算市場共識特徵（改進版）。
+    使用資金費率變化和多空比變化的原始值。
+    返回任意實數特徵值（會由前處理器進行ECDF正規化）。
     """
     try:
         funding_hist = fetch_funding_history(symbol, limit=8)
         lsr_hist = fetch_lsr_history(symbol)
 
-        components = []
-
-        # 因子 A: 資金費率趨勢
+        # 計算資金費率變化（最舊到最新）
+        fr_change = 0.0
         if funding_hist and len(funding_hist) >= 2:
-            recent = funding_hist[-1]
-            older = funding_hist[0]
-            fr_direction = math.tanh(recent * 100000)
-            fr_trend = math.tanh((recent - older) * 200000)
-            components.append(("fr_dir", fr_direction, 0.3))
-            components.append(("fr_trend", fr_trend, 0.2))
+            fr_change = funding_hist[-1] - funding_hist[0]
 
-        # 因子 B: 多空比變化
+        # 計算多空比變化（最舊到最新）
+        lsr_change = 0.0
         if lsr_hist and len(lsr_hist) >= 2:
-            recent_lsr = lsr_hist[-1]
-            older_lsr = lsr_hist[0]
-            lsr_change = (recent_lsr - older_lsr) / max(older_lsr, 0.01)
-            lsr_signal = -math.tanh(lsr_change * 5)  # 反向
-            components.append(("lsr", lsr_signal, 0.3))
+            lsr_change = lsr_hist[-1] - lsr_hist[0]
 
-        # 因子 C: 資金費率絕對值
-        if funding_hist:
-            current_fr = funding_hist[-1]
-            fr_abs = math.tanh(current_fr * 50000)
-            components.append(("fr_abs", fr_abs, 0.2))
-
-        if components:
-            total_w = sum(w for _, _, w in components)
-            score = sum(s * w for _, s, w in components) / total_w
-        else:
-            score = 0.0
-
-        # 正規化到 0~1
-        prob = (score + 1) / 2
+        # 組合得分：調整權重以使兩個分量具有相似的幅度
+        # 資金費率通常在1e-4量級，所以乘以10000
+        # 多空比通常在1附近變化，所以乘以1
+        score = fr_change * 10000.0 + lsr_change * 1.0
 
         logger.info(
-            f"Ear: score={score:.4f}, prob={prob:.4f}, "
-            f"FR={funding_hist[-1] if funding_hist else None}, "
-            f"LSR={lsr_hist[-1] if lsr_hist else None}"
+            f"Ear v4: fr_change={fr_change:.6f}, lsr_change={lsr_change:.6f}, score={score:.6f}"
         )
 
         return {
             "timestamp": datetime.utcnow().isoformat() + "Z",
-            "prob": prob,
-            "feat_ear_risk": prob,
+            "prob": score,   
+            "feat_ear_risk": score
         }
     except Exception as e:
-        logger.exception(f"計算 Ear (v3) 時發生錯誤: {e}")
+        logger.exception(f"計算 Ear (v4) 時發生錯誤: {e}")
         return None
+
+if __name__ == "__main__":
+    logger.info("開始測試 ear_polymarket 模組 v4...")
+    result = get_ear_feature()
+    if result:
+        print(f"[SUCCESS] Ear 特徵: {result}")
+    else:
+        print("[FAIL] 無法獲取 Ear 特徵")
