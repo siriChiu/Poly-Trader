@@ -1,9 +1,9 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-21 00:05:39.160858**
+- feature_timestamp: **2026-04-21 00:34:08.041964**
 - target: `simulated_pyramid_win`
 - live path: **bull / CAUTION / C**
-- signal: **HOLD** @ confidence **0.3962**
+- signal: **HOLD** @ confidence **0.3028**
 - layers: **1 → 0**
 - allowed_layers_raw_reason: `entry_quality_C_single_layer`
 - allowed_layers_reason: `under_minimum_exact_live_structure_bucket`
@@ -11,7 +11,7 @@
 - runtime_blocker: `None` | reason: `None`
 - deployment_blocker: `under_minimum_exact_live_structure_bucket` | reason: `current live structure bucket 已有 exact rows，但仍低於 deployment-grade minimum support；在 support 補滿前，runtime 只能維持 guardrail，不可把這條 lane 視為已可部署。`
 - q15 exact-supported patch: **inactive** | support_route `exact_bucket_present_but_below_minimum` | floor_cross `None`
-- runtime closure summary: **q35 discriminative redesign 已啟用並把 entry_quality 拉到 0.5826（raw layers=1），但最終 execution 仍被 under_minimum_exact_live_structure_bucket 擋住；目前不可把 patch active 誤讀成可部署。 exact-vs-spillover=同 regime 寬 scope 出現 bull|BLOCK spillover，111 rows / WR 0.0% / 品質 -0.233，明顯劣於 exact live lane WR — / 品質 —。**
+- runtime closure summary: **q35 discriminative redesign 已啟用並把 entry_quality 拉到 0.5531（raw layers=1），但最終 execution 仍被 under_minimum_exact_live_structure_bucket 擋住；目前不可把 patch active 誤讀成可部署。 exact-vs-spillover=同 regime 寬 scope 出現 bull|BLOCK spillover，109 rows / WR 0.0% / 品質 -0.233，明顯劣於 exact live lane WR — / 品質 —。**
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
 - recommended_patch: **core_plus_macro_plus_all_4h** / status `reference_only_until_exact_support_ready` / support_route `exact_bucket_present_but_below_minimum` / gap `38` / reference_scope `bull|CAUTION` / source `bull_4h_pocket_ablation.bull_collapse_q35`
 - recommended_patch_features: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
@@ -20,26 +20,26 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5826** / trade_floor **0.55** / gap **0.0326**
-- base_quality: **0.6495** × weight **0.75**
-- structure_quality: **0.3819** × weight **0.25**
-- base components: feat_4h_bias50=0.1994 (w=0.0, contrib=0.0), feat_nose=0.6495 (w=1.0, contrib=0.6495), feat_pulse=0.007 (w=0.0, contrib=0.0), feat_ear=0.9759 (w=0.0, contrib=0.0)
-- structure components: feat_4h_bb_pct_b=0.6204 (w=0.34, contrib=0.2109), feat_4h_dist_bb_lower=0.2382 (w=0.33, contrib=0.0786), feat_4h_dist_swing_low=0.2798 (w=0.33, contrib=0.0923)
+- final entry_quality: **0.5531** / trade_floor **0.55** / gap **0.0031**
+- base_quality: **0.6049** × weight **0.75**
+- structure_quality: **0.3976** × weight **0.25**
+- base components: feat_4h_bias50=0.1793 (w=0.0, contrib=0.0), feat_nose=0.5379 (w=0.85, contrib=0.4572), feat_pulse=0.4749 (w=0.0, contrib=0.0), feat_ear=0.9847 (w=0.15, contrib=0.1477)
+- structure components: feat_4h_bb_pct_b=0.6476 (w=0.34, contrib=0.2202), feat_4h_dist_bb_lower=0.248 (w=0.33, contrib=0.0818), feat_4h_dist_swing_low=0.2896 (w=0.33, contrib=0.0956)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
 - remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.2629** | structure_group_max_entry_gain: **0.1545**
+- base_group_max_entry_gain: **0.2963** | structure_group_max_entry_gain: **0.1506**
 - best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
 - single-component floor crossers: None
-- bias50 fully relaxed: entry≈**0.5943** / layers≈**1** / required_bias50_cap≈**-1.8605**
+- bias50 fully relaxed: entry≈**0.679** / layers≈**1** / required_bias50_cap≈**-0.45**
 - unavailable_reason: `None`
 
 ## Scope comparison
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label` | 111 | 0.1081 | -0.1622 | 0.2619 | 0.707 | 12 | True |
+| chosen `regime_label` | 109 | 0.1101 | -0.161 | 0.2627 | 0.7033 | 12 | True |
 | exact `regime_label+regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
 | narrow `regime_label+entry_quality_label` | 0 | None | None | None | None | 0 | False |
 | broad `regime_gate+entry_quality_label` | 1 | 1.0 | 0.7026 | 0.0355 | 0.0267 | 0 | False |

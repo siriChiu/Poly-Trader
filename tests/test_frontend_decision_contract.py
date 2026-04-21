@@ -374,10 +374,16 @@ def test_dashboard_advice_card_downgrades_trade_ctas_until_runtime_is_ready():
         'executionBlockerLabel?: string;',
         'executionBlockerReason?: string;',
         'const tradeActionsDisabled = executionActionState !== "ready" || isSubmittingTrade;',
+        'const blockerLabel = executionBlockerLabel || "blocked";',
         'const signalConfig = ACTION_CONFIG[action] || ACTION_CONFIG.hold;',
         'const displayConfig = executionActionState === "ready"',
         'text: "⏳ 先同步 runtime blocker",',
-        'text: `🚫 先解除 blocker · ${executionBlockerLabel || "blocked"}`',
+        'text: `🚫 先解除 blocker · ${blockerLabel}`',
+        'const summaryWithoutDirectionalCall = summary.replace(/\\s*綜合建議：.*$/u, "").trim();',
+        'const displaySummary = executionActionState === "ready"',
+        'Dashboard 正在同步 current live blocker；在 /api/status 完成前不把方向訊號當成可操作 CTA。',
+        'current live blocker：${blockerLabel}。在 blocker 解除前，Dashboard 只保留分析摘要與導流，不把方向訊號包裝成可操作建議。',
+        '<div className="text-sm text-slate-200 leading-relaxed">{displaySummary}</div>',
         'Dashboard 建議卡暫不提供快捷下單，避免 current live blocker truth 尚未到位前出現誤導 CTA。',
         '目前只保留分析摘要與阻塞後續動作；若要查看 current live blocker 詳情與恢復脈絡，請改到執行狀態 / Bot 營運頁。',
         '⏳ 快捷交易同步中',
@@ -393,7 +399,7 @@ def test_dashboard_advice_card_downgrades_trade_ctas_until_runtime_is_ready():
         assert snippet in dashboard_source
     for snippet in advice_snippets:
         assert snippet in advice_source
-    assert advice_source.count('executionBlockerLabel || "blocked"') == 1
+    assert advice_source.count('const blockerLabel = executionBlockerLabel || "blocked";') == 1
 
 
 def test_signal_banner_declares_dashboard_as_canonical_execution_route_until_upgraded():

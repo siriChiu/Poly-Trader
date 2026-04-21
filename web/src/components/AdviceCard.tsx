@@ -59,9 +59,22 @@ export default function AdviceCard({
   useEffect(() => { setDelta(score - prevScore); setPrevScore(score); }, [score]);
 
   const tradeActionsDisabled = executionActionState !== "ready" || isSubmittingTrade;
+  const blockerLabel = executionBlockerLabel || "blocked";
   const executionActionSummary = executionActionState === "syncing"
     ? "正在同步 /api/status；Dashboard 建議卡暫不提供快捷下單，避免 current live blocker truth 尚未到位前出現誤導 CTA。"
     : (executionBlockerReason || "目前只保留分析摘要與阻塞後續動作；若要查看 current live blocker 詳情與恢復脈絡，請改到執行狀態 / Bot 營運頁。");
+  const summaryWithoutDirectionalCall = summary.replace(/\s*綜合建議：.*$/u, "").trim();
+  const displaySummary = executionActionState === "ready"
+    ? summary
+    : executionActionState === "syncing"
+      ? [
+          "Dashboard 正在同步 current live blocker；在 /api/status 完成前不把方向訊號當成可操作 CTA。",
+          summaryWithoutDirectionalCall ? `訊號背景：${summaryWithoutDirectionalCall}` : null,
+        ].filter(Boolean).join(" ")
+      : [
+          `current live blocker：${blockerLabel}。在 blocker 解除前，Dashboard 只保留分析摘要與導流，不把方向訊號包裝成可操作建議。`,
+          summaryWithoutDirectionalCall ? `訊號背景：${summaryWithoutDirectionalCall}` : null,
+        ].filter(Boolean).join(" ");
 
   const handleTrade = async (side: string) => {
     if (tradeActionsDisabled) return;
@@ -93,7 +106,7 @@ export default function AdviceCard({
           icon: "⏳",
         }
       : {
-          text: `🚫 先解除 blocker · ${executionBlockerLabel || "blocked"}`,
+          text: `🚫 先解除 blocker · ${blockerLabel}`,
           color: "text-amber-300",
           bg: "from-amber-950/30 to-slate-900",
           icon: "🚫",
@@ -112,7 +125,7 @@ export default function AdviceCard({
         </div>
       </div>
 
-      <div className="text-sm text-slate-200 leading-relaxed">{summary}</div>
+      <div className="text-sm text-slate-200 leading-relaxed">{displaySummary}</div>
 
       {maturitySummary && (
         <div className="bg-slate-900/40 border border-slate-700/50 rounded-lg px-3 py-2 space-y-2">
