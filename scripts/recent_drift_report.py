@@ -761,7 +761,20 @@ def _classify_window(alerts: list[str], metrics: dict[str, Any]) -> str:
         and isinstance(avg_dd_penalty, (int, float)) and avg_dd_penalty <= 0.20
         and tuw_supported
     )
-    if strong_positive_extreme:
+    # Heartbeat #20260422c: non-constant label-imbalance windows can still be a
+    # healthy canonical extreme-trend pocket even when win_rate is below the old
+    # 95% cutoff. Keep the classifier conservative by requiring strong positive pnl,
+    # quality, and especially low drawdown before downgrading such slices away from
+    # distribution_pathology.
+    robust_positive_label_imbalance = (
+        "label_imbalance" in alerts
+        and isinstance(win_rate, (int, float)) and win_rate >= 0.85
+        and isinstance(avg_pnl, (int, float)) and avg_pnl >= 0.01
+        and isinstance(avg_quality, (int, float)) and avg_quality >= 0.50
+        and isinstance(avg_dd_penalty, (int, float)) and avg_dd_penalty <= 0.10
+        and tuw_supported
+    )
+    if strong_positive_extreme or robust_positive_label_imbalance:
         return "supported_extreme_trend"
 
     if "constant_target" in alerts or "label_imbalance" in alerts:

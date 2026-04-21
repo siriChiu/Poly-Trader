@@ -1388,6 +1388,22 @@ def test_classify_window_keeps_supported_extreme_trend_for_near_threshold_time_u
     assert interpretation == "supported_extreme_trend"
 
 
+def test_classify_window_marks_strong_nonconstant_label_imbalance_as_supported_extreme_trend_when_drawdown_is_low():
+    interpretation = recent_drift_report._classify_window(
+        ["label_imbalance", "regime_shift"],
+        {
+            "simulated_win_rate": 0.88,
+            "avg_simulated_pnl": 0.0148,
+            "avg_simulated_quality": 0.5503,
+            "avg_drawdown_penalty": 0.0703,
+            "avg_time_underwater": 0.1642,
+            "spot_long_win_rate": 0.61,
+        },
+    )
+
+    assert interpretation == "supported_extreme_trend"
+
+
 def test_find_primary_window_prefers_more_persistent_pathology_when_severity_and_delta_tie():
     label, summary = recent_drift_report._find_primary_window(
         {
