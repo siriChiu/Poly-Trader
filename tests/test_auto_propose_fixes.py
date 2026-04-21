@@ -308,6 +308,159 @@ def test_summarize_recent_drift_formats_primary_window():
     assert "overlay_only_examples=feat_claw[research_sparse_source]" in summary
 
 
+def test_summarize_recent_drift_prefers_blocking_window_but_keeps_latest_context():
+    summary = auto_propose_fixes.summarize_recent_drift(
+        {
+            "primary_window": {
+                "window": "100",
+                "alerts": ["constant_target", "regime_concentration", "regime_shift"],
+                "summary": {
+                    "win_rate": 1.0,
+                    "win_rate_delta_vs_full": 0.3738,
+                    "dominant_regime": "chop",
+                    "dominant_regime_share": 0.94,
+                    "drift_interpretation": "supported_extreme_trend",
+                    "quality_metrics": {
+                        "avg_simulated_pnl": 0.0193,
+                        "avg_simulated_quality": 0.6393,
+                        "avg_drawdown_penalty": 0.1341,
+                        "spot_long_win_rate": 0.76,
+                    },
+                    "feature_diagnostics": {
+                        "feature_count": 56,
+                        "low_variance_count": 14,
+                        "frozen_count": 1,
+                        "compressed_count": 13,
+                        "expected_static_count": 3,
+                        "overlay_only_count": 1,
+                        "unexpected_frozen_count": 0,
+                        "low_distinct_count": 11,
+                        "null_heavy_count": 10,
+                    },
+                    "target_path_diagnostics": {
+                        "tail_target_streak": {
+                            "target": 1,
+                            "count": 100,
+                            "start_timestamp": "2026-04-19 15:30:25",
+                            "end_timestamp": "2026-04-20 09:12:33",
+                        },
+                        "longest_zero_target_streak": {
+                            "target": 0,
+                            "count": 0,
+                            "start_timestamp": None,
+                            "end_timestamp": None,
+                        },
+                    },
+                },
+            },
+            "blocking_window": {
+                "window": "500",
+                "alerts": ["regime_shift"],
+                "summary": {
+                    "win_rate": 0.254,
+                    "win_rate_delta_vs_full": -0.3722,
+                    "dominant_regime": "bull",
+                    "dominant_regime_share": 0.712,
+                    "drift_interpretation": "regime_concentration",
+                    "quality_metrics": {
+                        "avg_simulated_pnl": -0.0014,
+                        "avg_simulated_quality": -0.0296,
+                        "avg_drawdown_penalty": 0.2755,
+                        "spot_long_win_rate": 0.152,
+                    },
+                    "feature_diagnostics": {
+                        "feature_count": 56,
+                        "low_variance_count": 8,
+                        "frozen_count": 0,
+                        "compressed_count": 8,
+                        "expected_static_count": 2,
+                        "overlay_only_count": 1,
+                        "unexpected_frozen_count": 0,
+                        "low_distinct_count": 10,
+                        "null_heavy_count": 10,
+                    },
+                    "target_path_diagnostics": {
+                        "tail_target_streak": {
+                            "target": 1,
+                            "count": 121,
+                            "start_timestamp": "2026-04-19 10:13:18",
+                            "end_timestamp": "2026-04-20 09:12:33",
+                        },
+                        "longest_zero_target_streak": {
+                            "target": 0,
+                            "count": 191,
+                            "start_timestamp": "2026-04-18 14:33:06",
+                            "end_timestamp": "2026-04-19 01:10:17",
+                        },
+                    },
+                },
+            },
+        }
+    )
+
+    assert "recent_window=500" in summary
+    assert "interpretation=regime_concentration" in summary
+    assert "latest_window=100" in summary
+    assert "latest_interpretation=supported_extreme_trend" in summary
+    assert "latest_win_rate=1.0000" in summary
+
+
+def test_summarize_recent_drift_window_uses_loss_streak_as_adverse_even_for_all_win_window():
+    summary = auto_propose_fixes.summarize_recent_drift_window(
+        {
+            "window": "100",
+            "alerts": ["constant_target", "regime_concentration"],
+            "summary": {
+                "win_rate": 1.0,
+                "win_rate_delta_vs_full": 0.3738,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.94,
+                "drift_interpretation": "supported_extreme_trend",
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0193,
+                    "avg_simulated_quality": 0.6393,
+                    "avg_drawdown_penalty": 0.1341,
+                    "spot_long_win_rate": 0.76,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 14,
+                    "frozen_count": 1,
+                    "compressed_count": 13,
+                    "expected_static_count": 3,
+                    "overlay_only_count": 1,
+                    "unexpected_frozen_count": 0,
+                    "low_distinct_count": 11,
+                    "null_heavy_count": 10,
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {
+                        "target": 1,
+                        "count": 100,
+                        "start_timestamp": "2026-04-19 15:30:25",
+                        "end_timestamp": "2026-04-20 09:12:33",
+                    },
+                    "longest_zero_target_streak": {
+                        "target": 0,
+                        "count": 0,
+                        "start_timestamp": None,
+                        "end_timestamp": None,
+                    },
+                    "longest_one_target_streak": {
+                        "target": 1,
+                        "count": 100,
+                        "start_timestamp": "2026-04-19 15:30:25",
+                        "end_timestamp": "2026-04-20 09:12:33",
+                    },
+                },
+            },
+        }
+    )
+
+    assert "adverse_streak=0x0" in summary
+    assert "adverse_streak=100x1" not in summary
+
+
 def test_issue_action_text_falls_back_to_next_actions():
     action = auto_propose_fixes.issue_action_text(
         {

@@ -1331,6 +1331,31 @@ def test_target_path_diagnostics_exposes_longest_adverse_streak_even_when_tail_r
     assert diagnostics["longest_zero_target_streak"]["end_timestamp"] == "2026-04-12 00:07:00"
 
 
+def test_select_adverse_target_streak_tracks_losses_not_all_win_tail():
+    adverse = recent_drift_report._select_adverse_target_streak(
+        {
+            "longest_zero_target_streak": {
+                "target": 0,
+                "count": 0,
+                "start_timestamp": None,
+                "end_timestamp": None,
+                "examples": [],
+            },
+            "longest_one_target_streak": {
+                "target": 1,
+                "count": 100,
+                "start_timestamp": "2026-04-19 15:30:25",
+                "end_timestamp": "2026-04-20 09:12:33",
+                "examples": [{"timestamp": "2026-04-20 09:12:33", "target": 1}],
+            },
+        }
+    )
+
+    assert adverse["target"] == 0
+    assert adverse["count"] == 0
+    assert adverse["examples"] == []
+
+
 def test_classify_window_marks_high_quality_label_imbalance_as_supported_extreme_trend_even_if_legacy_compare_is_weaker():
     interpretation = recent_drift_report._classify_window(
         ["label_imbalance", "regime_concentration"],

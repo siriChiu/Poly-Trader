@@ -695,6 +695,32 @@ def _target_path_diagnostics(rows: list[sqlite3.Row]) -> dict[str, Any]:
     }
 
 
+def _select_adverse_target_streak(path_diag: dict[str, Any] | None) -> dict[str, Any]:
+    streak = dict((path_diag or {}).get("longest_zero_target_streak") or {})
+    if streak.get("target") is None:
+        streak["target"] = 0
+    streak.setdefault("count", 0)
+    streak.setdefault("start_timestamp", None)
+    streak.setdefault("end_timestamp", None)
+    streak.setdefault("examples", [])
+    return streak
+
+
+def _format_streak_text(name: str, streak: dict[str, Any] | None, *, default_target: int | None = None) -> str:
+    streak = dict(streak or {})
+    target = streak.get("target")
+    if target is None:
+        target = default_target
+    count = int(streak.get("count") or 0)
+    target_text = "n/a" if target is None else str(target)
+    start = streak.get("start_timestamp")
+    end = streak.get("end_timestamp")
+    text = f"{name}={count}x{target_text}"
+    if start and end:
+        text += f" since {start} -> {end}"
+    return text
+
+
 def _classify_window(alerts: list[str], metrics: dict[str, Any]) -> str:
     """Distinguish truly suspicious drift from an extreme-but-supported trend pocket.
 
@@ -1117,12 +1143,7 @@ def main() -> int:
         feature_diag = summary.get("feature_diagnostics") or {}
         path_diag = summary.get("target_path_diagnostics") or {}
         tail_streak = path_diag.get("tail_target_streak") or {}
-        streak_target = tail_streak.get("target")
-        streak_target_text = "n/a" if streak_target is None else str(streak_target)
-        adverse_streak = path_diag.get("longest_zero_target_streak") if (summary.get("win_rate") or 0) <= 0.5 else path_diag.get("longest_one_target_streak")
-        adverse_streak = adverse_streak or {}
-        adverse_target = adverse_streak.get("target")
-        adverse_target_text = "n/a" if adverse_target is None else str(adverse_target)
+        adverse_streak = _select_adverse_target_streak(path_diag)
         print(
             f"主要漂移視窗：最近 {primary_window} 筆 | win_rate={summary.get('win_rate', 0):.4f} "
             f"dominant_regime={summary.get('dominant_regime')} ({(summary.get('dominant_regime_share') or 0):.2%}) "
@@ -1135,8 +1156,8 @@ def main() -> int:
             f"overlay_only:{feature_diag.get('overlay_only_count', 0)} "
             f"unexpected_frozen:{feature_diag.get('unexpected_frozen_count', 0)} "
             f"distinct:{feature_diag.get('low_distinct_count', 0)} null_heavy:{feature_diag.get('null_heavy_count', 0)} "
-            f"tail_streak={tail_streak.get('count', 0)}x{streak_target_text} since {tail_streak.get('start_timestamp')} "
-            f"adverse_streak={adverse_streak.get('count', 0)}x{adverse_target_text} since {adverse_streak.get('start_timestamp')}"
+            f"{_format_streak_text('tail_streak', tail_streak)} "
+            f"{_format_streak_text('adverse_streak', adverse_streak, default_target=0)}"
         )
         reference = summary.get("reference_window_comparison") or {}
         if reference:

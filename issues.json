@@ -7,7 +7,7 @@
       "action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "status": "open",
       "created_at": "2026-04-21T02:45:15.666678",
-      "updated_at": "2026-04-21T08:10:31.465893",
+      "updated_at": "2026-04-21T08:59:08.191497",
       "hb_detected": null,
       "next_action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "summary": {
@@ -33,12 +33,12 @@
       "title": "recent canonical window 500 rows = regime_concentration",
       "summary": {
         "window": "500",
-        "win_rate": 0.25,
+        "win_rate": 0.256,
         "dominant_regime": "bull",
-        "dominant_regime_share": 0.716,
-        "avg_pnl": -0.0015,
-        "avg_quality": -0.0335,
-        "avg_drawdown_penalty": 0.2771,
+        "dominant_regime_share": 0.71,
+        "avg_pnl": -0.0013,
+        "avg_quality": -0.0277,
+        "avg_drawdown_penalty": 0.2747,
         "alerts": [
           "regime_shift"
         ],
@@ -48,16 +48,16 @@
           "feat_4h_bb_pct_b"
         ],
         "new_compressed_feature": "feat_vwap_dev",
-        "tail_streak": "119x1",
+        "tail_streak": "122x1",
         "interpretation": "regime_concentration"
       },
-      "next_action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['regime_shift'], win_rate=0.2500, delta_vs_full=-0.3762, dominant_regime=bull(71.60%), interpretation=regime_concentration, avg_pnl=-0.0015, avg_quality=-0.0335, avg_dd_penalty=0.2771, spot_long_win_rate=0.1480, feature_diag=variance:8/56, frozen:0, compressed:8, expected_static:2, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=119x1 since 2026-04-19 10:13:18.192660 -> 2026-04-20 08:52:33.425639, adverse_streak=191x0 since 2026-04-18 14:33:06.990329 -> 2026-04-19 01:10:17.732530, prev_win_rate=0.596, delta_vs_prev=-0.346, prev_quality=0.2222, quality_delta_vs_prev=-0.2557, prev_pnl=0.0024, pnl_delta_vs_prev=-0.0039, top_shift_examples=feat_4h_vol_ratio(0.7535→0.3007,Δσ=0.8127)/feat_4h_bias20(1.8679→0.5411,Δσ=0.8014)/feat_4h_bb_pct_b(0.6738→0.4243,Δσ=0.7757), new_compressed=feat_vwap_dev, compressed_examples=feat_body(0.0001/500)/feat_vix(0.0078/27)/feat_ear(0.0079/498), expected_static_examples=feat_dxy[weekend_macro_market_closed]/feat_vix[weekend_macro_market_closed], overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-20 08:28:27.865396:1:chop:0.6935/2026-04-20 08:45:05.836386:1:chop:0.6951/2026-04-20 08:52:33.425639:1:chop:0.7206, adverse_examples=2026-04-19 00:40:09.929353:0:bull:-0.2753/2026-04-19 01:01:04.227452:0:bull:-0.3173/2026-04-19 01:10:17.732530:0:bull:-0.2383",
+      "next_action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['regime_shift'], win_rate=0.2560, delta_vs_full=-0.3702, dominant_regime=bull(71.00%), interpretation=regime_concentration, avg_pnl=-0.0013, avg_quality=-0.0277, avg_dd_penalty=0.2747, spot_long_win_rate=0.1520, feature_diag=variance:8/56, frozen:0, compressed:8, expected_static:2, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=122x1 since 2026-04-19 10:13:18.192660 -> 2026-04-20 09:40:27.742431, adverse_streak=191x0 since 2026-04-18 14:33:06.990329 -> 2026-04-19 01:10:17.732530, prev_win_rate=0.59, delta_vs_prev=-0.334, prev_quality=0.2176, quality_delta_vs_prev=-0.2453, prev_pnl=0.0023, pnl_delta_vs_prev=-0.0036, top_shift_examples=feat_4h_vol_ratio(0.7581→0.2965,Δσ=0.8285)/feat_4h_bias20(1.8773→0.5157,Δσ=0.8224)/feat_4h_bb_pct_b(0.6768→0.4214,Δσ=0.794), new_compressed=feat_vwap_dev, compressed_examples=feat_body(0.0001/500)/feat_ear(0.008/498)/feat_tongue(0.0115/500), expected_static_examples=feat_dxy[weekend_macro_market_closed]/feat_vix[weekend_macro_market_closed], overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-20 09:10:05.049423:1:chop:0.7189/2026-04-20 09:12:33.648103:1:chop:0.7059/2026-04-20 09:40:27.742431:1:chop:0.6546, adverse_examples=2026-04-19 00:40:09.929353:0:bull:-0.2753/2026-04-19 01:01:04.227452:0:bull:-0.3173/2026-04-19 01:10:17.732530:0:bull:-0.2383",
       "verify": [
         "python scripts/recent_drift_report.py",
         "python scripts/hb_predict_probe.py"
       ],
-      "updated_at": "2026-04-21T08:10:31.465927",
-      "action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['regime_shift'], win_rate=0.2500, delta_vs_full=-0.3762, dominant_regime=bull(71.60%), interpretation=regime_concentration, avg_pnl=-0.0015, avg_quality=-0.0335, avg_dd_penalty=0.2771, spot_long_win_rate=0.1480, feature_diag=variance:8/56, frozen:0, compressed:8, expected_static:2, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=119x1 since 2026-04-19 10:13:18.192660 -> 2026-04-20 08:52:33.425639, adverse_streak=191x0 since 2026-04-18 14:33:06.990329 -> 2026-04-19 01:10:17.732530, prev_win_rate=0.596, delta_vs_prev=-0.346, prev_quality=0.2222, quality_delta_vs_prev=-0.2557, prev_pnl=0.0024, pnl_delta_vs_prev=-0.0039, top_shift_examples=feat_4h_vol_ratio(0.7535→0.3007,Δσ=0.8127)/feat_4h_bias20(1.8679→0.5411,Δσ=0.8014)/feat_4h_bb_pct_b(0.6738→0.4243,Δσ=0.7757), new_compressed=feat_vwap_dev, compressed_examples=feat_body(0.0001/500)/feat_vix(0.0078/27)/feat_ear(0.0079/498), expected_static_examples=feat_dxy[weekend_macro_market_closed]/feat_vix[weekend_macro_market_closed], overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-20 08:28:27.865396:1:chop:0.6935/2026-04-20 08:45:05.836386:1:chop:0.6951/2026-04-20 08:52:33.425639:1:chop:0.7206, adverse_examples=2026-04-19 00:40:09.929353:0:bull:-0.2753/2026-04-19 01:01:04.227452:0:bull:-0.3173/2026-04-19 01:10:17.732530:0:bull:-0.2383",
+      "updated_at": "2026-04-21T08:59:08.191532",
+      "action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=500, alerts=['regime_shift'], win_rate=0.2560, delta_vs_full=-0.3702, dominant_regime=bull(71.00%), interpretation=regime_concentration, avg_pnl=-0.0013, avg_quality=-0.0277, avg_dd_penalty=0.2747, spot_long_win_rate=0.1520, feature_diag=variance:8/56, frozen:0, compressed:8, expected_static:2, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=122x1 since 2026-04-19 10:13:18.192660 -> 2026-04-20 09:40:27.742431, adverse_streak=191x0 since 2026-04-18 14:33:06.990329 -> 2026-04-19 01:10:17.732530, prev_win_rate=0.59, delta_vs_prev=-0.334, prev_quality=0.2176, quality_delta_vs_prev=-0.2453, prev_pnl=0.0023, pnl_delta_vs_prev=-0.0036, top_shift_examples=feat_4h_vol_ratio(0.7581→0.2965,Δσ=0.8285)/feat_4h_bias20(1.8773→0.5157,Δσ=0.8224)/feat_4h_bb_pct_b(0.6768→0.4214,Δσ=0.794), new_compressed=feat_vwap_dev, compressed_examples=feat_body(0.0001/500)/feat_ear(0.008/498)/feat_tongue(0.0115/500), expected_static_examples=feat_dxy[weekend_macro_market_closed]/feat_vix[weekend_macro_market_closed], overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-20 09:10:05.049423:1:chop:0.7189/2026-04-20 09:12:33.648103:1:chop:0.7059/2026-04-20 09:40:27.742431:1:chop:0.6546, adverse_examples=2026-04-19 00:40:09.929353:0:bull:-0.2753/2026-04-19 01:01:04.227452:0:bull:-0.3173/2026-04-19 01:10:17.732530:0:bull:-0.2383",
       "created_at": "2026-04-19T09:33:07.393619"
     },
     {
@@ -67,7 +67,7 @@
       "action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.",
       "status": "open",
       "created_at": "2026-04-21T04:43:47.141745",
-      "updated_at": "2026-04-21T08:10:31.465888",
+      "updated_at": "2026-04-21T08:59:08.191491",
       "hb_detected": null,
       "next_action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.",
       "summary": {
@@ -122,7 +122,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 2842,
+        "forward_archive_rows": 2846,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -130,7 +130,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-21T08:10:32.434519",
+      "updated_at": "2026-04-21T08:57:49.521954",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -156,8 +156,51 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-21T08:10:31.465906",
+      "updated_at": "2026-04-21T08:59:08.191510",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
+    },
+    {
+      "id": "#H_AUTO_CURRENT_BUCKET_SUPPORT",
+      "priority": "P1",
+      "title": "current live bucket CAUTION|structure_quality_caution|q35 support remains under minimum (12/50)",
+      "action": "以 current live structure bucket 為主追 exact support / governance route；不要沿用舊 q35 blocker 當成本輪主 blocker。",
+      "status": "open",
+      "created_at": "2026-04-21T08:59:08.191473",
+      "updated_at": "2026-04-21T08:59:08.191478",
+      "hb_detected": null,
+      "next_action": "以 current live structure bucket 為主追 exact support / governance route；不要沿用舊 q35 blocker 當成本輪主 blocker。"
+    },
+    {
+      "id": "#H_AUTO_MODEL_STABILITY",
+      "priority": "P1",
+      "title": "model stability still needs work (cv=0.6076, cv_std=0.1254, cv_worst=0.4450)",
+      "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
+      "status": "open",
+      "created_at": "2026-04-21T08:59:08.191515",
+      "updated_at": "2026-04-21T08:59:08.191518",
+      "hb_detected": null,
+      "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
+      "summary": {
+        "cv_accuracy": 0.6076420198376916,
+        "cv_std": 0.12541084836837763,
+        "cv_worst": 0.4449954914337241
+      }
+    },
+    {
+      "id": "#H_AUTO_REGIME_DRIFT",
+      "priority": "P1",
+      "title": "TW-IC 30 vs Global IC 13 — 信號強依賴近期資料",
+      "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
+      "status": "open",
+      "created_at": "2026-04-21T08:59:08.191537",
+      "updated_at": "2026-04-21T08:59:08.191539",
+      "hb_detected": null,
+      "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
+      "summary": {
+        "global_pass": 13,
+        "tw_pass": 30,
+        "total_features": 30
+      }
     }
   ]
 }

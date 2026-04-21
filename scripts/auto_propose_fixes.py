@@ -906,15 +906,7 @@ def summarize_recent_drift_window(primary):
         )
     path_diag = summary.get("target_path_diagnostics") or {}
     tail_streak = path_diag.get("tail_target_streak") or {}
-    streak_target = tail_streak.get("target")
-    streak_target_text = "n/a" if streak_target is None else str(streak_target)
-    adverse_streak = {}
-    if isinstance(win_rate, (int, float)):
-        adverse_streak = path_diag.get("longest_zero_target_streak") if win_rate <= 0.5 else path_diag.get("longest_one_target_streak")
-    adverse_streak = adverse_streak or {}
-    adverse_target = adverse_streak.get("target")
-    adverse_target_text = "n/a" if adverse_target is None else str(adverse_target)
-    adverse_examples = adverse_streak.get("examples") or []
+    adverse_streak = _select_adverse_target_streak(path_diag)
     recent_examples = path_diag.get("recent_examples") or []
     recent_examples_text = ""
     if recent_examples:
@@ -922,22 +914,15 @@ def summarize_recent_drift_window(primary):
             f"{row.get('timestamp')}:{row.get('target')}:{row.get('regime')}:{row.get('simulated_pyramid_quality')}"
             for row in recent_examples[-3:]
         )
+    adverse_examples = adverse_streak.get("examples") or []
     adverse_examples_text = ""
     if adverse_examples:
         adverse_examples_text = ", adverse_examples=" + "/".join(
             f"{row.get('timestamp')}:{row.get('target')}:{row.get('regime')}:{row.get('simulated_pyramid_quality')}"
             for row in adverse_examples[-3:]
         )
-    tail_text = (
-        f", tail_streak={tail_streak.get('count', 0)}x{streak_target_text}"
-        f" since {tail_streak.get('start_timestamp')}"
-        f" -> {tail_streak.get('end_timestamp')}"
-    )
-    adverse_text = (
-        f", adverse_streak={adverse_streak.get('count', 0)}x{adverse_target_text}"
-        f" since {adverse_streak.get('start_timestamp')}"
-        f" -> {adverse_streak.get('end_timestamp')}"
-    )
+    tail_text = ", " + _format_streak_fragment("tail_streak", tail_streak)
+    adverse_text = ", " + _format_streak_fragment("adverse_streak", adverse_streak, default_target=0)
     reference = summary.get("reference_window_comparison") or {}
     reference_text = ""
     if reference:
@@ -975,9 +960,46 @@ def summarize_recent_drift_window(primary):
     )
 
 
+def _select_adverse_target_streak(path_diag):
+    streak = dict((path_diag or {}).get("longest_zero_target_streak") or {})
+    if streak.get("target") is None:
+        streak["target"] = 0
+    streak.setdefault("count", 0)
+    streak.setdefault("start_timestamp", None)
+    streak.setdefault("end_timestamp", None)
+    streak.setdefault("examples", [])
+    return streak
+
+
+def _format_streak_fragment(name, streak, default_target=None):
+    streak = dict(streak or {})
+    target = streak.get("target")
+    if target is None:
+        target = default_target
+    count = int(streak.get("count") or 0)
+    target_text = "n/a" if target is None else str(target)
+    text = f"{name}={count}x{target_text}"
+    start = streak.get("start_timestamp")
+    end = streak.get("end_timestamp")
+    if start and end:
+        text += f" since {start} -> {end}"
+    return text
+
+
 def summarize_recent_drift(report):
-    primary, _ = _recent_drift_window_payload(report, "primary_window")
-    return summarize_recent_drift_window(primary)
+    primary, primary_summary = _recent_drift_window_payload(report, "primary_window")
+    blocking, blocking_summary = _blocking_recent_drift_window(report)
+    preferred = blocking if blocking and blocking_summary else primary
+    summary = summarize_recent_drift_window(preferred)
+    if blocking and primary and blocking.get("window") != primary.get("window"):
+        latest_win = primary_summary.get("win_rate")
+        latest_win_text = f"{latest_win:.4f}" if isinstance(latest_win, (int, float)) else "n/a"
+        latest_interpretation = primary_summary.get("drift_interpretation") or "unknown"
+        summary += (
+            f", latest_window={primary.get('window')}, latest_interpretation={latest_interpretation}, "
+            f"latest_win_rate={latest_win_text}, latest_alerts={primary.get('alerts') or []}"
+        )
+    return summary
 
 
 def _format_recent_regime_counts(counts):
