@@ -1,35 +1,35 @@
 # q15 Bucket Root Cause
 
-- generated_at: **2026-04-21 03:59:59.464808**
+- generated_at: **2026-04-21 04:23:23.782550**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_sensitivity_candidate**
 - candidate_patch_type: **bucket_boundary_review**
 - candidate_patch_feature: **feat_4h_bb_pct_b**
 
 ## Current live
-- live path: **bull / CAUTION / D**
-- structure_bucket: `CAUTION|structure_quality_caution|q15`
-- structure_quality: **0.3433**
-- gap_to_q35_boundary: **0.0067**
+- live path: **chop / CAUTION / D**
+- structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
+- structure_quality: **0.32**
+- gap_to_q35_boundary: **0.03**
 - non_null_4h_feature_count: **10**
-- execution_guardrail_reason: `unsupported_exact_live_structure_bucket`
+- execution_guardrail_reason: `decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade`
 
 ## Exact live lane
-- rows: **1040**
-- bucket_counts: `{'CAUTION|structure_quality_caution|q35': 661, 'CAUTION|structure_quality_caution|q15': 379}`
-- dominant_neighbor_bucket: **CAUTION|structure_quality_caution|q35** (661 rows)
-- near_boundary_window: `{'lower': 0.3433, 'upper': 0.35}`
-- near_boundary_rows: **28**
+- rows: **2408**
+- bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q35': 1117, 'CAUTION|base_caution_regime_or_bias|q65': 434, 'CAUTION|base_caution_regime_or_bias|q15': 327, 'CAUTION|base_caution_regime_or_bias|q00': 304, 'CAUTION|base_caution_regime_or_bias|q85': 226}`
+- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q35** (1117 rows)
+- near_boundary_window: `{'lower': 0.32, 'upper': 0.35}`
+- near_boundary_rows: **12**
 
 ## Decision
 - reason: current_structure_quality 已貼近 q35 邊界，且 exact-lane 存在 near-boundary rows；可把 q15↔q35 分桶公式列入候選，但仍需先做 exact-support legality 驗證。
-- candidate_patch: `{'type': 'bucket_boundary_review', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.5474, 'current_normalized': 0.5474, 'needed_raw_delta_to_cross_q35': 0.0197, 'target_bucket_p25': 0.4829, 'target_bucket_median': 0.6715, 'needed_raw_delta_to_target_p25': -0.0645, 'needed_raw_delta_to_target_median': 0.1241}`
+- candidate_patch: `{'type': 'bucket_boundary_review', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.5073, 'current_normalized': 0.5073, 'needed_raw_delta_to_cross_q35': 0.0882, 'target_bucket_p25': 0.654, 'target_bucket_median': 0.695, 'needed_raw_delta_to_target_p25': 0.1467, 'needed_raw_delta_to_target_median': 0.1877}`
 - verify_next: 以歷史 lane 回放驗證 boundary review 不會把 0-row blocker 假裝成已解。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.5474 / norm=0.5474 / Δto_cross_q35=0.0197 / target_p25=0.4829 / target_median=0.6715
-- `feat_4h_dist_bb_lower`: current=1.689 / norm=0.2111 / Δto_cross_q35=0.1624 / target_p25=1.5397 / target_median=2.0635
-- `feat_4h_dist_swing_low`: current=2.6516 / norm=0.2652 / Δto_cross_q35=0.203 / target_p25=2.0764 / target_median=4.194
+- `feat_4h_bb_pct_b`: current=0.5073 / norm=0.5073 / Δto_cross_q35=0.0882 / target_p25=0.654 / target_median=0.695
+- `feat_4h_dist_bb_lower`: current=1.5737 / norm=0.1967 / Δto_cross_q35=0.7273 / target_p25=2.1292 / target_median=3.3027
+- `feat_4h_dist_swing_low`: current=2.5043 / norm=0.2504 / Δto_cross_q35=0.9091 / target_p25=2.0932 / target_median=3.6776
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 verdict 與 candidate_patch_feature。

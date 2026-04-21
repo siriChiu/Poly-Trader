@@ -240,6 +240,34 @@ def test_execution_status_contextualizes_observability_signals_under_blocked_pos
     for snippet in required_snippets:
         assert snippet in source
 
+
+def test_execution_surfaces_show_current_bucket_support_and_runtime_vs_calibration_counts_together():
+    status_source = _read("pages/ExecutionStatus.tsx")
+    console_source = _read("pages/ExecutionConsole.tsx")
+
+    shared_snippets = [
+        'const supportRowsLabel = runtimeStatusPending',
+        'const supportAlignmentCountsLabel = runtimeStatusPending',
+        'const supportAlignmentSummaryLabel = runtimeStatusPending',
+        'runtime/calibration ${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`;',
+        '{supportAlignmentCountsLabel}',
+    ]
+    for snippet in shared_snippets:
+        assert snippet in status_source
+        assert snippet in console_source
+
+    for snippet in [
+        'support {supportRowsLabel}',
+        'alignment {supportAlignmentSummaryLabel}',
+    ]:
+        assert snippet in status_source
+
+    for snippet in [
+        '>{supportRowsLabel}</div>',
+        '>{supportAlignmentSummaryLabel}</div>',
+    ]:
+        assert snippet in console_source
+
 def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces():
     source = _read("pages/Dashboard.tsx")
     required_snippets = [

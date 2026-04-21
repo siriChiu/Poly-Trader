@@ -463,6 +463,15 @@ export default function ExecutionStatus() {
     ? "同步中"
     : (metadataFreshness?.label || metadataFreshness?.status || "unavailable");
   const supportAlignmentLabel = runtimeStatusPending ? "同步中" : (liveRuntimeTruth?.support_alignment_status || "unavailable");
+  const supportRowsLabel = runtimeStatusPending
+    ? "同步中"
+    : (liveRuntimeTruth?.support_rows_text || "—");
+  const supportAlignmentCountsLabel = runtimeStatusPending
+    ? "runtime/calibration 同步中"
+    : `runtime/calibration ${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`;
+  const supportAlignmentSummaryLabel = runtimeStatusPending
+    ? "正在同步 runtime / calibration support 對齊。"
+    : (liveRuntimeTruth?.support_alignment_summary || supportAlignmentLabel || "—");
   const venueBlockersLabel = runtimeStatusPending
     ? "同步中"
     : (liveReadyBlockers.length > 0 ? liveReadyBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "none");
@@ -616,8 +625,9 @@ export default function ExecutionStatus() {
                 <div className="mt-2 font-semibold text-white">layers {liveRuntimeTruth?.allowed_layers_raw ?? "—"} → {liveRuntimeTruth?.allowed_layers ?? "—"}</div>
                 <div className="mt-2 text-slate-400">raw reason {liveRuntimeTruth?.allowed_layers_raw_reason || "—"}</div>
                 <div className="text-slate-400">final reason {liveRuntimeTruth?.allowed_layers_reason || "—"}</div>
-                <div className="mt-2 text-slate-400">support {liveRuntimeTruth?.support_rows_text || `${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`}</div>
-                <div className="text-slate-400">alignment {supportAlignmentLabel}</div>
+                <div className="mt-2 text-slate-400">support {supportRowsLabel}</div>
+                <div className="text-slate-400">{supportAlignmentCountsLabel}</div>
+                <div className="text-slate-400">alignment {supportAlignmentSummaryLabel}</div>
               </div>
             </div>
 

@@ -573,6 +573,15 @@ export default function ExecutionConsole() {
     ? "同步中"
     : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
   const supportAlignmentLabel = runtimeStatusPending ? "同步中" : (liveRuntimeTruth?.support_alignment_status || "unavailable");
+  const supportRowsLabel = runtimeStatusPending
+    ? "同步中"
+    : (liveRuntimeTruth?.support_rows_text || "—");
+  const supportAlignmentCountsLabel = runtimeStatusPending
+    ? "runtime/calibration 同步中"
+    : `runtime/calibration ${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`;
+  const supportAlignmentSummaryLabel = runtimeStatusPending
+    ? "正在同步 runtime / calibration support 對齊。"
+    : (liveRuntimeTruth?.support_alignment_summary || supportAlignmentLabel || "—");
 
   const positions = Array.isArray(accountSummary?.positions) ? accountSummary.positions : [];
   const openOrders = Array.isArray(accountSummary?.open_orders) ? accountSummary.open_orders : [];
@@ -1299,8 +1308,9 @@ export default function ExecutionConsole() {
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Support</div>
-                <div className="mt-1 font-semibold text-white">{liveRuntimeTruth?.support_rows_text || `${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`}</div>
-                <div className="text-[11px] text-slate-400">{supportAlignmentLabel}</div>
+                <div className="mt-1 font-semibold text-white">{supportRowsLabel}</div>
+                <div className="text-[11px] text-slate-400">{supportAlignmentCountsLabel}</div>
+                <div className="text-[11px] text-slate-400">{supportAlignmentSummaryLabel}</div>
               </div>
             </div>
             {(runtimeStatusPending || liveReadyBlockers.length > 0) && (

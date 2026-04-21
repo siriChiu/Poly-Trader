@@ -1,38 +1,38 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-04-21 03:59:59.464808**
+- generated_at: **2026-04-21 04:23:23.782550**
 - target_col: **simulated_pyramid_win**
-- verdict: **boundary_replay_requires_exact_support_validation**
-- reason: boundary replay 可帶來可見的 exact-lane rebucket rows，但仍需確認這不是把 blocker 假裝成已解。
+- verdict: **boundary_replay_has_no_supported_target_bucket**
+- reason: 就算把 q15↔q35 邊界向下回放，chosen scope 仍找不到可承接的 current bucket rows；boundary review 無法形成可部署支持。
 
 ## Current live row
 - signal: **HOLD**
-- regime/gate: **bull / CAUTION**
-- structure bucket: **CAUTION|structure_quality_caution|q15**
-- structure_quality: **0.3433**
-- entry_quality: **0.5209** (trade_floor_gap=-0.0291)
-- support_route: **exact_bucket_missing_exact_lane_proxy_only**
-- floor_cross_legality: **math_cross_possible_but_illegal_without_exact_support**
+- regime/gate: **chop / CAUTION**
+- structure bucket: **CAUTION|base_caution_regime_or_bias|q15**
+- structure_quality: **0.32**
+- entry_quality: **0.4331** (trade_floor_gap=-0.1169)
+- support_route: **exact_bucket_supported**
+- floor_cross_legality: **legal_component_experiment_after_support_ready**
 
 ## Boundary replay
-- legacy bucket rows: **0**
-- replay bucket: **CAUTION|structure_quality_caution|q35**
-- replay bucket rows: **12**
-- generated_rows_via_boundary_only: **28**
+- legacy bucket rows: **97**
+- replay bucket: **CAUTION|base_caution_regime_or_bias|q35**
+- replay bucket rows: **0**
+- generated_rows_via_boundary_only: **12**
 - preexisting_rows_in_replay_bucket: **0**
-- generated_row_share: **2.3333**
-- dominant_neighbor_bucket: **CAUTION|structure_quality_caution|q35** rows=661
+- generated_row_share: **None**
+- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q35** rows=1117
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.5474 → 0.5671**
-- structure_quality: **0.3433 → 0.35**
-- bucket_after: **CAUTION|structure_quality_caution|q35**
-- entry_quality: **0.5209 → 0.5227**
-- trade_floor_gap_after: **-0.0273**
+- raw before/after: **0.5073 → 0.5955**
+- structure_quality: **0.32 → 0.35**
+- bucket_after: **CAUTION|base_caution_regime_or_bias|q35**
+- entry_quality: **0.4331 → 0.4406**
+- trade_floor_gap_after: **-0.1094**
 - allowed_layers_after: **0** (entry_quality_below_trade_floor)
 - counterfactual verdict: **bucket_proxy_only_not_trade_floor_fix**
 - counterfactual reason: 只把 feat_4h_bb_pct_b 補到剛好跨 q35，只會把結構 bucket 從 q15 改成 q35；entry_quality 仍低於 trade floor，allowed_layers 仍是 0，表示它更像 bucket proxy，而不是 deployable floor fix。
 
 ## Next
-- next_action: 保守保留 boundary replay 為候選，但不得跳過 legality / runtime 驗證。
-- verify_next: 用 exact-lane replay + runtime guardrail 驗證 rebucket 後的 rows 是否足夠且合法。
+- next_action: 停止把 boundary review 當主假設，回到 structure component 與 support accumulation。
+- verify_next: 改查 structure component scoring / support accumulation，不再延長 boundary review。
