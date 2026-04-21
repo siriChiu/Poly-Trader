@@ -1241,7 +1241,7 @@ export default function Dashboard() {
 
       <ExecutionWorkspaceSummary
         title="💼 Execution 摘要"
-        subtitle="Dashboard 只保留 Bot 營運摘要；blocked 原因、metadata freshness、reconciliation / recovery 已移到「執行狀態」。"
+        subtitle="Dashboard 只保留 4 張 Bot 營運摘要卡；若要查看 current live blocker 詳情、metadata 明細與 recovery 脈絡，請前往「執行狀態」。"
         className={executionTone}
         actions={(
           <>

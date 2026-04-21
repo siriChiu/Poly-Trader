@@ -61,7 +61,7 @@ export default function AdviceCard({
   const tradeActionsDisabled = executionActionState !== "ready" || isSubmittingTrade;
   const executionActionSummary = executionActionState === "syncing"
     ? "正在同步 /api/status；Dashboard 建議卡暫不提供快捷下單，避免 current live blocker truth 尚未到位前出現誤導 CTA。"
-    : (executionBlockerReason || "目前 current live blocker 尚未解除；Dashboard 建議卡只保留分析摘要，快捷交易請改到執行狀態 / Bot 營運頁。");
+    : (executionBlockerReason || "目前只保留分析摘要與阻塞後續動作；若要查看 current live blocker 詳情與恢復脈絡，請改到執行狀態 / Bot 營運頁。");
 
   const handleTrade = async (side: string) => {
     if (tradeActionsDisabled) return;
@@ -147,8 +147,8 @@ export default function AdviceCard({
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-100">
             <div className="font-semibold">
               {executionActionState === "syncing"
-                ? "⏳ current live blocker 同步中"
-                : `🚫 current live blocker · ${executionBlockerLabel || "blocked"}`}
+                ? "⏳ 快捷交易同步中"
+                : "🚫 Dashboard 快捷交易已停用"}
             </div>
             <div className="mt-1">{executionActionSummary}</div>
             <div className="mt-2 text-[11px] text-amber-200/80">

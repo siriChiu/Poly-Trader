@@ -264,7 +264,7 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
         'const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];',
         'VenueReadinessSummary',
         '💼 Execution 摘要',
-        'Dashboard 只保留 Bot 營運摘要',
+        'Dashboard 只保留 4 張 Bot 營運摘要卡；若要查看 current live blocker 詳情、metadata 明細與 recovery 脈絡，請前往「執行狀態」。',
         'const liveScopePathologySummary =',
         'liveRuntimeTruth?.decision_quality_scope_pathology_summary',
         'LivePathologySummaryCard',
@@ -379,9 +379,9 @@ def test_dashboard_advice_card_downgrades_trade_ctas_until_runtime_is_ready():
         'text: "⏳ 先同步 runtime blocker",',
         'text: `🚫 先解除 blocker · ${executionBlockerLabel || "blocked"}`',
         'Dashboard 建議卡暫不提供快捷下單，避免 current live blocker truth 尚未到位前出現誤導 CTA。',
-        'Dashboard 建議卡只保留分析摘要，快捷交易請改到執行狀態 / Bot 營運頁。',
-        '⏳ current live blocker 同步中',
-        '🚫 current live blocker · ${executionBlockerLabel || "blocked"}',
+        '目前只保留分析摘要與阻塞後續動作；若要查看 current live blocker 詳情與恢復脈絡，請改到執行狀態 / Bot 營運頁。',
+        '⏳ 快捷交易同步中',
+        '🚫 Dashboard 快捷交易已停用',
         '訊號分析仍為：{signalConfig.text}',
         'href="/execution/status"',
         '查看阻塞原因',
@@ -393,6 +393,7 @@ def test_dashboard_advice_card_downgrades_trade_ctas_until_runtime_is_ready():
         assert snippet in dashboard_source
     for snippet in advice_snippets:
         assert snippet in advice_source
+    assert advice_source.count('executionBlockerLabel || "blocked"') == 1
 
 
 def test_signal_banner_declares_dashboard_as_canonical_execution_route_until_upgraded():
