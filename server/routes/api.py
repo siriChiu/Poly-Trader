@@ -4889,20 +4889,37 @@ def _ensure_auto_generated_strategy_leaderboard(force: bool = False) -> Dict[str
 
 def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None) -> Dict[str, Any]:
     from backtesting.strategy_lab import (
-        derive_editable_strategy_name,
+        AUTO_STRATEGY_NAME_PREFIX,
+        MANUAL_COPY_STRATEGY_PREFIX,
+        _is_auto_leaderboard_strategy,
+        load_strategy,
         run_hybrid_backtest,
         run_rule_backtest,
         save_strategy,
     )
     from scripts import backfill_backtest_range as backfill_module
 
-    name = body.get("name", "unnamed_strategy")
+    name = str(body.get("name", "unnamed_strategy") or "").strip()
+    source_strategy_name = str(body.get("source_strategy_name") or "").strip()
     stype = body.get("type", "rule_based")
     params = body.get("params", {}) if isinstance(body.get("params"), dict) else {}
     initial = float(body.get("initial_capital", 10000.0) or 10000.0)
     auto_backfill = bool(body.get("auto_backfill", params.get("auto_backfill", False)))
     allow_internal_overwrite = bool(body.get("allow_internal_overwrite"))
-    save_name = name if allow_internal_overwrite else derive_editable_strategy_name(name)
+    save_name = name
+    if not allow_internal_overwrite:
+        if not save_name:
+            return {"error": "請先輸入策略名稱。"}
+        source_is_system_generated = _is_auto_leaderboard_strategy(source_strategy_name) if source_strategy_name else False
+        if source_is_system_generated and (
+            save_name == source_strategy_name
+            or save_name.startswith(AUTO_STRATEGY_NAME_PREFIX)
+            or save_name.startswith(MANUAL_COPY_STRATEGY_PREFIX)
+        ):
+            return {"error": "系統生成策略不能直接儲存；請先輸入新的策略名稱。"}
+        existing = load_strategy(save_name)
+        if existing is not None and save_name != source_strategy_name:
+            return {"error": "策略名稱已存在；請使用唯一名稱。"}
     requested_range = body.get("backtest_range") if isinstance(body.get("backtest_range"), dict) else {}
     requested_start = requested_range.get("start")
     requested_end = requested_range.get("end")
@@ -5288,6 +5305,45 @@ def _compact_strategy_leaderboard_entry(entry: Dict[str, Any]) -> Dict[str, Any]
     return compact
 
 
+
+def _dedupe_strategy_leaderboard_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    from backtesting.strategy_lab import AUTO_STRATEGY_NAME_PREFIX, strategy_definition_signature
+
+    deduped: List[Dict[str, Any]] = []
+    seen_signatures: set[str] = set()
+    for entry in entries:
+        metadata = entry.get("metadata") if isinstance(entry, dict) else {}
+        metadata = metadata if isinstance(metadata, dict) else {}
+        last_results = entry.get("last_results") if isinstance(entry, dict) else {}
+        last_results = last_results if isinstance(last_results, dict) else {}
+        definition = entry.get("definition") if isinstance(entry, dict) else {}
+        definition = definition if isinstance(definition, dict) else {}
+        definition_params = definition.get("params") if isinstance(definition.get("params"), dict) else {}
+        name = str((entry or {}).get("name") or "").strip()
+        model_name = str(definition_params.get("model_name") or metadata.get("model_name") or "")
+        is_auto = bool(metadata.get("source") == "auto_leaderboard") or name.startswith(AUTO_STRATEGY_NAME_PREFIX)
+        if is_auto:
+            signature = json.dumps({
+                "scope": "auto-result",
+                "type": definition.get("type"),
+                "roi": round(float(last_results.get("roi") or 0.0), 4),
+                "win_rate": round(float(last_results.get("win_rate") or 0.0), 4),
+                "total_trades": int(last_results.get("total_trades") or 0),
+                "profit_factor": round(float(last_results.get("profit_factor") or 0.0), 4),
+                "max_drawdown": round(float(last_results.get("max_drawdown") or 0.0), 4),
+            }, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        else:
+            if definition:
+                signature = strategy_definition_signature(definition)
+            else:
+                signature = f"name::{name}"
+        if signature in seen_signatures:
+            continue
+        seen_signatures.add(signature)
+        deduped.append(entry)
+    return deduped
+
+
 @lru_cache(maxsize=4)
 def _load_strategy_data_cached(db_mtime_ns: int):
     conn = sqlite3.connect(DB_PATH)
@@ -5561,6 +5617,7 @@ async def api_strategy_leaderboard() -> Dict[str, Any]:
         strategies = visible or strategies
 
     strategies.sort(key=_strategy_leaderboard_sort_key, reverse=True)
+    strategies = _dedupe_strategy_leaderboard_entries(strategies)
     compact_strategies = [_compact_strategy_leaderboard_entry(entry) for entry in strategies]
     snapshot_history = _load_recent_strategy_leaderboard_snapshots(limit=12, db_path=DB_PATH)
     rank_deltas = _compute_strategy_rank_deltas_against_latest_snapshot(compact_strategies, db_path=DB_PATH)

@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-21 18:14:35 CST_
+_最後更新：2026-04-21 19:40:38 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
@@ -8,15 +8,18 @@ _最後更新：2026-04-21 18:14:35 CST_
 
 ## 已完成
 - **fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=31381 / Features=22799 / Labels=63274`
+  - `Raw=31385 / Features=22803 / Labels=63286`
   - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `latest_window=100` / `win_rate=100.0%` / `dominant_regime=chop(100.0%)` / `avg_quality=+0.6527` / `avg_pnl=+0.0196` / `alerts=constant_target,regime_concentration,regime_shift`
-  - `blocking_window=500` / `win_rate=27.0%` / `dominant_regime=bull(69.6%)` / `avg_quality=-0.0153` / `avg_pnl=-0.0010` / `alerts=regime_shift`
+  - `latest_window=100` / `win_rate=100.0%` / `dominant_regime=chop(100.0%)` / `avg_quality=+0.6589` / `avg_pnl=+0.0196` / `alerts=constant_target,regime_concentration,regime_shift`
+  - `blocking_window=500` / `win_rate=28.0%` / `dominant_regime=bull(68.6%)` / `avg_quality=-0.0062` / `avg_pnl=-0.0008` / `alerts=regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
+- **Strategy Lab / Execution guardrails 已產品化補強**
+  - Strategy Lab：system-generated auto leaderboard rows 不能再直接覆寫；operator 必須先輸入新的唯一名稱，API 與 rescan lane 也會去重 duplicate auto rows，避免排行榜重複污染工作區
+  - Execution Console：current live blocker 存在時，自然語句區的「買入 0.001 BTC」快捷鍵會自動 disabled，只保留減碼 / 模式切換 / 查看 blocker 這些安全操作
 
 ---
 
@@ -32,8 +35,8 @@ _最後更新：2026-04-21 18:14:35 CST_
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=100` / `win_rate=100.0%` / `dominant_regime=chop(100.0%)` / `avg_quality=+0.6527` / `avg_pnl=+0.0196` / `alerts=constant_target,regime_concentration,regime_shift`
-- `blocking_window=500` / `win_rate=27.0%` / `dominant_regime=bull(69.6%)` / `avg_quality=-0.0153` / `avg_pnl=-0.0010` / `alerts=regime_shift`
+- `latest_window=100` / `win_rate=100.0%` / `dominant_regime=chop(100.0%)` / `avg_quality=+0.6589` / `avg_pnl=+0.0196` / `alerts=constant_target,regime_concentration,regime_shift`
+- `blocking_window=500` / `win_rate=28.0%` / `dominant_regime=bull(68.6%)` / `avg_quality=-0.0062` / `avg_pnl=-0.0008` / `alerts=regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
@@ -46,8 +49,8 @@ _最後更新：2026-04-21 18:14:35 CST_
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
-- `leaderboard_count=4` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2851` / `archive_window_coverage_pct=0.0`
+- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2855` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**

@@ -829,17 +829,6 @@ const resolveLatestTwoYearBacktestRange = (availableStart?: string | null, avail
   return { start: formatDateTimeLocal(start), end: formatDateTimeLocal(end) };
 };
 
-const deriveEditableStrategyName = (rawName?: string | null) => {
-  const name = String(rawName || "").trim() || "My Strategy";
-  if (name.startsWith(MANUAL_COPY_STRATEGY_PREFIX)) {
-    return name;
-  }
-  if (name.startsWith(AUTO_STRATEGY_PREFIX)) {
-    return `${MANUAL_COPY_STRATEGY_PREFIX}${name.slice(AUTO_STRATEGY_PREFIX.length).trim()}`;
-  }
-  return name;
-};
-
 const formatStrategyDisplayName = (strategy?: Pick<StrategyEntry, "name" | "metadata"> | null) => {
   const raw = strategy?.metadata?.title || strategy?.name || "—";
   return raw.startsWith(AUTO_STRATEGY_PREFIX) ? raw.slice(AUTO_STRATEGY_PREFIX.length) : raw;
@@ -850,14 +839,6 @@ const isSystemGeneratedStrategy = (strategy?: Pick<StrategyEntry, "name" | "meta
     || strategy?.metadata?.source === "auto_leaderboard"
     || String(strategy?.name || "").startsWith(AUTO_STRATEGY_PREFIX)
   );
-};
-const toEditableStrategyName = (rawName?: string | null) => {
-  const trimmed = String(rawName || "").trim() || "My Strategy";
-  if (trimmed.startsWith(MANUAL_COPY_STRATEGY_PREFIX)) return trimmed;
-  if (trimmed.startsWith(AUTO_STRATEGY_PREFIX)) {
-    return `${MANUAL_COPY_STRATEGY_PREFIX}${trimmed.slice(AUTO_STRATEGY_PREFIX.length).trim()}`;
-  }
-  return trimmed;
 };
 const formatPct = (value: number | null | undefined, digits = 1, signed = false) => {
   if (!isFiniteNumber(value)) return "—";
@@ -1488,13 +1469,27 @@ export default function StrategyLab() {
 
   const activeResult = runResult ?? selectedStrategy?.last_results ?? null;
   const selectedStrategyIsSystemGenerated = isSystemGeneratedStrategy(selectedStrategy);
-  const editableRunName = useMemo(() => {
-    const trimmed = String(name || "").trim();
-    if (selectedStrategyIsSystemGenerated && (!trimmed || trimmed === selectedStrategy?.name || trimmed.startsWith(AUTO_STRATEGY_PREFIX))) {
-      return toEditableStrategyName(selectedStrategy?.name || trimmed || "My Strategy");
+  const trimmedRunName = String(name || "").trim();
+  const existingStrategyNameSet = useMemo(
+    () => new Set(strategies.map((entry) => String(entry.name || "").trim()).filter(Boolean)),
+    [strategies]
+  );
+  const runNameError = useMemo(() => {
+    if (!trimmedRunName) {
+      return selectedStrategyIsSystemGenerated ? "系統生成策略不能直接儲存；請先輸入新的策略名稱。" : "請先輸入策略名稱。";
     }
-    return trimmed || "My Strategy";
-  }, [name, selectedStrategy?.name, selectedStrategyIsSystemGenerated]);
+    if (selectedStrategyIsSystemGenerated && (
+      trimmedRunName === selectedStrategy?.name
+      || trimmedRunName.startsWith(AUTO_STRATEGY_PREFIX)
+      || trimmedRunName.startsWith(MANUAL_COPY_STRATEGY_PREFIX)
+    )) {
+      return "系統生成策略不能直接儲存；請先輸入新的策略名稱。";
+    }
+    if (existingStrategyNameSet.has(trimmedRunName) && trimmedRunName !== selectedStrategy?.name) {
+      return "策略名稱已存在；請使用唯一名稱。";
+    }
+    return null;
+  }, [existingStrategyNameSet, selectedStrategy?.name, selectedStrategyIsSystemGenerated, trimmedRunName]);
   const activeBacktestDisplayRange = useMemo(() => {
     const definitionRange = typeof selectedStrategy?.definition?.params?.backtest_range === "object" && selectedStrategy?.definition?.params?.backtest_range
       ? selectedStrategy.definition.params.backtest_range as { start?: string | null; end?: string | null }
@@ -1733,7 +1728,7 @@ export default function StrategyLab() {
   ) => {
     const params = strategy.definition?.params ?? {};
     const entry = params.entry ?? {};
-    setName(deriveEditableStrategyName(strategy.name));
+    setName(isSystemGeneratedStrategy(strategy) ? "" : strategy.name);
     setStrategyType((strategy.definition?.type as "rule_based" | "hybrid") || "rule_based");
     setSelectedModelName(params.model_name || strategy.metadata?.model_name || "xgboost");
     setBias50Max(entry.bias50_max ?? DEFAULT_PARAMS.entry.bias50_max);
@@ -2072,7 +2067,11 @@ export default function StrategyLab() {
   }, [modelMeta.refreshing, modelMeta.cache_age_sec]);
 
   const handleRun = async () => {
-    const runName = editableRunName;
+    const runName = trimmedRunName;
+    if (runNameError) {
+      setError(runNameError);
+      return;
+    }
     if (runName !== name) {
       setName(runName);
     }
@@ -2081,9 +2080,7 @@ export default function StrategyLab() {
     updateBackgroundStage({
       mode: "run_strategy",
       label: `正在執行回測：${runName}`,
-      detail: runName !== name
-        ? `系統生成策略不可直接覆蓋；本次會另存為「${runName}」。`
-        : "正在整理參數並準備送出回測請求。",
+      detail: "正在整理參數並準備送出回測請求。",
       progress: toStageProgress(0, STAGE_TOTALS.run_strategy),
     });
     try {
@@ -2092,6 +2089,7 @@ export default function StrategyLab() {
       const effectiveChartEnd = chartEnd || fallbackTwoYearRange.end;
       const body = {
         name: runName,
+        source_strategy_name: selectedStrategy?.name || null,
         type: strategyType,
         initial_capital: initialCapital,
         auto_backfill: true,
@@ -2520,17 +2518,27 @@ export default function StrategyLab() {
             <div className="mt-3 space-y-3">
               <div>
                 <label className="text-xs text-slate-500">實驗名稱（僅工作區）</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} className="app-control-input mt-1" />
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={selectedStrategyIsSystemGenerated ? "請輸入新的策略名稱" : undefined}
+                  className="app-control-input mt-1"
+                />
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
                   <span className={`inline-flex rounded-full border px-2 py-0.5 ${selectedStrategyIsSystemGenerated ? "border-amber-500/30 bg-amber-500/10 text-amber-100" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"}`}>
                     {selectedStrategySourceLabel}
                   </span>
                   {selectedStrategyIsSystemGenerated && (
                     <span className="inline-flex rounded-full border border-white/10 bg-slate-900/50 px-2 py-0.5 text-slate-300">
-                      rerun → {editableRunName}
+                      需自訂名稱後才能儲存
                     </span>
                   )}
                 </div>
+                {runNameError && (
+                  <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-5 text-amber-100">
+                    {runNameError}
+                  </div>
+                )}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -2567,7 +2575,7 @@ export default function StrategyLab() {
               {selectedStrategyIsSystemGenerated && (
                 <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-[11px] leading-5 text-amber-100 space-y-1">
                   <div className="font-medium">系統生成排行榜</div>
-                  <div>系統生成策略不可直接覆蓋；重新回測時會另存為可編輯副本。</div>
+                  <div>系統生成策略不能直接儲存；請先輸入新的策略名稱。</div>
                 </div>
               )}
 

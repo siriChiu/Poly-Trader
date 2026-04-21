@@ -99,6 +99,11 @@ def derive_editable_strategy_name(name: str) -> str:
     return raw_name
 
 
+def strategy_definition_signature(strategy_def: Optional[Dict[str, Any]]) -> str:
+    sanitized = _sanitize_definition(strategy_def)
+    return json.dumps(sanitized, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
 def _sanitize_definition(strategy_def: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     strategy_def = strategy_def or {}
     params = strategy_def.get("params") if isinstance(strategy_def, dict) else {}

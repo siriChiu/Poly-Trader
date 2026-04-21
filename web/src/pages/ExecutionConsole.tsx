@@ -649,6 +649,10 @@ export default function ExecutionConsole() {
       .map((item) => humanizeExecutionReason(item))
       .filter((item) => item && item !== "尚未提供 blocker 摘要。")))
       .join(" · ") || primaryBlockedReason);
+  const manualBuyBlocked = hasBlockedState && Boolean(rawPrimaryBlockedReason);
+  const manualBuyBlockedMessage = manualBuyBlocked
+    ? "current live blocker 啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。"
+    : null;
   const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "Ready" : "Blocked");
   const deploymentStatusDetail = runtimeStatusPending
     ? "正在向 /api/status 取得 current live blocker / runtime closure。"
@@ -661,6 +665,13 @@ export default function ExecutionConsole() {
   const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || (dryRunEnabled ? "dry_run" : "paper"));
   const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || "unknown");
   const automationStatusLabel = runtimeStatusPending ? "automation 同步中" : `automation ${automationEnabled ? "ON" : "OFF"}`;
+  const operatorQuickCommands = [
+    { label: "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualBuyBlocked },
+    { label: "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" },
+    { label: automationEnabled ? "切到手動模式" : "切到自動模式", disabled: operatorActionState.tone === "pending" },
+    { label: "查看阻塞原因", disabled: operatorActionState.tone === "pending" },
+    { label: "重新整理", disabled: operatorActionState.tone === "pending" },
+  ];
   const liveReadyStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const balanceTotalLabel = runtimeStatusPending
     ? "同步中"
@@ -734,6 +745,13 @@ export default function ExecutionConsole() {
 
   const handleOperatorTrade = async (side: "buy" | "reduce", qty = 0.001) => {
     const label = side === "buy" ? "買入" : "減碼";
+    if (side === "buy" && manualBuyBlocked) {
+      setOperatorActionState({
+        tone: "error",
+        message: manualBuyBlockedMessage || "current live blocker 啟動中：買入指令暫停；請先查看阻塞原因。",
+      });
+      return;
+    }
     const normalizedQty = Number.isFinite(qty) && qty > 0 ? qty : 0.001;
     setOperatorActionState({
       tone: "pending",
@@ -1276,6 +1294,11 @@ export default function ExecutionConsole() {
             )}
           >
             <div className="text-sm text-slate-300">自然語句會優先幫你判斷是交易、模式切換還是前往診斷；不需要先找對按鈕。</div>
+            {manualBuyBlockedMessage && (
+              <div className="mt-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                {manualBuyBlockedMessage}
+              </div>
+            )}
             <div className="mt-3 flex flex-col gap-3">
               <input
                 value={naturalCommand}
@@ -1290,21 +1313,15 @@ export default function ExecutionConsole() {
                 placeholder="例如：買 0.001 BTC / 減碼 0.001 / 切到自動 / 查看阻塞原因"
               />
               <div className="flex flex-wrap gap-2">
-                {[
-                  "買入 0.001 BTC",
-                  "減碼 0.001 BTC",
-                  automationEnabled ? "切到手動模式" : "切到自動模式",
-                  "查看阻塞原因",
-                  "重新整理",
-                ].map((command) => (
+                {operatorQuickCommands.map((command) => (
                   <button
-                    key={command}
+                    key={command.label}
                     type="button"
-                    disabled={operatorActionState.tone === "pending"}
-                    onClick={() => void handleNaturalLanguageAction(command)}
+                    disabled={command.disabled}
+                    onClick={() => void handleNaturalLanguageAction(command.label)}
                     className="app-button-secondary"
                   >
-                    {command}
+                    {command.label}
                   </button>
                 ))}
                 <button

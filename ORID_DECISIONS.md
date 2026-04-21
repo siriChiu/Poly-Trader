@@ -1,20 +1,21 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-21 18:14:35 CST_
+_最後更新：2026-04-21 19:40:38 CST_
 
 ---
 
 ## 心跳 #fast ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31381 / Features=22799 / Labels=63274`；`simulated_pyramid_win=57.26%`。
+- collect + diagnostics refresh 完成：`Raw=31385 / Features=22803 / Labels=63286`；`simulated_pyramid_win=57.27%`。
 - current-live blocker：`deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - current live bucket truth：`current_live_structure_bucket=CAUTION|structure_quality_caution|q35` / `support=12/50` / `gap=38` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
-- latest recent-window diagnostics：`latest_window=100` / `win_rate=100.0%` / `dominant_regime=chop(100.0%)` / `avg_quality=+0.6527` / `avg_pnl=+0.0196` / `alerts=constant_target,regime_concentration,regime_shift`。
-- current blocking pathological pocket：`blocking_window=500` / `win_rate=27.0%` / `dominant_regime=bull(69.6%)` / `avg_quality=-0.0153` / `avg_pnl=-0.0010` / `alerts=regime_shift`。
-- leaderboard / governance：`leaderboard_count=4` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2851` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- latest recent-window diagnostics：`latest_window=100` / `win_rate=100.0%` / `dominant_regime=chop(100.0%)` / `avg_quality=+0.6589` / `avg_pnl=+0.0196` / `alerts=constant_target,regime_concentration,regime_shift`。
+- current blocking pathological pocket：`blocking_window=500` / `win_rate=28.0%` / `dominant_regime=bull(68.6%)` / `avg_quality=-0.0062` / `avg_pnl=-0.0008` / `alerts=regime_shift`。
+- leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2855` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
+- Strategy Lab / Execution guardrails：system-generated auto rows 現在必須輸入**新的唯一名稱**才允許儲存，API / rescan lane 也會去重 duplicate auto variants；Execution Console 在 `current live blocker` 存在時會停用買入快捷鍵，只保留減碼 / 模式切換 / blocker 診斷。
 
 ### R｜感受直覺
 - 這輪最需要防止的誤讀，是把 `12/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；目前 live blocker 已切到 `under_minimum_exact_live_structure_bucket`。

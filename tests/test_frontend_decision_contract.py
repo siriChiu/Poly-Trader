@@ -151,6 +151,25 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
     assert '進階診斷（需要時再展開）' not in source
 
 
+def test_execution_console_disables_manual_buy_shortcuts_when_current_live_blocker_is_active():
+    source = _read("pages/ExecutionConsole.tsx")
+    required_snippets = [
+        'const manualBuyBlocked = hasBlockedState && Boolean(rawPrimaryBlockedReason);',
+        'const manualBuyBlockedMessage = manualBuyBlocked',
+        'current live blocker 啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。',
+        'const operatorQuickCommands = [',
+        '{ label: "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualBuyBlocked },',
+        '{ label: "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" },',
+        'if (side === "buy" && manualBuyBlocked) {',
+        '{manualBuyBlockedMessage && (',
+        '{operatorQuickCommands.map((command) => (',
+        'disabled={command.disabled}',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+
 def test_execution_console_keeps_initial_sync_copy_until_status_overview_and_runs_finish_loading():
     source = _read("pages/ExecutionConsole.tsx")
     required_snippets = [

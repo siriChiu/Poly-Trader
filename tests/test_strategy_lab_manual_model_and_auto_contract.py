@@ -116,19 +116,45 @@ def patched_strategy_run_env(monkeypatch: pytest.MonkeyPatch):
     return captured
 
 
-def test_execute_strategy_run_preserves_auto_leaderboard_rows_by_saving_manual_copy_when_operator_reruns(
+def test_execute_strategy_run_rejects_system_generated_strategy_until_operator_supplies_unique_name(
     patched_strategy_run_env,
 ):
     payload = api_module._execute_strategy_run(
         {
             "name": "Auto Leaderboard · 重掃 xgboost Hybrid #01",
+            "source_strategy_name": "Auto Leaderboard · 重掃 xgboost Hybrid #01",
             "type": "hybrid",
             "params": {"model_name": "xgboost", "entry": {"bias50_max": 0.0}},
         }
     )
 
-    assert payload["strategy"] == "Manual Copy · 重掃 xgboost Hybrid #01"
-    assert patched_strategy_run_env["name"] == "Manual Copy · 重掃 xgboost Hybrid #01"
+    assert payload["error"] == "系統生成策略不能直接儲存；請先輸入新的策略名稱。"
+    assert "name" not in patched_strategy_run_env
+
+
+
+def test_execute_strategy_run_rejects_duplicate_custom_name_when_it_would_overwrite_another_strategy(
+    monkeypatch: pytest.MonkeyPatch,
+    patched_strategy_run_env,
+):
+    monkeypatch.setattr(
+        strategy_lab,
+        "load_strategy",
+        lambda name: {"name": "My Existing Strategy"} if name == "My Existing Strategy" else None,
+    )
+
+    payload = api_module._execute_strategy_run(
+        {
+            "name": "My Existing Strategy",
+            "source_strategy_name": "Auto Leaderboard · 重掃 xgboost Hybrid #01",
+            "type": "hybrid",
+            "params": {"model_name": "xgboost", "entry": {"bias50_max": 0.0}},
+        }
+    )
+
+    assert payload["error"] == "策略名稱已存在；請使用唯一名稱。"
+    assert "name" not in patched_strategy_run_env
+
 
 
 def test_execute_strategy_run_allows_internal_overwrite_for_auto_leaderboard_refresh(
@@ -169,7 +195,7 @@ def test_strategy_lab_frontend_exposes_manual_model_selection_and_protects_syste
     required_snippets = [
         "const MODEL_OPTIONS = [",
         "const selectedStrategyIsSystemGenerated",
-        "const editableRunName =",
+        "const runNameError = useMemo(() => {",
         "setSelectedModelName",
         'model_name: strategyType === "hybrid" ? selectedModelName : "rule_based"',
         '${strategyType === "hybrid" ? "Hybrid" : "Rule"} · ${strategyType === "hybrid" ? selectedModelName : "rule_based"}',
@@ -177,7 +203,11 @@ def test_strategy_lab_frontend_exposes_manual_model_selection_and_protects_syste
         "手動選擇模型",
         "MODEL_OPTIONS.map",
         "系統生成排行榜",
-        "系統生成策略不可直接覆蓋；重新回測時會另存為可編輯副本。",
+        "系統生成策略不能直接儲存；請先輸入新的策略名稱。",
+        'placeholder={selectedStrategyIsSystemGenerated ? "請輸入新的策略名稱" : undefined}',
+        'setName(isSystemGeneratedStrategy(strategy) ? "" : strategy.name);',
+        'if (runNameError) {',
+        'setError(runNameError);',
         "目前只更新圖表 / 區間，尚未重新執行回測",
         "請按「執行回測」刷新 ROI / Trades / 最近交易",
     ]
