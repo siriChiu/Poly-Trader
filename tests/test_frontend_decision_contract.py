@@ -393,12 +393,14 @@ def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_r
         'dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ")',
         'const dashboardSupportRouteVerdictLabel = runtimeStatusPending',
         'const dashboardSupportGovernanceRouteLabel = runtimeStatusPending',
+        'const dashboardSupportRowsLabel = runtimeStatusPending',
+        'const dashboardSupportGapLabel = runtimeStatusPending',
         'const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || accountSummary?.mode || "unknown");',
         'const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || accountSummary?.venue || "—");',
         'const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "Ready" : "Blocked");',
         'value={dashboardExecutionStatusValue}',
         'current live blocker {dashboardCurrentLiveBlockerLabel}',
-        'support route {dashboardSupportRouteVerdictLabel} · governance route {dashboardSupportGovernanceRouteLabel}',
+        'current bucket {dashboardSupportRowsLabel} · gap {dashboardSupportGapLabel} · support route {dashboardSupportRouteVerdictLabel} · governance route {dashboardSupportGovernanceRouteLabel}',
         'venue blockers {dashboardVenueBlockersLabel}',
     ]
     for snippet in required_snippets:
@@ -610,8 +612,10 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'const liveRuntimeClosureSummary = liveDecisionStatus?.runtime_closure_summary ?? liveRuntimeTruth?.runtime_closure_summary ?? null;',
         'const liveSupportRouteVerdict = liveDecisionStatus?.support_route_verdict ?? liveRuntimeTruth?.support_route_verdict ?? null;',
         'const liveSupportGovernanceRoute = liveDecisionStatus?.support_governance_route ?? liveRuntimeTruth?.support_governance_route ?? null;',
+        'const liveSupportRowsLabel = liveExecutionSyncPending',
+        'const liveSupportGapLabel = liveExecutionSyncPending',
         'const liveSupportRouteSummaryLabel = liveExecutionSyncPending',
-        'support route ${liveSupportRouteVerdict || "—"} · governance route ${liveSupportGovernanceRoute || "—"}`;',
+        'current bucket ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · support route ${liveSupportRouteVerdict || "—"} · governance route ${liveSupportGovernanceRoute || "—"}`;',
         'const liveRouting = liveRuntimeTruth?.sleeve_routing ?? null;',
         'const liveActiveSleeves = Array.isArray(liveRouting?.active_sleeves) ? liveRouting.active_sleeves : [];',
         'const liveInactiveSleeves = Array.isArray(liveRouting?.inactive_sleeves) ? liveRouting.inactive_sleeves : [];',
@@ -657,6 +661,7 @@ def test_strategy_lab_live_sync_card_keeps_blocked_status_ahead_of_reconciliatio
         'reconciliationStatus: executionReconciliation?.status,',
         '{liveDeployStatusLabel}',
         'current live blocker {currentLiveBlockerLabel}',
+        'current bucket {liveSupportRowsLabel} · gap {liveSupportGapLabel}',
         '{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}',
     ]
     for snippet in required_snippets:

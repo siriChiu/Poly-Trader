@@ -60,6 +60,10 @@ type LiveRuntimeTruth = {
   support_rows_text?: string | null;
   support_route_verdict?: string | null;
   support_governance_route?: string | null;
+  support_progress?: {
+    gap_to_minimum?: number | null;
+  } | null;
+  current_live_structure_bucket_gap_to_minimum?: number | null;
   q15_exact_supported_component_patch_applied?: boolean | null;
   runtime_exact_support_rows?: number | null;
   calibration_exact_lane_rows?: number | null;
@@ -1050,6 +1054,16 @@ export default function Dashboard() {
   const dashboardSupportGovernanceRouteLabel = runtimeStatusPending
     ? "同步中"
     : (liveRuntimeTruth?.support_governance_route || "—");
+  const dashboardSupportRowsLabel = runtimeStatusPending
+    ? "同步中"
+    : (liveRuntimeTruth?.support_rows_text || "—");
+  const dashboardSupportGapLabel = runtimeStatusPending
+    ? "同步中"
+    : (typeof liveRuntimeTruth?.current_live_structure_bucket_gap_to_minimum === "number"
+      ? liveRuntimeTruth.current_live_structure_bucket_gap_to_minimum.toFixed(0)
+      : (typeof liveRuntimeTruth?.support_progress?.gap_to_minimum === "number"
+        ? liveRuntimeTruth.support_progress.gap_to_minimum.toFixed(0)
+        : "—"));
   const adviceCardExecutionActionState: "syncing" | "blocked" | "ready" = runtimeStatusPending || !liveRuntimeTruth
     ? "syncing"
     : (dashboardCurrentLiveBlocker ? "blocked" : "ready");
@@ -1288,7 +1302,7 @@ export default function Dashboard() {
             <>
               <div>{executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()} · {executionVenueLabel}</div>
               <div>current live blocker {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
-              <div className="opacity-70">support route {dashboardSupportRouteVerdictLabel} · governance route {dashboardSupportGovernanceRouteLabel}</div>
+              <div className="opacity-70">current bucket {dashboardSupportRowsLabel} · gap {dashboardSupportGapLabel} · support route {dashboardSupportRouteVerdictLabel} · governance route {dashboardSupportGovernanceRouteLabel}</div>
               <div className="opacity-70">venue blockers {dashboardVenueBlockersLabel}</div>
             </>
           )}

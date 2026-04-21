@@ -259,6 +259,11 @@ interface StrategyLabRuntimeStatusResponse {
       support_alignment_summary?: string | null;
       support_route_verdict?: string | null;
       support_governance_route?: string | null;
+      support_progress?: {
+        current_rows?: number | null;
+        minimum_support_rows?: number | null;
+        gap_to_minimum?: number | null;
+      } | null;
       calibration_exact_lane_alerts?: string[] | null;
       decision_quality_recent_pathology_applied?: boolean | null;
       decision_quality_recent_pathology_reason?: string | null;
@@ -2418,9 +2423,26 @@ export default function StrategyLab() {
   const currentLiveBlockerSummaryLabel = liveExecutionSyncPending
     ? "正在同步 live blocker / runtime closure"
     : humanizeExecutionReason(currentLiveBlockerSummary);
+  const liveSupportCurrentRows = liveDecisionStatus?.support_progress?.current_rows
+    ?? liveRuntimeTruth?.support_progress?.current_rows
+    ?? null;
+  const liveSupportMinimumRows = liveDecisionStatus?.support_progress?.minimum_support_rows
+    ?? liveRuntimeTruth?.support_progress?.minimum_support_rows
+    ?? null;
+  const liveSupportGap = liveDecisionStatus?.support_progress?.gap_to_minimum
+    ?? liveRuntimeTruth?.support_progress?.gap_to_minimum
+    ?? null;
+  const liveSupportRowsLabel = liveExecutionSyncPending
+    ? "同步中"
+    : (isFiniteNumber(liveSupportCurrentRows) && isFiniteNumber(liveSupportMinimumRows)
+      ? `${formatDecimal(liveSupportCurrentRows, 0)} / ${formatDecimal(liveSupportMinimumRows, 0)}`
+      : "—");
+  const liveSupportGapLabel = liveExecutionSyncPending
+    ? "同步中"
+    : (isFiniteNumber(liveSupportGap) ? formatDecimal(liveSupportGap, 0) : "—");
   const liveSupportRouteSummaryLabel = liveExecutionSyncPending
-    ? "support route 同步中 · governance route 同步中"
-    : `support route ${liveSupportRouteVerdict || "—"} · governance route ${liveSupportGovernanceRoute || "—"}`;
+    ? "current bucket 同步中 · gap 同步中 · support route 同步中 · governance route 同步中"
+    : `current bucket ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · support route ${liveSupportRouteVerdict || "—"} · governance route ${liveSupportGovernanceRoute || "—"}`;
   const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
   const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;
@@ -2777,6 +2799,7 @@ export default function StrategyLab() {
                 <div className="text-right text-xs">
                   <div className="font-semibold">{liveDeployStatusLabel}</div>
                   <div className="opacity-70">current live blocker {currentLiveBlockerLabel}</div>
+                  <div className="mt-1 opacity-60">current bucket {liveSupportRowsLabel} · gap {liveSupportGapLabel}</div>
                   <div className="mt-1 opacity-60">{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}</div>
                 </div>
               )}
