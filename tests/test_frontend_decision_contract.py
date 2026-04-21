@@ -699,13 +699,15 @@ def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candida
         'type Q15BucketRootCauseSummary = {',
         'humanizeQ15BucketRootCauseLabel',
         'q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;',
-        'const q15BucketRootCause = liveRuntimeTruth?.q15_bucket_root_cause ?? null;',
-        'const q15BucketRootCauseLabel = runtimeStatusPending',
-        'const q15BucketRootCauseSummary = runtimeStatusPending',
-        'q15 bucket root cause',
-        'candidate {q15BucketRootCause?.candidate_patch_feature || "—"}',
-        'near-boundary {q15BucketRootCause?.near_boundary_rows ?? "—"}',
-        'next {q15BucketRootCause?.verify_next || "—"}',
+        'current_bucket_root_cause?: Q15BucketRootCauseSummary | null;',
+        'const currentBucketRootCause = liveRuntimeTruth?.current_bucket_root_cause ?? liveRuntimeTruth?.q15_bucket_root_cause ?? null;',
+        'const currentBucketRootCauseLabel = runtimeStatusPending',
+        'const currentBucketRootCauseSummary = runtimeStatusPending',
+        'current bucket root cause',
+        'bucket {currentBucketRootCauseBucket}',
+        'candidate {currentBucketRootCause?.candidate_patch_feature || "—"}',
+        'near-boundary {currentBucketRootCause?.near_boundary_rows ?? "—"}',
+        'next {currentBucketRootCause?.verify_next || "—"}',
     ]:
         assert snippet in execution_status_source
 
@@ -713,18 +715,21 @@ def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candida
         'interface Q15BucketRootCauseSummary {',
         'humanizeQ15BucketRootCauseLabel',
         'q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;',
-        'const q15BucketRootCause = liveDecisionStatus?.q15_bucket_root_cause ?? liveRuntimeTruth?.q15_bucket_root_cause ?? null;',
-        'const q15BucketRootCauseLabel = liveExecutionSyncPending',
-        'const q15BucketRootCauseSummary = liveExecutionSyncPending',
-        'q15 root cause',
-        'candidate {q15BucketRootCause?.candidate_patch_feature || "—"}',
-        'near-boundary {q15BucketRootCause?.near_boundary_rows ?? "—"}',
-        'next {q15BucketRootCause?.verify_next || "—"}',
+        'current_bucket_root_cause?: Q15BucketRootCauseSummary | null;',
+        'const currentBucketRootCause = liveDecisionStatus?.current_bucket_root_cause',
+        'const currentBucketRootCauseLabel = liveExecutionSyncPending',
+        'const currentBucketRootCauseSummary = liveExecutionSyncPending',
+        'current bucket root cause',
+        'bucket {currentBucketRootCauseBucket}',
+        'candidate {currentBucketRootCause?.candidate_patch_feature || "—"}',
+        'near-boundary {currentBucketRootCause?.near_boundary_rows ?? "—"}',
+        'next {currentBucketRootCause?.verify_next || "—"}',
     ]:
         assert snippet in strategy_lab_source
 
     assert 'boundary_sensitivity_candidate' in runtime_copy_source
     assert 'bucket_boundary_review' in runtime_copy_source
+    assert '尚未取得 current bucket 根因' in runtime_copy_source
 
 
 def test_live_pathology_summary_card_surfaces_recommended_patch_contract():

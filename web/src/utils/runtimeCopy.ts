@@ -91,7 +91,7 @@ export function humanizeCurrentLiveBlockerLabel(value?: string | null): string {
 
 export function humanizeQ15BucketRootCauseLabel(value?: string | null): string {
   const normalized = String(value || "").trim();
-  if (!normalized) return "尚未取得 q15 根因";
+  if (!normalized) return "尚未取得 current bucket 根因";
   const lower = normalized.toLowerCase();
   for (const [token, label] of Q15_BUCKET_ROOT_CAUSE_LABEL_MAPPINGS) {
     if (lower.includes(token)) return label;

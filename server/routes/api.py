@@ -850,12 +850,7 @@ def _load_q15_bucket_root_cause_summary(current_structure_bucket: Optional[str] 
     candidate_patch = payload.get("candidate_patch") if isinstance(payload.get("candidate_patch"), dict) else {}
 
     bucket = current_live.get("structure_bucket")
-    effective_bucket = current_structure_bucket or bucket
     if current_structure_bucket and bucket and str(current_structure_bucket) != str(bucket):
-        return None
-    if effective_bucket and "q15" not in str(effective_bucket):
-        return None
-    if bucket and "q15" not in str(bucket):
         return None
 
     return {
@@ -894,8 +889,10 @@ def _enrich_confidence_with_q15_bucket_root_cause(result: Dict[str, Any]) -> Dic
     enriched = dict(result)
     details = dict(blocker_details)
     details["q15_bucket_root_cause"] = root_cause_summary
+    details["current_bucket_root_cause"] = root_cause_summary
     enriched["deployment_blocker_details"] = details
     enriched["q15_bucket_root_cause"] = root_cause_summary
+    enriched["current_bucket_root_cause"] = root_cause_summary
     return enriched
 
 
@@ -1326,6 +1323,7 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "recommended_patch_reason": recommended_patch_reason,
         "sleeve_routing": sleeve_routing,
         "q15_bucket_root_cause": payload.get("q15_bucket_root_cause"),
+        "current_bucket_root_cause": payload.get("current_bucket_root_cause") or payload.get("q15_bucket_root_cause"),
         "decision_quality_recent_pathology_applied": payload.get("decision_quality_recent_pathology_applied"),
         "decision_quality_recent_pathology_reason": payload.get("decision_quality_recent_pathology_reason"),
         "decision_quality_recent_pathology_window": payload.get("decision_quality_recent_pathology_window"),

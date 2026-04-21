@@ -152,6 +152,7 @@ interface Q15BucketRootCauseSummary {
   candidate_patch_feature?: string | null;
   reason?: string | null;
   verify_next?: string | null;
+  current_live_structure_bucket?: string | null;
   gap_to_q35_boundary?: number | null;
   dominant_neighbor_bucket?: string | null;
   dominant_neighbor_rows?: number | null;
@@ -197,6 +198,7 @@ interface StrategyLabLiveDecisionResponse {
   runtime_closure_summary?: string | null;
   q15_exact_supported_component_patch_applied?: boolean | null;
   q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
+  current_bucket_root_cause?: Q15BucketRootCauseSummary | null;
   support_route_verdict?: string | null;
   support_governance_route?: string | null;
   support_progress?: {
@@ -266,6 +268,7 @@ interface StrategyLabRuntimeStatusResponse {
       regime_label?: string | null;
       regime_gate?: string | null;
       structure_bucket?: string | null;
+      current_live_structure_bucket?: string | null;
       sleeve_routing?: SleeveRoutingState | null;
       runtime_exact_support_rows?: number | null;
       calibration_exact_lane_rows?: number | null;
@@ -279,6 +282,7 @@ interface StrategyLabRuntimeStatusResponse {
         gap_to_minimum?: number | null;
       } | null;
       q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
+      current_bucket_root_cause?: Q15BucketRootCauseSummary | null;
       calibration_exact_lane_alerts?: string[] | null;
       decision_quality_recent_pathology_applied?: boolean | null;
       decision_quality_recent_pathology_reason?: string | null;
@@ -2439,16 +2443,30 @@ export default function StrategyLab() {
   const currentLiveBlockerSummaryLabel = liveExecutionSyncPending
     ? "正在同步 live blocker / runtime closure"
     : humanizeExecutionReason(currentLiveBlockerSummary);
-  const q15BucketRootCause = liveDecisionStatus?.q15_bucket_root_cause ?? liveRuntimeTruth?.q15_bucket_root_cause ?? null;
-  const q15BucketRootCauseLabel = liveExecutionSyncPending
+  const currentBucketRootCause = liveDecisionStatus?.current_bucket_root_cause
+    ?? liveDecisionStatus?.q15_bucket_root_cause
+    ?? liveRuntimeTruth?.current_bucket_root_cause
+    ?? liveRuntimeTruth?.q15_bucket_root_cause
+    ?? null;
+  const currentBucketRootCauseLabel = liveExecutionSyncPending
     ? "同步中"
-    : humanizeQ15BucketRootCauseLabel(q15BucketRootCause?.verdict || null);
-  const q15BucketRootCauseSummary = liveExecutionSyncPending
-    ? "正在同步 q15 current-bucket root cause。"
-    : (q15BucketRootCause?.reason || "尚未取得 q15 current bucket 根因。");
-  const q15BucketRootCauseActionLabel = liveExecutionSyncPending
+    : humanizeQ15BucketRootCauseLabel(currentBucketRootCause?.verdict || null);
+  const currentBucketRootCauseSummary = liveExecutionSyncPending
+    ? "正在同步 current-bucket root cause。"
+    : (currentBucketRootCause?.reason || "尚未取得 current bucket 根因。");
+  const currentBucketRootCauseActionLabel = liveExecutionSyncPending
     ? "同步中"
-    : humanizeQ15BucketRootCauseAction(q15BucketRootCause?.candidate_patch_type || null);
+    : humanizeQ15BucketRootCauseAction(currentBucketRootCause?.candidate_patch_type || null);
+  const currentBucketRootCauseBucket = liveExecutionSyncPending
+    ? "同步中"
+    : (
+      currentBucketRootCause?.current_live_structure_bucket
+      || liveDecisionStatus?.current_live_structure_bucket
+      || liveRuntimeTruth?.current_live_structure_bucket
+      || liveDecisionStatus?.structure_bucket
+      || liveRuntimeTruth?.structure_bucket
+      || "—"
+    );
   const liveSupportCurrentRows = liveDecisionStatus?.support_progress?.current_rows
     ?? liveRuntimeTruth?.support_progress?.current_rows
     ?? null;
@@ -2862,14 +2880,15 @@ export default function StrategyLab() {
                 detail={runtimeClosureSummaryLabel}
               />
               <ExecutionWorkspaceMetric
-                label="q15 root cause"
-                value={q15BucketRootCauseLabel}
+                label="current bucket root cause"
+                value={currentBucketRootCauseLabel}
                 detail={(
                   <>
-                    <div>{q15BucketRootCauseSummary}</div>
-                    <div className="opacity-70">candidate {q15BucketRootCause?.candidate_patch_feature || "—"} · {q15BucketRootCauseActionLabel}</div>
-                    <div className="opacity-70">near-boundary {q15BucketRootCause?.near_boundary_rows ?? "—"} · Δq35 {formatDecimal(q15BucketRootCause?.gap_to_q35_boundary, 4)}</div>
-                    <div className="opacity-70">next {q15BucketRootCause?.verify_next || "—"}</div>
+                    <div>{currentBucketRootCauseSummary}</div>
+                    <div className="opacity-70">bucket {currentBucketRootCauseBucket}</div>
+                    <div className="opacity-70">candidate {currentBucketRootCause?.candidate_patch_feature || "—"} · {currentBucketRootCauseActionLabel}</div>
+                    <div className="opacity-70">near-boundary {currentBucketRootCause?.near_boundary_rows ?? "—"} · Δq35 {formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
+                    <div className="opacity-70">next {currentBucketRootCause?.verify_next || "—"}</div>
                   </>
                 )}
               />

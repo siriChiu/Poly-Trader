@@ -1,18 +1,19 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-22 03:27:49 CST_
+_最後更新：2026-04-22 04:21:16 CST_
 
 ---
 
-## 心跳 #20260422d ORID
+## 心跳 #20260422f ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31429 / Features=22846 / Labels=63365`；`simulated_pyramid_win=57.23%`。
+- collect + diagnostics refresh 完成：`Raw=31432 / Features=22850 / Labels=63379`；`simulated_pyramid_win=57.21%`。
 - current-live blocker：`deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - q15 current-live bucket truth：`current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_proxy_reference_only`。
-- latest recent-window diagnostics：`latest_window=500` / `win_rate=31.6%` / `dominant_regime=bull(65.0%)` / `avg_quality=+0.0277` / `avg_pnl=+0.0001` / `alerts=regime_shift`。
+- current bucket root-cause contract 已落地：`/api/status.execution.live_runtime_truth` 現在同時提供 `q15_bucket_root_cause` 與 `current_bucket_root_cause`；`/execution/status`、`/lab` 均以 `current bucket root cause` 呈現並帶 live bucket label。
+- latest recent-window diagnostics：`latest_window=500` / `win_rate=31.6%` / `dominant_regime=bull(65.0%)` / `avg_quality=+0.0270` / `avg_pnl=-0.0000` / `alerts=regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2899` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2902` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
 
 ### R｜感受直覺
