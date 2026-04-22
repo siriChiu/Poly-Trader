@@ -5195,3 +5195,115 @@ def test_refresh_train_prerequisites_runs_both_artifacts_when_train_is_needed(mo
 
 def test_refresh_train_prerequisites_skips_artifacts_when_train_not_needed():
     assert hb_parallel_runner.refresh_train_prerequisites(needs_train=False) == {}
+
+
+def test_overwrite_current_state_docs_surfaces_q35_scaling_no_deploy_issue(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_current_live_deployment_blocker",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "current live bucket BLOCK|bull_high_bias200_overheat_block|q35 exact support is missing and remains the deployment blocker (0/50)",
+                        "action": "keep exact-support blocker truth visible",
+                    },
+                    {
+                        "id": "P1_q35_scaling_no_deploy",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "q35 lane still needs formula review / base-stack redesign before deploy",
+                        "action": "把 q35 scaling audit 的 overall_verdict / redesign verdict / gap-to-floor 同步到 docs，禁止把 bias50 單點 uplift 當成 closure。",
+                        "summary": {
+                            "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+                            "current_live_structure_bucket_rows": 0,
+                            "minimum_support_rows": 50,
+                            "gap_to_minimum": 50,
+                            "support_route_verdict": "exact_bucket_unsupported_block",
+                            "overall_verdict": "bias50_formula_may_be_too_harsh",
+                            "redesign_verdict": "base_stack_redesign_candidate_grid_empty",
+                            "remaining_gap_to_floor": 0.1895,
+                        },
+                    },
+                ]
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260422u",
+        {
+            "raw_market_data": 31486,
+            "features_normalized": 22904,
+            "labels": 63481,
+            "simulated_pyramid_win_rate": 0.5726,
+        },
+        {
+            "blocked_count": 8,
+            "counts_by_history_class": {"archive_required": 3, "snapshot_only": 4, "short_window_public_api": 1},
+            "blocked_features": [
+                {
+                    "key": "fin_netflow",
+                    "quality_flag": "source_auth_blocked",
+                    "raw_snapshot_latest_status": "auth_missing",
+                    "raw_snapshot_events": 2956,
+                    "archive_window_coverage_pct": 0.0,
+                }
+            ],
+        },
+        {
+            "primary_window": "1000",
+            "primary_alerts": ["regime_shift"],
+            "primary_summary": {
+                "win_rate": 0.393,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.813,
+                "avg_quality": 0.0767,
+                "avg_pnl": 0.0004,
+            },
+        },
+        {
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "no_support_proxy",
+            "runtime_closure_state": "patch_inactive_or_blocked",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {
+            "recommended_patch_profile": "core_plus_macro_plus_all_4h",
+            "recommended_patch_status": "reference_only_until_exact_support_ready",
+            "recommended_patch_reference_scope": "bull|CAUTION",
+        },
+        {},
+        {},
+        {
+            "leaderboard_count": 6,
+            "selected_feature_profile": "core_only",
+            "support_aware_production_profile": "core_plus_macro_plus_all_4h",
+            "governance_contract": "dual_role_governance_active",
+            "current_closure": "global_ranking_vs_support_aware_production_split",
+        },
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+
+    assert "q35 scaling audit 已指出目前不是單點 bias50 closure" in issues_md
+    assert "overall_verdict=bias50_formula_may_be_too_harsh" in issues_md
+    assert "P1. q35 lane still needs formula review / base-stack redesign before deploy" in issues_md
+    assert "q35 scaling audit 已指出目前不是單點 bias50 closure" in roadmap_md

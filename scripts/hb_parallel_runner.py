@@ -675,6 +675,28 @@ def _issue_current_lines(
             f"`governance_route={summary_governance}`",
         ]
 
+    if issue_id == "P1_q35_scaling_no_deploy":
+        summary = issue.get("summary") or {}
+        summary_bucket = summary.get("current_live_structure_bucket") or live_predictor_diagnostics.get("current_live_structure_bucket") or "—"
+        summary_rows = summary.get("current_live_structure_bucket_rows", support_current_rows)
+        summary_minimum = summary.get("minimum_support_rows", support_minimum_rows)
+        summary_gap = summary.get("gap_to_minimum", support_gap)
+        summary_verdict = summary.get("support_route_verdict") or support_route_verdict
+        q35_doc_line = _q35_scaling_doc_line(issue)
+        lines = [
+            "目前真相："
+            f"`bucket={summary_bucket}` / "
+            f"`support={summary_rows}/{summary_minimum}` / "
+            f"`gap={summary_gap}` / "
+            f"`support_route_verdict={summary_verdict}` / "
+            f"`overall_verdict={summary.get('overall_verdict') or '—'}` / "
+            f"`redesign_verdict={summary.get('redesign_verdict') or '—'}` / "
+            f"`remaining_gap_to_floor={summary.get('remaining_gap_to_floor', '—')}`",
+        ]
+        if q35_doc_line:
+            lines.append(q35_doc_line)
+        return lines
+
     return _generic_issue_current_lines(issue)
 
 
@@ -683,6 +705,21 @@ def _find_open_issue(issues: list[Dict[str, Any]], issue_id: str) -> Dict[str, A
         if issue.get("id") == issue_id and issue.get("status", "open") == "open":
             return issue
     return None
+
+
+def _q35_scaling_doc_line(issue: Dict[str, Any] | None) -> str | None:
+    if not isinstance(issue, dict):
+        return None
+    summary = issue.get("summary") or {}
+    if not isinstance(summary, dict) or not summary:
+        return None
+    remaining_gap = summary.get("remaining_gap_to_floor")
+    return (
+        "q35 scaling audit 已指出目前不是單點 bias50 closure："
+        f"`overall_verdict={summary.get('overall_verdict') or '—'}` / "
+        f"`redesign_verdict={summary.get('redesign_verdict') or '—'}` / "
+        f"`remaining_gap_to_floor={remaining_gap if remaining_gap is not None else '—'}`"
+    )
 
 
 
@@ -746,6 +783,8 @@ def overwrite_current_state_docs(
         or leaderboard_candidate_diagnostics.get("train_selected_profile")
         or (governance_contract.get("production_profile") if isinstance(governance_contract, dict) else None)
     )
+    q35_scaling_issue = _find_open_issue(issues, "P1_q35_scaling_no_deploy")
+    q35_scaling_doc_line = _q35_scaling_doc_line(q35_scaling_issue)
     current_support_bucket = _current_support_bucket(live_predictor_diagnostics, q15_support_audit)
     support_scope_label = _support_scope_label(current_support_bucket)
     support_truth_label = _support_truth_label(current_support_bucket)
@@ -1069,6 +1108,7 @@ def overwrite_current_state_docs(
         "**目前真相**",
         f"- {support_line}",
         f"- {patch_context['docs_line']}",
+        *([f"- {q35_scaling_doc_line}"] if q35_scaling_doc_line else []),
         "**成功標準**",
         _support_goal_success_line(
             support_scope_label,
@@ -1133,6 +1173,7 @@ def overwrite_current_state_docs(
         *([f"- current blocking pathological pocket：{blocking_pathology_line}。"] if blocking_pathology_line else []),
         f"- leaderboard / governance：{leaderboard_line}。",
         f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle。",
+        *([f"- {q35_scaling_doc_line}。"] if q35_scaling_doc_line else []),
         f"- 本輪產品化前進：{docs_sync_line}；`recommended_patch={patch_profile}` / `status={patch_status}` / `reference_scope={patch_reference_scope}`。",
         "",
         "### R｜感受直覺",

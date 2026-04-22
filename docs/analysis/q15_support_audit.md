@@ -1,12 +1,12 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-22 03:51:40.262725**
+- generated_at: **2026-04-22 05:25:40.012967**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
 - signal: **HOLD**
 - regime / gate / label: **bull / BLOCK / D**
-- current_live_structure_bucket: **BLOCK|bull_high_bias200_overheat_block|q35**
+- current_live_structure_bucket: **BLOCK|bull_high_bias200_overheat_block|q65**
 - current_live_structure_bucket_rows: **0**
 - allowed_layers: **0** (unsupported_exact_live_structure_bucket)
 - execution_guardrail_reason: **unsupported_exact_live_structure_bucket**
@@ -14,7 +14,7 @@
 ## Scope applicability
 - status: **current_live_not_q15_lane**
 - active_for_current_live_row: **False**
-- current_structure_bucket: **BLOCK|bull_high_bias200_overheat_block|q35**
+- current_structure_bucket: **BLOCK|bull_high_bias200_overheat_block|q65**
 - target_structure_bucket: **CAUTION|structure_quality_caution|q15**
 - reason: current live row 已不在 q15 lane；q15 support audit 只能描述 standby q15 route readiness，不可當成 current-live deployment closure。
 
@@ -30,22 +30,22 @@
 - supported neighbor rows: **0**
 - reason: current live exact bucket 仍為 0 rows；即使已有 exact-bucket proxy，也只能作治理參考，不能作 deployment 放行證據。
 - release_condition: 先把 current live exact bucket 補到 minimum support，再重查 entry floor；proxy / neighbor 只能保留為比較與校準參考。
-- support_progress.status: **stalled_under_minimum**
+- support_progress.status: **no_recent_comparable_history**
 - support_progress.current_rows / minimum: **0 / 50**
-- support_progress.previous_rows: **0**
-- support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **3**
-- support_progress.escalate_to_blocker: **True**
-- support_progress.reason: current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。
+- support_progress.previous_rows: **None**
+- support_progress.delta_vs_previous: **None**
+- support_progress.stagnant_run_count: **0**
+- support_progress.escalate_to_blocker: **False**
+- support_progress.reason: 目前找不到同一 current live structure bucket的最近 heartbeat 可比較；先持續累積 exact support。
 
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.1206**
+- remaining_gap_to_floor: **0.1582**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.402**
+- best_single_component_required_score_delta: **0.5273**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.402），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.5273），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**

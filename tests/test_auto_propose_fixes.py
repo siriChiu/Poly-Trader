@@ -2594,3 +2594,89 @@ def test_sync_current_state_governance_issues_resolves_legacy_alignment_issue_wh
         event[0] == "add" and event[1] == "#H_AUTO_ALIGNMENT_GOVERNANCE"
         for event in events
     )
+
+
+def test_sync_current_state_governance_issues_creates_q35_scaling_no_deploy_issue():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "selected_feature_profile": "core_only",
+                "governance_contract": {
+                    "verdict": "dual_role_governance_active",
+                    "production_profile": "core_plus_macro_plus_all_4h",
+                    "support_progress": {
+                        "current_rows": 0,
+                        "minimum_support_rows": 50,
+                    },
+                },
+            }
+        },
+        {
+            "signal": "HOLD",
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "runtime_closure_state": "patch_inactive_or_blocked",
+            "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "no_support_proxy",
+            "allowed_layers_reason": "unsupported_exact_live_structure_bucket",
+        },
+        {"cv_accuracy": 0.582, "cv_std": 0.0671, "cv_worst": 0.4912},
+        {
+            "overall_verdict": "bias50_formula_may_be_too_harsh",
+            "structure_scaling_verdict": "q35_structure_caution_not_root_cause",
+            "recommended_action": "base-mix experiment 已證明 bias50 + pulse (+ nose) uplift 仍未跨過 trade floor；下一輪必須升級成 base-stack redesign blocker。",
+            "scope_applicability": {"status": "current_live_q35_lane_active"},
+            "current_live": {
+                "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+                "entry_quality": 0.3605,
+            },
+            "deployment_grade_component_experiment": {
+                "runtime_remaining_gap_to_floor": 0.1895,
+            },
+            "base_stack_redesign_experiment": {
+                "verdict": "base_stack_redesign_candidate_grid_empty",
+            },
+        },
+    )
+
+    q35_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q35_scaling_no_deploy")
+    assert q35_issue["status"] == "open"
+    assert "formula review" in q35_issue["title"]
+    assert "base-stack redesign" in q35_issue["title"]
+    assert q35_issue["summary"]["current_live_structure_bucket"] == "BLOCK|bull_high_bias200_overheat_block|q35"
+    assert q35_issue["summary"]["support_route_verdict"] == "exact_bucket_unsupported_block"
+    assert q35_issue["summary"]["overall_verdict"] == "bias50_formula_may_be_too_harsh"
+    assert q35_issue["summary"]["redesign_verdict"] == "base_stack_redesign_candidate_grid_empty"
+    assert q35_issue["summary"]["remaining_gap_to_floor"] == 0.1895

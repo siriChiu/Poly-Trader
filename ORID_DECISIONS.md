@@ -1,32 +1,32 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-22 12:30:18 CST_
+_最後更新：2026-04-22 13:27:00 CST_
 
 ---
 
-## 心跳 #20260422t ORID
+## 心跳 #fast ORID
 
 ### O｜客觀事實
-- 本輪直接重跑 current-live diagnostics：`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py` 均成功。
-- current-live blocker 仍是 `deployment_blocker=unsupported_exact_live_structure_bucket`。
-- current live bucket 仍為 `BLOCK|bull_high_bias200_overheat_block|q35`，`support=0/50`，`gap=50`，`support_route_verdict=exact_bucket_unsupported_block`，`support_governance_route=no_support_proxy`。
-- drilldown 仍維持 `recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
-- recent drift 仍以 `window=1000` 為主病灶：`win_rate=38.8%` / `dominant_regime=bull(81.3%)` / `alerts=regime_shift`。
-- 本輪產品化 patch：Bot 營運 sleeve cards 已移除 duplicate sleeve-name pills，改為顯示 `策略：<title>` 或 `待儲存策略快照`；`pullback` 缺件狀態現在可直接在卡片頂部 machine-read / human-read。
-- 驗證：`pytest tests/test_execution_surface_contract.py tests/test_frontend_decision_contract.py -q` → `52 passed`；`cd web && npm run build` 成功；browser `/execution` 已確認 duplicate texts 消失，且 `待儲存策略快照` 可見。
+- collect + diagnostics refresh 完成：`Raw=31487 / Features=22905 / Labels=63488`；`simulated_pyramid_win=57.27%`。
+- current-live blocker：`deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
+- current live bucket truth：`current_live_structure_bucket=BLOCK|bull_high_bias200_overheat_block|q65` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`。
+- latest recent-window diagnostics：`latest_window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)` / `avg_quality=+0.0777` / `avg_pnl=+0.0005` / `alerts=regime_shift`。
+- leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2957` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`。
 
 ### R｜感受直覺
-- current-live blocker truth 已穩，但 Bot 營運頁卡片頂部原本把 sleeve 名稱重複渲染成假資訊，會讓 operator 一眼看不出哪張卡是真的缺 strategy snapshot。
-- 這種 UX 雜訊雖不改變 blocker math，卻直接傷害 execution surface 的可掃描性，尤其在 `covered sleeves 3/4 · missing pullback` 這種治理場景下會誤導判讀。
+- 這輪最需要防止的誤讀，是把 `0/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；目前 live blocker 已切到 `unsupported_exact_live_structure_bucket`。
+- current live 已落在 `bull/BLOCK/BLOCK|bull_high_bias200_overheat_block|q65`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket 或舊 bucket 當成現在的 runtime 真相。
 
 ### I｜意義洞察
-1. **execution surface clarity 本身就是 guardrail**：當 blocker 已經很多時，卡片標頭若還重複 sleeve 名稱，等於把真正重要的 `strategy binding status` 藏起來。
-2. **missing strategy snapshot 必須在 operator 第一視線曝光**：`pullback` 缺件不是 runtime blocker，但它是 execution productization 的真實缺口，應與 blocker 文案分開呈現。
-3. **current-live truth 無變更，但 operator UX 有實質前進**：本輪沒有改寫 blocker 事實，而是把 Bot 營運表面對齊到更可操作的 current-state truth。
+1. **support truth ≠ deployment closure**：`support=0/50` 且 `support_route_verdict=exact_bucket_unsupported_block` 只代表治理前進，還不能把 reference-only patch 升級成 runtime patch。
+2. **真正主 blocker 已切到 current live bucket exact-support shortage**：recent pathological slice 仍是造成 `unsupported_exact_live_structure_bucket` 的根因切片，不能再沿用 breaker-first 舊敘事。
+3. **docs overwrite sync 的角色是護欄，不是主 blocker**：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。
 
 ### D｜決策行動
-- **Owner**：execution operator surface / Bot 營運頁
-- **Action**：保留 current-live blocker truth 不動，持續把 operator-facing execution cards 做到「先看得懂，再做決策」；下一步優先處理 `pullback` 缺少 saved strategy snapshot 的治理缺口。
-- **Artifacts**：`web/src/pages/ExecutionConsole.tsx`、`tests/test_execution_surface_contract.py`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
-- **Verify**：`pytest tests/test_execution_surface_contract.py tests/test_frontend_decision_contract.py -q`、`cd web && npm run build`、browser `/execution`。
-- **If fail**：若 Bot 營運頁再次回到 duplicate sleeve labels，或 missing saved strategy 狀態重新被埋回卡片內文，視為 execution surface clarity regression，優先升級回 P1 operator UX blocker。
+- **Owner**：current-live runtime / governance lane
+- **Action**：維持 current-live exact-support truth，並把 current live bucket support 與 reference-only patch 持續顯示清楚；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。
+- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
+- **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。
+- **If fail**：只要 docs / UI 再次把 `unsupported_exact_live_structure_bucket` 誤寫成 breaker-first、漏掉 current live bucket rows，或把 reference-only patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。

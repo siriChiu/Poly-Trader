@@ -352,6 +352,14 @@ def load_leaderboard_candidate_probe():
     return {}
 
 
+def load_q35_scaling_audit():
+    path = ROOT / "data" / "q35_scaling_audit.json"
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+
 def issue_action_text(item):
     action = item.get("action")
     if isinstance(action, str) and action.strip():
@@ -375,7 +383,13 @@ def issue_action_text(item):
     return ""
 
 
-def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_live_probe, maybe_metrics=None):
+def sync_current_state_governance_issues(
+    tracker,
+    leaderboard_probe,
+    metrics_or_live_probe,
+    maybe_metrics=None,
+    q35_scaling_audit=None,
+):
     """Keep current-state issue IDs aligned with the latest live bucket/governance facts."""
     if maybe_metrics is None:
         metrics = metrics_or_live_probe or {}
@@ -383,6 +397,7 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
     else:
         live_predict_probe = metrics_or_live_probe or {}
         metrics = maybe_metrics or {}
+    q35_scaling_audit = q35_scaling_audit or {}
 
     def _first_non_null(*values):
         for value in values:
@@ -528,6 +543,67 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         )
     else:
         tracker.resolve("P1_q15_exact_support_stalled_under_breaker")
+
+    tracker.resolve("P1_q35_redesign_support_blocked")
+
+    q35_scope = (q35_scaling_audit.get("scope_applicability") or {}) if isinstance(q35_scaling_audit, dict) else {}
+    q35_current_live = (q35_scaling_audit.get("current_live") or {}) if isinstance(q35_scaling_audit, dict) else {}
+    q35_component = (
+        (q35_scaling_audit.get("deployment_grade_component_experiment") or {})
+        if isinstance(q35_scaling_audit, dict)
+        else {}
+    )
+    q35_redesign = (
+        (q35_scaling_audit.get("base_stack_redesign_experiment") or {})
+        if isinstance(q35_scaling_audit, dict)
+        else {}
+    )
+    q35_scope_status = str(q35_scope.get("status") or "")
+    q35_bucket = str(
+        q35_current_live.get("structure_bucket")
+        or q35_current_live.get("current_live_structure_bucket")
+        or current_bucket
+        or ""
+    )
+    q35_overall_verdict = str(q35_scaling_audit.get("overall_verdict") or "")
+    q35_redesign_verdict = str(q35_redesign.get("verdict") or "")
+    q35_gap_to_floor = q35_component.get("runtime_remaining_gap_to_floor")
+    q35_entry_quality = q35_current_live.get("entry_quality")
+    q35_audit_active = (
+        "q35" in q35_bucket
+        and q35_scope_status == "current_live_q35_lane_active"
+        and q35_overall_verdict not in {"", "runtime_blocker_preempts_q35_scaling", "reference_only_current_bucket_outside_q35"}
+        and q35_redesign_verdict != "base_stack_redesign_discriminative_reweight_crosses_trade_floor"
+    )
+    if q35_audit_active:
+        q35_title = "q35 lane still needs formula review / base-stack redesign before deploy"
+        q35_action = (
+            "把 q35 scaling audit 的 overall_verdict / redesign verdict / gap-to-floor 同步到 docs/probe/issues；"
+            "在 exact support 未就緒、且 redesign 仍無正 discrimination floor-cross 之前，禁止把 bias50 單點 uplift 或結構 uplift 當成 closure。"
+        )
+        recommended_action = q35_scaling_audit.get("recommended_action")
+        if isinstance(recommended_action, str) and recommended_action.strip():
+            q35_action = q35_action + " " + recommended_action.strip()
+        upsert_issue(
+            tracker,
+            "P1",
+            "P1_q35_scaling_no_deploy",
+            q35_title,
+            q35_action,
+            summary={
+                "current_live_structure_bucket": q35_bucket or current_bucket,
+                "current_live_structure_bucket_rows": int(current_rows or 0),
+                "minimum_support_rows": int(minimum_rows or 0),
+                "gap_to_minimum": max(int(minimum_rows or 0) - int(current_rows or 0), 0),
+                "support_route_verdict": support_route_verdict,
+                "overall_verdict": q35_overall_verdict or None,
+                "redesign_verdict": q35_redesign_verdict or None,
+                "remaining_gap_to_floor": q35_gap_to_floor,
+                "entry_quality": q35_entry_quality,
+            },
+        )
+    else:
+        tracker.resolve("P1_q35_scaling_no_deploy")
 
     pathology_summary = (live_predict_probe or {}).get("decision_quality_scope_pathology_summary") or {}
     recommended_patch = pathology_summary.get("recommended_patch") if isinstance(pathology_summary, dict) else None
@@ -1379,6 +1455,7 @@ def main():
     drift_summary = summarize_recent_drift(recent_drift)
     live_predict_probe = load_live_predict_probe()
     leaderboard_candidate_probe = load_leaderboard_candidate_probe()
+    q35_scaling_audit = load_q35_scaling_audit()
     live_predict_summary = summarize_live_predict_probe(live_predict_probe)
     drift_primary, drift_primary_summary = _recent_drift_window_payload(recent_drift, "primary_window")
     drift_blocking, drift_blocking_summary = _blocking_recent_drift_window(recent_drift)
@@ -1397,7 +1474,13 @@ def main():
 
     # Load existing issues
     tracker = IssueTracker.load()
-    sync_current_state_governance_issues(tracker, leaderboard_candidate_probe, live_predict_probe, metrics)
+    sync_current_state_governance_issues(
+        tracker,
+        leaderboard_candidate_probe,
+        live_predict_probe,
+        metrics,
+        q35_scaling_audit,
+    )
 
     # Rule 1: canonical simulated win collapses below random
     if db_stats["simulated_win_avg"] < 0.50:
