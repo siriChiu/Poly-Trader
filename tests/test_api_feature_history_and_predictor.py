@@ -1056,6 +1056,27 @@ def test_summarize_structure_bucket_support_route_does_not_false_open_below_mini
     assert summary["current_live_structure_bucket_gap_to_minimum"] == 49
 
 
+def test_summarize_structure_bucket_support_route_falls_back_to_exact_scope_rows_when_support_counts_missing():
+    summary = predictor_module._summarize_structure_bucket_support_route(
+        {
+            "decision_quality_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 66,
+                }
+            },
+        }
+    )
+
+    assert summary["verdict"] == "exact_bucket_supported"
+    assert summary["deployable"] is True
+    assert summary["support_governance_route"] == "exact_live_bucket_supported"
+    assert summary["support_progress"]["current_rows"] == 66
+    assert summary["minimum_support_rows"] == 50
+    assert summary["current_live_structure_bucket_gap_to_minimum"] == 0
+
+
 def test_structure_bucket_support_guardrail_replays_q15_exact_supported_runtime(tmp_path, monkeypatch):
     q15_path = tmp_path / "q15_support_audit.json"
     q15_path.write_text(

@@ -1383,7 +1383,14 @@ def _same_bucket_proxy_rows_from_scope_diagnostics(
 def _summarize_structure_bucket_support_route(
     decision_quality_contract: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Expose exact-bucket support progress even when no deployment blocker is active."""
+    """Expose exact-bucket support progress even when no deployment blocker is active.
+
+    The recent exact-lane diagnostics can already know the current bucket has exact support rows
+    even when the broader decision-quality contract has not promoted those counts into
+    `decision_quality_*support_rows` yet. This happens most often under circuit-breaker runs:
+    runtime stays breaker-first, but operator-facing surfaces still need the current bucket's
+    exact-support truth (`66/50`, `exact_live_bucket_supported`, etc.) at the top level.
+    """
     dq = decision_quality_contract if isinstance(decision_quality_contract, dict) else {}
     support_mode = str(dq.get("decision_quality_structure_bucket_support_mode") or "")
     support_rows = max(int(dq.get("decision_quality_structure_bucket_support_rows") or 0), 0)
@@ -1394,15 +1401,23 @@ def _summarize_structure_bucket_support_route(
         if str(bucket)
     ]
     scope_diagnostics = dq.get("decision_quality_scope_diagnostics") if isinstance(dq.get("decision_quality_scope_diagnostics"), dict) else {}
+    exact_scope = (
+        scope_diagnostics.get("regime_label+regime_gate+entry_quality_label")
+        if isinstance(scope_diagnostics.get("regime_label+regime_gate+entry_quality_label"), dict)
+        else {}
+    )
     current_structure_bucket = (
         dq.get("decision_quality_live_structure_bucket")
-        or (scope_diagnostics.get("regime_label+regime_gate+entry_quality_label") or {}).get("current_live_structure_bucket")
+        or exact_scope.get("current_live_structure_bucket")
     )
     same_bucket_proxy_rows = _same_bucket_proxy_rows_from_scope_diagnostics(
         scope_diagnostics,
         current_structure_bucket=current_structure_bucket,
     )
-    current_rows = exact_support_rows or support_rows
+    exact_scope_rows = 0
+    if current_structure_bucket and str(exact_scope.get("current_live_structure_bucket") or "") == str(current_structure_bucket):
+        exact_scope_rows = max(int(exact_scope.get("current_live_structure_bucket_rows") or 0), 0)
+    current_rows = exact_support_rows or support_rows or exact_scope_rows
     minimum_rows = EXACT_LIVE_STRUCTURE_BUCKET_MIN_SUPPORT_ROWS
     support_progress = _support_progress_snapshot(current_rows, minimum_rows=minimum_rows)
 
@@ -1429,8 +1444,8 @@ def _summarize_structure_bucket_support_route(
         "support_governance_route": _support_governance_route(
             verdict=verdict,
             support_mode=support_mode,
-            support_rows=support_rows,
-            exact_support_rows=exact_support_rows,
+            support_rows=support_rows or exact_scope_rows,
+            exact_support_rows=exact_support_rows or exact_scope_rows,
             supported_neighbor_buckets=supported_neighbor_buckets,
             minimum_rows=minimum_rows,
             same_bucket_proxy_rows=same_bucket_proxy_rows,

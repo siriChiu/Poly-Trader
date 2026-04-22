@@ -11,6 +11,7 @@ const DEV_LOCAL_API_CANDIDATE_PORTS = [8000, 8001] as const;
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 const CHART_REQUEST_TIMEOUT_MS = 15000;
 const DEV_API_DISCOVERY_TIMEOUT_MS = 1200;
+const DEV_API_STATUS_DISCOVERY_TIMEOUT_MS = 2000;
 
 let activeApiBaseMemo: string | null = null;
 let prewarmActiveApiBasePromise: Promise<void> | null = null;
@@ -92,6 +93,53 @@ async function probeApiBaseHealth(base: string): Promise<boolean> {
   }
 }
 
+function scoreApiBaseRuntimeContract(payload: unknown): number {
+  if (!payload || typeof payload !== "object") return 0;
+  const root = payload as Record<string, any>;
+  const execution = root.execution && typeof root.execution === "object"
+    ? root.execution as Record<string, any>
+    : null;
+  const executionSurfaceContract = root.execution_surface_contract && typeof root.execution_surface_contract === "object"
+    ? root.execution_surface_contract as Record<string, any>
+    : null;
+  const liveRuntimeTruth = execution?.live_runtime_truth ?? executionSurfaceContract?.live_runtime_truth ?? null;
+  const recentCanonicalDrift = execution?.recent_canonical_drift
+    ?? executionSurfaceContract?.recent_canonical_drift
+    ?? root.recent_canonical_drift
+    ?? null;
+  const driftSummary = recentCanonicalDrift?.primary_window?.summary ?? null;
+  const livePathology = liveRuntimeTruth?.decision_quality_scope_pathology_summary ?? null;
+
+  let score = 0;
+  if (liveRuntimeTruth?.deployment_blocker) score += 2;
+  if (liveRuntimeTruth?.current_live_structure_bucket) score += 2;
+  if (liveRuntimeTruth?.support_route_verdict) score += 1;
+  if (livePathology?.summary) score += 1;
+  if (driftSummary) score += 3;
+  if (typeof driftSummary?.win_rate === "number") score += 1;
+  if (Array.isArray(recentCanonicalDrift?.primary_window?.alerts)) score += 1;
+  return score;
+}
+
+async function probeApiBaseRuntimeContractScore(base: string): Promise<number> {
+  if (typeof window === "undefined") return 0;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), DEV_API_STATUS_DISCOVERY_TIMEOUT_MS);
+  try {
+    const resp = await fetch(buildApiUrlForBase("/api/status", base), {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!resp.ok) return 0;
+    const payload = await resp.json().catch(() => null);
+    return scoreApiBaseRuntimeContract(payload);
+  } catch {
+    return 0;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 async function prewarmDevApiBase(): Promise<void> {
   if (API_BASE || typeof window === "undefined") return;
 
@@ -101,25 +149,31 @@ async function prewarmDevApiBase(): Promise<void> {
 
   prewarmActiveApiBasePromise = (async () => {
     const preferred = getStoredActiveApiBase();
-    if (preferred) {
-      const preferredHealthy = await probeApiBaseHealth(preferred);
-      if (preferredHealthy) {
-        persistActiveApiBase(preferred);
-        return;
-      }
+    const probeCandidates = getDevApiCandidateBases();
+    const healthChecks = await Promise.all(probeCandidates.map(async (base) => ({
+      base,
+      healthy: await probeApiBaseHealth(base),
+    })));
+    const healthyCandidates = healthChecks.filter((probe) => probe.healthy).map((probe) => probe.base);
+
+    if (!healthyCandidates.length) {
       persistActiveApiBase(null);
+      return;
     }
 
-    const probeCandidates = getDevApiCandidateBases();
-    let resolved = false;
+    const capabilityResults = await Promise.all(healthyCandidates.map(async (base) => ({
+      base,
+      runtimeContractScore: await probeApiBaseRuntimeContractScore(base),
+    })));
+    const bestCapability = capabilityResults.reduce<{ base: string; runtimeContractScore: number } | null>((best, probe) => {
+      if (!best) return probe;
+      if (probe.runtimeContractScore > best.runtimeContractScore) return probe;
+      if (probe.runtimeContractScore < best.runtimeContractScore) return best;
+      if (preferred && probe.base === preferred && best.base !== preferred) return probe;
+      return best;
+    }, null);
 
-    await Promise.all(probeCandidates.map(async (base) => {
-      const healthy = await probeApiBaseHealth(base);
-      if (healthy && !resolved) {
-        resolved = true;
-        persistActiveApiBase(base);
-      }
-    }));
+    persistActiveApiBase(bestCapability?.base ?? healthyCandidates[0] ?? null);
   })().finally(() => {
     prewarmActiveApiBasePromise = null;
   });
