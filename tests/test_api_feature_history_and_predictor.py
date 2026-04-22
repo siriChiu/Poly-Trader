@@ -528,6 +528,60 @@ def test_infer_deployment_blocker_flags_exact_supported_q15_patch_active_executi
     assert guarded["execution_guardrail_reason"] == "decision_quality_below_trade_floor"
 
 
+def test_infer_deployment_blocker_flags_exact_supported_q35_patch_active_execution_blocker():
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "entry_quality": 0.5534,
+            "entry_quality_label": "C",
+            "allowed_layers": 1,
+            "allowed_layers_reason": "entry_quality_C_single_layer",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "q35_discriminative_redesign_applied": True,
+            "q35_discriminative_redesign": {"applied": True, "weights": {"feat_nose": 0.5, "feat_ear": 0.5}},
+        },
+        {
+            "decision_quality_structure_bucket_support_rows": 74,
+            "decision_quality_exact_live_structure_bucket_support_rows": 74,
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_supported_via_q35_runtime_redesign",
+            "decision_quality_label": "D",
+            "decision_quality_score": 0.084,
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 0,
+                    "alerts": ["no_rows"],
+                },
+            },
+        },
+    )
+    guarded = predictor_module._apply_deployment_blocker_to_execution_profile(
+        {
+            "allowed_layers": 0,
+            "allowed_layers_raw": 1,
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+        },
+        blocker,
+    )
+
+    assert blocker is not None
+    assert blocker["type"] == "decision_quality_below_trade_floor"
+    assert blocker["source"] == "decision_quality_contract+runtime_patch"
+    assert blocker["support_route_verdict"] == "exact_bucket_supported"
+    assert blocker["current_live_structure_bucket_rows"] == 74
+    assert blocker["allowed_layers_raw"] == 1
+    assert blocker["q35_discriminative_redesign_applied"] is True
+    assert blocker["q35_discriminative_redesign"]["weights"] == {"feat_nose": 0.5, "feat_ear": 0.5}
+    assert "q35 discriminative redesign 已把 raw entry 拉到 entry_quality=0.5534" in blocker["reason"]
+    assert guarded["deployment_blocker"] == "decision_quality_below_trade_floor"
+    assert guarded["allowed_layers_reason"] == "decision_quality_below_trade_floor"
+    assert guarded["execution_guardrail_reason"] == "decision_quality_below_trade_floor"
+
+
 def test_infer_deployment_blocker_flags_generic_unsupported_exact_bucket_for_allow_q65():
     blocker = predictor_module._infer_deployment_blocker(
         {

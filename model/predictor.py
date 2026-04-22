@@ -1738,6 +1738,65 @@ def _infer_deployment_blocker(
             "component_experiment": component_experiment or None,
         }
 
+    runtime_patch_name = None
+    runtime_patch_source = "decision_quality_contract"
+    if bool(decision_profile.get("q15_exact_supported_component_patch_applied")):
+        runtime_patch_name = "q15 patch"
+        runtime_patch_source = "decision_quality_contract+q15_support_audit"
+    elif bool(decision_profile.get("q35_discriminative_redesign_applied")):
+        runtime_patch_name = "q35 discriminative redesign"
+        runtime_patch_source = "decision_quality_contract+runtime_patch"
+
+    if support_progress.get("status") == "exact_supported" and quality_below_trade_floor:
+        reason_parts = [
+            f"current live structure bucket `{structure_bucket}` 已完成 exact support closure（{current_live_structure_bucket_rows}/{minimum_support_rows}）"
+        ]
+        if runtime_patch_name and raw_allowed_layers > 0:
+            reason_parts.append(
+                f"{runtime_patch_name} 已把 raw entry 拉到 entry_quality={entry_quality:.4f}（raw layers={raw_allowed_layers}）"
+            )
+        else:
+            reason_parts.append(
+                f"但 final execution 的 decision-quality 仍停在 {decision_quality_label or '—'}"
+                + (
+                    f" / score={float(decision_quality_score):.4f}"
+                    if decision_quality_score is not None
+                    else ""
+                )
+            )
+        if runtime_patch_name and raw_allowed_layers > 0:
+            reason = "；".join(reason_parts) + "，但 final execution 仍被 decision-quality trade floor 擋住；目前不可把 patch active 誤讀成 deployment closure。"
+        else:
+            reason = "；".join(reason_parts) + "；目前仍必須維持明確 no-deploy governance，不可把 support closure 誤讀成 deployment closure。"
+        blocker = {
+            "type": "decision_quality_below_trade_floor",
+            "reason": reason,
+            "source": runtime_patch_source,
+            "structure_bucket": structure_bucket,
+            "support_mode": support_mode or "exact_bucket_supported",
+            "support_route_verdict": "exact_bucket_supported",
+            "support_route_deployable": True,
+            "current_live_structure_bucket_rows": current_live_structure_bucket_rows,
+            "exact_live_structure_bucket_rows": exact_support_rows or current_live_structure_bucket_rows,
+            "minimum_support_rows": minimum_support_rows,
+            "current_live_structure_bucket_gap_to_minimum": support_progress.get("gap_to_minimum"),
+            "support_progress": support_progress,
+            "entry_quality": round(entry_quality, 4),
+            "entry_quality_label": decision_profile.get("entry_quality_label"),
+            "trade_floor": trade_floor,
+            "trade_floor_gap": round(entry_quality - trade_floor, 4),
+            "allowed_layers_raw": raw_allowed_layers,
+            "allowed_layers_raw_reason": raw_allowed_layers_reason or None,
+            "decision_quality_label": dq.get("decision_quality_label"),
+            "decision_quality_score": dq.get("decision_quality_score"),
+        }
+        if runtime_patch_name == "q35 discriminative redesign":
+            blocker["q35_discriminative_redesign_applied"] = True
+            blocker["q35_discriminative_redesign"] = decision_profile.get("q35_discriminative_redesign") or None
+        elif runtime_patch_name == "q15 patch":
+            blocker["q15_exact_supported_component_patch_applied"] = True
+        return blocker
+
     if str(decision_profile.get("regime_label") or "") != "bull":
         return None
     if str(decision_profile.get("regime_gate") or "") != "CAUTION":

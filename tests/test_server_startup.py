@@ -788,6 +788,56 @@ def test_build_live_runtime_closure_surface_keeps_q15_patch_active_execution_blo
     assert "decision_quality_below_trade_floor" in payload["runtime_closure_summary"]
 
 
+def test_build_live_runtime_closure_surface_keeps_q35_exact_supported_patch_active_execution_blocked_state():
+    payload = api_module._build_live_runtime_closure_surface(
+        {
+            "signal": "HOLD",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "entry_quality": 0.5534,
+            "entry_quality_label": "C",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "q35_discriminative_redesign_applied": True,
+            "q35_discriminative_redesign": {"applied": True, "weights": {"feat_nose": 0.5, "feat_ear": 0.5}},
+            "allowed_layers": 0,
+            "allowed_layers_raw": 1,
+            "allowed_layers_raw_reason": "entry_quality_C_single_layer",
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "deployment_blocker_reason": "q35 discriminative redesign 已啟用但 final execution 仍被 decision-quality trade floor 擋住",
+            "deployment_blocker_source": "decision_quality_contract+runtime_patch",
+            "deployment_blocker_details": {
+                "current_live_structure_bucket_rows": 74,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 0,
+                "support_route_verdict": "exact_bucket_supported",
+                "allowed_layers_raw": 1,
+                "q35_discriminative_redesign_applied": True,
+            },
+            "support_route_verdict": "exact_bucket_supported",
+            "support_progress": {
+                "status": "exact_supported",
+                "current_rows": 74,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 0,
+            },
+        }
+    )
+
+    assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
+    assert payload["deployment_blocker"] == "decision_quality_below_trade_floor"
+    assert payload["support_route_verdict"] == "exact_bucket_supported"
+    assert payload["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert payload["current_live_structure_bucket_rows"] == 74
+    assert payload["minimum_support_rows"] == 50
+    assert payload["current_live_structure_bucket_gap_to_minimum"] == 0
+    assert "q35 discriminative redesign 已啟用" in payload["runtime_closure_summary"]
+    assert "decision_quality_below_trade_floor" in payload["runtime_closure_summary"]
+
+
 def test_build_live_runtime_closure_surface_describes_exact_support_blocker_without_stale_q15_copy():
     payload = api_module._build_live_runtime_closure_surface(
         {

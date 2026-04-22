@@ -1,13 +1,13 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-22 00:38:38.234736**
+- generated_at: **2026-04-22 01:27:20.699564**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
 - signal: **HOLD**
 - regime / gate / label: **bull / CAUTION / C**
 - current_live_structure_bucket: **CAUTION|structure_quality_caution|q35**
-- current_live_structure_bucket_rows: **73**
+- current_live_structure_bucket_rows: **74**
 - allowed_layers: **0** (decision_quality_below_trade_floor)
 - execution_guardrail_reason: **decision_quality_below_trade_floor**
 
@@ -31,10 +31,10 @@
 - reason: current live exact bucket 已達 minimum support，可直接用 exact bucket 做 deployment 級驗證。
 - release_condition: 保持 current_live_structure_bucket_rows >= minimum_support_rows，且 live row 仍通過 entry-quality / execution guardrail。
 - support_progress.status: **exact_supported**
-- support_progress.current_rows / minimum: **73 / 50**
-- support_progress.previous_rows: **71**
-- support_progress.delta_vs_previous: **2**
-- support_progress.stagnant_run_count: **0**
+- support_progress.current_rows / minimum: **74 / 50**
+- support_progress.previous_rows: **74**
+- support_progress.delta_vs_previous: **0**
+- support_progress.stagnant_run_count: **3**
 - support_progress.escalate_to_blocker: **False**
 - support_progress.reason: current live exact bucket 已達 minimum support，可轉向 exact-supported deployment verify。
 
