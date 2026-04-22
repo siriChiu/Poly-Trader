@@ -3424,6 +3424,7 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
     feature_diag = summary.get("feature_diagnostics") if isinstance(summary.get("feature_diagnostics"), dict) else {}
     target_path = summary.get("target_path_diagnostics") if isinstance(summary.get("target_path_diagnostics"), dict) else {}
     reference = summary.get("reference_window_comparison") if isinstance(summary.get("reference_window_comparison"), dict) else {}
+    reference_quality = reference.get("reference_quality") if isinstance(reference.get("reference_quality"), dict) else {}
 
     if not primary and not summary:
         return None
@@ -3464,12 +3465,12 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
                     "longest_one_target_streak": target_path.get("longest_one_target_streak"),
                 },
                 "reference_window_comparison": {
-                    "prev_win_rate": reference.get("prev_win_rate"),
-                    "prev_quality": reference.get("prev_quality"),
-                    "prev_pnl": reference.get("prev_pnl"),
-                    "win_rate_delta": reference.get("win_rate_delta"),
-                    "quality_delta": reference.get("quality_delta"),
-                    "pnl_delta": reference.get("pnl_delta"),
+                    "prev_win_rate": reference.get("prev_win_rate", reference_quality.get("win_rate")),
+                    "prev_quality": reference.get("prev_quality", reference_quality.get("avg_simulated_quality")),
+                    "prev_pnl": reference.get("prev_pnl", reference_quality.get("avg_simulated_pnl")),
+                    "win_rate_delta": reference.get("win_rate_delta", reference.get("win_rate_delta_vs_reference")),
+                    "quality_delta": reference.get("quality_delta", reference.get("avg_simulated_quality_delta_vs_reference")),
+                    "pnl_delta": reference.get("pnl_delta", reference.get("avg_simulated_pnl_delta_vs_reference")),
                     "top_mean_shift_features": reference.get("top_mean_shift_features") if isinstance(reference.get("top_mean_shift_features"), list) else [],
                 },
             },

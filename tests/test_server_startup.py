@@ -120,6 +120,78 @@ def test_run_startup_raw_continuity_check_records_failure_status():
     assert app.state.raw_continuity_status["status"] == "error"
 
 
+def test_load_recent_canonical_drift_summary_maps_nested_reference_window_comparison(tmp_path):
+    artifact = {
+        "generated_at": "2026-04-22T03:24:15.971116+00:00",
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "primary_window": {
+            "window": "1000",
+            "alerts": ["regime_shift"],
+            "summary": {
+                "rows": 1000,
+                "win_rate": 0.384,
+                "drift_interpretation": "regime_concentration",
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.814,
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0002,
+                    "avg_simulated_quality": 0.0698,
+                    "avg_drawdown_penalty": 0.2374,
+                    "spot_long_win_rate": 0.17,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 7,
+                    "compressed_count": 7,
+                    "expected_static_count": 0,
+                    "expected_compressed_count": 0,
+                    "overlay_only_count": 1,
+                    "null_heavy_count": 10,
+                    "low_distinct_count": 10,
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 35, "target": 1},
+                    "longest_zero_target_streak": {"count": 273, "target": 0},
+                    "longest_one_target_streak": {"count": 152, "target": 1},
+                },
+                "reference_window_comparison": {
+                    "current_quality": {
+                        "win_rate": 0.384,
+                        "avg_simulated_quality": 0.0698,
+                        "avg_simulated_pnl": 0.0002,
+                    },
+                    "reference_quality": {
+                        "win_rate": 0.915,
+                        "avg_simulated_quality": 0.5282,
+                        "avg_simulated_pnl": 0.0142,
+                    },
+                    "win_rate_delta_vs_reference": -0.531,
+                    "avg_simulated_quality_delta_vs_reference": -0.4584,
+                    "avg_simulated_pnl_delta_vs_reference": -0.014,
+                    "top_mean_shift_features": [
+                        {"feature": "feat_4h_bias200", "current_mean": 7.6623, "reference_mean": 4.1934}
+                    ],
+                },
+            },
+        },
+    }
+    artifact_path = tmp_path / "recent_drift_report.json"
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+
+    summary = api_module._load_recent_canonical_drift_summary(artifact_path)
+
+    comparison = summary["primary_window"]["summary"]["reference_window_comparison"]
+    assert comparison["prev_win_rate"] == 0.915
+    assert comparison["prev_quality"] == 0.5282
+    assert comparison["prev_pnl"] == 0.0142
+    assert comparison["win_rate_delta"] == -0.531
+    assert comparison["quality_delta"] == -0.4584
+    assert comparison["pnl_delta"] == -0.014
+    assert comparison["top_mean_shift_features"][0]["feature"] == "feat_4h_bias200"
+
+
+
 def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     reconciliation_payload = {"status": "warning", "summary": "reconciliation evidence"}
     monkeypatch.setattr(api_module, "get_runtime_status", lambda key, default=None: {
