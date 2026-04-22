@@ -23,13 +23,25 @@ const CURRENT_LIVE_BLOCKER_LABEL_MAPPINGS: Array<[string, string]> = [
 ];
 
 const Q15_BUCKET_ROOT_CAUSE_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["current_bucket_exact_support_already_closed", "exact support 已 closure"],
+  ["current_row_already_above_q35_boundary", "已越過 q35 邊界"],
+  ["same_lane_neighbor_bucket_dominates", "鄰近 bucket 主導"],
+  ["no_exact_live_lane_rows", "exact lane 尚未生成"],
+  ["runtime_blocker_preempts_bucket_root_cause", "runtime blocker 優先"],
+  ["missing_structure_quality", "缺少 structure quality"],
   ["boundary_sensitivity_candidate", "q15↔q35 邊界候選"],
   ["structure_scoring_gap_not_boundary", "結構評分缺口"],
   ["live_row_projection_missing_4h_inputs", "4H 投影缺值"],
   ["missing_live_probe", "缺少 live probe"],
+  ["insufficient_scope_data", "scope 資料不足"],
 ];
 
 const Q15_BUCKET_ROOT_CAUSE_ACTION_MAPPINGS: Array<[string, string]> = [
+  ["deployment_blocker_verification", "回到 blocker 驗證"],
+  ["support_accumulation", "等待 support 累積"],
+  ["structure_component_scoring", "結構 component 校準"],
+  ["live_row_projection", "修 4H 投影"],
+  ["scope_generation", "補 exact lane scope"],
   ["bucket_boundary_review", "邊界複核"],
 ];
 

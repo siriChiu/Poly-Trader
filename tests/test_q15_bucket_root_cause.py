@@ -300,3 +300,76 @@ def test_build_report_marks_runtime_blocker_preempt_when_circuit_breaker_active(
     assert report["candidate_patch_type"] is None
     assert "circuit breaker" in report["reason"]
     assert "canonical breaker" in report["verify_next"]
+
+
+def test_build_report_stops_support_accumulation_copy_after_exact_support_closure(monkeypatch):
+    empty_frame = q15_bucket_root_cause.pd.DataFrame(
+        {
+            "regime_label": [],
+            "regime_gate": [],
+            "entry_quality_label": [],
+            "structure_bucket": [],
+            "structure_quality": [],
+            "feat_4h_bb_pct_b": [],
+            "feat_4h_dist_bb_lower": [],
+            "feat_4h_dist_swing_low": [],
+        }
+    )
+    monkeypatch.setattr(
+        q15_bucket_root_cause.feature_group_module,
+        "_load_training_frame",
+        lambda: (
+            empty_frame[["feat_4h_bb_pct_b", "feat_4h_dist_bb_lower", "feat_4h_dist_swing_low"]].copy(),
+            q15_bucket_root_cause.pd.Series(dtype=float),
+            q15_bucket_root_cause.pd.Series(dtype=object),
+        ),
+    )
+    monkeypatch.setattr(
+        q15_bucket_root_cause.bull_pocket_module,
+        "_derive_live_bucket_columns",
+        lambda frame: empty_frame.copy(),
+    )
+
+    probe = {
+        "feature_timestamp": "2026-04-22 02:34:04",
+        "target_col": "simulated_pyramid_win",
+        "signal": "HOLD",
+        "deployment_blocker": "decision_quality_below_trade_floor",
+        "execution_guardrail_reason": "decision_quality_below_trade_floor",
+        "support_route_verdict": "exact_bucket_supported",
+        "support_progress": {
+            "status": "exact_supported",
+            "current_rows": 69,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 0,
+        },
+        "current_live_structure_bucket_rows": 69,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 0,
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality_label": "C",
+        "non_null_4h_feature_count": 7,
+        "entry_quality_components": {
+            "structure_quality": 0.5716,
+            "structure_components": [
+                {"feature": "feat_4h_bb_pct_b", "raw_value": 0.9160, "normalized_score": 0.9160, "weighted_contribution": 0.3114},
+                {"feature": "feat_4h_dist_bb_lower", "raw_value": 2.8195, "normalized_score": 0.3524, "weighted_contribution": 0.1163},
+                {"feature": "feat_4h_dist_swing_low", "raw_value": 4.3585, "normalized_score": 0.4358, "weighted_contribution": 0.1438},
+            ],
+        },
+    }
+
+    report = q15_bucket_root_cause.build_report(
+        probe,
+        {},
+        {"live_context": {"current_live_structure_bucket": "CAUTION|structure_quality_caution|q35"}},
+    )
+
+    assert report["verdict"] == "current_bucket_exact_support_already_closed"
+    assert report["candidate_patch_type"] == "deployment_blocker_verification"
+    assert report["candidate_patch_feature"] is None
+    assert report["candidate_patch"] is None
+    assert "69/50" in report["reason"]
+    assert "decision_quality_below_trade_floor" in report["verify_next"]
+    assert "minimum_support_rows" in report["verify_next"]

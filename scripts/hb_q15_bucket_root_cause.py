@@ -252,6 +252,34 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
     deployment_blocker = str(probe.get("deployment_blocker") or "").strip()
     deployment_blocker_source = str(probe.get("deployment_blocker_source") or "").strip()
     execution_guardrail_reason = str(probe.get("execution_guardrail_reason") or "").strip()
+    support_progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
+    support_status = str(support_progress.get("status") or "").strip()
+    support_route_verdict = str(probe.get("support_route_verdict") or "").strip()
+    support_current_rows = support_progress.get("current_rows")
+    if support_current_rows is None:
+        support_current_rows = probe.get("current_live_structure_bucket_rows")
+    support_minimum_rows = support_progress.get("minimum_support_rows")
+    if support_minimum_rows is None:
+        support_minimum_rows = probe.get("minimum_support_rows")
+    support_gap_to_minimum = support_progress.get("gap_to_minimum")
+    if support_gap_to_minimum is None:
+        support_gap_to_minimum = probe.get("current_live_structure_bucket_gap_to_minimum")
+
+    exact_support_closed = False
+    if support_status == "exact_supported" or support_route_verdict == "exact_bucket_supported":
+        exact_support_closed = True
+    else:
+        current_rows_float = _safe_float(support_current_rows)
+        minimum_rows_float = _safe_float(support_minimum_rows)
+        gap_to_minimum_float = _safe_float(support_gap_to_minimum)
+        exact_support_closed = bool(
+            (current_rows_float is not None and minimum_rows_float is not None and current_rows_float >= minimum_rows_float)
+            or (gap_to_minimum_float is not None and gap_to_minimum_float <= 0)
+        )
+
+    support_rows_text = "—"
+    if support_current_rows is not None or support_minimum_rows is not None:
+        support_rows_text = f"{support_current_rows if support_current_rows is not None else '—'}/{support_minimum_rows if support_minimum_rows is not None else '—'}"
     runtime_blocker_preempts = bool(
         signal == "CIRCUIT_BREAKER"
         or deployment_blocker == "circuit_breaker_active"
@@ -278,6 +306,18 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
         candidate_patch_type = "live_row_projection"
         reason = "目前 live row 無法算出 structure_quality，先修 4H 結構輸入。"
         verify_next = "重跑 hb_predict_probe.py，確認 entry_quality_components.structure_quality 有值。"
+    elif current_structure_quality >= Q35_THRESHOLD and exact_support_closed:
+        verdict = "current_bucket_exact_support_already_closed"
+        candidate_patch_type = "deployment_blocker_verification"
+        reason = (
+            f"目前 live row 已不在 q15/q35 邊界下方，且 exact support 已 closure（{support_rows_text}）；"
+            "current bucket root cause 不應再回報 support 累積，應回到當前 deployment blocker / execution guardrail 真相。"
+        )
+        blocker_focus = deployment_blocker or execution_guardrail_reason or "active_runtime_blocker"
+        verify_next = (
+            f"machine-check deployment_blocker 仍為 {blocker_focus}，並確認 allowed_layers_raw > 0 但 allowed_layers = 0；"
+            "current-bucket card 不得再要求 rows 累積到 minimum_support_rows。"
+        )
     elif current_structure_quality >= Q35_THRESHOLD:
         verdict = "current_row_already_above_q35_boundary"
         candidate_patch_type = "support_accumulation"
@@ -326,7 +366,9 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
 
     candidate_patch_feature = best_feature.get("feature") or None
     candidate_patch = None
-    if candidate_patch_feature:
+    if candidate_patch_type == "deployment_blocker_verification":
+        candidate_patch_feature = None
+    elif candidate_patch_feature:
         candidate_patch = {
             "type": candidate_patch_type,
             "feature": candidate_patch_feature,
@@ -353,6 +395,11 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
             "gap_to_q35_boundary": round(max(Q35_THRESHOLD - current_structure_quality, 0.0), 4) if current_structure_quality is not None else None,
             "non_null_4h_feature_count": probe.get("non_null_4h_feature_count"),
             "execution_guardrail_reason": probe.get("execution_guardrail_reason"),
+            "support_status": support_status or None,
+            "support_route_verdict": support_route_verdict or None,
+            "support_current_rows": support_current_rows,
+            "support_minimum_rows": support_minimum_rows,
+            "support_gap_to_minimum": support_gap_to_minimum,
         },
         "exact_live_lane": {
             "rows": exact_lane_rows,

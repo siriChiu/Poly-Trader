@@ -779,6 +779,8 @@ def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candida
 
     assert 'boundary_sensitivity_candidate' in runtime_copy_source
     assert 'bucket_boundary_review' in runtime_copy_source
+    assert 'current_bucket_exact_support_already_closed' in runtime_copy_source
+    assert 'deployment_blocker_verification' in runtime_copy_source
     assert '尚未取得 current bucket 根因' in runtime_copy_source
 
 
