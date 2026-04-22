@@ -1,15 +1,15 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-22 19:30:24 CST_
+_最後更新：2026-04-22 20:00:28 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 fast heartbeat #20260422ac 已完成 collect + diagnostics refresh**
-  - `Raw=31524 / Features=22942 / Labels=63547`
-  - `simulated_pyramid_win=57.31%`
+- **最新 fast heartbeat #20260422ad 已完成 collect + diagnostics refresh**
+  - `Raw=31528 / Features=22946 / Labels=63548`
+  - `simulated_pyramid_win=57.32%`
 - **canonical current-live blocker 已切到 current-live exact-support truth**
   - `deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
   - `current_live_structure_bucket=BLOCK|bull_high_bias200_overheat_block|q65` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`
@@ -20,11 +20,14 @@ _最後更新：2026-04-22 19:30:24 CST_
   - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2994` / `archive_window_coverage_pct=0.0`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2998` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環
+- **Dashboard 即時決策品質卡已補上 non-q15 reference-only copy**
+  - 當 current live bucket 不在 q15 lane（例如目前 `BLOCK|bull_high_bias200_overheat_block|q65`）時，`q15 floor-cross legality / q15 component experiment` 不再顯示空白 `—`
+  - 改為明示 `current bucket 非 q15 / reference-only`，避免 operator 把 q15 audit 空值誤讀成 `/api/status` 缺資料或 blocker truth 漏同步
 
 ---
 
@@ -58,7 +61,7 @@ _最後更新：2026-04-22 19:30:24 CST_
   - data/execution_metadata_smoke.json
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2994` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2998` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json

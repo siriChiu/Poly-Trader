@@ -189,6 +189,16 @@ export default function ConfidenceIndicator({
   const breakerStreakLimit = typeof breakerRelease?.streak_must_be_below === "number"
     ? breakerRelease.streak_must_be_below
     : null;
+  const bucketKey = (currentLiveStructureBucket || "").toLowerCase();
+  const q15SupportAuditApplicable = bucketKey === "q15" || bucketKey.endsWith("|q15");
+  const q15FloorCrossLabel = q15SupportAuditApplicable ? (floorCrossVerdict || "—") : "current bucket 非 q15";
+  const q15FloorCrossHint = q15SupportAuditApplicable
+    ? `best single component ${bestSingleComponent || "—"}`
+    : `目前 bucket ${currentLiveStructureBucket || "—"}；q15 floor-cross drill-down 只保留 reference-only，不代表 /api/status 缺資料。`;
+  const q15ComponentExperimentLabel = q15SupportAuditApplicable ? (componentExperimentVerdict || "—") : "reference-only";
+  const q15ComponentExperimentHint = q15SupportAuditApplicable
+    ? `required score delta ${formatDecimal(bestSingleComponentRequiredScoreDelta, 4)}`
+    : "目前 live row 已離開 q15 lane；請改看 current live blocker 與 current bucket root cause，而不是把 q15 experiment 空值誤讀成 blocker truth。";
 
   return (
     <div className={`app-surface-card ${lv.bg}`}>
@@ -320,14 +330,14 @@ export default function ConfidenceIndicator({
                   <div className="mt-1 text-slate-400">下一輪應持續 machine-check rows 累積。</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">floor-cross legality</div>
-                  <div className="mt-1 font-medium text-white">{floorCrossVerdict || "—"}</div>
-                  <div className="mt-1 text-slate-400">best single component {bestSingleComponent || "—"}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">q15 floor-cross legality</div>
+                  <div className="mt-1 font-medium text-white">{q15FloorCrossLabel}</div>
+                  <div className="mt-1 text-slate-400">{q15FloorCrossHint}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">component experiment</div>
-                  <div className="mt-1 font-medium text-white">{componentExperimentVerdict || "—"}</div>
-                  <div className="mt-1 text-slate-400">required score delta {formatDecimal(bestSingleComponentRequiredScoreDelta, 4)}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">q15 component experiment</div>
+                  <div className="mt-1 font-medium text-white">{q15ComponentExperimentLabel}</div>
+                  <div className="mt-1 text-slate-400">{q15ComponentExperimentHint}</div>
                 </div>
               </>
             )}

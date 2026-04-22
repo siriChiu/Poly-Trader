@@ -1,14 +1,14 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-22 19:30:24 CST_
+_最後更新：2026-04-22 20:00:28 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #20260422ac 已完成 collect + diagnostics refresh**
-  - `Raw=31524 / Features=22942 / Labels=63547`
+- **fast heartbeat #20260422ad 已完成 collect + diagnostics refresh**
+  - `Raw=31528 / Features=22946 / Labels=63548`
   - `deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
   - `latest_window=250` / `win_rate=82.8%` / `dominant_regime=chop(53.6%)` / `avg_quality=+0.4515` / `avg_pnl=+0.0124` / `alerts=label_imbalance`
   - `blocking_window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)` / `avg_quality=+0.0814` / `avg_pnl=+0.0009` / `alerts=regime_shift`
@@ -17,6 +17,9 @@ _最後更新：2026-04-22 19:30:24 CST_
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
+- **Dashboard 即時決策品質卡已補上 non-q15 reference-only copy**
+  - current live bucket 不在 q15 lane 時，`q15 floor-cross legality / q15 component experiment` 會明示 `current bucket 非 q15 / reference-only`
+  - 目的：避免 operator 把 q15 audit 空值誤讀成 blocker truth 漏同步或 `/api/status` 缺資料
 
 ---
 
@@ -47,7 +50,7 @@ _最後更新：2026-04-22 19:30:24 CST_
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2994` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=2998` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**

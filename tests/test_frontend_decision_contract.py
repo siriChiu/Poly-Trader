@@ -569,6 +569,11 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
         'import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";',
         'const q15PatchExecutionBlocked = Boolean(',
         'const q15PatchCapacityOpened = Boolean(',
+        'const q15SupportAuditApplicable = bucketKey === "q15" || bucketKey.endsWith("|q15");',
+        'const q15FloorCrossLabel = q15SupportAuditApplicable ? (floorCrossVerdict || "—") : "current bucket 非 q15";',
+        'const q15ComponentExperimentLabel = q15SupportAuditApplicable ? (componentExperimentVerdict || "—") : "reference-only";',
+        '目前 bucket ${currentLiveStructureBucket || "—"}；q15 floor-cross drill-down 只保留 reference-only，不代表 /api/status 缺資料。',
+        '目前 live row 已離開 q15 lane；請改看 current live blocker 與 current bucket root cause，而不是把 q15 experiment 空值誤讀成 blocker truth。',
         'const breakerRecentWindow = deploymentBlockerDetails?.recent_window ?? null;',
         'const breakerRelease = deploymentBlockerDetails?.release_condition ?? null;',
         'const circuitBreakerActive = deploymentBlocker === "circuit_breaker_active";',
@@ -580,6 +585,8 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
         'q15 patch 已經吃到 current live row，但 execution 仍被 exact live bucket blocker / guardrail 壓住',
         'humanizeExecutionReason(deploymentBlockerReason || deploymentBlocker)',
         'humanizeCurrentLiveBlockerLabel(deploymentBlocker)',
+        'q15 floor-cross legality',
+        'q15 component experiment',
     ]
     for snippet in required_snippets:
         assert snippet in source
