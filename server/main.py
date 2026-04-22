@@ -2,8 +2,10 @@
 FastAPI 主應用入口
 """
 
+import subprocess
 import sys
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -26,7 +28,63 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+_PROCESS_STARTED_AT = datetime.now(timezone.utc)
 _EXECUTION_METADATA_BACKGROUND_INTERVAL_SECONDS = 60.0
+
+
+def _parse_git_iso8601(timestamp_text: str | None) -> datetime | None:
+    if not timestamp_text:
+        return None
+    try:
+        normalized = str(timestamp_text).strip().replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def _load_runtime_build_metadata() -> dict:
+    payload = {
+        "process_started_at": _PROCESS_STARTED_AT.isoformat(),
+        "git_head_commit": None,
+        "git_head_committed_at": None,
+        "head_sync_status": "git_head_unavailable",
+    }
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(PROJECT_ROOT), "log", "-1", "--format=%H%n%cI"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except Exception as exc:
+        payload["git_error"] = str(exc)
+        return payload
+
+    if result.returncode != 0:
+        payload["git_error"] = (result.stderr or result.stdout or "git log failed").strip()
+        return payload
+
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not lines:
+        payload["head_sync_status"] = "git_head_missing"
+        return payload
+
+    payload["git_head_commit"] = lines[0]
+    if len(lines) > 1:
+        payload["git_head_committed_at"] = lines[1]
+
+    head_committed_at = _parse_git_iso8601(payload.get("git_head_committed_at"))
+    if head_committed_at is None:
+        payload["head_sync_status"] = "head_commit_time_unavailable"
+    elif _PROCESS_STARTED_AT >= head_committed_at:
+        payload["head_sync_status"] = "current_head_commit"
+    else:
+        payload["head_sync_status"] = "stale_head_commit"
+    return payload
 
 
 def _execution_metadata_background_monitor_loop(
@@ -203,6 +261,7 @@ async def health_check():
         "status": "ok",
         "raw_continuity": getattr(app.state, "raw_continuity_status", None),
         "feature_continuity": getattr(app.state, "feature_continuity_status", None),
+        "runtime_build": _load_runtime_build_metadata(),
     }
 
 

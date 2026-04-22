@@ -120,6 +120,31 @@ def test_run_startup_raw_continuity_check_records_failure_status():
     assert app.state.raw_continuity_status["status"] == "error"
 
 
+def test_health_check_includes_runtime_build_metadata(monkeypatch):
+    monkeypatch.setattr(server_main.app.state, "raw_continuity_status", {"status": "clean"}, raising=False)
+    monkeypatch.setattr(server_main.app.state, "feature_continuity_status", {"status": "clean"}, raising=False)
+    monkeypatch.setattr(
+        server_main,
+        "_load_runtime_build_metadata",
+        lambda: {
+            "process_started_at": "2026-04-22T08:30:00+00:00",
+            "git_head_commit": "abc123",
+            "git_head_committed_at": "2026-04-22T08:45:00+00:00",
+            "head_sync_status": "stale_head_commit",
+        },
+    )
+
+    import asyncio
+
+    payload = asyncio.run(server_main.health_check())
+
+    assert payload["status"] == "ok"
+    assert payload["runtime_build"]["git_head_commit"] == "abc123"
+    assert payload["runtime_build"]["head_sync_status"] == "stale_head_commit"
+    assert payload["raw_continuity"]["status"] == "clean"
+    assert payload["feature_continuity"]["status"] == "clean"
+
+
 def test_load_recent_canonical_drift_summary_maps_nested_reference_window_comparison(tmp_path):
     artifact = {
         "generated_at": "2026-04-22T03:24:15.971116+00:00",

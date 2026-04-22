@@ -16,6 +16,14 @@ const DEV_API_STATUS_DISCOVERY_TIMEOUT_MS = 2000;
 let activeApiBaseMemo: string | null = null;
 let prewarmActiveApiBasePromise: Promise<void> | null = null;
 
+type ApiBaseHealthProbe = {
+  base: string;
+  healthy: boolean;
+  headSyncStatus: string | null;
+  processStartedAt: string | null;
+  gitHeadCommit: string | null;
+};
+
 function getStoredActiveApiBase(): string | null {
   if (activeApiBaseMemo) return activeApiBaseMemo;
   if (typeof window === "undefined") return null;
@@ -76,8 +84,16 @@ function getApiRequestCandidates(): string[] {
   return [preferred ?? ""];
 }
 
-async function probeApiBaseHealth(base: string): Promise<boolean> {
-  if (typeof window === "undefined") return false;
+async function probeApiBaseHealth(base: string): Promise<ApiBaseHealthProbe> {
+  if (typeof window === "undefined") {
+    return {
+      base,
+      healthy: false,
+      headSyncStatus: null,
+      processStartedAt: null,
+      gitHeadCommit: null,
+    };
+  }
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), DEV_API_DISCOVERY_TIMEOUT_MS);
   try {
@@ -85,12 +101,38 @@ async function probeApiBaseHealth(base: string): Promise<boolean> {
       cache: "no-store",
       signal: controller.signal,
     });
-    return resp.ok;
+    const payload = await resp.json().catch(() => null);
+    const runtimeBuild = payload?.runtime_build && typeof payload.runtime_build === "object"
+      ? payload.runtime_build as Record<string, any>
+      : null;
+    return {
+      base,
+      healthy: resp.ok,
+      headSyncStatus: typeof runtimeBuild?.head_sync_status === "string" ? runtimeBuild.head_sync_status : null,
+      processStartedAt: typeof runtimeBuild?.process_started_at === "string" ? runtimeBuild.process_started_at : null,
+      gitHeadCommit: typeof runtimeBuild?.git_head_commit === "string" ? runtimeBuild.git_head_commit : null,
+    };
   } catch {
-    return false;
+    return {
+      base,
+      healthy: false,
+      headSyncStatus: null,
+      processStartedAt: null,
+      gitHeadCommit: null,
+    };
   } finally {
     window.clearTimeout(timeoutId);
   }
+}
+
+function scoreApiBaseHealthProbe(probe: ApiBaseHealthProbe): number {
+  if (!probe.healthy) return -999;
+  let score = 0;
+  if (probe.headSyncStatus === "current_head_commit") score += 5;
+  if (probe.headSyncStatus === "stale_head_commit") score -= 5;
+  if (probe.processStartedAt) score += 1;
+  if (probe.gitHeadCommit) score += 1;
+  return score;
 }
 
 function scoreApiBaseRuntimeContract(payload: unknown): number {
@@ -150,30 +192,44 @@ async function prewarmDevApiBase(): Promise<void> {
   prewarmActiveApiBasePromise = (async () => {
     const preferred = getStoredActiveApiBase();
     const probeCandidates = getDevApiCandidateBases();
-    const healthChecks = await Promise.all(probeCandidates.map(async (base) => ({
-      base,
-      healthy: await probeApiBaseHealth(base),
-    })));
-    const healthyCandidates = healthChecks.filter((probe) => probe.healthy).map((probe) => probe.base);
+    const healthChecks = await Promise.all(probeCandidates.map(async (base) => probeApiBaseHealth(base)));
+    const healthyCandidates = healthChecks.filter((probe) => probe.healthy);
 
     if (!healthyCandidates.length) {
       persistActiveApiBase(null);
       return;
     }
 
-    const capabilityResults = await Promise.all(healthyCandidates.map(async (base) => ({
-      base,
-      runtimeContractScore: await probeApiBaseRuntimeContractScore(base),
-    })));
-    const bestCapability = capabilityResults.reduce<{ base: string; runtimeContractScore: number } | null>((best, probe) => {
+    const capabilityResults = await Promise.all(healthyCandidates.map(async (probe) => {
+      const healthScore = scoreApiBaseHealthProbe(probe);
+      const runtimeContractScore = await probeApiBaseRuntimeContractScore(probe.base);
+      return {
+        ...probe,
+        healthScore,
+        runtimeContractScore,
+        totalScore: healthScore + runtimeContractScore,
+      };
+    }));
+    const bestCapability = capabilityResults.reduce<{
+      base: string;
+      healthy: boolean;
+      headSyncStatus: string | null;
+      processStartedAt: string | null;
+      gitHeadCommit: string | null;
+      healthScore: number;
+      runtimeContractScore: number;
+      totalScore: number;
+    } | null>((best, probe) => {
       if (!best) return probe;
+      if (probe.totalScore > best.totalScore) return probe;
+      if (probe.totalScore < best.totalScore) return best;
       if (probe.runtimeContractScore > best.runtimeContractScore) return probe;
       if (probe.runtimeContractScore < best.runtimeContractScore) return best;
       if (preferred && probe.base === preferred && best.base !== preferred) return probe;
       return best;
     }, null);
 
-    persistActiveApiBase(bestCapability?.base ?? healthyCandidates[0] ?? null);
+    persistActiveApiBase(bestCapability?.base ?? healthyCandidates[0]?.base ?? null);
   })().finally(() => {
     prewarmActiveApiBasePromise = null;
   });
