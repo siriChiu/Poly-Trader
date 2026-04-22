@@ -65,6 +65,7 @@ MODEL_LB_CACHE_PATH = PROJECT_ROOT / "data" / "model_leaderboard_cache.json"
 _LEADERBOARD_GOVERNANCE_PROBE_PATH = PROJECT_ROOT / "data" / "leaderboard_feature_profile_probe.json"
 _LIVE_PREDICT_PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 _RECENT_DRIFT_REPORT_PATH = PROJECT_ROOT / "data" / "recent_drift_report.json"
+_ISSUES_JSON_PATH = PROJECT_ROOT / "issues.json"
 _STRATEGY_PARAM_SCAN_PATH = PROJECT_ROOT / "data" / "model_strategy_param_scan_latest.json"
 _MODEL_LB_STALE_AFTER_SEC = 900
 _MODEL_LB_REFRESH_COOLDOWN_SEC = 300
@@ -3418,6 +3419,20 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
     if not isinstance(payload, dict):
         return None
 
+    def _has_recent_drift_window_truth(window_payload: Any) -> bool:
+        if not isinstance(window_payload, dict):
+            return False
+        summary = window_payload.get("summary") if isinstance(window_payload.get("summary"), dict) else {}
+        if window_payload.get("window") not in {None, ""}:
+            return True
+        alerts = window_payload.get("alerts")
+        if isinstance(alerts, list) and alerts:
+            return True
+        return any(
+            summary.get(key) is not None
+            for key in ("rows", "win_rate", "drift_interpretation", "dominant_regime")
+        )
+
     def _normalize_recent_drift_window(window_payload: Any) -> Optional[Dict[str, Any]]:
         window = window_payload if isinstance(window_payload, dict) else {}
         summary = window.get("summary") if isinstance(window.get("summary"), dict) else {}
@@ -3472,8 +3487,102 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
             },
         }
 
+    def _normalize_recent_distribution_issue_fallback() -> Optional[Dict[str, Any]]:
+        try:
+            if not _ISSUES_JSON_PATH.exists():
+                return None
+            issues_payload = json.loads(_ISSUES_JSON_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        if not isinstance(issues_payload, dict):
+            return None
+        issues = issues_payload.get("issues")
+        if not isinstance(issues, list):
+            return None
+
+        issue_summary: Optional[Dict[str, Any]] = None
+        for issue in issues:
+            if not isinstance(issue, dict):
+                continue
+            if issue.get("id") != "P0_recent_distribution_pathology":
+                continue
+            summary = issue.get("summary")
+            if isinstance(summary, dict):
+                issue_summary = summary
+                break
+        if not issue_summary:
+            return None
+
+        issue_window = issue_summary.get("window")
+        issue_alerts = issue_summary.get("alerts") if isinstance(issue_summary.get("alerts"), list) else []
+
+        windows = payload.get("windows") if isinstance(payload.get("windows"), dict) else {}
+        report_window_summary = windows.get(str(issue_window)) if issue_window is not None else None
+        if isinstance(report_window_summary, dict) and report_window_summary:
+            report_alerts = report_window_summary.get("alerts") if isinstance(report_window_summary.get("alerts"), list) else issue_alerts
+            return _normalize_recent_drift_window(
+                {
+                    "window": issue_window,
+                    "alerts": report_alerts,
+                    "summary": report_window_summary,
+                }
+            )
+
+        fallback_reference_features = issue_summary.get("top_shift_features")
+        if not isinstance(fallback_reference_features, list):
+            fallback_reference_features = []
+        fallback_target_path: Dict[str, Any] = {}
+        fallback_tail = issue_summary.get("tail_streak")
+        if isinstance(fallback_tail, str) and "x" in fallback_tail:
+            count_text, _, target_text = fallback_tail.partition("x")
+            try:
+                fallback_target_path = {
+                    "tail_target_streak": {
+                        "count": int(count_text),
+                        "target": target_text,
+                    }
+                }
+            except ValueError:
+                fallback_target_path = {}
+
+        return _normalize_recent_drift_window(
+            {
+                "window": issue_window,
+                "alerts": issue_alerts,
+                "summary": {
+                    "rows": issue_summary.get("rows", issue_window),
+                    "win_rate": issue_summary.get("win_rate"),
+                    "drift_interpretation": issue_summary.get("interpretation"),
+                    "dominant_regime": issue_summary.get("dominant_regime"),
+                    "dominant_regime_share": issue_summary.get("dominant_regime_share"),
+                    "quality_metrics": {
+                        "avg_simulated_pnl": issue_summary.get("avg_pnl"),
+                        "avg_simulated_quality": issue_summary.get("avg_quality"),
+                        "avg_drawdown_penalty": issue_summary.get("avg_drawdown_penalty"),
+                        "spot_long_win_rate": issue_summary.get("spot_long_win_rate"),
+                    },
+                    "target_path_diagnostics": fallback_target_path,
+                    "reference_window_comparison": {
+                        "prev_win_rate": issue_summary.get("prev_win_rate"),
+                        "prev_quality": issue_summary.get("prev_quality"),
+                        "prev_pnl": issue_summary.get("prev_pnl"),
+                        "win_rate_delta": issue_summary.get("delta_vs_prev"),
+                        "top_mean_shift_features": [
+                            {"feature": feature}
+                            for feature in fallback_reference_features
+                            if isinstance(feature, str) and feature
+                        ],
+                    },
+                },
+            }
+        )
+
     primary = _normalize_recent_drift_window(payload.get("primary_window"))
     blocking = _normalize_recent_drift_window(payload.get("blocking_window"))
+    if not _has_recent_drift_window_truth(blocking):
+        issue_fallback = _normalize_recent_distribution_issue_fallback()
+        if issue_fallback is not None:
+            blocking = issue_fallback
     if primary is None and blocking is None:
         return None
 

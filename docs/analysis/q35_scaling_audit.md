@@ -1,19 +1,98 @@
 # Q35 Scaling Audit
 
-- generated_at: **2026-04-22 11:45:24.667867**
-- overall_verdict: **reference_only_current_bucket_outside_q35**
-- structure_scaling_verdict: **reference_only_current_bucket_outside_q35**
-- scope_applicability: **reference_only_current_bucket_outside_q35**
-- reason: current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。
-- applicability_note: current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。
+- generated_at: **2026-04-22 12:30:24.225452**
+- overall_verdict: **bias50_formula_may_be_too_harsh**
+- structure_scaling_verdict: **q35_structure_caution_not_root_cause**
+- scope_applicability: **current_live_q35_lane_active**
+- reason: current bias50 已回到 exact-lane p90 內，但 legacy 公式仍可能把它壓成 0 分；需改做 exact-lane 內的保守分段校準，而不是繼續把它視為 broader bull segmentation 問題。
+- applicability_note: current live row 仍位於 q35 lane；本輪 q35 scaling / bias50 calibration 結論可直接視為 live governance 主路徑。
 
-## Reference-only current row
+## Current live row
 
 - regime/gate/quality: **bull / BLOCK / D**
-- structure_bucket: **BLOCK|bull_high_bias200_overheat_block|q65**
-- feat_4h_bias50: **3.6089**
-- structure_quality: **0.6635**
+- structure_bucket: **BLOCK|bull_high_bias200_overheat_block|q35**
+- legacy_entry_quality: **0.4232** (raw_reason=`regime_gate_block`)
+- calibration_runtime_entry_quality: **0.4232** (raw_reason=`regime_gate_block`)
+- deployed_runtime_entry_quality: **0.4232** (raw_reason=`regime_gate_block`, effective_reason=`unsupported_exact_live_structure_bucket`)
+- q35_discriminative_redesign_applied: **False**
+- feat_4h_bias50: **3.3903**
+- structure_quality: **0.5414**
+
+## Exact lane summary
+
+- rows: **143** | win_rate: **0.0**
+- bias50 distribution: {'min': 4.4309, 'p25': 5.0051, 'p50': 5.1899, 'p75': 5.2591, 'p90': 5.3636, 'p95': 5.4247, 'max': 5.5332, 'mean': 5.1062}
+- current bias50 percentile in exact lane: **0.0**
+- winner-only bias50 distribution: {'min': None, 'p25': None, 'p50': None, 'p75': None, 'p90': None, 'p95': None, 'max': None, 'mean': None}
+
+## Broader bull cohorts
+
+- same_gate_same_quality: rows=**376** | win_rate=**0.0** | bias50_pct=**0.2872** | dist={'min': 2.0009, 'p25': 2.1335, 'p50': 5.2024, 'p75': 5.4245, 'p90': 6.0169, 'p95': 6.183, 'max': 9.36, 'mean': 4.5057}
+- same_bucket: rows=**144** | win_rate=**0.0** | bias50_pct=**0.0** | dist={'min': 4.4309, 'p25': 5.0051, 'p50': 5.1899, 'p75': 5.2591, 'p90': 5.3636, 'p95': 5.4247, 'max': 5.5332, 'mean': 5.106}
+- bull_all: rows=**10176** | win_rate=**0.5959** | bias50_pct=**0.9234** | dist={'min': -1.1554, 'p25': 2.5939, 'p50': 2.8016, 'p75': 3.3094, 'p90': 3.374, 'p95': 3.5101, 'max': 9.36, 'mean': 2.9479}
+
+## Segmented calibration
+
+- status: **formula_review_required** | mode: **exact_lane_formula_review**
+- runtime contract: **piecewise_runtime_not_required** — 本輪 audit 沒有要求 current row 套用 segmented calibration；runtime 可維持既有路徑。
+- exact lane band: **core_normal** (pct=0.0, Δp90=-1.9733)
+- same_gate_same_quality band: **core_normal** (pct=0.2872, Δp90=-2.6266)
+- same_bucket band: **core_normal** (pct=0.0, Δp90=-1.9733)
+- bull_all band: **borderline_overheat** (pct=0.9234, Δp90=0.0163)
+- reference cohort: **same_gate_same_quality** / label=同 bull gate + 同 quality lane / pct=0.2872
+- note: current bias50 已回到 exact lane p90 內；下一步應做 exact-lane 內的保守 bias50 校準 / 公式檢查，而不是再走 broader bull segmentation。
+- runtime preview: applied=**False** | score=**0.0** | legacy=**0.0** | Δ=**0.0** | segment=**None**
+
+## Deployment-grade component experiment
+
+- verdict: **runtime_patch_no_material_improvement**
+- baseline -> calibration runtime entry_quality: **0.4232 → 0.4232** (Δ=**0.0**)
+- baseline -> deployed runtime entry_quality: **0.4232 → 0.4232** (Δ=**0.0**)
+- baseline -> calibration -> deployed layers: **0 → 0 → 0**
+- machine_read: entry_quality>=0.55=**False** | allowed_layers>0=**False**
+- runtime_source: **live_predict_probe** | q35_discriminative_redesign_applied=**False**
+- runtime gap to floor: **0.1268**
+- next patch target: **feat_4h_bias50_formula**
+
+## Counterfactuals
+
+- gate -> ALLOW only: entry_quality **0.4232**, layers **0**
+- fully relax bias50 penalty: entry_quality **0.7232**, layers **0**
+- required bias50 cap to cross trade floor: **0.2865** (current=3.3903)
+
+## Joint component experiment（bias50 runtime patch + feat_4h_dist_swing_low uplift）
+
+- verdict: **joint_component_experiment_improves_but_still_below_floor**
+- machine_read: entry_quality>=0.55=**False** | allowed_layers>0=**False**
+- best scenario: **exact_lane_p75** → entry_quality **0.4314** / layers **0** / gap **0.1186**
+- required_bias50_cap_after_best_scenario: **0.4235**
+- note: 加入 feat_4h_dist_swing_low uplift 後，entry_quality 有改善，但 exact-supported q35 lane 仍低於 trade floor；下一步需要更強的 bias50 / base-mix closure，而不是只補結構 component。
+
+## Exact-supported bias50 component experiment
+
+- verdict: **exact_supported_bias50_component_no_higher_supported_target**
+- machine_read: entry_quality>=0.55=**False** | allowed_layers>0=**False** | used_exact_supported_target=**False**
+- best scenario: **None** → entry_quality **None** / layers **None** / gap **None** / target_score **None**
+- note: runtime exact-supported lane 裡找不到比 current bias50 score 更高、且仍屬 exact-supported / winner-supported 的單點目標；本輪無法形成更強的 bias50 component uplift。
+
+## Base-mix component experiment（bias50 + pulse + nose）
+
+- verdict: **base_mix_component_experiment_improves_but_still_below_floor**
+- machine_read: entry_quality>=0.55=**False** | allowed_layers>0=**False**
+- best scenario: **exact_lane_triplet_p75** → entry_quality **0.492** / layers **0** / gap **0.058**
+- required_bias50_cap_after_best_scenario: **1.4335**
+- note: bias50 + pulse (+ nose) 的 base-mix uplift 明顯優於只補 structure component，但 current live row 仍未跨過 trade floor；下一輪需升級成 base-stack redesign blocker，而不是再做單點 component 微調。
+
+## Base-stack redesign experiment（support-aware discriminative reweight）
+
+- verdict: **base_stack_redesign_candidate_grid_empty**
+- machine_read: entry_quality>=0.55=**False** | allowed_layers>0=**False** | positive_gap=**False**
+- rows / wins / losses: **143 / 0 / 143**
+- best discriminative candidate: weights=**None** → entry_quality **None** / gap **None** / mean_gap **None**
+- best floor candidate: weights=**None** → entry_quality **None** / gap **None** / mean_gap **None**
+- unsafe floor-cross candidate: **None**
+- note: runtime exact lane grid search 沒有產生任何可比較候選。
 
 ## Recommended action
 
-- current live row 已離開 q35 lane；本輪 q35 audit 保留為 reference-only。下一步應直接跟 current live bucket 的 support / runtime blocker，而不是再為 q35 calibration 重跑 historical lane 分析。
+- base-mix experiment 已證明 bias50 + pulse (+ nose) uplift 仍未跨過 trade floor；下一輪必須升級成 base-stack redesign blocker，禁止再把結構 uplift 或單點 bias50 當成主 closure。

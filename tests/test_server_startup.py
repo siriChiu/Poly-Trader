@@ -350,6 +350,172 @@ def test_load_recent_canonical_drift_summary_maps_nested_reference_window_compar
 
 
 
+def test_load_recent_canonical_drift_summary_falls_back_to_issue_blocking_window_when_artifact_placeholder_is_empty(tmp_path, monkeypatch):
+    artifact = {
+        "generated_at": "2026-04-22T03:24:15.971116+00:00",
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "windows": {
+            "250": {
+                "rows": 250,
+                "win_rate": 0.828,
+                "drift_interpretation": "distribution_pathology",
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.544,
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0123,
+                    "avg_simulated_quality": 0.4497,
+                    "avg_drawdown_penalty": 0.18,
+                    "spot_long_win_rate": 0.47,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 8,
+                    "compressed_count": 8,
+                    "expected_static_count": 0,
+                    "expected_compressed_count": 0,
+                    "overlay_only_count": 1,
+                    "null_heavy_count": 10,
+                    "low_distinct_count": 10,
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 69, "target": 1},
+                    "longest_zero_target_streak": {"count": 43, "target": 0},
+                    "longest_one_target_streak": {"count": 69, "target": 1},
+                },
+                "reference_window_comparison": {
+                    "prev_win_rate": 0.076,
+                    "prev_quality": -0.002,
+                    "prev_pnl": -0.001,
+                    "win_rate_delta": 0.752,
+                    "quality_delta": 0.4517,
+                    "pnl_delta": 0.0133,
+                    "top_mean_shift_features": [{"feature": "feat_4h_bb_pct_b"}],
+                },
+                "alerts": ["label_imbalance"],
+            },
+            "1000": {
+                "rows": 1000,
+                "win_rate": 0.394,
+                "drift_interpretation": "regime_concentration",
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.813,
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0009,
+                    "avg_simulated_quality": 0.0814,
+                    "avg_drawdown_penalty": 0.2414,
+                    "spot_long_win_rate": 0.199,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 7,
+                    "compressed_count": 7,
+                    "expected_static_count": 0,
+                    "expected_compressed_count": 0,
+                    "overlay_only_count": 1,
+                    "null_heavy_count": 10,
+                    "low_distinct_count": 10,
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 64, "target": 1},
+                    "longest_zero_target_streak": {"count": 273, "target": 0},
+                    "longest_one_target_streak": {"count": 64, "target": 1},
+                },
+                "reference_window_comparison": {
+                    "prev_win_rate": 0.934,
+                    "prev_quality": 0.5441,
+                    "prev_pnl": 0.0146,
+                    "win_rate_delta": -0.54,
+                    "quality_delta": -0.4627,
+                    "pnl_delta": -0.0137,
+                    "top_mean_shift_features": [
+                        {"feature": "feat_4h_bias200"},
+                        {"feature": "feat_vwap_dev"},
+                    ],
+                },
+                "alerts": ["regime_shift"],
+            },
+        },
+        "primary_window": {
+            "window": "250",
+            "alerts": ["label_imbalance"],
+            "summary": {
+                "rows": 250,
+                "win_rate": 0.828,
+                "drift_interpretation": "distribution_pathology",
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.544,
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0123,
+                    "avg_simulated_quality": 0.4497,
+                    "avg_drawdown_penalty": 0.18,
+                    "spot_long_win_rate": 0.47,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 8,
+                    "compressed_count": 8,
+                    "expected_static_count": 0,
+                    "expected_compressed_count": 0,
+                    "overlay_only_count": 1,
+                    "null_heavy_count": 10,
+                    "low_distinct_count": 10,
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 69, "target": 1},
+                    "longest_zero_target_streak": {"count": 43, "target": 0},
+                    "longest_one_target_streak": {"count": 69, "target": 1},
+                },
+                "reference_window_comparison": {
+                    "prev_win_rate": 0.076,
+                    "prev_quality": -0.002,
+                    "prev_pnl": -0.001,
+                    "win_rate_delta": 0.752,
+                    "quality_delta": 0.4517,
+                    "pnl_delta": 0.0133,
+                    "top_mean_shift_features": [{"feature": "feat_4h_bb_pct_b"}],
+                },
+            },
+        },
+        "blocking_window": {"window": None, "alerts": [], "summary": {}},
+    }
+    artifact_path = tmp_path / "recent_drift_report.json"
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+    issues_path = tmp_path / "issues.json"
+    issues_path.write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_recent_distribution_pathology",
+                        "summary": {
+                            "window": "1000",
+                            "win_rate": 0.394,
+                            "dominant_regime": "bull",
+                            "dominant_regime_share": 0.813,
+                            "avg_quality": 0.0814,
+                            "avg_pnl": 0.0009,
+                            "alerts": ["regime_shift"],
+                        },
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_ISSUES_JSON_PATH", issues_path)
+
+    summary = api_module._load_recent_canonical_drift_summary(artifact_path)
+
+    assert summary["blocking_window"]["window"] == "1000"
+    assert summary["blocking_window"]["alerts"] == ["regime_shift"]
+    assert summary["blocking_window"]["summary"]["rows"] == 1000
+    assert summary["blocking_window"]["summary"]["win_rate"] == 0.394
+    assert summary["blocking_window"]["summary"]["quality_metrics"]["avg_simulated_quality"] == 0.0814
+    assert summary["blocking_window"]["summary"]["reference_window_comparison"]["top_mean_shift_features"][0]["feature"] == "feat_4h_bias200"
+
+
 def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     reconciliation_payload = {"status": "warning", "summary": "reconciliation evidence"}
     monkeypatch.setattr(api_module, "get_runtime_status", lambda key, default=None: {
