@@ -166,6 +166,32 @@ const EXECUTION_OPERATOR_LABEL_MAPPINGS: Record<string, Array<[string, string]>>
   ],
 };
 
+const RECENT_DRIFT_INTERPRETATION_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["supported_extreme_trend", "受支持的極端趨勢"],
+  ["distribution_pathology", "分布病態"],
+  ["regime_concentration", "regime 過度集中"],
+  ["healthy", "健康"],
+  ["unavailable", "未提供"],
+];
+
+const LIVE_PATHOLOGY_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["exact_lane", "精準路徑"],
+  ["spillover_pocket", "外溢口袋"],
+  ["spillover_rows", "外溢樣本"],
+  ["focus_scope_rows", "焦點 scope 樣本"],
+  ["current_spillover", "當前 spillover"],
+  ["reference_patch", "參考 patch"],
+  ["support_route", "support 路徑"],
+  ["governance_route", "治理路徑"],
+  ["top_4h_shifts", "4H 主偏移"],
+  ["next_action", "下一步"],
+  ["current_bucket_support", "current bucket support"],
+  ["exact_lane_cohort", "精準路徑 cohort"],
+  ["historical_lane_bucket", "歷史 lane bucket"],
+  ["no_spillover", "沒有外溢口袋"],
+  ["patch", "治理 patch"],
+];
+
 export function humanizeExecutionReason(value?: string | null): string {
   const normalized = String(value || "").trim();
   if (!normalized) return "尚未提供 blocker 摘要。";
@@ -195,17 +221,37 @@ export function humanizeExecutionReconciliationStatusLabel(
   artifactCoverage?: string | null,
 ): string {
   if (isExecutionReconciliationLimitedEvidence(status, lifecycleStage, artifactCoverage)) {
-    return "limited evidence";
+    return "證據有限";
   }
   const normalized = String(status || "").trim();
-  return normalized || "unavailable";
+  return normalized ? humanizeExecutionReason(normalized) : "尚未提供";
 }
 
 export function humanizeCurrentLiveBlockerLabel(value?: string | null): string {
   const normalized = String(value || "").trim();
-  if (!normalized) return "unavailable";
+  if (!normalized) return "尚未提供";
   const lower = normalized.toLowerCase();
   for (const [token, label] of CURRENT_LIVE_BLOCKER_LABEL_MAPPINGS) {
+    if (lower.includes(token)) return label;
+  }
+  return normalized.replace(/[_|]+/g, " ").trim();
+}
+
+export function humanizeRecentDriftInterpretation(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "未提供";
+  const lower = normalized.toLowerCase();
+  for (const [token, label] of RECENT_DRIFT_INTERPRETATION_LABEL_MAPPINGS) {
+    if (lower.includes(token)) return label;
+  }
+  return normalized.replace(/[_|]+/g, " ").trim();
+}
+
+export function humanizeLivePathologyLabel(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "未提供";
+  const lower = normalized.toLowerCase();
+  for (const [token, label] of LIVE_PATHOLOGY_LABEL_MAPPINGS) {
     if (lower.includes(token)) return label;
   }
   return normalized.replace(/[_|]+/g, " ").trim();

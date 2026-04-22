@@ -184,7 +184,7 @@ def test_execution_console_keeps_initial_sync_copy_until_status_overview_and_run
         'const executionConsoleInitialSyncPending = runtimeStatusPending || overviewPending || runsPending;',
         'const hasBlockedState = !runtimeStatusPending && !executionSurfaceContract?.live_ready;',
         'const primaryBlockedReason = runtimeStatusPending ? "正在同步 /api/status" : humanizeExecutionReason(rawPrimaryBlockedReason);',
-        'const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "Ready" : "Blocked");',
+        'const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
         '正在向 /api/status 取得 current live blocker / runtime closure。',
         'const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || (dryRunEnabled ? "dry_run" : "paper"));',
         'const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || "unknown");',
@@ -210,7 +210,7 @@ def test_execution_console_explains_public_only_balance_and_capital_unavailabili
         'const accountBalanceUnavailableLabel = !accountCredentialsConfigured',
         'const accountSnapshotUnavailableLabel = !accountCredentialsConfigured',
         'const sharedLedgerUnavailableLabel = !accountCredentialsConfigured',
-        'metadata-only snapshot',
+        '僅 metadata 快照',
         '待 private balance',
         '僅同步公開 metadata；private balance 待交易所憑證。',
         '需 private balance 後才能計算 bot 預算與 deployable capital。',
@@ -304,9 +304,7 @@ def test_execution_status_contextualizes_observability_signals_under_blocked_pos
         'const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(',
         'const reconciliationHeadlineLabel = runtimeStatusPending',
         'humanizeExecutionReconciliationStatusLabel(',
-        'limited evidence',
         'const accountVisibilityMetricValue = runtimeStatusPending',
-        'metadata-only snapshot',
         'const executionStatusPostureLabel = runtimeStatusPending',
         'const executionStatusPostureSummary = runtimeStatusPending',
         'fresh / healthy 只代表觀測層正常，不代表可部署。',
@@ -316,6 +314,98 @@ def test_execution_status_contextualizes_observability_signals_under_blocked_pos
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+def test_runtime_copy_and_execution_surfaces_use_humanized_chinese_operator_copy():
+    runtime_copy = _read("utils/runtimeCopy.ts")
+    status_source = _read("pages/ExecutionStatus.tsx")
+    dashboard_source = _read("pages/Dashboard.tsx")
+    console_source = _read("pages/ExecutionConsole.tsx")
+    lab_source = _read("pages/StrategyLab.tsx")
+
+    required_runtime_copy_snippets = [
+        'return "證據有限";',
+        'return normalized ? humanizeExecutionReason(normalized) : "尚未提供";',
+        'return "尚未提供";',
+    ]
+    for snippet in required_runtime_copy_snippets:
+        assert snippet in runtime_copy
+
+    required_status_snippets = [
+        '整體部署態勢',
+        '證據有限',
+        '僅公開資料 / metadata 觀測',
+        '僅 metadata 快照',
+        '餘額暫不可用',
+    ]
+    for snippet in required_status_snippets:
+        assert snippet in status_source
+
+    assert '"overall execution posture"' not in status_source
+    assert '"limited evidence"' not in runtime_copy
+    assert '"public-only / metadata only"' not in status_source
+    assert '"metadata-only snapshot"' not in status_source
+    assert '"balance unavailable"' not in status_source
+
+    for source in (dashboard_source, console_source):
+        assert '僅公開資料 / metadata 觀測' in source or '僅 metadata 快照' in source
+        assert '"public-only / metadata only"' not in source
+        assert '"metadata-only snapshot"' not in source
+
+    assert '策略工作區' in lab_source
+    assert '"Strategy workspace"' not in lab_source
+
+
+def test_drift_and_live_pathology_cards_do_not_leak_raw_internal_english_tokens():
+    drift_card_source = _read("components/RecentCanonicalDriftCard.tsx")
+    pathology_card_source = _read("components/LivePathologySummaryCard.tsx")
+    runtime_copy = _read("utils/runtimeCopy.ts")
+
+    required_drift_snippets = [
+        'function humanizeRecentDriftInterpretationLabel(',
+        '最新視窗',
+        '阻塞視窗',
+        '分布病態',
+        'regime 過度集中',
+    ]
+    for snippet in required_drift_snippets:
+        assert snippet in drift_card_source
+
+    assert 'latest ${latestInterpretation}' not in drift_card_source
+    assert 'blocker ${blockingInterpretation}' not in drift_card_source
+    assert 'distribution_pathology' not in drift_card_source
+    assert 'regime_concentration' not in drift_card_source
+
+    required_pathology_snippets = [
+        '精準路徑',
+        '外溢口袋',
+        '外溢樣本',
+        '焦點 scope 樣本',
+        '當前 spillover',
+        '參考 patch',
+        'support 路徑',
+        '治理路徑',
+        '4H 主偏移',
+        '下一步',
+    ]
+    for snippet in required_pathology_snippets:
+        assert snippet in runtime_copy
+
+    forbidden_pathology_tokens = [
+        'exact lane',
+        'spillover rows',
+        'focus scope rows',
+        'live spillover',
+        'reference patch',
+        'support route',
+        'governance route',
+        'top 4H shifts',
+    ]
+    for token in forbidden_pathology_tokens:
+        assert token not in pathology_card_source
+
+    assert 'function humanizeRecentDriftInterpretationLabel(' in drift_card_source
+    assert 'function humanizeLivePathologyLabel(' in runtime_copy
 
 
 def test_execution_surfaces_show_current_bucket_support_and_runtime_vs_calibration_counts_together():
@@ -424,7 +514,7 @@ def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_r
         'const dashboardSupportGapLabel = runtimeStatusPending',
         'const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || accountSummary?.mode || "unknown");',
         'const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || accountSummary?.venue || "—");',
-        'const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "Ready" : "Blocked");',
+        'const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
         'value={dashboardExecutionStatusValue}',
         'current live blocker {dashboardCurrentLiveBlockerLabel}',
         'current bucket {dashboardSupportRowsLabel} · gap {dashboardSupportGapLabel} · support route {dashboardSupportRouteVerdictLabel} · governance route {dashboardSupportGovernanceRouteLabel}',
@@ -786,10 +876,10 @@ def test_recent_canonical_drift_card_surfaces_latest_and_blocking_windows():
         'blocking_window?: RecentCanonicalDriftWindowPayload | null;',
         'const blockingWindow = summary?.blocking_window ?? null;',
         'const hasDistinctBlockingWindow = Boolean(',
-        'const latestInterpretation = latestWindowSummary?.drift_interpretation || "unavailable";',
-        'const blockingInterpretation = blockingWindowSummary?.drift_interpretation || "unavailable";',
-        '`latest ${latestInterpretation}`',
-        '`blocker ${blockingInterpretation}`',
+        'const latestInterpretationLabel = humanizeRecentDriftInterpretationLabel(latestWindowSummary?.drift_interpretation || "unavailable");',
+        'const blockingInterpretationLabel = humanizeRecentDriftInterpretationLabel(blockingWindowSummary?.drift_interpretation || "unavailable");',
+        '`最新視窗 · ${latestInterpretationLabel}`',
+        '`阻塞視窗 · ${blockingInterpretationLabel}`',
         'latest recent-window',
         'current blocker pocket',
     ]
@@ -893,8 +983,8 @@ def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
         'const supportGovernanceRouteLabel = supportGovernanceRoute || recommendedPatch?.support_governance_route || null;',
         'const supportRouteDisplayLabel = humanizeSupportRouteLabel(supportRouteLabel);',
         'const supportGovernanceRouteDisplayLabel = humanizeSupportGovernanceRouteLabel(supportGovernanceRouteLabel);',
-        'support route {supportRouteDisplayLabel || "—"}',
-        'governance route ${supportGovernanceRouteDisplayLabel}',
+        '{supportRouteLabel ? ` · ${PATHOLOGY_LABELS.supportRoute} ${supportRouteDisplayLabel}` : ""}',
+        '{supportGovernanceRouteLabel ? ` · ${PATHOLOGY_LABELS.governanceRoute} ${supportGovernanceRouteDisplayLabel}` : ""}',
         'recommendedPatch.recommended_action',
     ]
     for snippet in required_snippets:
@@ -905,9 +995,10 @@ def test_live_pathology_summary_card_surfaces_focus_scope_vs_spillover_context()
     source = _read("components/LivePathologySummaryCard.tsx")
     required_snippets = [
         'const spilloverLabel = summary.focus_scope_label',
-        'spillover pocket',
-        'focus scope rows {summary.focus_scope_rows ?? "—"}',
-        'spillover rows ${spillover.extra_rows}',
+        '${summary.focus_scope_label} ${PATHOLOGY_LABELS.spilloverPocket}',
+        '較寬 scope ${PATHOLOGY_LABELS.spilloverPocket}',
+        '{PATHOLOGY_LABELS.focusScopeRows} {summary.focus_scope_rows ?? "—"}',
+        '${PATHOLOGY_LABELS.spilloverRows} ${spillover.extra_rows}',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -932,16 +1023,16 @@ def test_live_pathology_summary_card_supports_compact_summary_mode_for_workspace
         'const currentBucketSupportLabel = currentBucketSupportRows != null',
         'const exactLaneRowsLabel = exactLane?.rows != null',
         'const exactLaneHistoricalBucket = exactLane?.dominant_structure_bucket || null;',
-        'current bucket support',
-        'exact lane cohort',
-        'historical lane bucket',
+        'PATHOLOGY_LABELS.currentBucketSupport',
+        'PATHOLOGY_LABELS.exactLaneCohort',
+        'PATHOLOGY_LABELS.historicalLaneBucket',
         'const supportAlignmentStatusLabel = formatSupportAlignmentStatus(supportAlignmentStatus);',
         'const supportAlignmentCountsLabel = runtimeExactSupportRows != null || calibrationExactLaneRows != null',
         'runtime/calibration ${runtimeExactSupportRows ?? "—"} / ${calibrationExactLaneRows ?? "—"}',
         '{exactLaneRowsLabel}',
         '{currentBucketSupportLabel}',
         '{compactPatchStatusLabel || "patch 狀態未提供"}',
-        'support route ${supportRouteDisplayLabel}',
+        '{supportRouteLabel ? ` · ${PATHOLOGY_LABELS.supportRoute} ${supportRouteDisplayLabel}` : ""}',
         '{supportAlignmentStatusLabel ? ` · ${supportAlignmentStatusLabel}` : ""}',
     ]
     for snippet in required_snippets:
@@ -1048,7 +1139,7 @@ def test_execution_status_reuses_shared_venue_readiness_component_and_explains_p
         'import VenueReadinessSummary from "../components/VenueReadinessSummary";',
         '<VenueReadinessSummary venues={venueChecks} className="mt-4" />',
         'const accountBalanceUnavailableLabel = !accountCredentialsConfigured',
-        'private balance unavailable until exchange credentials are configured',
+        '尚未配置交易所憑證，因此 private balance 暫不可見。',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -1059,7 +1150,7 @@ def test_dashboard_execution_summary_explains_public_only_balance_unavailability
     source = _read("pages/Dashboard.tsx")
     required_snippets = [
         'const accountBalanceUnavailableLabel = !accountCredentialsConfigured',
-        'private balance unavailable until exchange credentials are configured',
+        '尚未配置交易所憑證，因此 private balance 暫不可見。',
         'accountBalanceSummaryValue',
         'accountBalanceSummaryTotal',
         'total {accountBalanceSummaryTotal} · 倉位 {positionCount} · 掛單 {openOrderCount}',

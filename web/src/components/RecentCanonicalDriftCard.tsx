@@ -1,3 +1,5 @@
+import { humanizeRecentDriftInterpretation } from "../utils/runtimeCopy";
+
 type DriftFeatureShift = {
   feature?: string | null;
   mean_delta?: number | null;
@@ -91,11 +93,15 @@ function formatStreak(streak?: TargetStreak | null): string {
   return `${streak.count}x${target}`;
 }
 
-function interpretationTone(interpretation?: string | null): string {
-  if (interpretation === "healthy" || interpretation === "supported_extreme_trend") {
+function humanizeRecentDriftInterpretationLabel(value?: string | null): string {
+  return humanizeRecentDriftInterpretation(value);
+}
+
+function interpretationTone(interpretationLabel?: string | null): string {
+  if (interpretationLabel === "健康" || interpretationLabel === "受支持的極端趨勢") {
     return "border-emerald-500/25 bg-emerald-500/8";
   }
-  if (interpretation === "regime_concentration" || interpretation === "distribution_pathology") {
+  if (interpretationLabel === "regime 過度集中" || interpretationLabel === "分布病態") {
     return "border-amber-500/25 bg-amber-500/8";
   }
   return "border-white/8 bg-[#0f1528]";
@@ -172,13 +178,13 @@ export default function RecentCanonicalDriftCard({
     blockingWindowSummary && windowSignature(blockingWindow) !== windowSignature(latestWindow),
   );
   const summaryGeneratedAt = summary?.generated_at ? new Date(summary.generated_at).toLocaleString("zh-TW") : "—";
-  const latestInterpretation = latestWindowSummary?.drift_interpretation || "unavailable";
-  const blockingInterpretation = blockingWindowSummary?.drift_interpretation || "unavailable";
+  const latestInterpretationLabel = humanizeRecentDriftInterpretationLabel(latestWindowSummary?.drift_interpretation || "unavailable");
+  const blockingInterpretationLabel = humanizeRecentDriftInterpretationLabel(blockingWindowSummary?.drift_interpretation || "unavailable");
   const tone = pending
     ? "border-cyan-500/25 bg-cyan-500/8"
     : hasDistinctBlockingWindow
       ? "border-white/8 bg-[#0f1528]"
-      : interpretationTone(latestWindowSummary?.drift_interpretation);
+      : interpretationTone(latestInterpretationLabel);
 
   return (
     <div className={`rounded-xl border px-4 py-3 text-sm text-slate-100 ${tone} ${className}`.trim()}>
@@ -191,11 +197,11 @@ export default function RecentCanonicalDriftCard({
         </div>
         <div className="flex flex-wrap justify-end gap-2 text-[11px] uppercase tracking-[0.18em] text-slate-200">
           <div className="rounded-full border border-white/10 bg-black/15 px-2.5 py-1">
-            {pending ? "同步中" : `latest ${latestInterpretation}`}
+            {pending ? "同步中" : `最新視窗 · ${latestInterpretationLabel}`}
           </div>
           {hasDistinctBlockingWindow ? (
             <div className="rounded-full border border-amber-400/25 bg-amber-500/10 px-2.5 py-1 text-amber-100">
-              {`blocker ${blockingInterpretation}`}
+              {`阻塞視窗 · ${blockingInterpretationLabel}`}
             </div>
           ) : null}
         </div>

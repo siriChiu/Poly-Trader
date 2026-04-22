@@ -636,20 +636,20 @@ export default function ExecutionConsole() {
   const balanceTotal = typeof accountSummary?.balance?.total === "number" ? accountSummary.balance.total : null;
   const accountCredentialsConfigured = Boolean(accountSummary?.health?.credentials_configured ?? executionSummary?.health?.credentials_configured);
   const accountSnapshotUnavailableLabel = !accountCredentialsConfigured
-    ? "metadata-only snapshot"
-    : "balance unavailable";
+    ? "僅 metadata 快照"
+    : "餘額暫不可用";
   const accountSnapshotUnavailableReason = !accountCredentialsConfigured
     ? "僅同步公開 metadata；private balance 待交易所憑證。"
-    : "balance unavailable in latest account snapshot";
+    : "最新 account snapshot 暫無餘額資料。";
   const accountBalanceUnavailableLabel = !accountCredentialsConfigured
     ? "待 private balance"
-    : "balance unavailable";
+    : "餘額暫不可用";
   const accountBalanceUnavailableReason = !accountCredentialsConfigured
     ? "需 private balance 後才能計算 bot 預算與 deployable capital。"
-    : "balance unavailable in latest execution snapshot";
+    : "最新 execution snapshot 暫無餘額資料。";
   const sharedLedgerUnavailableLabel = !accountCredentialsConfigured
     ? "尚無 run ledger"
-    : "shared ledger unavailable";
+    : "共享 ledger 暫不可用";
   const allocatedCapital = balanceTotal != null && balanceFree != null ? Math.max(balanceTotal - balanceFree, 0) : null;
   const lastOrder = guardrails?.last_order ?? null;
   const lastReject = guardrails?.last_reject ?? null;
@@ -691,7 +691,7 @@ export default function ExecutionConsole() {
   const manualBuyBlockedMessage = manualBuyBlocked
     ? "current live blocker 啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。"
     : null;
-  const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "Ready" : "Blocked");
+  const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const deploymentStatusDetail = runtimeStatusPending
     ? "正在向 /api/status 取得 current live blocker / runtime closure。"
     : humanizeRuntimeDetailText(

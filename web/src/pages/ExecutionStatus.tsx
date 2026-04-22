@@ -440,11 +440,11 @@ export default function ExecutionStatus() {
   const balanceFree = typeof accountSummary?.balance?.free === "number" ? accountSummary.balance.free : null;
   const accountCredentialsConfigured = Boolean(accountSummary?.health?.credentials_configured);
   const accountBalanceUnavailableLabel = !accountCredentialsConfigured
-    ? "public-only / metadata only"
-    : "balance unavailable";
+    ? "僅公開資料 / metadata 觀測"
+    : "餘額暫不可用";
   const accountBalanceUnavailableReason = !accountCredentialsConfigured
-    ? "private balance unavailable until exchange credentials are configured"
-    : "balance unavailable in latest account snapshot";
+    ? "尚未配置交易所憑證，因此 private balance 暫不可見。"
+    : "最新 account snapshot 暫無餘額資料。";
   const accountBalanceSummaryValue = balanceTotal !== null
     ? `${formatNumber(balanceTotal)} ${balanceCurrency}`
     : accountBalanceUnavailableLabel;
@@ -474,7 +474,7 @@ export default function ExecutionStatus() {
     );
   const reconciliationHeadlineLabel = runtimeStatusPending
     ? "同步中"
-    : (reconciliationCoverageLimited ? "limited evidence" : reconciliationStatusLabel);
+    : (reconciliationCoverageLimited ? "證據有限" : reconciliationStatusLabel);
   const reconciliationHeadlineDetail = runtimeStatusPending
     ? "正在向 /api/status 取得 reconciliation / recovery 摘要。"
     : reconciliationCoverageLimited
@@ -563,7 +563,7 @@ export default function ExecutionStatus() {
   const liveReadinessMetricValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可進場" : "仍阻塞");
   const accountVisibilityMetricValue = runtimeStatusPending
     ? "同步中"
-    : (balanceTotal !== null ? `${formatNumber(balanceTotal)} ${balanceCurrency}` : (!accountCredentialsConfigured ? "metadata-only snapshot" : "balance unavailable"));
+    : (balanceTotal !== null ? `${formatNumber(balanceTotal)} ${balanceCurrency}` : (!accountCredentialsConfigured ? "僅 metadata 快照" : "餘額暫不可用"));
   const accountVisibilityDetail = runtimeStatusPending
     ? "正在向 /api/status 取得 account snapshot。"
     : balanceTotal !== null
@@ -573,12 +573,12 @@ export default function ExecutionStatus() {
         : `${accountBalanceUnavailableReason} · 倉位 ${accountSummary?.position_count ?? positions.length} · 掛單 ${accountSummary?.open_order_count ?? openOrders.length}`;
   const accountVisibilityStatusLabel = runtimeStatusPending
     ? "同步中"
-    : (!accountCredentialsConfigured ? "metadata-only" : (balanceTotal !== null ? "full snapshot" : "balance unavailable"));
+    : (!accountCredentialsConfigured ? "僅 metadata" : (balanceTotal !== null ? "完整快照" : "餘額暫不可用"));
   const accountSnapshotBadgeLabel = runtimeStatusPending
     ? "syncing"
     : accountSummary?.degraded
-      ? "degraded"
-      : (!accountCredentialsConfigured ? "metadata-only" : (accountSummary?.health?.connected ? "connected" : "review"));
+      ? "降級"
+      : (!accountCredentialsConfigured ? "僅 metadata" : (accountSummary?.health?.connected ? "連線正常" : "待檢查"));
   const accountSnapshotBadgeTone = runtimeStatusPending
     ? getStatusTone("pending")
     : accountSummary?.degraded
@@ -586,7 +586,7 @@ export default function ExecutionStatus() {
       : (!accountCredentialsConfigured ? getStatusTone("warning") : healthTone);
   const executionStatusPostureLabel = runtimeStatusPending
     ? "⏳ 整體狀態：同步中"
-    : (executionSurfaceContract?.live_ready ? "✅ 整體狀態：Ready" : `🚫 整體狀態：Blocked · ${currentLiveBlockerLabel}`);
+    : (executionSurfaceContract?.live_ready ? "✅ 整體狀態：可部署" : `🚫 整體狀態：仍阻塞 · ${currentLiveBlockerLabel}`);
   const executionStatusPostureSummary = runtimeStatusPending
     ? "正在同步 /api/status；在 runtime truth 到位前，不要把 fresh / healthy 當成 readiness。"
     : executionSurfaceContract?.live_ready
@@ -644,7 +644,7 @@ export default function ExecutionStatus() {
         )}
 
         <div className={`rounded-[20px] border px-4 py-4 text-sm ${executionStatusPostureTone}`}>
-          <div className="text-[11px] uppercase tracking-[0.22em] opacity-80">overall execution posture</div>
+          <div className="text-[11px] uppercase tracking-[0.22em] opacity-80">整體部署態勢</div>
           <div className="mt-2 text-lg font-semibold text-white">{executionStatusPostureLabel}</div>
           <div className="mt-2 leading-6 opacity-90">{executionStatusPostureSummary}</div>
         </div>

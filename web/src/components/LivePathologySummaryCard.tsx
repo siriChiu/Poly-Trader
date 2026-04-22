@@ -1,4 +1,5 @@
 import {
+  humanizeLivePathologyLabel,
   humanizeSupportGovernanceRouteLabel,
   humanizeSupportRouteLabel,
 } from "../utils/runtimeCopy";
@@ -147,9 +148,27 @@ const formatSupportAlignmentStatus = (status?: string | null) => {
   }
 };
 
+const PATHOLOGY_LABELS = {
+  exactLane: humanizeLivePathologyLabel("exact_lane"),
+  spilloverPocket: humanizeLivePathologyLabel("spillover_pocket"),
+  spilloverRows: humanizeLivePathologyLabel("spillover_rows"),
+  focusScopeRows: humanizeLivePathologyLabel("focus_scope_rows"),
+  currentSpillover: humanizeLivePathologyLabel("current_spillover"),
+  referencePatch: humanizeLivePathologyLabel("reference_patch"),
+  supportRoute: humanizeLivePathologyLabel("support_route"),
+  governanceRoute: humanizeLivePathologyLabel("governance_route"),
+  top4hShifts: humanizeLivePathologyLabel("top_4h_shifts"),
+  nextAction: humanizeLivePathologyLabel("next_action"),
+  currentBucketSupport: humanizeLivePathologyLabel("current_bucket_support"),
+  exactLaneCohort: humanizeLivePathologyLabel("exact_lane_cohort"),
+  historicalLaneBucket: humanizeLivePathologyLabel("historical_lane_bucket"),
+  noSpillover: humanizeLivePathologyLabel("no_spillover"),
+  patch: humanizeLivePathologyLabel("patch"),
+};
+
 export default function LivePathologySummaryCard({
   summary,
-  title = "🧬 Live lane / spillover 對照",
+  title = "🧬 Live 路徑 / 外溢口袋對照",
   className = "",
   compact = false,
   supportAlignmentStatus,
@@ -172,8 +191,8 @@ export default function LivePathologySummaryCard({
     ? recommendedPatch.collapse_features.slice(0, 4)
     : [];
   const spilloverLabel = summary.focus_scope_label
-    ? `${summary.focus_scope_label} spillover pocket`
-    : "broader-scope spillover pocket";
+    ? `${summary.focus_scope_label} ${PATHOLOGY_LABELS.spilloverPocket}`
+    : `較寬 scope ${PATHOLOGY_LABELS.spilloverPocket}`;
 
   if (!summary.summary && !exactLane && !spilloverPocket && !recommendedPatch) return null;
 
@@ -188,14 +207,14 @@ export default function LivePathologySummaryCard({
   const currentBucketSupportRows = recommendedPatch?.current_live_structure_bucket_rows ?? exactLane?.current_live_structure_bucket_rows;
   const currentBucketSupportMinimum = recommendedPatch?.minimum_support_rows ?? null;
   const currentBucketSupportLabel = currentBucketSupportRows != null
-    ? `current bucket support ${currentBucketSupportRows}${currentBucketSupportMinimum != null ? `/${currentBucketSupportMinimum}` : ""}`
+    ? `${PATHOLOGY_LABELS.currentBucketSupport} ${currentBucketSupportRows}${currentBucketSupportMinimum != null ? `/${currentBucketSupportMinimum}` : ""}`
     : null;
   const exactLaneRowsLabel = exactLane?.rows != null
-    ? `exact lane cohort ${exactLane.rows}`
-    : "exact lane cohort —";
+    ? `${PATHOLOGY_LABELS.exactLaneCohort} ${exactLane.rows}`
+    : `${PATHOLOGY_LABELS.exactLaneCohort} —`;
   const exactLaneHistoricalBucket = exactLane?.dominant_structure_bucket || null;
   const exactLaneHistoricalBucketLabel = exactLaneHistoricalBucket && exactLaneHistoricalBucket !== exactLane?.current_live_structure_bucket
-    ? `historical lane bucket ${exactLaneHistoricalBucket}`
+    ? `${PATHOLOGY_LABELS.historicalLaneBucket} ${exactLaneHistoricalBucket}`
     : null;
   const exactLaneCurrentBucketLabel = exactLane?.current_live_structure_bucket
     ? `current bucket ${exactLane.current_live_structure_bucket}`
@@ -231,7 +250,7 @@ export default function LivePathologySummaryCard({
 
         <div className="grid gap-2 xl:grid-cols-3">
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/10 px-3 py-2 text-[11px] leading-5 text-emerald-50">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">exact lane</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">{PATHOLOGY_LABELS.exactLane}</div>
             <div className="mt-1 font-semibold text-emerald-100">
               WR {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)}
             </div>
@@ -254,12 +273,12 @@ export default function LivePathologySummaryCard({
           </div>
 
           <div className="rounded-lg border border-red-500/20 bg-red-950/10 px-3 py-2 text-[11px] leading-5 text-red-50">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-red-200/80">spillover</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-red-200/80">{PATHOLOGY_LABELS.spilloverPocket}</div>
             <div className="mt-1 font-semibold text-red-100">
-              {spilloverPocket?.regime_gate || spilloverLabel || "no spillover"}
+              {spilloverPocket?.regime_gate || spilloverLabel || PATHOLOGY_LABELS.noSpillover}
             </div>
             <div className="text-red-50/80">
-              {spillover?.extra_rows != null ? `spillover rows ${spillover.extra_rows}` : "spillover rows —"}
+              {spillover?.extra_rows != null ? `${PATHOLOGY_LABELS.spilloverRows} ${spillover.extra_rows}` : `${PATHOLOGY_LABELS.spilloverRows} —`}
               {spillover?.extra_row_share != null ? ` (${formatPct(spillover.extra_row_share)})` : ""}
             </div>
             <div className="text-red-50/80">
@@ -268,7 +287,7 @@ export default function LivePathologySummaryCard({
           </div>
 
           <div className="rounded-lg border border-sky-500/20 bg-sky-950/10 px-3 py-2 text-[11px] leading-5 text-sky-50">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">patch</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">{PATHOLOGY_LABELS.patch}</div>
             <div className="mt-1 font-semibold text-sky-100">{compactPatchLabel || "未提供 patch"}</div>
             <div className="text-sky-50/80">
               support {recommendedPatch?.current_live_structure_bucket_rows ?? "—"}/{recommendedPatch?.minimum_support_rows ?? "—"}
@@ -276,8 +295,8 @@ export default function LivePathologySummaryCard({
             </div>
             <div className="text-sky-50/80">
               {compactPatchStatusLabel || "patch 狀態未提供"}
-              {supportRouteLabel ? ` · support route ${supportRouteDisplayLabel}` : ""}
-              {supportGovernanceRouteLabel ? ` · governance route ${supportGovernanceRouteDisplayLabel}` : ""}
+              {supportRouteLabel ? ` · ${PATHOLOGY_LABELS.supportRoute} ${supportRouteDisplayLabel}` : ""}
+              {supportGovernanceRouteLabel ? ` · ${PATHOLOGY_LABELS.governanceRoute} ${supportGovernanceRouteDisplayLabel}` : ""}
             </div>
           </div>
         </div>
@@ -317,7 +336,7 @@ export default function LivePathologySummaryCard({
 
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/10 px-3 py-3 text-emerald-50">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">exact live lane</div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">{PATHOLOGY_LABELS.exactLane}</div>
           <div className="mt-1 text-sm font-semibold text-emerald-100">
             {exactLane?.scope || "regime_label+regime_gate+entry_quality_label"}
           </div>
@@ -355,8 +374,8 @@ export default function LivePathologySummaryCard({
           </div>
           <div className="mt-2 space-y-1 text-[11px] leading-5 text-red-50/85">
             <div>
-              focus scope rows {summary.focus_scope_rows ?? "—"}
-              {spillover?.extra_rows != null ? ` · spillover rows ${spillover.extra_rows}` : ""}
+              {PATHOLOGY_LABELS.focusScopeRows} {summary.focus_scope_rows ?? "—"}
+              {spillover?.extra_rows != null ? ` · ${PATHOLOGY_LABELS.spilloverRows} ${spillover.extra_rows}` : ""}
               {spillover?.extra_row_share != null ? ` (${formatPct(spillover.extra_row_share)})` : ""}
             </div>
             <div>
@@ -374,7 +393,7 @@ export default function LivePathologySummaryCard({
 
       {topShifts.length > 0 && (
         <div className="space-y-2">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-amber-200/80">top 4H shifts</div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-amber-200/80">{PATHOLOGY_LABELS.top4hShifts}</div>
           <div className="flex flex-wrap gap-2">
             {topShifts.map((shift, index) => (
               <div key={`${shift.feature || "shift"}-${index}`} className="rounded-full border border-amber-500/20 bg-black/10 px-3 py-1.5 text-[11px] text-amber-50/90">
@@ -400,11 +419,11 @@ export default function LivePathologySummaryCard({
           </div>
           <div className="space-y-1 text-[11px] leading-5 text-sky-50/90">
             <div>
-              live spillover {recommendedPatch.spillover_regime_gate || "—"}
+              {PATHOLOGY_LABELS.currentSpillover} {recommendedPatch.spillover_regime_gate || "—"}
               {recommendedPatch.spillover_rows != null ? ` · rows ${recommendedPatch.spillover_rows}` : ""}
             </div>
             <div>
-              reference patch {recommendedPatch.reference_patch_scope || recommendedPatch.spillover_regime_gate || "—"}
+              {PATHOLOGY_LABELS.referencePatch} {recommendedPatch.reference_patch_scope || recommendedPatch.spillover_regime_gate || "—"}
               {recommendedPatch.reference_source ? ` · via ${recommendedPatch.reference_source}` : ""}
             </div>
             <div>
@@ -414,12 +433,12 @@ export default function LivePathologySummaryCard({
               {recommendedPatch.gap_to_minimum != null ? ` · gap ${recommendedPatch.gap_to_minimum}` : ""}
             </div>
             <div>
-              support route {supportRouteDisplayLabel || "—"}
-              {supportGovernanceRouteLabel ? ` · governance route ${supportGovernanceRouteDisplayLabel}` : ""}
+              {PATHOLOGY_LABELS.supportRoute} {supportRouteDisplayLabel || "—"}
+              {supportGovernanceRouteLabel ? ` · ${PATHOLOGY_LABELS.governanceRoute} ${supportGovernanceRouteDisplayLabel}` : ""}
               {recommendedPatch.preferred_support_cohort ? ` · cohort ${recommendedPatch.preferred_support_cohort}` : ""}
             </div>
             {recommendedPatch.reason && <div>{recommendedPatch.reason}</div>}
-            {recommendedPatch.recommended_action && <div>action {recommendedPatch.recommended_action}</div>}
+            {recommendedPatch.recommended_action && <div>{PATHOLOGY_LABELS.nextAction} {recommendedPatch.recommended_action}</div>}
           </div>
           {collapseFeatures.length > 0 && (
             <div className="flex flex-wrap gap-2">

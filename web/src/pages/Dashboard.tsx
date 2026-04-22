@@ -1080,11 +1080,11 @@ export default function Dashboard() {
   const balanceCurrency = typeof accountSummary?.balance?.currency === "string" ? accountSummary.balance.currency : "USDT";
   const accountCredentialsConfigured = Boolean(accountSummary?.health?.credentials_configured ?? executionHealth?.credentials_configured);
   const accountBalanceUnavailableLabel = !accountCredentialsConfigured
-    ? "public-only / metadata only"
-    : "balance unavailable";
+    ? "僅公開資料 / metadata 觀測"
+    : "餘額暫不可用";
   const accountBalanceUnavailableReason = !accountCredentialsConfigured
-    ? "private balance unavailable until exchange credentials are configured"
-    : "balance unavailable in latest account snapshot";
+    ? "尚未配置交易所憑證，因此 private balance 暫不可見。"
+    : "最新 account snapshot 暫無餘額資料。";
   const accountBalanceSummaryValue = balanceFree !== null
     ? `free ${balanceFree.toFixed(2)} ${balanceCurrency}`
     : accountBalanceUnavailableLabel;
@@ -1169,7 +1169,7 @@ export default function Dashboard() {
         : rawContinuity?.status === "error"
           ? "啟動檢查失敗"
           : "尚未收到啟動檢查結果";
-  const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "Ready" : "Blocked");
+  const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
 
   const handleTrade = useCallback(async (side: string) => {
     if (side === "hold") return;

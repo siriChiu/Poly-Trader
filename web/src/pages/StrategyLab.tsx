@@ -2565,7 +2565,7 @@ export default function StrategyLab() {
   const liveExecutionSyncSubtitle = liveExecutionSyncPending
     ? "current live blocker 優先；正在同步 execution sync / runtime mirror，不等於目前可部署。"
     : reconciliationCoverageLimited
-      ? "current live blocker 優先；對帳 limited evidence 只代表對帳 / runtime mirror 狀態，不等於目前可部署。"
+      ? "current live blocker 優先；對帳證據有限只代表對帳 / runtime mirror 狀態，不等於目前可部署。"
       : `current live blocker 優先；對帳 ${reconciliationStatusLabel} 只代表對帳 / runtime mirror 狀態，不等於目前可部署。`;
   const reconciliationCheckedAtLabel = runtimeStatusPending
     ? "正在向 /api/status 取得 execution sync 狀態"
@@ -2675,7 +2675,7 @@ export default function StrategyLab() {
       <div className="app-page-header">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="app-page-kicker">Strategy workspace</div>
+            <div className="app-page-kicker">策略工作區</div>
             <h2 className="app-page-title">🧪 策略實驗室</h2>
             <span className="text-sm text-slate-400">點排行榜可快速載入</span>
           </div>
