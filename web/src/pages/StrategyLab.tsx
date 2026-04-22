@@ -173,6 +173,10 @@ interface StrategyLabLiveDecisionResponse {
   regime_label?: string | null;
   regime_gate?: string | null;
   structure_bucket?: string | null;
+  q35_overall_verdict?: string | null;
+  q35_recommended_mode?: string | null;
+  q35_recommended_action?: string | null;
+  q35_next_patch_target?: string | null;
   should_trade?: boolean;
   entry_quality?: number | null;
   entry_quality_label?: string | null;
@@ -292,6 +296,10 @@ interface StrategyLabRuntimeStatusResponse {
       } | null;
       q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
       current_bucket_root_cause?: Q15BucketRootCauseSummary | null;
+      q35_overall_verdict?: string | null;
+      q35_recommended_mode?: string | null;
+      q35_recommended_action?: string | null;
+      q35_next_patch_target?: string | null;
       calibration_exact_lane_alerts?: string[] | null;
       decision_quality_recent_pathology_applied?: boolean | null;
       decision_quality_recent_pathology_reason?: string | null;

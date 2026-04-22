@@ -619,6 +619,12 @@ interface ConfidenceData {
   best_single_component_required_score_delta?: number | null;
   component_experiment_verdict?: string | null;
   q15_exact_supported_component_patch_applied?: boolean | null;
+  q35_overall_verdict?: string | null;
+  q35_redesign_verdict?: string | null;
+  q35_runtime_remaining_gap_to_floor?: number | null;
+  q35_recommended_mode?: string | null;
+  q35_recommended_action?: string | null;
+  q35_next_patch_target?: string | null;
   decision_quality_horizon_minutes?: number | null;
   decision_quality_calibration_scope?: string | null;
   decision_quality_sample_size?: number | null;
@@ -1477,6 +1483,12 @@ export default function Dashboard() {
           bestSingleComponentRequiredScoreDelta={confidenceData.best_single_component_required_score_delta}
           componentExperimentVerdict={confidenceData.component_experiment_verdict}
           q15ExactSupportedComponentPatchApplied={confidenceData.q15_exact_supported_component_patch_applied}
+          q35OverallVerdict={confidenceData.q35_overall_verdict}
+          q35RedesignVerdict={confidenceData.q35_redesign_verdict}
+          q35RuntimeRemainingGapToFloor={confidenceData.q35_runtime_remaining_gap_to_floor}
+          q35RecommendedMode={confidenceData.q35_recommended_mode}
+          q35RecommendedAction={confidenceData.q35_recommended_action}
+          q35NextPatchTarget={confidenceData.q35_next_patch_target}
           timestamp={confidenceData.timestamp}
         />
       )}

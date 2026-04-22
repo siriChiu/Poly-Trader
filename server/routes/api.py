@@ -95,6 +95,7 @@ _EXECUTION_METADATA_EXTERNAL_MONITOR_INSTALL_CONTRACT_PATH = (
 )
 _Q15_SUPPORT_AUDIT_PATH = Path(__file__).resolve().parents[2] / "data" / "q15_support_audit.json"
 _Q15_BUCKET_ROOT_CAUSE_PATH = Path(__file__).resolve().parents[2] / "data" / "q15_bucket_root_cause.json"
+_Q35_SCALING_AUDIT_PATH = Path(__file__).resolve().parents[2] / "data" / "q35_scaling_audit.json"
 _BULL_4H_POCKET_ABLATION_PATH = Path(__file__).resolve().parents[2] / "data" / "bull_4h_pocket_ablation.json"
 _EXECUTION_METADATA_EXTERNAL_MONITOR_COMMAND = (
     f"cd {Path(__file__).resolve().parents[2]} && "
@@ -871,6 +872,94 @@ def _load_q15_bucket_root_cause_summary(current_structure_bucket: Optional[str] 
     }
 
 
+def _load_q35_scaling_audit_summary(current_structure_bucket: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    if not current_structure_bucket or "q35" not in str(current_structure_bucket):
+        return None
+    if not _Q35_SCALING_AUDIT_PATH.exists():
+        return None
+    try:
+        payload = json.loads(_Q35_SCALING_AUDIT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    applicability = payload.get("scope_applicability") if isinstance(payload.get("scope_applicability"), dict) else {}
+    if not applicability.get("active_for_current_live_row"):
+        return None
+
+    audit_bucket = (
+        applicability.get("current_structure_bucket")
+        or ((payload.get("current_live") or {}).get("structure_bucket"))
+        or current_structure_bucket
+    )
+    if audit_bucket and str(audit_bucket) != str(current_structure_bucket):
+        return None
+
+    segmented_calibration = payload.get("segmented_calibration") if isinstance(payload.get("segmented_calibration"), dict) else {}
+    deployment_grade = payload.get("deployment_grade_component_experiment") if isinstance(payload.get("deployment_grade_component_experiment"), dict) else {}
+    redesign = payload.get("base_stack_redesign_experiment") if isinstance(payload.get("base_stack_redesign_experiment"), dict) else {}
+    recommended_mode = segmented_calibration.get("recommended_mode")
+    next_patch_target = deployment_grade.get("next_patch_target")
+    root_cause_action = recommended_mode or ("base_stack_redesign" if redesign.get("verdict") else None)
+    return {
+        "generated_at": payload.get("generated_at"),
+        "current_live_structure_bucket": audit_bucket or current_structure_bucket,
+        "target_structure_bucket": applicability.get("target_structure_bucket"),
+        "scope_applicability_status": applicability.get("status"),
+        "overall_verdict": payload.get("overall_verdict"),
+        "verdict": payload.get("overall_verdict"),
+        "verdict_reason": payload.get("verdict_reason"),
+        "reason": payload.get("recommended_action") or payload.get("verdict_reason"),
+        "recommended_action": payload.get("recommended_action"),
+        "segmented_calibration_status": segmented_calibration.get("status"),
+        "recommended_mode": recommended_mode,
+        "candidate_patch_type": root_cause_action,
+        "candidate_patch_feature": next_patch_target,
+        "runtime_contract_status": segmented_calibration.get("runtime_contract_status"),
+        "redesign_verdict": redesign.get("verdict"),
+        "runtime_remaining_gap_to_floor": deployment_grade.get("runtime_remaining_gap_to_floor"),
+        "remaining_gap_to_floor": deployment_grade.get("runtime_remaining_gap_to_floor"),
+        "next_patch_target": next_patch_target,
+        "verify_next": payload.get("verify_next") or deployment_grade.get("verify_next") or redesign.get("verify_next"),
+        "q35_discriminative_redesign_applied": deployment_grade.get("q35_discriminative_redesign_applied"),
+    }
+
+
+def _enrich_confidence_with_q35_scaling_audit(result: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return result
+
+    blocker_details = result.get("deployment_blocker_details") if isinstance(result.get("deployment_blocker_details"), dict) else {}
+    current_structure_bucket = (
+        result.get("current_live_structure_bucket")
+        or result.get("decision_quality_live_structure_bucket")
+        or blocker_details.get("current_live_structure_bucket")
+        or result.get("structure_bucket")
+    )
+    q35_summary = _load_q35_scaling_audit_summary(
+        str(current_structure_bucket) if current_structure_bucket is not None else None
+    )
+    if not q35_summary:
+        return result
+
+    enriched = dict(result)
+    details = dict(blocker_details)
+    details["q35_scaling_audit"] = q35_summary
+    enriched["deployment_blocker_details"] = details
+    enriched["q35_scaling_audit"] = q35_summary
+    enriched["q35_overall_verdict"] = q35_summary.get("overall_verdict")
+    enriched["q35_redesign_verdict"] = q35_summary.get("redesign_verdict")
+    enriched["q35_runtime_remaining_gap_to_floor"] = q35_summary.get("runtime_remaining_gap_to_floor")
+    enriched["q35_recommended_mode"] = q35_summary.get("recommended_mode")
+    enriched["q35_recommended_action"] = q35_summary.get("recommended_action")
+    enriched["q35_next_patch_target"] = q35_summary.get("next_patch_target")
+    if not enriched.get("current_bucket_root_cause"):
+        enriched["current_bucket_root_cause"] = q35_summary
+    return enriched
+
+
 def _enrich_confidence_with_q15_bucket_root_cause(result: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(result, dict):
         return result
@@ -891,10 +980,12 @@ def _enrich_confidence_with_q15_bucket_root_cause(result: Dict[str, Any]) -> Dic
     enriched = dict(result)
     details = dict(blocker_details)
     details["q15_bucket_root_cause"] = root_cause_summary
-    details["current_bucket_root_cause"] = root_cause_summary
+    if not details.get("current_bucket_root_cause"):
+        details["current_bucket_root_cause"] = root_cause_summary
     enriched["deployment_blocker_details"] = details
     enriched["q15_bucket_root_cause"] = root_cause_summary
-    enriched["current_bucket_root_cause"] = root_cause_summary
+    if not enriched.get("current_bucket_root_cause"):
+        enriched["current_bucket_root_cause"] = root_cause_summary
     return enriched
 
 
@@ -1324,6 +1415,13 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "recommended_patch_reference_source": recommended_patch_reference_source,
         "recommended_patch_reason": recommended_patch_reason,
         "sleeve_routing": sleeve_routing,
+        "q35_scaling_audit": payload.get("q35_scaling_audit"),
+        "q35_overall_verdict": payload.get("q35_overall_verdict"),
+        "q35_redesign_verdict": payload.get("q35_redesign_verdict"),
+        "q35_runtime_remaining_gap_to_floor": payload.get("q35_runtime_remaining_gap_to_floor"),
+        "q35_recommended_mode": payload.get("q35_recommended_mode"),
+        "q35_recommended_action": payload.get("q35_recommended_action"),
+        "q35_next_patch_target": payload.get("q35_next_patch_target"),
         "q15_bucket_root_cause": payload.get("q15_bucket_root_cause"),
         "current_bucket_root_cause": payload.get("current_bucket_root_cause") or payload.get("q15_bucket_root_cause"),
         "decision_quality_recent_pathology_applied": payload.get("decision_quality_recent_pathology_applied"),
@@ -2696,6 +2794,7 @@ async def get_confidence_prediction() -> Dict[str, Any]:
         result = result if isinstance(result, dict) else {}
         result = _enrich_confidence_with_q15_support_audit(dict(result))
         result = _overlay_confidence_with_live_predict_probe(result)
+        result = _enrich_confidence_with_q35_scaling_audit(dict(result))
         return _enrich_confidence_with_q15_bucket_root_cause(dict(result))
     finally:
         close = getattr(session, "close", None)

@@ -261,7 +261,30 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
     out_json = tmp_path / "live_decision_quality_drilldown.json"
     out_md = tmp_path / "live_decision_quality_drilldown.md"
     q35_path = tmp_path / "q35_scaling_audit.json"
-    q35_path.write_text("{}", encoding="utf-8")
+    q35_path.write_text(json.dumps({
+        "generated_at": "2026-04-19 07:15:00",
+        "scope_applicability": {
+            "active_for_current_live_row": True,
+            "status": "current_live_q35_lane_active",
+            "current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "target_structure_bucket": "CAUTION|structure_quality_caution|q35",
+        },
+        "segmented_calibration": {
+            "status": "formula_review_required",
+            "recommended_mode": "exact_lane_formula_review",
+            "runtime_contract_status": "piecewise_runtime_not_required",
+        },
+        "deployment_grade_component_experiment": {
+            "runtime_remaining_gap_to_floor": 0.2033,
+            "next_patch_target": "feat_4h_bias50_formula",
+        },
+        "base_stack_redesign_experiment": {
+            "verdict": "base_stack_redesign_candidate_grid_empty",
+        },
+        "overall_verdict": "bias50_formula_may_be_too_harsh",
+        "verdict_reason": "legacy bias50 formula compresses the q35 lane too hard.",
+        "recommended_action": "先把 q35 formula review / redesign verdict 明確露出，再決定是否重做 base-stack。",
+    }), encoding="utf-8")
 
     probe_payload = {
         "feature_timestamp": "2026-04-19 07:15:00",

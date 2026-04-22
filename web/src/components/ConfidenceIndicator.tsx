@@ -58,6 +58,12 @@ interface Props {
   bestSingleComponentRequiredScoreDelta?: number | null;
   componentExperimentVerdict?: string | null;
   q15ExactSupportedComponentPatchApplied?: boolean | null;
+  q35OverallVerdict?: string | null;
+  q35RedesignVerdict?: string | null;
+  q35RuntimeRemainingGapToFloor?: number | null;
+  q35RecommendedMode?: string | null;
+  q35RecommendedAction?: string | null;
+  q35NextPatchTarget?: string | null;
   timestamp?: string;
 }
 
@@ -99,6 +105,12 @@ export default function ConfidenceIndicator({
   bestSingleComponentRequiredScoreDelta,
   componentExperimentVerdict,
   q15ExactSupportedComponentPatchApplied,
+  q35OverallVerdict,
+  q35RedesignVerdict,
+  q35RuntimeRemainingGapToFloor,
+  q35RecommendedMode,
+  q35RecommendedAction,
+  q35NextPatchTarget,
   timestamp,
 }: Props) {
   const pct = Math.round(confidence * 100);
@@ -191,6 +203,7 @@ export default function ConfidenceIndicator({
     : null;
   const bucketKey = (currentLiveStructureBucket || "").toLowerCase();
   const q15SupportAuditApplicable = bucketKey === "q15" || bucketKey.endsWith("|q15");
+  const q35ScalingAuditApplicable = bucketKey === "q35" || bucketKey.endsWith("|q35");
   const q15FloorCrossLabel = q15SupportAuditApplicable ? (floorCrossVerdict || "—") : "current bucket 非 q15";
   const q15FloorCrossHint = q15SupportAuditApplicable
     ? `best single component ${bestSingleComponent || "—"}`
@@ -199,6 +212,14 @@ export default function ConfidenceIndicator({
   const q15ComponentExperimentHint = q15SupportAuditApplicable
     ? `required score delta ${formatDecimal(bestSingleComponentRequiredScoreDelta, 4)}`
     : "目前 live row 已離開 q15 lane；請改看 current live blocker 與 current bucket root cause，而不是把 q15 experiment 空值誤讀成 blocker truth。";
+  const q35ScalingVerdictLabel = q35ScalingAuditApplicable ? (q35OverallVerdict || "—") : "current bucket 非 q35";
+  const q35ScalingVerdictHint = q35ScalingAuditApplicable
+    ? `redesign ${q35RedesignVerdict || "—"} · runtime gap ${formatDecimal(q35RuntimeRemainingGapToFloor, 4)}`
+    : `目前 bucket ${currentLiveStructureBucket || "—"}；q35 scaling audit 只保留 reference-only，不代表 blocker 已解除。`;
+  const q35ScalingActionLabel = q35ScalingAuditApplicable ? (q35RecommendedMode || "—") : "reference-only";
+  const q35ScalingActionHint = q35ScalingAuditApplicable
+    ? `next patch ${q35NextPatchTarget || "—"} · ${q35RecommendedAction || "尚未提供 q35 audit action"}`
+    : "目前 live row 不在 q35 lane；q35 formula / redesign 結論只保留背景研究用途。";
 
   return (
     <div className={`app-surface-card ${lv.bg}`}>
@@ -330,14 +351,26 @@ export default function ConfidenceIndicator({
                   <div className="mt-1 text-slate-400">下一輪應持續 machine-check rows 累積。</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">q15 floor-cross legality</div>
-                  <div className="mt-1 font-medium text-white">{q15FloorCrossLabel}</div>
-                  <div className="mt-1 text-slate-400">{q15FloorCrossHint}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                    {q35ScalingAuditApplicable ? "q35 scaling verdict" : "q15 floor-cross legality"}
+                  </div>
+                  <div className="mt-1 font-medium text-white">
+                    {q35ScalingAuditApplicable ? q35ScalingVerdictLabel : q15FloorCrossLabel}
+                  </div>
+                  <div className="mt-1 text-slate-400">
+                    {q35ScalingAuditApplicable ? q35ScalingVerdictHint : q15FloorCrossHint}
+                  </div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">q15 component experiment</div>
-                  <div className="mt-1 font-medium text-white">{q15ComponentExperimentLabel}</div>
-                  <div className="mt-1 text-slate-400">{q15ComponentExperimentHint}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                    {q35ScalingAuditApplicable ? "q35 next action" : "q15 component experiment"}
+                  </div>
+                  <div className="mt-1 font-medium text-white">
+                    {q35ScalingAuditApplicable ? q35ScalingActionLabel : q15ComponentExperimentLabel}
+                  </div>
+                  <div className="mt-1 text-slate-400">
+                    {q35ScalingAuditApplicable ? q35ScalingActionHint : q15ComponentExperimentHint}
+                  </div>
                 </div>
               </>
             )}

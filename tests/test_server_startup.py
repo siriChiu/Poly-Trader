@@ -694,6 +694,32 @@ def test_overlay_confidence_with_live_predict_probe_prefers_fresh_probe_truth(tm
 
 
 
+def test_overlay_confidence_with_live_predict_probe_uses_generated_at_freshness_over_old_feature_timestamp(tmp_path):
+    probe_path = tmp_path / "live_predict_probe.json"
+    probe_path.write_text(json.dumps({
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "feature_timestamp": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat().replace("+00:00", "Z"),
+        "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+        "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+        "current_live_structure_bucket_rows": 0,
+        "q35_overall_verdict": "bias50_formula_may_be_too_harsh",
+    }), encoding="utf-8")
+
+    current = {
+        "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q65",
+        "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q65",
+        "current_live_structure_bucket_rows": 0,
+        "q35_overall_verdict": None,
+    }
+    merged = api_module._overlay_confidence_with_live_predict_probe(current, path=probe_path, stale_after_sec=60)
+
+    assert merged["structure_bucket"] == "BLOCK|bull_high_bias200_overheat_block|q35"
+    assert merged["current_live_structure_bucket"] == "BLOCK|bull_high_bias200_overheat_block|q35"
+    assert merged["q35_overall_verdict"] == "bias50_formula_may_be_too_harsh"
+    assert merged["live_predict_probe_overlay_applied"] is True
+
+
+
 def test_overlay_confidence_with_live_predict_probe_skips_stale_artifact(tmp_path):
     probe_path = tmp_path / "live_predict_probe.json"
     probe_path.write_text(json.dumps({

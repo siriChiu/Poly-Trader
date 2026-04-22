@@ -99,6 +99,8 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
     hb_predict_probe.main()
     payload = json.loads(capsys.readouterr().out)
 
+    assert isinstance(payload["generated_at"], str)
+    assert payload["generated_at"].endswith("Z")
     assert payload["structure_bucket"] == "CAUTION|structure_quality_caution|q15"
     assert payload["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
     assert payload["current_live_structure_bucket_rows"] == 1
@@ -121,10 +123,36 @@ def test_hb_predict_probe_falls_back_to_generic_support_progress_for_q35_blocker
     session = DummySession()
     out_path = tmp_path / "live_predict_probe.json"
     q15_audit_path = tmp_path / "q15_support_audit.json"
+    q35_audit_path = tmp_path / "q35_scaling_audit.json"
     q15_audit_path.write_text("{}", encoding="utf-8")
+    q35_audit_path.write_text(json.dumps({
+        "generated_at": "2026-04-22 13:16:32.117896",
+        "scope_applicability": {
+            "active_for_current_live_row": True,
+            "status": "current_live_q35_lane_active",
+            "current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "target_structure_bucket": "CAUTION|structure_quality_caution|q35",
+        },
+        "segmented_calibration": {
+            "status": "formula_review_required",
+            "recommended_mode": "exact_lane_formula_review",
+            "runtime_contract_status": "piecewise_runtime_not_required",
+        },
+        "deployment_grade_component_experiment": {
+            "runtime_remaining_gap_to_floor": 0.1252,
+            "next_patch_target": "feat_4h_bias50_formula",
+        },
+        "base_stack_redesign_experiment": {
+            "verdict": "base_stack_redesign_candidate_grid_empty",
+        },
+        "overall_verdict": "bias50_formula_may_be_too_harsh",
+        "verdict_reason": "legacy bias50 formula still compresses the q35 lane too hard.",
+        "recommended_action": "升級成 base-stack redesign blocker，禁止把單點 bias50 當成 closure。",
+    }), encoding="utf-8")
 
     monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
     monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit_path)
+    monkeypatch.setattr(hb_predict_probe, "Q35_SCALING_AUDIT_PATH", q35_audit_path)
     monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
     monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"bull": object()}))
     monkeypatch.setattr(
@@ -192,6 +220,11 @@ def test_hb_predict_probe_falls_back_to_generic_support_progress_for_q35_blocker
     assert payload["current_live_structure_bucket_gap_to_minimum"] == 41
     assert payload["floor_cross_verdict"] is None
     assert payload["component_experiment_verdict"] is None
+    assert payload["q35_overall_verdict"] == "bias50_formula_may_be_too_harsh"
+    assert payload["q35_redesign_verdict"] == "base_stack_redesign_candidate_grid_empty"
+    assert payload["q35_runtime_remaining_gap_to_floor"] == 0.1252
+    assert payload["q35_recommended_mode"] == "exact_lane_formula_review"
+    assert payload["q35_next_patch_target"] == "feat_4h_bias50_formula"
 
 
 def test_hb_predict_probe_infers_support_governance_route_from_reference_patch(monkeypatch, capsys, tmp_path):

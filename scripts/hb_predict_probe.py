@@ -31,6 +31,7 @@ from server.live_pathology_summary import build_live_pathology_scope_surface
 DB_URL = f"sqlite:///{PROJECT_ROOT / 'poly_trader.db'}"
 OUT_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 Q15_SUPPORT_AUDIT_PATH = PROJECT_ROOT / "data" / "q15_support_audit.json"
+Q35_SCALING_AUDIT_PATH = PROJECT_ROOT / "data" / "q35_scaling_audit.json"
 BULL_4H_POCKET_ABLATION_PATH = PROJECT_ROOT / "data" / "bull_4h_pocket_ablation.json"
 FOUR_H_COLS = [
     "feat_4h_bias50",
@@ -140,6 +141,50 @@ def _load_q15_support_audit(current_live_structure_bucket: str | None) -> dict |
     if audit_bucket and str(audit_bucket) != str(current_live_structure_bucket):
         return None
     return payload
+
+
+def _load_q35_scaling_audit_summary(current_live_structure_bucket: str | None) -> dict | None:
+    if not current_live_structure_bucket or "q35" not in str(current_live_structure_bucket):
+        return None
+    if not Q35_SCALING_AUDIT_PATH.exists():
+        return None
+    try:
+        payload = json.loads(Q35_SCALING_AUDIT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    applicability = payload.get("scope_applicability") if isinstance(payload.get("scope_applicability"), dict) else {}
+    if not applicability.get("active_for_current_live_row"):
+        return None
+    audit_bucket = (
+        applicability.get("current_structure_bucket")
+        or ((payload.get("current_live") or {}).get("structure_bucket"))
+        or current_live_structure_bucket
+    )
+    if audit_bucket and str(audit_bucket) != str(current_live_structure_bucket):
+        return None
+    segmented_calibration = payload.get("segmented_calibration") if isinstance(payload.get("segmented_calibration"), dict) else {}
+    deployment_grade = payload.get("deployment_grade_component_experiment") if isinstance(payload.get("deployment_grade_component_experiment"), dict) else {}
+    redesign = payload.get("base_stack_redesign_experiment") if isinstance(payload.get("base_stack_redesign_experiment"), dict) else {}
+    recommended_mode = segmented_calibration.get("recommended_mode")
+    next_patch_target = deployment_grade.get("next_patch_target")
+    return {
+        "generated_at": payload.get("generated_at"),
+        "current_live_structure_bucket": audit_bucket or current_live_structure_bucket,
+        "target_structure_bucket": applicability.get("target_structure_bucket"),
+        "scope_applicability_status": applicability.get("status"),
+        "overall_verdict": payload.get("overall_verdict"),
+        "verdict_reason": payload.get("verdict_reason"),
+        "recommended_action": payload.get("recommended_action"),
+        "segmented_calibration_status": segmented_calibration.get("status"),
+        "recommended_mode": recommended_mode,
+        "runtime_contract_status": segmented_calibration.get("runtime_contract_status"),
+        "redesign_verdict": redesign.get("verdict"),
+        "runtime_remaining_gap_to_floor": deployment_grade.get("runtime_remaining_gap_to_floor"),
+        "next_patch_target": next_patch_target,
+        "verify_next": payload.get("verify_next") or deployment_grade.get("verify_next") or redesign.get("verify_next"),
+    }
 
 
 def _q15_audit_matches_probe(payload: dict | None, *, current_live_structure_bucket: str | None, feature_timestamp: str | None) -> bool:
@@ -396,6 +441,7 @@ def _build_probe_payload(
             support_route["support_governance_route"] = support_governance_route
         deployment_blocker_details["support_governance_route"] = support_governance_route
         runtime_result["support_governance_route"] = support_governance_route
+    q35_scaling_audit = _load_q35_scaling_audit_summary(current_live_structure_bucket)
     breaker_release = deployment_blocker_details.get("release_condition") if isinstance(deployment_blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = deployment_blocker_details.get("recent_window") if isinstance(deployment_blocker_details.get("recent_window"), dict) else {}
     release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
@@ -405,6 +451,7 @@ def _build_probe_payload(
     current_wins = breaker_release.get("current_recent_window_wins")
     return {
         "db_url": DB_URL,
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "feature_timestamp": str(latest.get("timestamp")),
         "target_col": target_col,
         "used_model": used_model,
@@ -473,6 +520,13 @@ def _build_probe_payload(
             scope_pathology_summary=scope_pathology_summary,
         ),
         "q15_support_audit": q15_support_audit,
+        "q35_scaling_audit": q35_scaling_audit,
+        "q35_overall_verdict": q35_scaling_audit.get("overall_verdict") if isinstance(q35_scaling_audit, dict) else None,
+        "q35_redesign_verdict": q35_scaling_audit.get("redesign_verdict") if isinstance(q35_scaling_audit, dict) else None,
+        "q35_runtime_remaining_gap_to_floor": q35_scaling_audit.get("runtime_remaining_gap_to_floor") if isinstance(q35_scaling_audit, dict) else None,
+        "q35_recommended_mode": q35_scaling_audit.get("recommended_mode") if isinstance(q35_scaling_audit, dict) else None,
+        "q35_recommended_action": q35_scaling_audit.get("recommended_action") if isinstance(q35_scaling_audit, dict) else None,
+        "q35_next_patch_target": q35_scaling_audit.get("next_patch_target") if isinstance(q35_scaling_audit, dict) else None,
         "decision_quality_horizon_minutes": result.get("decision_quality_horizon_minutes"),
         "decision_quality_calibration_scope": result.get("decision_quality_calibration_scope"),
         "decision_quality_calibration_window": result.get("decision_quality_calibration_window"),
