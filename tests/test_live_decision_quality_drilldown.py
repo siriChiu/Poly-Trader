@@ -385,12 +385,15 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
                 ],
             },
             "recommended_patch": {
-                "status": "reference_only_until_exact_support_ready",
-                "reason": "參考 patch 來自 bull|CAUTION（source: bull_4h_pocket_ablation.bull_collapse_q35），建議 profile=core_plus_macro；但 current live exact support 仍是 0/50；目前只能作治理 / 訓練參考，不可直接放行 runtime。",
+                "status": "reference_only_non_current_live_scope",
+                "reason": "參考 patch 來自 bull|CAUTION（source: bull_4h_pocket_ablation.bull_collapse_q35），但 current live scope 是 chop|CAUTION；這代表 patch 描述的是 spillover / broader lane，而不是目前 current-live row 的 deploy patch。 current live exact support 目前仍是 0/50，因此這條 patch 同時不具備 same-scope 與 exact-support 放行條件。 即使 exact support 已達 minimum rows，也只能作治理 / 訓練參考，不可直接放行 runtime。",
                 "recommended_profile": "core_plus_macro",
                 "spillover_regime_gate": "bull|BLOCK",
                 "reference_patch_scope": "bull|CAUTION",
                 "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
+                "current_live_regime_gate": "chop|CAUTION",
+                "patch_scope_matches_live": False,
+                "reference_only_cause": "non_current_live_scope",
                 "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
                 "gap_to_minimum": 50,
                 "collapse_features": [
@@ -398,7 +401,7 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
                     "feat_4h_dist_bb_lower",
                     "feat_4h_bb_pct_b",
                 ],
-                "recommended_action": "維持 0 layers；優先查 exact bucket 缺口與 same-bucket pathology，而不是再重訓。",
+                "recommended_action": "維持 reference-only patch 可見性；目前 current live 是 chop|CAUTION，但 patch 來自 bull|CAUTION spillover。 在 scope 對齊前，只可作治理 / 訓練參考，不可把它升級成 current-live deploy patch。",
             },
         },
     }
@@ -415,7 +418,10 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
     markdown = out_md.read_text(encoding="utf-8")
 
     assert payload["recommended_patch"]["recommended_profile"] == "core_plus_macro"
-    assert payload["recommended_patch"]["status"] == "reference_only_until_exact_support_ready"
+    assert payload["recommended_patch"]["status"] == "reference_only_non_current_live_scope"
+    assert payload["recommended_patch"]["reference_only_cause"] == "non_current_live_scope"
+    assert payload["recommended_patch"]["patch_scope_matches_live"] is False
+    assert payload["recommended_patch"]["current_live_regime_gate"] == "chop|CAUTION"
     assert payload["recommended_patch"]["reference_patch_scope"] == "bull|CAUTION"
     assert payload["recommended_patch"]["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
     assert payload["recommended_patch"]["spillover_regime_gate"] == "bull|BLOCK"

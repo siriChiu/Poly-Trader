@@ -1384,7 +1384,10 @@ def test_hb_predict_probe_surfaces_recommended_patch_summary_for_bull_caution_sp
     patch = summary["recommended_patch"]
     assert summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|CAUTION"
     assert patch["recommended_profile"] == "core_plus_macro"
-    assert patch["status"] == "reference_only_until_exact_support_ready"
+    assert patch["status"] == "reference_only_non_current_live_scope"
+    assert patch["reference_only_cause"] == "non_current_live_scope"
+    assert patch["patch_scope_matches_live"] is False
+    assert patch["current_live_regime_gate"] == "bull|BLOCK"
     assert patch["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
     assert patch["gap_to_minimum"] == 50
     assert patch["reference_patch_scope"] == "bull|CAUTION"
@@ -1559,7 +1562,10 @@ def test_hb_predict_probe_surfaces_reference_patch_summary_for_non_bull_live_row
     patch = summary["recommended_patch"]
     assert summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|BLOCK"
     assert patch["recommended_profile"] == "core_plus_macro"
-    assert patch["status"] == "reference_only_until_exact_support_ready"
+    assert patch["status"] == "reference_only_non_current_live_scope"
+    assert patch["reference_only_cause"] == "non_current_live_scope"
+    assert patch["patch_scope_matches_live"] is False
+    assert patch["current_live_regime_gate"] == "chop|CAUTION"
     assert patch["reference_patch_scope"] == "bull|CAUTION"
     assert patch["spillover_regime_gate"] == "bull|BLOCK"
     assert patch["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"

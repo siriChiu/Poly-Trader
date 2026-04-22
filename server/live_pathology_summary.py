@@ -252,7 +252,7 @@ def build_live_pathology_patch_summary(
         exact_support_not_ready = True
 
     non_current_live_scope = False
-    if not exact_support_not_ready and reference_patch_scope and current_live_regime_gate:
+    if reference_patch_scope and current_live_regime_gate:
         non_current_live_scope = reference_patch_scope != current_live_regime_gate
 
     deployment_blocker = str(confidence_payload.get("deployment_blocker") or "").strip() or None
@@ -263,12 +263,12 @@ def build_live_pathology_patch_summary(
     }
 
     reference_only_cause = None
-    if exact_support_not_ready:
-        reference_only_cause = "exact_support_not_ready"
-        status = "reference_only_until_exact_support_ready"
-    elif non_current_live_scope:
+    if non_current_live_scope:
         reference_only_cause = "non_current_live_scope"
         status = "reference_only_non_current_live_scope"
+    elif exact_support_not_ready:
+        reference_only_cause = "exact_support_not_ready"
+        status = "reference_only_until_exact_support_ready"
     elif deployment_blocker_active:
         reference_only_cause = "deployment_blocker_active"
         status = "reference_only_while_deployment_blocked"
@@ -290,11 +290,17 @@ def build_live_pathology_patch_summary(
             f"/{minimum_rows if minimum_rows is not None else '—'} 尚未達標，patch 只可作治理 / 訓練參考。"
         )
     elif reference_only_cause == "non_current_live_scope":
+        support_clause = ""
+        if exact_support_not_ready:
+            support_clause = (
+                f" current live exact support 目前仍是 {current_rows if current_rows is not None else '—'}"
+                f"/{minimum_rows if minimum_rows is not None else '—'}，因此這條 patch 同時不具備 same-scope 與 exact-support 放行條件。"
+            )
         reason = (
             f"參考 patch 來自 {reference_patch_scope_text}（source: {reference_source_text}），"
             f"但 current live scope 是 {current_live_regime_gate or '—'}；"
             "這代表 patch 描述的是 spillover / broader lane，而不是目前 current-live row 的 deploy patch。"
-            " 即使 exact support 已達 minimum rows，也只能作治理 / 訓練參考，不可直接放行 runtime。"
+            f"{support_clause} 即使 exact support 已達 minimum rows，也只能作治理 / 訓練參考，不可直接放行 runtime。"
         )
         recommended_action = (
             f"維持 reference-only patch 可見性；目前 current live 是 {current_live_regime_gate or '—'}，"

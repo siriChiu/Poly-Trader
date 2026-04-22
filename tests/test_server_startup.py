@@ -1852,11 +1852,15 @@ def test_build_live_runtime_closure_surface_surfaces_bull_caution_patch_summary(
     assert scope_summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|CAUTION"
     assert result["recommended_patch"] == patch_summary
     assert result["recommended_patch_profile"] == "core_plus_macro"
-    assert result["recommended_patch_status"] == "reference_only_until_exact_support_ready"
+    assert result["recommended_patch_status"] == "reference_only_non_current_live_scope"
     assert result["recommended_patch_reference_scope"] == "bull|CAUTION"
     assert result["recommended_patch_reference_source"] == patch_summary["reference_source"]
+    assert "current live scope 是 bull|BLOCK" in result["recommended_patch_reason"]
     assert "不可直接放行 runtime" in result["recommended_patch_reason"]
-    assert patch_summary["status"] == "reference_only_until_exact_support_ready"
+    assert patch_summary["status"] == "reference_only_non_current_live_scope"
+    assert patch_summary["reference_only_cause"] == "non_current_live_scope"
+    assert patch_summary["patch_scope_matches_live"] is False
+    assert patch_summary["current_live_regime_gate"] == "bull|BLOCK"
     assert patch_summary["recommended_profile"] == "core_plus_macro"
     assert patch_summary["collapse_features"] == [
         "feat_4h_dist_swing_low",

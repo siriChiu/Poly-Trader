@@ -137,12 +137,13 @@ def test_build_live_pathology_scope_surface_preserves_artifact_patch_when_live_s
     assert patch["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
 
 
-def test_build_live_pathology_scope_surface_keeps_reference_patch_visible_for_non_bull_live_rows(tmp_path):
+def test_build_live_pathology_scope_surface_marks_patch_reference_only_when_live_scope_differs_even_if_support_is_missing(tmp_path):
     artifact_path = tmp_path / "bull_4h_pocket_ablation.json"
     _write_bull_patch_artifact(artifact_path)
 
     confidence_payload = {
         "regime_label": "chop",
+        "regime_gate": "CAUTION",
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
         "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
         "support_route_deployable": False,
@@ -212,7 +213,10 @@ def test_build_live_pathology_scope_surface_keeps_reference_patch_visible_for_no
     patch = summary["recommended_patch"]
     assert summary["focus_scope"] == "entry_quality_label"
     assert summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|BLOCK"
-    assert patch["status"] == "reference_only_until_exact_support_ready"
+    assert patch["status"] == "reference_only_non_current_live_scope"
+    assert patch["reference_only_cause"] == "non_current_live_scope"
+    assert patch["patch_scope_matches_live"] is False
+    assert patch["current_live_regime_gate"] == "chop|CAUTION"
     assert patch["recommended_profile"] == "core_plus_macro"
     assert patch["spillover_regime_gate"] == "bull|BLOCK"
     assert patch["reference_patch_scope"] == "bull|CAUTION"
@@ -220,6 +224,8 @@ def test_build_live_pathology_scope_surface_keeps_reference_patch_visible_for_no
     assert patch["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
     assert patch["current_live_structure_bucket_rows"] == 0
     assert patch["gap_to_minimum"] == 50
+    assert "current live scope 是 chop|CAUTION" in patch["reason"]
+    assert "只可作治理 / 訓練參考" in patch["recommended_action"]
 
 
 def test_build_live_pathology_patch_summary_keeps_spillover_patch_reference_only_when_live_scope_differs(tmp_path):
