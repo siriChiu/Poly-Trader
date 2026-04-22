@@ -5024,41 +5024,20 @@ def _select_strategy_chart_payload(
     equity_curve: List[Dict[str, Any]],
     trades: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    if not equity_curve:
-        return {
-            "equity_curve": [],
-            "chart_context": _build_strategy_chart_context(timestamps),
-        }
+    """Build chart payload from the full executed backtest window.
 
-    trade_starts = [
-        _parse_backtest_timestamp(trade.get("entry_timestamp") or trade.get("timestamp"))
-        for trade in trades
-    ]
-    trade_ends = [
-        _parse_backtest_timestamp(trade.get("timestamp") or trade.get("entry_timestamp"))
-        for trade in trades
-    ]
-    trade_starts = [value for value in trade_starts if value is not None]
-    trade_ends = [value for value in trade_ends if value is not None]
-    if trade_starts and trade_ends:
-        start_dt = min(trade_starts)
-        end_dt = max(trade_ends)
-        selected_curve = []
-        for point in equity_curve:
-            point_dt = _parse_backtest_timestamp(point.get("timestamp"))
-            if point_dt is None:
-                continue
-            if start_dt <= point_dt <= end_dt:
-                selected_curve.append(point)
-        if not selected_curve:
-            selected_curve = list(equity_curve[-300:])
-    else:
-        selected_curve = list(equity_curve[-300:])
-
-    selected_timestamps = [str(point.get("timestamp")) for point in selected_curve if point.get("timestamp")]
+    Earlier versions cropped the persisted equity curve / chart context down to the
+    first→last trade window. That made a real 2-year backtest *look* like a 1-year
+    run whenever the strategy stayed flat for a long warm-up period before its first
+    trade. Keep the full window so operators can distinguish:
+    - no trades yet / flat equity in the first segment
+    - versus a genuinely shorter backtest range.
+    """
+    full_timestamps = [str(point.get("timestamp")) for point in equity_curve if point.get("timestamp")]
+    chart_timestamps = timestamps or full_timestamps
     return {
-        "equity_curve": selected_curve,
-        "chart_context": _build_strategy_chart_context(selected_timestamps or timestamps),
+        "equity_curve": list(equity_curve or []),
+        "chart_context": _build_strategy_chart_context(chart_timestamps),
     }
 
 
@@ -5198,6 +5177,45 @@ def _build_strategy_score_series(
     return points
 
 
+def _align_strategy_results_to_backtest_window(last_results: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(last_results, dict):
+        return last_results
+
+    backtest_range = last_results.get("backtest_range") if isinstance(last_results.get("backtest_range"), dict) else {}
+    effective = backtest_range.get("effective") if isinstance(backtest_range.get("effective"), dict) else {}
+    requested = backtest_range.get("requested") if isinstance(backtest_range.get("requested"), dict) else {}
+    display_start = effective.get("start") or requested.get("start")
+    display_end = effective.get("end") or requested.get("end")
+
+    if display_start or display_end:
+        chart_context = dict(last_results.get("chart_context") or {})
+        if chart_context:
+            current_start = _parse_backtest_timestamp(chart_context.get("start"))
+            current_end = _parse_backtest_timestamp(chart_context.get("end"))
+            target_start = _parse_backtest_timestamp(display_start) if display_start else None
+            target_end = _parse_backtest_timestamp(display_end) if display_end else None
+            if target_start and (current_start is None or target_start < current_start):
+                chart_context["start"] = display_start
+            if target_end and (current_end is None or target_end > current_end):
+                chart_context["end"] = display_end
+            last_results["chart_context"] = chart_context
+
+        equity_curve = last_results.get("equity_curve")
+        if isinstance(equity_curve, list) and equity_curve and display_start:
+            first_point = equity_curve[0] if isinstance(equity_curve[0], dict) else None
+            first_ts = _parse_backtest_timestamp(first_point.get("timestamp")) if first_point else None
+            target_start = _parse_backtest_timestamp(display_start)
+            if first_point and target_start and first_ts and target_start < first_ts:
+                prefix_point = dict(first_point)
+                prefix_point["timestamp"] = display_start
+                prefix_point["position_pct"] = 0.0
+                prefix_point["position_layers"] = 0
+                last_results["equity_curve"] = [prefix_point, *equity_curve]
+
+    return last_results
+
+
+
 def _decorate_strategy_entry(entry: Dict[str, Any], db=None) -> Dict[str, Any]:
     enriched = dict(entry)
     last_results = dict(entry.get("last_results") or {})
@@ -5239,6 +5257,7 @@ def _decorate_strategy_entry(entry: Dict[str, Any], db=None) -> Dict[str, Any]:
         effective_scorecard[key] = last_results.get(key)
 
     last_results["sort_semantics"] = STRATEGY_LB_SORT_SEMANTICS_V2
+    last_results = _align_strategy_results_to_backtest_window(last_results)
     last_results = _normalize_result_timestamps(last_results)
     enriched["last_results"] = last_results or None
     enriched["decision_contract"] = {

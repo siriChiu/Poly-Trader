@@ -156,10 +156,60 @@ def test_save_strategy_reconstructs_backtest_range_when_legacy_results_dropped_i
     assert recovered_range["requested"]["end"] == "2026-04-19T22:40:00.000Z"
     assert recovered_range["effective"]["start"] == "2024-04-19T22:40:00.000Z"
     assert recovered_range["effective"]["end"] == "2026-04-19T22:40:00.000Z"
-    assert recovered_range["available"]["start"] == "2025-04-06T17:00:00Z"
-    assert recovered_range["available"]["end"] == "2026-04-19T22:34:02.344375Z"
+    assert recovered_range["available"]["start"] == "2024-04-19T22:40:00.000Z"
+    assert recovered_range["available"]["end"] == "2026-04-19T22:40:00.000Z"
     assert recovered_range["coverage_ok"] is True
     assert recovered_range["backfill_required"] is False
+
+
+def test_save_strategy_backtest_range_does_not_keep_narrow_trade_window_as_available(isolated_strategies_dir: Path):
+    strategy_lab.save_strategy(
+        "Backtest Range Available Repair",
+        {
+            "type": "hybrid",
+            "params": {
+                "model_name": "logistic_regression",
+                "backtest_range": {
+                    "start": "2024-04-21T12:22:00.000Z",
+                    "end": "2026-04-21T12:22:00.000Z",
+                },
+            },
+        },
+        {
+            "total_trades": 28,
+            "chart_context": {
+                "symbol": "BTCUSDT",
+                "interval": "4h",
+                "start": "2025-04-06T18:00:00Z",
+                "end": "2026-04-20T07:10:51.963755Z",
+            },
+            "backtest_range": {
+                "requested": {
+                    "start": "2024-04-21T12:22:00Z",
+                    "end": "2026-04-21T12:22:00Z",
+                },
+                "effective": {
+                    "start": "2024-04-21T13:00:00Z",
+                    "end": "2026-04-21T12:21:26.249498Z",
+                },
+                "available": {
+                    "start": "2025-04-06T18:00:00Z",
+                    "end": "2026-04-20T07:10:51.963755Z",
+                },
+                "coverage_ok": True,
+                "backfill_required": False,
+            },
+        },
+    )
+
+    loaded = strategy_lab.load_strategy("Backtest Range Available Repair")
+
+    assert loaded is not None
+    repaired_range = loaded["last_results"]["backtest_range"]
+    assert repaired_range["effective"]["start"] == "2024-04-21T13:00:00Z"
+    assert repaired_range["effective"]["end"] == "2026-04-21T12:21:26.249498Z"
+    assert repaired_range["available"]["start"] == "2024-04-21T13:00:00Z"
+    assert repaired_range["available"]["end"] == "2026-04-21T12:21:26.249498Z"
 
 
 def test_save_strategy_persists_decision_profile_fields(isolated_strategies_dir: Path):
@@ -383,7 +433,7 @@ def test_compute_regime_breakdown_groups_by_entry_regime():
     assert breakdown[1]["profit_factor"] == pytest.approx(3000.0)
 
 
-def test_select_strategy_chart_payload_aligns_equity_with_trade_window():
+def test_select_strategy_chart_payload_keeps_full_backtest_window_visible():
     equity_curve = [
         {"timestamp": f"2025-01-01T00:{idx:02d}:00Z", "equity": 10000 + idx}
         for idx in range(10)
@@ -403,10 +453,76 @@ def test_select_strategy_chart_payload_aligns_equity_with_trade_window():
     )
 
     selected_times = [row["timestamp"] for row in payload["equity_curve"]]
-    assert selected_times[0].startswith("2025-01-01T00:02")
-    assert selected_times[-1].startswith("2025-01-01T00:07")
-    assert payload["chart_context"]["start"].startswith("2025-01-01T00:02")
-    assert payload["chart_context"]["end"].startswith("2025-01-01T00:07")
+    assert selected_times[0].startswith("2025-01-01T00:00")
+    assert selected_times[-1].startswith("2026-01-01T00:09")
+    assert payload["chart_context"]["start"].startswith("2025-01-01T00:00")
+    assert payload["chart_context"]["end"].startswith("2026-01-01T00:09")
+
+
+
+def test_decorate_strategy_entry_expands_legacy_equity_curve_to_backtest_start():
+    entry = {
+        "name": "Legacy Truncated Equity",
+        "definition": {
+            "type": "hybrid",
+            "params": {
+                "backtest_range": {
+                    "start": "2024-04-21T12:22:00Z",
+                    "end": "2026-04-21T12:22:00Z",
+                },
+            },
+        },
+        "last_results": {
+            "roi": 0.027,
+            "win_rate": 0.5,
+            "total_trades": 28,
+            "chart_context": {
+                "symbol": "BTCUSDT",
+                "interval": "4h",
+                "start": "2025-04-06T18:00:00Z",
+                "end": "2026-04-20T07:10:51.963755Z",
+            },
+            "backtest_range": {
+                "requested": {
+                    "start": "2024-04-21T12:22:00Z",
+                    "end": "2026-04-21T12:22:00Z",
+                },
+                "effective": {
+                    "start": "2024-04-21T13:00:00Z",
+                    "end": "2026-04-21T12:21:26.249498Z",
+                },
+                "available": {
+                    "start": "2024-04-21T13:00:00Z",
+                    "end": "2026-04-21T12:21:26.249498Z",
+                },
+            },
+            "equity_curve": [
+                {
+                    "timestamp": "2025-04-06T18:00:00Z",
+                    "equity": 10000.0,
+                    "position_pct": 0.1,
+                    "position_layers": 1,
+                },
+                {
+                    "timestamp": "2025-04-06T19:00:00Z",
+                    "equity": 10002.0,
+                    "position_pct": 0.1,
+                    "position_layers": 1,
+                },
+            ],
+            "trades": [],
+        },
+    }
+
+    decorated = _decorate_strategy_entry(entry)
+    results = decorated["last_results"]
+
+    assert results["chart_context"]["start"] == "2024-04-21T13:00:00Z"
+    assert results["chart_context"]["end"] == "2026-04-21T12:21:26.249498Z"
+    assert results["equity_curve"][0]["timestamp"] == "2024-04-21T13:00:00Z"
+    assert results["equity_curve"][0]["equity"] == pytest.approx(10000.0)
+    assert results["equity_curve"][0]["position_pct"] == pytest.approx(0.0)
+    assert results["equity_curve"][1]["timestamp"] == "2025-04-06T18:00:00Z"
 
 
 def test_filter_strategy_rows_by_backtest_range_reports_missing_history():

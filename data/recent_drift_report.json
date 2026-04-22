@@ -1,19 +1,19 @@
 {
   "target_col": "simulated_pyramid_win",
   "horizon_minutes": 1440,
-  "generated_at": "2026-04-22T15:23:50.017683+00:00",
+  "generated_at": "2026-04-22T15:50:39.177666+00:00",
   "source_meta": {
-    "label_rows": 22738,
-    "latest_label_timestamp": "2026-04-21 16:01:00.665468"
+    "label_rows": 22739,
+    "latest_label_timestamp": "2026-04-21 16:47:59.250640"
   },
   "full_sample": {
-    "rows": 22738,
+    "rows": 22739,
     "win_rate": 0.6271,
     "feature_count": 56,
     "regime_counts": {
       "chop": 10953,
       "bear": 1375,
-      "bull": 10262,
+      "bull": 10263,
       "neutral": 148
     },
     "regime_pct": {
@@ -26,10 +26,10 @@
   "windows": {
     "100": {
       "rows": 100,
-      "wins": 93,
-      "losses": 7,
-      "win_rate": 0.93,
-      "win_rate_delta_vs_full": 0.3029,
+      "wins": 94,
+      "losses": 6,
+      "win_rate": 0.94,
+      "win_rate_delta_vs_full": 0.3129,
       "unique_targets": [
         0,
         1
@@ -47,14 +47,14 @@
         "chop": 0.08
       },
       "quality_metrics": {
-        "simulated_win_rate": 0.93,
-        "spot_long_win_rate": 0.63,
-        "avg_simulated_pnl": 0.016,
-        "avg_simulated_quality": 0.5175,
-        "avg_drawdown_penalty": 0.2522,
-        "avg_time_underwater": 0.5108,
-        "avg_future_return_pct": 0.0186,
-        "avg_future_max_runup": 0.0234,
+        "simulated_win_rate": 0.94,
+        "spot_long_win_rate": 0.64,
+        "avg_simulated_pnl": 0.0163,
+        "avg_simulated_quality": 0.5258,
+        "avg_drawdown_penalty": 0.2521,
+        "avg_time_underwater": 0.5093,
+        "avg_future_return_pct": 0.0191,
+        "avg_future_max_runup": 0.0237,
         "avg_future_max_drawdown": -0.0127
       },
       "feature_diagnostics": {
@@ -66,31 +66,31 @@
           "weekend_share": 0.0,
           "weekend_dominant": false,
           "weekday_count": 100,
-          "weekday_market_open_count": 17,
-          "weekday_market_closed_count": 83,
-          "weekday_market_closed_share": 0.83,
+          "weekday_market_open_count": 18,
+          "weekday_market_closed_count": 82,
+          "weekday_market_closed_share": 0.82,
           "weekday_market_closed_dominant": false
         },
-        "low_variance_count": 17,
+        "low_variance_count": 18,
         "low_distinct_count": 10,
         "frozen_count": 0,
-        "compressed_count": 17,
+        "compressed_count": 18,
         "expected_static_count": 0,
         "expected_compressed_count": 4,
         "overlay_only_count": 2,
         "unexpected_frozen_count": 0,
-        "unexpected_compressed_count": 11,
+        "unexpected_compressed_count": 12,
         "null_heavy_count": 10,
         "low_variance_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.6174,
-            "baseline_std": 18549.9659,
+            "recent_std": 0.6192,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0,
             "recent_range": 2.0389,
             "baseline_range": 1272817.1727,
             "recent_distinct": 100,
-            "baseline_distinct": 14246,
+            "baseline_distinct": 14247,
             "distinct_ratio": 0.007,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -105,7 +105,7 @@
             "recent_range": 0.0243,
             "baseline_range": 10.9755,
             "recent_distinct": 100,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0044,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -120,7 +120,7 @@
             "recent_range": 0.013,
             "baseline_range": 0.8909,
             "recent_distinct": 100,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.007,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -134,27 +134,44 @@
             "std_ratio": 0.0179,
             "recent_range": 0.0184,
             "baseline_range": 0.9772,
-            "recent_distinct": 99,
-            "baseline_distinct": 22317,
-            "distinct_ratio": 0.0044,
+            "recent_distinct": 100,
+            "baseline_distinct": 22318,
+            "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
             "overlay_only_reason": null
           },
           {
-            "feature": "feat_vix",
-            "recent_std": 0.1718,
-            "baseline_std": 4.9804,
-            "std_ratio": 0.0345,
-            "recent_range": 1.01,
-            "baseline_range": 42.59,
-            "recent_distinct": 30,
-            "baseline_distinct": 1436,
-            "distinct_ratio": 0.0209,
+            "feature": "feat_atr_pct",
+            "recent_std": 0.0,
+            "baseline_std": 0.0011,
+            "std_ratio": 0.038,
+            "recent_range": 0.0002,
+            "baseline_range": 0.022,
+            "recent_distinct": 100,
+            "baseline_distinct": 18592,
+            "distinct_ratio": 0.0054,
             "expected_static_reason": null,
-            "expected_compressed_reason": null,
-            "expected_compressed_details": null,
+            "expected_compressed_reason": "underlying_raw_volatility_compression",
+            "expected_compressed_details": {
+              "reason": "underlying_raw_volatility_compression",
+              "proxy_cols": [
+                "raw_volatility"
+              ],
+              "compressed_proxy_count": 1,
+              "min_required_proxies": 1,
+              "proxy_stats": {
+                "raw_volatility": {
+                  "recent_std": 0.0002,
+                  "baseline_std": 0.0013,
+                  "std_ratio": 0.1436,
+                  "recent_mean": 0.0038,
+                  "baseline_mean": 0.0041,
+                  "mean_delta": -0.0002
+                }
+              }
+            },
             "overlay_only_reason": null
           }
         ],
@@ -229,13 +246,13 @@
         "compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.6174,
-            "baseline_std": 18549.9659,
+            "recent_std": 0.6192,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0,
             "recent_range": 2.0389,
             "baseline_range": 1272817.1727,
             "recent_distinct": 100,
-            "baseline_distinct": 14246,
+            "baseline_distinct": 14247,
             "distinct_ratio": 0.007,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -250,7 +267,7 @@
             "recent_range": 0.0243,
             "baseline_range": 10.9755,
             "recent_distinct": 100,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0044,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -265,7 +282,7 @@
             "recent_range": 0.013,
             "baseline_range": 0.8909,
             "recent_distinct": 100,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.007,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -279,27 +296,44 @@
             "std_ratio": 0.0179,
             "recent_range": 0.0184,
             "baseline_range": 0.9772,
-            "recent_distinct": 99,
-            "baseline_distinct": 22317,
-            "distinct_ratio": 0.0044,
+            "recent_distinct": 100,
+            "baseline_distinct": 22318,
+            "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
             "overlay_only_reason": null
           },
           {
-            "feature": "feat_vix",
-            "recent_std": 0.1718,
-            "baseline_std": 4.9804,
-            "std_ratio": 0.0345,
-            "recent_range": 1.01,
-            "baseline_range": 42.59,
-            "recent_distinct": 30,
-            "baseline_distinct": 1436,
-            "distinct_ratio": 0.0209,
+            "feature": "feat_atr_pct",
+            "recent_std": 0.0,
+            "baseline_std": 0.0011,
+            "std_ratio": 0.038,
+            "recent_range": 0.0002,
+            "baseline_range": 0.022,
+            "recent_distinct": 100,
+            "baseline_distinct": 18592,
+            "distinct_ratio": 0.0054,
             "expected_static_reason": null,
-            "expected_compressed_reason": null,
-            "expected_compressed_details": null,
+            "expected_compressed_reason": "underlying_raw_volatility_compression",
+            "expected_compressed_details": {
+              "reason": "underlying_raw_volatility_compression",
+              "proxy_cols": [
+                "raw_volatility"
+              ],
+              "compressed_proxy_count": 1,
+              "min_required_proxies": 1,
+              "proxy_stats": {
+                "raw_volatility": {
+                  "recent_std": 0.0002,
+                  "baseline_std": 0.0013,
+                  "std_ratio": 0.1436,
+                  "recent_mean": 0.0038,
+                  "baseline_mean": 0.0041,
+                  "mean_delta": -0.0002
+                }
+              }
+            },
             "overlay_only_reason": null
           }
         ],
@@ -307,14 +341,14 @@
         "expected_compressed_examples": [
           {
             "feature": "feat_4h_dist_bb_lower",
-            "recent_std": 0.2927,
+            "recent_std": 0.2917,
             "baseline_std": 2.2384,
-            "std_ratio": 0.1308,
+            "std_ratio": 0.1303,
             "recent_range": 1.3307,
             "baseline_range": 24.0661,
-            "recent_distinct": 98,
-            "baseline_distinct": 16211,
-            "distinct_ratio": 0.006,
+            "recent_distinct": 99,
+            "baseline_distinct": 16212,
+            "distinct_ratio": 0.0061,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_band_floor_compression",
             "expected_compressed_details": {
@@ -329,36 +363,36 @@
               "min_required_proxies": 3,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 263.5233,
-                  "baseline_std": 18273.7052,
+                  "recent_std": 263.5583,
+                  "baseline_std": 18273.3658,
                   "std_ratio": 0.0144,
-                  "recent_mean": 75979.7528,
-                  "baseline_mean": 83229.1945,
-                  "mean_delta": -7249.4417
+                  "recent_mean": 75979.2669,
+                  "baseline_mean": 83228.8723,
+                  "mean_delta": -7249.6054
                 },
                 "raw_volatility": {
                   "recent_std": 0.0002,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.1374,
+                  "std_ratio": 0.1436,
                   "recent_mean": 0.0038,
                   "baseline_mean": 0.0041,
                   "mean_delta": -0.0002
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0987,
+                  "recent_std": 0.0985,
                   "baseline_std": 0.3207,
-                  "std_ratio": 0.3079,
-                  "recent_mean": 0.6134,
+                  "std_ratio": 0.3072,
+                  "recent_mean": 0.6114,
                   "baseline_mean": 0.564,
-                  "mean_delta": 0.0494
+                  "mean_delta": 0.0475
                 },
                 "feat_4h_dist_swing_low": {
                   "recent_std": 0.3422,
-                  "baseline_std": 3.4802,
+                  "baseline_std": 3.4801,
                   "std_ratio": 0.0983,
-                  "recent_mean": 2.97,
+                  "recent_mean": 2.9704,
                   "baseline_mean": 3.1649,
-                  "mean_delta": -0.1949
+                  "mean_delta": -0.1945
                 }
               }
             },
@@ -367,12 +401,12 @@
           {
             "feature": "feat_4h_dist_swing_low",
             "recent_std": 0.3422,
-            "baseline_std": 3.4802,
+            "baseline_std": 3.4801,
             "std_ratio": 0.0983,
             "recent_range": 1.5808,
             "baseline_range": 126.9125,
-            "recent_distinct": 98,
-            "baseline_distinct": 16105,
+            "recent_distinct": 99,
+            "baseline_distinct": 16106,
             "distinct_ratio": 0.0061,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_support_cluster_compression",
@@ -388,36 +422,36 @@
               "min_required_proxies": 3,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 263.5233,
-                  "baseline_std": 18273.7052,
+                  "recent_std": 263.5583,
+                  "baseline_std": 18273.3658,
                   "std_ratio": 0.0144,
-                  "recent_mean": 75979.7528,
-                  "baseline_mean": 83229.1945,
-                  "mean_delta": -7249.4417
+                  "recent_mean": 75979.2669,
+                  "baseline_mean": 83228.8723,
+                  "mean_delta": -7249.6054
                 },
                 "raw_volatility": {
                   "recent_std": 0.0002,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.1374,
+                  "std_ratio": 0.1436,
                   "recent_mean": 0.0038,
                   "baseline_mean": 0.0041,
                   "mean_delta": -0.0002
                 },
                 "feat_4h_dist_bb_lower": {
-                  "recent_std": 0.2927,
+                  "recent_std": 0.2917,
                   "baseline_std": 2.2384,
-                  "std_ratio": 0.1308,
-                  "recent_mean": 1.8863,
+                  "std_ratio": 0.1303,
+                  "recent_mean": 1.8804,
                   "baseline_mean": 2.5513,
-                  "mean_delta": -0.6651
+                  "mean_delta": -0.6709
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0987,
+                  "recent_std": 0.0985,
                   "baseline_std": 0.3207,
-                  "std_ratio": 0.3079,
-                  "recent_mean": 0.6134,
+                  "std_ratio": 0.3072,
+                  "recent_mean": 0.6114,
                   "baseline_mean": 0.564,
-                  "mean_delta": 0.0494
+                  "mean_delta": 0.0475
                 }
               }
             },
@@ -430,9 +464,9 @@
             "std_ratio": 0.0671,
             "recent_range": 1.6789,
             "baseline_range": 40.7284,
-            "recent_distinct": 98,
-            "baseline_distinct": 16210,
-            "distinct_ratio": 0.006,
+            "recent_distinct": 99,
+            "baseline_distinct": 16211,
+            "distinct_ratio": 0.0061,
             "expected_static_reason": null,
             "expected_compressed_reason": "underlying_price_and_volatility_compression",
             "expected_compressed_details": {
@@ -445,17 +479,17 @@
               "min_required_proxies": 2,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 263.5233,
-                  "baseline_std": 18273.7052,
+                  "recent_std": 263.5583,
+                  "baseline_std": 18273.3658,
                   "std_ratio": 0.0144,
-                  "recent_mean": 75979.7528,
-                  "baseline_mean": 83229.1945,
-                  "mean_delta": -7249.4417
+                  "recent_mean": 75979.2669,
+                  "baseline_mean": 83228.8723,
+                  "mean_delta": -7249.6054
                 },
                 "raw_volatility": {
                   "recent_std": 0.0002,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.1374,
+                  "std_ratio": 0.1436,
                   "recent_mean": 0.0038,
                   "baseline_mean": 0.0041,
                   "mean_delta": -0.0002
@@ -472,7 +506,7 @@
             "recent_range": 0.0002,
             "baseline_range": 0.022,
             "recent_distinct": 100,
-            "baseline_distinct": 18591,
+            "baseline_distinct": 18592,
             "distinct_ratio": 0.0054,
             "expected_static_reason": null,
             "expected_compressed_reason": "underlying_raw_volatility_compression",
@@ -487,7 +521,7 @@
                 "raw_volatility": {
                   "recent_std": 0.0002,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.1374,
+                  "std_ratio": 0.1436,
                   "recent_mean": 0.0038,
                   "baseline_mean": 0.0041,
                   "mean_delta": -0.0002
@@ -500,14 +534,14 @@
         "overlay_only_examples": [
           {
             "feature": "feat_claw_intensity",
-            "recent_std": 0.041,
-            "baseline_std": 0.3036,
-            "std_ratio": 0.1349,
+            "recent_std": 0.0446,
+            "baseline_std": 0.3035,
+            "std_ratio": 0.147,
             "recent_range": 0.2512,
             "baseline_range": 0.9794,
-            "recent_distinct": 71,
-            "baseline_distinct": 1024,
-            "distinct_ratio": 0.0693,
+            "recent_distinct": 72,
+            "baseline_distinct": 1025,
+            "distinct_ratio": 0.0702,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -517,12 +551,12 @@
             "feature": "feat_scales_ssr",
             "recent_std": 0.0002,
             "baseline_std": 0.0045,
-            "std_ratio": 0.0483,
+            "std_ratio": 0.0466,
             "recent_range": 0.0009,
             "baseline_range": 0.1368,
-            "recent_distinct": 81,
-            "baseline_distinct": 3251,
-            "distinct_ratio": 0.0249,
+            "recent_distinct": 82,
+            "baseline_distinct": 3252,
+            "distinct_ratio": 0.0252,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -533,13 +567,13 @@
         "unexpected_compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.6174,
-            "baseline_std": 18549.9659,
+            "recent_std": 0.6192,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0,
             "recent_range": 2.0389,
             "baseline_range": 1272817.1727,
             "recent_distinct": 100,
-            "baseline_distinct": 14246,
+            "baseline_distinct": 14247,
             "distinct_ratio": 0.007,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -554,7 +588,7 @@
             "recent_range": 0.0243,
             "baseline_range": 10.9755,
             "recent_distinct": 100,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0044,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -569,7 +603,7 @@
             "recent_range": 0.013,
             "baseline_range": 0.8909,
             "recent_distinct": 100,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.007,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -583,9 +617,9 @@
             "std_ratio": 0.0179,
             "recent_range": 0.0184,
             "baseline_range": 0.9772,
-            "recent_distinct": 99,
-            "baseline_distinct": 22317,
-            "distinct_ratio": 0.0044,
+            "recent_distinct": 100,
+            "baseline_distinct": 22318,
+            "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -593,14 +627,14 @@
           },
           {
             "feature": "feat_vix",
-            "recent_std": 0.1718,
-            "baseline_std": 4.9804,
-            "std_ratio": 0.0345,
-            "recent_range": 1.01,
+            "recent_std": 0.1943,
+            "baseline_std": 4.9803,
+            "std_ratio": 0.039,
+            "recent_range": 1.11,
             "baseline_range": 42.59,
-            "recent_distinct": 30,
+            "recent_distinct": 31,
             "baseline_distinct": 1436,
-            "distinct_ratio": 0.0209,
+            "distinct_ratio": 0.0216,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -641,34 +675,19 @@
         ]
       },
       "target_path_diagnostics": {
-        "window_start_timestamp": "2026-04-20 22:33:13.188596",
-        "window_end_timestamp": "2026-04-21 16:01:00.665468",
+        "window_start_timestamp": "2026-04-20 22:33:13.810035",
+        "window_end_timestamp": "2026-04-21 16:47:59.250640",
         "latest_target": 1,
         "tail_target_streak": {
           "target": 1,
-          "count": 93,
+          "count": 94,
           "start_timestamp": "2026-04-21 00:05:39.160858",
-          "end_timestamp": "2026-04-21 16:01:00.665468",
+          "end_timestamp": "2026-04-21 16:47:59.250640",
           "regime_counts": {
-            "bull": 86,
+            "bull": 87,
             "chop": 7
           },
           "examples": [
-            {
-              "label_id": 72721,
-              "timestamp": "2026-04-21 15:24:58.014294",
-              "symbol": "BTCUSDT",
-              "target": 1,
-              "regime": "bull",
-              "spot_long_win": 1.0,
-              "simulated_pyramid_pnl": 0.0208,
-              "simulated_pyramid_quality": 0.6227,
-              "simulated_pyramid_drawdown_penalty": 0.1968,
-              "simulated_pyramid_time_underwater": 0.4762,
-              "future_return_pct": 0.0399,
-              "future_max_drawdown": -0.0098,
-              "future_max_runup": 0.0441
-            },
             {
               "label_id": 72730,
               "timestamp": "2026-04-21 15:44:50.041186",
@@ -698,34 +717,34 @@
               "future_return_pct": 0.04,
               "future_max_drawdown": -0.0118,
               "future_max_runup": 0.042
+            },
+            {
+              "label_id": 72739,
+              "timestamp": "2026-04-21 16:47:59.250640",
+              "symbol": "BTCUSDT",
+              "target": 1,
+              "regime": "bull",
+              "spot_long_win": 1.0,
+              "simulated_pyramid_pnl": 0.0227,
+              "simulated_pyramid_quality": 0.6329,
+              "simulated_pyramid_drawdown_penalty": 0.2423,
+              "simulated_pyramid_time_underwater": 0.5246,
+              "future_return_pct": 0.0445,
+              "future_max_drawdown": -0.0121,
+              "future_max_runup": 0.0445
             }
           ]
         },
         "longest_target_streak": {
           "target": 1,
-          "count": 93,
+          "count": 94,
           "start_timestamp": "2026-04-21 00:05:39.160858",
-          "end_timestamp": "2026-04-21 16:01:00.665468",
+          "end_timestamp": "2026-04-21 16:47:59.250640",
           "regime_counts": {
-            "bull": 86,
+            "bull": 87,
             "chop": 7
           },
           "examples": [
-            {
-              "label_id": 72721,
-              "timestamp": "2026-04-21 15:24:58.014294",
-              "symbol": "BTCUSDT",
-              "target": 1,
-              "regime": "bull",
-              "spot_long_win": 1.0,
-              "simulated_pyramid_pnl": 0.0208,
-              "simulated_pyramid_quality": 0.6227,
-              "simulated_pyramid_drawdown_penalty": 0.1968,
-              "simulated_pyramid_time_underwater": 0.4762,
-              "future_return_pct": 0.0399,
-              "future_max_drawdown": -0.0098,
-              "future_max_runup": 0.0441
-            },
             {
               "label_id": 72730,
               "timestamp": "2026-04-21 15:44:50.041186",
@@ -755,16 +774,31 @@
               "future_return_pct": 0.04,
               "future_max_drawdown": -0.0118,
               "future_max_runup": 0.042
+            },
+            {
+              "label_id": 72739,
+              "timestamp": "2026-04-21 16:47:59.250640",
+              "symbol": "BTCUSDT",
+              "target": 1,
+              "regime": "bull",
+              "spot_long_win": 1.0,
+              "simulated_pyramid_pnl": 0.0227,
+              "simulated_pyramid_quality": 0.6329,
+              "simulated_pyramid_drawdown_penalty": 0.2423,
+              "simulated_pyramid_time_underwater": 0.5246,
+              "future_return_pct": 0.0445,
+              "future_max_drawdown": -0.0121,
+              "future_max_runup": 0.0445
             }
           ]
         },
         "longest_zero_target_streak": {
           "target": 0,
-          "count": 7,
-          "start_timestamp": "2026-04-20 22:33:13.188596",
+          "count": 6,
+          "start_timestamp": "2026-04-20 22:33:13.810035",
           "end_timestamp": "2026-04-20 23:49:40.799393",
           "regime_counts": {
-            "bull": 6,
+            "bull": 5,
             "chop": 1
           },
           "examples": [
@@ -817,29 +851,14 @@
         },
         "longest_one_target_streak": {
           "target": 1,
-          "count": 93,
+          "count": 94,
           "start_timestamp": "2026-04-21 00:05:39.160858",
-          "end_timestamp": "2026-04-21 16:01:00.665468",
+          "end_timestamp": "2026-04-21 16:47:59.250640",
           "regime_counts": {
-            "bull": 86,
+            "bull": 87,
             "chop": 7
           },
           "examples": [
-            {
-              "label_id": 72721,
-              "timestamp": "2026-04-21 15:24:58.014294",
-              "symbol": "BTCUSDT",
-              "target": 1,
-              "regime": "bull",
-              "spot_long_win": 1.0,
-              "simulated_pyramid_pnl": 0.0208,
-              "simulated_pyramid_quality": 0.6227,
-              "simulated_pyramid_drawdown_penalty": 0.1968,
-              "simulated_pyramid_time_underwater": 0.4762,
-              "future_return_pct": 0.0399,
-              "future_max_drawdown": -0.0098,
-              "future_max_runup": 0.0441
-            },
             {
               "label_id": 72730,
               "timestamp": "2026-04-21 15:44:50.041186",
@@ -869,31 +888,31 @@
               "future_return_pct": 0.04,
               "future_max_drawdown": -0.0118,
               "future_max_runup": 0.042
+            },
+            {
+              "label_id": 72739,
+              "timestamp": "2026-04-21 16:47:59.250640",
+              "symbol": "BTCUSDT",
+              "target": 1,
+              "regime": "bull",
+              "spot_long_win": 1.0,
+              "simulated_pyramid_pnl": 0.0227,
+              "simulated_pyramid_quality": 0.6329,
+              "simulated_pyramid_drawdown_penalty": 0.2423,
+              "simulated_pyramid_time_underwater": 0.5246,
+              "future_return_pct": 0.0445,
+              "future_max_drawdown": -0.0121,
+              "future_max_runup": 0.0445
             }
           ]
         },
         "target_regime_breakdown": {
-          "bull:0": 6,
+          "bull:0": 5,
           "chop:0": 1,
-          "bull:1": 86,
+          "bull:1": 87,
           "chop:1": 7
         },
         "recent_examples": [
-          {
-            "label_id": 72719,
-            "timestamp": "2026-04-21 15:07:39.837392",
-            "symbol": "BTCUSDT",
-            "target": 1,
-            "regime": "bull",
-            "spot_long_win": 1.0,
-            "simulated_pyramid_pnl": 0.02,
-            "simulated_pyramid_quality": 0.6238,
-            "simulated_pyramid_drawdown_penalty": 0.1797,
-            "simulated_pyramid_time_underwater": 0.4032,
-            "future_return_pct": 0.0408,
-            "future_max_drawdown": -0.009,
-            "future_max_runup": 0.045
-          },
           {
             "label_id": 72720,
             "timestamp": "2026-04-21 15:13:53.629704",
@@ -953,50 +972,65 @@
             "future_return_pct": 0.04,
             "future_max_drawdown": -0.0118,
             "future_max_runup": 0.042
+          },
+          {
+            "label_id": 72739,
+            "timestamp": "2026-04-21 16:47:59.250640",
+            "symbol": "BTCUSDT",
+            "target": 1,
+            "regime": "bull",
+            "spot_long_win": 1.0,
+            "simulated_pyramid_pnl": 0.0227,
+            "simulated_pyramid_quality": 0.6329,
+            "simulated_pyramid_drawdown_penalty": 0.2423,
+            "simulated_pyramid_time_underwater": 0.5246,
+            "future_return_pct": 0.0445,
+            "future_max_drawdown": -0.0121,
+            "future_max_runup": 0.0445
           }
         ]
       },
       "reference_window_comparison": {
         "current_rows": 100,
         "reference_rows": 100,
-        "current_start_timestamp": "2026-04-20 22:33:13.188596",
-        "current_end_timestamp": "2026-04-21 16:01:00.665468",
-        "reference_start_timestamp": "2026-04-20 04:34:39.688050",
-        "reference_end_timestamp": "2026-04-20 22:15:35.699412",
+        "current_start_timestamp": "2026-04-20 22:33:13.810035",
+        "current_end_timestamp": "2026-04-21 16:47:59.250640",
+        "reference_start_timestamp": "2026-04-20 04:36:46.944854",
+        "reference_end_timestamp": "2026-04-20 22:33:13.188596",
         "current_quality": {
-          "win_rate": 0.93,
-          "spot_long_win_rate": 0.63,
-          "avg_simulated_pnl": 0.016,
-          "avg_simulated_quality": 0.5175,
-          "avg_drawdown_penalty": 0.2522,
-          "avg_time_underwater": 0.5108
+          "win_rate": 0.94,
+          "spot_long_win_rate": 0.64,
+          "avg_simulated_pnl": 0.0163,
+          "avg_simulated_quality": 0.5258,
+          "avg_drawdown_penalty": 0.2521,
+          "avg_time_underwater": 0.5093
         },
         "reference_quality": {
-          "win_rate": 0.64,
-          "spot_long_win_rate": 0.37,
-          "avg_simulated_pnl": 0.0076,
-          "avg_simulated_quality": 0.3285,
-          "avg_drawdown_penalty": 0.1174,
-          "avg_time_underwater": 0.3052
+          "win_rate": 0.63,
+          "spot_long_win_rate": 0.36,
+          "avg_simulated_pnl": 0.0073,
+          "avg_simulated_quality": 0.3196,
+          "avg_drawdown_penalty": 0.1191,
+          "avg_time_underwater": 0.3108
         },
-        "win_rate_delta_vs_reference": 0.29,
-        "spot_long_win_rate_delta_vs_reference": 0.26,
-        "avg_simulated_pnl_delta_vs_reference": 0.0084,
-        "avg_simulated_quality_delta_vs_reference": 0.189,
-        "avg_drawdown_penalty_delta_vs_reference": 0.1348,
-        "avg_time_underwater_delta_vs_reference": 0.2056,
+        "win_rate_delta_vs_reference": 0.31,
+        "spot_long_win_rate_delta_vs_reference": 0.28,
+        "avg_simulated_pnl_delta_vs_reference": 0.009,
+        "avg_simulated_quality_delta_vs_reference": 0.2062,
+        "avg_drawdown_penalty_delta_vs_reference": 0.133,
+        "avg_time_underwater_delta_vs_reference": 0.1985,
         "current_dominant_regime": "bull",
         "reference_dominant_regime": "chop",
         "regime_share_deltas": {
           "bull": {
             "current_share": 0.92,
-            "reference_share": 0.36,
-            "share_delta": 0.56
+            "reference_share": 0.37,
+            "share_delta": 0.55
           },
           "chop": {
             "current_share": 0.08,
-            "reference_share": 0.64,
-            "share_delta": -0.56
+            "reference_share": 0.63,
+            "share_delta": -0.55
           }
         },
         "new_unexpected_frozen_features": [],
@@ -1007,42 +1041,42 @@
         "top_mean_shift_features": [
           {
             "feature": "feat_local_bottom_score",
-            "current_mean": 0.4417,
-            "reference_mean": 0.1634,
-            "mean_delta": 0.2783,
-            "delta_vs_baseline_std": 1.2192,
+            "current_mean": 0.443,
+            "reference_mean": 0.1645,
+            "mean_delta": 0.2784,
+            "delta_vs_baseline_std": 1.2198,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_local_top_score",
-            "current_mean": 0.338,
-            "reference_mean": 0.588,
-            "mean_delta": -0.25,
-            "delta_vs_baseline_std": 1.1122,
+            "current_mean": 0.3352,
+            "reference_mean": 0.5886,
+            "mean_delta": -0.2534,
+            "delta_vs_baseline_std": 1.1273,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_eye",
-            "current_mean": -0.2336,
-            "reference_mean": 3.7473,
-            "mean_delta": -3.9809,
-            "delta_vs_baseline_std": 1.0345,
+            "current_mean": -0.1977,
+            "reference_mean": 3.6962,
+            "mean_delta": -3.8938,
+            "delta_vs_baseline_std": 1.012,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_ma_order",
             "current_mean": 0.92,
-            "reference_mean": 0.36,
-            "mean_delta": 0.56,
-            "delta_vs_baseline_std": 0.8191,
+            "reference_mean": 0.37,
+            "mean_delta": 0.55,
+            "delta_vs_baseline_std": 0.8045,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_rsi14",
-            "current_mean": 0.4964,
-            "reference_mean": 0.59,
-            "mean_delta": -0.0936,
-            "delta_vs_baseline_std": 0.6748,
+            "current_mean": 0.4966,
+            "reference_mean": 0.5897,
+            "mean_delta": -0.0931,
+            "delta_vs_baseline_std": 0.6713,
             "overlay_only_reason": null
           }
         ]
@@ -1066,25 +1100,25 @@
       ],
       "constant_target": false,
       "dominant_regime": "bull",
-      "dominant_regime_share": 0.512,
-      "dominant_regime_delta_vs_full": 0.0607,
+      "dominant_regime_share": 0.516,
+      "dominant_regime_delta_vs_full": 0.0647,
       "regime_counts": {
-        "chop": 122,
-        "bull": 128
+        "chop": 121,
+        "bull": 129
       },
       "regime_pct": {
-        "chop": 0.488,
-        "bull": 0.512
+        "chop": 0.484,
+        "bull": 0.516
       },
       "quality_metrics": {
         "simulated_win_rate": 0.828,
-        "spot_long_win_rate": 0.572,
-        "avg_simulated_pnl": 0.0135,
-        "avg_simulated_quality": 0.4693,
-        "avg_drawdown_penalty": 0.1734,
-        "avg_time_underwater": 0.3788,
-        "avg_future_return_pct": 0.0138,
-        "avg_future_max_runup": 0.0214,
+        "spot_long_win_rate": 0.576,
+        "avg_simulated_pnl": 0.0136,
+        "avg_simulated_quality": 0.4698,
+        "avg_drawdown_penalty": 0.1733,
+        "avg_time_underwater": 0.3787,
+        "avg_future_return_pct": 0.0139,
+        "avg_future_max_runup": 0.0215,
         "avg_future_max_drawdown": -0.0087
       },
       "feature_diagnostics": {
@@ -1092,13 +1126,13 @@
         "window_rows": 250,
         "time_context": {
           "parsed_timestamps": 250,
-          "weekend_count": 21,
-          "weekend_share": 0.084,
+          "weekend_count": 20,
+          "weekend_share": 0.08,
           "weekend_dominant": false,
-          "weekday_count": 229,
-          "weekday_market_open_count": 50,
+          "weekday_count": 230,
+          "weekday_market_open_count": 51,
           "weekday_market_closed_count": 179,
-          "weekday_market_closed_share": 0.7817,
+          "weekday_market_closed_share": 0.7783,
           "weekday_market_closed_dominant": false
         },
         "low_variance_count": 9,
@@ -1114,13 +1148,13 @@
         "low_variance_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.8508,
-            "baseline_std": 18549.9659,
+            "recent_std": 0.8439,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0,
             "recent_range": 3.4712,
             "baseline_range": 1272817.1727,
             "recent_distinct": 250,
-            "baseline_distinct": 14246,
+            "baseline_distinct": 14247,
             "distinct_ratio": 0.0175,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1131,11 +1165,11 @@
             "feature": "feat_ear",
             "recent_std": 0.0081,
             "baseline_std": 0.6771,
-            "std_ratio": 0.012,
+            "std_ratio": 0.0119,
             "recent_range": 0.0365,
             "baseline_range": 10.9755,
             "recent_distinct": 250,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0111,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1146,11 +1180,11 @@
             "feature": "feat_tongue",
             "recent_std": 0.0039,
             "baseline_std": 0.2401,
-            "std_ratio": 0.0164,
-            "recent_range": 0.0214,
+            "std_ratio": 0.0162,
+            "recent_range": 0.0211,
             "baseline_range": 0.8909,
             "recent_distinct": 250,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.0175,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1161,11 +1195,11 @@
             "feature": "feat_atr_pct",
             "recent_std": 0.0001,
             "baseline_std": 0.0011,
-            "std_ratio": 0.0499,
+            "std_ratio": 0.0488,
             "recent_range": 0.0003,
             "baseline_range": 0.022,
             "recent_distinct": 245,
-            "baseline_distinct": 18591,
+            "baseline_distinct": 18592,
             "distinct_ratio": 0.0132,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1176,11 +1210,11 @@
             "feature": "feat_vwap_dev",
             "recent_std": 0.0115,
             "baseline_std": 0.2246,
-            "std_ratio": 0.0513,
+            "std_ratio": 0.0512,
             "recent_range": 0.0467,
             "baseline_range": 0.9772,
             "recent_distinct": 245,
-            "baseline_distinct": 22317,
+            "baseline_distinct": 22318,
             "distinct_ratio": 0.011,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1259,13 +1293,13 @@
         "compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.8508,
-            "baseline_std": 18549.9659,
+            "recent_std": 0.8439,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0,
             "recent_range": 3.4712,
             "baseline_range": 1272817.1727,
             "recent_distinct": 250,
-            "baseline_distinct": 14246,
+            "baseline_distinct": 14247,
             "distinct_ratio": 0.0175,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1276,11 +1310,11 @@
             "feature": "feat_ear",
             "recent_std": 0.0081,
             "baseline_std": 0.6771,
-            "std_ratio": 0.012,
+            "std_ratio": 0.0119,
             "recent_range": 0.0365,
             "baseline_range": 10.9755,
             "recent_distinct": 250,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0111,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1291,11 +1325,11 @@
             "feature": "feat_tongue",
             "recent_std": 0.0039,
             "baseline_std": 0.2401,
-            "std_ratio": 0.0164,
-            "recent_range": 0.0214,
+            "std_ratio": 0.0162,
+            "recent_range": 0.0211,
             "baseline_range": 0.8909,
             "recent_distinct": 250,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.0175,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1306,11 +1340,11 @@
             "feature": "feat_atr_pct",
             "recent_std": 0.0001,
             "baseline_std": 0.0011,
-            "std_ratio": 0.0499,
+            "std_ratio": 0.0488,
             "recent_range": 0.0003,
             "baseline_range": 0.022,
             "recent_distinct": 245,
-            "baseline_distinct": 18591,
+            "baseline_distinct": 18592,
             "distinct_ratio": 0.0132,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1321,11 +1355,11 @@
             "feature": "feat_vwap_dev",
             "recent_std": 0.0115,
             "baseline_std": 0.2246,
-            "std_ratio": 0.0513,
+            "std_ratio": 0.0512,
             "recent_range": 0.0467,
             "baseline_range": 0.9772,
             "recent_distinct": 245,
-            "baseline_distinct": 22317,
+            "baseline_distinct": 22318,
             "distinct_ratio": 0.011,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1344,8 +1378,8 @@
             "recent_range": 0.0009,
             "baseline_range": 0.1368,
             "recent_distinct": 206,
-            "baseline_distinct": 3251,
-            "distinct_ratio": 0.0634,
+            "baseline_distinct": 3252,
+            "distinct_ratio": 0.0633,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -1356,13 +1390,13 @@
         "unexpected_compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.8508,
-            "baseline_std": 18549.9659,
+            "recent_std": 0.8439,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0,
             "recent_range": 3.4712,
             "baseline_range": 1272817.1727,
             "recent_distinct": 250,
-            "baseline_distinct": 14246,
+            "baseline_distinct": 14247,
             "distinct_ratio": 0.0175,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1373,11 +1407,11 @@
             "feature": "feat_ear",
             "recent_std": 0.0081,
             "baseline_std": 0.6771,
-            "std_ratio": 0.012,
+            "std_ratio": 0.0119,
             "recent_range": 0.0365,
             "baseline_range": 10.9755,
             "recent_distinct": 250,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0111,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1388,11 +1422,11 @@
             "feature": "feat_tongue",
             "recent_std": 0.0039,
             "baseline_std": 0.2401,
-            "std_ratio": 0.0164,
-            "recent_range": 0.0214,
+            "std_ratio": 0.0162,
+            "recent_range": 0.0211,
             "baseline_range": 0.8909,
             "recent_distinct": 250,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.0175,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1403,11 +1437,11 @@
             "feature": "feat_atr_pct",
             "recent_std": 0.0001,
             "baseline_std": 0.0011,
-            "std_ratio": 0.0499,
+            "std_ratio": 0.0488,
             "recent_range": 0.0003,
             "baseline_range": 0.022,
             "recent_distinct": 245,
-            "baseline_distinct": 18591,
+            "baseline_distinct": 18592,
             "distinct_ratio": 0.0132,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1418,11 +1452,11 @@
             "feature": "feat_vwap_dev",
             "recent_std": 0.0115,
             "baseline_std": 0.2246,
-            "std_ratio": 0.0513,
+            "std_ratio": 0.0512,
             "recent_range": 0.0467,
             "baseline_range": 0.9772,
             "recent_distinct": 245,
-            "baseline_distinct": 22317,
+            "baseline_distinct": 22318,
             "distinct_ratio": 0.011,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1464,34 +1498,19 @@
         ]
       },
       "target_path_diagnostics": {
-        "window_start_timestamp": "2026-04-19 17:52:40.313479",
-        "window_end_timestamp": "2026-04-21 16:01:00.665468",
+        "window_start_timestamp": "2026-04-19 18:09:49.118789",
+        "window_end_timestamp": "2026-04-21 16:47:59.250640",
         "latest_target": 1,
         "tail_target_streak": {
           "target": 1,
-          "count": 93,
+          "count": 94,
           "start_timestamp": "2026-04-21 00:05:39.160858",
-          "end_timestamp": "2026-04-21 16:01:00.665468",
+          "end_timestamp": "2026-04-21 16:47:59.250640",
           "regime_counts": {
-            "bull": 86,
+            "bull": 87,
             "chop": 7
           },
           "examples": [
-            {
-              "label_id": 72721,
-              "timestamp": "2026-04-21 15:24:58.014294",
-              "symbol": "BTCUSDT",
-              "target": 1,
-              "regime": "bull",
-              "spot_long_win": 1.0,
-              "simulated_pyramid_pnl": 0.0208,
-              "simulated_pyramid_quality": 0.6227,
-              "simulated_pyramid_drawdown_penalty": 0.1968,
-              "simulated_pyramid_time_underwater": 0.4762,
-              "future_return_pct": 0.0399,
-              "future_max_drawdown": -0.0098,
-              "future_max_runup": 0.0441
-            },
             {
               "label_id": 72730,
               "timestamp": "2026-04-21 15:44:50.041186",
@@ -1521,16 +1540,31 @@
               "future_return_pct": 0.04,
               "future_max_drawdown": -0.0118,
               "future_max_runup": 0.042
+            },
+            {
+              "label_id": 72739,
+              "timestamp": "2026-04-21 16:47:59.250640",
+              "symbol": "BTCUSDT",
+              "target": 1,
+              "regime": "bull",
+              "spot_long_win": 1.0,
+              "simulated_pyramid_pnl": 0.0227,
+              "simulated_pyramid_quality": 0.6329,
+              "simulated_pyramid_drawdown_penalty": 0.2423,
+              "simulated_pyramid_time_underwater": 0.5246,
+              "future_return_pct": 0.0445,
+              "future_max_drawdown": -0.0121,
+              "future_max_runup": 0.0445
             }
           ]
         },
         "longest_target_streak": {
           "target": 1,
-          "count": 114,
-          "start_timestamp": "2026-04-19 17:52:40.313479",
+          "count": 113,
+          "start_timestamp": "2026-04-19 18:09:49.118789",
           "end_timestamp": "2026-04-20 17:47:25.929929",
           "regime_counts": {
-            "chop": 114
+            "chop": 113
           },
           "examples": [
             {
@@ -1639,11 +1673,11 @@
         },
         "longest_one_target_streak": {
           "target": 1,
-          "count": 114,
-          "start_timestamp": "2026-04-19 17:52:40.313479",
+          "count": 113,
+          "start_timestamp": "2026-04-19 18:09:49.118789",
           "end_timestamp": "2026-04-20 17:47:25.929929",
           "regime_counts": {
-            "chop": 114
+            "chop": 113
           },
           "examples": [
             {
@@ -1694,27 +1728,12 @@
           ]
         },
         "target_regime_breakdown": {
-          "chop:1": 121,
+          "chop:1": 120,
           "bull:0": 42,
           "chop:0": 1,
-          "bull:1": 86
+          "bull:1": 87
         },
         "recent_examples": [
-          {
-            "label_id": 72719,
-            "timestamp": "2026-04-21 15:07:39.837392",
-            "symbol": "BTCUSDT",
-            "target": 1,
-            "regime": "bull",
-            "spot_long_win": 1.0,
-            "simulated_pyramid_pnl": 0.02,
-            "simulated_pyramid_quality": 0.6238,
-            "simulated_pyramid_drawdown_penalty": 0.1797,
-            "simulated_pyramid_time_underwater": 0.4032,
-            "future_return_pct": 0.0408,
-            "future_max_drawdown": -0.009,
-            "future_max_runup": 0.045
-          },
           {
             "label_id": 72720,
             "timestamp": "2026-04-21 15:13:53.629704",
@@ -1774,50 +1793,65 @@
             "future_return_pct": 0.04,
             "future_max_drawdown": -0.0118,
             "future_max_runup": 0.042
+          },
+          {
+            "label_id": 72739,
+            "timestamp": "2026-04-21 16:47:59.250640",
+            "symbol": "BTCUSDT",
+            "target": 1,
+            "regime": "bull",
+            "spot_long_win": 1.0,
+            "simulated_pyramid_pnl": 0.0227,
+            "simulated_pyramid_quality": 0.6329,
+            "simulated_pyramid_drawdown_penalty": 0.2423,
+            "simulated_pyramid_time_underwater": 0.5246,
+            "future_return_pct": 0.0445,
+            "future_max_drawdown": -0.0121,
+            "future_max_runup": 0.0445
           }
         ]
       },
       "reference_window_comparison": {
         "current_rows": 250,
         "reference_rows": 250,
-        "current_start_timestamp": "2026-04-19 17:52:40.313479",
-        "current_end_timestamp": "2026-04-21 16:01:00.665468",
-        "reference_start_timestamp": "2026-04-18 16:46:10.728800",
-        "reference_end_timestamp": "2026-04-19 17:36:39.157884",
+        "current_start_timestamp": "2026-04-19 18:09:49.118789",
+        "current_end_timestamp": "2026-04-21 16:47:59.250640",
+        "reference_start_timestamp": "2026-04-18 16:47:26.560969",
+        "reference_end_timestamp": "2026-04-19 17:52:40.313479",
         "current_quality": {
           "win_rate": 0.828,
-          "spot_long_win_rate": 0.572,
-          "avg_simulated_pnl": 0.0135,
-          "avg_simulated_quality": 0.4693,
-          "avg_drawdown_penalty": 0.1734,
-          "avg_time_underwater": 0.3788
+          "spot_long_win_rate": 0.576,
+          "avg_simulated_pnl": 0.0136,
+          "avg_simulated_quality": 0.4698,
+          "avg_drawdown_penalty": 0.1733,
+          "avg_time_underwater": 0.3787
         },
         "reference_quality": {
-          "win_rate": 0.172,
+          "win_rate": 0.176,
           "spot_long_win_rate": 0.0,
           "avg_simulated_pnl": -0.004,
-          "avg_simulated_quality": -0.1034,
+          "avg_simulated_quality": -0.1005,
           "avg_drawdown_penalty": 0.2761,
-          "avg_time_underwater": 0.7495
+          "avg_time_underwater": 0.7477
         },
-        "win_rate_delta_vs_reference": 0.656,
-        "spot_long_win_rate_delta_vs_reference": 0.572,
-        "avg_simulated_pnl_delta_vs_reference": 0.0175,
-        "avg_simulated_quality_delta_vs_reference": 0.5727,
-        "avg_drawdown_penalty_delta_vs_reference": -0.1027,
-        "avg_time_underwater_delta_vs_reference": -0.3707,
+        "win_rate_delta_vs_reference": 0.652,
+        "spot_long_win_rate_delta_vs_reference": 0.576,
+        "avg_simulated_pnl_delta_vs_reference": 0.0176,
+        "avg_simulated_quality_delta_vs_reference": 0.5703,
+        "avg_drawdown_penalty_delta_vs_reference": -0.1028,
+        "avg_time_underwater_delta_vs_reference": -0.369,
         "current_dominant_regime": "bull",
         "reference_dominant_regime": "bull",
         "regime_share_deltas": {
           "bull": {
-            "current_share": 0.512,
-            "reference_share": 0.756,
-            "share_delta": -0.244
+            "current_share": 0.516,
+            "reference_share": 0.752,
+            "share_delta": -0.236
           },
           "chop": {
-            "current_share": 0.488,
-            "reference_share": 0.244,
-            "share_delta": 0.244
+            "current_share": 0.484,
+            "reference_share": 0.248,
+            "share_delta": 0.236
           }
         },
         "new_unexpected_frozen_features": [],
@@ -1828,26 +1862,26 @@
         "top_mean_shift_features": [
           {
             "feature": "feat_4h_bb_pct_b",
-            "current_mean": 0.5362,
-            "reference_mean": 0.2588,
-            "mean_delta": 0.2774,
-            "delta_vs_baseline_std": 0.8649,
+            "current_mean": 0.5378,
+            "reference_mean": 0.2582,
+            "mean_delta": 0.2796,
+            "delta_vs_baseline_std": 0.8717,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_local_top_score",
-            "current_mean": 0.4119,
-            "reference_mean": 0.2668,
-            "mean_delta": 0.1452,
-            "delta_vs_baseline_std": 0.6457,
+            "current_mean": 0.4125,
+            "reference_mean": 0.2666,
+            "mean_delta": 0.1459,
+            "delta_vs_baseline_std": 0.649,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_choppiness",
-            "current_mean": 0.8026,
-            "reference_mean": 0.9044,
-            "mean_delta": -0.1018,
-            "delta_vs_baseline_std": 0.6441,
+            "current_mean": 0.8032,
+            "reference_mean": 0.9034,
+            "mean_delta": -0.1002,
+            "delta_vs_baseline_std": 0.6339,
             "overlay_only_reason": null
           },
           {
@@ -1860,10 +1894,10 @@
           },
           {
             "feature": "feat_rsi14",
-            "current_mean": 0.515,
-            "reference_mean": 0.4486,
-            "mean_delta": 0.0664,
-            "delta_vs_baseline_std": 0.4789,
+            "current_mean": 0.516,
+            "reference_mean": 0.4481,
+            "mean_delta": 0.0679,
+            "delta_vs_baseline_std": 0.4894,
             "overlay_only_reason": null
           }
         ]
@@ -1875,10 +1909,10 @@
     },
     "500": {
       "rows": 500,
-      "wins": 250,
-      "losses": 250,
-      "win_rate": 0.5,
-      "win_rate_delta_vs_full": -0.1271,
+      "wins": 251,
+      "losses": 249,
+      "win_rate": 0.502,
+      "win_rate_delta_vs_full": -0.1251,
       "unique_targets": [
         0,
         1
@@ -1896,14 +1930,14 @@
         "chop": 0.366
       },
       "quality_metrics": {
-        "simulated_win_rate": 0.5,
-        "spot_long_win_rate": 0.286,
-        "avg_simulated_pnl": 0.0047,
-        "avg_simulated_quality": 0.183,
-        "avg_drawdown_penalty": 0.2248,
-        "avg_time_underwater": 0.5641,
-        "avg_future_return_pct": 0.003,
-        "avg_future_max_runup": 0.0136,
+        "simulated_win_rate": 0.502,
+        "spot_long_win_rate": 0.288,
+        "avg_simulated_pnl": 0.0048,
+        "avg_simulated_quality": 0.1846,
+        "avg_drawdown_penalty": 0.2247,
+        "avg_time_underwater": 0.5632,
+        "avg_future_return_pct": 0.0031,
+        "avg_future_max_runup": 0.0137,
         "avg_future_max_drawdown": -0.0122
       },
       "feature_diagnostics": {
@@ -1911,13 +1945,13 @@
         "window_rows": 500,
         "time_context": {
           "parsed_timestamps": 500,
-          "weekend_count": 271,
-          "weekend_share": 0.542,
+          "weekend_count": 270,
+          "weekend_share": 0.54,
           "weekend_dominant": true,
-          "weekday_count": 229,
-          "weekday_market_open_count": 50,
+          "weekday_count": 230,
+          "weekday_market_open_count": 51,
           "weekday_market_closed_count": 179,
-          "weekday_market_closed_share": 0.7817,
+          "weekday_market_closed_share": 0.7783,
           "weekday_market_closed_dominant": false
         },
         "low_variance_count": 9,
@@ -1933,13 +1967,13 @@
         "low_variance_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 1.0081,
-            "baseline_std": 18549.9659,
+            "recent_std": 1.0086,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0001,
             "recent_range": 3.8307,
             "baseline_range": 1272817.1727,
             "recent_distinct": 500,
-            "baseline_distinct": 14246,
+            "baseline_distinct": 14247,
             "distinct_ratio": 0.0351,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1954,7 +1988,7 @@
             "recent_range": 0.0365,
             "baseline_range": 10.9755,
             "recent_distinct": 499,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0221,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1969,7 +2003,7 @@
             "recent_range": 0.0218,
             "baseline_range": 0.8909,
             "recent_distinct": 499,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.0349,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1984,7 +2018,7 @@
             "recent_range": 0.0467,
             "baseline_range": 0.9772,
             "recent_distinct": 487,
-            "baseline_distinct": 22317,
+            "baseline_distinct": 22318,
             "distinct_ratio": 0.0218,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -1999,7 +2033,7 @@
             "recent_range": 0.0003,
             "baseline_range": 0.022,
             "recent_distinct": 480,
-            "baseline_distinct": 18591,
+            "baseline_distinct": 18592,
             "distinct_ratio": 0.0258,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2078,13 +2112,13 @@
         "compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 1.0081,
-            "baseline_std": 18549.9659,
+            "recent_std": 1.0086,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0001,
             "recent_range": 3.8307,
             "baseline_range": 1272817.1727,
             "recent_distinct": 500,
-            "baseline_distinct": 14246,
+            "baseline_distinct": 14247,
             "distinct_ratio": 0.0351,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2099,7 +2133,7 @@
             "recent_range": 0.0365,
             "baseline_range": 10.9755,
             "recent_distinct": 499,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0221,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2114,7 +2148,7 @@
             "recent_range": 0.0218,
             "baseline_range": 0.8909,
             "recent_distinct": 499,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.0349,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2129,7 +2163,7 @@
             "recent_range": 0.0467,
             "baseline_range": 0.9772,
             "recent_distinct": 487,
-            "baseline_distinct": 22317,
+            "baseline_distinct": 22318,
             "distinct_ratio": 0.0218,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2144,7 +2178,7 @@
             "recent_range": 0.0003,
             "baseline_range": 0.022,
             "recent_distinct": 480,
-            "baseline_distinct": 18591,
+            "baseline_distinct": 18592,
             "distinct_ratio": 0.0258,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2155,14 +2189,14 @@
         "expected_static_examples": [
           {
             "feature": "feat_dxy",
-            "recent_std": 0.074,
-            "baseline_std": 1.035,
-            "std_ratio": 0.0715,
-            "recent_range": 0.338,
+            "recent_std": 0.0743,
+            "baseline_std": 1.0349,
+            "std_ratio": 0.0718,
+            "recent_range": 0.349,
             "baseline_range": 7.714,
-            "recent_distinct": 141,
+            "recent_distinct": 142,
             "baseline_distinct": 3308,
-            "distinct_ratio": 0.0426,
+            "distinct_ratio": 0.0429,
             "expected_static_reason": "weekend_macro_market_closed",
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -2170,14 +2204,14 @@
           },
           {
             "feature": "feat_vix",
-            "recent_std": 0.736,
-            "baseline_std": 4.9804,
-            "std_ratio": 0.1478,
-            "recent_range": 2.3,
+            "recent_std": 0.7404,
+            "baseline_std": 4.9803,
+            "std_ratio": 0.1487,
+            "recent_range": 2.4,
             "baseline_range": 42.59,
-            "recent_distinct": 55,
+            "recent_distinct": 56,
             "baseline_distinct": 1436,
-            "distinct_ratio": 0.0383,
+            "distinct_ratio": 0.039,
             "expected_static_reason": "weekend_macro_market_closed",
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -2193,9 +2227,9 @@
             "std_ratio": 0.0681,
             "recent_range": 0.001,
             "baseline_range": 0.1368,
-            "recent_distinct": 397,
-            "baseline_distinct": 3251,
-            "distinct_ratio": 0.1221,
+            "recent_distinct": 398,
+            "baseline_distinct": 3252,
+            "distinct_ratio": 0.1224,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -2206,13 +2240,13 @@
         "unexpected_compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 1.0081,
-            "baseline_std": 18549.9659,
+            "recent_std": 1.0086,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0001,
             "recent_range": 3.8307,
             "baseline_range": 1272817.1727,
             "recent_distinct": 500,
-            "baseline_distinct": 14246,
+            "baseline_distinct": 14247,
             "distinct_ratio": 0.0351,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2227,7 +2261,7 @@
             "recent_range": 0.0365,
             "baseline_range": 10.9755,
             "recent_distinct": 499,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0221,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2242,7 +2276,7 @@
             "recent_range": 0.0218,
             "baseline_range": 0.8909,
             "recent_distinct": 499,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.0349,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2257,7 +2291,7 @@
             "recent_range": 0.0467,
             "baseline_range": 0.9772,
             "recent_distinct": 487,
-            "baseline_distinct": 22317,
+            "baseline_distinct": 22318,
             "distinct_ratio": 0.0218,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2272,7 +2306,7 @@
             "recent_range": 0.0003,
             "baseline_range": 0.022,
             "recent_distinct": 480,
-            "baseline_distinct": 18591,
+            "baseline_distinct": 18592,
             "distinct_ratio": 0.0258,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2314,34 +2348,19 @@
         ]
       },
       "target_path_diagnostics": {
-        "window_start_timestamp": "2026-04-18 16:46:10.728800",
-        "window_end_timestamp": "2026-04-21 16:01:00.665468",
+        "window_start_timestamp": "2026-04-18 16:47:26.560969",
+        "window_end_timestamp": "2026-04-21 16:47:59.250640",
         "latest_target": 1,
         "tail_target_streak": {
           "target": 1,
-          "count": 93,
+          "count": 94,
           "start_timestamp": "2026-04-21 00:05:39.160858",
-          "end_timestamp": "2026-04-21 16:01:00.665468",
+          "end_timestamp": "2026-04-21 16:47:59.250640",
           "regime_counts": {
-            "bull": 86,
+            "bull": 87,
             "chop": 7
           },
           "examples": [
-            {
-              "label_id": 72721,
-              "timestamp": "2026-04-21 15:24:58.014294",
-              "symbol": "BTCUSDT",
-              "target": 1,
-              "regime": "bull",
-              "spot_long_win": 1.0,
-              "simulated_pyramid_pnl": 0.0208,
-              "simulated_pyramid_quality": 0.6227,
-              "simulated_pyramid_drawdown_penalty": 0.1968,
-              "simulated_pyramid_time_underwater": 0.4762,
-              "future_return_pct": 0.0399,
-              "future_max_drawdown": -0.0098,
-              "future_max_runup": 0.0441
-            },
             {
               "label_id": 72730,
               "timestamp": "2026-04-21 15:44:50.041186",
@@ -2371,16 +2390,31 @@
               "future_return_pct": 0.04,
               "future_max_drawdown": -0.0118,
               "future_max_runup": 0.042
+            },
+            {
+              "label_id": 72739,
+              "timestamp": "2026-04-21 16:47:59.250640",
+              "symbol": "BTCUSDT",
+              "target": 1,
+              "regime": "bull",
+              "spot_long_win": 1.0,
+              "simulated_pyramid_pnl": 0.0227,
+              "simulated_pyramid_quality": 0.6329,
+              "simulated_pyramid_drawdown_penalty": 0.2423,
+              "simulated_pyramid_time_underwater": 0.5246,
+              "future_return_pct": 0.0445,
+              "future_max_drawdown": -0.0121,
+              "future_max_runup": 0.0445
             }
           ]
         },
         "longest_target_streak": {
           "target": 0,
-          "count": 167,
-          "start_timestamp": "2026-04-18 16:46:10.728800",
+          "count": 166,
+          "start_timestamp": "2026-04-18 16:47:26.560969",
           "end_timestamp": "2026-04-19 01:10:17.732530",
           "regime_counts": {
-            "bull": 167
+            "bull": 166
           },
           "examples": [
             {
@@ -2432,11 +2466,11 @@
         },
         "longest_zero_target_streak": {
           "target": 0,
-          "count": 167,
-          "start_timestamp": "2026-04-18 16:46:10.728800",
+          "count": 166,
+          "start_timestamp": "2026-04-18 16:47:26.560969",
           "end_timestamp": "2026-04-19 01:10:17.732530",
           "regime_counts": {
-            "bull": 167
+            "bull": 166
           },
           "examples": [
             {
@@ -2544,27 +2578,12 @@
           ]
         },
         "target_regime_breakdown": {
-          "bull:0": 219,
+          "bull:0": 218,
           "chop:1": 152,
           "chop:0": 31,
-          "bull:1": 98
+          "bull:1": 99
         },
         "recent_examples": [
-          {
-            "label_id": 72719,
-            "timestamp": "2026-04-21 15:07:39.837392",
-            "symbol": "BTCUSDT",
-            "target": 1,
-            "regime": "bull",
-            "spot_long_win": 1.0,
-            "simulated_pyramid_pnl": 0.02,
-            "simulated_pyramid_quality": 0.6238,
-            "simulated_pyramid_drawdown_penalty": 0.1797,
-            "simulated_pyramid_time_underwater": 0.4032,
-            "future_return_pct": 0.0408,
-            "future_max_drawdown": -0.009,
-            "future_max_runup": 0.045
-          },
           {
             "label_id": 72720,
             "timestamp": "2026-04-21 15:13:53.629704",
@@ -2624,38 +2643,53 @@
             "future_return_pct": 0.04,
             "future_max_drawdown": -0.0118,
             "future_max_runup": 0.042
+          },
+          {
+            "label_id": 72739,
+            "timestamp": "2026-04-21 16:47:59.250640",
+            "symbol": "BTCUSDT",
+            "target": 1,
+            "regime": "bull",
+            "spot_long_win": 1.0,
+            "simulated_pyramid_pnl": 0.0227,
+            "simulated_pyramid_quality": 0.6329,
+            "simulated_pyramid_drawdown_penalty": 0.2423,
+            "simulated_pyramid_time_underwater": 0.5246,
+            "future_return_pct": 0.0445,
+            "future_max_drawdown": -0.0121,
+            "future_max_runup": 0.0445
           }
         ]
       },
       "reference_window_comparison": {
         "current_rows": 500,
         "reference_rows": 500,
-        "current_start_timestamp": "2026-04-18 16:46:10.728800",
-        "current_end_timestamp": "2026-04-21 16:01:00.665468",
-        "reference_start_timestamp": "2026-04-15 15:33:48.277912",
-        "reference_end_timestamp": "2026-04-18 16:44:53.682356",
+        "current_start_timestamp": "2026-04-18 16:47:26.560969",
+        "current_end_timestamp": "2026-04-21 16:47:59.250640",
+        "reference_start_timestamp": "2026-04-15 15:35:13.088879",
+        "reference_end_timestamp": "2026-04-18 16:46:10.728800",
         "current_quality": {
-          "win_rate": 0.5,
-          "spot_long_win_rate": 0.286,
-          "avg_simulated_pnl": 0.0047,
-          "avg_simulated_quality": 0.183,
-          "avg_drawdown_penalty": 0.2248,
-          "avg_time_underwater": 0.5641
+          "win_rate": 0.502,
+          "spot_long_win_rate": 0.288,
+          "avg_simulated_pnl": 0.0048,
+          "avg_simulated_quality": 0.1846,
+          "avg_drawdown_penalty": 0.2247,
+          "avg_time_underwater": 0.5632
         },
         "reference_quality": {
-          "win_rate": 0.288,
+          "win_rate": 0.286,
           "spot_long_win_rate": 0.17,
-          "avg_simulated_pnl": -0.0018,
-          "avg_simulated_quality": -0.0095,
-          "avg_drawdown_penalty": 0.2668,
-          "avg_time_underwater": 0.6278
+          "avg_simulated_pnl": -0.0019,
+          "avg_simulated_quality": -0.011,
+          "avg_drawdown_penalty": 0.2673,
+          "avg_time_underwater": 0.6298
         },
-        "win_rate_delta_vs_reference": 0.212,
-        "spot_long_win_rate_delta_vs_reference": 0.116,
-        "avg_simulated_pnl_delta_vs_reference": 0.0065,
-        "avg_simulated_quality_delta_vs_reference": 0.1925,
-        "avg_drawdown_penalty_delta_vs_reference": -0.042,
-        "avg_time_underwater_delta_vs_reference": -0.0637,
+        "win_rate_delta_vs_reference": 0.216,
+        "spot_long_win_rate_delta_vs_reference": 0.118,
+        "avg_simulated_pnl_delta_vs_reference": 0.0067,
+        "avg_simulated_quality_delta_vs_reference": 0.1956,
+        "avg_drawdown_penalty_delta_vs_reference": -0.0426,
+        "avg_time_underwater_delta_vs_reference": -0.0666,
         "current_dominant_regime": "bull",
         "reference_dominant_regime": "bull",
         "regime_share_deltas": {
@@ -2678,34 +2712,34 @@
         "top_mean_shift_features": [
           {
             "feature": "feat_4h_bias20",
-            "current_mean": -0.2095,
-            "reference_mean": 2.17,
-            "mean_delta": -2.3794,
-            "delta_vs_baseline_std": 1.4418,
+            "current_mean": -0.2092,
+            "reference_mean": 2.1691,
+            "mean_delta": -2.3783,
+            "delta_vs_baseline_std": 1.4411,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_rsi14",
-            "current_mean": 52.2637,
-            "reference_mean": 64.9883,
-            "mean_delta": -12.7246,
-            "delta_vs_baseline_std": 1.2729,
+            "current_mean": 52.2597,
+            "reference_mean": 64.9914,
+            "mean_delta": -12.7317,
+            "delta_vs_baseline_std": 1.2736,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_bb_pct_b",
-            "current_mean": 0.3975,
-            "reference_mean": 0.7735,
-            "mean_delta": -0.3759,
-            "delta_vs_baseline_std": 1.1721,
+            "current_mean": 0.398,
+            "reference_mean": 0.7734,
+            "mean_delta": -0.3754,
+            "delta_vs_baseline_std": 1.1705,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_bias50",
-            "current_mean": 1.6384,
-            "reference_mean": 4.1491,
-            "mean_delta": -2.5107,
-            "delta_vs_baseline_std": 0.9716,
+            "current_mean": 1.635,
+            "reference_mean": 4.1505,
+            "mean_delta": -2.5155,
+            "delta_vs_baseline_std": 0.9734,
             "overlay_only_reason": null
           },
           {
@@ -2713,7 +2747,7 @@
             "current_mean": 0.556,
             "reference_mean": 0.992,
             "mean_delta": -0.436,
-            "delta_vs_baseline_std": 0.6377,
+            "delta_vs_baseline_std": 0.6378,
             "overlay_only_reason": null
           }
         ]
@@ -2745,11 +2779,11 @@
       },
       "quality_metrics": {
         "simulated_win_rate": 0.394,
-        "spot_long_win_rate": 0.228,
+        "spot_long_win_rate": 0.229,
         "avg_simulated_pnl": 0.0015,
-        "avg_simulated_quality": 0.0867,
-        "avg_drawdown_penalty": 0.2458,
-        "avg_time_underwater": 0.596,
+        "avg_simulated_quality": 0.0868,
+        "avg_drawdown_penalty": 0.246,
+        "avg_time_underwater": 0.5965,
         "avg_future_return_pct": -0.0013,
         "avg_future_max_runup": 0.0123,
         "avg_future_max_drawdown": -0.0137
@@ -2781,14 +2815,14 @@
         "low_variance_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 1.1394,
-            "baseline_std": 18549.9659,
+            "recent_std": 1.1398,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0001,
             "recent_range": 4.6944,
             "baseline_range": 1272817.1727,
             "recent_distinct": 998,
-            "baseline_distinct": 14246,
-            "distinct_ratio": 0.0701,
+            "baseline_distinct": 14247,
+            "distinct_ratio": 0.07,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -2802,7 +2836,7 @@
             "recent_range": 0.0509,
             "baseline_range": 10.9755,
             "recent_distinct": 996,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0442,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2817,7 +2851,7 @@
             "recent_range": 0.0276,
             "baseline_range": 0.8909,
             "recent_distinct": 997,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.0696,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2832,7 +2866,7 @@
             "recent_range": 0.0005,
             "baseline_range": 0.022,
             "recent_distinct": 945,
-            "baseline_distinct": 18591,
+            "baseline_distinct": 18592,
             "distinct_ratio": 0.0508,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2843,12 +2877,12 @@
             "feature": "feat_scales_ssr",
             "recent_std": 0.0004,
             "baseline_std": 0.0045,
-            "std_ratio": 0.0794,
+            "std_ratio": 0.0792,
             "recent_range": 0.0015,
             "baseline_range": 0.1368,
             "recent_distinct": 735,
-            "baseline_distinct": 3251,
-            "distinct_ratio": 0.2261,
+            "baseline_distinct": 3252,
+            "distinct_ratio": 0.226,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -2926,14 +2960,14 @@
         "compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 1.1394,
-            "baseline_std": 18549.9659,
+            "recent_std": 1.1398,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0001,
             "recent_range": 4.6944,
             "baseline_range": 1272817.1727,
             "recent_distinct": 998,
-            "baseline_distinct": 14246,
-            "distinct_ratio": 0.0701,
+            "baseline_distinct": 14247,
+            "distinct_ratio": 0.07,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -2947,7 +2981,7 @@
             "recent_range": 0.0509,
             "baseline_range": 10.9755,
             "recent_distinct": 996,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0442,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2962,7 +2996,7 @@
             "recent_range": 0.0276,
             "baseline_range": 0.8909,
             "recent_distinct": 997,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.0696,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2977,7 +3011,7 @@
             "recent_range": 0.0005,
             "baseline_range": 0.022,
             "recent_distinct": 945,
-            "baseline_distinct": 18591,
+            "baseline_distinct": 18592,
             "distinct_ratio": 0.0508,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -2988,12 +3022,12 @@
             "feature": "feat_scales_ssr",
             "recent_std": 0.0004,
             "baseline_std": 0.0045,
-            "std_ratio": 0.0794,
+            "std_ratio": 0.0792,
             "recent_range": 0.0015,
             "baseline_range": 0.1368,
             "recent_distinct": 735,
-            "baseline_distinct": 3251,
-            "distinct_ratio": 0.2261,
+            "baseline_distinct": 3252,
+            "distinct_ratio": 0.226,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -3007,12 +3041,12 @@
             "feature": "feat_scales_ssr",
             "recent_std": 0.0004,
             "baseline_std": 0.0045,
-            "std_ratio": 0.0794,
+            "std_ratio": 0.0792,
             "recent_range": 0.0015,
             "baseline_range": 0.1368,
             "recent_distinct": 735,
-            "baseline_distinct": 3251,
-            "distinct_ratio": 0.2261,
+            "baseline_distinct": 3252,
+            "distinct_ratio": 0.226,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -3023,14 +3057,14 @@
         "unexpected_compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 1.1394,
-            "baseline_std": 18549.9659,
+            "recent_std": 1.1398,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0001,
             "recent_range": 4.6944,
             "baseline_range": 1272817.1727,
             "recent_distinct": 998,
-            "baseline_distinct": 14246,
-            "distinct_ratio": 0.0701,
+            "baseline_distinct": 14247,
+            "distinct_ratio": 0.07,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -3044,7 +3078,7 @@
             "recent_range": 0.0509,
             "baseline_range": 10.9755,
             "recent_distinct": 996,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0442,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3059,7 +3093,7 @@
             "recent_range": 0.0276,
             "baseline_range": 0.8909,
             "recent_distinct": 997,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.0696,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3074,7 +3108,7 @@
             "recent_range": 0.0005,
             "baseline_range": 0.022,
             "recent_distinct": 945,
-            "baseline_distinct": 18591,
+            "baseline_distinct": 18592,
             "distinct_ratio": 0.0508,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3083,10 +3117,10 @@
           },
           {
             "feature": "feat_vix",
-            "recent_std": 0.5932,
-            "baseline_std": 4.9804,
-            "std_ratio": 0.1191,
-            "recent_range": 2.81,
+            "recent_std": 0.5966,
+            "baseline_std": 4.9803,
+            "std_ratio": 0.1198,
+            "recent_range": 2.91,
             "baseline_range": 42.59,
             "recent_distinct": 148,
             "baseline_distinct": 1436,
@@ -3131,34 +3165,19 @@
         ]
       },
       "target_path_diagnostics": {
-        "window_start_timestamp": "2026-04-15 15:33:48.277912",
-        "window_end_timestamp": "2026-04-21 16:01:00.665468",
+        "window_start_timestamp": "2026-04-15 15:35:13.088879",
+        "window_end_timestamp": "2026-04-21 16:47:59.250640",
         "latest_target": 1,
         "tail_target_streak": {
           "target": 1,
-          "count": 93,
+          "count": 94,
           "start_timestamp": "2026-04-21 00:05:39.160858",
-          "end_timestamp": "2026-04-21 16:01:00.665468",
+          "end_timestamp": "2026-04-21 16:47:59.250640",
           "regime_counts": {
-            "bull": 86,
+            "bull": 87,
             "chop": 7
           },
           "examples": [
-            {
-              "label_id": 72721,
-              "timestamp": "2026-04-21 15:24:58.014294",
-              "symbol": "BTCUSDT",
-              "target": 1,
-              "regime": "bull",
-              "spot_long_win": 1.0,
-              "simulated_pyramid_pnl": 0.0208,
-              "simulated_pyramid_quality": 0.6227,
-              "simulated_pyramid_drawdown_penalty": 0.1968,
-              "simulated_pyramid_time_underwater": 0.4762,
-              "future_return_pct": 0.0399,
-              "future_max_drawdown": -0.0098,
-              "future_max_runup": 0.0441
-            },
             {
               "label_id": 72730,
               "timestamp": "2026-04-21 15:44:50.041186",
@@ -3188,6 +3207,21 @@
               "future_return_pct": 0.04,
               "future_max_drawdown": -0.0118,
               "future_max_runup": 0.042
+            },
+            {
+              "label_id": 72739,
+              "timestamp": "2026-04-21 16:47:59.250640",
+              "symbol": "BTCUSDT",
+              "target": 1,
+              "regime": "bull",
+              "spot_long_win": 1.0,
+              "simulated_pyramid_pnl": 0.0227,
+              "simulated_pyramid_quality": 0.6329,
+              "simulated_pyramid_drawdown_penalty": 0.2423,
+              "simulated_pyramid_time_underwater": 0.5246,
+              "future_return_pct": 0.0445,
+              "future_max_drawdown": -0.0121,
+              "future_max_runup": 0.0445
             }
           ]
         },
@@ -3368,21 +3402,6 @@
         },
         "recent_examples": [
           {
-            "label_id": 72719,
-            "timestamp": "2026-04-21 15:07:39.837392",
-            "symbol": "BTCUSDT",
-            "target": 1,
-            "regime": "bull",
-            "spot_long_win": 1.0,
-            "simulated_pyramid_pnl": 0.02,
-            "simulated_pyramid_quality": 0.6238,
-            "simulated_pyramid_drawdown_penalty": 0.1797,
-            "simulated_pyramid_time_underwater": 0.4032,
-            "future_return_pct": 0.0408,
-            "future_max_drawdown": -0.009,
-            "future_max_runup": 0.045
-          },
-          {
             "label_id": 72720,
             "timestamp": "2026-04-21 15:13:53.629704",
             "symbol": "BTCUSDT",
@@ -3441,23 +3460,38 @@
             "future_return_pct": 0.04,
             "future_max_drawdown": -0.0118,
             "future_max_runup": 0.042
+          },
+          {
+            "label_id": 72739,
+            "timestamp": "2026-04-21 16:47:59.250640",
+            "symbol": "BTCUSDT",
+            "target": 1,
+            "regime": "bull",
+            "spot_long_win": 1.0,
+            "simulated_pyramid_pnl": 0.0227,
+            "simulated_pyramid_quality": 0.6329,
+            "simulated_pyramid_drawdown_penalty": 0.2423,
+            "simulated_pyramid_time_underwater": 0.5246,
+            "future_return_pct": 0.0445,
+            "future_max_drawdown": -0.0121,
+            "future_max_runup": 0.0445
           }
         ]
       },
       "reference_window_comparison": {
         "current_rows": 1000,
         "reference_rows": 1000,
-        "current_start_timestamp": "2026-04-15 15:33:48.277912",
-        "current_end_timestamp": "2026-04-21 16:01:00.665468",
-        "reference_start_timestamp": "2026-04-12 13:45:35.105073",
-        "reference_end_timestamp": "2026-04-15 15:32:26.274761",
+        "current_start_timestamp": "2026-04-15 15:35:13.088879",
+        "current_end_timestamp": "2026-04-21 16:47:59.250640",
+        "reference_start_timestamp": "2026-04-12 13:46:47.990033",
+        "reference_end_timestamp": "2026-04-15 15:33:48.277912",
         "current_quality": {
           "win_rate": 0.394,
-          "spot_long_win_rate": 0.228,
+          "spot_long_win_rate": 0.229,
           "avg_simulated_pnl": 0.0015,
-          "avg_simulated_quality": 0.0867,
-          "avg_drawdown_penalty": 0.2458,
-          "avg_time_underwater": 0.596
+          "avg_simulated_quality": 0.0868,
+          "avg_drawdown_penalty": 0.246,
+          "avg_time_underwater": 0.5965
         },
         "reference_quality": {
           "win_rate": 0.949,
@@ -3465,26 +3499,26 @@
           "avg_simulated_pnl": 0.0147,
           "avg_simulated_quality": 0.5545,
           "avg_drawdown_penalty": 0.0826,
-          "avg_time_underwater": 0.4026
+          "avg_time_underwater": 0.4018
         },
         "win_rate_delta_vs_reference": -0.555,
-        "spot_long_win_rate_delta_vs_reference": -0.336,
+        "spot_long_win_rate_delta_vs_reference": -0.335,
         "avg_simulated_pnl_delta_vs_reference": -0.0132,
-        "avg_simulated_quality_delta_vs_reference": -0.4678,
-        "avg_drawdown_penalty_delta_vs_reference": 0.1632,
-        "avg_time_underwater_delta_vs_reference": 0.1934,
+        "avg_simulated_quality_delta_vs_reference": -0.4677,
+        "avg_drawdown_penalty_delta_vs_reference": 0.1634,
+        "avg_time_underwater_delta_vs_reference": 0.1947,
         "current_dominant_regime": "bull",
         "reference_dominant_regime": "bull",
         "regime_share_deltas": {
           "bull": {
             "current_share": 0.813,
-            "reference_share": 0.652,
-            "share_delta": 0.161
+            "reference_share": 0.653,
+            "share_delta": 0.16
           },
           "chop": {
             "current_share": 0.187,
-            "reference_share": 0.348,
-            "share_delta": -0.161
+            "reference_share": 0.347,
+            "share_delta": -0.16
           }
         },
         "new_unexpected_frozen_features": [],
@@ -3495,42 +3529,42 @@
         "top_mean_shift_features": [
           {
             "feature": "feat_4h_bias200",
-            "current_mean": 7.7711,
-            "reference_mean": 4.3858,
-            "mean_delta": 3.3853,
-            "delta_vs_baseline_std": 0.6198,
+            "current_mean": 7.7735,
+            "reference_mean": 4.3892,
+            "mean_delta": 3.3843,
+            "delta_vs_baseline_std": 0.6196,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_vwap_dev",
-            "current_mean": -0.169,
-            "reference_mean": -0.3067,
-            "mean_delta": 0.1377,
-            "delta_vs_baseline_std": 0.6131,
+            "current_mean": -0.1689,
+            "reference_mean": -0.3066,
+            "mean_delta": 0.1378,
+            "delta_vs_baseline_std": 0.6135,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_dxy",
-            "current_mean": 98.1392,
-            "reference_mean": 98.4516,
-            "mean_delta": -0.3123,
-            "delta_vs_baseline_std": 0.3018,
+            "current_mean": 98.1396,
+            "reference_mean": 98.4509,
+            "mean_delta": -0.3113,
+            "delta_vs_baseline_std": 0.3008,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_vix",
-            "current_mean": 17.8734,
-            "reference_mean": 19.1595,
-            "mean_delta": -1.2861,
-            "delta_vs_baseline_std": 0.2582,
+            "current_mean": 17.8753,
+            "reference_mean": 19.1582,
+            "mean_delta": -1.2829,
+            "delta_vs_baseline_std": 0.2576,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_volume_exhaustion",
-            "current_mean": 0.2408,
+            "current_mean": 0.2407,
             "reference_mean": 0.1727,
-            "mean_delta": 0.0681,
-            "delta_vs_baseline_std": 0.257,
+            "mean_delta": 0.068,
+            "delta_vs_baseline_std": 0.2564,
             "overlay_only_reason": null
           }
         ]
@@ -3550,10 +3584,10 @@
     ],
     "summary": {
       "rows": 100,
-      "wins": 93,
-      "losses": 7,
-      "win_rate": 0.93,
-      "win_rate_delta_vs_full": 0.3029,
+      "wins": 94,
+      "losses": 6,
+      "win_rate": 0.94,
+      "win_rate_delta_vs_full": 0.3129,
       "unique_targets": [
         0,
         1
@@ -3571,14 +3605,14 @@
         "chop": 0.08
       },
       "quality_metrics": {
-        "simulated_win_rate": 0.93,
-        "spot_long_win_rate": 0.63,
-        "avg_simulated_pnl": 0.016,
-        "avg_simulated_quality": 0.5175,
-        "avg_drawdown_penalty": 0.2522,
-        "avg_time_underwater": 0.5108,
-        "avg_future_return_pct": 0.0186,
-        "avg_future_max_runup": 0.0234,
+        "simulated_win_rate": 0.94,
+        "spot_long_win_rate": 0.64,
+        "avg_simulated_pnl": 0.0163,
+        "avg_simulated_quality": 0.5258,
+        "avg_drawdown_penalty": 0.2521,
+        "avg_time_underwater": 0.5093,
+        "avg_future_return_pct": 0.0191,
+        "avg_future_max_runup": 0.0237,
         "avg_future_max_drawdown": -0.0127
       },
       "feature_diagnostics": {
@@ -3590,31 +3624,31 @@
           "weekend_share": 0.0,
           "weekend_dominant": false,
           "weekday_count": 100,
-          "weekday_market_open_count": 17,
-          "weekday_market_closed_count": 83,
-          "weekday_market_closed_share": 0.83,
+          "weekday_market_open_count": 18,
+          "weekday_market_closed_count": 82,
+          "weekday_market_closed_share": 0.82,
           "weekday_market_closed_dominant": false
         },
-        "low_variance_count": 17,
+        "low_variance_count": 18,
         "low_distinct_count": 10,
         "frozen_count": 0,
-        "compressed_count": 17,
+        "compressed_count": 18,
         "expected_static_count": 0,
         "expected_compressed_count": 4,
         "overlay_only_count": 2,
         "unexpected_frozen_count": 0,
-        "unexpected_compressed_count": 11,
+        "unexpected_compressed_count": 12,
         "null_heavy_count": 10,
         "low_variance_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.6174,
-            "baseline_std": 18549.9659,
+            "recent_std": 0.6192,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0,
             "recent_range": 2.0389,
             "baseline_range": 1272817.1727,
             "recent_distinct": 100,
-            "baseline_distinct": 14246,
+            "baseline_distinct": 14247,
             "distinct_ratio": 0.007,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3629,7 +3663,7 @@
             "recent_range": 0.0243,
             "baseline_range": 10.9755,
             "recent_distinct": 100,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0044,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3644,7 +3678,7 @@
             "recent_range": 0.013,
             "baseline_range": 0.8909,
             "recent_distinct": 100,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.007,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3658,27 +3692,44 @@
             "std_ratio": 0.0179,
             "recent_range": 0.0184,
             "baseline_range": 0.9772,
-            "recent_distinct": 99,
-            "baseline_distinct": 22317,
-            "distinct_ratio": 0.0044,
+            "recent_distinct": 100,
+            "baseline_distinct": 22318,
+            "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
             "overlay_only_reason": null
           },
           {
-            "feature": "feat_vix",
-            "recent_std": 0.1718,
-            "baseline_std": 4.9804,
-            "std_ratio": 0.0345,
-            "recent_range": 1.01,
-            "baseline_range": 42.59,
-            "recent_distinct": 30,
-            "baseline_distinct": 1436,
-            "distinct_ratio": 0.0209,
+            "feature": "feat_atr_pct",
+            "recent_std": 0.0,
+            "baseline_std": 0.0011,
+            "std_ratio": 0.038,
+            "recent_range": 0.0002,
+            "baseline_range": 0.022,
+            "recent_distinct": 100,
+            "baseline_distinct": 18592,
+            "distinct_ratio": 0.0054,
             "expected_static_reason": null,
-            "expected_compressed_reason": null,
-            "expected_compressed_details": null,
+            "expected_compressed_reason": "underlying_raw_volatility_compression",
+            "expected_compressed_details": {
+              "reason": "underlying_raw_volatility_compression",
+              "proxy_cols": [
+                "raw_volatility"
+              ],
+              "compressed_proxy_count": 1,
+              "min_required_proxies": 1,
+              "proxy_stats": {
+                "raw_volatility": {
+                  "recent_std": 0.0002,
+                  "baseline_std": 0.0013,
+                  "std_ratio": 0.1436,
+                  "recent_mean": 0.0038,
+                  "baseline_mean": 0.0041,
+                  "mean_delta": -0.0002
+                }
+              }
+            },
             "overlay_only_reason": null
           }
         ],
@@ -3753,13 +3804,13 @@
         "compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.6174,
-            "baseline_std": 18549.9659,
+            "recent_std": 0.6192,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0,
             "recent_range": 2.0389,
             "baseline_range": 1272817.1727,
             "recent_distinct": 100,
-            "baseline_distinct": 14246,
+            "baseline_distinct": 14247,
             "distinct_ratio": 0.007,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3774,7 +3825,7 @@
             "recent_range": 0.0243,
             "baseline_range": 10.9755,
             "recent_distinct": 100,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0044,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3789,7 +3840,7 @@
             "recent_range": 0.013,
             "baseline_range": 0.8909,
             "recent_distinct": 100,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.007,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -3803,27 +3854,44 @@
             "std_ratio": 0.0179,
             "recent_range": 0.0184,
             "baseline_range": 0.9772,
-            "recent_distinct": 99,
-            "baseline_distinct": 22317,
-            "distinct_ratio": 0.0044,
+            "recent_distinct": 100,
+            "baseline_distinct": 22318,
+            "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
             "overlay_only_reason": null
           },
           {
-            "feature": "feat_vix",
-            "recent_std": 0.1718,
-            "baseline_std": 4.9804,
-            "std_ratio": 0.0345,
-            "recent_range": 1.01,
-            "baseline_range": 42.59,
-            "recent_distinct": 30,
-            "baseline_distinct": 1436,
-            "distinct_ratio": 0.0209,
+            "feature": "feat_atr_pct",
+            "recent_std": 0.0,
+            "baseline_std": 0.0011,
+            "std_ratio": 0.038,
+            "recent_range": 0.0002,
+            "baseline_range": 0.022,
+            "recent_distinct": 100,
+            "baseline_distinct": 18592,
+            "distinct_ratio": 0.0054,
             "expected_static_reason": null,
-            "expected_compressed_reason": null,
-            "expected_compressed_details": null,
+            "expected_compressed_reason": "underlying_raw_volatility_compression",
+            "expected_compressed_details": {
+              "reason": "underlying_raw_volatility_compression",
+              "proxy_cols": [
+                "raw_volatility"
+              ],
+              "compressed_proxy_count": 1,
+              "min_required_proxies": 1,
+              "proxy_stats": {
+                "raw_volatility": {
+                  "recent_std": 0.0002,
+                  "baseline_std": 0.0013,
+                  "std_ratio": 0.1436,
+                  "recent_mean": 0.0038,
+                  "baseline_mean": 0.0041,
+                  "mean_delta": -0.0002
+                }
+              }
+            },
             "overlay_only_reason": null
           }
         ],
@@ -3831,14 +3899,14 @@
         "expected_compressed_examples": [
           {
             "feature": "feat_4h_dist_bb_lower",
-            "recent_std": 0.2927,
+            "recent_std": 0.2917,
             "baseline_std": 2.2384,
-            "std_ratio": 0.1308,
+            "std_ratio": 0.1303,
             "recent_range": 1.3307,
             "baseline_range": 24.0661,
-            "recent_distinct": 98,
-            "baseline_distinct": 16211,
-            "distinct_ratio": 0.006,
+            "recent_distinct": 99,
+            "baseline_distinct": 16212,
+            "distinct_ratio": 0.0061,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_band_floor_compression",
             "expected_compressed_details": {
@@ -3853,36 +3921,36 @@
               "min_required_proxies": 3,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 263.5233,
-                  "baseline_std": 18273.7052,
+                  "recent_std": 263.5583,
+                  "baseline_std": 18273.3658,
                   "std_ratio": 0.0144,
-                  "recent_mean": 75979.7528,
-                  "baseline_mean": 83229.1945,
-                  "mean_delta": -7249.4417
+                  "recent_mean": 75979.2669,
+                  "baseline_mean": 83228.8723,
+                  "mean_delta": -7249.6054
                 },
                 "raw_volatility": {
                   "recent_std": 0.0002,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.1374,
+                  "std_ratio": 0.1436,
                   "recent_mean": 0.0038,
                   "baseline_mean": 0.0041,
                   "mean_delta": -0.0002
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0987,
+                  "recent_std": 0.0985,
                   "baseline_std": 0.3207,
-                  "std_ratio": 0.3079,
-                  "recent_mean": 0.6134,
+                  "std_ratio": 0.3072,
+                  "recent_mean": 0.6114,
                   "baseline_mean": 0.564,
-                  "mean_delta": 0.0494
+                  "mean_delta": 0.0475
                 },
                 "feat_4h_dist_swing_low": {
                   "recent_std": 0.3422,
-                  "baseline_std": 3.4802,
+                  "baseline_std": 3.4801,
                   "std_ratio": 0.0983,
-                  "recent_mean": 2.97,
+                  "recent_mean": 2.9704,
                   "baseline_mean": 3.1649,
-                  "mean_delta": -0.1949
+                  "mean_delta": -0.1945
                 }
               }
             },
@@ -3891,12 +3959,12 @@
           {
             "feature": "feat_4h_dist_swing_low",
             "recent_std": 0.3422,
-            "baseline_std": 3.4802,
+            "baseline_std": 3.4801,
             "std_ratio": 0.0983,
             "recent_range": 1.5808,
             "baseline_range": 126.9125,
-            "recent_distinct": 98,
-            "baseline_distinct": 16105,
+            "recent_distinct": 99,
+            "baseline_distinct": 16106,
             "distinct_ratio": 0.0061,
             "expected_static_reason": null,
             "expected_compressed_reason": "coherent_4h_support_cluster_compression",
@@ -3912,36 +3980,36 @@
               "min_required_proxies": 3,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 263.5233,
-                  "baseline_std": 18273.7052,
+                  "recent_std": 263.5583,
+                  "baseline_std": 18273.3658,
                   "std_ratio": 0.0144,
-                  "recent_mean": 75979.7528,
-                  "baseline_mean": 83229.1945,
-                  "mean_delta": -7249.4417
+                  "recent_mean": 75979.2669,
+                  "baseline_mean": 83228.8723,
+                  "mean_delta": -7249.6054
                 },
                 "raw_volatility": {
                   "recent_std": 0.0002,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.1374,
+                  "std_ratio": 0.1436,
                   "recent_mean": 0.0038,
                   "baseline_mean": 0.0041,
                   "mean_delta": -0.0002
                 },
                 "feat_4h_dist_bb_lower": {
-                  "recent_std": 0.2927,
+                  "recent_std": 0.2917,
                   "baseline_std": 2.2384,
-                  "std_ratio": 0.1308,
-                  "recent_mean": 1.8863,
+                  "std_ratio": 0.1303,
+                  "recent_mean": 1.8804,
                   "baseline_mean": 2.5513,
-                  "mean_delta": -0.6651
+                  "mean_delta": -0.6709
                 },
                 "feat_4h_bb_pct_b": {
-                  "recent_std": 0.0987,
+                  "recent_std": 0.0985,
                   "baseline_std": 0.3207,
-                  "std_ratio": 0.3079,
-                  "recent_mean": 0.6134,
+                  "std_ratio": 0.3072,
+                  "recent_mean": 0.6114,
                   "baseline_mean": 0.564,
-                  "mean_delta": 0.0494
+                  "mean_delta": 0.0475
                 }
               }
             },
@@ -3954,9 +4022,9 @@
             "std_ratio": 0.0671,
             "recent_range": 1.6789,
             "baseline_range": 40.7284,
-            "recent_distinct": 98,
-            "baseline_distinct": 16210,
-            "distinct_ratio": 0.006,
+            "recent_distinct": 99,
+            "baseline_distinct": 16211,
+            "distinct_ratio": 0.0061,
             "expected_static_reason": null,
             "expected_compressed_reason": "underlying_price_and_volatility_compression",
             "expected_compressed_details": {
@@ -3969,17 +4037,17 @@
               "min_required_proxies": 2,
               "proxy_stats": {
                 "raw_close_price": {
-                  "recent_std": 263.5233,
-                  "baseline_std": 18273.7052,
+                  "recent_std": 263.5583,
+                  "baseline_std": 18273.3658,
                   "std_ratio": 0.0144,
-                  "recent_mean": 75979.7528,
-                  "baseline_mean": 83229.1945,
-                  "mean_delta": -7249.4417
+                  "recent_mean": 75979.2669,
+                  "baseline_mean": 83228.8723,
+                  "mean_delta": -7249.6054
                 },
                 "raw_volatility": {
                   "recent_std": 0.0002,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.1374,
+                  "std_ratio": 0.1436,
                   "recent_mean": 0.0038,
                   "baseline_mean": 0.0041,
                   "mean_delta": -0.0002
@@ -3996,7 +4064,7 @@
             "recent_range": 0.0002,
             "baseline_range": 0.022,
             "recent_distinct": 100,
-            "baseline_distinct": 18591,
+            "baseline_distinct": 18592,
             "distinct_ratio": 0.0054,
             "expected_static_reason": null,
             "expected_compressed_reason": "underlying_raw_volatility_compression",
@@ -4011,7 +4079,7 @@
                 "raw_volatility": {
                   "recent_std": 0.0002,
                   "baseline_std": 0.0013,
-                  "std_ratio": 0.1374,
+                  "std_ratio": 0.1436,
                   "recent_mean": 0.0038,
                   "baseline_mean": 0.0041,
                   "mean_delta": -0.0002
@@ -4024,14 +4092,14 @@
         "overlay_only_examples": [
           {
             "feature": "feat_claw_intensity",
-            "recent_std": 0.041,
-            "baseline_std": 0.3036,
-            "std_ratio": 0.1349,
+            "recent_std": 0.0446,
+            "baseline_std": 0.3035,
+            "std_ratio": 0.147,
             "recent_range": 0.2512,
             "baseline_range": 0.9794,
-            "recent_distinct": 71,
-            "baseline_distinct": 1024,
-            "distinct_ratio": 0.0693,
+            "recent_distinct": 72,
+            "baseline_distinct": 1025,
+            "distinct_ratio": 0.0702,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -4041,12 +4109,12 @@
             "feature": "feat_scales_ssr",
             "recent_std": 0.0002,
             "baseline_std": 0.0045,
-            "std_ratio": 0.0483,
+            "std_ratio": 0.0466,
             "recent_range": 0.0009,
             "baseline_range": 0.1368,
-            "recent_distinct": 81,
-            "baseline_distinct": 3251,
-            "distinct_ratio": 0.0249,
+            "recent_distinct": 82,
+            "baseline_distinct": 3252,
+            "distinct_ratio": 0.0252,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -4057,13 +4125,13 @@
         "unexpected_compressed_examples": [
           {
             "feature": "feat_body",
-            "recent_std": 0.6174,
-            "baseline_std": 18549.9659,
+            "recent_std": 0.6192,
+            "baseline_std": 18549.5558,
             "std_ratio": 0.0,
             "recent_range": 2.0389,
             "baseline_range": 1272817.1727,
             "recent_distinct": 100,
-            "baseline_distinct": 14246,
+            "baseline_distinct": 14247,
             "distinct_ratio": 0.007,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -4078,7 +4146,7 @@
             "recent_range": 0.0243,
             "baseline_range": 10.9755,
             "recent_distinct": 100,
-            "baseline_distinct": 22538,
+            "baseline_distinct": 22539,
             "distinct_ratio": 0.0044,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -4093,7 +4161,7 @@
             "recent_range": 0.013,
             "baseline_range": 0.8909,
             "recent_distinct": 100,
-            "baseline_distinct": 14315,
+            "baseline_distinct": 14316,
             "distinct_ratio": 0.007,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
@@ -4107,9 +4175,9 @@
             "std_ratio": 0.0179,
             "recent_range": 0.0184,
             "baseline_range": 0.9772,
-            "recent_distinct": 99,
-            "baseline_distinct": 22317,
-            "distinct_ratio": 0.0044,
+            "recent_distinct": 100,
+            "baseline_distinct": 22318,
+            "distinct_ratio": 0.0045,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -4117,14 +4185,14 @@
           },
           {
             "feature": "feat_vix",
-            "recent_std": 0.1718,
-            "baseline_std": 4.9804,
-            "std_ratio": 0.0345,
-            "recent_range": 1.01,
+            "recent_std": 0.1943,
+            "baseline_std": 4.9803,
+            "std_ratio": 0.039,
+            "recent_range": 1.11,
             "baseline_range": 42.59,
-            "recent_distinct": 30,
+            "recent_distinct": 31,
             "baseline_distinct": 1436,
-            "distinct_ratio": 0.0209,
+            "distinct_ratio": 0.0216,
             "expected_static_reason": null,
             "expected_compressed_reason": null,
             "expected_compressed_details": null,
@@ -4165,34 +4233,19 @@
         ]
       },
       "target_path_diagnostics": {
-        "window_start_timestamp": "2026-04-20 22:33:13.188596",
-        "window_end_timestamp": "2026-04-21 16:01:00.665468",
+        "window_start_timestamp": "2026-04-20 22:33:13.810035",
+        "window_end_timestamp": "2026-04-21 16:47:59.250640",
         "latest_target": 1,
         "tail_target_streak": {
           "target": 1,
-          "count": 93,
+          "count": 94,
           "start_timestamp": "2026-04-21 00:05:39.160858",
-          "end_timestamp": "2026-04-21 16:01:00.665468",
+          "end_timestamp": "2026-04-21 16:47:59.250640",
           "regime_counts": {
-            "bull": 86,
+            "bull": 87,
             "chop": 7
           },
           "examples": [
-            {
-              "label_id": 72721,
-              "timestamp": "2026-04-21 15:24:58.014294",
-              "symbol": "BTCUSDT",
-              "target": 1,
-              "regime": "bull",
-              "spot_long_win": 1.0,
-              "simulated_pyramid_pnl": 0.0208,
-              "simulated_pyramid_quality": 0.6227,
-              "simulated_pyramid_drawdown_penalty": 0.1968,
-              "simulated_pyramid_time_underwater": 0.4762,
-              "future_return_pct": 0.0399,
-              "future_max_drawdown": -0.0098,
-              "future_max_runup": 0.0441
-            },
             {
               "label_id": 72730,
               "timestamp": "2026-04-21 15:44:50.041186",
@@ -4222,34 +4275,34 @@
               "future_return_pct": 0.04,
               "future_max_drawdown": -0.0118,
               "future_max_runup": 0.042
+            },
+            {
+              "label_id": 72739,
+              "timestamp": "2026-04-21 16:47:59.250640",
+              "symbol": "BTCUSDT",
+              "target": 1,
+              "regime": "bull",
+              "spot_long_win": 1.0,
+              "simulated_pyramid_pnl": 0.0227,
+              "simulated_pyramid_quality": 0.6329,
+              "simulated_pyramid_drawdown_penalty": 0.2423,
+              "simulated_pyramid_time_underwater": 0.5246,
+              "future_return_pct": 0.0445,
+              "future_max_drawdown": -0.0121,
+              "future_max_runup": 0.0445
             }
           ]
         },
         "longest_target_streak": {
           "target": 1,
-          "count": 93,
+          "count": 94,
           "start_timestamp": "2026-04-21 00:05:39.160858",
-          "end_timestamp": "2026-04-21 16:01:00.665468",
+          "end_timestamp": "2026-04-21 16:47:59.250640",
           "regime_counts": {
-            "bull": 86,
+            "bull": 87,
             "chop": 7
           },
           "examples": [
-            {
-              "label_id": 72721,
-              "timestamp": "2026-04-21 15:24:58.014294",
-              "symbol": "BTCUSDT",
-              "target": 1,
-              "regime": "bull",
-              "spot_long_win": 1.0,
-              "simulated_pyramid_pnl": 0.0208,
-              "simulated_pyramid_quality": 0.6227,
-              "simulated_pyramid_drawdown_penalty": 0.1968,
-              "simulated_pyramid_time_underwater": 0.4762,
-              "future_return_pct": 0.0399,
-              "future_max_drawdown": -0.0098,
-              "future_max_runup": 0.0441
-            },
             {
               "label_id": 72730,
               "timestamp": "2026-04-21 15:44:50.041186",
@@ -4279,16 +4332,31 @@
               "future_return_pct": 0.04,
               "future_max_drawdown": -0.0118,
               "future_max_runup": 0.042
+            },
+            {
+              "label_id": 72739,
+              "timestamp": "2026-04-21 16:47:59.250640",
+              "symbol": "BTCUSDT",
+              "target": 1,
+              "regime": "bull",
+              "spot_long_win": 1.0,
+              "simulated_pyramid_pnl": 0.0227,
+              "simulated_pyramid_quality": 0.6329,
+              "simulated_pyramid_drawdown_penalty": 0.2423,
+              "simulated_pyramid_time_underwater": 0.5246,
+              "future_return_pct": 0.0445,
+              "future_max_drawdown": -0.0121,
+              "future_max_runup": 0.0445
             }
           ]
         },
         "longest_zero_target_streak": {
           "target": 0,
-          "count": 7,
-          "start_timestamp": "2026-04-20 22:33:13.188596",
+          "count": 6,
+          "start_timestamp": "2026-04-20 22:33:13.810035",
           "end_timestamp": "2026-04-20 23:49:40.799393",
           "regime_counts": {
-            "bull": 6,
+            "bull": 5,
             "chop": 1
           },
           "examples": [
@@ -4341,29 +4409,14 @@
         },
         "longest_one_target_streak": {
           "target": 1,
-          "count": 93,
+          "count": 94,
           "start_timestamp": "2026-04-21 00:05:39.160858",
-          "end_timestamp": "2026-04-21 16:01:00.665468",
+          "end_timestamp": "2026-04-21 16:47:59.250640",
           "regime_counts": {
-            "bull": 86,
+            "bull": 87,
             "chop": 7
           },
           "examples": [
-            {
-              "label_id": 72721,
-              "timestamp": "2026-04-21 15:24:58.014294",
-              "symbol": "BTCUSDT",
-              "target": 1,
-              "regime": "bull",
-              "spot_long_win": 1.0,
-              "simulated_pyramid_pnl": 0.0208,
-              "simulated_pyramid_quality": 0.6227,
-              "simulated_pyramid_drawdown_penalty": 0.1968,
-              "simulated_pyramid_time_underwater": 0.4762,
-              "future_return_pct": 0.0399,
-              "future_max_drawdown": -0.0098,
-              "future_max_runup": 0.0441
-            },
             {
               "label_id": 72730,
               "timestamp": "2026-04-21 15:44:50.041186",
@@ -4393,31 +4446,31 @@
               "future_return_pct": 0.04,
               "future_max_drawdown": -0.0118,
               "future_max_runup": 0.042
+            },
+            {
+              "label_id": 72739,
+              "timestamp": "2026-04-21 16:47:59.250640",
+              "symbol": "BTCUSDT",
+              "target": 1,
+              "regime": "bull",
+              "spot_long_win": 1.0,
+              "simulated_pyramid_pnl": 0.0227,
+              "simulated_pyramid_quality": 0.6329,
+              "simulated_pyramid_drawdown_penalty": 0.2423,
+              "simulated_pyramid_time_underwater": 0.5246,
+              "future_return_pct": 0.0445,
+              "future_max_drawdown": -0.0121,
+              "future_max_runup": 0.0445
             }
           ]
         },
         "target_regime_breakdown": {
-          "bull:0": 6,
+          "bull:0": 5,
           "chop:0": 1,
-          "bull:1": 86,
+          "bull:1": 87,
           "chop:1": 7
         },
         "recent_examples": [
-          {
-            "label_id": 72719,
-            "timestamp": "2026-04-21 15:07:39.837392",
-            "symbol": "BTCUSDT",
-            "target": 1,
-            "regime": "bull",
-            "spot_long_win": 1.0,
-            "simulated_pyramid_pnl": 0.02,
-            "simulated_pyramid_quality": 0.6238,
-            "simulated_pyramid_drawdown_penalty": 0.1797,
-            "simulated_pyramid_time_underwater": 0.4032,
-            "future_return_pct": 0.0408,
-            "future_max_drawdown": -0.009,
-            "future_max_runup": 0.045
-          },
           {
             "label_id": 72720,
             "timestamp": "2026-04-21 15:13:53.629704",
@@ -4477,50 +4530,65 @@
             "future_return_pct": 0.04,
             "future_max_drawdown": -0.0118,
             "future_max_runup": 0.042
+          },
+          {
+            "label_id": 72739,
+            "timestamp": "2026-04-21 16:47:59.250640",
+            "symbol": "BTCUSDT",
+            "target": 1,
+            "regime": "bull",
+            "spot_long_win": 1.0,
+            "simulated_pyramid_pnl": 0.0227,
+            "simulated_pyramid_quality": 0.6329,
+            "simulated_pyramid_drawdown_penalty": 0.2423,
+            "simulated_pyramid_time_underwater": 0.5246,
+            "future_return_pct": 0.0445,
+            "future_max_drawdown": -0.0121,
+            "future_max_runup": 0.0445
           }
         ]
       },
       "reference_window_comparison": {
         "current_rows": 100,
         "reference_rows": 100,
-        "current_start_timestamp": "2026-04-20 22:33:13.188596",
-        "current_end_timestamp": "2026-04-21 16:01:00.665468",
-        "reference_start_timestamp": "2026-04-20 04:34:39.688050",
-        "reference_end_timestamp": "2026-04-20 22:15:35.699412",
+        "current_start_timestamp": "2026-04-20 22:33:13.810035",
+        "current_end_timestamp": "2026-04-21 16:47:59.250640",
+        "reference_start_timestamp": "2026-04-20 04:36:46.944854",
+        "reference_end_timestamp": "2026-04-20 22:33:13.188596",
         "current_quality": {
-          "win_rate": 0.93,
-          "spot_long_win_rate": 0.63,
-          "avg_simulated_pnl": 0.016,
-          "avg_simulated_quality": 0.5175,
-          "avg_drawdown_penalty": 0.2522,
-          "avg_time_underwater": 0.5108
+          "win_rate": 0.94,
+          "spot_long_win_rate": 0.64,
+          "avg_simulated_pnl": 0.0163,
+          "avg_simulated_quality": 0.5258,
+          "avg_drawdown_penalty": 0.2521,
+          "avg_time_underwater": 0.5093
         },
         "reference_quality": {
-          "win_rate": 0.64,
-          "spot_long_win_rate": 0.37,
-          "avg_simulated_pnl": 0.0076,
-          "avg_simulated_quality": 0.3285,
-          "avg_drawdown_penalty": 0.1174,
-          "avg_time_underwater": 0.3052
+          "win_rate": 0.63,
+          "spot_long_win_rate": 0.36,
+          "avg_simulated_pnl": 0.0073,
+          "avg_simulated_quality": 0.3196,
+          "avg_drawdown_penalty": 0.1191,
+          "avg_time_underwater": 0.3108
         },
-        "win_rate_delta_vs_reference": 0.29,
-        "spot_long_win_rate_delta_vs_reference": 0.26,
-        "avg_simulated_pnl_delta_vs_reference": 0.0084,
-        "avg_simulated_quality_delta_vs_reference": 0.189,
-        "avg_drawdown_penalty_delta_vs_reference": 0.1348,
-        "avg_time_underwater_delta_vs_reference": 0.2056,
+        "win_rate_delta_vs_reference": 0.31,
+        "spot_long_win_rate_delta_vs_reference": 0.28,
+        "avg_simulated_pnl_delta_vs_reference": 0.009,
+        "avg_simulated_quality_delta_vs_reference": 0.2062,
+        "avg_drawdown_penalty_delta_vs_reference": 0.133,
+        "avg_time_underwater_delta_vs_reference": 0.1985,
         "current_dominant_regime": "bull",
         "reference_dominant_regime": "chop",
         "regime_share_deltas": {
           "bull": {
             "current_share": 0.92,
-            "reference_share": 0.36,
-            "share_delta": 0.56
+            "reference_share": 0.37,
+            "share_delta": 0.55
           },
           "chop": {
             "current_share": 0.08,
-            "reference_share": 0.64,
-            "share_delta": -0.56
+            "reference_share": 0.63,
+            "share_delta": -0.55
           }
         },
         "new_unexpected_frozen_features": [],
@@ -4531,42 +4599,42 @@
         "top_mean_shift_features": [
           {
             "feature": "feat_local_bottom_score",
-            "current_mean": 0.4417,
-            "reference_mean": 0.1634,
-            "mean_delta": 0.2783,
-            "delta_vs_baseline_std": 1.2192,
+            "current_mean": 0.443,
+            "reference_mean": 0.1645,
+            "mean_delta": 0.2784,
+            "delta_vs_baseline_std": 1.2198,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_local_top_score",
-            "current_mean": 0.338,
-            "reference_mean": 0.588,
-            "mean_delta": -0.25,
-            "delta_vs_baseline_std": 1.1122,
+            "current_mean": 0.3352,
+            "reference_mean": 0.5886,
+            "mean_delta": -0.2534,
+            "delta_vs_baseline_std": 1.1273,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_eye",
-            "current_mean": -0.2336,
-            "reference_mean": 3.7473,
-            "mean_delta": -3.9809,
-            "delta_vs_baseline_std": 1.0345,
+            "current_mean": -0.1977,
+            "reference_mean": 3.6962,
+            "mean_delta": -3.8938,
+            "delta_vs_baseline_std": 1.012,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_4h_ma_order",
             "current_mean": 0.92,
-            "reference_mean": 0.36,
-            "mean_delta": 0.56,
-            "delta_vs_baseline_std": 0.8191,
+            "reference_mean": 0.37,
+            "mean_delta": 0.55,
+            "delta_vs_baseline_std": 0.8045,
             "overlay_only_reason": null
           },
           {
             "feature": "feat_rsi14",
-            "current_mean": 0.4964,
-            "reference_mean": 0.59,
-            "mean_delta": -0.0936,
-            "delta_vs_baseline_std": 0.6748,
+            "current_mean": 0.4966,
+            "reference_mean": 0.5897,
+            "mean_delta": -0.0931,
+            "delta_vs_baseline_std": 0.6713,
             "overlay_only_reason": null
           }
         ]

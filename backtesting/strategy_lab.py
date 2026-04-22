@@ -460,7 +460,13 @@ def _backfill_strategy_backtest_range(last_results: Optional[Dict[str, Any]], de
     existing = _sanitize_backtest_range_meta(last_results.get("backtest_range"))
     requested = _merge_backtest_range_bounds(existing.get("requested"), definition_requested)
     effective = _merge_backtest_range_bounds(existing.get("effective"), requested, chart_bounds)
-    available = _merge_backtest_range_bounds(existing.get("available"), chart_bounds, effective)
+
+    # Do not let a trade-focused chart window rewrite the operator-facing
+    # available/effective range. Older saved strategies often persisted only the
+    # active trade window in chart_context, which made a 2-year backtest look like
+    # it only had ~1 year of usable history. Prefer the explicit/requested/effective
+    # bounds first; only fall back to chart_context if nothing else exists.
+    available = _merge_backtest_range_bounds(effective, requested, existing.get("available"), chart_bounds)
 
     if not (requested or effective or available):
         return last_results
