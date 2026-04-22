@@ -3418,25 +3418,21 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
     if not isinstance(payload, dict):
         return None
 
-    primary = payload.get("primary_window") if isinstance(payload.get("primary_window"), dict) else {}
-    summary = primary.get("summary") if isinstance(primary.get("summary"), dict) else {}
-    quality = summary.get("quality_metrics") if isinstance(summary.get("quality_metrics"), dict) else {}
-    feature_diag = summary.get("feature_diagnostics") if isinstance(summary.get("feature_diagnostics"), dict) else {}
-    target_path = summary.get("target_path_diagnostics") if isinstance(summary.get("target_path_diagnostics"), dict) else {}
-    reference = summary.get("reference_window_comparison") if isinstance(summary.get("reference_window_comparison"), dict) else {}
-    reference_quality = reference.get("reference_quality") if isinstance(reference.get("reference_quality"), dict) else {}
+    def _normalize_recent_drift_window(window_payload: Any) -> Optional[Dict[str, Any]]:
+        window = window_payload if isinstance(window_payload, dict) else {}
+        summary = window.get("summary") if isinstance(window.get("summary"), dict) else {}
+        quality = summary.get("quality_metrics") if isinstance(summary.get("quality_metrics"), dict) else {}
+        feature_diag = summary.get("feature_diagnostics") if isinstance(summary.get("feature_diagnostics"), dict) else {}
+        target_path = summary.get("target_path_diagnostics") if isinstance(summary.get("target_path_diagnostics"), dict) else {}
+        reference = summary.get("reference_window_comparison") if isinstance(summary.get("reference_window_comparison"), dict) else {}
+        reference_quality = reference.get("reference_quality") if isinstance(reference.get("reference_quality"), dict) else {}
 
-    if not primary and not summary:
-        return None
+        if not window and not summary:
+            return None
 
-    return {
-        "generated_at": payload.get("generated_at"),
-        "source_artifact": str(artifact_path),
-        "target_col": payload.get("target_col"),
-        "horizon_minutes": payload.get("horizon_minutes"),
-        "primary_window": {
-            "window": primary.get("window"),
-            "alerts": primary.get("alerts") if isinstance(primary.get("alerts"), list) else [],
+        return {
+            "window": window.get("window"),
+            "alerts": window.get("alerts") if isinstance(window.get("alerts"), list) else [],
             "summary": {
                 "rows": summary.get("rows"),
                 "win_rate": summary.get("win_rate"),
@@ -3474,8 +3470,24 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
                     "top_mean_shift_features": reference.get("top_mean_shift_features") if isinstance(reference.get("top_mean_shift_features"), list) else [],
                 },
             },
-        },
+        }
+
+    primary = _normalize_recent_drift_window(payload.get("primary_window"))
+    blocking = _normalize_recent_drift_window(payload.get("blocking_window"))
+    if primary is None and blocking is None:
+        return None
+
+    result = {
+        "generated_at": payload.get("generated_at"),
+        "source_artifact": str(artifact_path),
+        "target_col": payload.get("target_col"),
+        "horizon_minutes": payload.get("horizon_minutes"),
     }
+    if primary is not None:
+        result["primary_window"] = primary
+    if blocking is not None:
+        result["blocking_window"] = blocking
+    return result
 
 
 

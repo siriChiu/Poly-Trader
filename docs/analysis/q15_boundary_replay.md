@@ -1,6 +1,6 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-04-22 06:16:56.930747**
+- generated_at: **2026-04-22 07:18:39.404961**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_replay_not_applicable**
 - reason: 目前 q15 root-cause verdict 不是 boundary_sensitivity_candidate，boundary replay 不是本輪主路徑。
@@ -9,8 +9,8 @@
 - signal: **HOLD**
 - regime/gate: **bull / BLOCK**
 - structure bucket: **BLOCK|bull_high_bias200_overheat_block|q65**
-- structure_quality: **0.6608**
-- entry_quality: **0.462** (trade_floor_gap=-0.088)
+- structure_quality: **0.662**
+- entry_quality: **0.4875** (trade_floor_gap=-0.0625)
 - support_route: **exact_bucket_missing_proxy_reference_only**
 - floor_cross_legality: **math_cross_possible_but_illegal_without_exact_support**
 
@@ -24,11 +24,11 @@
 - dominant_neighbor_bucket: **BLOCK|bull_high_bias200_overheat_block|q35** rows=143
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **1.0639 → 1.0**
-- structure_quality: **0.6608 → 0.6608**
+- raw before/after: **1.0681 → 1.0**
+- structure_quality: **0.662 → 0.662**
 - bucket_after: **BLOCK|bull_high_bias200_overheat_block|q35**
-- entry_quality: **0.462 → 0.4621**
-- trade_floor_gap_after: **-0.0879**
+- entry_quality: **0.4875 → 0.4876**
+- trade_floor_gap_after: **-0.0624**
 - allowed_layers_after: **0** (regime_gate_block)
 - counterfactual verdict: **bucket_proxy_only_not_trade_floor_fix**
 - counterfactual reason: 只把 feat_4h_bb_pct_b 補到剛好跨 q35，只會把結構 bucket 從 q15 改成 q35；entry_quality 仍低於 trade floor，allowed_layers 仍是 0，表示它更像 bucket proxy，而不是 deployable floor fix。

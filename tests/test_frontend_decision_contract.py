@@ -721,6 +721,20 @@ def test_strategy_lab_surfaces_recent_canonical_drift_summary_beside_live_lane_t
     assert source.index('LivePathologySummaryCard') < source.index('RecentCanonicalDriftCard')
 
 
+def test_recent_canonical_drift_card_surfaces_latest_and_blocking_windows():
+    source = _read("components/RecentCanonicalDriftCard.tsx")
+    required_snippets = [
+        'type RecentCanonicalDriftWindowPayload = {',
+        'blocking_window?: RecentCanonicalDriftWindowPayload | null;',
+        'const blockingWindow = summary?.blocking_window ?? null;',
+        'const hasDistinctBlockingWindow = Boolean(',
+        'latest recent-window',
+        'current blocker pocket',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
 def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout():
     source = _read("pages/StrategyLab.tsx")
     required_snippets = [

@@ -48,16 +48,19 @@ type RecentCanonicalDriftWindowSummary = {
   } | null;
 };
 
+type RecentCanonicalDriftWindowPayload = {
+  window?: string | number | null;
+  alerts?: string[] | null;
+  summary?: RecentCanonicalDriftWindowSummary | null;
+};
+
 export type RecentCanonicalDriftSummary = {
   generated_at?: string | null;
   source_artifact?: string | null;
   target_col?: string | null;
   horizon_minutes?: number | null;
-  primary_window?: {
-    window?: string | number | null;
-    alerts?: string[] | null;
-    summary?: RecentCanonicalDriftWindowSummary | null;
-  } | null;
+  primary_window?: RecentCanonicalDriftWindowPayload | null;
+  blocking_window?: RecentCanonicalDriftWindowPayload | null;
 };
 
 type RecentCanonicalDriftCardProps = {
@@ -98,27 +101,80 @@ function interpretationTone(interpretation?: string | null): string {
   return "border-white/8 bg-[#0f1528]";
 }
 
+function windowSignature(windowPayload?: RecentCanonicalDriftWindowPayload | null): string {
+  const summary = windowPayload?.summary ?? null;
+  const alerts = Array.isArray(windowPayload?.alerts) ? windowPayload?.alerts.filter(Boolean) : [];
+  return JSON.stringify({
+    window: windowPayload?.window ?? null,
+    alerts,
+    rows: summary?.rows ?? null,
+    interpretation: summary?.drift_interpretation ?? null,
+    dominantRegime: summary?.dominant_regime ?? null,
+    winRate: summary?.win_rate ?? null,
+  });
+}
+
+function renderWindowSummary(
+  label: string,
+  windowPayload?: RecentCanonicalDriftWindowPayload | null,
+  { emphasize = false }: { emphasize?: boolean } = {},
+) {
+  const windowSummary = windowPayload?.summary ?? null;
+  if (!windowSummary) return null;
+
+  const quality = windowSummary.quality_metrics ?? null;
+  const featureDiag = windowSummary.feature_diagnostics ?? null;
+  const targetPath = windowSummary.target_path_diagnostics ?? null;
+  const reference = windowSummary.reference_window_comparison ?? null;
+  const alerts = Array.isArray(windowPayload?.alerts) ? windowPayload?.alerts.filter(Boolean) : [];
+  const topShiftFeatures = (Array.isArray(reference?.top_mean_shift_features) ? reference?.top_mean_shift_features : [])
+    .map((item) => item?.feature)
+    .filter((value): value is string => Boolean(value))
+    .slice(0, 3);
+  const adverseStreak = targetPath?.longest_zero_target_streak ?? targetPath?.longest_one_target_streak ?? null;
+  const toneClass = emphasize
+    ? "border-amber-400/25 bg-amber-500/8"
+    : "border-white/8 bg-black/10";
+
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>
+      <div className="font-medium text-slate-100">{label}</div>
+      <div>
+        window {windowPayload?.window ?? "—"} · rows {windowSummary.rows ?? "—"} · WR {formatPct(windowSummary.win_rate)} · {windowSummary.dominant_regime || "—"} {formatPct(windowSummary.dominant_regime_share)}
+      </div>
+      <div>
+        alerts {alerts.length ? alerts.join(" · ") : "none"} · quality {formatSigned(quality?.avg_simulated_quality)} · pnl {formatSigned(quality?.avg_simulated_pnl, 4)} · spot-long {formatPct(quality?.spot_long_win_rate)} · DD {formatPct(quality?.avg_drawdown_penalty)}
+      </div>
+      <div>
+        variance {featureDiag?.low_variance_count ?? "—"}/{featureDiag?.feature_count ?? "—"} · compressed {featureDiag?.compressed_count ?? "—"} · null-heavy {featureDiag?.null_heavy_count ?? "—"} · overlay {featureDiag?.overlay_only_count ?? "—"} · expected-static {featureDiag?.expected_static_count ?? "—"}
+      </div>
+      <div>
+        tail {formatStreak(targetPath?.tail_target_streak)} · adverse {formatStreak(adverseStreak)} · prev WR {formatPct(reference?.prev_win_rate)} ({formatSignedPct(reference?.win_rate_delta)})
+      </div>
+      <div>
+        shifts {topShiftFeatures.length ? topShiftFeatures.join(" / ") : "—"}
+      </div>
+    </div>
+  );
+}
+
 export default function RecentCanonicalDriftCard({
   summary,
   pending = false,
   title = "📉 Recent canonical drift",
   className = "",
 }: RecentCanonicalDriftCardProps) {
-  const primaryWindow = summary?.primary_window ?? null;
-  const windowSummary = primaryWindow?.summary ?? null;
-  const quality = windowSummary?.quality_metrics ?? null;
-  const featureDiag = windowSummary?.feature_diagnostics ?? null;
-  const targetPath = windowSummary?.target_path_diagnostics ?? null;
-  const reference = windowSummary?.reference_window_comparison ?? null;
-  const alerts = Array.isArray(primaryWindow?.alerts) ? primaryWindow?.alerts.filter(Boolean) : [];
-  const topShiftFeatures = (Array.isArray(reference?.top_mean_shift_features) ? reference?.top_mean_shift_features : [])
-    .map((item) => item?.feature)
-    .filter((value): value is string => Boolean(value))
-    .slice(0, 3);
-  const adverseStreak = targetPath?.longest_zero_target_streak ?? targetPath?.longest_one_target_streak ?? null;
+  const latestWindow = summary?.primary_window ?? null;
+  const latestWindowSummary = latestWindow?.summary ?? null;
+  const blockingWindow = summary?.blocking_window ?? null;
+  const blockingWindowSummary = blockingWindow?.summary ?? null;
+  const hasDistinctBlockingWindow = Boolean(
+    blockingWindowSummary && windowSignature(blockingWindow) !== windowSignature(latestWindow),
+  );
+  const displayedWindowSummary = hasDistinctBlockingWindow ? blockingWindowSummary : latestWindowSummary;
   const summaryGeneratedAt = summary?.generated_at ? new Date(summary.generated_at).toLocaleString("zh-TW") : "—";
-  const interpretation = windowSummary?.drift_interpretation || "unavailable";
-  const tone = pending ? "border-cyan-500/25 bg-cyan-500/8" : interpretationTone(windowSummary?.drift_interpretation);
+  const interpretation = displayedWindowSummary?.drift_interpretation || "unavailable";
+  const tone = pending ? "border-cyan-500/25 bg-cyan-500/8" : interpretationTone(displayedWindowSummary?.drift_interpretation);
 
   return (
     <div className={`rounded-xl border px-4 py-3 text-sm text-slate-100 ${tone} ${className}`.trim()}>
@@ -138,27 +194,16 @@ export default function RecentCanonicalDriftCard({
         <div className="mt-3 leading-6 text-slate-200/80">
           current blocker pocket 的 recent-window drift 正在同步；在 artifact 到位前不要把 broader 歷史平均值當成 current live truth。
         </div>
-      ) : !windowSummary ? (
+      ) : !latestWindowSummary && !blockingWindowSummary ? (
         <div className="mt-3 leading-6 text-slate-200/80">
           尚未取得 recent drift artifact；請先重跑 recent_drift_report 與 heartbeat fast diagnostics。
         </div>
       ) : (
-        <div className="mt-3 space-y-2 text-[12px] leading-6 text-slate-100/90">
-          <div>
-            window {primaryWindow?.window ?? "—"} · rows {windowSummary.rows ?? "—"} · WR {formatPct(windowSummary.win_rate)} · {windowSummary.dominant_regime || "—"} {formatPct(windowSummary.dominant_regime_share)}
-          </div>
-          <div>
-            alerts {alerts.length ? alerts.join(" · ") : "none"} · quality {formatSigned(quality?.avg_simulated_quality)} · pnl {formatSigned(quality?.avg_simulated_pnl, 4)} · spot-long {formatPct(quality?.spot_long_win_rate)} · DD {formatPct(quality?.avg_drawdown_penalty)}
-          </div>
-          <div>
-            variance {featureDiag?.low_variance_count ?? "—"}/{featureDiag?.feature_count ?? "—"} · compressed {featureDiag?.compressed_count ?? "—"} · null-heavy {featureDiag?.null_heavy_count ?? "—"} · overlay {featureDiag?.overlay_only_count ?? "—"} · expected-static {featureDiag?.expected_static_count ?? "—"}
-          </div>
-          <div>
-            tail {formatStreak(targetPath?.tail_target_streak)} · adverse {formatStreak(adverseStreak)} · prev WR {formatPct(reference?.prev_win_rate)} ({formatSignedPct(reference?.win_rate_delta)})
-          </div>
-          <div>
-            shifts {topShiftFeatures.length ? topShiftFeatures.join(" / ") : "—"}
-          </div>
+        <div className="mt-3 space-y-3 text-[12px] leading-6 text-slate-100/90">
+          {renderWindowSummary("latest recent-window", latestWindow)}
+          {hasDistinctBlockingWindow
+            ? renderWindowSummary("current blocker pocket", blockingWindow, { emphasize: true })
+            : null}
         </div>
       )}
     </div>

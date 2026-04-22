@@ -175,6 +175,49 @@ def test_load_recent_canonical_drift_summary_maps_nested_reference_window_compar
                 },
             },
         },
+        "blocking_window": {
+            "window": "2500",
+            "alerts": ["regime_shift", "label_imbalance"],
+            "summary": {
+                "rows": 2500,
+                "win_rate": 0.291,
+                "drift_interpretation": "distribution_pathology",
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.902,
+                "quality_metrics": {
+                    "avg_simulated_pnl": -0.0014,
+                    "avg_simulated_quality": -0.024,
+                    "avg_drawdown_penalty": 0.281,
+                    "spot_long_win_rate": 0.11,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 12,
+                    "compressed_count": 9,
+                    "expected_static_count": 1,
+                    "expected_compressed_count": 2,
+                    "overlay_only_count": 1,
+                    "null_heavy_count": 11,
+                    "low_distinct_count": 12,
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 48, "target": 0},
+                    "longest_zero_target_streak": {"count": 300, "target": 0},
+                    "longest_one_target_streak": {"count": 20, "target": 1},
+                },
+                "reference_window_comparison": {
+                    "prev_win_rate": 0.71,
+                    "prev_quality": 0.221,
+                    "prev_pnl": 0.0051,
+                    "win_rate_delta": -0.419,
+                    "quality_delta": -0.245,
+                    "pnl_delta": -0.0065,
+                    "top_mean_shift_features": [
+                        {"feature": "feat_vix", "current_mean": 29.4, "reference_mean": 19.2}
+                    ],
+                },
+            },
+        },
     }
     artifact_path = tmp_path / "recent_drift_report.json"
     artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
@@ -189,6 +232,12 @@ def test_load_recent_canonical_drift_summary_maps_nested_reference_window_compar
     assert comparison["quality_delta"] == -0.4584
     assert comparison["pnl_delta"] == -0.014
     assert comparison["top_mean_shift_features"][0]["feature"] == "feat_4h_bias200"
+    blocking = summary["blocking_window"]
+    assert blocking["window"] == "2500"
+    assert blocking["alerts"] == ["regime_shift", "label_imbalance"]
+    assert blocking["summary"]["drift_interpretation"] == "distribution_pathology"
+    assert blocking["summary"]["quality_metrics"]["avg_simulated_pnl"] == -0.0014
+    assert blocking["summary"]["reference_window_comparison"]["top_mean_shift_features"][0]["feature"] == "feat_vix"
 
 
 
@@ -216,6 +265,15 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
                 "rows": 500,
                 "win_rate": 0.316,
                 "drift_interpretation": "regime_concentration",
+            },
+        },
+        "blocking_window": {
+            "window": 1000,
+            "alerts": ["label_imbalance"],
+            "summary": {
+                "rows": 1000,
+                "win_rate": 0.287,
+                "drift_interpretation": "distribution_pathology",
             },
         },
     })
@@ -281,6 +339,8 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["execution_surface_contract"]["operator_message"].startswith("目前完成的是 execution governance / visibility closure，不是 live 或 canary readiness。")
     assert payload["execution"]["recent_canonical_drift"]["primary_window"]["window"] == 500
     assert payload["execution"]["recent_canonical_drift"]["primary_window"]["summary"]["drift_interpretation"] == "regime_concentration"
+    assert payload["execution"]["recent_canonical_drift"]["blocking_window"]["window"] == 1000
+    assert payload["execution_surface_contract"]["recent_canonical_drift"]["blocking_window"]["summary"]["drift_interpretation"] == "distribution_pathology"
     assert payload["execution_surface_contract"]["recent_canonical_drift"]["primary_window"]["alerts"] == ["regime_shift"]
     assert payload["recent_canonical_drift"]["generated_at"] == "2026-04-22T00:00:00Z"
     assert payload["execution"]["live_runtime_truth"]["runtime_closure_state"] == "capacity_opened_signal_hold"
