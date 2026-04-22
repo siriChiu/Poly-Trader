@@ -1107,6 +1107,12 @@ export default function ExecutionConsole() {
                   ledgerPreview?.budget_alignment_status || ledgerPreview?.ownership_status,
                   "preview",
                 );
+                const profileRoutingReasonLabel = humanizeRuntimeDetailText(card.routing_reason || null);
+                const profileStartReasonLabel = humanizeRuntimeDetailText(card.control_contract?.start_reason || null);
+                const profileLatestEventMessageLabel = humanizeRuntimeDetailText(
+                  linkedRun?.latest_event?.message || linkedRun?.last_event_message || card.control_contract?.latest_event_message || null,
+                );
+                const profileSummaryLabel = card.summary || profileStrategyBinding?.summary || profileRoutingReasonLabel || "尚未提供策略摘要";
                 const primarySleeveLabel = String(
                   profileStrategyBinding?.primary_sleeve_label || card.strategy_binding?.primary_sleeve_label || "",
                 ).trim();
@@ -1157,7 +1163,7 @@ export default function ExecutionConsole() {
                       </div>
                     </div>
 
-                    <div className="mt-3 text-sm text-slate-300">{card.summary || profileStrategyBinding?.summary || card.routing_reason || "尚未提供策略摘要"}</div>
+                    <div className="mt-3 text-sm text-slate-300">{profileSummaryLabel}</div>
 
                     <div className="mt-4 grid grid-cols-2 gap-2 xl:grid-cols-3">
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
@@ -1197,10 +1203,10 @@ export default function ExecutionConsole() {
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-slate-400">
-                      <span>routing {card.routing_reason || "—"}</span>
-                      <span>start {card.control_contract?.start_reason || "—"}</span>
+                      <span>routing {profileRoutingReasonLabel || "—"}</span>
+                      <span>start {profileStartReasonLabel || "—"}</span>
                       <span>預覽 {profilePreviewStatusLabel}</span>
-                      <span>event {linkedRun?.latest_event?.message || linkedRun?.last_event_message || card.control_contract?.latest_event_message || "尚未建立 run event"}</span>
+                      <span>event {profileLatestEventMessageLabel || "尚未建立 run event"}</span>
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2 text-sm">

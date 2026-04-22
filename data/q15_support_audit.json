@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-04-22 17:39:48.348106",
+  "generated_at": "2026-04-22 18:36:16.666622",
   "target_col": "simulated_pyramid_win",
   "current_live": {
-    "feature_timestamp": "2026-04-22 17:39:48.348106",
+    "feature_timestamp": "2026-04-22 18:36:16.666622",
     "signal": "HOLD",
     "regime_label": "bull",
     "regime_gate": "BLOCK",
-    "entry_quality": 0.4023,
+    "entry_quality": 0.4616,
     "entry_quality_label": "D",
     "decision_quality_label": "D",
     "allowed_layers": 0,
@@ -15,10 +15,10 @@
     "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
     "current_live_structure_bucket_rows": 0,
     "raw_features": {
-      "feat_4h_bias50": 4.1433,
-      "feat_nose": 0.5249,
-      "feat_pulse": 0.4189,
-      "feat_ear": 0.0091
+      "feat_4h_bias50": 4.2675,
+      "feat_nose": 0.4946,
+      "feat_pulse": 0.6491,
+      "feat_ear": -0.0019
     }
   },
   "scope_applicability": {
@@ -61,7 +61,16 @@
       "history": [
         {
           "heartbeat": "current",
-          "timestamp": "2026-04-22T17:41:06.197650+00:00",
+          "timestamp": "2026-04-22T18:37:05.281525+00:00",
+          "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+          "live_current_structure_bucket_rows": 0,
+          "minimum_support_rows": 50,
+          "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+          "support_governance_route": "exact_live_bucket_proxy_available"
+        },
+        {
+          "heartbeat": "20260423b",
+          "timestamp": "2026-04-22T18:31:20.581817+00:00",
           "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
           "live_current_structure_bucket_rows": 0,
           "minimum_support_rows": 50,
@@ -70,7 +79,7 @@
         },
         {
           "heartbeat": "fast",
-          "timestamp": "2026-04-22T16:40:02.216106+00:00",
+          "timestamp": "2026-04-22T17:41:12.193931+00:00",
           "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
           "live_current_structure_bucket_rows": 0,
           "minimum_support_rows": 50,
@@ -94,15 +103,6 @@
           "minimum_support_rows": 50,
           "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
           "support_governance_route": "exact_live_bucket_proxy_available"
-        },
-        {
-          "heartbeat": "20260422s",
-          "timestamp": "2026-04-22T03:53:05.476354+00:00",
-          "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-          "live_current_structure_bucket_rows": 0,
-          "minimum_support_rows": 50,
-          "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
-          "support_governance_route": "exact_live_bucket_proxy_available"
         }
       ]
     }
@@ -110,10 +110,10 @@
   "floor_cross_legality": {
     "verdict": "math_cross_possible_but_illegal_without_exact_support",
     "legal_to_relax_runtime_gate": false,
-    "reason": "feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.4923），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。",
-    "remaining_gap_to_floor": 0.1477,
+    "reason": "feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.2947），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。",
+    "remaining_gap_to_floor": 0.0884,
     "best_single_component": "feat_4h_bias50",
-    "best_single_component_required_score_delta": 0.4923,
+    "best_single_component_required_score_delta": 0.2947,
     "best_single_component_can_cross_floor": true
   },
   "component_experiment": {
@@ -136,17 +136,17 @@
   },
   "component_gap_attribution": {
     "trade_floor": 0.55,
-    "entry_quality": 0.4023,
-    "remaining_gap_to_floor": 0.1477,
+    "entry_quality": 0.4616,
+    "remaining_gap_to_floor": 0.0884,
     "reconstructed_from_q15_patch": false,
     "runtime_entry_quality_after_patch": null,
     "runtime_trade_floor_gap_after_patch": null,
-    "base_group_max_entry_gain": 0.4937,
-    "structure_group_max_entry_gain": 0.1041,
+    "base_group_max_entry_gain": 0.439,
+    "structure_group_max_entry_gain": 0.0994,
     "best_single_component": {
       "group": "base",
       "feature": "feat_4h_bias50",
-      "raw_value": 4.1433,
+      "raw_value": 4.2675,
       "normalized_score": 0.0,
       "weight": 0.4,
       "outer_weight": 0.75,
@@ -154,14 +154,14 @@
       "weighted_contribution": 0.0,
       "headroom_to_perfect_score": 1.0,
       "max_entry_gain_if_perfect": 0.3,
-      "required_score_delta_to_cross_floor": 0.4923,
+      "required_score_delta_to_cross_floor": 0.2947,
       "can_single_component_cross_floor": true
     },
     "single_component_floor_crossers": [
       {
         "group": "base",
         "feature": "feat_4h_bias50",
-        "raw_value": 4.1433,
+        "raw_value": 4.2675,
         "normalized_score": 0.0,
         "weight": 0.4,
         "outer_weight": 0.75,
@@ -169,7 +169,7 @@
         "weighted_contribution": 0.0,
         "headroom_to_perfect_score": 1.0,
         "max_entry_gain_if_perfect": 0.3,
-        "required_score_delta_to_cross_floor": 0.4923,
+        "required_score_delta_to_cross_floor": 0.2947,
         "can_single_component_cross_floor": true
       }
     ],
@@ -177,7 +177,7 @@
       {
         "group": "base",
         "feature": "feat_4h_bias50",
-        "raw_value": 4.1433,
+        "raw_value": 4.2675,
         "normalized_score": 0.0,
         "weight": 0.4,
         "outer_weight": 0.75,
@@ -185,99 +185,99 @@
         "weighted_contribution": 0.0,
         "headroom_to_perfect_score": 1.0,
         "max_entry_gain_if_perfect": 0.3,
-        "required_score_delta_to_cross_floor": 0.4923,
+        "required_score_delta_to_cross_floor": 0.2947,
         "can_single_component_cross_floor": true
       },
       {
         "group": "base",
         "feature": "feat_pulse",
-        "raw_value": 0.4189,
-        "normalized_score": 0.4189,
+        "raw_value": 0.6491,
+        "normalized_score": 0.6491,
         "weight": 0.27,
         "outer_weight": 0.75,
         "effective_weight": 0.2025,
-        "weighted_contribution": 0.1131,
-        "headroom_to_perfect_score": 0.5811,
-        "max_entry_gain_if_perfect": 0.1177,
-        "required_score_delta_to_cross_floor": 0.7294,
+        "weighted_contribution": 0.1753,
+        "headroom_to_perfect_score": 0.3509,
+        "max_entry_gain_if_perfect": 0.0711,
+        "required_score_delta_to_cross_floor": 0.4365,
         "can_single_component_cross_floor": false
       },
       {
         "group": "base",
         "feature": "feat_nose",
-        "raw_value": 0.5249,
-        "normalized_score": 0.4751,
+        "raw_value": 0.4946,
+        "normalized_score": 0.5054,
         "weight": 0.18,
         "outer_weight": 0.75,
         "effective_weight": 0.135,
-        "weighted_contribution": 0.0855,
-        "headroom_to_perfect_score": 0.5249,
-        "max_entry_gain_if_perfect": 0.0709,
-        "required_score_delta_to_cross_floor": 1.0941,
+        "weighted_contribution": 0.091,
+        "headroom_to_perfect_score": 0.4946,
+        "max_entry_gain_if_perfect": 0.0668,
+        "required_score_delta_to_cross_floor": 0.6548,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_dist_bb_lower",
-        "raw_value": 2.8247,
-        "normalized_score": 0.3531,
+        "raw_value": 2.9237,
+        "normalized_score": 0.3655,
         "weight": 0.33,
         "outer_weight": 0.25,
         "effective_weight": 0.0825,
-        "weighted_contribution": 0.1165,
-        "headroom_to_perfect_score": 0.6469,
-        "max_entry_gain_if_perfect": 0.0534,
-        "required_score_delta_to_cross_floor": 1.7903,
+        "weighted_contribution": 0.1206,
+        "headroom_to_perfect_score": 0.6345,
+        "max_entry_gain_if_perfect": 0.0523,
+        "required_score_delta_to_cross_floor": 1.0715,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_dist_swing_low",
-        "raw_value": 5.0912,
-        "normalized_score": 0.5091,
+        "raw_value": 5.2067,
+        "normalized_score": 0.5207,
         "weight": 0.33,
         "outer_weight": 0.25,
         "effective_weight": 0.0825,
-        "weighted_contribution": 0.168,
-        "headroom_to_perfect_score": 0.4909,
-        "max_entry_gain_if_perfect": 0.0405,
-        "required_score_delta_to_cross_floor": 1.7903,
+        "weighted_contribution": 0.1718,
+        "headroom_to_perfect_score": 0.4793,
+        "max_entry_gain_if_perfect": 0.0395,
+        "required_score_delta_to_cross_floor": 1.0715,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_bb_pct_b",
-        "raw_value": 0.8799,
-        "normalized_score": 0.8799,
+        "raw_value": 0.9103,
+        "normalized_score": 0.9103,
         "weight": 0.34,
         "outer_weight": 0.25,
         "effective_weight": 0.085,
-        "weighted_contribution": 0.2992,
-        "headroom_to_perfect_score": 0.1201,
-        "max_entry_gain_if_perfect": 0.0102,
-        "required_score_delta_to_cross_floor": 1.7376,
+        "weighted_contribution": 0.3095,
+        "headroom_to_perfect_score": 0.0897,
+        "max_entry_gain_if_perfect": 0.0076,
+        "required_score_delta_to_cross_floor": 1.04,
         "can_single_component_cross_floor": false
       },
       {
         "group": "base",
         "feature": "feat_ear",
-        "raw_value": 0.0091,
-        "normalized_score": 0.9547,
+        "raw_value": -0.0019,
+        "normalized_score": 0.9903,
         "weight": 0.15,
         "outer_weight": 0.75,
         "effective_weight": 0.1125,
-        "weighted_contribution": 0.1432,
-        "headroom_to_perfect_score": 0.0453,
-        "max_entry_gain_if_perfect": 0.0051,
-        "required_score_delta_to_cross_floor": 1.3129,
+        "weighted_contribution": 0.1485,
+        "headroom_to_perfect_score": 0.0097,
+        "max_entry_gain_if_perfect": 0.0011,
+        "required_score_delta_to_cross_floor": 0.7858,
         "can_single_component_cross_floor": false
       }
     ],
     "bias50_floor_counterfactual": {
-      "entry_if_bias50_fully_relaxed": 0.7023,
+      "entry_if_bias50_fully_relaxed": 0.7616,
       "layers_if_bias50_fully_relaxed": 0,
-      "required_bias50_cap_for_floor": -0.0615,
-      "current_bias50_value": 4.1433
+      "required_bias50_cap_for_floor": 0.9265,
+      "current_bias50_value": 4.2675
     }
   },
   "runtime_blocker": null,

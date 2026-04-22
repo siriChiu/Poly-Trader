@@ -497,6 +497,9 @@ export default function ExecutionStatus() {
   const currentLiveBlockerLabel = runtimeStatusPending
     ? "同步中"
     : humanizeCurrentLiveBlockerLabel(currentLiveBlocker || "unavailable");
+  const readinessScopeLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeRuntimeDetailText(executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only");
   const metadataFreshnessLabel = runtimeStatusPending
     ? "同步中"
     : (metadataFreshness?.label || metadataFreshness?.status || "unavailable");
@@ -650,7 +653,7 @@ export default function ExecutionStatus() {
           <ExecutionMetricCard
             title="可部署"
             value={liveReadinessMetricValue}
-            detail={`blocker ${currentLiveBlockerLabel} · ${primaryRuntimeMessage} · scope ${executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only"}`}
+            detail={`blocker ${currentLiveBlockerLabel} · ${primaryRuntimeMessage} · 治理範圍 ${readinessScopeLabel}`}
             toneClass={readinessTone.includes("amber") ? "text-amber-100" : readinessTone.includes("emerald") || readinessTone.includes("cyan") ? "text-emerald-200" : "text-white"}
           />
           <ExecutionMetricCard

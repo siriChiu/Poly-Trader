@@ -72,7 +72,7 @@ def test_execution_status_route_and_page_contract():
         '營運入口',
         'operations {operationsSurface?.label || "Bot 營運"}',
         'diagnostics {diagnosticsSurface?.label || "Execution 狀態"}',
-        'detail={`blocker ${currentLiveBlockerLabel} · ${primaryRuntimeMessage} · scope ${executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only"}`}',
+        'detail={`blocker ${currentLiveBlockerLabel} · ${primaryRuntimeMessage} · 治理範圍 ${readinessScopeLabel}`}',
         'value={liveReadinessMetricValue}',
         'venue blockers {venueBlockersLabel}',
     ]
@@ -259,6 +259,13 @@ def test_execution_console_humanizes_raw_control_plane_placeholders_on_bot_cards
         'const profileNextActionLabel =',
         'const profileNextActionEventLabel =',
         'const profilePreviewStatusLabel =',
+        'const profileRoutingReasonLabel = humanizeRuntimeDetailText(card.routing_reason || null);',
+        'const profileStartReasonLabel = humanizeRuntimeDetailText(card.control_contract?.start_reason || null);',
+        'const profileLatestEventMessageLabel = humanizeRuntimeDetailText(',
+        'const profileSummaryLabel = card.summary || profileStrategyBinding?.summary || profileRoutingReasonLabel || "尚未提供策略摘要";',
+        'routing {profileRoutingReasonLabel || "—"}',
+        'start {profileStartReasonLabel || "—"}',
+        'event {profileLatestEventMessageLabel || "尚未建立 run event"}',
     ]
     for snippet in required_console_snippets:
         assert snippet in console_source
@@ -270,6 +277,7 @@ def test_execution_console_humanizes_raw_control_plane_placeholders_on_bot_cards
         '["no event", "尚無事件"]',
         '["waiting", "等待首筆事件"]',
         '["equal_split_active_sleeves", "active sleeves 均分"]',
+        'const spacedToken = token.replace(/_/g, " ");',
     ]
     for snippet in required_runtime_copy_snippets:
         assert snippet in runtime_copy_source
@@ -491,6 +499,20 @@ def test_execution_surfaces_humanize_blocker_labels_and_reasons_via_shared_runti
     assert 'liveRuntimeTruth?.deployment_blocker_reason' in execution_console_source
     assert 'const currentLiveBlockerLabel = runtimeStatusPending ? "同步中" : (currentLiveBlocker || "unavailable");' not in execution_status_source
     assert 'const currentLiveBlockerLabel = liveExecutionSyncPending ? "同步中" : (currentLiveBlocker || "unknown");' not in strategy_lab_source
+
+
+def test_execution_status_humanizes_readiness_scope_with_shared_runtime_copy():
+    status_source = _read("pages/ExecutionStatus.tsx")
+
+    required_snippets = [
+        'const readinessScopeLabel = runtimeStatusPending',
+        'humanizeRuntimeDetailText(executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only")',
+        '治理範圍 ${readinessScopeLabel}',
+    ]
+    for snippet in required_snippets:
+        assert snippet in status_source
+
+    assert 'scope ${executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only"}' not in status_source
 
 
 def test_dashboard_advice_card_downgrades_trade_ctas_until_runtime_is_ready():

@@ -278,6 +278,10 @@ export function humanizeRuntimeDetailText(value?: string | null): string {
   let output = normalized;
   for (const [token, label] of RUNTIME_DETAIL_TOKEN_REPLACEMENTS) {
     output = output.split(token).join(label);
+    const spacedToken = token.replace(/_/g, " ");
+    if (spacedToken !== token) {
+      output = output.split(spacedToken).join(label);
+    }
   }
 
   return output

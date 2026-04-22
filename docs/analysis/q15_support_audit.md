@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-22 17:39:48.348106**
+- generated_at: **2026-04-22 18:36:16.666622**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
@@ -41,11 +41,11 @@
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.1477**
+- remaining_gap_to_floor: **0.0884**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.4923**
+- best_single_component_required_score_delta: **0.2947**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.4923），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.2947），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**
