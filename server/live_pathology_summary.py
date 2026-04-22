@@ -255,6 +255,13 @@ def build_live_pathology_patch_summary(
     if not exact_support_not_ready and reference_patch_scope and current_live_regime_gate:
         non_current_live_scope = reference_patch_scope != current_live_regime_gate
 
+    deployment_blocker = str(confidence_payload.get("deployment_blocker") or "").strip() or None
+    runtime_closure_state = str(confidence_payload.get("runtime_closure_state") or "").strip() or None
+    deployment_blocker_active = bool(deployment_blocker) or runtime_closure_state in {
+        "patch_active_but_execution_blocked",
+        "support_closed_but_trade_floor_blocked",
+    }
+
     reference_only_cause = None
     if exact_support_not_ready:
         reference_only_cause = "exact_support_not_ready"
@@ -262,13 +269,15 @@ def build_live_pathology_patch_summary(
     elif non_current_live_scope:
         reference_only_cause = "non_current_live_scope"
         status = "reference_only_non_current_live_scope"
+    elif deployment_blocker_active:
+        reference_only_cause = "deployment_blocker_active"
+        status = "reference_only_while_deployment_blocked"
     else:
         status = "deployable_patch_candidate"
 
     reference_only = status.startswith("reference_only_")
     reference_patch_scope_text = reference_patch_scope or "—"
     reference_source_text = reference_source or "—"
-    deployment_blocker = str(confidence_payload.get("deployment_blocker") or "").strip() or None
     if reference_only_cause == "exact_support_not_ready":
         reason = (
             f"參考 patch 來自 {reference_patch_scope_text}（source: {reference_source_text}），"
@@ -291,6 +300,18 @@ def build_live_pathology_patch_summary(
             f"維持 reference-only patch 可見性；目前 current live 是 {current_live_regime_gate or '—'}，"
             f"但 patch 來自 {reference_patch_scope_text} spillover。"
             " 在 scope 對齊前，只可作治理 / 訓練參考，不可把它升級成 current-live deploy patch。"
+        )
+    elif reference_only_cause == "deployment_blocker_active":
+        blocker_label = deployment_blocker or runtime_closure_state or "latest runtime blocker"
+        reason = (
+            f"參考 patch 來自 {reference_patch_scope_text}（source: {reference_source_text}），可直接對應到 {recommended_profile} patch；"
+            f"但 current-live deployment blocker 仍是 {blocker_label}。"
+            " 即使 exact support 已達 minimum rows，patch 也只能先保留為治理 / 訓練參考，"
+            "直到 blocker 清除後，才可升級成正式 deploy patch。"
+        )
+        recommended_action = (
+            "維持 reference-only patch truth；先處理 current-live deployment blocker，"
+            f"確認 {blocker_label} 已解除後，再重跑 runtime / training patch 驗證。"
         )
     else:
         blocker_clause = (

@@ -15,11 +15,11 @@
 - triggered: **False** via []
 - release_ready: **True**
 - streak: 0 / threshold 50
-- recent 50: win_rate=0.6 wins=30 losses=20
+- recent 50: win_rate=0.62 wins=31 losses=19
 
 ## Release condition
 - streak < 50
 - recent 50 win_rate >= 30%
-- aligned_scope_now: streak=0, win_rate=0.6
+- aligned_scope_now: streak=0, win_rate=0.62
 - additional recent-window wins needed: 0
-- tail pathology: losses=20 / wins=30 / loss_share=0.4
+- tail pathology: losses=19 / wins=31 / loss_share=0.38

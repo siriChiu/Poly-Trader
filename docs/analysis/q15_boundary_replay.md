@@ -1,6 +1,6 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-04-22 02:05:17.873413**
+- generated_at: **2026-04-22 02:34:04.180761**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_replay_not_applicable**
 - reason: 目前 q15 root-cause verdict 不是 boundary_sensitivity_candidate，boundary replay 不是本輪主路徑。
@@ -9,26 +9,26 @@
 - signal: **HOLD**
 - regime/gate: **bull / CAUTION**
 - structure bucket: **CAUTION|structure_quality_caution|q35**
-- structure_quality: **0.4073**
-- entry_quality: **0.5532** (trade_floor_gap=0.0032)
+- structure_quality: **0.5716**
+- entry_quality: **0.5573** (trade_floor_gap=0.0073)
 - support_route: **exact_bucket_supported**
 - floor_cross_legality: **floor_already_crossed_and_support_ready**
 
 ## Boundary replay
-- legacy bucket rows: **70**
+- legacy bucket rows: **69**
 - replay bucket: **CAUTION|structure_quality_caution|q35**
-- replay bucket rows: **70**
+- replay bucket rows: **69**
 - generated_rows_via_boundary_only: **0**
-- preexisting_rows_in_replay_bucket: **70**
+- preexisting_rows_in_replay_bucket: **69**
 - generated_row_share: **0.0**
 - dominant_neighbor_bucket: **CAUTION|structure_quality_caution|q35** rows=0
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.6365 → 0.6365**
-- structure_quality: **0.4073 → 0.4073**
+- raw before/after: **0.916 → 0.916**
+- structure_quality: **0.5716 → 0.5716**
 - bucket_after: **CAUTION|structure_quality_caution|q35**
-- entry_quality: **0.5532 → 0.5533**
-- trade_floor_gap_after: **0.0033**
+- entry_quality: **0.5573 → 0.5573**
+- trade_floor_gap_after: **0.0073**
 - allowed_layers_after: **1** (entry_quality_C_single_layer)
 - counterfactual verdict: **counterfactual_crosses_floor_after_rebucket**
 - counterfactual reason: feat_4h_bb_pct_b 的最小反事實不只改變 bucket，也讓 entry_quality 跨過 trade floor；下一輪可升級成 guarded experiment。

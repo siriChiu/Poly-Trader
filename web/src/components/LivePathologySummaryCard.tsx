@@ -118,12 +118,18 @@ const formatPatchStatus = (status?: string | null) => {
       return "先當治理參考，不可直接放行";
     case "reference_only_non_current_live_scope":
       return "scope 不同，僅作治理參考";
+    case "reference_only_while_deployment_blocked":
+      return "blocker 未清前僅作治理參考";
     case "deployable_patch_candidate":
-      return "已達可部署 patch 候選";
+      return "已達 runtime / training patch 候選";
     default:
       return status || "patch 狀態未提供";
   }
 };
+
+const isReferenceOnlyPatchStatus = (status?: string | null) => (
+  String(status || "").startsWith("reference_only_")
+);
 
 const formatSupportAlignmentStatus = (status?: string | null) => {
   switch (status) {
@@ -171,6 +177,9 @@ export default function LivePathologySummaryCard({
     || recommendedPatch?.reference_patch_scope
     || (recommendedPatch ? formatPatchStatus(recommendedPatch.status) : null);
   const compactPatchStatusLabel = recommendedPatch ? formatPatchStatus(recommendedPatch.status) : null;
+  const patchSectionTitle = isReferenceOnlyPatchStatus(recommendedPatch?.status)
+    ? "治理 / 訓練 patch 參考"
+    : "建議正式 patch";
   const currentBucketSupportRows = recommendedPatch?.current_live_structure_bucket_rows ?? exactLane?.current_live_structure_bucket_rows;
   const currentBucketSupportMinimum = recommendedPatch?.minimum_support_rows ?? null;
   const currentBucketSupportLabel = currentBucketSupportRows != null
@@ -373,7 +382,7 @@ export default function LivePathologySummaryCard({
         <div className="rounded-lg border border-sky-500/20 bg-sky-950/10 px-3 py-3 text-sky-50 space-y-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">建議正式 patch</div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">{patchSectionTitle}</div>
               <div className="mt-1 text-sm font-semibold text-sky-100">
                 {recommendedPatch.recommended_profile || "未提供 profile"}
               </div>

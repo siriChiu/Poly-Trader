@@ -33,6 +33,7 @@ def test_check_db_uses_canonical_simulated_pyramid_win(tmp_path, monkeypatch):
 def test_is_reference_only_patch_status_accepts_scope_mismatch_variant():
     assert auto_propose_fixes._is_reference_only_patch_status("reference_only_until_exact_support_ready") is True
     assert auto_propose_fixes._is_reference_only_patch_status("reference_only_non_current_live_scope") is True
+    assert auto_propose_fixes._is_reference_only_patch_status("reference_only_while_deployment_blocked") is True
     assert auto_propose_fixes._is_reference_only_patch_status("deployable_patch_candidate") is False
 
 

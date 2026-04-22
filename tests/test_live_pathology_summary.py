@@ -278,6 +278,64 @@ def test_build_live_pathology_patch_summary_keeps_spillover_patch_reference_only
     assert "只可作治理 / 訓練參考" in patch["recommended_action"]
 
 
+def test_build_live_pathology_patch_summary_keeps_same_scope_patch_reference_only_while_blocker_active(tmp_path):
+    artifact_path = tmp_path / "bull_4h_pocket_ablation.json"
+    _write_bull_patch_artifact(artifact_path)
+
+    confidence_payload = {
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+        "support_route_verdict": "exact_bucket_supported",
+        "support_route_deployable": True,
+        "support_progress": {
+            "current_rows": 70,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 0,
+        },
+        "deployment_blocker": "decision_quality_below_trade_floor",
+        "runtime_closure_state": "patch_active_but_execution_blocked",
+    }
+    scope_summary = {
+        "focus_scope": "regime_label",
+        "focus_scope_label": "同 GATE 寬 scope",
+        "spillover": {
+            "extra_rows": 200,
+            "extra_row_share": 1.0,
+            "worst_extra_regime_gate": {
+                "regime_gate": "bull|CAUTION",
+                "rows": 200,
+                "win_rate": 0.4,
+                "avg_pnl": -0.0023,
+                "avg_quality": 0.0321,
+            },
+        },
+        "exact_live_lane": {
+            "rows": 0,
+            "win_rate": None,
+            "avg_pnl": None,
+            "avg_quality": None,
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "current_live_structure_bucket_rows": 70,
+        },
+    }
+
+    patch = build_live_pathology_patch_summary(
+        confidence_payload,
+        scope_summary,
+        artifact_path=artifact_path,
+    )
+
+    assert patch is not None
+    assert patch["status"] == "reference_only_while_deployment_blocked"
+    assert patch["reference_only_cause"] == "deployment_blocker_active"
+    assert patch["patch_scope_matches_live"] is True
+    assert patch["reference_patch_scope"] == "bull|CAUTION"
+    assert "decision_quality_below_trade_floor" in patch["reason"]
+    assert "直到 blocker 清除後" in patch["reason"]
+    assert "先處理 current-live deployment blocker" in patch["recommended_action"]
+
+
 def test_build_live_pathology_scope_summary_exposes_exact_lane_bucket_context():
     summary = build_live_pathology_scope_summary(
         {
