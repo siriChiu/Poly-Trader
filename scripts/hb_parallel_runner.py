@@ -154,6 +154,66 @@ def collect_current_state_docs_sync_status() -> Dict[str, Any]:
     }
 
 
+def collect_historical_coverage_confirmation(
+    db_path: str | Path | None = None,
+    *,
+    symbol: str = "BTCUSDT",
+    lookback_days: int = 730,
+) -> Dict[str, Any]:
+    target_db = str(db_path or DB_PATH)
+    summary: Dict[str, Any] = {
+        "symbol": symbol,
+        "db_path": target_db,
+        "lookback_days": int(lookback_days),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "tables": {},
+    }
+
+    now = datetime.now(timezone.utc)
+    cutoff = now.timestamp() - max(int(lookback_days), 1) * 86400
+    cutoff_dt = datetime.fromtimestamp(cutoff, tz=timezone.utc)
+    table_specs = {
+        "raw_market_data": "SELECT MIN(timestamp), MAX(timestamp), COUNT(*) FROM raw_market_data WHERE symbol = ?",
+        "features_normalized": "SELECT MIN(timestamp), MAX(timestamp), COUNT(*) FROM features_normalized WHERE symbol = ?",
+        "labels": "SELECT MIN(timestamp), MAX(timestamp), COUNT(*) FROM labels WHERE symbol = ?",
+    }
+
+    try:
+        conn = sqlite3.connect(target_db)
+    except Exception as exc:
+        summary["error"] = str(exc)
+        summary["ok"] = False
+        summary["covers_two_years"] = False
+        return summary
+
+    try:
+        covers_two_years = True
+        for table_name, query in table_specs.items():
+            row = conn.execute(query, (symbol,)).fetchone() or (None, None, 0)
+            start_dt = _safe_parse_datetime(row[0])
+            end_dt = _safe_parse_datetime(row[1])
+            count = int(row[2] or 0)
+            span_days = None
+            if start_dt and end_dt:
+                span_days = round((end_dt - start_dt).total_seconds() / 86400.0, 2)
+            older_than_cutoff = bool(start_dt and start_dt <= cutoff_dt)
+            summary["tables"][table_name] = {
+                "start": start_dt.isoformat() if start_dt else None,
+                "end": end_dt.isoformat() if end_dt else None,
+                "count": count,
+                "span_days": span_days,
+                "older_than_two_year_cutoff": older_than_cutoff,
+            }
+            if not older_than_cutoff:
+                covers_two_years = False
+        summary["cutoff_timestamp"] = cutoff_dt.isoformat()
+        summary["covers_two_years"] = covers_two_years
+        summary["ok"] = True
+        return summary
+    finally:
+        conn.close()
+
+
 def _format_local_timestamp_for_docs(value: datetime | None = None) -> str:
     current = value or datetime.now().astimezone()
     return current.strftime("%Y-%m-%d %H:%M:%S %Z")
@@ -840,6 +900,17 @@ def overwrite_current_state_docs(
         f"Features={counts.get('features_normalized', '—')} / "
         f"Labels={counts.get('labels', '—')}`"
     )
+    history_confirmation = collect_historical_coverage_confirmation(DB_PATH)
+    history_tables = history_confirmation.get("tables") if isinstance(history_confirmation, dict) else {}
+    raw_history = history_tables.get("raw_market_data") if isinstance(history_tables, dict) else {}
+    feature_history = history_tables.get("features_normalized") if isinstance(history_tables, dict) else {}
+    label_history = history_tables.get("labels") if isinstance(history_tables, dict) else {}
+    history_line = (
+        f"`2y_backfill_ok={history_confirmation.get('covers_two_years')}` / "
+        f"`raw_start={raw_history.get('start') or '—'}` / "
+        f"`features_start={feature_history.get('start') or '—'}` / "
+        f"`labels_start={label_history.get('start') or '—'}`"
+    )
     blocker_line = (
         f"`deployment_blocker={live_predictor_diagnostics.get('deployment_blocker') or '—'}` / "
         f"`streak={live_predictor_diagnostics.get('streak', '—')}` / "
@@ -1045,6 +1116,7 @@ def overwrite_current_state_docs(
         "## 當前主線事實",
         f"- **最新 fast heartbeat #{run_label} 已完成 collect + diagnostics refresh**",
         f"  - {counts_line}",
+        f"  - 歷史覆蓋確認：{history_line}",
         f"  - `simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`",
         facts_blocker_heading,
         f"  - {blocker_line}",
@@ -1118,6 +1190,7 @@ def overwrite_current_state_docs(
         "## 已完成",
         f"- **fast heartbeat #{run_label} 已完成 collect + diagnostics refresh**",
         f"  - {counts_line}",
+        f"  - 歷史覆蓋確認：{history_line}",
         f"  - {blocker_line}",
         f"  - {pathology_line}",
         *([f"  - {blocking_pathology_line}"] if blocking_pathology_line else []),
@@ -1208,7 +1281,7 @@ def overwrite_current_state_docs(
         f"## 心跳 #{run_label} ORID",
         "",
         "### O｜客觀事實",
-        f"- collect + diagnostics refresh 完成：{counts_line}；`simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`。",
+        f"- collect + diagnostics refresh 完成：{counts_line}；歷史覆蓋確認：{history_line}；`simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`。",
         f"- current-live blocker：{blocker_line}。",
         f"- {support_scope_label} truth：{support_line}。",
         f"- latest recent-window diagnostics：{pathology_line}。",
@@ -2606,6 +2679,7 @@ def save_summary(
             runtime_progress_snapshot = {}
 
     summary_now = datetime.now(timezone.utc)
+    historical_coverage_confirmation = collect_historical_coverage_confirmation(DB_PATH)
     summary = {
         "heartbeat": run_label,
         "mode": "fast" if fast_mode else "full",
@@ -2619,6 +2693,7 @@ def save_summary(
             "continuity_repair": continuity_repair,
         },
         "db_counts": counts,
+        "historical_coverage_confirmation": historical_coverage_confirmation,
         "source_blockers": source_blockers,
         "ic_diagnostics": ic_diagnostics or {},
         "drift_diagnostics": drift_diagnostics or {},

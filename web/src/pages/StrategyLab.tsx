@@ -2597,6 +2597,79 @@ export default function StrategyLab() {
     return "border-white/10 bg-slate-950/20 text-slate-200";
   };
 
+  const workspaceHeadlineMetrics = (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-300">🧭 綜合能力</div>
+            <div className="text-[11px] text-slate-500">五維能力摘要。</div>
+          </div>
+          <div className={`text-right text-lg font-bold ${decisionQualityTone(activeResult?.avg_decision_quality_score)}`}>
+            {formatDecimal(activeResult?.overall_score, 3)}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          {[
+            { label: "Reliability", value: formatDecimal(activeResult?.reliability_score, 3), color: "text-cyan-300" },
+            { label: "Return", value: formatDecimal(activeResult?.return_power_score, 3), color: "text-violet-300" },
+            { label: "Risk", value: formatDecimal(activeResult?.risk_control_score, 3), color: "text-amber-300" },
+            { label: "Capital", value: formatDecimal(activeResult?.capital_efficiency_score, 3), color: "text-fuchsia-300" },
+          ].map((card) => (
+            <div key={card.label} className="rounded-lg bg-slate-800/40 px-3 py-2">
+              <div className="text-[10px] text-slate-500">{card.label}</div>
+              <div className={`text-base font-semibold ${card.color}`}>{card.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
+        <div className="text-sm font-semibold text-slate-300">🎯 Decision Quality</div>
+        <div className={`text-2xl font-bold ${decisionQualityTone(activeResult?.avg_decision_quality_score)}`}>
+          DQ {formatDecimal(activeResult?.avg_decision_quality_score, 3)}
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">預期勝率</div><div className="text-emerald-300 font-semibold">{formatPct(activeResult?.avg_expected_win_rate)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">預期品質</div><div className="text-cyan-300 font-semibold">{formatDecimal(activeResult?.avg_expected_pyramid_quality, 3)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">回撤懲罰</div><div className="text-amber-300 font-semibold">{formatPct(activeResult?.avg_expected_drawdown_penalty)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">深套時間</div><div className="text-orange-300 font-semibold">{formatPct(activeResult?.avg_expected_time_underwater)}</div></div>
+        </div>
+      </div>
+
+      <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
+        <div className="text-sm font-semibold text-slate-300">📈 執行結果</div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">ROI</div><div className={`${isFiniteNumber(activeResult?.roi) && (activeResult?.roi ?? 0) >= 0 ? "text-green-400" : "text-red-400"} text-lg font-semibold`}>{formatPct(activeResult?.roi, 1, true)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">Max DD</div><div className="text-red-300 text-lg font-semibold">{formatPct(activeResult?.max_drawdown)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">PF</div><div className="text-violet-300 text-lg font-semibold">{formatDecimal(activeResult?.profit_factor)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">Trades</div><div className="text-slate-100 text-lg font-semibold">{activeResult?.total_trades ?? "—"}</div></div>
+        </div>
+      </div>
+
+      <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
+        <div className="text-sm font-semibold text-slate-300">🧠 模型 / Gate 摘要</div>
+        <div className="rounded-lg bg-slate-800/40 px-3 py-2 text-xs">
+          <div className="text-[10px] text-slate-500">交易模型</div>
+          <div className="text-emerald-300 font-semibold">{activeMeta.model_name || "rule_based"}</div>
+          <div className="mt-1 text-slate-500">主 gate：{activeResult?.dominant_regime_gate || "—"} · 平均允許層數 {formatDecimal(activeResult?.avg_allowed_layers, 1)}</div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          {[
+            { gate: "ALLOW", color: "text-emerald-300" },
+            { gate: "CAUTION", color: "text-yellow-300" },
+            { gate: "BLOCK", color: "text-red-300" },
+          ].map(({ gate, color }) => (
+            <div key={gate} className="rounded bg-slate-800/40 p-2">
+              <div className="text-slate-500">{gate}</div>
+              <div className={`text-base font-semibold ${color}`}>{activeResult?.regime_gate_summary?.[gate] ?? 0}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="app-page-shell">
       <div className="app-page-header">
@@ -2830,6 +2903,8 @@ export default function StrategyLab() {
           {error && <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-4 text-red-400 text-sm">{error}</div>}
 
           <div className={activeTab === "workspace" ? "space-y-4" : "hidden"}>
+            {workspaceHeadlineMetrics}
+
             <div className="app-surface-card space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div className="flex flex-col gap-3">
@@ -3002,77 +3077,6 @@ export default function StrategyLab() {
               className="mt-3"
               title="📉 Recent canonical drift"
             />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-300">🧭 綜合能力</div>
-                    <div className="text-[11px] text-slate-500">五維能力摘要。</div>
-                  </div>
-                  <div className={`text-right text-lg font-bold ${decisionQualityTone(activeResult?.avg_decision_quality_score)}`}>
-                    {formatDecimal(activeResult?.overall_score, 3)}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {[
-                    { label: "Reliability", value: formatDecimal(activeResult?.reliability_score, 3), color: "text-cyan-300" },
-                    { label: "Return", value: formatDecimal(activeResult?.return_power_score, 3), color: "text-violet-300" },
-                    { label: "Risk", value: formatDecimal(activeResult?.risk_control_score, 3), color: "text-amber-300" },
-                    { label: "Capital", value: formatDecimal(activeResult?.capital_efficiency_score, 3), color: "text-fuchsia-300" },
-                  ].map((card) => (
-                    <div key={card.label} className="rounded-lg bg-slate-800/40 px-3 py-2">
-                      <div className="text-[10px] text-slate-500">{card.label}</div>
-                      <div className={`text-base font-semibold ${card.color}`}>{card.value}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
-                <div className="text-sm font-semibold text-slate-300">🎯 Decision Quality</div>
-                <div className={`text-2xl font-bold ${decisionQualityTone(activeResult?.avg_decision_quality_score)}`}>
-                  DQ {formatDecimal(activeResult?.avg_decision_quality_score, 3)}
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">預期勝率</div><div className="text-emerald-300 font-semibold">{formatPct(activeResult?.avg_expected_win_rate)}</div></div>
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">預期品質</div><div className="text-cyan-300 font-semibold">{formatDecimal(activeResult?.avg_expected_pyramid_quality, 3)}</div></div>
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">回撤懲罰</div><div className="text-amber-300 font-semibold">{formatPct(activeResult?.avg_expected_drawdown_penalty)}</div></div>
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">深套時間</div><div className="text-orange-300 font-semibold">{formatPct(activeResult?.avg_expected_time_underwater)}</div></div>
-                </div>
-              </div>
-
-              <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
-                <div className="text-sm font-semibold text-slate-300">📈 執行結果</div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">ROI</div><div className={`${isFiniteNumber(activeResult?.roi) && (activeResult?.roi ?? 0) >= 0 ? "text-green-400" : "text-red-400"} text-lg font-semibold`}>{formatPct(activeResult?.roi, 1, true)}</div></div>
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">Max DD</div><div className="text-red-300 text-lg font-semibold">{formatPct(activeResult?.max_drawdown)}</div></div>
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">PF</div><div className="text-violet-300 text-lg font-semibold">{formatDecimal(activeResult?.profit_factor)}</div></div>
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">Trades</div><div className="text-slate-100 text-lg font-semibold">{activeResult?.total_trades ?? "—"}</div></div>
-                </div>
-              </div>
-
-              <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
-                <div className="text-sm font-semibold text-slate-300">🧠 模型 / Gate 摘要</div>
-                <div className="rounded-lg bg-slate-800/40 px-3 py-2 text-xs">
-                  <div className="text-[10px] text-slate-500">交易模型</div>
-                  <div className="text-emerald-300 font-semibold">{activeMeta.model_name || "rule_based"}</div>
-                  <div className="mt-1 text-slate-500">主 gate：{activeResult?.dominant_regime_gate || "—"} · 平均允許層數 {formatDecimal(activeResult?.avg_allowed_layers, 1)}</div>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  {[
-                    { gate: "ALLOW", color: "text-emerald-300" },
-                    { gate: "CAUTION", color: "text-yellow-300" },
-                    { gate: "BLOCK", color: "text-red-300" },
-                  ].map(({ gate, color }) => (
-                    <div key={gate} className="rounded bg-slate-800/40 p-2">
-                      <div className="text-slate-500">{gate}</div>
-                      <div className={`text-base font-semibold ${color}`}>{activeResult?.regime_gate_summary?.[gate] ?? 0}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr),320px] gap-4">
               <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">

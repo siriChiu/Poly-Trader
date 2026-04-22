@@ -1382,6 +1382,32 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
 
 
 
+def test_collect_historical_coverage_confirmation_reports_two_year_backfill(tmp_path):
+    db_path = tmp_path / "poly_trader.db"
+    conn = hb_parallel_runner.sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE raw_market_data (timestamp TEXT, symbol TEXT)")
+    conn.execute("CREATE TABLE features_normalized (timestamp TEXT, symbol TEXT)")
+    conn.execute("CREATE TABLE labels (timestamp TEXT, symbol TEXT)")
+    for table_name, start_ts in (
+        ("raw_market_data", "2024-04-13T22:00:00Z"),
+        ("features_normalized", "2024-04-14T07:00:00Z"),
+        ("labels", "2024-04-14T07:00:00Z"),
+    ):
+        conn.execute(f"INSERT INTO {table_name} VALUES (?, ?)", (start_ts, "BTCUSDT"))
+        conn.execute(f"INSERT INTO {table_name} VALUES (?, ?)", ("2026-04-22T18:22:35Z", "BTCUSDT"))
+    conn.commit()
+    conn.close()
+
+    summary = hb_parallel_runner.collect_historical_coverage_confirmation(db_path)
+
+    assert summary["ok"] is True
+    assert summary["covers_two_years"] is True
+    assert summary["tables"]["raw_market_data"]["older_than_two_year_cutoff"] is True
+    assert summary["tables"]["features_normalized"]["older_than_two_year_cutoff"] is True
+    assert summary["tables"]["labels"]["older_than_two_year_cutoff"] is True
+
+
+
 def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
@@ -2389,6 +2415,18 @@ def test_collect_current_state_docs_sync_status_is_clean_after_overwrite(tmp_pat
 def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
 
+    db_path = tmp_path / "poly_trader.db"
+    conn = hb_parallel_runner.sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE raw_market_data (timestamp TEXT, symbol TEXT)")
+    conn.execute("CREATE TABLE features_normalized (timestamp TEXT, symbol TEXT)")
+    conn.execute("CREATE TABLE labels (timestamp TEXT, symbol TEXT)")
+    for table_name in ("raw_market_data", "features_normalized", "labels"):
+        conn.execute(f"INSERT INTO {table_name} VALUES (?, ?)", ("2024-04-13T22:00:00Z", "BTCUSDT"))
+        conn.execute(f"INSERT INTO {table_name} VALUES (?, ?)", ("2026-04-22T18:22:35Z", "BTCUSDT"))
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(hb_parallel_runner, "DB_PATH", str(db_path))
+
     counts = {"raw_market_data": 1, "features_normalized": 2, "labels": 3, "simulated_pyramid_win_rate": 0.5}
     collect_result = {
         "attempted": True,
@@ -2475,6 +2513,8 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert summary["collect_result"]["success"] is True
     assert summary["collect_result"]["continuity_repair"]["bridge_inserted"] == 1
     assert summary["collect_result"]["continuity_repair"]["bridge_fallback_streak"] == 1
+    assert summary["historical_coverage_confirmation"]["covers_two_years"] is True
+    assert summary["historical_coverage_confirmation"]["tables"]["raw_market_data"]["older_than_two_year_cutoff"] is True
     assert summary["source_blockers"]["blocked_count"] == 1
     assert summary["ic_diagnostics"]["tw_pass"] == 10
     assert summary["drift_diagnostics"]["primary_window"] == "100"
@@ -2505,6 +2545,7 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     saved = json.loads(Path(summary_path).read_text())
     assert saved["collect_result"]["attempted"] is True
     assert saved["collect_result"]["continuity_repair"]["used_bridge"] is True
+    assert saved["historical_coverage_confirmation"]["covers_two_years"] is True
     assert saved["source_blockers"]["blocked_features"][0]["key"] == "nest_pred"
     assert saved["ic_diagnostics"]["global_pass"] == 13
     assert saved["drift_diagnostics"]["primary_alerts"] == ["regime_concentration"]

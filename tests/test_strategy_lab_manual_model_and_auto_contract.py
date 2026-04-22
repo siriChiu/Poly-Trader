@@ -305,3 +305,12 @@ def test_strategy_lab_frontend_exposes_manual_model_selection_and_protects_syste
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+
+def test_strategy_lab_frontend_keeps_headline_metrics_above_workspace_chart():
+    source = _read("pages/StrategyLab.tsx")
+    metrics_def = source.index("const workspaceHeadlineMetrics = (")
+    workspace_render = source.index("{workspaceHeadlineMetrics}")
+    chart_render = source.index("<CandlestickChart")
+    assert metrics_def < workspace_render < chart_render
