@@ -131,6 +131,9 @@ def test_health_check_includes_runtime_build_metadata(monkeypatch):
             "git_head_commit": "abc123",
             "git_head_committed_at": "2026-04-22T08:45:00+00:00",
             "head_sync_status": "stale_head_commit",
+            "head_sync_basis": "latest_runtime_source_modified_at",
+            "latest_runtime_source_path": "server/main.py",
+            "latest_runtime_source_modified_at": "2026-04-22T08:50:00+00:00",
         },
     )
 
@@ -141,8 +144,62 @@ def test_health_check_includes_runtime_build_metadata(monkeypatch):
     assert payload["status"] == "ok"
     assert payload["runtime_build"]["git_head_commit"] == "abc123"
     assert payload["runtime_build"]["head_sync_status"] == "stale_head_commit"
+    assert payload["runtime_build"]["head_sync_basis"] == "latest_runtime_source_modified_at"
+    assert payload["runtime_build"]["latest_runtime_source_path"] == "server/main.py"
     assert payload["raw_continuity"]["status"] == "clean"
     assert payload["feature_continuity"]["status"] == "clean"
+
+
+def test_determine_head_sync_status_prefers_latest_runtime_source_mtime():
+    status, basis = server_main._determine_head_sync_status(
+        process_started_at=datetime.fromisoformat("2026-04-22T08:30:00+00:00"),
+        head_committed_at=datetime.fromisoformat("2026-04-22T08:45:00+00:00"),
+        latest_runtime_source_modified_at=datetime.fromisoformat("2026-04-22T08:15:00+00:00"),
+    )
+
+    assert status == "current_head_commit"
+    assert basis == "latest_runtime_source_modified_at"
+
+
+def test_determine_head_sync_status_marks_backend_stale_when_runtime_source_is_newer():
+    status, basis = server_main._determine_head_sync_status(
+        process_started_at=datetime.fromisoformat("2026-04-22T08:30:00+00:00"),
+        head_committed_at=datetime.fromisoformat("2026-04-22T08:45:00+00:00"),
+        latest_runtime_source_modified_at=datetime.fromisoformat("2026-04-22T08:35:00+00:00"),
+    )
+
+    assert status == "stale_head_commit"
+    assert basis == "latest_runtime_source_modified_at"
+
+
+def test_load_runtime_build_metadata_uses_runtime_source_mtime_when_commit_lands_later(monkeypatch):
+    monkeypatch.setattr(
+        server_main,
+        "_PROCESS_STARTED_AT",
+        datetime.fromisoformat("2026-04-22T08:30:00+00:00"),
+    )
+    monkeypatch.setattr(
+        server_main,
+        "_load_latest_runtime_source_metadata",
+        lambda: {
+            "latest_runtime_source_path": "server/main.py",
+            "latest_runtime_source_modified_at": "2026-04-22T08:15:00+00:00",
+        },
+    )
+
+    class DummyCompletedProcess:
+        returncode = 0
+        stdout = "abc123\n2026-04-22T08:45:00+00:00\n"
+        stderr = ""
+
+    monkeypatch.setattr(server_main.subprocess, "run", lambda *args, **kwargs: DummyCompletedProcess())
+
+    payload = server_main._load_runtime_build_metadata()
+
+    assert payload["git_head_commit"] == "abc123"
+    assert payload["head_sync_status"] == "current_head_commit"
+    assert payload["head_sync_basis"] == "latest_runtime_source_modified_at"
+    assert payload["latest_runtime_source_path"] == "server/main.py"
 
 
 def test_load_recent_canonical_drift_summary_maps_nested_reference_window_comparison(tmp_path):

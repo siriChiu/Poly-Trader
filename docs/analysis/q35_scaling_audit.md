@@ -1,6 +1,6 @@
 # Q35 Scaling Audit
 
-- generated_at: **2026-04-22 08:43:09.576235**
+- generated_at: **2026-04-22 10:34:21.500184**
 - overall_verdict: **bias50_formula_may_be_too_harsh**
 - structure_scaling_verdict: **q35_structure_caution_not_root_cause**
 - scope_applicability: **current_live_q35_lane_active**
@@ -11,12 +11,12 @@
 
 - regime/gate/quality: **bull / BLOCK / D**
 - structure_bucket: **BLOCK|bull_high_bias200_overheat_block|q35**
-- legacy_entry_quality: **0.3473** (raw_reason=`regime_gate_block`)
-- calibration_runtime_entry_quality: **0.3473** (raw_reason=`regime_gate_block`)
-- deployed_runtime_entry_quality: **0.3473** (raw_reason=`regime_gate_block`, effective_reason=`unsupported_exact_live_structure_bucket`)
+- legacy_entry_quality: **0.4309** (raw_reason=`regime_gate_block`)
+- calibration_runtime_entry_quality: **0.4309** (raw_reason=`regime_gate_block`)
+- deployed_runtime_entry_quality: **0.4309** (raw_reason=`regime_gate_block`, effective_reason=`unsupported_exact_live_structure_bucket`)
 - q35_discriminative_redesign_applied: **False**
-- feat_4h_bias50: **3.2625**
-- structure_quality: **0.6208**
+- feat_4h_bias50: **3.4471**
+- structure_quality: **0.6482**
 
 ## Exact lane summary
 
@@ -29,16 +29,16 @@
 
 - same_gate_same_quality: rows=**376** | win_rate=**0.0** | bias50_pct=**0.2872** | dist={'min': 2.0009, 'p25': 2.1335, 'p50': 5.2024, 'p75': 5.4245, 'p90': 6.0169, 'p95': 6.183, 'max': 9.36, 'mean': 4.5057}
 - same_bucket: rows=**144** | win_rate=**0.0** | bias50_pct=**0.0** | dist={'min': 4.4309, 'p25': 5.0051, 'p50': 5.1899, 'p75': 5.2591, 'p90': 5.3636, 'p95': 5.4247, 'max': 5.5332, 'mean': 5.106}
-- bull_all: rows=**10159** | win_rate=**0.5952** | bias50_pct=**0.6313** | dist={'min': -1.1554, 'p25': 2.5954, 'p50': 2.8025, 'p75': 3.3094, 'p90': 3.374, 'p95': 3.5102, 'max': 9.36, 'mean': 2.9501}
+- bull_all: rows=**10164** | win_rate=**0.5954** | bias50_pct=**0.9384** | dist={'min': -1.1554, 'p25': 2.5944, 'p50': 2.8025, 'p75': 3.3094, 'p90': 3.374, 'p95': 3.5102, 'max': 9.36, 'mean': 2.9496}
 
 ## Segmented calibration
 
 - status: **formula_review_required** | mode: **exact_lane_formula_review**
 - runtime contract: **piecewise_runtime_not_required** — 本輪 audit 沒有要求 current row 套用 segmented calibration；runtime 可維持既有路徑。
-- exact lane band: **core_normal** (pct=0.0, Δp90=-2.1011)
-- same_gate_same_quality band: **core_normal** (pct=0.2872, Δp90=-2.7544)
-- same_bucket band: **core_normal** (pct=0.0, Δp90=-2.1011)
-- bull_all band: **warm** (pct=0.6313, Δp90=-0.1115)
+- exact lane band: **core_normal** (pct=0.0, Δp90=-1.9165)
+- same_gate_same_quality band: **core_normal** (pct=0.2872, Δp90=-2.5698)
+- same_bucket band: **core_normal** (pct=0.0, Δp90=-1.9165)
+- bull_all band: **borderline_overheat** (pct=0.9384, Δp90=0.0731)
 - reference cohort: **same_gate_same_quality** / label=同 bull gate + 同 quality lane / pct=0.2872
 - note: current bias50 已回到 exact lane p90 內；下一步應做 exact-lane 內的保守 bias50 校準 / 公式檢查，而不是再走 broader bull segmentation。
 - runtime preview: applied=**False** | score=**0.0** | legacy=**0.0** | Δ=**0.0** | segment=**None**
@@ -46,19 +46,19 @@
 ## Deployment-grade component experiment
 
 - verdict: **runtime_patch_no_material_improvement**
-- baseline -> calibration runtime entry_quality: **0.3473 → 0.3473** (Δ=**0.0**)
-- baseline -> deployed runtime entry_quality: **0.3473 → 0.3473** (Δ=**0.0**)
+- baseline -> calibration runtime entry_quality: **0.4309 → 0.4309** (Δ=**0.0**)
+- baseline -> deployed runtime entry_quality: **0.4309 → 0.4309** (Δ=**0.0**)
 - baseline -> calibration -> deployed layers: **0 → 0 → 0**
 - machine_read: entry_quality>=0.55=**False** | allowed_layers>0=**False**
 - runtime_source: **live_predict_probe** | q35_discriminative_redesign_applied=**False**
-- runtime gap to floor: **0.2027**
+- runtime gap to floor: **0.1191**
 - next patch target: **feat_4h_bias50_formula**
 
 ## Counterfactuals
 
-- gate -> ALLOW only: entry_quality **0.3473**, layers **0**
-- fully relax bias50 penalty: entry_quality **0.6473**, layers **0**
-- required bias50 cap to cross trade floor: **-0.9785** (current=3.2625)
+- gate -> ALLOW only: entry_quality **0.4309**, layers **0**
+- fully relax bias50 penalty: entry_quality **0.7309**, layers **0**
+- required bias50 cap to cross trade floor: **0.415** (current=3.4471)
 
 ## Joint component experiment（bias50 runtime patch + feat_4h_dist_swing_low uplift）
 
@@ -79,8 +79,8 @@
 
 - verdict: **base_mix_component_experiment_improves_but_still_below_floor**
 - machine_read: entry_quality>=0.55=**False** | allowed_layers>0=**False**
-- best scenario: **exact_lane_triplet_p75** → entry_quality **0.5094** / layers **0** / gap **0.0406**
-- required_bias50_cap_after_best_scenario: **1.7235**
+- best scenario: **exact_lane_triplet_p75** → entry_quality **0.5188** / layers **0** / gap **0.0312**
+- required_bias50_cap_after_best_scenario: **1.88**
 - note: bias50 + pulse (+ nose) 的 base-mix uplift 明顯優於只補 structure component，但 current live row 仍未跨過 trade floor；下一輪需升級成 base-stack redesign blocker，而不是再做單點 component 微調。
 
 ## Base-stack redesign experiment（support-aware discriminative reweight）

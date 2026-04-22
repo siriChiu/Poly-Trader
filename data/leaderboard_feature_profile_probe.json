@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-04-22T08:44:30.830301Z",
-  "leaderboard_snapshot_created_at": "2026-04-22T07:29:35.178695Z",
+  "generated_at": "2026-04-22T10:35:44.087454Z",
+  "leaderboard_snapshot_created_at": "2026-04-22T09:29:48.663021Z",
   "leaderboard_payload_source": "latest_persisted_snapshot",
-  "leaderboard_payload_updated_at": "2026-04-22T07:29:35.178695Z",
-  "leaderboard_payload_cache_age_sec": 4495,
+  "leaderboard_payload_updated_at": "2026-04-22T09:29:48.663021Z",
+  "leaderboard_payload_cache_age_sec": 3955,
   "leaderboard_payload_stale": true,
   "leaderboard_payload_error": null,
   "leaderboard_payload_cache_error": null,
@@ -208,8 +208,8 @@
     "train_exact_live_bucket_rows": 12,
     "leaderboard_selected_profile": "core_only",
     "leaderboard_selected_profile_source": "feature_group_ablation.recommended_profile",
-    "leaderboard_snapshot_created_at": "2026-04-22T07:29:35.178695Z",
-    "alignment_evaluated_at": "2026-04-22T08:44:30.830301Z",
+    "leaderboard_snapshot_created_at": "2026-04-22T09:29:48.663021Z",
+    "alignment_evaluated_at": "2026-04-22T10:35:44.087454Z",
     "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
     "profile_split": {
       "global_profile": "core_only",
@@ -238,27 +238,36 @@
       "live_current_structure_bucket_rows": 0,
       "live_current_structure_bucket_gap_to_minimum": 50,
       "support_progress": {
-        "status": "no_recent_comparable_history",
-        "reason": "目前找不到同一 current live structure bucket 的最近 heartbeat 可比對；先持續累積 support。",
+        "status": "stalled_under_minimum",
+        "reason": "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
         "current_rows": 0,
         "minimum_support_rows": 50,
         "gap_to_minimum": 50,
-        "delta_vs_previous": null,
-        "previous_rows": null,
-        "previous_route_changed": false,
-        "previous_support_governance_route": null,
-        "stagnant_run_count": 0,
-        "stalled_support_accumulation": false,
+        "delta_vs_previous": 0,
+        "previous_rows": 0,
+        "previous_route_changed": true,
+        "previous_support_governance_route": "no_support_proxy",
+        "stagnant_run_count": 2,
+        "stalled_support_accumulation": true,
         "escalate_to_blocker": false,
         "history": [
           {
             "heartbeat": "current",
-            "timestamp": "2026-04-22T08:44:30.830948+00:00",
+            "timestamp": "2026-04-22T10:35:44.088271+00:00",
             "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
             "live_current_structure_bucket_rows": 0,
             "minimum_support_rows": 50,
             "support_governance_route": "exact_live_bucket_proxy_available",
             "governance_verdict": null
+          },
+          {
+            "heartbeat": "fast",
+            "timestamp": "2026-04-22T08:44:35.850738+00:00",
+            "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_governance_route": "no_support_proxy",
+            "governance_verdict": "dual_role_governance_active"
           }
         ]
       }
@@ -308,27 +317,36 @@
     "minimum_support_rows": 50,
     "live_current_structure_bucket_gap_to_minimum": 50,
     "support_progress": {
-      "status": "no_recent_comparable_history",
-      "reason": "目前找不到同一 current live structure bucket 的最近 heartbeat 可比對；先持續累積 support。",
+      "status": "stalled_under_minimum",
+      "reason": "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "current_rows": 0,
       "minimum_support_rows": 50,
       "gap_to_minimum": 50,
-      "delta_vs_previous": null,
-      "previous_rows": null,
-      "previous_route_changed": false,
-      "previous_support_governance_route": null,
-      "stagnant_run_count": 0,
-      "stalled_support_accumulation": false,
+      "delta_vs_previous": 0,
+      "previous_rows": 0,
+      "previous_route_changed": true,
+      "previous_support_governance_route": "no_support_proxy",
+      "stagnant_run_count": 2,
+      "stalled_support_accumulation": true,
       "escalate_to_blocker": false,
       "history": [
         {
           "heartbeat": "current",
-          "timestamp": "2026-04-22T08:44:30.830948+00:00",
+          "timestamp": "2026-04-22T10:35:44.088271+00:00",
           "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
           "live_current_structure_bucket_rows": 0,
           "minimum_support_rows": 50,
           "support_governance_route": "exact_live_bucket_proxy_available",
           "governance_verdict": null
+        },
+        {
+          "heartbeat": "fast",
+          "timestamp": "2026-04-22T08:44:35.850738+00:00",
+          "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+          "live_current_structure_bucket_rows": 0,
+          "minimum_support_rows": 50,
+          "support_governance_route": "no_support_proxy",
+          "governance_verdict": "dual_role_governance_active"
         }
       ]
     },
