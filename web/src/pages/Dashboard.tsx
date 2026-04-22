@@ -6,6 +6,7 @@ import RadarChart from "../components/RadarChart";
 import AdviceCard from "../components/AdviceCard";
 import FeatureChart from "../components/FeatureChart";
 import CandlestickChart from "../components/CandlestickChart";
+import ExecutionMetadataFreshnessDetail from "../components/ExecutionMetadataFreshnessDetail";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
 import RecentCanonicalDriftCard, { type RecentCanonicalDriftSummary } from "../components/RecentCanonicalDriftCard";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
@@ -729,31 +730,6 @@ function readRecordNumber(record: Record<string, unknown> | null | undefined, ke
   return null;
 }
 
-function getSmokeFreshnessTone(status: string | undefined | null): string {
-  if (status === "fresh") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
-  if (status === "stale") return "border-amber-700/40 bg-amber-950/20 text-amber-200";
-  return "border-slate-700/40 bg-slate-950/20 text-slate-300";
-}
-
-function getSmokeFreshnessLabel(status: string | undefined | null): string {
-  if (status === "fresh") return "FRESH";
-  if (status === "stale") return "STALE";
-  return "UNAVAILABLE";
-}
-
-function getSmokeGovernanceTone(status: string | undefined | null): string {
-  if (status === "healthy") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
-  if (status === "refresh_required") return "border-amber-700/40 bg-amber-950/20 text-amber-200";
-  return "border-red-700/40 bg-red-950/20 text-red-200";
-}
-
-function getExternalMonitorTickingTone(status: string | undefined | null): string {
-  if (status === "observed-ticking") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
-  if (status === "installed") return "border-sky-700/40 bg-sky-950/20 text-sky-200";
-  if (status === "install-ready") return "border-slate-700/40 bg-slate-950/20 text-slate-300";
-  return "border-amber-700/40 bg-amber-950/20 text-amber-200";
-}
-
 function getReconciliationTone(status: string | undefined | null): string {
   if (status === "healthy") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
   if (status === "degraded") return "border-red-700/40 bg-red-950/20 text-red-200";
@@ -1083,17 +1059,9 @@ export default function Dashboard() {
   const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
-  const metadataSmokeAutoRefresh = metadataSmokeGovernance?.auto_refresh ?? null;
-  const metadataSmokeBackgroundMonitor = metadataSmokeGovernance?.background_monitor ?? null;
-  const metadataSmokeExternalMonitor = metadataSmokeGovernance?.external_monitor ?? null;
-  const externalMonitorInstallContract = metadataSmokeExternalMonitor?.install_contract ?? null;
-  const externalMonitorTickingState = metadataSmokeExternalMonitor?.ticking_state ?? null;
-  const metadataSmokeFreshnessTone = getSmokeFreshnessTone(metadataSmokeFreshness?.status);
   const metadataSmokeFreshnessLabel = runtimeStatusPending
     ? "同步中"
     : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "UNAVAILABLE");
-  const metadataSmokeGovernanceTone = getSmokeGovernanceTone(metadataSmokeGovernance?.status);
-  const externalMonitorTickingTone = getExternalMonitorTickingTone(externalMonitorTickingState?.status);
   const rawContinuity = runtimeStatus?.raw_continuity ?? null;
   const featureContinuity = runtimeStatus?.feature_continuity ?? null;
   const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || accountSummary?.mode || "unknown");
@@ -1347,7 +1315,15 @@ export default function Dashboard() {
         <ExecutionWorkspaceMetric
           label="Metadata freshness"
           value={metadataSmokeFreshnessLabel}
-          detail={runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : (metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "尚未產生 smoke artifact")}
+          detail={(
+            <ExecutionMetadataFreshnessDetail
+              pending={runtimeStatusPending}
+              generatedAt={metadataSmoke?.generated_at}
+              freshness={metadataSmokeFreshness}
+              governance={metadataSmokeGovernance}
+              compact
+            />
+          )}
         />
         <ExecutionWorkspaceMetric
           label="Reconciliation / recovery"

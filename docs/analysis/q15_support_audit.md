@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-22 05:25:40.012967**
+- generated_at: **2026-04-22 06:16:56.930747**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
@@ -30,22 +30,22 @@
 - supported neighbor rows: **0**
 - reason: current live exact bucket 仍為 0 rows；即使已有 exact-bucket proxy，也只能作治理參考，不能作 deployment 放行證據。
 - release_condition: 先把 current live exact bucket 補到 minimum support，再重查 entry floor；proxy / neighbor 只能保留為比較與校準參考。
-- support_progress.status: **no_recent_comparable_history**
+- support_progress.status: **stalled_under_minimum**
 - support_progress.current_rows / minimum: **0 / 50**
-- support_progress.previous_rows: **None**
-- support_progress.delta_vs_previous: **None**
-- support_progress.stagnant_run_count: **0**
-- support_progress.escalate_to_blocker: **False**
-- support_progress.reason: 目前找不到同一 current live structure bucket的最近 heartbeat 可比較；先持續累積 exact support。
+- support_progress.previous_rows: **0**
+- support_progress.delta_vs_previous: **0**
+- support_progress.stagnant_run_count: **3**
+- support_progress.escalate_to_blocker: **True**
+- support_progress.reason: current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。
 
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.1582**
+- remaining_gap_to_floor: **0.088**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.5273**
+- best_single_component_required_score_delta: **0.2933**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.5273），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.2933），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**

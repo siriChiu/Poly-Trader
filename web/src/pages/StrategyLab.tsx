@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import CandlestickChart from "../components/CandlestickChart";
+import ExecutionMetadataFreshnessDetail from "../components/ExecutionMetadataFreshnessDetail";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
 import RecentCanonicalDriftCard, { type RecentCanonicalDriftSummary } from "../components/RecentCanonicalDriftCard";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
@@ -314,6 +315,27 @@ interface StrategyLabRuntimeStatusResponse {
       status?: string;
       label?: string;
       age_minutes?: number | null;
+    } | null;
+    governance?: {
+      status?: string;
+      operator_message?: string;
+      escalation_message?: string | null;
+      external_monitor?: {
+        status?: string;
+        reason?: string;
+        install_contract?: {
+          preferred_host_lane?: string;
+          install_status?: {
+            active_lane?: string | null;
+          } | null;
+        } | null;
+        ticking_state?: {
+          status?: string;
+          reason?: string;
+          message?: string;
+          active_lane?: string | null;
+        } | null;
+      } | null;
     } | null;
     venues?: Array<{
       venue?: string;
@@ -2929,7 +2951,15 @@ export default function StrategyLab() {
               <ExecutionWorkspaceMetric
                 label="metadata freshness"
                 value={<span className={metadataFreshnessTone(metadataSmokeFreshness?.status)}>{metadataSmokeFreshnessLabel}</span>}
-                detail={runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : `generated ${metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "—"}`}
+                detail={(
+                  <ExecutionMetadataFreshnessDetail
+                    pending={runtimeStatusPending}
+                    generatedAt={metadataSmoke?.generated_at}
+                    freshness={metadataSmokeFreshness}
+                    governance={metadataSmoke?.governance ?? null}
+                    compact
+                  />
+                )}
               />
             </ExecutionWorkspaceSummary>
             <LivePathologySummaryCard

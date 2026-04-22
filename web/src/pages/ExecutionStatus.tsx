@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import ExecutionMetadataFreshnessDetail from "../components/ExecutionMetadataFreshnessDetail";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { useApi } from "../hooks/useApi";
 import { ExecutionHero, ExecutionMetricCard, ExecutionPill, ExecutionSectionCard } from "../components/execution/ExecutionSurface";
@@ -633,9 +634,15 @@ export default function ExecutionStatus() {
           <ExecutionMetricCard
             title="資料新鮮度"
             value={metadataFreshnessLabel}
-            detail={runtimeStatusPending
-              ? "正在向 /api/status 取得 metadata smoke。"
-              : `generated ${formatTime(metadataSmoke?.generated_at)} · age ${metadataFreshness?.age_minutes != null ? `${metadataFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}`}
+            detail={(
+              <ExecutionMetadataFreshnessDetail
+                pending={runtimeStatusPending}
+                generatedAt={metadataSmoke?.generated_at}
+                freshness={metadataFreshness}
+                governance={metadataGovernance}
+                compact
+              />
+            )}
             toneClass={metadataTone.includes("amber") ? "text-amber-100" : metadataTone.includes("emerald") || metadataTone.includes("cyan") ? "text-emerald-200" : "text-white"}
           />
           <ExecutionMetricCard
@@ -798,11 +805,14 @@ export default function ExecutionStatus() {
             <div className="mt-1 text-sm text-slate-400">generated {formatTime(metadataSmoke?.generated_at)} · governance {metadataGovernance?.status || "unknown"}</div>
             <div className={`mt-3 rounded-2xl border px-3 py-3 text-sm ${metadataTone}`}>
               <div className="font-semibold">freshness {metadataFreshnessLabel}</div>
-              <div className="mt-1">artifact age {metadataFreshness?.age_minutes != null ? `${metadataFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}</div>
-              <div className="mt-2 opacity-90">{metadataGovernance?.operator_message || "尚未取得 governance 訊息。"}</div>
-              {metadataGovernance?.escalation_message && (
-                <div className="mt-2 opacity-80">escalation {metadataGovernance.escalation_message}</div>
-              )}
+              <div className="mt-2 opacity-90">
+                <ExecutionMetadataFreshnessDetail
+                  pending={runtimeStatusPending}
+                  generatedAt={metadataSmoke?.generated_at}
+                  freshness={metadataFreshness}
+                  governance={metadataGovernance}
+                />
+              </div>
             </div>
 
             <VenueReadinessSummary venues={venueChecks} className="mt-4" />

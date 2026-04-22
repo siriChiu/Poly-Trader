@@ -362,6 +362,7 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
         'const executionReconciliation = runtimeStatus?.execution_reconciliation ?? null;',
         'const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;',
         'const metadataSmokeFreshnessLabel = runtimeStatusPending',
+        'ExecutionMetadataFreshnessDetail',
         'const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(',
         'const reconciliationStatusLabel = runtimeStatusPending',
         'humanizeExecutionReconciliationStatusLabel(',
@@ -639,6 +640,7 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'const liveExecutionSyncSubtitle = liveExecutionSyncPending',
         'const metadataSmokeFreshnessLabel = runtimeStatusPending',
         'const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];',
+        'ExecutionMetadataFreshnessDetail',
         'VenueReadinessSummary',
         'const liveRuntimeClosureState = liveDecisionStatus?.runtime_closure_state ?? liveRuntimeTruth?.runtime_closure_state ?? null;',
         'const liveRuntimeClosureSummary = liveDecisionStatus?.runtime_closure_summary ?? liveRuntimeTruth?.runtime_closure_summary ?? null;',
@@ -926,6 +928,22 @@ def test_venue_readiness_summary_supports_compact_operator_summary_mode():
         'if (compact) {',
         'proof pending · {blockerSummary}',
         'config {item.enabled_in_config ? "enabled" : "disabled"} · creds {item.credentials_configured ? "configured" : "public-only"} · metadata {item.ok ? "OK" : "FAIL"}',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_execution_metadata_freshness_detail_component_surfaces_external_monitor_ticking_state():
+    source = _read("components/ExecutionMetadataFreshnessDetail.tsx")
+    required_snippets = [
+        'type MetadataFreshness = {',
+        'type MetadataGovernance = {',
+        'type ExecutionMetadataFreshnessDetailProps = {',
+        'function buildHostSchedulerSummary(governance?: MetadataGovernance): string | null {',
+        'const hostSchedulerSummary = buildHostSchedulerSummary(governance);',
+        'hostSchedulerSummary ? `external monitor ${hostSchedulerSummary}` : null,',
+        'governance?.operator_message || "尚未取得 governance 訊息。"',
+        'return <div>正在向 /api/status 取得 metadata smoke。</div>;',
     ]
     for snippet in required_snippets:
         assert snippet in source
