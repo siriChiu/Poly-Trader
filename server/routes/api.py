@@ -3232,7 +3232,7 @@ def _summarize_target_candidates(
         target_df = data_df[data_df[target_col].notna()].copy()
         if target_df.empty:
             continue
-        leaderboard = ModelLeaderboard(target_df, target_col=target_col)
+        leaderboard = ModelLeaderboard(target_df, target_col=target_col, background_refresh=True)
         refresh_models = list(getattr(leaderboard, "REFRESH_MODELS", getattr(leaderboard, "SUPPORTED_MODELS", []) or []))
         scores = leaderboard.run_all_models(refresh_models)
         serialized = _serialize_model_scores(scores, leaderboard)
@@ -3807,7 +3807,7 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
         }
 
     target_col = "simulated_pyramid_win" if "simulated_pyramid_win" in data_df.columns else "label_spot_long_win"
-    leaderboard = ModelLeaderboard(data_df, target_col=target_col)
+    leaderboard = ModelLeaderboard(data_df, target_col=target_col, background_refresh=True)
     refresh_models = list(getattr(leaderboard, "REFRESH_MODELS", getattr(leaderboard, "SUPPORTED_MODELS", []) or []))
     scores = leaderboard.run_all_models(refresh_models)
     serialized_rows = _serialize_model_scores(scores, leaderboard)

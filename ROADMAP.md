@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-22 20:33:17 CST_
+_最後更新：2026-04-22 20:57:34 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
@@ -8,13 +8,16 @@ _最後更新：2026-04-22 20:33:17 CST_
 
 ## 已完成
 - **fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=31540 / Features=22958 / Labels=63561`
+  - `Raw=31541 / Features=22959 / Labels=63568`
   - `deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `latest_window=250` / `win_rate=82.8%` / `dominant_regime=chop(53.2%)` / `avg_quality=+0.4580` / `avg_pnl=+0.0128` / `alerts=label_imbalance`
+  - `latest_window=100` / `win_rate=81.0%` / `dominant_regime=bull(92.0%)` / `avg_quality=+0.4136` / `avg_pnl=+0.0123` / `alerts=label_imbalance,regime_concentration,regime_shift`
   - `blocking_window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)` / `avg_quality=+0.0814` / `avg_pnl=+0.0009` / `alerts=regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
+- **leaderboard background refresh 已 bounded，避免 Strategy Lab 被 full fan-out 拖慢**
+  - `/api/models/leaderboard` 走 `production_refresh_shortlist` + `background_refresh=True`
+  - deployment / feature candidate surface 現在固定收斂到 `2 × 2`，runtime evidence：`GET /api/models/leaderboard` 200 in `~0.89s`
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
 
@@ -32,7 +35,7 @@ _最後更新：2026-04-22 20:33:17 CST_
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=250` / `win_rate=82.8%` / `dominant_regime=chop(53.2%)` / `avg_quality=+0.4580` / `avg_pnl=+0.0128` / `alerts=label_imbalance`
+- `latest_window=100` / `win_rate=81.0%` / `dominant_regime=bull(92.0%)` / `avg_quality=+0.4136` / `avg_pnl=+0.0123` / `alerts=label_imbalance,regime_concentration,regime_shift`
 - `blocking_window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)` / `avg_quality=+0.0814` / `avg_pnl=+0.0009` / `alerts=regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
@@ -41,18 +44,19 @@ _最後更新：2026-04-22 20:33:17 CST_
 **目前真相**
 - `current_live_structure_bucket=BLOCK|bull_high_bias200_overheat_block|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`
 - `recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`
-- q35 scaling audit 已指出目前不是單點 bias50 closure：`overall_verdict=bias50_formula_may_be_too_harsh` / `redesign_verdict=base_stack_redesign_candidate_grid_empty` / `remaining_gap_to_floor=0.1268`
+- q35 scaling audit 已指出目前不是單點 bias50 closure：`overall_verdict=bias50_formula_may_be_too_harsh` / `redesign_verdict=base_stack_redesign_candidate_grid_empty` / `remaining_gap_to_floor=0.1238`
 **成功標準**
 - probe / drilldown / `/api/status` / `/execution/status` / `/lab` / docs 全都承認 current live bucket exact support 未達 minimum rows，recommended patch 只能作治理 / 訓練參考。
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3010` / `archive_window_coverage_pct=0.0`
+- leaderboard background refresh：`refresh_model_scope=production_refresh_shortlist` / `background_refresh_surface=2 deployment × 2 feature profiles` / `api_runtime≈0.89s`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3011` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
-- Strategy Lab 不回退 placeholder-only；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。
+- Strategy Lab 不回退 placeholder-only；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync；background refresh 不回退成 full candidate fan-out。
 
 ---
 
@@ -64,8 +68,8 @@ _最後更新：2026-04-22 20:33:17 CST_
    - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`
    - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據
 3. **守住 current live bucket support / reference-only patch、leaderboard governance、venue/source blockers 與 docs automation 閉環**
-   - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status
-   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts
+   - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status、`pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_hb_model_leaderboard_api_probe.py -q`
+   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、docs 再次落後 latest artifacts，或 leaderboard background refresh 回退成 full candidate fan-out
 
 ---
 
