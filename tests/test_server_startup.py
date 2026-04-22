@@ -1,4 +1,5 @@
 import json
+import os
 from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -200,6 +201,32 @@ def test_load_runtime_build_metadata_uses_runtime_source_mtime_when_commit_lands
     assert payload["head_sync_status"] == "current_head_commit"
     assert payload["head_sync_basis"] == "latest_runtime_source_modified_at"
     assert payload["latest_runtime_source_path"] == "server/main.py"
+
+
+def test_compute_runtime_source_metadata_ignores_generated_artifacts_in_code_dirs(monkeypatch, tmp_path):
+    server_dir = tmp_path / "server"
+    model_dir = tmp_path / "model"
+    server_dir.mkdir()
+    model_dir.mkdir()
+
+    source_file = server_dir / "main.py"
+    generated_artifact = model_dir / "ic_signs.json"
+
+    source_file.write_text("print('runtime source')\n")
+    generated_artifact.write_text('{"generated": true}\n')
+
+    os.utime(source_file, (1_650_000_000, 1_650_000_000))
+    os.utime(generated_artifact, (1_660_000_000, 1_660_000_000))
+
+    monkeypatch.setattr(server_main, "PROJECT_ROOT", tmp_path)
+
+    payload = server_main._compute_runtime_source_metadata()
+
+    assert payload["latest_runtime_source_path"] == "server/main.py"
+    assert payload["latest_runtime_source_modified_at"] == datetime.fromtimestamp(
+        1_650_000_000,
+        timezone.utc,
+    ).isoformat()
 
 
 def test_load_recent_canonical_drift_summary_maps_nested_reference_window_comparison(tmp_path):

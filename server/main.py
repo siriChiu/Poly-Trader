@@ -46,7 +46,9 @@ _RUNTIME_SOURCE_EXTRA_FILES = (
     "config.json",
     "pyproject.toml",
 )
-_RUNTIME_SOURCE_ALLOWED_SUFFIXES = {".py", ".yaml", ".yml", ".json", ".toml"}
+# Only executable/runtime source files under code directories should influence lane freshness.
+# Generated artifacts such as model/ic_signs.json must not mark a backend stale.
+_RUNTIME_SOURCE_CODE_SUFFIXES = {".py"}
 _RUNTIME_SOURCE_METADATA_CACHE = {
     "checked_at": None,
     "payload": None,
@@ -82,7 +84,7 @@ def _iter_runtime_source_paths():
         for path in root.rglob("*"):
             if not path.is_file():
                 continue
-            if path.suffix not in _RUNTIME_SOURCE_ALLOWED_SUFFIXES:
+            if path.suffix not in _RUNTIME_SOURCE_CODE_SUFFIXES:
                 continue
             if "__pycache__" in path.parts:
                 continue

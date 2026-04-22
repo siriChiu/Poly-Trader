@@ -467,6 +467,28 @@ def _generic_issue_current_lines(issue: Dict[str, Any]) -> list[str]:
     return ["目前真相：" + " / ".join(parts)]
 
 
+def _has_recent_pathology_truth(summary: Dict[str, Any] | None, *, window: Any = None, alerts: Any = None) -> bool:
+    if not isinstance(summary, dict):
+        summary = {}
+    checks = [
+        window,
+        alerts,
+        summary.get("window"),
+        summary.get("rows"),
+        summary.get("win_rate"),
+        summary.get("dominant_regime"),
+        summary.get("dominant_regime_share"),
+        summary.get("avg_quality"),
+        summary.get("avg_pnl"),
+        summary.get("avg_drawdown_penalty"),
+        summary.get("top_shift_features"),
+        summary.get("new_compressed_feature"),
+        summary.get("tail_streak"),
+        summary.get("interpretation"),
+    ]
+    return any(value not in (None, "", [], {}, ()) for value in checks)
+
+
 def _issue_current_lines(
     issue: Dict[str, Any],
     *,
@@ -552,10 +574,20 @@ def _issue_current_lines(
         latest_window = drift_diagnostics.get("primary_window") or latest_summary.get("window") or "—"
         latest_alerts = drift_diagnostics.get("primary_alerts") or []
         drift_blocking_summary = drift_diagnostics.get("blocking_summary") or {}
+        drift_blocking_window = drift_diagnostics.get("blocking_window")
+        drift_blocking_alerts = drift_diagnostics.get("blocking_alerts") or []
+        if not _has_recent_pathology_truth(
+            drift_blocking_summary,
+            window=drift_blocking_window,
+            alerts=drift_blocking_alerts,
+        ):
+            drift_blocking_summary = {}
+            drift_blocking_window = None
+            drift_blocking_alerts = []
         issue_summary = issue.get("summary") if isinstance(issue.get("summary"), dict) else {}
         blocker_summary = drift_blocking_summary or issue_summary
-        blocker_window = drift_diagnostics.get("blocking_window") or blocker_summary.get("window") or latest_window
-        blocker_alerts = drift_diagnostics.get("blocking_alerts") or blocker_summary.get("alerts") or latest_alerts
+        blocker_window = drift_blocking_window or blocker_summary.get("window") or latest_window
+        blocker_alerts = drift_blocking_alerts or blocker_summary.get("alerts") or latest_alerts
         latest_signature = (
             str(latest_window),
             latest_summary.get("win_rate"),
@@ -835,11 +867,21 @@ def overwrite_current_state_docs(
     blocking_pathology_line = None
     recent_pathology_issue = _find_open_issue(issues, "P0_recent_distribution_pathology")
     drift_blocking_summary = drift_diagnostics.get("blocking_summary") or {}
+    drift_blocking_window = drift_diagnostics.get("blocking_window")
+    drift_blocking_alerts = drift_diagnostics.get("blocking_alerts") or []
+    if not _has_recent_pathology_truth(
+        drift_blocking_summary,
+        window=drift_blocking_window,
+        alerts=drift_blocking_alerts,
+    ):
+        drift_blocking_summary = {}
+        drift_blocking_window = None
+        drift_blocking_alerts = []
     recent_pathology_summary = drift_blocking_summary
     if not recent_pathology_summary and recent_pathology_issue:
         recent_pathology_summary = recent_pathology_issue.get("summary") or {}
-    blocker_alerts = drift_diagnostics.get("blocking_alerts") or recent_pathology_summary.get("alerts") or []
-    blocker_window = drift_diagnostics.get("blocking_window") or recent_pathology_summary.get("window")
+    blocker_alerts = drift_blocking_alerts or recent_pathology_summary.get("alerts") or []
+    blocker_window = drift_blocking_window or recent_pathology_summary.get("window")
     if recent_pathology_summary:
         latest_signature = (
             str(primary_window),
@@ -2662,6 +2704,33 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
     blocking_new_compressed = blocking_summary.get("new_compressed_features")
     if not isinstance(blocking_new_compressed, list) or not blocking_new_compressed:
         blocking_new_compressed = blocking_reference.get("new_unexpected_compressed_features") or []
+    blocking_window = blocking.get("window")
+    blocking_alerts = blocking.get("alerts") or []
+    blocking_summary_payload = {
+        "rows": blocking_summary.get("rows"),
+        "win_rate": blocking_summary.get("win_rate"),
+        "win_rate_delta_vs_full": blocking_summary.get("win_rate_delta_vs_full"),
+        "dominant_regime": blocking_summary.get("dominant_regime"),
+        "dominant_regime_share": blocking_summary.get("dominant_regime_share"),
+        "drift_interpretation": blocking_summary.get("drift_interpretation"),
+        "avg_pnl": blocking_summary.get("avg_pnl", blocking_quality.get("avg_simulated_pnl")),
+        "avg_quality": blocking_summary.get("avg_quality", blocking_quality.get("avg_simulated_quality")),
+        "avg_drawdown_penalty": blocking_summary.get("avg_drawdown_penalty", blocking_quality.get("avg_drawdown_penalty")),
+        "top_shift_features": [
+            item.get("feature") if isinstance(item, dict) else item
+            for item in blocking_top_shift_source
+            if (item.get("feature") if isinstance(item, dict) else item)
+        ][:3],
+        "new_compressed_feature": blocking_new_compressed[0] if blocking_new_compressed else None,
+    }
+    if not _has_recent_pathology_truth(
+        blocking_summary_payload,
+        window=blocking_window,
+        alerts=blocking_alerts,
+    ):
+        blocking_window = None
+        blocking_alerts = []
+        blocking_summary_payload = {}
     return {
         "generated_at": payload.get("generated_at"),
         "target_col": payload.get("target_col"),
@@ -2695,25 +2764,9 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
                 "recent_examples": target_path.get("recent_examples") or [],
             },
         },
-        "blocking_window": blocking.get("window"),
-        "blocking_alerts": blocking.get("alerts") or [],
-        "blocking_summary": {
-            "rows": blocking_summary.get("rows"),
-            "win_rate": blocking_summary.get("win_rate"),
-            "win_rate_delta_vs_full": blocking_summary.get("win_rate_delta_vs_full"),
-            "dominant_regime": blocking_summary.get("dominant_regime"),
-            "dominant_regime_share": blocking_summary.get("dominant_regime_share"),
-            "drift_interpretation": blocking_summary.get("drift_interpretation"),
-            "avg_pnl": blocking_summary.get("avg_pnl", blocking_quality.get("avg_simulated_pnl")),
-            "avg_quality": blocking_summary.get("avg_quality", blocking_quality.get("avg_simulated_quality")),
-            "avg_drawdown_penalty": blocking_summary.get("avg_drawdown_penalty", blocking_quality.get("avg_drawdown_penalty")),
-            "top_shift_features": [
-                item.get("feature") if isinstance(item, dict) else item
-                for item in blocking_top_shift_source
-                if (item.get("feature") if isinstance(item, dict) else item)
-            ][:3],
-            "new_compressed_feature": blocking_new_compressed[0] if blocking_new_compressed else None,
-        },
+        "blocking_window": blocking_window,
+        "blocking_alerts": blocking_alerts,
+        "blocking_summary": blocking_summary_payload,
     }
 
 

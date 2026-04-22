@@ -1708,8 +1708,114 @@ def test_overwrite_current_state_docs_keeps_reference_only_patch_truth_from_issu
     assert "`support=0/50`" in issues_md
 
 
+def test_overwrite_current_state_docs_falls_back_to_issue_blocking_window_when_drift_placeholder_is_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_current_live_deployment_blocker",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "current live bucket exact support is missing and remains the deployment blocker",
+                    },
+                    {
+                        "id": "P0_recent_distribution_pathology",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "recent canonical window 1000 rows = regime_concentration",
+                        "action": "keep blocker-window root cause visible",
+                        "summary": {
+                            "window": "1000",
+                            "win_rate": 0.394,
+                            "dominant_regime": "bull",
+                            "dominant_regime_share": 0.813,
+                            "avg_quality": 0.0814,
+                            "avg_pnl": 0.0009,
+                            "alerts": ["regime_shift"],
+                            "top_shift_features": ["feat_4h_bias200", "feat_vwap_dev", "feat_dxy"],
+                            "new_compressed_feature": "feat_vix",
+                            "tail_streak": "64x1",
+                        },
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260422docs",
+        {},
+        {},
+        {
+            "primary_window": "250",
+            "primary_alerts": ["label_imbalance"],
+            "primary_summary": {
+                "win_rate": 0.828,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.544,
+                "avg_quality": 0.4497,
+                "avg_pnl": 0.0123,
+            },
+            "blocking_window": None,
+            "blocking_alerts": [],
+            "blocking_summary": {
+                "rows": None,
+                "win_rate": None,
+                "dominant_regime": None,
+                "dominant_regime_share": None,
+                "avg_quality": None,
+                "avg_pnl": None,
+                "top_shift_features": [],
+                "new_compressed_feature": None,
+            },
+        },
+        {
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q65",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "no_support_proxy",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {
+            "recommended_patch_profile": "core_plus_macro_plus_all_4h",
+            "recommended_patch_status": "reference_only_non_current_live_scope",
+            "recommended_patch_reference_scope": "bull|CAUTION",
+        },
+        {
+            "support_route": {
+                "verdict": "exact_bucket_unsupported_block",
+                "support_progress": {
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                },
+            }
+        },
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "`window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)`" in issues_md
+    assert "`latest_window=250` / `win_rate=82.8%` / `dominant_regime=chop(54.4%)`" in issues_md
+    assert "`blocking_window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)`" in roadmap_md
+
 
 def test_overwrite_current_state_docs_uses_dynamic_support_ratio_in_success_criteria(tmp_path, monkeypatch):
+
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -2481,6 +2587,45 @@ def test_collect_recent_drift_diagnostics_reads_primary_window(tmp_path, monkeyp
     assert diag["primary_summary"]["feature_diagnostics"]["low_variance_count"] == 4
     assert diag["primary_summary"]["target_path_diagnostics"]["tail_target_streak"]["count"] == 14
     assert diag["primary_summary"]["target_path_diagnostics"]["recent_examples"][0]["timestamp"] == "2026-04-13 03:00:00"
+
+
+def test_collect_recent_drift_diagnostics_drops_empty_blocking_placeholder(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "recent_drift_report.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-22T11:05:57+00:00",
+                "target_col": "simulated_pyramid_win",
+                "horizon_minutes": 1440,
+                "primary_window": {
+                    "window": "250",
+                    "alerts": ["label_imbalance"],
+                    "summary": {
+                        "rows": 250,
+                        "win_rate": 0.828,
+                        "dominant_regime": "chop",
+                        "dominant_regime_share": 0.544,
+                        "avg_quality": 0.4497,
+                        "avg_pnl": 0.0123,
+                    },
+                },
+                "blocking_window": {
+                    "window": None,
+                    "alerts": [],
+                    "summary": {},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    diag = hb_parallel_runner.collect_recent_drift_diagnostics()
+
+    assert diag["blocking_window"] is None
+    assert diag["blocking_alerts"] == []
+    assert diag["blocking_summary"] == {}
 
 
 def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypatch):
