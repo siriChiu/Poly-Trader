@@ -1089,6 +1089,21 @@ export default function ExecutionConsole() {
                   ledgerPreview?.budget_alignment_status || ledgerPreview?.ownership_status,
                   "preview",
                 );
+                const primarySleeveLabel = String(
+                  profileStrategyBinding?.primary_sleeve_label || card.strategy_binding?.primary_sleeve_label || "",
+                ).trim();
+                const cardLabel = String(card.label || card.key || "unknown sleeve").trim();
+                const shouldShowPrimarySleeveBadge = Boolean(primarySleeveLabel) && primarySleeveLabel !== cardLabel;
+                const strategyBindingStatus = String(profileStrategyBinding?.status || card.strategy_binding?.status || "").trim();
+                const strategyBindingTitle = String(
+                  profileStrategyBinding?.title || card.strategy_binding?.title || profileStrategyBinding?.strategy_name || "",
+                ).trim();
+                const strategyBindingBadgeLabel = strategyBindingStatus === "missing_saved_strategy"
+                  ? "待儲存策略快照"
+                  : (strategyBindingTitle ? `策略：${strategyBindingTitle}` : "已綁定策略快照");
+                const strategyBindingBadgeTone = strategyBindingStatus === "missing_saved_strategy"
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
+                  : "border-emerald-500/25 bg-emerald-500/10 text-emerald-100";
                 const canStart = Boolean(profileId) && ["ready_control_plane", "resume_available"].includes(card.control_contract?.start_status || "");
                 const canPause = Boolean(linkedRun?.action_contract?.can_pause && linkedRun?.run_id);
                 const canStop = Boolean(linkedRun?.action_contract?.can_stop && linkedRun?.run_id);
@@ -1096,11 +1111,18 @@ export default function ExecutionConsole() {
                   <div key={card.key || card.label} className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-base font-semibold text-white">{card.label || card.key || "unknown sleeve"}</div>
+                        <div className="text-base font-semibold text-white">{cardLabel}</div>
                         <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
-                          <span className="rounded-full border border-[#7132f5]/25 bg-[#7132f5]/12 px-2.5 py-1 text-[#d8cbff]">
-                            {profileStrategyBinding?.primary_sleeve_label || card.strategy_binding?.title || "未分類"}
-                          </span>
+                          {shouldShowPrimarySleeveBadge && (
+                            <span className="rounded-full border border-[#7132f5]/25 bg-[#7132f5]/12 px-2.5 py-1 text-[#d8cbff]">
+                              {primarySleeveLabel}
+                            </span>
+                          )}
+                          {strategyBindingStatus && (
+                            <span className={`rounded-full border px-2.5 py-1 ${strategyBindingBadgeTone}`}>
+                              {strategyBindingBadgeLabel}
+                            </span>
+                          )}
                           <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(linkedRun?.state || card.lifecycle_status || card.activation_status)}`}>
                             {profileLifecycleLabel}
                           </span>

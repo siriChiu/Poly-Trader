@@ -82,3 +82,22 @@ def test_dashboard_and_strategy_lab_share_execution_workspace_summary_component(
         "前往執行狀態 →",
     ]:
         assert snippet in (dashboard_source + strategy_lab_source)
+
+
+def test_execution_console_bot_cards_surface_strategy_binding_state_without_duplicate_sleeve_labels():
+    source = _read("pages/ExecutionConsole.tsx")
+    required_snippets = [
+        'const primarySleeveLabel = String(',
+        'const cardLabel = String(card.label || card.key || "unknown sleeve").trim();',
+        'const shouldShowPrimarySleeveBadge = Boolean(primarySleeveLabel) && primarySleeveLabel !== cardLabel;',
+        'const strategyBindingStatus = String(profileStrategyBinding?.status || card.strategy_binding?.status || "").trim();',
+        'const strategyBindingBadgeLabel = strategyBindingStatus === "missing_saved_strategy"',
+        '"待儲存策略快照"',
+        '`策略：${strategyBindingTitle}`',
+        '{shouldShowPrimarySleeveBadge && (',
+        '{strategyBindingStatus && (',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+    assert 'profileStrategyBinding?.primary_sleeve_label || card.strategy_binding?.title || "未分類"' not in source

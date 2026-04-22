@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-22 11:53:05 CST_
+_最後更新：2026-04-22 12:30:18 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
@@ -16,6 +16,9 @@ _最後更新：2026-04-22 11:53:05 CST_
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
+- **Bot 營運 sleeve cards 已完成 strategy binding clarity patch**
+  - duplicate sleeve-name pills 已移除；已綁定 sleeve 直接顯示 `策略：<title>`
+  - 缺少已儲存策略的 `pullback` sleeve 會顯示 `待儲存策略快照`，讓 operator 一眼知道缺的是 strategy snapshot，不是 runtime blocker 文案
 
 ---
 

@@ -1,6 +1,6 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-22 11:53:05 CST_
+_最後更新：2026-04-22 12:30:18 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
@@ -24,6 +24,9 @@ _最後更新：2026-04-22 11:53:05 CST_
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環
+- **Bot 營運 sleeve cards 現在直接暴露 strategy binding truth**
+  - duplicate sleeve-name pills 已移除；已綁定卡片改顯示 `策略：<title>`，避免把 sleeve 名稱重複渲染成假資訊
+  - `pullback` 缺少已儲存策略時，Bot 營運會直接顯示 `待儲存策略快照`，不再把缺件狀態埋在卡片下半部
 
 ---
 
