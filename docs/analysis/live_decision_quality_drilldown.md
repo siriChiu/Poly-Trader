@@ -1,9 +1,9 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-22 15:02:10.145365**
+- feature_timestamp: **2026-04-22 15:22:40.911518**
 - target: `simulated_pyramid_win`
 - live path: **bull / BLOCK / D**
-- signal: **HOLD** @ confidence **0.3000**
+- signal: **HOLD** @ confidence **0.3100**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: `regime_gate_block`
 - allowed_layers_reason: `unsupported_exact_live_structure_bucket`
@@ -22,18 +22,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.4395** / trade_floor **0.55** / gap **-0.1105**
-- base_quality: **0.3679** × weight **0.75**
-- structure_quality: **0.6543** × weight **0.25**
-- base components: feat_4h_bias50=0.0 (w=0.4, contrib=0.0), feat_nose=0.2786 (w=0.18, contrib=0.0502), feat_pulse=0.6444 (w=0.27, contrib=0.174), feat_ear=0.9582 (w=0.15, contrib=0.1437)
-- structure components: feat_4h_bb_pct_b=1.0 (w=0.34, contrib=0.34), feat_4h_dist_bb_lower=0.434 (w=0.33, contrib=0.1432), feat_4h_dist_swing_low=0.5183 (w=0.33, contrib=0.171)
+- final entry_quality: **0.4439** / trade_floor **0.55** / gap **-0.1061**
+- base_quality: **0.3715** × weight **0.75**
+- structure_quality: **0.6609** × weight **0.25**
+- base components: feat_4h_bias50=0.0 (w=0.4, contrib=0.0), feat_nose=0.2615 (w=0.18, contrib=0.0471), feat_pulse=0.6714 (w=0.27, contrib=0.1813), feat_ear=0.9544 (w=0.15, contrib=0.1432)
+- structure components: feat_4h_bb_pct_b=1.0 (w=0.34, contrib=0.34), feat_4h_dist_bb_lower=0.4448 (w=0.33, contrib=0.1468), feat_4h_dist_swing_low=0.5277 (w=0.33, contrib=0.1741)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.1105**
-- base_group_max_entry_gain: **0.4741** | structure_group_max_entry_gain: **0.0864**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.3683, max_gain≈0.3）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.3683)
+- remaining_gap_to_floor: **0.1061**
+- base_group_max_entry_gain: **0.4713** | structure_group_max_entry_gain: **0.0848**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.3537, max_gain≈0.3）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.3537)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 

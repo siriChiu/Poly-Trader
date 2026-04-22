@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-04-22 15:02:10.145365",
+  "generated_at": "2026-04-22 15:22:40.911518",
   "target_col": "simulated_pyramid_win",
   "current_live": {
-    "feature_timestamp": "2026-04-22 15:02:10.145365",
+    "feature_timestamp": "2026-04-22 15:22:40.911518",
     "signal": "HOLD",
     "regime_label": "bull",
     "regime_gate": "BLOCK",
-    "entry_quality": 0.4395,
+    "entry_quality": 0.4439,
     "entry_quality_label": "D",
     "decision_quality_label": "D",
     "allowed_layers": 0,
@@ -15,10 +15,10 @@
     "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q65",
     "current_live_structure_bucket_rows": 0,
     "raw_features": {
-      "feat_4h_bias50": 4.3766,
-      "feat_nose": 0.7214,
-      "feat_pulse": 0.6444,
-      "feat_ear": 0.0084
+      "feat_4h_bias50": 4.4786,
+      "feat_nose": 0.7385,
+      "feat_pulse": 0.6714,
+      "feat_ear": 0.0091
     }
   },
   "scope_applicability": {
@@ -61,7 +61,16 @@
       "history": [
         {
           "heartbeat": "current",
-          "timestamp": "2026-04-22T15:03:24.158532+00:00",
+          "timestamp": "2026-04-22T15:23:55.936969+00:00",
+          "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q65",
+          "live_current_structure_bucket_rows": 0,
+          "minimum_support_rows": 50,
+          "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+          "support_governance_route": "exact_live_bucket_proxy_available"
+        },
+        {
+          "heartbeat": "20260422aj",
+          "timestamp": "2026-04-22T15:03:31.617168+00:00",
           "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q65",
           "live_current_structure_bucket_rows": 0,
           "minimum_support_rows": 50,
@@ -94,15 +103,6 @@
           "minimum_support_rows": 50,
           "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
           "support_governance_route": "exact_live_bucket_proxy_available"
-        },
-        {
-          "heartbeat": "20260422x",
-          "timestamp": "2026-04-22T07:20:27.519307+00:00",
-          "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q65",
-          "live_current_structure_bucket_rows": 0,
-          "minimum_support_rows": 50,
-          "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
-          "support_governance_route": "exact_live_bucket_proxy_available"
         }
       ]
     }
@@ -110,10 +110,10 @@
   "floor_cross_legality": {
     "verdict": "math_cross_possible_but_illegal_without_exact_support",
     "legal_to_relax_runtime_gate": false,
-    "reason": "feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.3683），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。",
-    "remaining_gap_to_floor": 0.1105,
+    "reason": "feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.3537），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。",
+    "remaining_gap_to_floor": 0.1061,
     "best_single_component": "feat_4h_bias50",
-    "best_single_component_required_score_delta": 0.3683,
+    "best_single_component_required_score_delta": 0.3537,
     "best_single_component_can_cross_floor": true
   },
   "component_experiment": {
@@ -136,17 +136,17 @@
   },
   "component_gap_attribution": {
     "trade_floor": 0.55,
-    "entry_quality": 0.4395,
-    "remaining_gap_to_floor": 0.1105,
+    "entry_quality": 0.4439,
+    "remaining_gap_to_floor": 0.1061,
     "reconstructed_from_q15_patch": false,
     "runtime_entry_quality_after_patch": null,
     "runtime_trade_floor_gap_after_patch": null,
-    "base_group_max_entry_gain": 0.4741,
-    "structure_group_max_entry_gain": 0.0864,
+    "base_group_max_entry_gain": 0.4713,
+    "structure_group_max_entry_gain": 0.0848,
     "best_single_component": {
       "group": "base",
       "feature": "feat_4h_bias50",
-      "raw_value": 4.3766,
+      "raw_value": 4.4786,
       "normalized_score": 0.0,
       "weight": 0.4,
       "outer_weight": 0.75,
@@ -154,14 +154,14 @@
       "weighted_contribution": 0.0,
       "headroom_to_perfect_score": 1.0,
       "max_entry_gain_if_perfect": 0.3,
-      "required_score_delta_to_cross_floor": 0.3683,
+      "required_score_delta_to_cross_floor": 0.3537,
       "can_single_component_cross_floor": true
     },
     "single_component_floor_crossers": [
       {
         "group": "base",
         "feature": "feat_4h_bias50",
-        "raw_value": 4.3766,
+        "raw_value": 4.4786,
         "normalized_score": 0.0,
         "weight": 0.4,
         "outer_weight": 0.75,
@@ -169,7 +169,7 @@
         "weighted_contribution": 0.0,
         "headroom_to_perfect_score": 1.0,
         "max_entry_gain_if_perfect": 0.3,
-        "required_score_delta_to_cross_floor": 0.3683,
+        "required_score_delta_to_cross_floor": 0.3537,
         "can_single_component_cross_floor": true
       }
     ],
@@ -177,7 +177,7 @@
       {
         "group": "base",
         "feature": "feat_4h_bias50",
-        "raw_value": 4.3766,
+        "raw_value": 4.4786,
         "normalized_score": 0.0,
         "weight": 0.4,
         "outer_weight": 0.75,
@@ -185,83 +185,83 @@
         "weighted_contribution": 0.0,
         "headroom_to_perfect_score": 1.0,
         "max_entry_gain_if_perfect": 0.3,
-        "required_score_delta_to_cross_floor": 0.3683,
+        "required_score_delta_to_cross_floor": 0.3537,
         "can_single_component_cross_floor": true
       },
       {
         "group": "base",
         "feature": "feat_nose",
-        "raw_value": 0.7214,
-        "normalized_score": 0.2786,
+        "raw_value": 0.7385,
+        "normalized_score": 0.2615,
         "weight": 0.18,
         "outer_weight": 0.75,
         "effective_weight": 0.135,
-        "weighted_contribution": 0.0502,
-        "headroom_to_perfect_score": 0.7214,
-        "max_entry_gain_if_perfect": 0.0974,
-        "required_score_delta_to_cross_floor": 0.8185,
+        "weighted_contribution": 0.0471,
+        "headroom_to_perfect_score": 0.7385,
+        "max_entry_gain_if_perfect": 0.0997,
+        "required_score_delta_to_cross_floor": 0.7859,
         "can_single_component_cross_floor": false
       },
       {
         "group": "base",
         "feature": "feat_pulse",
-        "raw_value": 0.6444,
-        "normalized_score": 0.6444,
+        "raw_value": 0.6714,
+        "normalized_score": 0.6714,
         "weight": 0.27,
         "outer_weight": 0.75,
         "effective_weight": 0.2025,
-        "weighted_contribution": 0.174,
-        "headroom_to_perfect_score": 0.3556,
-        "max_entry_gain_if_perfect": 0.072,
-        "required_score_delta_to_cross_floor": 0.5457,
+        "weighted_contribution": 0.1813,
+        "headroom_to_perfect_score": 0.3286,
+        "max_entry_gain_if_perfect": 0.0665,
+        "required_score_delta_to_cross_floor": 0.524,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_dist_bb_lower",
-        "raw_value": 3.4722,
-        "normalized_score": 0.434,
+        "raw_value": 3.5582,
+        "normalized_score": 0.4448,
         "weight": 0.33,
         "outer_weight": 0.25,
         "effective_weight": 0.0825,
-        "weighted_contribution": 0.1432,
-        "headroom_to_perfect_score": 0.566,
-        "max_entry_gain_if_perfect": 0.0467,
-        "required_score_delta_to_cross_floor": 1.3394,
+        "weighted_contribution": 0.1468,
+        "headroom_to_perfect_score": 0.5552,
+        "max_entry_gain_if_perfect": 0.0458,
+        "required_score_delta_to_cross_floor": 1.2861,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_dist_swing_low",
-        "raw_value": 5.1826,
-        "normalized_score": 0.5183,
+        "raw_value": 5.2772,
+        "normalized_score": 0.5277,
         "weight": 0.33,
         "outer_weight": 0.25,
         "effective_weight": 0.0825,
-        "weighted_contribution": 0.171,
-        "headroom_to_perfect_score": 0.4817,
-        "max_entry_gain_if_perfect": 0.0397,
-        "required_score_delta_to_cross_floor": 1.3394,
+        "weighted_contribution": 0.1741,
+        "headroom_to_perfect_score": 0.4723,
+        "max_entry_gain_if_perfect": 0.039,
+        "required_score_delta_to_cross_floor": 1.2861,
         "can_single_component_cross_floor": false
       },
       {
         "group": "base",
         "feature": "feat_ear",
-        "raw_value": 0.0084,
-        "normalized_score": 0.9582,
+        "raw_value": 0.0091,
+        "normalized_score": 0.9544,
         "weight": 0.15,
         "outer_weight": 0.75,
         "effective_weight": 0.1125,
-        "weighted_contribution": 0.1437,
-        "headroom_to_perfect_score": 0.0418,
-        "max_entry_gain_if_perfect": 0.0047,
-        "required_score_delta_to_cross_floor": 0.9822,
+        "weighted_contribution": 0.1432,
+        "headroom_to_perfect_score": 0.0456,
+        "max_entry_gain_if_perfect": 0.0051,
+        "required_score_delta_to_cross_floor": 0.9431,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_bb_pct_b",
-        "raw_value": 1.0949,
+        "raw_value": 1.1176,
         "normalized_score": 1.0,
         "weight": 0.34,
         "outer_weight": 0.25,
@@ -269,7 +269,7 @@
         "weighted_contribution": 0.34,
         "headroom_to_perfect_score": 0.0,
         "max_entry_gain_if_perfect": 0.0,
-        "required_score_delta_to_cross_floor": 1.3,
+        "required_score_delta_to_cross_floor": 1.2482,
         "can_single_component_cross_floor": false
       }
     ],
@@ -277,7 +277,7 @@
       "entry_if_bias50_fully_relaxed": null,
       "layers_if_bias50_fully_relaxed": 0,
       "required_bias50_cap_for_floor": null,
-      "current_bias50_value": 4.3766
+      "current_bias50_value": 4.4786
     }
   },
   "runtime_blocker": null,

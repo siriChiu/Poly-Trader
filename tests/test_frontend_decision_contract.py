@@ -735,6 +735,10 @@ def test_recent_canonical_drift_card_surfaces_latest_and_blocking_windows():
         'blocking_window?: RecentCanonicalDriftWindowPayload | null;',
         'const blockingWindow = summary?.blocking_window ?? null;',
         'const hasDistinctBlockingWindow = Boolean(',
+        'const latestInterpretation = latestWindowSummary?.drift_interpretation || "unavailable";',
+        'const blockingInterpretation = blockingWindowSummary?.drift_interpretation || "unavailable";',
+        '`latest ${latestInterpretation}`',
+        '`blocker ${blockingInterpretation}`',
         'latest recent-window',
         'current blocker pocket',
     ]

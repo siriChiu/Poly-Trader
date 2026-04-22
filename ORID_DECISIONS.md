@@ -1,20 +1,21 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-22 23:03:31 CST_
+_最後更新：2026-04-22 23:30:30 CST_
 
 ---
 
-## 心跳 #20260422aj ORID
+## 心跳 #20260422ak ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31553 / Features=22971 / Labels=63600`；`simulated_pyramid_win=57.36%`。
+- collect + diagnostics refresh 完成：`Raw=31554 / Features=22972 / Labels=63603`；`simulated_pyramid_win=57.37%`。
 - current-live blocker：`deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - current live bucket truth：`current_live_structure_bucket=BLOCK|bull_high_bias200_overheat_block|q65` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`。
 - latest recent-window diagnostics：`latest_window=100` / `win_rate=93.0%` / `dominant_regime=bull(92.0%)` / `avg_quality=+0.5175` / `avg_pnl=+0.0160` / `alerts=label_imbalance,regime_concentration,regime_shift`。
 - current blocking pathological pocket：`blocking_window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)` / `avg_quality=+0.0814` / `avg_pnl=+0.0009` / `alerts=regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3023` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3024` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`。
+- 本輪另完成 recent drift UI 語義修正：Dashboard / Strategy Lab 的 drift card 會分開顯示 `latest distribution_pathology` 與 `blocker regime_concentration`，不再把 blocker pocket interpretation 混成單一 badge。
 
 ### R｜感受直覺
 - 這輪最需要防止的誤讀，是把 `0/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；目前 live blocker 已切到 `unsupported_exact_live_structure_bucket`。

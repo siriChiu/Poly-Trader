@@ -171,10 +171,14 @@ export default function RecentCanonicalDriftCard({
   const hasDistinctBlockingWindow = Boolean(
     blockingWindowSummary && windowSignature(blockingWindow) !== windowSignature(latestWindow),
   );
-  const displayedWindowSummary = hasDistinctBlockingWindow ? blockingWindowSummary : latestWindowSummary;
   const summaryGeneratedAt = summary?.generated_at ? new Date(summary.generated_at).toLocaleString("zh-TW") : "—";
-  const interpretation = displayedWindowSummary?.drift_interpretation || "unavailable";
-  const tone = pending ? "border-cyan-500/25 bg-cyan-500/8" : interpretationTone(displayedWindowSummary?.drift_interpretation);
+  const latestInterpretation = latestWindowSummary?.drift_interpretation || "unavailable";
+  const blockingInterpretation = blockingWindowSummary?.drift_interpretation || "unavailable";
+  const tone = pending
+    ? "border-cyan-500/25 bg-cyan-500/8"
+    : hasDistinctBlockingWindow
+      ? "border-white/8 bg-[#0f1528]"
+      : interpretationTone(latestWindowSummary?.drift_interpretation);
 
   return (
     <div className={`rounded-xl border px-4 py-3 text-sm text-slate-100 ${tone} ${className}`.trim()}>
@@ -185,8 +189,15 @@ export default function RecentCanonicalDriftCard({
             {pending ? "正在向 /api/status 同步 recent canonical drift。" : `artifact ${summaryGeneratedAt}`}
           </div>
         </div>
-        <div className="rounded-full border border-white/10 bg-black/15 px-2.5 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-200">
-          {pending ? "同步中" : interpretation}
+        <div className="flex flex-wrap justify-end gap-2 text-[11px] uppercase tracking-[0.18em] text-slate-200">
+          <div className="rounded-full border border-white/10 bg-black/15 px-2.5 py-1">
+            {pending ? "同步中" : `latest ${latestInterpretation}`}
+          </div>
+          {hasDistinctBlockingWindow ? (
+            <div className="rounded-full border border-amber-400/25 bg-amber-500/10 px-2.5 py-1 text-amber-100">
+              {`blocker ${blockingInterpretation}`}
+            </div>
+          ) : null}
         </div>
       </div>
 
