@@ -3188,6 +3188,10 @@ def _normalize_model_leaderboard_payload(payload: Dict[str, Any]) -> Dict[str, A
     resolved_warning = leaderboard_warning or normalized.get("leaderboard_warning") or normalized.get("data_warning")
     normalized["leaderboard_warning"] = resolved_warning
     normalized["data_warning"] = resolved_warning
+    # Background refresh now skips expensive target-candidate rescoring. Normalize any
+    # stale cached/snapshotted payloads to the same contract so live API consumers do
+    # not keep seeing legacy candidate rows until the next full rebuild.
+    normalized["target_candidates"] = []
     return normalized
 
 
@@ -3848,7 +3852,7 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
         "storage": {"canonical_store": f"sqlite:///{db_path}"},
         "overfit_gap_threshold": _OVERFIT_GAP_THRESHOLD,
         "overfit_accuracy_threshold": _OVERFIT_ACCURACY_THRESHOLD,
-        "target_candidates": _summarize_target_candidates(data_df, _OVERFIT_GAP_THRESHOLD, _OVERFIT_ACCURACY_THRESHOLD),
+        "target_candidates": [],
         "evaluation_fold_window": "latest_bounded_walk_forward",
         "evaluation_max_folds": getattr(leaderboard, "EVALUATION_MAX_FOLDS", None),
         "data_warning": leaderboard_warning,

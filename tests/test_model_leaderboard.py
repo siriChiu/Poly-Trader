@@ -305,6 +305,54 @@ def test_build_model_leaderboard_payload_uses_bounded_refresh_shortlist(monkeypa
 
 
 
+def test_build_model_leaderboard_payload_skips_expensive_target_candidate_rescoring(monkeypatch):
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=3, freq="D"),
+            "close_price": [50000.0, 50010.0, 50020.0],
+            "simulated_pyramid_win": [1, 0, 1],
+            "feat_4h_bias50": [0.0, 0.0, 0.0],
+            "feat_nose": [0.4, 0.5, 0.6],
+            "feat_pulse": [0.6, 0.5, 0.4],
+            "feat_ear": [0.1, 0.1, 0.1],
+        }
+    )
+
+    monkeypatch.setattr(api_module, "load_model_leaderboard_frame", lambda db_path=None: df)
+    monkeypatch.setattr(api_module, "_load_model_leaderboard_history", lambda db_path=None: [])
+    monkeypatch.setattr(api_module, "_serialize_model_scores", lambda scores, leaderboard: [])
+    monkeypatch.setattr(api_module, "_summarize_target_candidates", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("target candidate rescoring should be skipped during background refresh")))
+    monkeypatch.setattr(ModelLeaderboard, "run_all_models", lambda self, model_names=None: [])
+
+    payload = api_module._build_model_leaderboard_payload()
+
+    assert payload["target_candidates"] == []
+
+
+
+def test_normalize_model_leaderboard_payload_clears_stale_target_candidates():
+    payload = {
+        "leaderboard": [
+            {
+                "model_name": "rule_baseline",
+                "is_placeholder": False,
+                "overall_score": 0.5,
+                "reliability_score": 0.6,
+                "return_power_score": 0.4,
+            }
+        ],
+        "target_candidates": [
+            {"target_col": "simulated_pyramid_win", "model_name": "stale_candidate"}
+        ],
+    }
+
+    normalized = api_module._normalize_model_leaderboard_payload(payload)
+
+    assert normalized["target_candidates"] == []
+    assert normalized["leaderboard"][0]["model_name"] == "rule_baseline"
+
+
+
 def test_background_refresh_limits_candidate_surface(monkeypatch):
     df = pd.DataFrame(
         {
@@ -1818,7 +1866,7 @@ def test_summarize_target_candidates_prefers_non_overfit_best_model(monkeypatch)
     )
 
     class FakeLeaderboard:
-        def __init__(self, data_df, target_col="label_spot_long_win"):
+        def __init__(self, data_df, target_col="label_spot_long_win", background_refresh=False):
             self.target_col = target_col
 
         def run_all_models(self, model_names):
