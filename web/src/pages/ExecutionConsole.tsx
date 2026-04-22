@@ -5,6 +5,10 @@ import {
   humanizeExecutionOperatorLabel,
   humanizeExecutionReason,
   humanizeExecutionReconciliationStatusLabel,
+  humanizeRuntimeClosureStateLabel,
+  humanizeRuntimeDetailText,
+  humanizeSupportGovernanceRouteLabel,
+  humanizeSupportRouteLabel,
   isExecutionReconciliationLimitedEvidence,
 } from "../utils/runtimeCopy";
 
@@ -597,21 +601,33 @@ export default function ExecutionConsole() {
       ? `${executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得 reconciliation 摘要。"} · 尚未有 runtime order，因此目前只能確認「沒有發現明顯對帳落差」，不可視為完整實單驗證。`
       : (executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得 reconciliation 摘要。");
   const supportAlignmentLabel = runtimeStatusPending ? "同步中" : (liveRuntimeTruth?.support_alignment_status || "unavailable");
+  const runtimeClosureStateLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeRuntimeClosureStateLabel(
+      liveRuntimeTruth?.runtime_closure_state,
+      liveRuntimeTruth?.runtime_closure_summary,
+    );
   const supportRowsLabel = runtimeStatusPending
     ? "同步中"
     : (liveRuntimeTruth?.support_rows_text || "—");
   const supportRouteVerdictLabel = runtimeStatusPending
     ? "同步中"
-    : (liveRuntimeTruth?.support_route_verdict || "—");
+    : humanizeSupportRouteLabel(liveRuntimeTruth?.support_route_verdict || null);
   const supportGovernanceRouteLabel = runtimeStatusPending
     ? "同步中"
-    : (liveRuntimeTruth?.support_governance_route || "—");
+    : humanizeSupportGovernanceRouteLabel(liveRuntimeTruth?.support_governance_route || null);
   const supportAlignmentCountsLabel = runtimeStatusPending
     ? "runtime/calibration 同步中"
     : `runtime/calibration ${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`;
   const supportAlignmentSummaryLabel = runtimeStatusPending
     ? "正在同步 runtime / calibration support 對齊。"
     : (liveRuntimeTruth?.support_alignment_summary || supportAlignmentLabel || "—");
+  const rawAllowedLayersReasonLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeRuntimeDetailText(liveRuntimeTruth?.allowed_layers_raw_reason || null);
+  const finalAllowedLayersReasonLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeRuntimeDetailText(liveRuntimeTruth?.allowed_layers_reason || null);
 
   const positions = Array.isArray(accountSummary?.positions) ? accountSummary.positions : [];
   const openOrders = Array.isArray(accountSummary?.open_orders) ? accountSummary.open_orders : [];
@@ -678,9 +694,11 @@ export default function ExecutionConsole() {
   const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "Ready" : "Blocked");
   const deploymentStatusDetail = runtimeStatusPending
     ? "正在向 /api/status 取得 current live blocker / runtime closure。"
-    : (executionSurfaceContract?.live_ready
-      ? (liveRuntimeTruth?.runtime_closure_summary || executionSurfaceContract?.operator_message || "目前已滿足主要部署條件。")
-      : (liveRuntimeTruth?.runtime_closure_summary || liveRuntimeTruth?.deployment_blocker_reason || primaryBlockedReason));
+    : humanizeRuntimeDetailText(
+      executionSurfaceContract?.live_ready
+        ? (liveRuntimeTruth?.runtime_closure_summary || executionSurfaceContract?.operator_message || "目前已滿足主要部署條件。")
+        : (liveRuntimeTruth?.runtime_closure_summary || liveRuntimeTruth?.deployment_blocker_reason || primaryBlockedReason)
+    );
   const automationEnabled = Boolean(runtimeStatus?.automation);
   const dryRunEnabled = Boolean(runtimeStatus?.dry_run);
   const executionSymbol = runtimeStatus?.symbol || "BTCUSDT";
@@ -1401,11 +1419,12 @@ export default function ExecutionConsole() {
               </div>
             </div>
             <div className="mt-3 text-sm text-slate-300">{deploymentStatusDetail}</div>
+            <div className="mt-2 text-xs text-slate-400">runtime closure {runtimeClosureStateLabel}</div>
             <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Layers</div>
                 <div className="mt-1 font-semibold text-white">{liveRuntimeTruth?.allowed_layers_raw ?? "—"} → {liveRuntimeTruth?.allowed_layers ?? "—"}</div>
-                <div className="text-[11px] text-slate-400">{liveRuntimeTruth?.allowed_layers_reason || liveRuntimeTruth?.allowed_layers_raw_reason || "—"}</div>
+                <div className="text-[11px] text-slate-400">{finalAllowedLayersReasonLabel !== "—" ? finalAllowedLayersReasonLabel : rawAllowedLayersReasonLabel}</div>
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Support</div>

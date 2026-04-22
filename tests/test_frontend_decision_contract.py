@@ -400,6 +400,8 @@ def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_r
         'const dashboardCurrentLiveBlocker = liveRuntimeTruth?.deployment_blocker || null;',
         'const dashboardCurrentLiveBlockerLabel = runtimeStatusPending',
         'humanizeCurrentLiveBlockerLabel(dashboardCurrentLiveBlocker || "unavailable")',
+        'humanizeSupportRouteLabel',
+        'humanizeSupportGovernanceRouteLabel',
         'const dashboardPrimaryRuntimeMessage = liveRuntimeTruth?.deployment_blocker_reason',
         'const dashboardPrimaryRuntimeMessageLabel = runtimeStatusPending',
         'humanizeExecutionReason(',
@@ -407,7 +409,9 @@ def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_r
         'const dashboardVenueBlockersLabel = runtimeStatusPending',
         'dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ")',
         'const dashboardSupportRouteVerdictLabel = runtimeStatusPending',
+        'humanizeSupportRouteLabel(liveRuntimeTruth?.support_route_verdict || null)',
         'const dashboardSupportGovernanceRouteLabel = runtimeStatusPending',
+        'humanizeSupportGovernanceRouteLabel(liveRuntimeTruth?.support_governance_route || null)',
         'const dashboardSupportRowsLabel = runtimeStatusPending',
         'const dashboardSupportGapLabel = runtimeStatusPending',
         'const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || accountSummary?.mode || "unknown");',
@@ -547,31 +551,47 @@ def test_signal_banner_declares_dashboard_as_canonical_execution_route_until_upg
         'fetch("/api/trade", {',
         'fetch("/api/automation/toggle", {',
         'fetch("/api/predict/confidence")',
+        'humanizeExecutionReason',
+        'humanizeRuntimeClosureStateLabel',
+        'humanizeRuntimeDetailText',
         'const deploymentBlockerDetails = runtimeDecision?.deployment_blocker_details ?? null;',
         'const breakerRecentWindow = deploymentBlockerDetails?.recent_window ?? null;',
         'const breakerRelease = deploymentBlockerDetails?.release_condition ?? null;',
         'const circuitBreakerActive = runtimeDecision?.deployment_blocker === "circuit_breaker_active";',
-        'runtime closure {runtimeDecision.runtime_closure_state || "—"}',
+        'const runtimeAllowedLayersRawReasonLabel = humanizeExecutionReason(runtimeDecision?.allowed_layers_raw_reason || null);',
+        'const runtimeAllowedLayersReasonLabel = humanizeRuntimeDetailText(runtimeDecision?.allowed_layers_reason || null);',
+        'const runtimeClosureStateLabel = humanizeRuntimeClosureStateLabel(',
+        'const runtimeClosureSummaryLabel = humanizeRuntimeDetailText(',
+        'runtime closure {runtimeClosureStateLabel}',
         'circuit breaker：recent 50 release window',
         '不要把 support / component patch 當成 breaker release 替代品。',
         'SignalBanner 只同步 release math，不可把這裡的快捷面板誤讀成 deployment readiness。',
-        'raw reason {runtimeDecision.allowed_layers_raw_reason || "—"}',
-        'final reason {runtimeDecision.allowed_layers_reason || "—"}',
+        'raw reason {runtimeAllowedLayersRawReasonLabel}',
+        'final reason {runtimeAllowedLayersReasonLabel}',
         'capacity opened but signal still HOLD',
         'patch active but execution still blocked',
     ]
     for snippet in required_snippets:
         assert snippet in source
 
+
 def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_states():
     source = _read("components/ConfidenceIndicator.tsx")
     required_snippets = [
-        'import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";',
+        'humanizeCurrentLiveBlockerLabel',
+        'humanizeExecutionReason',
+        'humanizeQ15FloorCrossVerdictLabel',
+        'humanizeQ15ComponentExperimentVerdictLabel',
+        'humanizeQ15BucketRootCauseAction',
+        'humanizeQ15BucketRootCauseLabel',
+        'humanizeSupportProgressStatusLabel',
         'const q15PatchExecutionBlocked = Boolean(',
         'const q15PatchCapacityOpened = Boolean(',
         'const q15SupportAuditApplicable = bucketKey === "q15" || bucketKey.endsWith("|q15");',
-        'const q15FloorCrossLabel = q15SupportAuditApplicable ? (floorCrossVerdict || "—") : "current bucket 非 q15";',
-        'const q15ComponentExperimentLabel = q15SupportAuditApplicable ? (componentExperimentVerdict || "—") : "reference-only";',
+        'const q15FloorCrossLabel = q15SupportAuditApplicable',
+        'humanizeQ15FloorCrossVerdictLabel(floorCrossVerdict || "—")',
+        'const q15ComponentExperimentLabel = q15SupportAuditApplicable',
+        'humanizeQ15ComponentExperimentVerdictLabel(componentExperimentVerdict || "—")',
         '目前 bucket ${currentLiveStructureBucket || "—"}；q15 floor-cross drill-down 只保留 reference-only，不代表 /api/status 缺資料。',
         '目前 live row 已離開 q15 lane；請改看 current live blocker 與 current bucket root cause，而不是把 q15 experiment 空值誤讀成 blocker truth。',
         'const breakerRecentWindow = deploymentBlockerDetails?.recent_window ?? null;',
@@ -628,6 +648,9 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'return `${prefix} 快照 · ${new Date(createdAt).toLocaleString("zh-TW")}`;',
         'const { data: runtimeStatus, loading: runtimeStatusLoading, error: runtimeStatusError } = useApi<StrategyLabRuntimeStatusResponse>("/api/status", 60000);',
         'const { data: liveDecisionStatus, loading: liveDecisionStatusLoading, error: liveDecisionStatusError } = useApi<StrategyLabLiveDecisionResponse>("/api/predict/confidence", 60000);',
+        'humanizeSupportRouteLabel',
+        'humanizeSupportGovernanceRouteLabel',
+        'humanizeRuntimeClosureStateLabel',
         'const executionReconciliation = runtimeStatus?.execution_reconciliation ?? null;',
         'const executionSurfaceContract = runtimeStatus?.execution_surface_contract ?? null;',
         'const executionOperationsSurface = executionSurfaceContract?.operations_surface ?? null;',
@@ -651,12 +674,18 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'VenueReadinessSummary',
         'const liveRuntimeClosureState = liveDecisionStatus?.runtime_closure_state ?? liveRuntimeTruth?.runtime_closure_state ?? null;',
         'const liveRuntimeClosureSummary = liveDecisionStatus?.runtime_closure_summary ?? liveRuntimeTruth?.runtime_closure_summary ?? null;',
+        'const runtimeClosureStateLabel = liveExecutionSyncPending',
+        'humanizeRuntimeClosureStateLabel(',
         'const liveSupportRouteVerdict = liveDecisionStatus?.support_route_verdict ?? liveRuntimeTruth?.support_route_verdict ?? null;',
         'const liveSupportGovernanceRoute = liveDecisionStatus?.support_governance_route ?? liveRuntimeTruth?.support_governance_route ?? null;',
+        'const liveSupportRouteVerdictLabel = liveExecutionSyncPending',
+        'humanizeSupportRouteLabel(liveSupportRouteVerdict)',
+        'const liveSupportGovernanceRouteLabel = liveExecutionSyncPending',
+        'humanizeSupportGovernanceRouteLabel(liveSupportGovernanceRoute)',
         'const liveSupportRowsLabel = liveExecutionSyncPending',
         'const liveSupportGapLabel = liveExecutionSyncPending',
         'const liveSupportRouteSummaryLabel = liveExecutionSyncPending',
-        'current bucket ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · support route ${liveSupportRouteVerdict || "—"} · governance route ${liveSupportGovernanceRoute || "—"}`;',
+        'current bucket ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · support route ${liveSupportRouteVerdictLabel} · governance route ${liveSupportGovernanceRouteLabel}`;',
         'const liveRouting = liveRuntimeTruth?.sleeve_routing ?? null;',
         'const liveActiveSleeves = Array.isArray(liveRouting?.active_sleeves) ? liveRouting.active_sleeves : [];',
         'const liveInactiveSleeves = Array.isArray(liveRouting?.inactive_sleeves) ? liveRouting.inactive_sleeves : [];',
@@ -814,6 +843,8 @@ def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candida
 def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
     source = _read("components/LivePathologySummaryCard.tsx")
     required_snippets = [
+        'humanizeSupportRouteLabel',
+        'humanizeSupportGovernanceRouteLabel',
         'type RecommendedPatchSummary = {',
         'recommended_patch?: RecommendedPatchSummary | null;',
         'const recommendedPatch = summary.recommended_patch ?? null;',
@@ -838,8 +869,10 @@ def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
         'support_governance_route?: string | null;',
         'const supportRouteLabel = supportRouteVerdict || recommendedPatch?.support_route_verdict || null;',
         'const supportGovernanceRouteLabel = supportGovernanceRoute || recommendedPatch?.support_governance_route || null;',
-        'support route {supportRouteLabel || "—"}',
-        'governance route ${supportGovernanceRouteLabel}',
+        'const supportRouteDisplayLabel = humanizeSupportRouteLabel(supportRouteLabel);',
+        'const supportGovernanceRouteDisplayLabel = humanizeSupportGovernanceRouteLabel(supportGovernanceRouteLabel);',
+        'support route {supportRouteDisplayLabel || "—"}',
+        'governance route ${supportGovernanceRouteDisplayLabel}',
         'recommendedPatch.recommended_action',
     ]
     for snippet in required_snippets:
@@ -886,11 +919,24 @@ def test_live_pathology_summary_card_supports_compact_summary_mode_for_workspace
         '{exactLaneRowsLabel}',
         '{currentBucketSupportLabel}',
         '{compactPatchStatusLabel || "patch 狀態未提供"}',
-        'support route ${supportRouteLabel}',
+        'support route ${supportRouteDisplayLabel}',
         '{supportAlignmentStatusLabel ? ` · ${supportAlignmentStatusLabel}` : ""}',
     ]
     for snippet in required_snippets:
         assert snippet in source
+def test_runtime_copy_humanizes_support_and_runtime_route_tokens_for_operator_surfaces():
+    runtime_copy_source = _read("utils/runtimeCopy.ts")
+    for snippet in [
+        'const SUPPORT_ROUTE_LABEL_MAPPINGS',
+        'const RUNTIME_CLOSURE_STATE_LABEL_MAPPINGS',
+        '["exact_bucket_unsupported_block", "exact support 尚未建立"]',
+        '["no_support_proxy", "目前沒有可用 proxy"]',
+        '["patch_inactive_or_blocked", "僅保留治理參考"]',
+        'export function humanizeSupportRouteLabel(value?: string | null): string {',
+        'export function humanizeSupportGovernanceRouteLabel(value?: string | null): string {',
+        'export function humanizeRuntimeClosureStateLabel(value?: string | null, fallback?: string | null): string {',
+    ]:
+        assert snippet in runtime_copy_source
 
 
 def test_dashboard_and_strategy_lab_pass_support_alignment_to_compact_live_pathology_cards():

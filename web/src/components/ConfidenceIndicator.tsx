@@ -3,7 +3,15 @@
  * 將 live predictor 的 canonical decision-quality contract 直接顯示在 Dashboard。
  */
 import React from "react";
-import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
+import {
+  humanizeCurrentLiveBlockerLabel,
+  humanizeExecutionReason,
+  humanizeQ15BucketRootCauseAction,
+  humanizeQ15BucketRootCauseLabel,
+  humanizeQ15ComponentExperimentVerdictLabel,
+  humanizeQ15FloorCrossVerdictLabel,
+  humanizeSupportProgressStatusLabel,
+} from "../utils/runtimeCopy";
 
 interface Props {
   confidence: number;        // 0~1 long-win probability proxy
@@ -154,6 +162,7 @@ export default function ConfidenceIndicator({
   ];
 
   const supportStatus = supportProgress?.status || null;
+  const supportStatusLabel = humanizeSupportProgressStatusLabel(supportStatus);
   const supportRows = typeof supportProgress?.current_rows === "number"
     ? supportProgress.current_rows
     : null;
@@ -204,19 +213,27 @@ export default function ConfidenceIndicator({
   const bucketKey = (currentLiveStructureBucket || "").toLowerCase();
   const q15SupportAuditApplicable = bucketKey === "q15" || bucketKey.endsWith("|q15");
   const q35ScalingAuditApplicable = bucketKey === "q35" || bucketKey.endsWith("|q35");
-  const q15FloorCrossLabel = q15SupportAuditApplicable ? (floorCrossVerdict || "—") : "current bucket 非 q15";
+  const q15FloorCrossLabel = q15SupportAuditApplicable
+    ? humanizeQ15FloorCrossVerdictLabel(floorCrossVerdict || "—")
+    : "current bucket 非 q15";
   const q15FloorCrossHint = q15SupportAuditApplicable
     ? `best single component ${bestSingleComponent || "—"}`
     : `目前 bucket ${currentLiveStructureBucket || "—"}；q15 floor-cross drill-down 只保留 reference-only，不代表 /api/status 缺資料。`;
-  const q15ComponentExperimentLabel = q15SupportAuditApplicable ? (componentExperimentVerdict || "—") : "reference-only";
+  const q15ComponentExperimentLabel = q15SupportAuditApplicable
+    ? humanizeQ15ComponentExperimentVerdictLabel(componentExperimentVerdict || "—")
+    : "reference-only";
   const q15ComponentExperimentHint = q15SupportAuditApplicable
     ? `required score delta ${formatDecimal(bestSingleComponentRequiredScoreDelta, 4)}`
     : "目前 live row 已離開 q15 lane；請改看 current live blocker 與 current bucket root cause，而不是把 q15 experiment 空值誤讀成 blocker truth。";
-  const q35ScalingVerdictLabel = q35ScalingAuditApplicable ? (q35OverallVerdict || "—") : "current bucket 非 q35";
+  const q35ScalingVerdictLabel = q35ScalingAuditApplicable
+    ? humanizeQ15BucketRootCauseLabel(q35OverallVerdict || "—")
+    : "current bucket 非 q35";
   const q35ScalingVerdictHint = q35ScalingAuditApplicable
-    ? `redesign ${q35RedesignVerdict || "—"} · runtime gap ${formatDecimal(q35RuntimeRemainingGapToFloor, 4)}`
+    ? `redesign ${humanizeQ15BucketRootCauseLabel(q35RedesignVerdict || "—")} · runtime gap ${formatDecimal(q35RuntimeRemainingGapToFloor, 4)}`
     : `目前 bucket ${currentLiveStructureBucket || "—"}；q35 scaling audit 只保留 reference-only，不代表 blocker 已解除。`;
-  const q35ScalingActionLabel = q35ScalingAuditApplicable ? (q35RecommendedMode || "—") : "reference-only";
+  const q35ScalingActionLabel = q35ScalingAuditApplicable
+    ? humanizeQ15BucketRootCauseAction(q35RecommendedMode || "—")
+    : "reference-only";
   const q35ScalingActionHint = q35ScalingAuditApplicable
     ? `next patch ${q35NextPatchTarget || "—"} · ${q35RecommendedAction || "尚未提供 q35 audit action"}`
     : "目前 live row 不在 q35 lane；q35 formula / redesign 結論只保留背景研究用途。";
@@ -338,7 +355,7 @@ export default function ConfidenceIndicator({
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">exact support</div>
                   <div className="mt-1 font-medium text-white">{supportRows ?? "—"} / {supportMinimum ?? "—"}</div>
-                  <div className="mt-1 text-slate-400">status {supportStatus || "unknown"}</div>
+                  <div className="mt-1 text-slate-400">status {supportStatusLabel}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">current live bucket</div>

@@ -7,9 +7,17 @@ const EXECUTION_REASON_MAPPINGS: Array<[string, string]> = [
   ["decision_quality_below_trade_floor", "目前決策品質不足，暫不建議進場。"],
   ["circuit_breaker_active", "目前觸發保護機制，暫停部署。"],
   ["patch_inactive_or_blocked", "目前 patch 尚未啟用，或仍被其他條件阻擋。"],
+  ["patch_active_but_execution_blocked", "目前 patch 已套用，但 execution 仍被 blocker 擋住。"],
+  ["support_closed_but_trade_floor_blocked", "support 已 closure，但 trade floor 仍未通過。"],
   ["unsupported_live_structure_bucket", "目前 live bucket 支持仍不足。"],
   ["exact_bucket_present_but_below_minimum", "目前 exact support 已出現，但仍低於 deployment-grade minimum。"],
   ["exact_bucket_unsupported_block", "目前 exact support 尚未建立，僅能保留治理參考。"],
+  ["exact_bucket_missing_proxy_reference_only", "目前只有 proxy 參考，仍不可直接部署。"],
+  ["exact_bucket_missing_exact_lane_proxy_only", "目前只有 exact-lane proxy 參考，仍不可直接部署。"],
+  ["no_support_proxy", "目前沒有可用 proxy。"],
+  ["regime_gate_block", "目前 regime gate 仍阻塞。"],
+  ["runtime_governance_visibility_only", "目前僅提供 runtime 治理可視化。"],
+  ["stalled_under_minimum", "目前 minimum support 仍未達標。"],
   ["unsupported", "目前條件尚未通過可部署檢查。"],
 ];
 
@@ -20,6 +28,79 @@ const CURRENT_LIVE_BLOCKER_LABEL_MAPPINGS: Array<[string, string]> = [
   ["circuit_breaker_active", "風控熔斷中"],
   ["unsupported_live_structure_bucket", "live bucket 支持不足"],
   ["exact_live_lane_toxic_sub_bucket_current_bucket", "exact lane toxic bucket"],
+];
+
+const SUPPORT_ROUTE_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["exact_bucket_supported", "exact support 已就緒"],
+  ["exact_bucket_present_but_below_minimum", "exact support 未達 minimum"],
+  ["exact_bucket_missing_exact_lane_proxy_only", "exact support 缺口僅能參考 exact-lane proxy"],
+  ["exact_bucket_missing_proxy_reference_only", "exact support 缺口僅能參考 proxy"],
+  ["exact_bucket_unsupported_block", "exact support 尚未建立"],
+  ["unsupported_exact_live_structure_bucket", "exact support 尚未建立"],
+  ["under_minimum_exact_live_structure_bucket", "exact support 未達 minimum"],
+  ["no_rows", "目前沒有可用歷史列"],
+];
+
+const SUPPORT_GOVERNANCE_ROUTE_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["no_support_proxy", "目前沒有可用 proxy"],
+  ["exact_live_bucket_proxy_available", "已有 exact-bucket proxy"],
+  ["exact_bucket_present_but_below_minimum", "exact support 已開始累積"],
+  ["exact_bucket_supported_proxy_not_required", "exact support 已就緒，不需 proxy"],
+  ["proxy_governance_reference_only_exact_support_blocked", "proxy 僅供治理參考"],
+  ["exact_bucket_missing_proxy_reference_only", "proxy 僅供治理參考"],
+  ["exact_bucket_missing_exact_lane_proxy_only", "exact-lane proxy 僅供治理參考"],
+];
+
+const RUNTIME_CLOSURE_STATE_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["patch_active_but_execution_blocked", "patch 已套用但 execution 仍阻塞"],
+  ["patch_inactive_or_blocked", "僅保留治理參考"],
+  ["circuit_breaker_active", "風控熔斷中"],
+  ["capacity_opened_signal_hold", "容量已開但訊號仍 HOLD"],
+  ["runtime_visible_preview", "runtime 預覽中"],
+];
+
+const SUPPORT_PROGRESS_STATUS_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["stalled_under_minimum", "minimum 尚未達標"],
+  ["deployable", "已達 deployable 條件"],
+  ["ready", "已就緒"],
+  ["pending", "仍在累積"],
+  ["unsupported", "尚未建立"],
+];
+
+const Q15_FLOOR_CROSS_VERDICT_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["math_cross_possible_but_illegal_without_exact_support", "數學上可跨 floor，但 exact support 未就緒"],
+  ["legal_to_relax_runtime_gate", "可合法放寬 runtime gate"],
+  ["reference_only", "僅供治理參考"],
+];
+
+const Q15_COMPONENT_EXPERIMENT_VERDICT_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["reference_only_until_exact_support_ready", "exact support 就緒前僅供參考"],
+  ["exact_supported_component_experiment_ready", "可進入 exact-supported 元件驗證"],
+  ["runtime_patch_no_material_improvement", "runtime patch 無明顯改善"],
+  ["not_applicable", "目前不適用"],
+];
+
+const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
+  ["unsupported_exact_live_structure_bucket", "exact support 尚未建立"],
+  ["under_minimum_exact_live_structure_bucket", "exact support 未達 minimum"],
+  ["decision_quality_below_trade_floor", "決策品質未達門檻"],
+  ["circuit_breaker_active", "風控熔斷中"],
+  ["patch_inactive_or_blocked", "僅保留治理參考"],
+  ["patch_active_but_execution_blocked", "patch 已套用但 execution 仍阻塞"],
+  ["support_closed_but_trade_floor_blocked", "support 已 closure，但仍被 trade floor 擋住"],
+  ["capacity_opened_signal_hold", "容量已開但訊號仍 HOLD"],
+  ["unsupported_live_structure_bucket", "live bucket 支持不足"],
+  ["exact_bucket_unsupported_block", "exact support 尚未建立"],
+  ["exact_bucket_present_but_below_minimum", "exact support 未達 minimum"],
+  ["exact_bucket_missing_proxy_reference_only", "proxy 僅供治理參考"],
+  ["exact_bucket_missing_exact_lane_proxy_only", "exact-lane proxy 僅供治理參考"],
+  ["no_support_proxy", "目前沒有可用 proxy"],
+  ["reference_only_non_current_live_scope", "scope 不同，僅作治理參考"],
+  ["reference_only_until_exact_support_ready", "先當治理參考，不可直接放行"],
+  ["reference_only_while_deployment_blocked", "blocker 未清前僅作治理參考"],
+  ["runtime_governance_visibility_only", "runtime 治理可視化"],
+  ["regime_gate_block", "regime gate 阻塞"],
+  ["stalled_under_minimum", "minimum 尚未達標"],
 ];
 
 const Q15_BUCKET_ROOT_CAUSE_LABEL_MAPPINGS: Array<[string, string]> = [
@@ -128,6 +209,85 @@ export function humanizeCurrentLiveBlockerLabel(value?: string | null): string {
     if (lower.includes(token)) return label;
   }
   return normalized.replace(/[_|]+/g, " ").trim();
+}
+
+export function humanizeSupportRouteLabel(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "—";
+  const lower = normalized.toLowerCase();
+  for (const [token, label] of SUPPORT_ROUTE_LABEL_MAPPINGS) {
+    if (lower.includes(token)) return label;
+  }
+  return normalized.replace(/[_|]+/g, " ").trim();
+}
+
+export function humanizeSupportGovernanceRouteLabel(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "—";
+  const lower = normalized.toLowerCase();
+  for (const [token, label] of SUPPORT_GOVERNANCE_ROUTE_LABEL_MAPPINGS) {
+    if (lower.includes(token)) return label;
+  }
+  return normalized.replace(/[_|]+/g, " ").trim();
+}
+
+export function humanizeRuntimeClosureStateLabel(value?: string | null, fallback?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return String(fallback || "unknown").trim() || "unknown";
+  const lower = normalized.toLowerCase();
+  for (const [token, label] of RUNTIME_CLOSURE_STATE_LABEL_MAPPINGS) {
+    if (lower.includes(token)) return label;
+  }
+  return normalized.replace(/[_|]+/g, " ").trim();
+}
+
+export function humanizeSupportProgressStatusLabel(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "unknown";
+  const lower = normalized.toLowerCase();
+  for (const [token, label] of SUPPORT_PROGRESS_STATUS_LABEL_MAPPINGS) {
+    if (lower.includes(token)) return label;
+  }
+  return normalized.replace(/[_|]+/g, " ").trim();
+}
+
+export function humanizeQ15FloorCrossVerdictLabel(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "—";
+  const lower = normalized.toLowerCase();
+  for (const [token, label] of Q15_FLOOR_CROSS_VERDICT_LABEL_MAPPINGS) {
+    if (lower.includes(token)) return label;
+  }
+  return normalized.replace(/[_|]+/g, " ").trim();
+}
+
+export function humanizeQ15ComponentExperimentVerdictLabel(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "—";
+  const lower = normalized.toLowerCase();
+  for (const [token, label] of Q15_COMPONENT_EXPERIMENT_VERDICT_LABEL_MAPPINGS) {
+    if (lower.includes(token)) return label;
+  }
+  return normalized.replace(/[_|]+/g, " ").trim();
+}
+
+export function humanizeRuntimeDetailText(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "—";
+
+  let output = normalized;
+  for (const [token, label] of RUNTIME_DETAIL_TOKEN_REPLACEMENTS) {
+    output = output.split(token).join(label);
+  }
+
+  return output
+    .split("recommended_patch=").join("建議 patch ")
+    .split("exact-vs-spillover=").join("exact 與 spillover 對照：")
+    .split("route=").join("support route ")
+    .split("governance=").join("governance route ")
+    .split("blocker=").join("blocker ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 export function humanizeQ15BucketRootCauseLabel(value?: string | null): string {

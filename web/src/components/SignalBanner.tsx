@@ -2,6 +2,11 @@
  * SignalBanner — Trading signal + manual buy/sell + automation toggle
  */
 import { useEffect, useState } from "react";
+import {
+  humanizeExecutionReason,
+  humanizeRuntimeClosureStateLabel,
+  humanizeRuntimeDetailText,
+} from "../utils/runtimeCopy";
 
 interface Props {
   confidence: number;
@@ -66,6 +71,15 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
   const breakerFloor = typeof breakerRelease?.recent_win_rate_must_be_at_least === "number"
     ? breakerRelease.recent_win_rate_must_be_at_least
     : (typeof breakerRecentWindow?.floor === "number" ? breakerRecentWindow.floor : null);
+  const runtimeAllowedLayersRawReasonLabel = humanizeExecutionReason(runtimeDecision?.allowed_layers_raw_reason || null);
+  const runtimeAllowedLayersReasonLabel = humanizeRuntimeDetailText(runtimeDecision?.allowed_layers_reason || null);
+  const runtimeClosureStateLabel = humanizeRuntimeClosureStateLabel(
+    runtimeDecision?.runtime_closure_state,
+    runtimeDecision?.runtime_closure_summary,
+  );
+  const runtimeClosureSummaryLabel = humanizeRuntimeDetailText(
+    runtimeDecision?.runtime_closure_summary || "尚未取得 runtime closure summary。",
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -161,10 +175,10 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
         <div className={`mb-4 rounded-lg border px-3 py-2 text-xs leading-5 ${circuitBreakerActive ? "border-amber-500/30 bg-amber-500/10 text-amber-100" : runtimeDecision.q15_exact_supported_component_patch_applied ? ((runtimeDecision.allowed_layers ?? 0) > 0 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100" : "border-amber-500/30 bg-amber-500/10 text-amber-100") : "border-slate-700/40 bg-slate-900/40 text-slate-300"}`}>
           <div className="font-semibold">q15 runtime 快照</div>
           <div className="mt-1">
-            signal {runtimeDecision.signal || "—"} · layers {runtimeDecision.allowed_layers_raw ?? "—"} → {runtimeDecision.allowed_layers ?? "—"} · raw reason {runtimeDecision.allowed_layers_raw_reason || "—"} · final reason {runtimeDecision.allowed_layers_reason || "—"}
+            signal {runtimeDecision.signal || "—"} · layers {runtimeDecision.allowed_layers_raw ?? "—"} → {runtimeDecision.allowed_layers ?? "—"} · raw reason {runtimeAllowedLayersRawReasonLabel} · final reason {runtimeAllowedLayersReasonLabel}
           </div>
           <div className="mt-1">
-            runtime closure {runtimeDecision.runtime_closure_state || "—"} · {runtimeDecision.runtime_closure_summary || "尚未取得 runtime closure summary。"}
+            runtime closure {runtimeClosureStateLabel} · {runtimeClosureSummaryLabel}
           </div>
           {circuitBreakerActive && (
             <div className="mt-1">

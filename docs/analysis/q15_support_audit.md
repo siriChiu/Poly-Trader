@@ -1,12 +1,12 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-22 15:49:33.255497**
+- generated_at: **2026-04-22 17:39:48.348106**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
 - signal: **HOLD**
 - regime / gate / label: **bull / BLOCK / D**
-- current_live_structure_bucket: **BLOCK|bull_high_bias200_overheat_block|q65**
+- current_live_structure_bucket: **BLOCK|bull_high_bias200_overheat_block|q35**
 - current_live_structure_bucket_rows: **0**
 - allowed_layers: **0** (unsupported_exact_live_structure_bucket)
 - execution_guardrail_reason: **unsupported_exact_live_structure_bucket**
@@ -14,7 +14,7 @@
 ## Scope applicability
 - status: **current_live_not_q15_lane**
 - active_for_current_live_row: **False**
-- current_structure_bucket: **BLOCK|bull_high_bias200_overheat_block|q65**
+- current_structure_bucket: **BLOCK|bull_high_bias200_overheat_block|q35**
 - target_structure_bucket: **CAUTION|structure_quality_caution|q15**
 - reason: current live row 已不在 q15 lane；q15 support audit 只能描述 standby q15 route readiness，不可當成 current-live deployment closure。
 
@@ -41,11 +41,11 @@
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0895**
+- remaining_gap_to_floor: **0.1477**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.2983**
+- best_single_component_required_score_delta: **0.4923**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.2983），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.4923），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**

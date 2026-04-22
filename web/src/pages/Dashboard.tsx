@@ -18,6 +18,8 @@ import {
   humanizeCurrentLiveBlockerLabel,
   humanizeExecutionReason,
   humanizeExecutionReconciliationStatusLabel,
+  humanizeSupportGovernanceRouteLabel,
+  humanizeSupportRouteLabel,
   isExecutionReconciliationLimitedEvidence,
 } from "../utils/runtimeCopy";
 
@@ -1042,10 +1044,10 @@ export default function Dashboard() {
     : (dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "none");
   const dashboardSupportRouteVerdictLabel = runtimeStatusPending
     ? "同步中"
-    : (liveRuntimeTruth?.support_route_verdict || "—");
+    : humanizeSupportRouteLabel(liveRuntimeTruth?.support_route_verdict || null);
   const dashboardSupportGovernanceRouteLabel = runtimeStatusPending
     ? "同步中"
-    : (liveRuntimeTruth?.support_governance_route || "—");
+    : humanizeSupportGovernanceRouteLabel(liveRuntimeTruth?.support_governance_route || null);
   const dashboardSupportRowsLabel = runtimeStatusPending
     ? "同步中"
     : (liveRuntimeTruth?.support_rows_text || "—");

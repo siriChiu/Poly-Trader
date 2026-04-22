@@ -23,6 +23,9 @@ import {
   humanizeCurrentLiveBlockerLabel,
   humanizeExecutionReason,
   humanizeExecutionReconciliationStatusLabel,
+  humanizeRuntimeClosureStateLabel,
+  humanizeSupportGovernanceRouteLabel,
+  humanizeSupportRouteLabel,
   isExecutionReconciliationLimitedEvidence,
   humanizeQ15BucketRootCauseAction,
   humanizeQ15BucketRootCauseLabel,
@@ -2527,11 +2530,24 @@ export default function StrategyLab() {
   const liveSupportGapLabel = liveExecutionSyncPending
     ? "同步中"
     : (isFiniteNumber(liveSupportGap) ? formatDecimal(liveSupportGap, 0) : "—");
+  const liveSupportRouteVerdictLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeSupportRouteLabel(liveSupportRouteVerdict);
+  const liveSupportGovernanceRouteLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeSupportGovernanceRouteLabel(liveSupportGovernanceRoute);
   const liveSupportRouteSummaryLabel = liveExecutionSyncPending
     ? "current bucket 同步中 · gap 同步中 · support route 同步中 · governance route 同步中"
-    : `current bucket ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · support route ${liveSupportRouteVerdict || "—"} · governance route ${liveSupportGovernanceRoute || "—"}`;
+    : `current bucket ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · support route ${liveSupportRouteVerdictLabel} · governance route ${liveSupportGovernanceRouteLabel}`;
+  const runtimeClosureStateLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeRuntimeClosureStateLabel(
+      liveRuntimeClosureState,
+      liveRuntimeClosureSummary,
+    );
   const lifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
   const lifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
+
   const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(
     executionReconciliation?.status,
@@ -2554,7 +2570,6 @@ export default function StrategyLab() {
   const reconciliationCheckedAtLabel = runtimeStatusPending
     ? "正在向 /api/status 取得 execution sync 狀態"
     : (executionReconciliation?.checked_at ? new Date(executionReconciliation.checked_at).toLocaleString("zh-TW") : "尚未取得 /api/status");
-  const runtimeClosureStateLabel = liveExecutionSyncPending ? "同步中" : (liveRuntimeClosureState || "unknown");
   const runtimeClosureSummaryLabel = liveExecutionSyncPending
     ? "正在同步 runtime closure summary。"
     : humanizeExecutionReason(liveRuntimeClosureSummary || "尚未取得 runtime closure summary。");

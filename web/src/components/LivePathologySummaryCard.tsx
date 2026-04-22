@@ -1,3 +1,8 @@
+import {
+  humanizeSupportGovernanceRouteLabel,
+  humanizeSupportRouteLabel,
+} from "../utils/runtimeCopy";
+
 type TopMeanShiftFeature = {
   feature?: string | null;
   current_mean?: number | null;
@@ -206,6 +211,8 @@ export default function LivePathologySummaryCard({
       : "text-slate-200/80";
   const supportRouteLabel = supportRouteVerdict || recommendedPatch?.support_route_verdict || null;
   const supportGovernanceRouteLabel = supportGovernanceRoute || recommendedPatch?.support_governance_route || null;
+  const supportRouteDisplayLabel = humanizeSupportRouteLabel(supportRouteLabel);
+  const supportGovernanceRouteDisplayLabel = humanizeSupportGovernanceRouteLabel(supportGovernanceRouteLabel);
 
   if (compact) {
     return (
@@ -269,8 +276,8 @@ export default function LivePathologySummaryCard({
             </div>
             <div className="text-sky-50/80">
               {compactPatchStatusLabel || "patch 狀態未提供"}
-              {supportRouteLabel ? ` · support route ${supportRouteLabel}` : ""}
-              {supportGovernanceRouteLabel ? ` · governance ${supportGovernanceRouteLabel}` : ""}
+              {supportRouteLabel ? ` · support route ${supportRouteDisplayLabel}` : ""}
+              {supportGovernanceRouteLabel ? ` · governance route ${supportGovernanceRouteDisplayLabel}` : ""}
             </div>
           </div>
         </div>
@@ -407,8 +414,8 @@ export default function LivePathologySummaryCard({
               {recommendedPatch.gap_to_minimum != null ? ` · gap ${recommendedPatch.gap_to_minimum}` : ""}
             </div>
             <div>
-              support route {supportRouteLabel || "—"}
-              {supportGovernanceRouteLabel ? ` · governance route ${supportGovernanceRouteLabel}` : ""}
+              support route {supportRouteDisplayLabel || "—"}
+              {supportGovernanceRouteLabel ? ` · governance route ${supportGovernanceRouteDisplayLabel}` : ""}
               {recommendedPatch.preferred_support_cohort ? ` · cohort ${recommendedPatch.preferred_support_cohort}` : ""}
             </div>
             {recommendedPatch.reason && <div>{recommendedPatch.reason}</div>}

@@ -7,6 +7,10 @@ import {
   humanizeCurrentLiveBlockerLabel,
   humanizeExecutionReason,
   humanizeExecutionReconciliationStatusLabel,
+  humanizeRuntimeClosureStateLabel,
+  humanizeRuntimeDetailText,
+  humanizeSupportGovernanceRouteLabel,
+  humanizeSupportRouteLabel,
   isExecutionReconciliationLimitedEvidence,
   humanizeQ15BucketRootCauseAction,
   humanizeQ15BucketRootCauseLabel,
@@ -497,21 +501,39 @@ export default function ExecutionStatus() {
     ? "同步中"
     : (metadataFreshness?.label || metadataFreshness?.status || "unavailable");
   const supportAlignmentLabel = runtimeStatusPending ? "同步中" : (liveRuntimeTruth?.support_alignment_status || "unavailable");
+  const runtimeClosureStateLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeRuntimeClosureStateLabel(
+      liveRuntimeTruth?.runtime_closure_state,
+      liveRuntimeTruth?.runtime_closure_summary,
+    );
   const supportRowsLabel = runtimeStatusPending
     ? "同步中"
     : (liveRuntimeTruth?.support_rows_text || "—");
   const supportRouteVerdictLabel = runtimeStatusPending
     ? "同步中"
-    : (liveRuntimeTruth?.support_route_verdict || "—");
+    : humanizeSupportRouteLabel(liveRuntimeTruth?.support_route_verdict || null);
   const supportGovernanceRouteLabel = runtimeStatusPending
     ? "同步中"
-    : (liveRuntimeTruth?.support_governance_route || "—");
+    : humanizeSupportGovernanceRouteLabel(liveRuntimeTruth?.support_governance_route || null);
   const supportAlignmentCountsLabel = runtimeStatusPending
     ? "runtime/calibration 同步中"
     : `runtime/calibration ${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`;
   const supportAlignmentSummaryLabel = runtimeStatusPending
     ? "正在同步 runtime / calibration support 對齊。"
     : (liveRuntimeTruth?.support_alignment_summary || supportAlignmentLabel || "—");
+  const deploymentDiagnosticsSubtitle = runtimeStatusPending
+    ? "正在同步 runtime closure summary。"
+    : humanizeRuntimeDetailText(liveRuntimeTruth?.runtime_closure_summary || primaryRuntimeMessage);
+  const executionGuardrailLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeRuntimeDetailText(liveRuntimeTruth?.execution_guardrail_reason || null);
+  const rawAllowedLayersReasonLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeRuntimeDetailText(liveRuntimeTruth?.allowed_layers_raw_reason || null);
+  const finalAllowedLayersReasonLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeRuntimeDetailText(liveRuntimeTruth?.allowed_layers_reason || null);
   const currentBucketRootCause = liveRuntimeTruth?.current_bucket_root_cause ?? liveRuntimeTruth?.q15_bucket_root_cause ?? null;
   const currentBucketRootCauseLabel = runtimeStatusPending
     ? "同步中"
@@ -664,10 +686,10 @@ export default function ExecutionStatus() {
         <div className="space-y-4">
           <ExecutionSectionCard
             title="部署診斷"
-            subtitle={liveRuntimeTruth?.runtime_closure_summary || primaryRuntimeMessage}
+            subtitle={deploymentDiagnosticsSubtitle}
             aside={(
               <div className={`rounded-full border px-2.5 py-1 text-[11px] ${readinessTone}`}>
-                {liveRuntimeTruth?.runtime_closure_state || (executionSurfaceContract?.live_ready ? "ready" : "blocked")}
+                {runtimeClosureStateLabel}
               </div>
             )}
           >
@@ -675,15 +697,15 @@ export default function ExecutionStatus() {
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">主 blocker</div>
                 <div className="mt-2 font-semibold text-white">{primaryRuntimeMessage}</div>
-                <div className="mt-2 text-slate-400">deployment blocker {runtimeStatusPending ? "同步中" : (liveRuntimeTruth?.deployment_blocker || "none")}</div>
-                <div className="text-slate-400">execution guardrail {liveRuntimeTruth?.execution_guardrail_reason || "none"}</div>
+                <div className="mt-2 text-slate-400">deployment blocker {currentLiveBlockerLabel}</div>
+                <div className="text-slate-400">execution guardrail {executionGuardrailLabel}</div>
                 <div className="text-slate-400">venue blockers {venueBlockersLabel}</div>
               </div>
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">部署計算</div>
                 <div className="mt-2 font-semibold text-white">layers {liveRuntimeTruth?.allowed_layers_raw ?? "—"} → {liveRuntimeTruth?.allowed_layers ?? "—"}</div>
-                <div className="mt-2 text-slate-400">raw reason {liveRuntimeTruth?.allowed_layers_raw_reason || "—"}</div>
-                <div className="text-slate-400">final reason {liveRuntimeTruth?.allowed_layers_reason || "—"}</div>
+                <div className="mt-2 text-slate-400">raw reason {rawAllowedLayersReasonLabel}</div>
+                <div className="text-slate-400">final reason {finalAllowedLayersReasonLabel}</div>
                 <div className="mt-2 text-slate-400">support {supportRowsLabel}</div>
                 <div className="text-slate-400">support route {supportRouteVerdictLabel}</div>
                 <div className="text-slate-400">governance route {supportGovernanceRouteLabel}</div>
