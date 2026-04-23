@@ -5546,7 +5546,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
         )
         chart_context = chart_payload.get("chart_context") or _build_strategy_chart_context(timestamps)
         selected_equity_curve = chart_payload.get("equity_curve") or []
-        recent_trades = list((result.trades or [])[-80:])
+        full_trades = list(result.trades or [])
         strat_def = {"type": stype, "params": params}
         with ThreadPoolExecutor(max_workers=3) as executor:
             benchmarks_future = executor.submit(
@@ -5592,7 +5592,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
             "regime_breakdown": _compute_regime_breakdown(result.trades, initial),
             "benchmarks": benchmarks,
             "equity_curve": selected_equity_curve,
-            "trades": recent_trades,
+            "trades": full_trades,
             "score_series": score_series[-300:] if score_series else [],
             "chart_context": chart_context,
             "run_at": datetime.utcnow().isoformat() + "Z",

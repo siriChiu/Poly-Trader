@@ -203,6 +203,47 @@ def test_execute_strategy_run_allows_internal_overwrite_for_auto_leaderboard_ref
     assert patched_strategy_run_env["strategy_def"]["params"]["model_name"] == "logistic_regression"
 
 
+def test_execute_strategy_run_keeps_full_trade_history_for_chart_markers(
+    monkeypatch: pytest.MonkeyPatch,
+    patched_strategy_run_env,
+):
+    class Result:
+        roi = 0.1
+        win_rate = 0.6
+        total_trades = 100
+        wins = 60
+        losses = 40
+        max_drawdown = 0.02
+        profit_factor = 1.2
+        total_pnl = 100.0
+        avg_win = 100.0
+        avg_loss = -25.0
+        max_consecutive_losses = 3
+        equity_curve = []
+        trades = [
+            {
+                "timestamp": f"2026-01-{(idx % 28) + 1:02d} 00:00:00",
+                "entry_timestamp": f"2025-12-{(idx % 28) + 1:02d} 00:00:00",
+                "regime_gate": "CAUTION",
+            }
+            for idx in range(100)
+        ]
+
+    monkeypatch.setattr(strategy_lab, "run_hybrid_backtest", lambda *args, **kwargs: Result())
+
+    payload = api_module._execute_strategy_run(
+        {
+            "name": "Keep Full Trades",
+            "type": "hybrid",
+            "params": {"model_name": "logistic_regression", "entry": {"bias50_max": 0.0}},
+        }
+    )
+
+    assert payload["results"]["total_trades"] == 100
+    assert len(payload["results"]["trades"]) == 100
+    assert len(patched_strategy_run_env["results"]["trades"]) == 100
+
+
 def test_api_strategy_leaderboard_keeps_manual_rows_visible_alongside_auto_rows(monkeypatch: pytest.MonkeyPatch):
     manual_row = {
         "name": "Test",
@@ -343,6 +384,16 @@ def test_strategy_lab_frontend_keeps_headline_metrics_above_workspace_chart():
     chart_render = source.index("<CandlestickChart")
     assert metrics_def < workspace_render < chart_render
 
+
+def test_candlestick_chart_labels_position_series_as_mark_to_market():
+    source = _read("components/CandlestickChart.tsx")
+    required_snippets = [
+        "持倉市值",
+        "總權益 / 現金 / 持倉市值",
+        "下圖：總權益 / 現金水位 / 持倉市值 / 買賣點",
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
 
 
 def test_strategy_confidence_lookup_key_normalizes_microseconds():
