@@ -135,7 +135,7 @@ export default function ConfidenceIndicator({
   const barColor = pct >= 70 ? "bg-emerald-500" : pct >= 55 ? "bg-cyan-500" : pct >= 45 ? "bg-amber-500" : "bg-slate-500";
 
   const levelConfig: Record<string, { color: string; bg: string; label: string; emoji: string }> = {
-    HIGH: { color: "text-emerald-300", bg: "bg-emerald-950/30 border-emerald-700/40", label: "高品質 long setup", emoji: "🎯" },
+    HIGH: { color: "text-emerald-300", bg: "bg-emerald-950/30 border-emerald-700/40", label: "高品質多單條件", emoji: "🎯" },
     MEDIUM: { color: "text-cyan-300", bg: "bg-cyan-950/25 border-cyan-700/40", label: "條件接近可用", emoji: "🧭" },
     LOW: { color: "text-amber-300", bg: "bg-amber-950/25 border-amber-700/40", label: "品質不足，先觀望", emoji: "⏸️" },
     ABSTAIN: { color: "text-slate-300", bg: "bg-slate-900/70 border-slate-700/50", label: "結構不清，暫停進場", emoji: "🛑" },
@@ -366,7 +366,7 @@ export default function ConfidenceIndicator({
             ) : (
               <>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">精準 support</div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">精準樣本</div>
                   <div className="mt-1 font-medium text-white">{supportRows ?? "—"} / {supportMinimum ?? "—"}</div>
                   <div className="mt-1 text-slate-400">狀態 {supportStatusLabel}</div>
                 </div>

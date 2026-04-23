@@ -308,20 +308,23 @@ const GENERIC_OPERATOR_PHRASE_REPLACEMENTS: Array<[string, string]> = [
 ];
 
 const Q15_BUCKET_ROOT_CAUSE_LABEL_MAPPINGS: Array<[string, string]> = [
-  ["current_bucket_exact_support_already_closed", "exact support 已 closure"],
+  ["current_bucket_exact_support_already_closed", "精準樣本已閉環"],
   ["current_row_already_above_q35_boundary", "已越過 q35 邊界"],
   ["same_lane_neighbor_bucket_dominates", "鄰近 bucket 主導"],
-  ["no_exact_live_lane_rows", "exact lane 尚未生成"],
-  ["runtime_blocker_preempts_bucket_root_cause", "runtime blocker 優先"],
+  ["no_exact_live_lane_rows", "精準路徑尚未生成"],
+  ["runtime_blocker_preempts_bucket_root_cause", "執行期 blocker 優先"],
   ["runtime_blocker_preempts_q35_scaling", "風控熔斷優先，暫不處理 q35 分段校準"],
-  ["missing_structure_quality", "缺少 structure quality"],
+  ["missing_structure_quality", "缺少結構分數"],
   ["boundary_sensitivity_candidate", "q15↔q35 邊界候選"],
   ["structure_scoring_gap_not_boundary", "結構評分缺口"],
   ["live_row_projection_missing_4h_inputs", "4H 投影缺值"],
   ["bias50_formula_may_be_too_harsh", "bias50 公式過嚴"],
-  ["base_stack_redesign_candidate_grid_empty", "基礎堆疊重設尚未就緒"],
-  ["missing_live_probe", "缺少 live probe"],
-  ["insufficient_scope_data", "scope 資料不足"],
+  ["base_stack_redesign_candidate_grid_empty", "基礎堆疊重設候選尚未就緒"],
+  ["base_stack_redesign_discriminative_reweight_still_below_floor", "基礎堆疊重設後仍低於交易門檻"],
+  ["base_stack_redesign_discriminative_reweight_crosses_trade_floor", "基礎堆疊重設已跨過交易門檻"],
+  ["base_stack_redesign_floor_cross_requires_non_discriminative_reweight", "基礎堆疊重設需犧牲辨別力才可跨過交易門檻"],
+  ["missing_live_probe", "缺少即時 probe 資料"],
+  ["insufficient_scope_data", "範圍資料不足"],
 ];
 
 const Q15_BUCKET_ROOT_CAUSE_ACTION_MAPPINGS: Array<[string, string]> = [
