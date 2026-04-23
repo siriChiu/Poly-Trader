@@ -346,6 +346,15 @@ def test_top_k_rolling_gate_uses_past_only_history():
     assert strategy_lab._passes_rolling_top_k_gate(0.92, [0.91, 0.87, 0.84, 0.81], 25) is True
 
 
+
+def test_allowed_regimes_all_behaves_like_no_regime_filter():
+    assert strategy_lab._normalize_allowed_regimes(["all"]) is None
+    assert strategy_lab._normalize_allowed_regimes("all") is None
+    assert strategy_lab._regime_allowed("bull", {"all"}) is True
+    assert strategy_lab._regime_allowed("chop", {"all"}) is True
+
+
+
 def test_turning_point_gate_requires_local_bottom_signal_for_entry():
     prices = [100.0, 99.0, 98.0, 101.0]
     timestamps = [f"2026-01-01T00:0{i}:00Z" for i in range(len(prices))]

@@ -53,7 +53,7 @@ def test_run_backfill_pipeline_dry_run_reports_plan_only(monkeypatch):
 
 
 def test_run_backfill_pipeline_apply_executes_fetch_feature_and_label_steps(monkeypatch):
-    calls = {"fetch": 0, "feature": 0, "label": 0, "save": 0}
+    calls = {"fetch": 0, "feature": 0, "4h": 0, "label": 0, "save": 0}
 
     monkeypatch.setattr(
         backfill_backtest_range,
@@ -73,6 +73,11 @@ def test_run_backfill_pipeline_apply_executes_fetch_feature_and_label_steps(monk
         backfill_backtest_range,
         "backfill_missing_feature_rows",
         lambda session, symbol="BTCUSDT", lookback_days=None: calls.__setitem__("feature", calls["feature"] + 1) or 22,
+    )
+    monkeypatch.setattr(
+        backfill_backtest_range.backfill_4h_distance_module,
+        "main",
+        lambda: calls.__setitem__("4h", calls["4h"] + 1) or 0,
     )
 
     class DummyLabels:
@@ -102,8 +107,9 @@ def test_run_backfill_pipeline_apply_executes_fetch_feature_and_label_steps(monk
     assert result["dry_run"] is False
     assert result["actions"]["raw_rows_inserted"] == 25
     assert result["actions"]["feature_rows_inserted"] == 22
+    assert result["actions"]["four_h_distance_refreshed"] is True
     assert result["actions"]["labels_saved"] == 30
-    assert calls == {"fetch": 1, "feature": 1, "label": 1, "save": 1}
+    assert calls == {"fetch": 1, "feature": 1, "4h": 1, "label": 1, "save": 1}
 
 
 def test_collect_coverage_reads_min_max_counts(tmp_path: Path):

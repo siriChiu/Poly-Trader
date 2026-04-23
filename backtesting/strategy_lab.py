@@ -878,11 +878,13 @@ def _normalize_allowed_regimes(value: Any) -> Optional[set]:
     else:
         return None
     allowed = {item for item in items if item}
-    return allowed or None
+    if not allowed or "all" in allowed:
+        return None
+    return allowed
 
 
 def _regime_allowed(regime: str, allowed_regimes: Optional[set]) -> bool:
-    if not allowed_regimes:
+    if not allowed_regimes or "all" in allowed_regimes:
         return True
     return (regime or "unknown").lower() in allowed_regimes
 

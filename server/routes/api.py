@@ -193,6 +193,19 @@ def _normalize_result_timestamps(payload: Any) -> Any:
     return payload
 
 
+def _strategy_confidence_lookup_key(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        dt = _parse_backtest_timestamp(text)
+    except Exception:
+        dt = None
+    if dt is None:
+        return text.split(".", 1)[0]
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
 def _build_cache_key(*parts: Any) -> str:
     return "::".join(str(part) for part in parts)
 
@@ -5474,7 +5487,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
                 if model is None:
                     return {"error": f"{model_name} 目前不可用"}
                 confidence_map = {
-                    str(ts): float(conf)
+                    _strategy_confidence_lookup_key(ts): float(conf)
                     for ts, conf in zip(
                         train_df["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S").values,
                         lb._get_confidence(model, train_df[feature_cols].fillna(0).values, model_name),
@@ -5485,7 +5498,10 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
                         "confidence_map": confidence_map,
                         "updated_at": time.time(),
                     }
-            conf = [confidence_map.get(ts, max(0.0, min(1.0, 1.0 - b / 20.0))) for ts, b in zip(timestamps, bias50)]
+            conf = [
+                confidence_map.get(_strategy_confidence_lookup_key(ts), max(0.0, min(1.0, 1.0 - b / 20.0)))
+                for ts, b in zip(timestamps, bias50)
+            ]
             _set_strategy_job_progress(job_id, 58, f"Hybrid 模式：{model_name} 已就緒，正在執行回測。", stage_key="run_backtest")
             with ThreadPoolExecutor(max_workers=2) as executor:
                 score_future = executor.submit(

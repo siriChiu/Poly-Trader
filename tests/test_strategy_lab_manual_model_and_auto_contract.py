@@ -342,3 +342,9 @@ def test_strategy_lab_frontend_keeps_headline_metrics_above_workspace_chart():
     workspace_render = source.index("{workspaceHeadlineMetrics}")
     chart_render = source.index("<CandlestickChart")
     assert metrics_def < workspace_render < chart_render
+
+
+
+def test_strategy_confidence_lookup_key_normalizes_microseconds():
+    assert api_module._strategy_confidence_lookup_key("2024-04-21 13:00:00.000000") == "2024-04-21 13:00:00"
+    assert api_module._strategy_confidence_lookup_key("2024-04-21T13:00:00Z") == "2024-04-21 13:00:00"
