@@ -23,8 +23,9 @@ import {
   humanizeCurrentLiveBlockerLabel,
   humanizeExecutionReason,
   humanizeExecutionReconciliationStatusLabel,
-  humanizeFeatureKey,
+  humanizePatchTargetLabel,
   humanizeLifecycleDiagnosticLabel,
+  humanizeRegimeGateLabel,
   humanizeRuntimeClosureStateLabel,
   humanizeRuntimeDetailText,
   humanizeStructureBucketLabel,
@@ -33,6 +34,7 @@ import {
   humanizeSupportProgressReferenceLabel,
   humanizeSupportProgressStatusLabel,
   humanizeSupportRouteLabel,
+  humanizeTradeReasonLabel,
   isExecutionReconciliationLimitedEvidence,
   humanizeQ15BucketRootCauseAction,
   humanizeQ15BucketRootCauseLabel,
@@ -2544,6 +2546,9 @@ export default function StrategyLab() {
   const currentBucketRootCauseActionLabel = liveExecutionSyncPending
     ? "同步中"
     : humanizeQ15BucketRootCauseAction(currentBucketRootCause?.candidate_patch_type || null);
+  const currentBucketRootCausePatchTargetLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizePatchTargetLabel(currentBucketRootCause?.candidate_patch_feature || null);
   const currentBucketRootCauseBucket = liveExecutionSyncPending
     ? "同步中"
     : humanizeStructureBucketLabel(
@@ -2708,11 +2713,11 @@ export default function StrategyLab() {
       </div>
 
       <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
-        <div className="text-sm font-semibold text-slate-300">🧠 模型 / Gate 摘要</div>
+        <div className="text-sm font-semibold text-slate-300">🧠 模型 / 閘門摘要</div>
         <div className="rounded-lg bg-slate-800/40 px-3 py-2 text-xs">
           <div className="text-[10px] text-slate-500">交易模型</div>
           <div className="text-emerald-300 font-semibold">{activeMeta.model_name || "rule_based"}</div>
-          <div className="mt-1 text-slate-500">主 gate：{activeResult?.dominant_regime_gate || "—"} · 平均允許層數 {formatDecimal(activeResult?.avg_allowed_layers, 1)}</div>
+          <div className="mt-1 text-slate-500">主閘門：{humanizeRegimeGateLabel(activeResult?.dominant_regime_gate || null)} · 平均允許層數 {formatDecimal(activeResult?.avg_allowed_layers, 1)}</div>
         </div>
         <div className="grid grid-cols-3 gap-2 text-xs">
           {[
@@ -2721,7 +2726,7 @@ export default function StrategyLab() {
             { gate: "BLOCK", color: "text-red-300" },
           ].map(({ gate, color }) => (
             <div key={gate} className="rounded bg-slate-800/40 p-2">
-              <div className="text-slate-500">{gate}</div>
+              <div className="text-slate-500">{humanizeRegimeGateLabel(gate)}</div>
               <div className={`text-base font-semibold ${color}`}>{activeResult?.regime_gate_summary?.[gate] ?? 0}</div>
             </div>
           ))}
@@ -3097,9 +3102,9 @@ export default function StrategyLab() {
                 value={currentBucketRootCauseLabel}
                 detail={(
                   <>
-                    <div>{currentBucketRootCauseSummary}</div>
+                    <div>{humanizeRuntimeDetailText(currentBucketRootCauseSummary)}</div>
                     <div className="opacity-70">當前 bucket {currentBucketRootCauseBucket}</div>
-                    <div className="opacity-70">候選 patch {humanizeFeatureKey(currentBucketRootCause?.candidate_patch_feature || null)} · {currentBucketRootCauseActionLabel}</div>
+                    <div className="opacity-70">候選 patch {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}</div>
                     <div className="opacity-70">近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 {formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
                     <div className="opacity-70">下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}</div>
                   </>
@@ -3153,7 +3158,7 @@ export default function StrategyLab() {
                         <span className={`${isFiniteNumber(trade.pnl) && (trade.pnl ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>{isFiniteNumber(trade.pnl) ? `${trade.pnl! >= 0 ? "+" : ""}${trade.pnl!.toFixed(2)}` : "—"}</span>
                       </div>
                       <div className="mt-1 text-slate-500">進場 {isFiniteNumber(trade.entry) ? trade.entry!.toFixed(2) : "—"} → 出場 {isFiniteNumber(trade.exit) ? trade.exit!.toFixed(2) : "—"}</div>
-                      <div className="mt-1 text-slate-500">原因 {trade.reason || "—"} · 層數 {trade.layers ?? "—"} · Gate {trade.regime_gate || "—"}</div>
+                      <div className="mt-1 text-slate-500">原因 {humanizeTradeReasonLabel(trade.reason || null)} · 層數 {trade.layers ?? "—"} · 閘門 {humanizeRegimeGateLabel(trade.regime_gate || null)}</div>
                     </div>
                   ))}
                 </div>

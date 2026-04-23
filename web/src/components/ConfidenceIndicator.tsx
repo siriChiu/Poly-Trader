@@ -11,6 +11,7 @@ import {
   humanizeQ15BucketRootCauseLabel,
   humanizeQ15ComponentExperimentVerdictLabel,
   humanizeQ15FloorCrossVerdictLabel,
+  humanizeRegimeGateLabel,
   humanizeRuntimeDetailText,
   humanizeStructureBucketLabel,
   humanizeSupportProgressDeltaLabel,
@@ -236,13 +237,13 @@ export default function ConfidenceIndicator({
     : "僅供參考";
   const q15ComponentExperimentHint = q15SupportAuditApplicable
     ? `所需分數差 ${formatDecimal(bestSingleComponentRequiredScoreDelta, 4)}`
-    : "目前 live row 已離開 q15 lane；請改看 current live blocker 與 current bucket root cause，而不是把 q15 experiment 空值誤讀成 blocker truth。";
+    : "目前 live row 已離開 q15 路徑；請改看目前阻塞點與當前 bucket 根因，不要把 q15 experiment 空值誤讀成 blocker 真相。";
   const q35ScalingVerdictLabel = q35ScalingAuditApplicable
     ? humanizeQ15BucketRootCauseLabel(q35OverallVerdict || "—")
     : "目前 bucket 非 q35";
   const q35ScalingVerdictHint = q35ScalingAuditApplicable
     ? `重設判讀 ${humanizeQ15BucketRootCauseLabel(q35RedesignVerdict || "—")} · 尚差 ${formatDecimal(q35RuntimeRemainingGapToFloor, 4)}`
-    : `目前 bucket ${currentLiveStructureBucketLabel}；q35 scaling audit 只保留 reference-only，不代表 blocker 已解除。`;
+    : `目前 bucket ${currentLiveStructureBucketLabel}；q35 分段校準審核只保留治理參考，不代表 blocker 已解除。`;
   const q35ScalingActionLabel = q35ScalingAuditApplicable
     ? humanizeQ15BucketRootCauseAction(q35RecommendedMode || "—")
     : "僅供參考";
@@ -260,7 +261,7 @@ export default function ConfidenceIndicator({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-          <span className={`rounded-full border px-2 py-0.5 ${gateTone}`}>4H 關卡 {regimeGate || "—"}</span>
+          <span className={`rounded-full border px-2 py-0.5 ${gateTone}`}>4H 關卡 {humanizeRegimeGateLabel(regimeGate || null)}</span>
           <span className="rounded-full border border-sky-700/40 bg-sky-950/30 px-2 py-0.5 text-sky-300">
             進場分數 {formatDecimal(entryQuality, 2)}{entryQualityLabel ? ` · ${entryQualityLabel}` : ""}
           </span>

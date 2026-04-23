@@ -385,8 +385,13 @@ def test_runtime_copy_and_execution_surfaces_use_humanized_chinese_operator_copy
         '["exact live lane", "精準路徑"]',
         '["runtime truth", "執行期真相"]',
         '["regressed_under_minimum", "精準樣本從已就緒回落到未達門檻"]',
-        '["exact_live_bucket_proxy_available", "已有精準 bucket proxy"]',
-        '["exact_live_lane_proxy_available", "已有精準路徑 proxy"]',
+        '["exact_live_bucket_proxy_available", "已有精準 bucket 近似樣本"]',
+        '["exact_live_lane_proxy_available", "已有精準路徑近似樣本"]',
+        'export function humanizePatchTargetLabel(value?: string | null): string {',
+        'if (lower.includes(token)) return humanizeQ15BucketRootCauseAction(normalized);',
+        'export function humanizeRegimeGateLabel(value?: string | null): string {',
+        'export function humanizeTradeReasonLabel(value?: string | null): string {',
+        '["tp_turning_point", "頂部轉折止盈"]',
     ]
     for snippet in required_runtime_copy_snippets:
         assert snippet in runtime_copy
@@ -416,6 +421,9 @@ def test_runtime_copy_and_execution_surfaces_use_humanized_chinese_operator_copy
         assert '"metadata-only snapshot"' not in source
 
     assert '策略工作區' in lab_source
+    assert '🧠 模型 / 閘門摘要' in lab_source
+    assert '主閘門：{humanizeRegimeGateLabel(activeResult?.dominant_regime_gate || null)}' in lab_source
+    assert '原因 {humanizeTradeReasonLabel(trade.reason || null)} · 層數 {trade.layers ?? "—"} · 閘門 {humanizeRegimeGateLabel(trade.regime_gate || null)}' in lab_source
     assert '"Strategy workspace"' not in lab_source
 
 
@@ -505,13 +513,13 @@ def test_runtime_copy_humanizes_patch_profiles_embedded_blockers_and_verify_inst
         'if (role === "global_shrinkage_winner") return "全域 shrinkage 勝出配置";',
         'if (role === "bull_exact_supported_production_profile") return "bull exact-supported 正式配置";',
         'if (role === "support_aware_production_profile") return "support-aware 正式配置";',
-        '候選 patch {humanizeFeatureKey(currentBucketRootCause?.candidate_patch_feature || null)} · {currentBucketRootCauseActionLabel}',
+        '候選 patch {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}',
     ]
     for snippet in required_lab_snippets:
         assert snippet in lab_source
 
     required_status_snippets = [
-        '候選 patch {humanizeFeatureKey(currentBucketRootCause?.candidate_patch_feature || null)} · {currentBucketRootCauseActionLabel}',
+        '候選 patch {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}',
     ]
     for snippet in required_status_snippets:
         assert snippet in status_source
@@ -918,12 +926,12 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
         'humanizeQ15ComponentExperimentVerdictLabel(componentExperimentVerdict || "—")',
         '最佳單一元件 ${bestSingleComponentLabel}',
         '目前 bucket ${currentLiveStructureBucketLabel}；q15 floor-cross drill-down 只保留 reference-only，不代表 /api/status 缺資料。',
-        '目前 live row 已離開 q15 lane；請改看 current live blocker 與 current bucket root cause，而不是把 q15 experiment 空值誤讀成 blocker truth。',
+        '目前 live row 已離開 q15 路徑；請改看目前阻塞點與當前 bucket 根因，不要把 q15 experiment 空值誤讀成 blocker 真相。',
         'const breakerRecentWindow = deploymentBlockerDetails?.recent_window ?? null;',
         'const breakerRelease = deploymentBlockerDetails?.release_condition ?? null;',
         'const circuitBreakerActive = deploymentBlocker === "circuit_breaker_active";',
         'Dashboard 已改用現貨多單正式決策品質語義，不再顯示舊做空文案。',
-        '4H 關卡 {regimeGate || "—"}',
+        '4H 關卡 {humanizeRegimeGateLabel(regimeGate || null)}',
         '進場分數 {formatDecimal(entryQuality, 2)}',
         '層數 {layerLabel}',
         '多單勝率代理',
@@ -1175,9 +1183,11 @@ def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candida
         'const currentBucketRootCause = liveRuntimeTruth?.current_bucket_root_cause ?? liveRuntimeTruth?.q15_bucket_root_cause ?? null;',
         'const currentBucketRootCauseLabel = runtimeStatusPending',
         'const currentBucketRootCauseSummary = runtimeStatusPending',
+        'const currentBucketRootCausePatchTargetLabel = runtimeStatusPending',
+        'humanizePatchTargetLabel(currentBucketRootCause?.candidate_patch_feature || null);',
         '當前 bucket 根因',
         '當前 bucket {currentBucketRootCauseBucket}',
-        '候選 patch {humanizeFeatureKey(currentBucketRootCause?.candidate_patch_feature || null)} · {currentBucketRootCauseActionLabel}',
+        '候選 patch {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}',
         '近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"}',
         '下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}',
     ]:
@@ -1191,9 +1201,11 @@ def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candida
         'const currentBucketRootCause = liveDecisionStatus?.current_bucket_root_cause',
         'const currentBucketRootCauseLabel = liveExecutionSyncPending',
         'const currentBucketRootCauseSummary = liveExecutionSyncPending',
+        'const currentBucketRootCausePatchTargetLabel = liveExecutionSyncPending',
+        'humanizePatchTargetLabel(currentBucketRootCause?.candidate_patch_feature || null);',
         '當前 bucket 根因',
         '當前 bucket {currentBucketRootCauseBucket}',
-        '候選 patch {humanizeFeatureKey(currentBucketRootCause?.candidate_patch_feature || null)} · {currentBucketRootCauseActionLabel}',
+        '候選 patch {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}',
         '近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"}',
         '下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}',
     ]:
@@ -1315,7 +1327,7 @@ def test_runtime_copy_humanizes_support_and_runtime_route_tokens_for_operator_su
         '["exact_bucket_unsupported_block", "精準樣本尚未建立"]',
         '["exact_bucket_present_but_below_minimum", "精準樣本未達最小門檻"]',
         '["exact_live_bucket_present_but_below_minimum", "精準樣本已開始累積"]',
-        '["no_support_proxy", "目前沒有可用 proxy"]',
+        '["no_support_proxy", "目前沒有可用近似樣本"]',
         '["patch_inactive_or_blocked", "僅保留治理參考"]',
         '["support_closed_but_trade_floor_blocked", "精準樣本已閉環但交易門檻仍阻塞"]',
         '["deployment_guardrail_blocks_trade", "部署保護欄阻擋交易"]',
@@ -1333,10 +1345,18 @@ def test_runtime_copy_humanizes_payload_summary_tokens_for_operator_surfaces():
     source = _read("utils/runtimeCopy.ts")
     required_snippets = [
         '["spot-long", "現貨多單"]',
+        '["Consecutive loss streak:", "連續虧損筆數："]',
+        '["Recent 50-sample win rate", "最近 50 筆勝率"]',
+        '["release condition =", "解除條件："]',
+        '["Release Circuit Breaker Then Rerun Q35 Scaling Audit", "先解除風控熔斷，再重跑 q35 分段校準審核"]',
+        '["defer_until_circuit_breaker_releases", "待風控熔斷解除後再處理"]',
+        '["runtime_blocker_preempts_q35_scaling", "風控熔斷優先，暫不處理 q35 分段校準"]',
         '["constant_target", "目標值固定"]',
         '["regime_shift", "市場狀態切換"]',
         '["regime_concentration", "市場狀態過度集中"]',
         '["exact support", "精準樣本"]',
+        '["exact_live_bucket_proxy_available", "已有精準 bucket 近似樣本"]',
+        '["exact_live_lane_proxy_available", "已有精準路徑近似樣本"]',
         '["exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade", "精準路徑毒性子 bucket 阻擋交易"]',
         '["unsupported_exact_live_structure_bucket_blocks_trade", "精準樣本尚未建立，暫不交易"]',
         '["under_minimum_exact_live_structure_bucket_blocks_trade", "精準樣本未達最小門檻，暫不交易"]',
@@ -1365,6 +1385,7 @@ def test_runtime_copy_humanizes_payload_summary_tokens_for_operator_surfaces():
         '["PAPER", "模擬倉"]',
         '["同 quality 寬 scope", "同品質寬範圍"]',
         '["同 QUALITY 寬 SCOPE", "同品質寬範圍"]',
+        '["同 regime 寬 scope", "同市場狀態較寬範圍"]',
         '["QUALITY", "品質"]',
         '["SCOPE", "範圍"]',
         '.split("exact-vs-spillover=").join("精準路徑 / 外溢對照：")',
@@ -1384,6 +1405,45 @@ def test_runtime_copy_humanizes_payload_summary_tokens_for_operator_surfaces():
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+def test_dashboard_and_strategy_lab_humanize_gate_and_trade_labels():
+    confidence_source = _read("components/ConfidenceIndicator.tsx")
+    backtest_source = _read("components/BacktestSummary.tsx")
+    lab_source = _read("pages/StrategyLab.tsx")
+
+    for snippet in [
+        '4H 關卡 {humanizeRegimeGateLabel(regimeGate || null)}',
+        '目前 live row 已離開 q15 路徑；請改看目前阻塞點與當前 bucket 根因，不要把 q15 experiment 空值誤讀成 blocker 真相。',
+        '目前 bucket ${currentLiveStructureBucketLabel}；q35 分段校準審核只保留治理參考，不代表 blocker 已解除。',
+    ]:
+        assert snippet in confidence_source
+
+    for snippet in [
+        'Dashboard 回測卡現已補上正式決策品質語義，不再只剩 ROI / 勝率 / PF。',
+        '決策視窗 {decisionContract?.decision_quality_horizon_minutes || 1440}m',
+        '主閘門 {humanizeRegimeGateLabel(dominantRegimeGate || null)}',
+        '正式決策品質',
+        '平均進場品質',
+        '平均允許層數',
+        '主導閘門：{humanizeRegimeGateLabel(dominantRegimeGate || null)}',
+    ]:
+        assert snippet in backtest_source
+
+    for snippet in [
+        '🧠 模型 / 閘門摘要',
+        '主閘門：{humanizeRegimeGateLabel(activeResult?.dominant_regime_gate || null)}',
+        '原因 {humanizeTradeReasonLabel(trade.reason || null)} · 層數 {trade.layers ?? "—"} · 閘門 {humanizeRegimeGateLabel(trade.regime_gate || null)}',
+        '<div>{humanizeRuntimeDetailText(currentBucketRootCauseSummary)}</div>',
+    ]:
+        assert snippet in lab_source
+
+    assert '4H 關卡 {regimeGate || "—"}' not in confidence_source
+    assert 'Gate {dominantRegimeGate || "—"}' not in backtest_source
+    assert 'Dominant gate: {dominantRegimeGate || "—"}' not in backtest_source
+    assert '🧠 模型 / Gate 摘要' not in lab_source
+    assert '主 gate：{activeResult?.dominant_regime_gate || "—"}' not in lab_source
+    assert '原因 {trade.reason || "—"} · 層數 {trade.layers ?? "—"} · Gate {trade.regime_gate || "—"}' not in lab_source
 
 
 def test_runtime_copy_exports_execution_mode_and_venue_humanizers_for_operator_surfaces():
