@@ -396,6 +396,21 @@ def test_candlestick_chart_labels_position_series_as_mark_to_market():
         assert snippet in source
 
 
+def test_strategy_lab_frontend_main_module_layout_is_single_column_and_clarifies_not_all_in():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'const capitalDeploymentHint = capitalMode === "reserve_90"',
+        '不是一鍵 all-in',
+        '經典金字塔會按 25 / 25 / 50 逐層投入，三層都成交才會接近滿倉。',
+        'Fib 23 / 38 / 39 也只是把加碼節奏改得更平滑，不是單筆滿倉。',
+        'const moduleGridClassName = group.key === "core" ? "grid gap-3" : "grid gap-3 sm:grid-cols-2";',
+        'lg:grid-cols-[420px,minmax(0,1fr)]',
+        '2xl:grid-cols-[460px,minmax(0,1fr)]',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
 def test_strategy_confidence_lookup_key_normalizes_microseconds():
     assert api_module._strategy_confidence_lookup_key("2024-04-21 13:00:00.000000") == "2024-04-21 13:00:00"
     assert api_module._strategy_confidence_lookup_key("2024-04-21T13:00:00Z") == "2024-04-21 13:00:00"

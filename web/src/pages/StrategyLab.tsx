@@ -2379,6 +2379,12 @@ export default function StrategyLab() {
     `信心 ${confidenceMin}% · 品質 ${entryQualityMin}%`,
     investmentHorizonLabels[investmentHorizon],
   ];
+  const capitalDeploymentHint = capitalMode === "reserve_90"
+    ? `不是一鍵 all-in；目前是 10 / 90 後守，先用 ${baseEntryFractionPct}% 試單，其餘資金等回撤觸發後才啟用。`
+    : "不是一鍵 all-in；經典金字塔會按 25 / 25 / 50 逐層投入，三層都成交才會接近滿倉。";
+  const pacingHint = activeModules.includes("fib_layers")
+    ? "Fib 23 / 38 / 39 也只是把加碼節奏改得更平滑，不是單筆滿倉。"
+    : "未勾選 Fib 時，預設仍是三層部署，不會直接一筆打滿。";
 
   const benchmarkCards = [
     activeResult?.benchmarks?.buy_hold,
@@ -2774,7 +2780,7 @@ export default function StrategyLab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[360px,minmax(0,1fr)] 2xl:grid-cols-[380px,minmax(0,1fr)] gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[420px,minmax(0,1fr)] 2xl:grid-cols-[460px,minmax(0,1fr)] gap-4 items-start">
         <div className="space-y-4 self-start min-w-0">
           <div className="app-surface-card">
             <div className="flex items-start justify-between gap-3">
@@ -2852,9 +2858,25 @@ export default function StrategyLab() {
                 </div>
               )}
 
-              <div className="rounded-xl border border-cyan-700/30 bg-cyan-950/10 px-3 py-3 text-[11px] leading-5 text-cyan-100 space-y-2">
-                <div className="font-medium">策略模組選擇</div>
-                <div>先選 1 個主 preset，再疊加 modifier；只看摘要，不先讀長說明。</div>
+              <div className="rounded-xl border border-cyan-700/30 bg-cyan-950/10 px-3 py-3 text-[11px] leading-5 text-cyan-100 space-y-3">
+                <div>
+                  <div className="font-medium">策略模組選擇</div>
+                  <div className="mt-1">先選 1 個主 preset，再疊加 modifier；只看摘要，不先讀長說明。</div>
+                </div>
+                <div className="grid gap-2">
+                  <div className="rounded-lg border border-cyan-700/30 bg-slate-950/30 px-3 py-2">
+                    <div className="font-medium text-cyan-50">資金部署</div>
+                    <div className="mt-1 text-cyan-100/85">{capitalDeploymentHint}</div>
+                  </div>
+                  <div className="rounded-lg border border-cyan-700/30 bg-slate-950/30 px-3 py-2">
+                    <div className="font-medium text-cyan-50">加碼節奏</div>
+                    <div className="mt-1 text-cyan-100/85">{pacingHint}</div>
+                  </div>
+                  <div className="rounded-lg border border-cyan-700/30 bg-slate-950/30 px-3 py-2">
+                    <div className="font-medium text-cyan-50">主模組 fallback</div>
+                    <div className="mt-1 text-cyan-100/85">若你把主模組全部取消，系統也會回退到「金字塔 + SL/TP」當主骨架。</div>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -2863,32 +2885,43 @@ export default function StrategyLab() {
                     <div className="flex items-center justify-between px-1">
                       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{group.label}</div>
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {group.modules.map((module) => {
-                        const active = activeModules.includes(module.id);
-                        return (
-                          <button
-                            key={module.id}
-                            type="button"
-                            onClick={() => toggleModule(module.id)}
-                            className={`app-target-card ${active ? "app-target-card-active" : ""}`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-                                  <span>{module.emoji}</span>
-                                  <span>{module.label}</span>
+                    {(() => {
+                      const moduleGridClassName = group.key === "core" ? "grid gap-3" : "grid gap-3 sm:grid-cols-2";
+                      return (
+                        <div className={moduleGridClassName}>
+                          {group.modules.map((module) => {
+                            const active = activeModules.includes(module.id);
+                            const showExplainer = group.key === "core";
+                            return (
+                              <button
+                                key={module.id}
+                                type="button"
+                                onClick={() => toggleModule(module.id)}
+                                className={`app-target-card text-left ${active ? "app-target-card-active" : ""}`}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                      <span>{module.emoji}</span>
+                                      <span>{module.label}</span>
+                                    </div>
+                                    <div className="mt-1 text-[11px] leading-5 text-slate-400">{module.summary}</div>
+                                    {showExplainer && (
+                                      <div className="mt-2 border-t border-white/10 pt-2 text-[11px] leading-5 text-slate-500">
+                                        {module.explainer}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${active ? "border-[#7132f5]/50 bg-[#7132f5]/12 text-[#e3d9ff]" : "border-white/10 text-slate-500"}`}>
+                                    {active ? "已選取" : module.badge}
+                                  </div>
                                 </div>
-                                <div className="mt-1 text-[11px] leading-5 text-slate-400">{module.summary}</div>
-                              </div>
-                              <div className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${active ? "border-[#7132f5]/50 bg-[#7132f5]/12 text-[#e3d9ff]" : "border-white/10 text-slate-500"}`}>
-                                {active ? "已選取" : module.badge}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
