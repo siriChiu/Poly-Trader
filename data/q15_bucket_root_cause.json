@@ -1,22 +1,22 @@
 {
-  "generated_at": "2026-04-22 19:30:25.317018",
+  "generated_at": "2026-04-23 00:33:51.319077",
   "target_col": "simulated_pyramid_win",
   "current_live": {
     "regime_label": "bull",
     "regime_gate": "BLOCK",
     "entry_quality_label": "D",
     "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-    "structure_quality": 0.6234,
+    "structure_quality": 0.4043,
     "q15_threshold": 0.15,
     "q35_threshold": 0.35,
     "gap_to_q35_boundary": 0.0,
     "non_null_4h_feature_count": 10,
-    "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
-    "support_status": "stalled_under_minimum",
-    "support_route_verdict": "exact_bucket_unsupported_block",
-    "support_current_rows": 0,
+    "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+    "support_status": "accumulating",
+    "support_route_verdict": "exact_bucket_present_but_below_minimum",
+    "support_current_rows": 13,
     "support_minimum_rows": 50,
-    "support_gap_to_minimum": 50
+    "support_gap_to_minimum": 37
   },
   "exact_live_lane": {
     "rows": 367,
@@ -28,7 +28,7 @@
     "dominant_neighbor_bucket": "BLOCK|bull_high_bias200_overheat_block|q65",
     "dominant_neighbor_rows": 116,
     "near_boundary_window": {
-      "lower": 0.6234,
+      "lower": 0.4043,
       "upper": 0.35
     },
     "near_boundary_rows": 0
@@ -40,59 +40,59 @@
   "candidate_patch": {
     "type": "support_accumulation",
     "feature": "feat_4h_bb_pct_b",
-    "current_raw": 0.9458,
-    "current_normalized": 0.9458,
+    "current_raw": 0.5425,
+    "current_normalized": 0.5425,
     "needed_raw_delta_to_cross_q35": 0.0,
     "target_bucket_p25": 1.0253,
     "target_bucket_median": 1.1869,
-    "needed_raw_delta_to_target_p25": 0.0542,
-    "needed_raw_delta_to_target_median": 0.0542
+    "needed_raw_delta_to_target_p25": 0.4575,
+    "needed_raw_delta_to_target_median": 0.4575
   },
   "component_deltas": {
     "feat_4h_bb_pct_b": {
-      "current_raw": 0.9458,
-      "current_normalized": 0.9458,
+      "current_raw": 0.5425,
+      "current_normalized": 0.5425,
       "target_bucket_rows": 116,
       "target_bucket_mean": 1.1655,
       "target_bucket_median": 1.1869,
       "target_bucket_p25": 1.0253,
       "target_bucket_p75": 1.3003,
-      "delta_vs_target_median": -0.2411,
-      "delta_vs_target_p25": -0.0795,
-      "needed_raw_delta_to_target_p25": 0.0542,
-      "needed_raw_delta_to_target_median": 0.0542,
+      "delta_vs_target_median": -0.6444,
+      "delta_vs_target_p25": -0.4828,
+      "needed_raw_delta_to_target_p25": 0.4575,
+      "needed_raw_delta_to_target_median": 0.4575,
       "needed_raw_delta_to_cross_q35": 0.0,
-      "weighted_contribution": 0.3216
+      "weighted_contribution": 0.1845
     },
     "feat_4h_dist_bb_lower": {
-      "current_raw": 3.0417,
-      "current_normalized": 0.3802,
+      "current_raw": 1.7624,
+      "current_normalized": 0.2203,
       "target_bucket_rows": 116,
       "target_bucket_mean": 4.008,
       "target_bucket_median": 3.9437,
       "target_bucket_p25": 3.5533,
       "target_bucket_p75": 4.4842,
-      "delta_vs_target_median": -0.902,
-      "delta_vs_target_p25": -0.5116,
-      "needed_raw_delta_to_target_p25": 0.5116,
-      "needed_raw_delta_to_target_median": 0.902,
+      "delta_vs_target_median": -2.1813,
+      "delta_vs_target_p25": -1.7909,
+      "needed_raw_delta_to_target_p25": 1.7909,
+      "needed_raw_delta_to_target_median": 2.1813,
       "needed_raw_delta_to_cross_q35": 0.0,
-      "weighted_contribution": 0.1255
+      "weighted_contribution": 0.0727
     },
     "feat_4h_dist_swing_low": {
-      "current_raw": 5.3431,
-      "current_normalized": 0.5343,
+      "current_raw": 4.4601,
+      "current_normalized": 0.446,
       "target_bucket_rows": 116,
       "target_bucket_mean": 5.4141,
       "target_bucket_median": 5.3417,
       "target_bucket_p25": 5.2224,
       "target_bucket_p75": 5.6529,
-      "delta_vs_target_median": 0.0014,
-      "delta_vs_target_p25": 0.1207,
-      "needed_raw_delta_to_target_p25": -0.1207,
-      "needed_raw_delta_to_target_median": -0.0014,
+      "delta_vs_target_median": -0.8816,
+      "delta_vs_target_p25": -0.7623,
+      "needed_raw_delta_to_target_p25": 0.7623,
+      "needed_raw_delta_to_target_median": 0.8816,
       "needed_raw_delta_to_cross_q35": 0.0,
-      "weighted_contribution": 0.1763
+      "weighted_contribution": 0.1472
     }
   },
   "verify_next": "確認 current_live_structure_bucket_rows 是否增加到 minimum_support_rows。",

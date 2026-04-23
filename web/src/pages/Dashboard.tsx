@@ -18,6 +18,8 @@ import {
   humanizeCurrentLiveBlockerLabel,
   humanizeExecutionReason,
   humanizeExecutionReconciliationStatusLabel,
+  humanizeLifecycleDiagnosticLabel,
+  humanizeRuntimeDetailText,
   humanizeSupportGovernanceRouteLabel,
   humanizeSupportRouteLabel,
   isExecutionReconciliationLimitedEvidence,
@@ -1041,7 +1043,7 @@ export default function Dashboard() {
     : [];
   const dashboardVenueBlockersLabel = runtimeStatusPending
     ? "同步中"
-    : (dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "none");
+    : (dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "目前沒有額外場館阻塞");
   const dashboardSupportRouteVerdictLabel = runtimeStatusPending
     ? "同步中"
     : humanizeSupportRouteLabel(liveRuntimeTruth?.support_route_verdict || null);
@@ -1062,14 +1064,14 @@ export default function Dashboard() {
     ? "syncing"
     : (dashboardCurrentLiveBlocker ? "blocked" : "ready");
   const adviceCardExecutionBlockerReason = runtimeStatusPending
-    ? "正在同步 /api/status；Dashboard 建議卡暫不提供快捷下單，避免 current live blocker truth 尚未到位前出現誤導 CTA。"
+    ? "正在同步 /api/status；Dashboard 建議卡暫不提供快捷下單，避免目前阻塞點真相尚未到位前出現誤導 CTA。"
     : dashboardPrimaryRuntimeMessageLabel;
   const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
   const metadataSmokeFreshnessLabel = runtimeStatusPending
     ? "同步中"
-    : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "UNAVAILABLE");
+    : humanizeLifecycleDiagnosticLabel(metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "UNAVAILABLE");
   const rawContinuity = runtimeStatus?.raw_continuity ?? null;
   const featureContinuity = runtimeStatus?.feature_continuity ?? null;
   const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || accountSummary?.mode || "unknown");
@@ -1080,13 +1082,13 @@ export default function Dashboard() {
   const balanceCurrency = typeof accountSummary?.balance?.currency === "string" ? accountSummary.balance.currency : "USDT";
   const accountCredentialsConfigured = Boolean(accountSummary?.health?.credentials_configured ?? executionHealth?.credentials_configured);
   const accountBalanceUnavailableLabel = !accountCredentialsConfigured
-    ? "僅公開資料 / metadata 觀測"
+    ? "僅公開資料 / 元資料觀測"
     : "餘額暫不可用";
   const accountBalanceUnavailableReason = !accountCredentialsConfigured
-    ? "尚未配置交易所憑證，因此 private balance 暫不可見。"
-    : "最新 account snapshot 暫無餘額資料。";
+    ? "尚未配置交易所憑證，因此私有餘額暫不可見。"
+    : "最新帳戶快照暫無餘額資料。";
   const accountBalanceSummaryValue = balanceFree !== null
-    ? `free ${balanceFree.toFixed(2)} ${balanceCurrency}`
+    ? `可用 ${balanceFree.toFixed(2)} ${balanceCurrency}`
     : accountBalanceUnavailableLabel;
   const accountBalanceSummaryTotal = balanceTotal !== null
     ? `${balanceTotal.toFixed(2)} ${balanceCurrency}`
@@ -1156,10 +1158,10 @@ export default function Dashboard() {
       reconciliationLifecycleContract?.artifact_coverage,
     );
   const reconciliationSummaryLabel = runtimeStatusPending
-    ? "正在向 /api/status 取得 reconciliation / recovery 摘要。"
+    ? "正在向 /api/status 取得對帳 / 恢復摘要。"
     : reconciliationCoverageLimited
-      ? `${executionReconciliation?.summary || "尚未收到 reconciliation 摘要。"} · 尚未有 runtime order，因此目前只能確認「沒有發現明顯對帳落差」，不可視為完整實單驗證。`
-      : (executionReconciliation?.summary || "尚未收到 reconciliation 摘要。");
+      ? `${humanizeRuntimeDetailText(executionReconciliation?.summary || "尚未收到對帳摘要。")} · 尚未有執行期委託，因此目前只能確認「沒有發現明顯對帳落差」，不可視為完整實單驗證。`
+      : humanizeRuntimeDetailText(executionReconciliation?.summary || "尚未收到對帳摘要。");
   const continuityLabel = runtimeStatusPending
     ? "同步 /api/status 中"
     : rawContinuity?.status === "clean"
@@ -1196,13 +1198,13 @@ export default function Dashboard() {
       const stepSize = data?.normalization?.contract?.step_size;
       const tickSize = data?.normalization?.contract?.tick_size;
       const contractSummary = [
-        stepSize != null ? `step ${formatGuardrailValue(stepSize)}` : null,
-        tickSize != null ? `tick ${formatGuardrailValue(tickSize)}` : null,
+        stepSize != null ? `數量步進 ${formatGuardrailValue(stepSize)}` : null,
+        tickSize != null ? `價格刻度 ${formatGuardrailValue(tickSize)}` : null,
       ].filter(Boolean).join(" · ");
       setTradeFeedback({
         tone: "success",
         title: `${label} 指令已提交`,
-        detail: `模式 ${mode} · 場館 ${venue}${normalizedQty != null ? ` · normalized qty ${formatGuardrailValue(normalizedQty)}` : ""}${normalizedPrice != null ? ` · normalized price ${formatGuardrailValue(normalizedPrice)}` : ""}${contractSummary ? ` · contract ${contractSummary}` : ""}。已主動刷新 /api/status。`,
+        detail: `模式 ${mode} · 場館 ${venue}${normalizedQty != null ? ` · 校準後數量 ${formatGuardrailValue(normalizedQty)}` : ""}${normalizedPrice != null ? ` · 校準後價格 ${formatGuardrailValue(normalizedPrice)}` : ""}${contractSummary ? ` · 規則 ${contractSummary}` : ""}。已主動刷新 /api/status。`,
         timestamp: new Date().toLocaleString("zh-TW"),
       });
     } catch (e: any) {
@@ -1261,7 +1263,7 @@ export default function Dashboard() {
 
       <ExecutionWorkspaceSummary
         title="💼 Execution 摘要"
-        subtitle="Dashboard 只保留 4 張 Bot 營運摘要卡；若要查看 current live blocker 詳情、metadata 明細與 recovery 脈絡，請前往「執行狀態」。"
+        subtitle="Dashboard 只保留 4 張 Bot 營運摘要卡；若要查看目前阻塞點詳情、元資料明細與恢復脈絡，請前往「執行狀態」。"
         className={executionTone}
         actions={(
           <>
@@ -1284,7 +1286,7 @@ export default function Dashboard() {
             <LivePathologySummaryCard
               summary={liveScopePathologySummary}
               className="mt-1"
-              title="🧬 Live lane / spillover 對照"
+              title="🧬 精準路徑 / 外溢口袋對照"
               compact
               supportAlignmentStatus={liveRuntimeTruth?.support_alignment_status ?? null}
               supportAlignmentSummary={liveRuntimeTruth?.support_alignment_summary ?? null}
@@ -1297,7 +1299,7 @@ export default function Dashboard() {
               summary={recentCanonicalDrift}
               pending={runtimeStatusPending && !recentCanonicalDrift}
               className="mt-3"
-              title="📉 Recent canonical drift"
+              title="📉 最近 canonical drift"
             />
           </>
         )}
@@ -1308,9 +1310,9 @@ export default function Dashboard() {
           detail={(
             <>
               <div>{executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()} · {executionVenueLabel}</div>
-              <div>current live blocker {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
-              <div className="opacity-70">current bucket {dashboardSupportRowsLabel} · gap {dashboardSupportGapLabel} · support route {dashboardSupportRouteVerdictLabel} · governance route {dashboardSupportGovernanceRouteLabel}</div>
-              <div className="opacity-70">venue blockers {dashboardVenueBlockersLabel}</div>
+              <div>目前阻塞點 {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
+              <div className="opacity-70">當前 bucket {dashboardSupportRowsLabel} · gap {dashboardSupportGapLabel} · 支持路徑 {dashboardSupportRouteVerdictLabel} · 治理路徑 {dashboardSupportGovernanceRouteLabel}</div>
+              <div className="opacity-70">場館阻塞 {dashboardVenueBlockersLabel}</div>
             </>
           )}
           extra={<VenueReadinessSummary venues={venueChecks} className="mt-2" compact />}
@@ -1318,10 +1320,10 @@ export default function Dashboard() {
         <ExecutionWorkspaceMetric
           label="資金 / 曝險"
           value={accountBalanceSummaryValue}
-          detail={<div>total {accountBalanceSummaryTotal} · 倉位 {positionCount} · 掛單 {openOrderCount}</div>}
+          detail={<div>總額 {accountBalanceSummaryTotal} · 倉位 {positionCount} · 掛單 {openOrderCount}</div>}
         />
         <ExecutionWorkspaceMetric
-          label="Metadata freshness"
+          label="元資料新鮮度"
           value={metadataSmokeFreshnessLabel}
           detail={(
             <ExecutionMetadataFreshnessDetail
@@ -1334,7 +1336,7 @@ export default function Dashboard() {
           )}
         />
         <ExecutionWorkspaceMetric
-          label="Reconciliation / recovery"
+          label="對帳 / 恢復"
           value={reconciliationStatusLabel}
           detail={reconciliationSummaryLabel}
         />
@@ -1342,7 +1344,7 @@ export default function Dashboard() {
 
       <div className={`rounded-xl border px-4 py-3 text-xs ${continuityTone}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="font-semibold">🩹 啟動檢查 / continuity</div>
+          <div className="font-semibold">🩹 啟動檢查 / 連續性</div>
           <div className="text-[11px] opacity-80">
             {runtimeStatusPending
               ? "正在向 /api/status 取得啟動檢查結果"
@@ -1363,7 +1365,7 @@ export default function Dashboard() {
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] opacity-90">
             <span>feature 狀態 {featureContinuity.status ?? "unknown"}</span>
             <span>補回 {featureContinuity.continuity_repair.inserted_total ?? 0}</span>
-            <span>remaining missing {featureContinuity.continuity_repair.remaining_missing ?? 0}</span>
+            <span>剩餘缺口 {featureContinuity.continuity_repair.remaining_missing ?? 0}</span>
           </div>
         )}
         {rawContinuity?.error && (

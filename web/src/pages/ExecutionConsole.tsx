@@ -12,6 +12,18 @@ import {
   isExecutionReconciliationLimitedEvidence,
 } from "../utils/runtimeCopy";
 
+const EXECUTION_MODE_LABELS: Record<string, string> = {
+  paper: "模擬倉",
+  dry_run: "模擬委託",
+  live: "實盤",
+};
+
+const EXECUTION_VENUE_LABELS: Record<string, string> = {
+  binance: "Binance",
+  okx: "OKX",
+  unknown: "未提供",
+};
+
 type SurfaceInfo = {
   route?: string;
   label?: string;
@@ -471,23 +483,53 @@ function pickPreviewText(record: ExecutionRunPreviewRecord, keys: string[]): str
   return null;
 }
 
+function humanizeExecutionModeLabel(value?: string | null): string {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized || normalized === "unknown") return "未提供";
+  return EXECUTION_MODE_LABELS[normalized] || String(value).trim();
+}
+
+function humanizeExecutionVenueLabel(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "未提供";
+  const lower = normalized.toLowerCase();
+  return EXECUTION_VENUE_LABELS[lower] || normalized;
+}
+
+function humanizeMetadataFreshnessLabel(value?: string | null): string {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized || normalized === "unavailable") return "未提供";
+  if (normalized === "fresh") return "新鮮";
+  if (normalized === "stale") return "已過期";
+  return humanizeRuntimeDetailText(value);
+}
+
+function humanizeTradeSideLabel(value?: string | null): string {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "—";
+  if (["buy", "bid", "long"].includes(normalized)) return "買入";
+  if (["sell", "ask", "short"].includes(normalized)) return "賣出";
+  if (["reduce", "close"].includes(normalized)) return "減碼";
+  return humanizeRuntimeDetailText(value);
+}
+
 function summarizePreviewRecord(record: ExecutionRunPreviewRecord): string {
-  const symbol = pickPreviewText(record, ["symbol", "instId", "market", "pair"]) || "unknown";
-  const side = pickPreviewText(record, ["side", "positionSide"]);
+  const symbol = pickPreviewText(record, ["symbol", "instId", "market", "pair"]) || "未提供";
+  const side = humanizeTradeSideLabel(pickPreviewText(record, ["side", "positionSide"]));
   const qty = toMaybeNumber(record.size ?? record.qty ?? record.amount ?? record.contracts ?? record.positionAmt);
   const price = toMaybeNumber(record.price ?? record.entryPrice ?? record.avgPrice ?? record.markPrice);
-  const status = pickPreviewText(record, ["status", "state"]);
+  const status = humanizeRuntimeDetailText(pickPreviewText(record, ["status", "state"]));
   return [
     symbol,
     side,
-    qty !== null ? `qty ${formatNumber(qty, 4)}` : null,
-    price !== null ? `price ${formatNumber(price, 2)}` : null,
+    qty !== null ? `數量 ${formatNumber(qty, 4)}` : null,
+    price !== null ? `價格 ${formatNumber(price, 2)}` : null,
     status,
   ].filter(Boolean).join(" · ");
 }
 
 function summarizePreviewRecords(records?: ExecutionRunPreviewRecord[] | null): string {
-  if (!Array.isArray(records) || records.length === 0) return "none";
+  if (!Array.isArray(records) || records.length === 0) return "無";
   return records.map((record) => summarizePreviewRecord(record)).join(" ｜ ");
 }
 
@@ -582,7 +624,7 @@ export default function ExecutionConsole() {
   const executionConsoleInitialSyncPending = runtimeStatusPending || overviewPending || runsPending;
   const metadataSmokeFreshnessLabel = runtimeStatusPending
     ? "同步中"
-    : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
+    : humanizeMetadataFreshnessLabel(metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || null);
   const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(
     executionReconciliation?.status,
     lifecycleAudit?.stage,
@@ -596,10 +638,10 @@ export default function ExecutionConsole() {
       lifecycleContract?.artifact_coverage,
     );
   const reconciliationSummaryLabel = runtimeStatusPending
-    ? "正在向 /api/status 取得 reconciliation / recovery 摘要。"
+    ? "正在向 /api/status 取得對帳 / 恢復摘要。"
     : reconciliationCoverageLimited
-      ? `${executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得 reconciliation 摘要。"} · 尚未有 runtime order，因此目前只能確認「沒有發現明顯對帳落差」，不可視為完整實單驗證。`
-      : (executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得 reconciliation 摘要。");
+      ? `${humanizeRuntimeDetailText(executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得對帳摘要。")} · 尚未有執行期委託，因此目前只能確認「沒有發現明顯對帳落差」，不可視為完整實單驗證。`
+      : humanizeRuntimeDetailText(executionReconciliation?.summary || lifecycleContract?.summary || "尚未取得對帳摘要。");
   const supportAlignmentLabel = runtimeStatusPending ? "同步中" : (liveRuntimeTruth?.support_alignment_status || "unavailable");
   const runtimeClosureStateLabel = runtimeStatusPending
     ? "同步中"
@@ -617,11 +659,11 @@ export default function ExecutionConsole() {
     ? "同步中"
     : humanizeSupportGovernanceRouteLabel(liveRuntimeTruth?.support_governance_route || null);
   const supportAlignmentCountsLabel = runtimeStatusPending
-    ? "runtime/calibration 同步中"
-    : `runtime/calibration ${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`;
+    ? "執行期 / 校準 同步中"
+    : `執行期 / 校準 ${liveRuntimeTruth?.runtime_exact_support_rows ?? "—"} / ${liveRuntimeTruth?.calibration_exact_lane_rows ?? "—"}`;
   const supportAlignmentSummaryLabel = runtimeStatusPending
-    ? "正在同步 runtime / calibration support 對齊。"
-    : (liveRuntimeTruth?.support_alignment_summary || supportAlignmentLabel || "—");
+    ? "正在同步執行期 / 校準樣本對齊。"
+    : humanizeRuntimeDetailText(liveRuntimeTruth?.support_alignment_summary || supportAlignmentLabel || "—");
   const rawAllowedLayersReasonLabel = runtimeStatusPending
     ? "同步中"
     : humanizeRuntimeDetailText(liveRuntimeTruth?.allowed_layers_raw_reason || null);
@@ -636,16 +678,16 @@ export default function ExecutionConsole() {
   const balanceTotal = typeof accountSummary?.balance?.total === "number" ? accountSummary.balance.total : null;
   const accountCredentialsConfigured = Boolean(accountSummary?.health?.credentials_configured ?? executionSummary?.health?.credentials_configured);
   const accountSnapshotUnavailableLabel = !accountCredentialsConfigured
-    ? "僅 metadata 快照"
+    ? "僅元資料快照"
     : "餘額暫不可用";
   const accountSnapshotUnavailableReason = !accountCredentialsConfigured
-    ? "僅同步公開 metadata；private balance 待交易所憑證。"
-    : "最新 account snapshot 暫無餘額資料。";
+    ? "僅同步公開元資料；私有餘額待交易所憑證。"
+    : "最新帳戶快照暫無餘額資料。";
   const accountBalanceUnavailableLabel = !accountCredentialsConfigured
-    ? "待 private balance"
+    ? "待私有餘額"
     : "餘額暫不可用";
   const accountBalanceUnavailableReason = !accountCredentialsConfigured
-    ? "需 private balance 後才能計算 bot 預算與 deployable capital。"
+    ? "需私有餘額後才能計算 Bot 預算與可部署資金。"
     : "最新 execution snapshot 暫無餘額資料。";
   const sharedLedgerUnavailableLabel = !accountCredentialsConfigured
     ? "尚無 run ledger"
@@ -689,11 +731,11 @@ export default function ExecutionConsole() {
       .join(" · ") || primaryBlockedReason);
   const manualBuyBlocked = hasBlockedState && Boolean(rawPrimaryBlockedReason);
   const manualBuyBlockedMessage = manualBuyBlocked
-    ? "current live blocker 啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。"
+    ? "目前阻塞點啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。"
     : null;
   const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const deploymentStatusDetail = runtimeStatusPending
-    ? "正在向 /api/status 取得 current live blocker / runtime closure。"
+    ? "正在向 /api/status 取得目前阻塞點 / 部署閉環摘要。"
     : humanizeRuntimeDetailText(
       executionSurfaceContract?.live_ready
         ? (liveRuntimeTruth?.runtime_closure_summary || executionSurfaceContract?.operator_message || "目前已滿足主要部署條件。")
@@ -702,9 +744,10 @@ export default function ExecutionConsole() {
   const automationEnabled = Boolean(runtimeStatus?.automation);
   const dryRunEnabled = Boolean(runtimeStatus?.dry_run);
   const executionSymbol = runtimeStatus?.symbol || "BTCUSDT";
-  const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || (dryRunEnabled ? "dry_run" : "paper"));
-  const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || "unknown");
-  const automationStatusLabel = runtimeStatusPending ? "automation 同步中" : `automation ${automationEnabled ? "ON" : "OFF"}`;
+  const executionModeRaw = executionSummary?.mode || (dryRunEnabled ? "dry_run" : "paper");
+  const executionModeLabel = runtimeStatusPending ? "同步中" : humanizeExecutionModeLabel(executionModeRaw);
+  const executionVenueLabel = runtimeStatusPending ? "同步中" : humanizeExecutionVenueLabel(executionSummary?.venue || "unknown");
+  const automationStatusLabel = runtimeStatusPending ? "自動交易同步中" : `自動交易 ${automationEnabled ? "開啟" : "關閉"}`;
   const operatorQuickCommands = [
     { label: "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualBuyBlocked },
     { label: "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" },
@@ -717,7 +760,7 @@ export default function ExecutionConsole() {
     ? "同步中"
     : (balanceTotal !== null ? `${formatNumber(balanceTotal)} ${balanceCurrency}` : accountSnapshotUnavailableLabel);
   const balanceBreakdownLabel = runtimeStatusPending
-    ? "正在向 /api/status 取得 account snapshot。"
+    ? "正在向 /api/status 取得帳戶快照。"
     : (balanceFree !== null && allocatedCapital !== null
       ? `可用 ${formatNumber(balanceFree)} · 已分配 ${formatNumber(allocatedCapital)}`
       : accountSnapshotUnavailableReason);
@@ -726,7 +769,7 @@ export default function ExecutionConsole() {
     : (runLedgerPreviews.length > 0 ? `${formatSignedNumber(totalUnrealizedPnl)} ${balanceCurrency}` : sharedLedgerUnavailableLabel);
   const sharedPnlSummaryLabel = runsPending
     ? "正在向 /api/execution/runs 取得共享盈虧預覽。"
-    : (runLedgerPreviews.length > 0 ? `共享帳戶預覽 · ${executionRunRecords.length} 個 run` : "先啟動 run 才會顯示共享盈虧預覽");
+    : (runLedgerPreviews.length > 0 ? `共享帳戶預覽 · ${executionRunRecords.length} 條運行` : "先啟動運行才會顯示共享盈虧預覽");
   const capitalInUseLabel = executionConsoleInitialSyncPending
     ? `同步中 ${balanceCurrency}`
     : (runLedgerPreviews.length > 0
@@ -734,43 +777,53 @@ export default function ExecutionConsole() {
       : (allocatedCapital !== null ? `${formatNumber(allocatedCapital)} ${balanceCurrency}` : sharedLedgerUnavailableLabel));
   const capitalInUseSummaryLabel = executionConsoleInitialSyncPending
     ? "正在同步共享帳戶預覽 / 預算。"
-    : (runLedgerPreviews.length > 0
-      ? "依目前 run ledger preview 匯總"
-      : (allocatedCapital !== null ? "暫以帳戶已分配資金表示" : "先啟動 run；若要顯示共享資金占用仍需 private balance。"));
+      : (runLedgerPreviews.length > 0
+      ? "依目前共享帳戶預覽匯總"
+      : (allocatedCapital !== null ? "暫以帳戶已分配資金表示" : "先啟動運行；若要顯示共享資金占用仍需私有餘額。"));
   const deployableCapitalLabel = overviewPending || runtimeStatusPending
     ? `同步中 ${balanceCurrency}`
     : (deployableCapital !== null ? `${formatNumber(deployableCapital)} ${balanceCurrency}` : accountBalanceUnavailableLabel);
   const allocationRuleLabel = humanizeExecutionOperatorLabel(
     executionCapitalPlan?.allocation_rule || executionOverviewSummary?.allocation_rule,
     "allocation_rule",
-  ) || "active sleeves 均分";
+  ) || "啟用倉位腿均分";
   const deployableCapitalSummaryLabel = overviewPending || runtimeStatusPending
-    ? "正在向 /api/status 與 /api/execution/overview 取得 deployable capital。"
+    ? "正在向 /api/status 與 /api/execution/overview 取得可部署資金。"
     : (deployableCapital !== null
-      ? `allocation ${allocationRuleLabel}`
-      : `${accountBalanceUnavailableReason}${hasBlockedState ? " blocker 解除後才會得到真正 deployable capital。" : ""}`);
+      ? `資金分配 ${allocationRuleLabel}`
+      : `${accountBalanceUnavailableReason}${hasBlockedState ? " blocker 解除後才會得到真正可部署資金。" : ""}`);
   const configuredSleeveCount = executionStrategySummary?.total_sleeves ?? executionOverviewSummary?.total_profiles ?? executionProfileCards.length;
+  const sleeveLabelById = new Map<string, string>();
+  executionProfileCards.forEach((card) => {
+    const label = String(card.label || card.key || card.profile_id || "").trim();
+    if (!label) return;
+    if (card.profile_id) sleeveLabelById.set(card.profile_id, label);
+    if (card.key) sleeveLabelById.set(card.key, label);
+  });
+  const missingSleeveLabels = (executionStrategySummary?.missing_sleeves || [])
+    .map((value) => sleeveLabelById.get(value) || humanizeRuntimeDetailText(value) || value)
+    .filter((value): value is string => Boolean(value));
   const runningRunsLabel = runsPending ? "同步中" : String(executionRunsSummary?.running_runs ?? 0);
   const runningRunsSummaryLabel = runsPending
-    ? "正在向 /api/execution/runs 取得 run control / events。"
-    : `running ${executionRunsSummary?.running_runs ?? 0} · 獲利中 ${profitableRuns} · total ${executionRunsSummary?.total_runs ?? executionRunRecords.length} · 已配置 sleeves ${configuredSleeveCount}`;
+    ? "正在向 /api/execution/runs 取得 run 控制 / 事件。"
+    : `運行中 ${executionRunsSummary?.running_runs ?? 0} · 獲利中 ${profitableRuns} · 總計 ${executionRunsSummary?.total_runs ?? executionRunRecords.length} · 已配置倉位腿 ${configuredSleeveCount}`;
   const executionStrategySummaryLabel = overviewPending
-    ? "正在向 /api/execution/overview 取得 strategy / sleeve coverage。"
-    : `saved strategies ${executionStrategySummary?.strategy_count ?? 0} · covered sleeves ${executionStrategySummary?.covered_sleeves ?? 0}/${executionStrategySummary?.total_sleeves ?? 0} · missing ${(executionStrategySummary?.missing_sleeves || []).join(" / ") || "none"}`;
+    ? "正在向 /api/execution/overview 取得策略 / 倉位腿覆蓋。"
+    : `已儲存策略 ${executionStrategySummary?.strategy_count ?? 0} · 已覆蓋倉位腿 ${executionStrategySummary?.covered_sleeves ?? 0}/${executionStrategySummary?.total_sleeves ?? 0} · 缺 ${missingSleeveLabels.join(" / ") || "無"}`;
   const executionProfileCardsEmptyState = overviewPending
-    ? "正在向 /api/execution/overview 取得 bot profile cards。"
-    : "尚未取得 bot profile cards；先確認 /api/execution/overview 是否可用。";
+    ? "正在向 /api/execution/overview 取得 Bot 卡片。"
+    : "尚未取得 Bot 卡片；先確認 /api/execution/overview 是否可用。";
   const executionRunsEmptyState = runsPending
-    ? "正在向 /api/execution/runs 取得 run control / events。"
-    : "尚未建立 stateful run；先在上方 Bot 卡啟動，這裡才會出現事件與狀態。";
+    ? "正在向 /api/execution/runs 取得 run 控制 / 事件。"
+    : "尚未建立可持久化運行；先在上方 Bot 卡啟動，這裡才會出現事件與狀態。";
   const liveReadinessSummary = runtimeStatusPending
-    ? "正在向 /api/status 取得 live readiness。"
+    ? "正在向 /api/status 取得部署狀態。"
     : humanizeExecutionReason(
       liveRuntimeTruth?.deployment_blocker_reason
       || liveRuntimeTruth?.deployment_blocker
       || liveRuntimeTruth?.execution_guardrail_reason
       || executionSurfaceContract?.operator_message
-      || "尚未提供 readiness 訊息。"
+      || "尚未提供部署狀態訊息。"
     );
   const runActionTone = runActionState.tone === "success"
     ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
@@ -788,7 +841,7 @@ export default function ExecutionConsole() {
     if (side === "buy" && manualBuyBlocked) {
       setOperatorActionState({
         tone: "error",
-        message: manualBuyBlockedMessage || "current live blocker 啟動中：買入指令暫停；請先查看阻塞原因。",
+        message: manualBuyBlockedMessage || "目前阻塞點啟動中：買入指令暫停；請先查看阻塞原因。",
       });
       return;
     }
@@ -811,12 +864,14 @@ export default function ExecutionConsole() {
       const stepSize = normalization?.contract?.step_size;
       const tickSize = normalization?.contract?.tick_size;
       const contractSummary = [
-        stepSize != null ? `step ${formatNumber(Number(stepSize), 6)}` : null,
-        tickSize != null ? `tick ${formatNumber(Number(tickSize), 6)}` : null,
+        stepSize != null ? `數量步進 ${formatNumber(Number(stepSize), 6)}` : null,
+        tickSize != null ? `價格刻度 ${formatNumber(Number(tickSize), 6)}` : null,
       ].filter(Boolean).join(" · ");
+      const orderModeLabel = humanizeExecutionModeLabel(order?.mode || (resp?.dry_run ? "dry_run" : executionModeRaw));
+      const orderVenueLabel = humanizeExecutionVenueLabel(resp?.venue || executionSummary?.venue || executionVenueLabel);
       setOperatorActionState({
         tone: "success",
-        message: `${label} 已提交：模式 ${order?.mode || (resp?.dry_run ? "dry_run" : executionModeLabel)} · venue ${resp?.venue || executionVenueLabel}${normalizedQtyFromContract != null ? ` · normalized qty ${formatNumber(normalizedQtyFromContract, 6)}` : ""}${normalizedPrice != null ? ` · normalized price ${formatNumber(normalizedPrice, 2)}` : ""}${contractSummary ? ` · contract ${contractSummary}` : ""}`,
+        message: `${label} 已提交：模式 ${orderModeLabel} · 場館 ${orderVenueLabel}${normalizedQtyFromContract != null ? ` · 校準後數量 ${formatNumber(normalizedQtyFromContract, 6)}` : ""}${normalizedPrice != null ? ` · 校準後價格 ${formatNumber(normalizedPrice, 2)}` : ""}${contractSummary ? ` · 規則 ${contractSummary}` : ""}`,
       });
     } catch (err: any) {
       await refreshRuntimeStatus();
@@ -847,7 +902,7 @@ export default function ExecutionConsole() {
       await refreshRuntimeStatus();
       setOperatorActionState({
         tone: "error",
-        message: `automation 切換失敗：${err?.message || "未知錯誤"}`,
+        message: `模式切換失敗：${err?.message || "未知錯誤"}`,
       });
     }
   };
@@ -885,13 +940,13 @@ export default function ExecutionConsole() {
     if (/(刷新|重新整理|同步|reload|refresh)/i.test(command)) {
       setOperatorActionState({
         tone: "pending",
-        message: "正在同步 execution workspace…",
+        message: "正在同步 Bot 營運頁面…",
       });
       try {
         await refreshExecutionWorkspace();
         setOperatorActionState({
           tone: "success",
-          message: "已重新整理 Bot 營運、run control 與 runtime status。",
+          message: "已重新整理 Bot 營運、run 控制與執行狀態。",
         });
       } catch (err: any) {
         setOperatorActionState({
@@ -935,12 +990,12 @@ export default function ExecutionConsole() {
     <div className="execution-shell app-page-shell text-white">
       <ExecutionHero
         className="app-page-header"
-        eyebrow="Bot 營運 / Live Ops"
+        eyebrow="Bot 營運 / 執行工作台"
         title="先看我的 Bot、資金使用與盈虧預覽"
         subtitle="主頁只放營運關鍵：Bot 狀態、資金、盈虧；診斷與恢復集中到「執行狀態」。"
         statusPills={(
           <>
-            <ExecutionPill>{executionModeLabel.toUpperCase()}</ExecutionPill>
+            <ExecutionPill>{executionModeLabel}</ExecutionPill>
             <ExecutionPill>{executionVenueLabel}</ExecutionPill>
             <ExecutionPill className={getStatusTone(runtimeStatusPending ? "pending" : (automationEnabled ? "ok" : "warning"))}>
               {automationStatusLabel}
@@ -949,7 +1004,7 @@ export default function ExecutionConsole() {
               {liveReadyStatusLabel}
             </ExecutionPill>
             <ExecutionPill className={getStatusTone(metadataSmokeFreshness?.status)}>
-              freshness {metadataSmokeFreshnessLabel}
+              新鮮度 {metadataSmokeFreshnessLabel}
             </ExecutionPill>
           </>
         )}
@@ -990,7 +1045,7 @@ export default function ExecutionConsole() {
           <div className="rounded-[24px] border border-amber-400/30 bg-[linear-gradient(135deg,rgba(245,158,11,0.18),rgba(113,50,245,0.14))] p-4 shadow-[0_18px_40px_rgba(245,158,11,0.12)]">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/80">blocked</div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/80">阻塞中</div>
                 <div className="mt-2 text-lg font-semibold text-amber-50">先解除 blocker，再做操作</div>
                 <div className="mt-1 text-sm text-amber-100/90">{primaryBlockedReason}</div>
               </div>
@@ -1062,7 +1117,7 @@ export default function ExecutionConsole() {
             </div>
             {(overviewLoading || overviewError) && (
               <div className="mt-3 rounded-2xl border border-white/8 bg-[#0d1324] px-4 py-3 text-sm text-slate-300">
-                {overviewLoading ? "/api/execution/overview 載入中…" : `execution overview 載入失敗：${overviewError}`}
+                {overviewLoading ? "/api/execution/overview 載入中…" : `Bot 營運摘要載入失敗：${overviewError}`}
               </div>
             )}
             {executionOverview?.operator_message && (
@@ -1087,8 +1142,8 @@ export default function ExecutionConsole() {
                   ? `${formatNumber(card.planned_budget_amount)} ${balanceCurrency}`
                   : accountBalanceUnavailableLabel;
                 const profileBudgetDetail = typeof card.planned_budget_amount === "number"
-                  ? `win ${formatPercent(profileStrategyBinding?.avg_expected_win_rate, 1)}`
-                  : `${accountBalanceUnavailableReason} · win ${formatPercent(profileStrategyBinding?.avg_expected_win_rate, 1)}`;
+                  ? `勝率 ${formatPercent(profileStrategyBinding?.avg_expected_win_rate, 1)}`
+                  : `${accountBalanceUnavailableReason} · 勝率 ${formatPercent(profileStrategyBinding?.avg_expected_win_rate, 1)}`;
                 const profileLifecycleLabel = humanizeExecutionOperatorLabel(
                   linkedRun?.state_label || linkedRun?.state || card.lifecycle_status || card.activation_status,
                   "status",
@@ -1188,7 +1243,7 @@ export default function ExecutionConsole() {
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500">DQ</div>
                         <div className="mt-1 text-sm font-semibold text-white">{formatNumber(profileStrategyBinding?.avg_decision_quality_score, 3)}</div>
-                        <div className="text-[11px] text-slate-400">trades {profileStrategyBinding?.total_trades ?? "—"}</div>
+                        <div className="text-[11px] text-slate-400">交易數 {profileStrategyBinding?.total_trades ?? "—"}</div>
                       </div>
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500">倉位 / 掛單</div>
@@ -1203,10 +1258,10 @@ export default function ExecutionConsole() {
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-slate-400">
-                      <span>routing {profileRoutingReasonLabel || "—"}</span>
-                      <span>start {profileStartReasonLabel || "—"}</span>
+                      <span>路由 {profileRoutingReasonLabel || "—"}</span>
+                      <span>啟動條件 {profileStartReasonLabel || "—"}</span>
                       <span>預覽 {profilePreviewStatusLabel}</span>
-                      <span>event {profileLatestEventMessageLabel || "尚未建立 run event"}</span>
+                      <span>最新事件 {profileLatestEventMessageLabel || "尚未建立 Bot 事件"}</span>
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2 text-sm">
@@ -1251,15 +1306,15 @@ export default function ExecutionConsole() {
                 <div className="text-lg font-semibold text-white">運行中</div>
                 <div className="mt-1 text-sm text-slate-400">
                   {runsPending
-                    ? "正在向 /api/execution/runs 取得 run control / events。"
-                    : `running ${executionRunsSummary?.running_runs ?? 0} · paused ${executionRunsSummary?.paused_runs ?? 0} · stopped ${executionRunsSummary?.stopped_runs ?? 0} · total ${executionRunsSummary?.total_runs ?? executionRunRecords.length}`}
+                    ? "正在向 /api/execution/runs 取得 run 控制 / 事件。"
+                    : `進行中 ${executionRunsSummary?.running_runs ?? 0} · 暫停 ${executionRunsSummary?.paused_runs ?? 0} · 已停止 ${executionRunsSummary?.stopped_runs ?? 0} · 總計 ${executionRunsSummary?.total_runs ?? executionRunRecords.length}`}
                 </div>
               </div>
-              <div className="text-xs text-slate-400">run control beta</div>
+              <div className="text-xs text-slate-400">運行控制 beta</div>
             </div>
             {(runsLoading || runsError) && (
               <div className="mt-3 rounded-2xl border border-white/8 bg-[#0d1324] px-4 py-3 text-sm text-slate-300">
-                {runsLoading ? "/api/execution/runs 載入中…" : `execution runs 載入失敗：${runsError}`}
+                {runsLoading ? "/api/execution/runs 載入中…" : `運行列表載入失敗：${runsError}`}
               </div>
             )}
             <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -1403,9 +1458,9 @@ export default function ExecutionConsole() {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-300">
-              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(guardrails?.kill_switch ? "blocked" : "ok")}`}>kill switch {guardrails?.kill_switch ? "ON" : "off"}</span>
-              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(guardrails?.failure_halt ? "warning" : "ok")}`}>failure halt {guardrails?.failure_halt ? "ON" : "off"}</span>
-              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(guardrails?.daily_loss_halt ? "warning" : "ok")}`}>daily halt {guardrails?.daily_loss_halt ? "ON" : "off"}</span>
+              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(guardrails?.kill_switch ? "blocked" : "ok")}`}>停機開關 {guardrails?.kill_switch ? "啟用" : "關閉"}</span>
+              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(guardrails?.failure_halt ? "warning" : "ok")}`}>失敗暫停 {guardrails?.failure_halt ? "啟用" : "關閉"}</span>
+              <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(guardrails?.daily_loss_halt ? "warning" : "ok")}`}>日損暫停 {guardrails?.daily_loss_halt ? "啟用" : "關閉"}</span>
             </div>
             {operatorActionState.tone !== "idle" && operatorActionState.message && (
               <div className={`mt-3 rounded-2xl border px-3 py-2 text-sm ${operatorActionTone}`}>
@@ -1425,18 +1480,18 @@ export default function ExecutionConsole() {
               </div>
             </div>
             <div className="mt-3 text-sm text-slate-300">{deploymentStatusDetail}</div>
-            <div className="mt-2 text-xs text-slate-400">runtime closure {runtimeClosureStateLabel}</div>
+            <div className="mt-2 text-xs text-slate-400">部署閉環 {runtimeClosureStateLabel}</div>
             <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Layers</div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">層數</div>
                 <div className="mt-1 font-semibold text-white">{liveRuntimeTruth?.allowed_layers_raw ?? "—"} → {liveRuntimeTruth?.allowed_layers ?? "—"}</div>
                 <div className="text-[11px] text-slate-400">{finalAllowedLayersReasonLabel !== "—" ? finalAllowedLayersReasonLabel : rawAllowedLayersReasonLabel}</div>
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Support</div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">支持樣本</div>
                 <div className="mt-1 font-semibold text-white">{supportRowsLabel}</div>
-                <div className="text-[11px] text-slate-400">support route {supportRouteVerdictLabel}</div>
-                <div className="text-[11px] text-slate-400">governance route {supportGovernanceRouteLabel}</div>
+                <div className="text-[11px] text-slate-400">支持路徑 {supportRouteVerdictLabel}</div>
+                <div className="text-[11px] text-slate-400">治理路徑 {supportGovernanceRouteLabel}</div>
                 <div className="text-[11px] text-slate-400">{supportAlignmentCountsLabel}</div>
                 <div className="text-[11px] text-slate-400">{supportAlignmentSummaryLabel}</div>
               </div>
@@ -1448,23 +1503,23 @@ export default function ExecutionConsole() {
             )}
             <div className="mt-4 space-y-3">
               <div>
-                <div className="text-[11px] uppercase tracking-wide text-slate-500">Active sleeves</div>
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">啟用倉位腿</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {liveActiveSleeves.length > 0 ? liveActiveSleeves.map((item) => (
                     <span key={item.key || item.label} title={item.why || undefined} className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-100">
                       {item.label || item.key}
                     </span>
-                  )) : <span className="text-sm text-slate-400">目前沒有 active sleeves</span>}
+                  )) : <span className="text-sm text-slate-400">目前沒有啟用倉位腿</span>}
                 </div>
               </div>
               <div>
-                <div className="text-[11px] uppercase tracking-wide text-slate-500">Inactive sleeves</div>
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">待命倉位腿</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {liveInactiveSleeves.length > 0 ? liveInactiveSleeves.map((item) => (
                     <span key={item.key || item.label} title={item.why || undefined} className="rounded-full border border-rose-500/25 bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-100">
                       {item.label || item.key}
                     </span>
-                  )) : <span className="text-sm text-slate-400">目前沒有 inactive sleeves</span>}
+                  )) : <span className="text-sm text-slate-400">目前沒有待命倉位腿</span>}
                 </div>
               </div>
             </div>
@@ -1474,13 +1529,13 @@ export default function ExecutionConsole() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-lg font-semibold text-white">帳戶與成交</div>
-                <div className="mt-1 text-sm text-slate-400">captured {formatTime(accountSummary?.captured_at)}</div>
+                <div className="mt-1 text-sm text-slate-400">擷取時間 {formatTime(accountSummary?.captured_at)}</div>
               </div>
               <div className="text-xs text-slate-400">{accountSummary?.requested_symbol || "—"} → {accountSummary?.normalized_symbol || "—"}</div>
             </div>
             {(accountSummary?.operator_message || accountSummary?.recovery_hint || accountSummary?.degraded) && (
               <div className="mt-3 rounded-2xl border border-white/8 bg-white/5 px-3 py-2 text-sm text-slate-300">
-                {accountSummary?.operator_message || accountSummary?.recovery_hint || (accountSummary?.degraded ? "account snapshot degraded" : "")}
+                {humanizeRuntimeDetailText(accountSummary?.operator_message || accountSummary?.recovery_hint || (accountSummary?.degraded ? "account snapshot degraded" : ""))}
               </div>
             )}
             <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
@@ -1498,17 +1553,17 @@ export default function ExecutionConsole() {
             <div className="mt-4 grid gap-2 md:grid-cols-3 text-sm">
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">最近委託</div>
-                <div className="mt-1 font-semibold text-white">{lastOrder?.side || "—"} · {lastOrder?.status || "—"}</div>
-                <div className="text-[11px] text-slate-400">qty {formatNumber(lastOrder?.qty)} · price {formatNumber(lastOrder?.price)}</div>
+                <div className="mt-1 font-semibold text-white">{humanizeTradeSideLabel(lastOrder?.side || null)} · {humanizeRuntimeDetailText(lastOrder?.status || null) || "—"}</div>
+                <div className="text-[11px] text-slate-400">數量 {formatNumber(lastOrder?.qty)} · 價格 {formatNumber(lastOrder?.price)}</div>
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">最近拒單</div>
-                <div className="mt-1 font-semibold text-white">{lastReject?.code || "none"}</div>
-                <div className="text-[11px] text-slate-400">{lastReject?.message || "尚無最近 reject"}</div>
+                <div className="mt-1 font-semibold text-white">{lastReject?.code || "無"}</div>
+                <div className="text-[11px] text-slate-400">{lastReject?.message || "尚無最近拒單"}</div>
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">最近失敗</div>
-                <div className="mt-1 font-semibold text-white">{lastFailure?.message || "none"}</div>
+                <div className="mt-1 font-semibold text-white">{lastFailure?.message || "無"}</div>
                 <div className="text-[11px] text-slate-400">{formatTime(lastFailure?.timestamp)}</div>
               </div>
             </div>
@@ -1523,7 +1578,7 @@ export default function ExecutionConsole() {
             <div>
               <div className="text-lg font-semibold text-white">執行狀態</div>
               <div className="mt-1 text-sm leading-6 text-slate-300">
-                blocked 原因、metadata freshness、reconciliation / recovery 已移到獨立頁；這裡只保留營運摘要與入口。
+                阻塞原因、元資料新鮮度與對帳 / 恢復已移到獨立頁；這裡只保留營運摘要與入口。
               </div>
             </div>
             <a href="/execution/status" className="app-button-secondary">
@@ -1532,17 +1587,17 @@ export default function ExecutionConsole() {
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Live readiness</div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">Live 部署狀態</div>
               <div className="mt-2 text-base font-semibold text-white">{runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞")}</div>
               <div className="mt-2">{liveReadinessSummary}</div>
             </div>
             <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Metadata freshness</div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">元資料新鮮度</div>
               <div className="mt-2 text-base font-semibold text-white">{metadataSmokeFreshnessLabel}</div>
-              <div className="mt-2">{runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : `generated ${formatTime(metadataSmoke?.generated_at)} · age ${metadataSmokeFreshness?.age_minutes != null ? `${metadataSmokeFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}`}</div>
+              <div className="mt-2">{runtimeStatusPending ? "正在向 /api/status 取得元資料檢查。" : `生成於 ${formatTime(metadataSmoke?.generated_at)} · 距今 ${metadataSmokeFreshness?.age_minutes != null ? `${metadataSmokeFreshness.age_minutes.toFixed(1)} 分鐘` : "—"}`}</div>
             </div>
             <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm text-slate-300">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Reconciliation / recovery</div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">對帳 / 恢復</div>
               <div className="mt-2 text-base font-semibold text-white">{reconciliationStatusLabel}</div>
               <div className="mt-2">{reconciliationSummaryLabel}</div>
             </div>

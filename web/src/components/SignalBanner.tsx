@@ -78,7 +78,7 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
     runtimeDecision?.runtime_closure_summary,
   );
   const runtimeClosureSummaryLabel = humanizeRuntimeDetailText(
-    runtimeDecision?.runtime_closure_summary || "尚未取得 runtime closure summary。",
+    runtimeDecision?.runtime_closure_summary || "尚未取得部署閉環摘要。",
   );
 
   useEffect(() => {
@@ -175,10 +175,10 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
         <div className={`mb-4 rounded-lg border px-3 py-2 text-xs leading-5 ${circuitBreakerActive ? "border-amber-500/30 bg-amber-500/10 text-amber-100" : runtimeDecision.q15_exact_supported_component_patch_applied ? ((runtimeDecision.allowed_layers ?? 0) > 0 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100" : "border-amber-500/30 bg-amber-500/10 text-amber-100") : "border-slate-700/40 bg-slate-900/40 text-slate-300"}`}>
           <div className="font-semibold">q15 runtime 快照</div>
           <div className="mt-1">
-            signal {runtimeDecision.signal || "—"} · layers {runtimeDecision.allowed_layers_raw ?? "—"} → {runtimeDecision.allowed_layers ?? "—"} · raw reason {runtimeAllowedLayersRawReasonLabel} · final reason {runtimeAllowedLayersReasonLabel}
+            signal {runtimeDecision.signal || "—"} · layers {runtimeDecision.allowed_layers_raw ?? "—"} → {runtimeDecision.allowed_layers ?? "—"} · 原始原因 {runtimeAllowedLayersRawReasonLabel} · 最終原因 {runtimeAllowedLayersReasonLabel}
           </div>
           <div className="mt-1">
-            runtime closure {runtimeClosureStateLabel} · {runtimeClosureSummaryLabel}
+            部署閉環 {runtimeClosureStateLabel} · {runtimeClosureSummaryLabel}
           </div>
           {circuitBreakerActive && (
             <div className="mt-1">
@@ -259,8 +259,8 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
       )}
 
       <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
-        <div>SignalBanner 目前只提供快捷下單 / 自動交易切換；完整 blocker、Guardrail context、stale governance 與 recovery 請到執行狀態頁查看。</div>
-        <div className="mt-1">若 q15 patch active 但 signal 仍是 HOLD，這裡應理解為「capacity opened but signal still HOLD」，不是 patch 失效，也不是自動 BUY readiness。</div>
+        <div>SignalBanner 目前只提供快捷下單 / 自動交易切換；完整阻塞點、Guardrail context、治理狀態與恢復脈絡請到執行狀態頁查看。</div>
+        <div className="mt-1">若 q15 patch 已啟用但 signal 仍是 HOLD，這裡應理解為「capacity opened but signal still HOLD」，不是 patch 失效，也不是自動 BUY readiness。</div>
         <a href="/execution/status" className="mt-1 inline-flex text-[11px] font-semibold text-amber-200 underline underline-offset-2 hover:text-amber-100">
           前往執行狀態頁 →
         </a>

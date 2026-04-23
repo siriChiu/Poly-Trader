@@ -61,18 +61,18 @@ export default function AdviceCard({
   const tradeActionsDisabled = executionActionState !== "ready" || isSubmittingTrade;
   const blockerLabel = executionBlockerLabel || "blocked";
   const executionActionSummary = executionActionState === "syncing"
-    ? "正在同步 /api/status；Dashboard 建議卡暫不提供快捷下單，避免 current live blocker truth 尚未到位前出現誤導 CTA。"
-    : (executionBlockerReason || "目前只保留分析摘要與阻塞後續動作；若要查看 current live blocker 詳情與恢復脈絡，請改到執行狀態 / Bot 營運頁。");
+    ? "正在同步 /api/status；Dashboard 建議卡暫不提供快捷下單，避免目前阻塞點真相尚未到位前出現誤導 CTA。"
+    : (executionBlockerReason || "目前只保留分析摘要與阻塞後續動作；若要查看目前阻塞點詳情與恢復脈絡，請改到執行狀態 / Bot 營運頁。");
   const summaryWithoutDirectionalCall = summary.replace(/\s*綜合建議：.*$/u, "").trim();
   const displaySummary = executionActionState === "ready"
     ? summary
     : executionActionState === "syncing"
       ? [
-          "Dashboard 正在同步 current live blocker；在 /api/status 完成前不把方向訊號當成可操作 CTA。",
+          "Dashboard 正在同步目前阻塞點；在 /api/status 完成前不把方向訊號當成可操作 CTA。",
           summaryWithoutDirectionalCall ? `訊號背景：${summaryWithoutDirectionalCall}` : null,
         ].filter(Boolean).join(" ")
       : [
-          `current live blocker：${blockerLabel}。在 blocker 解除前，Dashboard 只保留分析摘要與導流，不把方向訊號包裝成可操作建議。`,
+          `目前阻塞點：${blockerLabel}。在阻塞解除前，Dashboard 只保留分析摘要與導流，不把方向訊號包裝成可操作建議。`,
           summaryWithoutDirectionalCall ? `訊號背景：${summaryWithoutDirectionalCall}` : null,
         ].filter(Boolean).join(" ");
 

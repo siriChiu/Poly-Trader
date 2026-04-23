@@ -54,13 +54,16 @@ def test_execution_status_keeps_diagnostics_collapsed_by_default_and_reuses_shar
         "ExecutionHero",
         "ExecutionSectionCard",
         "ExecutionMetricCard",
-        "進階診斷（Surface contract / timeline；需要時再展開）",
-        "Venue lanes",
-        "Timeline",
+        "進階診斷（介面契約 / 時間線；需要時再展開）",
+        "場館通道",
+        "時間線",
         "<details",
     ]
     for snippet in required_snippets:
         assert snippet in source
+    assert "進階診斷（Surface contract / timeline；需要時再展開）" not in source
+    assert "Venue lanes" not in source
+    assert "Timeline" not in source
 
 
 def test_dashboard_and_strategy_lab_share_execution_workspace_summary_component():
@@ -77,11 +80,12 @@ def test_dashboard_and_strategy_lab_share_execution_workspace_summary_component(
 
     for snippet in [
         "Execution 摘要",
-        "Live 部署同步",
+        "即時部署同步",
         "前往 Bot 營運 →",
         "前往執行狀態 →",
     ]:
         assert snippet in (dashboard_source + strategy_lab_source)
+    assert "Live 部署同步" not in (dashboard_source + strategy_lab_source)
 
 
 def test_execution_console_bot_cards_surface_strategy_binding_state_without_duplicate_sleeve_labels():

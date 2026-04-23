@@ -1,15 +1,15 @@
-# Circuit Breaker Audit（Heartbeat #20260423e）
+# Circuit Breaker Audit（Heartbeat #fast）
 
 ## 結論
-- verdict: **breaker_clear**
-- summary: 1440m canonical live horizon 未觸發 breaker。
-- recommended_patch: 維持 horizon-aligned breaker，繼續追 live q15/q35 / support route。
+- verdict: **mixed_horizon_false_positive**
+- summary: 混合 horizon breaker 會被 240m tail labels 觸發（streak=118，recent50 win_rate=0.0000），但 1440m canonical live horizon 目前 release-ready。
+- recommended_patch: 將 circuit breaker 對齊 horizon_minutes=1440 的 canonical live contract。
 
 ## Mixed scope（現況錯誤口徑）
-- triggered: **False** via []
-- streak: 11 / threshold 50
-- recent 50: win_rate=0.7 wins=35 losses=15
-- streak horizons: {'240': 11}
+- triggered: **True** via ['streak', 'recent_win_rate']
+- streak: 118 / threshold 50
+- recent 50: win_rate=0.0 wins=0 losses=50
+- streak horizons: {'240': 118}
 
 ## Aligned scope（1440m canonical live horizon）
 - triggered: **False** via []

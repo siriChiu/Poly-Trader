@@ -161,7 +161,7 @@ STRATEGY_SLEEVE_LIBRARY: Dict[str, Dict[str, Any]] = {
     },
     "turning_point_exit": {
         "label": "轉折出場",
-        "summary": "以 local-top / turning-point 作為主要出場與節奏收斂模組。",
+        "summary": "以區域頂部 / 轉折點作為主要出場與節奏收斂模組。",
     },
     "storm_recovery": {
         "label": "風暴解套",

@@ -23,7 +23,9 @@ import {
   humanizeCurrentLiveBlockerLabel,
   humanizeExecutionReason,
   humanizeExecutionReconciliationStatusLabel,
+  humanizeLifecycleDiagnosticLabel,
   humanizeRuntimeClosureStateLabel,
+  humanizeRuntimeDetailText,
   humanizeSupportGovernanceRouteLabel,
   humanizeSupportRouteLabel,
   isExecutionReconciliationLimitedEvidence,
@@ -863,7 +865,7 @@ const MANUAL_COPY_STRATEGY_PREFIX = "Manual Copy · ";
 const LEADERBOARD_BACKTEST_WINDOW_MONTHS = 24;
 const LEADERBOARD_BACKTEST_WINDOW_DAYS = 730;
 const LEADERBOARD_BACKTEST_POLICY_LABEL = "排行榜回測固定使用最近兩年";
-const WORKSPACE_BACKTEST_WINDOW_HINT = `工作區預設沿用 ${LEADERBOARD_BACKTEST_WINDOW_DAYS} 天固定視窗；切換其他快速區間後，需重新執行回測才會刷新 ROI / Trades。`;
+const WORKSPACE_BACKTEST_WINDOW_HINT = `工作區預設沿用 ${LEADERBOARD_BACKTEST_WINDOW_DAYS} 天固定視窗；切換其他快速區間後，需重新執行回測才會刷新 ROI / 交易數。`;
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const formatDateTimeLocal = (date: Date) => {
@@ -1039,28 +1041,28 @@ const deploymentProfileDisplayName = (model: ModelLeaderboardEntry) => (
 );
 const deploymentProfileSourceLabel = (model: ModelLeaderboardEntry) => {
   const source = model.selected_deployment_profile_source || model.deployment_profile_source || null;
-  if (source === "code_backed_promoted_from_scan") return "code-backed promoted from scan";
-  if (source === "artifact_scan") return "artifact scan";
-  if (source === "code_backed") return "code-backed";
-  return source || "source unknown";
+  if (source === "code_backed_promoted_from_scan") return "掃描結果升格為程式內建配置";
+  if (source === "artifact_scan") return "掃描產物";
+  if (source === "code_backed") return "程式內建配置";
+  return humanizeRuntimeDetailText(source || "來源未提供");
 };
-const featureProfileDisplayName = (model: ModelLeaderboardEntry) => (
+const featureProfileDisplayName = (model: ModelLeaderboardEntry) => humanizeRuntimeDetailText(
   model.selected_feature_profile
   || model.feature_profile
   || "current_full"
 );
 const featureProfileSourceLabel = (model: ModelLeaderboardEntry) => {
   const source = model.selected_feature_profile_source || model.feature_profile_source || null;
-  if (source === "feature_group_ablation.recommended_profile") return "global shrinkage winner";
-  if (source === "bull_4h_pocket_ablation.exact_supported_profile") return "bull exact-supported production";
-  if (source === "bull_4h_pocket_ablation.support_aware_profile") return "support-aware production";
-  return source || "source unknown";
+  if (source === "feature_group_ablation.recommended_profile") return "全域 shrinkage 勝出配置";
+  if (source === "bull_4h_pocket_ablation.exact_supported_profile") return "bull exact-supported 正式配置";
+  if (source === "bull_4h_pocket_ablation.support_aware_profile") return "support-aware 正式配置";
+  return humanizeRuntimeDetailText(source || "來源未提供");
 };
 const governanceRoleLabel = (role?: string | null) => {
-  if (role === "global_shrinkage_winner") return "global shrinkage winner";
-  if (role === "bull_exact_supported_production_profile") return "bull exact-supported production";
-  if (role === "support_aware_production_profile") return "support-aware production";
-  return role || "role unknown";
+  if (role === "global_shrinkage_winner") return "全域 shrinkage 勝出配置";
+  if (role === "bull_exact_supported_production_profile") return "bull exact-supported 正式配置";
+  if (role === "support_aware_production_profile") return "support-aware 正式配置";
+  return humanizeRuntimeDetailText(role || "角色未提供");
 };
 const governanceSupportRows = (governance?: LeaderboardGovernanceSummary | null) => {
   const supportProgress = governance?.governance_contract?.support_progress;
@@ -1208,7 +1210,7 @@ const EDITOR_MODULES: Array<{
     emoji: "🧭",
     badge: "預設 exit",
     category: "signal",
-    summary: "用 local-top 分數抓區域高點，取代一般固定 TP 當主出場邏輯。",
+    summary: "用區域頂部分數抓區域高點，取代一般固定 TP 當主出場邏輯。",
     explainer: "目前最佳默認候選：在 bull + chop 中，用較嚴格的底部進場 + 頂部轉折出場來提高 ROI / PF 與回撤表現。",
   },
 ];
@@ -2310,9 +2312,9 @@ export default function StrategyLab() {
 
   const activeModuleDetails = EDITOR_MODULES.filter((module) => activeModules.includes(module.id));
   const moduleCategoryMeta = {
-    core: { label: "主 preset", description: "先選主要進出場骨架" },
-    signal: { label: "訊號 modifier", description: "再補強進出場品質" },
-    risk: { label: "風控 modifier", description: "最後補上資金防守" },
+    core: { label: "主模組", description: "先選主要進出場骨架" },
+    signal: { label: "訊號調節", description: "再補強進出場品質" },
+    risk: { label: "風控調節", description: "最後補上資金防守" },
     research: { label: "研究模組", description: "需要時再開" },
   } as const;
   const groupedEditorModules = (Object.keys(moduleCategoryMeta) as Array<keyof typeof moduleCategoryMeta>).map((key) => ({
@@ -2324,7 +2326,7 @@ export default function StrategyLab() {
     ? `複合策略：${activeModuleDetails.map((module) => module.label).join(" ＋ ")}`
     : `單一策略：${activeModuleDetails[0]?.label || "未選擇"}`;
   const dynamicHighlights = [
-    `${strategyType === "hybrid" ? "Hybrid" : "Rule"} · ${strategyType === "hybrid" ? selectedModelName : "rule_based"}`,
+    `${strategyType === "hybrid" ? "混合策略" : "規則策略"} · ${strategyType === "hybrid" ? selectedModelName : "rule_based"}`,
     capitalMode === "reserve_90" ? `10/90 後守 ${baseEntryFractionPct}%` : `層數 ${layer1}/${layer2}/${layer3}`,
     `信心 ${confidenceMin}% · 品質 ${entryQualityMin}%`,
     investmentHorizonLabels[investmentHorizon],
@@ -2481,13 +2483,13 @@ export default function StrategyLab() {
     liveDecisionStatus?.deployment_blocker_reason
     ?? liveRuntimeTruth?.deployment_blocker_reason
     ?? liveRuntimeClosureSummary
-    ?? "尚未取得 current live blocker。";
+    ?? "尚未取得目前阻塞點。";
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const currentLiveBlockerLabel = liveExecutionSyncPending
     ? "同步中"
     : humanizeCurrentLiveBlockerLabel(currentLiveBlocker || "unknown");
   const currentLiveBlockerSummaryLabel = liveExecutionSyncPending
-    ? "正在同步 live blocker / runtime closure"
+    ? "正在同步目前阻塞點 / 部署閉環"
     : humanizeExecutionReason(currentLiveBlockerSummary);
   const currentBucketRootCause = liveDecisionStatus?.current_bucket_root_cause
     ?? liveDecisionStatus?.q15_bucket_root_cause
@@ -2498,8 +2500,8 @@ export default function StrategyLab() {
     ? "同步中"
     : humanizeQ15BucketRootCauseLabel(currentBucketRootCause?.verdict || null);
   const currentBucketRootCauseSummary = liveExecutionSyncPending
-    ? "正在同步 current-bucket root cause。"
-    : (currentBucketRootCause?.reason || "尚未取得 current bucket 根因。");
+    ? "正在同步當前 bucket 根因。"
+    : humanizeRuntimeDetailText(currentBucketRootCause?.reason || "尚未取得當前 bucket 根因。");
   const currentBucketRootCauseActionLabel = liveExecutionSyncPending
     ? "同步中"
     : humanizeQ15BucketRootCauseAction(currentBucketRootCause?.candidate_patch_type || null);
@@ -2537,8 +2539,8 @@ export default function StrategyLab() {
     ? "同步中"
     : humanizeSupportGovernanceRouteLabel(liveSupportGovernanceRoute);
   const liveSupportRouteSummaryLabel = liveExecutionSyncPending
-    ? "current bucket 同步中 · gap 同步中 · support route 同步中 · governance route 同步中"
-    : `current bucket ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · support route ${liveSupportRouteVerdictLabel} · governance route ${liveSupportGovernanceRouteLabel}`;
+    ? "當前 bucket 同步中 · gap 同步中 · 支持路徑 同步中 · 治理路徑 同步中"
+    : `當前 bucket ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · 支持路徑 ${liveSupportRouteVerdictLabel} · 治理路徑 ${liveSupportGovernanceRouteLabel}`;
   const runtimeClosureStateLabel = liveExecutionSyncPending
     ? "同步中"
     : humanizeRuntimeClosureStateLabel(
@@ -2563,23 +2565,23 @@ export default function StrategyLab() {
     );
   const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;
   const liveExecutionSyncSubtitle = liveExecutionSyncPending
-    ? "current live blocker 優先；正在同步 execution sync / runtime mirror，不等於目前可部署。"
+    ? "先以目前阻塞點為主；正在同步執行對齊 / 執行期鏡像，不等於目前可部署。"
     : reconciliationCoverageLimited
-      ? "current live blocker 優先；對帳證據有限只代表對帳 / runtime mirror 狀態，不等於目前可部署。"
-      : `current live blocker 優先；對帳 ${reconciliationStatusLabel} 只代表對帳 / runtime mirror 狀態，不等於目前可部署。`;
+      ? "先以目前阻塞點為主；對帳證據有限只代表對帳 / 執行期鏡像狀態，不等於目前可部署。"
+      : `先以目前阻塞點為主；對帳 ${reconciliationStatusLabel} 只代表對帳 / 執行期鏡像狀態，不等於目前可部署。`;
   const reconciliationCheckedAtLabel = runtimeStatusPending
-    ? "正在向 /api/status 取得 execution sync 狀態"
+    ? "正在向 /api/status 取得執行對齊狀態"
     : (executionReconciliation?.checked_at ? new Date(executionReconciliation.checked_at).toLocaleString("zh-TW") : "尚未取得 /api/status");
   const runtimeClosureSummaryLabel = liveExecutionSyncPending
-    ? "正在同步 runtime closure summary。"
-    : humanizeExecutionReason(liveRuntimeClosureSummary || "尚未取得 runtime closure summary。");
+    ? "正在同步部署閉環摘要。"
+    : humanizeRuntimeDetailText(liveRuntimeClosureSummary || "尚未取得部署閉環摘要。");
   const activeSleevesLabel = liveExecutionSyncPending ? "同步中" : (liveRouting?.active_ratio_text || "0/0");
   const activeSleevesSummaryLabel = liveExecutionSyncPending
     ? "正在同步 regime / gate 路由"
     : `${liveRouting?.current_regime || liveDecisionStatus?.regime_label || "—"} · gate ${liveRouting?.current_regime_gate || liveDecisionStatus?.regime_gate || "—"}`;
   const metadataSmokeFreshnessLabel = runtimeStatusPending
     ? "同步中"
-    : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
+    : humanizeLifecycleDiagnosticLabel(metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
   const venueReadinessBlockersLabel = liveExecutionSyncPending
     ? "同步中"
     : (venueReadinessBlockers.length ? venueReadinessBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : humanizeExecutionReason(executionSurfaceContract?.operator_message || "目前沒有額外 venue blocker 摘要"));
@@ -2611,10 +2613,10 @@ export default function StrategyLab() {
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
           {[
-            { label: "Reliability", value: formatDecimal(activeResult?.reliability_score, 3), color: "text-cyan-300" },
-            { label: "Return", value: formatDecimal(activeResult?.return_power_score, 3), color: "text-violet-300" },
-            { label: "Risk", value: formatDecimal(activeResult?.risk_control_score, 3), color: "text-amber-300" },
-            { label: "Capital", value: formatDecimal(activeResult?.capital_efficiency_score, 3), color: "text-fuchsia-300" },
+            { label: "穩定度", value: formatDecimal(activeResult?.reliability_score, 3), color: "text-cyan-300" },
+            { label: "報酬力", value: formatDecimal(activeResult?.return_power_score, 3), color: "text-violet-300" },
+            { label: "風控", value: formatDecimal(activeResult?.risk_control_score, 3), color: "text-amber-300" },
+            { label: "資金效率", value: formatDecimal(activeResult?.capital_efficiency_score, 3), color: "text-fuchsia-300" },
           ].map((card) => (
             <div key={card.label} className="rounded-lg bg-slate-800/40 px-3 py-2">
               <div className="text-[10px] text-slate-500">{card.label}</div>
@@ -2625,7 +2627,7 @@ export default function StrategyLab() {
       </div>
 
       <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
-        <div className="text-sm font-semibold text-slate-300">🎯 Decision Quality</div>
+        <div className="text-sm font-semibold text-slate-300">🎯 決策品質</div>
         <div className={`text-2xl font-bold ${decisionQualityTone(activeResult?.avg_decision_quality_score)}`}>
           DQ {formatDecimal(activeResult?.avg_decision_quality_score, 3)}
         </div>
@@ -2641,9 +2643,9 @@ export default function StrategyLab() {
         <div className="text-sm font-semibold text-slate-300">📈 執行結果</div>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">ROI</div><div className={`${isFiniteNumber(activeResult?.roi) && (activeResult?.roi ?? 0) >= 0 ? "text-green-400" : "text-red-400"} text-lg font-semibold`}>{formatPct(activeResult?.roi, 1, true)}</div></div>
-          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">Max DD</div><div className="text-red-300 text-lg font-semibold">{formatPct(activeResult?.max_drawdown)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">最大回撤</div><div className="text-red-300 text-lg font-semibold">{formatPct(activeResult?.max_drawdown)}</div></div>
           <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">PF</div><div className="text-violet-300 text-lg font-semibold">{formatDecimal(activeResult?.profit_factor)}</div></div>
-          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">Trades</div><div className="text-slate-100 text-lg font-semibold">{activeResult?.total_trades ?? "—"}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">交易數</div><div className="text-slate-100 text-lg font-semibold">{activeResult?.total_trades ?? "—"}</div></div>
         </div>
       </div>
 
@@ -2750,8 +2752,8 @@ export default function StrategyLab() {
                     onChange={(e) => setStrategyType(e.target.value as "rule_based" | "hybrid")}
                     className="app-control-input mt-1"
                   >
-                    <option value="rule_based">rule_based</option>
-                    <option value="hybrid">hybrid</option>
+                    <option value="rule_based">規則策略</option>
+                    <option value="hybrid">混合策略</option>
                   </select>
                 </div>
                 <div>
@@ -2767,8 +2769,8 @@ export default function StrategyLab() {
                   </select>
                   <div className="mt-1 text-[11px] leading-5 text-slate-500">
                     {strategyType === "hybrid"
-                      ? "Hybrid 會直接帶入你現在手動選的模型。"
-                      : "目前是 rule_based；先選好模型後切回 hybrid 也會保留。"}
+                      ? "混合策略會直接帶入你現在手動選的模型。"
+                      : "目前是規則策略；先選好模型後切回混合策略也會保留。"}
                   </div>
                 </div>
               </div>
@@ -2949,7 +2951,7 @@ export default function StrategyLab() {
                   {strategyResultStale && (
                     <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-[11px] leading-5 text-amber-100 space-y-1">
                       <div className="font-medium">目前只更新圖表 / 區間，尚未重新執行回測</div>
-                      <div>請按「執行回測」刷新 ROI / Trades / 最近交易</div>
+                      <div>請按「執行回測」刷新 ROI / 交易數 / 最近交易</div>
                     </div>
                   )}
                 </div>
@@ -2979,7 +2981,7 @@ export default function StrategyLab() {
             </div>
 
             <ExecutionWorkspaceSummary
-              title="Live 部署同步"
+              title="即時部署同步"
               subtitle={liveExecutionSyncSubtitle}
               className={executionSyncTone({
                 pending: liveExecutionSyncPending,
@@ -2991,8 +2993,8 @@ export default function StrategyLab() {
               aside={(
                 <div className="text-right text-xs">
                   <div className="font-semibold">{liveDeployStatusLabel}</div>
-                  <div className="opacity-70">current live blocker {currentLiveBlockerLabel}</div>
-                  <div className="mt-1 opacity-60">current bucket {liveSupportRowsLabel} · gap {liveSupportGapLabel}</div>
+                  <div className="opacity-70">目前阻塞點 {currentLiveBlockerLabel}</div>
+                  <div className="mt-1 opacity-60">當前 bucket {liveSupportRowsLabel} · gap {liveSupportGapLabel}</div>
                   <div className="mt-1 opacity-60">{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}</div>
                 </div>
               )}
@@ -3006,10 +3008,10 @@ export default function StrategyLab() {
                   </a>
                 </>
               )}
-              footer={<div className="text-xs opacity-80">diagnostics surface {executionDiagnosticsSurface?.label || "執行狀態"} · {executionDiagnosticsSurface?.route || "/execution/status"}</div>}
+              footer={<div className="text-xs opacity-80">診斷頁面 {humanizeRuntimeDetailText(executionDiagnosticsSurface?.label || "執行狀態")} · {executionDiagnosticsSurface?.route || "/execution/status"}</div>}
             >
               <ExecutionWorkspaceMetric
-                label="current live blocker"
+                label="目前阻塞點"
                 value={currentLiveBlockerLabel}
                 detail={(
                   <>
@@ -3019,35 +3021,35 @@ export default function StrategyLab() {
                 )}
               />
               <ExecutionWorkspaceMetric
-                label="venue blockers"
+                label="場館阻塞"
                 value={venueReadinessBlockersLabel}
                 extra={<VenueReadinessSummary venues={venueChecks} className="mt-2" compact />}
               />
               <ExecutionWorkspaceMetric
-                label="runtime closure"
+                label="部署閉環"
                 value={runtimeClosureStateLabel}
                 detail={runtimeClosureSummaryLabel}
               />
               <ExecutionWorkspaceMetric
-                label="current bucket root cause"
+                label="當前 bucket 根因"
                 value={currentBucketRootCauseLabel}
                 detail={(
                   <>
                     <div>{currentBucketRootCauseSummary}</div>
-                    <div className="opacity-70">bucket {currentBucketRootCauseBucket}</div>
-                    <div className="opacity-70">candidate {currentBucketRootCause?.candidate_patch_feature || "—"} · {currentBucketRootCauseActionLabel}</div>
-                    <div className="opacity-70">near-boundary {currentBucketRootCause?.near_boundary_rows ?? "—"} · Δq35 {formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
-                    <div className="opacity-70">next {currentBucketRootCause?.verify_next || "—"}</div>
+                    <div className="opacity-70">當前 bucket {currentBucketRootCauseBucket}</div>
+                    <div className="opacity-70">候選 patch {humanizeRuntimeDetailText(currentBucketRootCause?.candidate_patch_feature || "—")} · {currentBucketRootCauseActionLabel}</div>
+                    <div className="opacity-70">近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"} · Δq35 {formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
+                    <div className="opacity-70">下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}</div>
                   </>
                 )}
               />
               <ExecutionWorkspaceMetric
-                label="active sleeves"
+                label="啟用倉位腿"
                 value={activeSleevesLabel}
                 detail={activeSleevesSummaryLabel}
               />
               <ExecutionWorkspaceMetric
-                label="metadata freshness"
+                label="元資料新鮮度"
                 value={<span className={metadataFreshnessTone(metadataSmokeFreshness?.status)}>{metadataSmokeFreshnessLabel}</span>}
                 detail={(
                   <ExecutionMetadataFreshnessDetail
@@ -3062,7 +3064,7 @@ export default function StrategyLab() {
             </ExecutionWorkspaceSummary>
             <LivePathologySummaryCard
               summary={liveScopePathologySummary}
-              title="🧬 Live lane / spillover 對照"
+              title="🧬 精準路徑 / 外溢口袋對照"
               compact
               supportAlignmentStatus={liveSupportAlignmentStatus}
               supportAlignmentSummary={liveSupportAlignmentSummary}
@@ -3075,7 +3077,7 @@ export default function StrategyLab() {
               summary={recentCanonicalDrift}
               pending={runtimeStatusPending && !recentCanonicalDrift}
               className="mt-3"
-              title="📉 Recent canonical drift"
+              title="📉 最近 canonical drift"
             />
 
             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr),320px] gap-4">
@@ -3141,16 +3143,16 @@ export default function StrategyLab() {
                       <tr>
                         {[
                           { key: "name", label: "策略" },
-                          { key: "overall_score", label: "Overall" },
-                          { key: "reliability_score", label: "Reliability" },
-                          { key: "return_power_score", label: "Return" },
-                          { key: "risk_control_score", label: "Risk" },
-                          { key: "capital_efficiency_score", label: "Capital" },
+                          { key: "overall_score", label: "總評分" },
+                          { key: "reliability_score", label: "穩定度" },
+                          { key: "return_power_score", label: "報酬力" },
+                          { key: "risk_control_score", label: "風控" },
+                          { key: "capital_efficiency_score", label: "資金效率" },
                           { key: "roi", label: "ROI" },
                           { key: "win_rate", label: "勝率" },
-                          { key: "max_drawdown", label: "Max DD" },
+                          { key: "max_drawdown", label: "最大回撤" },
                           { key: "profit_factor", label: "PF" },
-                          { key: "total_trades", label: "Trades" },
+                          { key: "total_trades", label: "交易數" },
                         ].map((col) => (
                           <th key={col.key} className="text-right py-2 px-2 first:text-left">
                             <button
@@ -3240,7 +3242,7 @@ export default function StrategyLab() {
                           <div className="mt-1 text-[11px] opacity-80">{governanceContract.reason || profileSplit.reason || "目前排行榜需要把 global ranking 與 production profile split 顯式同步到 operator surface。"}</div>
                         </div>
                         <div className="text-right text-[11px] opacity-80">
-                          <div>{leaderboardGovernance?.generated_at ? `generated ${new Date(leaderboardGovernance.generated_at).toLocaleString("zh-TW")}` : "generated —"}</div>
+                          <div>{leaderboardGovernance?.generated_at ? `生成於 ${new Date(leaderboardGovernance.generated_at).toLocaleString("zh-TW")}` : "生成時間 —"}</div>
                           <div>{governanceSupportRows(leaderboardGovernance)}</div>
                         </div>
                       </div>
@@ -3275,8 +3277,8 @@ export default function StrategyLab() {
                           <div>已儲存策略 {modelStrategyParamScan?.saved_strategy_count ?? modelFallbackCandidates.length}</div>
                           <div>
                             {modelStrategyParamScan?.generated_at
-                              ? `generated ${new Date(modelStrategyParamScan.generated_at).toLocaleString("zh-TW")}`
-                              : "generated —"}
+                              ? `生成於 ${new Date(modelStrategyParamScan.generated_at).toLocaleString("zh-TW")}`
+                              : "生成時間 —"}
                           </div>
                         </div>
                       </div>
@@ -3290,7 +3292,7 @@ export default function StrategyLab() {
                               <div className="min-w-0 flex-1">
                                 <div className="truncate font-medium text-cyan-50">{candidate.name || "未命名候選"}</div>
                                 <div className="mt-1 text-[11px] text-cyan-200/80">
-                                  {(candidate.model_name || "unknown model")} · ROI {formatPct(candidate.roi, 1, true)} · 勝率 {formatPct(candidate.win_rate)} · Trades {formatDecimal(candidate.total_trades, 0)}
+                                  {(candidate.model_name || "未命名模型")} · ROI {formatPct(candidate.roi, 1, true)} · 勝率 {formatPct(candidate.win_rate)} · 交易數 {formatDecimal(candidate.total_trades, 0)}
                                 </div>
                               </div>
                               <button
@@ -3326,13 +3328,13 @@ export default function StrategyLab() {
                         <thead className="bg-slate-950/20 text-slate-500 border-b border-slate-800">
                           <tr>
                             {[
-                              { key: "model_name", label: "Model" },
-                              { key: "overall_score", label: "Overall" },
-                              { key: "reliability_score", label: "Reliability" },
-                              { key: "return_power_score", label: "Return" },
+                              { key: "model_name", label: "模型" },
+                              { key: "overall_score", label: "總評分" },
+                              { key: "reliability_score", label: "穩定度" },
+                              { key: "return_power_score", label: "報酬力" },
                               { key: "avg_roi", label: "ROI" },
-                              { key: "avg_max_dd", label: "Max DD" },
-                              { key: "avg_trades", label: "Trades" },
+                              { key: "avg_max_dd", label: "最大回撤" },
+                              { key: "avg_trades", label: "交易數" },
                             ].map((col) => (
                               <th key={`${group.key}-${col.key}`} className="px-2 py-2 text-right first:text-left">
                                 <button
@@ -3387,18 +3389,18 @@ export default function StrategyLab() {
                     <div className="overflow-auto rounded-lg border border-amber-500/20 bg-amber-500/5">
                       <div className="border-b border-amber-500/20 bg-amber-500/10 px-3 py-2">
                         <div className="flex items-center gap-2 text-sm font-semibold text-amber-100">
-                          <span className="inline-flex rounded-full border border-amber-400/30 px-2 py-0.5 text-[11px]">No-trade placeholder</span>
+                          <span className="inline-flex rounded-full border border-amber-400/30 px-2 py-0.5 text-[11px]">無交易 placeholder</span>
                           <span className="text-[11px] text-amber-200/80">這些模型在當前 deployment profile 下沒有產生任何交易，因此已從正式排行榜分離。</span>
                         </div>
                       </div>
                       <table className="w-full min-w-[860px] text-xs">
                         <thead className="bg-slate-950/20 text-slate-500 border-b border-slate-800">
                           <tr>
-                            <th className="px-2 py-2 text-left">Model</th>
-                            <th className="px-2 py-2 text-right">Placeholder rank</th>
-                            <th className="px-2 py-2 text-right">Overall</th>
+                            <th className="px-2 py-2 text-left">模型</th>
+                            <th className="px-2 py-2 text-right">Placeholder 排名</th>
+                            <th className="px-2 py-2 text-right">總評分</th>
                             <th className="px-2 py-2 text-right">ROI</th>
-                            <th className="px-2 py-2 text-right">Trades</th>
+                            <th className="px-2 py-2 text-right">交易數</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3410,8 +3412,8 @@ export default function StrategyLab() {
                                   <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${modelTierBadgeTone[String(model.model_tier || "control")] || modelTierBadgeTone.control}`}>{modelTierLabel(model)}</span>
                                 </div>
                                 <div className="mt-1 text-[10px] text-slate-500">{describeRankingReason(model)}</div>
-                                <div className="mt-1 text-[10px] text-slate-600">deployment: {deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)}</div>
-                                <div className="mt-1 text-[10px] text-slate-600">feature: {featureProfileDisplayName(model)} · {featureProfileSourceLabel(model)}{model.selected_feature_profile_blocker_applied && model.selected_feature_profile_blocker_reason ? ` · blocker ${model.selected_feature_profile_blocker_reason}` : ""}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">部署設定：{deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">特徵設定：{featureProfileDisplayName(model)} · {featureProfileSourceLabel(model)}{model.selected_feature_profile_blocker_applied && model.selected_feature_profile_blocker_reason ? ` · blocker ${model.selected_feature_profile_blocker_reason}` : ""}</div>
                               </td>
                               <td className="px-2 py-2 text-right text-amber-200">{typeof model.raw_rank === "number" ? `#${model.raw_rank}` : "—"}</td>
                               <td className="px-2 py-2 text-right text-amber-200">{formatDecimal(model.overall_score, 3)}</td>
@@ -3453,10 +3455,10 @@ export default function StrategyLab() {
                       <div className="text-slate-500">{row.count} 策略</div>
                     </div>
                     <div className="mt-2 space-y-1 text-slate-400">
-                      <div>平均 Overall：<span className="text-emerald-300">{formatDecimal(row.avgOverall, 3)}</span></div>
-                      <div>平均 Reliability：<span className="text-cyan-300">{formatDecimal(row.avgReliability, 3)}</span></div>
+                      <div>平均總評分：<span className="text-emerald-300">{formatDecimal(row.avgOverall, 3)}</span></div>
+                      <div>平均穩定度：<span className="text-cyan-300">{formatDecimal(row.avgReliability, 3)}</span></div>
                       <div>平均 ROI：<span className="text-violet-300">{formatPct(row.avgRoi, 1, true)}</span></div>
-                      <div>平均 Max DD：<span className="text-red-300">{formatPct(row.avgMaxDd)}</span></div>
+                      <div>平均最大回撤：<span className="text-red-300">{formatPct(row.avgMaxDd)}</span></div>
                     </div>
                   </div>
                 ))}
