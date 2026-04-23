@@ -5045,12 +5045,20 @@ def _select_strategy_chart_payload(
     trade. Keep the full window so operators can distinguish:
     - no trades yet / flat equity in the first segment
     - versus a genuinely shorter backtest range.
+
+    Productization follow-up: keeping the *entire* 2-year 4h equity curve in every
+    Strategy Lab payload bloats `/api/strategies/{name}` into multi-megabyte
+    responses. The chart itself already renders a bounded window (`chart_context`
+    max 1000 points), so return a downsampled equity curve while preserving the
+    full time span in `chart_context.start/end`.
     """
     full_timestamps = [str(point.get("timestamp")) for point in equity_curve if point.get("timestamp")]
     chart_timestamps = timestamps or full_timestamps
+    chart_context = _build_strategy_chart_context(chart_timestamps)
+    chart_limit = int(chart_context.get("limit") or 1000)
     return {
-        "equity_curve": list(equity_curve or []),
-        "chart_context": _build_strategy_chart_context(chart_timestamps),
+        "equity_curve": _downsample_strategy_series_points(equity_curve, limit=chart_limit),
+        "chart_context": chart_context,
     }
 
 
@@ -5708,6 +5716,58 @@ _HEAVY_STRATEGY_RESULT_KEYS = {
     "score_series",
 }
 
+_STRATEGY_DETAIL_EQUITY_CURVE_LIMIT = 1000
+_STRATEGY_DETAIL_SCORE_SERIES_LIMIT = 300
+
+
+def _downsample_strategy_series_points(points: Any, *, limit: int) -> List[Dict[str, Any]]:
+    if not isinstance(points, list):
+        return []
+    normalized = [point for point in points if isinstance(point, dict)]
+    if limit <= 0 or len(normalized) <= limit:
+        return list(normalized)
+    if limit == 1:
+        return [normalized[-1]]
+
+    max_index = len(normalized) - 1
+    step = max_index / max(limit - 1, 1)
+    selected_indices = {0, max_index}
+    for slot in range(1, max(limit - 1, 1)):
+        selected_indices.add(min(max_index, int(round(slot * step))))
+    return [normalized[idx] for idx in sorted(selected_indices)]
+
+
+def _prepare_strategy_detail_last_results(last_results: Any) -> Dict[str, Any]:
+    if not isinstance(last_results, dict):
+        return {}
+
+    detail = dict(last_results)
+    chart_context = detail.get("chart_context")
+    chart_limit = _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT
+    if isinstance(chart_context, dict):
+        raw_limit = chart_context.get("limit")
+        try:
+            parsed_limit = int(raw_limit)
+        except (TypeError, ValueError):
+            parsed_limit = _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT
+        chart_limit = max(2, min(parsed_limit or _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT, _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT))
+        detail["chart_context"] = {
+            **chart_context,
+            "limit": chart_limit,
+        }
+
+    detail["equity_curve"] = _downsample_strategy_series_points(detail.get("equity_curve"), limit=chart_limit)
+    score_series = detail.get("score_series")
+    if isinstance(score_series, list):
+        detail["score_series"] = list(score_series[-_STRATEGY_DETAIL_SCORE_SERIES_LIMIT:])
+    return detail
+
+
+def _prepare_strategy_detail_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+    detail = dict(entry or {})
+    detail["last_results"] = _prepare_strategy_detail_last_results(entry.get("last_results"))
+    return detail
+
 
 def _compact_strategy_last_results(last_results: Any) -> Dict[str, Any]:
     if not isinstance(last_results, dict):
@@ -6093,7 +6153,7 @@ async def api_get_strategy(name: str) -> Dict[str, Any]:
 
     db = get_db()
     try:
-        return _decorate_strategy_entry(strategy, db=db)
+        return _prepare_strategy_detail_entry(_decorate_strategy_entry(strategy, db=db))
     finally:
         if hasattr(db, "close"):
             db.close()

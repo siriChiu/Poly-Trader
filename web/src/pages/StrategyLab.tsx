@@ -1439,10 +1439,50 @@ const loadStrategyLabCache = () => {
   }
 };
 
+const STRATEGY_LAB_CACHE_EQUITY_LIMIT = 1000;
+const STRATEGY_LAB_CACHE_SCORE_LIMIT = 300;
+
+const downsampleCachedSeries = <T extends { timestamp?: string | null }>(points: T[] | undefined, limit: number): T[] => {
+  if (!Array.isArray(points)) return [];
+  if (limit <= 0 || points.length <= limit) return [...points];
+  if (limit === 1) return [points[points.length - 1]];
+  const maxIndex = points.length - 1;
+  const step = maxIndex / Math.max(limit - 1, 1);
+  const selectedIndices = new Set<number>([0, maxIndex]);
+  for (let slot = 1; slot < limit - 1; slot += 1) {
+    selectedIndices.add(Math.min(maxIndex, Math.round(slot * step)));
+  }
+  return Array.from(selectedIndices)
+    .sort((a, b) => a - b)
+    .map((idx) => points[idx]);
+};
+
+const compactStrategyLabCacheEntry = (strategy?: StrategyEntry | null): StrategyEntry | null => {
+  if (!strategy) return null;
+  if (!strategy.last_results) return strategy;
+  const lastResults = strategy.last_results;
+  return {
+    ...strategy,
+    last_results: {
+      ...lastResults,
+      equity_curve: Array.isArray(lastResults.equity_curve)
+        ? downsampleCachedSeries(lastResults.equity_curve, STRATEGY_LAB_CACHE_EQUITY_LIMIT)
+        : lastResults.equity_curve,
+      score_series: Array.isArray(lastResults.score_series)
+        ? lastResults.score_series.slice(-STRATEGY_LAB_CACHE_SCORE_LIMIT)
+        : lastResults.score_series,
+    },
+  };
+};
+
 const saveStrategyLabCache = (payload: typeof STRATEGY_LAB_MEMORY_CACHE) => {
   if (typeof window === "undefined") return;
   try {
-    window.sessionStorage.setItem(STRATEGY_LAB_CACHE_KEY, JSON.stringify({ ...payload, updatedAt: Date.now() }));
+    const cachePayload = {
+      ...payload,
+      selectedStrategy: compactStrategyLabCacheEntry(payload.selectedStrategy),
+    };
+    window.sessionStorage.setItem(STRATEGY_LAB_CACHE_KEY, JSON.stringify({ ...cachePayload, updatedAt: Date.now() }));
   } catch {
     // ignore quota / serialization failures
   }

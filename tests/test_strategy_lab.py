@@ -1,5 +1,6 @@
 import asyncio
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -466,6 +467,33 @@ def test_select_strategy_chart_payload_keeps_full_backtest_window_visible():
     assert selected_times[-1].startswith("2026-01-01T00:09")
     assert payload["chart_context"]["start"].startswith("2025-01-01T00:00")
     assert payload["chart_context"]["end"].startswith("2026-01-01T00:09")
+
+
+
+def test_select_strategy_chart_payload_downsamples_oversized_equity_curve_without_hiding_full_window():
+    base = datetime(2024, 4, 21, 13, 0, tzinfo=timezone.utc)
+    equity_curve = [
+        {
+            "timestamp": (base + timedelta(hours=4 * idx)).isoformat().replace("+00:00", "Z"),
+            "equity": 10000.0 + idx,
+            "position_pct": 0.0,
+            "position_layers": 0,
+        }
+        for idx in range(2305)
+    ]
+
+    payload = api_module._select_strategy_chart_payload(
+        timestamps=[point["timestamp"] for point in equity_curve],
+        equity_curve=equity_curve,
+        trades=[],
+    )
+
+    assert len(payload["equity_curve"]) <= 1000
+    assert payload["equity_curve"][0]["timestamp"] == equity_curve[0]["timestamp"]
+    assert payload["equity_curve"][-1]["timestamp"] == equity_curve[-1]["timestamp"]
+    assert payload["chart_context"]["start"] == equity_curve[0]["timestamp"]
+    assert payload["chart_context"]["end"] == equity_curve[-1]["timestamp"]
+    assert payload["chart_context"]["limit"] == 1000
 
 
 
@@ -1092,6 +1120,63 @@ def test_api_get_strategy_decorates_detail_payload(monkeypatch):
     assert payload["decision_contract"]["target_col"] == "simulated_pyramid_win"
     assert payload["last_results"]["trades"][0]["reason"] == "tp_roi"
     assert db.closed is True
+
+
+
+def test_api_get_strategy_bounds_detail_payload_series_for_workspace(monkeypatch):
+    class DummyDB:
+        def close(self):
+            return None
+
+    base = datetime(2024, 4, 21, 13, 0, tzinfo=timezone.utc)
+    equity_curve = [
+        {
+            "timestamp": (base + timedelta(hours=4 * idx)).isoformat().replace("+00:00", "Z"),
+            "equity": 10000.0 + idx,
+        }
+        for idx in range(2305)
+    ]
+    score_series = [
+        {
+            "timestamp": (base + timedelta(hours=4 * idx)).isoformat().replace("+00:00", "Z"),
+            "score": 0.5,
+            "entry_quality": 0.5,
+            "model_confidence": 0.5,
+        }
+        for idx in range(420)
+    ]
+    strategy_entry = {
+        "name": "Auto Leaderboard · 大型 payload 測試",
+        "definition": {"type": "hybrid", "params": {"model_name": "xgboost"}},
+        "last_results": {
+            "roi": 0.18,
+            "win_rate": 0.62,
+            "decision_quality_horizon_minutes": 1440,
+            "chart_context": {
+                "symbol": "BTCUSDT",
+                "interval": "4h",
+                "start": equity_curve[0]["timestamp"],
+                "end": equity_curve[-1]["timestamp"],
+                "limit": 5000,
+            },
+            "equity_curve": equity_curve,
+            "score_series": score_series,
+            "trades": [{"timestamp": "2026-04-01T00:00:00Z", "reason": "tp_roi"}],
+        },
+    }
+
+    monkeypatch.setattr(strategy_lab, "load_strategy", lambda name: strategy_entry if name == strategy_entry["name"] else None)
+    monkeypatch.setattr(api_module, "get_db", lambda: DummyDB())
+
+    payload = asyncio.run(api_module.api_get_strategy(strategy_entry["name"]))
+
+    assert len(payload["last_results"]["equity_curve"]) <= 1000
+    assert payload["last_results"]["equity_curve"][0]["timestamp"] == equity_curve[0]["timestamp"]
+    assert payload["last_results"]["equity_curve"][-1]["timestamp"] == equity_curve[-1]["timestamp"]
+    assert len(payload["last_results"]["score_series"]) == 300
+    assert payload["last_results"]["chart_context"]["limit"] == 1000
+    assert payload["last_results"]["trades"][0]["reason"] == "tp_roi"
+
 
 
 def test_compute_decision_profile_returns_gate_summary():

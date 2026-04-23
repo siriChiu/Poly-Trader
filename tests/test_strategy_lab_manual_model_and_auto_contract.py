@@ -377,6 +377,24 @@ def test_strategy_lab_frontend_rehydrates_cached_selected_strategy_into_form_sta
 
 
 
+def test_strategy_lab_frontend_compacts_cached_selected_strategy_series_before_session_storage_write():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'const STRATEGY_LAB_CACHE_EQUITY_LIMIT = 1000;',
+        'const STRATEGY_LAB_CACHE_SCORE_LIMIT = 300;',
+        'const downsampleCachedSeries = <T extends { timestamp?: string | null }>(points: T[] | undefined, limit: number): T[] => {',
+        'const compactStrategyLabCacheEntry = (strategy?: StrategyEntry | null): StrategyEntry | null => {',
+        'equity_curve: Array.isArray(lastResults.equity_curve)',
+        'downsampleCachedSeries(lastResults.equity_curve, STRATEGY_LAB_CACHE_EQUITY_LIMIT)',
+        'score_series: Array.isArray(lastResults.score_series)',
+        'lastResults.score_series.slice(-STRATEGY_LAB_CACHE_SCORE_LIMIT)',
+        'selectedStrategy: compactStrategyLabCacheEntry(payload.selectedStrategy),',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+
 def test_strategy_lab_frontend_keeps_headline_metrics_above_workspace_chart():
     source = _read("pages/StrategyLab.tsx")
     metrics_def = source.index("const workspaceHeadlineMetrics = (")
