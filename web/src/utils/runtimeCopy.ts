@@ -7,14 +7,20 @@ const EXECUTION_REASON_MAPPINGS: Array<[string, string]> = [
   ["live exchange credential", "交易所憑證尚未驗證。"],
   ["order ack lifecycle", "委託確認流程尚未驗證。"],
   ["fill lifecycle", "成交回補流程尚未驗證。"],
+  ["under_minimum_exact_live_structure_bucket_blocks_trade", "目前精準樣本已開始累積，但仍低於最小可部署門檻，暫不交易。"],
   ["under_minimum_exact_live_structure_bucket", "目前精準樣本已開始累積，但仍低於最小可部署門檻。"],
+  ["unsupported_exact_live_structure_bucket_blocks_trade", "目前精準樣本尚未建立，暫不交易。"],
   ["unsupported_exact_live_structure_bucket", "目前精準樣本尚未建立。"],
+  ["unsupported_live_structure_bucket_blocks_trade", "目前 live bucket 支持仍不足，暫不交易。"],
+  ["unsupported_live_structure_bucket", "目前 live bucket 支持仍不足。"],
   ["decision_quality_below_trade_floor", "目前決策品質不足，暫不建議進場。"],
+  ["recent_distribution_pathology_blocks_trade", "近期分佈病態，暫不交易。"],
+  ["circuit_breaker_blocks_trade", "目前觸發保護機制，暫不交易。"],
   ["circuit_breaker_active", "目前觸發保護機制，暫停部署。"],
+  ["deployment_guardrail_blocks_trade", "部署保護欄阻擋交易。"],
   ["patch_inactive_or_blocked", "目前 patch 尚未啟用，或仍被其他條件阻擋。"],
   ["patch_active_but_execution_blocked", "目前 patch 已套用，但 execution 仍被 blocker 擋住。"],
   ["support_closed_but_trade_floor_blocked", "精準樣本已閉環，但交易門檻仍未通過。"],
-  ["unsupported_live_structure_bucket", "目前 live bucket 支持仍不足。"],
   ["exact_bucket_present_but_below_minimum", "目前精準樣本已出現，但仍低於可部署最低門檻。"],
   ["exact_live_bucket_present_but_below_minimum", "目前精準樣本已開始累積，但仍低於可部署最低門檻。"],
   ["exact_bucket_unsupported_block", "目前精準樣本尚未建立，僅能保留治理參考。"],
@@ -133,6 +139,12 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["component experiment readiness", "元件實驗就緒"],
   ["exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade", "精準路徑毒性子 bucket 阻擋交易"],
   ["exact_live_lane_toxic_sub_bucket_current_bucket", "精準路徑毒性子 bucket"],
+  ["unsupported_exact_live_structure_bucket_blocks_trade", "精準樣本尚未建立，暫不交易"],
+  ["under_minimum_exact_live_structure_bucket_blocks_trade", "精準樣本未達最小門檻，暫不交易"],
+  ["unsupported_live_structure_bucket_blocks_trade", "live bucket 支持不足，暫不交易"],
+  ["recent_distribution_pathology_blocks_trade", "近期分佈病態，暫不交易"],
+  ["circuit_breaker_blocks_trade", "風控熔斷中，暫不交易"],
+  ["deployment_guardrail_blocks_trade", "部署保護欄阻擋交易"],
   ["exact-lane", "精準路徑"],
   ["exact_supported_component_experiment_ready", "精準樣本元件實驗就緒"],
   ["exact_live_bucket_supported", "精準樣本已就緒"],
@@ -704,6 +716,7 @@ export function humanizeRuntimeDetailText(value?: string | null): string {
     .split("gate=").join("閘門：")
     .split("bucket=").join("當前 bucket：")
     .split("blocks trade").join("阻擋交易")
+    .replace(/(?:_|\s)blocks[_ ]trade\b/gi, " 阻擋交易")
     .replace(/\bWR\b/g, "勝率")
     .replace(/\bPnL\b/g, "損益")
     .replace(/\bDD\b/g, "回撤")
