@@ -1327,7 +1327,7 @@ export default function ExecutionConsole() {
                     : `進行中 ${executionRunsSummary?.running_runs ?? 0} · 暫停 ${executionRunsSummary?.paused_runs ?? 0} · 已停止 ${executionRunsSummary?.stopped_runs ?? 0} · 總計 ${executionRunsSummary?.total_runs ?? executionRunRecords.length}`}
                 </div>
               </div>
-              <div className="text-xs text-slate-400">運行控制 beta</div>
+              <div className="text-xs text-slate-400">運行控制（測試版）</div>
             </div>
             {(runsLoading || runsError) && (
               <div className="mt-3 rounded-2xl border border-white/8 bg-[#0d1324] px-4 py-3 text-sm text-slate-300">

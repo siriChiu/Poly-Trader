@@ -505,13 +505,13 @@ def test_runtime_copy_humanizes_patch_profiles_embedded_blockers_and_verify_inst
         'if (role === "global_shrinkage_winner") return "全域 shrinkage 勝出配置";',
         'if (role === "bull_exact_supported_production_profile") return "bull exact-supported 正式配置";',
         'if (role === "support_aware_production_profile") return "support-aware 正式配置";',
-        '候選 patch {humanizeRuntimeDetailText(currentBucketRootCause?.candidate_patch_feature || "—")} · {currentBucketRootCauseActionLabel}',
+        '候選 patch {humanizeFeatureKey(currentBucketRootCause?.candidate_patch_feature || null)} · {currentBucketRootCauseActionLabel}',
     ]
     for snippet in required_lab_snippets:
         assert snippet in lab_source
 
     required_status_snippets = [
-        '候選 patch {humanizeRuntimeDetailText(currentBucketRootCause?.candidate_patch_feature || "—")} · {currentBucketRootCauseActionLabel}',
+        '候選 patch {humanizeFeatureKey(currentBucketRootCause?.candidate_patch_feature || null)} · {currentBucketRootCauseActionLabel}',
     ]
     for snippet in required_status_snippets:
         assert snippet in status_source
@@ -842,10 +842,12 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
         'const q15PatchCapacityOpened = Boolean(',
         'const q15SupportAuditApplicable = bucketKey === "q15" || bucketKey.endsWith("|q15");',
         'const currentLiveStructureBucketLabel = humanizeStructureBucketLabel(currentLiveStructureBucket || "—");',
+        'const bestSingleComponentLabel = humanizeFeatureKey(bestSingleComponent || null, { preferShortLabel: true });',
         'const q15FloorCrossLabel = q15SupportAuditApplicable',
         'humanizeQ15FloorCrossVerdictLabel(floorCrossVerdict || "—")',
         'const q15ComponentExperimentLabel = q15SupportAuditApplicable',
         'humanizeQ15ComponentExperimentVerdictLabel(componentExperimentVerdict || "—")',
+        '最佳單一元件 ${bestSingleComponentLabel}',
         '目前 bucket ${currentLiveStructureBucketLabel}；q15 floor-cross drill-down 只保留 reference-only，不代表 /api/status 缺資料。',
         '目前 live row 已離開 q15 lane；請改看 current live blocker 與 current bucket root cause，而不是把 q15 experiment 空值誤讀成 blocker truth。',
         'const breakerRecentWindow = deploymentBlockerDetails?.recent_window ?? null;',
@@ -858,7 +860,7 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
         '多單勝率代理',
         '最近 50 筆解除視窗',
         '精準 support',
-        '當前 live bucket',
+        '當前 bucket',
         '樣本變化',
         'q35 縮放判讀',
         'q35 下一步',
@@ -882,6 +884,7 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
     assert 'q35 next action' not in source
     assert 'Profile:' not in source
     assert 'Horizon:' not in source
+    assert '當前 live bucket' not in source
 
 
 def test_strategy_lab_keeps_decision_quality_summary_surfaces():
@@ -1099,7 +1102,7 @@ def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candida
         'const currentBucketRootCauseSummary = runtimeStatusPending',
         '當前 bucket 根因',
         '當前 bucket {currentBucketRootCauseBucket}',
-        '候選 patch {humanizeRuntimeDetailText(currentBucketRootCause?.candidate_patch_feature || "—")} · {currentBucketRootCauseActionLabel}',
+        '候選 patch {humanizeFeatureKey(currentBucketRootCause?.candidate_patch_feature || null)} · {currentBucketRootCauseActionLabel}',
         '近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"}',
         '下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}',
     ]:
@@ -1115,7 +1118,7 @@ def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candida
         'const currentBucketRootCauseSummary = liveExecutionSyncPending',
         '當前 bucket 根因',
         '當前 bucket {currentBucketRootCauseBucket}',
-        '候選 patch {humanizeRuntimeDetailText(currentBucketRootCause?.candidate_patch_feature || "—")} · {currentBucketRootCauseActionLabel}',
+        '候選 patch {humanizeFeatureKey(currentBucketRootCause?.candidate_patch_feature || null)} · {currentBucketRootCauseActionLabel}',
         '近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"}',
         '下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}',
     ]:
@@ -1284,13 +1287,13 @@ def test_runtime_copy_humanizes_payload_summary_tokens_for_operator_surfaces():
         '["QUALITY", "品質"]',
         '["SCOPE", "範圍"]',
         '.split("exact-vs-spillover=").join("精準路徑 / 外溢對照：")',
-        '.split("rows=").join("樣本=")',
-        '.split("win_rate=").join("勝率=")',
-        '.split("quality=").join("品質=")',
-        '.split("avg_pnl=").join("平均損益=")',
-        '.split("regime=").join("市場狀態=")',
-        '.split("gate=").join("閘門=")',
-        '.split("bucket=").join("當前 bucket=")',
+        '.split("rows=").join("樣本：")',
+        '.split("win_rate=").join("勝率：")',
+        '.split("quality=").join("品質：")',
+        '.split("avg_pnl=").join("平均損益：")',
+        '.split("regime=").join("市場狀態：")',
+        '.split("gate=").join("閘門：")',
+        '.split("bucket=").join("當前 bucket：")',
         '.split("blocks trade").join("阻擋交易")',
         'replace(/\\bWR\\b/g, "勝率")',
         'replace(/\\bPnL\\b/g, "損益")',
@@ -1778,11 +1781,61 @@ def test_runtime_copy_humanizes_bucket_root_cause_prose_fragments():
     required_snippets = [
         '["exact-lane", "精準路徑"]',
         '["current_structure_quality", "目前結構分數"]',
-        '["component scoring", "component 評分"]',
+        '["component scoring", "元件評分"]',
         '["boundary tweak", "邊界微調"]',
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+def test_operator_surfaces_humanize_feature_keys_and_remove_raw_bucket_fragments():
+    runtime_copy_source = _read("utils/runtimeCopy.ts")
+    confidence_indicator_source = _read("components/ConfidenceIndicator.tsx")
+    execution_surface_source = _read("components/execution/ExecutionSurface.tsx")
+    workspace_summary_source = _read("components/execution/ExecutionWorkspaceSummary.tsx")
+    pathology_card_source = _read("components/LivePathologySummaryCard.tsx")
+    drift_card_source = _read("components/RecentCanonicalDriftCard.tsx")
+    execution_console_source = _read("pages/ExecutionConsole.tsx")
+
+    for snippet in [
+        'import { getSenseConfig } from "../config/senses";',
+        'const FEATURE_KEY_ALIAS_MAPPINGS: Record<string, string> = {',
+        'const FEATURE_KEY_LABEL_OVERRIDES: Record<string, { name: string; shortLabel: string }> = {',
+        'export function humanizeFeatureKey(',
+        'output = output.replace(/\\bfeat_[a-z0-9_]+\\b/gi, (token) => humanizeFeatureKey(token));',
+        '.split("bucket=").join("當前 bucket：")',
+    ]:
+        assert snippet in runtime_copy_source
+
+    for snippet in [
+        'humanizeFeatureKey,',
+        'const bestSingleComponentLabel = humanizeFeatureKey(bestSingleComponent || null, { preferShortLabel: true });',
+        '最佳單一元件 ${bestSingleComponentLabel}',
+        'text-[10px] tracking-wide text-slate-400">當前 bucket</div>',
+    ]:
+        assert snippet in confidence_indicator_source
+
+    assert 'text-[11px] tracking-[0.22em] text-slate-500">{title}</div>' in execution_surface_source
+    assert 'text-[11px] uppercase tracking-[0.22em] text-slate-500">{title}</div>' not in execution_surface_source
+
+    assert 'text-[10px] tracking-wide text-slate-500">{label}</div>' in workspace_summary_source
+    assert 'text-[10px] uppercase tracking-wide text-slate-500">{label}</div>' not in workspace_summary_source
+
+    for snippet in [
+        'humanizeFeatureKey,',
+        'humanizeFeatureKey(shift.feature || "unknown", { preferShortLabel: true })',
+        'humanizeFeatureKey(feature, { preferShortLabel: true })',
+    ]:
+        assert snippet in pathology_card_source
+
+    for snippet in [
+        'humanizeFeatureKey,',
+        '.map((value) => humanizeFeatureKey(value, { preferShortLabel: true }));',
+    ]:
+        assert snippet in drift_card_source
+
+    assert '運行控制（測試版）' in execution_console_source
+    assert '運行控制 beta' not in execution_console_source
 
 
 def test_runtime_copy_humanize_execution_reason_reuses_runtime_detail_humanizer_for_sentence_copy():

@@ -1,4 +1,5 @@
 import {
+  humanizeFeatureKey,
   humanizeLivePathologyLabel,
   humanizeRuntimeDetailText,
   humanizeStructureBucketLabel,
@@ -113,7 +114,7 @@ const formatDecimal = (value: number | null | undefined, digits = 3, signed = fa
 };
 
 const formatMeanShift = (shift: TopMeanShiftFeature) => {
-  const feature = shift.feature || "unknown";
+  const feature = humanizeFeatureKey(shift.feature || "unknown", { preferShortLabel: true });
   const current = formatDecimal(shift.current_mean ?? null, 3);
   const reference = formatDecimal(shift.reference_mean ?? null, 3);
   const delta = formatDecimal(shift.mean_delta ?? null, 3, true);
@@ -454,7 +455,7 @@ export default function LivePathologySummaryCard({
             <div className="flex flex-wrap gap-2">
               {collapseFeatures.map((feature) => (
                 <div key={feature} className="rounded-full border border-sky-500/20 bg-black/10 px-3 py-1.5 text-[11px] text-sky-50/90">
-                  {feature}
+                  {humanizeFeatureKey(feature, { preferShortLabel: true })}
                 </div>
               ))}
             </div>

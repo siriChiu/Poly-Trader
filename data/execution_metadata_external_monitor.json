@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-23T09:25:04.883864Z",
-  "checked_at": "2026-04-23T09:25:04.883606Z",
+  "generated_at": "2026-04-23T11:10:06.043077Z",
+  "checked_at": "2026-04-23T11:10:06.042651Z",
   "source": "external_process",
   "status": "healthy",
   "reason": "external_cron_monitor",
@@ -14,7 +14,7 @@
     "status": "fresh",
     "label": "fresh",
     "reason": "artifact_within_policy",
-    "age_minutes": 4.843804283333333,
+    "age_minutes": 19.1090144,
     "stale_after_minutes": 30.0
   },
   "install_contract": {
@@ -31,7 +31,7 @@
       "status": "installed",
       "installed": true,
       "active_lane": "user_crontab",
-      "checked_at": "2026-04-23T09:25:04.889769Z",
+      "checked_at": "2026-04-23T11:10:06.048895Z",
       "preferred_host_lane": "user_crontab",
       "lanes": {
         "user_crontab": {
@@ -39,7 +39,7 @@
           "returncode": 0,
           "stdout": "*/5 * * * * cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300 >> /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.log 2>&1 # poly-trader-execution-metadata-external-monitor",
           "stderr": "",
-          "checked_at": "2026-04-23T09:25:04.886414Z",
+          "checked_at": "2026-04-23T11:10:06.045726Z",
           "verify_command": "crontab -l | grep 'poly-trader-execution-metadata-external-monitor'"
         },
         "systemd_user": {
@@ -47,7 +47,7 @@
           "returncode": 1,
           "stdout": "",
           "stderr": "Failed to connect to bus: No medium found",
-          "checked_at": "2026-04-23T09:25:04.889749Z",
+          "checked_at": "2026-04-23T11:10:06.048868Z",
           "verify_command": "systemctl --user status poly-trader-execution-metadata-external-monitor.timer --no-pager"
         }
       }

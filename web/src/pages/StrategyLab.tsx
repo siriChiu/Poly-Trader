@@ -23,6 +23,7 @@ import {
   humanizeCurrentLiveBlockerLabel,
   humanizeExecutionReason,
   humanizeExecutionReconciliationStatusLabel,
+  humanizeFeatureKey,
   humanizeLifecycleDiagnosticLabel,
   humanizeRuntimeClosureStateLabel,
   humanizeRuntimeDetailText,
@@ -3080,7 +3081,7 @@ export default function StrategyLab() {
                   <>
                     <div>{currentBucketRootCauseSummary}</div>
                     <div className="opacity-70">當前 bucket {currentBucketRootCauseBucket}</div>
-                    <div className="opacity-70">候選 patch {humanizeRuntimeDetailText(currentBucketRootCause?.candidate_patch_feature || "—")} · {currentBucketRootCauseActionLabel}</div>
+                    <div className="opacity-70">候選 patch {humanizeFeatureKey(currentBucketRootCause?.candidate_patch_feature || null)} · {currentBucketRootCauseActionLabel}</div>
                     <div className="opacity-70">近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 {formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
                     <div className="opacity-70">下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}</div>
                   </>

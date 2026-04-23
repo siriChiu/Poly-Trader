@@ -60,7 +60,7 @@ type ExecutionMetricCardProps = {
 export function ExecutionMetricCard({ title, value, detail, toneClass = "text-white" }: ExecutionMetricCardProps) {
   return (
     <div className="execution-card-muted">
-      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{title}</div>
+      <div className="text-[11px] tracking-[0.22em] text-slate-500">{title}</div>
       <div className={`mt-2 text-3xl font-semibold ${toneClass}`}>{value}</div>
       {detail ? <div className="mt-2 text-sm text-slate-400">{detail}</div> : null}
     </div>

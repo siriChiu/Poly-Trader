@@ -9,6 +9,7 @@ import {
   humanizeExecutionReason,
   humanizeExecutionReconciliationStatusLabel,
   humanizeExecutionVenueLabel,
+  humanizeFeatureKey,
   humanizeRuntimeClosureStateLabel,
   humanizeRuntimeDetailText,
   humanizeStructureBucketLabel,
@@ -754,11 +755,11 @@ export default function ExecutionStatus() {
                 <div className="text-slate-400">對齊 {supportAlignmentSummaryLabel}</div>
               </div>
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
-                <div className="text-[11px] uppercase tracking-wide text-slate-500">當前 bucket 根因</div>
+                <div className="text-[11px] tracking-wide text-slate-500">當前 bucket 根因</div>
                 <div className="mt-2 font-semibold text-white">{currentBucketRootCauseLabel}</div>
                 <div className="mt-2 text-slate-400">{humanizeRuntimeDetailText(currentBucketRootCauseSummary)}</div>
                 <div className="text-slate-400">當前 bucket {currentBucketRootCauseBucket}</div>
-                <div className="text-slate-400">候選 patch {humanizeRuntimeDetailText(currentBucketRootCause?.candidate_patch_feature || "—")} · {currentBucketRootCauseActionLabel}</div>
+                <div className="text-slate-400">候選 patch {humanizeFeatureKey(currentBucketRootCause?.candidate_patch_feature || null)} · {currentBucketRootCauseActionLabel}</div>
                 <div className="text-slate-400">近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 {formatNumber(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
                 <div className="text-slate-400">下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}</div>
               </div>

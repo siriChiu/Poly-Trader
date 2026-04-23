@@ -6,6 +6,7 @@ import React from "react";
 import {
   humanizeCurrentLiveBlockerLabel,
   humanizeExecutionReason,
+  humanizeFeatureKey,
   humanizeQ15BucketRootCauseAction,
   humanizeQ15BucketRootCauseLabel,
   humanizeQ15ComponentExperimentVerdictLabel,
@@ -214,13 +215,14 @@ export default function ConfidenceIndicator({
     : null;
   const bucketKey = (currentLiveStructureBucket || "").toLowerCase();
   const currentLiveStructureBucketLabel = humanizeStructureBucketLabel(currentLiveStructureBucket || "—");
+  const bestSingleComponentLabel = humanizeFeatureKey(bestSingleComponent || null, { preferShortLabel: true });
   const q15SupportAuditApplicable = bucketKey === "q15" || bucketKey.endsWith("|q15");
   const q35ScalingAuditApplicable = bucketKey === "q35" || bucketKey.endsWith("|q35");
   const q15FloorCrossLabel = q15SupportAuditApplicable
     ? humanizeQ15FloorCrossVerdictLabel(floorCrossVerdict || "—")
     : "目前不適用";
   const q15FloorCrossHint = q15SupportAuditApplicable
-    ? `最佳單一元件 ${bestSingleComponent || "—"}`
+    ? `最佳單一元件 ${bestSingleComponentLabel}`
     : `目前 bucket ${currentLiveStructureBucketLabel}；q15 floor-cross drill-down 只保留 reference-only，不代表 /api/status 缺資料。`;
   const q15ComponentExperimentLabel = q15SupportAuditApplicable
     ? humanizeQ15ComponentExperimentVerdictLabel(componentExperimentVerdict || "—")
@@ -361,7 +363,7 @@ export default function ConfidenceIndicator({
                   <div className="mt-1 text-slate-400">狀態 {supportStatusLabel}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">當前 live bucket</div>
+                  <div className="text-[10px] tracking-wide text-slate-400">當前 bucket</div>
                   <div className="mt-1 font-medium text-white">{currentLiveStructureBucketLabel}</div>
                   <div className="mt-1 text-slate-400">距離最小樣本差 {supportGap ?? "—"}</div>
                 </div>

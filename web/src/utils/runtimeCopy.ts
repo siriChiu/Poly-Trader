@@ -1,3 +1,5 @@
+import { getSenseConfig } from "../config/senses";
+
 const EXECUTION_REASON_MAPPINGS: Array<[string, string]> = [
   ["live exchange credential 尚未驗證", "交易所憑證尚未驗證。"],
   ["order ack lifecycle 尚未驗證", "委託確認流程尚未驗證。"],
@@ -105,6 +107,16 @@ const Q15_COMPONENT_EXPERIMENT_VERDICT_LABEL_MAPPINGS: Array<[string, string]> =
   ["not_applicable", "目前不適用"],
 ];
 
+const FEATURE_KEY_ALIAS_MAPPINGS: Record<string, string> = {
+  "4h_dist_swing_low": "4h_dist_sl",
+};
+
+const FEATURE_KEY_LABEL_OVERRIDES: Record<string, { name: string; shortLabel: string }> = {
+  local_bottom_score: { name: "局部底部分數", shortLabel: "局部底部" },
+  local_top_score: { name: "局部頂部分數", shortLabel: "局部頂部" },
+  "4h_dist_swing_high": { name: "4H 壓力距離", shortLabel: "4H壓力" },
+};
+
 const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["top-level live baseline", "頂層 live 基準"],
   ["component-experiment readiness", "元件實驗就緒"],
@@ -118,7 +130,7 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["exact_live_bucket_proxy_available", "已有精準 bucket proxy"],
   ["exact_live_lane_proxy_available", "已有精準路徑 proxy"],
   ["current_structure_quality", "目前結構分數"],
-  ["component scoring", "component 評分"],
+  ["component scoring", "元件評分"],
   ["boundary tweak", "邊界微調"],
   ["toxic sub-bucket", "毒性子 bucket"],
   ["hold-only", "僅觀察"],
@@ -129,6 +141,7 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["feat_4h_bias50_formula", "4H bias50 公式"],
   ["signal_banner", "訊號橫幅"],
   ["spot-long", "現貨多單"],
+  ["label_imbalance", "標籤失衡"],
   ["constant_target", "目標值固定"],
   ["regime_shift", "市場狀態切換"],
   ["regime_concentration", "市場狀態過度集中"],
@@ -263,7 +276,7 @@ const Q15_BUCKET_ROOT_CAUSE_LABEL_MAPPINGS: Array<[string, string]> = [
 const Q15_BUCKET_ROOT_CAUSE_ACTION_MAPPINGS: Array<[string, string]> = [
   ["deployment_blocker_verification", "回到 blocker 驗證"],
   ["support_accumulation", "等待 support 累積"],
-  ["structure_component_scoring", "結構 component 校準"],
+  ["structure_component_scoring", "結構元件校準"],
   ["live_row_projection", "修 4H 投影"],
   ["scope_generation", "補 exact lane scope"],
   ["bucket_boundary_review", "邊界複核"],
@@ -401,6 +414,23 @@ function applyOperatorPhraseReplacements(value: string): string {
     output = output.replace(new RegExp(escapeRegExp(token), "gi"), label);
   }
   return output.replace(/\s{2,}/g, " ").trim();
+}
+
+export function humanizeFeatureKey(
+  value?: string | null,
+  options: { preferShortLabel?: boolean } = {},
+): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "—";
+
+  const canonicalKey = normalized.replace(/^feat_/i, "");
+  const override = FEATURE_KEY_LABEL_OVERRIDES[canonicalKey];
+  if (override) return options.preferShortLabel ? override.shortLabel : override.name;
+
+  const lookupKey = FEATURE_KEY_ALIAS_MAPPINGS[canonicalKey] || canonicalKey;
+  const sense = getSenseConfig(lookupKey);
+  const preferredLabel = options.preferShortLabel ? sense.shortLabel || sense.name : sense.name || sense.shortLabel;
+  return preferredLabel || applyOperatorPhraseReplacements(normalized.replace(/^feat_/i, "").replace(/_/g, " ").trim());
 }
 
 export function humanizeLifecycleDiagnosticLabel(value?: string | null): string {
@@ -585,6 +615,8 @@ export function humanizeRuntimeDetailText(value?: string | null): string {
     }
   }
 
+  output = output.replace(/\bfeat_[a-z0-9_]+\b/gi, (token) => humanizeFeatureKey(token));
+
   return applyOperatorPhraseReplacements(output
     .split("recommended_patch=").join("建議 patch ")
     .split("exact-vs-spillover=").join("精準路徑 / 外溢對照：")
@@ -604,13 +636,13 @@ export function humanizeRuntimeDetailText(value?: string | null): string {
     .split("private balance").join("私有餘額")
     .split("runtime closure").join("部署閉環")
     .split("runtime closure summary").join("部署閉環摘要")
-    .split("rows=").join("樣本=")
-    .split("win_rate=").join("勝率=")
-    .split("quality=").join("品質=")
-    .split("avg_pnl=").join("平均損益=")
-    .split("regime=").join("市場狀態=")
-    .split("gate=").join("閘門=")
-    .split("bucket=").join("當前 bucket=")
+    .split("rows=").join("樣本：")
+    .split("win_rate=").join("勝率：")
+    .split("quality=").join("品質：")
+    .split("avg_pnl=").join("平均損益：")
+    .split("regime=").join("市場狀態：")
+    .split("gate=").join("閘門：")
+    .split("bucket=").join("當前 bucket：")
     .split("blocks trade").join("阻擋交易")
     .replace(/\bWR\b/g, "勝率")
     .replace(/\bPnL\b/g, "損益")

@@ -1,4 +1,4 @@
-import { humanizeRecentDriftInterpretation, humanizeRuntimeDetailText } from "../utils/runtimeCopy";
+import { humanizeFeatureKey, humanizeRecentDriftInterpretation, humanizeRuntimeDetailText } from "../utils/runtimeCopy";
 
 type DriftFeatureShift = {
   feature?: string | null;
@@ -148,7 +148,8 @@ function renderWindowSummary(
   const topShiftFeatures = (Array.isArray(reference?.top_mean_shift_features) ? reference?.top_mean_shift_features : [])
     .map((item) => item?.feature)
     .filter((value): value is string => Boolean(value))
-    .slice(0, 3);
+    .slice(0, 3)
+    .map((value) => humanizeFeatureKey(value, { preferShortLabel: true }));
   const adverseStreak = targetPath?.longest_zero_target_streak ?? targetPath?.longest_one_target_streak ?? null;
   const toneClass = emphasize
     ? "border-amber-400/25 bg-amber-500/8"
