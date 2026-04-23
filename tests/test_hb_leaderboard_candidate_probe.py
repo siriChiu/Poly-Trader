@@ -157,6 +157,62 @@ def test_summarize_support_progress_detects_stalled_exact_support(tmp_path):
     assert progress["history"][0]["heartbeat"] == "fast"
 
 
+
+def test_summarize_support_progress_keeps_regression_visible_until_exact_support_recovers(tmp_path):
+    (tmp_path / "heartbeat_720_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "720",
+                "timestamp": "2026-04-23T04:31:17+00:00",
+                "leaderboard_candidate_diagnostics": {
+                    "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "live_current_structure_bucket_rows": 77,
+                    "minimum_support_rows": 50,
+                    "support_governance_route": "exact_live_bucket_supported",
+                    "governance_contract": {"verdict": "dual_role_governance_active"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "heartbeat_721_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "721",
+                "timestamp": "2026-04-23T08:35:32+00:00",
+                "leaderboard_candidate_diagnostics": {
+                    "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "live_current_structure_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "support_governance_route": "exact_live_bucket_proxy_available",
+                    "governance_contract": {"verdict": "dual_role_governance_active"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    progress = hb_leaderboard_candidate_probe._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q35",
+        current_route="exact_live_bucket_proxy_available",
+        live_bucket_rows=0,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "regressed_under_minimum"
+    assert progress["previous_rows"] == 0
+    assert progress["delta_vs_previous"] == 0
+    assert progress["regressed_from_supported"] is True
+    assert progress["recent_supported_rows"] == 77
+    assert progress["recent_supported_heartbeat"] == "720"
+    assert progress["delta_vs_recent_supported"] == -77
+    assert progress["escalate_to_blocker"] is True
+    assert "曾達 minimum support" in progress["reason"]
+
+
+
 def test_summarize_support_progress_reuses_previous_fast_summary(tmp_path):
     (tmp_path / "heartbeat_fast_summary.json").write_text(
         json.dumps(

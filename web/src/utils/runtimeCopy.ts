@@ -80,6 +80,16 @@ const SUPPORT_PROGRESS_STATUS_LABEL_MAPPINGS: Array<[string, string]> = [
   ["unsupported", "尚未建立"],
 ];
 
+type SupportProgressLike = {
+  status?: string | null;
+  current_rows?: number | null;
+  delta_vs_previous?: number | null;
+  regressed_from_supported?: boolean | null;
+  recent_supported_rows?: number | null;
+  recent_supported_heartbeat?: string | null;
+  delta_vs_recent_supported?: number | null;
+};
+
 const EXECUTION_MODE_LABEL_MAPPINGS: Array<[string, string]> = [
   ["paper", "模擬倉"],
   ["dry_run", "模擬委託"],
@@ -562,6 +572,56 @@ export function humanizeSupportProgressStatusLabel(value?: string | null): strin
     if (lower.includes(token)) return label;
   }
   return applyOperatorPhraseReplacements(normalized.replace(/[_|]+/g, " ").trim());
+}
+
+function normalizeSupportProgressCount(value?: number | null): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null;
+}
+
+function formatSupportProgressDelta(value: number): string {
+  return `${value > 0 ? "+" : ""}${value}`;
+}
+
+export function humanizeSupportProgressDeltaLabel(progress?: SupportProgressLike | null): string {
+  const normalized = progress ?? null;
+  if (!normalized) return "—";
+
+  const status = String(normalized.status || "").trim().toLowerCase();
+  const currentRows = normalizeSupportProgressCount(normalized.current_rows);
+  const deltaVsPrevious = normalizeSupportProgressCount(normalized.delta_vs_previous);
+  const recentSupportedRows = normalizeSupportProgressCount(normalized.recent_supported_rows);
+  const deltaVsRecentSupported = normalizeSupportProgressCount(normalized.delta_vs_recent_supported);
+  const regressedFromSupported = Boolean(normalized.regressed_from_supported) || status === "regressed_under_minimum";
+
+  // Regressions should be measured relative to the latest supported cohort,
+  // not the immediately previous stagnant heartbeat.
+  if (regressedFromSupported && deltaVsRecentSupported !== null) {
+    if (recentSupportedRows !== null && currentRows !== null) {
+      return `相對最近已就緒 ${formatSupportProgressDelta(deltaVsRecentSupported)}（${recentSupportedRows} → ${currentRows}）`;
+    }
+    return `相對最近已就緒 ${formatSupportProgressDelta(deltaVsRecentSupported)}`;
+  }
+
+  if (deltaVsPrevious !== null) {
+    return formatSupportProgressDelta(deltaVsPrevious);
+  }
+
+  return "—";
+}
+
+export function humanizeSupportProgressReferenceLabel(progress?: SupportProgressLike | null): string {
+  const normalized = progress ?? null;
+  if (!normalized) return "—";
+
+  const status = String(normalized.status || "").trim().toLowerCase();
+  const regressedFromSupported = Boolean(normalized.regressed_from_supported) || status === "regressed_under_minimum";
+  const recentSupportedRows = normalizeSupportProgressCount(normalized.recent_supported_rows);
+  if (!regressedFromSupported || recentSupportedRows === null) return "—";
+
+  const recentSupportedHeartbeat = String(normalized.recent_supported_heartbeat || "").trim();
+  return recentSupportedHeartbeat
+    ? `#${recentSupportedHeartbeat} · ${recentSupportedRows} 筆`
+    : `${recentSupportedRows} 筆`;
 }
 
 export function humanizeExecutionModeLabel(value?: string | null): string {

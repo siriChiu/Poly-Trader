@@ -13,6 +13,8 @@ import {
   humanizeQ15FloorCrossVerdictLabel,
   humanizeRuntimeDetailText,
   humanizeStructureBucketLabel,
+  humanizeSupportProgressDeltaLabel,
+  humanizeSupportProgressReferenceLabel,
   humanizeSupportProgressStatusLabel,
 } from "../utils/runtimeCopy";
 
@@ -61,6 +63,10 @@ interface Props {
     minimum_support_rows?: number | null;
     gap_to_minimum?: number | null;
     delta_vs_previous?: number | null;
+    regressed_from_supported?: boolean | null;
+    recent_supported_rows?: number | null;
+    recent_supported_heartbeat?: string | null;
+    delta_vs_recent_supported?: number | null;
   } | null;
   minimumSupportRows?: number | null;
   currentLiveStructureBucketGapToMinimum?: number | null;
@@ -175,7 +181,8 @@ export default function ConfidenceIndicator({
   const supportGap = typeof supportProgress?.gap_to_minimum === "number"
     ? supportProgress.gap_to_minimum
     : (typeof currentLiveStructureBucketGapToMinimum === "number" ? currentLiveStructureBucketGapToMinimum : null);
-  const supportDelta = typeof supportProgress?.delta_vs_previous === "number" ? supportProgress.delta_vs_previous : null;
+  const supportDeltaLabel = humanizeSupportProgressDeltaLabel(supportProgress);
+  const supportReferenceLabel = humanizeSupportProgressReferenceLabel(supportProgress);
   const q15PatchExecutionBlocked = Boolean(
     q15ExactSupportedComponentPatchApplied
     && (deploymentBlocker || (typeof allowedLayers === "number" && allowedLayers <= 0))
@@ -369,8 +376,8 @@ export default function ConfidenceIndicator({
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">樣本變化</div>
-                  <div className="mt-1 font-medium text-white">{supportDelta ?? "—"}</div>
-                  <div className="mt-1 text-slate-400">下一輪應持續確認樣本是否繼續累積。</div>
+                  <div className="mt-1 font-medium text-white">{supportDeltaLabel}</div>
+                  <div className="mt-1 text-slate-400">{supportReferenceLabel === "—" ? "下一輪應持續確認樣本是否繼續累積。" : `最近已就緒 ${supportReferenceLabel}`}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">

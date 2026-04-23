@@ -745,6 +745,75 @@ def test_execution_status_humanizes_readiness_scope_with_shared_runtime_copy():
     assert 'scope ${executionSurfaceContract?.readiness_scope || "runtime_governance_visibility_only"}' not in status_source
 
 
+def test_support_regression_visibility_surfaces_show_last_supported_reference():
+    runtime_copy_source = _read("utils/runtimeCopy.ts")
+    status_source = _read("pages/ExecutionStatus.tsx")
+    console_source = _read("pages/ExecutionConsole.tsx")
+    lab_source = _read("pages/StrategyLab.tsx")
+    confidence_source = _read("components/ConfidenceIndicator.tsx")
+
+    runtime_copy_snippets = [
+        'export function humanizeSupportProgressDeltaLabel(',
+        'export function humanizeSupportProgressReferenceLabel(',
+        'relative to the latest supported cohort',
+        '最近已就緒',
+    ]
+    for snippet in runtime_copy_snippets:
+        assert snippet in runtime_copy_source
+
+    status_snippets = [
+        'humanizeSupportProgressDeltaLabel',
+        'humanizeSupportProgressReferenceLabel',
+        'const supportDeltaLabel = runtimeStatusPending',
+        'humanizeSupportProgressDeltaLabel(liveRuntimeTruth?.support_progress || null)',
+        'const supportReferenceLabel = runtimeStatusPending',
+        'humanizeSupportProgressReferenceLabel(liveRuntimeTruth?.support_progress || null)',
+        '樣本變化 {supportDeltaLabel}',
+        '最近已就緒 {supportReferenceLabel}',
+    ]
+    for snippet in status_snippets:
+        assert snippet in status_source
+
+    console_snippets = [
+        'humanizeSupportProgressDeltaLabel',
+        'humanizeSupportProgressReferenceLabel',
+        'const supportDeltaLabel = runtimeStatusPending',
+        'humanizeSupportProgressDeltaLabel(liveRuntimeTruth?.support_progress || null)',
+        'const supportReferenceLabel = runtimeStatusPending',
+        'humanizeSupportProgressReferenceLabel(liveRuntimeTruth?.support_progress || null)',
+        '樣本變化 {supportDeltaLabel}',
+        '最近已就緒 {supportReferenceLabel}',
+    ]
+    for snippet in console_snippets:
+        assert snippet in console_source
+
+    lab_snippets = [
+        'humanizeSupportProgressDeltaLabel',
+        'humanizeSupportProgressReferenceLabel',
+        'const liveSupportDeltaLabel = liveExecutionSyncPending',
+        'humanizeSupportProgressDeltaLabel(liveDecisionStatus?.support_progress ?? liveRuntimeTruth?.support_progress ?? null)',
+        'const liveSupportReferenceLabel = liveExecutionSyncPending',
+        'humanizeSupportProgressReferenceLabel(liveDecisionStatus?.support_progress ?? liveRuntimeTruth?.support_progress ?? null)',
+        'const liveSupportStatusSummaryLabel = liveExecutionSyncPending',
+        'const liveSupportReferenceSummaryLabel = liveExecutionSyncPending',
+        '支持狀態 ${liveSupportStatusLabel} · 樣本變化 ${liveSupportDeltaLabel}`;',
+        '最近已就緒 ${liveSupportReferenceLabel}`;',
+    ]
+    for snippet in lab_snippets:
+        assert snippet in lab_source
+
+    confidence_snippets = [
+        'humanizeSupportProgressDeltaLabel',
+        'humanizeSupportProgressReferenceLabel',
+        'const supportDeltaLabel = humanizeSupportProgressDeltaLabel(supportProgress);',
+        'const supportReferenceLabel = humanizeSupportProgressReferenceLabel(supportProgress);',
+        '樣本變化',
+        '{supportReferenceLabel}',
+    ]
+    for snippet in confidence_snippets:
+        assert snippet in confidence_source
+
+
 def test_dashboard_advice_card_downgrades_trade_ctas_until_runtime_is_ready():
     dashboard_source = _read("pages/Dashboard.tsx")
     advice_source = _read("components/AdviceCard.tsx")

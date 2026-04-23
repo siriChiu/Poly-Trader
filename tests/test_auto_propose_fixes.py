@@ -2231,6 +2231,114 @@ def test_sync_current_state_governance_issues_refreshes_canonical_q15_and_patch_
     assert legacy_patch_issue["status"] == "resolved"
 
 
+
+def test_sync_current_state_governance_issues_marks_persistent_q15_support_regression():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "selected_feature_profile": "core_only",
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "verdict": "dual_role_governance_active",
+                    "production_profile": "core_plus_macro_plus_all_4h",
+                    "support_governance_route": "exact_live_bucket_proxy_available",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 0,
+                    "support_progress": {
+                        "status": "regressed_under_minimum",
+                        "current_rows": 0,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 50,
+                        "delta_vs_previous": 0,
+                        "previous_rows": 0,
+                        "regressed_from_supported": True,
+                        "recent_supported_rows": 199,
+                        "recent_supported_heartbeat": "20260423i",
+                        "delta_vs_recent_supported": -199,
+                        "history": [
+                            {
+                                "heartbeat": "current",
+                                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                                "live_current_structure_bucket_rows": 0,
+                            },
+                            {
+                                "heartbeat": "20260423m",
+                                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                                "live_current_structure_bucket_rows": 0,
+                            },
+                            {
+                                "heartbeat": "20260423i",
+                                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                                "live_current_structure_bucket_rows": 199,
+                            },
+                        ],
+                    },
+                },
+            }
+        },
+        {
+            "signal": "HOLD",
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "runtime_closure_state": "patch_inactive_or_blocked",
+            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "allowed_layers_reason": "unsupported_exact_live_structure_bucket_blocks_trade",
+            "decision_quality_scope_pathology_summary": {
+                "recommended_patch": {
+                    "recommended_profile": "core_plus_macro_plus_all_4h",
+                    "status": "reference_only_non_current_live_scope",
+                    "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+                    "reference_patch_scope": "bull|CAUTION",
+                    "reference_source": "live_scope_spillover",
+                }
+            },
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    q15_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q15_exact_support_stalled_under_breaker")
+    assert "regressed" in q15_issue["title"]
+    assert q15_issue["summary"]["support_progress_status"] == "regressed_under_minimum"
+    assert q15_issue["summary"]["recent_supported_rows"] == 199
+    assert q15_issue["summary"]["delta_vs_recent_supported"] == -199
+    assert "regression" in q15_issue["action"] or "回落" in q15_issue["action"]
+
+
+
 def test_sync_current_state_governance_issues_prefers_live_support_route_and_refreshes_breaker_context():
     class DummyTracker:
         def __init__(self):

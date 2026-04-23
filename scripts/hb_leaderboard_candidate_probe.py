@@ -436,9 +436,46 @@ def _summarize_support_progress(
             break
 
     minimum = int(minimum_support_rows or 0)
+    recent_supported = next(
+        (
+            item
+            for item in relevant[1:]
+            if int(item.get("live_current_structure_bucket_rows") or 0) >= minimum
+            or item.get("support_governance_route") == "exact_live_bucket_supported"
+        ),
+        None,
+    )
+    recent_supported_rows = None if recent_supported is None else int(recent_supported.get("live_current_structure_bucket_rows") or 0)
+    delta_vs_recent_supported = (
+        None if recent_supported_rows is None else current_rows - recent_supported_rows
+    )
+    regressed_from_supported = recent_supported is not None and current_rows < minimum
+
     if current_route == "exact_live_bucket_supported" or current_rows >= minimum:
         status = "exact_supported"
         reason = "current live exact bucket 已達 minimum support，治理焦點可轉向 post-threshold leaderboard sync。"
+    elif regressed_from_supported:
+        status = "regressed_under_minimum"
+        supported_ref = f"{recent_supported_rows}/{minimum}"
+        heartbeat_ref = recent_supported.get("heartbeat") if isinstance(recent_supported, dict) else None
+        if delta_vs_previous is not None and delta_vs_previous > 0:
+            reason = (
+                "current live exact support 最近曾達 minimum support"
+                f"（最近一次 {supported_ref}{f'，heartbeat {heartbeat_ref}' if heartbeat_ref else ''}），"
+                "目前雖較上一輪回補，但仍低於門檻。"
+            )
+        elif delta_vs_previous == 0:
+            reason = (
+                "current live exact support 最近曾達 minimum support"
+                f"（最近一次 {supported_ref}{f'，heartbeat {heartbeat_ref}' if heartbeat_ref else ''}），"
+                f"但目前仍停在 {current_rows}/{minimum}；這不是一般停滯，而是 support regression。"
+            )
+        else:
+            reason = (
+                f"current live exact support 自最近一次已就緒 {supported_ref}"
+                f"{f'（heartbeat {heartbeat_ref}）' if heartbeat_ref else ''} 回落，"
+                "需檢查 lane/bucket 是否切換或 support artifact 是否退化。"
+            )
     elif previous is None:
         status = "no_recent_comparable_history"
         reason = "目前找不到同一 current live structure bucket 的最近 heartbeat 可比對；先持續累積 support。"
@@ -464,9 +501,14 @@ def _summarize_support_progress(
         "previous_rows": None if previous is None else int(previous.get("live_current_structure_bucket_rows") or 0),
         "previous_route_changed": previous_route_changed,
         "previous_support_governance_route": None if previous is None else previous.get("support_governance_route"),
+        "regressed_from_supported": regressed_from_supported,
+        "recent_supported_rows": recent_supported_rows,
+        "recent_supported_heartbeat": None if recent_supported is None else recent_supported.get("heartbeat"),
+        "recent_supported_timestamp": None if recent_supported is None else recent_supported.get("timestamp"),
+        "delta_vs_recent_supported": delta_vs_recent_supported,
         "stagnant_run_count": stagnant_run_count,
         "stalled_support_accumulation": status == "stalled_under_minimum",
-        "escalate_to_blocker": status == "stalled_under_minimum" and stagnant_run_count >= 3,
+        "escalate_to_blocker": status == "regressed_under_minimum" or (status == "stalled_under_minimum" and stagnant_run_count >= 3),
         "history": relevant,
     }
 

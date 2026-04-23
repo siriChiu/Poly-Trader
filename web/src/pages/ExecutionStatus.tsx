@@ -14,6 +14,8 @@ import {
   humanizeRuntimeDetailText,
   humanizeStructureBucketLabel,
   humanizeSupportGovernanceRouteLabel,
+  humanizeSupportProgressDeltaLabel,
+  humanizeSupportProgressReferenceLabel,
   humanizeSupportProgressStatusLabel,
   humanizeSupportRouteLabel,
   isExecutionReconciliationLimitedEvidence,
@@ -84,6 +86,10 @@ type LiveRuntimeTruth = {
     minimum_support_rows?: number | null;
     gap_to_minimum?: number | null;
     delta_vs_previous?: number | null;
+    regressed_from_supported?: boolean | null;
+    recent_supported_rows?: number | null;
+    recent_supported_heartbeat?: string | null;
+    delta_vs_recent_supported?: number | null;
   } | null;
   runtime_exact_support_rows?: number | null;
   calibration_exact_lane_rows?: number | null;
@@ -539,9 +545,10 @@ export default function ExecutionStatus() {
     : humanizeSupportProgressStatusLabel(liveRuntimeTruth?.support_progress?.status || null);
   const supportDeltaLabel = runtimeStatusPending
     ? "同步中"
-    : (typeof liveRuntimeTruth?.support_progress?.delta_vs_previous === "number"
-      ? `${liveRuntimeTruth.support_progress.delta_vs_previous > 0 ? "+" : ""}${formatNumber(liveRuntimeTruth.support_progress.delta_vs_previous, 0)}`
-      : "—");
+    : humanizeSupportProgressDeltaLabel(liveRuntimeTruth?.support_progress || null);
+  const supportReferenceLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeSupportProgressReferenceLabel(liveRuntimeTruth?.support_progress || null);
   const supportRouteVerdictLabel = runtimeStatusPending
     ? "同步中"
     : humanizeSupportRouteLabel(liveRuntimeTruth?.support_route_verdict || null);
@@ -749,6 +756,7 @@ export default function ExecutionStatus() {
                 <div className="mt-2 text-slate-400">支持樣本 {supportRowsLabel}</div>
                 <div className="text-slate-400">支持狀態 {supportProgressStatusLabel}</div>
                 <div className="text-slate-400">樣本變化 {supportDeltaLabel}</div>
+                <div className="text-slate-400">最近已就緒 {supportReferenceLabel}</div>
                 <div className="text-slate-400">支持路徑 {supportRouteVerdictLabel}</div>
                 <div className="text-slate-400">治理路徑 {supportGovernanceRouteLabel}</div>
                 <div className="text-slate-400">{supportAlignmentCountsLabel}</div>

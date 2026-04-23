@@ -51,6 +51,70 @@ def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
 
 
 
+def test_summarize_support_progress_keeps_regression_visible_until_q15_support_recovers(tmp_path):
+    (tmp_path / "heartbeat_920_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "920",
+                "timestamp": "2026-04-23T04:31:17+00:00",
+                "q15_support_audit": {
+                    "current_live": {
+                        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                        "current_live_structure_bucket_rows": 199,
+                    },
+                    "support_route": {
+                        "verdict": "exact_bucket_supported",
+                        "support_governance_route": "exact_live_bucket_supported",
+                        "minimum_support_rows": 50,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "heartbeat_921_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "921",
+                "timestamp": "2026-04-23T08:35:32+00:00",
+                "q15_support_audit": {
+                    "current_live": {
+                        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                        "current_live_structure_bucket_rows": 0,
+                    },
+                    "support_route": {
+                        "verdict": "exact_bucket_missing_proxy_reference_only",
+                        "support_governance_route": "exact_live_bucket_proxy_available",
+                        "minimum_support_rows": 50,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    progress = q15_support_audit._summarize_support_progress(
+        current_bucket="BLOCK|bull_q15_bias50_overextended_block|q15",
+        support_route_verdict="exact_bucket_missing_proxy_reference_only",
+        support_governance_route="exact_live_bucket_proxy_available",
+        live_bucket_rows=0,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "regressed_under_minimum"
+    assert progress["previous_rows"] == 0
+    assert progress["delta_vs_previous"] == 0
+    assert progress["regressed_from_supported"] is True
+    assert progress["recent_supported_rows"] == 199
+    assert progress["recent_supported_heartbeat"] == "920"
+    assert progress["delta_vs_recent_supported"] == -199
+    assert progress["escalate_to_blocker"] is True
+    assert "曾達 minimum support" in progress["reason"]
+
+
+
 def test_summarize_support_progress_uses_current_live_copy_for_non_q15_bucket(tmp_path):
     for idx in range(2):
         (tmp_path / f"heartbeat_{910 + idx}_summary.json").write_text(
