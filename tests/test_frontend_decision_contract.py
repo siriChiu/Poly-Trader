@@ -384,6 +384,7 @@ def test_runtime_copy_and_execution_surfaces_use_humanized_chinese_operator_copy
         '["current live structure bucket", "當前 live 結構 bucket"]',
         '["exact live lane", "精準路徑"]',
         '["runtime truth", "執行期真相"]',
+        '["regressed_under_minimum", "精準樣本從已就緒回落到未達門檻"]',
     ]
     for snippet in required_runtime_copy_snippets:
         assert snippet in runtime_copy
@@ -537,6 +538,8 @@ def test_execution_surfaces_show_current_bucket_support_and_runtime_vs_calibrati
 
     shared_snippets = [
         'const supportRowsLabel = runtimeStatusPending',
+        'const supportProgressStatusLabel = runtimeStatusPending',
+        'const supportDeltaLabel = runtimeStatusPending',
         'const supportRouteVerdictLabel = runtimeStatusPending',
         'const supportGovernanceRouteLabel = runtimeStatusPending',
         'const supportAlignmentCountsLabel = runtimeStatusPending',
@@ -550,6 +553,8 @@ def test_execution_surfaces_show_current_bucket_support_and_runtime_vs_calibrati
 
     for snippet in [
         '支持樣本 {supportRowsLabel}',
+        '支持狀態 {supportProgressStatusLabel}',
+        '樣本變化 {supportDeltaLabel}',
         '支持路徑 {supportRouteVerdictLabel}',
         '治理路徑 {supportGovernanceRouteLabel}',
         '對齊 {supportAlignmentSummaryLabel}',
@@ -558,6 +563,8 @@ def test_execution_surfaces_show_current_bucket_support_and_runtime_vs_calibrati
 
     for snippet in [
         '>{supportRowsLabel}</div>',
+        '支持狀態 {supportProgressStatusLabel}',
+        '樣本變化 {supportDeltaLabel}',
         '支持路徑 {supportRouteVerdictLabel}',
         '治理路徑 {supportGovernanceRouteLabel}',
         '>{supportAlignmentSummaryLabel}</div>',
@@ -913,6 +920,7 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'const { data: liveDecisionStatus, loading: liveDecisionStatusLoading, error: liveDecisionStatusError } = useApi<StrategyLabLiveDecisionResponse>("/api/predict/confidence", 60000);',
         'humanizeSupportRouteLabel',
         'humanizeSupportGovernanceRouteLabel',
+        'humanizeSupportProgressStatusLabel',
         'humanizeRuntimeClosureStateLabel',
         'const executionReconciliation = runtimeStatus?.execution_reconciliation ?? null;',
         'const executionSurfaceContract = runtimeStatus?.execution_surface_contract ?? null;',
@@ -947,8 +955,11 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'humanizeSupportGovernanceRouteLabel(liveSupportGovernanceRoute)',
         'const liveSupportRowsLabel = liveExecutionSyncPending',
         'const liveSupportGapLabel = liveExecutionSyncPending',
+        'const liveSupportStatusLabel = liveExecutionSyncPending',
+        'const liveSupportDeltaLabel = liveExecutionSyncPending',
         'const liveSupportRouteSummaryLabel = liveExecutionSyncPending',
         '當前 bucket ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · 支持路徑 ${liveSupportRouteVerdictLabel} · 治理路徑 ${liveSupportGovernanceRouteLabel}`;',
+        '支持狀態 ${liveSupportStatusLabel} · 樣本變化 ${liveSupportDeltaLabel}`;',
         'const liveRouting = liveRuntimeTruth?.sleeve_routing ?? null;',
         'const liveActiveSleeves = Array.isArray(liveRouting?.active_sleeves) ? liveRouting.active_sleeves : [];',
         'const liveInactiveSleeves = Array.isArray(liveRouting?.inactive_sleeves) ? liveRouting.inactive_sleeves : [];',

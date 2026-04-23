@@ -69,6 +69,7 @@ const RUNTIME_CLOSURE_STATE_LABEL_MAPPINGS: Array<[string, string]> = [
 
 const SUPPORT_PROGRESS_STATUS_LABEL_MAPPINGS: Array<[string, string]> = [
   ["exact_supported", "精準樣本已就緒"],
+  ["regressed_under_minimum", "精準樣本從已就緒回落到未達門檻"],
   ["stalled_under_minimum", "最小門檻尚未達標"],
   ["deployable", "已達可部署條件"],
   ["ready", "已就緒"],

@@ -28,6 +28,7 @@ import {
   humanizeRuntimeDetailText,
   humanizeStructureBucketLabel,
   humanizeSupportGovernanceRouteLabel,
+  humanizeSupportProgressStatusLabel,
   humanizeSupportRouteLabel,
   isExecutionReconciliationLimitedEvidence,
   humanizeQ15BucketRootCauseAction,
@@ -296,9 +297,11 @@ interface StrategyLabRuntimeStatusResponse {
       support_route_verdict?: string | null;
       support_governance_route?: string | null;
       support_progress?: {
+        status?: string | null;
         current_rows?: number | null;
         minimum_support_rows?: number | null;
         gap_to_minimum?: number | null;
+        delta_vs_previous?: number | null;
       } | null;
       q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
       current_bucket_root_cause?: Q15BucketRootCauseSummary | null;
@@ -2555,6 +2558,18 @@ export default function StrategyLab() {
   const liveSupportGapLabel = liveExecutionSyncPending
     ? "同步中"
     : (isFiniteNumber(liveSupportGap) ? formatDecimal(liveSupportGap, 0) : "—");
+  const liveSupportStatusLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeSupportProgressStatusLabel(
+      liveDecisionStatus?.support_progress?.status
+      ?? liveRuntimeTruth?.support_progress?.status
+      ?? null,
+    );
+  const liveSupportDeltaLabel = liveExecutionSyncPending
+    ? "同步中"
+    : (typeof (liveDecisionStatus?.support_progress?.delta_vs_previous ?? liveRuntimeTruth?.support_progress?.delta_vs_previous) === "number"
+      ? `${(liveDecisionStatus?.support_progress?.delta_vs_previous ?? liveRuntimeTruth?.support_progress?.delta_vs_previous ?? 0) > 0 ? "+" : ""}${formatDecimal(liveDecisionStatus?.support_progress?.delta_vs_previous ?? liveRuntimeTruth?.support_progress?.delta_vs_previous, 0)}`
+      : "—");
   const liveSupportRouteVerdictLabel = liveExecutionSyncPending
     ? "同步中"
     : humanizeSupportRouteLabel(liveSupportRouteVerdict);
@@ -2564,6 +2579,9 @@ export default function StrategyLab() {
   const liveSupportRouteSummaryLabel = liveExecutionSyncPending
     ? "當前 bucket 同步中 · gap 同步中 · 支持路徑 同步中 · 治理路徑 同步中"
     : `當前 bucket ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · 支持路徑 ${liveSupportRouteVerdictLabel} · 治理路徑 ${liveSupportGovernanceRouteLabel}`;
+  const liveSupportStatusSummaryLabel = liveExecutionSyncPending
+    ? "支持狀態 同步中 · 樣本變化 同步中"
+    : `支持狀態 ${liveSupportStatusLabel} · 樣本變化 ${liveSupportDeltaLabel}`;
   const runtimeClosureStateLabel = liveExecutionSyncPending
     ? "同步中"
     : humanizeRuntimeClosureStateLabel(
@@ -3018,6 +3036,7 @@ export default function StrategyLab() {
                   <div className="font-semibold">{liveDeployStatusLabel}</div>
                   <div className="opacity-70">目前阻塞點 {currentLiveBlockerLabel}</div>
                   <div className="mt-1 opacity-60">當前 bucket {liveSupportRowsLabel} · gap {liveSupportGapLabel}</div>
+                  <div className="mt-1 opacity-60">{liveSupportStatusSummaryLabel}</div>
                   <div className="mt-1 opacity-60">{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}</div>
                 </div>
               )}
@@ -3040,6 +3059,7 @@ export default function StrategyLab() {
                   <>
                     <div>{currentLiveBlockerSummaryLabel}</div>
                     <div className="opacity-70">{liveSupportRouteSummaryLabel}</div>
+                    <div className="opacity-70">{liveSupportStatusSummaryLabel}</div>
                   </>
                 )}
               />
