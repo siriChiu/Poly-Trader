@@ -2886,7 +2886,7 @@ export default function StrategyLab() {
                       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{group.label}</div>
                     </div>
                     {(() => {
-                      const moduleGridClassName = group.key === "core" ? "grid gap-3" : "grid gap-3 sm:grid-cols-2";
+                      const moduleGridClassName = "grid gap-3";
                       return (
                         <div className={moduleGridClassName}>
                           {group.modules.map((module) => {

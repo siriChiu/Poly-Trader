@@ -403,7 +403,7 @@ def test_strategy_lab_frontend_main_module_layout_is_single_column_and_clarifies
         '不是一鍵 all-in',
         '經典金字塔會按 25 / 25 / 50 逐層投入，三層都成交才會接近滿倉。',
         'Fib 23 / 38 / 39 也只是把加碼節奏改得更平滑，不是單筆滿倉。',
-        'const moduleGridClassName = group.key === "core" ? "grid gap-3" : "grid gap-3 sm:grid-cols-2";',
+        'const moduleGridClassName = "grid gap-3";',
         'lg:grid-cols-[420px,minmax(0,1fr)]',
         '2xl:grid-cols-[460px,minmax(0,1fr)]',
     ]
