@@ -176,7 +176,7 @@ Heartbeat #650 起，`web/src/components/ConfidenceIndicator.tsx` 與 `web/src/p
 - `decision_quality_label`
 - `decision_quality_sample_size`
 
-這組欄位由 `web/src/components/BacktestSummary.tsx` 與 `web/src/pages/Backtest.tsx` 共同顯示；其中 standalone Backtest trade log 也必須保留 `entry_timestamp / regime_gate / entry_quality_label / entry_quality / allowed_layers / reason`，讓 Dashboard 回測卡、獨立回測頁、live predictor 與 Strategy Lab 共用同一套 canonical decision-quality semantics，而不是首頁 live card 已升級、其他回測 surface 仍停留在 ROI-only。**Heartbeat #653 補充 contract**：app shell (`web/src/App.tsx`) 必須真的把 `/backtest` route 掛到 `Backtest` page 並在 nav 曝露入口；若 router 仍 redirect 到 `/lab`，即使 page/component 已完成也視為 contract 未落地。**Heartbeat #654 regression guard**：`tests/test_frontend_decision_contract.py` 必須固定驗證 `/backtest` nav/route 存在，且 Dashboard / Backtest / StrategyLab 仍保留 canonical decision-quality fields，避免 UI contract 再次只靠人工 smoke test 維持。**Heartbeat #694 補充 4H parity guard**：Strategy Lab / API strategy runner / benchmark path 不得再把 `bias50` 傳進 regime-gate 的 `bias200` 位置，也不得把 shared 4H collapse-pocket features 留在 probe 層而不進 entry-quality 計算；`tests/test_api_feature_history_and_predictor.py` 與 `tests/test_strategy_lab.py` 現在鎖住這個 parity。**Heartbeat 2026-04-19w 補充 strategy-result backfill contract**：若 Strategy Lab 仍在讀舊的 strategy `last_results`，但 trade log 已完整存在，`_decorate_strategy_entry()` 也必須即時計算並回填 `regime_gate_summary`，避免工作區卡片退回 `ALLOW / CAUTION / BLOCK = 0/0/0` 假空白。
+這組欄位現在由 `web/src/components/BacktestSummary.tsx`、Dashboard 回測摘要、Strategy Lab 詳情卡與 legacy `/api/backtest` compatibility lane 共同消費；**正式互動工作區已是 `/lab`**，`/backtest` 只保留 redirect，不再是獨立產品頁。trade log 仍必須保留 `entry_timestamp / regime_gate / entry_quality_label / entry_quality / allowed_layers / reason`，讓 Dashboard 回測卡、Strategy Lab 與 live predictor 共用同一套 canonical decision-quality semantics，而不是首頁 live card 已升級、其他回測 surface 仍停留在 ROI-only。`tests/test_frontend_decision_contract.py` 現在鎖的是 **`/backtest -> /lab` redirect 與 canonical decision-quality fields 仍可見**，避免文件還停在舊 Backtest page。**Heartbeat #694 補充 4H parity guard**：Strategy Lab / API strategy runner / benchmark path 不得再把 `bias50` 傳進 regime-gate 的 `bias200` 位置，也不得把 shared 4H collapse-pocket features 留在 probe 層而不進 entry-quality 計算；`tests/test_api_feature_history_and_predictor.py` 與 `tests/test_strategy_lab.py` 現在鎖住這個 parity。**Heartbeat 2026-04-19w 補充 strategy-result backfill contract**：若 Strategy Lab 仍在讀舊的 strategy `last_results`，但 trade log 已完整存在，`_decorate_strategy_entry()` 也必須即時計算並回填 `regime_gate_summary`，避免工作區卡片退回 `ALLOW / CAUTION / BLOCK = 0/0/0` 假空白。
 
 **Dashboard 4H structure panel contract（Heartbeat #656）**：`web/src/pages/Dashboard.tsx` 的 4H 結構卡不得再用手寫 `bias50 -> Layer 3 / 買入時機` 文案充當主決策。該卡現在只能把 4H raw 指標當作 `結構背景`，真正的進場語義必須直接引用 live predictor 的 `regime_gate + entry_quality + allowed_layers`；若 raw 4H context 與 canonical gate 衝突，UI 必須明示「以 decision-quality contract 為主」。這個 contract 也必須由 `tests/test_frontend_decision_contract.py` 固定鎖住，避免首頁再次出現兩套互相衝突的主決策文案。
 **Heartbeat 2026-04-19 Dashboard execution-summary contract**：首頁 `💼 Execution 摘要` 也不得把 venue readiness copy 放在 current-live blocker 之前。`Dashboard.tsx` 必須先顯示 `deployment_blocker / deployment_blocker_reason`（例如 `circuit_breaker_active` 與 release-math 原因），再分行顯示 `venue blockers`；即使 venue metadata 仍未驗證，也不能覆蓋 current-live blocker 真相。這個排序也必須由 `tests/test_frontend_decision_contract.py` 固定鎖住，避免 Dashboard 再把 breaker-first truth 稀釋成 venue 摘要。
@@ -238,6 +238,7 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 - model leaderboard 現在保留 `deployment_profile`，並用更接近 OOS 高信念部署的 lane 來評估模型，而不是把所有模型都硬塞進單一 entry 規則
 - **Heartbeat 2026-04-19 recent-two-year policy contract**：當使用者沒有明確指定回測區間時，Strategy Lab 與後端 `_resolve_default_strategy_backtest_range()` 必須共同把排行榜 / 載入候選的預設區間收斂到**最近兩年（730 天）**，並在 UI 直接顯示「排行榜回測固定使用最近兩年」。這條 contract 的目的，是把 operator 對 leaderboard 的閱讀基準講清楚：canonical ranking 要對齊最近可部署窗口，而不是任意短窗或不透明的全歷史混合區間。
 - **Heartbeat 2026-04-21 immutable auto-row rerun contract**：`Auto Leaderboard · ...` rows 屬於 system-generated leaderboard artifacts，必須在 strategy metadata 內明確標記 `source=auto_leaderboard / immutable=true / editable_clone_required=true`。operator 在 `/lab` 重新回測這些 rows 時，後端 `_execute_strategy_run()` 只能另存 `Manual Copy · ...`，不得覆蓋原始 auto row；只有 system refresh / rescan lane 才能透過 `allow_internal_overwrite=true` 回寫 auto rows。前端 editor 也必須直接暴露 `strategy_type + model_name` controls，並在只改圖表區間、尚未 rerun 時顯示 stale-result warning，避免 operator 把舊 ROI / Trades 誤讀成最新回測結果。
+- **Heartbeat 2026-04-24 saved-module fidelity contract**：`/lab` 重新載入已儲存策略時，不得只還原通用欄位而漏掉 module-specific params。像 `turning_point.bottom_score_min / top_score_take_profit / min_profit_pct` 這類閾值，前端必須在 `applyStrategyToForm()` 還原到 editor state、`inferModulesFromStrategy()` 也必須把 `turning_point.enabled` 正確回推成 active module，確保 operator 按下 rerun 時送出的 payload 與已儲存策略一致，而不是悄悄退回 `DEFAULT_PARAMS`。
 - **Heartbeat 2026-04-21 strategy-detail decoration parity contract**：`/api/strategies/{name}` 不得直接回傳 raw saved strategy JSON；它必須和 `/api/strategies/leaderboard` 一樣先經過 `_decorate_strategy_entry()`，確保 Strategy Lab 在載入已儲存/Auto Leaderboard 策略時仍保留 `overall_score / reliability_score / decision_contract / last_results.trades` 等 canonical DQ 摘要，而不是出現排行榜可信、工作區失真的 split-brain。這條 contract 由 `tests/test_strategy_lab.py::test_api_get_strategy_decorates_detail_payload` 與 browser `/lab` 選取 auto row 鎖住。
 - **Heartbeat 2026-04-21 same-origin strategy workspace contract**：在本地 dev/runtime 同時存在多條 backend lane（例如 `8000/8001`）時，`web/src/pages/StrategyLab.tsx` 對 `/api/strategies/leaderboard`、`/api/strategies/{name}`、`/api/strategy_data_range`、`/api/models/leaderboard`、`/api/model/stats` 的讀取都必須先走目前開啟頁面的 same-origin shell / Vite proxy，再 fallback 到 `fetchApi()` 的 direct backend failover；而且 same-origin fetch 前必須先 `prewarmActiveApiBase()`，把 `poly_trader.active_api_base` 拉回 current-head lane。目的不是繞過 failover，而是避免 `/lab` workspace 因 `poly_trader.active_api_base` 指到較舊 lane 而讀到 stale strategy detail / data-range / model leaderboard / model stats，造成排行榜、工作區與兩年預設視窗 split-brain。這條 contract 由 `tests/test_strategy_lab_uniqueness_contract.py`、`tests/test_frontend_decision_contract.py` 與 browser `/lab`（強制 `poly_trader.active_api_base=http://127.0.0.1:8001`）共同鎖住。
 - **Placeholder-only fallback contract（Heartbeat 2026-04-18）**：當 `/api/models/leaderboard` 回傳 `comparable_count=0` 但 `strategy_param_scan.best_strategy_candidates[]` 已存在時，Strategy Lab 不得只停在 generic no-trade placeholder。模型排行榜區塊必須直接顯示 fallback candidate cards（`name / model_name / ROI / win_rate / total_trades`）與 `載入候選` 動作，讓 operator 可以在 model leaderboard 尚未產生 comparable row 時，直接切回可交易的重掃策略工作區，而不是在 placeholder-only 空榜中卡住。
@@ -253,6 +254,8 @@ Heartbeat #642 起，leaderboard 不只「能讀到」 canonical labels 中的 `
 
 ### 7. Execution runtime surface
 Execution surface 現在採 **operations / diagnostics split**：`/execution` 承載 operator workflow（run control、manual trade、automation toggle、capital preview），`Dashboard` 保留 canonical diagnostics / guardrail / recovery proof chain，底層共同消費 `/api/status` 與 `/api/trade` contract。
+
+**Heartbeat 2026-04-24 `/api/trade` reject-surface contract**：operator-facing manual trade route 不得再把 venue / risk / guardrail reject 噴成 generic 500。當 `ExecutionService.submit_order()` 丟出 `ExecutionRejectError` 時，`server/routes/api.py::api_trade()` 必須轉成帶結構化 `detail={code,message,context}` 的 HTTP 409，讓 `/execution`、browser console 與未來 API trading attach 都能明確區分「策略/風控拒單」與「後端崩潰」。
 
 **Execution overview contract（Heartbeat 2026-04-18）**：`/api/execution/overview` 仍是 Execution Console 的 canonical planning surface，但它已不再停在純 preview 文案。它必須直接消費 `/api/status` 的 live runtime truth，再疊上 control-plane summary，並輸出：
 - `summary`：active / blocked / standby profile counts + `running_runs / paused_runs / stopped_runs / total_runs`
@@ -515,7 +518,7 @@ Poly-Trader/
 | `/api/senses/config` | GET/PUT | 特徵配置 |
 | `/api/recommendation` | GET | 交易建議 |
 | `/api/predict/confidence` | GET | 信心分層預測 |
-| `/api/backtest` | GET | 回測結果 |
+| `/api/backtest` | GET | legacy 回測 compatibility lane；正式互動工作區改走 `/api/strategies/*` |
 | `/api/model/stats` | GET | 模型統計 |
 | `/api/chart/klines` | GET | K 線數據 |
 | `/ws/live` | WS | 即時推送 |
@@ -562,6 +565,6 @@ Poly-Trader/
 | 端點 | 方法 | 說明 |
 |------|------|------|
 | `/api/predict/confidence` | GET | 綜合信心預測與校準後信號 |
-| `/api/backtest` | GET | 回測結果與 spot_long_win_rate（legacy sell_win_rate） |
+| `/api/backtest` | GET | legacy compatibility 回測端點；Strategy Lab 正式 run lane 為 `/api/strategies/run_async` + `/api/strategies/jobs/{job_id}` |
 | `/api/senses` | GET | 特徵分數 + 建議 |
 
