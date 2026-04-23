@@ -1,6 +1,6 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-24 01:16:48 CST_
+_最後更新：2026-04-24 01:22:45 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
@@ -26,6 +26,9 @@ _最後更新：2026-04-24 01:16:48 CST_
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環
+- **Strategy Lab same-origin workspace fetch 已補上 timeout + direct-backend failover**
+  - `web/src/pages/StrategyLab.tsx` 現在會先嘗試 same-origin `/api/*`，若 Vite proxy / shell route 卡住超過 `2.5s` 就 abort 並 fallback 到 active backend，不再讓工作區初始化被單一路徑卡死
+  - 驗證：`pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py tests/test_strategy_lab_uniqueness_contract.py -q`、`cd web && npm run build`、browser `/lab` 最終回到 `▶ 執行回測`
 
 ---
 

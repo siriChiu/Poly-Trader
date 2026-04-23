@@ -1,6 +1,6 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-24 01:16:48 CST_
+_最後更新：2026-04-24 01:22:45 CST_
 
 ---
 
@@ -15,6 +15,7 @@ _最後更新：2026-04-24 01:16:48 CST_
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
 - source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3549` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`。
+- 本輪產品化 patch：Strategy Lab same-origin `/api/*` fetch 新增 `2.5s` timeout + abort + direct-backend failover；實際 browser `/lab` 在 same-origin `2501-2502ms` timeout 後仍回到 `▶ 執行回測`，不再卡死初始化。
 
 ### R｜感受直覺
 - 這輪最需要防止的誤讀，是把 `0/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；breaker 仍是唯一 current-live blocker。
@@ -27,7 +28,7 @@ _最後更新：2026-04-24 01:16:48 CST_
 
 ### D｜決策行動
 - **Owner**：current-live runtime / governance lane
-- **Action**：維持 breaker-first truth，並把 q15 current-live bucket support 與 reference-only patch 持續顯示清楚；下一步沿 recent pathological slice 與 release math 繼續追根因。
+- **Action**：維持 breaker-first truth，並把 q15 current-live bucket support 與 reference-only patch 持續顯示清楚；同時保留 Strategy Lab same-origin failover，避免 operator workspace 因單一路徑掛住；下一步沿 recent pathological slice 與 release math 繼續追根因。
 - **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
 - **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。
 - **If fail**：只要 docs / UI 再次隱藏 breaker-first truth、漏掉 q15 current-live bucket rows，或把 reference-only patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。

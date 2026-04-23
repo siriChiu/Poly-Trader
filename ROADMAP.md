@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-24 01:16:48 CST_
+_最後更新：2026-04-24 01:22:45 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
@@ -18,6 +18,9 @@ _最後更新：2026-04-24 01:16:48 CST_
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
+- **Strategy Lab same-origin workspace fetch 已補上 timeout + direct-backend failover**
+  - `web/src/pages/StrategyLab.tsx` 現在先走 same-origin `/api/*`，若 proxy / shell route 卡住 `2.5s` 就會 abort 並 fallback 到 active backend，避免工作區初始化被單一路徑卡死
+  - 驗證：`pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py tests/test_strategy_lab_uniqueness_contract.py -q`、`cd web && npm run build`、browser `/lab` 最終回到 `▶ 執行回測`
 
 ---
 
