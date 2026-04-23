@@ -315,7 +315,7 @@ def test_build_report_prefers_probe_live_bucket_over_stale_bull_pocket_context()
     assert report["component_experiment"]["machine_read_answer"]["support_ready"] is False
 
 
-def test_resolve_current_live_context_prefers_nonzero_chosen_scope_rows_when_exact_scope_is_zero():
+def test_resolve_current_live_context_keeps_exact_scope_zero_rows_even_when_broader_scope_matches_bucket():
     probe = {
         "regime_label": "bull",
         "regime_gate": "CAUTION",
@@ -343,7 +343,7 @@ def test_resolve_current_live_context_prefers_nonzero_chosen_scope_rows_when_exa
     resolved = q15_support_audit._resolve_current_live_context(probe, drilldown, bull_pocket)
 
     assert resolved["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
-    assert resolved["current_live_structure_bucket_rows"] == 79
+    assert resolved["current_live_structure_bucket_rows"] == 0
 
 
 def test_build_report_prefers_explicit_probe_execution_guardrail_reason_over_stale_fallback():
@@ -528,7 +528,7 @@ def test_build_report_support_ready_exposes_component_experiment_machine_read_an
     assert report["component_experiment"]["positive_discrimination_evidence"]["comparisons"][0]["bucket"] == "CAUTION|structure_quality_caution|q35"
 
 
-def test_build_report_falls_back_to_chosen_scope_metrics_for_q15_positive_discrimination():
+def test_build_report_keeps_support_reference_only_while_reusing_chosen_scope_metrics_for_q15_positive_discrimination():
     probe = {
         "feature_timestamp": "2026-04-15 17:35:54",
         "target_col": "simulated_pyramid_win",
@@ -604,9 +604,9 @@ def test_build_report_falls_back_to_chosen_scope_metrics_for_q15_positive_discri
 
     report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
 
-    assert report["support_route"]["verdict"] == "exact_bucket_supported"
-    assert report["component_experiment"]["machine_read_answer"]["preserves_positive_discrimination"] is True
-    assert report["component_experiment"]["machine_read_answer"]["preserves_positive_discrimination_status"] == "verified_exact_lane_bucket_dominance"
+    assert report["support_route"]["verdict"] == "exact_bucket_missing_proxy_reference_only"
+    assert report["component_experiment"]["machine_read_answer"]["support_ready"] is False
+    assert report["component_experiment"]["machine_read_answer"]["preserves_positive_discrimination"] is None
     assert report["component_experiment"]["positive_discrimination_evidence"]["current_bucket_metrics"]["win_rate"] == 0.93
     assert report["component_experiment"]["positive_discrimination_evidence"]["comparisons"][0]["bucket"] == "CAUTION|structure_quality_caution|q35"
 

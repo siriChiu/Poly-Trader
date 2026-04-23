@@ -461,17 +461,27 @@ def _resolve_current_live_context(
     exact_rows = _as_int(exact_scope.get("current_live_structure_bucket_rows"), None)
     chosen_rows = _as_int(chosen_scope.get("current_live_structure_bucket_rows"), None)
     bull_rows = _as_int(bull_live.get("current_live_structure_bucket_rows"), 0)
+    probe_exact_diag = (probe.get("decision_quality_exact_live_lane_bucket_diagnostics") or {}) if isinstance(probe, dict) else {}
+    exact_diag = exact_scope.get("exact_lane_bucket_diagnostics") or {}
+    if not (exact_diag.get("buckets") or {}):
+        exact_diag = probe_exact_diag or drilldown.get("exact_live_lane_bucket_diagnostics") or {}
+    exact_bucket_metrics = ((exact_diag.get("buckets") or {}).get(current_bucket) or {}) if current_bucket else {}
+    exact_diag_rows = _as_int(exact_bucket_metrics.get("rows"), None)
+
     chosen_bucket = chosen_scope.get("current_live_structure_bucket")
-    if (
-        current_bucket
-        and chosen_bucket
-        and str(current_bucket) == str(chosen_bucket)
-        and exact_rows in (None, 0)
-        and chosen_rows not in (None, 0)
-    ):
-        current_bucket_rows = chosen_rows
+    # exact support must come from exact-scope rows or exact-lane bucket diagnostics.
+    # Keep an explicit 0 when the exact scope says there is no support yet; only fall
+    # back to broader chosen-scope rows when exact rows are genuinely missing.
+    if exact_rows not in (None, 0):
+        current_bucket_rows = exact_rows
+    elif exact_diag_rows not in (None, 0):
+        current_bucket_rows = exact_diag_rows
+    elif exact_rows is not None:
+        current_bucket_rows = exact_rows
+    elif current_bucket and chosen_bucket and str(current_bucket) == str(chosen_bucket):
+        current_bucket_rows = _as_int(chosen_rows, bull_rows)
     else:
-        current_bucket_rows = _as_int(exact_rows, _as_int(chosen_rows, bull_rows))
+        current_bucket_rows = _as_int(chosen_rows, bull_rows)
     if "execution_guardrail_reason" in probe:
         execution_guardrail_reason = probe.get("execution_guardrail_reason")
     else:

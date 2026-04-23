@@ -1,26 +1,23 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-23 16:47:18 CST_
+_最後更新：2026-04-23 17:23:08 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #20260423m 已完成 collect + diagnostics refresh**
-  - `Raw=32047 / Features=23465 / Labels=64204`
+- **fast heartbeat #fast 已完成 collect + diagnostics refresh**
+  - `Raw=32050 / Features=23468 / Labels=64206`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `latest_window=100` / `win_rate=91.0%` / `dominant_regime=bull(91.0%)` / `avg_quality=+0.5943` / `avg_pnl=+0.0175` / `alerts=label_imbalance,regime_concentration,regime_shift`
+  - `latest_window=100` / `win_rate=89.0%` / `dominant_regime=bull(91.0%)` / `avg_quality=+0.5792` / `avg_pnl=+0.0169` / `alerts=label_imbalance,regime_concentration,regime_shift`
   - `blocking_window=1000` / `win_rate=41.7%` / `dominant_regime=bull(80.4%)` / `avg_quality=+0.1189` / `avg_pnl=+0.0030` / `alerts=regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
-- **execution / lab runtime closure copy 已去除 raw governance-route token**
-  - `runtime_closure_summary` 經 `humanizeRuntimeDetailText(...)` 後，`exact_live_bucket_proxy_available` / `exact_live_lane_proxy_available` 會轉成 operator-facing 中文
-  - 驗證：browser `/execution`、`/execution/status`、`/lab` 的 raw token count 已歸零
 
 ---
 
@@ -36,7 +33,7 @@ _最後更新：2026-04-23 16:47:18 CST_
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=100` / `win_rate=91.0%` / `dominant_regime=bull(91.0%)` / `avg_quality=+0.5943` / `avg_pnl=+0.0175` / `alerts=label_imbalance,regime_concentration,regime_shift`
+- `latest_window=100` / `win_rate=89.0%` / `dominant_regime=bull(91.0%)` / `avg_quality=+0.5792` / `avg_pnl=+0.0169` / `alerts=label_imbalance,regime_concentration,regime_shift`
 - `blocking_window=1000` / `win_rate=41.7%` / `dominant_regime=bull(80.4%)` / `avg_quality=+0.1189` / `avg_pnl=+0.0030` / `alerts=regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
@@ -51,7 +48,7 @@ _最後更新：2026-04-23 16:47:18 CST_
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3517` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3520` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
