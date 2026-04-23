@@ -3,25 +3,25 @@
     {
       "id": "P0_current_live_deployment_blocker",
       "priority": "P0",
-      "title": "current live bucket BLOCK|bull_high_bias200_overheat_block|q35 exact support is missing and remains the deployment blocker (0/50)",
+      "title": "current live bucket BLOCK|bull_q15_bias50_overextended_block|q15 exact support is missing and remains the deployment blocker (0/50)",
       "action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "status": "open",
       "created_at": "2026-04-22T01:11:24.266567",
-      "updated_at": "2026-04-23T06:55:24.018629",
+      "updated_at": "2026-04-23T08:35:31.448010",
       "hb_detected": null,
       "next_action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "summary": {
         "deployment_blocker": "unsupported_exact_live_structure_bucket",
-        "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
         "current_live_structure_bucket_rows": 0,
         "minimum_support_rows": 50,
         "gap_to_minimum": 50,
-        "support_route_verdict": "exact_bucket_unsupported_block",
-        "support_governance_route": "no_support_proxy",
+        "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+        "support_governance_route": "exact_live_bucket_proxy_available",
         "runtime_closure_state": "patch_inactive_or_blocked",
         "recommended_patch": "core_plus_macro_plus_all_4h",
         "recommended_patch_status": "reference_only_non_current_live_scope",
-        "recommended_patch_support_route": "exact_bucket_unsupported_block",
+        "recommended_patch_support_route": "exact_bucket_missing_proxy_reference_only",
         "reference_patch_scope": "bull|CAUTION",
         "reference_source": "live_scope_spillover"
       }
@@ -67,7 +67,7 @@
       "action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
       "status": "open",
       "created_at": "2026-04-22T02:31:34.254061",
-      "updated_at": "2026-04-23T06:55:24.018622",
+      "updated_at": "2026-04-23T08:35:31.448004",
       "hb_detected": null,
       "next_action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
       "summary": {
@@ -78,8 +78,8 @@
         "exact_live_lane_rows": 0,
         "recommended_patch": "core_plus_macro_plus_all_4h",
         "recommended_patch_status": "reference_only_non_current_live_scope",
-        "support_route_verdict": "exact_bucket_unsupported_block",
-        "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+        "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
         "current_live_structure_bucket_rows": 0,
         "minimum_support_rows": 50,
         "gap_to_minimum": 50,
@@ -124,7 +124,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3510,
+        "forward_archive_rows": 3517,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -132,7 +132,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-23T06:55:24.976056",
+      "updated_at": "2026-04-23T08:35:32.404309",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -144,7 +144,7 @@
         "leaderboard_count": 6,
         "comparable_count": 6,
         "placeholder_count": 0,
-        "top_model": "rule_baseline",
+        "top_model": "random_forest",
         "top_profile": "core_only",
         "top_deployment_profile": "scan_backed_best",
         "governance_contract": "dual_role_governance_active",
@@ -158,29 +158,30 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-23T06:55:24.018644",
+      "updated_at": "2026-04-23T08:35:31.448025",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
-      "id": "P1_q35_scaling_no_deploy",
+      "id": "P1_q15_exact_support_stalled_under_breaker",
       "priority": "P1",
-      "title": "q35 lane still needs formula review / base-stack redesign before deploy",
-      "action": "把 q35 scaling audit 的 overall_verdict / redesign verdict / gap-to-floor 同步到 docs/probe/issues；在 exact support 未就緒、且 redesign 仍無正 discrimination floor-cross 之前，禁止把 bias50 單點 uplift 或結構 uplift 當成 closure。 即使做 support-aware / discriminative base-stack redesign，current row 仍無法跨過 trade floor；下一輪必須升級為 bull q35 no-deploy governance blocker，禁止再把結構 uplift、單點 bias50 或 base-stack 權重微調當成主 closure。",
+      "title": "q15 exact support remains under minimum under breaker (0/50)",
+      "action": "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible in probe/API/UI/docs even when circuit_breaker_active is the primary blocker.",
       "status": "open",
-      "created_at": "2026-04-23T06:55:24.018605",
-      "updated_at": "2026-04-23T06:55:24.018611",
+      "created_at": "2026-04-23T08:35:31.447969",
+      "updated_at": "2026-04-23T08:35:31.447989",
       "hb_detected": null,
-      "next_action": "把 q35 scaling audit 的 overall_verdict / redesign verdict / gap-to-floor 同步到 docs/probe/issues；在 exact support 未就緒、且 redesign 仍無正 discrimination floor-cross 之前，禁止把 bias50 單點 uplift 或結構 uplift 當成 closure。 即使做 support-aware / discriminative base-stack redesign，current row 仍無法跨過 trade floor；下一輪必須升級為 bull q35 no-deploy governance blocker，禁止再把結構 uplift、單點 bias50 或 base-stack 權重微調當成主 closure。",
+      "next_action": "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible in probe/API/UI/docs even when circuit_breaker_active is the primary blocker.",
       "summary": {
-        "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-        "current_live_structure_bucket_rows": 0,
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "live_current_structure_bucket_rows": 0,
         "minimum_support_rows": 50,
         "gap_to_minimum": 50,
-        "support_route_verdict": "exact_bucket_unsupported_block",
-        "overall_verdict": "bias50_formula_may_be_too_harsh",
-        "redesign_verdict": "base_stack_redesign_discriminative_reweight_still_below_floor",
-        "remaining_gap_to_floor": 0.1171,
-        "entry_quality": 0.4329
+        "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+        "support_governance_route": "exact_live_bucket_proxy_available",
+        "support_progress_status": "regressed_under_minimum",
+        "leaderboard_selected_profile": "core_only",
+        "train_selected_profile": "core_plus_macro_plus_all_4h",
+        "governance_contract": "dual_role_governance_active"
       }
     }
   ]

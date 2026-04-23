@@ -385,6 +385,8 @@ def test_runtime_copy_and_execution_surfaces_use_humanized_chinese_operator_copy
         '["exact live lane", "精準路徑"]',
         '["runtime truth", "執行期真相"]',
         '["regressed_under_minimum", "精準樣本從已就緒回落到未達門檻"]',
+        '["exact_live_bucket_proxy_available", "已有精準 bucket proxy"]',
+        '["exact_live_lane_proxy_available", "已有精準路徑 proxy"]',
     ]
     for snippet in required_runtime_copy_snippets:
         assert snippet in runtime_copy

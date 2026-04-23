@@ -115,6 +115,8 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["exact_supported_component_experiment_ready", "精準樣本元件實驗就緒"],
   ["exact_live_bucket_supported", "精準樣本已就緒"],
   ["exact live bucket supported", "精準樣本已就緒"],
+  ["exact_live_bucket_proxy_available", "已有精準 bucket proxy"],
+  ["exact_live_lane_proxy_available", "已有精準路徑 proxy"],
   ["current_structure_quality", "目前結構分數"],
   ["component scoring", "component 評分"],
   ["boundary tweak", "邊界微調"],
