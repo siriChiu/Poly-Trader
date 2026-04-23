@@ -216,8 +216,14 @@ def test_api_strategy_leaderboard_dedupes_cross_model_duplicate_auto_strategies(
 def test_strategy_lab_prefers_same_origin_strategy_fetches_for_dev_runtime():
     source = (Path(__file__).resolve().parents[1] / "web/src/pages/StrategyLab.tsx").read_text(encoding="utf-8")
     required_snippets = [
+        "const STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS = 2500;",
         "const fetchStrategyLabEndpointJson = async (endpoint: string) => {",
+        "const sameOriginController = new AbortController();",
+        "const sameOriginTimeoutId = window.setTimeout(() => sameOriginController.abort(), STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS);",
         "const sameOriginResponse = await window.fetch(endpoint, {",
+        'signal: sameOriginController.signal,',
+        "window.clearTimeout(sameOriginTimeoutId);",
+        "Fall back to fetchApi below when same-origin proxy is unavailable or hangs.",
         "const res = await fetchStrategyLabEndpointJson(endpoint) as any;",
         "const data = await fetchStrategyLabEndpointJson(\"/api/strategy_data_range\")",
         "const detail = await fetchStrategyLabEndpointJson(`/api/strategies/${encodeURIComponent(strategyName)}`) as StrategyEntry;",

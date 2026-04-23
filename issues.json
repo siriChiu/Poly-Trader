@@ -7,7 +7,7 @@
       "action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 7 勝，還差 8 勝；同時 streak 必須 < 50。",
       "status": "open",
       "created_at": "2026-04-22T01:11:24.266567",
-      "updated_at": "2026-04-23T16:10:06.509962",
+      "updated_at": "2026-04-23T17:16:47.584824",
       "hb_detected": null,
       "next_action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 7 勝，還差 8 勝；同時 streak 必須 < 50。",
       "summary": {
@@ -17,14 +17,14 @@
         "current_recent_window_wins": 7,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 8,
-        "streak": 1,
+        "streak": 3,
         "streak_must_be_below": 50,
-        "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
         "current_live_structure_bucket_rows": 0,
         "minimum_support_rows": 50,
         "gap_to_minimum": 50,
-        "support_route_verdict": "exact_bucket_unsupported_block",
-        "support_governance_route": "no_support_proxy",
+        "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+        "support_governance_route": "exact_live_bucket_proxy_available",
         "runtime_closure_state": "circuit_breaker_active"
       }
     },
@@ -69,7 +69,7 @@
       "action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
       "status": "open",
       "created_at": "2026-04-22T02:31:34.254061",
-      "updated_at": "2026-04-23T16:10:06.509948",
+      "updated_at": "2026-04-23T17:16:47.584811",
       "hb_detected": null,
       "next_action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
       "summary": {
@@ -80,8 +80,8 @@
         "exact_live_lane_rows": 0,
         "recommended_patch": "core_plus_macro_plus_all_4h",
         "recommended_patch_status": "reference_only_non_current_live_scope",
-        "support_route_verdict": "exact_bucket_unsupported_block",
-        "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+        "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
         "current_live_structure_bucket_rows": 0,
         "minimum_support_rows": 50,
         "gap_to_minimum": 50,
@@ -126,7 +126,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3546,
+        "forward_archive_rows": 3549,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -134,7 +134,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-23T16:10:07.465091",
+      "updated_at": "2026-04-23T17:16:48.543387",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -146,7 +146,7 @@
         "leaderboard_count": 6,
         "comparable_count": 6,
         "placeholder_count": 0,
-        "top_model": "random_forest",
+        "top_model": "rule_baseline",
         "top_profile": "core_only",
         "top_deployment_profile": "scan_backed_best",
         "governance_contract": "dual_role_governance_active",
@@ -160,8 +160,36 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-23T16:10:06.509977",
+      "updated_at": "2026-04-23T17:16:47.584839",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
+    },
+    {
+      "id": "P1_q15_exact_support_stalled_under_breaker",
+      "priority": "P1",
+      "title": "q15 exact support regressed back under minimum under breaker (0/50)",
+      "action": "Treat this as support regression, not ordinary stagnation: keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum plus the last-supported reference visible in probe/API/UI/docs, and verify why the current bucket fell back under minimum.",
+      "status": "open",
+      "created_at": "2026-04-23T17:16:47.584770",
+      "updated_at": "2026-04-23T17:16:47.584796",
+      "hb_detected": null,
+      "next_action": "Treat this as support regression, not ordinary stagnation: keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum plus the last-supported reference visible in probe/API/UI/docs, and verify why the current bucket fell back under minimum.",
+      "summary": {
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "live_current_structure_bucket_rows": 0,
+        "minimum_support_rows": 50,
+        "gap_to_minimum": 50,
+        "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+        "support_governance_route": "exact_live_bucket_proxy_available",
+        "support_progress_status": "regressed_under_minimum",
+        "previous_rows": 0,
+        "delta_vs_previous": 0,
+        "recent_supported_rows": 199,
+        "recent_supported_heartbeat": "20260423i",
+        "delta_vs_recent_supported": -199,
+        "leaderboard_selected_profile": "core_only",
+        "train_selected_profile": "core_plus_macro_plus_all_4h",
+        "governance_contract": "dual_role_governance_active"
+      }
     }
   ]
 }

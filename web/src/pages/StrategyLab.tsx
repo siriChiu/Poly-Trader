@@ -1454,20 +1454,27 @@ const extractStrategyLeaderboardList = (payload: any): StrategyEntry[] => {
   return Array.isArray(payload) ? payload : [];
 };
 
+const STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS = 2500;
+
 const fetchStrategyLabEndpointJson = async (endpoint: string) => {
   await prewarmActiveApiBase();
 
   if (typeof window !== "undefined") {
+    const sameOriginController = new AbortController();
+    const sameOriginTimeoutId = window.setTimeout(() => sameOriginController.abort(), STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS);
     try {
       const sameOriginResponse = await window.fetch(endpoint, {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
+        signal: sameOriginController.signal,
       });
       if (sameOriginResponse.ok) {
         return await sameOriginResponse.json();
       }
     } catch {
-      // Fall back to fetchApi below when same-origin proxy is unavailable.
+      // Fall back to fetchApi below when same-origin proxy is unavailable or hangs.
+    } finally {
+      window.clearTimeout(sameOriginTimeoutId);
     }
   }
 
