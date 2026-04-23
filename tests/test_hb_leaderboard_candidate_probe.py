@@ -213,6 +213,88 @@ def test_summarize_support_progress_keeps_regression_visible_until_exact_support
 
 
 
+def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_stalled_heartbeats(tmp_path, monkeypatch):
+    full_history = [
+        {
+            "heartbeat": "735",
+            "timestamp": "2026-04-23T08:00:00+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "governance_verdict": "dual_role_governance_active",
+        },
+        {
+            "heartbeat": "734",
+            "timestamp": "2026-04-23T07:00:00+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "governance_verdict": "dual_role_governance_active",
+        },
+        {
+            "heartbeat": "733",
+            "timestamp": "2026-04-23T06:00:00+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "governance_verdict": "dual_role_governance_active",
+        },
+        {
+            "heartbeat": "732",
+            "timestamp": "2026-04-23T05:00:00+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "governance_verdict": "dual_role_governance_active",
+        },
+        {
+            "heartbeat": "731",
+            "timestamp": "2026-04-23T04:40:00+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "governance_verdict": "dual_role_governance_active",
+        },
+        {
+            "heartbeat": "730",
+            "timestamp": "2026-04-23T04:31:17+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 77,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_supported",
+            "governance_verdict": "post_threshold_profile_governance_stalled",
+        },
+    ]
+
+    def fake_history(*, current_entry=None, limit=5, data_dir=None):
+        base = {k: v for k, v in (current_entry or {}).items() if k != "observed_at"}
+        history = [base, *full_history]
+        return history[:limit] if limit is not None else history
+
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "_load_recent_support_history", fake_history)
+
+    progress = hb_leaderboard_candidate_probe._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q35",
+        current_route="exact_live_bucket_proxy_available",
+        live_bucket_rows=0,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "regressed_under_minimum"
+    assert progress["recent_supported_rows"] == 77
+    assert progress["recent_supported_heartbeat"] == "730"
+    assert progress["delta_vs_recent_supported"] == -77
+    assert any(item["heartbeat"] == "730" for item in progress["history"])
+
+
+
 def test_summarize_support_progress_reuses_previous_fast_summary(tmp_path):
     (tmp_path / "heartbeat_fast_summary.json").write_text(
         json.dumps(

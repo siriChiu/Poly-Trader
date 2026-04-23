@@ -115,6 +115,86 @@ def test_summarize_support_progress_keeps_regression_visible_until_q15_support_r
 
 
 
+def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_stalled_heartbeats(tmp_path, monkeypatch):
+    def fake_history(*, current_entry, data_dir=None):
+        return [
+            {k: v for k, v in current_entry.items() if k != "observed_at"},
+            {
+                "heartbeat": "935",
+                "timestamp": "2026-04-23T08:00:00+00:00",
+                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                "live_current_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+                "support_governance_route": "exact_live_bucket_proxy_available",
+            },
+            {
+                "heartbeat": "934",
+                "timestamp": "2026-04-23T07:00:00+00:00",
+                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                "live_current_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+                "support_governance_route": "exact_live_bucket_proxy_available",
+            },
+            {
+                "heartbeat": "933",
+                "timestamp": "2026-04-23T06:00:00+00:00",
+                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                "live_current_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+                "support_governance_route": "exact_live_bucket_proxy_available",
+            },
+            {
+                "heartbeat": "932",
+                "timestamp": "2026-04-23T05:00:00+00:00",
+                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                "live_current_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+                "support_governance_route": "exact_live_bucket_proxy_available",
+            },
+            {
+                "heartbeat": "931",
+                "timestamp": "2026-04-23T04:40:00+00:00",
+                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                "live_current_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+                "support_governance_route": "exact_live_bucket_proxy_available",
+            },
+            {
+                "heartbeat": "930",
+                "timestamp": "2026-04-23T04:31:17+00:00",
+                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                "live_current_structure_bucket_rows": 199,
+                "minimum_support_rows": 50,
+                "support_route_verdict": "exact_bucket_supported",
+                "support_governance_route": "exact_live_bucket_supported",
+            },
+        ]
+
+    monkeypatch.setattr(q15_support_audit, "_load_recent_q15_support_history", fake_history)
+
+    progress = q15_support_audit._summarize_support_progress(
+        current_bucket="BLOCK|bull_q15_bias50_overextended_block|q15",
+        support_route_verdict="exact_bucket_missing_proxy_reference_only",
+        support_governance_route="exact_live_bucket_proxy_available",
+        live_bucket_rows=0,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "regressed_under_minimum"
+    assert progress["recent_supported_rows"] == 199
+    assert progress["recent_supported_heartbeat"] == "930"
+    assert progress["delta_vs_recent_supported"] == -199
+    assert any(item["heartbeat"] == "930" for item in progress["history"])
+
+
+
 def test_summarize_support_progress_uses_current_live_copy_for_non_q15_bucket(tmp_path):
     for idx in range(2):
         (tmp_path / f"heartbeat_{910 + idx}_summary.json").write_text(

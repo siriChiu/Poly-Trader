@@ -229,8 +229,8 @@ def _summarize_support_progress(
         for item in history
         if item.get("live_current_structure_bucket") == current_bucket
     ]
-    relevant = same_bucket_history[:5]
-    previous = relevant[1] if len(relevant) > 1 else None
+    recent_history = same_bucket_history[:5]
+    previous = recent_history[1] if len(recent_history) > 1 else None
     delta_vs_previous = None
     previous_route_changed = False
     if previous is not None:
@@ -244,7 +244,7 @@ def _summarize_support_progress(
     stagnant_run_count = 0
     if previous is not None and int(previous.get("live_current_structure_bucket_rows") or 0) == current_rows:
         stagnant_run_count = 1
-        for item in relevant[1:]:
+        for item in recent_history[1:]:
             if int(item.get("live_current_structure_bucket_rows") or 0) == current_rows:
                 stagnant_run_count += 1
                 continue
@@ -254,7 +254,7 @@ def _summarize_support_progress(
     recent_supported = next(
         (
             item
-            for item in relevant[1:]
+            for item in same_bucket_history[1:]
             if int(item.get("live_current_structure_bucket_rows") or 0) >= minimum
             or item.get("support_route_verdict") == "exact_bucket_supported"
             or item.get("support_governance_route") == "exact_live_bucket_supported"
@@ -306,6 +306,16 @@ def _summarize_support_progress(
         status = "regressed_under_minimum"
         reason = f"{support_label} 較上一輪回落，需檢查 current bucket / support artifact 是否切換或退化。"
 
+    history_for_display = list(recent_history)
+    if recent_supported is not None and all(
+        item.get("heartbeat") != recent_supported.get("heartbeat")
+        for item in history_for_display
+    ):
+        if len(history_for_display) >= 5:
+            history_for_display = [*history_for_display[:4], recent_supported]
+        else:
+            history_for_display.append(recent_supported)
+
     return {
         "status": status,
         "reason": reason,
@@ -325,7 +335,7 @@ def _summarize_support_progress(
         "stagnant_run_count": stagnant_run_count,
         "stalled_support_accumulation": status == "stalled_under_minimum",
         "escalate_to_blocker": status == "regressed_under_minimum" or (status == "stalled_under_minimum" and stagnant_run_count >= 3),
-        "history": relevant,
+        "history": history_for_display,
     }
 
 
