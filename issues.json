@@ -150,16 +150,18 @@
         "governance_contract": "dual_role_governance_active",
         "current_closure": "global_ranking_vs_support_aware_production_split",
         "leaderboard_payload_source": "latest_persisted_snapshot",
-        "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
+        "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
+        "strategy_lab_workspace_fetch_lane": "same_origin_first_with_prewarm_current_head",
+        "forced_stale_active_base_recovery": "8001_to_8000_verified_in_browser"
       },
-      "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
+      "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; guard against regressions back to stale direct-lane reads, placeholder-only fallbacks, or ambiguous backtest windows.",
       "verify": [
         "browser /lab",
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-23T13:03:42.670572",
-      "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
+      "updated_at": "2026-04-23T21:46:43+08:00",
+      "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; guard against regressions back to stale direct-lane reads, placeholder-only fallbacks, or ambiguous backtest windows."
     },
     {
       "id": "P1_q15_exact_support_stalled_under_breaker",

@@ -16,7 +16,7 @@ import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } f
 import RecentCanonicalDriftCard, { type RecentCanonicalDriftSummary } from "../components/RecentCanonicalDriftCard";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { ExecutionWorkspaceMetric, ExecutionWorkspaceSummary } from "../components/execution/ExecutionWorkspaceSummary";
-import { fetchApi, useApi } from "../hooks/useApi";
+import { fetchApi, prewarmActiveApiBase, useApi } from "../hooks/useApi";
 import { useGlobalProgressTask } from "../hooks/useGlobalProgress";
 import { getSenseConfig } from "../config/senses";
 import {
@@ -1453,6 +1453,8 @@ const extractStrategyLeaderboardList = (payload: any): StrategyEntry[] => {
 };
 
 const fetchStrategyLabEndpointJson = async (endpoint: string) => {
+  await prewarmActiveApiBase();
+
   if (typeof window !== "undefined") {
     try {
       const sameOriginResponse = await window.fetch(endpoint, {
@@ -2005,7 +2007,7 @@ export default function StrategyLab() {
 
   const loadModelLeaderboard = async (forceRefresh = false) => {
     try {
-      const data = await fetchApi(`/api/models/leaderboard${forceRefresh ? "?refresh=true" : ""}`) as any;
+      const data = await fetchStrategyLabEndpointJson(`/api/models/leaderboard${forceRefresh ? "?refresh=true" : ""}`) as any;
       const nextModelLeaderboard = Array.isArray(data?.leaderboard) ? data.leaderboard : [];
       const nextModelQuadrants = Array.isArray(data?.quadrant_points) ? data.quadrant_points : [];
       const nextModelMeta = {
@@ -2047,7 +2049,7 @@ export default function StrategyLab() {
 
   const loadModelStats = async () => {
     try {
-      const data = await fetchApi("/api/model/stats") as ModelStatsResponse;
+      const data = await fetchStrategyLabEndpointJson("/api/model/stats") as ModelStatsResponse;
       setModelStats(data);
       STRATEGY_LAB_MEMORY_CACHE.modelStats = data;
       saveStrategyLabCache(STRATEGY_LAB_MEMORY_CACHE);

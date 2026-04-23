@@ -1138,14 +1138,18 @@ def test_recent_canonical_drift_card_surfaces_latest_and_blocking_windows():
 def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout():
     source = _read("pages/StrategyLab.tsx")
     required_snippets = [
+        'import { fetchApi, prewarmActiveApiBase, useApi } from "../hooks/useApi";',
         'const extractStrategyLeaderboardList = (payload: any): StrategyEntry[] => {',
         'const fetchStrategyLabEndpointJson = async (endpoint: string) => {',
+        'await prewarmActiveApiBase();',
         'const sameOriginResponse = await window.fetch(endpoint, {',
         'credentials: "same-origin"',
         'return fetchApi(endpoint);',
         'const res = await fetchStrategyLabEndpointJson(endpoint) as any;',
         'const nextStrategies = extractStrategyLeaderboardList(res);',
         'const detail = await fetchStrategyLabEndpointJson(`/api/strategies/${encodeURIComponent(strategyName)}`) as StrategyEntry;',
+        'const data = await fetchStrategyLabEndpointJson(`/api/models/leaderboard${forceRefresh ? "?refresh=true" : ""}`) as any;',
+        'const data = await fetchStrategyLabEndpointJson("/api/model/stats") as ModelStatsResponse;',
         'const data = await fetchStrategyLabEndpointJson("/api/strategy_data_range")',
         'if (initialLoading || strategies.length > 0) {',
         'loadLeaderboard(false);',
@@ -1154,6 +1158,8 @@ def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout()
     ]
     for snippet in required_snippets:
         assert snippet in source
+    assert 'fetchApi(`/api/models/leaderboard' not in source
+    assert 'fetchApi("/api/model/stats")' not in source
 
 
 def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candidate():

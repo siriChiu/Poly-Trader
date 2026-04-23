@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-23 21:03:45 CST_
+_最後更新：2026-04-23 21:46:43 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
@@ -18,6 +18,9 @@ _最後更新：2026-04-23 21:03:45 CST_
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
+- **Strategy Lab model surfaces 已補上 same-origin current-head lane 對齊**
+  - `/api/models/leaderboard` / `/api/model/stats` 現在與 `/api/strategies/*` 同樣先走 same-origin shell，再 fallback 到 direct fetch；同時初始化前會先 prewarm active backend
+  - browser 驗證：先把 `poly_trader.active_api_base` 強制設成 `http://127.0.0.1:8001`，重新開 `/lab` 後會回正到 `8000(current_head_commit)`，避免 leaderboard/model stats 與 workspace split-brain
 
 ---
 
@@ -48,11 +51,12 @@ _最後更新：2026-04-23 21:03:45 CST_
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
+- Strategy Lab 的 strategy/model surfaces 現在都先走 `same-origin-first + prewarm current-head lane`；forced stale `active_api_base=8001` 重新開 `/lab` 後會回正到 `8000(current_head_commit)`
 - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3536` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
-- Strategy Lab 不回退 placeholder-only；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。
+- Strategy Lab 不回退 stale direct-lane / placeholder-only model surfaces；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。
 
 ---
 

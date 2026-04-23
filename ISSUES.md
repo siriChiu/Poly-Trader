@@ -1,6 +1,6 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-23 21:03:45 CST_
+_最後更新：2026-04-23 21:46:43 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
@@ -19,6 +19,7 @@ _最後更新：2026-04-23 21:03:45 CST_
   - `blocking_window=1000` / `win_rate=41.7%` / `dominant_regime=bull(80.4%)` / `avg_quality=+0.1189` / `avg_pnl=+0.0030` / `alerts=regime_shift`
 - **leaderboard / governance 仍維持 dual-role contract**
   - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
+  - Strategy Lab 現在對 `/api/models/leaderboard` / `/api/model/stats` 也走 `same-origin-first + prewarm current-head lane`；browser 強制 `poly_trader.active_api_base=http://127.0.0.1:8001` 後，`/lab` 仍會回正到 `8000(current_head_commit)`，避免 model surfaces 與 workspace split-brain。
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
   - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3536` / `archive_window_coverage_pct=0.0`
@@ -67,7 +68,8 @@ _最後更新：2026-04-23 21:03:45 CST_
 
 ### P1. leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe
 - 目前真相：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- 下一步：Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.
+- 本輪前進：Strategy Lab 的 `/api/models/leaderboard` / `/api/model/stats` 已切到 `same-origin-first + prewarm current-head lane`；forced stale `active_api_base=8001` 的 browser smoke 會在 `/lab` 內自動回正到 `8000`，不再讓 model leaderboard / model stats 與 strategy workspace 各走不同 lane。
+- 下一步：Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; guard against regressions back to stale direct-lane reads, placeholder-only fallbacks, or ambiguous backtest windows.
 - 驗證：
   - browser /lab
   - curl http://127.0.0.1:<active-backend>/api/models/leaderboard
