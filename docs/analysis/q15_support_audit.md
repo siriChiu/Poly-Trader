@@ -1,15 +1,15 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-23 03:55:48.284356**
+- generated_at: **2026-04-23 04:29:59.418541**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
 - signal: **HOLD**
 - regime / gate / label: **bull / BLOCK / D**
 - current_live_structure_bucket: **BLOCK|bull_q15_bias50_overextended_block|q15**
-- current_live_structure_bucket_rows: **206**
-- allowed_layers: **0** (decision_quality_below_trade_floor)
-- execution_guardrail_reason: **decision_quality_below_trade_floor**
+- current_live_structure_bucket_rows: **199**
+- allowed_layers: **0** (decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade)
+- execution_guardrail_reason: **decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade**
 
 ## Scope applicability
 - status: **current_live_q15_lane_active**
@@ -31,19 +31,19 @@
 - reason: current q15 exact bucket 已達 minimum support，可直接用 exact bucket 做 deployment 級驗證。
 - release_condition: 保持 current_live_structure_bucket_rows >= minimum_support_rows，且 live row 仍通過 entry-quality / execution guardrail。
 - support_progress.status: **exact_supported**
-- support_progress.current_rows / minimum: **206 / 50**
+- support_progress.current_rows / minimum: **199 / 50**
 - support_progress.previous_rows: **206**
-- support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **2**
+- support_progress.delta_vs_previous: **-7**
+- support_progress.stagnant_run_count: **0**
 - support_progress.escalate_to_blocker: **False**
 - support_progress.reason: current q15 exact bucket 已達 minimum support，可轉向 exact-supported deployment verify。
 
 ## Floor-cross legality
 - verdict: **legal_component_experiment_after_support_ready**
 - legal_to_relax_runtime_gate: **True**
-- remaining_gap_to_floor: **0.1663**
+- remaining_gap_to_floor: **0.1234**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.5543**
+- best_single_component_required_score_delta: **0.4113**
 - best_single_component_can_cross_floor: **True**
 - reason: 若 exact q15 support 已達標，則 feat_4h_bias50 可作為下一輪優先 component experiment；但仍需通過 runtime guardrail 與回歸驗證。
 

@@ -1,33 +1,27 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-23 11:16:34 CST_
+_最後更新：2026-04-23 12:55:30 CST_
 
 ---
 
-## 心跳 #20260423g ORID
+## 心跳 #20260423j ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=31976 / Features=23394 / Labels=63946`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=57.11%`。
-- current-live blocker：`deployment_blocker=decision_quality_below_trade_floor` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
-- q15 current-live bucket truth：`current_live_structure_bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=206/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`。
-- latest recent-window diagnostics：`latest_window=100` / `win_rate=100.0%` / `dominant_regime=bull(91.0%)` / `avg_quality=+0.6889` / `avg_pnl=+0.0234` / `alerts=constant_target,regime_concentration,regime_shift`。
-- current blocking pathological pocket：`blocking_window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)` / `avg_quality=+0.0814` / `avg_pnl=+0.0009` / `alerts=regime_shift`。
-- leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3446` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
-- 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`。
+- live runtime truth：`deployment_blocker=exact_live_lane_toxic_sub_bucket_current_bucket` / `current_live_structure_bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=199/50` / `gap=0` / `entry_quality=0.4266` / `allowed_layers=0`。
+- recent canonical drift：`latest_window=100` / `win_rate=97.0%` / `dominant_regime=bull(91.0%)` / `avg_quality=+0.6707` / `avg_pnl=+0.0224`；`blocking_window=1000` / `win_rate=41.7%` / `dominant_regime=bull(80.4%)` / `avg_quality=+0.1189` / `avg_pnl=+0.0030`。
+- operator-facing patch：`web/src/utils/runtimeCopy.ts`、`web/src/pages/ExecutionConsole.tsx`、`web/src/pages/ExecutionStatus.tsx`、`web/src/pages/StrategyLab.tsx`、`tests/test_frontend_decision_contract.py` 已更新。
+- 驗證：`pytest tests/test_frontend_decision_contract.py tests/test_execution_surface_contract.py tests/test_strategy_lab.py -q` → `123 passed`；`cd web && npm run build` → pass；browser `/`、`/execution/status`、`/lab` 主 blocker 區塊無 raw machine-token regression。
 
 ### R｜感受直覺
-- 這輪最需要防止的誤讀，是讓舊 blocker 敘事覆蓋最新 `decision_quality_below_trade_floor` runtime truth。
-- current live 已落在 `bull/BLOCK/BLOCK|bull_q15_bias50_overextended_block|q15`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket 或舊 bucket 當成現在的 runtime 真相。
+- runtime truth 本身沒有變，但 operator-facing surface 還在主 blocker 卡片漏出 raw machine token，會把「已知 toxic q15 bucket」重新包裝成像內部 debug 工具，而不是產品化執行面。
+- 這種問題如果不修，使用者看到的是正確資料配錯誤語言，等同 blocker truth 仍未真正落地。
 
 ### I｜意義洞察
-1. **support truth ≠ deployment closure**：`support=206/50` 且 `support_route_verdict=exact_bucket_supported` 只代表治理前進，還不能把 reference-only patch 升級成 runtime patch。
-2. **真正主 blocker 以 latest runtime truth 為準**：目前 deployment blocker 是 `decision_quality_below_trade_floor`，後續 root-cause 與 docs 必須跟著這條 lane 收斂。
-3. **docs overwrite sync 的角色是護欄，不是主 blocker**：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。
+1. **這輪 root cause 不是模型或資料，而是 payload-derived prose 繞過 shared humanizer。**
+2. **同一個 blocker 必須在 Dashboard / Execution / Strategy Lab 用一致 operator copy 呈現，否則會形成 UI 層 split-brain。**
+3. **修 shared humanizer + 路由摘要行，比逐頁手改文案更接近產品契約修復。**
 
 ### D｜決策行動
-- **Owner**：current-live runtime / governance lane
-- **Action**：維持 latest runtime blocker truth，並把 q15 current-live bucket support 與 reference-only patch 持續顯示清楚；下一步沿對應 runtime lane 繼續追根因。
-- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
-- **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。
-- **If fail**：只要 docs / UI 再次把 `decision_quality_below_trade_floor` 蓋回舊 blocker 敘事、漏掉 q15 current-live bucket rows，或把 reference-only patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。
+- **Patch**：補齊 toxic bucket / deployment guardrail / regime-gate / routing prose 的 humanizer；同步把 `/execution`、`/execution/status`、`/lab` 的 regime/gate/bucket 摘要改成中文 operator copy。
+- **Verify**：用 pytest + frontend build + browser 三重驗證，確認主 blocker 卡片不再漏 `exact_live_lane_toxic_sub_bucket_current_bucket`、`toxic sub-bucket`、`regime gate`、`blocks trade`。
+- **Next gate**：回到真正的 P0 —— toxic q15 bucket root cause 與 1000-row bull concentration pocket；如果下一輪 artifact 或 UI 再把 support closure 誤讀成 deployment closure，就把這條 lane 升級回 blocker-first governance regression。

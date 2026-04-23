@@ -741,7 +741,7 @@ export default function ExecutionStatus() {
                 <div className="mt-2 text-slate-400">{humanizeRuntimeDetailText(currentBucketRootCauseSummary)}</div>
                 <div className="text-slate-400">當前 bucket {currentBucketRootCauseBucket}</div>
                 <div className="text-slate-400">候選 patch {humanizeRuntimeDetailText(currentBucketRootCause?.candidate_patch_feature || "—")} · {currentBucketRootCauseActionLabel}</div>
-                <div className="text-slate-400">近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"} · Δq35 {formatNumber(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
+                <div className="text-slate-400">近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 {formatNumber(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
                 <div className="text-slate-400">下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}</div>
               </div>
             </div>
@@ -752,7 +752,7 @@ export default function ExecutionStatus() {
                 <div className="text-[11px] text-slate-400">啟用倉位腿 {liveRouting?.active_ratio_text || "0/0"}</div>
               </div>
               <div className="mt-2 text-slate-300">
-                {liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—"} · gate {liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—"} · bucket {liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—"}
+                {humanizeStructureBucketLabel(liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—")} · 閘門 {humanizeStructureBucketLabel(liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—")} · 當前 bucket {humanizeStructureBucketLabel(liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—")}
               </div>
               <div className="mt-2 text-sm text-slate-400">{humanizeRuntimeDetailText(liveRouting?.summary || liveRuntimeTruth?.support_alignment_summary || "尚未取得倉位路由摘要。")}</div>
               <div className="mt-3 grid gap-3 md:grid-cols-2">

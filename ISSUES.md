@@ -1,87 +1,72 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-23 12:00:28 CST_
+_最後更新：2026-04-23 12:55:30 CST_
 
-只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
+只保留目前有效問題；由 heartbeat overwrite sync，避免 current-state markdown 落後 `issues.json` / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 fast heartbeat #20260423g 已完成 collect + diagnostics refresh**
-  - `Raw=31976 / Features=23394 / Labels=63946`
+- **本輪心跳 #20260423j 已完成 operator-facing blocker truth productization patch**
+  - `/`、`/execution`、`/execution/status`、`/lab` 的主 blocker / runtime closure / routing 摘要已改走共用 humanizer，主卡片不再直接漏出 `exact_live_lane_toxic_sub_bucket_current_bucket`、`toxic sub-bucket`、`regime gate`、`blocks trade`
+  - browser 驗證：Dashboard、Execution Status、Strategy Lab 主 blocker 區塊皆顯示中文 operator copy；console `0 JS errors`
+  - 驗證：`pytest tests/test_frontend_decision_contract.py tests/test_execution_surface_contract.py tests/test_strategy_lab.py -q` → `123 passed`；`cd web && npm run build` → pass
+- **資料基線沿用 fast heartbeat #20260423i**
+  - `Raw=32031 / Features=23449 / Labels=64018`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
-  - `simulated_pyramid_win=57.11%`
-- **canonical current-live blocker 以 latest runtime truth 為主**
-  - `deployment_blocker=decision_quality_below_trade_floor` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `current_live_structure_bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=206/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`
-- **recent canonical diagnostics 已刷新**
-  - `latest_window=100` / `win_rate=100.0%` / `dominant_regime=bull(91.0%)` / `avg_quality=+0.6889` / `avg_pnl=+0.0234` / `alerts=constant_target,regime_concentration,regime_shift`
-  - `blocking_window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)` / `avg_quality=+0.0814` / `avg_pnl=+0.0009` / `alerts=regime_shift`
+  - `simulated_pyramid_win=57.03%`
+- **canonical current-live blocker 仍是 same toxic q15 bucket**
+  - `deployment_blocker=exact_live_lane_toxic_sub_bucket_current_bucket`
+  - `current_live_structure_bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=199/50` / `gap=0` / `support_route_verdict=exact_bucket_supported` / `support_governance_route=exact_live_bucket_supported`
+  - `runtime_closure_state=deployment_guardrail_blocks_trade` / `entry_quality=0.4266` / `allowed_layers=0`
+- **recent canonical diagnostics 已刷新到最新 artifact truth**
+  - `latest_window=100` / `win_rate=97.0%` / `dominant_regime=bull(91.0%)` / `avg_quality=+0.6707` / `avg_pnl=+0.0224` / `alerts=label_imbalance,regime_concentration,regime_shift`
+  - `blocking_window=1000` / `win_rate=41.7%` / `dominant_regime=bull(80.4%)` / `avg_quality=+0.1189` / `avg_pnl=+0.0030` / `alerts=regime_shift`
 - **leaderboard / governance 仍維持 dual-role contract**
-  - `leaderboard_count=6` / `top_model=random_forest` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- **Strategy Lab 工作區初始化安全性已補強**
-  - 預設工作區名稱若撞到既有 `My Strategy`，會自動改成唯一名稱（例如 `My Strategy #2`），避免手動策略誤覆蓋
-  - cached `selectedStrategy` 會在 leaderboard fallback 前先回填到左側表單與工作區，避免重整後被第一名策略蓋掉 operator context
+  - `leaderboard_count=6` / `top_model=rule_baseline` / `selected_feature_profile=core_only`
+  - `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
 - **source / venue blockers 仍開啟**
-  - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3446` / `archive_window_coverage_pct=0.0`
-  - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof
-- **heartbeat current-state docs overwrite sync 已自動化**
-  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
-  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3501` / `archive_window_coverage_pct=0.0`
+  - venue：`binance=config enabled + public-only + metadata OK` / `okx=config disabled + public-only + metadata OK`
+  - 尚缺 runtime-backed proof：`live exchange credential` / `order ack lifecycle` / `fill lifecycle`
 
 ---
 
 ## Open Issues
 
-### P0. current-live deployment blocker is decision_quality_below_trade_floor
-- 目前真相：`deployment_blocker=decision_quality_below_trade_floor` / `bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=206/50` / `gap=0` / `runtime_closure_state=support_closed_but_trade_floor_blocked`
-- same-bucket truth：`support_route_verdict=exact_bucket_supported` / `support_governance_route=exact_live_bucket_supported` / `recommended_patch=core_plus_macro_plus_all_4h` / `recommended_patch_status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`
-- 下一步：把 current-live blocker 真相維持在 API / UI / docs；不要讓舊 breaker / support 敘事覆蓋最新 runtime truth。
+### P0. current-live deployment blocker remains exact_live_lane_toxic_sub_bucket_current_bucket
+- 目前真相：`bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=199/50` / `gap=0` / `runtime_closure_state=deployment_guardrail_blocks_trade`
+- exact-lane pathology：`current bucket` 本身就是 toxic sub-bucket，`win_rate=0.0` / `quality=-0.2112`；support closure 不能誤讀成 deployment closure
+- 本輪前進：operator-facing blocker copy 已在 Dashboard / Execution / Strategy Lab 對齊，沒有再讓 raw machine token 稀釋 blocker truth
+- 下一步：沿 q15 bucket root-cause artifact 追 `feat_4h_bb_pct_b` counterfactual / 結構 component 校準，確認是否有合法跨到 q35 的路徑；若沒有，就維持 toxic bucket veto 為唯一 current-live blocker
 
-### P0. recent canonical window 1000 rows = regime_concentration
-- 目前真相：`window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)` / `avg_quality=+0.0814` / `avg_pnl=+0.0009` / `alerts=regime_shift`
-- latest diagnostics：`latest_window=100` / `win_rate=100.0%` / `dominant_regime=bull(91.0%)` / `avg_quality=+0.6889` / `avg_pnl=+0.0234` / `alerts=constant_target,regime_concentration,regime_shift`
-- 病態切片：`alerts=regime_shift` / `tail_streak=64x1` / `top_shift=feat_4h_bias200,feat_vwap_dev,feat_dxy` / `new_compressed=feat_vix`
-- 下一步：直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=1000, alerts=['regime_shift'], win_rate=0.3940, delta_vs_full=-0.2326, dominant_regime=bull(81.30%), interpretation=regime_concentration, avg_pnl=+0.0009, avg_quality=0.0814, avg_dd_penalty=0.2414, spot_long_win_rate=0.1990, feature_diag=variance:7/56, frozen:0, compressed:7, expected_static:0, overlay_only:1, unexpected_frozen:0, distinct:10, null_heavy:10, tail_streak=64x1 since 2026-04-21 00:05:39.160858 -> 2026-04-21 10:59:35.681689, adverse_streak=273x0 since 2026-04-17 13:41:12.414408 -> 2026-04-18 13:43:25.809469, prev_win_rate=0.934, delta_vs_prev=-0.54, prev_quality=0.5441, quality_delta_vs_prev=-0.4627, prev_pnl=0.0146, pnl_delta_vs_prev=-0.0137, top_shift_examples=feat_4h_bias200(4.2831→7.7176,Δσ=0.6287)/feat_vwap_dev(-0.3083→-0.1728,Δσ=0.6031)/feat_dxy(98.4696→98.1349,Δσ=0.3232), new_compressed=feat_vix, compressed_examples=feat_body(0.0001/998)/feat_ear(0.0104/996)/feat_tongue(0.0145/997), overlay_only_examples=feat_scales_ssr[research_sparse_source], distinct_examples=feat_4h_dist_swing_high(0/0)/feat_chorus(0/0)/feat_fin_netflow(0/0), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-21 10:30:36.408135:1:bull:0.6038/2026-04-21 10:42:49.680698:1:bull:0.6106/2026-04-21 10:59:35.681689:1:bull:0.5758, adverse_examples=2026-04-18 13:00:00.000000:0:bull:-0.2342/2026-04-18 13:36:43.970223:0:bull:-0.2119/2026-04-18 13:43:25.809469:0:bull:-0.2137
-- 驗證：
-  - python scripts/recent_drift_report.py
-  - python scripts/hb_predict_probe.py
+### P0. recent canonical 1000-row pocket still shows bull regime concentration
+- 目前真相：`window=1000` / `win_rate=41.7%` / `dominant_regime=bull(80.4%)` / `avg_quality=+0.1189` / `avg_pnl=+0.0030` / `alerts=regime_shift`
+- blocker pocket：`tail_streak=3x0`，但更長的 adverse pocket 仍存在（`273x0`）；最新 top shift 轉成 `feat_vwap_dev / feat_4h_bias200 / feat_eye`
+- 下一步：直接對 recent canonical 1000-row bull concentration pocket 做 variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，避免 broader historical average 稀釋 toxic slice
+- 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`
 
-### P1. support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only outside current live scope
-- 目前真相：`bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=206/50` / `gap=0` / `support_route_verdict=exact_bucket_supported` / `governance_route=exact_live_bucket_supported`
-- 下一步：Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.
+### P1. support-aware patch must stay visible but reference-only outside current live scope
+- 目前真相：`recommended_patch=core_plus_macro_plus_all_4h` / `recommended_patch_status=reference_only_non_current_live_scope` / `reference_patch_scope=bull|CAUTION`
+- 目前 exact support 已 closure，但 current live lane 仍是 `bull|BLOCK` toxic q15 bucket；patch 只能維持治理 / 訓練參考
+- 下一步：守住 `/api/status`、Dashboard、Strategy Lab、Execution Status、probe、drilldown 的同一份 reference-only patch 語義
 
-### P1. venue readiness is still unverified
-- 目前真相：`binance=config enabled + public-only + metadata OK` / `okx=config disabled + public-only + metadata OK` / `missing_runtime_proof=live exchange credential, order ack lifecycle, fill lifecycle`
-- 下一步：Keep per-venue blockers explicitly visible on Dashboard, /lab, and /execution/status until credentials, order ack lifecycle, and fill lifecycle each have runtime-backed proof.
-- 驗證：
-  - browser /execution
-  - browser /execution/status
-  - browser /lab
-  - data/execution_metadata_smoke.json
+### P1. venue readiness is still metadata-only, not runtime-proven
+- 目前真相：Binance / OKX metadata contract 正常，但仍是 `public-only`
+- 下一步：在 credentials、order ack、fill lifecycle 有 runtime-backed proof 之前，持續把 venue blockers 放在 operator-facing surfaces
 
-### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3446` / `archive_window_coverage_pct=0.0`
-- 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
-- 驗證：
-  - data/execution_metadata_smoke.json
-  - /api/features/coverage
+### P1. fin_netflow remains source_auth_blocked
+- 目前真相：`COINGLASS_API_KEY` 缺失；`forward_archive_rows=3501` 但 `archive_window_coverage_pct=0.0`
+- 下一步：補 key，讓 ETF-flow / fin_netflow 從 auth_missing 轉成有效 snapshot
 
-### P1. leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe
-- 目前真相：`leaderboard_count=6` / `top_model=random_forest` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- Strategy Lab workspace safety：duplicate `My Strategy` 預設名稱會自動改成唯一名稱；cached `selectedStrategy` 會在 leaderboard fallback 前先回填，避免重整後被第一名策略覆蓋工作區語境。
-- 下一步：Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy；同時守住工作區初始化 safety，不要再讓預設名稱 collision 或 cached selection 被初始化流程覆蓋。
-- 驗證：
-  - browser /lab
-  - curl http://127.0.0.1:<active-backend>/api/models/leaderboard
-  - pytest tests/test_strategy_lab_manual_model_and_auto_contract.py -q
-  - cd web && npm run build
+### P1. leaderboard dual-role governance must remain stable
+- 目前真相：`global winner=core_only`，`production profile=core_plus_macro_plus_all_4h`，這是治理分工，不是 parity drift
+- 下一步：守住 `/api/models/leaderboard`、Strategy Lab、docs 與 probe 的 dual-role truth，不回退 placeholder-only
 
 ---
 
 ## Current Priority
-1. **維持 current-live blocker truth（decision_quality_below_trade_floor），同時保留 q15 current-live bucket support rows 可 machine-read**
-2. **持續沿 recent canonical pathological slice 追根因，不要 generic 化 blocker**
-3. **守住 q15 current-live bucket support / reference-only patch、leaderboard dual-role governance、Strategy Lab workspace safety、venue/source blockers 可見性**
-4. **讓 heartbeat 自動 overwrite sync current-state docs，不再把 docs drift 留給人工補寫**
+1. **維持 toxic q15 bucket = 唯一 current-live blocker，避免任何舊 blocker / support 敘事回流**
+2. **沿 recent canonical 1000-row bull concentration pocket 繼續追根因，不讓 broader average 稀釋 blocker**
+3. **守住 reference-only patch、venue/source blockers、leaderboard dual-role governance 與 docs overwrite sync**
+4. **把 operator-facing blocker truth 維持在 Dashboard / Execution / Strategy Lab 的中文產品語義，不回退 raw machine tokens**

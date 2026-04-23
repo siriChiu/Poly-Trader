@@ -19,7 +19,7 @@ const EXECUTION_REASON_MAPPINGS: Array<[string, string]> = [
   ["exact_bucket_missing_proxy_reference_only", "目前只有 proxy 參考，仍不可直接部署。"],
   ["exact_bucket_missing_exact_lane_proxy_only", "目前只有精準路徑 proxy 參考，仍不可直接部署。"],
   ["no_support_proxy", "目前沒有可用 proxy。"],
-  ["regime_gate_block", "目前 regime gate 仍阻塞。"],
+  ["regime_gate_block", "目前市場閘門仍阻塞。"],
   ["runtime_governance_visibility_only", "目前僅提供執行治理可視化。"],
   ["stalled_under_minimum", "目前最小樣本門檻仍未達標。"],
   ["unsupported", "目前條件尚未通過可部署檢查。"],
@@ -58,6 +58,7 @@ const SUPPORT_GOVERNANCE_ROUTE_LABEL_MAPPINGS: Array<[string, string]> = [
 ];
 
 const RUNTIME_CLOSURE_STATE_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["deployment_guardrail_blocks_trade", "部署保護欄阻擋交易"],
   ["patch_active_but_execution_blocked", "patch 已套用但 execution 仍阻塞"],
   ["patch_inactive_or_blocked", "僅保留治理參考"],
   ["support_closed_but_trade_floor_blocked", "精準樣本已閉環但交易門檻仍阻塞"],
@@ -107,9 +108,17 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["top-level live baseline", "頂層 live 基準"],
   ["component-experiment readiness", "元件實驗就緒"],
   ["component experiment readiness", "元件實驗就緒"],
+  ["exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade", "精準路徑毒性子 bucket 阻擋交易"],
+  ["exact_live_lane_toxic_sub_bucket_current_bucket", "精準路徑毒性子 bucket"],
+  ["exact-lane", "精準路徑"],
   ["exact_supported_component_experiment_ready", "精準樣本元件實驗就緒"],
   ["exact_live_bucket_supported", "精準樣本已就緒"],
   ["exact live bucket supported", "精準樣本已就緒"],
+  ["current_structure_quality", "目前結構分數"],
+  ["component scoring", "component 評分"],
+  ["boundary tweak", "邊界微調"],
+  ["toxic sub-bucket", "毒性子 bucket"],
+  ["hold-only", "僅觀察"],
   ["entry_quality >= 0.55 and allowed_layers > 0 without q35 applicability / support / guardrail regression", "進場品質 >= 0.55，且允許層數 > 0，同時不得出現 q35 適用性 / 樣本支持 / 保護欄回歸"],
   ["entry_quality=", "進場分數="],
   ["entry_quality", "進場分數"],
@@ -130,7 +139,9 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["closure", "閉環"],
   ["uplift", "上修"],
   ["support 補滿前", "精準樣本補滿前"],
+  ["support 閉環", "精準樣本閉環"],
   ["runtime 只能維持", "執行期只能維持"],
+  ["primary sleeves", "主要倉位腿"],
   ["current row", "當前資料列"],
   ["這條 lane", "這條路徑"],
   ["formula review", "公式複核"],
@@ -153,7 +164,7 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["circuit_breaker_active", "風控熔斷中"],
   ["patch_inactive_or_blocked", "僅保留治理參考"],
   ["patch_active_but_execution_blocked", "patch 已套用但 execution 仍阻塞"],
-  ["support_closed_but_trade_floor_blocked", "support 已 closure，但仍被 trade floor 擋住"],
+  ["support_closed_but_trade_floor_blocked", "精準樣本已閉環，但仍被交易門檻擋住"],
   ["capacity_opened_signal_hold", "容量已開但訊號仍 HOLD"],
   ["unsupported_live_structure_bucket", "live bucket 支持不足"],
   ["exact_bucket_unsupported_block", "精準樣本尚未建立"],
@@ -166,7 +177,8 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["reference_only_until_exact_support_ready", "先當治理參考，不可直接放行"],
   ["reference_only_while_deployment_blocked", "blocker 未清前僅作治理參考"],
   ["runtime_governance_visibility_only", "執行治理可視化"],
-  ["regime_gate_block", "regime gate 阻塞"],
+  ["regime_gate_block", "市場閘門阻塞"],
+  ["regime gate", "市場閘門"],
   ["stalled_under_minimum", "最小門檻尚未達標"],
   ["runtime_has_not_recorded_an_order_yet", "執行期尚未記錄任何委託"],
   ["no_recent_runtime_order", "尚無近期執行期委託"],
@@ -193,7 +205,9 @@ const GENERIC_OPERATOR_PHRASE_REPLACEMENTS: Array<[string, string]> = [
   ["closure", "閉環"],
   ["uplift", "上修"],
   ["support 補滿前", "精準樣本補滿前"],
+  ["support 閉環", "精準樣本閉環"],
   ["runtime 只能維持", "執行期只能維持"],
+  ["primary sleeves", "主要倉位腿"],
   ["current row", "當前資料列"],
   ["這條 lane", "這條路徑"],
   ["exact live bucket present but below minimum", "目前 exact support 已開始累積"],
@@ -413,9 +427,7 @@ export function humanizeExecutionReason(value?: string | null): string {
     const spacedToken = token.replace(/_/g, " ");
     if (lower === token || normalizedWords === spacedToken) return message;
   }
-  return applyOperatorPhraseReplacements(
-    applyStructureBucketPhraseReplacements(normalized).replace(/_/g, " ").trim(),
-  );
+  return humanizeRuntimeDetailText(normalized);
 }
 
 export function isExecutionReconciliationLimitedEvidence(
@@ -589,6 +601,14 @@ export function humanizeRuntimeDetailText(value?: string | null): string {
     .split("private balance").join("私有餘額")
     .split("runtime closure").join("部署閉環")
     .split("runtime closure summary").join("部署閉環摘要")
+    .split("rows=").join("樣本=")
+    .split("win_rate=").join("勝率=")
+    .split("quality=").join("品質=")
+    .split("avg_pnl=").join("平均損益=")
+    .split("regime=").join("市場狀態=")
+    .split("gate=").join("閘門=")
+    .split("bucket=").join("當前 bucket=")
+    .split("blocks trade").join("阻擋交易")
     .replace(/\bWR\b/g, "勝率")
     .replace(/\bPnL\b/g, "損益")
     .replace(/\bDD\b/g, "回撤")

@@ -2600,8 +2600,8 @@ export default function StrategyLab() {
     : humanizeRuntimeDetailText(liveRuntimeClosureSummary || "尚未取得部署閉環摘要。");
   const activeSleevesLabel = liveExecutionSyncPending ? "同步中" : (liveRouting?.active_ratio_text || "0/0");
   const activeSleevesSummaryLabel = liveExecutionSyncPending
-    ? "正在同步 regime / gate 路由"
-    : `${liveRouting?.current_regime || liveDecisionStatus?.regime_label || "—"} · gate ${liveRouting?.current_regime_gate || liveDecisionStatus?.regime_gate || "—"}`;
+    ? "正在同步市場狀態 / 閘門路由"
+    : `${humanizeStructureBucketLabel(liveRouting?.current_regime || liveDecisionStatus?.regime_label || "—")} · 閘門 ${humanizeStructureBucketLabel(liveRouting?.current_regime_gate || liveDecisionStatus?.regime_gate || "—")}`;
   const metadataSmokeFreshnessLabel = runtimeStatusPending
     ? "同步中"
     : humanizeLifecycleDiagnosticLabel(metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
@@ -3061,7 +3061,7 @@ export default function StrategyLab() {
                     <div>{currentBucketRootCauseSummary}</div>
                     <div className="opacity-70">當前 bucket {currentBucketRootCauseBucket}</div>
                     <div className="opacity-70">候選 patch {humanizeRuntimeDetailText(currentBucketRootCause?.candidate_patch_feature || "—")} · {currentBucketRootCauseActionLabel}</div>
-                    <div className="opacity-70">近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"} · Δq35 {formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
+                    <div className="opacity-70">近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 {formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
                     <div className="opacity-70">下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}</div>
                   </>
                 )}

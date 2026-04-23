@@ -1138,7 +1138,8 @@ def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
         'const patchSectionTitle = isReferenceOnlyPatchStatus(recommendedPatch?.status)',
         '治理 / 訓練 patch 參考',
         '建議正式 patch',
-        'const patchProfileLabel = humanizeRuntimeDetailText(recommendedPatch?.recommended_profile || "未提供 profile");',
+        'const patchReasonLabel = humanizeRuntimeDetailText(recommendedPatch?.reason || "");',
+        'const patchActionLabel = humanizeRuntimeDetailText(recommendedPatch?.recommended_action || "");',
         'recommendedPatch.reference_patch_scope',
         'recommendedPatch.reference_source',
         'support_governance_route?: string | null;',
@@ -1148,7 +1149,7 @@ def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
         'const supportGovernanceRouteDisplayLabel = humanizeSupportGovernanceRouteLabel(supportGovernanceRouteLabel);',
         '{supportRouteLabel ? ` · ${PATHOLOGY_LABELS.supportRoute} ${supportRouteDisplayLabel}` : ""}',
         '{supportGovernanceRouteLabel ? ` · ${PATHOLOGY_LABELS.governanceRoute} ${supportGovernanceRouteDisplayLabel}` : ""}',
-        'recommendedPatch.recommended_action',
+        'recommendedPatch?.recommended_action',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -1157,12 +1158,26 @@ def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
 def test_live_pathology_summary_card_surfaces_focus_scope_vs_spillover_context():
     source = _read("components/LivePathologySummaryCard.tsx")
     required_snippets = [
+        'const summaryText = summary.summary ? humanizeRuntimeDetailText(summary.summary) : null;',
         'const focusScopeLabel = humanizeRuntimeDetailText(summary.focus_scope_label || summary.focus_scope || "範圍");',
         'const spilloverLabel = summary.focus_scope_label',
         '${humanizeRuntimeDetailText(summary.focus_scope_label)} ${PATHOLOGY_LABELS.spilloverPocket}',
         '較寬範圍 ${PATHOLOGY_LABELS.spilloverPocket}',
         '{PATHOLOGY_LABELS.focusScopeRows} {summary.focus_scope_rows ?? "—"}',
         '${PATHOLOGY_LABELS.spilloverRows} ${spillover.extra_rows}',
+        '{summaryText}',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_live_pathology_summary_card_humanizes_patch_reason_and_action_strings():
+    source = _read("components/LivePathologySummaryCard.tsx")
+    required_snippets = [
+        'const patchReasonLabel = humanizeRuntimeDetailText(recommendedPatch?.reason || "");',
+        'const patchActionLabel = humanizeRuntimeDetailText(recommendedPatch?.recommended_action || "");',
+        '{patchReasonLabel && <div>{patchReasonLabel}</div>}',
+        '{patchActionLabel && <div>{PATHOLOGY_LABELS.nextAction} {patchActionLabel}</div>}',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -1212,6 +1227,7 @@ def test_runtime_copy_humanizes_support_and_runtime_route_tokens_for_operator_su
         '["no_support_proxy", "目前沒有可用 proxy"]',
         '["patch_inactive_or_blocked", "僅保留治理參考"]',
         '["support_closed_but_trade_floor_blocked", "精準樣本已閉環但交易門檻仍阻塞"]',
+        '["deployment_guardrail_blocks_trade", "部署保護欄阻擋交易"]',
         '["reference_only_non_current_live_scope", "範圍不同，僅作治理參考"]',
         '["accumulating", "持續累積中"]',
         'export function humanizeSupportRouteLabel(value?: string | null): string {',
@@ -1230,6 +1246,10 @@ def test_runtime_copy_humanizes_payload_summary_tokens_for_operator_surfaces():
         '["regime_shift", "市場狀態切換"]',
         '["regime_concentration", "市場狀態過度集中"]',
         '["exact support", "精準樣本"]',
+        '["exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade", "精準路徑毒性子 bucket 阻擋交易"]',
+        '["exact_live_lane_toxic_sub_bucket_current_bucket", "精準路徑毒性子 bucket"]',
+        '["toxic sub-bucket", "毒性子 bucket"]',
+        '["hold-only", "僅觀察"]',
         '["support-aware", "支援樣本感知"]',
         '["base-stack redesign", "基礎堆疊重設"]',
         '["base-stack", "基礎堆疊"]',
@@ -1238,7 +1258,11 @@ def test_runtime_copy_humanizes_payload_summary_tokens_for_operator_surfaces():
         '["closure", "閉環"]',
         '["uplift", "上修"]',
         '["support 補滿前", "精準樣本補滿前"]',
+        '["support 閉環", "精準樣本閉環"]',
         '["runtime 只能維持", "執行期只能維持"]',
+        '["primary sleeves", "主要倉位腿"]',
+        '["regime_gate_block", "市場閘門阻塞"]',
+        '["regime gate", "市場閘門"]',
         '["這條 lane", "這條路徑"]',
         '["current row", "當前資料列"]',
         '["PAPER", "模擬倉"]',
@@ -1247,6 +1271,14 @@ def test_runtime_copy_humanizes_payload_summary_tokens_for_operator_surfaces():
         '["QUALITY", "品質"]',
         '["SCOPE", "範圍"]',
         '.split("exact-vs-spillover=").join("精準路徑 / 外溢對照：")',
+        '.split("rows=").join("樣本=")',
+        '.split("win_rate=").join("勝率=")',
+        '.split("quality=").join("品質=")',
+        '.split("avg_pnl=").join("平均損益=")',
+        '.split("regime=").join("市場狀態=")',
+        '.split("gate=").join("閘門=")',
+        '.split("bucket=").join("當前 bucket=")',
+        '.split("blocks trade").join("阻擋交易")',
         'replace(/\\bWR\\b/g, "勝率")',
         'replace(/\\bPnL\\b/g, "損益")',
         'replace(/\\bDD\\b/g, "回撤")',
@@ -1728,6 +1760,23 @@ def test_runtime_copy_humanizes_supported_routes_and_structure_buckets():
         assert snippet in source
 
 
+def test_runtime_copy_humanizes_bucket_root_cause_prose_fragments():
+    source = _read("utils/runtimeCopy.ts")
+    required_snippets = [
+        '["exact-lane", "精準路徑"]',
+        '["current_structure_quality", "目前結構分數"]',
+        '["component scoring", "component 評分"]',
+        '["boundary tweak", "邊界微調"]',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_runtime_copy_humanize_execution_reason_reuses_runtime_detail_humanizer_for_sentence_copy():
+    source = _read("utils/runtimeCopy.ts")
+    assert 'return humanizeRuntimeDetailText(' in source
+
+
 def test_execution_surfaces_use_structure_bucket_humanizer_for_operator_copy():
     confidence_source = _read("components/ConfidenceIndicator.tsx")
     pathology_source = _read("components/LivePathologySummaryCard.tsx")
@@ -1746,8 +1795,31 @@ def test_execution_surfaces_use_structure_bucket_humanizer_for_operator_copy():
 
     assert 'humanizeStructureBucketLabel(' in status_source
     assert '當前 bucket {currentBucketRootCauseBucket}' in status_source
+    assert '距 q35 還差 {formatNumber(currentBucketRootCause?.gap_to_q35_boundary, 4)}' in status_source
+    assert 'Δq35' not in status_source
 
     assert 'humanizeStructureBucketLabel(' in lab_source
     assert '當前 bucket {currentBucketRootCauseBucket}' in lab_source
+    assert '距 q35 還差 {formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}' in lab_source
+    assert 'Δq35' not in lab_source
 
     assert 'humanizeStructureBucketLabel(liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—")' in console_source
+    assert '正在向 /api/status 取得市場狀態 / 閘門 / bucket。' in console_source
+
+
+def test_execution_surfaces_humanize_live_routing_regime_gate_lines():
+    status_source = _read("pages/ExecutionStatus.tsx")
+    console_source = _read("pages/ExecutionConsole.tsx")
+    lab_source = _read("pages/StrategyLab.tsx")
+
+    assert 'humanizeStructureBucketLabel(liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—")' in status_source
+    assert '閘門 {humanizeStructureBucketLabel(liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—")}' in status_source
+    assert '當前 bucket {humanizeStructureBucketLabel(liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—")}' in status_source
+
+    assert '正在向 /api/status 取得市場狀態 / 閘門 / bucket。' in console_source
+    assert '· 閘門 ${humanizeStructureBucketLabel(liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—")}' in console_source
+    assert '· 當前 bucket ${humanizeStructureBucketLabel(liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—")}' in console_source
+
+    assert '正在同步市場狀態 / 閘門路由' in lab_source
+    assert 'humanizeStructureBucketLabel(liveRouting?.current_regime || liveDecisionStatus?.regime_label || "—")' in lab_source
+    assert '· 閘門 ${humanizeStructureBucketLabel(liveRouting?.current_regime_gate || liveDecisionStatus?.regime_gate || "—")}' in lab_source

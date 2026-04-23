@@ -192,6 +192,7 @@ export default function LivePathologySummaryCard({
   const collapseFeatures = Array.isArray(recommendedPatch?.collapse_features)
     ? recommendedPatch.collapse_features.slice(0, 4)
     : [];
+  const summaryText = summary.summary ? humanizeRuntimeDetailText(summary.summary) : null;
   const focusScopeLabel = humanizeRuntimeDetailText(summary.focus_scope_label || summary.focus_scope || "範圍");
   const spilloverLabel = summary.focus_scope_label
     ? `${humanizeRuntimeDetailText(summary.focus_scope_label)} ${PATHOLOGY_LABELS.spilloverPocket}`
@@ -201,6 +202,8 @@ export default function LivePathologySummaryCard({
 
   const compactTopShifts = topShifts.slice(0, 2);
   const patchProfileLabel = humanizeRuntimeDetailText(recommendedPatch?.recommended_profile || "未提供 profile");
+  const patchReasonLabel = humanizeRuntimeDetailText(recommendedPatch?.reason || "");
+  const patchActionLabel = humanizeRuntimeDetailText(recommendedPatch?.recommended_action || "");
   const compactPatchLabel = humanizeRuntimeDetailText(
     recommendedPatch?.recommended_profile
     || recommendedPatch?.reference_patch_scope
@@ -331,13 +334,13 @@ export default function LivePathologySummaryCard({
           </div>
         </div>
         <div className="rounded-full border border-amber-500/30 bg-amber-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-amber-200">
-          {summary.focus_scope_label || summary.focus_scope || "範圍"}
+          {focusScopeLabel}
         </div>
       </div>
 
-      {summary.summary && (
+      {summaryText && (
         <div className="rounded-lg border border-amber-500/20 bg-black/10 px-3 py-2 leading-5 text-amber-50/90">
-          {summary.summary}
+          {summaryText}
         </div>
       )}
 
@@ -444,8 +447,8 @@ export default function LivePathologySummaryCard({
               {supportGovernanceRouteLabel ? ` · ${PATHOLOGY_LABELS.governanceRoute} ${supportGovernanceRouteDisplayLabel}` : ""}
               {recommendedPatch.preferred_support_cohort ? ` · 參考 cohort ${recommendedPatch.preferred_support_cohort}` : ""}
             </div>
-            {recommendedPatch.reason && <div>{recommendedPatch.reason}</div>}
-            {recommendedPatch.recommended_action && <div>{PATHOLOGY_LABELS.nextAction} {recommendedPatch.recommended_action}</div>}
+            {patchReasonLabel && <div>{patchReasonLabel}</div>}
+            {patchActionLabel && <div>{PATHOLOGY_LABELS.nextAction} {patchActionLabel}</div>}
           </div>
           {collapseFeatures.length > 0 && (
             <div className="flex flex-wrap gap-2">
