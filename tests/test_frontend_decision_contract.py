@@ -1914,6 +1914,7 @@ def test_runtime_copy_humanizes_supported_routes_and_structure_buckets():
         '["top-level live baseline", "頂層 live 基準"]',
         '["entry_quality", "進場分數"]',
         '["bull_q15_bias50_overextended_block", "牛市 q15 bias50 過熱阻塞"]',
+        '["base_caution_regime_or_bias", "基線觀察（市場狀態 / 偏離）"]',
         'function applyStructureBucketPhraseReplacements(value: string): string {',
         'export function humanizeStructureBucketLabel(value?: string | null): string {',
         '.replace(/\\bBLOCK\\b/g, "阻塞")',

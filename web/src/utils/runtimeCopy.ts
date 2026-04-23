@@ -425,6 +425,7 @@ const STRUCTURE_BUCKET_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["bull_high_bias200_overheat_block", "牛市高 bias200 過熱阻塞"],
   ["structure_quality_caution", "結構品質觀察"],
   ["structure_quality_block", "結構品質阻塞"],
+  ["base_caution_regime_or_bias", "基線觀察（市場狀態 / 偏離）"],
   ["base_allow", "基線放行"],
 ];
 
