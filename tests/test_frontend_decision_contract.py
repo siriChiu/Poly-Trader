@@ -1543,6 +1543,9 @@ def test_execution_metadata_freshness_detail_component_surfaces_external_monitor
         'type ExecutionMetadataFreshnessDetailProps = {',
         'function buildHostSchedulerSummary(governance?: MetadataGovernance): string | null {',
         '"observed-ticking": "已觀察到自然排程觸發"',
+        '"installed-but-not-ticking": "已安裝但尚未觀察到自然排程觸發"',
+        '.split("installed-but-not-ticking").join("已安裝但尚未觀察到自然排程觸發")',
+        '.split("未維持 fresh").join("未維持新鮮")',
         'const hostSchedulerSummary = buildHostSchedulerSummary(governance);',
         'hostSchedulerSummary ? `外部監看 ${hostSchedulerSummary}` : null,',
         'governance?.operator_message || "尚未取得治理訊息。"',
@@ -1551,6 +1554,7 @@ def test_execution_metadata_freshness_detail_component_surfaces_external_monitor
     for snippet in required_snippets:
         assert snippet in source
     assert '已觀察到自然 ticking' not in source
+    assert 'installed-but-not-排程觸發' not in source
 
 
 def test_runtime_copy_humanizes_execution_governance_without_raw_runtime_english():
@@ -1558,6 +1562,8 @@ def test_runtime_copy_humanizes_execution_governance_without_raw_runtime_english
     required_snippets = [
         '["runtime_governance_visibility_only", "目前僅提供執行治理可視化。"]',
         '["runtime_governance_visibility_only", "執行治理可視化"]',
+        '["installed-but-not-ticking", "已安裝但尚未觀察到自然排程觸發"]',
+        '["installed_but_artifact_not_fresh", "已安裝但產物未維持新鮮"]',
     ]
     for snippet in required_snippets:
         assert snippet in source

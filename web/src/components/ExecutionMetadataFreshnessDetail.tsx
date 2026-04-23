@@ -50,7 +50,10 @@ function humanizeMetadataGovernanceText(value?: string | null): string | null {
     .split("external monitor artifact").join("外部監看產物")
     .split("freshness policy").join("新鮮度規則")
     .split("host scheduler").join("主機排程")
+    .split("installed-but-not-ticking").join("已安裝但尚未觀察到自然排程觸發")
     .split("observed-ticking").join("已觀察到自然排程觸發")
+    .split("installed_but_artifact_not_fresh").join("已安裝但產物未維持新鮮")
+    .split("未維持 fresh").join("未維持新鮮")
     .split("ticking").join("排程觸發")
     .replace(/\s+/g, " ")
     .trim();
@@ -61,6 +64,7 @@ function humanizeHostSchedulerState(value?: string | null): string | null {
   if (!normalized) return null;
   const mapping: Record<string, string> = {
     "observed-ticking": "已觀察到自然排程觸發",
+    "installed-but-not-ticking": "已安裝但尚未觀察到自然排程觸發",
     installed: "已安裝",
     "install-ready": "可安裝",
     pending: "等待中",

@@ -301,6 +301,9 @@ const GENERIC_OPERATOR_PHRASE_REPLACEMENTS: Array<[string, string]> = [
   ["proxy", "近似樣本"],
   ["guardrail", "保護欄"],
   ["Diagnostics", "診斷"],
+  ["installed-but-not-ticking", "已安裝但尚未觀察到自然排程觸發"],
+  ["observed-ticking", "已觀察到自然排程觸發"],
+  ["installed_but_artifact_not_fresh", "已安裝但產物未維持新鮮"],
   ["ticking", "排程觸發"],
 ];
 

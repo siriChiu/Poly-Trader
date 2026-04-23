@@ -1,18 +1,18 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-04-23 20:37:12.329530**
+- generated_at: **2026-04-23 21:07:25.343869**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_replay_not_applicable**
 - reason: 目前 q15 root-cause verdict 不是 boundary_sensitivity_candidate，boundary replay 不是本輪主路徑。
 
 ## Current live row
-- signal: **CIRCUIT_BREAKER**
+- signal: **HOLD**
 - regime/gate: **bull / BLOCK**
 - structure bucket: **BLOCK|bull_q15_bias50_overextended_block|q15**
-- structure_quality: **0.3356**
-- entry_quality: **0.3487** (trade_floor_gap=-0.2013)
+- structure_quality: **0.3392**
+- entry_quality: **0.3766** (trade_floor_gap=-0.1734)
 - support_route: **exact_bucket_missing_proxy_reference_only**
-- floor_cross_legality: **runtime_blocker_preempts_floor_analysis**
+- floor_cross_legality: **math_cross_possible_but_illegal_without_exact_support**
 
 ## Boundary replay
 - legacy bucket rows: **0**
@@ -24,15 +24,15 @@
 - dominant_neighbor_bucket: **BLOCK|bull_high_bias200_overheat_block|q65** rows=82
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.4387 → 0.4811**
-- structure_quality: **0.3356 → 0.35**
+- raw before/after: **0.4446 → 0.4764**
+- structure_quality: **0.3392 → 0.35**
 - bucket_after: **BLOCK|bull_high_bias200_overheat_block|q65**
-- entry_quality: **0.3487 → 0.3522**
-- trade_floor_gap_after: **-0.1978**
+- entry_quality: **0.3766 → 0.3793**
+- trade_floor_gap_after: **-0.1707**
 - allowed_layers_after: **0** (regime_gate_block)
 - counterfactual verdict: **bucket_proxy_only_not_trade_floor_fix**
 - counterfactual reason: 只把 feat_4h_bb_pct_b 補到剛好跨 q35，只會把結構 bucket 從 q15 改成 q35；entry_quality 仍低於 trade floor，allowed_layers 仍是 0，表示它更像 bucket proxy，而不是 deployable floor fix。
 
 ## Next
 - next_action: 依 q15 root-cause / support audit 的既有 blocker 繼續治理。
-- verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 q15 root-cause artifact。
+- verify_next: 優先用 q15 root-cause artifact 鎖定的 component 做 counterfactual，確認 current row 是否能跨到 q35，且 exact-lane 仍不會因 boundary tweak 產生虛假支持。
