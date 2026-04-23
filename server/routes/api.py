@@ -51,7 +51,7 @@ from execution.control_plane import (
     start_execution_profile_run,
     stop_execution_run,
 )
-from execution.execution_service import ExecutionService
+from execution.execution_service import ExecutionRejectError, ExecutionService
 from execution.metadata_smoke import run_metadata_smoke
 from utils.logger import setup_logger
 
@@ -6177,13 +6177,16 @@ async def api_trade(req: "TradeRequest", request: Request = None) -> Dict[str, A
     db = get_db()
     try:
         service = ExecutionService(cfg, db_session=db)
-        result = service.submit_order(
-            side=submit_side,
-            symbol=req.symbol,
-            qty=req.qty,
-            order_type="market",
-            reduce_only=reduce_only,
-        )
+        try:
+            result = service.submit_order(
+                side=submit_side,
+                symbol=req.symbol,
+                qty=req.qty,
+                order_type="market",
+                reduce_only=reduce_only,
+            )
+        except ExecutionRejectError as exc:
+            raise HTTPException(status_code=409, detail=exc.to_payload()) from exc
     finally:
         if hasattr(db, "close"):
             db.close()

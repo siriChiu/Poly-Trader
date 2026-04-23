@@ -1170,6 +1170,9 @@ type EditorScenario = {
   stopLoss: number;
   tpBias: number;
   tpRoi: number;
+  turningPointBottomScoreMin: number;
+  turningPointTopScoreTakeProfit: number;
+  turningPointMinProfitPct: number;
   l1: number;
   l2: number;
   l3: number;
@@ -1265,6 +1268,9 @@ const buildScenarioFromModules = (moduleIds: EditorModuleId[]): EditorScenario =
     stopLoss: -3,
     tpBias: 999,
     tpRoi: 999,
+    turningPointBottomScoreMin: Math.round(DEFAULT_PARAMS.turning_point.bottom_score_min * 100),
+    turningPointTopScoreTakeProfit: Math.round(DEFAULT_PARAMS.turning_point.top_score_take_profit * 100),
+    turningPointMinProfitPct: Math.round(DEFAULT_PARAMS.turning_point.min_profit_pct * 100),
     l1: 25,
     l2: 25,
     l3: 50,
@@ -1358,6 +1364,9 @@ const inferModulesFromStrategy = (strategy?: StrategyEntry | null): EditorModule
   active.push(fibLike ? "fib_layers" : "pyramid_sl_tp");
   if ((strategy?.definition?.type === "hybrid") || Number(entry.top_k_percent || 0) > 0 || Number(entry.confidence_min || 0) >= 0.7) {
     active.push("high_win_low_freq");
+  }
+  if (Boolean(params.turning_point?.enabled)) {
+    active.push("turning_point");
   }
   if ((params.capital_management?.mode || "classic_pyramid") === "reserve_90") {
     active.push("reserve_90");
@@ -1576,6 +1585,9 @@ export default function StrategyLab() {
   const [stopLoss, setStopLoss] = useState(Math.round(DEFAULT_PARAMS.stop_loss * 100));
   const [tpBias, setTpBias] = useState(DEFAULT_PARAMS.take_profit_bias);
   const [tpRoi, setTpRoi] = useState(Math.round(DEFAULT_PARAMS.take_profit_roi * 100));
+  const [turningPointBottomScoreMin, setTurningPointBottomScoreMin] = useState(Math.round(DEFAULT_PARAMS.turning_point.bottom_score_min * 100));
+  const [turningPointTopScoreTakeProfit, setTurningPointTopScoreTakeProfit] = useState(Math.round(DEFAULT_PARAMS.turning_point.top_score_take_profit * 100));
+  const [turningPointMinProfitPct, setTurningPointMinProfitPct] = useState(Math.round(DEFAULT_PARAMS.turning_point.min_profit_pct * 100));
   const [initialCapital, setInitialCapital] = useState(10000);
   const [chartStart, setChartStart] = useState<string>("");
   const [chartEnd, setChartEnd] = useState<string>("");
@@ -1895,9 +1907,13 @@ export default function StrategyLab() {
     setAllowedRegimesMode(
       allowedRegimes === "bear" ? "bear_only" : allowedRegimes === "bull" ? "bull_only" : allowedRegimes === "bull,chop" ? "bull_chop" : "all"
     );
+    const turningPoint = typeof params.turning_point === "object" && params.turning_point ? params.turning_point : DEFAULT_PARAMS.turning_point;
     setStopLoss(Math.round((params.stop_loss ?? DEFAULT_PARAMS.stop_loss) * 100));
     setTpBias(params.take_profit_bias ?? DEFAULT_PARAMS.take_profit_bias);
     setTpRoi(Math.round((params.take_profit_roi ?? DEFAULT_PARAMS.take_profit_roi) * 100));
+    setTurningPointBottomScoreMin(Math.round((turningPoint.bottom_score_min ?? DEFAULT_PARAMS.turning_point.bottom_score_min) * 100));
+    setTurningPointTopScoreTakeProfit(Math.round((turningPoint.top_score_take_profit ?? DEFAULT_PARAMS.turning_point.top_score_take_profit) * 100));
+    setTurningPointMinProfitPct(Math.round((turningPoint.min_profit_pct ?? DEFAULT_PARAMS.turning_point.min_profit_pct) * 100));
     setInitialCapital(Math.round(Number(params.initial_capital ?? 10000)));
     const backtestRange = typeof params.backtest_range === "object" && params.backtest_range ? params.backtest_range : {};
     const resultRange = strategy.last_results?.backtest_range ?? null;
@@ -1943,6 +1959,9 @@ export default function StrategyLab() {
     setStopLoss(scenario.stopLoss);
     setTpBias(scenario.tpBias);
     setTpRoi(scenario.tpRoi);
+    setTurningPointBottomScoreMin(scenario.turningPointBottomScoreMin);
+    setTurningPointTopScoreTakeProfit(scenario.turningPointTopScoreTakeProfit);
+    setTurningPointMinProfitPct(scenario.turningPointMinProfitPct);
     setLayer1(scenario.l1);
     setLayer2(scenario.l2);
     setLayer3(scenario.l3);
@@ -2276,9 +2295,9 @@ export default function StrategyLab() {
           },
           turning_point: activeModules.includes("turning_point") ? {
             enabled: true,
-            bottom_score_min: DEFAULT_PARAMS.turning_point.bottom_score_min,
-            top_score_take_profit: DEFAULT_PARAMS.turning_point.top_score_take_profit,
-            min_profit_pct: DEFAULT_PARAMS.turning_point.min_profit_pct,
+            bottom_score_min: turningPointBottomScoreMin / 100,
+            top_score_take_profit: turningPointTopScoreTakeProfit / 100,
+            min_profit_pct: turningPointMinProfitPct / 100,
           } : { enabled: false },
         },
       };

@@ -867,6 +867,32 @@ def test_api_trade_uses_execution_service(monkeypatch):
 
 
 
+def test_api_trade_maps_execution_rejects_to_http_409(monkeypatch):
+    from execution.execution_service import ExecutionRejectError
+
+    class DummyService:
+        def __init__(self, cfg, db_session=None):
+            self.cfg = cfg
+
+        def submit_order(self, **kwargs):
+            raise ExecutionRejectError("kill_switch_active", "Kill switch active", context={"kill_switch": True})
+
+    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "binance"}, "trading": {"venue": "binance"}})
+    monkeypatch.setattr(api_module, "get_db", lambda: object())
+    monkeypatch.setattr(api_module, "ExecutionService", DummyService)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(api_module.api_trade(api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.01), request=_local_request()))
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == {
+        "code": "kill_switch_active",
+        "message": "Kill switch active",
+        "context": {"kill_switch": True},
+    }
+
+
+
 def test_compute_backtest_benchmarks_returns_dynamic_buy_hold_and_blind():
     benchmarks = _compute_backtest_benchmarks(
         prices=[100.0, 105.0, 102.0, 110.0],

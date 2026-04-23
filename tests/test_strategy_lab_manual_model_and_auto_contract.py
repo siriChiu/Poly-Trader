@@ -349,6 +349,35 @@ def test_strategy_lab_frontend_exposes_manual_model_selection_and_protects_syste
 
 
 
+def test_strategy_lab_frontend_preserves_saved_turning_point_thresholds_on_rerun():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'turningPointBottomScoreMin: number;',
+        'turningPointTopScoreTakeProfit: number;',
+        'turningPointMinProfitPct: number;',
+        'turningPointBottomScoreMin: Math.round(DEFAULT_PARAMS.turning_point.bottom_score_min * 100),',
+        'turningPointTopScoreTakeProfit: Math.round(DEFAULT_PARAMS.turning_point.top_score_take_profit * 100),',
+        'turningPointMinProfitPct: Math.round(DEFAULT_PARAMS.turning_point.min_profit_pct * 100),',
+        'const [turningPointBottomScoreMin, setTurningPointBottomScoreMin] = useState(',
+        'const [turningPointTopScoreTakeProfit, setTurningPointTopScoreTakeProfit] = useState(',
+        'const [turningPointMinProfitPct, setTurningPointMinProfitPct] = useState(',
+        'if (Boolean(params.turning_point?.enabled)) {',
+        'active.push("turning_point");',
+        'const turningPoint = typeof params.turning_point === "object" && params.turning_point ? params.turning_point : DEFAULT_PARAMS.turning_point;',
+        'setTurningPointBottomScoreMin(Math.round((turningPoint.bottom_score_min ?? DEFAULT_PARAMS.turning_point.bottom_score_min) * 100));',
+        'setTurningPointTopScoreTakeProfit(Math.round((turningPoint.top_score_take_profit ?? DEFAULT_PARAMS.turning_point.top_score_take_profit) * 100));',
+        'setTurningPointMinProfitPct(Math.round((turningPoint.min_profit_pct ?? DEFAULT_PARAMS.turning_point.min_profit_pct) * 100));',
+        'setTurningPointBottomScoreMin(scenario.turningPointBottomScoreMin);',
+        'setTurningPointTopScoreTakeProfit(scenario.turningPointTopScoreTakeProfit);',
+        'setTurningPointMinProfitPct(scenario.turningPointMinProfitPct);',
+        'bottom_score_min: turningPointBottomScoreMin / 100,',
+        'top_score_take_profit: turningPointTopScoreTakeProfit / 100,',
+        'min_profit_pct: turningPointMinProfitPct / 100,',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
 def test_strategy_lab_frontend_prefills_workspace_with_unique_default_name_after_leaderboard_load():
     source = _read("pages/StrategyLab.tsx")
     required_snippets = [
