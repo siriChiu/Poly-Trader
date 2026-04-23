@@ -78,7 +78,7 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
                 設定 {item.enabled_in_config ? "啟用" : "停用"} · 憑證 {item.credentials_configured ? "已配置" : "僅公開資料"} · 元資料 {item.ok ? "正常" : "失敗"}
               </div>
               <div className="opacity-90">
-                step {item.contract?.step_size ?? "—"} · tick {item.contract?.tick_size ?? "—"} · 最小數量 {formatScalar(item.contract?.min_qty)}
+                數量步進 {item.contract?.step_size ?? "—"} · 價格刻度 {item.contract?.tick_size ?? "—"} · 最小數量 {formatScalar(item.contract?.min_qty)}
               </div>
               <div className="opacity-90">待補實單證據 · {blockerSummary}</div>
               {item.error ? <div className="mt-1 opacity-90">{item.error}</div> : null}
@@ -99,7 +99,7 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
             </div>
             <div className="mt-2 opacity-90">設定 {item.enabled_in_config ? "啟用" : "停用"} · 憑證 {item.credentials_configured ? "已配置" : "僅公開資料"}</div>
             <div className="opacity-90">元資料契約 {item.ok ? "正常" : "失敗"}</div>
-            <div className="opacity-90">step {item.contract?.step_size ?? "—"} · tick {item.contract?.tick_size ?? "—"}</div>
+            <div className="opacity-90">數量步進 {item.contract?.step_size ?? "—"} · 價格刻度 {item.contract?.tick_size ?? "—"}</div>
             <div className="opacity-90">最小數量 {formatScalar(item.contract?.min_qty)} · 最小成本 {formatScalar(item.contract?.min_cost)}</div>
             <div className="mt-2 opacity-90">待補實單證據 · {blockerSummary}</div>
             {item.error ? <div className="mt-1 opacity-90">{item.error}</div> : null}

@@ -1,4 +1,4 @@
-import { humanizeRecentDriftInterpretation } from "../utils/runtimeCopy";
+import { humanizeRecentDriftInterpretation, humanizeRuntimeDetailText } from "../utils/runtimeCopy";
 
 type DriftFeatureShift = {
   feature?: string | null;
@@ -97,6 +97,16 @@ function humanizeRecentDriftInterpretationLabel(value?: string | null): string {
   return humanizeRecentDriftInterpretation(value);
 }
 
+function humanizeRecentDriftDominantRegimeLabel(value?: string | null): string {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "—";
+  if (normalized === "bull") return "牛市";
+  if (normalized === "bear") return "熊市";
+  if (normalized === "chop") return "盤整";
+  if (normalized === "neutral") return "中性";
+  return humanizeRuntimeDetailText(value);
+}
+
 function interpretationTone(interpretationLabel?: string | null): string {
   if (interpretationLabel === "健康" || interpretationLabel === "受支持的極端趨勢") {
     return "border-emerald-500/25 bg-emerald-500/8";
@@ -133,6 +143,8 @@ function renderWindowSummary(
   const targetPath = windowSummary.target_path_diagnostics ?? null;
   const reference = windowSummary.reference_window_comparison ?? null;
   const alerts = Array.isArray(windowPayload?.alerts) ? windowPayload?.alerts.filter(Boolean) : [];
+  const alertLabels = alerts.map((alert) => humanizeRuntimeDetailText(alert));
+  const dominantRegimeLabel = humanizeRecentDriftDominantRegimeLabel(windowSummary.dominant_regime);
   const topShiftFeatures = (Array.isArray(reference?.top_mean_shift_features) ? reference?.top_mean_shift_features : [])
     .map((item) => item?.feature)
     .filter((value): value is string => Boolean(value))
@@ -146,16 +158,16 @@ function renderWindowSummary(
     <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>
       <div className="font-medium text-slate-100">{label}</div>
       <div>
-        視窗 {windowPayload?.window ?? "—"} · 樣本 {windowSummary.rows ?? "—"} · WR {formatPct(windowSummary.win_rate)} · 主導市場 {windowSummary.dominant_regime || "—"} {formatPct(windowSummary.dominant_regime_share)}
+        視窗 {windowPayload?.window ?? "—"} · 樣本 {windowSummary.rows ?? "—"} · 勝率 {formatPct(windowSummary.win_rate)} · 主導市場 {dominantRegimeLabel} {formatPct(windowSummary.dominant_regime_share)}
       </div>
       <div>
-        警示 {alerts.length ? alerts.join(" · ") : "無"} · 品質 {formatSigned(quality?.avg_simulated_quality)} · PnL {formatSigned(quality?.avg_simulated_pnl, 4)} · spot-long {formatPct(quality?.spot_long_win_rate)} · DD {formatPct(quality?.avg_drawdown_penalty)}
+        警示 {alertLabels.length ? alertLabels.join(" · ") : "無"} · 品質 {formatSigned(quality?.avg_simulated_quality)} · 損益 {formatSigned(quality?.avg_simulated_pnl, 4)} · 現貨多單勝率 {formatPct(quality?.spot_long_win_rate)} · 回撤 {formatPct(quality?.avg_drawdown_penalty)}
       </div>
       <div>
-        低變異 {featureDiag?.low_variance_count ?? "—"}/{featureDiag?.feature_count ?? "—"} · 壓縮 {featureDiag?.compressed_count ?? "—"} · 高缺值 {featureDiag?.null_heavy_count ?? "—"} · overlay {featureDiag?.overlay_only_count ?? "—"} · 預期靜態 {featureDiag?.expected_static_count ?? "—"}
+        低變異 {featureDiag?.low_variance_count ?? "—"}/{featureDiag?.feature_count ?? "—"} · 壓縮 {featureDiag?.compressed_count ?? "—"} · 高缺值 {featureDiag?.null_heavy_count ?? "—"} · 疊層觀察 {featureDiag?.overlay_only_count ?? "—"} · 預期靜態 {featureDiag?.expected_static_count ?? "—"}
       </div>
       <div>
-        尾端 {formatStreak(targetPath?.tail_target_streak)} · 最長逆向 {formatStreak(adverseStreak)} · 前一窗 WR {formatPct(reference?.prev_win_rate)} ({formatSignedPct(reference?.win_rate_delta)})
+        尾端 {formatStreak(targetPath?.tail_target_streak)} · 最長逆向 {formatStreak(adverseStreak)} · 前一窗 勝率 {formatPct(reference?.prev_win_rate)} ({formatSignedPct(reference?.win_rate_delta)})
       </div>
       <div>
         主要漂移 {topShiftFeatures.length ? topShiftFeatures.join(" / ") : "—"}
@@ -209,7 +221,7 @@ export default function RecentCanonicalDriftCard({
 
       {pending ? (
         <div className="mt-3 leading-6 text-slate-200/80">
-          目前 blocker pocket 的 recent-window drift 正在同步；在產物到位前不要把較寬歷史平均值當成目前 live truth。
+          目前 blocker pocket 的近期視窗漂移正在同步；在產物到位前不要把較寬歷史平均值當成目前 live 真相。
         </div>
       ) : !latestWindowSummary && !blockingWindowSummary ? (
         <div className="mt-3 leading-6 text-slate-200/80">
@@ -217,7 +229,7 @@ export default function RecentCanonicalDriftCard({
         </div>
       ) : (
         <div className="mt-3 space-y-3 text-[12px] leading-6 text-slate-100/90">
-          {renderWindowSummary("最新 recent-window", latestWindow)}
+          {renderWindowSummary("最新近期視窗", latestWindow)}
           {hasDistinctBlockingWindow
             ? renderWindowSummary("當前 blocker pocket", blockingWindow, { emphasize: true })
             : null}

@@ -5,10 +5,13 @@ import { useApi } from "../hooks/useApi";
 import { ExecutionHero, ExecutionMetricCard, ExecutionPill, ExecutionSectionCard } from "../components/execution/ExecutionSurface";
 import {
   humanizeCurrentLiveBlockerLabel,
+  humanizeExecutionModeLabel,
   humanizeExecutionReason,
   humanizeExecutionReconciliationStatusLabel,
+  humanizeExecutionVenueLabel,
   humanizeRuntimeClosureStateLabel,
   humanizeRuntimeDetailText,
+  humanizeStructureBucketLabel,
   humanizeSupportGovernanceRouteLabel,
   humanizeSupportRouteLabel,
   isExecutionReconciliationLimitedEvidence,
@@ -558,15 +561,23 @@ export default function ExecutionStatus() {
     : humanizeQ15BucketRootCauseAction(currentBucketRootCause?.candidate_patch_type || null);
   const currentBucketRootCauseBucket = runtimeStatusPending
     ? "同步中"
-    : (currentBucketRootCause?.current_live_structure_bucket || liveRuntimeTruth?.current_live_structure_bucket || liveRuntimeTruth?.structure_bucket || "—");
+    : humanizeStructureBucketLabel(
+      currentBucketRootCause?.current_live_structure_bucket
+      || liveRuntimeTruth?.current_live_structure_bucket
+      || liveRuntimeTruth?.structure_bucket
+      || "—",
+    );
   const venueBlockersLabel = runtimeStatusPending
     ? "同步中"
     : (liveReadyBlockers.length > 0 ? liveReadyBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "目前沒有額外場館阻塞");
   const executionStatusSymbolLabel = runtimeStatusPending ? "同步中" : (runtimeStatus?.symbol || "BTCUSDT");
+  const inferredExecutionStatusMode = runtimeStatus?.dry_run ? "dry_run" : "unknown";
   const executionStatusModeLabel = runtimeStatusPending
     ? "同步中"
-    : (executionSummary?.mode || (runtimeStatus?.dry_run ? "dry_run" : "unknown"));
-  const executionStatusVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || "unknown");
+    : humanizeExecutionModeLabel(executionSummary?.mode || inferredExecutionStatusMode);
+  const executionStatusVenueLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeExecutionVenueLabel(executionSummary?.venue || "unknown");
   const automationStatusLabel = runtimeStatusPending ? "自動交易同步中" : `自動交易 ${runtimeStatus?.automation ? "開啟" : "關閉"}`;
   const liveReadinessStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const liveReadinessMetricValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可進場" : "仍阻塞");

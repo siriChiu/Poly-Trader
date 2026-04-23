@@ -1,6 +1,7 @@
 import {
   humanizeLivePathologyLabel,
   humanizeRuntimeDetailText,
+  humanizeStructureBucketLabel,
   humanizeSupportGovernanceRouteLabel,
   humanizeSupportRouteLabel,
 } from "../utils/runtimeCopy";
@@ -124,7 +125,7 @@ const formatPatchStatus = (status?: string | null) => {
     case "reference_only_until_exact_support_ready":
       return "先當治理參考，不可直接放行";
     case "reference_only_non_current_live_scope":
-      return "scope 不同，僅作治理參考";
+      return "範圍不同，僅作治理參考";
     case "reference_only_while_deployment_blocked":
       return "blocker 未清前僅作治理參考";
     case "deployable_patch_candidate":
@@ -141,9 +142,9 @@ const isReferenceOnlyPatchStatus = (status?: string | null) => (
 const formatSupportAlignmentStatus = (status?: string | null) => {
   switch (status) {
     case "runtime_ahead_of_calibration":
-      return "runtime 先於 calibration";
+      return "執行期樣本先於校準樣本";
     case "aligned":
-      return "runtime / calibration 已對齊";
+      return "執行期 / 校準已對齊";
     default:
       return status || null;
   }
@@ -219,11 +220,12 @@ export default function LivePathologySummaryCard({
     : `${PATHOLOGY_LABELS.exactLaneCohort} —`;
   const exactLaneHistoricalBucket = exactLane?.dominant_structure_bucket || null;
   const exactLaneHistoricalBucketLabel = exactLaneHistoricalBucket && exactLaneHistoricalBucket !== exactLane?.current_live_structure_bucket
-    ? `${PATHOLOGY_LABELS.historicalLaneBucket} ${exactLaneHistoricalBucket}`
+    ? `${PATHOLOGY_LABELS.historicalLaneBucket} ${humanizeStructureBucketLabel(exactLaneHistoricalBucket)}`
     : null;
   const exactLaneCurrentBucketLabel = exactLane?.current_live_structure_bucket
-    ? `當前 bucket ${exactLane.current_live_structure_bucket}`
-    : (exactLane?.scope || "未提供 bucket");
+    ? `當前 bucket ${humanizeStructureBucketLabel(exactLane.current_live_structure_bucket)}`
+    : humanizeStructureBucketLabel(exactLane?.scope || "未提供 bucket");
+  const spilloverPocketLabel = humanizeStructureBucketLabel(spilloverPocket?.regime_gate || spilloverLabel || PATHOLOGY_LABELS.noSpillover);
   const supportAlignmentStatusLabel = formatSupportAlignmentStatus(supportAlignmentStatus);
   const supportAlignmentCountsLabel = runtimeExactSupportRows != null || calibrationExactLaneRows != null
     ? `執行期 / 校準 ${runtimeExactSupportRows ?? "—"} / ${calibrationExactLaneRows ?? "—"}`
@@ -257,7 +259,7 @@ export default function LivePathologySummaryCard({
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/10 px-3 py-2 text-[11px] leading-5 text-emerald-50">
             <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">{PATHOLOGY_LABELS.exactLane}</div>
             <div className="mt-1 font-semibold text-emerald-100">
-              WR {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)}
+              勝率 {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)}
             </div>
             <div className="text-emerald-50/80">
               {exactLaneCurrentBucketLabel}
@@ -280,14 +282,14 @@ export default function LivePathologySummaryCard({
           <div className="rounded-lg border border-red-500/20 bg-red-950/10 px-3 py-2 text-[11px] leading-5 text-red-50">
             <div className="text-[10px] uppercase tracking-[0.16em] text-red-200/80">{PATHOLOGY_LABELS.spilloverPocket}</div>
             <div className="mt-1 font-semibold text-red-100">
-              {spilloverPocket?.regime_gate || spilloverLabel || PATHOLOGY_LABELS.noSpillover}
+              {spilloverPocketLabel}
             </div>
             <div className="text-red-50/80">
               {spillover?.extra_rows != null ? `${PATHOLOGY_LABELS.spilloverRows} ${spillover.extra_rows}` : `${PATHOLOGY_LABELS.spilloverRows} —`}
               {spillover?.extra_row_share != null ? ` (${formatPct(spillover.extra_row_share)})` : ""}
             </div>
             <div className="text-red-50/80">
-              Δ WR {formatPct(spillover?.win_rate_delta_vs_exact ?? null, 1, true)} · Δ 品質 {formatDecimal(spillover?.avg_quality_delta_vs_exact ?? null, 3, true)}
+              Δ 勝率 {formatPct(spillover?.win_rate_delta_vs_exact ?? null, 1, true)} · Δ 品質 {formatDecimal(spillover?.avg_quality_delta_vs_exact ?? null, 3, true)}
             </div>
           </div>
 
@@ -364,10 +366,10 @@ export default function LivePathologySummaryCard({
               <div>{exactLaneHistoricalBucketLabel}</div>
             )}
             <div>
-              WR {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)} · PnL {formatPct(exactLane?.avg_pnl ?? null, 2, true)}
+              勝率 {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)} · 損益 {formatPct(exactLane?.avg_pnl ?? null, 2, true)}
             </div>
             <div>
-              DD 懲罰 {formatPct(exactLane?.avg_drawdown_penalty ?? null)} · 深套 {formatPct(exactLane?.avg_time_underwater ?? null)}
+              回撤懲罰 {formatPct(exactLane?.avg_drawdown_penalty ?? null)} · 深套 {formatPct(exactLane?.avg_time_underwater ?? null)}
             </div>
           </div>
         </div>
@@ -375,7 +377,7 @@ export default function LivePathologySummaryCard({
         <div className="rounded-lg border border-red-500/20 bg-red-950/10 px-3 py-3 text-red-50">
           <div className="text-[10px] uppercase tracking-[0.16em] text-red-200/80">{spilloverLabel}</div>
           <div className="mt-1 text-sm font-semibold text-red-100">
-            {spilloverPocket?.regime_gate || summary.focus_scope_label || "no spillover"}
+            {spilloverPocketLabel}
           </div>
           <div className="mt-2 space-y-1 text-[11px] leading-5 text-red-50/85">
             <div>
@@ -384,13 +386,13 @@ export default function LivePathologySummaryCard({
               {spillover?.extra_row_share != null ? ` (${formatPct(spillover.extra_row_share)})` : ""}
             </div>
             <div>
-              WR {formatPct(spilloverPocket?.win_rate ?? null)} · 品質 {formatDecimal(spilloverPocket?.avg_quality ?? null)} · PnL {formatPct(spilloverPocket?.avg_pnl ?? null, 2, true)}
+              勝率 {formatPct(spilloverPocket?.win_rate ?? null)} · 品質 {formatDecimal(spilloverPocket?.avg_quality ?? null)} · 損益 {formatPct(spilloverPocket?.avg_pnl ?? null, 2, true)}
             </div>
             <div>
-              Δ WR {formatPct(spillover?.win_rate_delta_vs_exact ?? null, 1, true)} · Δ 品質 {formatDecimal(spillover?.avg_quality_delta_vs_exact ?? null, 3, true)} · Δ PnL {formatPct(spillover?.avg_pnl_delta_vs_exact ?? null, 2, true)}
+              Δ 勝率 {formatPct(spillover?.win_rate_delta_vs_exact ?? null, 1, true)} · Δ 品質 {formatDecimal(spillover?.avg_quality_delta_vs_exact ?? null, 3, true)} · Δ 損益 {formatPct(spillover?.avg_pnl_delta_vs_exact ?? null, 2, true)}
             </div>
             <div>
-              DD 懲罰 {formatPct(spilloverPocket?.avg_drawdown_penalty ?? null)} · 深套 {formatPct(spilloverPocket?.avg_time_underwater ?? null)}
+              回撤懲罰 {formatPct(spilloverPocket?.avg_drawdown_penalty ?? null)} · 深套 {formatPct(spilloverPocket?.avg_time_underwater ?? null)}
             </div>
           </div>
         </div>

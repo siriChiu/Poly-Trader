@@ -10,6 +10,8 @@ import {
   humanizeQ15BucketRootCauseLabel,
   humanizeQ15ComponentExperimentVerdictLabel,
   humanizeQ15FloorCrossVerdictLabel,
+  humanizeRuntimeDetailText,
+  humanizeStructureBucketLabel,
   humanizeSupportProgressStatusLabel,
 } from "../utils/runtimeCopy";
 
@@ -211,32 +213,33 @@ export default function ConfidenceIndicator({
     ? breakerRelease.streak_must_be_below
     : null;
   const bucketKey = (currentLiveStructureBucket || "").toLowerCase();
+  const currentLiveStructureBucketLabel = humanizeStructureBucketLabel(currentLiveStructureBucket || "—");
   const q15SupportAuditApplicable = bucketKey === "q15" || bucketKey.endsWith("|q15");
   const q35ScalingAuditApplicable = bucketKey === "q35" || bucketKey.endsWith("|q35");
   const q15FloorCrossLabel = q15SupportAuditApplicable
     ? humanizeQ15FloorCrossVerdictLabel(floorCrossVerdict || "—")
-    : "current bucket 非 q15";
+    : "目前不適用";
   const q15FloorCrossHint = q15SupportAuditApplicable
-    ? `best single component ${bestSingleComponent || "—"}`
-    : `目前 bucket ${currentLiveStructureBucket || "—"}；q15 floor-cross drill-down 只保留 reference-only，不代表 /api/status 缺資料。`;
+    ? `最佳單一元件 ${bestSingleComponent || "—"}`
+    : `目前 bucket ${currentLiveStructureBucketLabel}；q15 floor-cross drill-down 只保留 reference-only，不代表 /api/status 缺資料。`;
   const q15ComponentExperimentLabel = q15SupportAuditApplicable
     ? humanizeQ15ComponentExperimentVerdictLabel(componentExperimentVerdict || "—")
-    : "reference-only";
+    : "僅供參考";
   const q15ComponentExperimentHint = q15SupportAuditApplicable
-    ? `required score delta ${formatDecimal(bestSingleComponentRequiredScoreDelta, 4)}`
+    ? `所需分數差 ${formatDecimal(bestSingleComponentRequiredScoreDelta, 4)}`
     : "目前 live row 已離開 q15 lane；請改看 current live blocker 與 current bucket root cause，而不是把 q15 experiment 空值誤讀成 blocker truth。";
   const q35ScalingVerdictLabel = q35ScalingAuditApplicable
     ? humanizeQ15BucketRootCauseLabel(q35OverallVerdict || "—")
-    : "current bucket 非 q35";
+    : "目前 bucket 非 q35";
   const q35ScalingVerdictHint = q35ScalingAuditApplicable
-    ? `redesign ${humanizeQ15BucketRootCauseLabel(q35RedesignVerdict || "—")} · runtime gap ${formatDecimal(q35RuntimeRemainingGapToFloor, 4)}`
-    : `目前 bucket ${currentLiveStructureBucket || "—"}；q35 scaling audit 只保留 reference-only，不代表 blocker 已解除。`;
+    ? `重設判讀 ${humanizeQ15BucketRootCauseLabel(q35RedesignVerdict || "—")} · 尚差 ${formatDecimal(q35RuntimeRemainingGapToFloor, 4)}`
+    : `目前 bucket ${currentLiveStructureBucketLabel}；q35 scaling audit 只保留 reference-only，不代表 blocker 已解除。`;
   const q35ScalingActionLabel = q35ScalingAuditApplicable
     ? humanizeQ15BucketRootCauseAction(q35RecommendedMode || "—")
-    : "reference-only";
+    : "僅供參考";
   const q35ScalingActionHint = q35ScalingAuditApplicable
-    ? `next patch ${q35NextPatchTarget || "—"} · ${q35RecommendedAction || "尚未提供 q35 audit action"}`
-    : "目前 live row 不在 q35 lane；q35 formula / redesign 結論只保留背景研究用途。";
+    ? `下一個 patch ${humanizeRuntimeDetailText(q35NextPatchTarget || "—")} · ${humanizeRuntimeDetailText(q35RecommendedAction || "尚未提供 q35 audit action")}`
+    : "目前 live row 不在 q35 lane；q35 公式 / 重設結論只保留背景研究用途。";
 
   return (
     <div className={`app-surface-card ${lv.bg}`}>
@@ -244,16 +247,16 @@ export default function ConfidenceIndicator({
         <div>
           <div className="text-sm font-semibold text-slate-300">{lv.emoji} 即時決策品質</div>
           <div className="mt-1 text-xs text-slate-500">
-            Dashboard 已改用 spot-long canonical decision-quality 語義，不再顯示舊做空/short copy。
+            Dashboard 已改用現貨多單正式決策品質語義，不再顯示舊做空文案。
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-          <span className={`rounded-full border px-2 py-0.5 ${gateTone}`}>4H Gate {regimeGate || "—"}</span>
+          <span className={`rounded-full border px-2 py-0.5 ${gateTone}`}>4H 關卡 {regimeGate || "—"}</span>
           <span className="rounded-full border border-sky-700/40 bg-sky-950/30 px-2 py-0.5 text-sky-300">
-            Entry {formatDecimal(entryQuality, 2)}{entryQualityLabel ? ` · ${entryQualityLabel}` : ""}
+            進場分數 {formatDecimal(entryQuality, 2)}{entryQualityLabel ? ` · ${entryQualityLabel}` : ""}
           </span>
           <span className="rounded-full border border-slate-700/50 bg-slate-900/70 px-2 py-0.5 text-slate-200">
-            Layers {layerLabel}
+            層數 {layerLabel}
           </span>
           {shouldTrade && (
             <span className="rounded-full border border-emerald-600/50 bg-emerald-600/20 px-2 py-0.5 text-emerald-200 animate-pulse">
@@ -272,13 +275,13 @@ export default function ConfidenceIndicator({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
-        <span className={lv.color}>long-win proxy</span>
+        <span className={lv.color}>多單勝率代理</span>
         <span className="text-slate-600">|</span>
         <span>
           {confidenceLevel === "HIGH"
             ? "> 0.70：允許金字塔進場"
             : confidenceLevel === "MEDIUM"
-              ? "0.55~0.70：可留意，但仍受 gate / layers 約束"
+              ? "0.55~0.70：可留意，但仍受關卡 / 層數約束"
               : confidenceLevel === "CIRCUIT_BREAKER"
                 ? "保護模式：暫停交易"
                 : "< 0.55：先觀望"}
@@ -303,11 +306,11 @@ export default function ConfidenceIndicator({
 
       {q15ExactSupportedComponentPatchApplied && (
         <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${q15PatchExecutionBlocked ? "border-amber-700/40 bg-amber-950/20 text-amber-100" : "border-emerald-700/40 bg-emerald-950/20 text-emerald-100"}`}>
-          <div className={`font-semibold ${q15PatchExecutionBlocked ? "text-amber-200" : "text-emerald-200"}`}>q15 exact-supported bias50 runtime patch active</div>
+          <div className={`font-semibold ${q15PatchExecutionBlocked ? "text-amber-200" : "text-emerald-200"}`}>q15 精準樣本 bias50 執行期 patch 已套用</div>
           <div className={`mt-1 text-xs leading-5 ${q15PatchExecutionBlocked ? "text-amber-100/80" : "text-emerald-100/80"}`}>
             {q15PatchCapacityOpened
-              ? "support 已解，runtime 目前對 current q15 live row 套用 support-aware bias50 component patch，且已開出 deployment capacity；若 signal 仍是 HOLD，代表 capacity opened but signal still HOLD。"
-              : "q15 patch 已經吃到 current live row，但 execution 仍被 exact live bucket blocker / guardrail 壓住；這代表 patch active 只證明 runtime floor-cross 元件已落地，不等於目前可部署。"}
+              ? "精準樣本已就緒，執行期目前對 current q15 live row 套用 support-aware bias50 component patch，且已打開 deployment capacity；若 signal 仍是 HOLD，代表容量已開但方向訊號仍不足（即 capacity opened but signal still HOLD）。"
+              : "q15 patch 已經吃到 current live row，但 execution 仍被精準 live bucket blocker / 保護欄壓住；這代表 patch active 只證明 runtime floor-cross 元件已落地，不等於目前可部署（即 q15 patch 已經吃到 current live row，但 execution 仍被 exact live bucket blocker / guardrail 壓住）。"}
           </div>
         </div>
       )}
@@ -330,22 +333,22 @@ export default function ConfidenceIndicator({
             {circuitBreakerActive ? (
               <>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">recent 50 release window</div>
-                  <div className="mt-1 font-medium text-white">{breakerWins ?? "—"} / {breakerWindow ?? "—"} wins</div>
-                  <div className="mt-1 text-slate-400">win rate {formatPct(breakerRecentWinRate)} · floor {formatPct(breakerFloor)}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">最近 50 筆解除視窗</div>
+                  <div className="mt-1 font-medium text-white">{breakerWins ?? "—"} / {breakerWindow ?? "—"} 勝</div>
+                  <div className="mt-1 text-slate-400">勝率 {formatPct(breakerRecentWinRate)} · 門檻 {formatPct(breakerFloor)}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">release gap</div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">解除差距</div>
                   <div className="mt-1 font-medium text-white">至少還差 {breakerWinsGap ?? "—"} 勝</div>
-                  <div className="mt-1 text-slate-400">required wins {breakerRequiredWins ?? "—"}</div>
+                  <div className="mt-1 text-slate-400">所需勝場 {breakerRequiredWins ?? "—"}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">streak release condition</div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">連敗解除條件</div>
                   <div className="mt-1 font-medium text-white">{breakerCurrentStreak ?? "—"} / {breakerStreakLimit ?? "—"}</div>
-                  <div className="mt-1 text-slate-400">release when current streak stays below the breaker limit.</div>
+                  <div className="mt-1 text-slate-400">當前連敗維持低於 breaker 上限時才可解除。</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">operator next step</div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">操作員下一步</div>
                   <div className="mt-1 font-medium text-white">先等 canonical 1440m 最近 50 筆恢復</div>
                   <div className="mt-1 text-slate-400">不要把 support / component patch 當成 breaker release 替代品。</div>
                 </div>
@@ -353,23 +356,23 @@ export default function ConfidenceIndicator({
             ) : (
               <>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">exact support</div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">精準 support</div>
                   <div className="mt-1 font-medium text-white">{supportRows ?? "—"} / {supportMinimum ?? "—"}</div>
-                  <div className="mt-1 text-slate-400">status {supportStatusLabel}</div>
+                  <div className="mt-1 text-slate-400">狀態 {supportStatusLabel}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">current live bucket</div>
-                  <div className="mt-1 font-medium text-white">{currentLiveStructureBucket || "—"}</div>
-                  <div className="mt-1 text-slate-400">gap to minimum {supportGap ?? "—"}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">當前 live bucket</div>
+                  <div className="mt-1 font-medium text-white">{currentLiveStructureBucketLabel}</div>
+                  <div className="mt-1 text-slate-400">距離最小樣本差 {supportGap ?? "—"}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">support delta</div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">樣本變化</div>
                   <div className="mt-1 font-medium text-white">{supportDelta ?? "—"}</div>
-                  <div className="mt-1 text-slate-400">下一輪應持續 machine-check rows 累積。</div>
+                  <div className="mt-1 text-slate-400">下一輪應持續確認樣本是否繼續累積。</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                    {q35ScalingAuditApplicable ? "q35 scaling verdict" : "q15 floor-cross legality"}
+                    {q35ScalingAuditApplicable ? "q35 縮放判讀" : "q15 floor-cross 合法性"}
                   </div>
                   <div className="mt-1 font-medium text-white">
                     {q35ScalingAuditApplicable ? q35ScalingVerdictLabel : q15FloorCrossLabel}
@@ -380,7 +383,7 @@ export default function ConfidenceIndicator({
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                    {q35ScalingAuditApplicable ? "q35 next action" : "q15 component experiment"}
+                    {q35ScalingAuditApplicable ? "q35 下一步" : "q15 元件實驗"}
                   </div>
                   <div className="mt-1 font-medium text-white">
                     {q35ScalingAuditApplicable ? q35ScalingActionLabel : q15ComponentExperimentLabel}
@@ -396,8 +399,8 @@ export default function ConfidenceIndicator({
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
-        <span>Profile: {decisionProfileVersion || "phase16_baseline_v2"}</span>
-        <span>Horizon: {decisionQualityHorizonMinutes || 1440}m</span>
+        <span>版本： {decisionProfileVersion || "phase16_baseline_v2"}</span>
+        <span>決策週期： {decisionQualityHorizonMinutes || 1440}m</span>
         {timestamp && <span>更新: {new Date(timestamp).toLocaleTimeString("zh-TW")}</span>}
       </div>
     </div>

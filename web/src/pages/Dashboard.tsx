@@ -16,8 +16,10 @@ import ConfidenceIndicator from "../components/ConfidenceIndicator";
 import { ALL_SENSES, getSenseConfig } from "../config/senses";
 import {
   humanizeCurrentLiveBlockerLabel,
+  humanizeExecutionModeLabel,
   humanizeExecutionReason,
   humanizeExecutionReconciliationStatusLabel,
+  humanizeExecutionVenueLabel,
   humanizeLifecycleDiagnosticLabel,
   humanizeRuntimeDetailText,
   humanizeSupportGovernanceRouteLabel,
@@ -1074,8 +1076,9 @@ export default function Dashboard() {
     : humanizeLifecycleDiagnosticLabel(metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "UNAVAILABLE");
   const rawContinuity = runtimeStatus?.raw_continuity ?? null;
   const featureContinuity = runtimeStatus?.feature_continuity ?? null;
-  const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || accountSummary?.mode || "unknown");
-  const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || accountSummary?.venue || "—");
+  const executionModeRaw = executionSummary?.mode || accountSummary?.mode || "unknown";
+  const executionModeLabel = runtimeStatusPending ? "同步中" : humanizeExecutionModeLabel(executionSummary?.mode || accountSummary?.mode || "unknown");
+  const executionVenueLabel = runtimeStatusPending ? "同步中" : humanizeExecutionVenueLabel(executionSummary?.venue || accountSummary?.venue || "—");
   const executionHealth = executionSummary?.health ?? accountSummary?.health ?? null;
   const balanceFree = typeof accountSummary?.balance?.free === "number" ? accountSummary.balance.free : null;
   const balanceTotal = typeof accountSummary?.balance?.total === "number" ? accountSummary.balance.total : null;
@@ -1138,9 +1141,9 @@ export default function Dashboard() {
       : "border-sky-700/40 bg-sky-950/20 text-sky-200";
   const executionTone = executionSummary?.kill_switch || guardrails?.daily_loss_halt || guardrails?.failure_halt
     ? "border-red-700/40 bg-red-950/30 text-red-200"
-    : executionModeLabel === "live"
+    : executionModeRaw === "live"
       ? "border-emerald-700/40 bg-emerald-950/30 text-emerald-200"
-      : executionModeLabel === "live_canary"
+      : executionModeRaw === "live_canary"
         ? "border-amber-700/40 bg-amber-950/30 text-amber-200"
         : "border-slate-700/40 bg-slate-950/30 text-slate-300";
   const continuityTone = rawContinuity?.status === "clean"
@@ -1309,7 +1312,7 @@ export default function Dashboard() {
           value={dashboardExecutionStatusValue}
           detail={(
             <>
-              <div>{executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()} · {executionVenueLabel}</div>
+              <div>{executionModeLabel} · {executionVenueLabel}</div>
               <div>目前阻塞點 {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
               <div className="opacity-70">當前 bucket {dashboardSupportRowsLabel} · gap {dashboardSupportGapLabel} · 支持路徑 {dashboardSupportRouteVerdictLabel} · 治理路徑 {dashboardSupportGovernanceRouteLabel}</div>
               <div className="opacity-70">場館阻塞 {dashboardVenueBlockersLabel}</div>
@@ -1363,7 +1366,7 @@ export default function Dashboard() {
         )}
         {featureContinuity?.continuity_repair && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] opacity-90">
-            <span>feature 狀態 {featureContinuity.status ?? "unknown"}</span>
+            <span>feature 狀態 {humanizeLifecycleDiagnosticLabel(featureContinuity.status || "unknown")}</span>
             <span>補回 {featureContinuity.continuity_repair.inserted_total ?? 0}</span>
             <span>剩餘缺口 {featureContinuity.continuity_repair.remaining_missing ?? 0}</span>
           </div>
@@ -1531,7 +1534,7 @@ export default function Dashboard() {
         if (regime === 'bull' && bias50! <= -3) contextAction = '背景偏多，價格接近支撐。';
         else if (regime === 'bull' && bias50! <= -1) contextAction = '背景偏多，正在回調區。';
         else if (regime === 'bull' && bias50! >= 5) contextAction = '背景偏熱，已進入超買帶。';
-        else if (regime === 'bull') contextAction = '背景偏多，但仍需等 live gate / quality 確認。';
+        else if (regime === 'bull') contextAction = '背景偏多，但仍需等即時關卡 / 品質確認。';
         else contextAction = '背景偏保守，先觀察 4H 結構是否改善。';
 
         const canonicalGate = confidenceData?.regime_gate || '—';
@@ -1543,15 +1546,15 @@ export default function Dashboard() {
           ? `${confidenceData.allowed_layers.toFixed(0)} / 3`
           : '—';
         const canonicalDecisionText = confidenceData
-          ? `主決策：4H Gate ${canonicalGate} · Entry ${canonicalEntryQuality} (${canonicalEntryLabel}) · Layers ${canonicalLayers}`
-          : '主決策：等待 live decision-quality contract 載入';
+          ? `主決策：4H 關卡 ${canonicalGate} · 進場分數 ${canonicalEntryQuality} (${canonicalEntryLabel}) · 層數 ${canonicalLayers}`
+          : '主決策：等待即時決策品質契約載入';
 
         return (
         <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-5">
           <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
             <div>
               <h2 className="text-sm font-semibold text-slate-300">📐 4H 結構線儀表板</h2>
-              <div className="mt-1 text-[11px] text-slate-500">主決策以 live decision-quality contract 為準；以下 4H 指標僅作背景解讀。</div>
+              <div className="mt-1 text-[11px] text-slate-500">主決策以即時決策品質契約為準；以下 4H 指標僅作背景解讀。</div>
             </div>
             <span className={`text-xs font-bold ${regimeColor} px-2 py-0.5 rounded bg-slate-800`}>{regimeLabel}</span>
           </div>
@@ -1595,7 +1598,7 @@ export default function Dashboard() {
             <div className="bg-cyan-950/20 rounded-lg px-4 py-3 text-sm text-cyan-100 border border-cyan-700/30">
               <div className="font-semibold">{canonicalDecisionText}</div>
               <div className="mt-1 text-xs text-cyan-200/80">
-                若 4H raw 結構與 canonical gate 不一致，應以 decision-quality contract 為主，而不是手寫 bias 規則。
+                若 4H 原始結構與正式關卡不一致，應以決策品質契約為主，而不是手寫 bias 規則。
               </div>
             </div>
             <div className="bg-slate-800/30 rounded-lg px-4 py-2 text-sm text-slate-300 border border-slate-700/30">

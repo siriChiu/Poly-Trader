@@ -7,6 +7,7 @@ import {
   humanizeExecutionReconciliationStatusLabel,
   humanizeRuntimeClosureStateLabel,
   humanizeRuntimeDetailText,
+  humanizeStructureBucketLabel,
   humanizeSupportGovernanceRouteLabel,
   humanizeSupportRouteLabel,
   isExecutionReconciliationLimitedEvidence,
@@ -1473,7 +1474,7 @@ export default function ExecutionConsole() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-lg font-semibold text-white">部署狀態</div>
-                <div className="mt-1 text-sm text-slate-400">{runtimeStatusPending ? "正在向 /api/status 取得 regime / gate / bucket。" : `${liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—"} · gate ${liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—"} · bucket ${liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—"}`}</div>
+                <div className="mt-1 text-sm text-slate-400">{runtimeStatusPending ? "正在向 /api/status 取得 regime / gate / bucket。" : `${humanizeStructureBucketLabel(liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—")} · gate ${humanizeStructureBucketLabel(liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—")} · bucket ${humanizeStructureBucketLabel(liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—")}`}</div>
               </div>
               <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(runtimeStatusPending ? "pending" : (executionSurfaceContract?.live_ready ? "ok" : "blocked"))}`}>
                 {liveReadyStatusLabel}

@@ -26,6 +26,7 @@ import {
   humanizeLifecycleDiagnosticLabel,
   humanizeRuntimeClosureStateLabel,
   humanizeRuntimeDetailText,
+  humanizeStructureBucketLabel,
   humanizeSupportGovernanceRouteLabel,
   humanizeSupportRouteLabel,
   isExecutionReconciliationLimitedEvidence,
@@ -2507,7 +2508,7 @@ export default function StrategyLab() {
     : humanizeQ15BucketRootCauseAction(currentBucketRootCause?.candidate_patch_type || null);
   const currentBucketRootCauseBucket = liveExecutionSyncPending
     ? "同步中"
-    : (
+    : humanizeStructureBucketLabel(
       currentBucketRootCause?.current_live_structure_bucket
       || liveDecisionStatus?.current_live_structure_bucket
       || liveRuntimeTruth?.current_live_structure_bucket

@@ -50,7 +50,9 @@ def test_execution_status_route_and_page_contract():
         'const venueBlockersLabel = runtimeStatusPending',
         'const executionStatusSymbolLabel = runtimeStatusPending ? "同步中" : (runtimeStatus?.symbol || "BTCUSDT");',
         'const executionStatusModeLabel = runtimeStatusPending',
-        'const executionStatusVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || "unknown");',
+        'humanizeExecutionModeLabel(executionSummary?.mode || inferredExecutionStatusMode)',
+        'const executionStatusVenueLabel = runtimeStatusPending',
+        'humanizeExecutionVenueLabel(executionSummary?.venue || "unknown")',
         'const automationStatusLabel = runtimeStatusPending ? "自動交易同步中" : `自動交易 ${runtimeStatus?.automation ? "開啟" : "關閉"}`;',
         'const liveReadinessStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
         'const liveReadinessMetricValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可進場" : "仍阻塞");',
@@ -313,7 +315,7 @@ def test_execution_console_operator_surface_avoids_raw_english_runtime_tokens():
         '數量 {formatNumber(lastOrder?.qty)} · 價格 {formatNumber(lastOrder?.price)}',
         'lastReject?.code || "無"',
         'lastFailure?.message || "無"',
-        '["exact_live_bucket_present_but_below_minimum", "目前 exact support 已開始累積"]',
+        '["exact_live_bucket_present_but_below_minimum", "精準樣本已開始累積"]',
         '["deployment-grade minimum support", "可部署最低樣本"]',
     ]:
         assert snippet in source or snippet in runtime_copy_source
@@ -464,6 +466,14 @@ def test_drift_and_live_pathology_cards_do_not_leak_raw_internal_english_tokens(
 
     assert '摘要版只保留目前精準路徑、外溢口袋與 patch 治理真相；完整診斷請看執行狀態。' in pathology_card_source
     assert '不要把精準路徑與更寬範圍的外溢口袋混成同一個目前 live 真相。' in pathology_card_source
+    assert '勝率 {formatPct(exactLane?.win_rate ?? null)}' in pathology_card_source
+    assert 'Δ 勝率 {formatPct(spillover?.win_rate_delta_vs_exact ?? null, 1, true)}' in pathology_card_source
+    assert '損益 {formatPct(exactLane?.avg_pnl ?? null, 2, true)}' in pathology_card_source
+    assert 'Δ 損益 {formatPct(spillover?.avg_pnl_delta_vs_exact ?? null, 2, true)}' in pathology_card_source
+    assert 'WR {formatPct(exactLane?.win_rate ?? null)}' not in pathology_card_source
+    assert 'Δ WR {formatPct(spillover?.win_rate_delta_vs_exact ?? null, 1, true)}' not in pathology_card_source
+    assert 'PnL {formatPct(exactLane?.avg_pnl ?? null, 2, true)}' not in pathology_card_source
+    assert 'Δ PnL {formatPct(spillover?.avg_pnl_delta_vs_exact ?? null, 2, true)}' not in pathology_card_source
 
     assert 'function humanizeRecentDriftInterpretationLabel(' in drift_card_source
 
@@ -480,7 +490,7 @@ def test_runtime_copy_humanizes_patch_profiles_embedded_blockers_and_verify_inst
         '["fill lifecycle 尚未驗證", "成交回補流程尚未驗證。"]',
         '["core_plus_macro_plus_all_4h", "核心 + 宏觀 + 全部 4H"]',
         '["feat_4h_bias50_formula", "4H bias50 公式"]',
-        '["entry_quality >= 0.55 and allowed_layers > 0 without q35 applicability / support / guardrail regression", "進場品質 >= 0.55，且允許層數 > 0，同時不得出現 q35 適用性 / support / 保護欄回歸"]',
+        '["entry_quality >= 0.55 and allowed_layers > 0 without q35 applicability / support / guardrail regression", "進場品質 >= 0.55，且允許層數 > 0，同時不得出現 q35 適用性 / 樣本支持 / 保護欄回歸"]',
     ]
     for snippet in required_runtime_copy_snippets:
         assert snippet in runtime_copy
@@ -592,6 +602,10 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
         'summary={recentCanonicalDrift}',
         'pending={runtimeStatusPending && !recentCanonicalDrift}',
         'title="📉 最近 canonical drift"',
+        '主決策：4H 關卡 ${canonicalGate} · 進場分數 ${canonicalEntryQuality} (${canonicalEntryLabel}) · 層數 ${canonicalLayers}',
+        '主決策：等待即時決策品質契約載入',
+        '主決策以即時決策品質契約為準；以下 4H 指標僅作背景解讀。',
+        '若 4H 原始結構與正式關卡不一致，應以決策品質契約為主，而不是手寫 bias 規則。',
         '前往 Bot 營運 →',
         '前往執行狀態 →',
         '部署狀態',
@@ -603,6 +617,10 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
     for snippet in required_snippets:
         assert snippet in source
     assert 'Execution 狀態面板' not in source
+    assert '主決策：4H Gate ${canonicalGate} · Entry ${canonicalEntryQuality} (${canonicalEntryLabel}) · Layers ${canonicalLayers}' not in source
+    assert '主決策：等待 live decision-quality contract 載入' not in source
+    assert '主決策以 live decision-quality contract 為準；以下 4H 指標僅作背景解讀。' not in source
+    assert '若 4H raw 結構與 canonical gate 不一致，應以 decision-quality contract 為主，而不是手寫 bias 規則。' not in source
 
 
 def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_readiness_copy():
@@ -625,8 +643,8 @@ def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_r
         'humanizeSupportGovernanceRouteLabel(liveRuntimeTruth?.support_governance_route || null)',
         'const dashboardSupportRowsLabel = runtimeStatusPending',
         'const dashboardSupportGapLabel = runtimeStatusPending',
-        'const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || accountSummary?.mode || "unknown");',
-        'const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || accountSummary?.venue || "—");',
+        'const executionModeLabel = runtimeStatusPending ? "同步中" : humanizeExecutionModeLabel(executionSummary?.mode || accountSummary?.mode || "unknown");',
+        'const executionVenueLabel = runtimeStatusPending ? "同步中" : humanizeExecutionVenueLabel(executionSummary?.venue || accountSummary?.venue || "—");',
         'const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
         'value={dashboardExecutionStatusValue}',
         '目前阻塞點 {dashboardCurrentLiveBlockerLabel}',
@@ -665,9 +683,9 @@ def test_execution_surfaces_humanize_blocker_labels_and_reasons_via_shared_runti
         'export function humanizeExecutionReconciliationStatusLabel(',
         'export function humanizeCurrentLiveBlockerLabel(value?: string | null): string {',
         '"under_minimum_exact_live_structure_bucket"',
-        '"exact support 未達最小樣本"',
+        '"精準樣本未達最小門檻"',
         '"unsupported_exact_live_structure_bucket"',
-        '"exact support 尚未建立"',
+        '"精準樣本尚未建立"',
         '"decision_quality_below_trade_floor"',
         '"決策品質未達門檻"',
     ]
@@ -809,20 +827,34 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
         'humanizeQ15ComponentExperimentVerdictLabel',
         'humanizeQ15BucketRootCauseAction',
         'humanizeQ15BucketRootCauseLabel',
+        'humanizeStructureBucketLabel',
         'humanizeSupportProgressStatusLabel',
         'const q15PatchExecutionBlocked = Boolean(',
         'const q15PatchCapacityOpened = Boolean(',
         'const q15SupportAuditApplicable = bucketKey === "q15" || bucketKey.endsWith("|q15");',
+        'const currentLiveStructureBucketLabel = humanizeStructureBucketLabel(currentLiveStructureBucket || "—");',
         'const q15FloorCrossLabel = q15SupportAuditApplicable',
         'humanizeQ15FloorCrossVerdictLabel(floorCrossVerdict || "—")',
         'const q15ComponentExperimentLabel = q15SupportAuditApplicable',
         'humanizeQ15ComponentExperimentVerdictLabel(componentExperimentVerdict || "—")',
-        '目前 bucket ${currentLiveStructureBucket || "—"}；q15 floor-cross drill-down 只保留 reference-only，不代表 /api/status 缺資料。',
+        '目前 bucket ${currentLiveStructureBucketLabel}；q15 floor-cross drill-down 只保留 reference-only，不代表 /api/status 缺資料。',
         '目前 live row 已離開 q15 lane；請改看 current live blocker 與 current bucket root cause，而不是把 q15 experiment 空值誤讀成 blocker truth。',
         'const breakerRecentWindow = deploymentBlockerDetails?.recent_window ?? null;',
         'const breakerRelease = deploymentBlockerDetails?.release_condition ?? null;',
         'const circuitBreakerActive = deploymentBlocker === "circuit_breaker_active";',
-        'recent 50 release window',
+        'Dashboard 已改用現貨多單正式決策品質語義，不再顯示舊做空文案。',
+        '4H 關卡 {regimeGate || "—"}',
+        '進場分數 {formatDecimal(entryQuality, 2)}',
+        '層數 {layerLabel}',
+        '多單勝率代理',
+        '最近 50 筆解除視窗',
+        '精準 support',
+        '當前 live bucket',
+        '樣本變化',
+        'q35 縮放判讀',
+        'q35 下一步',
+        '版本： {decisionProfileVersion || "phase16_baseline_v2"}',
+        '決策週期： {decisionQualityHorizonMinutes || 1440}m',
         '至少還差 {breakerWinsGap ?? "—"} 勝',
         '不要把 support / component patch 當成 breaker release 替代品。',
         'capacity opened but signal still HOLD',
@@ -830,11 +862,17 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
         'q15 patch 已經吃到 current live row，但 execution 仍被 exact live bucket blocker / guardrail 壓住',
         'humanizeExecutionReason(deploymentBlockerReason || deploymentBlocker)',
         'humanizeCurrentLiveBlockerLabel(deploymentBlocker)',
-        'q15 floor-cross legality',
-        'q15 component experiment',
+        'q15 floor-cross 合法性',
+        'q15 元件實驗',
     ]
     for snippet in required_snippets:
         assert snippet in source
+    assert 'long-win proxy' not in source
+    assert 'machine-check rows' not in source
+    assert 'q35 scaling verdict' not in source
+    assert 'q35 next action' not in source
+    assert 'Profile:' not in source
+    assert 'Horizon:' not in source
 
 
 def test_strategy_lab_keeps_decision_quality_summary_surfaces():
@@ -988,17 +1026,28 @@ def test_recent_canonical_drift_card_surfaces_latest_and_blocking_windows():
     required_snippets = [
         'type RecentCanonicalDriftWindowPayload = {',
         'blocking_window?: RecentCanonicalDriftWindowPayload | null;',
+        'function humanizeRecentDriftDominantRegimeLabel(value?: string | null): string {',
         'const blockingWindow = summary?.blocking_window ?? null;',
         'const hasDistinctBlockingWindow = Boolean(',
+        'const dominantRegimeLabel = humanizeRecentDriftDominantRegimeLabel(windowSummary.dominant_regime);',
+        'const alertLabels = alerts.map((alert) => humanizeRuntimeDetailText(alert));',
         'const latestInterpretationLabel = humanizeRecentDriftInterpretationLabel(latestWindowSummary?.drift_interpretation || "unavailable");',
         'const blockingInterpretationLabel = humanizeRecentDriftInterpretationLabel(blockingWindowSummary?.drift_interpretation || "unavailable");',
         '`最新視窗 · ${latestInterpretationLabel}`',
         '`阻塞視窗 · ${blockingInterpretationLabel}`',
-        '最新 recent-window',
+        '最新近期視窗',
         '當前 blocker pocket',
+        '主導市場 {dominantRegimeLabel} {formatPct(windowSummary.dominant_regime_share)}',
+        '警示 {alertLabels.length ? alertLabels.join(" · ") : "無"}',
+        '現貨多單勝率',
+        '疊層觀察',
     ]
     for snippet in required_snippets:
         assert snippet in source
+    assert 'spot-long' not in source
+    assert '最新 recent-window' not in source
+    assert '主導市場 {windowSummary.dominant_regime || "—"}' not in source
+    assert '警示 {alerts.length ? alerts.join(" · ") : "無"}' not in source
 
 
 def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout():
@@ -1084,7 +1133,7 @@ def test_live_pathology_summary_card_surfaces_recommended_patch_contract():
         'reference_only_non_current_live_scope',
         'reference_only_while_deployment_blocked',
         '先當治理參考，不可直接放行',
-        'scope 不同，僅作治理參考',
+        '範圍不同，僅作治理參考',
         'blocker 未清前僅作治理參考',
         'const patchSectionTitle = isReferenceOnlyPatchStatus(recommendedPatch?.status)',
         '治理 / 訓練 patch 參考',
@@ -1157,14 +1206,71 @@ def test_runtime_copy_humanizes_support_and_runtime_route_tokens_for_operator_su
     for snippet in [
         'const SUPPORT_ROUTE_LABEL_MAPPINGS',
         'const RUNTIME_CLOSURE_STATE_LABEL_MAPPINGS',
-        '["exact_bucket_unsupported_block", "exact support 尚未建立"]',
+        '["exact_bucket_unsupported_block", "精準樣本尚未建立"]',
+        '["exact_bucket_present_but_below_minimum", "精準樣本未達最小門檻"]',
+        '["exact_live_bucket_present_but_below_minimum", "精準樣本已開始累積"]',
         '["no_support_proxy", "目前沒有可用 proxy"]',
         '["patch_inactive_or_blocked", "僅保留治理參考"]',
+        '["support_closed_but_trade_floor_blocked", "精準樣本已閉環但交易門檻仍阻塞"]',
+        '["reference_only_non_current_live_scope", "範圍不同，僅作治理參考"]',
+        '["accumulating", "持續累積中"]',
         'export function humanizeSupportRouteLabel(value?: string | null): string {',
         'export function humanizeSupportGovernanceRouteLabel(value?: string | null): string {',
         'export function humanizeRuntimeClosureStateLabel(value?: string | null, fallback?: string | null): string {',
+        'export function humanizeSupportProgressStatusLabel(value?: string | null): string {',
     ]:
         assert snippet in runtime_copy_source
+
+
+def test_runtime_copy_humanizes_payload_summary_tokens_for_operator_surfaces():
+    source = _read("utils/runtimeCopy.ts")
+    required_snippets = [
+        '["spot-long", "現貨多單"]',
+        '["constant_target", "目標值固定"]',
+        '["regime_shift", "市場狀態切換"]',
+        '["regime_concentration", "市場狀態過度集中"]',
+        '["exact support", "精準樣本"]',
+        '["support-aware", "支援樣本感知"]',
+        '["base-stack redesign", "基礎堆疊重設"]',
+        '["base-stack", "基礎堆疊"]',
+        '["trade floor", "交易門檻"]',
+        '["no-deploy", "不可部署"]',
+        '["closure", "閉環"]',
+        '["uplift", "上修"]',
+        '["support 補滿前", "精準樣本補滿前"]',
+        '["runtime 只能維持", "執行期只能維持"]',
+        '["這條 lane", "這條路徑"]',
+        '["current row", "當前資料列"]',
+        '["PAPER", "模擬倉"]',
+        '["同 quality 寬 scope", "同品質寬範圍"]',
+        '["同 QUALITY 寬 SCOPE", "同品質寬範圍"]',
+        '["QUALITY", "品質"]',
+        '["SCOPE", "範圍"]',
+        '.split("exact-vs-spillover=").join("精準路徑 / 外溢對照：")',
+        'replace(/\\bWR\\b/g, "勝率")',
+        'replace(/\\bPnL\\b/g, "損益")',
+        'replace(/\\bDD\\b/g, "回撤")',
+        'replace(/\\b(\\d+)\\s+rows\\b/g, "$1 筆樣本")',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_runtime_copy_exports_execution_mode_and_venue_humanizers_for_operator_surfaces():
+    source = _read("utils/runtimeCopy.ts")
+    required_snippets = [
+        'const EXECUTION_MODE_LABEL_MAPPINGS',
+        '["paper", "模擬倉"]',
+        '["dry_run", "模擬委託"]',
+        '["live", "實盤"]',
+        'const EXECUTION_VENUE_LABEL_MAPPINGS',
+        '["binance", "Binance"]',
+        '["okx", "OKX"]',
+        'export function humanizeExecutionModeLabel(value?: string | null): string {',
+        'export function humanizeExecutionVenueLabel(value?: string | null): string {',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
 
 
 def test_dashboard_and_strategy_lab_pass_support_alignment_to_compact_live_pathology_cards():
@@ -1215,8 +1321,8 @@ def test_venue_readiness_summary_component_surfaces_per_venue_contract():
         '憑證 {item.credentials_configured ? "已配置" : "僅公開資料"}',
         '元資料契約 {item.ok ? "正常" : "失敗"}',
         '待補實單證據',
-        'step {item.contract?.step_size ?? "—"}',
-        'tick {item.contract?.tick_size ?? "—"}',
+        '數量步進 {item.contract?.step_size ?? "—"}',
+        '價格刻度 {item.contract?.tick_size ?? "—"}',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -1271,11 +1377,15 @@ def test_execution_status_humanizes_hidden_diagnostics_runtime_order_and_timelin
         '["dashboard", "儀表板"]',
         '["no_runtime_order", "尚無執行期委託"]',
         '["required", "需要補重播"]',
+        'export function humanizeExecutionModeLabel(value?: string | null): string {',
+        'export function humanizeExecutionVenueLabel(value?: string | null): string {',
     ]
     for snippet in required_runtime_copy_snippets:
         assert snippet in runtime_copy
 
     required_status_snippets = [
+        'humanizeExecutionModeLabel(',
+        'humanizeExecutionVenueLabel(',
         'function humanizeLifecycleList(values?: Array<string | null | undefined>, emptyLabel = "無"): string {',
         'status ? humanizeLifecycleDiagnosticLabel(status) : null,',
         'if (!Array.isArray(records) || records.length === 0) return "無";',
@@ -1304,6 +1414,21 @@ def test_execution_status_humanizes_hidden_diagnostics_runtime_order_and_timelin
     assert '快捷入口 {executionSurfaceContract?.shortcut_surface?.name || "signal_banner"} · {executionSurfaceContract?.shortcut_surface?.status || "available"}' not in status_source
     assert '狀態 {executionReconciliation?.open_order_alignment?.status || "unknown"}' not in status_source
     assert '缺少生命週期事件 {(lifecycleContract?.missing_event_types || []).join(" / ") || "none"}' not in status_source
+    assert 'executionSummary?.mode || (runtimeStatus?.dry_run ? "dry_run" : "unknown")' not in status_source
+
+
+def test_dashboard_humanizes_execution_mode_and_continuity_status_copy():
+    source = _read("pages/Dashboard.tsx")
+    required_snippets = [
+        'const executionModeLabel = runtimeStatusPending ? "同步中" : humanizeExecutionModeLabel(executionSummary?.mode || accountSummary?.mode || "unknown");',
+        'const executionVenueLabel = runtimeStatusPending ? "同步中" : humanizeExecutionVenueLabel(executionSummary?.venue || accountSummary?.venue || "—");',
+        '<div>{executionModeLabel} · {executionVenueLabel}</div>',
+        'feature 狀態 {humanizeLifecycleDiagnosticLabel(featureContinuity.status || "unknown")}',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+    assert 'executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()' not in source
+    assert 'feature 狀態 {featureContinuity.status ?? "unknown"}' not in source
 
 
 def test_execution_status_reuses_shared_venue_readiness_component_and_explains_public_only_balances():
@@ -1583,3 +1708,46 @@ def test_dashboard_websocket_bootstrap_is_strict_mode_safe():
     for snippet in required_dashboard_snippets:
         assert snippet in source
     assert '<React.StrictMode>' in main_source
+
+
+def test_runtime_copy_humanizes_supported_routes_and_structure_buckets():
+    source = _read("utils/runtimeCopy.ts")
+    required_snippets = [
+        '["exact_live_bucket_supported", "精準樣本已就緒"]',
+        '["exact_supported", "精準樣本已就緒"]',
+        '["top-level live baseline", "頂層 live 基準"]',
+        '["entry_quality", "進場分數"]',
+        '["bull_q15_bias50_overextended_block", "牛市 q15 bias50 過熱阻塞"]',
+        'function applyStructureBucketPhraseReplacements(value: string): string {',
+        'export function humanizeStructureBucketLabel(value?: string | null): string {',
+        '.replace(/\\bBLOCK\\b/g, "阻塞")',
+        '.replace(/\\|/g, "｜")',
+        'applyStructureBucketPhraseReplacements(normalized)',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_execution_surfaces_use_structure_bucket_humanizer_for_operator_copy():
+    confidence_source = _read("components/ConfidenceIndicator.tsx")
+    pathology_source = _read("components/LivePathologySummaryCard.tsx")
+    status_source = _read("pages/ExecutionStatus.tsx")
+    lab_source = _read("pages/StrategyLab.tsx")
+    console_source = _read("pages/ExecutionConsole.tsx")
+
+    assert 'humanizeStructureBucketLabel' in confidence_source
+    assert 'const currentLiveStructureBucketLabel = humanizeStructureBucketLabel(currentLiveStructureBucket || "—");' in confidence_source
+    assert '{currentLiveStructureBucketLabel}' in confidence_source
+
+    assert 'humanizeStructureBucketLabel' in pathology_source
+    assert 'const spilloverPocketLabel = humanizeStructureBucketLabel(spilloverPocket?.regime_gate || spilloverLabel || PATHOLOGY_LABELS.noSpillover);' in pathology_source
+    assert 'humanizeStructureBucketLabel(exactLane.current_live_structure_bucket)' in pathology_source
+    assert 'humanizeStructureBucketLabel(exactLaneHistoricalBucket)' in pathology_source
+
+    assert 'humanizeStructureBucketLabel(' in status_source
+    assert '當前 bucket {currentBucketRootCauseBucket}' in status_source
+
+    assert 'humanizeStructureBucketLabel(' in lab_source
+    assert '當前 bucket {currentBucketRootCauseBucket}' in lab_source
+
+    assert 'humanizeStructureBucketLabel(liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—")' in console_source
