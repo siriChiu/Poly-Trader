@@ -290,7 +290,7 @@ def test_strategy_lab_frontend_exposes_manual_model_selection_and_protects_syste
         "const runNameError = useMemo(() => {",
         "setSelectedModelName",
         'model_name: strategyType === "hybrid" ? selectedModelName : "rule_based"',
-        '${strategyType === "hybrid" ? "Hybrid" : "Rule"} · ${strategyType === "hybrid" ? selectedModelName : "rule_based"}',
+        '${strategyType === "hybrid" ? "混合策略" : "規則策略"} · ${strategyType === "hybrid" ? selectedModelName : "rule_based"}',
         "策略類型",
         "手動選擇模型",
         "MODEL_OPTIONS.map",
@@ -301,7 +301,35 @@ def test_strategy_lab_frontend_exposes_manual_model_selection_and_protects_syste
         'if (runNameError) {',
         'setError(runNameError);',
         "目前只更新圖表 / 區間，尚未重新執行回測",
-        "請按「執行回測」刷新 ROI / Trades / 最近交易",
+        "請按「執行回測」刷新 ROI / 交易數 / 最近交易",
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+
+def test_strategy_lab_frontend_prefills_workspace_with_unique_default_name_after_leaderboard_load():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'const buildUniqueStrategyName = (existingNames: Set<string>, baseName = "My Strategy") => {',
+        'const workspaceDefaultName = useMemo(() => buildUniqueStrategyName(existingStrategyNameSet, "My Strategy"), [existingStrategyNameSet]);',
+        'if (selectedStrategy || name !== "My Strategy" || !existingStrategyNameSet.has(name)) return;',
+        'setName(workspaceDefaultName);',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+
+def test_strategy_lab_frontend_rehydrates_cached_selected_strategy_into_form_state_before_defaulting():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'const restoredSelectedStrategyNameRef = useRef<string | null>(null);',
+        'restoredSelectedStrategyNameRef.current = cached.selectedStrategy.name;',
+        'applyStrategyToForm(cached.selectedStrategy);',
+        'const restoredStrategyName = restoredSelectedStrategyNameRef.current;',
+        'if (restoredStrategyName) {',
+        'await selectStrategyByName(restoredStrategyName, dataRange);',
     ]
     for snippet in required_snippets:
         assert snippet in source

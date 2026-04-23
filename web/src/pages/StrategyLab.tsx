@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
   Cell,
@@ -913,6 +913,15 @@ const isSystemGeneratedStrategy = (strategy?: Pick<StrategyEntry, "name" | "meta
     || String(strategy?.name || "").startsWith(AUTO_STRATEGY_PREFIX)
   );
 };
+const buildUniqueStrategyName = (existingNames: Set<string>, baseName = "My Strategy") => {
+  const normalizedBaseName = String(baseName || "").trim() || "My Strategy";
+  if (!existingNames.has(normalizedBaseName)) return normalizedBaseName;
+  let suffix = 2;
+  while (existingNames.has(`${normalizedBaseName} #${suffix}`)) {
+    suffix += 1;
+  }
+  return `${normalizedBaseName} #${suffix}`;
+};
 const formatPct = (value: number | null | undefined, digits = 1, signed = false) => {
   if (!isFiniteNumber(value)) return "—";
   const prefix = signed && value > 0 ? "+" : "";
@@ -1511,6 +1520,7 @@ export default function StrategyLab() {
   const [capitalModeFilter, setCapitalModeFilter] = useState<"all" | "classic_pyramid" | "reserve_90">("all");
   const [strategySleeveFilter, setStrategySleeveFilter] = useState<string>("all");
   const [activeModules, setActiveModules] = useState<EditorModuleId[]>(["pyramid_sl_tp", "turning_point"]);
+  const restoredSelectedStrategyNameRef = useRef<string | null>(null);
   const { data: runtimeStatus, loading: runtimeStatusLoading, error: runtimeStatusError } = useApi<StrategyLabRuntimeStatusResponse>("/api/status", 60000);
   const { data: liveDecisionStatus, loading: liveDecisionStatusLoading, error: liveDecisionStatusError } = useApi<StrategyLabLiveDecisionResponse>("/api/predict/confidence", 60000);
 
@@ -1524,7 +1534,11 @@ export default function StrategyLab() {
     if (Array.isArray(cached.modelQuadrantPoints)) setModelQuadrantPoints(cached.modelQuadrantPoints);
     if (cached.modelMeta) setModelMeta(cached.modelMeta);
     if (cached.modelStats) setModelStats(cached.modelStats);
-    if (cached.selectedStrategy) setSelectedStrategy(cached.selectedStrategy);
+    if (cached.selectedStrategy) {
+      restoredSelectedStrategyNameRef.current = cached.selectedStrategy.name;
+      setSelectedStrategy(cached.selectedStrategy);
+      applyStrategyToForm(cached.selectedStrategy);
+    }
     setInitialLoading(false);
   }, []);
 
@@ -1535,6 +1549,11 @@ export default function StrategyLab() {
     () => new Set(strategies.map((entry) => String(entry.name || "").trim()).filter(Boolean)),
     [strategies]
   );
+  const workspaceDefaultName = useMemo(() => buildUniqueStrategyName(existingStrategyNameSet, "My Strategy"), [existingStrategyNameSet]);
+  useEffect(() => {
+    if (selectedStrategy || name !== "My Strategy" || !existingStrategyNameSet.has(name)) return;
+    setName(workspaceDefaultName);
+  }, [existingStrategyNameSet, name, selectedStrategy, workspaceDefaultName]);
   const runNameError = useMemo(() => {
     if (!trimmedRunName) {
       return selectedStrategyIsSystemGenerated ? "系統生成策略不能直接儲存；請先輸入新的策略名稱。" : "請先輸入策略名稱。";
@@ -2069,7 +2088,10 @@ export default function StrategyLab() {
           detail: "模型統計已到位，正在掛載預設策略工作區。",
           progress: toStageProgress(3, STAGE_TOTALS.initial),
         });
-        if (!selectedStrategy && list.length) {
+        const restoredStrategyName = restoredSelectedStrategyNameRef.current;
+        if (restoredStrategyName) {
+          await selectStrategyByName(restoredStrategyName, dataRange);
+        } else if (list.length) {
           await selectStrategyByName(list[0].name, dataRange);
         }
         updateBackgroundStage({

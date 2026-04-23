@@ -1,6 +1,6 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-23 11:16:34 CST_
+_最後更新：2026-04-23 12:00:28 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
@@ -18,7 +18,10 @@ _最後更新：2026-04-23 11:16:34 CST_
   - `latest_window=100` / `win_rate=100.0%` / `dominant_regime=bull(91.0%)` / `avg_quality=+0.6889` / `avg_pnl=+0.0234` / `alerts=constant_target,regime_concentration,regime_shift`
   - `blocking_window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)` / `avg_quality=+0.0814` / `avg_pnl=+0.0009` / `alerts=regime_shift`
 - **leaderboard / governance 仍維持 dual-role contract**
-  - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
+  - `leaderboard_count=6` / `top_model=random_forest` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
+- **Strategy Lab 工作區初始化安全性已補強**
+  - 預設工作區名稱若撞到既有 `My Strategy`，會自動改成唯一名稱（例如 `My Strategy #2`），避免手動策略誤覆蓋
+  - cached `selectedStrategy` 會在 leaderboard fallback 前先回填到左側表單與工作區，避免重整後被第一名策略蓋掉 operator context
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
   - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3446` / `archive_window_coverage_pct=0.0`
@@ -66,17 +69,19 @@ _最後更新：2026-04-23 11:16:34 CST_
   - /api/features/coverage
 
 ### P1. leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe
-- 目前真相：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- 下一步：Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.
+- 目前真相：`leaderboard_count=6` / `top_model=random_forest` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
+- Strategy Lab workspace safety：duplicate `My Strategy` 預設名稱會自動改成唯一名稱；cached `selectedStrategy` 會在 leaderboard fallback 前先回填，避免重整後被第一名策略覆蓋工作區語境。
+- 下一步：Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy；同時守住工作區初始化 safety，不要再讓預設名稱 collision 或 cached selection 被初始化流程覆蓋。
 - 驗證：
   - browser /lab
   - curl http://127.0.0.1:<active-backend>/api/models/leaderboard
-  - pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q
+  - pytest tests/test_strategy_lab_manual_model_and_auto_contract.py -q
+  - cd web && npm run build
 
 ---
 
 ## Current Priority
 1. **維持 current-live blocker truth（decision_quality_below_trade_floor），同時保留 q15 current-live bucket support rows 可 machine-read**
 2. **持續沿 recent canonical pathological slice 追根因，不要 generic 化 blocker**
-3. **守住 q15 current-live bucket support / reference-only patch、leaderboard dual-role governance、venue/source blockers 可見性**
+3. **守住 q15 current-live bucket support / reference-only patch、leaderboard dual-role governance、Strategy Lab workspace safety、venue/source blockers 可見性**
 4. **讓 heartbeat 自動 overwrite sync current-state docs，不再把 docs drift 留給人工補寫**

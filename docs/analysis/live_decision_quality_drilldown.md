@@ -1,17 +1,17 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-23 03:15:06.138534**
+- feature_timestamp: **2026-04-23 03:55:48.284356**
 - target: `simulated_pyramid_win`
 - live path: **bull / BLOCK / D**
-- signal: **HOLD** @ confidence **0.4730**
+- signal: **HOLD** @ confidence **0.4474**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: `regime_gate_block`
 - allowed_layers_reason: `decision_quality_below_trade_floor`
 - execution_guardrail_reason: `decision_quality_below_trade_floor`
 - runtime_blocker: `None` | reason: `None`
-- deployment_blocker: `decision_quality_below_trade_floor` | reason: `current live structure bucket `BLOCK|bull_q15_bias50_overextended_block|q15` 已完成 exact support closure（206/50），但 top-level live baseline 仍停在 entry_quality=0.4285，低於 trade floor 0.55；目前只能維持明確 no-deploy governance，不可把 support closure 或 component-experiment readiness 誤讀成 deployment closure。`
+- deployment_blocker: `decision_quality_below_trade_floor` | reason: `current live structure bucket `BLOCK|bull_q15_bias50_overextended_block|q15` 已完成 exact support closure（206/50），但 top-level live baseline 仍停在 entry_quality=0.3837，低於 trade floor 0.55；目前只能維持明確 no-deploy governance，不可把 support closure 或 component-experiment readiness 誤讀成 deployment closure。`
 - q15 exact-supported patch: **inactive** | support_route `exact_bucket_supported` | floor_cross `legal_component_experiment_after_support_ready`
-- runtime closure summary: **current live bucket BLOCK|bull_q15_bias50_overextended_block|q15 已完成 exact support closure（206/50），但 top-level live baseline 仍停在 entry_quality=0.4285 (D) < trade floor 0.55；目前維持明確 no-deploy governance。 不可把 support closure 誤讀成 deployment closure。 exact-vs-spillover=同 quality 寬 scope 出現 bull|CAUTION spillover，378 rows / WR 77.8% / 品質 0.423，明顯劣於 exact live lane WR 5.5% / 品質 -0.163。**
+- runtime closure summary: **current live bucket BLOCK|bull_q15_bias50_overextended_block|q15 已完成 exact support closure（206/50），但 top-level live baseline 仍停在 entry_quality=0.3837 (D) < trade floor 0.55；目前維持明確 no-deploy governance。 不可把 support closure 誤讀成 deployment closure。 exact-vs-spillover=同 quality 寬 scope 出現 bull|CAUTION spillover，378 rows / WR 77.8% / 品質 0.423，明顯劣於 exact live lane WR 5.5% / 品質 -0.163。**
 - q35 scaling audit: overall=`None` / redesign=`None` / runtime_gap=`None` / mode=`None` / next_patch=`None`
 - q35 audit action: None
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
@@ -22,18 +22,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.4285** / trade_floor **0.55** / gap **-0.1215**
-- base_quality: **0.476** × weight **0.75**
-- structure_quality: **0.286** × weight **0.25**
-- base components: feat_4h_bias50=0.0 (w=0.4, contrib=0.0), feat_nose=0.768 (w=0.18, contrib=0.1382), feat_pulse=0.6975 (w=0.27, contrib=0.1883), feat_ear=0.996 (w=0.15, contrib=0.1494)
-- structure components: feat_4h_bb_pct_b=0.3449 (w=0.34, contrib=0.1173), feat_4h_dist_bb_lower=0.1405 (w=0.33, contrib=0.0464), feat_4h_dist_swing_low=0.3708 (w=0.33, contrib=0.1224)
+- final entry_quality: **0.3837** / trade_floor **0.55** / gap **-0.1663**
+- base_quality: **0.4184** × weight **0.75**
+- structure_quality: **0.2797** × weight **0.25**
+- base components: feat_4h_bias50=0.0 (w=0.4, contrib=0.0), feat_nose=0.4368 (w=0.18, contrib=0.0786), feat_pulse=0.7036 (w=0.27, contrib=0.19), feat_ear=0.9986 (w=0.15, contrib=0.1498)
+- structure components: feat_4h_bb_pct_b=0.3344 (w=0.34, contrib=0.1137), feat_4h_dist_bb_lower=0.1363 (w=0.33, contrib=0.045), feat_4h_dist_swing_low=0.3667 (w=0.33, contrib=0.121)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.1215**
-- base_group_max_entry_gain: **0.3931** | structure_group_max_entry_gain: **0.1785**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.405, max_gain≈0.3）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.405)
+- remaining_gap_to_floor: **0.1663**
+- base_group_max_entry_gain: **0.4362** | structure_group_max_entry_gain: **0.1801**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.5543, max_gain≈0.3）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.5543)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 

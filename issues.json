@@ -144,22 +144,25 @@
         "leaderboard_count": 6,
         "comparable_count": 6,
         "placeholder_count": 0,
-        "top_model": "rule_baseline",
+        "top_model": "random_forest",
         "top_profile": "core_only",
         "top_deployment_profile": "scan_backed_best",
         "governance_contract": "dual_role_governance_active",
         "current_closure": "global_ranking_vs_support_aware_production_split",
-        "leaderboard_payload_source": "latest_persisted_snapshot",
-        "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
+        "leaderboard_snapshot_created_at": "2026-04-23T03:15:26.610393Z",
+        "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
+        "workspace_name_collision_guard": "default workspace auto-renames away from existing My Strategy entries",
+        "workspace_cached_selection_rehydration": "cached selected strategy is restored before leaderboard default selection"
       },
-      "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
+      "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; guard the workspace against duplicate default names and preserve cached strategy selection during init so operator comparisons stay trustworthy.",
       "verify": [
         "browser /lab",
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
-        "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
+        "pytest tests/test_strategy_lab_manual_model_and_auto_contract.py -q",
+        "cd web && npm run build"
       ],
-      "updated_at": "2026-04-23T03:16:33.563430",
-      "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
+      "updated_at": "2026-04-23T12:00:28+08:00",
+      "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; guard the workspace against duplicate default names and preserve cached strategy selection during init so operator comparisons stay trustworthy."
     }
   ]
 }

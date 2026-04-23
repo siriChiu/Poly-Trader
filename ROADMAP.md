@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-23 11:16:34 CST_
+_最後更新：2026-04-23 12:00:28 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
@@ -18,6 +18,9 @@ _最後更新：2026-04-23 11:16:34 CST_
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
+- **Strategy Lab workspace 初始化 safety 已補強**
+  - 若 session cache 裡已存在 `My Strategy`，工作區預設名稱會自動改成唯一名稱（例如 `My Strategy #2`），避免手動策略誤覆蓋
+  - cached `selectedStrategy` 會在 leaderboard fallback 前先回填到左側表單與工作區，避免重整後被第一名策略蓋掉 operator context
 
 ---
 
@@ -47,12 +50,13 @@ _最後更新：2026-04-23 11:16:34 CST_
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
-- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
+- `leaderboard_count=6` / `top_model=random_forest` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
+- Strategy Lab workspace safety：duplicate `My Strategy` 預設名稱會自動改成唯一名稱；cached `selectedStrategy` 會在 leaderboard fallback 前先回填
 - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3446` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
-- Strategy Lab 不回退 placeholder-only；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。
+- Strategy Lab 不回退 placeholder-only，也不再讓工作區初始化覆蓋既有手動策略語境；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。
 
 ---
 
@@ -63,9 +67,9 @@ _最後更新：2026-04-23 11:16:34 CST_
 2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**
    - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`
    - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據
-3. **守住 q15 current-live bucket support / reference-only patch、leaderboard governance、venue/source blockers 與 docs automation 閉環**
-   - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status
-   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts
+3. **守住 q15 current-live bucket support / reference-only patch、leaderboard governance、Strategy Lab workspace safety、venue/source blockers 與 docs automation 閉環**
+   - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`pytest tests/test_strategy_lab_manual_model_and_auto_contract.py -q`、`cd web && npm run build`、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status
+   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、工作區再出現 duplicate default name / cached strategy 被初始化覆蓋、venue/source blocker 消失、或 docs 再次落後 latest artifacts
 
 ---
 
