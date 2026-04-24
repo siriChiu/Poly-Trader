@@ -59,7 +59,7 @@ export default function AdviceCard({
   useEffect(() => { setDelta(score - prevScore); setPrevScore(score); }, [score]);
 
   const tradeActionsDisabled = executionActionState !== "ready" || isSubmittingTrade;
-  const blockerLabel = executionBlockerLabel || "blocked";
+  const blockerLabel = executionBlockerLabel || "阻塞中";
   const executionActionSummary = executionActionState === "syncing"
     ? "正在同步 /api/status；Dashboard 建議卡暫不提供快捷下單，避免目前阻塞點真相尚未到位前出現誤導 CTA。"
     : (executionBlockerReason || "目前只保留分析摘要與阻塞後續動作；若要查看目前阻塞點詳情與恢復脈絡，請改到執行狀態 / Bot 營運頁。");
@@ -100,13 +100,13 @@ export default function AdviceCard({
     ? signalConfig
     : executionActionState === "syncing"
       ? {
-          text: "先同步 runtime blocker",
+          text: "先同步執行期阻塞點",
           color: "text-sky-300",
           bg: "from-sky-950/30 to-slate-900",
           icon: "⏳",
         }
       : {
-          text: `先解除 blocker · ${blockerLabel}`,
+          text: `先解除阻塞點 · ${blockerLabel}`,
           color: "text-amber-300",
           bg: "from-amber-950/30 to-slate-900",
           icon: "🚫",

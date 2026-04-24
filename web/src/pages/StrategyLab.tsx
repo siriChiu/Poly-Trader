@@ -2613,8 +2613,8 @@ export default function StrategyLab() {
     ? "同步中"
     : humanizeQ15BucketRootCauseLabel(currentBucketRootCause?.verdict || null);
   const currentBucketRootCauseSummary = liveExecutionSyncPending
-    ? "正在同步當前 bucket 根因。"
-    : humanizeRuntimeDetailText(currentBucketRootCause?.reason || "尚未取得當前 bucket 根因。");
+    ? "正在同步當前分桶根因。"
+    : humanizeRuntimeDetailText(currentBucketRootCause?.reason || "尚未取得當前分桶根因。");
   const currentBucketRootCauseActionLabel = liveExecutionSyncPending
     ? "同步中"
     : humanizeQ15BucketRootCauseAction(currentBucketRootCause?.candidate_patch_type || null);
@@ -2668,8 +2668,8 @@ export default function StrategyLab() {
     ? "同步中"
     : humanizeSupportGovernanceRouteLabel(liveSupportGovernanceRoute);
   const liveSupportRouteSummaryLabel = liveExecutionSyncPending
-    ? "當前 bucket 同步中 · gap 同步中 · 支持路徑 同步中 · 治理路徑 同步中"
-    : `當前 bucket ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · 支持路徑 ${liveSupportRouteVerdictLabel} · 治理路徑 ${liveSupportGovernanceRouteLabel}`;
+    ? "目前分桶同步中 · gap 同步中 · 支持路徑 同步中 · 治理路徑 同步中"
+    : `目前分桶 ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · 支持路徑 ${liveSupportRouteVerdictLabel} · 治理路徑 ${liveSupportGovernanceRouteLabel}`;
   const liveSupportStatusSummaryLabel = liveExecutionSyncPending
     ? "支持狀態 同步中 · 樣本變化 同步中"
     : `支持狀態 ${liveSupportStatusLabel} · 樣本變化 ${liveSupportDeltaLabel}`;
@@ -3156,7 +3156,7 @@ export default function StrategyLab() {
                 <div className="text-right text-xs">
                   <div className="font-semibold">{liveDeployStatusLabel}</div>
                   <div className="opacity-70">目前阻塞點 {currentLiveBlockerLabel}</div>
-                  <div className="mt-1 opacity-60">當前 bucket {liveSupportRowsLabel} · gap {liveSupportGapLabel}</div>
+                  <div className="mt-1 opacity-60">當前分桶 {liveSupportRowsLabel} · gap {liveSupportGapLabel}</div>
                   <div className="mt-1 opacity-60">{liveSupportStatusSummaryLabel}</div>
                   <div className="mt-1 opacity-60">{liveSupportReferenceSummaryLabel}</div>
                   <div className="mt-1 opacity-60">{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}</div>
@@ -3197,13 +3197,13 @@ export default function StrategyLab() {
                 detail={runtimeClosureSummaryLabel}
               />
               <ExecutionWorkspaceMetric
-                label="當前 bucket 根因"
+                label="當前分桶根因"
                 value={currentBucketRootCauseLabel}
                 detail={(
                   <>
                     <div>{humanizeRuntimeDetailText(currentBucketRootCauseSummary)}</div>
-                    <div className="opacity-70">當前 bucket {currentBucketRootCauseBucket}</div>
-                    <div className="opacity-70">候選 patch {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}</div>
+                    <div className="opacity-70">當前分桶 {currentBucketRootCauseBucket}</div>
+                    <div className="opacity-70">候選修補方案 {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}</div>
                     <div className="opacity-70">近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 {formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
                     <div className="opacity-70">下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}</div>
                   </>
@@ -3425,8 +3425,8 @@ export default function StrategyLab() {
                         </div>
                       </div>
                       <div className="text-[11px] opacity-80">
-                        closure：{governanceContract.current_closure || leaderboardGovernance?.dual_profile_state || "—"}
-                        {leaderboardGovernance?.live_current_structure_bucket ? ` · live bucket ${leaderboardGovernance.live_current_structure_bucket}` : ""}
+                        閉環：{governanceContract.current_closure || leaderboardGovernance?.dual_profile_state || "—"}
+                        {leaderboardGovernance?.live_current_structure_bucket ? ` · 即時分桶 ${humanizeStructureBucketLabel(leaderboardGovernance.live_current_structure_bucket)}` : ""}
                       </div>
                     </div>
                   )}

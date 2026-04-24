@@ -1038,7 +1038,7 @@ export default function Dashboard() {
   const dashboardPrimaryRuntimeMessageLabel = runtimeStatusPending
     ? "正在同步 /api/status"
     : humanizeExecutionReason(
-      dashboardPrimaryRuntimeMessage || (runtimeStatusError ? `無法取得 /api/status：${runtimeStatusError}` : "目前沒有額外 blocker 摘要")
+      dashboardPrimaryRuntimeMessage || (runtimeStatusError ? `無法取得 /api/status：${runtimeStatusError}` : "目前沒有額外阻塞點摘要")
     );
   const dashboardVenueBlockers = Array.isArray(executionSurfaceContract?.live_ready_blockers)
     ? executionSurfaceContract.live_ready_blockers
@@ -1314,7 +1314,7 @@ export default function Dashboard() {
             <>
               <div>{executionModeLabel} · {executionVenueLabel}</div>
               <div>目前阻塞點 {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
-              <div className="opacity-70">當前 bucket {dashboardSupportRowsLabel} · gap {dashboardSupportGapLabel} · 支持路徑 {dashboardSupportRouteVerdictLabel} · 治理路徑 {dashboardSupportGovernanceRouteLabel}</div>
+              <div className="opacity-70">當前分桶 {dashboardSupportRowsLabel} · gap {dashboardSupportGapLabel} · 支持路徑 {dashboardSupportRouteVerdictLabel} · 治理路徑 {dashboardSupportGovernanceRouteLabel}</div>
               <div className="opacity-70">場館阻塞 {dashboardVenueBlockersLabel}</div>
             </>
           )}

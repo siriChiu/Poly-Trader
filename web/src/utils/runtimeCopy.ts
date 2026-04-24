@@ -11,15 +11,15 @@ const EXECUTION_REASON_MAPPINGS: Array<[string, string]> = [
   ["under_minimum_exact_live_structure_bucket", "目前精準樣本已開始累積，但仍低於最小可部署門檻。"],
   ["unsupported_exact_live_structure_bucket_blocks_trade", "目前精準樣本尚未建立，暫不交易。"],
   ["unsupported_exact_live_structure_bucket", "目前精準樣本尚未建立。"],
-  ["unsupported_live_structure_bucket_blocks_trade", "目前 live bucket 支持仍不足，暫不交易。"],
-  ["unsupported_live_structure_bucket", "目前 live bucket 支持仍不足。"],
+  ["unsupported_live_structure_bucket_blocks_trade", "目前即時分桶支持仍不足，暫不交易。"],
+  ["unsupported_live_structure_bucket", "目前即時分桶支持仍不足。"],
   ["decision_quality_below_trade_floor", "目前決策品質不足，暫不建議進場。"],
   ["recent_distribution_pathology_blocks_trade", "近期分佈病態，暫不交易。"],
   ["circuit_breaker_blocks_trade", "目前觸發保護機制，暫不交易。"],
   ["circuit_breaker_active", "目前觸發保護機制，暫停部署。"],
   ["deployment_guardrail_blocks_trade", "部署保護欄阻擋交易。"],
-  ["patch_inactive_or_blocked", "目前 patch 尚未啟用，或仍被其他條件阻擋。"],
-  ["patch_active_but_execution_blocked", "目前 patch 已套用，但 execution 仍被 blocker 擋住。"],
+  ["patch_inactive_or_blocked", "目前修補方案尚未啟用，或仍被其他條件阻擋。"],
+  ["patch_active_but_execution_blocked", "目前修補方案已套用，但執行期仍被阻塞點擋住。"],
   ["support_closed_but_trade_floor_blocked", "精準樣本已閉環，但交易門檻仍未通過。"],
   ["exact_bucket_present_but_below_minimum", "目前精準樣本已出現，但仍低於可部署最低門檻。"],
   ["exact_live_bucket_present_but_below_minimum", "目前精準樣本已開始累積，但仍低於可部署最低門檻。"],
@@ -38,8 +38,8 @@ const CURRENT_LIVE_BLOCKER_LABEL_MAPPINGS: Array<[string, string]> = [
   ["unsupported_exact_live_structure_bucket", "精準樣本尚未建立"],
   ["decision_quality_below_trade_floor", "決策品質未達門檻"],
   ["circuit_breaker_active", "風控熔斷中"],
-  ["unsupported_live_structure_bucket", "目前 live bucket 支持不足"],
-  ["exact_live_lane_toxic_sub_bucket_current_bucket", "精準路徑毒性子 bucket"],
+  ["unsupported_live_structure_bucket", "目前即時分桶支持不足"],
+  ["exact_live_lane_toxic_sub_bucket_current_bucket", "精準路徑毒性子分桶"],
 ];
 
 const SUPPORT_ROUTE_LABEL_MAPPINGS: Array<[string, string]> = [
@@ -55,7 +55,7 @@ const SUPPORT_ROUTE_LABEL_MAPPINGS: Array<[string, string]> = [
 
 const SUPPORT_GOVERNANCE_ROUTE_LABEL_MAPPINGS: Array<[string, string]> = [
   ["no_support_proxy", "目前沒有可用近似樣本"],
-  ["exact_live_bucket_proxy_available", "已有精準 bucket 近似樣本"],
+  ["exact_live_bucket_proxy_available", "已有精準分桶近似樣本"],
   ["exact_live_bucket_supported", "精準樣本已就緒"],
   ["exact_bucket_present_but_below_minimum", "精準樣本已開始累積"],
   ["exact_live_bucket_present_but_below_minimum", "精準樣本已開始累積"],
@@ -67,7 +67,7 @@ const SUPPORT_GOVERNANCE_ROUTE_LABEL_MAPPINGS: Array<[string, string]> = [
 
 const RUNTIME_CLOSURE_STATE_LABEL_MAPPINGS: Array<[string, string]> = [
   ["deployment_guardrail_blocks_trade", "部署保護欄阻擋交易"],
-  ["patch_active_but_execution_blocked", "patch 已套用但 execution 仍阻塞"],
+  ["patch_active_but_execution_blocked", "修補方案已套用但執行期仍阻塞"],
   ["patch_inactive_or_blocked", "僅保留治理參考"],
   ["support_closed_but_trade_floor_blocked", "精準樣本已閉環但交易門檻仍阻塞"],
   ["circuit_breaker_active", "風控熔斷中"],
@@ -128,7 +128,7 @@ const Q15_FLOOR_CROSS_VERDICT_LABEL_MAPPINGS: Array<[string, string]> = [
 const Q15_COMPONENT_EXPERIMENT_VERDICT_LABEL_MAPPINGS: Array<[string, string]> = [
   ["reference_only_until_exact_support_ready", "exact support 就緒前僅供參考"],
   ["exact_supported_component_experiment_ready", "可進入 exact-supported 元件驗證"],
-  ["runtime_patch_no_material_improvement", "runtime patch 無明顯改善"],
+  ["runtime_patch_no_material_improvement", "runtime 修補方案無明顯改善"],
   ["not_applicable", "目前不適用"],
 ];
 
@@ -140,6 +140,7 @@ const FEATURE_KEY_LABEL_OVERRIDES: Record<string, { name: string; shortLabel: st
   local_bottom_score: { name: "局部底部分數", shortLabel: "局部底部" },
   local_top_score: { name: "局部頂部分數", shortLabel: "局部頂部" },
   "4h_dist_swing_high": { name: "4H 壓力距離", shortLabel: "4H壓力" },
+  "4h_bias50_formula": { name: "4H 偏離50校準公式", shortLabel: "4H偏離50公式" },
 };
 
 const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
@@ -149,7 +150,11 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["Consecutive loss streak:", "連續虧損筆數："],
   ["Recent 50-sample win rate", "最近 50 筆勝率"],
   ["recent 50 win rate", "最近 50 筆勝率"],
+  ["recent 50", "最近 50 筆"],
   ["release condition =", "解除條件："],
+  ["release condition", "解除條件"],
+  ["在 breaker 仍有效時", "在熔斷仍有效時"],
+  ["venue 的", "場館的"],
   ["streak < 50", "連續虧損筆數 < 50"],
   ["Release Circuit Breaker Then Rerun Q35 Scaling Audit", "先解除風控熔斷，再重跑 q35 分段校準審核"],
   ["defer_until_circuit_breaker_releases", "待風控熔斷解除後再處理"],
@@ -159,12 +164,13 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["q35 scaling", "q35 分段校準"],
   ["q35 formula / calibration", "q35 公式 / 校準"],
   ["canonical circuit breaker", "正式風控熔斷"],
+  ["circuit breaker active", "風控熔斷啟用中"],
   ["circuit breaker", "風控熔斷"],
-  ["exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade", "精準路徑毒性子 bucket 阻擋交易"],
-  ["exact_live_lane_toxic_sub_bucket_current_bucket", "精準路徑毒性子 bucket"],
+  ["exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade", "精準路徑毒性子分桶阻擋交易"],
+  ["exact_live_lane_toxic_sub_bucket_current_bucket", "精準路徑毒性子分桶"],
   ["unsupported_exact_live_structure_bucket_blocks_trade", "精準樣本尚未建立，暫不交易"],
   ["under_minimum_exact_live_structure_bucket_blocks_trade", "精準樣本未達最小門檻，暫不交易"],
-  ["unsupported_live_structure_bucket_blocks_trade", "live bucket 支持不足，暫不交易"],
+  ["unsupported_live_structure_bucket_blocks_trade", "即時分桶支持不足，暫不交易"],
   ["recent_distribution_pathology_blocks_trade", "近期分佈病態，暫不交易"],
   ["circuit_breaker_blocks_trade", "風控熔斷中，暫不交易"],
   ["deployment_guardrail_blocks_trade", "部署保護欄阻擋交易"],
@@ -172,12 +178,12 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["exact_supported_component_experiment_ready", "精準樣本元件實驗就緒"],
   ["exact_live_bucket_supported", "精準樣本已就緒"],
   ["exact live bucket supported", "精準樣本已就緒"],
-  ["exact_live_bucket_proxy_available", "已有精準 bucket 近似樣本"],
+  ["exact_live_bucket_proxy_available", "已有精準分桶近似樣本"],
   ["exact_live_lane_proxy_available", "已有精準路徑近似樣本"],
   ["current_structure_quality", "目前結構分數"],
   ["component scoring", "元件評分"],
   ["boundary tweak", "邊界微調"],
-  ["toxic sub-bucket", "毒性子 bucket"],
+  ["toxic sub-bucket", "毒性子分桶"],
   ["hold-only", "僅觀察"],
   ["entry_quality >= 0.55 and allowed_layers > 0 without q35 applicability / support / guardrail regression", "進場品質 >= 0.55，且允許層數 > 0，同時不得出現 q35 適用性 / 樣本支持 / 保護欄回歸"],
   ["entry_quality=", "進場分數="],
@@ -225,10 +231,10 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["decision_quality_below_trade_floor", "決策品質未達門檻"],
   ["circuit_breaker_active", "風控熔斷中"],
   ["patch_inactive_or_blocked", "僅保留治理參考"],
-  ["patch_active_but_execution_blocked", "patch 已套用但 execution 仍阻塞"],
+  ["patch_active_but_execution_blocked", "修補方案已套用但執行期仍阻塞"],
   ["support_closed_but_trade_floor_blocked", "精準樣本已閉環，但仍被交易門檻擋住"],
   ["capacity_opened_signal_hold", "容量已開但訊號仍 HOLD"],
-  ["unsupported_live_structure_bucket", "live bucket 支持不足"],
+  ["unsupported_live_structure_bucket", "即時分桶支持不足"],
   ["exact_bucket_unsupported_block", "精準樣本尚未建立"],
   ["exact_bucket_present_but_below_minimum", "精準樣本未達最小門檻"],
   ["exact_live_bucket_present_but_below_minimum", "精準樣本已開始累積"],
@@ -237,7 +243,7 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["no_support_proxy", "目前沒有可用近似樣本"],
   ["reference_only_non_current_live_scope", "範圍不同，僅作治理參考"],
   ["reference_only_until_exact_support_ready", "先當治理參考，不可直接放行"],
-  ["reference_only_while_deployment_blocked", "blocker 未清前僅作治理參考"],
+  ["reference_only_while_deployment_blocked", "阻塞點未清前僅作治理參考"],
   ["runtime_governance_visibility_only", "執行治理可視化"],
   ["regime_gate_block", "市場閘門阻塞"],
   ["regime gate", "市場閘門"],
@@ -249,12 +255,13 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
 ];
 
 const GENERIC_OPERATOR_PHRASE_REPLACEMENTS: Array<[string, string]> = [
-  ["current live structure bucket", "當前 live 結構 bucket"],
-  ["current-live structure bucket", "當前 live 結構 bucket"],
-  ["current live bucket", "當前 live bucket"],
-  ["current-live bucket", "當前 live bucket"],
+  ["current live structure bucket", "當前即時結構分桶"],
+  ["current-live structure bucket", "當前即時結構分桶"],
+  ["current live bucket", "當前即時分桶"],
+  ["current-live bucket", "當前即時分桶"],
   ["current live blocker", "目前阻塞點"],
   ["current-live blocker", "目前阻塞點"],
+  ["live blocker", "目前阻塞點"],
   ["deployment-grade minimum support", "可部署最低樣本"],
   ["deployment grade minimum support", "可部署最低樣本"],
   ["exact support", "精準樣本"],
@@ -272,7 +279,7 @@ const GENERIC_OPERATOR_PHRASE_REPLACEMENTS: Array<[string, string]> = [
   ["primary sleeves", "主要倉位腿"],
   ["current row", "當前資料列"],
   ["這條 lane", "這條路徑"],
-  ["exact live bucket present but below minimum", "目前 exact support 已開始累積"],
+  ["exact live bucket present but below minimum", "目前精準樣本已開始累積"],
   ["exact rows", "精準樣本"],
   ["exact live lane", "精準路徑"],
   ["exact lane", "精準路徑"],
@@ -280,9 +287,9 @@ const GENERIC_OPERATOR_PHRASE_REPLACEMENTS: Array<[string, string]> = [
   ["proxy rows", "近似樣本"],
   ["reference-only", "僅供治理參考"],
   ["reference only", "僅供治理參考"],
-  ["recommended patch", "建議 patch"],
+  ["recommended patch", "建議修補方案"],
   ["deployment closure", "部署閉環"],
-  ["deployment blocker", "部署 blocker"],
+  ["deployment blocker", "部署阻塞點"],
   ["deployment", "部署"],
   ["runtime last order", "執行期最新委託"],
   ["runtime order", "執行期委託"],
@@ -299,6 +306,10 @@ const GENERIC_OPERATOR_PHRASE_REPLACEMENTS: Array<[string, string]> = [
   ["calibration 精準路徑", "校準精準路徑"],
   ["runtime ", "執行期 "],
   ["proxy", "近似樣本"],
+  ["exact bucket", "精準分桶"],
+  ["live bucket", "即時分桶"],
+  ["current live row", "當前即時資料列"],
+  ["live row", "即時資料列"],
   ["guardrail", "保護欄"],
   ["Diagnostics", "診斷"],
   ["installed-but-not-ticking", "已安裝但尚未觀察到自然排程觸發"],
@@ -312,7 +323,7 @@ const Q15_BUCKET_ROOT_CAUSE_LABEL_MAPPINGS: Array<[string, string]> = [
   ["current_row_already_above_q35_boundary", "已越過 q35 邊界"],
   ["same_lane_neighbor_bucket_dominates", "鄰近 bucket 主導"],
   ["no_exact_live_lane_rows", "精準路徑尚未生成"],
-  ["runtime_blocker_preempts_bucket_root_cause", "執行期 blocker 優先"],
+  ["runtime_blocker_preempts_bucket_root_cause", "執行期阻塞點優先"],
   ["runtime_blocker_preempts_q35_scaling", "風控熔斷優先，暫不處理 q35 分段校準"],
   ["missing_structure_quality", "缺少結構分數"],
   ["boundary_sensitivity_candidate", "q15↔q35 邊界候選"],
@@ -328,7 +339,7 @@ const Q15_BUCKET_ROOT_CAUSE_LABEL_MAPPINGS: Array<[string, string]> = [
 ];
 
 const Q15_BUCKET_ROOT_CAUSE_ACTION_MAPPINGS: Array<[string, string]> = [
-  ["deployment_blocker_verification", "回到 blocker 驗證"],
+  ["deployment_blocker_verification", "回到阻塞點驗證"],
   ["support_accumulation", "等待 support 累積"],
   ["structure_component_scoring", "結構元件校準"],
   ["live_row_projection", "修 4H 投影"],
@@ -390,16 +401,16 @@ const LIVE_PATHOLOGY_LABEL_MAPPINGS: Array<[string, string]> = [
   ["spillover_rows", "外溢樣本"],
   ["focus_scope_rows", "焦點範圍樣本"],
   ["current_spillover", "當前外溢"],
-  ["reference_patch", "參考 patch"],
+  ["reference_patch", "參考修補方案"],
   ["support_route", "支持路徑"],
   ["governance_route", "治理路徑"],
   ["top_4h_shifts", "4H 主偏移"],
   ["next_action", "下一步"],
-  ["current_bucket_support", "當前 bucket 樣本"],
+  ["current_bucket_support", "當前分桶樣本"],
   ["exact_lane_cohort", "精準路徑樣本"],
-  ["historical_lane_bucket", "歷史 lane bucket"],
+  ["historical_lane_bucket", "歷史路徑分桶"],
   ["no_spillover", "沒有外溢口袋"],
-  ["patch", "治理 patch"],
+  ["patch", "治理修補方案"],
 ];
 
 const LIFECYCLE_DIAGNOSTIC_LABEL_MAPPINGS: Array<[string, string]> = [
@@ -541,7 +552,7 @@ export function humanizeStructureBucketLabel(value?: string | null): string {
 
 export function humanizeExecutionReason(value?: string | null): string {
   const normalized = String(value || "").trim();
-  if (!normalized) return "尚未提供 blocker 摘要。";
+  if (!normalized) return "尚未提供阻塞點摘要。";
   const lower = normalized.toLowerCase();
   const normalizedWords = normalized.replace(/[_|]+/g, " ").trim().toLowerCase();
   for (const [token, message] of EXECUTION_REASON_MAPPINGS) {
@@ -756,7 +767,7 @@ export function humanizeRuntimeDetailText(value?: string | null): string {
   output = output.replace(/\bfeat_[a-z0-9_]+\b/gi, (token) => humanizeFeatureKey(token));
 
   return applyOperatorPhraseReplacements(output
-    .split("recommended_patch=").join("建議 patch ")
+    .split("recommended_patch=").join("建議修補方案 ")
     .split("exact-vs-spillover=").join("精準路徑 / 外溢對照：")
     .split("support route").join("支持路徑")
     .split("governance route").join("治理路徑")
@@ -765,9 +776,9 @@ export function humanizeRuntimeDetailText(value?: string | null): string {
     .split("blocker=").join("阻塞點 ")
     .split("current live blocker").join("目前阻塞點")
     .split("current-live blocker").join("目前阻塞點")
-    .split("current live structure bucket").join("目前 live 結構 bucket")
-    .split("current bucket root cause").join("當前 bucket 根因")
-    .split("current bucket").join("當前 bucket")
+    .split("current live structure bucket").join("目前即時結構分桶")
+    .split("current bucket root cause").join("當前分桶根因")
+    .split("current bucket").join("當前分桶")
     .split("base-mix experiment").join("base-mix 實驗")
     .split("active sleeves").join("啟用倉位腿")
     .split("inactive sleeves").join("待命倉位腿")
@@ -780,7 +791,7 @@ export function humanizeRuntimeDetailText(value?: string | null): string {
     .split("avg_pnl=").join("平均損益：")
     .split("regime=").join("市場狀態：")
     .split("gate=").join("閘門：")
-    .split("bucket=").join("當前 bucket：")
+    .split("bucket=").join("當前分桶：")
     .split("blocks trade").join("阻擋交易")
     .replace(/(?:_|\s)blocks[_ ]trade\b/gi, " 阻擋交易")
     .replace(/\bWR\b/g, "勝率")
@@ -793,7 +804,7 @@ export function humanizeRuntimeDetailText(value?: string | null): string {
 
 export function humanizeQ15BucketRootCauseLabel(value?: string | null): string {
   const normalized = String(value || "").trim();
-  if (!normalized) return "尚未取得 current bucket 根因";
+  if (!normalized) return "尚未取得當前分桶根因";
   const lower = normalized.toLowerCase();
   for (const [token, label] of Q15_BUCKET_ROOT_CAUSE_LABEL_MAPPINGS) {
     if (lower.includes(token)) return label;
@@ -803,7 +814,7 @@ export function humanizeQ15BucketRootCauseLabel(value?: string | null): string {
 
 export function humanizeQ15BucketRootCauseAction(value?: string | null): string {
   const normalized = String(value || "").trim();
-  if (!normalized) return "尚未提供候選 patch";
+  if (!normalized) return "尚未提供候選修補方案";
   const lower = normalized.toLowerCase();
   for (const [token, label] of Q15_BUCKET_ROOT_CAUSE_ACTION_MAPPINGS) {
     if (lower.includes(token)) return label;

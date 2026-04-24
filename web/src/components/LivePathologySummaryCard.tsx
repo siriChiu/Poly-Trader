@@ -128,11 +128,11 @@ const formatPatchStatus = (status?: string | null) => {
     case "reference_only_non_current_live_scope":
       return "範圍不同，僅作治理參考";
     case "reference_only_while_deployment_blocked":
-      return "blocker 未清前僅作治理參考";
+      return "阻塞點未清前僅作治理參考";
     case "deployable_patch_candidate":
       return "已達 runtime / training patch 候選";
     default:
-      return status || "patch 狀態未提供";
+      return status || "修補方案狀態未提供";
   }
 };
 
@@ -212,8 +212,8 @@ export default function LivePathologySummaryCard({
   );
   const compactPatchStatusLabel = recommendedPatch ? formatPatchStatus(recommendedPatch.status) : null;
   const patchSectionTitle = isReferenceOnlyPatchStatus(recommendedPatch?.status)
-    ? "治理 / 訓練 patch 參考"
-    : "建議正式 patch";
+    ? "治理 / 訓練修補方案參考"
+    : "建議正式修補方案";
   const currentBucketSupportRows = recommendedPatch?.current_live_structure_bucket_rows ?? exactLane?.current_live_structure_bucket_rows;
   const currentBucketSupportMinimum = recommendedPatch?.minimum_support_rows ?? null;
   const currentBucketSupportLabel = currentBucketSupportRows != null
@@ -227,8 +227,8 @@ export default function LivePathologySummaryCard({
     ? `${PATHOLOGY_LABELS.historicalLaneBucket} ${humanizeStructureBucketLabel(exactLaneHistoricalBucket)}`
     : null;
   const exactLaneCurrentBucketLabel = exactLane?.current_live_structure_bucket
-    ? `當前 bucket ${humanizeStructureBucketLabel(exactLane.current_live_structure_bucket)}`
-    : humanizeStructureBucketLabel(exactLane?.scope || "未提供 bucket");
+    ? `當前分桶 ${humanizeStructureBucketLabel(exactLane.current_live_structure_bucket)}`
+    : humanizeStructureBucketLabel(exactLane?.scope || "未提供分桶");
   const spilloverPocketLabel = humanizeStructureBucketLabel(spilloverPocket?.regime_gate || spilloverLabel || PATHOLOGY_LABELS.noSpillover);
   const supportAlignmentStatusLabel = formatSupportAlignmentStatus(supportAlignmentStatus);
   const supportAlignmentCountsLabel = runtimeExactSupportRows != null || calibrationExactLaneRows != null
@@ -251,7 +251,7 @@ export default function LivePathologySummaryCard({
           <div>
             <div className="text-sm font-semibold">{title}</div>
             <div className="mt-1 text-[11px] leading-5 text-amber-100/80">
-              摘要版只保留目前精準路徑、外溢口袋與 patch 治理真相；完整診斷請看執行狀態。
+              摘要版只保留目前精準路徑、外溢口袋與修補方案治理真相；完整診斷請看執行狀態。
             </div>
           </div>
           <div className="rounded-full border border-amber-500/30 bg-amber-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-amber-200">
@@ -299,13 +299,13 @@ export default function LivePathologySummaryCard({
 
           <div className="rounded-lg border border-sky-500/20 bg-sky-950/10 px-3 py-2 text-[11px] leading-5 text-sky-50">
             <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">{PATHOLOGY_LABELS.patch}</div>
-            <div className="mt-1 font-semibold text-sky-100">{compactPatchLabel || "未提供 patch"}</div>
+            <div className="mt-1 font-semibold text-sky-100">{compactPatchLabel || "未提供修補方案"}</div>
             <div className="text-sky-50/80">
               樣本 {recommendedPatch?.current_live_structure_bucket_rows ?? "—"}/{recommendedPatch?.minimum_support_rows ?? "—"}
               {recommendedPatch?.gap_to_minimum != null ? ` · gap ${recommendedPatch.gap_to_minimum}` : ""}
             </div>
             <div className="text-sky-50/80">
-              {compactPatchStatusLabel || "patch 狀態未提供"}
+              {compactPatchStatusLabel || "修補方案狀態未提供"}
               {supportRouteLabel ? ` · ${PATHOLOGY_LABELS.supportRoute} ${supportRouteDisplayLabel}` : ""}
               {supportGovernanceRouteLabel ? ` · ${PATHOLOGY_LABELS.governanceRoute} ${supportGovernanceRouteDisplayLabel}` : ""}
             </div>

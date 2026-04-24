@@ -231,25 +231,25 @@ export default function ConfidenceIndicator({
     : "目前不適用";
   const q15FloorCrossHint = q15SupportAuditApplicable
     ? `最佳單一元件 ${bestSingleComponentLabel}`
-    : `目前 bucket ${currentLiveStructureBucketLabel}；q15 floor-cross drill-down 只保留 reference-only，不代表 /api/status 缺資料。`;
+    : `目前分桶 ${currentLiveStructureBucketLabel}；q15 floor-cross drill-down 只保留治理參考，不代表 /api/status 缺資料。`;
   const q15ComponentExperimentLabel = q15SupportAuditApplicable
     ? humanizeQ15ComponentExperimentVerdictLabel(componentExperimentVerdict || "—")
     : "僅供參考";
   const q15ComponentExperimentHint = q15SupportAuditApplicable
     ? `所需分數差 ${formatDecimal(bestSingleComponentRequiredScoreDelta, 4)}`
-    : "目前 live row 已離開 q15 路徑；請改看目前阻塞點與當前 bucket 根因，不要把 q15 experiment 空值誤讀成 blocker 真相。";
+    : "目前即時資料列已離開 q15 路徑；請改看目前阻塞點與當前分桶根因，不要把 q15 元件實驗空值誤讀成阻塞點真相。";
   const q35ScalingVerdictLabel = q35ScalingAuditApplicable
     ? humanizeQ15BucketRootCauseLabel(q35OverallVerdict || "—")
-    : "目前 bucket 非 q35";
+    : "目前分桶非 q35";
   const q35ScalingVerdictHint = q35ScalingAuditApplicable
     ? `重設判讀 ${humanizeQ15BucketRootCauseLabel(q35RedesignVerdict || "—")} · 尚差 ${formatDecimal(q35RuntimeRemainingGapToFloor, 4)}`
-    : `目前 bucket ${currentLiveStructureBucketLabel}；q35 分段校準審核只保留治理參考，不代表 blocker 已解除。`;
+    : `目前分桶 ${currentLiveStructureBucketLabel}；q35 分段校準審核只保留治理參考，不代表阻塞點已解除。`;
   const q35ScalingActionLabel = q35ScalingAuditApplicable
     ? humanizeQ15BucketRootCauseAction(q35RecommendedMode || "—")
     : "僅供參考";
   const q35ScalingActionHint = q35ScalingAuditApplicable
-    ? `下一個 patch ${humanizeRuntimeDetailText(q35NextPatchTarget || "—")} · ${humanizeRuntimeDetailText(q35RecommendedAction || "尚未提供 q35 audit action")}`
-    : "目前 live row 不在 q35 lane；q35 公式 / 重設結論只保留背景研究用途。";
+    ? `下一個修補方案 ${humanizeRuntimeDetailText(q35NextPatchTarget || "—")} · ${humanizeRuntimeDetailText(q35RecommendedAction || "尚未提供 q35 audit action")}`
+    : "目前即時資料列不在 q35 路徑；q35 公式 / 重設結論只保留背景研究用途。";
 
   return (
     <div className={`app-surface-card ${lv.bg}`}>
@@ -316,11 +316,11 @@ export default function ConfidenceIndicator({
 
       {q15ExactSupportedComponentPatchApplied && (
         <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${q15PatchExecutionBlocked ? "border-amber-700/40 bg-amber-950/20 text-amber-100" : "border-emerald-700/40 bg-emerald-950/20 text-emerald-100"}`}>
-          <div className={`font-semibold ${q15PatchExecutionBlocked ? "text-amber-200" : "text-emerald-200"}`}>q15 精準樣本 bias50 執行期 patch 已套用</div>
+          <div className={`font-semibold ${q15PatchExecutionBlocked ? "text-amber-200" : "text-emerald-200"}`}>q15 精準樣本 bias50 執行期修補方案已套用</div>
           <div className={`mt-1 text-xs leading-5 ${q15PatchExecutionBlocked ? "text-amber-100/80" : "text-emerald-100/80"}`}>
             {q15PatchCapacityOpened
-              ? "精準樣本已就緒，執行期目前對 current q15 live row 套用 support-aware bias50 component patch，且已打開 deployment capacity；若 signal 仍是 HOLD，代表容量已開但方向訊號仍不足（即 capacity opened but signal still HOLD）。"
-              : "q15 patch 已經吃到 current live row，但 execution 仍被精準 live bucket blocker / 保護欄壓住；這代表 patch active 只證明 runtime floor-cross 元件已落地，不等於目前可部署（即 q15 patch 已經吃到 current live row，但 execution 仍被 exact live bucket blocker / guardrail 壓住）。"}
+              ? "精準樣本已就緒，執行期目前對當前 q15 即時資料列套用支援樣本感知 bias50 元件修補方案，且已打開可部署容量；若 signal 仍是 HOLD，代表部署容量已開但訊號仍維持 HOLD。"
+              : "q15 修補方案已經吃到當前即時資料列，但 execution 仍被精準分桶阻塞點 / 保護欄壓住；這代表修補方案已套用，只證明執行期跨門檻元件已落地，不等於目前可部署。"}
           </div>
         </div>
       )}
@@ -329,7 +329,7 @@ export default function ConfidenceIndicator({
         <div className="mt-4 rounded-xl border border-amber-700/40 bg-amber-950/20 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="text-sm font-semibold text-amber-200">目前 blocker</div>
+              <div className="text-sm font-semibold text-amber-200">目前阻塞點</div>
               <div className="mt-1 text-xs leading-5 text-amber-100/80">
                 {humanizeExecutionReason(deploymentBlockerReason || deploymentBlocker)}
               </div>
@@ -360,7 +360,7 @@ export default function ConfidenceIndicator({
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">操作員下一步</div>
                   <div className="mt-1 font-medium text-white">先等 canonical 1440m 最近 50 筆恢復</div>
-                  <div className="mt-1 text-slate-400">不要把 support / component patch 當成 breaker release 替代品。</div>
+                  <div className="mt-1 text-slate-400">不要把支持樣本 / 元件修補方案當成熔斷解除替代品。</div>
                 </div>
               </>
             ) : (
@@ -371,7 +371,7 @@ export default function ConfidenceIndicator({
                   <div className="mt-1 text-slate-400">狀態 {supportStatusLabel}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <div className="text-[10px] tracking-wide text-slate-400">當前 bucket</div>
+                  <div className="text-[10px] tracking-wide text-slate-400">當前分桶</div>
                   <div className="mt-1 font-medium text-white">{currentLiveStructureBucketLabel}</div>
                   <div className="mt-1 text-slate-400">距離最小樣本差 {supportGap ?? "—"}</div>
                 </div>

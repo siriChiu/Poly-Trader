@@ -519,7 +519,7 @@ export default function ExecutionStatus() {
       || liveRuntimeTruth?.execution_guardrail_reason
       || liveReadyBlockers[0]
       || executionSurfaceContract?.operator_message
-      || "目前沒有額外 blocker 摘要。"
+      || "目前沒有額外阻塞點摘要。"
     );
   const currentLiveBlockerLabel = runtimeStatusPending
     ? "同步中"
@@ -578,8 +578,8 @@ export default function ExecutionStatus() {
     ? "同步中"
     : humanizeQ15BucketRootCauseLabel(currentBucketRootCause?.verdict || null);
   const currentBucketRootCauseSummary = runtimeStatusPending
-    ? "正在同步當前 bucket 根因。"
-    : humanizeRuntimeDetailText(currentBucketRootCause?.reason || "尚未取得當前 bucket 根因。");
+    ? "正在同步當前分桶根因。"
+    : humanizeRuntimeDetailText(currentBucketRootCause?.reason || "尚未取得當前分桶根因。");
   const currentBucketRootCauseActionLabel = runtimeStatusPending
     ? "同步中"
     : humanizeQ15BucketRootCauseAction(currentBucketRootCause?.candidate_patch_type || null);
@@ -648,7 +648,7 @@ export default function ExecutionStatus() {
       <ExecutionHero
         className="app-page-header"
         eyebrow="執行狀態 / 診斷"
-        title="先看 blocker，再決定是否介入"
+        title="先看阻塞點，再決定是否介入"
         subtitle="這頁只保留執行診斷：先看目前阻塞點；資料新鮮、對帳正常只代表觀測層狀態，不代表可部署。"
         statusPills={(
           <>
@@ -745,10 +745,10 @@ export default function ExecutionStatus() {
           >
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
-                <div className="text-[11px] uppercase tracking-wide text-slate-500">主 blocker</div>
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">主要阻塞點</div>
                 <div className="mt-2 font-semibold text-white">{primaryRuntimeMessage}</div>
-                <div className="mt-2 text-slate-400">部署 blocker {currentLiveBlockerLabel}</div>
-                <div className="text-slate-400">執行 guardrail {executionGuardrailLabel}</div>
+                <div className="mt-2 text-slate-400">部署阻塞點 {currentLiveBlockerLabel}</div>
+                <div className="text-slate-400">執行保護欄 {executionGuardrailLabel}</div>
                 <div className="text-slate-400">場館阻塞 {venueBlockersLabel}</div>
               </div>
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
@@ -766,11 +766,11 @@ export default function ExecutionStatus() {
                 <div className="text-slate-400">對齊 {supportAlignmentSummaryLabel}</div>
               </div>
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
-                <div className="text-[11px] tracking-wide text-slate-500">當前 bucket 根因</div>
+                <div className="text-[11px] tracking-wide text-slate-500">當前分桶根因</div>
                 <div className="mt-2 font-semibold text-white">{currentBucketRootCauseLabel}</div>
                 <div className="mt-2 text-slate-400">{humanizeRuntimeDetailText(currentBucketRootCauseSummary)}</div>
-                <div className="text-slate-400">當前 bucket {currentBucketRootCauseBucket}</div>
-                <div className="text-slate-400">候選 patch {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}</div>
+                <div className="text-slate-400">當前分桶 {currentBucketRootCauseBucket}</div>
+                <div className="text-slate-400">候選修補方案 {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}</div>
                 <div className="text-slate-400">近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 {formatNumber(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
                 <div className="text-slate-400">下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}</div>
               </div>
@@ -782,7 +782,7 @@ export default function ExecutionStatus() {
                 <div className="text-[11px] text-slate-400">啟用倉位腿 {liveRouting?.active_ratio_text || "0/0"}</div>
               </div>
               <div className="mt-2 text-slate-300">
-                {humanizeStructureBucketLabel(liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—")} · 閘門 {humanizeStructureBucketLabel(liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—")} · 當前 bucket {humanizeStructureBucketLabel(liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—")}
+                {humanizeStructureBucketLabel(liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—")} · 閘門 {humanizeStructureBucketLabel(liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—")} · 當前分桶 {humanizeStructureBucketLabel(liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—")}
               </div>
               <div className="mt-2 text-sm text-slate-400">{humanizeRuntimeDetailText(liveRouting?.summary || liveRuntimeTruth?.support_alignment_summary || "尚未取得倉位路由摘要。")}</div>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -1025,14 +1025,14 @@ export default function ExecutionStatus() {
       <section className="grid gap-4 md:grid-cols-2">
         <div className="rounded-[24px] border border-white/8 bg-[#151b31] p-4 text-sm text-slate-300">
           <div className="text-lg font-semibold text-white">營運入口</div>
-          <div className="mt-2">需要啟停 Bot、看資金使用與 run 進度，請回到 Bot 營運。</div>
+          <div className="mt-2">需要啟停 Bot、看資金使用與執行進度，請回到 Bot 營運。</div>
           <a href="/execution" className="mt-3 inline-flex rounded-xl border border-cyan-400/35 bg-cyan-500/10 px-4 py-2 font-medium text-cyan-100 transition hover:bg-cyan-500/20">
             前往 Bot 營運 →
           </a>
         </div>
         <div className="rounded-[24px] border border-white/8 bg-[#151b31] p-4 text-sm text-slate-300">
           <div className="text-lg font-semibold text-white">策略入口</div>
-          <div className="mt-2">需要回頭檢查 sleeve 與策略表現，請到策略實驗室。</div>
+          <div className="mt-2">需要回頭檢查倉位腿與策略表現，請到策略實驗室。</div>
           <a href="/lab" className="mt-3 inline-flex rounded-xl border border-white/10 bg-white/5 px-4 py-2 font-medium text-slate-100 transition hover:border-cyan-300/35 hover:text-white">
             前往策略實驗室 →
           </a>

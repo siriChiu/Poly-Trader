@@ -222,7 +222,7 @@ export default function RecentCanonicalDriftCard({
 
       {pending ? (
         <div className="mt-3 leading-6 text-slate-200/80">
-          目前 blocker pocket 的近期視窗漂移正在同步；在產物到位前不要把較寬歷史平均值當成目前 live 真相。
+          目前阻塞口袋的近期視窗漂移正在同步；在產物到位前不要把較寬歷史平均值當成目前即時真相。
         </div>
       ) : !latestWindowSummary && !blockingWindowSummary ? (
         <div className="mt-3 leading-6 text-slate-200/80">
@@ -232,7 +232,7 @@ export default function RecentCanonicalDriftCard({
         <div className="mt-3 space-y-3 text-[12px] leading-6 text-slate-100/90">
           {renderWindowSummary("最新近期視窗", latestWindow)}
           {hasDistinctBlockingWindow
-            ? renderWindowSummary("當前 blocker pocket", blockingWindow, { emphasize: true })
+            ? renderWindowSummary("當前阻塞口袋", blockingWindow, { emphasize: true })
             : null}
         </div>
       )}

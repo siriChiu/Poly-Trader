@@ -712,10 +712,10 @@ export default function ExecutionConsole() {
     : "餘額暫不可用";
   const accountBalanceUnavailableReason = !accountCredentialsConfigured
     ? "需私有餘額後才能計算 Bot 預算與可部署資金。"
-    : "最新 execution snapshot 暫無餘額資料。";
+    : "最新執行快照暫無餘額資料。";
   const sharedLedgerUnavailableLabel = !accountCredentialsConfigured
-    ? "尚無 run ledger"
-    : "共享 ledger 暫不可用";
+    ? "尚無運行帳本"
+    : "共享帳本暫不可用";
   const allocatedCapital = balanceTotal != null && balanceFree != null ? Math.max(balanceTotal - balanceFree, 0) : null;
   const lastOrder = guardrails?.last_order ?? null;
   const lastReject = guardrails?.last_reject ?? null;
@@ -751,7 +751,7 @@ export default function ExecutionConsole() {
       ...liveReadyBlockers,
     ]
       .map((item) => humanizeExecutionReason(item))
-      .filter((item) => item && item !== "尚未提供 blocker 摘要。")))
+      .filter((item) => item && item !== "尚未提供阻塞點摘要。")))
       .join(" · ") || primaryBlockedReason);
   const manualBuyBlocked = hasBlockedState && Boolean(rawPrimaryBlockedReason);
   const manualBuyBlockedMessage = manualBuyBlocked
@@ -815,7 +815,7 @@ export default function ExecutionConsole() {
     ? "正在向 /api/status 與 /api/execution/overview 取得可部署資金。"
     : (deployableCapital !== null
       ? `資金分配 ${allocationRuleLabel}`
-      : `${accountBalanceUnavailableReason}${hasBlockedState ? " blocker 解除後才會得到真正可部署資金。" : ""}`);
+      : `${accountBalanceUnavailableReason}${hasBlockedState ? " 阻塞點解除後才會得到真正可部署資金。" : ""}`);
   const configuredSleeveCount = executionStrategySummary?.total_sleeves ?? executionOverviewSummary?.total_profiles ?? executionProfileCards.length;
   const sleeveLabelById = new Map<string, string>();
   executionProfileCards.forEach((card) => {
@@ -829,7 +829,7 @@ export default function ExecutionConsole() {
     .filter((value): value is string => Boolean(value));
   const runningRunsLabel = runsPending ? "同步中" : String(executionRunsSummary?.running_runs ?? 0);
   const runningRunsSummaryLabel = runsPending
-    ? "正在向 /api/execution/runs 取得 run 控制 / 事件。"
+    ? "正在向 /api/execution/runs 取得運行控制 / 事件。"
     : `運行中 ${executionRunsSummary?.running_runs ?? 0} · 獲利中 ${profitableRuns} · 總計 ${executionRunsSummary?.total_runs ?? executionRunRecords.length} · 已配置倉位腿 ${configuredSleeveCount}`;
   const executionStrategySummaryLabel = overviewPending
     ? "正在向 /api/execution/overview 取得策略 / 倉位腿覆蓋。"
@@ -838,7 +838,7 @@ export default function ExecutionConsole() {
     ? "正在向 /api/execution/overview 取得 Bot 卡片。"
     : "尚未取得 Bot 卡片；先確認 /api/execution/overview 是否可用。";
   const executionRunsEmptyState = runsPending
-    ? "正在向 /api/execution/runs 取得 run 控制 / 事件。"
+    ? "正在向 /api/execution/runs 取得運行控制 / 事件。"
     : "尚未建立可持久化運行；先在上方 Bot 卡啟動，這裡才會出現事件與狀態。";
   const liveReadinessSummary = runtimeStatusPending
     ? "正在向 /api/status 取得部署狀態。"
@@ -946,7 +946,7 @@ export default function ExecutionConsole() {
     if (/(查看|前往).*(阻塞|診斷|狀態)|execution\s*status|blocker/i.test(command)) {
       setOperatorActionState({
         tone: "success",
-        message: "已導向執行狀態頁，請先看 blocker / freshness / recovery。",
+        message: "已導向執行狀態頁，請先看阻塞點 / 新鮮度 / 恢復。",
       });
       window.location.href = "/execution/status";
       return;
@@ -970,7 +970,7 @@ export default function ExecutionConsole() {
         await refreshExecutionWorkspace();
         setOperatorActionState({
           tone: "success",
-          message: "已重新整理 Bot 營運、run 控制與執行狀態。",
+          message: "已重新整理 Bot 營運、運行控制與執行狀態。",
         });
       } catch (err: any) {
         setOperatorActionState({
@@ -1070,7 +1070,7 @@ export default function ExecutionConsole() {
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/80">阻塞中</div>
-                <div className="mt-2 text-lg font-semibold text-amber-50">先解除 blocker，再做操作</div>
+                <div className="mt-2 text-lg font-semibold text-amber-50">先解除阻塞點，再做操作</div>
                 <div className="mt-1 text-sm text-amber-100/90">{primaryBlockedReason}</div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1113,7 +1113,7 @@ export default function ExecutionConsole() {
           detail={deployableCapitalSummaryLabel}
         />
         <ExecutionMetricCard
-          title="運行中 Run"
+          title="運行中 Bot"
           value={runningRunsLabel}
           detail={runningRunsSummaryLabel}
         />
@@ -1131,7 +1131,7 @@ export default function ExecutionConsole() {
               <div>
                 <div className="text-lg font-semibold text-white">我的 Bot</div>
                 <div className="mt-1 text-sm text-slate-400">
-                  已配置 sleeve 策略與共享帳戶預覽；是否真的運行請看「運行中 Run」。
+                  已配置倉位腿策略與共享帳戶預覽；是否真的運行請看「運行中 Bot」。
                 </div>
               </div>
               <div className="text-right text-xs text-slate-400">
@@ -1145,7 +1145,7 @@ export default function ExecutionConsole() {
               </div>
             )}
             {executionOverview?.operator_message && (
-              <div className="mt-3 text-sm text-slate-300">{executionOverview.operator_message}</div>
+              <div className="mt-3 text-sm text-slate-300">{humanizeRuntimeDetailText(executionOverview.operator_message)}</div>
             )}
             <div className="mt-2 text-xs text-slate-400">
               {executionStrategySummaryLabel}
@@ -1158,10 +1158,10 @@ export default function ExecutionConsole() {
                 const ledgerPreview = linkedRun?.runtime_binding_snapshot?.shared_symbol_ledger_preview ?? null;
                 const profileSharedPreviewValue = typeof ledgerPreview?.unrealized_pnl === "number"
                   ? `${formatSignedNumber(ledgerPreview.unrealized_pnl)} ${ledgerPreview?.currency || balanceCurrency}`
-                  : (linkedRun ? "尚無共享預覽" : "未啟動 run");
+                  : (linkedRun ? "尚無共享預覽" : "未啟動運行");
                 const profileSharedPreviewDetail = typeof ledgerPreview?.capital_in_use === "number"
                   ? `資金使用中 ${formatNumber(ledgerPreview.capital_in_use)} ${ledgerPreview?.currency || balanceCurrency}`
-                  : (linkedRun ? "run 已建立，但尚未鏡像共享資金占用" : "先啟動 run 才會建立共享帳戶預覽");
+                  : (linkedRun ? "運行已建立，但尚未鏡像共享資金占用" : "先啟動運行才會建立共享帳戶預覽");
                 const profileBudgetValue = typeof card.planned_budget_amount === "number"
                   ? `${formatNumber(card.planned_budget_amount)} ${balanceCurrency}`
                   : accountBalanceUnavailableLabel;
@@ -1330,7 +1330,7 @@ export default function ExecutionConsole() {
                 <div className="text-lg font-semibold text-white">運行中</div>
                 <div className="mt-1 text-sm text-slate-400">
                   {runsPending
-                    ? "正在向 /api/execution/runs 取得 run 控制 / 事件。"
+                    ? "正在向 /api/execution/runs 取得運行控制 / 事件。"
                     : `進行中 ${executionRunsSummary?.running_runs ?? 0} · 暫停 ${executionRunsSummary?.paused_runs ?? 0} · 已停止 ${executionRunsSummary?.stopped_runs ?? 0} · 總計 ${executionRunsSummary?.total_runs ?? executionRunRecords.length}`}
                 </div>
               </div>
@@ -1357,7 +1357,7 @@ export default function ExecutionConsole() {
                   : "尚無共享預覽";
                 const runSharedPreviewDetail = typeof ledgerPreview?.capital_in_use === "number"
                   ? `資金使用中 ${formatNumber(ledgerPreview.capital_in_use)} ${ledgerPreview?.currency || balanceCurrency}`
-                  : "run 已建立，但尚未鏡像共享資金占用";
+                  : "運行已建立，但尚未鏡像共享資金占用";
                 return (
                   <div key={run.run_id || `${run.profile_id}-${run.start_time}`} className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -1433,7 +1433,7 @@ export default function ExecutionConsole() {
         <div className="space-y-4">
           <ExecutionSectionCard
             title="自然語句操作"
-            subtitle={runtimeStatusPending ? "正在向 /api/status 取得 symbol / mode / venue。" : `${executionSymbol} · ${executionModeLabel} · ${executionVenueLabel} · 舊的「應急手動操作」已整併到這裡`}
+            subtitle={runtimeStatusPending ? "正在向 /api/status 取得商品 / 模式 / 場館。" : `${executionSymbol} · ${executionModeLabel} · ${executionVenueLabel} · 舊的「應急手動操作」已整併到這裡`}
             aside={(
               <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(runtimeStatusPending ? "pending" : (automationEnabled ? "ok" : "warning"))}`}>
                 {automationStatusLabel}
@@ -1497,7 +1497,7 @@ export default function ExecutionConsole() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-lg font-semibold text-white">部署狀態</div>
-                <div className="mt-1 text-sm text-slate-400">{runtimeStatusPending ? "正在向 /api/status 取得市場狀態 / 閘門 / bucket。" : `${humanizeStructureBucketLabel(liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—")} · 閘門 ${humanizeStructureBucketLabel(liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—")} · 當前 bucket ${humanizeStructureBucketLabel(liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—")}`}</div>
+                <div className="mt-1 text-sm text-slate-400">{runtimeStatusPending ? "正在向 /api/status 取得市場狀態 / 閘門 / 分桶。" : `${humanizeStructureBucketLabel(liveRouting?.current_regime || liveRuntimeTruth?.regime_label || "—")} · 閘門 ${humanizeStructureBucketLabel(liveRouting?.current_regime_gate || liveRuntimeTruth?.regime_gate || "—")} · 當前分桶 ${humanizeStructureBucketLabel(liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—")}`}</div>
               </div>
               <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(runtimeStatusPending ? "pending" : (executionSurfaceContract?.live_ready ? "ok" : "blocked"))}`}>
                 {liveReadyStatusLabel}

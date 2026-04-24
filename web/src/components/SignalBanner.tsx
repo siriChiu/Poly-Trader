@@ -182,17 +182,17 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
           </div>
           {circuitBreakerActive && (
             <div className="mt-1">
-              circuit breaker：recent 50 release window {breakerWins ?? "—"}/{breakerWindow ?? "—"}，win rate {breakerRecentWinRate != null ? `${(breakerRecentWinRate * 100).toFixed(1)}%` : "—"}，floor {breakerFloor != null ? `${(breakerFloor * 100).toFixed(1)}%` : "—"}，至少還差 {breakerWinsGap ?? "—"} 勝。不要把 support / component patch 當成 breaker release 替代品。
+              circuit breaker：recent 50 release window {breakerWins ?? "—"}/{breakerWindow ?? "—"}，win rate {breakerRecentWinRate != null ? `${(breakerRecentWinRate * 100).toFixed(1)}%` : "—"}，floor {breakerFloor != null ? `${(breakerFloor * 100).toFixed(1)}%` : "—"}，至少還差 {breakerWinsGap ?? "—"} 勝。不要把支持樣本 / 元件修補方案當成熔斷解除替代品。
             </div>
           )}
           <div className="mt-1">
             {circuitBreakerActive
-              ? "目前 canonical live path 仍被 circuit breaker 擋下；SignalBanner 只同步 release math，不可把這裡的快捷面板誤讀成 deployment readiness。"
+              ? "目前 canonical live path 仍被 circuit breaker 擋下；SignalBanner 只同步解除條件，不可把這裡的快捷面板誤讀成可部署狀態。"
               : runtimeDecision.q15_exact_supported_component_patch_applied
                 ? ((runtimeDecision.allowed_layers ?? 0) > 0
-                    ? "目前是 support-ready + patch active；即使 signal 仍是 HOLD，也代表 runtime 已開出 1 層 deployment capacity，不等於自動 BUY。"
-                    : "目前 q15 patch 已經吃到 current live row，但 execution 仍被 blocker / guardrail 壓回 0 層；這裡要讀成 patch active but execution still blocked。")
-                : "目前尚未觀察到 q15 patch active；若要確認完整 runtime truth，請改看執行狀態頁。"}
+                    ? "目前精準樣本已就緒且修補方案已套用；即使 signal 仍是 HOLD，也只代表執行期已開出 1 層可部署容量，不等於自動買入。"
+                    : "目前 q15 修補方案已經作用在當前即時資料列，但執行期仍被阻塞點 / 保護欄壓回 0 層；這代表修補方案已套用，但執行仍被阻擋。")
+                : "目前尚未觀察到 q15 修補方案已套用；若要確認完整 runtime truth，請改看執行狀態頁。"}
           </div>
         </div>
       )}
@@ -260,7 +260,7 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
 
       <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
         <div>SignalBanner 目前只提供快捷下單 / 自動交易切換；完整阻塞點、Guardrail context、治理狀態與恢復脈絡請到執行狀態頁查看。</div>
-        <div className="mt-1">若 q15 patch 已啟用但 signal 仍是 HOLD，這裡應理解為「capacity opened but signal still HOLD」，不是 patch 失效，也不是自動 BUY readiness。</div>
+        <div className="mt-1">若 q15 修補方案已啟用但 signal 仍是 HOLD，這裡應理解為「部署容量已開但訊號仍維持 HOLD」，不是修補方案失效，也不是自動買入就緒。</div>
         <a href="/execution/status" className="mt-1 inline-flex text-[11px] font-semibold text-amber-200 underline underline-offset-2 hover:text-amber-100">
           前往執行狀態頁 →
         </a>

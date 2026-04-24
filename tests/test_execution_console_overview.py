@@ -87,7 +87,11 @@ def test_build_execution_overview_exposes_stateful_run_control_beta_contract():
     assert payload["summary"]["monitoring_profiles"] == 3
     assert payload["summary"]["running_runs"] == 0
     assert payload["summary"]["allocation_rule"] == "equal_split_active_sleeves"
+    assert payload["operator_message"] == "Bot 營運現在已具備可持久化的運行控制；啟動 / 暫停 / 停止都會保留事件紀錄，且每條運行已可鏡像同商品的執行期 / 對帳摘要，但每個 Bot 的資金 / 持倉 / 委託帳本仍未完全接上。"
+    assert payload["upgrade_prerequisite"] == "下一步必須把每個 Bot 的資金 / 持倉 / 委託歸因綁到各自運行，否則這仍只是可持久化的運行控制測試版，不是完整的 Bot 執行期。"
+    assert payload["summary"]["operator_message"] == payload["operator_message"]
     assert payload["capital_plan"]["allocation_rule"] == "equal_split_active_sleeves"
+    assert payload["capital_plan"]["operator_message"] == "可部署資金目前仍先依風險控管頭寸公式估算，再由啟用倉位腿均分；運行控制雖已可持久化，但每個 Bot 的資金帳本仍未落地。"
     assert payload["capital_plan"]["symbol_scoped_position_count"] == 1
     assert payload["capital_plan"]["symbol_scoped_open_order_count"] == 1
     assert round(payload["capital_plan"]["deployable_capital"], 4) == 60.4
