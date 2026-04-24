@@ -1780,10 +1780,12 @@ export default function StrategyLab() {
       counts.set(key, (counts.get(key) || 0) + 1);
     }
     return [
-      { key: "all", label: "全部 sleeves", count: strategies.length },
+      { key: "all", label: "全部倉位腿", count: strategies.length },
       ...Array.from(counts.entries()).map(([key, count]) => ({
         key,
-        label: strategies.find((entry) => strategyPrimarySleeveKey(entry) === key)?.metadata?.primary_sleeve_label || "未分類 sleeve",
+        label: humanizeRuntimeDetailText(
+          strategies.find((entry) => strategyPrimarySleeveKey(entry) === key)?.metadata?.primary_sleeve_label || "未分類倉位腿",
+        ),
         count,
       })),
     ];
@@ -3289,7 +3291,7 @@ export default function StrategyLab() {
                   <button onClick={() => loadLeaderboard(true)} className="text-xs text-blue-400 hover:text-blue-300">🔄 重新搜尋</button>
                 </div>
                 <div className="rounded-lg border border-slate-700/40 bg-slate-950/20 p-3 text-xs space-y-2">
-                  <div className="font-semibold text-slate-300">多 sleeve 結構</div>
+                  <div className="font-semibold text-slate-300">多倉位腿結構</div>
                   <div className="flex flex-wrap gap-2">
                     {strategySleeveOptions.map((option) => (
                       <button
@@ -3351,13 +3353,13 @@ export default function StrategyLab() {
                             <td className="py-2 px-2 text-slate-200 font-medium align-top text-left">
                               <div>{formatStrategyDisplayName(strategy)}</div>
                               <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
-                                <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">{strategy.metadata?.primary_sleeve_label || "未分類 sleeve"}</span>
+                                <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">{humanizeRuntimeDetailText(strategy.metadata?.primary_sleeve_label || "未分類倉位腿")}</span>
                                 <span className={`rounded-full border px-2 py-0.5 ${systemGenerated ? "border-amber-500/30 bg-amber-500/10 text-amber-100" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"}`}>
                                   {strategy.metadata?.source_label || (systemGenerated ? "系統生成排行榜" : "手動策略")}
                                 </span>
                                 <span>{strategy.metadata?.model_name || strategy.definition?.type} · {investmentHorizonLabels[(strategy.definition?.params?.investment_horizon as keyof typeof investmentHorizonLabels) || "medium"]} · 變化 {typeof strategy.rank_delta === "number" ? (strategy.rank_delta > 0 ? `↑${strategy.rank_delta}` : strategy.rank_delta < 0 ? `↓${Math.abs(strategy.rank_delta)}` : "—") : "—"}</span>
                               </div>
-                              <div className="mt-1 text-[10px] text-slate-500">{strategy.metadata?.sleeve_labels?.join(" · ") || "單一路徑"}</div>
+                              <div className="mt-1 text-[10px] text-slate-500">{strategy.metadata?.sleeve_labels?.map((label) => humanizeRuntimeDetailText(label)).join(" · ") || "單一路徑"}</div>
                             </td>
                             <td className="py-2 px-2 text-right text-emerald-300 font-semibold">{formatDecimal(r?.overall_score, 3)}</td>
                             <td className="py-2 px-2 text-right text-cyan-300">{formatDecimal(r?.reliability_score, 3)}</td>

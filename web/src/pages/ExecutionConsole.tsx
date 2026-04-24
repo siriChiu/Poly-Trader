@@ -613,7 +613,7 @@ export default function ExecutionConsole() {
       await refreshExecutionWorkspace();
       setRunActionState({ tone: "success", message: resp.operator_message || successLabel });
     } catch (err: any) {
-      setRunActionState({ tone: "error", message: err?.message || "execution run 操作失敗" });
+      setRunActionState({ tone: "error", message: err?.message || "運行操作失敗" });
     }
   };
 
@@ -1199,11 +1199,12 @@ export default function ExecutionConsole() {
                 const profileLatestEventMessageLabel = humanizeRuntimeDetailText(
                   linkedRun?.latest_event?.message || linkedRun?.last_event_message || card.control_contract?.latest_event_message || null,
                 );
-                const profileSummaryLabel = card.summary || profileStrategyBinding?.summary || profileRoutingReasonLabel || "尚未提供策略摘要";
+                const profileSummaryLabel = humanizeRuntimeDetailText(card.summary || profileStrategyBinding?.summary || profileRoutingReasonLabel || "尚未提供策略摘要");
+                const profileIdLabel = humanizeRuntimeDetailText(profileId || card.key || null) || "—";
                 const primarySleeveLabel = String(
                   profileStrategyBinding?.primary_sleeve_label || card.strategy_binding?.primary_sleeve_label || "",
                 ).trim();
-                const cardLabel = String(card.label || card.key || "unknown sleeve").trim();
+                const cardLabel = String(card.label || card.key || "未命名倉位腿").trim();
                 const shouldShowPrimarySleeveBadge = Boolean(primarySleeveLabel) && primarySleeveLabel !== cardLabel;
                 const strategyBindingStatus = String(profileStrategyBinding?.status || card.strategy_binding?.status || "").trim();
                 const strategyBindingTitle = String(
@@ -1245,7 +1246,7 @@ export default function ExecutionConsole() {
                         </div>
                       </div>
                       <div className="text-right text-[11px] text-slate-500">
-                        <div>{card.profile_id || card.key || "—"}</div>
+                        <div>{profileIdLabel}</div>
                         <div>{profileLatestEventLabel}</div>
                       </div>
                     </div>
@@ -1300,7 +1301,7 @@ export default function ExecutionConsole() {
                       <button
                         type="button"
                         disabled={!canStart || runActionState.tone === "pending"}
-                        onClick={() => handleRunAction(`/api/execution/runs/${profileId}/start`, "建立 run 中…", card.control_contract?.start_status === "resume_available" ? "已恢復 execution run。" : "已建立 execution run。")}
+                        onClick={() => handleRunAction(`/api/execution/runs/${profileId}/start`, "建立運行中…", card.control_contract?.start_status === "resume_available" ? "已恢復運行。" : "已建立運行。")}
                         className="rounded-xl border border-emerald-500/30 bg-emerald-500/12 px-3 py-2 font-medium text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         啟動 / 恢復
@@ -1308,7 +1309,7 @@ export default function ExecutionConsole() {
                       <button
                         type="button"
                         disabled={!canPause || runActionState.tone === "pending"}
-                        onClick={() => linkedRun?.run_id && handleRunAction(`/api/execution/runs/${linkedRun.run_id}/pause`, "暫停 run 中…", "已暫停 execution run。")}
+                        onClick={() => linkedRun?.run_id && handleRunAction(`/api/execution/runs/${linkedRun.run_id}/pause`, "暫停運行中…", "已暫停運行。")}
                         className="rounded-xl border border-amber-500/30 bg-amber-500/12 px-3 py-2 font-medium text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         暫停
@@ -1316,7 +1317,7 @@ export default function ExecutionConsole() {
                       <button
                         type="button"
                         disabled={!canStop || runActionState.tone === "pending"}
-                        onClick={() => linkedRun?.run_id && handleRunAction(`/api/execution/runs/${linkedRun.run_id}/stop`, "停止 run 中…", "已停止 execution run。")}
+                        onClick={() => linkedRun?.run_id && handleRunAction(`/api/execution/runs/${linkedRun.run_id}/stop`, "停止運行中…", "已停止運行。")}
                         className="rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2 font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         停止
@@ -1352,13 +1353,17 @@ export default function ExecutionConsole() {
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {executionRunRecords.length > 0 ? executionRunRecords.slice(0, 6).map((run) => {
                 const runStrategyBinding = run.strategy_binding ?? null;
-                const latestMessage = run.latest_event?.message || run.last_event_message || "尚未取得 run event";
+                const latestMessage = humanizeRuntimeDetailText(run.latest_event?.message || run.last_event_message || "尚未取得運行事件");
+                const runProfileLabel = humanizeRuntimeDetailText(run.profile_id || null) || "—";
+                const runModeLabel = humanizeExecutionModeLabel(run.mode || "paper");
+                const runStateLabel = humanizeExecutionOperatorLabel(run.state_label || run.state, "status");
+                const runLatestEventTypeLabel = humanizeExecutionOperatorLabel(run.latest_event?.event_type || run.last_event_type || "waiting", "event");
                 const ledgerPreview = run.runtime_binding_snapshot?.shared_symbol_ledger_preview ?? null;
                 const runBudgetValue = typeof run.budget_amount === "number"
                   ? `${formatNumber(run.budget_amount)} ${run.capital_currency || balanceCurrency}`
                   : accountBalanceUnavailableLabel;
                 const runBudgetDetail = typeof run.budget_amount === "number"
-                  ? `ratio ${formatNumber(run.budget_ratio, 3)}`
+                  ? `比例 ${formatNumber(run.budget_ratio, 3)}`
                   : accountBalanceUnavailableReason;
                 const runSharedPreviewValue = typeof ledgerPreview?.unrealized_pnl === "number"
                   ? `${formatSignedNumber(ledgerPreview.unrealized_pnl)} ${ledgerPreview?.currency || balanceCurrency}`
@@ -1370,11 +1375,11 @@ export default function ExecutionConsole() {
                   <div key={run.run_id || `${run.profile_id}-${run.start_time}`} className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-base font-semibold text-white">{run.label || run.profile_id || "unknown run"}</div>
-                        <div className="mt-1 text-[12px] text-slate-400">profile {run.profile_id || "—"} · {run.mode || "paper"}</div>
+                        <div className="text-base font-semibold text-white">{run.label || run.profile_id || "未命名運行"}</div>
+                        <div className="mt-1 text-[12px] text-slate-400">設定檔 {runProfileLabel} · {runModeLabel}</div>
                       </div>
                       <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(run.state || "unknown")}`}>
-                        {run.state_label || run.state || "unknown"}
+                        {runStateLabel}
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-[12px] xl:grid-cols-4">
@@ -1395,17 +1400,17 @@ export default function ExecutionConsole() {
                       </div>
                       <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500">最近事件</div>
-                        <div className="mt-1 font-semibold text-white">{run.latest_event?.event_type || run.last_event_type || "—"}</div>
+                        <div className="mt-1 font-semibold text-white">{runLatestEventTypeLabel}</div>
                         <div className="text-slate-400">{formatTime(run.last_event_at)}</div>
                       </div>
                     </div>
-                    <div className="mt-3 text-sm text-slate-300">{runStrategyBinding?.summary || latestMessage}</div>
-                    <div className="mt-2 text-[12px] text-slate-400">共享預覽 {ledgerPreview?.budget_alignment_summary || ledgerPreview?.summary || "尚未提供共享帳戶預覽。"}</div>
+                    <div className="mt-3 text-sm text-slate-300">{humanizeRuntimeDetailText(runStrategyBinding?.summary || latestMessage)}</div>
+                    <div className="mt-2 text-[12px] text-slate-400">共享預覽 {humanizeRuntimeDetailText(ledgerPreview?.budget_alignment_summary || ledgerPreview?.summary || "尚未提供共享帳戶預覽。")}</div>
                     <div className="mt-3 flex flex-wrap gap-2 text-sm">
                       <button
                         type="button"
                         disabled={!run.action_contract?.can_resume || !run.profile_id || runActionState.tone === "pending"}
-                        onClick={() => run.profile_id && handleRunAction(`/api/execution/runs/${run.profile_id}/start`, "恢復 run 中…", "已恢復 execution run。")}
+                        onClick={() => run.profile_id && handleRunAction(`/api/execution/runs/${run.profile_id}/start`, "恢復運行中…", "已恢復運行。")}
                         className="rounded-xl border border-emerald-500/30 bg-emerald-500/12 px-3 py-2 font-medium text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         恢復
@@ -1413,7 +1418,7 @@ export default function ExecutionConsole() {
                       <button
                         type="button"
                         disabled={!run.action_contract?.can_pause || !run.run_id || runActionState.tone === "pending"}
-                        onClick={() => run.run_id && handleRunAction(`/api/execution/runs/${run.run_id}/pause`, "暫停 run 中…", "已暫停 execution run。")}
+                        onClick={() => run.run_id && handleRunAction(`/api/execution/runs/${run.run_id}/pause`, "暫停運行中…", "已暫停運行。")}
                         className="rounded-xl border border-amber-500/30 bg-amber-500/12 px-3 py-2 font-medium text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         暫停
@@ -1421,7 +1426,7 @@ export default function ExecutionConsole() {
                       <button
                         type="button"
                         disabled={!run.action_contract?.can_stop || !run.run_id || runActionState.tone === "pending"}
-                        onClick={() => run.run_id && handleRunAction(`/api/execution/runs/${run.run_id}/stop`, "停止 run 中…", "已停止 execution run。")}
+                        onClick={() => run.run_id && handleRunAction(`/api/execution/runs/${run.run_id}/stop`, "停止運行中…", "已停止運行。")}
                         className="rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2 font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         停止

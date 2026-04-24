@@ -92,7 +92,7 @@ def test_execution_console_bot_cards_surface_strategy_binding_state_without_dupl
     source = _read("pages/ExecutionConsole.tsx")
     required_snippets = [
         'const primarySleeveLabel = String(',
-        'const cardLabel = String(card.label || card.key || "unknown sleeve").trim();',
+        'const cardLabel = String(card.label || card.key || "未命名倉位腿").trim();',
         'const shouldShowPrimarySleeveBadge = Boolean(primarySleeveLabel) && primarySleeveLabel !== cardLabel;',
         'const strategyBindingStatus = String(profileStrategyBinding?.status || card.strategy_binding?.status || "").trim();',
         'const strategyBindingBadgeLabel = strategyBindingStatus === "missing_saved_strategy"',

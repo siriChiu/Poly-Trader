@@ -1,33 +1,33 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-24 09:13:02 CST_
+_最後更新：2026-04-24 09:51:56 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 fast heartbeat #20260424l 已完成 collect + diagnostics refresh**
-  - `Raw=32132 / Features=23550 / Labels=64667`
+- **最新 fast heartbeat #20260424n 已完成 collect + diagnostics refresh**
+  - `Raw=32134 / Features=23552 / Labels=64721`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `simulated_pyramid_win=56.94%`
 - **canonical current-live blocker 已切到 current-live exact-support truth**
   - `deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
   - `current_live_structure_bucket=BLOCK|bull_high_bias200_overheat_block|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`
 - **recent canonical diagnostics 已刷新**
-  - `latest_window=100` / `win_rate=40.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0337` / `avg_pnl=+0.0002` / `alerts=regime_concentration,regime_shift`
+  - `latest_window=500` / `win_rate=45.0%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.0673` / `avg_pnl=0.0000` / `alerts=regime_concentration,regime_shift`
 - **leaderboard / governance 仍維持 dual-role contract**
   - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3600` / `archive_window_coverage_pct=0.0`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3602` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環
-- **execution support-gap 可見性已補齊到 operator surfaces**
-  - `/execution` 與 `/execution/status` 現在都會把 `當前分桶 0/50 · gap 50` 與 `支持/治理路徑` 一起顯示，不再只露出 rows 而漏掉 gap
-  - 驗證：`pytest tests/test_frontend_decision_contract.py tests/test_execution_surface_contract.py -q` → `75 passed`；browser `/execution`、`/execution/status` DOM 均可直接讀到 `gap 50`
+- **operator-facing copy hygiene 已補強到 Execution Console / Strategy Lab**
+  - Execution Console 的 run / sleeve / profile placeholders 已 humanize 成中文 operator copy
+  - Strategy Lab 策略排行榜的 sleeve filter / badge / labels 不再露出 raw `sleeve` 英文 token；由 `tests/test_frontend_decision_contract.py` 與 `npm run build` 鎖住
 
 ---
 
@@ -38,10 +38,10 @@ _最後更新：2026-04-24 09:13:02 CST_
 - same-bucket truth：`support_route_verdict=exact_bucket_unsupported_block` / `support_governance_route=no_support_proxy` / `recommended_patch=core_plus_macro_plus_all_4h` / `recommended_patch_status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`
 - 下一步：把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。
 
-### P0. recent canonical window 100 rows = regime_concentration
-- 目前真相：`window=100` / `win_rate=40.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0337` / `avg_pnl=+0.0002` / `alerts=regime_concentration,regime_shift`
-- 病態切片：`alerts=regime_concentration,regime_shift` / `tail_streak=—` / `top_shift=feat_4h_vol_ratio,feat_4h_rsi14,feat_turning_point_score` / `new_compressed=feat_atr_pct`
-- 下一步：直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=100, alerts=['regime_concentration', 'regime_shift'], win_rate=0.4000, delta_vs_full=-0.2240, dominant_regime=bull(99.00%), interpretation=regime_concentration, avg_pnl=+0.0002, avg_quality=0.0337, avg_dd_penalty=0.3232, spot_long_win_rate=0.0000, feature_diag=variance:28/56, frozen:6, compressed:22, expected_static:3, overlay_only:5, unexpected_frozen:3, distinct:16, null_heavy:10, tail_streak=16x0 since 2026-04-23 01:48:54.541131 -> 2026-04-23 02:02:14.109134, adverse_streak=39x0 since 2026-04-23 00:24:20.626551 -> 2026-04-23 01:11:11.317375, prev_win_rate=0.61, delta_vs_prev=-0.21, prev_quality=0.1215, quality_delta_vs_prev=-0.0878, prev_pnl=0.0002, pnl_delta_vs_prev=0.0, top_shift_examples=feat_4h_vol_ratio(2.5319→1.2464,Δσ=2.0951)/feat_4h_rsi14(65.5064→60.6547,Δσ=0.405)/feat_turning_point_score(0.5973→0.5569,Δσ=0.3413), new_frozen=feat_4h_vol_ratio, new_compressed=feat_atr_pct, frozen_examples=feat_4h_ma_order(0.0/1)/feat_4h_macd_hist(0.0/1)/feat_4h_rsi14(0.0/1), compressed_examples=feat_body(0.0/100)/feat_ear(0.0045/99)/feat_claw_intensity(0.0065/46), expected_static_examples=feat_4h_ma_order[discrete_regime_feature]/feat_dxy[weekday_macro_market_closed]/feat_vix[weekday_macro_market_closed], overlay_only_examples=feat_claw[research_sparse_source]/feat_claw_intensity[research_sparse_source]/feat_fang_pcr[research_sparse_source], unexpected_frozen_examples=feat_4h_macd_hist(0.0/1)/feat_4h_rsi14(0.0/1)/feat_4h_vol_ratio(0.0/1), distinct_examples=feat_4h_macd_hist(1/4412)/feat_4h_rsi14(1/4411)/feat_4h_vol_ratio(1/4411), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-23 02:01:00.785077:0:bull:-0.1771/2026-04-23 02:01:56.614699:0:bull:-0.1646/2026-04-23 02:02:14.109134:0:bull:-0.1593, adverse_examples=2026-04-23 01:08:40.001619:0:bull:-0.1709/2026-04-23 01:09:56.370518:0:bull:-0.1716/2026-04-23 01:11:11.317375:0:bull:-0.1617
+### P0. recent canonical window 500 rows = regime_concentration
+- 目前真相：`window=500` / `win_rate=45.0%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.0673` / `avg_pnl=0.0000` / `alerts=regime_concentration,regime_shift`
+- 病態切片：`alerts=regime_concentration,regime_shift` / `tail_streak=24x1` / `adverse_streak=44x0` / `top_shift=feat_4h_bb_pct_b,feat_4h_dist_bb_lower,feat_4h_bias20` / `new_compressed=feat_vix`
+- 下一步：直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；目前 `feature_diag=variance 11/56, compressed 11, distinct 10, null_heavy 10`，sibling-window 對比 `WR 57.8%→45.0% / quality 0.2498→0.0673 / pnl 0.0067→0.0000`，top shifts=`feat_4h_bb_pct_b / feat_4h_dist_bb_lower / feat_4h_bias20`，new compressed=`feat_vix`。
 - 驗證：
   - python scripts/recent_drift_report.py
   - python scripts/hb_predict_probe.py
@@ -60,7 +60,7 @@ _最後更新：2026-04-24 09:13:02 CST_
   - data/execution_metadata_smoke.json
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3600` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3602` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json
@@ -75,8 +75,8 @@ _最後更新：2026-04-24 09:13:02 CST_
   - pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q
 
 ### P1. q35 lane still needs formula review / base-stack redesign before deploy
-- 目前真相：`bucket=BLOCK|bull_high_bias200_overheat_block|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block` / `overall_verdict=bias50_formula_may_be_too_harsh` / `redesign_verdict=base_stack_redesign_discriminative_reweight_still_below_floor` / `remaining_gap_to_floor=0.1894`
-- q35 scaling audit 已指出目前不是單點 bias50 closure：`overall_verdict=bias50_formula_may_be_too_harsh` / `redesign_verdict=base_stack_redesign_discriminative_reweight_still_below_floor` / `remaining_gap_to_floor=0.1894`
+- 目前真相：`bucket=BLOCK|bull_high_bias200_overheat_block|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block` / `overall_verdict=bias50_formula_may_be_too_harsh` / `redesign_verdict=base_stack_redesign_discriminative_reweight_still_below_floor` / `remaining_gap_to_floor=0.159`
+- q35 scaling audit 已指出目前不是單點 bias50 closure：`overall_verdict=bias50_formula_may_be_too_harsh` / `redesign_verdict=base_stack_redesign_discriminative_reweight_still_below_floor` / `remaining_gap_to_floor=0.159`
 - 下一步：把 q35 scaling audit 的 overall_verdict / redesign verdict / gap-to-floor 同步到 docs/probe/issues；在 exact support 未就緒、且 redesign 仍無正 discrimination floor-cross 之前，禁止把 bias50 單點 uplift 或結構 uplift 當成 closure。 即使做 support-aware / discriminative base-stack redesign，current row 仍無法跨過 trade floor；下一輪必須升級為 bull q35 no-deploy governance blocker，禁止再把結構 uplift、單點 bias50 或 base-stack 權重微調當成主 closure。
 
 ---

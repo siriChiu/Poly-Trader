@@ -270,7 +270,7 @@ def test_execution_console_humanizes_raw_control_plane_placeholders_on_bot_cards
         'const profileRoutingReasonLabel = humanizeRuntimeDetailText(card.routing_reason || null);',
         'const profileStartReasonLabel = humanizeRuntimeDetailText(card.control_contract?.start_reason || null);',
         'const profileLatestEventMessageLabel = humanizeRuntimeDetailText(',
-        'const profileSummaryLabel = card.summary || profileStrategyBinding?.summary || profileRoutingReasonLabel || "尚未提供策略摘要";',
+        'const profileSummaryLabel = humanizeRuntimeDetailText(card.summary || profileStrategyBinding?.summary || profileRoutingReasonLabel || "尚未提供策略摘要");',
         '路由 {profileRoutingReasonLabel || "—"}',
         '啟動條件 {profileStartReasonLabel || "—"}',
         '最新事件 {profileLatestEventMessageLabel || "尚未建立 Bot 事件"}',
@@ -295,6 +295,77 @@ def test_execution_console_humanizes_raw_control_plane_placeholders_on_bot_cards
     assert '"no event"' not in console_source
     assert '"not-started"' not in console_source
     assert '"equal_split_active_sleeves"' not in console_source
+
+
+def test_execution_console_humanizes_sleeve_terms_and_run_action_copy():
+    console_source = _read("pages/ExecutionConsole.tsx")
+    runtime_copy_source = _read("utils/runtimeCopy.ts")
+
+    required_runtime_copy_snippets = [
+        '["pullback", "回調"]',
+        '["trend", "趨勢"]',
+        '["rebound", "反彈"]',
+        '["selective", "精選"]',
+        '["oversold", "超跌"]',
+        '["active sleeves", "啟用倉位腿"]',
+        '["inactive sleeves", "待命倉位腿"]',
+        '["primary sleeves", "主要倉位腿"]',
+        '["sleeves", "倉位腿"]',
+        '["sleeve", "倉位腿"]',
+        '["gap", "缺口"]',
+    ]
+    for snippet in required_runtime_copy_snippets:
+        assert snippet in runtime_copy_source
+    assert runtime_copy_source.index('["primary sleeves", "主要倉位腿"]') < runtime_copy_source.index('["sleeve", "倉位腿"]')
+    assert runtime_copy_source.index('["sleeves", "倉位腿"]') < runtime_copy_source.index('["sleeve", "倉位腿"]')
+
+    required_console_snippets = [
+        'const profileIdLabel = humanizeRuntimeDetailText(profileId || card.key || null) || "—";',
+        'const profileSummaryLabel = humanizeRuntimeDetailText(card.summary || profileStrategyBinding?.summary || profileRoutingReasonLabel || "尚未提供策略摘要");',
+        '{profileIdLabel}',
+        'const runProfileLabel = humanizeRuntimeDetailText(run.profile_id || null) || "—";',
+        'const runModeLabel = humanizeExecutionModeLabel(run.mode || "paper");',
+        '設定檔 {runProfileLabel} · {runModeLabel}',
+        '建立運行中…',
+        '已恢復運行。',
+        '已建立運行。',
+        '暫停運行中…',
+        '已暫停運行。',
+        '停止運行中…',
+        '已停止運行。',
+        '運行操作失敗',
+    ]
+    for snippet in required_console_snippets:
+        assert snippet in console_source
+
+    assert '{card.profile_id || card.key || "—"}' not in console_source
+    assert 'profile {run.profile_id' not in console_source
+    assert '建立 run 中' not in console_source
+    assert '已恢復 execution run' not in console_source
+    assert '已建立 execution run' not in console_source
+    assert '暫停 run 中' not in console_source
+    assert '停止 run 中' not in console_source
+    assert 'execution run 操作失敗' not in console_source
+
+
+def test_strategy_lab_humanizes_sleeve_filter_copy():
+    strategy_lab_source = _read("pages/StrategyLab.tsx")
+
+    required_snippets = [
+        '{ key: "all", label: "全部倉位腿", count: strategies.length }',
+        'label: humanizeRuntimeDetailText(',
+        '|| "未分類倉位腿",',
+        '多倉位腿結構',
+        '{humanizeRuntimeDetailText(strategy.metadata?.primary_sleeve_label || "未分類倉位腿")}',
+        'strategy.metadata?.sleeve_labels?.map((label) => humanizeRuntimeDetailText(label)).join(" · ")',
+    ]
+    for snippet in required_snippets:
+        assert snippet in strategy_lab_source
+
+    assert '全部 sleeves' not in strategy_lab_source
+    assert '未分類 sleeve' not in strategy_lab_source
+    assert '多 sleeve 結構' not in strategy_lab_source
+    assert 'strategy.metadata?.sleeve_labels?.join(" · ")' not in strategy_lab_source
 
 
 def test_execution_surfaces_keep_current_live_blocker_ahead_of_venue_readiness_copy():

@@ -286,7 +286,7 @@ def build_regime_aware_sleeve_routing(
     inactive_entries: List[Dict[str, Any]] = []
 
     if global_blocker_reason:
-        blocker_text = f"目前 {global_blocker_reason}，先凍結所有 primary sleeves。"
+        blocker_text = f"目前 {global_blocker_reason}，先凍結所有主要倉位腿。"
         inactive_entries = [_entry(key, False, blocker_text) for key in primary_sleeves]
     else:
         routing_rules = {
@@ -324,12 +324,12 @@ def build_regime_aware_sleeve_routing(
     if active_entries:
         summary = (
             f"目前 regime={regime} / gate={gate} / bucket={normalized_structure_bucket or '—'}；"
-            f"active sleeves {active_ratio_text}：{'、'.join(item['label'] for item in active_entries)}。"
+            f"啟用倉位腿 {active_ratio_text}：{'、'.join(item['label'] for item in active_entries)}。"
         )
     else:
         summary = (
             f"目前 regime={regime} / gate={gate} / bucket={normalized_structure_bucket or '—'}；"
-            f"active sleeves {active_ratio_text}，暫無可部署 primary sleeves。"
+            f"啟用倉位腿 {active_ratio_text}，暫無可部署主要倉位腿。"
         )
 
     return {

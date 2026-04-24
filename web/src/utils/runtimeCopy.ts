@@ -144,6 +144,20 @@ const FEATURE_KEY_LABEL_OVERRIDES: Record<string, { name: string; shortLabel: st
 };
 
 const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
+  ["pullback", "回調"],
+  ["trend", "趨勢"],
+  ["rebound", "反彈"],
+  ["selective", "精選"],
+  ["oversold", "超跌"],
+  ["crash pocket", "急跌口袋"],
+  ["active sleeves", "啟用倉位腿"],
+  ["inactive sleeves", "待命倉位腿"],
+  ["primary sleeves", "主要倉位腿"],
+  ["primary sleeve", "主要倉位腿"],
+  ["sleeves", "倉位腿"],
+  ["sleeve", "倉位腿"],
+  ["gap", "缺口"],
+  ["bull / chop", "牛市 / 盤整"],
   ["top-level live baseline", "頂層 live 基準"],
   ["component-experiment readiness", "元件實驗就緒"],
   ["component experiment readiness", "元件實驗就緒"],

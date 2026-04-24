@@ -1,20 +1,21 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-24 09:04:13 CST_
+_最後更新：2026-04-24 09:51:56 CST_
 
 ---
 
-## 心跳 #20260424l ORID
+## 心跳 #20260424n ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=32132 / Features=23550 / Labels=64667`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=56.94%`。
+- collect + diagnostics refresh 完成：`Raw=32134 / Features=23552 / Labels=64721`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=56.94%`。
 - current-live blocker：`deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - current live bucket truth：`current_live_structure_bucket=BLOCK|bull_high_bias200_overheat_block|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`。
-- latest recent-window diagnostics：`latest_window=100` / `win_rate=40.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0337` / `avg_pnl=+0.0002` / `alerts=regime_concentration,regime_shift`。
+- latest recent-window diagnostics：`latest_window=500` / `win_rate=45.0%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.0673` / `avg_pnl=0.0000` / `alerts=regime_concentration,regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3600` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
-- q35 scaling audit 已指出目前不是單點 bias50 closure：`overall_verdict=bias50_formula_may_be_too_harsh` / `redesign_verdict=base_stack_redesign_discriminative_reweight_still_below_floor` / `remaining_gap_to_floor=0.1894`。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3602` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- q35 scaling audit 已指出目前不是單點 bias50 closure：`overall_verdict=bias50_formula_may_be_too_harsh` / `redesign_verdict=base_stack_redesign_discriminative_reweight_still_below_floor` / `remaining_gap_to_floor=0.159`。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`。
+- operator-facing copy hygiene：Execution Console 的 run / sleeve / profile placeholders 與 Strategy Lab 策略排行榜 sleeve filter / badge / labels 已轉成中文 operator copy，避免 raw control-plane token 被誤讀成產品語義。
 
 ### R｜感受直覺
 - 這輪最需要防止的誤讀，是把 `0/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；目前 live blocker 已切到 `unsupported_exact_live_structure_bucket`。
@@ -28,6 +29,6 @@ _最後更新：2026-04-24 09:04:13 CST_
 ### D｜決策行動
 - **Owner**：current-live runtime / governance lane
 - **Action**：維持 current-live exact-support truth，並把 current live bucket support 與 reference-only patch 持續顯示清楚；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。
-- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
-- **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。
+- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`；UI copy patch 覆蓋 `web/src/pages/ExecutionConsole.tsx`、`web/src/pages/StrategyLab.tsx`、`web/src/utils/runtimeCopy.ts`。
+- **Verify**：`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`pytest tests/test_frontend_decision_contract.py tests/test_execution_surface_contract.py -q`、`cd web && npm run build`；必要時 browser `/`、browser `/execution/status`、browser `/lab`。
 - **If fail**：只要 docs / UI 再次把 `unsupported_exact_live_structure_bucket` 誤寫成 breaker-first、漏掉 current live bucket rows，或把 reference-only patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。
