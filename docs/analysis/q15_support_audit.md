@@ -1,13 +1,13 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-24 04:15:11.419756**
+- generated_at: **2026-04-24 04:36:32.248558**
 - target_col: **simulated_pyramid_win**
 
 ## Current live row
 - signal: **HOLD**
 - regime / gate / label: **bull / CAUTION / D**
 - current_live_structure_bucket: **CAUTION|structure_quality_caution|q15**
-- current_live_structure_bucket_rows: **7**
+- current_live_structure_bucket_rows: **4**
 - allowed_layers: **0** (under_minimum_exact_live_structure_bucket)
 - execution_guardrail_reason: **under_minimum_exact_live_structure_bucket**
 
@@ -24,28 +24,28 @@
 - deployable: **False**
 - governance_reference_only: **True**
 - preferred_support_cohort: **bull_live_exact_lane_bucket_proxy**
-- current bucket gap to minimum: **43**
+- current bucket gap to minimum: **46**
 - exact-bucket proxy rows: **143**
 - exact-lane proxy rows: **367**
 - supported neighbor rows: **0**
 - reason: current q15 exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
 - support_progress.status: **regressed_under_minimum**
-- support_progress.current_rows / minimum: **7 / 50**
-- support_progress.previous_rows: **8**
-- support_progress.delta_vs_previous: **-1**
-- support_progress.stagnant_run_count: **0**
+- support_progress.current_rows / minimum: **4 / 50**
+- support_progress.previous_rows: **4**
+- support_progress.delta_vs_previous: **0**
+- support_progress.stagnant_run_count: **2**
 - support_progress.escalate_to_blocker: **True**
-- support_progress.reason: current q15 exact support 自最近一次已就緒 53/50（heartbeat 20260419b） 回落；需優先檢查 current bucket / support artifact 是否退化。
+- support_progress.reason: current q15 exact support 最近曾達 minimum support（最近一次 53/50，heartbeat 20260419b），但目前仍停在 4/50；這不是一般停滯，而是 support regression。
 
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.1797**
+- remaining_gap_to_floor: **0.1363**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.599**
+- best_single_component_required_score_delta: **0.4543**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.599），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.4543），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**

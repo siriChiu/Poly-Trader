@@ -3,19 +3,19 @@
     {
       "id": "P0_current_live_deployment_blocker",
       "priority": "P0",
-      "title": "current live bucket CAUTION|structure_quality_caution|q15 exact support remains under minimum and remains the deployment blocker (7/50)",
+      "title": "current live bucket CAUTION|structure_quality_caution|q15 exact support remains under minimum and remains the deployment blocker (4/50)",
       "action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "status": "open",
       "created_at": "2026-04-22T01:11:24.266567",
-      "updated_at": "2026-04-24T04:16:55.911009",
+      "updated_at": "2026-04-24T04:38:14.152088",
       "hb_detected": null,
       "next_action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "summary": {
         "deployment_blocker": "under_minimum_exact_live_structure_bucket",
         "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
-        "current_live_structure_bucket_rows": 7,
+        "current_live_structure_bucket_rows": 4,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 43,
+        "gap_to_minimum": 46,
         "support_route_verdict": "exact_bucket_present_but_below_minimum",
         "support_governance_route": "exact_live_bucket_present_but_below_minimum",
         "runtime_closure_state": "patch_inactive_or_blocked",
@@ -33,33 +33,33 @@
       "title": "recent canonical window 100 rows = distribution_pathology",
       "summary": {
         "window": "100",
-        "win_rate": 0.92,
+        "win_rate": 0.89,
         "dominant_regime": "bull",
         "dominant_regime_share": 1.0,
-        "avg_pnl": 0.0056,
-        "avg_quality": 0.4052,
-        "avg_drawdown_penalty": 0.201,
+        "avg_pnl": 0.0054,
+        "avg_quality": 0.39,
+        "avg_drawdown_penalty": 0.2001,
         "alerts": [
           "label_imbalance",
           "regime_concentration",
           "regime_shift"
         ],
         "top_shift_features": [
-          "feat_local_top_score",
           "feat_local_bottom_score",
-          "feat_4h_bias20"
+          "feat_local_top_score",
+          "feat_bb_pct_b"
         ],
         "new_compressed_feature": "feat_nw_width",
-        "tail_streak": "8x0",
+        "tail_streak": "11x0",
         "interpretation": "distribution_pathology"
       },
-      "next_action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=100, alerts=['label_imbalance', 'regime_concentration', 'regime_shift'], win_rate=0.9200, delta_vs_full=+0.2951, dominant_regime=bull(100.00%), interpretation=distribution_pathology, avg_pnl=+0.0056, avg_quality=0.4052, avg_dd_penalty=0.2010, spot_long_win_rate=0.0000, feature_diag=variance:28/56, frozen:5, compressed:23, expected_static:3, overlay_only:5, unexpected_frozen:2, distinct:15, null_heavy:10, tail_streak=8x0 since 2026-04-23 04:19:10.717188 -> 2026-04-23 05:14:26.396905, adverse_streak=8x0 since 2026-04-23 04:19:10.717188 -> 2026-04-23 05:14:26.396905, prev_win_rate=0.41, delta_vs_prev=0.51, prev_quality=0.0363, quality_delta_vs_prev=0.3689, prev_pnl=0.0002, pnl_delta_vs_prev=0.0054, top_shift_examples=feat_local_top_score(0.3458→0.2227,Δσ=0.5465)/feat_local_bottom_score(0.3282→0.4474,Δσ=0.5222)/feat_4h_bias20(1.9409→1.3126,Δσ=0.2808), new_compressed=feat_nw_width, frozen_examples=feat_4h_ma_order(0.0/1)/feat_nest_pred(0.0/1)/feat_vix(0.0/1), compressed_examples=feat_body(0.0/100)/feat_scales_ssr(0.0022/79)/feat_ear(0.0035/100), expected_static_examples=feat_4h_ma_order[discrete_regime_feature]/feat_dxy[weekday_macro_market_closed]/feat_vix[weekday_macro_market_closed], overlay_only_examples=feat_claw[research_sparse_source]/feat_claw_intensity[research_sparse_source]/feat_fang_pcr[research_sparse_source], unexpected_frozen_examples=feat_4h_rsi14(0.1112/5)/feat_4h_macd_hist(0.1499/5), distinct_examples=feat_vix(1/1437)/feat_4h_macd_hist(5/4416)/feat_4h_rsi14(5/4415), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-23 04:57:47.405594:0:bull:-0.1264/2026-04-23 04:59:00.536301:0:bull:-0.125/2026-04-23 05:14:26.396905:0:bull:-0.1449, adverse_examples=2026-04-23 04:57:47.405594:0:bull:-0.1264/2026-04-23 04:59:00.536301:0:bull:-0.125/2026-04-23 05:14:26.396905:0:bull:-0.1449",
+      "next_action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=100, alerts=['label_imbalance', 'regime_concentration', 'regime_shift'], win_rate=0.8900, delta_vs_full=+0.2652, dominant_regime=bull(100.00%), interpretation=distribution_pathology, avg_pnl=+0.0054, avg_quality=0.3900, avg_dd_penalty=0.2001, spot_long_win_rate=0.0000, feature_diag=variance:27/56, frozen:3, compressed:24, expected_static:3, overlay_only:5, unexpected_frozen:0, distinct:13, null_heavy:10, tail_streak=11x0 since 2026-04-23 04:19:10.717188 -> 2026-04-23 05:29:25.331476, adverse_streak=11x0 since 2026-04-23 04:19:10.717188 -> 2026-04-23 05:29:25.331476, prev_win_rate=0.44, delta_vs_prev=0.45, prev_quality=0.0532, quality_delta_vs_prev=0.3368, prev_pnl=0.0004, pnl_delta_vs_prev=0.005, top_shift_examples=feat_local_bottom_score(0.3431→0.4373,Δσ=0.413)/feat_local_top_score(0.3295→0.2414,Δσ=0.3911)/feat_bb_pct_b(0.3564→0.4664,Δσ=0.3335), new_compressed=feat_nw_width, frozen_examples=feat_4h_ma_order(0.0/1)/feat_nest_pred(0.0/1)/feat_vix(0.0/1), compressed_examples=feat_body(0.0/100)/feat_scales_ssr(0.0025/77)/feat_ear(0.0036/100), expected_static_examples=feat_4h_ma_order[discrete_regime_feature]/feat_dxy[weekday_macro_market_closed]/feat_vix[weekday_macro_market_closed], overlay_only_examples=feat_claw[research_sparse_source]/feat_claw_intensity[research_sparse_source]/feat_fang_pcr[research_sparse_source], distinct_examples=feat_vix(1/1437)/feat_nest_pred(1/20)/feat_4h_ma_order(1/3), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-23 05:26:54.874373:0:bull:-0.1255/2026-04-23 05:28:10.563430:0:bull:-0.1275/2026-04-23 05:29:25.331476:0:bull:-0.1286, adverse_examples=2026-04-23 05:26:54.874373:0:bull:-0.1255/2026-04-23 05:28:10.563430:0:bull:-0.1275/2026-04-23 05:29:25.331476:0:bull:-0.1286",
       "verify": [
         "python scripts/recent_drift_report.py",
         "python scripts/hb_predict_probe.py"
       ],
-      "updated_at": "2026-04-24T04:16:55.911049",
-      "action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=100, alerts=['label_imbalance', 'regime_concentration', 'regime_shift'], win_rate=0.9200, delta_vs_full=+0.2951, dominant_regime=bull(100.00%), interpretation=distribution_pathology, avg_pnl=+0.0056, avg_quality=0.4052, avg_dd_penalty=0.2010, spot_long_win_rate=0.0000, feature_diag=variance:28/56, frozen:5, compressed:23, expected_static:3, overlay_only:5, unexpected_frozen:2, distinct:15, null_heavy:10, tail_streak=8x0 since 2026-04-23 04:19:10.717188 -> 2026-04-23 05:14:26.396905, adverse_streak=8x0 since 2026-04-23 04:19:10.717188 -> 2026-04-23 05:14:26.396905, prev_win_rate=0.41, delta_vs_prev=0.51, prev_quality=0.0363, quality_delta_vs_prev=0.3689, prev_pnl=0.0002, pnl_delta_vs_prev=0.0054, top_shift_examples=feat_local_top_score(0.3458→0.2227,Δσ=0.5465)/feat_local_bottom_score(0.3282→0.4474,Δσ=0.5222)/feat_4h_bias20(1.9409→1.3126,Δσ=0.2808), new_compressed=feat_nw_width, frozen_examples=feat_4h_ma_order(0.0/1)/feat_nest_pred(0.0/1)/feat_vix(0.0/1), compressed_examples=feat_body(0.0/100)/feat_scales_ssr(0.0022/79)/feat_ear(0.0035/100), expected_static_examples=feat_4h_ma_order[discrete_regime_feature]/feat_dxy[weekday_macro_market_closed]/feat_vix[weekday_macro_market_closed], overlay_only_examples=feat_claw[research_sparse_source]/feat_claw_intensity[research_sparse_source]/feat_fang_pcr[research_sparse_source], unexpected_frozen_examples=feat_4h_rsi14(0.1112/5)/feat_4h_macd_hist(0.1499/5), distinct_examples=feat_vix(1/1437)/feat_4h_macd_hist(5/4416)/feat_4h_rsi14(5/4415), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-23 04:57:47.405594:0:bull:-0.1264/2026-04-23 04:59:00.536301:0:bull:-0.125/2026-04-23 05:14:26.396905:0:bull:-0.1449, adverse_examples=2026-04-23 04:57:47.405594:0:bull:-0.1264/2026-04-23 04:59:00.536301:0:bull:-0.125/2026-04-23 05:14:26.396905:0:bull:-0.1449",
+      "updated_at": "2026-04-24T04:38:14.152128",
+      "action": "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。 recent_window=100, alerts=['label_imbalance', 'regime_concentration', 'regime_shift'], win_rate=0.8900, delta_vs_full=+0.2652, dominant_regime=bull(100.00%), interpretation=distribution_pathology, avg_pnl=+0.0054, avg_quality=0.3900, avg_dd_penalty=0.2001, spot_long_win_rate=0.0000, feature_diag=variance:27/56, frozen:3, compressed:24, expected_static:3, overlay_only:5, unexpected_frozen:0, distinct:13, null_heavy:10, tail_streak=11x0 since 2026-04-23 04:19:10.717188 -> 2026-04-23 05:29:25.331476, adverse_streak=11x0 since 2026-04-23 04:19:10.717188 -> 2026-04-23 05:29:25.331476, prev_win_rate=0.44, delta_vs_prev=0.45, prev_quality=0.0532, quality_delta_vs_prev=0.3368, prev_pnl=0.0004, pnl_delta_vs_prev=0.005, top_shift_examples=feat_local_bottom_score(0.3431→0.4373,Δσ=0.413)/feat_local_top_score(0.3295→0.2414,Δσ=0.3911)/feat_bb_pct_b(0.3564→0.4664,Δσ=0.3335), new_compressed=feat_nw_width, frozen_examples=feat_4h_ma_order(0.0/1)/feat_nest_pred(0.0/1)/feat_vix(0.0/1), compressed_examples=feat_body(0.0/100)/feat_scales_ssr(0.0025/77)/feat_ear(0.0036/100), expected_static_examples=feat_4h_ma_order[discrete_regime_feature]/feat_dxy[weekday_macro_market_closed]/feat_vix[weekday_macro_market_closed], overlay_only_examples=feat_claw[research_sparse_source]/feat_claw_intensity[research_sparse_source]/feat_fang_pcr[research_sparse_source], distinct_examples=feat_vix(1/1437)/feat_nest_pred(1/20)/feat_4h_ma_order(1/3), null_examples=feat_4h_dist_swing_high(0.0)/feat_chorus(0.0)/feat_fin_netflow(0.0), recent_examples=2026-04-23 05:26:54.874373:0:bull:-0.1255/2026-04-23 05:28:10.563430:0:bull:-0.1275/2026-04-23 05:29:25.331476:0:bull:-0.1286, adverse_examples=2026-04-23 05:26:54.874373:0:bull:-0.1255/2026-04-23 05:28:10.563430:0:bull:-0.1275/2026-04-23 05:29:25.331476:0:bull:-0.1286",
       "created_at": "2026-04-19T09:33:07.393619"
     },
     {
@@ -69,7 +69,7 @@
       "action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.",
       "status": "open",
       "created_at": "2026-04-23T18:14:04.730677",
-      "updated_at": "2026-04-24T04:16:55.911003",
+      "updated_at": "2026-04-24T04:38:14.152082",
       "hb_detected": null,
       "next_action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.",
       "summary": {
@@ -77,14 +77,14 @@
         "reference_patch_scope": "bull|CAUTION",
         "current_live_regime_gate": "bull|CAUTION",
         "reference_only_cause": "exact_support_not_ready",
-        "exact_live_lane_rows": 34,
+        "exact_live_lane_rows": 31,
         "recommended_patch": "core_plus_macro_plus_all_4h",
         "recommended_patch_status": "reference_only_until_exact_support_ready",
         "support_route_verdict": "exact_bucket_present_but_below_minimum",
         "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
-        "current_live_structure_bucket_rows": 7,
+        "current_live_structure_bucket_rows": 4,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 43,
+        "gap_to_minimum": 46,
         "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
         "collapse_features": [
           "feat_4h_dist_swing_low",
@@ -126,7 +126,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3614,
+        "forward_archive_rows": 3616,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -134,7 +134,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-24T04:16:56.863072",
+      "updated_at": "2026-04-24T04:38:15.107611",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -160,34 +160,34 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-24T04:16:55.911023",
+      "updated_at": "2026-04-24T04:38:14.152103",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
       "id": "P1_q15_exact_support_stalled_under_breaker",
       "priority": "P1",
-      "title": "q15 exact support regressed under minimum while breaker is clear (7/50)",
+      "title": "q15 exact support regressed under minimum while breaker is clear (4/50)",
       "action": "Treat this as support regression, not ordinary stagnation: keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum plus the last-supported reference visible in probe/API/UI/docs, verify why the current bucket fell back under minimum, and keep breaker context explicit.",
       "status": "open",
       "created_at": "2026-04-24T03:42:37.129314",
-      "updated_at": "2026-04-24T04:16:55.910988",
+      "updated_at": "2026-04-24T04:38:14.152067",
       "hb_detected": null,
       "next_action": "Treat this as support regression, not ordinary stagnation: keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum plus the last-supported reference visible in probe/API/UI/docs, verify why the current bucket fell back under minimum, and keep breaker context explicit.",
       "summary": {
         "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
-        "live_current_structure_bucket_rows": 7,
+        "live_current_structure_bucket_rows": 4,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 43,
+        "gap_to_minimum": 46,
         "support_route_verdict": "exact_bucket_present_but_below_minimum",
         "support_governance_route": "exact_live_bucket_present_but_below_minimum",
         "support_progress_status": "regressed_under_minimum",
         "breaker_context": "breaker_clear",
         "circuit_breaker_active": false,
-        "previous_rows": 8,
-        "delta_vs_previous": -1,
+        "previous_rows": 4,
+        "delta_vs_previous": 0,
         "recent_supported_rows": 53,
         "recent_supported_heartbeat": "20260419b",
-        "delta_vs_recent_supported": -46,
+        "delta_vs_recent_supported": -49,
         "leaderboard_selected_profile": "core_only",
         "train_selected_profile": "core_plus_macro_plus_all_4h",
         "governance_contract": "dual_role_governance_active"

@@ -148,9 +148,11 @@ def build_report(
     legacy_scope_rows = _safe_int(support_current.get("current_live_structure_bucket_rows"), 0)
     replay_scope_rows = _safe_int(structure_counts.get(dominant_neighbor_bucket), 0)
     replay_generated_rows = near_boundary_rows
+    replay_generated_excess = max(replay_generated_rows - replay_scope_rows, 0)
+    replay_generated_exceeds_scope = replay_generated_excess > 0
     replay_preexisting_rows = max(replay_scope_rows - replay_generated_rows, 0)
     replay_generated_share = (
-        _round(replay_generated_rows / replay_scope_rows) if replay_scope_rows > 0 else None
+        _round(min(replay_generated_rows / replay_scope_rows, 1.0)) if replay_scope_rows > 0 else None
     )
 
     base_quality = _safe_float(probe_components.get("base_quality"))
@@ -276,6 +278,8 @@ def build_report(
             "generated_rows_via_boundary_only": replay_generated_rows,
             "preexisting_rows_in_replay_bucket": replay_preexisting_rows,
             "generated_row_share": replay_generated_share,
+            "generated_rows_exceed_replay_scope": replay_generated_exceeds_scope,
+            "generated_rows_excess_over_scope": replay_generated_excess,
             "dominant_neighbor_bucket": dominant_neighbor_bucket,
             "dominant_neighbor_rows": dominant_neighbor_rows,
             "near_boundary_rows": near_boundary_rows,
@@ -334,6 +338,7 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- generated_rows_via_boundary_only: **{replay.get('generated_rows_via_boundary_only')}**",
             f"- preexisting_rows_in_replay_bucket: **{replay.get('preexisting_rows_in_replay_bucket')}**",
             f"- generated_row_share: **{replay.get('generated_row_share')}**",
+            f"- generated_rows_exceed_replay_scope: **{replay.get('generated_rows_exceed_replay_scope')}** (excess={replay.get('generated_rows_excess_over_scope')})",
             f"- dominant_neighbor_bucket: **{replay.get('dominant_neighbor_bucket')}** rows={replay.get('dominant_neighbor_rows')}",
             "",
             "## feat_4h_bb_pct_b minimal counterfactual",
