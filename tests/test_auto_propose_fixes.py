@@ -2796,3 +2796,69 @@ def test_sync_current_state_governance_issues_creates_q35_scaling_no_deploy_issu
     assert q35_issue["summary"]["overall_verdict"] == "bias50_formula_may_be_too_harsh"
     assert q35_issue["summary"]["redesign_verdict"] == "base_stack_redesign_candidate_grid_empty"
     assert q35_issue["summary"]["remaining_gap_to_floor"] == 0.1895
+
+
+def test_q35_scaling_no_deploy_action_keeps_recommended_action_out_of_operator_action():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            return True
+
+    recommended_action = (
+        "discriminative base-stack redesign 只能讓 entry_quality 跨過 scoring floor，"
+        "runtime gate/support 仍讓 allowed_layers=0；下一輪必須把它治理成 score-only / execution-blocked。"
+    )
+    tracker = DummyTracker()
+
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {"alignment": {"governance_contract": {"verdict": "dual_role_governance_active"}}},
+        {
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "runtime_closure_state": "patch_inactive_or_blocked",
+            "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+            "current_live_structure_bucket_rows": 3,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        },
+        {"cv_accuracy": 0.582, "cv_std": 0.0671, "cv_worst": 0.4912},
+        {
+            "overall_verdict": "bias50_formula_may_be_too_harsh",
+            "recommended_action": recommended_action,
+            "scope_applicability": {"status": "current_live_q35_lane_active"},
+            "current_live": {
+                "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+                "entry_quality": 0.4061,
+            },
+            "deployment_grade_component_experiment": {"runtime_remaining_gap_to_floor": 0.1439},
+            "base_stack_redesign_experiment": {
+                "verdict": "base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked",
+                "machine_read_answer": {
+                    "positive_discriminative_gap": True,
+                    "execution_blocked_after_floor_cross": True,
+                },
+                "best_discriminative_candidate": {
+                    "current_entry_quality_after": 0.5622,
+                    "allowed_layers_after": 0,
+                },
+            },
+        },
+    )
+
+    q35_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q35_scaling_no_deploy")
+    assert q35_issue["action"].count("下一輪必須") <= 1
+    assert recommended_action not in q35_issue["action"]
+    assert q35_issue["summary"]["audit_recommended_action"] == recommended_action

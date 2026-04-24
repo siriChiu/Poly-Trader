@@ -80,3 +80,4 @@ def test_q35_doc_line_shows_score_floor_cross_is_not_deployment_closure():
     assert "redesign_allowed_layers=0" in line
     assert "positive_discriminative_gap=True" in line
     assert "execution_blocked_after_floor_cross=True" in line
+    assert "： /" not in line

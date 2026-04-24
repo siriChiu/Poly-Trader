@@ -615,8 +615,8 @@ def sync_current_state_governance_issues(
                 "在 exact support 未就緒、且 redesign 未形成可執行 closure 前，禁止把 bias50 單點 uplift 或結構 uplift 當成 closure。"
             )
         recommended_action = q35_scaling_audit.get("recommended_action")
-        if isinstance(recommended_action, str) and recommended_action.strip():
-            q35_action = q35_action + " " + recommended_action.strip()
+        if not isinstance(recommended_action, str) or not recommended_action.strip():
+            recommended_action = None
         upsert_issue(
             tracker,
             "P1",
@@ -638,6 +638,7 @@ def sync_current_state_governance_issues(
                 "redesign_allowed_layers_after": q35_redesign_best.get("allowed_layers_after"),
                 "redesign_positive_discriminative_gap": q35_redesign_machine.get("positive_discriminative_gap"),
                 "redesign_execution_blocked_after_floor_cross": q35_redesign_machine.get("execution_blocked_after_floor_cross"),
+                "audit_recommended_action": recommended_action,
             },
         )
     else:

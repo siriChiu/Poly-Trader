@@ -829,8 +829,8 @@ def _q35_scaling_doc_line(issue: Dict[str, Any] | None) -> str | None:
     if not isinstance(summary, dict) or not summary:
         return None
     runtime_gap = summary.get("runtime_remaining_gap_to_floor", summary.get("remaining_gap_to_floor"))
+    intro = "q35 scaling audit 已指出目前不是單點 bias50 closure："
     parts = [
-        "q35 scaling audit 已指出目前不是單點 bias50 closure：",
         f"`overall_verdict={summary.get('overall_verdict') or '—'}`",
         f"`redesign_verdict={summary.get('redesign_verdict') or '—'}`",
         f"`runtime_gap_to_floor={runtime_gap if runtime_gap is not None else '—'}`",
@@ -845,7 +845,7 @@ def _q35_scaling_doc_line(issue: Dict[str, Any] | None) -> str | None:
         parts.append(
             f"`execution_blocked_after_floor_cross={summary.get('redesign_execution_blocked_after_floor_cross')}`"
         )
-    return " / ".join(parts)
+    return f"{intro} " + " / ".join(parts)
 
 
 

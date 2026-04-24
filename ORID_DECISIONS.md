@@ -1,20 +1,19 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-24 13:52:59 CST_
+_最後更新：2026-04-24 14:30:41 CST_
 
 ---
 
-## 心跳 #20260424_1351 ORID
+## 心跳 #fast ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=32153 / Features=23571 / Labels=64832`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=56.99%`。
+- collect + diagnostics refresh 完成：`Raw=32155 / Features=23573 / Labels=64838`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=56.98%`。
 - current-live blocker：`deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - q15 current-live bucket truth：`current_live_structure_bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=8/50` / `gap=42` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
-- latest recent-window diagnostics：`latest_window=100` / `win_rate=88.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3837` / `avg_pnl=+0.0053` / `alerts=label_imbalance,regime_concentration,regime_shift`。
+- latest recent-window diagnostics：`latest_window=100` / `win_rate=85.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3668` / `avg_pnl=+0.0050` / `alerts=label_imbalance,regime_concentration,regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3621` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3623` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`。
-- 本輪 UI/product patch：q15 support / root-cause copy 已去除 `floor / exact support / runtime gate / counterfactual / artifact / component / bucket` raw token 泄漏，並以 frontend contract test + browser DOM counts 驗證。
 
 ### R｜感受直覺
 - 這輪最需要防止的誤讀，是把 `8/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；目前 live blocker 已切到 `under_minimum_exact_live_structure_bucket`。
@@ -27,7 +26,7 @@ _最後更新：2026-04-24 13:52:59 CST_
 
 ### D｜決策行動
 - **Owner**：current-live runtime / governance lane
-- **Action**：維持 current-live exact-support truth，並把 q15 current-live bucket support、reference-only patch、q15 root-cause / floor-cross / component experiment copy 用 operator-grade 中文持續顯示清楚；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。
-- **Artifacts**：`web/src/utils/runtimeCopy.ts`、`tests/test_frontend_decision_contract.py`、`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
-- **Verify**：`pytest tests/test_frontend_decision_contract.py tests/test_execution_surface_contract.py tests/test_hb_parallel_runner.py tests/test_auto_propose_fixes.py -q`、`cd web && npm run build`、browser `/execution`、browser `/execution/status`、browser `/lab` DOM raw-token counts、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。
+- **Action**：維持 current-live exact-support truth，並把 q15 current-live bucket support 與 reference-only patch 持續顯示清楚；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。
+- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
+- **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。
 - **If fail**：只要 docs / UI 再次把 `under_minimum_exact_live_structure_bucket` 誤寫成 breaker-first、漏掉 q15 current-live bucket rows，或把 reference-only patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。
