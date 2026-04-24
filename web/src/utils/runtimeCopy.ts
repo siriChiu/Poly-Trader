@@ -88,6 +88,27 @@ const SUPPORT_PROGRESS_STATUS_LABEL_MAPPINGS: Array<[string, string]> = [
   ["unsupported", "尚未建立"],
 ];
 
+type SupportIdentityLike = {
+  target_col?: string | null;
+  horizon_minutes?: number | null;
+  current_live_structure_bucket?: string | null;
+  regime_label?: string | null;
+  regime_gate?: string | null;
+  entry_quality_label?: string | null;
+  calibration_window?: number | null;
+  bucket_semantic_signature?: string | null;
+};
+
+type LegacySupportedReferenceLike = {
+  heartbeat?: string | null;
+  live_current_structure_bucket_rows?: number | null;
+  minimum_support_rows?: number | null;
+  support_route_verdict?: string | null;
+  support_governance_route?: string | null;
+  reference_only_reason?: string | null;
+  support_identity?: SupportIdentityLike | null;
+};
+
 type SupportProgressLike = {
   status?: string | null;
   current_rows?: number | null;
@@ -96,6 +117,9 @@ type SupportProgressLike = {
   recent_supported_rows?: number | null;
   recent_supported_heartbeat?: string | null;
   delta_vs_recent_supported?: number | null;
+  regression_basis?: string | null;
+  support_identity?: SupportIdentityLike | null;
+  legacy_supported_reference?: LegacySupportedReferenceLike | null;
 };
 
 const EXECUTION_MODE_LABEL_MAPPINGS: Array<[string, string]> = [
@@ -237,6 +261,8 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["feat_4h_bias50_formula", "4H bias50 公式"],
   ["signal_banner", "訊號橫幅"],
   ["spot-long", "現貨多單"],
+  ["simulated_pyramid_win", "金字塔勝率"],
+  ["simulated pyramid win", "金字塔勝率"],
   ["label_imbalance", "標籤失衡"],
   ["constant_target", "目標值固定"],
   ["regime_shift", "市場狀態切換"],
@@ -748,6 +774,27 @@ function formatSupportProgressDelta(value: number): string {
   return `${value > 0 ? "+" : ""}${value}`;
 }
 
+function humanizeSupportIdentitySummary(identity?: SupportIdentityLike | null): string {
+  if (!identity) return "—";
+  const chips: string[] = [];
+  const signature = String(identity.bucket_semantic_signature || "").trim();
+  if (signature) {
+    const version = signature.match(/:v(\d+)$/i)?.[1];
+    chips.push(version ? `支持語義 v${version}` : `支持語義 ${applyOperatorPhraseReplacements(signature.replace(/[_|:]+/g, " ").trim())}`);
+  }
+  if (typeof identity.horizon_minutes === "number" && Number.isFinite(identity.horizon_minutes)) {
+    chips.push(`${identity.horizon_minutes}m`);
+  }
+  const target = String(identity.target_col || "").trim();
+  if (target) chips.push(humanizeRuntimeDetailText(target));
+  const gate = String(identity.regime_gate || "").trim();
+  const entryLabel = String(identity.entry_quality_label || "").trim();
+  if (gate || entryLabel) {
+    chips.push(`路徑 ${[gate, entryLabel].filter(Boolean).map((item) => humanizeStructureBucketLabel(item)).join(" /")}`);
+  }
+  return chips.length ? chips.join(" · ") : "—";
+}
+
 export function humanizeSupportProgressDeltaLabel(progress?: SupportProgressLike | null): string {
   const normalized = progress ?? null;
   if (!normalized) return "—";
@@ -781,13 +828,36 @@ export function humanizeSupportProgressReferenceLabel(progress?: SupportProgress
 
   const status = String(normalized.status || "").trim().toLowerCase();
   const regressedFromSupported = Boolean(normalized.regressed_from_supported) || status === "regressed_under_minimum";
+  const semanticRebaseline = status === "semantic_rebaseline_under_minimum";
   const recentSupportedRows = normalizeSupportProgressCount(normalized.recent_supported_rows);
-  if (!regressedFromSupported || recentSupportedRows === null) return "—";
+  const legacyReference = normalized.legacy_supported_reference ?? null;
+  const legacyRows = normalizeSupportProgressCount(legacyReference?.live_current_structure_bucket_rows);
+  const legacyHeartbeat = String(legacyReference?.heartbeat || "").trim();
+  const regressionBasis = String(normalized.regression_basis || legacyReference?.reference_only_reason || "").trim();
+  const regressionBasisLabel = regressionBasis ? humanizeRuntimeDetailText(regressionBasis) : null;
+  const supportIdentityLabel = humanizeSupportIdentitySummary(normalized.support_identity);
 
-  const recentSupportedHeartbeat = String(normalized.recent_supported_heartbeat || "").trim();
-  return recentSupportedHeartbeat
-    ? `#${recentSupportedHeartbeat} · ${recentSupportedRows} 筆`
-    : `${recentSupportedRows} 筆`;
+  if (semanticRebaseline && legacyRows !== null) {
+    const chips = [
+      legacyHeartbeat ? `舊版已就緒參考 #${legacyHeartbeat} · ${legacyRows} 筆` : `舊版已就緒參考 ${legacyRows} 筆`,
+    ];
+    if (regressionBasisLabel) chips.push(`基準 ${regressionBasisLabel}`);
+    if (supportIdentityLabel !== "—") chips.push(supportIdentityLabel);
+    return chips.join(" · ");
+  }
+
+  if (regressedFromSupported && recentSupportedRows !== null) {
+    const recentSupportedHeartbeat = String(normalized.recent_supported_heartbeat || "").trim();
+    return recentSupportedHeartbeat
+      ? `#${recentSupportedHeartbeat} · ${recentSupportedRows} 筆`
+      : `${recentSupportedRows} 筆`;
+  }
+
+  if (supportIdentityLabel !== "—" && regressionBasisLabel) {
+    return `${supportIdentityLabel} · 基準 ${regressionBasisLabel}`;
+  }
+
+  return "—";
 }
 
 export function humanizeExecutionModeLabel(value?: string | null): string {
