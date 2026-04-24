@@ -313,6 +313,10 @@ def test_execution_console_humanizes_sleeve_terms_and_run_action_copy():
         '["sleeves", "倉位腿"]',
         '["sleeve", "倉位腿"]',
         '["gap", "缺口"]',
+        '["runtime_visible_preview", "執行期預覽中"]',
+        '["ready_control_plane", "可建立運行"]',
+        '["resume_available", "可恢復運行"]',
+        '["already_running", "運行進行中"]',
     ]
     for snippet in required_runtime_copy_snippets:
         assert snippet in runtime_copy_source
@@ -346,6 +350,10 @@ def test_execution_console_humanizes_sleeve_terms_and_run_action_copy():
     assert '暫停 run 中' not in console_source
     assert '停止 run 中' not in console_source
     assert 'execution run 操作失敗' not in console_source
+    assert '"runtime 預覽中"' not in runtime_copy_source
+    assert '"可建立 run"' not in runtime_copy_source
+    assert '"可恢復 run"' not in runtime_copy_source
+    assert '"run 進行中"' not in runtime_copy_source
 
 
 def test_strategy_lab_humanizes_sleeve_filter_copy():
@@ -1293,6 +1301,15 @@ def test_recent_canonical_drift_card_surfaces_latest_and_blocking_windows():
         '警示 {alertLabels.length ? alertLabels.join(" · ") : "無"}',
         '現貨多單勝率',
         '疊層觀察',
+        '低唯一值 {featureDiag?.low_distinct_count ?? "—"}',
+        '非預期 {featureDiag?.unexpected_compressed_count ?? "—"}',
+        '非預期凍結 {featureDiag?.unexpected_frozen_count ?? "—"}',
+        '非預期壓縮特徵 {unexpectedCompressedFeatureLabels}',
+        '低唯一值特徵 {lowDistinctFeatureLabels}',
+        '新增壓縮 {newUnexpectedCompressedFeatureLabels}',
+        '最長連續 {formatStreak(targetPath?.longest_target_streak)}',
+        'function humanizeTargetStreakTarget(',
+        'return `${streak.count} 筆${targetLabel}${span}`;',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -1300,6 +1317,7 @@ def test_recent_canonical_drift_card_surfaces_latest_and_blocking_windows():
     assert '最新 recent-window' not in source
     assert '主導市場 {windowSummary.dominant_regime || "—"}' not in source
     assert '警示 {alerts.length ? alerts.join(" · ") : "無"}' not in source
+    assert 'return `${streak.count}x${target}`;' not in source
 
 
 def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout():

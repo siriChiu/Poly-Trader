@@ -3588,6 +3588,32 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
             for key in ("rows", "win_rate", "drift_interpretation", "dominant_regime")
         )
 
+    def _compact_feature_names(items: Any, limit: int = 3) -> List[str]:
+        if not isinstance(items, list):
+            return []
+        names: List[str] = []
+        for item in items:
+            feature = None
+            if isinstance(item, dict):
+                feature = item.get("feature")
+            elif isinstance(item, str):
+                feature = item
+            if isinstance(feature, str) and feature and feature not in names:
+                names.append(feature)
+            if len(names) >= limit:
+                break
+        return names
+
+    def _compact_target_streak(streak: Any) -> Any:
+        if not isinstance(streak, dict):
+            return streak
+        return {
+            "target": streak.get("target"),
+            "count": streak.get("count"),
+            "start_timestamp": streak.get("start_timestamp"),
+            "end_timestamp": streak.get("end_timestamp"),
+        }
+
     def _normalize_recent_drift_window(window_payload: Any) -> Optional[Dict[str, Any]]:
         window = window_payload if isinstance(window_payload, dict) else {}
         summary = window.get("summary") if isinstance(window.get("summary"), dict) else {}
@@ -3618,17 +3644,25 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
                 "feature_diagnostics": {
                     "feature_count": feature_diag.get("feature_count"),
                     "low_variance_count": feature_diag.get("low_variance_count"),
+                    "frozen_count": feature_diag.get("frozen_count"),
                     "compressed_count": feature_diag.get("compressed_count"),
                     "expected_static_count": feature_diag.get("expected_static_count"),
                     "expected_compressed_count": feature_diag.get("expected_compressed_count"),
                     "overlay_only_count": feature_diag.get("overlay_only_count"),
+                    "unexpected_frozen_count": feature_diag.get("unexpected_frozen_count"),
+                    "unexpected_compressed_count": feature_diag.get("unexpected_compressed_count"),
                     "null_heavy_count": feature_diag.get("null_heavy_count"),
                     "low_distinct_count": feature_diag.get("low_distinct_count"),
+                    "low_distinct_features": _compact_feature_names(feature_diag.get("low_distinct_examples")),
+                    "expected_compressed_features": _compact_feature_names(feature_diag.get("expected_compressed_examples")),
+                    "unexpected_frozen_features": _compact_feature_names(feature_diag.get("unexpected_frozen_examples")),
+                    "unexpected_compressed_features": _compact_feature_names(feature_diag.get("unexpected_compressed_examples")),
                 },
                 "target_path_diagnostics": {
-                    "tail_target_streak": target_path.get("tail_target_streak"),
-                    "longest_zero_target_streak": target_path.get("longest_zero_target_streak"),
-                    "longest_one_target_streak": target_path.get("longest_one_target_streak"),
+                    "tail_target_streak": _compact_target_streak(target_path.get("tail_target_streak")),
+                    "longest_target_streak": _compact_target_streak(target_path.get("longest_target_streak")),
+                    "longest_zero_target_streak": _compact_target_streak(target_path.get("longest_zero_target_streak")),
+                    "longest_one_target_streak": _compact_target_streak(target_path.get("longest_one_target_streak")),
                 },
                 "reference_window_comparison": {
                     "prev_win_rate": reference.get("prev_win_rate", reference_quality.get("win_rate")),
@@ -3638,6 +3672,8 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
                     "quality_delta": reference.get("quality_delta", reference.get("avg_simulated_quality_delta_vs_reference")),
                     "pnl_delta": reference.get("pnl_delta", reference.get("avg_simulated_pnl_delta_vs_reference")),
                     "top_mean_shift_features": reference.get("top_mean_shift_features") if isinstance(reference.get("top_mean_shift_features"), list) else [],
+                    "new_unexpected_frozen_features": reference.get("new_unexpected_frozen_features") if isinstance(reference.get("new_unexpected_frozen_features"), list) else [],
+                    "new_unexpected_compressed_features": reference.get("new_unexpected_compressed_features") if isinstance(reference.get("new_unexpected_compressed_features"), list) else [],
                 },
             },
         }

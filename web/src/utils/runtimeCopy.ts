@@ -73,7 +73,7 @@ const RUNTIME_CLOSURE_STATE_LABEL_MAPPINGS: Array<[string, string]> = [
   ["support_closed_but_trade_floor_blocked", "精準樣本已閉環但交易門檻仍阻塞"],
   ["circuit_breaker_active", "風控熔斷中"],
   ["capacity_opened_signal_hold", "容量已開但訊號仍 HOLD"],
-  ["runtime_visible_preview", "runtime 預覽中"],
+  ["runtime_visible_preview", "執行期預覽中"],
 ];
 
 const SUPPORT_PROGRESS_STATUS_LABEL_MAPPINGS: Array<[string, string]> = [
@@ -458,8 +458,8 @@ const EXECUTION_OPERATOR_LABEL_MAPPINGS: Record<string, Array<[string, string]>>
   status: [
     ["blocked_preview", "阻塞中"],
     ["inactive_preview", "待條件恢復"],
-    ["ready_control_plane", "可建立 run"],
-    ["resume_available", "可恢復 run"],
+    ["ready_control_plane", "可建立運行"],
+    ["resume_available", "可恢復運行"],
     ["not-started", "尚未啟動"],
     ["running", "運行中"],
     ["paused", "已暫停"],
@@ -468,9 +468,9 @@ const EXECUTION_OPERATOR_LABEL_MAPPINGS: Record<string, Array<[string, string]>>
   start_status: [
     ["blocked_preview", "目前阻塞"],
     ["inactive_preview", "待條件恢復"],
-    ["ready_control_plane", "可建立 run"],
-    ["resume_available", "可恢復 run"],
-    ["already_running", "run 進行中"],
+    ["ready_control_plane", "可建立運行"],
+    ["resume_available", "可恢復運行"],
+    ["already_running", "運行進行中"],
   ],
   event: [
     ["no event", "尚無事件"],

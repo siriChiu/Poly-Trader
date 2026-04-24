@@ -1,6 +1,6 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-04-24 13:44:45.303482**
+- generated_at: **2026-04-24 14:17:39.214967**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_replay_not_applicable_for_current_context**
 - artifact_context_freshness: **current_context** (`[]`)
@@ -11,13 +11,13 @@
 - signal: **HOLD**
 - regime/gate: **bull / BLOCK**
 - structure bucket: **BLOCK|bull_q15_bias50_overextended_block|q15**
-- structure_quality: **0.3198**
-- entry_quality: **0.3423** (trade_floor_gap=-0.2077)
+- structure_quality: **0.2603**
+- entry_quality: **0.3796** (trade_floor_gap=-0.1704)
 - support_route: **exact_bucket_present_but_below_minimum**
 - floor_cross_legality: **math_cross_possible_but_illegal_without_exact_support**
 
 ## Boundary replay
-- legacy bucket rows: **33**
+- legacy bucket rows: **35**
 - replay bucket: **BLOCK|bull_high_bias200_overheat_block|q65**
 - replay bucket rows: **0**
 - generated_rows_via_boundary_only: **0**
@@ -27,11 +27,11 @@
 - dominant_neighbor_bucket: **BLOCK|bull_high_bias200_overheat_block|q65** rows=82
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.5757 → None**
-- structure_quality: **0.3198 → 0.35**
+- raw before/after: **0.4735 → None**
+- structure_quality: **0.2603 → 0.35**
 - bucket_after: **BLOCK|bull_high_bias200_overheat_block|q65**
-- entry_quality: **0.3423 → 0.3498**
-- trade_floor_gap_after: **-0.2002**
+- entry_quality: **0.3796 → 0.4021**
+- trade_floor_gap_after: **-0.1479**
 - allowed_layers_after: **0** (regime_gate_block)
 - counterfactual verdict: **counterfactual_not_evaluated**
 - counterfactual reason: boundary replay 不適用於目前 RCA verdict，因此不消費舊 q15 counterfactual。

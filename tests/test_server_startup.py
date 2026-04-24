@@ -252,15 +252,30 @@ def test_load_recent_canonical_drift_summary_maps_nested_reference_window_compar
                 "feature_diagnostics": {
                     "feature_count": 56,
                     "low_variance_count": 7,
+                    "frozen_count": 1,
                     "compressed_count": 7,
                     "expected_static_count": 0,
                     "expected_compressed_count": 0,
                     "overlay_only_count": 1,
+                    "unexpected_frozen_count": 0,
+                    "unexpected_compressed_count": 3,
                     "null_heavy_count": 10,
                     "low_distinct_count": 10,
+                    "low_distinct_examples": [
+                        {"feature": "feat_eye"},
+                        {"feature": "feat_ear"},
+                        {"feature": "feat_nose"},
+                        {"feature": "feat_tongue"},
+                    ],
+                    "expected_compressed_examples": [{"feature": "feat_atr_pct"}],
+                    "unexpected_compressed_examples": [
+                        {"feature": "feat_mind"},
+                        {"feature": "feat_4h_bias50"},
+                    ],
                 },
                 "target_path_diagnostics": {
                     "tail_target_streak": {"count": 35, "target": 1},
+                    "longest_target_streak": {"count": 273, "target": 0, "start_timestamp": "2026-04-21 00:00:00", "end_timestamp": "2026-04-22 00:00:00"},
                     "longest_zero_target_streak": {"count": 273, "target": 0},
                     "longest_one_target_streak": {"count": 152, "target": 1},
                 },
@@ -281,6 +296,7 @@ def test_load_recent_canonical_drift_summary_maps_nested_reference_window_compar
                     "top_mean_shift_features": [
                         {"feature": "feat_4h_bias200", "current_mean": 7.6623, "reference_mean": 4.1934}
                     ],
+                    "new_unexpected_compressed_features": ["feat_mind"],
                 },
             },
         },
@@ -341,6 +357,15 @@ def test_load_recent_canonical_drift_summary_maps_nested_reference_window_compar
     assert comparison["quality_delta"] == -0.4584
     assert comparison["pnl_delta"] == -0.014
     assert comparison["top_mean_shift_features"][0]["feature"] == "feat_4h_bias200"
+    assert comparison["new_unexpected_compressed_features"] == ["feat_mind"]
+    feature_diag = summary["primary_window"]["summary"]["feature_diagnostics"]
+    assert feature_diag["frozen_count"] == 1
+    assert feature_diag["unexpected_compressed_count"] == 3
+    assert feature_diag["low_distinct_features"] == ["feat_eye", "feat_ear", "feat_nose"]
+    assert feature_diag["unexpected_compressed_features"] == ["feat_mind", "feat_4h_bias50"]
+    target_path = summary["primary_window"]["summary"]["target_path_diagnostics"]
+    assert target_path["longest_target_streak"]["count"] == 273
+    assert target_path["longest_target_streak"]["start_timestamp"] == "2026-04-21 00:00:00"
     blocking = summary["blocking_window"]
     assert blocking["window"] == "2500"
     assert blocking["alerts"] == ["regime_shift", "label_imbalance"]

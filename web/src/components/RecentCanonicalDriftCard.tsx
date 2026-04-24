@@ -27,15 +27,23 @@ type RecentCanonicalDriftWindowSummary = {
   feature_diagnostics?: {
     feature_count?: number | null;
     low_variance_count?: number | null;
+    frozen_count?: number | null;
     compressed_count?: number | null;
     expected_static_count?: number | null;
     expected_compressed_count?: number | null;
     overlay_only_count?: number | null;
+    unexpected_frozen_count?: number | null;
+    unexpected_compressed_count?: number | null;
     null_heavy_count?: number | null;
     low_distinct_count?: number | null;
+    low_distinct_features?: string[] | null;
+    expected_compressed_features?: string[] | null;
+    unexpected_frozen_features?: string[] | null;
+    unexpected_compressed_features?: string[] | null;
   } | null;
   target_path_diagnostics?: {
     tail_target_streak?: TargetStreak | null;
+    longest_target_streak?: TargetStreak | null;
     longest_zero_target_streak?: TargetStreak | null;
     longest_one_target_streak?: TargetStreak | null;
   } | null;
@@ -47,6 +55,8 @@ type RecentCanonicalDriftWindowSummary = {
     quality_delta?: number | null;
     pnl_delta?: number | null;
     top_mean_shift_features?: DriftFeatureShift[] | null;
+    new_unexpected_frozen_features?: string[] | null;
+    new_unexpected_compressed_features?: string[] | null;
   } | null;
 };
 
@@ -87,10 +97,30 @@ function formatSignedPct(value?: number | null, digits = 1): string {
   return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(digits)}%`;
 }
 
+function humanizeTargetStreakTarget(target?: number | string | null): string {
+  const normalized = String(target ?? "").trim().toLowerCase();
+  if (normalized === "1" || normalized === "true" || normalized === "win") return "達標";
+  if (normalized === "0" || normalized === "false" || normalized === "loss") return "未達標";
+  if (!normalized) return "未知狀態";
+  return humanizeRuntimeDetailText(normalized);
+}
+
 function formatStreak(streak?: TargetStreak | null): string {
   if (!streak || typeof streak.count !== "number") return "—";
-  const target = streak.target ?? "?";
-  return `${streak.count}x${target}`;
+  const targetLabel = humanizeTargetStreakTarget(streak.target);
+  const span = streak.start_timestamp || streak.end_timestamp
+    ? `（${streak.start_timestamp || "?"} → ${streak.end_timestamp || "?"}）`
+    : "";
+  return `${streak.count} 筆${targetLabel}${span}`;
+}
+
+function formatFeatureLabels(features?: string[] | null): string {
+  if (!Array.isArray(features) || features.length === 0) return "—";
+  return features
+    .filter((value): value is string => Boolean(value))
+    .slice(0, 3)
+    .map((value) => humanizeFeatureKey(value, { preferShortLabel: true }))
+    .join(" / ") || "—";
 }
 
 function humanizeRecentDriftInterpretationLabel(value?: string | null): string {
@@ -151,6 +181,9 @@ function renderWindowSummary(
     .slice(0, 3)
     .map((value) => humanizeFeatureKey(value, { preferShortLabel: true }));
   const adverseStreak = targetPath?.longest_zero_target_streak ?? targetPath?.longest_one_target_streak ?? null;
+  const lowDistinctFeatureLabels = formatFeatureLabels(featureDiag?.low_distinct_features ?? null);
+  const unexpectedCompressedFeatureLabels = formatFeatureLabels(featureDiag?.unexpected_compressed_features ?? null);
+  const newUnexpectedCompressedFeatureLabels = formatFeatureLabels(reference?.new_unexpected_compressed_features ?? null);
   const toneClass = emphasize
     ? "border-amber-400/25 bg-amber-500/8"
     : "border-white/8 bg-black/10";
@@ -165,10 +198,13 @@ function renderWindowSummary(
         警示 {alertLabels.length ? alertLabels.join(" · ") : "無"} · 品質 {formatSigned(quality?.avg_simulated_quality)} · 損益 {formatSigned(quality?.avg_simulated_pnl, 4)} · 現貨多單勝率 {formatPct(quality?.spot_long_win_rate)} · 回撤 {formatPct(quality?.avg_drawdown_penalty)}
       </div>
       <div>
-        低變異 {featureDiag?.low_variance_count ?? "—"}/{featureDiag?.feature_count ?? "—"} · 壓縮 {featureDiag?.compressed_count ?? "—"} · 高缺值 {featureDiag?.null_heavy_count ?? "—"} · 疊層觀察 {featureDiag?.overlay_only_count ?? "—"} · 預期靜態 {featureDiag?.expected_static_count ?? "—"}
+        低變異 {featureDiag?.low_variance_count ?? "—"}/{featureDiag?.feature_count ?? "—"} · 低唯一值 {featureDiag?.low_distinct_count ?? "—"} · 壓縮 {featureDiag?.compressed_count ?? "—"}（預期 {featureDiag?.expected_compressed_count ?? "—"} / 非預期 {featureDiag?.unexpected_compressed_count ?? "—"}） · 非預期凍結 {featureDiag?.unexpected_frozen_count ?? "—"} · 高缺值 {featureDiag?.null_heavy_count ?? "—"} · 疊層觀察 {featureDiag?.overlay_only_count ?? "—"} · 預期靜態 {featureDiag?.expected_static_count ?? "—"}
       </div>
       <div>
-        尾端 {formatStreak(targetPath?.tail_target_streak)} · 最長逆向 {formatStreak(adverseStreak)} · 前一窗 勝率 {formatPct(reference?.prev_win_rate)} ({formatSignedPct(reference?.win_rate_delta)})
+        非預期壓縮特徵 {unexpectedCompressedFeatureLabels} · 低唯一值特徵 {lowDistinctFeatureLabels} · 新增壓縮 {newUnexpectedCompressedFeatureLabels}
+      </div>
+      <div>
+        尾端 {formatStreak(targetPath?.tail_target_streak)} · 最長連續 {formatStreak(targetPath?.longest_target_streak)} · 最長逆向 {formatStreak(adverseStreak)} · 前一窗 勝率 {formatPct(reference?.prev_win_rate)} ({formatSignedPct(reference?.win_rate_delta)})
       </div>
       <div>
         主要漂移 {topShiftFeatures.length ? topShiftFeatures.join(" / ") : "—"}
