@@ -1,22 +1,21 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-24 22:28:10 CST_
+_最後更新：2026-04-25 00:34:58 CST_
 
 ---
 
-## 心跳 #20260424_2217 ORID
+## 心跳 #20260424_2259 ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=32183 / Features=23601 / Labels=64901`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=57.00%`。
+- collect + diagnostics refresh 完成：`Raw=32186 / Features=23604 / Labels=64904`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=57.00%`。
 - current-live blocker：`deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - q15 current-live bucket truth：`current_live_structure_bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=35/50` / `gap=15` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
 - support progress：`status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `legacy_supported_reference=199/50@20260423i`。
-- latest recent-window diagnostics：`latest_window=100` / `win_rate=77.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3320` / `avg_pnl=+0.0040` / `alerts=regime_concentration,regime_shift`。
-- current blocking pathological pocket：`blocking_window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.1102` / `avg_pnl=+0.0003` / `alerts=regime_concentration,regime_shift`。
+- latest recent-window diagnostics：`latest_window=100` / `win_rate=76.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3250` / `avg_pnl=+0.0038` / `alerts=regime_concentration,regime_shift`。
+- current blocking pathological pocket：`blocking_window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.1104` / `avg_pnl=+0.0004` / `alerts=regime_concentration,regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3651` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3654` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`。
-- 本輪產品化 patch：recent drift API/UI surface 已新增 compact 低唯一值特徵、非預期壓縮 / 凍結、target streak span；`RecentCanonicalDriftCard` 不再只顯示 generic regime_concentration，Execution copy 也移除殘留 raw `run` label。
 
 ### R｜感受直覺
 - 這輪最需要防止的誤讀，是把 `35/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；目前 live blocker 已切到 `under_minimum_exact_live_structure_bucket`。
@@ -25,12 +24,11 @@ _最後更新：2026-04-24 22:28:10 CST_
 ### I｜意義洞察
 1. **support truth ≠ deployment closure**：`support=35/50` 且 `support_route_verdict=exact_bucket_present_but_below_minimum` 只代表治理前進，還不能把 reference-only patch 升級成 runtime patch。
 2. **真正主 blocker 已切到 q15 current-live bucket exact-support shortage**：recent pathological slice 仍是造成 `under_minimum_exact_live_structure_bucket` 的根因切片，不能再沿用 breaker-first 舊敘事。
-3. **recent drift 必須從 artifact 進到 operator surface**：只把 low-distinct / unexpected-compression / target-path streak 留在 JSON，等同讓 P0 root cause 對 operator 不可見；本輪已把 compact drill-down 帶到 `/api/status` 與 Dashboard / Strategy Lab 卡片。
-4. **docs overwrite sync 的角色是護欄，不是主 blocker**：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。
+3. **docs overwrite sync 的角色是護欄，不是主 blocker**：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。
 
 ### D｜決策行動
 - **Owner**：current-live runtime / governance lane
-- **Action**：維持 current-live exact-support truth，並把 q15 current-live bucket support、reference-only patch、recent canonical feature / target-path drill-down 持續顯示清楚；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。
-- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`issues.json`、`server/routes/api.py`、`web/src/components/RecentCanonicalDriftCard.tsx`、`web/src/utils/runtimeCopy.ts`、`tests/test_server_startup.py`、`tests/test_frontend_decision_contract.py`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
-- **Verify**：`python /tmp/hb_verify_recent_drift_surface.py`、`python -m pytest tests/test_server_startup.py tests/test_frontend_decision_contract.py -q`、`cd web && npm run build`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。
+- **Action**：維持 current-live exact-support truth，並把 q15 current-live bucket support 與 reference-only patch 持續顯示清楚；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。
+- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
+- **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。
 - **If fail**：只要 docs / UI 再次把 `under_minimum_exact_live_structure_bucket` 誤寫成 breaker-first、漏掉 q15 current-live bucket rows，或把 reference-only patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。

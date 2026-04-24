@@ -1,26 +1,23 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-24 22:28:10 CST_
+_最後更新：2026-04-25 00:34:58 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #20260424_2217 已完成 collect + diagnostics refresh**
-  - `Raw=32183 / Features=23601 / Labels=64901`
+- **full heartbeat #20260424_2259 已完成 collect + diagnostics refresh**
+  - `Raw=32186 / Features=23604 / Labels=64904`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `latest_window=100` / `win_rate=77.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3320` / `avg_pnl=+0.0040` / `alerts=regime_concentration,regime_shift`
-  - `blocking_window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.1102` / `avg_pnl=+0.0003` / `alerts=regime_concentration,regime_shift`
+  - `latest_window=100` / `win_rate=76.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3250` / `avg_pnl=+0.0038` / `alerts=regime_concentration,regime_shift`
+  - `blocking_window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.1104` / `avg_pnl=+0.0004` / `alerts=regime_concentration,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
-- **本輪 recent canonical drift drill-down surface 已產品化**
-  - `/api/status.execution.recent_canonical_drift` 保留 compact 低唯一值特徵、非預期壓縮 / 凍結、target streak span；Dashboard / Strategy Lab 的 `RecentCanonicalDriftCard` 直接顯示這些欄位，避免 blocker pocket 被 generic regime_concentration 摘要稀釋。
-  - Execution operator copy 的殘留 `run` label 已中文化為「運行」，避免 Bot 營運 surface 洩漏 raw control-plane token。
 
 ---
 
@@ -37,10 +34,10 @@ support progress：`status=semantic_rebaseline_under_minimum` / `regression_basi
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=100` / `win_rate=77.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3320` / `avg_pnl=+0.0040` / `alerts=regime_concentration,regime_shift`
-- `blocking_window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.1102` / `avg_pnl=+0.0003` / `alerts=regime_concentration,regime_shift`
+- `latest_window=100` / `win_rate=76.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3250` / `avg_pnl=+0.0038` / `alerts=regime_concentration,regime_shift`
+- `blocking_window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.1104` / `avg_pnl=+0.0004` / `alerts=regime_concentration,regime_shift`
 **成功標準**
-- drift / probe / docs / Dashboard / Strategy Lab 能同時指出 latest recent-window diagnostics、current blocker pocket、低唯一值 / 非預期壓縮特徵、target-path streak span，而不是退回 generic leaderboard / venue 摘要。
+- drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
 ### 目標 C：守住 q15 current-live bucket support + reference-only patch 真相
 **目前真相**
@@ -53,7 +50,7 @@ support progress：`status=semantic_rebaseline_under_minimum` / `regression_basi
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3651` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3654` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
@@ -66,8 +63,8 @@ support progress：`status=semantic_rebaseline_under_minimum` / `regression_basi
    - 驗證：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`
    - 升級 blocker：若 current-live blocker 被 breaker 舊敘事 / venue 話題覆蓋，或 q15 current-live bucket rows 再次從 top-level surfaces 消失
 2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**
-   - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`、`pytest tests/test_server_startup.py tests/test_frontend_decision_contract.py -q`、`cd web && npm run build`
-   - 升級 blocker：若 drift artifact 或 API/UI surface 再失去 target-path / adverse-streak / low-distinct / unexpected-compression / top-shift 證據
+   - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`
+   - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據
 3. **守住 q15 current-live bucket support / reference-only patch、leaderboard governance、venue/source blockers 與 docs automation 閉環**
    - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status
    - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts

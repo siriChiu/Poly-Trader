@@ -1,14 +1,14 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-24 22:28:10 CST_
+_最後更新：2026-04-25 00:34:58 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 fast heartbeat #20260424_2217 已完成 collect + diagnostics refresh**
-  - `Raw=32183 / Features=23601 / Labels=64901`
+- **最新 full heartbeat #20260424_2259 已完成 collect + diagnostics refresh**
+  - `Raw=32186 / Features=23604 / Labels=64904`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `simulated_pyramid_win=57.00%`
 - **canonical current-live blocker 已切到 current-live exact-support truth**
@@ -16,20 +16,17 @@ _最後更新：2026-04-24 22:28:10 CST_
   - `current_live_structure_bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=35/50` / `gap=15` / `support_route_verdict=exact_bucket_present_but_below_minimum`
   - support progress：`status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `legacy_supported_reference=199/50@20260423i`
 - **recent canonical diagnostics 已刷新**
-  - `latest_window=100` / `win_rate=77.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3320` / `avg_pnl=+0.0040` / `alerts=regime_concentration,regime_shift`
-  - `blocking_window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.1102` / `avg_pnl=+0.0003` / `alerts=regime_concentration,regime_shift`
+  - `latest_window=100` / `win_rate=76.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3250` / `avg_pnl=+0.0038` / `alerts=regime_concentration,regime_shift`
+  - `blocking_window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.1104` / `avg_pnl=+0.0004` / `alerts=regime_concentration,regime_shift`
 - **leaderboard / governance 仍維持 dual-role contract**
   - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3651` / `archive_window_coverage_pct=0.0`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3654` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環
-- **本輪 recent canonical drift drill-down 已產品化到 API / UI contract**
-  - `/api/status.execution.recent_canonical_drift` 現在保留低唯一值特徵、非預期壓縮 / 凍結計數與 compact 目標連續區間，避免 Dashboard / Strategy Lab 只看到 generic regime_concentration。
-  - `RecentCanonicalDriftCard` 會直接顯示低唯一值、非預期壓縮特徵、新增壓縮、最長連續 / 逆向 target path span；Execution operator copy 也移除殘留 `run` raw label。
 
 ---
 
@@ -42,16 +39,13 @@ _最後更新：2026-04-24 22:28:10 CST_
 - 下一步：把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。
 
 ### P0. recent canonical window 500 rows = regime_concentration
-- 目前真相：`window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.1102` / `avg_pnl=+0.0003` / `alerts=regime_concentration,regime_shift`
-- latest diagnostics：`latest_window=100` / `win_rate=77.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3320` / `avg_pnl=+0.0040` / `alerts=regime_concentration,regime_shift`
-- 病態切片：`alerts=regime_concentration,regime_shift` / `tail_streak=1x1` / `top_shift=feat_4h_macd_hist,feat_4h_dist_bb_lower,feat_4h_vol_ratio` / `new_compressed=None`
-- 本輪產品化修正：recent drift API summary 已新增 compact `low_distinct_features / unexpected_compressed_features / longest_target_streak`，Dashboard / Strategy Lab 的 drift card 會顯示「低唯一值、非預期壓縮特徵、最長連續 / 逆向 target path span」，讓 operator 可直接追 feature variance / distinct-count / target-path drill-down。
+- 目前真相：`window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.1104` / `avg_pnl=+0.0004` / `alerts=regime_concentration,regime_shift`
+- latest diagnostics：`latest_window=100` / `win_rate=76.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3250` / `avg_pnl=+0.0038` / `alerts=regime_concentration,regime_shift`
+- 病態切片：`alerts=regime_concentration,regime_shift` / `tail_streak=1x0` / `top_shift=feat_4h_macd_hist,feat_4h_dist_bb_lower,feat_4h_vol_ratio` / `new_compressed=None`
 - 下一步：直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。具體 window / alerts / feature shifts 只保留在 machine-readable summary 與 recent_drift_report artifact，避免 ISSUES.md / ROADMAP.md 被長篇 telemetry 污染。
 - 驗證：
   - python scripts/recent_drift_report.py
   - python scripts/hb_predict_probe.py
-  - pytest tests/test_server_startup.py tests/test_frontend_decision_contract.py -q
-  - cd web && npm run build
 
 ### P1. support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only outside current live scope
 - 目前真相：`bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=35/50` / `gap=15` / `support_route_verdict=exact_bucket_present_but_below_minimum` / `governance_route=exact_live_bucket_present_but_below_minimum`
@@ -68,7 +62,7 @@ _最後更新：2026-04-24 22:28:10 CST_
   - data/execution_metadata_smoke.json
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3651` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3654` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json

@@ -56,10 +56,22 @@ FULL_SERIAL_TIMEOUTS = {
     # training set grows. Full heartbeat runs still need to finish inside the
     # 10-minute cron/tool budget, so fail closed and reuse the latest bounded
     # governance artifact instead of letting one lane consume the whole run.
-    "feature_group_ablation": 180,
-    "bull_4h_pocket_ablation": 120,
-    "hb_leaderboard_candidate_probe": 120,
+    "feature_group_ablation": 60,
+    "bull_4h_pocket_ablation": 45,
+    "hb_leaderboard_candidate_probe": 45,
 }
+FAST_PARALLEL_TASK_TIMEOUTS = {
+    "full_ic": 90,
+    "regime_ic": 90,
+}
+FULL_PARALLEL_TASK_TIMEOUTS = {
+    "full_ic": 120,
+    "regime_ic": 120,
+    "dynamic_window": 180,
+    "train": 180,
+    "tests": 180,
+}
+COLLECT_TIMEOUT_SECONDS = 180
 FAST_CACHE_REUSE_MAX_LABEL_DELTA = 12
 FAST_CACHE_REUSE_MAX_LABEL_TIME_DRIFT_SECONDS = 6 * 3600
 FAST_HEARTBEAT_CRON_BUDGET_SECONDS = 240
@@ -927,6 +939,8 @@ def overwrite_current_state_docs(
     q15_support_audit: Dict[str, Any] | None,
     circuit_breaker_audit: Dict[str, Any] | None,
     leaderboard_candidate_diagnostics: Dict[str, Any] | None,
+    *,
+    run_mode: str | None = None,
 ) -> Dict[str, Any]:
     counts = counts or {}
     source_blockers = source_blockers or {}
@@ -941,6 +955,11 @@ def overwrite_current_state_docs(
         _save_open_current_state_issues(issues)
 
     updated_at = _format_local_timestamp_for_docs()
+    normalized_run_mode = str(run_mode or "fast").strip().lower()
+    heartbeat_mode_label = {
+        "fast": "fast heartbeat",
+        "full": "full heartbeat",
+    }.get(normalized_run_mode, "heartbeat")
     release = (live_predictor_diagnostics.get("deployment_blocker_details") or {}).get("release_condition") or {}
     primary_summary = drift_diagnostics.get("primary_summary") or {}
     primary_window = drift_diagnostics.get("primary_window") or primary_summary.get("window") or "—"
@@ -1196,7 +1215,7 @@ def overwrite_current_state_docs(
         "---",
         "",
         "## 當前主線事實",
-        f"- **最新 fast heartbeat #{run_label} 已完成 collect + diagnostics refresh**",
+        f"- **最新 {heartbeat_mode_label} #{run_label} 已完成 collect + diagnostics refresh**",
         f"  - {counts_line}",
         f"  - 歷史覆蓋確認：{history_line}",
         f"  - `simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`",
@@ -1271,7 +1290,7 @@ def overwrite_current_state_docs(
         "---",
         "",
         "## 已完成",
-        f"- **fast heartbeat #{run_label} 已完成 collect + diagnostics refresh**",
+        f"- **{heartbeat_mode_label} #{run_label} 已完成 collect + diagnostics refresh**",
         f"  - {counts_line}",
         f"  - 歷史覆蓋確認：{history_line}",
         f"  - {blocker_line}",
@@ -2287,17 +2306,26 @@ def _run_command_with_watchdog(
     }
 
 
+def _resolve_parallel_task_timeout(task_name: str, *, fast_mode: bool | None = None) -> int:
+    if fast_mode is None:
+        fast_mode = _CURRENT_HEARTBEAT_FAST_MODE
+    timeout_map = FAST_PARALLEL_TASK_TIMEOUTS if fast_mode else FULL_PARALLEL_TASK_TIMEOUTS
+    return int(timeout_map.get(task_name, 180 if fast_mode else 240))
+
+
 def run_task(task):
     try:
-        result = _run_command_with_watchdog(task["cmd"], timeout=600)
+        timeout_seconds = int(task.get("timeout_seconds") or _resolve_parallel_task_timeout(task["name"]))
+        result = _run_command_with_watchdog(task["cmd"], timeout=timeout_seconds)
         return (
             task["name"],
             result["success"],
             (result.get("stdout") or "").strip(),
             (result.get("stderr") or "").strip(),
+            result.get("returncode"),
         )
     except Exception as e:
-        return (task["name"], False, "", str(e))
+        return (task["name"], False, "", str(e), -1)
 
 
 def quick_counts():
@@ -2349,12 +2377,12 @@ def run_collect_step(skip: bool = False, run_label: str | None = None) -> Dict[s
         effective_run_label = run_label or _CURRENT_HEARTBEAT_RUN_LABEL or "adhoc"
         return _run_command_with_watchdog(
             COLLECT_CMD,
-            timeout=600,
+            timeout=COLLECT_TIMEOUT_SECONDS,
             progress={
                 "run_label": effective_run_label,
                 "stage": "collect",
                 "label": "hb_collect",
-                "details": {"command_kind": "collect"},
+                "details": {"command_kind": "collect", "timeout_seconds": COLLECT_TIMEOUT_SECONDS},
             },
         )
     except Exception as exc:
@@ -2833,6 +2861,11 @@ def save_summary(
     for name, r in results.items():
         summary["parallel_results"][name] = {
             "success": r["success"],
+            "returncode": r.get("returncode"),
+            "timed_out": bool(
+                r.get("timed_out")
+                or (r.get("returncode") == -1 and "TIMEOUT after" in str(r.get("stderr") or ""))
+            ),
             "stdout_preview": r["stdout"][:2000] if r.get("stdout") else "",
             "stderr_preview": r["stderr"][:1000] if r.get("stderr") else "",
         }
@@ -4045,6 +4078,13 @@ def main(argv=None):
         tasks = [t for t in tasks if t["name"] != "dynamic_window"]
     if args.fast:
         tasks = [t for t in tasks if t["name"] in ["full_ic", "regime_ic"]]
+    tasks = [
+        {
+            **task,
+            "timeout_seconds": _resolve_parallel_task_timeout(task["name"], fast_mode=bool(args.fast)),
+        }
+        for task in tasks
+    ]
 
     needs_train = any(t["name"] == "train" for t in tasks)
     write_progress(
@@ -4052,6 +4092,7 @@ def main(argv=None):
         "preflight",
         details={
             "task_names": [task["name"] for task in tasks],
+            "task_timeouts": {task["name"]: task.get("timeout_seconds") for task in tasks},
             "needs_train": needs_train,
         },
     )
@@ -4144,8 +4185,20 @@ def main(argv=None):
                 continue
             for future in done:
                 name = future_to_name[future]
-                _, ok, out, err = future.result()
-                results[name] = {"success": ok, "stdout": out, "stderr": err}
+                task_result = future.result()
+                if len(task_result) >= 5:
+                    _, ok, out, err, returncode = task_result[:5]
+                else:
+                    _, ok, out, err = task_result
+                    returncode = 0 if ok else 1
+                timed_out = returncode == -1 and "TIMEOUT after" in str(err or "")
+                results[name] = {
+                    "success": ok,
+                    "stdout": out,
+                    "stderr": err,
+                    "returncode": returncode,
+                    "timed_out": timed_out,
+                }
                 last_completion_at = time.monotonic()
                 completed = list(results.keys())
                 write_progress(
@@ -4842,6 +4895,7 @@ def main(argv=None):
         q15_support_summary,
         circuit_breaker_audit_summary,
         leaderboard_candidate_diagnostics,
+        run_mode="fast" if args.fast else "full",
     )
     docs_sync = collect_current_state_docs_sync_status()
     docs_sync["auto_synced"] = docs_sync_write.get("success", False)

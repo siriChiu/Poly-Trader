@@ -1525,6 +1525,7 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
             "governance_contract": "dual_role_governance_active",
             "current_closure": "global_ranking_vs_support_aware_production_split",
         },
+        run_mode="full",
     )
 
     assert result["success"] is True
@@ -1534,6 +1535,10 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
     orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
 
+    assert "最新 full heartbeat #20260420z 已完成 collect + diagnostics refresh" in issues_md
+    assert "fast heartbeat #20260420z" not in issues_md
+    assert "full heartbeat #20260420z 已完成 collect + diagnostics refresh" in roadmap_md
+    assert "fast heartbeat #20260420z" not in roadmap_md
     assert "heartbeat runner overwrite sync" in issues_md
     assert "P0. canonical circuit breaker remains the only current-live deployment blocker" in issues_md
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in issues_md
@@ -3877,6 +3882,76 @@ def test_full_serial_timeout_caps_expensive_candidate_lanes(monkeypatch):
         ["python", "scripts/feature_group_ablation.py"],
         None,
     ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["feature_group_ablation"]
+
+
+def test_parallel_task_timeouts_are_bounded_for_full_cron_budget():
+    assert hb_parallel_runner._resolve_parallel_task_timeout("train", fast_mode=False) == hb_parallel_runner.FULL_PARALLEL_TASK_TIMEOUTS["train"]
+    assert hb_parallel_runner._resolve_parallel_task_timeout("dynamic_window", fast_mode=False) == hb_parallel_runner.FULL_PARALLEL_TASK_TIMEOUTS["dynamic_window"]
+    assert hb_parallel_runner._resolve_parallel_task_timeout("train", fast_mode=False) < 600
+    assert hb_parallel_runner._resolve_parallel_task_timeout("full_ic", fast_mode=True) == hb_parallel_runner.FAST_PARALLEL_TASK_TIMEOUTS["full_ic"]
+
+
+def test_run_task_passes_task_timeout_and_surfaces_timeout(monkeypatch):
+    captured = {}
+
+    def _fake_watchdog(cmd, *, timeout=600, extra_env=None, progress=None):
+        captured["timeout"] = timeout
+        return {
+            "attempted": True,
+            "success": False,
+            "returncode": -1,
+            "stdout": "",
+            "stderr": f"TIMEOUT after {timeout}s",
+            "command": cmd,
+        }
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_command_with_watchdog", _fake_watchdog)
+
+    name, ok, out, err, returncode = hb_parallel_runner.run_task(
+        {"name": "train", "cmd": ["python", "model/train.py"], "timeout_seconds": 42}
+    )
+
+    assert name == "train"
+    assert ok is False
+    assert out == ""
+    assert "TIMEOUT after 42s" in err
+    assert returncode == -1
+    assert captured["timeout"] == 42
+
+
+def test_save_summary_marks_parallel_timeout(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    db_path = tmp_path / "poly_trader.db"
+    conn = hb_parallel_runner.sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE raw_market_data (timestamp TEXT, symbol TEXT)")
+    conn.execute("CREATE TABLE features_normalized (timestamp TEXT, symbol TEXT)")
+    conn.execute("CREATE TABLE labels (timestamp TEXT, symbol TEXT)")
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(hb_parallel_runner, "DB_PATH", str(db_path))
+
+    summary, _ = hb_parallel_runner.save_summary(
+        "hb-timeout",
+        {"raw_market_data": 1, "features_normalized": 1, "labels": 1},
+        {},
+        {"attempted": True, "success": True, "returncode": 0, "stdout": "", "stderr": ""},
+        {
+            "train": {
+                "success": False,
+                "returncode": -1,
+                "timed_out": True,
+                "stdout": "",
+                "stderr": "TIMEOUT after 180s",
+            }
+        },
+        elapsed=181.0,
+        fast_mode=False,
+    )
+
+    assert summary["parallel_results"]["train"]["returncode"] == -1
+    assert summary["parallel_results"]["train"]["timed_out"] is True
+    assert "TIMEOUT after 180s" in summary["parallel_results"]["train"]["stderr_preview"]
+
 
 def test_recent_drift_cache_hit_requires_matching_label_signature(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
