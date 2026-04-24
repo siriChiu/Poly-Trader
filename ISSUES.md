@@ -1,14 +1,14 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-24 12:38:15 CST_
+_最後更新：2026-04-24 13:04:14 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=32148 / Features=23566 / Labels=64826`
+- **最新 fast heartbeat #20260424_1300 已完成 collect + diagnostics refresh**
+  - `Raw=32149 / Features=23567 / Labels=64827`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `simulated_pyramid_win=56.99%`
 - **canonical current-live blocker 已切到 current-live exact-support truth**
@@ -20,11 +20,14 @@ _最後更新：2026-04-24 12:38:15 CST_
   - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3616` / `archive_window_coverage_pct=0.0`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3617` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環
+- **reference-only patch truth 已升級成 top-level probe/API contract**
+  - `hb_predict_probe.py`、`live_decision_quality_drilldown.py`、`/api/status.execution.live_runtime_truth` 現在都直接輸出 `recommended_patch_profile/status/reference_scope/support_route/gap/current_rows/minimum_rows`
+  - 當前值：`core_plus_macro_plus_all_4h` / `reference_only_until_exact_support_ready` / `bull|CAUTION` / `exact_bucket_present_but_below_minimum` / `4/50` / `gap=46`
 
 ---
 
@@ -44,8 +47,9 @@ _最後更新：2026-04-24 12:38:15 CST_
   - python scripts/hb_predict_probe.py
 
 ### P1. support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only
-- 目前真相：`bucket=CAUTION|structure_quality_caution|q15` / `support=4/50` / `gap=46` / `support_route_verdict=exact_bucket_present_but_below_minimum` / `governance_route=exact_live_bucket_present_but_below_minimum`
+- 目前真相：`bucket=CAUTION|structure_quality_caution|q15` / `support=4/50` / `gap=46` / `support_route_verdict=exact_bucket_present_but_below_minimum` / `governance_route=exact_live_bucket_present_but_below_minimum` / `top_level_probe_api_patch_fields=present`
 - 下一步：Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.
+- 驗證：`pytest tests/test_hb_predict_probe.py tests/test_server_startup.py tests/test_frontend_decision_contract.py -q`；`curl /api/status` 應回傳 `recommended_patch_support_route=exact_bucket_present_but_below_minimum` 與 `recommended_patch_gap_to_minimum=46`。
 
 ### P1. venue readiness is still unverified
 - 目前真相：`binance=config enabled + public-only + metadata OK` / `okx=config disabled + public-only + metadata OK` / `missing_runtime_proof=live exchange credential, order ack lifecycle, fill lifecycle`
@@ -57,7 +61,7 @@ _最後更新：2026-04-24 12:38:15 CST_
   - data/execution_metadata_smoke.json
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3616` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3617` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json

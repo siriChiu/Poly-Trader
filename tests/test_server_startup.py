@@ -2156,6 +2156,10 @@ def test_build_live_runtime_closure_surface_surfaces_bull_caution_patch_summary(
     assert result["recommended_patch_status"] == "reference_only_non_current_live_scope"
     assert result["recommended_patch_reference_scope"] == "bull|CAUTION"
     assert result["recommended_patch_reference_source"] == patch_summary["reference_source"]
+    assert result["recommended_patch_support_route"] == "exact_bucket_missing_exact_lane_proxy_only"
+    assert result["recommended_patch_gap_to_minimum"] == 50
+    assert result["recommended_patch_current_live_structure_bucket_rows"] == 0
+    assert result["recommended_patch_minimum_support_rows"] == 50
     assert "current live scope 是 bull|BLOCK" in result["recommended_patch_reason"]
     assert "不可直接放行 runtime" in result["recommended_patch_reason"]
     assert patch_summary["status"] == "reference_only_non_current_live_scope"

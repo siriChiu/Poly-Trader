@@ -446,6 +446,39 @@ def _build_probe_payload(
         deployment_blocker_details["support_governance_route"] = support_governance_route
         runtime_result["support_governance_route"] = support_governance_route
     q35_scaling_audit = _load_q35_scaling_audit_summary(current_live_structure_bucket)
+    recommended_patch_summary = (
+        scope_pathology_summary.get("recommended_patch")
+        if isinstance(scope_pathology_summary, dict)
+        and isinstance(scope_pathology_summary.get("recommended_patch"), dict)
+        else None
+    )
+    recommended_patch_profile = result.get("recommended_patch_profile")
+    if recommended_patch_profile is None and recommended_patch_summary is not None:
+        recommended_patch_profile = recommended_patch_summary.get("recommended_profile")
+    recommended_patch_status = result.get("recommended_patch_status")
+    if recommended_patch_status is None and recommended_patch_summary is not None:
+        recommended_patch_status = recommended_patch_summary.get("status")
+    recommended_patch_reference_scope = result.get("recommended_patch_reference_scope")
+    if recommended_patch_reference_scope is None and recommended_patch_summary is not None:
+        recommended_patch_reference_scope = recommended_patch_summary.get("reference_patch_scope")
+    recommended_patch_reference_source = result.get("recommended_patch_reference_source")
+    if recommended_patch_reference_source is None and recommended_patch_summary is not None:
+        recommended_patch_reference_source = recommended_patch_summary.get("reference_source")
+    recommended_patch_reason = result.get("recommended_patch_reason")
+    if recommended_patch_reason is None and recommended_patch_summary is not None:
+        recommended_patch_reason = recommended_patch_summary.get("reason")
+    recommended_patch_support_route = result.get("recommended_patch_support_route")
+    if recommended_patch_support_route is None and recommended_patch_summary is not None:
+        recommended_patch_support_route = recommended_patch_summary.get("support_route_verdict")
+    recommended_patch_gap_to_minimum = result.get("recommended_patch_gap_to_minimum")
+    if recommended_patch_gap_to_minimum is None and recommended_patch_summary is not None:
+        recommended_patch_gap_to_minimum = recommended_patch_summary.get("gap_to_minimum")
+    recommended_patch_current_rows = result.get("recommended_patch_current_live_structure_bucket_rows")
+    if recommended_patch_current_rows is None and recommended_patch_summary is not None:
+        recommended_patch_current_rows = recommended_patch_summary.get("current_live_structure_bucket_rows")
+    recommended_patch_minimum_rows = result.get("recommended_patch_minimum_support_rows")
+    if recommended_patch_minimum_rows is None and recommended_patch_summary is not None:
+        recommended_patch_minimum_rows = recommended_patch_summary.get("minimum_support_rows")
     breaker_release = deployment_blocker_details.get("release_condition") if isinstance(deployment_blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = deployment_blocker_details.get("recent_window") if isinstance(deployment_blocker_details.get("recent_window"), dict) else {}
     release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
@@ -507,6 +540,16 @@ def _build_probe_payload(
             if support_progress
             else deployment_blocker_details.get("current_live_structure_bucket_gap_to_minimum")
         ),
+        "recommended_patch": recommended_patch_summary,
+        "recommended_patch_profile": recommended_patch_profile,
+        "recommended_patch_status": recommended_patch_status,
+        "recommended_patch_reference_scope": recommended_patch_reference_scope,
+        "recommended_patch_reference_source": recommended_patch_reference_source,
+        "recommended_patch_reason": recommended_patch_reason,
+        "recommended_patch_support_route": recommended_patch_support_route,
+        "recommended_patch_gap_to_minimum": recommended_patch_gap_to_minimum,
+        "recommended_patch_current_live_structure_bucket_rows": recommended_patch_current_rows,
+        "recommended_patch_minimum_support_rows": recommended_patch_minimum_rows,
         "floor_cross_verdict": floor_cross.get("verdict"),
         "legal_to_relax_runtime_gate": floor_cross.get("legal_to_relax_runtime_gate"),
         "remaining_gap_to_floor": floor_cross.get("remaining_gap_to_floor"),

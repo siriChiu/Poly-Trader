@@ -304,6 +304,14 @@ def test_hb_predict_probe_infers_support_governance_route_from_reference_patch(m
             "recommended_patch": {
                 "preferred_support_cohort": "bull_exact_live_lane_proxy",
                 "support_route_verdict": "exact_bucket_unsupported_block",
+                "recommended_profile": "core_plus_macro",
+                "status": "reference_only_until_exact_support_ready",
+                "reference_patch_scope": "bull|CAUTION",
+                "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
+                "reason": "proxy support is governance-only until exact bucket support is ready",
+                "gap_to_minimum": 50,
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
             },
         },
     )
@@ -314,6 +322,14 @@ def test_hb_predict_probe_infers_support_governance_route_from_reference_patch(m
     assert payload["support_governance_route"] == "exact_live_lane_proxy_available"
     assert payload["deployment_blocker_details"]["support_governance_route"] == "exact_live_lane_proxy_available"
     assert payload["decision_quality_scope_pathology_summary"]["recommended_patch"]["preferred_support_cohort"] == "bull_exact_live_lane_proxy"
+    assert payload["recommended_patch_profile"] == "core_plus_macro"
+    assert payload["recommended_patch_status"] == "reference_only_until_exact_support_ready"
+    assert payload["recommended_patch_reference_scope"] == "bull|CAUTION"
+    assert payload["recommended_patch_reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
+    assert payload["recommended_patch_support_route"] == "exact_bucket_unsupported_block"
+    assert payload["recommended_patch_gap_to_minimum"] == 50
+    assert payload["recommended_patch_current_live_structure_bucket_rows"] == 0
+    assert payload["recommended_patch_minimum_support_rows"] == 50
 
 
 def test_hb_predict_probe_treats_live_exact_lane_bucket_proxy_as_bucket_proxy_route(monkeypatch, capsys, tmp_path):

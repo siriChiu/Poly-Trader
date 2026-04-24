@@ -26,6 +26,30 @@ OUT_JSON = PROJECT_ROOT / "data" / "live_decision_quality_drilldown.json"
 OUT_MD = PROJECT_ROOT / "docs" / "analysis" / "live_decision_quality_drilldown.md"
 
 
+def _recommended_patch_projection(recommended_patch: Any) -> dict[str, Any]:
+    if not isinstance(recommended_patch, dict):
+        return {
+            "recommended_patch_profile": None,
+            "recommended_patch_status": None,
+            "recommended_patch_reference_scope": None,
+            "recommended_patch_reference_source": None,
+            "recommended_patch_support_route": None,
+            "recommended_patch_gap_to_minimum": None,
+            "recommended_patch_current_live_structure_bucket_rows": None,
+            "recommended_patch_minimum_support_rows": None,
+        }
+    return {
+        "recommended_patch_profile": recommended_patch.get("recommended_profile"),
+        "recommended_patch_status": recommended_patch.get("status"),
+        "recommended_patch_reference_scope": recommended_patch.get("reference_patch_scope") or recommended_patch.get("spillover_regime_gate"),
+        "recommended_patch_reference_source": recommended_patch.get("reference_source"),
+        "recommended_patch_support_route": recommended_patch.get("support_route_verdict"),
+        "recommended_patch_gap_to_minimum": recommended_patch.get("gap_to_minimum"),
+        "recommended_patch_current_live_structure_bucket_rows": recommended_patch.get("current_live_structure_bucket_rows"),
+        "recommended_patch_minimum_support_rows": recommended_patch.get("minimum_support_rows"),
+    }
+
+
 def _scope_summary(name: str, payload: dict[str, Any]) -> dict[str, Any]:
     recent = payload.get("recent_pathology") or {}
     spillover = payload.get("spillover_vs_exact_live_lane") or {}
@@ -381,6 +405,7 @@ def main() -> None:
         "worst_pathology_scope": consensus.get("worst_pathology_scope") or {},
         "decision_quality_scope_pathology_summary": scope_pathology_summary,
         "recommended_patch": recommended_patch,
+        **_recommended_patch_projection(recommended_patch),
         "q35_scaling_audit": q35_audit_summary,
     }
 

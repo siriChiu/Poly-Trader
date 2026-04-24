@@ -9,6 +9,32 @@ assert spec.loader is not None
 spec.loader.exec_module(live_drilldown)
 
 
+def test_recommended_patch_projection_promotes_reference_only_support_contract():
+    projection = live_drilldown._recommended_patch_projection(
+        {
+            "recommended_profile": "core_plus_macro_plus_all_4h",
+            "status": "reference_only_until_exact_support_ready",
+            "reference_patch_scope": "bull|CAUTION",
+            "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "gap_to_minimum": 46,
+            "current_live_structure_bucket_rows": 4,
+            "minimum_support_rows": 50,
+        }
+    )
+
+    assert projection == {
+        "recommended_patch_profile": "core_plus_macro_plus_all_4h",
+        "recommended_patch_status": "reference_only_until_exact_support_ready",
+        "recommended_patch_reference_scope": "bull|CAUTION",
+        "recommended_patch_reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
+        "recommended_patch_support_route": "exact_bucket_present_but_below_minimum",
+        "recommended_patch_gap_to_minimum": 46,
+        "recommended_patch_current_live_structure_bucket_rows": 4,
+        "recommended_patch_minimum_support_rows": 50,
+    }
+
+
 def test_component_gap_attribution_identifies_best_single_component_and_bias50_counterfactual():
     eq_components = {
         "entry_quality": 0.499,

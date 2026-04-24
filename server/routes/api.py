@@ -1333,6 +1333,18 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
     recommended_patch_reason = payload.get("recommended_patch_reason")
     if recommended_patch_reason is None and recommended_patch_summary is not None:
         recommended_patch_reason = recommended_patch_summary.get("reason")
+    recommended_patch_support_route = payload.get("recommended_patch_support_route")
+    if recommended_patch_support_route is None and recommended_patch_summary is not None:
+        recommended_patch_support_route = recommended_patch_summary.get("support_route_verdict")
+    recommended_patch_gap_to_minimum = payload.get("recommended_patch_gap_to_minimum")
+    if recommended_patch_gap_to_minimum is None and recommended_patch_summary is not None:
+        recommended_patch_gap_to_minimum = recommended_patch_summary.get("gap_to_minimum")
+    recommended_patch_current_rows = payload.get("recommended_patch_current_live_structure_bucket_rows")
+    if recommended_patch_current_rows is None and recommended_patch_summary is not None:
+        recommended_patch_current_rows = recommended_patch_summary.get("current_live_structure_bucket_rows")
+    recommended_patch_minimum_rows = payload.get("recommended_patch_minimum_support_rows")
+    if recommended_patch_minimum_rows is None and recommended_patch_summary is not None:
+        recommended_patch_minimum_rows = recommended_patch_summary.get("minimum_support_rows")
 
     breaker_release = blocker_details.get("release_condition") if isinstance(blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = blocker_details.get("recent_window") if isinstance(blocker_details.get("recent_window"), dict) else {}
@@ -1427,6 +1439,10 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "recommended_patch_reference_scope": recommended_patch_reference_scope,
         "recommended_patch_reference_source": recommended_patch_reference_source,
         "recommended_patch_reason": recommended_patch_reason,
+        "recommended_patch_support_route": recommended_patch_support_route,
+        "recommended_patch_gap_to_minimum": recommended_patch_gap_to_minimum,
+        "recommended_patch_current_live_structure_bucket_rows": recommended_patch_current_rows,
+        "recommended_patch_minimum_support_rows": recommended_patch_minimum_rows,
         "sleeve_routing": sleeve_routing,
         "q35_scaling_audit": payload.get("q35_scaling_audit"),
         "q35_overall_verdict": payload.get("q35_overall_verdict"),

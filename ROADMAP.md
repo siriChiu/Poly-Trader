@@ -1,14 +1,14 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-24 12:38:15 CST_
+_最後更新：2026-04-24 13:04:14 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=32148 / Features=23566 / Labels=64826`
+- **fast heartbeat #20260424_1300 已完成 collect + diagnostics refresh**
+  - `Raw=32149 / Features=23567 / Labels=64827`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
   - `latest_window=100` / `win_rate=89.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3900` / `avg_pnl=+0.0054` / `alerts=label_imbalance,regime_concentration,regime_shift`
@@ -17,6 +17,8 @@ _最後更新：2026-04-24 12:38:15 CST_
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
+- **reference-only patch truth 已產品化成 probe/API top-level contract**
+  - `hb_predict_probe.py`、`live_decision_quality_drilldown.py` 與 `/api/status.execution.live_runtime_truth` 直接輸出 `recommended_patch_support_route=exact_bucket_present_but_below_minimum`、`recommended_patch_gap_to_minimum=46`、`recommended_patch_current_live_structure_bucket_rows=4`、`recommended_patch_minimum_support_rows=50`
 
 ---
 
@@ -39,14 +41,14 @@ _最後更新：2026-04-24 12:38:15 CST_
 ### 目標 C：守住 q15 current-live bucket support + reference-only patch 真相
 **目前真相**
 - `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=4/50` / `gap=46` / `support_route_verdict=exact_bucket_present_but_below_minimum`
-- `recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`
+- `recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION` / `support_route=exact_bucket_present_but_below_minimum` 已在 probe/API top-level 可 machine-read
 **成功標準**
 - probe / drilldown / `/api/status` / `/execution/status` / `/lab` / docs 全都承認 q15 current-live bucket exact support 未達 minimum rows，recommended patch 只能作治理 / 訓練參考。
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3616` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3617` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
