@@ -1404,6 +1404,48 @@ def test_classify_window_marks_strong_nonconstant_label_imbalance_as_supported_e
     assert interpretation == "supported_extreme_trend"
 
 
+def test_compact_window_summary_describes_positive_label_imbalance_as_concentration_risk():
+    compact = recent_drift_report._compact_window_summary(
+        window_rows=100,
+        alerts=["label_imbalance", "regime_concentration", "regime_shift"],
+        interpretation="distribution_pathology",
+        win_rate=0.81,
+        dominant_regime="bull",
+        dominant_share=1.0,
+        quality_metrics={
+            "avg_simulated_pnl": 0.0046,
+            "avg_simulated_quality": 0.3429,
+            "avg_drawdown_penalty": 0.2043,
+        },
+        target_path_diagnostics={
+            "tail_target_streak": {
+                "target": 0,
+                "count": 19,
+                "start_timestamp": "2026-04-23 12:00:00",
+                "end_timestamp": "2026-04-24 06:00:00",
+            },
+            "longest_zero_target_streak": {
+                "target": 0,
+                "count": 19,
+                "start_timestamp": "2026-04-23 12:00:00",
+                "end_timestamp": "2026-04-24 06:00:00",
+            },
+        },
+        reference_comparison={
+            "top_mean_shift_features": [
+                {"feature": "feat_bb_pct_b"},
+                {"feature": "feat_4h_dist_bb_lower"},
+            ]
+        },
+    )
+
+    assert compact["severity"] == "medium"
+    assert compact["actionable_summary"] == "distribution concentration with adverse tail risk; canonical quality remains positive"
+    assert compact["top_shift_features"] == ["feat_bb_pct_b", "feat_4h_dist_bb_lower"]
+    assert compact["tail_streak"]["count"] == 19
+    assert compact["adverse_streak"]["count"] == 19
+
+
 def test_find_primary_window_prefers_more_persistent_pathology_when_severity_and_delta_tie():
     label, summary = recent_drift_report._find_primary_window(
         {

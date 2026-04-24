@@ -761,6 +761,11 @@ def _load_q15_support_audit_summary(current_structure_bucket: Optional[str] = No
     floor_cross = payload.get("floor_cross_legality") if isinstance(payload.get("floor_cross_legality"), dict) else {}
     component_experiment = payload.get("component_experiment") if isinstance(payload.get("component_experiment"), dict) else {}
     support_progress = support_route.get("support_progress") if isinstance(support_route.get("support_progress"), dict) else {}
+    support_identity = (
+        payload.get("support_identity")
+        or support_route.get("support_identity")
+        or support_progress.get("support_identity")
+    )
 
     active_for_current_live_row = bool(applicability.get("active_for_current_live_row"))
     audit_bucket = (
@@ -787,6 +792,8 @@ def _load_q15_support_audit_summary(current_structure_bucket: Optional[str] = No
         "minimum_support_rows": support_route.get("minimum_support_rows"),
         "current_live_structure_bucket_gap_to_minimum": support_route.get("current_live_structure_bucket_gap_to_minimum"),
         "support_progress": support_progress,
+        "support_identity": support_identity if isinstance(support_identity, dict) else None,
+        "artifact_context_freshness": payload.get("artifact_context_freshness"),
         "floor_cross_legality": floor_cross,
         "component_experiment": component_experiment,
         "current_live": current_live,
@@ -822,6 +829,10 @@ def _enrich_confidence_with_q15_support_audit(result: Dict[str, Any]) -> Dict[st
         details["current_live_structure_bucket_rows"] = support_progress.get("current_rows")
         details["minimum_support_rows"] = support_progress.get("minimum_support_rows")
         details["current_live_structure_bucket_gap_to_minimum"] = support_progress.get("gap_to_minimum")
+    if audit_summary.get("support_identity"):
+        details["support_identity"] = audit_summary.get("support_identity")
+    if audit_summary.get("artifact_context_freshness"):
+        details["artifact_context_freshness"] = audit_summary.get("artifact_context_freshness")
     if audit_summary.get("support_route_verdict") is not None:
         details["support_route_verdict"] = audit_summary.get("support_route_verdict")
     if audit_summary.get("support_route_deployable") is not None:
@@ -836,6 +847,8 @@ def _enrich_confidence_with_q15_support_audit(result: Dict[str, Any]) -> Dict[st
     enriched["deployment_blocker_details"] = details
     enriched["q15_support_audit"] = audit_summary
     enriched["support_progress"] = support_progress or enriched.get("support_progress")
+    enriched["support_identity"] = audit_summary.get("support_identity") or enriched.get("support_identity")
+    enriched["artifact_context_freshness"] = audit_summary.get("artifact_context_freshness") or enriched.get("artifact_context_freshness")
     enriched["support_route_verdict"] = audit_summary.get("support_route_verdict")
     enriched["support_route_deployable"] = audit_summary.get("support_route_deployable")
     enriched["support_governance_route"] = audit_summary.get("support_governance_route")
@@ -3794,6 +3807,11 @@ def _load_leaderboard_live_truth_overlay(path: Optional[Path] = None) -> Optiona
     support_progress = payload.get("support_progress") if isinstance(payload.get("support_progress"), dict) else {}
     if not support_progress:
         support_progress = blocker_details.get("support_progress") if isinstance(blocker_details.get("support_progress"), dict) else {}
+    support_identity = (
+        payload.get("support_identity")
+        or blocker_details.get("support_identity")
+        or support_progress.get("support_identity")
+    )
 
     current_bucket = (
         payload.get("current_live_structure_bucket")
@@ -3834,6 +3852,7 @@ def _load_leaderboard_live_truth_overlay(path: Optional[Path] = None) -> Optiona
         "support_route_verdict": payload.get("support_route_verdict") or blocker_details.get("support_route_verdict"),
         "support_governance_route": payload.get("support_governance_route") or blocker_details.get("support_governance_route"),
         "support_progress": support_progress or None,
+        "support_identity": support_identity if isinstance(support_identity, dict) else None,
         "live_regime_gate": payload.get("regime_gate"),
         "live_entry_quality_label": payload.get("entry_quality_label"),
         "live_execution_guardrail_reason": payload.get("execution_guardrail_reason") or payload.get("allowed_layers_reason"),
@@ -3861,6 +3880,7 @@ def _overlay_leaderboard_governance_live_truth(
         "support_route_verdict",
         "support_governance_route",
         "support_progress",
+        "support_identity",
         "live_regime_gate",
         "live_entry_quality_label",
         "live_execution_guardrail_reason",
@@ -3880,6 +3900,8 @@ def _overlay_leaderboard_governance_live_truth(
         governance_contract["live_current_structure_bucket_gap_to_minimum"] = live_truth.get("live_current_structure_bucket_gap_to_minimum")
     if isinstance(live_truth.get("support_progress"), dict):
         governance_contract["support_progress"] = live_truth.get("support_progress")
+    if isinstance(live_truth.get("support_identity"), dict):
+        governance_contract["support_identity"] = live_truth.get("support_identity")
     if governance_contract:
         merged["governance_contract"] = governance_contract
 

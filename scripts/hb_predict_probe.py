@@ -379,6 +379,15 @@ def _build_probe_payload(
         support_route = q15_support_audit.get("support_route")
         if isinstance(support_route.get("support_progress"), dict):
             support_progress = support_route.get("support_progress")
+    support_identity = None
+    artifact_context_freshness = None
+    if isinstance(q15_support_audit, dict):
+        artifact_context_freshness = q15_support_audit.get("artifact_context_freshness")
+        support_identity = (
+            q15_support_audit.get("support_identity")
+            or (support_route.get("support_identity") if isinstance(support_route, dict) else None)
+            or (support_progress.get("support_identity") if isinstance(support_progress, dict) else None)
+        )
     if not support_route:
         generic_support_mode = (
             str(result.get("decision_quality_structure_bucket_support_mode") or "")
@@ -408,6 +417,10 @@ def _build_probe_payload(
         deployment_blocker_details["current_live_structure_bucket_gap_to_minimum"] = support_progress.get("gap_to_minimum")
         if support_progress.get("current_rows") is not None:
             deployment_blocker_details.setdefault("current_live_structure_bucket_rows", support_progress.get("current_rows"))
+    if support_identity:
+        deployment_blocker_details["support_identity"] = support_identity
+    if artifact_context_freshness:
+        deployment_blocker_details["artifact_context_freshness"] = artifact_context_freshness
     if support_route:
         deployment_blocker_details["support_route_verdict"] = support_route.get("verdict")
         deployment_blocker_details["support_route_deployable"] = support_route.get("deployable")
@@ -529,6 +542,8 @@ def _build_probe_payload(
         "support_route_verdict": support_route.get("verdict"),
         "support_route_deployable": support_route.get("deployable"),
         "support_governance_route": support_governance_route,
+        "support_identity": support_identity,
+        "artifact_context_freshness": artifact_context_freshness,
         "support_progress": support_progress or None,
         "minimum_support_rows": (
             support_progress.get("minimum_support_rows")

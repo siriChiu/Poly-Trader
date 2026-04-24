@@ -9,7 +9,26 @@ assert spec.loader is not None
 spec.loader.exec_module(q15_support_audit)
 
 
+def _support_identity(
+    bucket="CAUTION|structure_quality_caution|q15",
+    *,
+    regime_gate="CAUTION",
+    entry_quality_label="D",
+):
+    return {
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "current_live_structure_bucket": bucket,
+        "regime_label": "bull",
+        "regime_gate": regime_gate,
+        "entry_quality_label": entry_quality_label,
+        "calibration_window": 600,
+        "bucket_semantic_signature": q15_support_audit.BUCKET_SEMANTIC_SIGNATURE,
+    }
+
+
 def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
+    identity = _support_identity()
     for idx in range(2):
         (tmp_path / f"heartbeat_{900 + idx}_summary.json").write_text(
             json.dumps(
@@ -21,6 +40,7 @@ def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
                             "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
                             "current_live_structure_bucket_rows": 4,
                         },
+                        "support_identity": identity,
                         "support_route": {
                             "verdict": "exact_bucket_present_but_below_minimum",
                             "support_governance_route": "exact_live_bucket_present_but_below_minimum",
@@ -39,6 +59,7 @@ def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
         live_bucket_rows=4,
         minimum_support_rows=50,
         current_label="fast",
+        support_identity=identity,
         data_dir=tmp_path,
     )
 
@@ -51,7 +72,8 @@ def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
 
 
 
-def test_summarize_support_progress_keeps_regression_visible_until_q15_support_recovers(tmp_path):
+def test_summarize_support_progress_treats_legacy_supported_anchor_as_reference_only(tmp_path):
+    identity = _support_identity(bucket="BLOCK|bull_q15_bias50_overextended_block|q15", regime_gate="BLOCK")
     (tmp_path / "heartbeat_920_summary.json").write_text(
         json.dumps(
             {
@@ -100,26 +122,92 @@ def test_summarize_support_progress_keeps_regression_visible_until_q15_support_r
         live_bucket_rows=0,
         minimum_support_rows=50,
         current_label="fast",
+        support_identity=identity,
         data_dir=tmp_path,
     )
 
-    assert progress["status"] == "regressed_under_minimum"
-    assert progress["previous_rows"] == 0
-    assert progress["delta_vs_previous"] == 0
-    assert progress["regressed_from_supported"] is True
-    assert progress["recent_supported_rows"] == 199
-    assert progress["recent_supported_heartbeat"] == "920"
-    assert progress["delta_vs_recent_supported"] == -199
+    assert progress["status"] == "semantic_rebaseline_under_minimum"
+    assert progress["regression_basis"] == "legacy_or_different_semantic_signature"
+    assert progress["previous_rows"] is None
+    assert progress["delta_vs_previous"] is None
+    assert progress["regressed_from_supported"] is False
+    assert progress["recent_supported_rows"] is None
+    assert progress["legacy_supported_reference"]["live_current_structure_bucket_rows"] == 199
+    assert progress["legacy_supported_reference"]["heartbeat"] == "920"
     assert progress["escalate_to_blocker"] is True
-    assert "曾達 minimum support" in progress["reason"]
+    assert "legacy reference" in progress["reason"]
+
+
+
+def test_summarize_support_progress_rebaselines_legacy_supported_anchor_when_identity_is_missing(tmp_path):
+    (tmp_path / "heartbeat_920_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "920",
+                "timestamp": "2026-04-23T04:31:17+00:00",
+                "q15_support_audit": {
+                    "current_live": {
+                        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                        "current_live_structure_bucket_rows": 199,
+                    },
+                    "support_route": {
+                        "verdict": "exact_bucket_supported",
+                        "support_governance_route": "exact_live_bucket_supported",
+                        "minimum_support_rows": 50,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    current_identity = {
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "regime_label": "bull",
+        "regime_gate": "BLOCK",
+        "entry_quality_label": "D",
+        "calibration_window": 600,
+        "bucket_semantic_signature": q15_support_audit.BUCKET_SEMANTIC_SIGNATURE,
+    }
+
+    progress = q15_support_audit._summarize_support_progress(
+        current_bucket="BLOCK|bull_q15_bias50_overextended_block|q15",
+        support_route_verdict="exact_bucket_present_but_below_minimum",
+        support_governance_route="exact_live_bucket_present_but_below_minimum",
+        live_bucket_rows=16,
+        minimum_support_rows=50,
+        current_label="fast",
+        support_identity=current_identity,
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "semantic_rebaseline_under_minimum"
+    assert progress["regression_basis"] == "legacy_or_different_semantic_signature"
+    assert progress["recent_supported_rows"] is None
+    assert progress["legacy_supported_reference"]["live_current_structure_bucket_rows"] == 199
+    assert progress["legacy_supported_reference"]["support_identity"] is None
+    assert progress["legacy_supported_reference"]["reference_only_reason"] == "missing_or_different_support_identity_or_bucket_semantic_signature"
+    assert progress["comparable_history_count"] == 0
+    assert progress["legacy_reference_history_count"] == 1
+    assert progress["escalate_to_blocker"] is True
 
 
 
 def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_stalled_heartbeats(tmp_path, monkeypatch):
+    identity = _support_identity(bucket="BLOCK|bull_q15_bias50_overextended_block|q15", regime_gate="BLOCK")
+
+    def _row(overrides):
+        base = {
+            "support_identity": identity,
+        }
+        base.update(overrides)
+        return base
+
     def fake_history(*, current_entry, data_dir=None):
         return [
             {k: v for k, v in current_entry.items() if k != "observed_at"},
-            {
+            _row({
                 "heartbeat": "935",
                 "timestamp": "2026-04-23T08:00:00+00:00",
                 "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
@@ -127,8 +215,8 @@ def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_
                 "minimum_support_rows": 50,
                 "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
                 "support_governance_route": "exact_live_bucket_proxy_available",
-            },
-            {
+            }),
+            _row({
                 "heartbeat": "934",
                 "timestamp": "2026-04-23T07:00:00+00:00",
                 "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
@@ -136,8 +224,8 @@ def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_
                 "minimum_support_rows": 50,
                 "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
                 "support_governance_route": "exact_live_bucket_proxy_available",
-            },
-            {
+            }),
+            _row({
                 "heartbeat": "933",
                 "timestamp": "2026-04-23T06:00:00+00:00",
                 "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
@@ -145,8 +233,8 @@ def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_
                 "minimum_support_rows": 50,
                 "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
                 "support_governance_route": "exact_live_bucket_proxy_available",
-            },
-            {
+            }),
+            _row({
                 "heartbeat": "932",
                 "timestamp": "2026-04-23T05:00:00+00:00",
                 "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
@@ -154,8 +242,8 @@ def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_
                 "minimum_support_rows": 50,
                 "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
                 "support_governance_route": "exact_live_bucket_proxy_available",
-            },
-            {
+            }),
+            _row({
                 "heartbeat": "931",
                 "timestamp": "2026-04-23T04:40:00+00:00",
                 "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
@@ -163,8 +251,8 @@ def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_
                 "minimum_support_rows": 50,
                 "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
                 "support_governance_route": "exact_live_bucket_proxy_available",
-            },
-            {
+            }),
+            _row({
                 "heartbeat": "930",
                 "timestamp": "2026-04-23T04:31:17+00:00",
                 "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
@@ -172,7 +260,7 @@ def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_
                 "minimum_support_rows": 50,
                 "support_route_verdict": "exact_bucket_supported",
                 "support_governance_route": "exact_live_bucket_supported",
-            },
+            }),
         ]
 
     monkeypatch.setattr(q15_support_audit, "_load_recent_q15_support_history", fake_history)
@@ -184,10 +272,12 @@ def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_
         live_bucket_rows=0,
         minimum_support_rows=50,
         current_label="fast",
+        support_identity=identity,
         data_dir=tmp_path,
     )
 
     assert progress["status"] == "regressed_under_minimum"
+    assert progress["regression_basis"] == "same_identity_same_semantic_signature"
     assert progress["recent_supported_rows"] == 199
     assert progress["recent_supported_heartbeat"] == "930"
     assert progress["delta_vs_recent_supported"] == -199
@@ -196,6 +286,7 @@ def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_
 
 
 def test_summarize_support_progress_uses_current_live_copy_for_non_q15_bucket(tmp_path):
+    identity = _support_identity(bucket="CAUTION|structure_quality_caution|q35")
     for idx in range(2):
         (tmp_path / f"heartbeat_{910 + idx}_summary.json").write_text(
             json.dumps(
@@ -207,6 +298,7 @@ def test_summarize_support_progress_uses_current_live_copy_for_non_q15_bucket(tm
                             "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
                             "current_live_structure_bucket_rows": 12,
                         },
+                        "support_identity": identity,
                         "support_route": {
                             "verdict": "exact_bucket_present_but_below_minimum",
                             "support_governance_route": "exact_live_bucket_present_but_below_minimum",
@@ -225,6 +317,7 @@ def test_summarize_support_progress_uses_current_live_copy_for_non_q15_bucket(tm
         live_bucket_rows=12,
         minimum_support_rows=50,
         current_label="fast",
+        support_identity=identity,
         data_dir=tmp_path,
     )
 
@@ -235,6 +328,7 @@ def test_summarize_support_progress_uses_current_live_copy_for_non_q15_bucket(tm
 
 
 def test_summarize_support_progress_tracks_bucket_accumulation_across_route_change(tmp_path):
+    identity = _support_identity()
     (tmp_path / "heartbeat_901_summary.json").write_text(
         json.dumps(
             {
@@ -245,6 +339,7 @@ def test_summarize_support_progress_tracks_bucket_accumulation_across_route_chan
                         "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
                         "current_live_structure_bucket_rows": 0,
                     },
+                    "support_identity": identity,
                     "support_route": {
                         "verdict": "exact_bucket_missing_proxy_reference_only",
                         "support_governance_route": "exact_live_bucket_proxy_available",
@@ -263,6 +358,7 @@ def test_summarize_support_progress_tracks_bucket_accumulation_across_route_chan
         live_bucket_rows=4,
         minimum_support_rows=50,
         current_label="902",
+        support_identity=identity,
         data_dir=tmp_path,
     )
 

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import math
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +71,86 @@ def _round(value: float | None, digits: int = 4) -> float | None:
     if value is None:
         return None
     return round(float(value), digits)
+
+
+def _parse_isoish_timestamp(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _probe_current_bucket(probe: dict[str, Any]) -> Any:
+    scope_name = probe.get("decision_quality_calibration_scope") or "regime_label+regime_gate+entry_quality_label"
+    scope_diag = (probe.get("decision_quality_scope_diagnostics") or {}).get(scope_name) or {}
+    exact_scope = (probe.get("decision_quality_scope_diagnostics") or {}).get("regime_label+regime_gate+entry_quality_label") or {}
+    return (
+        scope_diag.get("current_live_structure_bucket")
+        or exact_scope.get("current_live_structure_bucket")
+        or probe.get("current_live_structure_bucket")
+        or probe.get("decision_quality_live_structure_bucket")
+        or probe.get("structure_bucket")
+    )
+
+
+def _support_identity_from_audit(support_audit: dict[str, Any]) -> dict[str, Any] | None:
+    support_route = support_audit.get("support_route") if isinstance(support_audit.get("support_route"), dict) else {}
+    support_progress = support_route.get("support_progress") if isinstance(support_route.get("support_progress"), dict) else {}
+    identity = (
+        support_audit.get("support_identity")
+        or support_route.get("support_identity")
+        or support_progress.get("support_identity")
+    )
+    return identity if isinstance(identity, dict) else None
+
+
+def _artifact_context_freshness(
+    probe: dict[str, Any],
+    support_audit: dict[str, Any],
+    root_cause: dict[str, Any],
+) -> dict[str, Any]:
+    mismatches: list[str] = []
+    probe_bucket = _probe_current_bucket(probe)
+    support_current = support_audit.get("current_live") if isinstance(support_audit.get("current_live"), dict) else {}
+    root_current = root_cause.get("current_live") if isinstance(root_cause.get("current_live"), dict) else {}
+    support_bucket = support_current.get("current_live_structure_bucket") or support_current.get("structure_bucket")
+    root_bucket = root_current.get("structure_bucket") or root_current.get("current_live_structure_bucket")
+    for name, bucket in (("support_audit_bucket", support_bucket), ("root_cause_bucket", root_bucket)):
+        if probe_bucket and bucket and str(probe_bucket) != str(bucket):
+            mismatches.append(name)
+
+    for key in ("regime_label", "regime_gate", "entry_quality_label"):
+        probe_value = probe.get(key)
+        support_value = support_current.get(key)
+        root_value = root_current.get(key)
+        if probe_value is not None and support_value is not None and str(probe_value) != str(support_value):
+            mismatches.append(f"support_audit_{key}")
+        if probe_value is not None and root_value is not None and str(probe_value) != str(root_value):
+            mismatches.append(f"root_cause_{key}")
+
+    probe_ts = _parse_isoish_timestamp(probe.get("feature_timestamp"))
+    for name, raw_ts in (
+        ("support_audit_feature_timestamp", support_current.get("feature_timestamp") or support_audit.get("generated_at")),
+        ("root_cause_generated_at", root_cause.get("generated_at")),
+    ):
+        artifact_ts = _parse_isoish_timestamp(raw_ts)
+        if probe_ts is not None and artifact_ts is not None and abs((probe_ts - artifact_ts).total_seconds()) >= 1:
+            mismatches.append(name)
+
+    return {
+        "verdict": "current_context" if not mismatches else "stale_or_non_current_context",
+        "mismatched_fields": sorted(set(mismatches)),
+        "latest_live_probe_feature_timestamp": probe.get("feature_timestamp"),
+        "probe_current_live_structure_bucket": probe_bucket,
+        "support_audit_current_live_structure_bucket": support_bucket,
+        "root_cause_current_live_structure_bucket": root_bucket,
+        "support_identity": _support_identity_from_audit(support_audit),
+    }
 
 
 def _bucket_swap_q15_to_q35(bucket: str | None) -> str | None:
@@ -127,6 +208,8 @@ def build_report(
     support_route = support_audit.get("support_route") or {}
     floor_legality = support_audit.get("floor_cross_legality") or {}
     exact_lane = root_cause.get("exact_live_lane") or {}
+    support_identity = _support_identity_from_audit(support_audit)
+    artifact_context_freshness = _artifact_context_freshness(probe, support_audit, root_cause)
     probe_components = probe.get("entry_quality_components") or {}
     scope_name = probe.get("decision_quality_calibration_scope") or "regime_label+regime_gate+entry_quality_label"
     scope_diag = (probe.get("decision_quality_scope_diagnostics") or {}).get(scope_name) or {}
@@ -183,7 +266,24 @@ def build_report(
     next_action = "依 q15 root-cause / support audit 的既有 blocker 繼續治理。"
 
     root_verdict = root_cause.get("verdict")
-    if root_verdict == "boundary_sensitivity_candidate":
+    replay_applicable = root_verdict == "boundary_sensitivity_candidate" and artifact_context_freshness.get("verdict") == "current_context"
+    if artifact_context_freshness.get("verdict") == "stale_or_non_current_context":
+        verdict = "stale_or_non_current_context"
+        reason = (
+            "q15 boundary replay 的 probe / support audit / root-cause context 不一致；"
+            "不得沿用舊 q15 boundary counterfactual 作為 current truth。"
+        )
+        verify_next = "先重跑 hb_predict_probe.py、hb_q15_support_audit.py、hb_q15_bucket_root_cause.py，再判斷 boundary replay 是否適用。"
+        next_action = "停止消費 stale boundary replay；以最新 current-live support audit / RCA 為準。"
+    elif root_verdict != "boundary_sensitivity_candidate":
+        verdict = "boundary_replay_not_applicable_for_current_context"
+        reason = (
+            f"q15 root-cause verdict={root_verdict}，不是 boundary_sensitivity_candidate；"
+            "boundary replay 本輪不適用，舊 boundary counterfactual 不可當 current truth。"
+        )
+        verify_next = root_cause.get("verify_next") or "依最新 q15 root-cause verdict 走 support accumulation / semantic rebaseline。"
+        next_action = "維持 boundary replay 為 non-applicable，直到 RCA 重新輸出 boundary_sensitivity_candidate。"
+    elif replay_applicable:
         if replay_scope_rows <= 0:
             verdict = "boundary_replay_has_no_supported_target_bucket"
             reason = "就算把 q15↔q35 邊界向下回放，chosen scope 仍找不到可承接的 current bucket rows；boundary review 無法形成可部署支持。"
@@ -209,9 +309,12 @@ def build_report(
             verify_next = "用 exact-lane replay + runtime guardrail 驗證 rebucket 後的 rows 是否足夠且合法。"
             next_action = "保守保留 boundary replay 為候選，但不得跳過 legality / runtime 驗證。"
 
-    counterfactual_verdict = "counterfactual_unavailable"
-    counterfactual_reason = "缺少 feat_4h_bb_pct_b 當前值或 needed_raw_delta_to_cross_q35，無法做最小反事實。"
-    if bb_pct_b_after is not None and structure_after is not None and entry_after is not None:
+    counterfactual_verdict = "counterfactual_not_evaluated"
+    counterfactual_reason = "boundary replay 不適用於目前 RCA verdict，因此不消費舊 q15 counterfactual。"
+    if replay_applicable:
+        counterfactual_verdict = "counterfactual_unavailable"
+        counterfactual_reason = "缺少 feat_4h_bb_pct_b 當前值或 needed_raw_delta_to_cross_q35，無法做最小反事實。"
+    if replay_applicable and bb_pct_b_after is not None and structure_after is not None and entry_after is not None:
         if entry_after < TRADE_FLOOR and rebucketed_layers == 0:
             counterfactual_verdict = "bucket_proxy_only_not_trade_floor_fix"
             counterfactual_reason = (
@@ -225,28 +328,10 @@ def build_report(
                 "下一輪可升級成 guarded experiment。"
             )
 
-    if (
-        root_verdict == "same_lane_neighbor_bucket_dominates"
-        and counterfactual_verdict == "bucket_proxy_only_not_trade_floor_fix"
-    ):
-        verdict = "same_lane_counterfactual_bucket_proxy_only"
-        reason = (
-            "目前不是 boundary 問題，而是 same-lane q35 鄰近 bucket 已足夠明確；"
-            "最小 feat_4h_bb_pct_b 反事實只會把 current row 重新分桶到 q35，"
-            "但 entry_quality 仍過不了 trade floor，因此它只能當 bucket proxy 證據，不能視為 deployable 修補。"
-        )
-        verify_next = (
-            "保留 feat_4h_bb_pct_b counterfactual 作為 bucket-proxy 證據；"
-            "下一輪改直接檢查 feat_4h_bias50 / base stack 或 support accumulation 是否才是 floor-gap 主因。"
-        )
-        next_action = (
-            "停止把 q15 問題包裝成 boundary review；"
-            "維持 feat_4h_bb_pct_b 為 structure proxy 診斷，主修補焦點轉到 bias50 / exact-support accumulation。"
-        )
-
     carry_forward = [
         "先讀 data/q15_boundary_replay.json，確認 verdict 與 feat_4h_bb_pct_b counterfactual verdict。",
-        "若 verdict=same_lane_counterfactual_bucket_proxy_only，下一輪不得再把 q15 blocker 寫成 boundary review 或 feat_4h_bb_pct_b 單點可部署修補；必須直接檢查 feat_4h_bias50 / support accumulation。",
+        "若 verdict=boundary_replay_not_applicable_for_current_context，下一輪不得再把舊 q15 boundary counterfactual 寫成 current truth；必須直接依 RCA verdict 行動。",
+        "若 verdict=stale_or_non_current_context，先重跑 probe / support audit / RCA，禁止沿用舊 boundary review。",
         "若 verdict=boundary_relabels_into_existing_q35_support，下一輪不得把 q15 boundary review 當成 deployment patch；只能當治理參考。",
         "若 component_counterfactual.verdict=bucket_proxy_only_not_trade_floor_fix，下一輪不得把 feat_4h_bb_pct_b 單獨包裝成 floor-gap 修復；要改查 bias50 / pulse 或 support accumulation。",
         "只有當 boundary replay 與 component counterfactual 同時證明 exact support 合法且 trade floor 跨越時，才允許討論 runtime gate 調整。",
@@ -255,6 +340,8 @@ def build_report(
     return {
         "generated_at": probe.get("feature_timestamp") or current_live.get("generated_at"),
         "target_col": probe.get("target_col") or support_audit.get("target_col") or root_cause.get("target_col"),
+        "support_identity": support_identity,
+        "artifact_context_freshness": artifact_context_freshness,
         "current_live": {
             "signal": probe.get("signal"),
             "regime_label": probe.get("regime_label"),
@@ -313,6 +400,7 @@ def _markdown(report: dict[str, Any]) -> str:
     current = report.get("current_live") or {}
     replay = report.get("boundary_replay") or {}
     counterfactual = report.get("component_counterfactual") or {}
+    freshness = report.get("artifact_context_freshness") or {}
     return "\n".join(
         [
             "# q15 Boundary Replay",
@@ -320,6 +408,8 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- generated_at: **{report.get('generated_at')}**",
             f"- target_col: **{report.get('target_col')}**",
             f"- verdict: **{report.get('verdict')}**",
+            f"- artifact_context_freshness: **{freshness.get('verdict')}** (`{freshness.get('mismatched_fields')}`)",
+            f"- support_identity: `{report.get('support_identity')}`",
             f"- reason: {report.get('reason')}",
             "",
             "## Current live row",

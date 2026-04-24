@@ -330,6 +330,12 @@ def _support_truth_context(
             context["support_route_verdict"] = support_route.get("verdict")
         if support_route.get("support_governance_route") is not None:
             context["support_governance_route"] = support_route.get("support_governance_route")
+        if support_progress.get("status") is not None:
+            context["support_progress_status"] = support_progress.get("status")
+        if support_progress.get("regression_basis") is not None:
+            context["support_progress_regression_basis"] = support_progress.get("regression_basis")
+        if support_progress.get("legacy_supported_reference") is not None:
+            context["legacy_supported_reference"] = support_progress.get("legacy_supported_reference")
         context["source"] = "q15_support_audit"
 
     if context.get("gap_to_minimum") in (None, ""):
@@ -388,6 +394,31 @@ def _support_goal_success_line(
     return (
         f"- probe / drilldown / `/api/status` / `/execution/status` / `/lab` / docs 全都承認 "
         f"{support_scope_label} exact support 未達 minimum rows，recommended patch 只能作治理 / 訓練參考。"
+    )
+
+
+def _format_legacy_supported_reference(reference: Any) -> str:
+    if not isinstance(reference, dict) or not reference:
+        return "—"
+    rows = reference.get("live_current_structure_bucket_rows")
+    minimum = reference.get("minimum_support_rows")
+    heartbeat = reference.get("heartbeat") or reference.get("timestamp") or "unknown"
+    if rows is None and minimum is None:
+        return str(heartbeat)
+    return f"{rows if rows is not None else '—'}/{minimum if minimum is not None else '—'}@{heartbeat}"
+
+
+def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
+    support_context = support_context or {}
+    status = support_context.get("support_progress_status")
+    regression_basis = support_context.get("support_progress_regression_basis")
+    legacy_ref = support_context.get("legacy_supported_reference")
+    if status in (None, "") and regression_basis in (None, "") and not legacy_ref:
+        return ""
+    return (
+        f"support progress：`status={status or '—'}` / "
+        f"`regression_basis={regression_basis or '—'}` / "
+        f"`legacy_supported_reference={_format_legacy_supported_reference(legacy_ref)}`"
     )
 
 
@@ -611,6 +642,8 @@ def _issue_current_lines(
     support_gap = support_context.get("gap_to_minimum", "—")
     support_route_verdict = support_context.get("support_route_verdict") or "—"
     support_governance_route = support_context.get("support_governance_route") or "—"
+    support_progress_line = _support_progress_docs_line(support_context)
+    support_progress_lines = [support_progress_line] if support_progress_line else []
     support_aware_profile = (
         leaderboard_candidate_diagnostics.get("support_aware_production_profile")
         or leaderboard_candidate_diagnostics.get("train_selected_profile")
@@ -634,6 +667,7 @@ def _issue_current_lines(
                 f"`support={support_current_rows}/{support_minimum_rows}` / "
                 f"`support_route_verdict={support_route_verdict}` / "
                 f"`support_governance_route={support_governance_route}`",
+                *support_progress_lines,
             ]
         summary = issue.get("summary") if isinstance(issue.get("summary"), dict) else {}
         patch_context = _patch_truth_doc_context(
@@ -656,6 +690,7 @@ def _issue_current_lines(
             f"`recommended_patch={patch_context['profile']}` / "
             f"`recommended_patch_status={patch_context['status']}` / "
             f"`reference_scope={patch_context['reference_scope']}`",
+            *support_progress_lines,
         ]
 
     if issue_id == "P0_recent_distribution_pathology":
@@ -780,6 +815,7 @@ def _issue_current_lines(
             f"`support_route_verdict={support_route_verdict}` / "
             f"`governance_route={support_governance_route}` / "
             f"`breaker_context={breaker_context}`",
+            *support_progress_lines,
         ]
 
     if issue_id == "P1_bull_caution_spillover_patch_reference_only":
@@ -797,6 +833,7 @@ def _issue_current_lines(
             f"`gap={summary_gap}` / "
             f"`support_route_verdict={summary_verdict}` / "
             f"`governance_route={summary_governance}`",
+            *support_progress_lines,
         ]
 
     if issue_id == "P1_q35_scaling_no_deploy":
@@ -937,6 +974,8 @@ def overwrite_current_state_docs(
         live_predictor_diagnostics.get("current_live_structure_bucket_gap_to_minimum", "—"),
     )
     support_route_verdict = support_context.get("support_route_verdict") or "—"
+    support_progress_line = _support_progress_docs_line(support_context)
+    support_progress_doc_lines = [support_progress_line] if support_progress_line else []
 
     counts_line = (
         f"`Raw={counts.get('raw_market_data', '—')} / "
@@ -1164,6 +1203,7 @@ def overwrite_current_state_docs(
         facts_blocker_heading,
         f"  - {blocker_line}",
         f"  - {support_line}",
+        *[f"  - {line}" for line in support_progress_doc_lines],
         "- **recent canonical diagnostics 已刷新**",
         f"  - {pathology_line}",
         *([f"  - {blocking_pathology_line}"] if blocking_pathology_line else []),
@@ -1251,6 +1291,7 @@ def overwrite_current_state_docs(
         "**目前真相**",
         f"- {blocker_line}",
         f"- {support_line}",
+        *support_progress_doc_lines,
         "**成功標準**",
         goal_a_success,
         f"- {support_scope_label} truth (`bucket / rows / minimum / gap / support route`) 仍在 top-level surfaces 可 machine-read。",
@@ -1265,6 +1306,7 @@ def overwrite_current_state_docs(
         goal_c_title,
         "**目前真相**",
         f"- {support_line}",
+        *support_progress_doc_lines,
         f"- {patch_context['docs_line']}",
         *([f"- {q35_scaling_doc_line}"] if q35_scaling_doc_line else []),
         "**成功標準**",
@@ -1327,6 +1369,7 @@ def overwrite_current_state_docs(
         f"- collect + diagnostics refresh 完成：{counts_line}；歷史覆蓋確認：{history_line}；`simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`。",
         f"- current-live blocker：{blocker_line}。",
         f"- {support_scope_label} truth：{support_line}。",
+        *[f"- {line}。" for line in support_progress_doc_lines],
         f"- latest recent-window diagnostics：{pathology_line}。",
         *([f"- current blocking pathological pocket：{blocking_pathology_line}。"] if blocking_pathology_line else []),
         f"- leaderboard / governance：{leaderboard_line}。",
@@ -1758,9 +1801,16 @@ def _leaderboard_candidate_cache_hit() -> Dict[str, Any] | None:
     cache_reason = "fresh_leaderboard_candidate_artifact_reused"
     refresh_applied = False
 
-    def _attempt_refresh() -> None:
+    def _attempt_refresh(*, allow_rebuild: bool = False) -> None:
         nonlocal payload, artifact_signature, cache_reason, refresh_applied
-        refreshed_payload = _refresh_leaderboard_candidate_alignment_snapshot(artifact_path)
+        try:
+            refreshed_payload = _refresh_leaderboard_candidate_alignment_snapshot(
+                artifact_path,
+                allow_rebuild=allow_rebuild,
+            )
+        except TypeError:
+            # Some tests monkeypatch the older one-argument helper shape.
+            refreshed_payload = _refresh_leaderboard_candidate_alignment_snapshot(artifact_path)
         if refreshed_payload:
             payload = refreshed_payload
             artifact_signature = _leaderboard_candidate_semantic_signature(payload)

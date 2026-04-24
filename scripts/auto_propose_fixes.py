@@ -508,6 +508,21 @@ def sync_current_state_governance_issues(
     support_progress_status = support_progress.get("status") or (
         "stalled_under_minimum" if int(current_rows or 0) <= 0 else "present_but_below_minimum"
     )
+    support_regression_basis = support_progress.get("regression_basis")
+    support_identity = support_progress.get("support_identity")
+    legacy_supported_reference = support_progress.get("legacy_supported_reference")
+    same_identity_regression = (
+        support_progress_status == "regressed_under_minimum"
+        and support_regression_basis == "same_identity_same_semantic_signature"
+    )
+    semantic_rebaseline_under_minimum = (
+        support_progress_status == "semantic_rebaseline_under_minimum"
+        or (
+            support_progress_status == "regressed_under_minimum"
+            and support_regression_basis
+            and support_regression_basis != "same_identity_same_semantic_signature"
+        )
+    )
     breaker_context = "circuit_breaker_active" if circuit_breaker_active else "breaker_clear"
     support_context_phrase = "while breaker is active" if circuit_breaker_active else "while breaker is clear"
     support_issue_title = f"q15 exact support remains under minimum {support_context_phrase} ({current_rows}/{minimum_rows})"
@@ -515,13 +530,21 @@ def sync_current_state_governance_issues(
         support_issue_action = "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible in probe/API/UI/docs even when circuit_breaker_active is the primary blocker."
     else:
         support_issue_action = "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible as the current-live deployment blocker; do not describe this breaker-clear state as under-breaker governance."
-    if support_progress_status == "regressed_under_minimum":
+    if same_identity_regression:
         support_state = "exact support regressed back under minimum"
         support_issue_title = f"q15 exact support regressed under minimum {support_context_phrase} ({current_rows}/{minimum_rows})"
         support_issue_action = (
             "Treat this as support regression, not ordinary stagnation: keep support_route_verdict/support_progress/"
             "minimum_support_rows/gap_to_minimum plus the last-supported reference visible in probe/API/UI/docs, "
             "verify why the current bucket fell back under minimum, and keep breaker context explicit."
+        )
+    elif semantic_rebaseline_under_minimum:
+        support_state = "semantic rebaseline / current exact support under minimum"
+        support_issue_title = f"q15 exact support under minimum after semantic rebaseline {support_context_phrase} ({current_rows}/{minimum_rows})"
+        support_issue_action = (
+            "Treat legacy supported rows as reference-only: keep support_identity/regression_basis/legacy_supported_reference "
+            "visible in probe/API/UI/docs, keep the current-live exact-support blocker open, and do not describe this as "
+            "same-identity support regression unless the semantic signature matches."
         )
     elif int(current_rows or 0) <= 0:
         support_state = "exact support is missing"
@@ -552,6 +575,9 @@ def sync_current_state_governance_issues(
                 "support_route_verdict": support_route_verdict,
                 "support_governance_route": support_governance_route,
                 "support_progress_status": support_progress_status,
+                "support_regression_basis": support_regression_basis,
+                "support_identity": support_identity,
+                "legacy_supported_reference": legacy_supported_reference,
                 "breaker_context": breaker_context,
                 "circuit_breaker_active": bool(circuit_breaker_active),
                 "previous_rows": support_progress.get("previous_rows"),
@@ -950,6 +976,32 @@ def summarize_recent_drift_window(primary):
     summary = primary.get("summary") or {}
     if not primary:
         return "drift_report=missing"
+    compact = summary.get("compact_summary") if isinstance(summary.get("compact_summary"), dict) else {}
+    if compact:
+        window = primary.get("window") or compact.get("window")
+        alerts = compact.get("alerts") or primary.get("alerts") or []
+        severity = compact.get("severity") or "unknown"
+        interpretation = compact.get("interpretation") or summary.get("drift_interpretation") or "unknown"
+        win_rate = compact.get("win_rate")
+        avg_pnl = compact.get("avg_pnl")
+        avg_quality = compact.get("avg_quality")
+        dominant_regime = compact.get("dominant_regime") or summary.get("dominant_regime") or "unknown"
+        dominant_share = compact.get("dominant_regime_share")
+        share_text = f"{dominant_share:.2%}" if isinstance(dominant_share, (int, float)) else "n/a"
+        win_text = f"{win_rate:.4f}" if isinstance(win_rate, (int, float)) else "n/a"
+        pnl_text = f"{avg_pnl:+.4f}" if isinstance(avg_pnl, (int, float)) else "n/a"
+        quality_text = f"{avg_quality:+.4f}" if isinstance(avg_quality, (int, float)) else "n/a"
+        tail_text = _format_streak_fragment("tail_streak", compact.get("tail_streak"))
+        adverse_text = _format_streak_fragment("adverse_streak", compact.get("adverse_streak"), default_target=0)
+        top_shift = compact.get("top_shift_features") or []
+        top_shift_text = "/".join(str(feature) for feature in top_shift[:5]) if top_shift else "none"
+        note = compact.get("actionable_summary") or "see recent_drift_report artifact"
+        return (
+            f"recent_window={window}, severity={severity}, alerts={alerts}, win_rate={win_text}, "
+            f"dominant_regime={dominant_regime}({share_text}), interpretation={interpretation}, "
+            f"avg_pnl={pnl_text}, avg_quality={quality_text}, {tail_text}, {adverse_text}, "
+            f"top_shift={top_shift_text}, note={note}"
+        )
     window = primary.get("window")
     alerts = primary.get("alerts") or []
     dominant_regime = summary.get("dominant_regime") or "unknown"

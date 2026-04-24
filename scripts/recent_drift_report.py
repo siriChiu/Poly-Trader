@@ -865,6 +865,78 @@ def _reference_window_comparison(
     }
 
 
+def _compact_window_summary(
+    *,
+    window_rows: int,
+    alerts: list[str],
+    interpretation: str,
+    win_rate: float | None,
+    dominant_regime: str | None,
+    dominant_share: float | None,
+    quality_metrics: dict[str, Any],
+    target_path_diagnostics: dict[str, Any],
+    reference_comparison: dict[str, Any],
+) -> dict[str, Any]:
+    avg_pnl = _safe_float(quality_metrics.get("avg_simulated_pnl"))
+    avg_quality = _safe_float(quality_metrics.get("avg_simulated_quality"))
+    avg_dd_penalty = _safe_float(quality_metrics.get("avg_drawdown_penalty"))
+    tail_streak = target_path_diagnostics.get("tail_target_streak") or {}
+    adverse_streak = _select_adverse_target_streak(target_path_diagnostics)
+    adverse_count = int(adverse_streak.get("count") or 0)
+    positive_quality = bool(
+        isinstance(win_rate, (int, float))
+        and win_rate >= 0.5
+        and isinstance(avg_quality, float)
+        and avg_quality > 0
+        and (avg_pnl is None or avg_pnl >= 0)
+    )
+
+    if positive_quality and any(alert in alerts for alert in ("label_imbalance", "constant_target", "regime_concentration")):
+        severity = "medium"
+        action_summary = "distribution concentration with adverse tail risk; canonical quality remains positive"
+    elif "constant_target" in alerts or adverse_count >= 20 or (avg_quality is not None and avg_quality <= 0) or (avg_pnl is not None and avg_pnl < 0):
+        severity = "high"
+        action_summary = "negative distribution pathology requires current-window validation"
+    elif alerts:
+        severity = "medium"
+        action_summary = "distribution concentration needs monitoring"
+    else:
+        severity = "low"
+        action_summary = "no actionable recent distribution pathology"
+
+    top_shift = [
+        row.get("feature")
+        for row in (reference_comparison.get("top_mean_shift_features") or [])[:5]
+        if row.get("feature")
+    ]
+    return {
+        "window": window_rows,
+        "alerts": list(alerts),
+        "severity": severity,
+        "interpretation": interpretation,
+        "win_rate": _round(win_rate),
+        "avg_quality": _round(avg_quality),
+        "avg_pnl": _round(avg_pnl),
+        "avg_drawdown_penalty": _round(avg_dd_penalty),
+        "dominant_regime": dominant_regime,
+        "dominant_regime_share": _round(dominant_share),
+        "tail_streak": {
+            "target": tail_streak.get("target"),
+            "count": int(tail_streak.get("count") or 0),
+            "start_timestamp": tail_streak.get("start_timestamp"),
+            "end_timestamp": tail_streak.get("end_timestamp"),
+        },
+        "adverse_streak": {
+            "target": adverse_streak.get("target"),
+            "count": adverse_count,
+            "start_timestamp": adverse_streak.get("start_timestamp"),
+            "end_timestamp": adverse_streak.get("end_timestamp"),
+        },
+        "top_shift_features": top_shift,
+        "actionable_summary": action_summary,
+    }
+
+
 def _window_summary(
     rows: list[sqlite3.Row],
     baseline_win_rate: float,
@@ -912,6 +984,17 @@ def _window_summary(
     reference_comparison = {}
     if reference_rows:
         reference_comparison = _reference_window_comparison(rows, reference_rows, feature_cols, baseline_feature_stats)
+    compact_summary = _compact_window_summary(
+        window_rows=total,
+        alerts=alerts,
+        interpretation=interpretation,
+        win_rate=_round(win_rate),
+        dominant_regime=dominant_regime,
+        dominant_share=_round(dominant_share),
+        quality_metrics=quality_metrics,
+        target_path_diagnostics=target_path_diagnostics,
+        reference_comparison=reference_comparison,
+    )
 
     return {
         "rows": total,
@@ -930,6 +1013,7 @@ def _window_summary(
         "feature_diagnostics": feature_diagnostics,
         "target_path_diagnostics": target_path_diagnostics,
         "reference_window_comparison": reference_comparison,
+        "compact_summary": compact_summary,
         "drift_interpretation": interpretation,
         "alerts": alerts,
     }

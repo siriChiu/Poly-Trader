@@ -315,6 +315,58 @@ def test_summarize_recent_drift_formats_primary_window():
     assert "overlay_only_examples=feat_claw[research_sparse_source]" in summary
 
 
+def test_summarize_recent_drift_window_prefers_compact_summary_without_long_telemetry():
+    summary = auto_propose_fixes.summarize_recent_drift_window(
+        {
+            "window": "100",
+            "alerts": ["label_imbalance", "regime_concentration"],
+            "summary": {
+                "compact_summary": {
+                    "window": 100,
+                    "alerts": ["label_imbalance", "regime_concentration"],
+                    "severity": "medium",
+                    "interpretation": "distribution_pathology",
+                    "win_rate": 0.81,
+                    "avg_quality": 0.3429,
+                    "avg_pnl": 0.0046,
+                    "dominant_regime": "bull",
+                    "dominant_regime_share": 1.0,
+                    "tail_streak": {
+                        "target": 0,
+                        "count": 19,
+                        "start_timestamp": "2026-04-23 12:00:00",
+                        "end_timestamp": "2026-04-24 06:00:00",
+                    },
+                    "adverse_streak": {
+                        "target": 0,
+                        "count": 19,
+                        "start_timestamp": "2026-04-23 12:00:00",
+                        "end_timestamp": "2026-04-24 06:00:00",
+                    },
+                    "top_shift_features": ["feat_bb_pct_b", "feat_4h_dist_bb_lower", "feat_eye"],
+                    "actionable_summary": "distribution concentration with adverse tail risk; canonical quality remains positive",
+                },
+                "feature_diagnostics": {
+                    "frozen_examples": [{"feature": "feat_eye"}],
+                },
+                "target_path_diagnostics": {
+                    "recent_examples": [{"timestamp": "2026-04-24 06:00:00", "target": 0}],
+                },
+            },
+        }
+    )
+
+    assert "recent_window=100" in summary
+    assert "severity=medium" in summary
+    assert "win_rate=0.8100" in summary
+    assert "dominant_regime=bull(100.00%)" in summary
+    assert "tail_streak=19x0 since 2026-04-23 12:00:00 -> 2026-04-24 06:00:00" in summary
+    assert "top_shift=feat_bb_pct_b/feat_4h_dist_bb_lower/feat_eye" in summary
+    assert "distribution concentration with adverse tail risk" in summary
+    assert "feature_diag=" not in summary
+    assert "recent_examples=" not in summary
+
+
 def test_summarize_recent_drift_prefers_blocking_window_but_keeps_latest_context():
     summary = auto_propose_fixes.summarize_recent_drift(
         {
@@ -2278,6 +2330,17 @@ def test_sync_current_state_governance_issues_marks_persistent_q15_support_regre
                     "live_current_structure_bucket_rows": 0,
                     "support_progress": {
                         "status": "regressed_under_minimum",
+                        "regression_basis": "same_identity_same_semantic_signature",
+                        "support_identity": {
+                            "target_col": "simulated_pyramid_win",
+                            "horizon_minutes": 1440,
+                            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                            "regime_label": "bull",
+                            "regime_gate": "BLOCK",
+                            "entry_quality_label": "D",
+                            "calibration_window": 600,
+                            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+                        },
                         "current_rows": 0,
                         "minimum_support_rows": 50,
                         "gap_to_minimum": 50,
@@ -2338,9 +2401,95 @@ def test_sync_current_state_governance_issues_marks_persistent_q15_support_regre
     assert q15_issue["summary"]["breaker_context"] == "breaker_clear"
     assert q15_issue["summary"]["circuit_breaker_active"] is False
     assert q15_issue["summary"]["support_progress_status"] == "regressed_under_minimum"
+    assert q15_issue["summary"]["support_regression_basis"] == "same_identity_same_semantic_signature"
+    assert q15_issue["summary"]["support_identity"]["regime_gate"] == "BLOCK"
     assert q15_issue["summary"]["recent_supported_rows"] == 199
     assert q15_issue["summary"]["delta_vs_recent_supported"] == -199
     assert "breaker context" in q15_issue["action"]
+
+
+def test_sync_current_state_governance_issues_uses_semantic_rebaseline_title_for_legacy_support_reference():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue.update({"priority": priority, "title": title, "action": action, "status": status})
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    identity = {
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "regime_label": "bull",
+        "regime_gate": "BLOCK",
+        "entry_quality_label": "D",
+        "calibration_window": 600,
+        "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+    }
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "governance_contract": {
+                    "verdict": "dual_role_governance_active",
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 10,
+                    "support_progress": {
+                        "status": "semantic_rebaseline_under_minimum",
+                        "regression_basis": "legacy_or_different_semantic_signature",
+                        "support_identity": identity,
+                        "current_rows": 10,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 40,
+                        "legacy_supported_reference": {
+                            "heartbeat": "20260423i",
+                            "live_current_structure_bucket_rows": 199,
+                            "reference_only_reason": "missing_or_different_support_identity_or_bucket_semantic_signature",
+                        },
+                    },
+                }
+            }
+        },
+        {
+            "signal": "HOLD",
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "runtime_closure_state": "patch_inactive_or_blocked",
+            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "current_live_structure_bucket_rows": 10,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "allowed_layers_reason": "under_minimum_exact_live_structure_bucket",
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    q15_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q15_exact_support_stalled_under_breaker")
+    assert "semantic rebaseline" in q15_issue["title"]
+    assert "regressed" not in q15_issue["title"]
+    assert q15_issue["summary"]["support_regression_basis"] == "legacy_or_different_semantic_signature"
+    assert q15_issue["summary"]["legacy_supported_reference"]["live_current_structure_bucket_rows"] == 199
+    assert "same-identity" in q15_issue["action"]
 
 
 
