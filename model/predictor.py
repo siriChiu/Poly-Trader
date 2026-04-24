@@ -927,18 +927,26 @@ def _load_json_artifact(path: Path) -> Dict[str, Any]:
 
 def _load_recent_pathology_from_drift_report() -> Dict[str, Any]:
     report = _load_json_artifact(RECENT_DRIFT_REPORT_PATH)
-    primary = report.get("primary_window") or {}
-    alerts = [str(alert) for alert in (primary.get("alerts") or []) if str(alert).strip()]
-    raw_summary = primary.get("summary") or {}
+
+    def _select_window() -> tuple[str, Dict[str, Any]]:
+        blocking = report.get("blocking_window") or {}
+        if isinstance(blocking, dict) and isinstance(blocking.get("summary"), dict) and blocking.get("window"):
+            return "blocking", blocking
+        primary = report.get("primary_window") or {}
+        return "primary", primary if isinstance(primary, dict) else {}
+
+    window_source, selected = _select_window()
+    alerts = [str(alert) for alert in (selected.get("alerts") or []) if str(alert).strip()]
+    raw_summary = selected.get("summary") or {}
     if not isinstance(raw_summary, dict):
         raw_summary = {}
     try:
-        window = int(primary.get("window") or 0)
+        window = int(selected.get("window") or 0)
     except Exception:
         window = 0
     interpretation = (
         raw_summary.get("drift_interpretation")
-        or primary.get("interpretation")
+        or selected.get("interpretation")
         or report.get("interpretation")
     )
     applied = bool(alerts or interpretation)
@@ -952,6 +960,7 @@ def _load_recent_pathology_from_drift_report() -> Dict[str, Any]:
     dominant_regime = raw_summary.get("dominant_regime")
     dominant_regime_share = raw_summary.get("dominant_regime_share")
     summary = {
+        "source_window": window_source,
         "rows": raw_summary.get("rows"),
         "wins": raw_summary.get("wins"),
         "losses": raw_summary.get("losses"),
@@ -959,6 +968,7 @@ def _load_recent_pathology_from_drift_report() -> Dict[str, Any]:
         "drift_interpretation": interpretation,
         "dominant_regime": dominant_regime,
         "dominant_regime_share": dominant_regime_share,
+        "spot_long_win_rate": quality_metrics.get("spot_long_win_rate"),
         "avg_pnl": quality_metrics.get("avg_simulated_pnl"),
         "avg_quality": quality_metrics.get("avg_simulated_quality"),
         "avg_drawdown_penalty": quality_metrics.get("avg_drawdown_penalty"),
@@ -972,9 +982,9 @@ def _load_recent_pathology_from_drift_report() -> Dict[str, Any]:
     }
     reason_bits = []
     if window:
-        reason_bits.append(f"recent drift primary window {window} rows")
+        reason_bits.append(f"recent drift {window_source} window {window} rows")
     else:
-        reason_bits.append("recent drift primary window")
+        reason_bits.append(f"recent drift {window_source} window")
     if interpretation:
         reason_bits.append(f"shows {interpretation}")
     if dominant_regime:
@@ -985,6 +995,9 @@ def _load_recent_pathology_from_drift_report() -> Dict[str, Any]:
         except Exception:
             share_text = ""
         reason_bits.append(f"dominant_regime={dominant_regime}{share_text}")
+    spot_long_win = quality_metrics.get("spot_long_win_rate")
+    if spot_long_win is not None:
+        reason_bits.append(f"spot_long_win_rate={spot_long_win}")
     if alerts:
         reason_bits.append(f"alerts={alerts}")
     return {

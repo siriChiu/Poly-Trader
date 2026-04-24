@@ -714,6 +714,7 @@ def test_main_resolves_tw_drift_and_streak_when_current_run_recovers(monkeypatch
             },
         }
     })
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {})
     monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.703, "cv_accuracy": 0.722})
     monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: DummyTracker())}))
 
@@ -809,6 +810,7 @@ def test_main_promotes_recent_distribution_pathology_even_when_tw_ic_recovers(mo
             },
         }
     })
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {})
     monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.703, "cv_accuracy": 0.722})
     monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: DummyTracker())}))
 
@@ -910,7 +912,9 @@ def test_main_recent_distribution_pathology_issue_carries_machine_readable_summa
             },
         }
     })
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {})
     monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.703, "cv_accuracy": 0.722})
+
     monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: tracker)}))
 
     auto_propose_fixes.main()
@@ -926,10 +930,16 @@ def test_main_recent_distribution_pathology_issue_carries_machine_readable_summa
         "avg_pnl": -0.0070,
         "avg_quality": -0.2188,
         "avg_drawdown_penalty": 0.2706,
+        "spot_long_win_rate": 0.0,
+        "avg_time_underwater": None,
         "alerts": ["label_imbalance", "regime_concentration", "regime_shift"],
         "top_shift_features": ["feat_4h_bb_pct_b", "feat_4h_bias20", "feat_4h_rsi14"],
         "new_compressed_feature": "feat_atr_pct",
         "tail_streak": "1x1",
+        "adverse_streak": "0x0",
+        "live_regime_label": None,
+        "current_live_scope": True,
+        "blocking_basis": ["avg_pnl<=0", "avg_quality<=0", "spot_long_win_rate<=0.20"],
     }
 
 
@@ -1030,6 +1040,7 @@ def test_main_recent_distribution_pathology_uses_blocking_window_when_primary_is
             },
         },
     })
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {})
     monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.62, "cv_accuracy": 0.608})
     monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: tracker)}))
 
@@ -1047,11 +1058,109 @@ def test_main_recent_distribution_pathology_uses_blocking_window_when_primary_is
         "avg_pnl": -0.0015,
         "avg_quality": -0.0335,
         "avg_drawdown_penalty": 0.2771,
+        "spot_long_win_rate": 0.14,
+        "avg_time_underwater": None,
         "alerts": ["regime_shift"],
         "top_shift_features": ["feat_4h_bias20", "feat_4h_rsi14", "feat_4h_bias50"],
         "new_compressed_feature": "feat_atr_pct",
         "tail_streak": "100x1",
+        "adverse_streak": "0x0",
+        "live_regime_label": None,
+        "current_live_scope": True,
+        "blocking_basis": ["avg_pnl<=0", "avg_quality<=0", "spot_long_win_rate<=0.20"],
     }
+
+
+def test_main_demotes_recent_pathology_to_p1_when_current_live_scope_is_outside_blocker(monkeypatch, capsys):
+    class DummyTracker:
+        def __init__(self):
+            self.issues = [
+                {
+                    "id": "P0_recent_distribution_pathology",
+                    "priority": "P0",
+                    "title": "old recent blocker",
+                    "action": "old action",
+                    "status": "open",
+                }
+            ]
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue.update({"priority": priority, "title": title, "action": action, "status": status})
+                    return
+            self.issues.append({"id": issue_id, "priority": priority, "title": title, "action": action, "status": status})
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+        def save(self):
+            return None
+
+        def by_priority(self, priority):
+            return [issue for issue in self.issues if issue["priority"] == priority and issue["status"] == "open"]
+
+    tracker = DummyTracker()
+    monkeypatch.setattr(auto_propose_fixes, "check_db", lambda: {"simulated_win_avg": 0.5725, "losing_streak": 0, "raw_latest_age_min": 1.0})
+    monkeypatch.setattr(auto_propose_fixes, "load_full_ic_data", lambda: {"global_pass": 13, "tw_pass": 30, "total_features": 30})
+    monkeypatch.setattr(auto_propose_fixes, "check_ic", lambda ic_data, full_ic_data=None: {
+        "global_pass": 13, "tw_pass": 13, "total_core": 15, "total_features": 30, "no_data": [], "low_data": [], "best_ic": ("feat_vix", 0.2), "worst_ic": ("feat_ear", 0.01),
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_tw_history", lambda limit=3, current_entry=None: [{"heartbeat": "1025", "tw_pass": 13, "total_features": 30}])
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {
+        "signal": "HOLD",
+        "regime_label": "chop",
+        "decision_quality_recent_pathology_applied": False,
+        "deployment_blocker": "decision_quality_below_trade_floor",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "current_live_structure_bucket_rows": 123,
+        "minimum_support_rows": 50,
+        "support_route_verdict": "exact_bucket_supported",
+        "support_route_deployable": True,
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_drift_report", lambda: {
+        "primary_window": {
+            "window": "100",
+            "alerts": ["regime_concentration"],
+            "summary": {
+                "win_rate": 0.79,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 1.0,
+                "drift_interpretation": "regime_concentration",
+                "quality_metrics": {"avg_simulated_pnl": 0.0041, "avg_simulated_quality": 0.3403, "spot_long_win_rate": 0.0},
+            },
+        },
+        "blocking_window": {
+            "window": "500",
+            "alerts": ["regime_concentration", "regime_shift"],
+            "summary": {
+                "win_rate": 0.54,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.994,
+                "drift_interpretation": "regime_concentration",
+                "quality_metrics": {"avg_simulated_pnl": 0.0005, "avg_simulated_quality": 0.116, "spot_long_win_rate": 0.0, "avg_time_underwater": 0.7251},
+                "target_path_diagnostics": {"tail_target_streak": {"count": 3, "target": 1}},
+            },
+        },
+    })
+    monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.62, "cv_accuracy": 0.608, "cv_std": 0.05, "cv_worst": 0.66})
+    monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: tracker)}))
+
+    auto_propose_fixes.main()
+    _ = capsys.readouterr().out
+
+    p0_recent = next(issue for issue in tracker.issues if issue["id"] == "P0_recent_distribution_pathology")
+    p1_recent = next(issue for issue in tracker.issues if issue["id"] == "P1_recent_distribution_pathology_monitoring")
+    assert p0_recent["status"] == "resolved"
+    assert p1_recent["priority"] == "P1"
+    assert p1_recent["status"] == "open"
+    assert p1_recent["summary"]["current_live_scope"] is False
+    assert p1_recent["summary"]["live_regime_label"] == "chop"
+    assert p1_recent["summary"]["dominant_regime"] == "bull"
+    assert p1_recent["summary"]["spot_long_win_rate"] == 0.0
 
 
 def test_main_escalates_tw_drift_on_consecutive_low_history(monkeypatch, capsys):
@@ -2741,6 +2850,75 @@ def test_sync_current_state_governance_issues_replaces_breaker_p0_when_exact_sup
 
     auto_breaker = next((issue for issue in tracker.issues if issue["id"] == "#H_AUTO_CIRCUIT_BREAKER"), None)
     assert auto_breaker is None or auto_breaker["status"] == "resolved"
+
+
+def test_sync_current_state_governance_demotes_exact_supported_trade_floor_hold_to_p1():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = [
+                {
+                    "id": auto_propose_fixes.CURRENT_LIVE_BLOCKER_ISSUE_ID,
+                    "priority": "P0",
+                    "title": "current-live deployment blocker is decision_quality_below_trade_floor",
+                    "action": "old P0 action",
+                    "status": "open",
+                }
+            ]
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append({"id": issue_id, "priority": priority, "title": title, "action": action, "status": status})
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {"alignment": {"current_alignment_inputs_stale": False, "governance_contract": {"treat_as_parity_blocker": False}}},
+        {
+            "signal": "HOLD",
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "runtime_closure_state": "support_closed_but_trade_floor_blocked",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 123,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_route_deployable": True,
+            "support_governance_route": "exact_live_bucket_supported",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "entry_quality": 0.3874,
+            "decision_quality_label": "C",
+            "deployment_blocker_details": {
+                "entry_quality": 0.3874,
+                "trade_floor": 0.55,
+                "trade_floor_gap": -0.1626,
+                "decision_quality_label": "C",
+                "support_route_deployable": True,
+                "support_route_verdict": "exact_bucket_supported",
+            },
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    current = next(issue for issue in tracker.issues if issue["id"] == auto_propose_fixes.CURRENT_LIVE_BLOCKER_ISSUE_ID)
+    monitor = next(issue for issue in tracker.issues if issue["id"] == "P1_current_live_trade_floor_no_deploy")
+    assert current["status"] == "resolved"
+    assert monitor["priority"] == "P1"
+    assert monitor["status"] == "open"
+    assert monitor["summary"]["deployment_blocker"] == "decision_quality_below_trade_floor"
+    assert monitor["summary"]["gap_to_minimum"] == 0
+    assert monitor["summary"]["allowed_layers"] == 0
 
 
 

@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-24 17:09:12.758589**
+- generated_at: **2026-04-24 18:01:36.281423**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -36,7 +36,7 @@
 - support_progress.current_rows / minimum: **123 / 50**
 - support_progress.previous_rows: **123**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **3**
+- support_progress.stagnant_run_count: **5**
 - support_progress.escalate_to_blocker: **False**
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q15', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `{'heartbeat': '20260424a', 'timestamp': '2026-04-23T17:42:41.117933+00:00', 'live_current_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q15', 'live_current_structure_bucket_rows': 121, 'minimum_support_rows': 50, 'support_route_verdict': 'exact_bucket_supported', 'support_governance_route': 'exact_live_bucket_supported', 'support_identity': None, 'reference_only_reason': 'missing_or_different_support_identity_or_bucket_semantic_signature'}`
@@ -45,9 +45,9 @@
 ## Floor-cross legality
 - verdict: **legal_component_experiment_after_support_ready**
 - legal_to_relax_runtime_gate: **True**
-- remaining_gap_to_floor: **0.1626**
+- remaining_gap_to_floor: **0.15**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.542**
+- best_single_component_required_score_delta: **0.5**
 - best_single_component_can_cross_floor: **True**
 - reason: 若 exact q15 support 已達標，則 feat_4h_bias50 可作為下一輪優先 component experiment；但仍需通過 runtime guardrail 與回歸驗證。
 

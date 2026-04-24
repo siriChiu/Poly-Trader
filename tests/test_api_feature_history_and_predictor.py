@@ -254,6 +254,70 @@ def test_circuit_breaker_surfaces_recent_pathology_from_drift_report(tmp_path, m
     assert result["decision_quality_recent_pathology_summary"]["longest_one_target_streak"] == 259
 
 
+def test_circuit_breaker_prefers_blocking_recent_pathology_window_over_primary_window(tmp_path, monkeypatch):
+    drift_path = tmp_path / "recent_drift_report.json"
+    drift_path.write_text(
+        json.dumps(
+            {
+                "primary_window": {
+                    "window": "100",
+                    "alerts": ["regime_concentration"],
+                    "summary": {
+                        "rows": 100,
+                        "wins": 79,
+                        "losses": 21,
+                        "win_rate": 0.79,
+                        "drift_interpretation": "regime_concentration",
+                        "dominant_regime": "bull",
+                        "dominant_regime_share": 1.0,
+                        "quality_metrics": {
+                            "spot_long_win_rate": 0.0,
+                            "avg_simulated_pnl": 0.0041,
+                            "avg_simulated_quality": 0.3403,
+                            "avg_drawdown_penalty": 0.1859,
+                            "avg_time_underwater": 0.2915,
+                        },
+                    },
+                },
+                "blocking_window": {
+                    "window": "500",
+                    "alerts": ["regime_concentration", "regime_shift"],
+                    "summary": {
+                        "rows": 500,
+                        "wins": 270,
+                        "losses": 230,
+                        "win_rate": 0.54,
+                        "drift_interpretation": "regime_concentration",
+                        "dominant_regime": "bull",
+                        "dominant_regime_share": 0.994,
+                        "quality_metrics": {
+                            "spot_long_win_rate": 0.0,
+                            "avg_simulated_pnl": 0.0005,
+                            "avg_simulated_quality": 0.116,
+                            "avg_drawdown_penalty": 0.211,
+                            "avg_time_underwater": 0.7251,
+                        },
+                    },
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(predictor_module, "RECENT_DRIFT_REPORT_PATH", drift_path)
+
+    rows = [_FakeLabelRow(0, 1440) for _ in range(60)]
+    result = predictor_module._check_circuit_breaker(_FakeSession(rows))
+
+    assert result is not None
+    assert result["decision_quality_recent_pathology_window"] == 500
+    assert result["decision_quality_recent_pathology_alerts"] == ["regime_concentration", "regime_shift"]
+    assert "blocking window 500 rows" in result["decision_quality_recent_pathology_reason"]
+    summary = result["decision_quality_recent_pathology_summary"]
+    assert summary["source_window"] == "blocking"
+    assert summary["win_rate"] == 0.54
+    assert summary["spot_long_win_rate"] == 0.0
+    assert summary["avg_time_underwater"] == 0.7251
+
+
 def test_infer_deployment_blocker_flags_bull_q35_no_deploy_governance(tmp_path, monkeypatch):
     q35_path = tmp_path / "q35_scaling_audit.json"
     q15_path = tmp_path / "q15_support_audit.json"

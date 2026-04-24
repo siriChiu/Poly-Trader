@@ -479,6 +479,11 @@ def sync_current_state_governance_issues(
         governance.get("support_route_verdict"),
         support_progress.get("support_route_verdict"),
     )
+    support_route_deployable = _first_non_null(
+        (live_predict_probe or {}).get("support_route_deployable"),
+        live_blocker_details.get("support_route_deployable"),
+        governance.get("support_route_deployable"),
+    )
     support_governance_route = _first_non_null(
         (live_predict_probe or {}).get("support_governance_route"),
         live_blocker_details.get("support_governance_route"),
@@ -490,6 +495,13 @@ def sync_current_state_governance_issues(
         or "under_minimum_exact_live_structure_bucket" in live_support_reason
     )
     live_bucket_meets_minimum = bool(current_bucket) and minimum_rows > 0 and int(current_rows or 0) >= int(minimum_rows or 0)
+    trade_floor_no_deploy_monitoring = (
+        live_blocker == "decision_quality_below_trade_floor"
+        and live_signal == "HOLD"
+        and live_bucket_meets_minimum
+        and support_route_verdict == "exact_bucket_supported"
+        and support_route_deployable is not False
+    )
     support_gap_markers = {
         "exact_live_bucket_present_but_below_minimum",
         "exact_bucket_present_but_below_minimum",
@@ -757,6 +769,9 @@ def sync_current_state_governance_issues(
         tracker.resolve("P1_bull_caution_spillover_patch_reference_only")
         tracker.resolve("P1_reference_only_patch_visibility")
 
+    if not trade_floor_no_deploy_monitoring:
+        tracker.resolve("P1_current_live_trade_floor_no_deploy")
+
     if circuit_breaker_active:
         release_condition = (((live_predict_probe or {}).get("deployment_blocker_details") or {}).get("release_condition") or {})
         current_recent_wins = release_condition.get("current_recent_window_wins")
@@ -845,6 +860,32 @@ def sync_current_state_governance_issues(
                 },
             )
             resolve_legacy_issue_id(tracker, "P0_circuit_breaker_active")
+        elif trade_floor_no_deploy_monitoring:
+            tracker.resolve(CURRENT_LIVE_BLOCKER_ISSUE_ID)
+            resolve_legacy_issue_id(tracker, "P0_circuit_breaker_active")
+            upsert_issue(
+                tracker,
+                "P1",
+                "P1_current_live_trade_floor_no_deploy",
+                f"current live bucket {current_bucket} is exact-supported but remains hold-only below the trade floor",
+                "把這個狀態視為正常 no-deploy risk posture 而非 release-blocking support failure：保留 allowed_layers=0 / trade_floor_gap / support metrics，僅在 exact-supported component experiment 通過 discrimination 與 runtime guardrail 後才重新開放下單。",
+                summary={
+                    "deployment_blocker": live_blocker,
+                    "current_live_structure_bucket": current_bucket,
+                    "current_live_structure_bucket_rows": int(current_rows or 0),
+                    "minimum_support_rows": int(minimum_rows or 0),
+                    "gap_to_minimum": max(int(minimum_rows or 0) - int(current_rows or 0), 0),
+                    "support_route_verdict": support_route_verdict,
+                    "support_governance_route": support_governance_route,
+                    "runtime_closure_state": runtime_closure_state,
+                    "entry_quality": live_blocker_details.get("entry_quality") or (live_predict_probe or {}).get("entry_quality"),
+                    "trade_floor": live_blocker_details.get("trade_floor"),
+                    "trade_floor_gap": live_blocker_details.get("trade_floor_gap"),
+                    "decision_quality_label": live_blocker_details.get("decision_quality_label") or (live_predict_probe or {}).get("decision_quality_label"),
+                    "allowed_layers": (live_predict_probe or {}).get("allowed_layers"),
+                    "allowed_layers_reason": (live_predict_probe or {}).get("allowed_layers_reason"),
+                },
+            )
         elif live_blocker:
             upsert_issue(
                 tracker,
@@ -1655,6 +1696,15 @@ def main():
     pathology_avg_pnl = pathology_quality.get("avg_simulated_pnl")
     pathology_avg_quality = pathology_quality.get("avg_simulated_quality")
     pathology_spot_long_win = pathology_quality.get("spot_long_win_rate")
+    pathology_avg_time_underwater = pathology_quality.get("avg_time_underwater")
+    pathology_dominant_regime = pathology_drift_summary.get("dominant_regime")
+    live_regime_label = (live_predict_probe or {}).get("regime_label")
+    live_recent_pathology_applied = bool((live_predict_probe or {}).get("decision_quality_recent_pathology_applied"))
+    pathology_is_current_live_scope = live_recent_pathology_applied or not (
+        live_regime_label
+        and pathology_dominant_regime
+        and str(live_regime_label) != str(pathology_dominant_regime)
+    )
     drift_is_negative_pathology = (
         pathology_interpretation in {"distribution_pathology", "regime_concentration"}
         and any(alert in pathology_alerts for alert in ("constant_target", "label_imbalance", "regime_concentration", "regime_shift"))
@@ -1669,6 +1719,7 @@ def main():
         drift_target_path = pathology_drift_summary.get("target_path_diagnostics") or {}
         drift_reference_comparison = pathology_drift_summary.get("reference_window_comparison") or {}
         tail_streak = drift_target_path.get("tail_target_streak") or {}
+        adverse_streak = _select_adverse_target_streak(drift_target_path)
         top_shift_source = (
             pathology_drift_summary.get("top_mean_shift_features")
             or drift_reference_comparison.get("top_mean_shift_features")
@@ -1688,11 +1739,13 @@ def main():
             "window": pathology_window,
             "interpretation": pathology_interpretation,
             "win_rate": pathology_drift_summary.get("win_rate"),
-            "dominant_regime": pathology_drift_summary.get("dominant_regime"),
+            "dominant_regime": pathology_dominant_regime,
             "dominant_regime_share": pathology_drift_summary.get("dominant_regime_share"),
             "avg_pnl": pathology_avg_pnl,
             "avg_quality": pathology_avg_quality,
             "avg_drawdown_penalty": pathology_quality.get("avg_drawdown_penalty"),
+            "spot_long_win_rate": pathology_spot_long_win,
+            "avg_time_underwater": pathology_avg_time_underwater,
             "alerts": pathology_alerts,
             "top_shift_features": top_shift_features[:3],
             "new_compressed_feature": new_compressed[0] if new_compressed else None,
@@ -1701,20 +1754,51 @@ def main():
                 if tail_streak.get("count") is not None and tail_streak.get("target") is not None
                 else None
             ),
+            "adverse_streak": (
+                f"{adverse_streak.get('count')}x{adverse_streak.get('target')}"
+                if adverse_streak.get("count") is not None and adverse_streak.get("target") is not None
+                else None
+            ),
+            "live_regime_label": live_regime_label,
+            "current_live_scope": bool(pathology_is_current_live_scope),
+            "blocking_basis": [
+                basis
+                for basis, active in [
+                    ("avg_pnl<=0", isinstance(pathology_avg_pnl, (int, float)) and pathology_avg_pnl <= 0.0),
+                    ("avg_quality<=0", isinstance(pathology_avg_quality, (int, float)) and pathology_avg_quality <= 0.0),
+                    ("spot_long_win_rate<=0.20", isinstance(pathology_spot_long_win, (int, float)) and pathology_spot_long_win <= 0.20),
+                ]
+                if active
+            ],
         }
-        upsert_issue(
-            tracker,
-            "P0",
-            "#H_AUTO_RECENT_PATHOLOGY",
-            f"recent canonical window {pathology_window} rows = {pathology_interpretation or 'distribution_pathology'}",
-            "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；"
-            "維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。"
-            "具體 window / alerts / feature shifts 只保留在 machine-readable summary 與 recent_drift_report artifact，"
-            "避免 ISSUES.md / ROADMAP.md 被長篇 telemetry 污染。",
-            summary=pathology_summary,
-        )
+        if pathology_is_current_live_scope:
+            upsert_issue(
+                tracker,
+                "P0",
+                "#H_AUTO_RECENT_PATHOLOGY",
+                f"recent canonical window {pathology_window} rows = {pathology_interpretation or 'distribution_pathology'}",
+                "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；"
+                "維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。"
+                "具體 window / alerts / feature shifts 只保留在 machine-readable summary 與 recent_drift_report artifact，"
+                "避免 ISSUES.md / ROADMAP.md 被長篇 telemetry 污染。",
+                summary=pathology_summary,
+            )
+            tracker.resolve("P1_recent_distribution_pathology_monitoring")
+        else:
+            tracker.resolve("#H_AUTO_RECENT_PATHOLOGY")
+            tracker.resolve("P0_recent_distribution_pathology")
+            upsert_issue(
+                tracker,
+                "P1",
+                "P1_recent_distribution_pathology_monitoring",
+                f"recent canonical window {pathology_window} rows = {pathology_interpretation or 'regime_concentration'} but current live regime is outside the blocker pocket",
+                "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
+                summary=pathology_summary,
+            )
     else:
         tracker.resolve("#H_AUTO_RECENT_PATHOLOGY")
+        tracker.resolve("P0_recent_distribution_pathology")
+        tracker.resolve("P1_recent_distribution_pathology_monitoring")
 
     # Rule 7: live predictor runtime shows same-scope or narrowed-lane decision-quality pathology
     live_recent_pathology = bool(live_predict_probe.get("decision_quality_recent_pathology_applied"))
