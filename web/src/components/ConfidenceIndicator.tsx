@@ -231,7 +231,7 @@ export default function ConfidenceIndicator({
     : "目前不適用";
   const q15FloorCrossHint = q15SupportAuditApplicable
     ? `最佳單一元件 ${bestSingleComponentLabel}`
-    : `目前分桶 ${currentLiveStructureBucketLabel}；q15 floor-cross drill-down 只保留治理參考，不代表 /api/status 缺資料。`;
+    : `目前分桶 ${currentLiveStructureBucketLabel}；q15 跨門檻鑽取只保留治理參考，不代表 /api/status 缺資料。`;
   const q15ComponentExperimentLabel = q15SupportAuditApplicable
     ? humanizeQ15ComponentExperimentVerdictLabel(componentExperimentVerdict || "—")
     : "僅供參考";
@@ -382,7 +382,7 @@ export default function ConfidenceIndicator({
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                    {q35ScalingAuditApplicable ? "q35 縮放判讀" : "q15 floor-cross 合法性"}
+                    {q35ScalingAuditApplicable ? "q35 縮放判讀" : "q15 跨門檻合法性"}
                   </div>
                   <div className="mt-1 font-medium text-white">
                     {q35ScalingAuditApplicable ? q35ScalingVerdictLabel : q15FloorCrossLabel}

@@ -1020,7 +1020,7 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
         'const q15ComponentExperimentLabel = q15SupportAuditApplicable',
         'humanizeQ15ComponentExperimentVerdictLabel(componentExperimentVerdict || "—")',
         '最佳單一元件 ${bestSingleComponentLabel}',
-        '目前分桶 ${currentLiveStructureBucketLabel}；q15 floor-cross drill-down 只保留治理參考，不代表 /api/status 缺資料。',
+        '目前分桶 ${currentLiveStructureBucketLabel}；q15 跨門檻鑽取只保留治理參考，不代表 /api/status 缺資料。',
         '目前即時資料列已離開 q15 路徑；請改看目前阻塞點與當前分桶根因，不要把 q15 元件實驗空值誤讀成阻塞點真相。',
         'const breakerRecentWindow = deploymentBlockerDetails?.recent_window ?? null;',
         'const breakerRelease = deploymentBlockerDetails?.release_condition ?? null;',
@@ -1046,7 +1046,7 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
         'q15 修補方案已經吃到當前即時資料列，但 execution 仍被精準分桶阻塞點 / 保護欄壓住',
         'humanizeExecutionReason(deploymentBlockerReason || deploymentBlocker)',
         'humanizeCurrentLiveBlockerLabel(deploymentBlocker)',
-        'q15 floor-cross 合法性',
+        'q15 跨門檻合法性',
         'q15 元件實驗',
     ]
     for snippet in required_snippets:
@@ -1057,6 +1057,7 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
     assert 'q35 next action' not in source
     assert 'Profile:' not in source
     assert 'Horizon:' not in source
+    assert 'q15 floor-cross' not in source
     assert '當前 live bucket' not in source
     assert '高品質 long setup' not in source
     assert '精準 support' not in source
@@ -2052,6 +2053,7 @@ def test_runtime_copy_humanizes_bucket_root_cause_prose_fragments():
 
 def test_operator_surfaces_humanize_feature_keys_and_remove_raw_bucket_fragments():
     runtime_copy_source = _read("utils/runtimeCopy.ts")
+    senses_source = _read("config/senses.ts")
     confidence_indicator_source = _read("components/ConfidenceIndicator.tsx")
     execution_surface_source = _read("components/execution/ExecutionSurface.tsx")
     workspace_summary_source = _read("components/execution/ExecutionWorkspaceSummary.tsx")
@@ -2063,11 +2065,22 @@ def test_operator_surfaces_humanize_feature_keys_and_remove_raw_bucket_fragments
         'import { getSenseConfig } from "../config/senses";',
         'const FEATURE_KEY_ALIAS_MAPPINGS: Record<string, string> = {',
         'const FEATURE_KEY_LABEL_OVERRIDES: Record<string, { name: string; shortLabel: string }> = {',
+        'volume_exhaustion: { name: "量能衰竭", shortLabel: "量能衰竭" }',
         'export function humanizeFeatureKey(',
         'output = output.replace(/\\bfeat_[a-z0-9_]+\\b/gi, (token) => humanizeFeatureKey(token));',
         '.split("bucket=").join("當前分桶：")',
     ]:
         assert snippet in runtime_copy_source
+
+    for snippet in [
+        'name: "NW 包絡位置"',
+        'shortLabel: "NW包絡"',
+        'name: "4H NW 包絡位置"',
+        'shortLabel: "4H NW包絡"',
+    ]:
+        assert snippet in senses_source
+    assert 'NW Envelope 位置' not in senses_source
+    assert 'NW Env' not in senses_source
 
     for snippet in [
         'humanizeFeatureKey,',

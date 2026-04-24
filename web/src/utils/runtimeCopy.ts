@@ -140,6 +140,7 @@ const FEATURE_KEY_LABEL_OVERRIDES: Record<string, { name: string; shortLabel: st
   local_bottom_score: { name: "局部底部分數", shortLabel: "局部底部" },
   local_top_score: { name: "局部頂部分數", shortLabel: "局部頂部" },
   "4h_dist_swing_high": { name: "4H 壓力距離", shortLabel: "4H壓力" },
+  volume_exhaustion: { name: "量能衰竭", shortLabel: "量能衰竭" },
   "4h_bias50_formula": { name: "4H 偏離50校準公式", shortLabel: "4H偏離50公式" },
 };
 
