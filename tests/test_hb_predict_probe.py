@@ -316,6 +316,93 @@ def test_hb_predict_probe_infers_support_governance_route_from_reference_patch(m
     assert payload["decision_quality_scope_pathology_summary"]["recommended_patch"]["preferred_support_cohort"] == "bull_exact_live_lane_proxy"
 
 
+def test_hb_predict_probe_treats_live_exact_lane_bucket_proxy_as_bucket_proxy_route(monkeypatch, capsys, tmp_path):
+    session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+    q15_audit_path = tmp_path / "q15_support_audit.json"
+    q15_audit_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit_path)
+    monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
+    monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"bull": object()}))
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "load_latest_features",
+        lambda _session: {
+            "timestamp": "2026-04-23 23:22:45.699196",
+            "regime_label": "bull",
+            "feat_4h_bias50": 2.4898,
+        },
+    )
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "predict",
+        lambda _session, _predictor, _regime_models: {
+            "target_col": "simulated_pyramid_win",
+            "used_model": "regime_bull_ensemble",
+            "model_type": "RegimeAwarePredictor",
+            "signal": "HOLD",
+            "confidence": 0.587198,
+            "regime_label": "bull",
+            "model_route_regime": "bull",
+            "regime_gate": "BLOCK",
+            "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+            "entry_quality": 0.4345,
+            "entry_quality_label": "D",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "unsupported_exact_live_structure_bucket",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "deployment_blocker_reason": "missing exact support",
+            "deployment_blocker_source": "decision_quality_contract",
+            "deployment_blocker_details": {
+                "support_mode": "exact_bucket_unsupported_block",
+                "support_route_verdict": "exact_bucket_unsupported_block",
+                "support_route_deployable": False,
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 50,
+                "support_progress": {
+                    "status": "stalled_under_minimum",
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                },
+            },
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_route_deployable": False,
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+        },
+    )
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "build_live_pathology_scope_surface",
+        lambda *_args, **_kwargs: {
+            "summary": "bucket proxy reference available",
+            "recommended_patch": {
+                "preferred_support_cohort": "bull_live_exact_lane_bucket_proxy",
+                "support_route_verdict": "exact_bucket_unsupported_block",
+            },
+        },
+    )
+
+    hb_predict_probe.main()
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["support_governance_route"] == "exact_live_bucket_proxy_available"
+    assert payload["deployment_blocker_details"]["support_governance_route"] == "exact_live_bucket_proxy_available"
+    assert payload["decision_quality_scope_pathology_summary"]["recommended_patch"]["preferred_support_cohort"] == "bull_live_exact_lane_bucket_proxy"
+
+
 def test_hb_predict_probe_uses_result_support_route_when_q35_override_is_exact_supported(monkeypatch, capsys, tmp_path):
     session = DummySession()
     out_path = tmp_path / "live_predict_probe.json"

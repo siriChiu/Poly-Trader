@@ -67,7 +67,11 @@ def _support_governance_route_from_patch(recommended_patch: dict | None) -> str 
     cohort = str(recommended_patch.get("preferred_support_cohort") or "")
     if not cohort:
         return None
-    if "exact_live_bucket_proxy" in cohort or "exact_bucket_proxy" in cohort:
+    if (
+        "exact_live_bucket_proxy" in cohort
+        or "exact_bucket_proxy" in cohort
+        or "exact_lane_bucket_proxy" in cohort
+    ):
         return "exact_live_bucket_proxy_available"
     if "exact_live_lane_proxy" in cohort or "exact_lane_proxy" in cohort:
         return "exact_live_lane_proxy_available"
