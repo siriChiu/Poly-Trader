@@ -446,7 +446,7 @@ export default function LivePathologySummaryCard({
             <div>
               {PATHOLOGY_LABELS.supportRoute} {supportRouteDisplayLabel || "—"}
               {supportGovernanceRouteLabel ? ` · ${PATHOLOGY_LABELS.governanceRoute} ${supportGovernanceRouteDisplayLabel}` : ""}
-              {recommendedPatch.preferred_support_cohort ? ` · 參考 cohort ${recommendedPatch.preferred_support_cohort}` : ""}
+              {recommendedPatch.preferred_support_cohort ? ` · 參考樣本群 ${humanizeRuntimeDetailText(recommendedPatch.preferred_support_cohort)}` : ""}
             </div>
             {patchReasonLabel && <div>{patchReasonLabel}</div>}
             {patchActionLabel && <div>{PATHOLOGY_LABELS.nextAction} {patchActionLabel}</div>}

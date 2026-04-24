@@ -598,6 +598,14 @@ def test_runtime_copy_humanizes_patch_profiles_embedded_blockers_and_verify_inst
         '["counterfactual", "反事實檢查"]',
         '["artifact", "產物"]',
         '["component scoring", "元件評分"]',
+        '["runtime gate/support", "執行期閘門 / 樣本支持"]',
+        '["gate/support", "閘門 / 樣本支持"]',
+        '["scoring floor", "評分門檻"]',
+        '["score-only / execution-blocked", "僅分數改善 / 執行仍阻塞"]',
+        '["floor-cross", "跨過門檻"]',
+        '["allowed_layers=0", "允許層數=0"]',
+        '["allowed_layers > 0", "允許層數 > 0"]',
+        '["allowed_layers", "允許層數"]',
         '["component 做", "元件做"]',
         '["neighbor bucket", "鄰近分桶"]',
         '["鄰近 bucket", "鄰近分桶"]',
@@ -978,12 +986,13 @@ def test_dashboard_advice_card_downgrades_trade_ctas_until_runtime_is_ready():
 def test_signal_banner_declares_dashboard_as_canonical_execution_route_until_upgraded():
     source = _read("components/SignalBanner.tsx")
     required_snippets = [
-        'SignalBanner 目前只提供快捷下單 / 自動交易切換；完整阻塞點、Guardrail context、治理狀態與恢復脈絡請到執行狀態頁查看。',
+        '快捷面板目前只提供受阻塞點保護的下單入口 / 自動交易切換；完整阻塞點、保護欄脈絡、治理狀態與恢復脈絡請到執行狀態頁查看。',
         '前往執行狀態頁 →',
         'href="/execution/status"',
         'fetch("/api/trade", {',
         'fetch("/api/automation/toggle", {',
         'fetch("/api/predict/confidence")',
+        'humanizeCurrentLiveBlockerLabel',
         'humanizeExecutionReason',
         'humanizeRuntimeClosureStateLabel',
         'humanizeRuntimeDetailText',
@@ -995,17 +1004,38 @@ def test_signal_banner_declares_dashboard_as_canonical_execution_route_until_upg
         'const runtimeAllowedLayersReasonLabel = humanizeRuntimeDetailText(runtimeDecision?.allowed_layers_reason || null);',
         'const runtimeClosureStateLabel = humanizeRuntimeClosureStateLabel(',
         'const runtimeClosureSummaryLabel = humanizeRuntimeDetailText(',
+        'const runtimeDeploymentBlocker = runtimeDecision?.deployment_blocker || null;',
+        'const runtimeDeploymentBlockerLabel = humanizeCurrentLiveBlockerLabel(runtimeDeploymentBlocker);',
+        'const runtimeShortcutPending = !runtimeDecision;',
+        'const runtimeShortcutBlocked = runtimeShortcutPending',
+        'const runtimeShortcutBlockerLabel = runtimeShortcutPending',
+        'const showShortcutBlockedMessage = () => {',
         '部署閉環 {runtimeClosureStateLabel}',
-        'circuit breaker：recent 50 release window',
+        '熔斷保護：最近 {breakerWindow ?? 50} 筆解除視窗',
         '不要把支持樣本 / 元件修補方案當成熔斷解除替代品。',
-        'SignalBanner 只同步解除條件，不可把這裡的快捷面板誤讀成可部署狀態。',
+        '快捷面板只同步解除條件，不可把這裡誤讀成可部署狀態。',
         '原始原因 {runtimeAllowedLayersRawReasonLabel}',
         '最終原因 {runtimeAllowedLayersReasonLabel}',
         '部署容量已開但訊號仍維持 HOLD',
         '這代表修補方案已套用，但執行仍被阻擋。',
+        'disabled={runtimeShortcutBlocked}',
+        '快捷下單暫停：{runtimeShortcutBlockerLabel}',
+        '買入暫停',
+        '賣出暫停',
     ]
     for snippet in required_snippets:
         assert snippet in source
+    forbidden_snippets = [
+        'q15 runtime 快照',
+        'signal {runtimeDecision.signal',
+        'layers {runtimeDecision.allowed_layers_raw',
+        'circuit breaker：recent 50 release window',
+        'win rate {breakerRecentWinRate',
+        'floor {breakerFloor',
+        'dry_run',
+    ]
+    for snippet in forbidden_snippets:
+        assert snippet not in source
 
 
 def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_states():

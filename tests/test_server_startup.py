@@ -608,8 +608,8 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["execution_surface_contract"]["shortcut_surface"]["name"] == "signal_banner"
     assert payload["execution_surface_contract"]["shortcut_surface"]["role"] == "shortcut-only"
     assert payload["execution_surface_contract"]["shortcut_surface"]["status"] == "not-upgraded"
-    assert payload["execution_surface_contract"]["shortcut_surface"]["message"] == "SignalBanner 目前只提供快捷下單 / 自動交易切換；完整 Execution 狀態、Guardrail context 與 stale governance 必須回 Dashboard 檢查。"
-    assert payload["execution_surface_contract"]["shortcut_surface"]["upgrade_prerequisite"] == "必須先完整消費 /api/status 的 ticking_state、stale governance、guardrail context，才能升級第二 execution route。"
+    assert payload["execution_surface_contract"]["shortcut_surface"]["message"] == "快捷面板目前只提供受阻塞點保護的下單入口 / 自動交易切換；完整執行狀態、保護欄脈絡與治理新鮮度必須回執行狀態頁檢查。"
+    assert payload["execution_surface_contract"]["shortcut_surface"]["upgrade_prerequisite"] == "必須先完整消費 /api/status 的監控跳動狀態、治理新鮮度與保護欄脈絡，才能升級第二執行路由。"
     assert payload["execution_surface_contract"]["readiness_scope"] == "runtime_governance_visibility_only"
     assert payload["execution_surface_contract"]["operator_message"].startswith("目前完成的是 execution governance / visibility closure，不是 live 或 canary readiness。")
     assert payload["execution"]["recent_canonical_drift"]["primary_window"]["window"] == 500
