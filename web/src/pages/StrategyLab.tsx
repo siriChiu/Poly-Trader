@@ -2670,8 +2670,8 @@ export default function StrategyLab() {
     ? "同步中"
     : humanizeSupportGovernanceRouteLabel(liveSupportGovernanceRoute);
   const liveSupportRouteSummaryLabel = liveExecutionSyncPending
-    ? "目前分桶同步中 · gap 同步中 · 支持路徑 同步中 · 治理路徑 同步中"
-    : `目前分桶 ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · 支持路徑 ${liveSupportRouteVerdictLabel} · 治理路徑 ${liveSupportGovernanceRouteLabel}`;
+    ? "目前分桶同步中 · 缺口 同步中 · 支持路徑 同步中 · 治理路徑 同步中"
+    : `目前分桶 ${liveSupportRowsLabel} · 缺口 ${liveSupportGapLabel} · 支持路徑 ${liveSupportRouteVerdictLabel} · 治理路徑 ${liveSupportGovernanceRouteLabel}`;
   const liveSupportStatusSummaryLabel = liveExecutionSyncPending
     ? "支持狀態 同步中 · 樣本變化 同步中"
     : `支持狀態 ${liveSupportStatusLabel} · 樣本變化 ${liveSupportDeltaLabel}`;
@@ -3158,7 +3158,7 @@ export default function StrategyLab() {
                 <div className="text-right text-xs">
                   <div className="font-semibold">{liveDeployStatusLabel}</div>
                   <div className="opacity-70">目前阻塞點 {currentLiveBlockerLabel}</div>
-                  <div className="mt-1 opacity-60">當前分桶 {liveSupportRowsLabel} · gap {liveSupportGapLabel}</div>
+                  <div className="mt-1 opacity-60">當前分桶 {liveSupportRowsLabel} · 缺口 {liveSupportGapLabel}</div>
                   <div className="mt-1 opacity-60">{liveSupportStatusSummaryLabel}</div>
                   <div className="mt-1 opacity-60">{liveSupportReferenceSummaryLabel}</div>
                   <div className="mt-1 opacity-60">{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}</div>

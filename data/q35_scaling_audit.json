@@ -1,195 +1,81 @@
 {
-  "generated_at": "2026-04-24 03:18:31.702742",
+  "generated_at": "2026-04-24 03:40:49.754451",
   "target_col": "simulated_pyramid_win",
   "current_live": {
-    "timestamp": "2026-04-24 03:18:31.702742",
+    "timestamp": "2026-04-24 03:40:49.754451",
     "symbol": "BTCUSDT",
     "regime_label": "bull",
-    "regime_gate": "BLOCK",
+    "regime_gate": "CAUTION",
     "base_gate": "ALLOW",
-    "gate_reason": "bull_high_bias200_overheat_block",
-    "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-    "structure_quality": 0.3645,
-    "entry_quality": 0.4323,
+    "gate_reason": "structure_quality_caution",
+    "structure_bucket": "CAUTION|structure_quality_caution|q15",
+    "structure_quality": 0.2925,
+    "entry_quality": 0.4615,
     "entry_quality_label": "D",
     "allowed_layers_raw": 0,
-    "allowed_layers_reason": "unsupported_exact_live_structure_bucket",
+    "allowed_layers_reason": "entry_quality_below_trade_floor",
     "entry_quality_components": {
       "base_components": [
         {
           "feature": "feat_4h_bias50",
           "weight": 0.4,
-          "raw_value": 2.2865,
-          "normalized_score": 0.0227,
-          "weighted_contribution": 0.0091
+          "raw_value": 1.8231,
+          "normalized_score": 0.1154,
+          "weighted_contribution": 0.0462
         },
         {
           "feature": "feat_nose",
           "weight": 0.18,
-          "raw_value": 0.4006,
-          "normalized_score": 0.5994,
-          "weighted_contribution": 0.1079
+          "raw_value": 0.2655,
+          "normalized_score": 0.7345,
+          "weighted_contribution": 0.1322
         },
         {
           "feature": "feat_pulse",
           "weight": 0.27,
-          "raw_value": 0.7022,
-          "normalized_score": 0.7022,
-          "weighted_contribution": 0.1896
+          "raw_value": 0.7177,
+          "normalized_score": 0.7177,
+          "weighted_contribution": 0.1938
         },
         {
           "feature": "feat_ear",
           "weight": 0.15,
-          "raw_value": -0.0023,
-          "normalized_score": 0.9885,
-          "weighted_contribution": 0.1483
+          "raw_value": -0.0058,
+          "normalized_score": 0.9711,
+          "weighted_contribution": 0.1457
         }
       ],
-      "base_quality": 0.4548,
+      "base_quality": 0.5178,
       "base_quality_weight": 0.75,
-      "structure_quality": 0.3645,
+      "structure_quality": 0.2925,
       "structure_quality_weight": 0.25,
       "structure_components": [
         {
           "feature": "feat_4h_bb_pct_b",
           "weight": 0.34,
-          "raw_value": 0.4875,
-          "normalized_score": 0.4875,
-          "weighted_contribution": 0.1657
+          "raw_value": 0.3658,
+          "normalized_score": 0.3658,
+          "weighted_contribution": 0.1244
         },
         {
           "feature": "feat_4h_dist_bb_lower",
           "weight": 0.33,
-          "raw_value": 1.5311,
-          "normalized_score": 0.1914,
-          "weighted_contribution": 0.0632
+          "raw_value": 1.1445,
+          "normalized_score": 0.1431,
+          "weighted_contribution": 0.0472
         },
         {
           "feature": "feat_4h_dist_swing_low",
           "weight": 0.33,
-          "raw_value": 4.1102,
-          "normalized_score": 0.411,
-          "weighted_contribution": 0.1356
+          "raw_value": 3.6647,
+          "normalized_score": 0.3665,
+          "weighted_contribution": 0.1209
         }
       ],
       "bias50_calibration": {
         "applied": false,
-        "score": 0.022709629500937023,
-        "legacy_score": 0.022709629500937023,
-        "score_delta_vs_legacy": 0.0,
-        "mode": "legacy_linear",
-        "segment": null,
-        "reference_cohort": null,
-        "reason": "no segmented calibration artifact or current lane is outside the targeted bull q35 extension zone.",
-        "exact_p90": null,
-        "reference_p90": null
-      },
-      "entry_quality": 0.4323,
-      "trade_floor": 0.55,
-      "trade_floor_gap": -0.1177
-    },
-    "raw_features": {
-      "feat_4h_bias50": 2.2865,
-      "feat_4h_bias200": 9.5361,
-      "feat_nose": 0.4006,
-      "feat_pulse": 0.7022,
-      "feat_ear": -0.0023,
-      "feat_4h_bb_pct_b": 0.4875,
-      "feat_4h_dist_bb_lower": 1.5311,
-      "feat_4h_dist_swing_low": 4.1102
-    },
-    "source": "live_predict_probe",
-    "q35_discriminative_redesign_applied": false,
-    "probe_alignment": {
-      "probe_feature_timestamp": "2026-04-24 03:18:31.702742",
-      "current_feature_timestamp": "2026-04-24 03:18:31.702742",
-      "timestamps_match": true,
-      "probe_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-      "current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-      "structure_bucket_match": true,
-      "used_live_predict_probe": true,
-      "reason": "live_predict_probe 與 q35 audit current row 完全對齊；deployment-grade runtime 直接沿用 live predictor output。"
-    },
-    "allowed_layers_raw_reason": "regime_gate_block",
-    "decision_quality_label": "D",
-    "signal": "HOLD",
-    "q35_discriminative_redesign": null
-  },
-  "legacy_current_live": {
-    "timestamp": "2026-04-24 03:18:31.702742",
-    "symbol": "BTCUSDT",
-    "regime_label": "bull",
-    "regime_gate": "BLOCK",
-    "base_gate": "ALLOW",
-    "gate_reason": "bull_high_bias200_overheat_block",
-    "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-    "structure_quality": 0.3645,
-    "entry_quality": 0.4323,
-    "entry_quality_label": "D",
-    "allowed_layers_raw": 0,
-    "allowed_layers_reason": "regime_gate_block",
-    "entry_quality_components": {
-      "base_components": [
-        {
-          "feature": "feat_4h_bias50",
-          "weight": 0.4,
-          "raw_value": 2.2865,
-          "normalized_score": 0.0227,
-          "weighted_contribution": 0.0091
-        },
-        {
-          "feature": "feat_nose",
-          "weight": 0.18,
-          "raw_value": 0.4006,
-          "normalized_score": 0.5994,
-          "weighted_contribution": 0.1079
-        },
-        {
-          "feature": "feat_pulse",
-          "weight": 0.27,
-          "raw_value": 0.7022,
-          "normalized_score": 0.7022,
-          "weighted_contribution": 0.1896
-        },
-        {
-          "feature": "feat_ear",
-          "weight": 0.15,
-          "raw_value": -0.0023,
-          "normalized_score": 0.9885,
-          "weighted_contribution": 0.1483
-        }
-      ],
-      "base_quality": 0.4548,
-      "base_quality_weight": 0.75,
-      "structure_quality": 0.3645,
-      "structure_quality_weight": 0.25,
-      "structure_components": [
-        {
-          "feature": "feat_4h_bb_pct_b",
-          "weight": 0.34,
-          "raw_value": 0.4875,
-          "normalized_score": 0.4875,
-          "weighted_contribution": 0.1657
-        },
-        {
-          "feature": "feat_4h_dist_bb_lower",
-          "weight": 0.33,
-          "raw_value": 1.5311,
-          "normalized_score": 0.1914,
-          "weighted_contribution": 0.0632
-        },
-        {
-          "feature": "feat_4h_dist_swing_low",
-          "weight": 0.33,
-          "raw_value": 4.1102,
-          "normalized_score": 0.411,
-          "weighted_contribution": 0.1356
-        }
-      ],
-      "bias50_calibration": {
-        "applied": false,
-        "score": 0.0227,
-        "legacy_score": 0.0227,
+        "score": 0.1154,
+        "legacy_score": 0.1154,
         "score_delta_vs_legacy": 0.0,
         "mode": "legacy_linear",
         "segment": null,
@@ -198,96 +84,194 @@
         "exact_p90": null,
         "reference_p90": null
       },
-      "entry_quality": 0.4323,
+      "entry_quality": 0.4615,
       "trade_floor": 0.55,
-      "trade_floor_gap": -0.1177
+      "trade_floor_gap": -0.0885
     },
     "raw_features": {
-      "feat_4h_bias50": 2.2865,
-      "feat_4h_bias200": 9.5361,
-      "feat_nose": 0.4006,
-      "feat_pulse": 0.7022,
-      "feat_ear": -0.0023,
-      "feat_4h_bb_pct_b": 0.4875,
-      "feat_4h_dist_bb_lower": 1.5311,
-      "feat_4h_dist_swing_low": 4.1102
+      "feat_4h_bias50": 1.8231,
+      "feat_4h_bias200": 9.0323,
+      "feat_nose": 0.2655,
+      "feat_pulse": 0.7177,
+      "feat_ear": -0.0058,
+      "feat_4h_bb_pct_b": 0.3658,
+      "feat_4h_dist_bb_lower": 1.1445,
+      "feat_4h_dist_swing_low": 3.6647
+    }
+  },
+  "legacy_current_live": {
+    "timestamp": "2026-04-24 03:40:49.754451",
+    "symbol": "BTCUSDT",
+    "regime_label": "bull",
+    "regime_gate": "CAUTION",
+    "base_gate": "ALLOW",
+    "gate_reason": "structure_quality_caution",
+    "structure_bucket": "CAUTION|structure_quality_caution|q15",
+    "structure_quality": 0.2925,
+    "entry_quality": 0.4615,
+    "entry_quality_label": "D",
+    "allowed_layers_raw": 0,
+    "allowed_layers_reason": "entry_quality_below_trade_floor",
+    "entry_quality_components": {
+      "base_components": [
+        {
+          "feature": "feat_4h_bias50",
+          "weight": 0.4,
+          "raw_value": 1.8231,
+          "normalized_score": 0.1154,
+          "weighted_contribution": 0.0462
+        },
+        {
+          "feature": "feat_nose",
+          "weight": 0.18,
+          "raw_value": 0.2655,
+          "normalized_score": 0.7345,
+          "weighted_contribution": 0.1322
+        },
+        {
+          "feature": "feat_pulse",
+          "weight": 0.27,
+          "raw_value": 0.7177,
+          "normalized_score": 0.7177,
+          "weighted_contribution": 0.1938
+        },
+        {
+          "feature": "feat_ear",
+          "weight": 0.15,
+          "raw_value": -0.0058,
+          "normalized_score": 0.9711,
+          "weighted_contribution": 0.1457
+        }
+      ],
+      "base_quality": 0.5178,
+      "base_quality_weight": 0.75,
+      "structure_quality": 0.2925,
+      "structure_quality_weight": 0.25,
+      "structure_components": [
+        {
+          "feature": "feat_4h_bb_pct_b",
+          "weight": 0.34,
+          "raw_value": 0.3658,
+          "normalized_score": 0.3658,
+          "weighted_contribution": 0.1244
+        },
+        {
+          "feature": "feat_4h_dist_bb_lower",
+          "weight": 0.33,
+          "raw_value": 1.1445,
+          "normalized_score": 0.1431,
+          "weighted_contribution": 0.0472
+        },
+        {
+          "feature": "feat_4h_dist_swing_low",
+          "weight": 0.33,
+          "raw_value": 3.6647,
+          "normalized_score": 0.3665,
+          "weighted_contribution": 0.1209
+        }
+      ],
+      "bias50_calibration": {
+        "applied": false,
+        "score": 0.1154,
+        "legacy_score": 0.1154,
+        "score_delta_vs_legacy": 0.0,
+        "mode": "legacy_linear",
+        "segment": null,
+        "reference_cohort": null,
+        "reason": "legacy baseline for q35 audit preflight / historical comparison; avoids self-referential dependence on a previous q35 artifact.",
+        "exact_p90": null,
+        "reference_p90": null
+      },
+      "entry_quality": 0.4615,
+      "trade_floor": 0.55,
+      "trade_floor_gap": -0.0885
+    },
+    "raw_features": {
+      "feat_4h_bias50": 1.8231,
+      "feat_4h_bias200": 9.0323,
+      "feat_nose": 0.2655,
+      "feat_pulse": 0.7177,
+      "feat_ear": -0.0058,
+      "feat_4h_bb_pct_b": 0.3658,
+      "feat_4h_dist_bb_lower": 1.1445,
+      "feat_4h_dist_swing_low": 3.6647
     }
   },
   "baseline_current_live": {
-    "timestamp": "2026-04-24 03:18:31.702742",
+    "timestamp": "2026-04-24 03:40:49.754451",
     "symbol": "BTCUSDT",
     "regime_label": "bull",
-    "regime_gate": "BLOCK",
+    "regime_gate": "CAUTION",
     "base_gate": "ALLOW",
-    "gate_reason": "bull_high_bias200_overheat_block",
-    "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-    "structure_quality": 0.3645,
-    "entry_quality": 0.4323,
+    "gate_reason": "structure_quality_caution",
+    "structure_bucket": "CAUTION|structure_quality_caution|q15",
+    "structure_quality": 0.2925,
+    "entry_quality": 0.4615,
     "entry_quality_label": "D",
     "allowed_layers_raw": 0,
-    "allowed_layers_reason": "regime_gate_block",
+    "allowed_layers_reason": "entry_quality_below_trade_floor",
     "entry_quality_components": {
       "base_components": [
         {
           "feature": "feat_4h_bias50",
           "weight": 0.4,
-          "raw_value": 2.2865,
-          "normalized_score": 0.0227,
-          "weighted_contribution": 0.0091
+          "raw_value": 1.8231,
+          "normalized_score": 0.1154,
+          "weighted_contribution": 0.0462
         },
         {
           "feature": "feat_nose",
           "weight": 0.18,
-          "raw_value": 0.4006,
-          "normalized_score": 0.5994,
-          "weighted_contribution": 0.1079
+          "raw_value": 0.2655,
+          "normalized_score": 0.7345,
+          "weighted_contribution": 0.1322
         },
         {
           "feature": "feat_pulse",
           "weight": 0.27,
-          "raw_value": 0.7022,
-          "normalized_score": 0.7022,
-          "weighted_contribution": 0.1896
+          "raw_value": 0.7177,
+          "normalized_score": 0.7177,
+          "weighted_contribution": 0.1938
         },
         {
           "feature": "feat_ear",
           "weight": 0.15,
-          "raw_value": -0.0023,
-          "normalized_score": 0.9885,
-          "weighted_contribution": 0.1483
+          "raw_value": -0.0058,
+          "normalized_score": 0.9711,
+          "weighted_contribution": 0.1457
         }
       ],
-      "base_quality": 0.4548,
+      "base_quality": 0.5178,
       "base_quality_weight": 0.75,
-      "structure_quality": 0.3645,
+      "structure_quality": 0.2925,
       "structure_quality_weight": 0.25,
       "structure_components": [
         {
           "feature": "feat_4h_bb_pct_b",
           "weight": 0.34,
-          "raw_value": 0.4875,
-          "normalized_score": 0.4875,
-          "weighted_contribution": 0.1657
+          "raw_value": 0.3658,
+          "normalized_score": 0.3658,
+          "weighted_contribution": 0.1244
         },
         {
           "feature": "feat_4h_dist_bb_lower",
           "weight": 0.33,
-          "raw_value": 1.5311,
-          "normalized_score": 0.1914,
-          "weighted_contribution": 0.0632
+          "raw_value": 1.1445,
+          "normalized_score": 0.1431,
+          "weighted_contribution": 0.0472
         },
         {
           "feature": "feat_4h_dist_swing_low",
           "weight": 0.33,
-          "raw_value": 4.1102,
-          "normalized_score": 0.411,
-          "weighted_contribution": 0.1356
+          "raw_value": 3.6647,
+          "normalized_score": 0.3665,
+          "weighted_contribution": 0.1209
         }
       ],
       "bias50_calibration": {
         "applied": false,
-        "score": 0.0227,
-        "legacy_score": 0.0227,
+        "score": 0.1154,
+        "legacy_score": 0.1154,
         "score_delta_vs_legacy": 0.0,
         "mode": "legacy_linear",
         "segment": null,
@@ -296,1417 +280,1113 @@
         "exact_p90": null,
         "reference_p90": null
       },
-      "entry_quality": 0.4323,
+      "entry_quality": 0.4615,
       "trade_floor": 0.55,
-      "trade_floor_gap": -0.1177
+      "trade_floor_gap": -0.0885
     },
     "raw_features": {
-      "feat_4h_bias50": 2.2865,
-      "feat_4h_bias200": 9.5361,
-      "feat_nose": 0.4006,
-      "feat_pulse": 0.7022,
-      "feat_ear": -0.0023,
-      "feat_4h_bb_pct_b": 0.4875,
-      "feat_4h_dist_bb_lower": 1.5311,
-      "feat_4h_dist_swing_low": 4.1102
+      "feat_4h_bias50": 1.8231,
+      "feat_4h_bias200": 9.0323,
+      "feat_nose": 0.2655,
+      "feat_pulse": 0.7177,
+      "feat_ear": -0.0058,
+      "feat_4h_bb_pct_b": 0.3658,
+      "feat_4h_dist_bb_lower": 1.1445,
+      "feat_4h_dist_swing_low": 3.6647
     }
   },
   "calibration_runtime_current": {
-    "timestamp": "2026-04-24 03:18:31.702742",
+    "timestamp": "2026-04-24 03:40:49.754451",
     "symbol": "BTCUSDT",
     "regime_label": "bull",
-    "regime_gate": "BLOCK",
+    "regime_gate": "CAUTION",
     "base_gate": "ALLOW",
-    "gate_reason": "bull_high_bias200_overheat_block",
-    "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-    "structure_quality": 0.3645,
-    "entry_quality": 0.4323,
+    "gate_reason": "structure_quality_caution",
+    "structure_bucket": "CAUTION|structure_quality_caution|q15",
+    "structure_quality": 0.2925,
+    "entry_quality": 0.4615,
     "entry_quality_label": "D",
     "allowed_layers_raw": 0,
-    "allowed_layers_reason": "regime_gate_block",
+    "allowed_layers_reason": "entry_quality_below_trade_floor",
     "entry_quality_components": {
       "base_components": [
         {
           "feature": "feat_4h_bias50",
           "weight": 0.4,
-          "raw_value": 2.2865,
-          "normalized_score": 0.0227,
-          "weighted_contribution": 0.0091
+          "raw_value": 1.8231,
+          "normalized_score": 0.1154,
+          "weighted_contribution": 0.0462
         },
         {
           "feature": "feat_nose",
           "weight": 0.18,
-          "raw_value": 0.4006,
-          "normalized_score": 0.5994,
-          "weighted_contribution": 0.1079
+          "raw_value": 0.2655,
+          "normalized_score": 0.7345,
+          "weighted_contribution": 0.1322
         },
         {
           "feature": "feat_pulse",
           "weight": 0.27,
-          "raw_value": 0.7022,
-          "normalized_score": 0.7022,
-          "weighted_contribution": 0.1896
+          "raw_value": 0.7177,
+          "normalized_score": 0.7177,
+          "weighted_contribution": 0.1938
         },
         {
           "feature": "feat_ear",
           "weight": 0.15,
-          "raw_value": -0.0023,
-          "normalized_score": 0.9885,
-          "weighted_contribution": 0.1483
+          "raw_value": -0.0058,
+          "normalized_score": 0.9711,
+          "weighted_contribution": 0.1457
         }
       ],
-      "base_quality": 0.4548,
+      "base_quality": 0.5178,
       "base_quality_weight": 0.75,
-      "structure_quality": 0.3645,
+      "structure_quality": 0.2925,
       "structure_quality_weight": 0.25,
       "structure_components": [
         {
           "feature": "feat_4h_bb_pct_b",
           "weight": 0.34,
-          "raw_value": 0.4875,
-          "normalized_score": 0.4875,
-          "weighted_contribution": 0.1657
+          "raw_value": 0.3658,
+          "normalized_score": 0.3658,
+          "weighted_contribution": 0.1244
         },
         {
           "feature": "feat_4h_dist_bb_lower",
           "weight": 0.33,
-          "raw_value": 1.5311,
-          "normalized_score": 0.1914,
-          "weighted_contribution": 0.0632
+          "raw_value": 1.1445,
+          "normalized_score": 0.1431,
+          "weighted_contribution": 0.0472
         },
         {
           "feature": "feat_4h_dist_swing_low",
           "weight": 0.33,
-          "raw_value": 4.1102,
-          "normalized_score": 0.411,
-          "weighted_contribution": 0.1356
+          "raw_value": 3.6647,
+          "normalized_score": 0.3665,
+          "weighted_contribution": 0.1209
         }
       ],
       "bias50_calibration": {
         "applied": false,
-        "score": 0.022699999999999942,
-        "legacy_score": 0.022699999999999942,
+        "score": 0.1154,
+        "legacy_score": 0.1154,
         "score_delta_vs_legacy": 0.0,
         "mode": "legacy_linear",
         "segment": null,
         "reference_cohort": null,
-        "reason": "no segmented calibration artifact or current lane is outside the targeted bull q35 extension zone.",
+        "reason": "legacy baseline for q35 audit preflight / historical comparison; avoids self-referential dependence on a previous q35 artifact.",
         "exact_p90": null,
         "reference_p90": null
       },
-      "entry_quality": 0.4323,
+      "entry_quality": 0.4615,
       "trade_floor": 0.55,
-      "trade_floor_gap": -0.1177
+      "trade_floor_gap": -0.0885
     },
     "raw_features": {
-      "feat_4h_bias50": 2.2865,
-      "feat_4h_bias200": 9.5361,
-      "feat_nose": 0.4006,
-      "feat_pulse": 0.7022,
-      "feat_ear": -0.0023,
-      "feat_4h_bb_pct_b": 0.4875,
-      "feat_4h_dist_bb_lower": 1.5311,
-      "feat_4h_dist_swing_low": 4.1102
+      "feat_4h_bias50": 1.8231,
+      "feat_4h_bias200": 9.0323,
+      "feat_nose": 0.2655,
+      "feat_pulse": 0.7177,
+      "feat_ear": -0.0058,
+      "feat_4h_bb_pct_b": 0.3658,
+      "feat_4h_dist_bb_lower": 1.1445,
+      "feat_4h_dist_swing_low": 3.6647
     }
   },
   "deployed_runtime_current": {
-    "timestamp": "2026-04-24 03:18:31.702742",
+    "timestamp": "2026-04-24 03:40:49.754451",
     "symbol": "BTCUSDT",
     "regime_label": "bull",
-    "regime_gate": "BLOCK",
+    "regime_gate": "CAUTION",
     "base_gate": "ALLOW",
-    "gate_reason": "bull_high_bias200_overheat_block",
-    "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-    "structure_quality": 0.3645,
-    "entry_quality": 0.4323,
+    "gate_reason": "structure_quality_caution",
+    "structure_bucket": "CAUTION|structure_quality_caution|q15",
+    "structure_quality": 0.2925,
+    "entry_quality": 0.4615,
     "entry_quality_label": "D",
     "allowed_layers_raw": 0,
-    "allowed_layers_reason": "unsupported_exact_live_structure_bucket",
+    "allowed_layers_reason": "entry_quality_below_trade_floor",
     "entry_quality_components": {
       "base_components": [
         {
           "feature": "feat_4h_bias50",
           "weight": 0.4,
-          "raw_value": 2.2865,
-          "normalized_score": 0.0227,
-          "weighted_contribution": 0.0091
+          "raw_value": 1.8231,
+          "normalized_score": 0.1154,
+          "weighted_contribution": 0.0462
         },
         {
           "feature": "feat_nose",
           "weight": 0.18,
-          "raw_value": 0.4006,
-          "normalized_score": 0.5994,
-          "weighted_contribution": 0.1079
+          "raw_value": 0.2655,
+          "normalized_score": 0.7345,
+          "weighted_contribution": 0.1322
         },
         {
           "feature": "feat_pulse",
           "weight": 0.27,
-          "raw_value": 0.7022,
-          "normalized_score": 0.7022,
-          "weighted_contribution": 0.1896
+          "raw_value": 0.7177,
+          "normalized_score": 0.7177,
+          "weighted_contribution": 0.1938
         },
         {
           "feature": "feat_ear",
           "weight": 0.15,
-          "raw_value": -0.0023,
-          "normalized_score": 0.9885,
-          "weighted_contribution": 0.1483
+          "raw_value": -0.0058,
+          "normalized_score": 0.9711,
+          "weighted_contribution": 0.1457
         }
       ],
-      "base_quality": 0.4548,
+      "base_quality": 0.5178,
       "base_quality_weight": 0.75,
-      "structure_quality": 0.3645,
+      "structure_quality": 0.2925,
       "structure_quality_weight": 0.25,
       "structure_components": [
         {
           "feature": "feat_4h_bb_pct_b",
           "weight": 0.34,
-          "raw_value": 0.4875,
-          "normalized_score": 0.4875,
-          "weighted_contribution": 0.1657
+          "raw_value": 0.3658,
+          "normalized_score": 0.3658,
+          "weighted_contribution": 0.1244
         },
         {
           "feature": "feat_4h_dist_bb_lower",
           "weight": 0.33,
-          "raw_value": 1.5311,
-          "normalized_score": 0.1914,
-          "weighted_contribution": 0.0632
+          "raw_value": 1.1445,
+          "normalized_score": 0.1431,
+          "weighted_contribution": 0.0472
         },
         {
           "feature": "feat_4h_dist_swing_low",
           "weight": 0.33,
-          "raw_value": 4.1102,
-          "normalized_score": 0.411,
-          "weighted_contribution": 0.1356
+          "raw_value": 3.6647,
+          "normalized_score": 0.3665,
+          "weighted_contribution": 0.1209
         }
       ],
       "bias50_calibration": {
         "applied": false,
-        "score": 0.022709629500937023,
-        "legacy_score": 0.022709629500937023,
+        "score": 0.1154,
+        "legacy_score": 0.1154,
         "score_delta_vs_legacy": 0.0,
         "mode": "legacy_linear",
         "segment": null,
         "reference_cohort": null,
-        "reason": "no segmented calibration artifact or current lane is outside the targeted bull q35 extension zone.",
+        "reason": "legacy baseline for q35 audit preflight / historical comparison; avoids self-referential dependence on a previous q35 artifact.",
         "exact_p90": null,
         "reference_p90": null
       },
-      "entry_quality": 0.4323,
+      "entry_quality": 0.4615,
       "trade_floor": 0.55,
-      "trade_floor_gap": -0.1177
+      "trade_floor_gap": -0.0885
     },
     "raw_features": {
-      "feat_4h_bias50": 2.2865,
-      "feat_4h_bias200": 9.5361,
-      "feat_nose": 0.4006,
-      "feat_pulse": 0.7022,
-      "feat_ear": -0.0023,
-      "feat_4h_bb_pct_b": 0.4875,
-      "feat_4h_dist_bb_lower": 1.5311,
-      "feat_4h_dist_swing_low": 4.1102
-    },
-    "source": "live_predict_probe",
-    "q35_discriminative_redesign_applied": false,
-    "probe_alignment": {
-      "probe_feature_timestamp": "2026-04-24 03:18:31.702742",
-      "current_feature_timestamp": "2026-04-24 03:18:31.702742",
-      "timestamps_match": true,
-      "probe_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-      "current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-      "structure_bucket_match": true,
-      "used_live_predict_probe": true,
-      "reason": "live_predict_probe 與 q35 audit current row 完全對齊；deployment-grade runtime 直接沿用 live predictor output。"
-    },
-    "allowed_layers_raw_reason": "regime_gate_block",
-    "decision_quality_label": "D",
-    "signal": "HOLD",
-    "q35_discriminative_redesign": null
+      "feat_4h_bias50": 1.8231,
+      "feat_4h_bias200": 9.0323,
+      "feat_nose": 0.2655,
+      "feat_pulse": 0.7177,
+      "feat_ear": -0.0058,
+      "feat_4h_bb_pct_b": 0.3658,
+      "feat_4h_dist_bb_lower": 1.1445,
+      "feat_4h_dist_swing_low": 3.6647
+    }
   },
   "scope_applicability": {
-    "status": "current_live_q35_lane_active",
-    "active_for_current_live_row": true,
-    "current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+    "status": "reference_only_current_bucket_outside_q35",
+    "active_for_current_live_row": false,
+    "current_structure_bucket": "CAUTION|structure_quality_caution|q15",
     "target_structure_bucket": "CAUTION|structure_quality_caution|q35",
-    "reason": "current live row 仍位於 q35 lane；本輪 q35 scaling / bias50 calibration 結論可直接視為 live governance 主路徑。"
+    "reason": "current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。"
   },
+  "runtime_blocker": null,
   "exact_lane_summary": {
-    "rows": 184,
-    "win_rate": 0.6522,
+    "rows": 0,
+    "win_rate": null,
     "bias50_distribution": {
-      "min": -0.7025,
-      "p25": 1.1363,
-      "p50": 1.8546,
-      "p75": 4.0418,
-      "p90": 4.9496,
-      "p95": 5.5827,
-      "max": 6.3969,
-      "mean": 2.5755
+      "min": null,
+      "p25": null,
+      "p50": null,
+      "p75": null,
+      "p90": null,
+      "p95": null,
+      "max": null,
+      "mean": null
     },
     "structure_quality_distribution": {
-      "min": 0.3559,
-      "p25": 0.5104,
-      "p50": 0.5723,
-      "p75": 0.6069,
-      "p90": 0.6298,
-      "p95": 0.6392,
-      "max": 0.6494,
-      "mean": 0.5477
+      "min": null,
+      "p25": null,
+      "p50": null,
+      "p75": null,
+      "p90": null,
+      "p95": null,
+      "max": null,
+      "mean": null
     },
     "entry_quality_distribution": {
-      "min": 0.3304,
-      "p25": 0.4054,
-      "p50": 0.4506,
-      "p75": 0.4851,
-      "p90": 0.5143,
-      "p95": 0.5285,
-      "max": 0.5496,
-      "mean": 0.4475
+      "min": null,
+      "p25": null,
+      "p50": null,
+      "p75": null,
+      "p90": null,
+      "p95": null,
+      "max": null,
+      "mean": null
     },
-    "current_bias50_percentile": 0.5489,
+    "current_bias50_percentile": null,
     "structure_feature_distributions": {
       "feat_4h_dist_swing_low": {
         "distribution": {
-          "min": 1.7506,
-          "p25": 4.2109,
-          "p50": 6.2506,
-          "p75": 10.1353,
-          "p90": 11.1589,
-          "p95": 31.9409,
-          "max": 34.7258,
-          "mean": 8.6734
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.9076
+        "current_percentile": null
       }
     },
     "base_component_score_distributions": {
       "feat_4h_bias50": {
         "distribution": {
-          "min": 0.0,
-          "p25": 0.0,
-          "p50": 0.1127,
-          "p75": 0.2527,
-          "p90": 0.33,
-          "p95": 0.3698,
-          "max": 0.6205,
-          "mean": 0.1326
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.462
+        "current_percentile": null
       },
       "feat_nose": {
         "distribution": {
-          "min": 0.1496,
-          "p25": 0.4144,
-          "p50": 0.4929,
-          "p75": 0.5691,
-          "p90": 0.632,
-          "p95": 0.6606,
-          "max": 0.7987,
-          "mean": 0.4873
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.2174
+        "current_percentile": null
       },
       "feat_pulse": {
         "distribution": {
-          "min": 0.249,
-          "p25": 0.3935,
-          "p50": 0.4496,
-          "p75": 0.536,
-          "p90": 0.6946,
-          "p95": 0.7622,
-          "max": 0.9918,
-          "mean": 0.4873
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.5652
+        "current_percentile": null
       },
       "feat_ear": {
         "distribution": {
-          "min": 0.7461,
-          "p25": 0.9191,
-          "p50": 0.9572,
-          "p75": 0.9831,
-          "p90": 0.9921,
-          "p95": 0.9951,
-          "max": 0.9991,
-          "mean": 0.9455
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.25
+        "current_percentile": null
       }
     },
     "structure_component_score_distributions": {
       "feat_4h_dist_swing_low": {
         "distribution": {
-          "min": 0.1751,
-          "p25": 0.4211,
-          "p50": 0.6251,
-          "p75": 1.0,
-          "p90": 1.0,
-          "p95": 1.0,
-          "max": 1.0,
-          "mean": 0.6581
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 1.0
+        "current_percentile": null
       }
     }
   },
   "exact_lane_winner_summary": {
-    "rows": 120,
-    "win_rate": 1.0,
+    "rows": 0,
+    "win_rate": null,
     "bias50_distribution": {
-      "min": -0.7025,
-      "p25": 1.01,
-      "p50": 3.6097,
-      "p75": 4.4696,
-      "p90": 5.3929,
-      "p95": 5.7175,
-      "max": 6.3969,
-      "mean": 2.8845
+      "min": null,
+      "p25": null,
+      "p50": null,
+      "p75": null,
+      "p90": null,
+      "p95": null,
+      "max": null,
+      "mean": null
     },
     "structure_quality_distribution": {
-      "min": 0.3604,
-      "p25": 0.5043,
-      "p50": 0.5673,
-      "p75": 0.6018,
-      "p90": 0.6201,
-      "p95": 0.6298,
-      "max": 0.6494,
-      "mean": 0.5416
+      "min": null,
+      "p25": null,
+      "p50": null,
+      "p75": null,
+      "p90": null,
+      "p95": null,
+      "max": null,
+      "mean": null
     },
     "entry_quality_distribution": {
-      "min": 0.3304,
-      "p25": 0.4023,
-      "p50": 0.4444,
-      "p75": 0.4839,
-      "p90": 0.5143,
-      "p95": 0.5316,
-      "max": 0.5496,
-      "mean": 0.4435
+      "min": null,
+      "p25": null,
+      "p50": null,
+      "p75": null,
+      "p90": null,
+      "p95": null,
+      "max": null,
+      "mean": null
     },
-    "current_bias50_percentile": 0.4667,
+    "current_bias50_percentile": null,
     "structure_feature_distributions": {
       "feat_4h_dist_swing_low": {
         "distribution": {
-          "min": 1.7506,
-          "p25": 3.4598,
-          "p50": 4.7674,
-          "p75": 6.6096,
-          "p90": 31.4734,
-          "p95": 33.9957,
-          "max": 34.7258,
-          "mean": 8.5237
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.8667
+        "current_percentile": null
       }
     },
     "base_component_score_distributions": {
       "feat_4h_bias50": {
         "distribution": {
-          "min": 0.0,
-          "p25": 0.0,
-          "p50": 0.0,
-          "p75": 0.278,
-          "p90": 0.3416,
-          "p95": 0.3945,
-          "max": 0.6205,
-          "mean": 0.1329
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.5583
+        "current_percentile": null
       },
       "feat_nose": {
         "distribution": {
-          "min": 0.1496,
-          "p25": 0.4171,
-          "p50": 0.4848,
-          "p75": 0.5774,
-          "p90": 0.6513,
-          "p95": 0.6794,
-          "max": 0.7526,
-          "mean": 0.4945
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.9583
+        "current_percentile": null
       },
       "feat_pulse": {
         "distribution": {
-          "min": 0.265,
-          "p25": 0.3773,
-          "p50": 0.4314,
-          "p75": 0.5203,
-          "p90": 0.699,
-          "p95": 0.7893,
-          "max": 0.9918,
-          "mean": 0.4747
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.075
+        "current_percentile": null
       },
       "feat_ear": {
         "distribution": {
-          "min": 0.7461,
-          "p25": 0.9119,
-          "p50": 0.9456,
-          "p75": 0.9676,
-          "p90": 0.9843,
-          "p95": 0.9944,
-          "max": 0.9991,
-          "mean": 0.9361
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.1
+        "current_percentile": null
       }
     },
     "structure_component_score_distributions": {
       "feat_4h_dist_swing_low": {
         "distribution": {
-          "min": 0.1751,
-          "p25": 0.346,
-          "p50": 0.4767,
-          "p75": 0.661,
-          "p90": 1.0,
-          "p95": 1.0,
-          "max": 1.0,
-          "mean": 0.5448
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 1.0
+        "current_percentile": null
       }
     }
   },
   "same_bucket_any_regime_summary": {
-    "rows": 195,
-    "win_rate": 0.6615,
+    "rows": 0,
+    "win_rate": null,
     "bias50_distribution": {
-      "min": -0.7025,
-      "p25": 1.0207,
-      "p50": 1.7335,
-      "p75": 3.9909,
-      "p90": 4.8559,
-      "p95": 5.5826,
-      "max": 6.3969,
-      "mean": 2.4738
+      "min": null,
+      "p25": null,
+      "p50": null,
+      "p75": null,
+      "p90": null,
+      "p95": null,
+      "max": null,
+      "mean": null
     },
     "structure_quality_distribution": {
-      "min": 0.3529,
-      "p25": 0.5067,
-      "p50": 0.5702,
-      "p75": 0.6069,
-      "p90": 0.6256,
-      "p95": 0.6389,
-      "max": 0.6494,
-      "mean": 0.5462
+      "min": null,
+      "p25": null,
+      "p50": null,
+      "p75": null,
+      "p90": null,
+      "p95": null,
+      "max": null,
+      "mean": null
     },
     "entry_quality_distribution": {
-      "min": 0.3304,
-      "p25": 0.4108,
-      "p50": 0.4527,
-      "p75": 0.4973,
-      "p90": 0.5316,
-      "p95": 0.5514,
-      "max": 0.6148,
-      "mean": 0.4548
+      "min": null,
+      "p25": null,
+      "p50": null,
+      "p75": null,
+      "p90": null,
+      "p95": null,
+      "max": null,
+      "mean": null
     },
-    "current_bias50_percentile": 0.5744,
+    "current_bias50_percentile": null,
     "structure_feature_distributions": {
       "feat_4h_dist_swing_low": {
         "distribution": {
-          "min": 1.7506,
-          "p25": 4.2465,
-          "p50": 6.2468,
-          "p75": 10.1175,
-          "p90": 11.0786,
-          "p95": 31.8157,
-          "max": 34.7258,
-          "mean": 8.5519
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.9128
+        "current_percentile": null
       }
     },
     "base_component_score_distributions": {
       "feat_4h_bias50": {
         "distribution": {
-          "min": 0.0,
-          "p25": 0.0,
-          "p50": 0.1333,
-          "p75": 0.2759,
-          "p90": 0.3346,
-          "p95": 0.3945,
-          "max": 0.6205,
-          "mean": 0.1435
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.4359
+        "current_percentile": null
       },
       "feat_nose": {
         "distribution": {
-          "min": 0.1496,
-          "p25": 0.4156,
-          "p50": 0.4963,
-          "p75": 0.5719,
-          "p90": 0.6546,
-          "p95": 0.6776,
-          "max": 0.7987,
-          "mean": 0.492
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.2103
+        "current_percentile": null
       },
       "feat_pulse": {
         "distribution": {
-          "min": 0.249,
-          "p25": 0.3993,
-          "p50": 0.4538,
-          "p75": 0.5866,
-          "p90": 0.7595,
-          "p95": 0.8393,
-          "max": 0.9918,
-          "mean": 0.505
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.5333
+        "current_percentile": null
       },
       "feat_ear": {
         "distribution": {
-          "min": 0.7461,
-          "p25": 0.9215,
-          "p50": 0.9579,
-          "p75": 0.9835,
-          "p90": 0.9921,
-          "p95": 0.9951,
-          "max": 0.9991,
-          "mean": 0.9468
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 0.241
+        "current_percentile": null
       }
     },
     "structure_component_score_distributions": {
       "feat_4h_dist_swing_low": {
         "distribution": {
-          "min": 0.1751,
-          "p25": 0.4247,
-          "p50": 0.6247,
-          "p75": 1.0,
-          "p90": 1.0,
-          "p95": 1.0,
-          "max": 1.0,
-          "mean": 0.6577
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         },
-        "current_percentile": 1.0
+        "current_percentile": null
       }
     }
   },
   "broader_bull_cohorts": {
     "same_gate_same_quality": {
-      "rows": 750,
-      "win_rate": 0.532,
+      "rows": 0,
+      "win_rate": null,
       "bias50_distribution": {
-        "min": -18.7285,
-        "p25": -0.0736,
-        "p50": 2.0406,
-        "p75": 5.6979,
-        "p90": 7.1403,
-        "p95": 8.8165,
-        "max": 17.0434,
-        "mean": 2.827
+        "min": null,
+        "p25": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "max": null,
+        "mean": null
       },
       "structure_quality_distribution": {
-        "min": 0.0,
-        "p25": 0.1086,
-        "p50": 0.6046,
-        "p75": 0.7226,
-        "p90": 1.0,
-        "p95": 1.0,
-        "max": 1.0,
-        "mean": 0.5035
+        "min": null,
+        "p25": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "max": null,
+        "mean": null
       },
       "entry_quality_distribution": {
-        "min": 0.3119,
-        "p25": 0.4354,
-        "p50": 0.4702,
-        "p75": 0.5019,
-        "p90": 0.5285,
-        "p95": 0.5382,
-        "max": 0.5496,
-        "mean": 0.4664
+        "min": null,
+        "p25": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "max": null,
+        "mean": null
       },
-      "current_bias50_percentile": 0.5173,
+      "current_bias50_percentile": null,
       "structure_feature_distributions": {
         "feat_4h_dist_swing_low": {
           "distribution": {
-            "min": -22.9707,
-            "p25": 1.7762,
-            "p50": 5.5501,
-            "p75": 10.6596,
-            "p90": 22.6666,
-            "p95": 33.7263,
-            "max": 38.8853,
-            "mean": 8.0879
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.5253
+          "current_percentile": null
         }
       },
       "base_component_score_distributions": {
         "feat_4h_bias50": {
           "distribution": {
-            "min": 0.0,
-            "p25": 0.0,
-            "p50": 0.0667,
-            "p75": 0.4947,
-            "p90": 0.6882,
-            "p95": 0.7832,
-            "max": 1.0,
-            "mean": 0.2374
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.472
+          "current_percentile": null
         },
         "feat_nose": {
           "distribution": {
-            "min": 0.0435,
-            "p25": 0.3857,
-            "p50": 0.5097,
-            "p75": 0.6192,
-            "p90": 0.7189,
-            "p95": 0.7763,
-            "max": 0.9446,
-            "mean": 0.499
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.1187
+          "current_percentile": null
         },
         "feat_pulse": {
           "distribution": {
-            "min": 0.0,
-            "p25": 0.3993,
-            "p50": 0.4574,
-            "p75": 0.5906,
-            "p90": 0.7249,
-            "p95": 0.7867,
-            "max": 0.9918,
-            "mean": 0.503
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.988
+          "current_percentile": null
         },
         "feat_ear": {
           "distribution": {
-            "min": 0.2154,
-            "p25": 0.8495,
-            "p50": 0.9304,
-            "p75": 0.9771,
-            "p90": 0.9899,
-            "p95": 0.9944,
-            "max": 0.9996,
-            "mean": 0.8894
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.88
+          "current_percentile": null
         }
       },
       "structure_component_score_distributions": {
         "feat_4h_dist_swing_low": {
           "distribution": {
-            "min": 0.0,
-            "p25": 0.1776,
-            "p50": 0.555,
-            "p75": 1.0,
-            "p90": 1.0,
-            "p95": 1.0,
-            "max": 1.0,
-            "mean": 0.5522
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.5253
+          "current_percentile": null
         }
       }
     },
     "same_bucket": {
-      "rows": 195,
-      "win_rate": 0.6615,
+      "rows": 0,
+      "win_rate": null,
       "bias50_distribution": {
-        "min": -0.7025,
-        "p25": 1.0207,
-        "p50": 1.7335,
-        "p75": 3.9909,
-        "p90": 4.8559,
-        "p95": 5.5826,
-        "max": 6.3969,
-        "mean": 2.4738
+        "min": null,
+        "p25": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "max": null,
+        "mean": null
       },
       "structure_quality_distribution": {
-        "min": 0.3529,
-        "p25": 0.5067,
-        "p50": 0.5702,
-        "p75": 0.6069,
-        "p90": 0.6256,
-        "p95": 0.6389,
-        "max": 0.6494,
-        "mean": 0.5462
+        "min": null,
+        "p25": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "max": null,
+        "mean": null
       },
       "entry_quality_distribution": {
-        "min": 0.3304,
-        "p25": 0.4108,
-        "p50": 0.4527,
-        "p75": 0.4973,
-        "p90": 0.5316,
-        "p95": 0.5514,
-        "max": 0.6148,
-        "mean": 0.4548
+        "min": null,
+        "p25": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "max": null,
+        "mean": null
       },
-      "current_bias50_percentile": 0.5744,
+      "current_bias50_percentile": null,
       "structure_feature_distributions": {
         "feat_4h_dist_swing_low": {
           "distribution": {
-            "min": 1.7506,
-            "p25": 4.2465,
-            "p50": 6.2468,
-            "p75": 10.1175,
-            "p90": 11.0786,
-            "p95": 31.8157,
-            "max": 34.7258,
-            "mean": 8.5519
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.9128
+          "current_percentile": null
         }
       },
       "base_component_score_distributions": {
         "feat_4h_bias50": {
           "distribution": {
-            "min": 0.0,
-            "p25": 0.0,
-            "p50": 0.1333,
-            "p75": 0.2759,
-            "p90": 0.3346,
-            "p95": 0.3945,
-            "max": 0.6205,
-            "mean": 0.1435
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.4359
+          "current_percentile": null
         },
         "feat_nose": {
           "distribution": {
-            "min": 0.1496,
-            "p25": 0.4156,
-            "p50": 0.4963,
-            "p75": 0.5719,
-            "p90": 0.6546,
-            "p95": 0.6776,
-            "max": 0.7987,
-            "mean": 0.492
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.2103
+          "current_percentile": null
         },
         "feat_pulse": {
           "distribution": {
-            "min": 0.249,
-            "p25": 0.3993,
-            "p50": 0.4538,
-            "p75": 0.5866,
-            "p90": 0.7595,
-            "p95": 0.8393,
-            "max": 0.9918,
-            "mean": 0.505
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.5333
+          "current_percentile": null
         },
         "feat_ear": {
           "distribution": {
-            "min": 0.7461,
-            "p25": 0.9215,
-            "p50": 0.9579,
-            "p75": 0.9835,
-            "p90": 0.9921,
-            "p95": 0.9951,
-            "max": 0.9991,
-            "mean": 0.9468
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.241
+          "current_percentile": null
         }
       },
       "structure_component_score_distributions": {
         "feat_4h_dist_swing_low": {
           "distribution": {
-            "min": 0.1751,
-            "p25": 0.4247,
-            "p50": 0.6247,
-            "p75": 1.0,
-            "p90": 1.0,
-            "p95": 1.0,
-            "max": 1.0,
-            "mean": 0.6577
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 1.0
+          "current_percentile": null
         }
       }
     },
     "bull_all": {
-      "rows": 10799,
-      "win_rate": 0.5939,
+      "rows": 0,
+      "win_rate": null,
       "bias50_distribution": {
-        "min": -20.6429,
-        "p25": -1.3878,
-        "p50": 1.329,
-        "p75": 3.483,
-        "p90": 5.1385,
-        "p95": 6.0419,
-        "max": 17.0434,
-        "mean": 0.9861
+        "min": null,
+        "p25": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "max": null,
+        "mean": null
       },
       "structure_quality_distribution": {
-        "min": 0.0,
-        "p25": 0.2828,
-        "p50": 0.5376,
-        "p75": 0.7536,
-        "p90": 0.8825,
-        "p95": 0.9457,
-        "max": 1.0,
-        "mean": 0.5186
+        "min": null,
+        "p25": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "max": null,
+        "mean": null
       },
       "entry_quality_distribution": {
-        "min": 0.2685,
-        "p25": 0.4593,
-        "p50": 0.5094,
-        "p75": 0.5768,
-        "p90": 0.6356,
-        "p95": 0.6729,
-        "max": 0.883,
-        "mean": 0.5201
+        "min": null,
+        "p25": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "max": null,
+        "mean": null
       },
-      "current_bias50_percentile": 0.6091,
+      "current_bias50_percentile": null,
       "structure_feature_distributions": {
         "feat_4h_dist_swing_low": {
           "distribution": {
-            "min": -22.9707,
-            "p25": 2.6185,
-            "p50": 5.084,
-            "p75": 7.1098,
-            "p90": 10.898,
-            "p95": 13.7224,
-            "max": 38.8853,
-            "mean": 5.5332
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.5986
+          "current_percentile": null
         }
       },
       "base_component_score_distributions": {
         "feat_4h_bias50": {
           "distribution": {
-            "min": 0.0,
-            "p25": 0.0,
-            "p50": 0.2142,
-            "p75": 0.7576,
-            "p90": 1.0,
-            "p95": 1.0,
-            "max": 1.0,
-            "mean": 0.375
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.3762
+          "current_percentile": null
         },
         "feat_nose": {
           "distribution": {
-            "min": 0.0,
-            "p25": 0.3707,
-            "p50": 0.489,
-            "p75": 0.6097,
-            "p90": 0.7108,
-            "p95": 0.7675,
-            "max": 0.9998,
-            "mean": 0.4902
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.1063
+          "current_percentile": null
         },
         "feat_pulse": {
           "distribution": {
-            "min": 0.0,
-            "p25": 0.4034,
-            "p50": 0.4884,
-            "p75": 0.6632,
-            "p90": 0.7726,
-            "p95": 0.8656,
-            "max": 1.0,
-            "mean": 0.5341
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.8271
+          "current_percentile": null
         },
         "feat_ear": {
           "distribution": {
-            "min": 0.0782,
-            "p25": 0.8854,
-            "p50": 0.949,
-            "p75": 0.9838,
-            "p90": 0.9944,
-            "p95": 0.9972,
-            "max": 1.0,
-            "mean": 0.9207
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.7148
+          "current_percentile": null
         }
       },
       "structure_component_score_distributions": {
         "feat_4h_dist_swing_low": {
           "distribution": {
-            "min": 0.0,
-            "p25": 0.2618,
-            "p50": 0.5084,
-            "p75": 0.711,
-            "p90": 1.0,
-            "p95": 1.0,
-            "max": 1.0,
-            "mean": 0.5062
+            "min": null,
+            "p25": null,
+            "p50": null,
+            "p75": null,
+            "p90": null,
+            "p95": null,
+            "max": null,
+            "mean": null
           },
-          "current_percentile": 0.5986
+          "current_percentile": null
         }
       }
     }
   },
   "segmented_calibration": {
+    "status": "reference_only_current_bucket_outside_q35",
+    "recommended_mode": "defer_until_current_live_returns_to_q35",
+    "reason": "current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。",
+    "runtime_contract_status": "reference_only_current_bucket_outside_q35",
+    "runtime_contract_reason": "current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。",
     "exact_lane": {
-      "rows": 184,
-      "current_bias50_percentile": 0.5489,
-      "percentile_band": "warm",
-      "delta_vs_p50": 0.4319,
-      "delta_vs_p75": -1.7553,
-      "delta_vs_p90": -2.6631,
-      "delta_vs_p95": -3.2962,
+      "rows": 0,
+      "current_bias50_percentile": null,
+      "percentile_band": "no_data",
+      "delta_vs_p50": null,
+      "delta_vs_p75": null,
+      "delta_vs_p90": null,
+      "delta_vs_p95": null,
       "bias50_distribution": {
-        "min": -0.7025,
-        "p25": 1.1363,
-        "p50": 1.8546,
-        "p75": 4.0418,
-        "p90": 4.9496,
-        "p95": 5.5827,
-        "max": 6.3969,
-        "mean": 2.5755
+        "min": null,
+        "p25": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "max": null,
+        "mean": null
       }
     },
     "broader_bull_cohorts": {
       "same_gate_same_quality": {
-        "rows": 750,
-        "current_bias50_percentile": 0.5173,
-        "percentile_band": "warm",
-        "delta_vs_p50": 0.2459,
-        "delta_vs_p75": -3.4114,
-        "delta_vs_p90": -4.8538,
-        "delta_vs_p95": -6.53,
+        "rows": 0,
+        "current_bias50_percentile": null,
+        "percentile_band": "no_data",
+        "delta_vs_p50": null,
+        "delta_vs_p75": null,
+        "delta_vs_p90": null,
+        "delta_vs_p95": null,
         "bias50_distribution": {
-          "min": -18.7285,
-          "p25": -0.0736,
-          "p50": 2.0406,
-          "p75": 5.6979,
-          "p90": 7.1403,
-          "p95": 8.8165,
-          "max": 17.0434,
-          "mean": 2.827
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         }
       },
       "same_bucket": {
-        "rows": 195,
-        "current_bias50_percentile": 0.5744,
-        "percentile_band": "warm",
-        "delta_vs_p50": 0.553,
-        "delta_vs_p75": -1.7044,
-        "delta_vs_p90": -2.5694,
-        "delta_vs_p95": -3.2961,
+        "rows": 0,
+        "current_bias50_percentile": null,
+        "percentile_band": "no_data",
+        "delta_vs_p50": null,
+        "delta_vs_p75": null,
+        "delta_vs_p90": null,
+        "delta_vs_p95": null,
         "bias50_distribution": {
-          "min": -0.7025,
-          "p25": 1.0207,
-          "p50": 1.7335,
-          "p75": 3.9909,
-          "p90": 4.8559,
-          "p95": 5.5826,
-          "max": 6.3969,
-          "mean": 2.4738
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         }
       },
       "bull_all": {
-        "rows": 10799,
-        "current_bias50_percentile": 0.6091,
-        "percentile_band": "warm",
-        "delta_vs_p50": 0.9575,
-        "delta_vs_p75": -1.1965,
-        "delta_vs_p90": -2.852,
-        "delta_vs_p95": -3.7554,
+        "rows": 0,
+        "current_bias50_percentile": null,
+        "percentile_band": "no_data",
+        "delta_vs_p50": null,
+        "delta_vs_p75": null,
+        "delta_vs_p90": null,
+        "delta_vs_p95": null,
         "bias50_distribution": {
-          "min": -20.6429,
-          "p25": -1.3878,
-          "p50": 1.329,
-          "p75": 3.483,
-          "p90": 5.1385,
-          "p95": 6.0419,
-          "max": 17.0434,
-          "mean": 0.9861
+          "min": null,
+          "p25": null,
+          "p50": null,
+          "p75": null,
+          "p90": null,
+          "p95": null,
+          "max": null,
+          "mean": null
         }
       }
     },
-    "reference_cohort": {
-      "cohort": "same_gate_same_quality",
-      "label": "同 bull gate + 同 quality lane",
-      "rows": 750,
-      "current_bias50_percentile": 0.5173,
-      "percentile_band": "warm",
-      "bias50_distribution": {
-        "min": -18.7285,
-        "p25": -0.0736,
-        "p50": 2.0406,
-        "p75": 5.6979,
-        "p90": 7.1403,
-        "p95": 8.8165,
-        "max": 17.0434,
-        "mean": 2.827
-      },
-      "delta_vs_exact_p90": 2.1907,
-      "delta_vs_exact_p95": 1.5576,
-      "status": "viable_reference_cohort",
-      "reason": "current bias50 已超出 exact lane 常態區，但仍落在更廣 bull cohort 的 p90 內；下一步應以這個 cohort 做 segmented / piecewise calibration 研究，而不是直接 relax q35 gate。"
-    },
-    "status": "formula_review_required",
-    "recommended_mode": "exact_lane_formula_review",
-    "reason": "current bias50 已回到 exact lane p90 內；下一步應做 exact-lane 內的保守 bias50 校準 / 公式檢查，而不是再走 broader bull segmentation。",
-    "runtime_contract_status": "piecewise_runtime_not_required",
-    "runtime_contract_reason": "本輪 audit 沒有要求 current row 套用 segmented calibration；runtime 可維持既有路徑。"
+    "reference_cohort": {}
   },
   "piecewise_runtime_preview": {
     "applied": false,
-    "score": 0.022699999999999942,
-    "legacy_score": 0.022699999999999942,
+    "score": 0.1154,
+    "legacy_score": 0.1154,
     "score_delta_vs_legacy": 0.0,
     "mode": "legacy_linear",
     "segment": null,
     "reference_cohort": null,
-    "reason": "no segmented calibration artifact or current lane is outside the targeted bull q35 extension zone.",
+    "reason": "legacy baseline for q35 audit preflight / historical comparison; avoids self-referential dependence on a previous q35 artifact.",
     "exact_p90": null,
     "reference_p90": null
   },
   "deployment_grade_component_experiment": {
-    "verdict": "runtime_patch_no_material_improvement",
-    "baseline_entry_quality": 0.4323,
-    "calibration_runtime_entry_quality": 0.4323,
-    "runtime_entry_quality": 0.4323,
+    "verdict": "reference_only_current_bucket_outside_q35",
+    "baseline_entry_quality": 0.4615,
+    "calibration_runtime_entry_quality": 0.4615,
+    "runtime_entry_quality": 0.4615,
     "calibration_runtime_delta_vs_legacy": 0.0,
     "entry_quality_delta_vs_legacy": 0.0,
     "baseline_allowed_layers_raw": 0,
     "calibration_runtime_allowed_layers_raw": 0,
     "runtime_allowed_layers_raw": 0,
-    "runtime_trade_floor": 0.55,
-    "runtime_remaining_gap_to_floor": 0.1177,
+    "runtime_remaining_gap_to_floor": null,
     "machine_read_answer": {
       "entry_quality_ge_0_55": false,
       "allowed_layers_gt_0": false
     },
-    "runtime_source": "live_predict_probe",
     "q35_discriminative_redesign_applied": false,
-    "probe_alignment": {
-      "probe_feature_timestamp": "2026-04-24 03:18:31.702742",
-      "current_feature_timestamp": "2026-04-24 03:18:31.702742",
-      "timestamps_match": true,
-      "probe_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-      "current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-      "structure_bucket_match": true,
-      "used_live_predict_probe": true,
-      "reason": "live_predict_probe 與 q35 audit current row 完全對齊；deployment-grade runtime 直接沿用 live predictor output。"
-    },
-    "piecewise_runtime_applied": false,
-    "piecewise_runtime_mode": "legacy_linear",
-    "piecewise_runtime_segment": null,
-    "counterfactual_gate_allow_only_changes_layers": false,
-    "counterfactual_entry_if_bias50_fully_relaxed": 0.7254,
-    "counterfactual_layers_if_bias50_fully_relaxed": 0,
-    "required_bias50_cap_for_floor": 0.325,
-    "next_patch_target": "feat_4h_bias50_formula",
-    "verify_next": "entry_quality >= 0.55 and allowed_layers > 0 without q35 applicability / support / guardrail regression"
+    "runtime_source": "reference_only_current_live_outside_q35",
+    "next_patch_target": "follow_current_live_bucket_not_q35",
+    "reason": "current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。"
   },
   "joint_component_experiment": {
-    "verdict": "joint_component_experiment_improves_but_still_below_floor",
-    "reason": "加入 feat_4h_dist_swing_low uplift 後，entry_quality 有改善，但 exact-supported q35 lane 仍低於 trade floor；下一步需要更強的 bias50 / base-mix closure，而不是只補結構 component。",
-    "current_entry_quality": 0.4323,
-    "trade_floor": 0.55,
-    "current_allowed_layers": 0,
-    "current_bias50_score": 0.0227,
-    "current_dist_swing_low_raw": 4.1102,
-    "current_dist_swing_low_score": 0.411,
-    "best_scenario": {
-      "scenario": "exact_lane_p75",
-      "target_raw": 10.1353,
-      "target_normalized_score": 1.0,
-      "swing_raw_delta": 6.0251,
-      "swing_score_delta": 0.589,
-      "structure_quality_after": 0.5589,
-      "entry_quality_after": 0.4808,
-      "remaining_gap_to_floor": 0.0692,
-      "allowed_layers_after": 0,
-      "entry_quality_ge_trade_floor": false,
-      "allowed_layers_gt_0": false,
-      "required_bias50_score_after_swing_uplift": 0.2534,
-      "required_bias50_score_delta_after_swing_uplift": 0.2307,
-      "required_bias50_cap_after_swing_uplift": 1.133
-    },
-    "scenarios": [
-      {
-        "scenario": "winner_p50",
-        "target_raw": 4.7674,
-        "target_normalized_score": 0.4767,
-        "swing_raw_delta": 0.6572,
-        "swing_score_delta": 0.0657,
-        "structure_quality_after": 0.3862,
-        "entry_quality_after": 0.4376,
-        "remaining_gap_to_floor": 0.1124,
-        "allowed_layers_after": 0,
-        "entry_quality_ge_trade_floor": false,
-        "allowed_layers_gt_0": false,
-        "required_bias50_score_after_swing_uplift": 0.3974,
-        "required_bias50_score_delta_after_swing_uplift": 0.3747,
-        "required_bias50_cap_after_swing_uplift": 0.413
-      },
-      {
-        "scenario": "winner_p75",
-        "target_raw": 6.6096,
-        "target_normalized_score": 0.661,
-        "swing_raw_delta": 2.4994,
-        "swing_score_delta": 0.25,
-        "structure_quality_after": 0.447,
-        "entry_quality_after": 0.4528,
-        "remaining_gap_to_floor": 0.0972,
-        "allowed_layers_after": 0,
-        "entry_quality_ge_trade_floor": false,
-        "allowed_layers_gt_0": false,
-        "required_bias50_score_after_swing_uplift": 0.3467,
-        "required_bias50_score_delta_after_swing_uplift": 0.324,
-        "required_bias50_cap_after_swing_uplift": 0.6665
-      },
-      {
-        "scenario": "exact_lane_p75",
-        "target_raw": 10.1353,
-        "target_normalized_score": 1.0,
-        "swing_raw_delta": 6.0251,
-        "swing_score_delta": 0.589,
-        "structure_quality_after": 0.5589,
-        "entry_quality_after": 0.4808,
-        "remaining_gap_to_floor": 0.0692,
-        "allowed_layers_after": 0,
-        "entry_quality_ge_trade_floor": false,
-        "allowed_layers_gt_0": false,
-        "required_bias50_score_after_swing_uplift": 0.2534,
-        "required_bias50_score_delta_after_swing_uplift": 0.2307,
-        "required_bias50_cap_after_swing_uplift": 1.133
-      }
-    ],
+    "verdict": "reference_only_current_bucket_outside_q35",
     "machine_read_answer": {
       "entry_quality_ge_0_55": false,
       "allowed_layers_gt_0": false
     },
-    "verify_next": "確認 best_scenario 的 joint component experiment 是否已寫入 heartbeat summary，並比對 required_bias50_cap_after_swing_uplift 是否較 baseline 收斂。"
+    "best_scenario": {},
+    "reason": "current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。"
   },
   "exact_supported_bias50_component_experiment": {
-    "verdict": "exact_supported_bias50_component_improves_but_still_below_floor",
-    "reason": "即使只用 exact-supported / winner-supported 的 bias50 runtime 目標做單點 component experiment，entry_quality 仍未跨過 trade floor；這表示 blocker 不再是『少一點點 bias50 support』。",
-    "current_entry_quality": 0.4323,
-    "trade_floor": 0.55,
-    "current_allowed_layers": 0,
-    "current_bias50_score": 0.0227,
-    "best_scenario": {
-      "scenario": "exact_runtime_p90",
-      "target_type": "exact_supported",
-      "target_score": 0.33,
-      "score_delta": 0.3073,
-      "base_quality_after": 0.5777,
-      "entry_quality_after": 0.5244,
-      "remaining_gap_to_floor": 0.0256,
-      "allowed_layers_after": 0,
-      "entry_quality_ge_trade_floor": false,
-      "allowed_layers_gt_0": false,
-      "within_exact_supported_distribution": true
-    },
-    "scenarios": [
-      {
-        "scenario": "winner_runtime_p75",
-        "target_type": "winner_exact_supported",
-        "target_score": 0.278,
-        "score_delta": 0.2553,
-        "base_quality_after": 0.5569,
-        "entry_quality_after": 0.5088,
-        "remaining_gap_to_floor": 0.0412,
-        "allowed_layers_after": 0,
-        "entry_quality_ge_trade_floor": false,
-        "allowed_layers_gt_0": false,
-        "within_exact_supported_distribution": true
-      },
-      {
-        "scenario": "exact_runtime_p75",
-        "target_type": "exact_supported",
-        "target_score": 0.2527,
-        "score_delta": 0.23,
-        "base_quality_after": 0.5468,
-        "entry_quality_after": 0.5012,
-        "remaining_gap_to_floor": 0.0488,
-        "allowed_layers_after": 0,
-        "entry_quality_ge_trade_floor": false,
-        "allowed_layers_gt_0": false,
-        "within_exact_supported_distribution": true
-      },
-      {
-        "scenario": "exact_runtime_p90",
-        "target_type": "exact_supported",
-        "target_score": 0.33,
-        "score_delta": 0.3073,
-        "base_quality_after": 0.5777,
-        "entry_quality_after": 0.5244,
-        "remaining_gap_to_floor": 0.0256,
-        "allowed_layers_after": 0,
-        "entry_quality_ge_trade_floor": false,
-        "allowed_layers_gt_0": false,
-        "within_exact_supported_distribution": true
-      }
-    ],
+    "verdict": "reference_only_current_bucket_outside_q35",
     "machine_read_answer": {
       "entry_quality_ge_0_55": false,
       "allowed_layers_gt_0": false,
-      "used_exact_supported_target": true
+      "used_exact_supported_target": false
     },
-    "verify_next": "確認 heartbeat summary / ISSUES / ROADMAP 已同步 exact-supported bias50 單點 experiment 的 best_scenario 與 remaining_gap_to_floor。"
+    "best_scenario": {},
+    "reason": "current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。"
   },
   "base_mix_component_experiment": {
-    "verdict": "base_mix_component_experiment_improves_but_still_below_floor",
-    "reason": "bias50 + pulse (+ nose) 的 base-mix uplift 明顯優於只補 structure component，但 current live row 仍未跨過 trade floor；下一輪需升級成 base-stack redesign blocker，而不是再做單點 component 微調。",
-    "current_entry_quality": 0.4323,
-    "trade_floor": 0.55,
-    "current_allowed_layers": 0,
-    "best_scenario": {
-      "scenario": "winner_triplet_p75",
-      "components_applied": [
-        {
-          "feature": "feat_4h_bias50",
-          "weight": 0.4,
-          "current_score": 0.0227,
-          "target_score": 0.278,
-          "score_delta": 0.2553,
-          "weighted_base_gain": 0.1021
-        }
-      ],
-      "base_quality_after": 0.5569,
-      "entry_quality_after": 0.5088,
-      "remaining_gap_to_floor": 0.0412,
-      "allowed_layers_after": 0,
-      "entry_quality_ge_trade_floor": false,
-      "allowed_layers_gt_0": false,
-      "required_bias50_score_after_base_mix": 0.4153,
-      "required_bias50_score_delta_after_base_mix": 0.1373,
-      "required_bias50_cap_after_base_mix": 0.3235
-    },
-    "scenarios": [
-      {
-        "scenario": "winner_triplet_p75",
-        "components_applied": [
-          {
-            "feature": "feat_4h_bias50",
-            "weight": 0.4,
-            "current_score": 0.0227,
-            "target_score": 0.278,
-            "score_delta": 0.2553,
-            "weighted_base_gain": 0.1021
-          }
-        ],
-        "base_quality_after": 0.5569,
-        "entry_quality_after": 0.5088,
-        "remaining_gap_to_floor": 0.0412,
-        "allowed_layers_after": 0,
-        "entry_quality_ge_trade_floor": false,
-        "allowed_layers_gt_0": false,
-        "required_bias50_score_after_base_mix": 0.4153,
-        "required_bias50_score_delta_after_base_mix": 0.1373,
-        "required_bias50_cap_after_base_mix": 0.3235
-      },
-      {
-        "scenario": "exact_lane_triplet_p75",
-        "components_applied": [
-          {
-            "feature": "feat_4h_bias50",
-            "weight": 0.4,
-            "current_score": 0.0227,
-            "target_score": 0.2527,
-            "score_delta": 0.23,
-            "weighted_base_gain": 0.092
-          }
-        ],
-        "base_quality_after": 0.5468,
-        "entry_quality_after": 0.5012,
-        "remaining_gap_to_floor": 0.0488,
-        "allowed_layers_after": 0,
-        "entry_quality_ge_trade_floor": false,
-        "allowed_layers_gt_0": false,
-        "required_bias50_score_after_base_mix": 0.4154,
-        "required_bias50_score_delta_after_base_mix": 0.1627,
-        "required_bias50_cap_after_base_mix": 0.323
-      }
-    ],
+    "verdict": "reference_only_current_bucket_outside_q35",
     "machine_read_answer": {
       "entry_quality_ge_0_55": false,
       "allowed_layers_gt_0": false
     },
-    "verify_next": "確認 heartbeat summary / ISSUES / ROADMAP 已同步 best_scenario 與 required_bias50_cap_after_base_mix，避免下一輪退回只看 structure uplift。"
+    "best_scenario": {},
+    "reason": "current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。"
   },
   "base_stack_redesign_experiment": {
-    "verdict": "base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked",
-    "reason": "在 runtime exact lane 內，以正向 discrimination 為約束的 base-stack reweight 已讓 entry_quality 跨過 scoring floor；但 runtime gate/support 仍讓 allowed_layers=0，因此只能視為 score-only research closure，不可視為 deployment closure。",
-    "rows": 184,
-    "wins": 120,
-    "losses": 64,
-    "current_entry_quality": 0.4323,
-    "trade_floor": 0.55,
-    "current_allowed_layers": 0,
-    "current_component_scores": {
-      "feat_4h_bias50": 0.0227,
-      "feat_nose": 0.5994,
-      "feat_pulse": 0.7022,
-      "feat_ear": 0.9885
-    },
-    "best_discriminative_candidate": {
-      "weights": {
-        "feat_4h_bias50": 0.0,
-        "feat_nose": 0.95,
-        "feat_pulse": 0.0,
-        "feat_ear": 0.05
-      },
-      "winner_mean_base_quality": 0.5166,
-      "loss_mean_base_quality": 0.4982,
-      "mean_gap": 0.0183,
-      "current_base_quality": 0.6189,
-      "current_entry_quality_after": 0.5553,
-      "remaining_gap_to_floor": 0.0,
-      "allowed_layers_after": 0,
-      "entry_quality_ge_trade_floor": true,
-      "allowed_layers_gt_0": false,
-      "positive_discriminative_gap": true
-    },
-    "best_floor_candidate": {
-      "weights": {
-        "feat_4h_bias50": 0.0,
-        "feat_nose": 0.0,
-        "feat_pulse": 0.0,
-        "feat_ear": 1.0
-      },
-      "winner_mean_base_quality": 0.9361,
-      "loss_mean_base_quality": 0.963,
-      "mean_gap": -0.0269,
-      "current_base_quality": 0.9885,
-      "current_entry_quality_after": 0.8325,
-      "remaining_gap_to_floor": 0.0,
-      "allowed_layers_after": 0,
-      "entry_quality_ge_trade_floor": true,
-      "allowed_layers_gt_0": false,
-      "positive_discriminative_gap": false
-    },
-    "unsafe_floor_cross_candidate": null,
+    "verdict": "reference_only_current_bucket_outside_q35",
     "machine_read_answer": {
-      "entry_quality_ge_0_55": true,
+      "entry_quality_ge_0_55": false,
       "allowed_layers_gt_0": false,
-      "positive_discriminative_gap": true,
-      "execution_blocked_after_floor_cross": true
+      "positive_discriminative_gap": null
     },
-    "verify_next": "確認 heartbeat summary / ISSUES / ROADMAP 已同步 discriminative vs unsafe floor-cross 候選，避免下一輪再把 ear-heavy 權重假裝成可部署 redesign。"
+    "rows": 0,
+    "wins": 0,
+    "losses": 0,
+    "best_discriminative_candidate": {},
+    "best_floor_candidate": {},
+    "unsafe_floor_cross_candidate": null,
+    "reason": "current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。"
   },
   "counterfactuals": {
-    "entry_if_gate_allow_only": 0.4323,
-    "layers_if_gate_allow_only": 0,
     "gate_allow_only_changes_layers": false,
-    "entry_if_bias50_fully_relaxed": 0.7254,
+    "entry_if_gate_allow_only": null,
+    "layers_if_gate_allow_only": 0,
+    "entry_if_bias50_fully_relaxed": null,
     "layers_if_bias50_fully_relaxed": 0,
-    "bias50_score_current": 0.0227,
-    "trade_floor": 0.55,
-    "needed_entry_gain_to_cross_floor": 0.1177,
-    "needed_base_gain_to_cross_floor": 0.1569,
-    "needed_bias50_score_for_floor": 0.415,
-    "required_bias50_cap_for_floor": 0.325,
-    "current_bias50_value": 2.2865
+    "required_bias50_cap_for_floor": null,
+    "current_bias50_value": 1.8231
   },
-  "structure_scaling_verdict": "q35_structure_caution_not_root_cause",
-  "overall_verdict": "bias50_formula_may_be_too_harsh",
-  "verdict_reason": "current bias50 已回到 exact-lane p90 內，但 legacy 公式仍可能把它壓成 0 分；需改做 exact-lane 內的保守分段校準，而不是繼續把它視為 broader bull segmentation 問題。",
-  "recommended_action": "discriminative base-stack redesign 只能讓 entry_quality 跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0；下一輪必須把它治理成 score-only / execution-blocked，不得把 floor-cross 當成 deployment closure。"
+  "structure_scaling_verdict": "reference_only_current_bucket_outside_q35",
+  "overall_verdict": "reference_only_current_bucket_outside_q35",
+  "verdict_reason": "current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。",
+  "recommended_action": "current live row 已離開 q35 lane；本輪 q35 audit 保留為 reference-only。下一步應直接跟 current live bucket 的 support / runtime blocker，而不是再為 q35 calibration 重跑 historical lane 分析。"
 }

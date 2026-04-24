@@ -1526,7 +1526,7 @@ export default function ExecutionConsole() {
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">支持樣本</div>
-                <div className="mt-1 font-semibold text-white">當前分桶 {supportRowsLabel} · gap {supportGapLabel}</div>
+                <div className="mt-1 font-semibold text-white">當前分桶 {supportRowsLabel} · 缺口 {supportGapLabel}</div>
                 <div className="text-[11px] text-slate-400">支持狀態 {supportProgressStatusLabel}</div>
                 <div className="text-[11px] text-slate-400">樣本變化 {supportDeltaLabel}</div>
                 <div className="text-[11px] text-slate-400">最近已就緒 {supportReferenceLabel}</div>

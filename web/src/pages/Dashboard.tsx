@@ -1314,7 +1314,7 @@ export default function Dashboard() {
             <>
               <div>{executionModeLabel} · {executionVenueLabel}</div>
               <div>目前阻塞點 {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
-              <div className="opacity-70">當前分桶 {dashboardSupportRowsLabel} · gap {dashboardSupportGapLabel} · 支持路徑 {dashboardSupportRouteVerdictLabel} · 治理路徑 {dashboardSupportGovernanceRouteLabel}</div>
+              <div className="opacity-70">當前分桶 {dashboardSupportRowsLabel} · 缺口 {dashboardSupportGapLabel} · 支持路徑 {dashboardSupportRouteVerdictLabel} · 治理路徑 {dashboardSupportGovernanceRouteLabel}</div>
               <div className="opacity-70">場館阻塞 {dashboardVenueBlockersLabel}</div>
             </>
           )}

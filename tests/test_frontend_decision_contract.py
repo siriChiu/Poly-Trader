@@ -642,7 +642,7 @@ def test_execution_surfaces_show_current_bucket_support_and_runtime_vs_calibrati
         assert snippet in console_source
 
     for snippet in [
-        '當前分桶 {supportRowsLabel} · gap {supportGapLabel}',
+        '當前分桶 {supportRowsLabel} · 缺口 {supportGapLabel}',
         '支持狀態 {supportProgressStatusLabel}',
         '樣本變化 {supportDeltaLabel}',
         '支持路徑 {supportRouteVerdictLabel}',
@@ -652,7 +652,7 @@ def test_execution_surfaces_show_current_bucket_support_and_runtime_vs_calibrati
         assert snippet in status_source
 
     for snippet in [
-        '>當前分桶 {supportRowsLabel} · gap {supportGapLabel}</div>',
+        '>當前分桶 {supportRowsLabel} · 缺口 {supportGapLabel}</div>',
         '支持狀態 {supportProgressStatusLabel}',
         '樣本變化 {supportDeltaLabel}',
         '支持路徑 {supportRouteVerdictLabel}',
@@ -745,7 +745,7 @@ def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_r
         'const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
         'value={dashboardExecutionStatusValue}',
         '目前阻塞點 {dashboardCurrentLiveBlockerLabel}',
-        '當前分桶 {dashboardSupportRowsLabel} · gap {dashboardSupportGapLabel} · 支持路徑 {dashboardSupportRouteVerdictLabel} · 治理路徑 {dashboardSupportGovernanceRouteLabel}',
+        '當前分桶 {dashboardSupportRowsLabel} · 缺口 {dashboardSupportGapLabel} · 支持路徑 {dashboardSupportRouteVerdictLabel} · 治理路徑 {dashboardSupportGovernanceRouteLabel}',
         '場館阻塞 {dashboardVenueBlockersLabel}',
     ]
     for snippet in required_snippets:
@@ -1123,7 +1123,7 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'const liveSupportStatusLabel = liveExecutionSyncPending',
         'const liveSupportDeltaLabel = liveExecutionSyncPending',
         'const liveSupportRouteSummaryLabel = liveExecutionSyncPending',
-        '目前分桶 ${liveSupportRowsLabel} · gap ${liveSupportGapLabel} · 支持路徑 ${liveSupportRouteVerdictLabel} · 治理路徑 ${liveSupportGovernanceRouteLabel}`;',
+        '目前分桶 ${liveSupportRowsLabel} · 缺口 ${liveSupportGapLabel} · 支持路徑 ${liveSupportRouteVerdictLabel} · 治理路徑 ${liveSupportGovernanceRouteLabel}`;',
         '支持狀態 ${liveSupportStatusLabel} · 樣本變化 ${liveSupportDeltaLabel}`;',
         'const liveRouting = liveRuntimeTruth?.sleeve_routing ?? null;',
         'const liveActiveSleeves = Array.isArray(liveRouting?.active_sleeves) ? liveRouting.active_sleeves : [];',
@@ -1175,7 +1175,7 @@ def test_strategy_lab_live_sync_card_keeps_blocked_status_ahead_of_reconciliatio
         'reconciliationStatus: executionReconciliation?.status,',
         '{liveDeployStatusLabel}',
         '目前阻塞點 {currentLiveBlockerLabel}',
-        '當前分桶 {liveSupportRowsLabel} · gap {liveSupportGapLabel}',
+        '當前分桶 {liveSupportRowsLabel} · 缺口 {liveSupportGapLabel}',
         '{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}',
     ]
     for snippet in required_snippets:
@@ -1906,6 +1906,7 @@ def test_use_api_supports_local_backend_timeout_fallback_for_dev_runtime():
         'const DEV_LOCAL_API_CANDIDATE_PORTS = [8000, 8001] as const;',
         'const DEV_API_DISCOVERY_TIMEOUT_MS = 1200;',
         'const DEV_API_STATUS_DISCOVERY_TIMEOUT_MS = 2000;',
+        'const LEADERBOARD_REQUEST_TIMEOUT_MS = 20000;',
         'let prewarmActiveApiBasePromise: Promise<void> | null = null;',
         'type ApiBaseHealthProbe = {',
         'window.localStorage.setItem(ACTIVE_API_BASE_STORAGE_KEY, base);',
@@ -1931,6 +1932,8 @@ def test_use_api_supports_local_backend_timeout_fallback_for_dev_runtime():
         'await prewarmDevApiBase();',
         'const requestCandidates = getApiRequestCandidates();',
         'const timeoutMs = getRequestTimeoutMs(endpoint);',
+        'if (endpoint.startsWith("/api/strategies/leaderboard")) return LEADERBOARD_REQUEST_TIMEOUT_MS;',
+        'if (endpoint.startsWith("/api/models/leaderboard")) return LEADERBOARD_REQUEST_TIMEOUT_MS;',
         'export async function fetchApiResponse(endpoint: string, options?: RequestInit): Promise<Response> {',
     ]
     for snippet in required_snippets:
@@ -2069,8 +2072,11 @@ def test_operator_surfaces_humanize_feature_keys_and_remove_raw_bucket_fragments
         'humanizeFeatureKey,',
         'humanizeFeatureKey(shift.feature || "unknown", { preferShortLabel: true })',
         'humanizeFeatureKey(feature, { preferShortLabel: true })',
+        'recommendedPatch?.gap_to_minimum != null ? ` · 缺口 ${recommendedPatch.gap_to_minimum}` : ""',
+        'recommendedPatch.gap_to_minimum != null ? ` · 缺口 ${recommendedPatch.gap_to_minimum}` : ""',
     ]:
         assert snippet in pathology_card_source
+    assert '` · gap ${recommendedPatch.gap_to_minimum}`' not in pathology_card_source
 
     for snippet in [
         'humanizeFeatureKey,',

@@ -302,7 +302,7 @@ export default function LivePathologySummaryCard({
             <div className="mt-1 font-semibold text-sky-100">{compactPatchLabel || "未提供修補方案"}</div>
             <div className="text-sky-50/80">
               樣本 {recommendedPatch?.current_live_structure_bucket_rows ?? "—"}/{recommendedPatch?.minimum_support_rows ?? "—"}
-              {recommendedPatch?.gap_to_minimum != null ? ` · gap ${recommendedPatch.gap_to_minimum}` : ""}
+              {recommendedPatch?.gap_to_minimum != null ? ` · 缺口 ${recommendedPatch.gap_to_minimum}` : ""}
             </div>
             <div className="text-sky-50/80">
               {compactPatchStatusLabel || "修補方案狀態未提供"}
@@ -441,7 +441,7 @@ export default function LivePathologySummaryCard({
               樣本 {recommendedPatch.current_live_structure_bucket_rows ?? "—"}
               /
               {recommendedPatch.minimum_support_rows ?? "—"}
-              {recommendedPatch.gap_to_minimum != null ? ` · gap ${recommendedPatch.gap_to_minimum}` : ""}
+              {recommendedPatch.gap_to_minimum != null ? ` · 缺口 ${recommendedPatch.gap_to_minimum}` : ""}
             </div>
             <div>
               {PATHOLOGY_LABELS.supportRoute} {supportRouteDisplayLabel || "—"}

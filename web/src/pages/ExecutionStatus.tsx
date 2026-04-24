@@ -764,7 +764,7 @@ export default function ExecutionStatus() {
                 <div className="mt-2 font-semibold text-white">層數 {liveRuntimeTruth?.allowed_layers_raw ?? "—"} → {liveRuntimeTruth?.allowed_layers ?? "—"}</div>
                 <div className="mt-2 text-slate-400">原始原因 {rawAllowedLayersReasonLabel}</div>
                 <div className="text-slate-400">最終原因 {finalAllowedLayersReasonLabel}</div>
-                <div className="mt-2 text-slate-400">當前分桶 {supportRowsLabel} · gap {supportGapLabel}</div>
+                <div className="mt-2 text-slate-400">當前分桶 {supportRowsLabel} · 缺口 {supportGapLabel}</div>
                 <div className="text-slate-400">支持狀態 {supportProgressStatusLabel}</div>
                 <div className="text-slate-400">樣本變化 {supportDeltaLabel}</div>
                 <div className="text-slate-400">最近已就緒 {supportReferenceLabel}</div>
