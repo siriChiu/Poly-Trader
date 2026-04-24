@@ -736,7 +736,8 @@ def test_main_promotes_recent_distribution_pathology_even_when_tw_ic_recovers(mo
     pathology_issue = next(item for item in added if item[1] == "#H_AUTO_RECENT_PATHOLOGY")
     assert pathology_issue[0] == "P0"
     assert "recent canonical window 100 rows = distribution_pathology" in pathology_issue[2]
-    assert "feature_diag=variance:28/49, frozen:5, compressed:23, expected_static:0, overlay_only:0, unexpected_frozen:0, distinct:15, null_heavy:10" in pathology_issue[3]
+    assert "machine-readable summary" in pathology_issue[3]
+    assert "feature_diag=variance:28/49" not in pathology_issue[3]
     assert "#H_AUTO_RECENT_PATHOLOGY" in out
 
 

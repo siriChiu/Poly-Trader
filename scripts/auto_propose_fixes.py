@@ -1643,7 +1643,8 @@ def main():
             f"recent canonical window {pathology_window} rows = {pathology_interpretation or 'distribution_pathology'}",
             "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；"
             "維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。"
-            f" {pathology_drift_summary_text}",
+            "具體 window / alerts / feature shifts 只保留在 machine-readable summary 與 recent_drift_report artifact，"
+            "避免 ISSUES.md / ROADMAP.md 被長篇 telemetry 污染。",
             summary=pathology_summary,
         )
     else:
