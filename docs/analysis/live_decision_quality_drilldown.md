@@ -1,9 +1,9 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-24 02:20:23.220632**
+- feature_timestamp: **2026-04-24 03:18:31.702742**
 - target: `simulated_pyramid_win`
 - live path: **bull / BLOCK / D**
-- signal: **HOLD** @ confidence **0.5524**
+- signal: **HOLD** @ confidence **0.5829**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: `regime_gate_block`
 - allowed_layers_reason: `unsupported_exact_live_structure_bucket`
@@ -11,9 +11,9 @@
 - runtime_blocker: `None` | reason: `None`
 - deployment_blocker: `unsupported_exact_live_structure_bucket` | reason: `current live structure bucket 缺少 exact live lane 歷史支持；在 exact bucket 出現前，broader / proxy rows 只能作治理參考，不可作 deployment 放行依據。`
 - q15 exact-supported patch: **inactive** | support_route `exact_bucket_unsupported_block` | floor_cross `None`
-- runtime closure summary: **current live bucket BLOCK|bull_high_bias200_overheat_block|q35 的 exact support 仍未就緒（0/50，route=exact_bucket_unsupported_block / governance=no_support_proxy）；broader / proxy rows 與 recommended patch 目前都只屬 reference-only 治理，不可視為 deployment closure。 recommended_patch=core_plus_macro_plus_all_4h (reference_only_non_current_live_scope). blocker=current live structure bucket 缺少 exact live lane 歷史支持；在 exact bucket 出現前，broader / proxy rows 只能作治理參考，不可作 deployment 放行依據。. exact-vs-spillover=同 regime 寬 scope 出現 bull|ALLOW spillover，589 rows / WR 46.2% / 品質 0.062，明顯劣於 exact live lane WR — / 品質 —。**
-- q35 scaling audit: overall=`bias50_formula_may_be_too_harsh` / redesign=`base_stack_redesign_discriminative_reweight_still_below_floor` / runtime_gap=`0.1332` / mode=`exact_lane_formula_review` / next_patch=`feat_4h_bias50_formula`
-- q35 audit action: 即使做 support-aware / discriminative base-stack redesign，current row 仍無法跨過 trade floor；下一輪必須升級為 bull q35 no-deploy governance blocker，禁止再把結構 uplift、單點 bias50 或 base-stack 權重微調當成主 closure。
+- runtime closure summary: **current live bucket BLOCK|bull_high_bias200_overheat_block|q35 的 exact support 仍未就緒（0/50，route=exact_bucket_unsupported_block / governance=no_support_proxy）；broader / proxy rows 與 recommended patch 目前都只屬 reference-only 治理，不可視為 deployment closure。 recommended_patch=core_plus_macro_plus_all_4h (reference_only_non_current_live_scope). blocker=current live structure bucket 缺少 exact live lane 歷史支持；在 exact bucket 出現前，broader / proxy rows 只能作治理參考，不可作 deployment 放行依據。. exact-vs-spillover=同 regime 寬 scope 出現 bull|ALLOW spillover，594 rows / WR 50.7% / 品質 0.097，明顯劣於 exact live lane WR — / 品質 —。**
+- q35 scaling audit: overall=`bias50_formula_may_be_too_harsh` / redesign=`base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked` / runtime_gap=`0.1177` / mode=`exact_lane_formula_review` / next_patch=`feat_4h_bias50_formula`
+- q35 audit action: discriminative base-stack redesign 只能讓 entry_quality 跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0；下一輪必須把它治理成 score-only / execution-blocked，不得把 floor-cross 當成 deployment closure。
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
 - recommended_patch: **core_plus_macro_plus_all_4h** / status `reference_only_non_current_live_scope` / support_route `exact_bucket_unsupported_block` / gap `50` / reference_scope `bull|CAUTION` / source `bull_4h_pocket_ablation.bull_collapse_q35`
 - recommended_patch_features: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
@@ -22,28 +22,28 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.4168** / trade_floor **0.55** / gap **-0.1332**
-- base_quality: **0.4128** × weight **0.75**
-- structure_quality: **0.4289** × weight **0.25**
-- base components: feat_4h_bias50=0.0 (w=0.4, contrib=0.0), feat_nose=0.4048 (w=0.18, contrib=0.0729), feat_pulse=0.712 (w=0.27, contrib=0.1922), feat_ear=0.9845 (w=0.15, contrib=0.1477)
-- structure components: feat_4h_bb_pct_b=0.5981 (w=0.34, contrib=0.2034), feat_4h_dist_bb_lower=0.2323 (w=0.33, contrib=0.0767), feat_4h_dist_swing_low=0.4513 (w=0.33, contrib=0.1489)
+- final entry_quality: **0.4323** / trade_floor **0.55** / gap **-0.1177**
+- base_quality: **0.4548** × weight **0.75**
+- structure_quality: **0.3645** × weight **0.25**
+- base components: feat_4h_bias50=0.0227 (w=0.4, contrib=0.0091), feat_nose=0.5994 (w=0.18, contrib=0.1079), feat_pulse=0.7022 (w=0.27, contrib=0.1896), feat_ear=0.9885 (w=0.15, contrib=0.1483)
+- structure components: feat_4h_bb_pct_b=0.4875 (w=0.34, contrib=0.1657), feat_4h_dist_bb_lower=0.1914 (w=0.33, contrib=0.0632), feat_4h_dist_swing_low=0.411 (w=0.33, contrib=0.1356)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.1332**
-- base_group_max_entry_gain: **0.4404** | structure_group_max_entry_gain: **0.1428**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.444, max_gain≈0.3）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.444)
-- bias50 fully relaxed: entry≈**0.7168** / layers≈**0** / required_bias50_cap≈**0.18**
+- remaining_gap_to_floor: **0.1177**
+- base_group_max_entry_gain: **0.4089** | structure_group_max_entry_gain: **0.1589**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.3923, max_gain≈0.2932）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.3923)
+- bias50 fully relaxed: entry≈**0.7254** / layers≈**0** / required_bias50_cap≈**0.325**
 - unavailable_reason: `None`
 
 ## Scope comparison
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label+entry_quality_label` | 493 | 0.5497 | 0.1684 | 0.2766 | 0.6765 | 0 | False |
+| chosen `regime_label+entry_quality_label` | 496 | 0.5524 | 0.1564 | 0.2694 | 0.6473 | 0 | False |
 | exact `regime_label+regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
-| narrow `regime_label+entry_quality_label` | 493 | 0.5497 | 0.1684 | 0.2766 | 0.6765 | 0 | False |
+| narrow `regime_label+entry_quality_label` | 496 | 0.5524 | 0.1564 | 0.2694 | 0.6473 | 0 | False |
 | broad `regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
 
 ## Shared shifts

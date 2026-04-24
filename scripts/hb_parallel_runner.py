@@ -803,7 +803,7 @@ def _issue_current_lines(
             f"`support_route_verdict={summary_verdict}` / "
             f"`overall_verdict={summary.get('overall_verdict') or '—'}` / "
             f"`redesign_verdict={summary.get('redesign_verdict') or '—'}` / "
-            f"`remaining_gap_to_floor={summary.get('remaining_gap_to_floor', '—')}`",
+            f"`runtime_gap_to_floor={summary.get('runtime_remaining_gap_to_floor', summary.get('remaining_gap_to_floor', '—'))}`",
         ]
         if q35_doc_line:
             lines.append(q35_doc_line)
@@ -825,13 +825,24 @@ def _q35_scaling_doc_line(issue: Dict[str, Any] | None) -> str | None:
     summary = issue.get("summary") or {}
     if not isinstance(summary, dict) or not summary:
         return None
-    remaining_gap = summary.get("remaining_gap_to_floor")
-    return (
-        "q35 scaling audit 已指出目前不是單點 bias50 closure："
-        f"`overall_verdict={summary.get('overall_verdict') or '—'}` / "
-        f"`redesign_verdict={summary.get('redesign_verdict') or '—'}` / "
-        f"`remaining_gap_to_floor={remaining_gap if remaining_gap is not None else '—'}`"
-    )
+    runtime_gap = summary.get("runtime_remaining_gap_to_floor", summary.get("remaining_gap_to_floor"))
+    parts = [
+        "q35 scaling audit 已指出目前不是單點 bias50 closure：",
+        f"`overall_verdict={summary.get('overall_verdict') or '—'}`",
+        f"`redesign_verdict={summary.get('redesign_verdict') or '—'}`",
+        f"`runtime_gap_to_floor={runtime_gap if runtime_gap is not None else '—'}`",
+    ]
+    if summary.get("redesign_entry_quality") is not None:
+        parts.append(f"`redesign_entry_quality={summary.get('redesign_entry_quality')}`")
+    if summary.get("redesign_allowed_layers_after") is not None:
+        parts.append(f"`redesign_allowed_layers={summary.get('redesign_allowed_layers_after')}`")
+    if summary.get("redesign_positive_discriminative_gap") is not None:
+        parts.append(f"`positive_discriminative_gap={summary.get('redesign_positive_discriminative_gap')}`")
+    if summary.get("redesign_execution_blocked_after_floor_cross") is not None:
+        parts.append(
+            f"`execution_blocked_after_floor_cross={summary.get('redesign_execution_blocked_after_floor_cross')}`"
+        )
+    return " / ".join(parts)
 
 
 

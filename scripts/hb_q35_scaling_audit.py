@@ -1113,13 +1113,26 @@ def _build_base_stack_redesign_experiment(
         if not best_floor_cross.get("positive_discriminative_gap"):
             unsafe_floor_cross = best_floor_cross
 
-    if (
+    discriminative_crosses_floor = bool(
         best_discriminative
         and best_discriminative.get("entry_quality_ge_trade_floor")
+        and best_discriminative.get("positive_discriminative_gap")
+    )
+    discriminative_deployable = bool(
+        discriminative_crosses_floor
+        and best_discriminative
         and best_discriminative.get("allowed_layers_gt_0")
-    ):
+    )
+    if discriminative_deployable:
         verdict = "base_stack_redesign_discriminative_reweight_crosses_trade_floor"
         reason = "在 runtime exact lane 內，以正向 discrimination 為約束的 base-stack reweight 已足以讓 current live row 跨過 trade floor。"
+    elif discriminative_crosses_floor:
+        verdict = "base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked"
+        reason = (
+            "在 runtime exact lane 內，以正向 discrimination 為約束的 base-stack reweight 已讓 "
+            "entry_quality 跨過 scoring floor；但 runtime gate/support 仍讓 allowed_layers=0，"
+            "因此只能視為 score-only research closure，不可視為 deployment closure。"
+        )
     elif unsafe_floor_cross is not None:
         verdict = "base_stack_redesign_floor_cross_requires_non_discriminative_reweight"
         reason = "只有把權重大幅壓向低 discrimination component（主要是 ear）才會讓 current live row 跨過 trade floor；這會破壞 exact-lane 正負樣本分離，不能當成可部署 redesign。"
@@ -1144,6 +1157,7 @@ def _build_base_stack_redesign_experiment(
             "entry_quality_ge_0_55": bool(best_discriminative and best_discriminative.get("entry_quality_ge_trade_floor")),
             "allowed_layers_gt_0": bool(best_discriminative and best_discriminative.get("allowed_layers_gt_0")),
             "positive_discriminative_gap": bool(best_discriminative and best_discriminative.get("positive_discriminative_gap")),
+            "execution_blocked_after_floor_cross": bool(discriminative_crosses_floor and not discriminative_deployable),
         },
         "verify_next": "確認 heartbeat summary / ISSUES / ROADMAP 已同步 discriminative vs unsafe floor-cross 候選，避免下一輪再把 ear-heavy 權重假裝成可部署 redesign。",
     }
@@ -1701,7 +1715,7 @@ def _write_outputs(
         "## Base-stack redesign experiment（support-aware discriminative reweight）",
         "",
         f"- verdict: **{base_stack_redesign_experiment['verdict']}**",
-        f"- machine_read: entry_quality>=0.55=**{base_stack_redesign_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{base_stack_redesign_experiment['machine_read_answer']['allowed_layers_gt_0']}** | positive_gap=**{base_stack_redesign_experiment['machine_read_answer']['positive_discriminative_gap']}**",
+        f"- machine_read: entry_quality>=0.55=**{base_stack_redesign_experiment['machine_read_answer']['entry_quality_ge_0_55']}** | allowed_layers>0=**{base_stack_redesign_experiment['machine_read_answer']['allowed_layers_gt_0']}** | positive_gap=**{base_stack_redesign_experiment['machine_read_answer']['positive_discriminative_gap']}** | execution_blocked_after_floor_cross=**{base_stack_redesign_experiment['machine_read_answer'].get('execution_blocked_after_floor_cross')}**",
         f"- rows / wins / losses: **{base_stack_redesign_experiment['rows']} / {base_stack_redesign_experiment['wins']} / {base_stack_redesign_experiment['losses']}**",
         f"- best discriminative candidate: weights=**{(base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('weights')}** → entry_quality **{((base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('current_entry_quality_after'))}** / gap **{((base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('remaining_gap_to_floor'))}** / mean_gap **{((base_stack_redesign_experiment.get('best_discriminative_candidate') or {}).get('mean_gap'))}**",
         f"- best floor candidate: weights=**{(base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('weights')}** → entry_quality **{((base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('current_entry_quality_after'))}** / gap **{((base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('remaining_gap_to_floor'))}** / mean_gap **{((base_stack_redesign_experiment.get('best_floor_candidate') or {}).get('mean_gap'))}**",
@@ -1935,6 +1949,36 @@ def main() -> None:
     segmented_calibration["runtime_contract_status"] = runtime_contract_status
     segmented_calibration["runtime_contract_reason"] = runtime_contract_reason
 
+    redesign_verdict = base_stack_redesign_experiment.get("verdict")
+    active_q35_lane = bool(scope_applicability["active_for_current_live_row"])
+    if active_q35_lane and redesign_verdict == "base_stack_redesign_floor_cross_requires_non_discriminative_reweight":
+        q35_recommended_action = (
+            "base-stack redesign grid search 已證明：只有非 discriminative 的 ear-heavy 權重才會讓 current row 假性跨過 floor；"
+            "下一輪必須升級為 bull q35 no-deploy governance blocker，停止再把 base-stack 權重微調包裝成可部署 closure。"
+        )
+    elif active_q35_lane and redesign_verdict == "base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked":
+        q35_recommended_action = (
+            "discriminative base-stack redesign 只能讓 entry_quality 跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0；"
+            "下一輪必須把它治理成 score-only / execution-blocked，不得把 floor-cross 當成 deployment closure。"
+        )
+    elif active_q35_lane and redesign_verdict == "base_stack_redesign_discriminative_reweight_still_below_floor":
+        q35_recommended_action = (
+            "即使做 support-aware / discriminative base-stack redesign，current row 仍無法跨過 trade floor；"
+            "下一輪必須升級為 bull q35 no-deploy governance blocker，禁止再把結構 uplift、單點 bias50 或 base-stack 權重微調當成主 closure。"
+        )
+    elif active_q35_lane and base_mix_component_experiment.get("verdict") == "base_mix_component_experiment_improves_but_still_below_floor":
+        q35_recommended_action = "base-mix experiment 已證明 bias50 + pulse (+ nose) uplift 仍未跨過 trade floor；下一輪必須升級成 base-stack redesign blocker，禁止再把結構 uplift 或單點 bias50 當成主 closure。"
+    elif active_q35_lane and overall_verdict in {"bias50_formula_may_be_too_harsh", "broader_bull_cohort_recalibration_candidate"}:
+        q35_recommended_action = "維持 q35=CAUTION；把本輪焦點放在 bias50 正規化是否應改成分段/分位數縮放，只有當 current bias50 落在 exact-lane 常見區間時才放寬。"
+    elif not active_q35_lane:
+        q35_recommended_action = (
+            "current live row 已離開 q35 lane；本輪 q35 audit 僅保留為 reference-only。"
+            "下一步應優先處理 current bucket 的 exact support / structure component blocker，"
+            "不得把 q35 bias50 calibration 誤當成可直接放行 current live row 的 patch。"
+        )
+    else:
+        q35_recommended_action = "把這條 current bull q35 lane 正式治理成 hold-only 候選；除非 bias50 校準審計證明 current 值屬於 exact-lane常態，否則不要直接放寬 trade floor 或 q35 gate。"
+
     report = {
         "generated_at": current["timestamp"],
         "target_col": probe.get("target_col", "simulated_pyramid_win"),
@@ -1959,33 +2003,7 @@ def main() -> None:
         "structure_scaling_verdict": structure_verdict,
         "overall_verdict": overall_verdict,
         "verdict_reason": verdict_reason,
-        "recommended_action": (
-            "base-stack redesign grid search 已證明：只有非 discriminative 的 ear-heavy 權重才會讓 current row 假性跨過 floor；下一輪必須升級為 bull q35 no-deploy governance blocker，停止再把 base-stack 權重微調包裝成可部署 closure。"
-            if scope_applicability["active_for_current_live_row"]
-            and base_stack_redesign_experiment.get("verdict") == "base_stack_redesign_floor_cross_requires_non_discriminative_reweight"
-            else (
-                "即使做 support-aware / discriminative base-stack redesign，current row 仍無法跨過 trade floor；下一輪必須升級為 bull q35 no-deploy governance blocker，禁止再把結構 uplift、單點 bias50 或 base-stack 權重微調當成主 closure。"
-                if scope_applicability["active_for_current_live_row"]
-                and base_stack_redesign_experiment.get("verdict") == "base_stack_redesign_discriminative_reweight_still_below_floor"
-                else (
-                    "base-mix experiment 已證明 bias50 + pulse (+ nose) uplift 仍未跨過 trade floor；下一輪必須升級成 base-stack redesign blocker，禁止再把結構 uplift 或單點 bias50 當成主 closure。"
-                    if scope_applicability["active_for_current_live_row"]
-                    and base_mix_component_experiment.get("verdict") == "base_mix_component_experiment_improves_but_still_below_floor"
-                    else (
-                        "維持 q35=CAUTION；把本輪焦點放在 bias50 正規化是否應改成分段/分位數縮放，只有當 current bias50 落在 exact-lane 常見區間時才放寬。"
-                        if scope_applicability["active_for_current_live_row"]
-                        and overall_verdict in {"bias50_formula_may_be_too_harsh", "broader_bull_cohort_recalibration_candidate"}
-                        else (
-                            "current live row 已離開 q35 lane；本輪 q35 audit 僅保留為 reference-only。"
-                            "下一步應優先處理 current bucket 的 exact support / structure component blocker，"
-                            "不得把 q35 bias50 calibration 誤當成可直接放行 current live row 的 patch。"
-                        )
-                        if not scope_applicability["active_for_current_live_row"]
-                        else "把這條 current bull q35 lane 正式治理成 hold-only 候選；除非 bias50 校準審計證明 current 值屬於 exact-lane 常態，否則不要直接放寬 trade floor 或 q35 gate。"
-                    )
-                )
-            )
-        ),
+        "recommended_action": q35_recommended_action,
     }
 
     _write_outputs(
