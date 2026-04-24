@@ -80,6 +80,7 @@ type LiveRuntimeTruth = {
   support_rows_text?: string | null;
   support_route_verdict?: string | null;
   support_governance_route?: string | null;
+  current_live_structure_bucket_gap_to_minimum?: number | null;
   support_progress?: {
     status?: string | null;
     current_rows?: number | null;
@@ -540,6 +541,13 @@ export default function ExecutionStatus() {
   const supportRowsLabel = runtimeStatusPending
     ? "同步中"
     : (liveRuntimeTruth?.support_rows_text || "—");
+  const supportGapLabel = runtimeStatusPending
+    ? "同步中"
+    : (typeof liveRuntimeTruth?.current_live_structure_bucket_gap_to_minimum === "number"
+      ? liveRuntimeTruth.current_live_structure_bucket_gap_to_minimum.toFixed(0)
+      : (typeof liveRuntimeTruth?.support_progress?.gap_to_minimum === "number"
+        ? liveRuntimeTruth.support_progress.gap_to_minimum.toFixed(0)
+        : "—"));
   const supportProgressStatusLabel = runtimeStatusPending
     ? "同步中"
     : humanizeSupportProgressStatusLabel(liveRuntimeTruth?.support_progress?.status || null);
@@ -756,7 +764,7 @@ export default function ExecutionStatus() {
                 <div className="mt-2 font-semibold text-white">層數 {liveRuntimeTruth?.allowed_layers_raw ?? "—"} → {liveRuntimeTruth?.allowed_layers ?? "—"}</div>
                 <div className="mt-2 text-slate-400">原始原因 {rawAllowedLayersReasonLabel}</div>
                 <div className="text-slate-400">最終原因 {finalAllowedLayersReasonLabel}</div>
-                <div className="mt-2 text-slate-400">支持樣本 {supportRowsLabel}</div>
+                <div className="mt-2 text-slate-400">當前分桶 {supportRowsLabel} · gap {supportGapLabel}</div>
                 <div className="text-slate-400">支持狀態 {supportProgressStatusLabel}</div>
                 <div className="text-slate-400">樣本變化 {supportDeltaLabel}</div>
                 <div className="text-slate-400">最近已就緒 {supportReferenceLabel}</div>

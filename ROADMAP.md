@@ -1,25 +1,25 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-24 08:47:18 CST_
+_最後更新：2026-04-24 09:13:02 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #fast 已完成 collect + diagnostics refresh**
-  - `Raw=32130 / Features=23548 / Labels=64648`
+- **fast heartbeat #20260424l 已完成 collect + diagnostics refresh**
+  - `Raw=32132 / Features=23550 / Labels=64667`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `latest_window=100` / `win_rate=44.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0550` / `avg_pnl=+0.0001` / `alerts=regime_concentration,regime_shift`
+  - `latest_window=100` / `win_rate=40.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0337` / `avg_pnl=+0.0002` / `alerts=regime_concentration,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
-- **execution surfaces 已完成 operator copy productization 驗證**
-  - `pytest tests/test_execution_console_overview.py tests/test_frontend_decision_contract.py tests/test_execution_surface_contract.py -q` → `78 passed`
-  - `npm run build` 通過；browser `/`、`/execution`、`/execution/status`、`/lab` 已驗證 blocker-first 中文 copy，且無 `blocker / bucket / patch / run / beta` 殘留字串
+- **execution support-gap 可見性已補齊到 operator surfaces**
+  - `/execution` 與 `/execution/status` 現在都會把 `當前分桶 0/50 · gap 50` 與 `支持/治理路徑` 一起顯示，不再只露出 rows 而漏掉 gap
+  - 驗證：`pytest tests/test_frontend_decision_contract.py tests/test_execution_surface_contract.py -q` → `75 passed`；browser `/execution`、`/execution/status` DOM 均可直接讀到 `gap 50`
 
 ---
 
@@ -35,7 +35,7 @@ _最後更新：2026-04-24 08:47:18 CST_
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=100` / `win_rate=44.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0550` / `avg_pnl=+0.0001` / `alerts=regime_concentration,regime_shift`
+- `latest_window=100` / `win_rate=40.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0337` / `avg_pnl=+0.0002` / `alerts=regime_concentration,regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
@@ -43,14 +43,14 @@ _最後更新：2026-04-24 08:47:18 CST_
 **目前真相**
 - `current_live_structure_bucket=BLOCK|bull_high_bias200_overheat_block|q35` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`
 - `recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`
-- q35 scaling audit 已指出目前不是單點 bias50 closure：`overall_verdict=bias50_formula_may_be_too_harsh` / `redesign_verdict=base_stack_redesign_discriminative_reweight_still_below_floor` / `remaining_gap_to_floor=0.205`
+- q35 scaling audit 已指出目前不是單點 bias50 closure：`overall_verdict=bias50_formula_may_be_too_harsh` / `redesign_verdict=base_stack_redesign_discriminative_reweight_still_below_floor` / `remaining_gap_to_floor=0.1894`
 **成功標準**
 - probe / drilldown / `/api/status` / `/execution/status` / `/lab` / docs 全都承認 current live bucket exact support 未達 minimum rows，recommended patch 只能作治理 / 訓練參考。
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3598` / `archive_window_coverage_pct=0.0`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3600` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**

@@ -556,6 +556,7 @@ def test_execution_surfaces_show_current_bucket_support_and_runtime_vs_calibrati
 
     shared_snippets = [
         'const supportRowsLabel = runtimeStatusPending',
+        'const supportGapLabel = runtimeStatusPending',
         'const supportProgressStatusLabel = runtimeStatusPending',
         'const supportDeltaLabel = runtimeStatusPending',
         'const supportRouteVerdictLabel = runtimeStatusPending',
@@ -570,7 +571,7 @@ def test_execution_surfaces_show_current_bucket_support_and_runtime_vs_calibrati
         assert snippet in console_source
 
     for snippet in [
-        '支持樣本 {supportRowsLabel}',
+        '當前分桶 {supportRowsLabel} · gap {supportGapLabel}',
         '支持狀態 {supportProgressStatusLabel}',
         '樣本變化 {supportDeltaLabel}',
         '支持路徑 {supportRouteVerdictLabel}',
@@ -580,7 +581,7 @@ def test_execution_surfaces_show_current_bucket_support_and_runtime_vs_calibrati
         assert snippet in status_source
 
     for snippet in [
-        '>{supportRowsLabel}</div>',
+        '>當前分桶 {supportRowsLabel} · gap {supportGapLabel}</div>',
         '支持狀態 {supportProgressStatusLabel}',
         '樣本變化 {supportDeltaLabel}',
         '支持路徑 {supportRouteVerdictLabel}',
