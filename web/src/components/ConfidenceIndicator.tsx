@@ -19,6 +19,24 @@ import {
   humanizeSupportProgressStatusLabel,
 } from "../utils/runtimeCopy";
 
+type Q15BucketRootCauseSummary = {
+  verdict?: string | null;
+  candidate_patch_type?: string | null;
+  candidate_patch_feature?: string | null;
+  reason?: string | null;
+  verify_next?: string | null;
+  current_live_structure_bucket?: string | null;
+  gap_to_q35_boundary?: number | null;
+  dominant_neighbor_bucket?: string | null;
+  dominant_neighbor_rows?: number | null;
+  near_boundary_rows?: number | null;
+  candidate_patch?: {
+    type?: string | null;
+    feature?: string | null;
+    needed_raw_delta_to_cross_q35?: number | null;
+  } | null;
+};
+
 interface Props {
   confidence: number;        // 0~1 long-win probability proxy
   signal: string;            // BUY / HOLD / ABSTAIN / CIRCUIT_BREAKER
@@ -82,6 +100,7 @@ interface Props {
   q35RecommendedMode?: string | null;
   q35RecommendedAction?: string | null;
   q35NextPatchTarget?: string | null;
+  currentBucketRootCause?: Q15BucketRootCauseSummary | null;
   timestamp?: string;
 }
 
@@ -129,6 +148,7 @@ export default function ConfidenceIndicator({
   q35RecommendedMode,
   q35RecommendedAction,
   q35NextPatchTarget,
+  currentBucketRootCause,
   timestamp,
 }: Props) {
   const pct = Math.round(confidence * 100);
@@ -250,6 +270,29 @@ export default function ConfidenceIndicator({
   const q35ScalingActionHint = q35ScalingAuditApplicable
     ? `下一個修補方案 ${humanizeRuntimeDetailText(q35NextPatchTarget || "—")} · ${humanizeRuntimeDetailText(q35RecommendedAction || "尚未提供 q35 audit action")}`
     : "目前即時資料列不在 q35 路徑；q35 公式 / 重設結論只保留背景研究用途。";
+  const currentBucketRootCauseVisible = Boolean(
+    currentBucketRootCause?.verdict || currentBucketRootCause?.candidate_patch_feature || currentBucketRootCause?.candidate_patch?.feature
+  );
+  const currentBucketRootCauseLabel = humanizeQ15BucketRootCauseLabel(currentBucketRootCause?.verdict || null);
+  const currentBucketRootCauseActionLabel = humanizeQ15BucketRootCauseAction(
+    currentBucketRootCause?.candidate_patch_type || currentBucketRootCause?.candidate_patch?.type || null,
+  );
+  const currentBucketRootCausePatchTargetLabel = humanizeFeatureKey(
+    currentBucketRootCause?.candidate_patch_feature || currentBucketRootCause?.candidate_patch?.feature || null,
+    { preferShortLabel: true },
+  );
+  const currentBucketRootCauseBucketLabel = humanizeStructureBucketLabel(
+    currentBucketRootCause?.current_live_structure_bucket || currentLiveStructureBucket || "—",
+  );
+  const currentBucketRootCauseHint = currentBucketRootCauseVisible
+    ? `候選修補方案 ${currentBucketRootCausePatchTargetLabel} · ${currentBucketRootCauseActionLabel}`
+    : "當前分桶根因尚未進入 /predict/confidence；請先重跑 hb_predict_probe.py。";
+  const currentBucketRootCauseDetail = currentBucketRootCauseVisible
+    ? `近邊界樣本 ${currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 ${formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}`
+    : "Dashboard 不可退回 generic q15 / q35 摘要；需要直接顯示 current-bucket root cause。";
+  const nonCircuitBreakerGridClass = currentBucketRootCauseVisible
+    ? "md:grid-cols-2 xl:grid-cols-6"
+    : "md:grid-cols-2 xl:grid-cols-5";
 
   return (
     <div className={`app-surface-card ${lv.bg}`}>
@@ -339,7 +382,7 @@ export default function ConfidenceIndicator({
             </div>
           </div>
 
-          <div className={`mt-3 grid gap-3 text-xs ${circuitBreakerActive ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-2 xl:grid-cols-5"}`}>
+          <div className={`mt-3 grid gap-3 text-xs ${circuitBreakerActive ? "md:grid-cols-2 xl:grid-cols-4" : nonCircuitBreakerGridClass}`}>
             {circuitBreakerActive ? (
               <>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
@@ -402,6 +445,15 @@ export default function ConfidenceIndicator({
                     {q35ScalingAuditApplicable ? q35ScalingActionHint : q15ComponentExperimentHint}
                   </div>
                 </div>
+                {currentBucketRootCauseVisible && (
+                  <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
+                    <div className="text-[10px] tracking-wide text-slate-400">當前分桶根因</div>
+                    <div className="mt-1 font-medium text-white">{currentBucketRootCauseLabel}</div>
+                    <div className="mt-1 text-slate-400">當前分桶 {currentBucketRootCauseBucketLabel}</div>
+                    <div className="mt-1 text-slate-400">{currentBucketRootCauseHint}</div>
+                    <div className="mt-1 text-slate-400">{currentBucketRootCauseDetail}</div>
+                  </div>
+                )}
               </>
             )}
           </div>

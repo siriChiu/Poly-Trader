@@ -51,6 +51,15 @@ FAST_SERIAL_TIMEOUTS = {
     "hb_q15_bucket_root_cause": 20,
     "hb_q15_boundary_replay": 20,
 }
+FULL_SERIAL_TIMEOUTS = {
+    # Candidate-evaluation lanes can become silent for many minutes when the
+    # training set grows. Full heartbeat runs still need to finish inside the
+    # 10-minute cron/tool budget, so fail closed and reuse the latest bounded
+    # governance artifact instead of letting one lane consume the whole run.
+    "feature_group_ablation": 180,
+    "bull_4h_pocket_ablation": 120,
+    "hb_leaderboard_candidate_probe": 120,
+}
 FAST_CACHE_REUSE_MAX_LABEL_DELTA = 12
 FAST_CACHE_REUSE_MAX_LABEL_TIME_DRIFT_SECONDS = 6 * 3600
 FAST_HEARTBEAT_CRON_BUDGET_SECONDS = 240
@@ -2004,19 +2013,25 @@ def _q15_boundary_replay_cache_hit() -> Dict[str, Any] | None:
     )
 
 
-def _get_fast_serial_cache_hit(command_name: str) -> Dict[str, Any] | None:
-    if not _CURRENT_HEARTBEAT_FAST_MODE:
-        return None
-    if command_name == "recent_drift_report":
-        return _recent_drift_cache_hit()
-    if command_name == "hb_q35_scaling_audit":
-        return _q35_scaling_cache_hit()
+def _get_serial_cache_hit(command_name: str) -> Dict[str, Any] | None:
+    # Candidate-evaluation artifacts are intentionally reusable outside fast mode
+    # when their semantic source signature is still current or within the bounded
+    # label-drift guardrail. This keeps full heartbeat training preflight from
+    # stalling the whole run on expensive candidate scans that would reproduce
+    # the same governance input.
     if command_name == "feature_group_ablation":
         return _feature_group_ablation_cache_hit()
     if command_name == "bull_4h_pocket_ablation":
         return _bull_4h_pocket_cache_hit()
     if command_name == "hb_leaderboard_candidate_probe":
         return _leaderboard_candidate_cache_hit()
+
+    if not _CURRENT_HEARTBEAT_FAST_MODE:
+        return None
+    if command_name == "recent_drift_report":
+        return _recent_drift_cache_hit()
+    if command_name == "hb_q35_scaling_audit":
+        return _q35_scaling_cache_hit()
     if command_name == "hb_q15_support_audit":
         return _q15_support_cache_hit()
     if command_name == "hb_q15_bucket_root_cause":
@@ -2024,6 +2039,12 @@ def _get_fast_serial_cache_hit(command_name: str) -> Dict[str, Any] | None:
     if command_name == "hb_q15_boundary_replay":
         return _q15_boundary_replay_cache_hit()
     return None
+
+
+def _get_fast_serial_cache_hit(command_name: str) -> Dict[str, Any] | None:
+    if not _CURRENT_HEARTBEAT_FAST_MODE:
+        return None
+    return _get_serial_cache_hit(command_name)
 
 
 def _build_cached_serial_result(command_name: str, cache_hit: Dict[str, Any]) -> Dict[str, Any]:
@@ -2328,7 +2349,7 @@ def _resolve_serial_timeout(cmd: list[str], timeout: int | None) -> int:
     command_name = Path(cmd[1]).stem if len(cmd) > 1 else Path(cmd[0]).stem
     if _CURRENT_HEARTBEAT_FAST_MODE:
         return FAST_SERIAL_TIMEOUTS.get(command_name, 600)
-    return 600
+    return FULL_SERIAL_TIMEOUTS.get(command_name, 600)
 
 
 def _run_serial_command(
@@ -2339,7 +2360,7 @@ def _run_serial_command(
     progress: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     command_name = Path(cmd[1]).stem if len(cmd) > 1 else Path(cmd[0]).stem
-    cache_hit = _get_fast_serial_cache_hit(command_name) if timeout is None else None
+    cache_hit = _get_serial_cache_hit(command_name) if timeout is None else None
     if cache_hit is not None:
         return _build_cached_serial_result(command_name, cache_hit)
     effective_timeout = _resolve_serial_timeout(cmd, timeout)

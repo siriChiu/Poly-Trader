@@ -574,6 +574,24 @@ interface RuntimeStatusResponse {
   } | null;
 }
 
+interface Q15BucketRootCauseSummary {
+  verdict?: string | null;
+  candidate_patch_type?: string | null;
+  candidate_patch_feature?: string | null;
+  reason?: string | null;
+  verify_next?: string | null;
+  current_live_structure_bucket?: string | null;
+  gap_to_q35_boundary?: number | null;
+  dominant_neighbor_bucket?: string | null;
+  dominant_neighbor_rows?: number | null;
+  near_boundary_rows?: number | null;
+  candidate_patch?: {
+    type?: string | null;
+    feature?: string | null;
+    needed_raw_delta_to_cross_q35?: number | null;
+  } | null;
+}
+
 interface ConfidenceData {
   error?: string;
   confidence: number;
@@ -606,7 +624,11 @@ interface ConfidenceData {
       required_recent_window_wins?: number | null;
       additional_recent_window_wins_needed?: number | null;
     } | null;
+    q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
+    current_bucket_root_cause?: Q15BucketRootCauseSummary | null;
   } | null;
+  q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
+  current_bucket_root_cause?: Q15BucketRootCauseSummary | null;
   support_route_verdict?: string | null;
   support_route_deployable?: boolean | null;
   support_progress?: {
@@ -1496,6 +1518,7 @@ export default function Dashboard() {
           q35RecommendedMode={confidenceData.q35_recommended_mode}
           q35RecommendedAction={confidenceData.q35_recommended_action}
           q35NextPatchTarget={confidenceData.q35_next_patch_target}
+          currentBucketRootCause={confidenceData.current_bucket_root_cause ?? confidenceData.q15_bucket_root_cause ?? confidenceData.deployment_blocker_details?.current_bucket_root_cause ?? confidenceData.deployment_blocker_details?.q15_bucket_root_cause ?? null}
           timestamp={confidenceData.timestamp}
         />
       )}

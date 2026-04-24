@@ -3734,7 +3734,7 @@ def test_run_serial_command_reuses_fresh_fast_artifact(monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", True)
     monkeypatch.setattr(
         hb_parallel_runner,
-        "_get_fast_serial_cache_hit",
+        "_get_serial_cache_hit",
         lambda command_name: {
             "artifact_path": "/tmp/recent_drift_report.json",
             "reason": "fresh_recent_drift_artifact_reused",
@@ -3751,6 +3751,49 @@ def test_run_serial_command_reuses_fresh_fast_artifact(monkeypatch):
     assert result["artifact_path"] == "/tmp/recent_drift_report.json"
 
 
+def test_run_serial_command_reuses_candidate_artifact_in_full_mode(monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", False)
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "_feature_group_ablation_cache_hit",
+        lambda: {
+            "artifact_path": "/tmp/feature_group_ablation.json",
+            "reason": "bounded_label_drift_feature_group_ablation_artifact_reused",
+            "details": {"row_delta": 2},
+        },
+    )
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "_run_command_with_watchdog",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("fresh candidate artifact should be reused before spawning subprocess")),
+    )
+
+    result = hb_parallel_runner._run_serial_command(["python", "scripts/feature_group_ablation.py"])
+
+    assert result["success"] is True
+    assert result["attempted"] is False
+    assert result["cached"] is True
+    assert result["cache_reason"] == "bounded_label_drift_feature_group_ablation_artifact_reused"
+    assert result["artifact_path"] == "/tmp/feature_group_ablation.json"
+
+
+def test_full_serial_timeout_caps_expensive_candidate_lanes(monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", False)
+
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/feature_group_ablation.py"],
+        None,
+    ) == hb_parallel_runner.FULL_SERIAL_TIMEOUTS["feature_group_ablation"]
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/hb_predict_probe.py"],
+        None,
+    ) == 600
+
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", True)
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/feature_group_ablation.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["feature_group_ablation"]
 
 def test_recent_drift_cache_hit_requires_matching_label_signature(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
