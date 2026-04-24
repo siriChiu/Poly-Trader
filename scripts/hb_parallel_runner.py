@@ -68,7 +68,11 @@ FULL_PARALLEL_TASK_TIMEOUTS = {
     "full_ic": 120,
     "regime_ic": 120,
     "dynamic_window": 180,
-    "train": 180,
+    # Global train + rolling CV is the deployable artifact refresh path and now
+    # skips optional regime grid search; current dataset still needs >180s on
+    # slower cron lanes, so keep an explicit budget that remains within the
+    # 10-minute full-heartbeat envelope.
+    "train": 300,
     "tests": 180,
 }
 COLLECT_TIMEOUT_SECONDS = 180
@@ -80,7 +84,9 @@ TASKS = [
     {"name": "full_ic", "label": "🔍 Full IC", "cmd": [PYTHON, "scripts/full_ic.py"]},
     {"name": "regime_ic", "label": "🏛️ Regime IC", "cmd": [PYTHON, "scripts/regime_aware_ic.py"]},
     {"name": "dynamic_window", "label": "📏 Dynamic Window", "cmd": [PYTHON, "scripts/dynamic_window_train.py"]},
-    {"name": "train", "label": "🔨 Model Train", "cmd": [PYTHON, "model/train.py"]},
+    # Cron heartbeat must refresh the deployable global model/metrics without letting
+    # optional per-regime grid search consume the 10-minute heartbeat budget.
+    {"name": "train", "label": "🔨 Model Train", "cmd": [PYTHON, "model/train.py", "--skip-regime-models"]},
     {"name": "tests", "label": "🧪 Comprehensive Tests", "cmd": [PYTHON, "tests/comprehensive_test.py"]},
 ]
 COLLECT_CMD = [PYTHON, "scripts/hb_collect.py"]
@@ -941,6 +947,7 @@ def overwrite_current_state_docs(
     leaderboard_candidate_diagnostics: Dict[str, Any] | None,
     *,
     run_mode: str | None = None,
+    collect_attempted: bool = True,
 ) -> Dict[str, Any]:
     counts = counts or {}
     source_blockers = source_blockers or {}
@@ -960,6 +967,16 @@ def overwrite_current_state_docs(
         "fast": "fast heartbeat",
         "full": "full heartbeat",
     }.get(normalized_run_mode, "heartbeat")
+    completion_phrase = (
+        "已完成 collect + diagnostics refresh"
+        if collect_attempted
+        else "已完成 diagnostics refresh（collect skipped）"
+    )
+    orid_completion_phrase = (
+        "collect + diagnostics refresh 完成"
+        if collect_attempted
+        else "diagnostics refresh 完成（collect skipped）"
+    )
     release = (live_predictor_diagnostics.get("deployment_blocker_details") or {}).get("release_condition") or {}
     primary_summary = drift_diagnostics.get("primary_summary") or {}
     primary_window = drift_diagnostics.get("primary_window") or primary_summary.get("window") or "—"
@@ -1215,7 +1232,7 @@ def overwrite_current_state_docs(
         "---",
         "",
         "## 當前主線事實",
-        f"- **最新 {heartbeat_mode_label} #{run_label} 已完成 collect + diagnostics refresh**",
+        f"- **最新 {heartbeat_mode_label} #{run_label} {completion_phrase}**",
         f"  - {counts_line}",
         f"  - 歷史覆蓋確認：{history_line}",
         f"  - `simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`",
@@ -1290,7 +1307,7 @@ def overwrite_current_state_docs(
         "---",
         "",
         "## 已完成",
-        f"- **{heartbeat_mode_label} #{run_label} 已完成 collect + diagnostics refresh**",
+        f"- **{heartbeat_mode_label} #{run_label} {completion_phrase}**",
         f"  - {counts_line}",
         f"  - 歷史覆蓋確認：{history_line}",
         f"  - {blocker_line}",
@@ -1385,7 +1402,7 @@ def overwrite_current_state_docs(
         f"## 心跳 #{run_label} ORID",
         "",
         "### O｜客觀事實",
-        f"- collect + diagnostics refresh 完成：{counts_line}；歷史覆蓋確認：{history_line}；`simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`。",
+        f"- {orid_completion_phrase}：{counts_line}；歷史覆蓋確認：{history_line}；`simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`。",
         f"- current-live blocker：{blocker_line}。",
         f"- {support_scope_label} truth：{support_line}。",
         *[f"- {line}。" for line in support_progress_doc_lines],
@@ -4896,6 +4913,7 @@ def main(argv=None):
         circuit_breaker_audit_summary,
         leaderboard_candidate_diagnostics,
         run_mode="fast" if args.fast else "full",
+        collect_attempted=bool(collect_result.get("attempted", False)),
     )
     docs_sync = collect_current_state_docs_sync_status()
     docs_sync["auto_synced"] = docs_sync_write.get("success", False)

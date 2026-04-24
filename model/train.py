@@ -1243,11 +1243,25 @@ def train_regime_models(session: Session, target_col: str = DEFAULT_TARGET_COL) 
     return regime_stats
 
 
-def main():
-    """Standalone training entry point: python model/train.py"""
+def main(argv: Optional[list[str]] = None):
+    """Standalone training entry point: python model/train.py."""
+    import argparse
     import json, pickle
     from database.models import init_db
     import sys
+
+    parser = argparse.ArgumentParser(description="Train Poly-Trader model artifacts")
+    parser.add_argument(
+        "--skip-regime-models",
+        action="store_true",
+        help=(
+            "Refresh the global deployable model/metrics only. Use this from "
+            "heartbeat cron runs so optional per-regime grid search cannot "
+            "timeout the whole heartbeat."
+        ),
+    )
+    args = parser.parse_args(argv)
+
     sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
     db_path = str(Path(__file__).parent.parent / "poly_trader.db")
     db_url = "sqlite:///" + db_path
@@ -1257,7 +1271,7 @@ def main():
         loaded = load_training_data(session)
         if loaded is None:
             logger.error("載入訓練資料失敗")
-            return
+            return False
         X, y, y_return = loaded
         print("Training data: {} samples, {} features".format(len(X), len(X.columns)))
         print("Positive ratio: {:.4f}".format(y.mean()))
@@ -1271,6 +1285,10 @@ def main():
                 metrics.get("train_accuracy", "?"),
                 metrics.get("cv_accuracy", "?"),
                 metrics.get("cv_std", "?")))
+        if args.skip_regime_models:
+            print("Skipping regime models (--skip-regime-models); global model artifacts refreshed.")
+            print("Training complete.")
+            return bool(result)
         print("Training regime models...")
         regime_stats = train_regime_models(session)
         rpath = str(Path(__file__).parent / "regime_models.pkl")

@@ -57,6 +57,13 @@ def test_parse_args_requires_hb_for_full_mode():
         raise AssertionError("Expected parser error when --hb missing in full mode")
 
 
+def test_full_heartbeat_train_task_skips_optional_regime_grid_search():
+    train_task = next(task for task in hb_parallel_runner.TASKS if task["name"] == "train")
+
+    assert train_task["cmd"][-1] == "--skip-regime-models"
+    assert hb_parallel_runner._resolve_parallel_task_timeout("train", fast_mode=False) == 300
+
+
 def test_patch_truth_doc_context_treats_any_reference_only_status_as_reference_only():
     context = hb_parallel_runner._patch_truth_doc_context(
         "core_plus_macro_plus_all_4h",
@@ -1551,6 +1558,52 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "support=0/50" in orid_md
     assert "recommended_patch=core_plus_macro_plus_all_4h" in orid_md
     assert "heartbeat runner 現在會在 `auto_propose_fixes.py` 後自動 overwrite sync" not in orid_md
+
+
+def test_overwrite_current_state_docs_marks_no_collect_verification_runs(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text('{"issues": []}', encoding="utf-8")
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260425_verify",
+        {
+            "raw_market_data": 32187,
+            "features_normalized": 23605,
+            "labels": 64918,
+            "simulated_pyramid_win_rate": 0.5699,
+        },
+        {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []},
+        {},
+        {
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 123,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_governance_route": "exact_live_bucket_supported",
+        },
+        {},
+        {},
+        {},
+        {},
+        run_mode="full",
+        collect_attempted=False,
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+
+    assert "最新 full heartbeat #20260425_verify 已完成 diagnostics refresh（collect skipped）" in issues_md
+    assert "full heartbeat #20260425_verify 已完成 diagnostics refresh（collect skipped）" in roadmap_md
+    assert "diagnostics refresh 完成（collect skipped）" in orid_md
+    assert "#20260425_verify 已完成 collect + diagnostics refresh" not in issues_md
 
 
 
