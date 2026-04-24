@@ -1661,6 +1661,65 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
     assert "維持 current-live exact-support truth" in orid_md
 
 
+def test_overwrite_current_state_docs_surfaces_q15_breaker_context_for_under_minimum_support(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    (tmp_path / "data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P1_q15_exact_support_stalled_under_breaker",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "q15 exact support regressed under minimum while breaker is clear (8/50)",
+                        "action": "keep breaker context explicit",
+                        "summary": {
+                            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                            "live_current_structure_bucket_rows": 8,
+                            "minimum_support_rows": 50,
+                            "gap_to_minimum": 42,
+                            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                            "breaker_context": "breaker_clear",
+                        },
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260424v",
+        {},
+        {},
+        {"primary_summary": {}},
+        {
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 8,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 42,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {"recommended_patch_profile": "core_plus_macro_plus_all_4h", "recommended_patch_status": "reference_only_until_exact_support_ready"},
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    assert "q15 exact support regressed under minimum while breaker is clear (8/50)" in issues_md
+    assert "`support=8/50`" in issues_md
+    assert "`breaker_context=breaker_clear`" in issues_md
+    assert "under breaker" not in issues_md
+
+
 def test_overwrite_current_state_docs_keeps_reference_only_patch_truth_from_issue_summary(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"

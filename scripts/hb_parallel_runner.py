@@ -761,13 +761,16 @@ def _issue_current_lines(
             ]
 
     if issue_id == "P1_q15_exact_support_stalled_under_breaker":
+        summary = issue.get("summary") or {}
+        breaker_context = summary.get("breaker_context") or ("circuit_breaker_active" if live_predictor_diagnostics.get("deployment_blocker") == "circuit_breaker_active" else "breaker_clear")
         return [
             "目前真相："
             f"`bucket={support_context.get('current_bucket') or live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
             f"`support={support_current_rows}/{support_minimum_rows}` / "
             f"`gap={support_gap}` / "
             f"`support_route_verdict={support_route_verdict}` / "
-            f"`governance_route={support_governance_route}`",
+            f"`governance_route={support_governance_route}` / "
+            f"`breaker_context={breaker_context}`",
         ]
 
     if issue_id == "P1_bull_caution_spillover_patch_reference_only":

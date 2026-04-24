@@ -2332,10 +2332,14 @@ def test_sync_current_state_governance_issues_marks_persistent_q15_support_regre
 
     q15_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q15_exact_support_stalled_under_breaker")
     assert "regressed" in q15_issue["title"]
+    assert "breaker is clear" in q15_issue["title"]
+    assert "under breaker" not in q15_issue["title"]
+    assert q15_issue["summary"]["breaker_context"] == "breaker_clear"
+    assert q15_issue["summary"]["circuit_breaker_active"] is False
     assert q15_issue["summary"]["support_progress_status"] == "regressed_under_minimum"
     assert q15_issue["summary"]["recent_supported_rows"] == 199
     assert q15_issue["summary"]["delta_vs_recent_supported"] == -199
-    assert "regression" in q15_issue["action"] or "回落" in q15_issue["action"]
+    assert "breaker context" in q15_issue["action"]
 
 
 
@@ -2435,6 +2439,9 @@ def test_sync_current_state_governance_issues_prefers_live_support_route_and_ref
     )
 
     q15_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q15_exact_support_stalled_under_breaker")
+    assert "breaker is active" in q15_issue["title"]
+    assert q15_issue["summary"]["breaker_context"] == "circuit_breaker_active"
+    assert q15_issue["summary"]["circuit_breaker_active"] is True
     assert q15_issue["summary"]["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
     assert q15_issue["summary"]["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
     assert q15_issue["summary"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"

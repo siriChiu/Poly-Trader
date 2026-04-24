@@ -508,15 +508,20 @@ def sync_current_state_governance_issues(
     support_progress_status = support_progress.get("status") or (
         "stalled_under_minimum" if int(current_rows or 0) <= 0 else "present_but_below_minimum"
     )
-    support_issue_title = f"q15 exact support remains under minimum under breaker ({current_rows}/{minimum_rows})"
-    support_issue_action = "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible in probe/API/UI/docs even when circuit_breaker_active is the primary blocker."
+    breaker_context = "circuit_breaker_active" if circuit_breaker_active else "breaker_clear"
+    support_context_phrase = "while breaker is active" if circuit_breaker_active else "while breaker is clear"
+    support_issue_title = f"q15 exact support remains under minimum {support_context_phrase} ({current_rows}/{minimum_rows})"
+    if circuit_breaker_active:
+        support_issue_action = "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible in probe/API/UI/docs even when circuit_breaker_active is the primary blocker."
+    else:
+        support_issue_action = "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible as the current-live deployment blocker; do not describe this breaker-clear state as under-breaker governance."
     if support_progress_status == "regressed_under_minimum":
         support_state = "exact support regressed back under minimum"
-        support_issue_title = f"q15 exact support regressed back under minimum under breaker ({current_rows}/{minimum_rows})"
+        support_issue_title = f"q15 exact support regressed under minimum {support_context_phrase} ({current_rows}/{minimum_rows})"
         support_issue_action = (
             "Treat this as support regression, not ordinary stagnation: keep support_route_verdict/support_progress/"
             "minimum_support_rows/gap_to_minimum plus the last-supported reference visible in probe/API/UI/docs, "
-            "and verify why the current bucket fell back under minimum."
+            "verify why the current bucket fell back under minimum, and keep breaker context explicit."
         )
     elif int(current_rows or 0) <= 0:
         support_state = "exact support is missing"
@@ -547,6 +552,8 @@ def sync_current_state_governance_issues(
                 "support_route_verdict": support_route_verdict,
                 "support_governance_route": support_governance_route,
                 "support_progress_status": support_progress_status,
+                "breaker_context": breaker_context,
+                "circuit_breaker_active": bool(circuit_breaker_active),
                 "previous_rows": support_progress.get("previous_rows"),
                 "delta_vs_previous": support_progress.get("delta_vs_previous"),
                 "recent_supported_rows": support_progress.get("recent_supported_rows"),
