@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-24 18:27:28.169603**
+- generated_at: **2026-04-24 19:31:56.486697**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -26,9 +26,9 @@
 - governance_reference_only: **False**
 - preferred_support_cohort: **exact_live_bucket**
 - current bucket gap to minimum: **0**
-- exact-bucket proxy rows: **143**
-- exact-lane proxy rows: **367**
-- supported neighbor rows: **0**
+- exact-bucket proxy rows: **0**
+- exact-lane proxy rows: **776**
+- supported neighbor rows: **5**
 - reason: current q15 exact bucket 已達 minimum support，可直接用 exact bucket 做 deployment 級驗證。
 - release_condition: 保持 current_live_structure_bucket_rows >= minimum_support_rows，且 live row 仍通過 entry-quality / execution guardrail。
 - support_progress.status: **exact_supported**
@@ -45,9 +45,9 @@
 ## Floor-cross legality
 - verdict: **legal_component_experiment_after_support_ready**
 - legal_to_relax_runtime_gate: **True**
-- remaining_gap_to_floor: **0.145**
+- remaining_gap_to_floor: **0.1211**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.4833**
+- best_single_component_required_score_delta: **0.4037**
 - best_single_component_can_cross_floor: **True**
 - reason: 若 exact q15 support 已達標，則 feat_4h_bias50 可作為下一輪優先 component experiment；但仍需通過 runtime guardrail 與回歸驗證。
 

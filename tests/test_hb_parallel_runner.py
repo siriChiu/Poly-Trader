@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -17,6 +18,13 @@ q35_spec = importlib.util.spec_from_file_location("hb_q35_scaling_audit_test_mod
 hb_q35_scaling_audit = importlib.util.module_from_spec(q35_spec)
 assert q35_spec.loader is not None
 q35_spec.loader.exec_module(hb_q35_scaling_audit)
+
+FEATURE_GROUP_PATH = Path(__file__).resolve().parents[1] / "scripts" / "feature_group_ablation.py"
+feature_group_spec = importlib.util.spec_from_file_location("feature_group_ablation_test_module", FEATURE_GROUP_PATH)
+feature_group_ablation = importlib.util.module_from_spec(feature_group_spec)
+assert feature_group_spec.loader is not None
+sys.modules[feature_group_spec.name] = feature_group_ablation
+feature_group_spec.loader.exec_module(feature_group_ablation)
 
 
 class _DictRow(dict):
@@ -62,6 +70,33 @@ def test_full_heartbeat_train_task_skips_optional_regime_grid_search():
 
     assert train_task["cmd"][-1] == "--skip-regime-models"
     assert hb_parallel_runner._resolve_parallel_task_timeout("train", fast_mode=False) == 300
+
+
+def test_feature_group_ablation_has_cron_safe_bounded_refresh_cli():
+    args = feature_group_ablation.parse_args(
+        ["--bounded-refresh", "--recent-rows", "1200", "--n-splits", "2", "--n-estimators", "40"]
+    )
+
+    assert args.bounded_refresh is True
+    assert args.recent_rows == 1200
+    assert args.n_splits == 2
+    assert args.n_estimators == 40
+
+
+def test_heartbeat_candidate_refresh_uses_bounded_lanes(monkeypatch):
+    calls = []
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(cmd)
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "", "stderr": "", "command": cmd}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run)
+
+    hb_parallel_runner.run_feature_group_ablation()
+    hb_parallel_runner.run_bull_4h_pocket_ablation()
+
+    assert calls[0][-1] == "--bounded-refresh"
+    assert calls[1][-1] == "--refresh-live-context"
 
 
 def test_patch_truth_doc_context_treats_any_reference_only_status_as_reference_only():
@@ -1551,6 +1586,10 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in issues_md
     assert "curl http://127.0.0.1:8000/api/models/leaderboard" not in issues_md
     assert "current-state docs overwrite sync 已自動化" in roadmap_md
+    assert "Execution Console 快捷操作已 blocker-aware" in issues_md
+    assert "manual_trade=paused_when_deployment_blocked" in issues_md
+    assert "Execution Console 快捷操作已 blocker-aware" in roadmap_md
+    assert "買入 / 減碼 / 啟用自動模式快捷操作會顯示暫停" in roadmap_md
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in roadmap_md
     assert "不要硬綁單一 port" in roadmap_md
     assert "心跳 #20260420z ORID" in orid_md

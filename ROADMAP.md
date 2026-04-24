@@ -1,20 +1,22 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-25 02:42:59 CST_
+_最後更新：2026-04-25 03:47:42 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **full heartbeat #20260425_022713 已完成 collect + diagnostics refresh**
-  - `Raw=32192 / Features=23610 / Labels=64928`
+- **full heartbeat #20260425_033121 已完成 collect + diagnostics refresh**
+  - `Raw=32194 / Features=23612 / Labels=64932`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `deployment_blocker=decision_quality_below_trade_floor` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `latest_window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1145` / `avg_pnl=+0.0005` / `alerts=regime_concentration,regime_shift`
+  - `latest_window=500` / `win_rate=52.8%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1123` / `avg_pnl=+0.0005` / `alerts=regime_concentration,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
+- **Execution Console 快捷操作已 blocker-aware**
+  - deployment blocker 存在時，買入 / 減碼 / 啟用自動模式快捷操作會顯示暫停並保持 disabled，只留下查看阻塞原因與重新整理
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
 
@@ -33,7 +35,7 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1145` / `avg_pnl=+0.0005` / `alerts=regime_concentration,regime_shift`
+- `latest_window=500` / `win_rate=52.8%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1123` / `avg_pnl=+0.0005` / `alerts=regime_concentration,regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
@@ -47,9 +49,8 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
-- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- candidate refresh：`feature_group_ablation=timeout→fallback(42.9h) / bull_4h_pocket_ablation=timeout→fallback(42.9h) / hb_leaderboard_candidate_probe=cached(0.0h)`（fallback artifact 只能作 reference-only governance，不可當成 fresh production truth）
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3659` / `archive_window_coverage_pct=0.0`
+- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3661` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
@@ -74,5 +75,5 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 - current-live blocker 清楚且唯一：**decision_quality_below_trade_floor**
 - current live q15 truth 維持：**123/50 + exact_bucket_supported + —**
 - recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋
-- leaderboard 維持 dual-role governance；venue/source blockers 持續可見
+- leaderboard single-role governance 維持；venue/source blockers 持續可見
 - heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**

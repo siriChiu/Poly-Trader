@@ -102,6 +102,7 @@ git push origin
 1. Strategy Lab / leaderboard / model surfaces 必須可信且可比較
 2. execution / runtime / UI contract 必須一致
 3. heartbeat 必須維持 current-state-only 治理，且每輪 commit + push
+4. candidate governance refresh 必須 cron-safe：heartbeat runner 只走 `feature_group_ablation.py --bounded-refresh` 與 `bull_4h_pocket_ablation.py --refresh-live-context`，不得讓 silent full rebuild 吃完整輪預算；需要完整重掃時改由人工/獨立長任務觸發
 
 ---
 

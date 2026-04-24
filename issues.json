@@ -7,7 +7,7 @@
       "action": "把這個狀態視為正常 no-deploy risk posture 而非 release-blocking support failure：保留 allowed_layers=0 / trade_floor_gap / support metrics，僅在 exact-supported component experiment 通過 discrimination 與 runtime guardrail 後才重新開放下單。",
       "status": "open",
       "created_at": "2026-04-24T17:58:22.694513",
-      "updated_at": "2026-04-24T18:34:05.544515",
+      "updated_at": "2026-04-24T19:36:29.583189",
       "hb_detected": null,
       "next_action": "把這個狀態視為正常 no-deploy risk posture 而非 release-blocking support failure：保留 allowed_layers=0 / trade_floor_gap / support metrics，僅在 exact-supported component experiment 通過 discrimination 與 runtime guardrail 後才重新開放下單。",
       "summary": {
@@ -19,12 +19,17 @@
         "support_route_verdict": "exact_bucket_supported",
         "support_governance_route": "exact_live_bucket_supported",
         "runtime_closure_state": "support_closed_but_trade_floor_blocked",
-        "entry_quality": 0.405,
+        "entry_quality": 0.4289,
         "trade_floor": 0.55,
-        "trade_floor_gap": -0.145,
+        "trade_floor_gap": -0.1211,
         "decision_quality_label": "C",
         "allowed_layers": 0,
-        "allowed_layers_reason": "decision_quality_below_trade_floor"
+        "allowed_layers_reason": "decision_quality_below_trade_floor",
+        "execution_console_shortcut_guardrail": "manual_trade_and_automation_enable_paused_while_blocked",
+        "execution_console_allowed_actions_while_blocked": [
+          "view_blocker_reason",
+          "refresh"
+        ]
       }
     },
     {
@@ -60,7 +65,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3659,
+        "forward_archive_rows": 3661,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -68,7 +73,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-24T18:34:06.502914",
+      "updated_at": "2026-04-24T19:36:30.540129",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -83,8 +88,8 @@
         "top_model": "random_forest",
         "top_profile": "core_only",
         "top_deployment_profile": "scan_backed_best",
-        "governance_contract": "dual_role_governance_active",
-        "current_closure": "global_ranking_vs_support_aware_production_split",
+        "governance_contract": "single_role_governance_ok",
+        "current_closure": "single_profile_alignment",
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
@@ -94,7 +99,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-24T18:34:05.544529",
+      "updated_at": "2026-04-24T19:36:29.583202",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -104,20 +109,20 @@
       "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "status": "open",
       "created_at": "2026-04-24T17:58:22.694575",
-      "updated_at": "2026-04-24T18:34:05.544561",
+      "updated_at": "2026-04-24T19:36:29.583236",
       "hb_detected": null,
       "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "summary": {
         "window": "500",
         "interpretation": "regime_concentration",
-        "win_rate": 0.534,
+        "win_rate": 0.528,
         "dominant_regime": "bull",
         "dominant_regime_share": 0.994,
         "avg_pnl": 0.0005,
-        "avg_quality": 0.1145,
-        "avg_drawdown_penalty": 0.3004,
+        "avg_quality": 0.1123,
+        "avg_drawdown_penalty": 0.2985,
         "spot_long_win_rate": 0.0,
-        "avg_time_underwater": 0.7199,
+        "avg_time_underwater": 0.716,
         "alerts": [
           "regime_concentration",
           "regime_shift"
@@ -128,7 +133,7 @@
           "feat_4h_vol_ratio"
         ],
         "new_compressed_feature": "feat_vix",
-        "tail_streak": "5x0",
+        "tail_streak": "8x0",
         "adverse_streak": "42x0",
         "live_regime_label": "chop",
         "current_live_scope": false,
@@ -136,37 +141,6 @@
           "spot_long_win_rate<=0.20"
         ]
       }
-    },
-    {
-      "id": "P1_candidate_governance_artifact_stale_fallback",
-      "priority": "P1",
-      "status": "open",
-      "title": "candidate governance artifacts fell back after refresh timeouts",
-      "summary": {
-        "heartbeat": "20260425_022713",
-        "timed_out_lanes": [
-          "feature_group_ablation",
-          "bull_4h_pocket_ablation"
-        ],
-        "stale_fallback_lanes": [
-          "feature_group_ablation",
-          "bull_4h_pocket_ablation"
-        ],
-        "artifact_age_hours_by_lane": {
-          "feature_group_ablation": 42.88,
-          "bull_4h_pocket_ablation": 42.88
-        },
-        "refresh_required": true
-      },
-      "action": "把 feature shrinkage / bull pocket candidate refresh 從 silent full rebuild 改成可完成的 bounded/live-context-only lane；在刷新完成前，leaderboard / training governance 必須把 stale fallback 標成 reference-only，不可當成 fresh production truth。",
-      "next_action": "把 feature shrinkage / bull pocket candidate refresh 從 silent full rebuild 改成可完成的 bounded/live-context-only lane；在刷新完成前，leaderboard / training governance 必須把 stale fallback 標成 reference-only，不可當成 fresh production truth。",
-      "verify": [
-        "source venv/bin/activate && python -m pytest tests/test_hb_parallel_runner.py -q",
-        "python scripts/hb_parallel_runner.py --hb <next_full_run>",
-        "check data/heartbeat_<run>_summary.json serial_results candidate lanes"
-      ],
-      "updated_at": "2026-04-24T18:42:59.730621",
-      "created_at": "2026-04-24T18:42:59.730621"
     }
   ]
 }

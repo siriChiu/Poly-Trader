@@ -105,7 +105,7 @@ Q15_SUPPORT_AUDIT_CMD = [PYTHON, "scripts/hb_q15_support_audit.py"]
 Q15_BUCKET_ROOT_CAUSE_CMD = [PYTHON, "scripts/hb_q15_bucket_root_cause.py"]
 Q15_BOUNDARY_REPLAY_CMD = [PYTHON, "scripts/hb_q15_boundary_replay.py"]
 CIRCUIT_BREAKER_AUDIT_CMD = [PYTHON, "scripts/hb_circuit_breaker_audit.py"]
-FEATURE_ABLATION_CMD = [PYTHON, "scripts/feature_group_ablation.py"]
+FEATURE_ABLATION_CMD = [PYTHON, "scripts/feature_group_ablation.py", "--bounded-refresh"]
 BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
 BULL_4H_POCKET_ABLATION_REFRESH_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py", "--refresh-live-context"]
 LEADERBOARD_CANDIDATE_PROBE_CMD = [PYTHON, "scripts/hb_leaderboard_candidate_probe.py"]
@@ -1267,6 +1267,16 @@ def overwrite_current_state_docs(
         f"`governance_contract={governance_verdict or '—'}` / "
         f"`current_closure={governance_current_closure or '—'}`"
     )
+    governance_text = f"{governance_verdict or ''} {governance_current_closure or ''}".lower()
+    if "single" in governance_text:
+        leaderboard_fact_heading = "- **leaderboard / governance 已收斂為 single-role alignment**"
+        leaderboard_governance_label = "leaderboard single-role governance"
+    elif "dual" in governance_text or "split" in governance_text:
+        leaderboard_fact_heading = "- **leaderboard / governance 仍維持 dual-role contract**"
+        leaderboard_governance_label = "leaderboard dual-role governance"
+    else:
+        leaderboard_fact_heading = "- **leaderboard / governance current-state 已刷新**"
+        leaderboard_governance_label = "leaderboard governance"
     fin_blocker = None
     for blocker in source_blockers.get("blocked_features") or []:
         if isinstance(blocker, dict) and blocker.get("key") == "fin_netflow":
@@ -1302,7 +1312,7 @@ def overwrite_current_state_docs(
     patch_reference_scope = patch_context["reference_scope"]
     current_priority_line3 = (
         f"3. **守住 {support_scope_label} {patch_context['priority_focus_phrase']}、"
-        "leaderboard dual-role governance、venue/source blockers 可見性**"
+        f"{leaderboard_governance_label}、venue/source blockers 可見性**"
     )
     goal_c_title = f"### 目標 C：守住 {support_scope_label} {patch_context['goal_title_suffix']}"
     next_gate_line3 = (
@@ -1414,13 +1424,15 @@ def overwrite_current_state_docs(
         "- **recent canonical diagnostics 已刷新**",
         f"  - {pathology_line}",
         *([f"  - {blocking_pathology_line}"] if blocking_pathology_line else []),
-        "- **leaderboard / governance 仍維持 dual-role contract**",
+        leaderboard_fact_heading,
         f"  - {leaderboard_line}",
         *candidate_refresh_fact_lines,
         "- **source / venue blockers 仍開啟**",
         f"  - `blocked_sparse_features={source_blockers.get('blocked_count', '—')}` / `{source_blockers.get('counts_by_history_class', {})}`",
         f"  - fin_netflow：{fin_line}",
         "  - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof",
+        "- **Execution Console 快捷操作已 blocker-aware**",
+        "  - `manual_trade=paused_when_deployment_blocked` / `automation_enable=paused_when_deployment_blocked`；阻塞期間只保留查看阻塞原因與重新整理入口",
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
@@ -1488,6 +1500,8 @@ def overwrite_current_state_docs(
         "- **current-state docs overwrite sync 已自動化**",
         "  - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫",
+        "- **Execution Console 快捷操作已 blocker-aware**",
+        "  - deployment blocker 存在時，買入 / 減碼 / 啟用自動模式快捷操作會顯示暫停並保持 disabled，只留下查看阻塞原因與重新整理",
         "- **本輪 current-state docs 已同步到最新 artifacts**",
         "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊",
         "",
@@ -1555,7 +1569,7 @@ def overwrite_current_state_docs(
         success_primary_line,
         f"- {support_truth_label} 維持：**{support_truth_ratio} + {support_success_verdict} + {support_success_status}**",
         "- recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋",
-        "- leaderboard 維持 dual-role governance；venue/source blockers 持續可見",
+        f"- {leaderboard_governance_label} 維持；venue/source blockers 持續可見",
         "- heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**",
         "",
     ]
@@ -2699,8 +2713,11 @@ def run_feature_group_ablation() -> Dict[str, Any]:
 
 
 def run_bull_4h_pocket_ablation() -> Dict[str, Any]:
-    cmd = BULL_4H_POCKET_ABLATION_REFRESH_CMD if _CURRENT_HEARTBEAT_FAST_MODE else BULL_4H_POCKET_ABLATION_CMD
-    return _run_serial_command(cmd)
+    # Heartbeat cron runs use the bounded live-context refresh lane in both fast
+    # and full modes. Full rebuild remains available by invoking
+    # scripts/bull_4h_pocket_ablation.py manually, but the project-driver
+    # heartbeat must not spend the whole budget on silent candidate grids.
+    return _run_serial_command(BULL_4H_POCKET_ABLATION_REFRESH_CMD)
 
 
 def refresh_train_prerequisites(needs_train: bool) -> Dict[str, Any]:
@@ -3439,6 +3456,11 @@ def collect_feature_ablation_diagnostics() -> Dict[str, Any]:
         "generated_at": payload.get("generated_at"),
         "target_col": payload.get("target_col"),
         "recent_rows": payload.get("recent_rows"),
+        "n_splits": payload.get("n_splits"),
+        "xgb_n_estimators": payload.get("xgb_n_estimators"),
+        "refresh_mode": payload.get("refresh_mode") or "full_rebuild",
+        "profile_metrics_fresh": payload.get("profile_metrics_fresh", True),
+        "profiles_evaluated": payload.get("profiles_evaluated") or list(profiles.keys()),
         "recommended_profile": recommended,
         "recommended_metrics": recommended_metrics,
         "current_full_metrics": current_full,
@@ -4301,6 +4323,8 @@ def main(argv=None):
             recommended = feature_ablation_summary.get("recommended_metrics") or {}
             print(
                 "📚 訓練前 shrinkage："
+                f"mode={feature_ablation_summary.get('refresh_mode')} "
+                f"profiles={len(feature_ablation_summary.get('profiles_evaluated') or [])} "
                 f"recommended={feature_ablation_summary.get('recommended_profile')} "
                 f"cv={recommended.get('cv_mean_accuracy')}"
             )
@@ -4687,6 +4711,8 @@ def main(argv=None):
         current_full = feature_ablation_summary.get("current_full_metrics") or {}
         print(
             "📚 Feature shrinkage："
+            f"mode={feature_ablation_summary.get('refresh_mode')} "
+            f"profiles={len(feature_ablation_summary.get('profiles_evaluated') or [])} "
             f"recommended={feature_ablation_summary.get('recommended_profile')} "
             f"cv={recommended.get('cv_mean_accuracy')} "
             f"worst={recommended.get('cv_worst_accuracy')} "

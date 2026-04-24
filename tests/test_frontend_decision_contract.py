@@ -161,17 +161,20 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
     assert '進階診斷（需要時再展開）' not in source
 
 
-def test_execution_console_disables_manual_buy_shortcuts_when_current_live_blocker_is_active():
+def test_execution_console_disables_manual_trade_and_auto_enable_shortcuts_when_current_live_blocker_is_active():
     source = _read("pages/ExecutionConsole.tsx")
     required_snippets = [
-        'const manualBuyBlocked = hasBlockedState && Boolean(rawPrimaryBlockedReason);',
-        'const manualBuyBlockedMessage = manualBuyBlocked',
-        '目前阻塞點啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。',
+        'const manualTradeBlocked = hasBlockedState;',
+        'const automationEnableBlocked = manualTradeBlocked && !automationEnabled;',
+        'const operatorShortcutBlockedMessage = manualTradeBlocked',
+        '目前阻塞點啟動中：買入 / 減碼 / 自動模式切換暫停；請先查看阻塞原因。',
         'const operatorQuickCommands = [',
-        '{ label: "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualBuyBlocked },',
-        '{ label: "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" },',
-        'if (side === "buy" && manualBuyBlocked) {',
-        '{manualBuyBlockedMessage && (',
+        '{ label: manualTradeBlocked ? "買入暫停" : "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualTradeBlocked },',
+        '{ label: manualTradeBlocked ? "減碼暫停" : "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualTradeBlocked },',
+        '{ label: automationEnableBlocked ? "自動模式暫停" : (automationEnabled ? "切到手動模式" : "切到自動模式"), disabled: operatorActionState.tone === "pending" || automationEnableBlocked },',
+        'if (manualTradeBlocked) {',
+        'if (enabled && automationEnableBlocked) {',
+        '{operatorShortcutBlockedMessage && (',
         '{operatorQuickCommands.map((command) => (',
         'disabled={command.disabled}',
     ]

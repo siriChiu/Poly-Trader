@@ -761,9 +761,11 @@ export default function ExecutionConsole() {
       .map((item) => humanizeExecutionReason(item))
       .filter((item) => item && item !== "尚未提供阻塞點摘要。")))
       .join(" · ") || primaryBlockedReason);
-  const manualBuyBlocked = hasBlockedState && Boolean(rawPrimaryBlockedReason);
-  const manualBuyBlockedMessage = manualBuyBlocked
-    ? "目前阻塞點啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。"
+  const automationEnabled = Boolean(runtimeStatus?.automation);
+  const manualTradeBlocked = hasBlockedState;
+  const automationEnableBlocked = manualTradeBlocked && !automationEnabled;
+  const operatorShortcutBlockedMessage = manualTradeBlocked
+    ? "目前阻塞點啟動中：買入 / 減碼 / 自動模式切換暫停；請先查看阻塞原因。"
     : null;
   const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const deploymentStatusDetail = runtimeStatusPending
@@ -773,7 +775,6 @@ export default function ExecutionConsole() {
         ? (liveRuntimeTruth?.runtime_closure_summary || executionSurfaceContract?.operator_message || "目前已滿足主要部署條件。")
         : (liveRuntimeTruth?.runtime_closure_summary || liveRuntimeTruth?.deployment_blocker_reason || primaryBlockedReason)
     );
-  const automationEnabled = Boolean(runtimeStatus?.automation);
   const dryRunEnabled = Boolean(runtimeStatus?.dry_run);
   const executionSymbol = runtimeStatus?.symbol || "BTCUSDT";
   const executionModeRaw = executionSummary?.mode || (dryRunEnabled ? "dry_run" : "paper");
@@ -781,9 +782,9 @@ export default function ExecutionConsole() {
   const executionVenueLabel = runtimeStatusPending ? "同步中" : humanizeExecutionVenueLabel(executionSummary?.venue || "unknown");
   const automationStatusLabel = runtimeStatusPending ? "自動交易同步中" : `自動交易 ${automationEnabled ? "開啟" : "關閉"}`;
   const operatorQuickCommands = [
-    { label: "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualBuyBlocked },
-    { label: "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" },
-    { label: automationEnabled ? "切到手動模式" : "切到自動模式", disabled: operatorActionState.tone === "pending" },
+    { label: manualTradeBlocked ? "買入暫停" : "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualTradeBlocked },
+    { label: manualTradeBlocked ? "減碼暫停" : "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualTradeBlocked },
+    { label: automationEnableBlocked ? "自動模式暫停" : (automationEnabled ? "切到手動模式" : "切到自動模式"), disabled: operatorActionState.tone === "pending" || automationEnableBlocked },
     { label: "查看阻塞原因", disabled: operatorActionState.tone === "pending" },
     { label: "重新整理", disabled: operatorActionState.tone === "pending" },
   ];
@@ -870,10 +871,10 @@ export default function ExecutionConsole() {
 
   const handleOperatorTrade = async (side: "buy" | "reduce", qty = 0.001) => {
     const label = side === "buy" ? "買入" : "減碼";
-    if (side === "buy" && manualBuyBlocked) {
+    if (manualTradeBlocked) {
       setOperatorActionState({
         tone: "error",
-        message: manualBuyBlockedMessage || "目前阻塞點啟動中：買入指令暫停；請先查看阻塞原因。",
+        message: operatorShortcutBlockedMessage || "目前阻塞點啟動中：交易指令暫停；請先查看阻塞原因。",
       });
       return;
     }
@@ -915,6 +916,13 @@ export default function ExecutionConsole() {
   };
 
   const handleAutomationToggle = async (enabled: boolean) => {
+    if (enabled && automationEnableBlocked) {
+      setOperatorActionState({
+        tone: "error",
+        message: operatorShortcutBlockedMessage || "目前阻塞點啟動中：自動模式切換暫停；請先查看阻塞原因。",
+      });
+      return;
+    }
     setOperatorActionState({
       tone: "pending",
       message: `${enabled ? "切換至自動" : "切換至手動"}模式中…`,
@@ -1454,9 +1462,9 @@ export default function ExecutionConsole() {
             )}
           >
             <div className="text-sm text-slate-300">自然語句會優先幫你判斷是交易、模式切換還是前往診斷；不需要先找對按鈕。</div>
-            {manualBuyBlockedMessage && (
+            {operatorShortcutBlockedMessage && (
               <div className="mt-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-                {manualBuyBlockedMessage}
+                {operatorShortcutBlockedMessage}
               </div>
             )}
             <div className="mt-3 flex flex-col gap-3">
