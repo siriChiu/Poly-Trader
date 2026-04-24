@@ -1,38 +1,40 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-24 13:36:11 CST_
+_最後更新：2026-04-24 13:52:59 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 fast heartbeat #20260424_1334 已完成 collect + diagnostics refresh**
-  - `Raw=32152 / Features=23570 / Labels=64830`
+- **最新 fast heartbeat #20260424_1351 已完成 collect + diagnostics refresh**
+  - `Raw=32153 / Features=23571 / Labels=64832`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `simulated_pyramid_win=56.99%`
 - **canonical current-live blocker 已切到 current-live exact-support truth**
   - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=3/50` / `gap=47` / `support_route_verdict=exact_bucket_present_but_below_minimum`
+  - `current_live_structure_bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=8/50` / `gap=42` / `support_route_verdict=exact_bucket_present_but_below_minimum`
 - **recent canonical diagnostics 已刷新**
   - `latest_window=100` / `win_rate=88.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3837` / `avg_pnl=+0.0053` / `alerts=label_imbalance,regime_concentration,regime_shift`
 - **leaderboard / governance 仍維持 dual-role contract**
   - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3620` / `archive_window_coverage_pct=0.0`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3621` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環
+- **本輪產品化 patch：q15 support / root-cause operator copy 已去 raw-token 化**
+  - `web/src/utils/runtimeCopy.ts` 現在把 q15 floor-cross、component experiment、root-cause next-step 中的 `floor / exact support / runtime gate / counterfactual / artifact / component / bucket` 等 raw tokens 轉成可讀中文；`tests/test_frontend_decision_contract.py` 已鎖住。
 
 ---
 
 ## Open Issues
 
-### P0. current live bucket CAUTION|structure_quality_caution|q15 exact support remains under minimum and remains the deployment blocker (3/50)
-- 目前真相：`deployment_blocker=under_minimum_exact_live_structure_bucket` / `bucket=CAUTION|structure_quality_caution|q15` / `support=3/50` / `gap=47` / `runtime_closure_state=patch_inactive_or_blocked`
-- same-bucket truth：`support_route_verdict=exact_bucket_present_but_below_minimum` / `support_governance_route=exact_live_bucket_present_but_below_minimum` / `recommended_patch=core_plus_macro_plus_all_4h` / `recommended_patch_status=reference_only_until_exact_support_ready` / `reference_scope=bull|CAUTION`
+### P0. current live bucket BLOCK|bull_q15_bias50_overextended_block|q15 exact support remains under minimum and remains the deployment blocker (8/50)
+- 目前真相：`deployment_blocker=under_minimum_exact_live_structure_bucket` / `bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=8/50` / `gap=42` / `runtime_closure_state=patch_inactive_or_blocked`
+- same-bucket truth：`support_route_verdict=exact_bucket_present_but_below_minimum` / `support_governance_route=exact_live_bucket_present_but_below_minimum` / `recommended_patch=core_plus_macro_plus_all_4h` / `recommended_patch_status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`
 - 下一步：把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。
 
 ### P0. recent canonical window 100 rows = distribution_pathology
@@ -43,9 +45,9 @@ _最後更新：2026-04-24 13:36:11 CST_
   - python scripts/recent_drift_report.py
   - python scripts/hb_predict_probe.py
 
-### P1. support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only
-- 目前真相：`bucket=CAUTION|structure_quality_caution|q15` / `support=3/50` / `gap=47` / `support_route_verdict=exact_bucket_present_but_below_minimum` / `governance_route=exact_live_bucket_present_but_below_minimum`
-- 下一步：Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.
+### P1. support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only outside current live scope
+- 目前真相：`bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=8/50` / `gap=42` / `support_route_verdict=exact_bucket_present_but_below_minimum` / `governance_route=exact_live_bucket_present_but_below_minimum`
+- 下一步：Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.
 
 ### P1. venue readiness is still unverified
 - 目前真相：`binance=config enabled + public-only + metadata OK` / `okx=config disabled + public-only + metadata OK` / `missing_runtime_proof=live exchange credential, order ack lifecycle, fill lifecycle`
@@ -57,7 +59,7 @@ _最後更新：2026-04-24 13:36:11 CST_
   - data/execution_metadata_smoke.json
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3620` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3621` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json
@@ -71,8 +73,8 @@ _最後更新：2026-04-24 13:36:11 CST_
   - curl http://127.0.0.1:<active-backend>/api/models/leaderboard
   - pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q
 
-### P1. q15 exact support regressed under minimum while breaker is clear (3/50)
-- 目前真相：`bucket=CAUTION|structure_quality_caution|q15` / `support=3/50` / `gap=47` / `support_route_verdict=exact_bucket_present_but_below_minimum` / `governance_route=exact_live_bucket_present_but_below_minimum` / `breaker_context=breaker_clear`
+### P1. q15 exact support regressed under minimum while breaker is clear (8/50)
+- 目前真相：`bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=8/50` / `gap=42` / `support_route_verdict=exact_bucket_present_but_below_minimum` / `governance_route=exact_live_bucket_present_but_below_minimum` / `breaker_context=breaker_clear`
 - 下一步：Treat this as support regression, not ordinary stagnation: keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum plus the last-supported reference visible in probe/API/UI/docs, verify why the current bucket fell back under minimum, and keep breaker context explicit.
 
 ---

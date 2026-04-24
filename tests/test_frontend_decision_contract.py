@@ -581,6 +581,21 @@ def test_runtime_copy_humanizes_patch_profiles_embedded_blockers_and_verify_inst
         '["base_stack_redesign_discriminative_reweight_crosses_trade_floor", "基礎堆疊重設已跨過交易門檻"]',
         '["base_stack_redesign_floor_cross_requires_non_discriminative_reweight", "基礎堆疊重設需犧牲辨別力才可跨過交易門檻"]',
         '["entry_quality >= 0.55 and allowed_layers > 0 without q35 applicability / support / guardrail regression", "進場品質 >= 0.55，且允許層數 > 0，同時不得出現 q35 適用性 / 樣本支持 / 保護欄回歸"]',
+        '["math_cross_possible_but_illegal_without_exact_support", "數學上可跨交易門檻，但精準樣本尚未就緒"]',
+        '["legal_to_relax_runtime_gate", "可合法放寬執行閘門"]',
+        '["reference_only_until_exact_support_ready", "精準樣本就緒前僅供參考"]',
+        '["exact_supported_component_experiment_ready", "可進入精準樣本元件驗證"]',
+        '["runtime_patch_no_material_improvement", "執行期修補方案無明顯改善"]',
+        '["q15/q35 boundary", "q15/q35 邊界"]',
+        '["counterfactual", "反事實檢查"]',
+        '["artifact", "產物"]',
+        '["component scoring", "元件評分"]',
+        '["component 做", "元件做"]',
+        '["neighbor bucket", "鄰近分桶"]',
+        '["鄰近 bucket", "鄰近分桶"]',
+        '["same_lane_neighbor_bucket_dominates", "鄰近分桶主導"]',
+        '["support_accumulation", "等待精準樣本累積"]',
+        '["scope_generation", "補精準路徑範圍"]',
     ]
     for snippet in required_runtime_copy_snippets:
         assert snippet in runtime_copy

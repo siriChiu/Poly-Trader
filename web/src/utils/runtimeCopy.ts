@@ -120,15 +120,15 @@ const TRADE_REASON_LABEL_MAPPINGS: Array<[string, string]> = [
 ];
 
 const Q15_FLOOR_CROSS_VERDICT_LABEL_MAPPINGS: Array<[string, string]> = [
-  ["math_cross_possible_but_illegal_without_exact_support", "數學上可跨 floor，但 exact support 未就緒"],
-  ["legal_to_relax_runtime_gate", "可合法放寬 runtime gate"],
+  ["math_cross_possible_but_illegal_without_exact_support", "數學上可跨交易門檻，但精準樣本尚未就緒"],
+  ["legal_to_relax_runtime_gate", "可合法放寬執行閘門"],
   ["reference_only", "僅供治理參考"],
 ];
 
 const Q15_COMPONENT_EXPERIMENT_VERDICT_LABEL_MAPPINGS: Array<[string, string]> = [
-  ["reference_only_until_exact_support_ready", "exact support 就緒前僅供參考"],
-  ["exact_supported_component_experiment_ready", "可進入 exact-supported 元件驗證"],
-  ["runtime_patch_no_material_improvement", "runtime 修補方案無明顯改善"],
+  ["reference_only_until_exact_support_ready", "精準樣本就緒前僅供參考"],
+  ["exact_supported_component_experiment_ready", "可進入精準樣本元件驗證"],
+  ["runtime_patch_no_material_improvement", "執行期修補方案無明顯改善"],
   ["not_applicable", "目前不適用"],
 ];
 
@@ -161,6 +161,11 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["top-level live baseline", "頂層 live 基準"],
   ["component-experiment readiness", "元件實驗就緒"],
   ["component experiment readiness", "元件實驗就緒"],
+  ["q15/q35 boundary", "q15/q35 邊界"],
+  ["counterfactual", "反事實檢查"],
+  ["artifact", "產物"],
+  ["root-cause", "根因"],
+  ["root cause", "根因"],
   ["Consecutive loss streak:", "連續虧損筆數："],
   ["Recent 50-sample win rate", "最近 50 筆勝率"],
   ["recent 50 win rate", "最近 50 筆勝率"],
@@ -195,8 +200,13 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["exact_live_bucket_proxy_available", "已有精準分桶近似樣本"],
   ["exact_live_lane_proxy_available", "已有精準路徑近似樣本"],
   ["current_structure_quality", "目前結構分數"],
-  ["component scoring", "元件評分"],
   ["boundary tweak", "邊界微調"],
+  ["component scoring", "元件評分"],
+  ["component 做", "元件做"],
+  [" component ", " 元件 "],
+  ["neighbor bucket", "鄰近分桶"],
+  ["鄰近 bucket", "鄰近分桶"],
+  ["bucket boundary", "分桶邊界"],
   ["toxic sub-bucket", "毒性子分桶"],
   ["hold-only", "僅觀察"],
   ["entry_quality >= 0.55 and allowed_layers > 0 without q35 applicability / support / guardrail regression", "進場品質 >= 0.55，且允許層數 > 0，同時不得出現 q35 適用性 / 樣本支持 / 保護欄回歸"],
@@ -335,7 +345,7 @@ const GENERIC_OPERATOR_PHRASE_REPLACEMENTS: Array<[string, string]> = [
 const Q15_BUCKET_ROOT_CAUSE_LABEL_MAPPINGS: Array<[string, string]> = [
   ["current_bucket_exact_support_already_closed", "精準樣本已閉環"],
   ["current_row_already_above_q35_boundary", "已越過 q35 邊界"],
-  ["same_lane_neighbor_bucket_dominates", "鄰近 bucket 主導"],
+  ["same_lane_neighbor_bucket_dominates", "鄰近分桶主導"],
   ["no_exact_live_lane_rows", "精準路徑尚未生成"],
   ["runtime_blocker_preempts_bucket_root_cause", "執行期阻塞點優先"],
   ["runtime_blocker_preempts_q35_scaling", "風控熔斷優先，暫不處理 q35 分段校準"],
@@ -354,10 +364,10 @@ const Q15_BUCKET_ROOT_CAUSE_LABEL_MAPPINGS: Array<[string, string]> = [
 
 const Q15_BUCKET_ROOT_CAUSE_ACTION_MAPPINGS: Array<[string, string]> = [
   ["deployment_blocker_verification", "回到阻塞點驗證"],
-  ["support_accumulation", "等待 support 累積"],
+  ["support_accumulation", "等待精準樣本累積"],
   ["structure_component_scoring", "結構元件校準"],
   ["live_row_projection", "修 4H 投影"],
-  ["scope_generation", "補 exact lane scope"],
+  ["scope_generation", "補精準路徑範圍"],
   ["bucket_boundary_review", "邊界複核"],
   ["exact_lane_formula_review", "bias50 公式複核"],
   ["base_stack_redesign", "基礎堆疊重設"],
