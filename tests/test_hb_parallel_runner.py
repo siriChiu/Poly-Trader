@@ -1606,6 +1606,74 @@ def test_overwrite_current_state_docs_marks_no_collect_verification_runs(tmp_pat
     assert "#20260425_verify 已完成 collect + diagnostics refresh" not in issues_md
 
 
+def test_overwrite_current_state_docs_surfaces_stale_candidate_fallback(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text('{"issues": []}', encoding="utf-8")
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+    feature_artifact = data_dir / "feature_group_ablation.json"
+    bull_artifact = data_dir / "bull_4h_pocket_ablation.json"
+    feature_artifact.write_text('{"generated_at":"2026-04-20T00:00:00+00:00"}', encoding="utf-8")
+    bull_artifact.write_text('{"generated_at":"2026-04-20T00:00:00+00:00"}', encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260425_candidate_fallback",
+        {
+            "raw_market_data": 32192,
+            "features_normalized": 23610,
+            "labels": 64928,
+            "simulated_pyramid_win_rate": 0.5698,
+        },
+        {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []},
+        {},
+        {
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 123,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_governance_route": "exact_live_bucket_supported",
+        },
+        {},
+        {},
+        {},
+        {
+            "leaderboard_count": 6,
+            "selected_feature_profile": "core_only",
+            "support_aware_production_profile": "core_plus_macro_plus_all_4h",
+            "governance_contract": {"verdict": "dual_role_governance_active", "current_closure": "global_ranking_vs_support_aware_production_split"},
+        },
+        run_mode="full",
+        serial_results={
+            "feature_group_ablation": {
+                "result": {"attempted": True, "success": False, "returncode": -1, "stderr": "TIMEOUT after 60s"},
+                "diagnostics": {"generated_at": "2026-04-20T00:00:00+00:00"},
+                "artifact_path": feature_artifact,
+            },
+            "bull_4h_pocket_ablation": {
+                "result": {"attempted": True, "success": False, "returncode": -1, "stderr": "TIMEOUT after 45s"},
+                "diagnostics": {"generated_at": "2026-04-20T00:00:00+00:00"},
+                "artifact_path": bull_artifact,
+            },
+        },
+    )
+
+    assert result["success"] is True
+    issues_payload = json.loads((tmp_path / "issues.json").read_text(encoding="utf-8"))
+    issue_ids = {issue["id"] for issue in issues_payload["issues"]}
+    assert hb_parallel_runner.CANDIDATE_ARTIFACT_STALE_FALLBACK_ISSUE_ID in issue_ids
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "candidate governance refresh 仍有 stale fallback 風險" in issues_md
+    assert "feature_group_ablation=timeout→fallback" in issues_md
+    assert "bull_4h_pocket_ablation=timeout→fallback" in issues_md
+    assert "candidate governance artifacts fell back after refresh timeouts" in issues_md
+    assert "fallback artifact 只能作 reference-only governance" in roadmap_md
+
+
 
 def test_collect_live_decision_quality_drilldown_diagnostics_falls_back_to_nested_recommended_patch(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))

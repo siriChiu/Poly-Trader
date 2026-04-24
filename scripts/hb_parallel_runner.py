@@ -79,6 +79,12 @@ COLLECT_TIMEOUT_SECONDS = 180
 FAST_CACHE_REUSE_MAX_LABEL_DELTA = 12
 FAST_CACHE_REUSE_MAX_LABEL_TIME_DRIFT_SECONDS = 6 * 3600
 FAST_HEARTBEAT_CRON_BUDGET_SECONDS = 240
+CANDIDATE_REFRESH_LANES = (
+    "feature_group_ablation",
+    "bull_4h_pocket_ablation",
+    "hb_leaderboard_candidate_probe",
+)
+CANDIDATE_ARTIFACT_STALE_FALLBACK_ISSUE_ID = "P1_candidate_governance_artifact_stale_fallback"
 
 TASKS = [
     {"name": "full_ic", "label": "🔍 Full IC", "cmd": [PYTHON, "scripts/full_ic.py"]},
@@ -538,7 +544,6 @@ def _load_open_current_state_issues() -> list[Dict[str, Any]]:
         if issue_id.startswith("#H_AUTO_"):
             continue
         filtered.append(issue)
-
     priority_rank = {"P0": 0, "P1": 1, "P2": 2}
     filtered.sort(
         key=lambda item: (
@@ -547,6 +552,153 @@ def _load_open_current_state_issues() -> list[Dict[str, Any]]:
         )
     )
     return filtered
+
+
+def _normalize_serial_result_for_docs(
+    name: str,
+    payload: Dict[str, Any] | None,
+    *,
+    now: datetime | None = None,
+) -> Dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    if isinstance(payload.get("result"), dict):
+        return _build_serial_result_summary(
+            name,
+            payload.get("result") or {},
+            diagnostics=payload.get("diagnostics") if isinstance(payload.get("diagnostics"), dict) else {},
+            artifact_path=payload.get("artifact_path"),
+            now=now,
+        )
+    if payload.get("name") or any(
+        key in payload
+        for key in (
+            "attempted",
+            "success",
+            "returncode",
+            "timed_out",
+            "fallback_artifact_used",
+            "cached",
+        )
+    ):
+        return {"name": name, **payload}
+    return {}
+
+
+def _format_candidate_lane_status_for_docs(lane: Dict[str, Any]) -> str:
+    name = lane.get("name") or "unknown"
+    if lane.get("cached"):
+        status = "cached"
+    elif lane.get("skipped"):
+        status = "skipped"
+    elif lane.get("timed_out"):
+        status = "timeout"
+    elif lane.get("success"):
+        status = "fresh"
+    else:
+        status = "failed"
+    if lane.get("fallback_artifact_used"):
+        status += "→fallback"
+    age_seconds = lane.get("artifact_age_seconds")
+    if isinstance(age_seconds, (int, float)):
+        status += f"({round(age_seconds / 3600, 1)}h)"
+    return f"{name}={status}"
+
+
+def _candidate_artifact_refresh_context(
+    serial_results: Dict[str, Dict[str, Any]] | None,
+    *,
+    now: datetime | None = None,
+) -> Dict[str, Any]:
+    lane_summaries: list[Dict[str, Any]] = []
+    timed_out_lanes: list[str] = []
+    stale_fallback_lanes: list[str] = []
+    artifact_age_hours_by_lane: Dict[str, float] = {}
+    for name in CANDIDATE_REFRESH_LANES:
+        summary = _normalize_serial_result_for_docs(name, (serial_results or {}).get(name), now=now)
+        if not summary:
+            continue
+        timed_out = bool(summary.get("timed_out")) or (
+            summary.get("returncode") == -1
+            and "TIMEOUT after" in str(summary.get("stderr_preview") or summary.get("stderr") or "")
+        )
+        fallback_used = bool(summary.get("fallback_artifact_used"))
+        lane = {
+            **summary,
+            "name": name,
+            "timed_out": timed_out,
+            "fallback_artifact_used": fallback_used,
+        }
+        lane_summaries.append(lane)
+        if timed_out:
+            timed_out_lanes.append(name)
+        if timed_out and fallback_used:
+            stale_fallback_lanes.append(name)
+            age_seconds = lane.get("artifact_age_seconds")
+            if isinstance(age_seconds, (int, float)):
+                artifact_age_hours_by_lane[name] = round(age_seconds / 3600, 2)
+    return {
+        "candidate_lanes": lane_summaries,
+        "timed_out_lanes": timed_out_lanes,
+        "stale_fallback_lanes": stale_fallback_lanes,
+        "artifact_age_hours_by_lane": artifact_age_hours_by_lane,
+        "has_stale_fallback": bool(stale_fallback_lanes),
+        "docs_line": " / ".join(_format_candidate_lane_status_for_docs(lane) for lane in lane_summaries),
+    }
+
+
+def _sync_candidate_artifact_refresh_issue(
+    issues: list[Dict[str, Any]],
+    context: Dict[str, Any],
+    *,
+    run_label: str,
+) -> bool:
+    issue_id = CANDIDATE_ARTIFACT_STALE_FALLBACK_ISSUE_ID
+    stale_lanes = context.get("stale_fallback_lanes") or []
+    now_iso = datetime.utcnow().isoformat()
+    existing_index = next((idx for idx, issue in enumerate(issues) if issue.get("id") == issue_id), None)
+    if not stale_lanes:
+        if existing_index is not None:
+            del issues[existing_index]
+            return True
+        return False
+
+    summary = {
+        "heartbeat": run_label,
+        "timed_out_lanes": context.get("timed_out_lanes") or [],
+        "stale_fallback_lanes": stale_lanes,
+        "artifact_age_hours_by_lane": context.get("artifact_age_hours_by_lane") or {},
+        "refresh_required": True,
+    }
+    issue = {
+        "id": issue_id,
+        "priority": "P1",
+        "status": "open",
+        "title": "candidate governance artifacts fell back after refresh timeouts",
+        "summary": summary,
+        "action": (
+            "把 feature shrinkage / bull pocket candidate refresh 從 silent full rebuild 改成可完成的 bounded/live-context-only lane；"
+            "在刷新完成前，leaderboard / training governance 必須把 stale fallback 標成 reference-only，不可當成 fresh production truth。"
+        ),
+        "next_action": (
+            "先讓下一輪 full heartbeat 的 feature_group_ablation 與 bull_4h_pocket_ablation 不再 timeout；"
+            "若仍超時，必須在 docs/API summary 明確標示 fallback artifact age 與 non-authoritative status。"
+        ),
+        "verify": [
+            "source venv/bin/activate && python -m pytest tests/test_hb_parallel_runner.py -q",
+            "python scripts/hb_parallel_runner.py --hb <next_full_run>",
+            "check data/heartbeat_<run>_summary.json serial_results candidate lanes",
+        ],
+        "updated_at": now_iso,
+    }
+    if existing_index is None:
+        issue["created_at"] = now_iso
+        issues.append(issue)
+    else:
+        existing = issues[existing_index]
+        issue["created_at"] = existing.get("created_at") or now_iso
+        issues[existing_index] = {**existing, **issue}
+    return True
 
 
 def _verification_lines(issue: Dict[str, Any]) -> list[str]:
@@ -948,6 +1100,7 @@ def overwrite_current_state_docs(
     *,
     run_mode: str | None = None,
     collect_attempted: bool = True,
+    serial_results: Dict[str, Dict[str, Any]] | None = None,
 ) -> Dict[str, Any]:
     counts = counts or {}
     source_blockers = source_blockers or {}
@@ -958,7 +1111,13 @@ def overwrite_current_state_docs(
     circuit_breaker_audit = circuit_breaker_audit or {}
     leaderboard_candidate_diagnostics = leaderboard_candidate_diagnostics or {}
     issues = _load_open_current_state_issues()
+    candidate_refresh_context = _candidate_artifact_refresh_context(serial_results)
+    issues_changed = False
     if _sync_live_issue_summaries(issues, source_blockers):
+        issues_changed = True
+    if _sync_candidate_artifact_refresh_issue(issues, candidate_refresh_context, run_label=run_label):
+        issues_changed = True
+    if issues_changed:
         _save_open_current_state_issues(issues)
 
     updated_at = _format_local_timestamp_for_docs()
@@ -1121,6 +1280,18 @@ def overwrite_current_state_docs(
         if fin_blocker
         else "`fin_netflow` blocker 資訊暫缺"
     )
+    candidate_refresh_line = candidate_refresh_context.get("docs_line") or "—"
+    candidate_refresh_fact_lines = []
+    candidate_refresh_goal_lines = []
+    if candidate_refresh_context.get("has_stale_fallback"):
+        candidate_refresh_fact_lines = [
+            "- **candidate governance refresh 仍有 stale fallback 風險**",
+            f"  - `{candidate_refresh_line}`",
+        ]
+        candidate_refresh_goal_lines = [
+            "- candidate refresh："
+            f"`{candidate_refresh_line}`（fallback artifact 只能作 reference-only governance，不可當成 fresh production truth）"
+        ]
     patch_context = _patch_truth_doc_context(
         live_decision_drilldown.get("recommended_patch_profile"),
         live_decision_drilldown.get("recommended_patch_status"),
@@ -1245,6 +1416,7 @@ def overwrite_current_state_docs(
         *([f"  - {blocking_pathology_line}"] if blocking_pathology_line else []),
         "- **leaderboard / governance 仍維持 dual-role contract**",
         f"  - {leaderboard_line}",
+        *candidate_refresh_fact_lines,
         "- **source / venue blockers 仍開啟**",
         f"  - `blocked_sparse_features={source_blockers.get('blocked_count', '—')}` / `{source_blockers.get('counts_by_history_class', {})}`",
         f"  - fin_netflow：{fin_line}",
@@ -1357,6 +1529,7 @@ def overwrite_current_state_docs(
         "### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth",
         "**目前真相**",
         f"- {leaderboard_line}",
+        *candidate_refresh_goal_lines,
         f"- fin_netflow：{fin_line}",
         "- venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證",
         "- docs automation：markdown docs 不再允許落後 live artifacts",
@@ -4914,6 +5087,7 @@ def main(argv=None):
         leaderboard_candidate_diagnostics,
         run_mode="fast" if args.fast else "full",
         collect_attempted=bool(collect_result.get("attempted", False)),
+        serial_results=serial_result_payload,
     )
     docs_sync = collect_current_state_docs_sync_status()
     docs_sync["auto_synced"] = docs_sync_write.get("success", False)

@@ -1,17 +1,17 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-25 02:08:19 CST_
+_最後更新：2026-04-25 02:42:59 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **full heartbeat #20260425_015620 已完成 collect + diagnostics refresh**
-  - `Raw=32190 / Features=23608 / Labels=64926`
+- **full heartbeat #20260425_022713 已完成 collect + diagnostics refresh**
+  - `Raw=32192 / Features=23610 / Labels=64928`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `deployment_blocker=decision_quality_below_trade_floor` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `latest_window=500` / `win_rate=53.8%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1159` / `avg_pnl=+0.0005` / `alerts=regime_concentration,regime_shift`
+  - `latest_window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1145` / `avg_pnl=+0.0005` / `alerts=regime_concentration,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
@@ -33,7 +33,7 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=500` / `win_rate=53.8%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1159` / `avg_pnl=+0.0005` / `alerts=regime_concentration,regime_shift`
+- `latest_window=500` / `win_rate=53.4%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1145` / `avg_pnl=+0.0005` / `alerts=regime_concentration,regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
@@ -48,7 +48,8 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
 - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3657` / `archive_window_coverage_pct=0.0`
+- candidate refresh：`feature_group_ablation=timeout→fallback(42.9h) / bull_4h_pocket_ablation=timeout→fallback(42.9h) / hb_leaderboard_candidate_probe=cached(0.0h)`（fallback artifact 只能作 reference-only governance，不可當成 fresh production truth）
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3659` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
