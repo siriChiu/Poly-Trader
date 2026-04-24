@@ -161,12 +161,13 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
     assert '進階診斷（需要時再展開）' not in source
 
 
-def test_execution_console_disables_manual_trade_and_auto_enable_shortcuts_when_current_live_blocker_is_active():
+def test_execution_console_disables_manual_trade_and_auto_enable_shortcuts_while_syncing_or_blocked():
     source = _read("pages/ExecutionConsole.tsx")
     required_snippets = [
-        'const manualTradeBlocked = hasBlockedState;',
+        'const manualTradeBlocked = runtimeStatusPending || hasBlockedState;',
         'const automationEnableBlocked = manualTradeBlocked && !automationEnabled;',
-        'const operatorShortcutBlockedMessage = manualTradeBlocked',
+        'const operatorShortcutBlockedMessage = runtimeStatusPending',
+        '正在同步 /api/status：買入 / 減碼 / 自動模式切換暫停；等待 current-live blocker 後再操作。',
         '目前阻塞點啟動中：買入 / 減碼 / 自動模式切換暫停；請先查看阻塞原因。',
         'const operatorQuickCommands = [',
         '{ label: manualTradeBlocked ? "買入暫停" : "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualTradeBlocked },',

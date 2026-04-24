@@ -762,11 +762,13 @@ export default function ExecutionConsole() {
       .filter((item) => item && item !== "尚未提供阻塞點摘要。")))
       .join(" · ") || primaryBlockedReason);
   const automationEnabled = Boolean(runtimeStatus?.automation);
-  const manualTradeBlocked = hasBlockedState;
+  const manualTradeBlocked = runtimeStatusPending || hasBlockedState;
   const automationEnableBlocked = manualTradeBlocked && !automationEnabled;
-  const operatorShortcutBlockedMessage = manualTradeBlocked
-    ? "目前阻塞點啟動中：買入 / 減碼 / 自動模式切換暫停；請先查看阻塞原因。"
-    : null;
+  const operatorShortcutBlockedMessage = runtimeStatusPending
+    ? "正在同步 /api/status：買入 / 減碼 / 自動模式切換暫停；等待 current-live blocker 後再操作。"
+    : manualTradeBlocked
+      ? "目前阻塞點啟動中：買入 / 減碼 / 自動模式切換暫停；請先查看阻塞原因。"
+      : null;
   const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const deploymentStatusDetail = runtimeStatusPending
     ? "正在向 /api/status 取得目前阻塞點 / 部署閉環摘要。"

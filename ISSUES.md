@@ -1,30 +1,30 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-25 03:47:42 CST_
+_最後更新：2026-04-25 04:31:24 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 full heartbeat #20260425_033121 已完成 collect + diagnostics refresh**
-  - `Raw=32194 / Features=23612 / Labels=64932`
+- **最新 full heartbeat #20260425_041537 已完成 collect + diagnostics refresh**
+  - `Raw=32196 / Features=23614 / Labels=64941`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
-  - `simulated_pyramid_win=56.97%`
+  - `simulated_pyramid_win=56.96%`
 - **canonical current-live blocker 以 latest runtime truth 為主**
   - `deployment_blocker=decision_quality_below_trade_floor` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
   - `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=123/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`
   - support progress：`status=exact_supported` / `regression_basis=current_identity` / `legacy_supported_reference=121/50@20260424a`
 - **recent canonical diagnostics 已刷新**
-  - `latest_window=500` / `win_rate=52.8%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1123` / `avg_pnl=+0.0005` / `alerts=regime_concentration,regime_shift`
+  - `latest_window=500` / `win_rate=52.0%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1098` / `avg_pnl=+0.0004` / `alerts=regime_concentration,regime_shift`
 - **leaderboard / governance 已收斂為 single-role alignment**
   - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3661` / `archive_window_coverage_pct=0.0`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3663` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof
-- **Execution Console 快捷操作已 blocker-aware**
-  - `manual_trade=paused_when_deployment_blocked` / `automation_enable=paused_when_deployment_blocked`；阻塞期間只保留查看阻塞原因與重新整理入口
+- **Execution Console 快捷操作已 fail-closed（同步中 + blocker）**
+  - `manual_trade=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間都只保留查看阻塞原因與重新整理入口
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環
@@ -35,6 +35,7 @@ _最後更新：2026-04-25 03:47:42 CST_
 
 ### P1. current live bucket CAUTION|base_caution_regime_or_bias|q15 is exact-supported but remains hold-only below the trade floor
 - 目前真相：`deployment_blocker=decision_quality_below_trade_floor` / `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `current_live_structure_bucket_rows=123` / `minimum_support_rows=50` / `gap_to_minimum=0` / `support_route_verdict=exact_bucket_supported`
+- 本輪產品化進度：`/execution` 快捷列與自然語句操作在 `/api/status` 初次同步中與 blocker 啟動時都 fail-closed；買入 / 減碼 / 啟用自動模式不會在 current-live truth 未到或 no-deploy 狀態下送出。
 - 下一步：把這個狀態視為正常 no-deploy risk posture 而非 release-blocking support failure：保留 allowed_layers=0 / trade_floor_gap / support metrics，僅在 exact-supported component experiment 通過 discrimination 與 runtime guardrail 後才重新開放下單。
 
 ### P1. venue readiness is still unverified
@@ -47,7 +48,7 @@ _最後更新：2026-04-25 03:47:42 CST_
   - data/execution_metadata_smoke.json
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3661` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3663` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json
@@ -62,7 +63,7 @@ _最後更新：2026-04-25 03:47:42 CST_
   - pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q
 
 ### P1. recent canonical window 500 rows = regime_concentration but current live regime is outside the blocker pocket
-- 目前真相：`window=500` / `interpretation=regime_concentration` / `win_rate=0.528` / `dominant_regime=bull` / `dominant_regime_share=0.994` / `avg_pnl=0.0005`
+- 目前真相：`window=500` / `interpretation=regime_concentration` / `win_rate=0.52` / `dominant_regime=bull` / `dominant_regime_share=0.994` / `avg_pnl=0.0004`
 - 下一步：保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。
 
 ---

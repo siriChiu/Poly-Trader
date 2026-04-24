@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-24 19:31:56.486697**
+- generated_at: **2026-04-24 20:15:55.126672**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -45,9 +45,9 @@
 ## Floor-cross legality
 - verdict: **legal_component_experiment_after_support_ready**
 - legal_to_relax_runtime_gate: **True**
-- remaining_gap_to_floor: **0.1211**
+- remaining_gap_to_floor: **0.1954**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.4037**
+- best_single_component_required_score_delta: **0.6513**
 - best_single_component_can_cross_floor: **True**
 - reason: 若 exact q15 support 已達標，則 feat_4h_bias50 可作為下一輪優先 component experiment；但仍需通過 runtime guardrail 與回歸驗證。
 
