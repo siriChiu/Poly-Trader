@@ -53,10 +53,14 @@ type Q15BucketRootCauseSummary = {
   verdict?: string | null;
   candidate_patch_type?: string | null;
   candidate_patch_feature?: string | null;
+  next_patch_target?: string | null;
+  recommended_mode?: string | null;
   reason?: string | null;
   verify_next?: string | null;
   current_live_structure_bucket?: string | null;
   gap_to_q35_boundary?: number | null;
+  runtime_remaining_gap_to_floor?: number | null;
+  remaining_gap_to_floor?: number | null;
   dominant_neighbor_bucket?: string | null;
   dominant_neighbor_rows?: number | null;
   near_boundary_rows?: number | null;
@@ -590,18 +594,25 @@ export default function ExecutionStatus() {
     : humanizeRuntimeDetailText(currentBucketRootCause?.reason || "尚未取得當前分桶根因。");
   const currentBucketRootCauseActionLabel = runtimeStatusPending
     ? "同步中"
-    : humanizeQ15BucketRootCauseAction(currentBucketRootCause?.candidate_patch_type || null);
+    : humanizeQ15BucketRootCauseAction(currentBucketRootCause?.candidate_patch_type || currentBucketRootCause?.recommended_mode || null);
   const currentBucketRootCausePatchTargetLabel = runtimeStatusPending
     ? "同步中"
-    : humanizePatchTargetLabel(currentBucketRootCause?.candidate_patch_feature || null);
+    : humanizePatchTargetLabel(currentBucketRootCause?.candidate_patch_feature || currentBucketRootCause?.next_patch_target || null);
+  const currentBucketRootCauseBucketRaw = currentBucketRootCause?.current_live_structure_bucket
+    || liveRuntimeTruth?.current_live_structure_bucket
+    || liveRuntimeTruth?.structure_bucket
+    || "—";
   const currentBucketRootCauseBucket = runtimeStatusPending
     ? "同步中"
-    : humanizeStructureBucketLabel(
-      currentBucketRootCause?.current_live_structure_bucket
-      || liveRuntimeTruth?.current_live_structure_bucket
-      || liveRuntimeTruth?.structure_bucket
-      || "—",
-    );
+    : humanizeStructureBucketLabel(currentBucketRootCauseBucketRaw);
+  const currentBucketRootCauseBucketKey = String(currentBucketRootCauseBucketRaw || "").toLowerCase();
+  const currentBucketRootCauseTradeFloorGap = currentBucketRootCause?.runtime_remaining_gap_to_floor
+    ?? currentBucketRootCause?.remaining_gap_to_floor
+    ?? null;
+  const currentBucketRootCauseIsQ35 = currentBucketRootCauseBucketKey === "q35" || currentBucketRootCauseBucketKey.endsWith("|q35");
+  const currentBucketRootCauseDrilldownLabel = currentBucketRootCauseIsQ35
+    ? `交易門檻缺口 ${formatNumber(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考`
+    : `近邊界樣本 ${currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 ${formatNumber(currentBucketRootCause?.gap_to_q35_boundary, 4)}`;
   const venueBlockersLabel = runtimeStatusPending
     ? "同步中"
     : (liveReadyBlockers.length > 0 ? liveReadyBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "目前沒有額外場館阻塞");
@@ -779,7 +790,7 @@ export default function ExecutionStatus() {
                 <div className="mt-2 text-slate-400">{humanizeRuntimeDetailText(currentBucketRootCauseSummary)}</div>
                 <div className="text-slate-400">當前分桶 {currentBucketRootCauseBucket}</div>
                 <div className="text-slate-400">候選修補方案 {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}</div>
-                <div className="text-slate-400">近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 {formatNumber(currentBucketRootCause?.gap_to_q35_boundary, 4)}</div>
+                <div className="text-slate-400">{currentBucketRootCauseDrilldownLabel}</div>
                 <div className="text-slate-400">下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}</div>
               </div>
             </div>

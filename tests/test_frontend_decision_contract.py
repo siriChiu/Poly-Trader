@@ -624,12 +624,16 @@ def test_runtime_copy_humanizes_patch_profiles_embedded_blockers_and_verify_inst
         'if (role === "bull_exact_supported_production_profile") return "bull exact-supported 正式配置";',
         'if (role === "support_aware_production_profile") return "support-aware 正式配置";',
         '候選修補方案 {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}',
+        'const currentBucketRootCauseDrilldownLabel = currentBucketRootCauseIsQ35',
+        '交易門檻缺口 ${formatDecimal(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考',
     ]
     for snippet in required_lab_snippets:
         assert snippet in lab_source
 
     required_status_snippets = [
         '候選修補方案 {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}',
+        'const currentBucketRootCauseDrilldownLabel = currentBucketRootCauseIsQ35',
+        '交易門檻缺口 ${formatNumber(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考',
     ]
     for snippet in required_status_snippets:
         assert snippet in status_source
@@ -1063,6 +1067,9 @@ def test_confidence_indicator_distinguishes_capacity_opened_vs_patch_blocked_sta
         'const currentBucketRootCauseVisible = Boolean(',
         'const currentBucketRootCauseLabel = humanizeQ15BucketRootCauseLabel(currentBucketRootCause?.verdict || null);',
         'const currentBucketRootCausePatchTargetLabel = humanizeFeatureKey(',
+        'currentBucketRootCause?.candidate_patch_feature || currentBucketRootCause?.next_patch_target || currentBucketRootCause?.candidate_patch?.feature || null,',
+        'const currentBucketRootCauseIsQ35 = currentBucketRootCauseBucketKey === "q35" || currentBucketRootCauseBucketKey.endsWith("|q35");',
+        '交易門檻缺口 ${formatDecimal(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考',
         '候選修補方案 ${currentBucketRootCausePatchTargetLabel} · ${currentBucketRootCauseActionLabel}',
         'Dashboard 不可退回 generic q15 / q35 摘要；需要直接顯示 current-bucket root cause。',
         '最佳單一元件 ${bestSingleComponentLabel}',
@@ -1335,11 +1342,13 @@ def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candida
         'const currentBucketRootCauseLabel = runtimeStatusPending',
         'const currentBucketRootCauseSummary = runtimeStatusPending',
         'const currentBucketRootCausePatchTargetLabel = runtimeStatusPending',
-        'humanizePatchTargetLabel(currentBucketRootCause?.candidate_patch_feature || null);',
+        'humanizePatchTargetLabel(currentBucketRootCause?.candidate_patch_feature || currentBucketRootCause?.next_patch_target || null);',
+        'const currentBucketRootCauseDrilldownLabel = currentBucketRootCauseIsQ35',
+        '交易門檻缺口 ${formatNumber(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考',
         '當前分桶根因',
         '當前分桶 {currentBucketRootCauseBucket}',
         '候選修補方案 {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}',
-        '近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"}',
+        '{currentBucketRootCauseDrilldownLabel}',
         '下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}',
     ]:
         assert snippet in execution_status_source
@@ -1353,11 +1362,13 @@ def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candida
         'const currentBucketRootCauseLabel = liveExecutionSyncPending',
         'const currentBucketRootCauseSummary = liveExecutionSyncPending',
         'const currentBucketRootCausePatchTargetLabel = liveExecutionSyncPending',
-        'humanizePatchTargetLabel(currentBucketRootCause?.candidate_patch_feature || null);',
+        'humanizePatchTargetLabel(currentBucketRootCause?.candidate_patch_feature || currentBucketRootCause?.next_patch_target || null);',
+        'const currentBucketRootCauseDrilldownLabel = currentBucketRootCauseIsQ35',
+        '交易門檻缺口 ${formatDecimal(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考',
         '當前分桶根因',
         '當前分桶 {currentBucketRootCauseBucket}',
         '候選修補方案 {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}',
-        '近邊界樣本 {currentBucketRootCause?.near_boundary_rows ?? "—"}',
+        '{currentBucketRootCauseDrilldownLabel}',
         '下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}',
     ]:
         assert snippet in strategy_lab_source
@@ -2185,12 +2196,14 @@ def test_execution_surfaces_use_structure_bucket_humanizer_for_operator_copy():
 
     assert 'humanizeStructureBucketLabel(' in status_source
     assert '當前分桶 {currentBucketRootCauseBucket}' in status_source
-    assert '距 q35 還差 {formatNumber(currentBucketRootCause?.gap_to_q35_boundary, 4)}' in status_source
+    assert '交易門檻缺口 ${formatNumber(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考' in status_source
+    assert '距 q35 還差 ${formatNumber(currentBucketRootCause?.gap_to_q35_boundary, 4)}' in status_source
     assert 'Δq35' not in status_source
 
     assert 'humanizeStructureBucketLabel(' in lab_source
     assert '當前分桶 {currentBucketRootCauseBucket}' in lab_source
-    assert '距 q35 還差 {formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}' in lab_source
+    assert '交易門檻缺口 ${formatDecimal(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考' in lab_source
+    assert '距 q35 還差 ${formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}' in lab_source
     assert 'Δq35' not in lab_source
 
     assert 'humanizeStructureBucketLabel(liveRouting?.current_structure_bucket || liveRuntimeTruth?.structure_bucket || "—")' in console_source

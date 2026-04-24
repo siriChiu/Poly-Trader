@@ -23,10 +23,14 @@ type Q15BucketRootCauseSummary = {
   verdict?: string | null;
   candidate_patch_type?: string | null;
   candidate_patch_feature?: string | null;
+  next_patch_target?: string | null;
+  recommended_mode?: string | null;
   reason?: string | null;
   verify_next?: string | null;
   current_live_structure_bucket?: string | null;
   gap_to_q35_boundary?: number | null;
+  runtime_remaining_gap_to_floor?: number | null;
+  remaining_gap_to_floor?: number | null;
   dominant_neighbor_bucket?: string | null;
   dominant_neighbor_rows?: number | null;
   near_boundary_rows?: number | null;
@@ -275,20 +279,26 @@ export default function ConfidenceIndicator({
   );
   const currentBucketRootCauseLabel = humanizeQ15BucketRootCauseLabel(currentBucketRootCause?.verdict || null);
   const currentBucketRootCauseActionLabel = humanizeQ15BucketRootCauseAction(
-    currentBucketRootCause?.candidate_patch_type || currentBucketRootCause?.candidate_patch?.type || null,
+    currentBucketRootCause?.candidate_patch_type || currentBucketRootCause?.recommended_mode || currentBucketRootCause?.candidate_patch?.type || null,
   );
   const currentBucketRootCausePatchTargetLabel = humanizeFeatureKey(
-    currentBucketRootCause?.candidate_patch_feature || currentBucketRootCause?.candidate_patch?.feature || null,
+    currentBucketRootCause?.candidate_patch_feature || currentBucketRootCause?.next_patch_target || currentBucketRootCause?.candidate_patch?.feature || null,
     { preferShortLabel: true },
   );
-  const currentBucketRootCauseBucketLabel = humanizeStructureBucketLabel(
-    currentBucketRootCause?.current_live_structure_bucket || currentLiveStructureBucket || "—",
-  );
+  const currentBucketRootCauseBucketRaw = currentBucketRootCause?.current_live_structure_bucket || currentLiveStructureBucket || "—";
+  const currentBucketRootCauseBucketLabel = humanizeStructureBucketLabel(currentBucketRootCauseBucketRaw);
+  const currentBucketRootCauseBucketKey = String(currentBucketRootCauseBucketRaw || "").toLowerCase();
+  const currentBucketRootCauseTradeFloorGap = currentBucketRootCause?.runtime_remaining_gap_to_floor
+    ?? currentBucketRootCause?.remaining_gap_to_floor
+    ?? null;
+  const currentBucketRootCauseIsQ35 = currentBucketRootCauseBucketKey === "q35" || currentBucketRootCauseBucketKey.endsWith("|q35");
   const currentBucketRootCauseHint = currentBucketRootCauseVisible
     ? `候選修補方案 ${currentBucketRootCausePatchTargetLabel} · ${currentBucketRootCauseActionLabel}`
     : "當前分桶根因尚未進入 /predict/confidence；請先重跑 hb_predict_probe.py。";
   const currentBucketRootCauseDetail = currentBucketRootCauseVisible
-    ? `近邊界樣本 ${currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 ${formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}`
+    ? (currentBucketRootCauseIsQ35
+      ? `交易門檻缺口 ${formatDecimal(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考`
+      : `近邊界樣本 ${currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 ${formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}`)
     : "Dashboard 不可退回 generic q15 / q35 摘要；需要直接顯示 current-bucket root cause。";
   const nonCircuitBreakerGridClass = currentBucketRootCauseVisible
     ? "md:grid-cols-2 xl:grid-cols-6"
