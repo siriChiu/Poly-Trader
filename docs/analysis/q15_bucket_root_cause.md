@@ -1,6 +1,6 @@
 # q15 Bucket Root Cause
 
-- generated_at: **2026-04-24 12:29:22.494986**
+- generated_at: **2026-04-24 12:54:16.359105**
 - target_col: **simulated_pyramid_win**
 - verdict: **current_exact_support_under_minimum**
 - candidate_patch_type: **support_accumulation_or_semantic_rebaseline**
@@ -11,8 +11,8 @@
 ## Current live
 - live path: **bull / BLOCK / D**
 - structure_bucket: `BLOCK|bull_q15_bias50_overextended_block|q15`
-- structure_quality: **0.3361**
-- gap_to_q35_boundary: **0.0139**
+- structure_quality: **0.2916**
+- gap_to_q35_boundary: **0.0584**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `under_minimum_exact_live_structure_bucket`
 - support rows/minimum/gap: **29 / 50 / 21**
@@ -21,7 +21,7 @@
 - rows: **90**
 - bucket_counts: `{'BLOCK|bull_high_bias200_overheat_block|q65': 82, 'BLOCK|bull_high_bias200_overheat_block|q35': 5, 'BLOCK|structure_quality_block|q00': 3}`
 - dominant_neighbor_bucket: **BLOCK|bull_high_bias200_overheat_block|q65** (82 rows)
-- near_boundary_window: `{'lower': 0.3361, 'upper': 0.35}`
+- near_boundary_window: `{'lower': 0.2916, 'upper': 0.35}`
 - near_boundary_rows: **0**
 
 ## Decision
@@ -30,9 +30,9 @@
 - verify_next: 維持 minimum_support_rows=50 與 current-live guardrail，累積同 support_identity 的 exact rows；若只有 legacy / different semantic signature 支撐，文案必須標成 semantic rebaseline reference。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.6037 / norm=0.6037 / Δto_cross_q35=0.0409 / target_p25=1.8718 / target_median=1.9105
-- `feat_4h_dist_bb_lower`: current=1.836 / norm=0.2295 / Δto_cross_q35=0.337 / target_p25=4.8843 / target_median=4.995
-- `feat_4h_dist_swing_low`: current=1.6686 / norm=0.1669 / Δto_cross_q35=0.4212 / target_p25=5.4449 / target_median=5.5338
+- `feat_4h_bb_pct_b`: current=0.527 / norm=0.527 / Δto_cross_q35=0.1718 / target_p25=1.8718 / target_median=1.9105
+- `feat_4h_dist_bb_lower`: current=1.6161 / norm=0.202 / Δto_cross_q35=1.4158 / target_p25=4.8843 / target_median=4.995
+- `feat_4h_dist_swing_low`: current=1.3879 / norm=0.1388 / Δto_cross_q35=1.7697 / target_p25=5.4449 / target_median=5.5338
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 verdict 與 candidate_patch_feature。

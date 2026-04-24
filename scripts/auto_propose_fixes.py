@@ -225,12 +225,25 @@ def load_recent_tw_history(limit=3, current_entry=None):
     def _sort_key(path: Path):
         match = re.search(r"heartbeat_(.+)_summary\.json$", path.name)
         label = match.group(1) if match else path.stem
-        if str(label).isdigit():
-            # Prefer numbered heartbeats over aliases like "fast" so the
+        label_text = str(label)
+        timestamp_match = re.fullmatch(r"(\d{8})_(\d{4})(?:_(\d{2}))?", label_text)
+        if timestamp_match:
+            # Cron heartbeats use timestamp labels (YYYYMMDD_HHMM[_SS]). Treat
+            # them as stable numbered runs and prefer the newest timestamped
+            # summaries before older legacy numeric IDs. Otherwise TW history
+            # can mix the fresh cron run with stale #1024/#1023 artifacts.
+            sortable = int(
+                timestamp_match.group(1)
+                + timestamp_match.group(2)
+                + (timestamp_match.group(3) or "00")
+            )
+            return (0, -sortable, "")
+        if label_text.isdigit():
+            # Prefer legacy numbered heartbeats over aliases like "fast" so the
             # drift issue compares against stable chronological runs instead of
             # anonymous helper summaries from ad-hoc fast checks.
-            return (0, -int(label), "")
-        return (1, 0, str(label))
+            return (1, -int(label_text), "")
+        return (2, 0, label_text)
 
     for path in sorted(data_dir.glob("heartbeat_*_summary.json"), key=_sort_key):
         try:

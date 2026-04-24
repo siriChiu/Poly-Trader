@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-24 12:29:22.494986**
+- generated_at: **2026-04-24 12:54:16.359105**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -34,9 +34,9 @@
 - support_progress.status: **semantic_rebaseline_under_minimum**
 - support_progress.regression_basis: **legacy_or_different_semantic_signature**
 - support_progress.current_rows / minimum: **29 / 50**
-- support_progress.previous_rows: **16**
-- support_progress.delta_vs_previous: **13**
-- support_progress.stagnant_run_count: **0**
+- support_progress.previous_rows: **29**
+- support_progress.delta_vs_previous: **0**
+- support_progress.stagnant_run_count: **3**
 - support_progress.escalate_to_blocker: **True**
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'BLOCK|bull_q15_bias50_overextended_block|q15', 'regime_label': 'bull', 'regime_gate': 'BLOCK', 'entry_quality_label': 'D', 'calibration_window': 600, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `{'heartbeat': '20260423i', 'timestamp': '2026-04-23T04:31:17.416558+00:00', 'live_current_structure_bucket': 'BLOCK|bull_q15_bias50_overextended_block|q15', 'live_current_structure_bucket_rows': 199, 'minimum_support_rows': 50, 'support_route_verdict': 'exact_bucket_supported', 'support_governance_route': 'exact_live_bucket_supported', 'support_identity': None, 'reference_only_reason': 'missing_or_different_support_identity_or_bucket_semantic_signature'}`
@@ -45,11 +45,11 @@
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.2634**
+- remaining_gap_to_floor: **0.2109**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.878**
+- best_single_component_required_score_delta: **0.703**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.878），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.703），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**

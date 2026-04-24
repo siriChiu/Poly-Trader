@@ -213,6 +213,36 @@ def test_load_recent_tw_history_prefers_numbered_heartbeats_over_fast_alias(tmp_
     assert history[1]["heartbeat"] == "664"
 
 
+def test_load_recent_tw_history_prefers_timestamped_cron_runs_over_legacy_numeric_ids(tmp_path, monkeypatch):
+    monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    (data_dir / "heartbeat_1024_summary.json").write_text(
+        '{"heartbeat":"1024","ic_diagnostics":{"tw_pass":27,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_20260424_2029_summary.json").write_text(
+        '{"heartbeat":"20260424_2029","ic_diagnostics":{"tw_pass":27,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_20260424_1955_summary.json").write_text(
+        '{"heartbeat":"20260424_1955","ic_diagnostics":{"tw_pass":26,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_fast_summary.json").write_text(
+        '{"heartbeat":"fast","ic_diagnostics":{"tw_pass":12,"total_features":30}}'
+    )
+
+    history = auto_propose_fixes.load_recent_tw_history(
+        limit=3,
+        current_entry={"heartbeat": "20260424_2049", "tw_pass": 28, "total_features": 30},
+    )
+
+    assert [row["heartbeat"] for row in history] == [
+        "20260424_2049",
+        "20260424_2029",
+        "20260424_1955",
+    ]
+
+
 def test_summarize_recent_drift_formats_primary_window():
     summary = auto_propose_fixes.summarize_recent_drift(
         {

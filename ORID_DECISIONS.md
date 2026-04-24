@@ -1,20 +1,20 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-24 20:31:02 CST_
+_最後更新：2026-04-24 20:55:51 CST_
 
 ---
 
-## 心跳 #20260424_2029 ORID
+## 心跳 #20260424_2054 ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=32175 / Features=23593 / Labels=64886`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=57.00%`。
+- collect + diagnostics refresh 完成：`Raw=32178 / Features=23596 / Labels=64888`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=57.00%`。
 - current-live blocker：`deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`。
 - q15 current-live bucket truth：`current_live_structure_bucket=BLOCK|bull_q15_bias50_overextended_block|q15` / `support=29/50` / `gap=21` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
 - support progress：`status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `legacy_supported_reference=199/50@20260423i`。
 - latest recent-window diagnostics：`latest_window=100` / `win_rate=79.0%` / `dominant_regime=bull(100.0%)` / `avg_quality=+0.3403` / `avg_pnl=+0.0041` / `alerts=regime_concentration,regime_shift`。
 - current blocking pathological pocket：`blocking_window=500` / `win_rate=52.4%` / `dominant_regime=bull(99.6%)` / `avg_quality=+0.1012` / `avg_pnl=+0.0001` / `alerts=regime_concentration,regime_shift`。
 - leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3643` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3646` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`。
 
 ### R｜感受直覺

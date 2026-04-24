@@ -1,12 +1,12 @@
 {
   "db_url": "sqlite:////home/kazuha/Poly-Trader/poly_trader.db",
-  "generated_at": "2026-04-24T12:32:13.819060Z",
-  "feature_timestamp": "2026-04-24 12:29:22.494986",
+  "generated_at": "2026-04-24T12:55:38.900736Z",
+  "feature_timestamp": "2026-04-24 12:54:16.359105",
   "target_col": "simulated_pyramid_win",
   "used_model": "regime_bull_ensemble",
   "model_type": "RegimeAwarePredictor",
   "signal": "HOLD",
-  "confidence": 0.473219,
+  "confidence": 0.453062,
   "should_trade": false,
   "reason": null,
   "streak": null,
@@ -22,70 +22,70 @@
   "structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
   "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
   "current_live_structure_bucket_rows": 29,
-  "entry_quality": 0.2866,
+  "entry_quality": 0.3391,
   "entry_quality_label": "D",
   "entry_quality_components": {
     "base_components": [
       {
         "feature": "feat_4h_bias50",
         "weight": 0.4,
-        "raw_value": 2.3437,
-        "normalized_score": 0.0113,
-        "weighted_contribution": 0.0045
+        "raw_value": 2.0584,
+        "normalized_score": 0.0683,
+        "weighted_contribution": 0.0273
       },
       {
         "feature": "feat_nose",
         "weight": 0.18,
-        "raw_value": 0.7025,
-        "normalized_score": 0.2975,
-        "weighted_contribution": 0.0536
+        "raw_value": 0.5595,
+        "normalized_score": 0.4405,
+        "weighted_contribution": 0.0793
       },
       {
         "feature": "feat_pulse",
         "weight": 0.27,
-        "raw_value": 0.2562,
-        "normalized_score": 0.2562,
-        "weighted_contribution": 0.0692
+        "raw_value": 0.3681,
+        "normalized_score": 0.3681,
+        "weighted_contribution": 0.0994
       },
       {
         "feature": "feat_ear",
         "weight": 0.15,
-        "raw_value": 0.0096,
-        "normalized_score": 0.9522,
-        "weighted_contribution": 0.1428
+        "raw_value": 0.0015,
+        "normalized_score": 0.9924,
+        "weighted_contribution": 0.1489
       }
     ],
-    "base_quality": 0.2701,
+    "base_quality": 0.3549,
     "base_quality_weight": 0.75,
-    "structure_quality": 0.3361,
+    "structure_quality": 0.2916,
     "structure_quality_weight": 0.25,
     "structure_components": [
       {
         "feature": "feat_4h_bb_pct_b",
         "weight": 0.34,
-        "raw_value": 0.6037,
-        "normalized_score": 0.6037,
-        "weighted_contribution": 0.2053
+        "raw_value": 0.527,
+        "normalized_score": 0.527,
+        "weighted_contribution": 0.1792
       },
       {
         "feature": "feat_4h_dist_bb_lower",
         "weight": 0.33,
-        "raw_value": 1.836,
-        "normalized_score": 0.2295,
-        "weighted_contribution": 0.0757
+        "raw_value": 1.6161,
+        "normalized_score": 0.202,
+        "weighted_contribution": 0.0667
       },
       {
         "feature": "feat_4h_dist_swing_low",
         "weight": 0.33,
-        "raw_value": 1.6686,
-        "normalized_score": 0.1669,
-        "weighted_contribution": 0.0551
+        "raw_value": 1.3879,
+        "normalized_score": 0.1388,
+        "weighted_contribution": 0.0458
       }
     ],
     "bias50_calibration": {
       "applied": false,
-      "score": 0.011256614619689386,
-      "legacy_score": 0.011256614619689386,
+      "score": 0.06832548767168971,
+      "legacy_score": 0.06832548767168971,
       "score_delta_vs_legacy": 0.0,
       "mode": "legacy_linear",
       "segment": null,
@@ -94,9 +94,9 @@
       "exact_p90": null,
       "reference_p90": null
     },
-    "entry_quality": 0.2866,
+    "entry_quality": 0.3391,
     "trade_floor": 0.55,
-    "trade_floor_gap": -0.2634
+    "trade_floor_gap": -0.2109
   },
   "q35_discriminative_redesign_applied": false,
   "q35_discriminative_redesign": null,
@@ -108,11 +108,11 @@
   "execution_guardrail_applied": true,
   "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
   "deployment_blocker": "under_minimum_exact_live_structure_bucket",
-  "deployment_blocker_reason": "current live structure bucket 已有 exact rows，但仍低於 deployment-grade minimum support；在 support 補滿前，runtime 只能維持 guardrail，不可把這條 lane 視為已可部署。",
+  "deployment_blocker_reason": "current live structure bucket \u5df2\u6709 exact rows\uff0c\u4f46\u4ecd\u4f4e\u65bc deployment-grade minimum support\uff1b\u5728 support \u88dc\u6eff\u524d\uff0cruntime \u53ea\u80fd\u7dad\u6301 guardrail\uff0c\u4e0d\u53ef\u628a\u9019\u689d lane \u8996\u70ba\u5df2\u53ef\u90e8\u7f72\u3002",
   "deployment_blocker_source": "decision_quality_contract",
   "deployment_blocker_details": {
     "type": "under_minimum_exact_live_structure_bucket",
-    "reason": "current live structure bucket 已有 exact rows，但仍低於 deployment-grade minimum support；在 support 補滿前，runtime 只能維持 guardrail，不可把這條 lane 視為已可部署。",
+    "reason": "current live structure bucket \u5df2\u6709 exact rows\uff0c\u4f46\u4ecd\u4f4e\u65bc deployment-grade minimum support\uff1b\u5728 support \u88dc\u6eff\u524d\uff0cruntime \u53ea\u80fd\u7dad\u6301 guardrail\uff0c\u4e0d\u53ef\u628a\u9019\u689d lane \u8996\u70ba\u5df2\u53ef\u90e8\u7f72\u3002",
     "source": "decision_quality_contract",
     "structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
     "support_mode": "exact_bucket_present_but_below_minimum",
@@ -125,7 +125,7 @@
     "current_live_structure_bucket_gap_to_minimum": 21,
     "support_progress": {
       "status": "semantic_rebaseline_under_minimum",
-      "reason": "current q15 exact support 目前是 29/50，仍低於 minimum；歷史上同 bucket 曾有 199/50（heartbeat 20260423i），但該 artifact 缺少相同 support_identity / bucket_semantic_signature，只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "reason": "current q15 exact support \u76ee\u524d\u662f 29/50\uff0c\u4ecd\u4f4e\u65bc minimum\uff1b\u6b77\u53f2\u4e0a\u540c bucket \u66fe\u6709 199/50\uff08heartbeat 20260423i\uff09\uff0c\u4f46\u8a72 artifact \u7f3a\u5c11\u76f8\u540c support_identity / bucket_semantic_signature\uff0c\u53ea\u80fd\u7576 legacy reference\uff0c\u4e0d\u80fd\u5ba3\u7a31\u70ba same-identity regression\u3002",
       "regression_basis": "legacy_or_different_semantic_signature",
       "support_identity": {
         "target_col": "simulated_pyramid_win",
@@ -140,8 +140,8 @@
       "current_rows": 29,
       "minimum_support_rows": 50,
       "gap_to_minimum": 21,
-      "delta_vs_previous": 13,
-      "previous_rows": 16,
+      "delta_vs_previous": 0,
+      "previous_rows": 29,
       "previous_route_changed": false,
       "previous_support_route_verdict": "exact_bucket_present_but_below_minimum",
       "previous_support_governance_route": "exact_live_bucket_present_but_below_minimum",
@@ -161,15 +161,15 @@
         "support_identity": null,
         "reference_only_reason": "missing_or_different_support_identity_or_bucket_semantic_signature"
       },
-      "comparable_history_count": 1,
+      "comparable_history_count": 3,
       "legacy_reference_history_count": 25,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 3,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
       "history": [
         {
-          "heartbeat": "current",
-          "timestamp": "2026-04-24T12:32:13.622821+00:00",
+          "heartbeat": "20260424_2054",
+          "timestamp": "2026-04-24T12:55:38.718118+00:00",
           "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
           "live_current_structure_bucket_rows": 29,
           "minimum_support_rows": 50,
@@ -185,6 +185,46 @@
             "calibration_window": 600,
             "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
           }
+        },
+        {
+          "heartbeat": "20260424_2049",
+          "timestamp": "2026-04-24T12:51:29.490590+00:00",
+          "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+          "live_current_structure_bucket_rows": 29,
+          "minimum_support_rows": 50,
+          "support_route_verdict": "exact_bucket_present_but_below_minimum",
+          "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+          "support_identity": {
+            "target_col": "simulated_pyramid_win",
+            "horizon_minutes": 1440,
+            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "regime_label": "bull",
+            "regime_gate": "BLOCK",
+            "entry_quality_label": "D",
+            "calibration_window": 600,
+            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+          },
+          "regression_basis": "legacy_or_different_semantic_signature"
+        },
+        {
+          "heartbeat": "20260424_2029",
+          "timestamp": "2026-04-24T12:31:02.887228+00:00",
+          "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+          "live_current_structure_bucket_rows": 29,
+          "minimum_support_rows": 50,
+          "support_route_verdict": "exact_bucket_present_but_below_minimum",
+          "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+          "support_identity": {
+            "target_col": "simulated_pyramid_win",
+            "horizon_minutes": 1440,
+            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "regime_label": "bull",
+            "regime_gate": "BLOCK",
+            "entry_quality_label": "D",
+            "calibration_window": 600,
+            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+          },
+          "regression_basis": "legacy_or_different_semantic_signature"
         },
         {
           "heartbeat": "20260424_1632",
@@ -222,9 +262,9 @@
     "artifact_context_freshness": {
       "verdict": "current_context",
       "mismatched_fields": [],
-      "latest_live_probe_feature_timestamp": "2026-04-24 12:29:22.494986",
-      "drilldown_generated_at": "2026-04-24 12:29:22.494986",
-      "artifact_feature_timestamp": "2026-04-24 12:29:22.494986",
+      "latest_live_probe_feature_timestamp": "2026-04-24 12:54:16.359105",
+      "drilldown_generated_at": "2026-04-24 12:54:16.359105",
+      "artifact_feature_timestamp": "2026-04-24 12:54:16.359105",
       "probe_current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
       "artifact_current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
       "support_identity": {
@@ -255,9 +295,9 @@
   "artifact_context_freshness": {
     "verdict": "current_context",
     "mismatched_fields": [],
-    "latest_live_probe_feature_timestamp": "2026-04-24 12:29:22.494986",
-    "drilldown_generated_at": "2026-04-24 12:29:22.494986",
-    "artifact_feature_timestamp": "2026-04-24 12:29:22.494986",
+    "latest_live_probe_feature_timestamp": "2026-04-24 12:54:16.359105",
+    "drilldown_generated_at": "2026-04-24 12:54:16.359105",
+    "artifact_feature_timestamp": "2026-04-24 12:54:16.359105",
     "probe_current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
     "artifact_current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
     "support_identity": {
@@ -273,7 +313,7 @@
   },
   "support_progress": {
     "status": "semantic_rebaseline_under_minimum",
-    "reason": "current q15 exact support 目前是 29/50，仍低於 minimum；歷史上同 bucket 曾有 199/50（heartbeat 20260423i），但該 artifact 缺少相同 support_identity / bucket_semantic_signature，只能當 legacy reference，不能宣稱為 same-identity regression。",
+    "reason": "current q15 exact support \u76ee\u524d\u662f 29/50\uff0c\u4ecd\u4f4e\u65bc minimum\uff1b\u6b77\u53f2\u4e0a\u540c bucket \u66fe\u6709 199/50\uff08heartbeat 20260423i\uff09\uff0c\u4f46\u8a72 artifact \u7f3a\u5c11\u76f8\u540c support_identity / bucket_semantic_signature\uff0c\u53ea\u80fd\u7576 legacy reference\uff0c\u4e0d\u80fd\u5ba3\u7a31\u70ba same-identity regression\u3002",
     "regression_basis": "legacy_or_different_semantic_signature",
     "support_identity": {
       "target_col": "simulated_pyramid_win",
@@ -288,8 +328,8 @@
     "current_rows": 29,
     "minimum_support_rows": 50,
     "gap_to_minimum": 21,
-    "delta_vs_previous": 13,
-    "previous_rows": 16,
+    "delta_vs_previous": 0,
+    "previous_rows": 29,
     "previous_route_changed": false,
     "previous_support_route_verdict": "exact_bucket_present_but_below_minimum",
     "previous_support_governance_route": "exact_live_bucket_present_but_below_minimum",
@@ -309,15 +349,15 @@
       "support_identity": null,
       "reference_only_reason": "missing_or_different_support_identity_or_bucket_semantic_signature"
     },
-    "comparable_history_count": 1,
+    "comparable_history_count": 3,
     "legacy_reference_history_count": 25,
-    "stagnant_run_count": 0,
+    "stagnant_run_count": 3,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
     "history": [
       {
-        "heartbeat": "current",
-        "timestamp": "2026-04-24T12:32:13.622821+00:00",
+        "heartbeat": "20260424_2054",
+        "timestamp": "2026-04-24T12:55:38.718118+00:00",
         "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
         "live_current_structure_bucket_rows": 29,
         "minimum_support_rows": 50,
@@ -333,6 +373,46 @@
           "calibration_window": 600,
           "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
         }
+      },
+      {
+        "heartbeat": "20260424_2049",
+        "timestamp": "2026-04-24T12:51:29.490590+00:00",
+        "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "live_current_structure_bucket_rows": 29,
+        "minimum_support_rows": 50,
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+        "support_identity": {
+          "target_col": "simulated_pyramid_win",
+          "horizon_minutes": 1440,
+          "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+          "regime_label": "bull",
+          "regime_gate": "BLOCK",
+          "entry_quality_label": "D",
+          "calibration_window": 600,
+          "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+        },
+        "regression_basis": "legacy_or_different_semantic_signature"
+      },
+      {
+        "heartbeat": "20260424_2029",
+        "timestamp": "2026-04-24T12:31:02.887228+00:00",
+        "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "live_current_structure_bucket_rows": 29,
+        "minimum_support_rows": 50,
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+        "support_identity": {
+          "target_col": "simulated_pyramid_win",
+          "horizon_minutes": 1440,
+          "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+          "regime_label": "bull",
+          "regime_gate": "BLOCK",
+          "entry_quality_label": "D",
+          "calibration_window": 600,
+          "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+        },
+        "regression_basis": "legacy_or_different_semantic_signature"
       },
       {
         "heartbeat": "20260424_1632",
@@ -360,7 +440,7 @@
   "current_live_structure_bucket_gap_to_minimum": 21,
   "recommended_patch": {
     "status": "reference_only_non_current_live_scope",
-    "reason": "參考 patch 來自 bull|CAUTION（source: bull_4h_pocket_ablation.bull_collapse_q35），但 current live scope 是 bull|BLOCK；這代表 patch 描述的是 spillover / broader lane，而不是目前 current-live row 的 deploy patch。 current live exact support 目前仍是 29/50，因此這條 patch 同時不具備 same-scope 與 exact-support 放行條件。 即使 exact support 已達 minimum rows，也只能作治理 / 訓練參考，不可直接放行 runtime。",
+    "reason": "\u53c3\u8003 patch \u4f86\u81ea bull|CAUTION\uff08source: bull_4h_pocket_ablation.bull_collapse_q35\uff09\uff0c\u4f46 current live scope \u662f bull|BLOCK\uff1b\u9019\u4ee3\u8868 patch \u63cf\u8ff0\u7684\u662f spillover / broader lane\uff0c\u800c\u4e0d\u662f\u76ee\u524d current-live row \u7684 deploy patch\u3002 current live exact support \u76ee\u524d\u4ecd\u662f 29/50\uff0c\u56e0\u6b64\u9019\u689d patch \u540c\u6642\u4e0d\u5177\u5099 same-scope \u8207 exact-support \u653e\u884c\u689d\u4ef6\u3002 \u5373\u4f7f exact support \u5df2\u9054 minimum rows\uff0c\u4e5f\u53ea\u80fd\u4f5c\u6cbb\u7406 / \u8a13\u7df4\u53c3\u8003\uff0c\u4e0d\u53ef\u76f4\u63a5\u653e\u884c runtime\u3002",
     "spillover_regime_gate": "chop|CAUTION",
     "reference_patch_scope": "bull|CAUTION",
     "spillover_rows": 468,
@@ -383,7 +463,7 @@
     "current_live_structure_bucket_rows": 29,
     "minimum_support_rows": 50,
     "gap_to_minimum": 21,
-    "recommended_action": "維持 reference-only patch 可見性；目前 current live 是 bull|BLOCK，但 patch 來自 bull|CAUTION spillover。 在 scope 對齊前，只可作治理 / 訓練參考，不可把它升級成 current-live deploy patch。",
+    "recommended_action": "\u7dad\u6301 reference-only patch \u53ef\u898b\u6027\uff1b\u76ee\u524d current live \u662f bull|BLOCK\uff0c\u4f46 patch \u4f86\u81ea bull|CAUTION spillover\u3002 \u5728 scope \u5c0d\u9f4a\u524d\uff0c\u53ea\u53ef\u4f5c\u6cbb\u7406 / \u8a13\u7df4\u53c3\u8003\uff0c\u4e0d\u53ef\u628a\u5b83\u5347\u7d1a\u6210 current-live deploy patch\u3002",
     "cohort_rows": 594,
     "cohort_base_win_rate": 0.45791245791245794,
     "profile_cv_mean_accuracy": 0.8585858585858586,
@@ -394,21 +474,21 @@
   "recommended_patch_status": "reference_only_non_current_live_scope",
   "recommended_patch_reference_scope": "bull|CAUTION",
   "recommended_patch_reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
-  "recommended_patch_reason": "參考 patch 來自 bull|CAUTION（source: bull_4h_pocket_ablation.bull_collapse_q35），但 current live scope 是 bull|BLOCK；這代表 patch 描述的是 spillover / broader lane，而不是目前 current-live row 的 deploy patch。 current live exact support 目前仍是 29/50，因此這條 patch 同時不具備 same-scope 與 exact-support 放行條件。 即使 exact support 已達 minimum rows，也只能作治理 / 訓練參考，不可直接放行 runtime。",
+  "recommended_patch_reason": "\u53c3\u8003 patch \u4f86\u81ea bull|CAUTION\uff08source: bull_4h_pocket_ablation.bull_collapse_q35\uff09\uff0c\u4f46 current live scope \u662f bull|BLOCK\uff1b\u9019\u4ee3\u8868 patch \u63cf\u8ff0\u7684\u662f spillover / broader lane\uff0c\u800c\u4e0d\u662f\u76ee\u524d current-live row \u7684 deploy patch\u3002 current live exact support \u76ee\u524d\u4ecd\u662f 29/50\uff0c\u56e0\u6b64\u9019\u689d patch \u540c\u6642\u4e0d\u5177\u5099 same-scope \u8207 exact-support \u653e\u884c\u689d\u4ef6\u3002 \u5373\u4f7f exact support \u5df2\u9054 minimum rows\uff0c\u4e5f\u53ea\u80fd\u4f5c\u6cbb\u7406 / \u8a13\u7df4\u53c3\u8003\uff0c\u4e0d\u53ef\u76f4\u63a5\u653e\u884c runtime\u3002",
   "recommended_patch_support_route": "exact_bucket_present_but_below_minimum",
   "recommended_patch_gap_to_minimum": 21,
   "recommended_patch_current_live_structure_bucket_rows": 29,
   "recommended_patch_minimum_support_rows": 50,
   "floor_cross_verdict": "math_cross_possible_but_illegal_without_exact_support",
   "legal_to_relax_runtime_gate": false,
-  "remaining_gap_to_floor": 0.2634,
+  "remaining_gap_to_floor": 0.2109,
   "best_single_component": "feat_4h_bias50",
-  "best_single_component_required_score_delta": 0.878,
+  "best_single_component_required_score_delta": 0.703,
   "component_experiment_verdict": "reference_only_until_exact_support_ready",
   "runtime_closure_state": "patch_inactive_or_blocked",
-  "runtime_closure_summary": "current live bucket BLOCK|bull_q15_bias50_overextended_block|q15 的 exact support 仍未就緒（29/50，route=exact_bucket_present_but_below_minimum / governance=exact_live_bucket_present_but_below_minimum）；broader / proxy rows 與 recommended patch 目前都只屬 reference-only 治理，不可視為 deployment closure。 recommended_patch=core_plus_macro_plus_all_4h (reference_only_non_current_live_scope). blocker=current live structure bucket 已有 exact rows，但仍低於 deployment-grade minimum support；在 support 補滿前，runtime 只能維持 guardrail，不可把這條 lane 視為已可部署。. exact-vs-spillover=同 quality 寬 scope 出現 chop|CAUTION spillover，468 rows / WR 0.0% / 品質 -0.198，明顯劣於 exact live lane WR 50.0% / 品質 0.155。",
+  "runtime_closure_summary": "current live bucket BLOCK|bull_q15_bias50_overextended_block|q15 \u7684 exact support \u4ecd\u672a\u5c31\u7dd2\uff0829/50\uff0croute=exact_bucket_present_but_below_minimum / governance=exact_live_bucket_present_but_below_minimum\uff09\uff1bbroader / proxy rows \u8207 recommended patch \u76ee\u524d\u90fd\u53ea\u5c6c reference-only \u6cbb\u7406\uff0c\u4e0d\u53ef\u8996\u70ba deployment closure\u3002 recommended_patch=core_plus_macro_plus_all_4h (reference_only_non_current_live_scope). blocker=current live structure bucket \u5df2\u6709 exact rows\uff0c\u4f46\u4ecd\u4f4e\u65bc deployment-grade minimum support\uff1b\u5728 support \u88dc\u6eff\u524d\uff0cruntime \u53ea\u80fd\u7dad\u6301 guardrail\uff0c\u4e0d\u53ef\u628a\u9019\u689d lane \u8996\u70ba\u5df2\u53ef\u90e8\u7f72\u3002. exact-vs-spillover=\u540c quality \u5bec scope \u51fa\u73fe chop|CAUTION spillover\uff0c468 rows / WR 0.0% / \u54c1\u8cea -0.198\uff0c\u660e\u986f\u52a3\u65bc exact live lane WR 50.0% / \u54c1\u8cea 0.155\u3002",
   "q15_support_audit": {
-    "generated_at": "2026-04-24 12:29:22.494986",
+    "generated_at": "2026-04-24 12:54:16.359105",
     "target_col": "simulated_pyramid_win",
     "support_identity": {
       "target_col": "simulated_pyramid_win",
@@ -423,9 +503,9 @@
     "artifact_context_freshness": {
       "verdict": "current_context",
       "mismatched_fields": [],
-      "latest_live_probe_feature_timestamp": "2026-04-24 12:29:22.494986",
-      "drilldown_generated_at": "2026-04-24 12:29:22.494986",
-      "artifact_feature_timestamp": "2026-04-24 12:29:22.494986",
+      "latest_live_probe_feature_timestamp": "2026-04-24 12:54:16.359105",
+      "drilldown_generated_at": "2026-04-24 12:54:16.359105",
+      "artifact_feature_timestamp": "2026-04-24 12:54:16.359105",
       "probe_current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
       "artifact_current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
       "support_identity": {
@@ -440,11 +520,11 @@
       }
     },
     "current_live": {
-      "feature_timestamp": "2026-04-24 12:29:22.494986",
+      "feature_timestamp": "2026-04-24 12:54:16.359105",
       "signal": "HOLD",
       "regime_label": "bull",
       "regime_gate": "BLOCK",
-      "entry_quality": 0.2866,
+      "entry_quality": 0.3391,
       "entry_quality_label": "D",
       "decision_quality_label": "D",
       "decision_quality_horizon_minutes": 1440,
@@ -456,10 +536,10 @@
       "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
       "current_live_structure_bucket_rows": 29,
       "raw_features": {
-        "feat_4h_bias50": 2.3437,
-        "feat_nose": 0.7025,
-        "feat_pulse": 0.2562,
-        "feat_ear": 0.0096
+        "feat_4h_bias50": 2.0584,
+        "feat_nose": 0.5595,
+        "feat_pulse": 0.3681,
+        "feat_ear": 0.0015
       }
     },
     "scope_applicability": {
@@ -467,7 +547,7 @@
       "active_for_current_live_row": true,
       "current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
       "target_structure_bucket": "CAUTION|structure_quality_caution|q15",
-      "reason": "current live row 正位於 q15 lane；q15 support / component verify 可直接視為 current-live deployment 檢查。"
+      "reason": "current live row \u6b63\u4f4d\u65bc q15 lane\uff1bq15 support / component verify \u53ef\u76f4\u63a5\u8996\u70ba current-live deployment \u6aa2\u67e5\u3002"
     },
     "support_route": {
       "support_identity": {
@@ -485,19 +565,19 @@
       "verdict": "exact_bucket_present_but_below_minimum",
       "deployable": false,
       "governance_reference_only": true,
-      "reason": "current q15 exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。",
-      "release_condition": "exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。",
+      "reason": "current q15 exact bucket \u5df2\u51fa\u73fe\uff0c\u4f46 rows \u5c1a\u672a\u9054 minimum support\uff1b\u4ecd\u9700\u7dad\u6301 blocker\u3002",
+      "release_condition": "exact bucket rows \u9054 minimum support \u5f8c\uff0c\u624d\u53ef\u628a proxy \u964d\u7d1a\u6210\u7d14\u6bd4\u8f03\u53c3\u8003\u3002",
       "route_hint": "exact_live_bucket_present_but_below_minimum",
       "minimum_support_rows": 50,
       "current_live_structure_bucket_gap_to_minimum": 21,
       "exact_bucket_root_cause": "same_lane_exists_but_q65_missing",
-      "recommended_action": "維持部署 blocker，優先補 exact bucket 真樣本，proxy 只可作治理參考。",
+      "recommended_action": "\u7dad\u6301\u90e8\u7f72 blocker\uff0c\u512a\u5148\u88dc exact bucket \u771f\u6a23\u672c\uff0cproxy \u53ea\u53ef\u4f5c\u6cbb\u7406\u53c3\u8003\u3002",
       "exact_live_bucket_proxy_rows": 143,
       "exact_live_lane_proxy_rows": 367,
       "supported_neighbor_rows": 0,
       "support_progress": {
         "status": "semantic_rebaseline_under_minimum",
-        "reason": "current q15 exact support 目前是 29/50，仍低於 minimum；歷史上同 bucket 曾有 199/50（heartbeat 20260423i），但該 artifact 缺少相同 support_identity / bucket_semantic_signature，只能當 legacy reference，不能宣稱為 same-identity regression。",
+        "reason": "current q15 exact support \u76ee\u524d\u662f 29/50\uff0c\u4ecd\u4f4e\u65bc minimum\uff1b\u6b77\u53f2\u4e0a\u540c bucket \u66fe\u6709 199/50\uff08heartbeat 20260423i\uff09\uff0c\u4f46\u8a72 artifact \u7f3a\u5c11\u76f8\u540c support_identity / bucket_semantic_signature\uff0c\u53ea\u80fd\u7576 legacy reference\uff0c\u4e0d\u80fd\u5ba3\u7a31\u70ba same-identity regression\u3002",
         "regression_basis": "legacy_or_different_semantic_signature",
         "support_identity": {
           "target_col": "simulated_pyramid_win",
@@ -512,8 +592,8 @@
         "current_rows": 29,
         "minimum_support_rows": 50,
         "gap_to_minimum": 21,
-        "delta_vs_previous": 13,
-        "previous_rows": 16,
+        "delta_vs_previous": 0,
+        "previous_rows": 29,
         "previous_route_changed": false,
         "previous_support_route_verdict": "exact_bucket_present_but_below_minimum",
         "previous_support_governance_route": "exact_live_bucket_present_but_below_minimum",
@@ -533,15 +613,15 @@
           "support_identity": null,
           "reference_only_reason": "missing_or_different_support_identity_or_bucket_semantic_signature"
         },
-        "comparable_history_count": 1,
+        "comparable_history_count": 3,
         "legacy_reference_history_count": 25,
-        "stagnant_run_count": 0,
+        "stagnant_run_count": 3,
         "stalled_support_accumulation": false,
         "escalate_to_blocker": true,
         "history": [
           {
-            "heartbeat": "current",
-            "timestamp": "2026-04-24T12:32:13.622821+00:00",
+            "heartbeat": "20260424_2054",
+            "timestamp": "2026-04-24T12:55:38.718118+00:00",
             "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
             "live_current_structure_bucket_rows": 29,
             "minimum_support_rows": 50,
@@ -557,6 +637,46 @@
               "calibration_window": 600,
               "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
             }
+          },
+          {
+            "heartbeat": "20260424_2049",
+            "timestamp": "2026-04-24T12:51:29.490590+00:00",
+            "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "live_current_structure_bucket_rows": 29,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "support_identity": {
+              "target_col": "simulated_pyramid_win",
+              "horizon_minutes": 1440,
+              "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+              "regime_label": "bull",
+              "regime_gate": "BLOCK",
+              "entry_quality_label": "D",
+              "calibration_window": 600,
+              "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+            },
+            "regression_basis": "legacy_or_different_semantic_signature"
+          },
+          {
+            "heartbeat": "20260424_2029",
+            "timestamp": "2026-04-24T12:31:02.887228+00:00",
+            "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "live_current_structure_bucket_rows": 29,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "support_identity": {
+              "target_col": "simulated_pyramid_win",
+              "horizon_minutes": 1440,
+              "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+              "regime_label": "bull",
+              "regime_gate": "BLOCK",
+              "entry_quality_label": "D",
+              "calibration_window": 600,
+              "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+            },
+            "regression_basis": "legacy_or_different_semantic_signature"
           },
           {
             "heartbeat": "20260424_1632",
@@ -584,16 +704,16 @@
     "floor_cross_legality": {
       "verdict": "math_cross_possible_but_illegal_without_exact_support",
       "legal_to_relax_runtime_gate": false,
-      "reason": "feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.878），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。",
-      "remaining_gap_to_floor": 0.2634,
+      "reason": "feat_4h_bias50 \u5728\u6578\u5b78\u4e0a\u53ef\u55ae\u9ede\u88dc\u8db3 floor gap\uff08\u9700\u8981 score \u0394\u22480.703\uff09\uff0c\u4f46 current q15 exact support \u5c1a\u672a\u9054 deployment \u9580\u6abb\uff0c\u56e0\u6b64\u4e0d\u5f97\u55ae\u9760 component calibration \u89e3\u9664 blocker\u3002",
+      "remaining_gap_to_floor": 0.2109,
       "best_single_component": "feat_4h_bias50",
-      "best_single_component_required_score_delta": 0.878,
+      "best_single_component_required_score_delta": 0.703,
       "best_single_component_can_cross_floor": true
     },
     "component_experiment": {
       "verdict": "reference_only_until_exact_support_ready",
       "feature": "feat_4h_bias50",
-      "reason": "exact support 尚未達 deployment 門檻；component experiment 只能作 reference-only 研究。",
+      "reason": "exact support \u5c1a\u672a\u9054 deployment \u9580\u6abb\uff1bcomponent experiment \u53ea\u80fd\u4f5c reference-only \u7814\u7a76\u3002",
       "machine_read_answer": {
         "support_ready": false,
         "entry_quality_ge_0_55": false,
@@ -604,7 +724,7 @@
       "positive_discrimination_evidence": {
         "preserves_positive_discrimination": true,
         "status": "verified_exact_lane_bucket_dominance",
-        "reason": "current q15 bucket 在 exact lane 內對所有 sibling buckets 都保留非負 win/pnl/quality discrimination，可作為 exact-supported component verify 的正向證據。",
+        "reason": "current q15 bucket \u5728 exact lane \u5167\u5c0d\u6240\u6709 sibling buckets \u90fd\u4fdd\u7559\u975e\u8ca0 win/pnl/quality discrimination\uff0c\u53ef\u4f5c\u70ba exact-supported component verify \u7684\u6b63\u5411\u8b49\u64da\u3002",
         "current_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
         "current_bucket_rows": 29,
         "current_bucket_metrics": {
@@ -623,44 +743,44 @@
           }
         ]
       },
-      "verify_next": "先把 current q15 exact bucket rows 補到 minimum support，再回來做 component experiment。"
+      "verify_next": "\u5148\u628a current q15 exact bucket rows \u88dc\u5230 minimum support\uff0c\u518d\u56de\u4f86\u505a component experiment\u3002"
     },
     "component_gap_attribution": {
       "trade_floor": 0.55,
-      "entry_quality": 0.2866,
-      "remaining_gap_to_floor": 0.2634,
+      "entry_quality": 0.3391,
+      "remaining_gap_to_floor": 0.2109,
       "reconstructed_from_q15_patch": false,
       "runtime_entry_quality_after_patch": null,
       "runtime_trade_floor_gap_after_patch": null,
-      "base_group_max_entry_gain": 0.5474,
-      "structure_group_max_entry_gain": 0.166,
+      "base_group_max_entry_gain": 0.4839,
+      "structure_group_max_entry_gain": 0.177,
       "best_single_component": {
         "group": "base",
         "feature": "feat_4h_bias50",
-        "raw_value": 2.3437,
-        "normalized_score": 0.0113,
+        "raw_value": 2.0584,
+        "normalized_score": 0.0683,
         "weight": 0.4,
         "outer_weight": 0.75,
         "effective_weight": 0.3,
-        "weighted_contribution": 0.0045,
-        "headroom_to_perfect_score": 0.9887,
-        "max_entry_gain_if_perfect": 0.2966,
-        "required_score_delta_to_cross_floor": 0.878,
+        "weighted_contribution": 0.0273,
+        "headroom_to_perfect_score": 0.9317,
+        "max_entry_gain_if_perfect": 0.2795,
+        "required_score_delta_to_cross_floor": 0.703,
         "can_single_component_cross_floor": true
       },
       "single_component_floor_crossers": [
         {
           "group": "base",
           "feature": "feat_4h_bias50",
-          "raw_value": 2.3437,
-          "normalized_score": 0.0113,
+          "raw_value": 2.0584,
+          "normalized_score": 0.0683,
           "weight": 0.4,
           "outer_weight": 0.75,
           "effective_weight": 0.3,
-          "weighted_contribution": 0.0045,
-          "headroom_to_perfect_score": 0.9887,
-          "max_entry_gain_if_perfect": 0.2966,
-          "required_score_delta_to_cross_floor": 0.878,
+          "weighted_contribution": 0.0273,
+          "headroom_to_perfect_score": 0.9317,
+          "max_entry_gain_if_perfect": 0.2795,
+          "required_score_delta_to_cross_floor": 0.703,
           "can_single_component_cross_floor": true
         }
       ],
@@ -668,99 +788,99 @@
         {
           "group": "base",
           "feature": "feat_4h_bias50",
-          "raw_value": 2.3437,
-          "normalized_score": 0.0113,
+          "raw_value": 2.0584,
+          "normalized_score": 0.0683,
           "weight": 0.4,
           "outer_weight": 0.75,
           "effective_weight": 0.3,
-          "weighted_contribution": 0.0045,
-          "headroom_to_perfect_score": 0.9887,
-          "max_entry_gain_if_perfect": 0.2966,
-          "required_score_delta_to_cross_floor": 0.878,
+          "weighted_contribution": 0.0273,
+          "headroom_to_perfect_score": 0.9317,
+          "max_entry_gain_if_perfect": 0.2795,
+          "required_score_delta_to_cross_floor": 0.703,
           "can_single_component_cross_floor": true
         },
         {
           "group": "base",
           "feature": "feat_pulse",
-          "raw_value": 0.2562,
-          "normalized_score": 0.2562,
+          "raw_value": 0.3681,
+          "normalized_score": 0.3681,
           "weight": 0.27,
           "outer_weight": 0.75,
           "effective_weight": 0.2025,
-          "weighted_contribution": 0.0692,
-          "headroom_to_perfect_score": 0.7438,
-          "max_entry_gain_if_perfect": 0.1506,
-          "required_score_delta_to_cross_floor": 1.3007,
+          "weighted_contribution": 0.0994,
+          "headroom_to_perfect_score": 0.6319,
+          "max_entry_gain_if_perfect": 0.128,
+          "required_score_delta_to_cross_floor": 1.0415,
           "can_single_component_cross_floor": false
         },
         {
           "group": "base",
           "feature": "feat_nose",
-          "raw_value": 0.7025,
-          "normalized_score": 0.2975,
+          "raw_value": 0.5595,
+          "normalized_score": 0.4405,
           "weight": 0.18,
           "outer_weight": 0.75,
           "effective_weight": 0.135,
-          "weighted_contribution": 0.0536,
-          "headroom_to_perfect_score": 0.7025,
-          "max_entry_gain_if_perfect": 0.0948,
-          "required_score_delta_to_cross_floor": 1.9511,
+          "weighted_contribution": 0.0793,
+          "headroom_to_perfect_score": 0.5595,
+          "max_entry_gain_if_perfect": 0.0755,
+          "required_score_delta_to_cross_floor": 1.5622,
           "can_single_component_cross_floor": false
         },
         {
           "group": "structure",
           "feature": "feat_4h_dist_swing_low",
-          "raw_value": 1.6686,
-          "normalized_score": 0.1669,
+          "raw_value": 1.3879,
+          "normalized_score": 0.1388,
           "weight": 0.33,
           "outer_weight": 0.25,
           "effective_weight": 0.0825,
-          "weighted_contribution": 0.0551,
-          "headroom_to_perfect_score": 0.8331,
-          "max_entry_gain_if_perfect": 0.0687,
-          "required_score_delta_to_cross_floor": 3.1927,
+          "weighted_contribution": 0.0458,
+          "headroom_to_perfect_score": 0.8612,
+          "max_entry_gain_if_perfect": 0.071,
+          "required_score_delta_to_cross_floor": 2.5564,
           "can_single_component_cross_floor": false
         },
         {
           "group": "structure",
           "feature": "feat_4h_dist_bb_lower",
-          "raw_value": 1.836,
-          "normalized_score": 0.2295,
+          "raw_value": 1.6161,
+          "normalized_score": 0.202,
           "weight": 0.33,
           "outer_weight": 0.25,
           "effective_weight": 0.0825,
-          "weighted_contribution": 0.0757,
-          "headroom_to_perfect_score": 0.7705,
-          "max_entry_gain_if_perfect": 0.0636,
-          "required_score_delta_to_cross_floor": 3.1927,
+          "weighted_contribution": 0.0667,
+          "headroom_to_perfect_score": 0.798,
+          "max_entry_gain_if_perfect": 0.0658,
+          "required_score_delta_to_cross_floor": 2.5564,
           "can_single_component_cross_floor": false
         },
         {
           "group": "structure",
           "feature": "feat_4h_bb_pct_b",
-          "raw_value": 0.6037,
-          "normalized_score": 0.6037,
+          "raw_value": 0.527,
+          "normalized_score": 0.527,
           "weight": 0.34,
           "outer_weight": 0.25,
           "effective_weight": 0.085,
-          "weighted_contribution": 0.2053,
-          "headroom_to_perfect_score": 0.3963,
-          "max_entry_gain_if_perfect": 0.0337,
-          "required_score_delta_to_cross_floor": 3.0988,
+          "weighted_contribution": 0.1792,
+          "headroom_to_perfect_score": 0.473,
+          "max_entry_gain_if_perfect": 0.0402,
+          "required_score_delta_to_cross_floor": 2.4812,
           "can_single_component_cross_floor": false
         },
         {
           "group": "base",
           "feature": "feat_ear",
-          "raw_value": 0.0096,
-          "normalized_score": 0.9522,
+          "raw_value": 0.0015,
+          "normalized_score": 0.9924,
           "weight": 0.15,
           "outer_weight": 0.75,
           "effective_weight": 0.1125,
-          "weighted_contribution": 0.1428,
-          "headroom_to_perfect_score": 0.0478,
-          "max_entry_gain_if_perfect": 0.0054,
-          "required_score_delta_to_cross_floor": 2.3413,
+          "weighted_contribution": 0.1489,
+          "headroom_to_perfect_score": 0.0076,
+          "max_entry_gain_if_perfect": 0.0009,
+          "required_score_delta_to_cross_floor": 1.8747,
           "can_single_component_cross_floor": false
         }
       ],
@@ -768,11 +888,11 @@
         "entry_if_bias50_fully_relaxed": null,
         "layers_if_bias50_fully_relaxed": 0,
         "required_bias50_cap_for_floor": null,
-        "current_bias50_value": 2.3437
+        "current_bias50_value": 2.0584
       }
     },
     "runtime_blocker": null,
-    "next_action": "先補 current q15 exact bucket 真樣本到 minimum support，再重跑 live_decision_quality_drilldown / hb_q15_support_audit；在 support 未達標前，bias50 只能當 calibration research，不得解除 runtime blocker。"
+    "next_action": "\u5148\u88dc current q15 exact bucket \u771f\u6a23\u672c\u5230 minimum support\uff0c\u518d\u91cd\u8dd1 live_decision_quality_drilldown / hb_q15_support_audit\uff1b\u5728 support \u672a\u9054\u6a19\u524d\uff0cbias50 \u53ea\u80fd\u7576 calibration research\uff0c\u4e0d\u5f97\u89e3\u9664 runtime blocker\u3002"
   },
   "q35_scaling_audit": null,
   "q35_overall_verdict": null,
@@ -883,7 +1003,7 @@
           }
         },
         "verdict": "toxic_sub_bucket_identified",
-        "reason": "exact live lane 內的 `BLOCK|bull_high_bias200_overheat_block|q35` 明顯比 current bucket `BLOCK|bull_q15_bias50_overextended_block|q15` 更差，應把它視為 lane-internal veto / rejection 候選，而不是把整條 lane 一起降級。"
+        "reason": "exact live lane \u5167\u7684 `BLOCK|bull_high_bias200_overheat_block|q35` \u660e\u986f\u6bd4 current bucket `BLOCK|bull_q15_bias50_overextended_block|q15` \u66f4\u5dee\uff0c\u61c9\u628a\u5b83\u8996\u70ba lane-internal veto / rejection \u5019\u9078\uff0c\u800c\u4e0d\u662f\u628a\u6574\u689d lane \u4e00\u8d77\u964d\u7d1a\u3002"
       },
       "recent_pathology": {
         "applied": false,
@@ -953,7 +1073,7 @@
         "buckets": {},
         "toxic_bucket": null,
         "verdict": "no_exact_lane_rows",
-        "reason": "exact live lane 沒有 rows，無法做子 bucket 診斷。"
+        "reason": "exact live lane \u6c92\u6709 rows\uff0c\u7121\u6cd5\u505a\u5b50 bucket \u8a3a\u65b7\u3002"
       },
       "recent_pathology": {
         "applied": false,
@@ -1023,7 +1143,7 @@
         "buckets": {},
         "toxic_bucket": null,
         "verdict": "no_exact_lane_rows",
-        "reason": "exact live lane 沒有 rows，無法做子 bucket 診斷。"
+        "reason": "exact live lane \u6c92\u6709 rows\uff0c\u7121\u6cd5\u505a\u5b50 bucket \u8a3a\u65b7\u3002"
       },
       "recent_pathology": {
         "applied": false,
@@ -1105,7 +1225,7 @@
         "buckets": {},
         "toxic_bucket": null,
         "verdict": "no_exact_lane_rows",
-        "reason": "exact live lane 沒有 rows，無法做子 bucket 診斷。"
+        "reason": "exact live lane \u6c92\u6709 rows\uff0c\u7121\u6cd5\u505a\u5b50 bucket \u8a3a\u65b7\u3002"
       },
       "recent_pathology": {
         "applied": false,
@@ -1128,8 +1248,8 @@
         },
         "extra_regime_gate_counts": {
           "bull|CAUTION": 5,
-          "chop|CAUTION": 2,
-          "bull|ALLOW": 459
+          "bull|ALLOW": 459,
+          "chop|CAUTION": 2
         },
         "extra_dominant_regime_gate": {
           "regime_gate": "bull|ALLOW",
@@ -1402,7 +1522,7 @@
         "buckets": {},
         "toxic_bucket": null,
         "verdict": "no_exact_lane_rows",
-        "reason": "exact live lane 沒有 rows，無法做子 bucket 診斷。"
+        "reason": "exact live lane \u6c92\u6709 rows\uff0c\u7121\u6cd5\u505a\u5b50 bucket \u8a3a\u65b7\u3002"
       },
       "recent_pathology": {
         "applied": false,
@@ -1424,8 +1544,8 @@
           "share": 0.9871
         },
         "extra_regime_gate_counts": {
-          "bull|CAUTION": 6,
-          "bull|ALLOW": 460
+          "bull|ALLOW": 460,
+          "bull|CAUTION": 6
         },
         "extra_dominant_regime_gate": {
           "regime_gate": "bull|ALLOW",
@@ -1691,7 +1811,7 @@
         "buckets": {},
         "toxic_bucket": null,
         "verdict": "no_exact_lane_rows",
-        "reason": "exact live lane 沒有 rows，無法做子 bucket 診斷。"
+        "reason": "exact live lane \u6c92\u6709 rows\uff0c\u7121\u6cd5\u505a\u5b50 bucket \u8a3a\u65b7\u3002"
       },
       "recent_pathology": {
         "applied": false,
@@ -1713,8 +1833,8 @@
           "share": 0.9936
         },
         "extra_regime_gate_counts": {
-          "bull|CAUTION": 3,
-          "bull|ALLOW": 463
+          "bull|ALLOW": 463,
+          "bull|CAUTION": 3
         },
         "extra_dominant_regime_gate": {
           "regime_gate": "bull|ALLOW",
@@ -1984,7 +2104,7 @@
         "buckets": {},
         "toxic_bucket": null,
         "verdict": "no_exact_lane_rows",
-        "reason": "exact live lane 沒有 rows，無法做子 bucket 診斷。"
+        "reason": "exact live lane \u6c92\u6709 rows\uff0c\u7121\u6cd5\u505a\u5b50 bucket \u8a3a\u65b7\u3002"
       },
       "recent_pathology": {
         "applied": false,
@@ -2007,8 +2127,8 @@
         },
         "extra_regime_gate_counts": {
           "bull|CAUTION": 3,
-          "chop|CAUTION": 2,
-          "bull|ALLOW": 461
+          "bull|ALLOW": 461,
+          "chop|CAUTION": 2
         },
         "extra_dominant_regime_gate": {
           "regime_gate": "bull|ALLOW",
@@ -2223,7 +2343,7 @@
   },
   "decision_quality_scope_pathology_summary": {
     "focus_scope": "entry_quality_label",
-    "focus_scope_label": "同 quality 寬 scope",
+    "focus_scope_label": "\u540c quality \u5bec scope",
     "focus_scope_rows": 502,
     "spillover": {
       "extra_rows": 468,
@@ -2277,10 +2397,10 @@
       "current_live_structure_bucket_rows": 29,
       "dominant_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15"
     },
-    "summary": "同 quality 寬 scope 出現 chop|CAUTION spillover，468 rows / WR 0.0% / 品質 -0.198，明顯劣於 exact live lane WR 50.0% / 品質 0.155。",
+    "summary": "\u540c quality \u5bec scope \u51fa\u73fe chop|CAUTION spillover\uff0c468 rows / WR 0.0% / \u54c1\u8cea -0.198\uff0c\u660e\u986f\u52a3\u65bc exact live lane WR 50.0% / \u54c1\u8cea 0.155\u3002",
     "recommended_patch": {
       "status": "reference_only_non_current_live_scope",
-      "reason": "參考 patch 來自 bull|CAUTION（source: bull_4h_pocket_ablation.bull_collapse_q35），但 current live scope 是 bull|BLOCK；這代表 patch 描述的是 spillover / broader lane，而不是目前 current-live row 的 deploy patch。 current live exact support 目前仍是 29/50，因此這條 patch 同時不具備 same-scope 與 exact-support 放行條件。 即使 exact support 已達 minimum rows，也只能作治理 / 訓練參考，不可直接放行 runtime。",
+      "reason": "\u53c3\u8003 patch \u4f86\u81ea bull|CAUTION\uff08source: bull_4h_pocket_ablation.bull_collapse_q35\uff09\uff0c\u4f46 current live scope \u662f bull|BLOCK\uff1b\u9019\u4ee3\u8868 patch \u63cf\u8ff0\u7684\u662f spillover / broader lane\uff0c\u800c\u4e0d\u662f\u76ee\u524d current-live row \u7684 deploy patch\u3002 current live exact support \u76ee\u524d\u4ecd\u662f 29/50\uff0c\u56e0\u6b64\u9019\u689d patch \u540c\u6642\u4e0d\u5177\u5099 same-scope \u8207 exact-support \u653e\u884c\u689d\u4ef6\u3002 \u5373\u4f7f exact support \u5df2\u9054 minimum rows\uff0c\u4e5f\u53ea\u80fd\u4f5c\u6cbb\u7406 / \u8a13\u7df4\u53c3\u8003\uff0c\u4e0d\u53ef\u76f4\u63a5\u653e\u884c runtime\u3002",
       "spillover_regime_gate": "chop|CAUTION",
       "reference_patch_scope": "bull|CAUTION",
       "spillover_rows": 468,
@@ -2303,7 +2423,7 @@
       "current_live_structure_bucket_rows": 29,
       "minimum_support_rows": 50,
       "gap_to_minimum": 21,
-      "recommended_action": "維持 reference-only patch 可見性；目前 current live 是 bull|BLOCK，但 patch 來自 bull|CAUTION spillover。 在 scope 對齊前，只可作治理 / 訓練參考，不可把它升級成 current-live deploy patch。",
+      "recommended_action": "\u7dad\u6301 reference-only patch \u53ef\u898b\u6027\uff1b\u76ee\u524d current live \u662f bull|BLOCK\uff0c\u4f46 patch \u4f86\u81ea bull|CAUTION spillover\u3002 \u5728 scope \u5c0d\u9f4a\u524d\uff0c\u53ea\u53ef\u4f5c\u6cbb\u7406 / \u8a13\u7df4\u53c3\u8003\uff0c\u4e0d\u53ef\u628a\u5b83\u5347\u7d1a\u6210 current-live deploy patch\u3002",
       "cohort_rows": 594,
       "cohort_base_win_rate": 0.45791245791245794,
       "profile_cv_mean_accuracy": 0.8585858585858586,
@@ -2324,7 +2444,7 @@
   "decision_quality_exact_live_lane_reason": null,
   "decision_quality_exact_live_lane_summary": null,
   "decision_quality_exact_live_lane_bucket_verdict": "toxic_sub_bucket_identified",
-  "decision_quality_exact_live_lane_bucket_reason": "exact live lane 內的 `BLOCK|bull_high_bias200_overheat_block|q35` 明顯比 current bucket `BLOCK|bull_q15_bias50_overextended_block|q15` 更差，應把它視為 lane-internal veto / rejection 候選，而不是把整條 lane 一起降級。",
+  "decision_quality_exact_live_lane_bucket_reason": "exact live lane \u5167\u7684 `BLOCK|bull_high_bias200_overheat_block|q35` \u660e\u986f\u6bd4 current bucket `BLOCK|bull_q15_bias50_overextended_block|q15` \u66f4\u5dee\uff0c\u61c9\u628a\u5b83\u8996\u70ba lane-internal veto / rejection \u5019\u9078\uff0c\u800c\u4e0d\u662f\u628a\u6574\u689d lane \u4e00\u8d77\u964d\u7d1a\u3002",
   "decision_quality_exact_live_lane_toxic_bucket": {
     "bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
     "rows": 5,
@@ -2382,7 +2502,7 @@
       }
     },
     "verdict": "toxic_sub_bucket_identified",
-    "reason": "exact live lane 內的 `BLOCK|bull_high_bias200_overheat_block|q35` 明顯比 current bucket `BLOCK|bull_q15_bias50_overextended_block|q15` 更差，應把它視為 lane-internal veto / rejection 候選，而不是把整條 lane 一起降級。"
+    "reason": "exact live lane \u5167\u7684 `BLOCK|bull_high_bias200_overheat_block|q35` \u660e\u986f\u6bd4 current bucket `BLOCK|bull_q15_bias50_overextended_block|q15` \u66f4\u5dee\uff0c\u61c9\u628a\u5b83\u8996\u70ba lane-internal veto / rejection \u5019\u9078\uff0c\u800c\u4e0d\u662f\u628a\u6574\u689d lane \u4e00\u8d77\u964d\u7d1a\u3002"
   },
   "decision_quality_narrowed_pathology_applied": false,
   "decision_quality_narrowed_pathology_scope": null,
