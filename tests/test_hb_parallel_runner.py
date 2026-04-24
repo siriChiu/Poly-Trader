@@ -1840,6 +1840,77 @@ def test_overwrite_current_state_docs_falls_back_to_issue_blocking_window_when_d
     assert "`blocking_window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)`" in roadmap_md
 
 
+def test_overwrite_current_state_docs_flattens_drift_target_path_tail_streak(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_recent_distribution_pathology",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "recent canonical window 500 rows = regime_concentration",
+                        "action": "keep target-path evidence visible",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260424tail",
+        {},
+        {},
+        {
+            "primary_window": "500",
+            "primary_alerts": ["regime_concentration", "regime_shift"],
+            "primary_summary": {
+                "win_rate": 0.45,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.996,
+                "avg_quality": 0.0541,
+                "avg_pnl": -0.0007,
+            },
+            "blocking_window": "500",
+            "blocking_alerts": ["regime_concentration", "regime_shift"],
+            "blocking_summary": {
+                "win_rate": 0.45,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.996,
+                "avg_quality": 0.0541,
+                "avg_pnl": -0.0007,
+                "top_shift_features": ["feat_4h_bb_pct_b", "feat_4h_dist_bb_lower"],
+                "new_compressed_feature": "feat_vix",
+                "target_path_diagnostics": {
+                    "tail_target_streak": {
+                        "target": 1,
+                        "count": 42,
+                        "start_timestamp": "2026-04-23 02:25:12.980622",
+                        "end_timestamp": "2026-04-23 03:10:09.998190",
+                    }
+                },
+            },
+        },
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    assert "`tail_streak=42x1`" in issues_md
+    assert "`tail_streak=—`" not in issues_md
+
+
 def test_overwrite_current_state_docs_uses_dynamic_support_ratio_in_success_criteria(tmp_path, monkeypatch):
 
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))

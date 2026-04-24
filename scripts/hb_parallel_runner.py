@@ -544,9 +544,29 @@ def _has_recent_pathology_truth(summary: Dict[str, Any] | None, *, window: Any =
         summary.get("top_shift_features"),
         summary.get("new_compressed_feature"),
         summary.get("tail_streak"),
+        summary.get("target_path_diagnostics"),
         summary.get("interpretation"),
     ]
     return any(value not in (None, "", [], {}, ()) for value in checks)
+
+
+def _format_target_tail_streak_for_docs(summary: Dict[str, Any] | None) -> str:
+    if not isinstance(summary, dict):
+        return "—"
+    flat_tail = summary.get("tail_streak")
+    if flat_tail not in (None, "", [], {}, ()):
+        return str(flat_tail)
+    target_path = summary.get("target_path_diagnostics") or {}
+    if not isinstance(target_path, dict):
+        return "—"
+    tail_streak = target_path.get("tail_target_streak") or {}
+    if not isinstance(tail_streak, dict):
+        return "—"
+    count = tail_streak.get("count")
+    target = tail_streak.get("target")
+    if count is None or target is None:
+        return "—"
+    return f"{count}x{target}"
 
 
 def _issue_current_lines(
@@ -701,7 +721,7 @@ def _issue_current_lines(
         lines.append(
             "病態切片："
             f"`alerts={','.join(str(item) for item in blocker_alerts) or '—'}` / "
-            f"`tail_streak={blocker_summary.get('tail_streak', '—')}` / "
+            f"`tail_streak={_format_target_tail_streak_for_docs(blocker_summary)}` / "
             f"`top_shift={blocker_top_shift_text or '—'}` / "
             f"`new_compressed={blocker_summary.get('new_compressed_feature', '—')}`"
         )
@@ -2775,6 +2795,19 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
     blocking_summary = blocking.get("summary") or {}
     blocking_quality = blocking_summary.get("quality_metrics") or {}
     blocking_reference = blocking_summary.get("reference_window_comparison") or {}
+    blocking_target_path = blocking_summary.get("target_path_diagnostics") or {}
+    blocking_tail_streak = blocking_target_path.get("tail_target_streak") or {}
+    blocking_target_path_payload = {}
+    if blocking_tail_streak.get("count") is not None and blocking_tail_streak.get("target") is not None:
+        blocking_target_path_payload = {
+            "tail_target_streak": {
+                "target": blocking_tail_streak.get("target"),
+                "count": blocking_tail_streak.get("count"),
+                "start_timestamp": blocking_tail_streak.get("start_timestamp"),
+                "end_timestamp": blocking_tail_streak.get("end_timestamp"),
+                "regime_counts": blocking_tail_streak.get("regime_counts") or {},
+            }
+        }
     blocking_top_shift_source = blocking_summary.get("top_mean_shift_features") or blocking_reference.get("top_mean_shift_features") or []
     blocking_new_compressed = blocking_summary.get("new_compressed_features")
     if not isinstance(blocking_new_compressed, list) or not blocking_new_compressed:
@@ -2797,6 +2830,7 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
             if (item.get("feature") if isinstance(item, dict) else item)
         ][:3],
         "new_compressed_feature": blocking_new_compressed[0] if blocking_new_compressed else None,
+        "target_path_diagnostics": blocking_target_path_payload,
     }
     if not _has_recent_pathology_truth(
         blocking_summary_payload,

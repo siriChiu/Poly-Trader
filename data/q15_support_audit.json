@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-04-24 01:50:14.374702",
+  "generated_at": "2026-04-24 02:20:23.220632",
   "target_col": "simulated_pyramid_win",
   "current_live": {
-    "feature_timestamp": "2026-04-24 01:50:14.374702",
+    "feature_timestamp": "2026-04-24 02:20:23.220632",
     "signal": "HOLD",
     "regime_label": "bull",
     "regime_gate": "BLOCK",
-    "entry_quality": 0.391,
+    "entry_quality": 0.4168,
     "entry_quality_label": "D",
     "decision_quality_label": "D",
     "allowed_layers": 0,
@@ -15,10 +15,10 @@
     "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
     "current_live_structure_bucket_rows": 0,
     "raw_features": {
-      "feat_4h_bias50": 2.7049,
-      "feat_nose": 0.608,
-      "feat_pulse": 0.5955,
-      "feat_ear": 0.0037
+      "feat_4h_bias50": 2.7092,
+      "feat_nose": 0.5952,
+      "feat_pulse": 0.712,
+      "feat_ear": 0.0031
     }
   },
   "scope_applicability": {
@@ -66,7 +66,25 @@
       "history": [
         {
           "heartbeat": "current",
-          "timestamp": "2026-04-24T01:51:46.849059+00:00",
+          "timestamp": "2026-04-24T02:21:55.462363+00:00",
+          "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+          "live_current_structure_bucket_rows": 0,
+          "minimum_support_rows": 50,
+          "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+          "support_governance_route": "exact_live_bucket_proxy_available"
+        },
+        {
+          "heartbeat": "20260424o",
+          "timestamp": "2026-04-24T02:12:39.746811+00:00",
+          "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+          "live_current_structure_bucket_rows": 0,
+          "minimum_support_rows": 50,
+          "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+          "support_governance_route": "exact_live_bucket_proxy_available"
+        },
+        {
+          "heartbeat": "20260424n",
+          "timestamp": "2026-04-24T01:51:56.142781+00:00",
           "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
           "live_current_structure_bucket_rows": 0,
           "minimum_support_rows": 50,
@@ -90,24 +108,6 @@
           "minimum_support_rows": 50,
           "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
           "support_governance_route": "exact_live_bucket_proxy_available"
-        },
-        {
-          "heartbeat": "fast",
-          "timestamp": "2026-04-24T00:46:49.528731+00:00",
-          "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-          "live_current_structure_bucket_rows": 0,
-          "minimum_support_rows": 50,
-          "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
-          "support_governance_route": "exact_live_bucket_proxy_available"
-        },
-        {
-          "heartbeat": "20260424k",
-          "timestamp": "2026-04-23T23:57:07.497747+00:00",
-          "live_current_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
-          "live_current_structure_bucket_rows": 0,
-          "minimum_support_rows": 50,
-          "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
-          "support_governance_route": "exact_live_bucket_proxy_available"
         }
       ]
     }
@@ -115,10 +115,10 @@
   "floor_cross_legality": {
     "verdict": "math_cross_possible_but_illegal_without_exact_support",
     "legal_to_relax_runtime_gate": false,
-    "reason": "feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.53），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。",
-    "remaining_gap_to_floor": 0.159,
+    "reason": "feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.444），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。",
+    "remaining_gap_to_floor": 0.1332,
     "best_single_component": "feat_4h_bias50",
-    "best_single_component_required_score_delta": 0.53,
+    "best_single_component_required_score_delta": 0.444,
     "best_single_component_can_cross_floor": true
   },
   "component_experiment": {
@@ -141,17 +141,17 @@
   },
   "component_gap_attribution": {
     "trade_floor": 0.55,
-    "entry_quality": 0.391,
-    "remaining_gap_to_floor": 0.159,
+    "entry_quality": 0.4168,
+    "remaining_gap_to_floor": 0.1332,
     "reconstructed_from_q15_patch": false,
     "runtime_entry_quality_after_patch": null,
     "runtime_trade_floor_gap_after_patch": null,
-    "base_group_max_entry_gain": 0.4661,
-    "structure_group_max_entry_gain": 0.143,
+    "base_group_max_entry_gain": 0.4404,
+    "structure_group_max_entry_gain": 0.1428,
     "best_single_component": {
       "group": "base",
       "feature": "feat_4h_bias50",
-      "raw_value": 2.7049,
+      "raw_value": 2.7092,
       "normalized_score": 0.0,
       "weight": 0.4,
       "outer_weight": 0.75,
@@ -159,14 +159,14 @@
       "weighted_contribution": 0.0,
       "headroom_to_perfect_score": 1.0,
       "max_entry_gain_if_perfect": 0.3,
-      "required_score_delta_to_cross_floor": 0.53,
+      "required_score_delta_to_cross_floor": 0.444,
       "can_single_component_cross_floor": true
     },
     "single_component_floor_crossers": [
       {
         "group": "base",
         "feature": "feat_4h_bias50",
-        "raw_value": 2.7049,
+        "raw_value": 2.7092,
         "normalized_score": 0.0,
         "weight": 0.4,
         "outer_weight": 0.75,
@@ -174,7 +174,7 @@
         "weighted_contribution": 0.0,
         "headroom_to_perfect_score": 1.0,
         "max_entry_gain_if_perfect": 0.3,
-        "required_score_delta_to_cross_floor": 0.53,
+        "required_score_delta_to_cross_floor": 0.444,
         "can_single_component_cross_floor": true
       }
     ],
@@ -182,7 +182,7 @@
       {
         "group": "base",
         "feature": "feat_4h_bias50",
-        "raw_value": 2.7049,
+        "raw_value": 2.7092,
         "normalized_score": 0.0,
         "weight": 0.4,
         "outer_weight": 0.75,
@@ -190,99 +190,99 @@
         "weighted_contribution": 0.0,
         "headroom_to_perfect_score": 1.0,
         "max_entry_gain_if_perfect": 0.3,
-        "required_score_delta_to_cross_floor": 0.53,
+        "required_score_delta_to_cross_floor": 0.444,
         "can_single_component_cross_floor": true
       },
       {
         "group": "base",
         "feature": "feat_nose",
-        "raw_value": 0.608,
-        "normalized_score": 0.392,
+        "raw_value": 0.5952,
+        "normalized_score": 0.4048,
         "weight": 0.18,
         "outer_weight": 0.75,
         "effective_weight": 0.135,
-        "weighted_contribution": 0.0706,
-        "headroom_to_perfect_score": 0.608,
-        "max_entry_gain_if_perfect": 0.0821,
-        "required_score_delta_to_cross_floor": 1.1778,
-        "can_single_component_cross_floor": false
-      },
-      {
-        "group": "base",
-        "feature": "feat_pulse",
-        "raw_value": 0.5955,
-        "normalized_score": 0.5955,
-        "weight": 0.27,
-        "outer_weight": 0.75,
-        "effective_weight": 0.2025,
-        "weighted_contribution": 0.1608,
-        "headroom_to_perfect_score": 0.4045,
-        "max_entry_gain_if_perfect": 0.0819,
-        "required_score_delta_to_cross_floor": 0.7852,
+        "weighted_contribution": 0.0729,
+        "headroom_to_perfect_score": 0.5952,
+        "max_entry_gain_if_perfect": 0.0804,
+        "required_score_delta_to_cross_floor": 0.9867,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_dist_bb_lower",
-        "raw_value": 1.855,
-        "normalized_score": 0.2319,
+        "raw_value": 1.8583,
+        "normalized_score": 0.2323,
         "weight": 0.33,
         "outer_weight": 0.25,
         "effective_weight": 0.0825,
-        "weighted_contribution": 0.0765,
-        "headroom_to_perfect_score": 0.7681,
-        "max_entry_gain_if_perfect": 0.0634,
-        "required_score_delta_to_cross_floor": 1.9273,
+        "weighted_contribution": 0.0767,
+        "headroom_to_perfect_score": 0.7677,
+        "max_entry_gain_if_perfect": 0.0633,
+        "required_score_delta_to_cross_floor": 1.6145,
+        "can_single_component_cross_floor": false
+      },
+      {
+        "group": "base",
+        "feature": "feat_pulse",
+        "raw_value": 0.712,
+        "normalized_score": 0.712,
+        "weight": 0.27,
+        "outer_weight": 0.75,
+        "effective_weight": 0.2025,
+        "weighted_contribution": 0.1922,
+        "headroom_to_perfect_score": 0.288,
+        "max_entry_gain_if_perfect": 0.0583,
+        "required_score_delta_to_cross_floor": 0.6578,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_dist_swing_low",
-        "raw_value": 4.5091,
-        "normalized_score": 0.4509,
+        "raw_value": 4.5131,
+        "normalized_score": 0.4513,
         "weight": 0.33,
         "outer_weight": 0.25,
         "effective_weight": 0.0825,
-        "weighted_contribution": 0.1488,
-        "headroom_to_perfect_score": 0.5491,
+        "weighted_contribution": 0.1489,
+        "headroom_to_perfect_score": 0.5487,
         "max_entry_gain_if_perfect": 0.0453,
-        "required_score_delta_to_cross_floor": 1.9273,
+        "required_score_delta_to_cross_floor": 1.6145,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_bb_pct_b",
-        "raw_value": 0.597,
-        "normalized_score": 0.597,
+        "raw_value": 0.5981,
+        "normalized_score": 0.5981,
         "weight": 0.34,
         "outer_weight": 0.25,
         "effective_weight": 0.085,
-        "weighted_contribution": 0.203,
-        "headroom_to_perfect_score": 0.403,
-        "max_entry_gain_if_perfect": 0.0343,
-        "required_score_delta_to_cross_floor": 1.8706,
+        "weighted_contribution": 0.2034,
+        "headroom_to_perfect_score": 0.4019,
+        "max_entry_gain_if_perfect": 0.0342,
+        "required_score_delta_to_cross_floor": 1.5671,
         "can_single_component_cross_floor": false
       },
       {
         "group": "base",
         "feature": "feat_ear",
-        "raw_value": 0.0037,
-        "normalized_score": 0.9815,
+        "raw_value": 0.0031,
+        "normalized_score": 0.9845,
         "weight": 0.15,
         "outer_weight": 0.75,
         "effective_weight": 0.1125,
-        "weighted_contribution": 0.1472,
-        "headroom_to_perfect_score": 0.0185,
-        "max_entry_gain_if_perfect": 0.0021,
-        "required_score_delta_to_cross_floor": 1.4133,
+        "weighted_contribution": 0.1477,
+        "headroom_to_perfect_score": 0.0155,
+        "max_entry_gain_if_perfect": 0.0017,
+        "required_score_delta_to_cross_floor": 1.184,
         "can_single_component_cross_floor": false
       }
     ],
     "bias50_floor_counterfactual": {
-      "entry_if_bias50_fully_relaxed": 0.691,
+      "entry_if_bias50_fully_relaxed": 0.7168,
       "layers_if_bias50_fully_relaxed": 0,
-      "required_bias50_cap_for_floor": -0.25,
-      "current_bias50_value": 2.7049
+      "required_bias50_cap_for_floor": 0.18,
+      "current_bias50_value": 2.7092
     }
   },
   "runtime_blocker": null,
