@@ -1586,10 +1586,17 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in issues_md
     assert "curl http://127.0.0.1:8000/api/models/leaderboard" not in issues_md
     assert "current-state docs overwrite sync 已自動化" in roadmap_md
-    assert "Execution Console 快捷操作已 blocker-aware" in issues_md
-    assert "manual_trade=paused_when_deployment_blocked" in issues_md
-    assert "Execution Console 快捷操作已 blocker-aware" in roadmap_md
-    assert "買入 / 減碼 / 啟用自動模式快捷操作會顯示暫停" in roadmap_md
+    assert "Execution Console 快捷操作已 fail-closed（同步中 + blocker）" in issues_md
+    assert "manual_trade=paused_when_status_syncing_or_deployment_blocked" in issues_md
+    assert "manual_trade=paused_when_deployment_blocked" not in issues_md
+    assert "Execution Console 快捷操作已 fail-closed（同步中 + blocker）" in roadmap_md
+    assert "初次同步前或 deployment blocker 存在時" in roadmap_md
+    assert "買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停" in roadmap_md
+    assert "`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式" in roadmap_md
+    assert "browser `/execution`（含初次同步時買入 / 減碼 / 自動模式暫停）" in roadmap_md
+    assert "`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed" in orid_md
+    assert "syncing / blocked 兩種狀態都必須 fail-closed" in orid_md
+    assert "browser `/execution`（同步中 / blocked 快捷操作 fail-closed）" in orid_md
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in roadmap_md
     assert "不要硬綁單一 port" in roadmap_md
     assert "心跳 #20260420z ORID" in orid_md
@@ -1643,6 +1650,85 @@ def test_overwrite_current_state_docs_marks_no_collect_verification_runs(tmp_pat
     assert "full heartbeat #20260425_verify 已完成 diagnostics refresh（collect skipped）" in roadmap_md
     assert "diagnostics refresh 完成（collect skipped）" in orid_md
     assert "#20260425_verify 已完成 collect + diagnostics refresh" not in issues_md
+
+
+
+def test_overwrite_current_state_docs_falls_back_to_leaderboard_issue_summary(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", lambda: {})
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P1_leaderboard_recent_window_contract",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe",
+                        "action": "keep leaderboard governance stable",
+                        "summary": {
+                            "leaderboard_count": 6,
+                            "top_profile": "core_only",
+                            "support_aware_profile": "core_plus_macro_plus_all_4h",
+                            "governance_contract": "single_role_governance_ok",
+                            "current_closure": "single_profile_alignment",
+                        },
+                    }
+                ]
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260425_docs_fallback",
+        {
+            "raw_market_data": 32197,
+            "features_normalized": 23615,
+            "labels": 64945,
+            "simulated_pyramid_win_rate": 0.5696,
+        },
+        {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []},
+        {
+            "primary_window": "500",
+            "primary_alerts": ["regime_concentration"],
+            "primary_summary": {"win_rate": 0.512, "dominant_regime": "bull", "dominant_regime_share": 0.994},
+        },
+        {
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 122,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+        },
+        {},
+        {},
+        {},
+        {},
+        run_mode="fast",
+        collect_attempted=False,
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+
+    for doc in (issues_md, roadmap_md):
+        assert "leaderboard_count=6" in doc
+        assert "selected_feature_profile=core_only" in doc
+        assert "support_aware_profile=core_plus_macro_plus_all_4h" in doc
+        assert "governance_contract=single_role_governance_ok" in doc
+        assert "current_closure=single_profile_alignment" in doc
+        assert "selected_feature_profile=—" not in doc
+        assert "governance_contract=—" not in doc
+
 
 
 def test_overwrite_current_state_docs_surfaces_stale_candidate_fallback(tmp_path, monkeypatch):

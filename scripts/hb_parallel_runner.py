@@ -1087,6 +1087,66 @@ def _format_recent_pathology_docs_line(
 
 
 
+def _docs_value_missing(value: Any) -> bool:
+    return value is None or value == "" or value == [] or value == {} or value == ()
+
+
+
+def _leaderboard_docs_context(
+    leaderboard_candidate_diagnostics: Dict[str, Any] | None,
+    issues: list[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Return docs-ready leaderboard governance truth.
+
+    Docs overwrite can be called by focused verification/debug lanes that do not
+    rerun the leaderboard candidate probe. In that case, keep current-state docs
+    productized by falling back to the latest persisted probe artifact and then
+    to the machine-readable issue summary instead of writing misleading `—`
+    placeholders for the P1 leaderboard contract.
+    """
+
+    context: Dict[str, Any] = dict(leaderboard_candidate_diagnostics or {})
+    needs_fallback = any(
+        _docs_value_missing(context.get(key))
+        for key in ("leaderboard_count", "selected_feature_profile")
+    ) or (
+        _docs_value_missing(context.get("governance_contract"))
+        and _docs_value_missing(context.get("governance_current_closure"))
+    )
+    if needs_fallback and not context:
+        try:
+            artifact_context = collect_leaderboard_candidate_diagnostics()
+        except Exception:
+            artifact_context = {}
+        if isinstance(artifact_context, dict):
+            for key, value in artifact_context.items():
+                if _docs_value_missing(context.get(key)) and not _docs_value_missing(value):
+                    context[key] = value
+
+    issue = _find_open_issue(issues, "P1_leaderboard_recent_window_contract")
+    summary = issue.get("summary") if isinstance(issue, dict) else None
+    if isinstance(summary, dict):
+        fallback_fields = {
+            "leaderboard_count": summary.get("leaderboard_count"),
+            "selected_feature_profile": summary.get("selected_feature_profile") or summary.get("top_profile"),
+            "support_aware_production_profile": summary.get("support_aware_profile")
+            or summary.get("support_aware_production_profile")
+            or summary.get("train_selected_profile"),
+            "train_selected_profile": summary.get("train_selected_profile"),
+            "governance_contract": summary.get("governance_contract"),
+            "governance_current_closure": summary.get("current_closure")
+            or summary.get("governance_current_closure"),
+            "dual_profile_state": summary.get("dual_profile_state"),
+            "leaderboard_payload_source": summary.get("leaderboard_payload_source"),
+        }
+        for key, value in fallback_fields.items():
+            if _docs_value_missing(context.get(key)) and not _docs_value_missing(value):
+                context[key] = value
+
+    return context
+
+
+
 def overwrite_current_state_docs(
     run_label: str,
     counts: Dict[str, Any] | None,
@@ -1111,6 +1171,7 @@ def overwrite_current_state_docs(
     circuit_breaker_audit = circuit_breaker_audit or {}
     leaderboard_candidate_diagnostics = leaderboard_candidate_diagnostics or {}
     issues = _load_open_current_state_issues()
+    leaderboard_candidate_diagnostics = _leaderboard_docs_context(leaderboard_candidate_diagnostics, issues)
     candidate_refresh_context = _candidate_artifact_refresh_context(serial_results)
     issues_changed = False
     if _sync_live_issue_summaries(issues, source_blockers):
@@ -1354,7 +1415,7 @@ def overwrite_current_state_docs(
         facts_blocker_heading = "- **canonical current-live blocker 仍是 breaker-first truth**"
         current_priority_line1 = f"1. **維持 breaker-first truth，同時保留 {support_scope_label} support rows 可 machine-read**"
         goal_a_title = "### 目標 A：維持 breaker release math 作為唯一 current-live blocker"
-        goal_a_success = "- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker。"
+        goal_a_success = "- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式。"
         next_gate_line1 = f"1. **維持 breaker-first truth + {support_scope_label} visibility across API / UI / docs**"
         next_gate_line1_blocker = f"   - 升級 blocker：若 breaker release math 被 support / floor-gap / venue 話題覆蓋，或 {support_scope_label} rows 再次從 top-level surfaces 消失"
         success_primary_line = "- current-live blocker 清楚且唯一：**breaker release math**"
@@ -1369,7 +1430,7 @@ def overwrite_current_state_docs(
         current_priority_line1 = f"1. **維持 current-live exact-support blocker truth，同時保留 {support_scope_label} support rows 可 machine-read**"
         goal_a_title = "### 目標 A：維持 current-live exact-support blocker 作為唯一 current-live blocker"
         goal_a_success = (
-            f"- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `{deployment_blocker}` 視為唯一 current-live deployment blocker，且不再誤回退成 breaker-first 舊敘事。"
+            f"- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `{deployment_blocker}` 視為唯一 current-live deployment blocker，且不再誤回退成 breaker-first 舊敘事；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式。"
         )
         next_gate_line1 = f"1. **維持 current-live exact-support blocker + {support_scope_label} visibility across API / UI / docs**"
         next_gate_line1_blocker = (
@@ -1391,7 +1452,7 @@ def overwrite_current_state_docs(
         current_priority_line1 = f"1. **維持 current-live blocker truth（{deployment_blocker}），同時保留 {support_scope_label} support rows 可 machine-read**"
         goal_a_title = "### 目標 A：維持 latest runtime blocker 作為唯一 current-live blocker"
         goal_a_success = (
-            f"- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `{deployment_blocker}` 視為唯一 current-live deployment blocker。"
+            f"- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `{deployment_blocker}` 視為唯一 current-live deployment blocker；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式。"
         )
         next_gate_line1 = f"1. **維持 latest runtime blocker（{deployment_blocker}）+ {support_scope_label} visibility across API / UI / docs**"
         next_gate_line1_blocker = (
@@ -1431,8 +1492,8 @@ def overwrite_current_state_docs(
         f"  - `blocked_sparse_features={source_blockers.get('blocked_count', '—')}` / `{source_blockers.get('counts_by_history_class', {})}`",
         f"  - fin_netflow：{fin_line}",
         "  - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof",
-        "- **Execution Console 快捷操作已 blocker-aware**",
-        "  - `manual_trade=paused_when_deployment_blocked` / `automation_enable=paused_when_deployment_blocked`；阻塞期間只保留查看阻塞原因與重新整理入口",
+        "- **Execution Console 快捷操作已 fail-closed（同步中 + blocker）**",
+        "  - `manual_trade=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間都只保留查看阻塞原因與重新整理入口",
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
@@ -1500,8 +1561,8 @@ def overwrite_current_state_docs(
         "- **current-state docs overwrite sync 已自動化**",
         "  - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫",
-        "- **Execution Console 快捷操作已 blocker-aware**",
-        "  - deployment blocker 存在時，買入 / 減碼 / 啟用自動模式快捷操作會顯示暫停並保持 disabled，只留下查看阻塞原因與重新整理",
+        "- **Execution Console 快捷操作已 fail-closed（同步中 + blocker）**",
+        "  - `/api/status` 初次同步前或 deployment blocker 存在時，買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停並保持 disabled，只留下查看阻塞原因與重新整理",
         "- **本輪 current-state docs 已同步到最新 artifacts**",
         "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊",
         "",
@@ -1554,7 +1615,7 @@ def overwrite_current_state_docs(
         "",
         "## 下一輪 gate",
         next_gate_line1,
-        "   - 驗證：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`",
+        "   - 驗證：browser `/`、browser `/execution`（含初次同步時買入 / 減碼 / 自動模式暫停）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`",
         next_gate_line1_blocker,
         "2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**",
         "   - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`",
@@ -1577,7 +1638,7 @@ def overwrite_current_state_docs(
     live_regime = live_predictor_diagnostics.get("regime_label") or "—"
     live_gate = live_predictor_diagnostics.get("regime_gate") or "—"
     live_bucket = live_predictor_diagnostics.get("current_live_structure_bucket") or "—"
-    docs_sync_line = "current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth"
+    docs_sync_line = "current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed，避免 current-live truth 未到前送出買入 / 減碼 / 啟用自動模式"
 
     orid_lines = [
         "# ORID_DECISIONS.md — Current ORID Only",
@@ -1602,7 +1663,7 @@ def overwrite_current_state_docs(
         "",
         "### R｜感受直覺",
         orid_reflection_line,
-        f"- current live 已落在 `{live_regime}/{live_gate}/{live_bucket}`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket 或舊 bucket 當成現在的 runtime 真相。",
+        f"- current live 已落在 `{live_regime}/{live_gate}/{live_bucket}`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket、舊 bucket，或 `/api/status` 尚未返回的 loading 狀態誤讀成可操作 runtime 真相。",
         "",
         "### I｜意義洞察",
         support_orid_insight_line,
@@ -1611,9 +1672,9 @@ def overwrite_current_state_docs(
         "",
         "### D｜決策行動",
         "- **Owner**：current-live runtime / governance lane",
-        orid_action_line,
+        orid_action_line.rstrip("。") + "；`/execution` 操作入口在 syncing / blocked 兩種狀態都必須 fail-closed。",
         "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。",
-        "- **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。",
+        "- **Verify**：browser `/`、browser `/execution`（同步中 / blocked 快捷操作 fail-closed）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。",
         orid_fail_line,
         "",
     ]

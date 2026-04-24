@@ -1,17 +1,17 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-25 04:31:24 CST_
+_最後更新：2026-04-25 05:22:27 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **full heartbeat #20260425_041537 已完成 collect + diagnostics refresh**
-  - `Raw=32196 / Features=23614 / Labels=64941`
+- **fast heartbeat #20260425_issues_debug 已完成 diagnostics refresh（collect skipped）**
+  - `Raw=32199 / Features=23617 / Labels=64947`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `deployment_blocker=decision_quality_below_trade_floor` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-  - `latest_window=500` / `win_rate=52.0%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1098` / `avg_pnl=+0.0004` / `alerts=regime_concentration,regime_shift`
+  - `latest_window=500` / `win_rate=51.2%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1063` / `avg_pnl=+0.0004` / `alerts=regime_concentration,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
@@ -27,7 +27,7 @@ _最後更新：2026-04-25 04:31:24 CST_
 ### 目標 A：維持 latest runtime blocker 作為唯一 current-live blocker
 **目前真相**
 - `deployment_blocker=decision_quality_below_trade_floor` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
-- `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=123/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`
+- `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=122/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`
 support progress：`status=exact_supported` / `regression_basis=current_identity` / `legacy_supported_reference=121/50@20260424a`
 **成功標準**
 - `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `decision_quality_below_trade_floor` 視為唯一 current-live deployment blocker；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式。
@@ -35,13 +35,13 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=500` / `win_rate=52.0%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1098` / `avg_pnl=+0.0004` / `alerts=regime_concentration,regime_shift`
+- `latest_window=500` / `win_rate=51.2%` / `dominant_regime=bull(99.4%)` / `avg_quality=+0.1063` / `avg_pnl=+0.0004` / `alerts=regime_concentration,regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
 ### 目標 C：守住 q15 current-live bucket support truth 與 deployment closure 邊界
 **目前真相**
-- `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=123/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`
+- `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=122/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`
 support progress：`status=exact_supported` / `regression_basis=current_identity` / `legacy_supported_reference=121/50@20260424a`
 - `recommended_patch=—` / `status=—` / `reference_scope=—`（本輪無 active recommended patch）
 **成功標準**
@@ -49,8 +49,8 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
-- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3663` / `archive_window_coverage_pct=0.0`
+- `leaderboard_count=6` / `selected_feature_profile=core_macro_plus_stable_4h` / `support_aware_profile=core_macro_plus_stable_4h` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3666` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
@@ -73,7 +73,7 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 
 ## 成功標準
 - current-live blocker 清楚且唯一：**decision_quality_below_trade_floor**
-- current live q15 truth 維持：**123/50 + exact_bucket_supported + —**
+- current live q15 truth 維持：**122/50 + exact_bucket_supported + —**
 - recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋
 - leaderboard single-role governance 維持；venue/source blockers 持續可見
 - heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**
