@@ -85,6 +85,7 @@ CANDIDATE_REFRESH_LANES = (
     "hb_leaderboard_candidate_probe",
 )
 CANDIDATE_ARTIFACT_STALE_FALLBACK_ISSUE_ID = "P1_candidate_governance_artifact_stale_fallback"
+PARALLEL_TASK_FAILURE_ISSUE_ID = "P1_heartbeat_parallel_task_failure"
 
 TASKS = [
     {"name": "full_ic", "label": "🔍 Full IC", "cmd": [PYTHON, "scripts/full_ic.py"]},
@@ -92,7 +93,7 @@ TASKS = [
     {"name": "dynamic_window", "label": "📏 Dynamic Window", "cmd": [PYTHON, "scripts/dynamic_window_train.py"]},
     # Cron heartbeat must refresh the deployable global model/metrics without letting
     # optional per-regime grid search consume the 10-minute heartbeat budget.
-    {"name": "train", "label": "🔨 Model Train", "cmd": [PYTHON, "model/train.py", "--skip-regime-models"]},
+    {"name": "train", "label": "🔨 Model Train", "cmd": [PYTHON, "model/train.py", "--skip-regime-models", "--max-cv-folds", "2"]},
     {"name": "tests", "label": "🧪 Comprehensive Tests", "cmd": [PYTHON, "tests/comprehensive_test.py"]},
 ]
 COLLECT_CMD = [PYTHON, "scripts/hb_collect.py"]
@@ -701,6 +702,106 @@ def _sync_candidate_artifact_refresh_issue(
     return True
 
 
+def _parallel_task_failure_context(
+    parallel_results: Dict[str, Dict[str, Any]] | None,
+    *,
+    run_label: str,
+    run_mode: str | None = None,
+) -> Dict[str, Any]:
+    failed_lanes: list[Dict[str, Any]] = []
+    timed_out_lanes: list[str] = []
+    for name, result in sorted((parallel_results or {}).items()):
+        if not isinstance(result, dict) or result.get("success") is not False:
+            continue
+        stderr_text = str(result.get("stderr_preview") or result.get("stderr") or "")
+        timed_out = bool(result.get("timed_out")) or (
+            result.get("returncode") == -1 and "TIMEOUT after" in stderr_text
+        )
+        timeout_seconds = None
+        timeout_match = re.search(r"TIMEOUT after\s+(\d+)s", stderr_text)
+        if timeout_match:
+            timeout_seconds = int(timeout_match.group(1))
+        lane = {
+            "name": name,
+            "status": "timeout" if timed_out else "failed",
+            "returncode": result.get("returncode"),
+            "timed_out": timed_out,
+            "timeout_seconds": timeout_seconds,
+        }
+        failed_lanes.append(lane)
+        if timed_out:
+            timed_out_lanes.append(name)
+
+    def _format_lane(lane: Dict[str, Any]) -> str:
+        if lane.get("timed_out") and lane.get("timeout_seconds"):
+            return f"{lane.get('name')}=timeout({lane.get('timeout_seconds')}s)"
+        if lane.get("timed_out"):
+            return f"{lane.get('name')}=timeout"
+        return f"{lane.get('name')}=failed(rc={lane.get('returncode')})"
+
+    return {
+        "heartbeat": run_label,
+        "mode": str(run_mode or "heartbeat"),
+        "failed_lanes": failed_lanes,
+        "timed_out_lanes": timed_out_lanes,
+        "has_failures": bool(failed_lanes),
+        "docs_line": " / ".join(_format_lane(lane) for lane in failed_lanes),
+    }
+
+
+def _sync_parallel_task_failure_issue(
+    issues: list[Dict[str, Any]],
+    context: Dict[str, Any],
+    *,
+    run_label: str,
+) -> bool:
+    issue_id = PARALLEL_TASK_FAILURE_ISSUE_ID
+    now_iso = datetime.utcnow().isoformat()
+    existing_index = next((idx for idx, issue in enumerate(issues) if issue.get("id") == issue_id), None)
+    if not context.get("has_failures"):
+        if existing_index is not None:
+            del issues[existing_index]
+            return True
+        return False
+
+    summary = {
+        "heartbeat": run_label,
+        "mode": context.get("mode"),
+        "failed_lanes": context.get("failed_lanes") or [],
+        "timed_out_lanes": context.get("timed_out_lanes") or [],
+        "docs_line": context.get("docs_line") or "—",
+    }
+    issue = {
+        "id": issue_id,
+        "priority": "P1",
+        "status": "open",
+        "title": "heartbeat parallel verification did not finish cleanly",
+        "summary": summary,
+        "action": (
+            "修正 heartbeat parallel verification lane，讓 full heartbeat 不再把 train/test/IC task failure "
+            "藏在 summary JSON 裡；若 train timeout 持續，需降低 cron 訓練成本或調整 bounded train budget，並保留 clear failure issue。"
+        ),
+        "next_action": (
+            "先讓下一輪 full heartbeat 的 parallel results 達到 5/5；若 train 仍 timeout，必須把 train artifact refresh "
+            "降成本或拆成獨立長任務，不得讓 docs 宣稱 clean completion。"
+        ),
+        "verify": [
+            "source venv/bin/activate && python -m pytest tests/test_hb_parallel_runner.py -q -k parallel_task_failure",
+            "source venv/bin/activate && python scripts/hb_parallel_runner.py --hb <next_full_run>",
+            "check data/heartbeat_<run>_summary.json stats.passed == stats.total",
+        ],
+        "updated_at": now_iso,
+    }
+    if existing_index is None:
+        issue["created_at"] = now_iso
+        issues.append(issue)
+    else:
+        existing = issues[existing_index]
+        issue["created_at"] = existing.get("created_at") or now_iso
+        issues[existing_index] = {**existing, **issue}
+    return True
+
+
 def _verification_lines(issue: Dict[str, Any]) -> list[str]:
     verify = normalize_verify_steps(issue.get("verify") or [])
     if isinstance(verify, list):
@@ -1161,6 +1262,7 @@ def overwrite_current_state_docs(
     run_mode: str | None = None,
     collect_attempted: bool = True,
     serial_results: Dict[str, Dict[str, Any]] | None = None,
+    parallel_results: Dict[str, Dict[str, Any]] | None = None,
 ) -> Dict[str, Any]:
     counts = counts or {}
     source_blockers = source_blockers or {}
@@ -1173,10 +1275,17 @@ def overwrite_current_state_docs(
     issues = _load_open_current_state_issues()
     leaderboard_candidate_diagnostics = _leaderboard_docs_context(leaderboard_candidate_diagnostics, issues)
     candidate_refresh_context = _candidate_artifact_refresh_context(serial_results)
+    parallel_failure_context = _parallel_task_failure_context(
+        parallel_results,
+        run_label=run_label,
+        run_mode=run_mode,
+    )
     issues_changed = False
     if _sync_live_issue_summaries(issues, source_blockers):
         issues_changed = True
     if _sync_candidate_artifact_refresh_issue(issues, candidate_refresh_context, run_label=run_label):
+        issues_changed = True
+    if _sync_parallel_task_failure_issue(issues, parallel_failure_context, run_label=run_label):
         issues_changed = True
     if issues_changed:
         _save_open_current_state_issues(issues)
@@ -1363,6 +1472,22 @@ def overwrite_current_state_docs(
             "- candidate refresh："
             f"`{candidate_refresh_line}`（fallback artifact 只能作 reference-only governance，不可當成 fresh production truth）"
         ]
+    parallel_failure_line = parallel_failure_context.get("docs_line") or "—"
+    parallel_failure_fact_lines = []
+    parallel_failure_roadmap_lines = []
+    parallel_failure_orid_lines = []
+    if parallel_failure_context.get("has_failures"):
+        parallel_failure_fact_lines = [
+            "- **heartbeat verification incomplete：parallel task failure 已 machine-read**",
+            f"  - `{parallel_failure_line}`；本輪不得被解讀為 clean 5/5 heartbeat",
+        ]
+        parallel_failure_roadmap_lines = [
+            "- **本輪 verification 有未完成 parallel lane（已寫入 current-state issue）**",
+            f"  - `{parallel_failure_line}`；下一輪必須證明 full heartbeat parallel results 恢復 5/5，否則 train/verify lane 持續視為 runner blocker",
+        ]
+        parallel_failure_orid_lines = [
+            f"- parallel verification：`{parallel_failure_line}`，因此本輪不是 clean 5/5；docs/issue 已同步 P1 追蹤。"
+        ]
     patch_context = _patch_truth_doc_context(
         live_decision_drilldown.get("recommended_patch_profile"),
         live_decision_drilldown.get("recommended_patch_status"),
@@ -1488,6 +1613,7 @@ def overwrite_current_state_docs(
         leaderboard_fact_heading,
         f"  - {leaderboard_line}",
         *candidate_refresh_fact_lines,
+        *parallel_failure_fact_lines,
         "- **source / venue blockers 仍開啟**",
         f"  - `blocked_sparse_features={source_blockers.get('blocked_count', '—')}` / `{source_blockers.get('counts_by_history_class', {})}`",
         f"  - fin_netflow：{fin_line}",
@@ -1565,6 +1691,7 @@ def overwrite_current_state_docs(
         "  - `/api/status` 初次同步前或 deployment blocker 存在時，買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停並保持 disabled，只留下查看阻塞原因與重新整理",
         "- **本輪 current-state docs 已同步到最新 artifacts**",
         "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊",
+        *parallel_failure_roadmap_lines,
         "",
         "---",
         "",
@@ -1658,6 +1785,7 @@ def overwrite_current_state_docs(
         *([f"- current blocking pathological pocket：{blocking_pathology_line}。"] if blocking_pathology_line else []),
         f"- leaderboard / governance：{leaderboard_line}。",
         f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle。",
+        *parallel_failure_orid_lines,
         *([f"- {q35_scaling_doc_line}。"] if q35_scaling_doc_line else []),
         f"- 本輪產品化前進：{docs_sync_line}；`recommended_patch={patch_profile}` / `status={patch_status}` / `reference_scope={patch_reference_scope}`。",
         "",
@@ -5175,6 +5303,7 @@ def main(argv=None):
         run_mode="fast" if args.fast else "full",
         collect_attempted=bool(collect_result.get("attempted", False)),
         serial_results=serial_result_payload,
+        parallel_results=results,
     )
     docs_sync = collect_current_state_docs_sync_status()
     docs_sync["auto_synced"] = docs_sync_write.get("success", False)

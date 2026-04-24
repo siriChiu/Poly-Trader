@@ -68,7 +68,8 @@ def test_parse_args_requires_hb_for_full_mode():
 def test_full_heartbeat_train_task_skips_optional_regime_grid_search():
     train_task = next(task for task in hb_parallel_runner.TASKS if task["name"] == "train")
 
-    assert train_task["cmd"][-1] == "--skip-regime-models"
+    assert "--skip-regime-models" in train_task["cmd"]
+    assert train_task["cmd"][-2:] == ["--max-cv-folds", "2"]
     assert hb_parallel_runner._resolve_parallel_task_timeout("train", fast_mode=False) == 300
 
 
@@ -1797,6 +1798,71 @@ def test_overwrite_current_state_docs_surfaces_stale_candidate_fallback(tmp_path
     assert "bull_4h_pocket_ablation=timeout→fallback" in issues_md
     assert "candidate governance artifacts fell back after refresh timeouts" in issues_md
     assert "fallback artifact 只能作 reference-only governance" in roadmap_md
+
+
+
+def test_overwrite_current_state_docs_surfaces_parallel_task_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text('{"issues": []}', encoding="utf-8")
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260425_train_timeout",
+        {
+            "raw_market_data": 32201,
+            "features_normalized": 23619,
+            "labels": 64960,
+            "simulated_pyramid_win_rate": 0.5694,
+        },
+        {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []},
+        {
+            "primary_window": "100",
+            "primary_alerts": ["regime_concentration"],
+            "primary_summary": {"win_rate": 0.41, "dominant_regime": "bull", "dominant_regime_share": 0.99},
+        },
+        {
+            "deployment_blocker": "circuit_breaker_active",
+            "streak": 31,
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 111,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_governance_route": "exact_live_bucket_supported",
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "recent_window": 50,
+                    "current_recent_window_wins": 12,
+                    "additional_recent_window_wins_needed": 3,
+                }
+            },
+        },
+        {},
+        {},
+        {"root_cause": {"verdict": "canonical_breaker_active"}},
+        {},
+        run_mode="full",
+        parallel_results={
+            "train": {"success": False, "returncode": -1, "timed_out": True, "stderr": "TIMEOUT after 300s"},
+            "tests": {"success": True, "returncode": 0},
+        },
+    )
+
+    assert result["success"] is True
+    issues_payload = json.loads((tmp_path / "issues.json").read_text(encoding="utf-8"))
+    issue_ids = {issue["id"] for issue in issues_payload["issues"]}
+    assert hb_parallel_runner.PARALLEL_TASK_FAILURE_ISSUE_ID in issue_ids
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+    assert "heartbeat verification incomplete：parallel task failure 已 machine-read" in issues_md
+    assert "train=timeout(300s)" in issues_md
+    assert "heartbeat parallel verification did not finish cleanly" in issues_md
+    assert "本輪 verification 有未完成 parallel lane" in roadmap_md
+    assert "parallel verification：`train=timeout(300s)`" in orid_md
 
 
 

@@ -1,30 +1,31 @@
 {
   "issues": [
     {
-      "id": "P1_current_live_trade_floor_no_deploy",
-      "priority": "P1",
-      "title": "current live bucket CAUTION|base_caution_regime_or_bias|q15 is exact-supported but remains hold-only below the trade floor",
-      "action": "把這個狀態視為正常 no-deploy risk posture 而非 release-blocking support failure：保留 allowed_layers=0 / trade_floor_gap / support metrics，僅在 exact-supported component experiment 通過 discrimination 與 runtime guardrail 後才重新開放下單。",
+      "id": "P0_current_live_deployment_blocker",
+      "priority": "P0",
+      "title": "canonical circuit breaker remains the only current-live deployment blocker",
+      "action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 5 勝，還差 10 勝；同時 streak 必須 < 50。",
       "status": "open",
-      "created_at": "2026-04-24T17:58:22.694513",
-      "updated_at": "2026-04-24T21:22:23.307015",
+      "created_at": "2026-04-24T21:47:06.227652",
+      "updated_at": "2026-04-24T22:42:26.755045",
       "hb_detected": null,
-      "next_action": "把這個狀態視為正常 no-deploy risk posture 而非 release-blocking support failure：保留 allowed_layers=0 / trade_floor_gap / support metrics，僅在 exact-supported component experiment 通過 discrimination 與 runtime guardrail 後才重新開放下單。",
+      "next_action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 5 勝，還差 10 勝；同時 streak 必須 < 50。",
       "summary": {
-        "deployment_blocker": "decision_quality_below_trade_floor",
+        "deployment_blocker": "circuit_breaker_active",
+        "horizon_minutes": 1440,
+        "recent_window": 50,
+        "current_recent_window_wins": 5,
+        "required_recent_window_wins": 15,
+        "additional_recent_window_wins_needed": 10,
+        "streak": 38,
+        "streak_must_be_below": 50,
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-        "current_live_structure_bucket_rows": 122,
+        "current_live_structure_bucket_rows": 104,
         "minimum_support_rows": 50,
         "gap_to_minimum": 0,
         "support_route_verdict": "exact_bucket_supported",
         "support_governance_route": "exact_live_bucket_supported",
-        "runtime_closure_state": "support_closed_but_trade_floor_blocked",
-        "entry_quality": 0.3632,
-        "trade_floor": 0.55,
-        "trade_floor_gap": -0.1868,
-        "decision_quality_label": "C",
-        "allowed_layers": 0,
-        "allowed_layers_reason": "decision_quality_below_trade_floor"
+        "runtime_closure_state": "circuit_breaker_active"
       }
     },
     {
@@ -60,7 +61,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3666,
+        "forward_archive_rows": 3670,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -68,7 +69,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-24T21:22:27.795100",
+      "updated_at": "2026-04-24T22:42:27.706450",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -94,45 +95,46 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-24T21:22:23.307046",
+      "updated_at": "2026-04-24T22:42:26.755062",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
       "id": "P1_recent_distribution_pathology_monitoring",
       "priority": "P1",
-      "title": "recent canonical window 500 rows = regime_concentration but current live regime is outside the blocker pocket",
+      "title": "recent canonical window 100 rows = regime_concentration but current live regime is outside the blocker pocket",
       "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "status": "open",
       "created_at": "2026-04-24T17:58:22.694575",
-      "updated_at": "2026-04-24T21:22:23.307113",
+      "updated_at": "2026-04-24T22:42:26.755105",
       "hb_detected": null,
       "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "summary": {
-        "window": "500",
+        "window": "100",
         "interpretation": "regime_concentration",
-        "win_rate": 0.512,
+        "win_rate": 0.34,
         "dominant_regime": "bull",
-        "dominant_regime_share": 0.994,
-        "avg_pnl": 0.0004,
-        "avg_quality": 0.1063,
-        "avg_drawdown_penalty": 0.292,
+        "dominant_regime_share": 0.99,
+        "avg_pnl": -0.0017,
+        "avg_quality": 0.0563,
+        "avg_drawdown_penalty": 0.174,
         "spot_long_win_rate": 0.0,
-        "avg_time_underwater": 0.7035,
+        "avg_time_underwater": 0.4116,
         "alerts": [
           "regime_concentration",
           "regime_shift"
         ],
         "top_shift_features": [
-          "feat_4h_macd_hist",
+          "feat_local_top_score",
           "feat_4h_dist_bb_lower",
-          "feat_4h_vol_ratio"
+          "feat_volume_exhaustion"
         ],
-        "new_compressed_feature": "feat_vix",
-        "tail_streak": "20x0",
-        "adverse_streak": "42x0",
+        "new_compressed_feature": "feat_dxy",
+        "tail_streak": "38x0",
+        "adverse_streak": "38x0",
         "live_regime_label": "chop",
         "current_live_scope": false,
         "blocking_basis": [
+          "avg_pnl<=0",
           "spot_long_win_rate<=0.20"
         ]
       }

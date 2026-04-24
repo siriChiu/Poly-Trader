@@ -906,7 +906,12 @@ def load_model(path: str = MODEL_PATH):
         return pickle.load(f)
 
 
-def run_training(session: Session, regime_filter: Optional[list] = None, target_col: str = DEFAULT_TARGET_COL) -> bool:
+def run_training(
+    session: Session,
+    regime_filter: Optional[list] = None,
+    target_col: str = DEFAULT_TARGET_COL,
+    max_cv_folds: Optional[int] = None,
+) -> bool:
     """Train global XGBoost model with IC pruning and optional regime filtering.
     
     Args:
@@ -916,6 +921,9 @@ def run_training(session: Session, regime_filter: Optional[list] = None, target_
                       with IC pruning gives AUC=0.5454 vs 0.5241 for ALL.
         target_col: Label column to optimize. Supports label_spot_long_win and
                     simulated_pyramid_win for target-comparison experiments.
+        max_cv_folds: Optional cap for rolling CV folds; heartbeat cron uses this
+                      to refresh a deployable global artifact inside budget while
+                      still training the final model on all rows.
     """
     logger.info(f"開始模型訓練 v5 (with IC pruning + optional regime filter, target={target_col})...")
     loaded = load_training_data(session, min_samples=50, regime_filter=regime_filter, target_col=target_col)
@@ -980,6 +988,8 @@ def run_training(session: Session, regime_filter: Optional[list] = None, target_
             _m.fit(X.iloc[train_idx], y_tr, sample_weight=compute_sample_weight("balanced", y_tr))
             fold_acc = float((_m.predict(X.iloc[test_idx]) == y.iloc[test_idx]).mean())
             cv_scores.append(fold_acc)
+            if max_cv_folds is not None and len(cv_scores) >= max_cv_folds:
+                break
             start += step
 
         cv_acc = float(np.mean(cv_scores)) if cv_scores else float('nan')
@@ -995,7 +1005,7 @@ def run_training(session: Session, regime_filter: Optional[list] = None, target_
             INSERT INTO model_metrics (timestamp, train_accuracy, cv_accuracy, cv_std, n_features, notes)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (trained_at, train_acc, cv_acc, cv_std, X.shape[1],
-              f'target={target_col} rolling_cv n={n_folds} worst={cv_worst:.4f} best={cv_best:.4f}'))
+              f'target={target_col} rolling_cv n={n_folds} max_folds={max_cv_folds or "all"} worst={cv_worst:.4f} best={cv_best:.4f}'))
         db.commit(); db.close()
         metrics_payload = {
             'target_col': target_col,
@@ -1008,6 +1018,8 @@ def run_training(session: Session, regime_filter: Optional[list] = None, target_
             'cv_best': cv_best,
             'n_samples': int(len(X)),
             'n_features': int(X.shape[1]),
+            'cv_folds': int(n_folds),
+            'cv_max_folds': int(max_cv_folds) if max_cv_folds is not None else None,
             'positive_ratio': float(y.mean()),
             'trained_at': trained_at,
         }
@@ -1260,6 +1272,12 @@ def main(argv: Optional[list[str]] = None):
             "timeout the whole heartbeat."
         ),
     )
+    parser.add_argument(
+        "--max-cv-folds",
+        type=int,
+        default=None,
+        help="Cap rolling CV folds for heartbeat cron runs; final model still trains on all rows.",
+    )
     args = parser.parse_args(argv)
 
     sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
@@ -1268,15 +1286,8 @@ def main(argv: Optional[list[str]] = None):
     print("Loading data from " + db_path)
     session = init_db(db_url)
     try:
-        loaded = load_training_data(session)
-        if loaded is None:
-            logger.error("載入訓練資料失敗")
-            return False
-        X, y, y_return = loaded
-        print("Training data: {} samples, {} features".format(len(X), len(X.columns)))
-        print("Positive ratio: {:.4f}".format(y.mean()))
         print("Training global model...")
-        result = run_training(session)
+        result = run_training(session, max_cv_folds=args.max_cv_folds)
         metrics_path = str(Path(__file__).parent / "last_metrics.json")
         if result and os.path.exists(metrics_path):
             with open(metrics_path) as f:
