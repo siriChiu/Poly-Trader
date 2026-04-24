@@ -341,6 +341,91 @@ def test_build_report_reports_current_exact_support_under_minimum_instead_of_bou
     assert "不是 boundary candidate" in report["reason"]
 
 
+def test_build_report_does_not_let_stale_reference_bull_context_hide_current_support_truth(monkeypatch):
+    exact_lane_frame = q15_bucket_root_cause.pd.DataFrame(
+        {
+            "regime_label": ["bull"] * 4,
+            "regime_gate": ["CAUTION"] * 4,
+            "entry_quality_label": ["D"] * 4,
+            "structure_bucket": [
+                "CAUTION|structure_quality_caution|q15",
+                "CAUTION|structure_quality_caution|q15",
+                "CAUTION|structure_quality_caution|q35",
+                "CAUTION|structure_quality_caution|q35",
+            ],
+            "structure_quality": [0.31, 0.32, 0.41, 0.44],
+            "feat_4h_bb_pct_b": [0.41, 0.42, 0.62, 0.65],
+            "feat_4h_dist_bb_lower": [1.3, 1.4, 3.1, 3.3],
+            "feat_4h_dist_swing_low": [3.6, 3.7, 4.8, 4.9],
+        }
+    )
+    monkeypatch.setattr(
+        q15_bucket_root_cause.feature_group_module,
+        "_load_training_frame",
+        lambda: (
+            exact_lane_frame[[
+                "feat_4h_bb_pct_b",
+                "feat_4h_dist_bb_lower",
+                "feat_4h_dist_swing_low",
+            ]].copy(),
+            q15_bucket_root_cause.pd.Series([1] * 4),
+            exact_lane_frame["regime_label"].copy(),
+        ),
+    )
+    monkeypatch.setattr(
+        q15_bucket_root_cause.bull_pocket_module,
+        "_derive_live_bucket_columns",
+        lambda frame: exact_lane_frame.copy(),
+    )
+
+    probe = {
+        "feature_timestamp": "2026-04-24 10:33:44.629444",
+        "target_col": "simulated_pyramid_win",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality_label": "D",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "current_live_structure_bucket_rows": 2,
+        "minimum_support_rows": 50,
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_progress": {
+            "status": "semantic_rebaseline_under_minimum",
+            "current_rows": 2,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 48,
+        },
+        "non_null_4h_feature_count": 10,
+        "entry_quality_components": {
+            "structure_quality": 0.3167,
+            "structure_components": [
+                {"feature": "feat_4h_bb_pct_b", "raw_value": 0.4171, "weighted_contribution": 0.1418},
+                {"feature": "feat_4h_dist_bb_lower", "raw_value": 1.3163, "weighted_contribution": 0.0543},
+                {"feature": "feat_4h_dist_swing_low", "raw_value": 3.6548, "weighted_contribution": 0.1206},
+            ],
+        },
+    }
+    drilldown = {"generated_at": "2026-04-24 10:33:44.629444"}
+    stale_bull_pocket = {
+        "target_col": "simulated_pyramid_win",
+        "live_context": {
+            "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+            "regime_label": "bull",
+            "regime_gate": "BLOCK",
+            "entry_quality_label": "D",
+        },
+    }
+
+    report = q15_bucket_root_cause.build_report(probe, drilldown, stale_bull_pocket)
+
+    assert report["artifact_context_freshness"]["verdict"] == "current_context"
+    assert report["artifact_context_freshness"]["mismatched_fields"] == []
+    assert "current_live_structure_bucket" in report["artifact_context_freshness"]["reference_mismatched_fields"]
+    assert "regime_gate" in report["artifact_context_freshness"]["reference_mismatched_fields"]
+    assert report["verdict"] == "current_exact_support_under_minimum"
+    assert report["current_live"]["support_current_rows"] == 2
+    assert report["current_live"]["support_gap_to_minimum"] == 48
+
+
 def test_build_report_marks_runtime_blocker_preempt_when_circuit_breaker_active(monkeypatch):
     empty_frame = q15_bucket_root_cause.pd.DataFrame(
         {

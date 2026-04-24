@@ -882,6 +882,12 @@ def _load_q15_bucket_root_cause_summary(current_structure_bucket: Optional[str] 
     if current_structure_bucket and bucket and str(current_structure_bucket) != str(bucket):
         return None
 
+    artifact_context_freshness = (
+        payload.get("artifact_context_freshness")
+        if isinstance(payload.get("artifact_context_freshness"), dict)
+        else {}
+    )
+
     return {
         "generated_at": payload.get("generated_at"),
         "current_live_structure_bucket": bucket or current_structure_bucket,
@@ -895,6 +901,10 @@ def _load_q15_bucket_root_cause_summary(current_structure_bucket: Optional[str] 
         "dominant_neighbor_rows": exact_live_lane.get("dominant_neighbor_rows"),
         "near_boundary_rows": exact_live_lane.get("near_boundary_rows"),
         "candidate_patch": candidate_patch or None,
+        "artifact_context_freshness_verdict": artifact_context_freshness.get("verdict"),
+        "artifact_context_freshness_mismatched_fields": artifact_context_freshness.get("mismatched_fields") or [],
+        "reference_mismatched_fields": artifact_context_freshness.get("reference_mismatched_fields") or [],
+        "reference_artifact_warning": artifact_context_freshness.get("reference_artifact_warning"),
     }
 
 

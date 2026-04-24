@@ -102,6 +102,26 @@ def _support_identity_from_probe(probe: dict[str, Any], current_bucket: Any) -> 
     }
 
 
+def _probe_has_current_support_truth(probe: dict[str, Any]) -> bool:
+    """Return True when the live probe already carries current exact-support rows/minimum.
+
+    q15 root-cause can compute current-bucket support truth from the fresh probe +
+    training frame without depending on bull_4h_pocket_ablation's live_context. In
+    fast heartbeats that bull artifact is often intentionally reused as a
+    reference-only governance artifact, so a stale bull live_context must not
+    erase fresh current-live q15 support truth when rows/minimum are present.
+    """
+
+    support_progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
+    current_rows = support_progress.get("current_rows")
+    if current_rows is None:
+        current_rows = probe.get("current_live_structure_bucket_rows")
+    minimum_rows = support_progress.get("minimum_support_rows")
+    if minimum_rows is None:
+        minimum_rows = probe.get("minimum_support_rows")
+    return current_rows is not None and minimum_rows is not None
+
+
 def _artifact_context_freshness(
     probe: dict[str, Any],
     drilldown: dict[str, Any],
@@ -110,16 +130,23 @@ def _artifact_context_freshness(
     current_bucket: Any,
 ) -> dict[str, Any]:
     mismatches: list[str] = []
+    reference_mismatches: list[str] = []
     probe_bucket = _probe_current_bucket(probe)
     bull_context = bull_pocket.get("live_context") if isinstance(bull_pocket.get("live_context"), dict) else {}
     bull_bucket = bull_context.get("current_live_structure_bucket")
+    bull_context_mismatches: list[str] = []
     if probe_bucket and bull_bucket and str(probe_bucket) != str(bull_bucket):
-        mismatches.append("current_live_structure_bucket")
+        bull_context_mismatches.append("current_live_structure_bucket")
     for key in ("regime_label", "regime_gate", "entry_quality_label"):
         probe_value = probe.get(key)
         bull_value = bull_context.get(key)
         if probe_value is not None and bull_value is not None and str(probe_value) != str(bull_value):
-            mismatches.append(key)
+            bull_context_mismatches.append(key)
+    if bull_context_mismatches:
+        if _probe_has_current_support_truth(probe):
+            reference_mismatches.extend(bull_context_mismatches)
+        else:
+            mismatches.extend(bull_context_mismatches)
 
     probe_ts = _parse_isoish_timestamp(probe.get("feature_timestamp"))
     drilldown_ts = _parse_isoish_timestamp(drilldown.get("generated_at"))
@@ -129,6 +156,12 @@ def _artifact_context_freshness(
     return {
         "verdict": "current_context" if not mismatches else "stale_or_non_current_context",
         "mismatched_fields": sorted(set(mismatches)),
+        "reference_mismatched_fields": sorted(set(reference_mismatches)),
+        "reference_artifact_warning": (
+            "bull_4h_pocket_ablation live_context is stale/reference-only; current q15 root-cause used fresh live_predict_probe support truth."
+            if reference_mismatches
+            else None
+        ),
         "latest_live_probe_feature_timestamp": probe.get("feature_timestamp"),
         "drilldown_generated_at": drilldown.get("generated_at"),
         "probe_current_live_structure_bucket": probe_bucket,
