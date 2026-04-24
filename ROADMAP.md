@@ -1,22 +1,24 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-25 06:42:27 CST_
+_最後更新：2026-04-25 07:07:47 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #20260425_063729 已完成 collect + diagnostics refresh**
-  - `Raw=32203 / Features=23621 / Labels=64970`
+- **full heartbeat #20260425_070309 已完成 collect + diagnostics refresh**
+  - `Raw=32204 / Features=23622 / Labels=64973`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
-  - `deployment_blocker=circuit_breaker_active` / `streak=38` / `recent_window_wins=5/50` / `additional_recent_window_wins_needed=10`
-  - `latest_window=100` / `win_rate=34.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0563` / `avg_pnl=-0.0017` / `alerts=regime_concentration,regime_shift`
+  - `deployment_blocker=circuit_breaker_active` / `streak=41` / `recent_window_wins=4/50` / `additional_recent_window_wins_needed=11`
+  - `latest_window=100` / `win_rate=31.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0360` / `avg_pnl=-0.0021` / `alerts=regime_concentration,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **Execution Console 快捷操作已 fail-closed（同步中 + blocker）**
   - `/api/status` 初次同步前或 deployment blocker 存在時，買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停並保持 disabled，只留下查看阻塞原因與重新整理
+- **Leaderboard background refresh 候選面已收斂**
+  - `background_refresh=True` 現在只評估訓練選定 profile + `core_only` 兩條 feature-profile 候選，避免最新 ablation artifact 把 cron-safe fallback 擠出兩候選預算
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
 
@@ -26,8 +28,8 @@ _最後更新：2026-04-25 06:42:27 CST_
 
 ### 目標 A：維持 breaker release math 作為唯一 current-live blocker
 **目前真相**
-- `deployment_blocker=circuit_breaker_active` / `streak=38` / `recent_window_wins=5/50` / `additional_recent_window_wins_needed=10`
-- `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=104/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`
+- `deployment_blocker=circuit_breaker_active` / `streak=41` / `recent_window_wins=4/50` / `additional_recent_window_wins_needed=11`
+- `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=101/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`
 support progress：`status=exact_supported` / `regression_basis=current_identity` / `legacy_supported_reference=121/50@20260424a`
 **成功標準**
 - `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式。
@@ -35,13 +37,13 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=100` / `win_rate=34.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0563` / `avg_pnl=-0.0017` / `alerts=regime_concentration,regime_shift`
+- `latest_window=100` / `win_rate=31.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0360` / `avg_pnl=-0.0021` / `alerts=regime_concentration,regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
 ### 目標 C：守住 q15 current-live bucket support truth 與 deployment closure 邊界
 **目前真相**
-- `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=104/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`
+- `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=101/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`
 support progress：`status=exact_supported` / `regression_basis=current_identity` / `legacy_supported_reference=121/50@20260424a`
 - `recommended_patch=—` / `status=—` / `reference_scope=—`（本輪無 active recommended patch）
 **成功標準**
@@ -49,12 +51,13 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
-- `leaderboard_count=6` / `selected_feature_profile=core_macro_plus_stable_4h` / `support_aware_profile=core_macro_plus_stable_4h` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3670` / `archive_window_coverage_pct=0.0`
+- `leaderboard_count=6` / `selected_feature_profile=core_macro_plus_stable_4h` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment`
+- `background_refresh_candidate_surface=bounded_selected_plus_core_only`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3671` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
-- Strategy Lab 不回退 placeholder-only；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。
+- Strategy Lab 不回退 placeholder-only；background refresh 不重新擴張候選面；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。
 
 ---
 
@@ -73,7 +76,7 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 
 ## 成功標準
 - current-live blocker 清楚且唯一：**breaker release math**
-- current live q15 truth 維持：**104/50 + exact_bucket_supported + —**
+- current live q15 truth 維持：**101/50 + exact_bucket_supported + —**
 - recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋
 - leaderboard single-role governance 維持；venue/source blockers 持續可見
 - heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**

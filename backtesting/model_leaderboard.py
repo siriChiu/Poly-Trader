@@ -693,6 +693,17 @@ class ModelLeaderboard:
         )
         add_candidate(selected_name, selected_meta)
 
+        if self.background_refresh:
+            # Keep stale-while-revalidate bounded and deterministic: evaluate the
+            # active training-selected profile plus the smallest stable fallback.
+            # Artifact-driven ablation recommendations can change every
+            # heartbeat and must not displace core_only inside the two-candidate
+            # background-refresh budget.
+            add_candidate("core_only")
+            if not candidates:
+                add_candidate("current_full", {"source": "leaderboard.fallback_current_full"})
+            return candidates[:self.BACKGROUND_REFRESH_FEATURE_CANDIDATE_LIMIT]
+
         ablation_payload = self._feature_ablation_payload or {}
         if ablation_payload.get("target_col") == self.target_col:
             add_candidate(
@@ -709,8 +720,6 @@ class ModelLeaderboard:
 
         if not candidates:
             add_candidate("current_full", {"source": "leaderboard.fallback_current_full"})
-        if self.background_refresh:
-            return candidates[:self.BACKGROUND_REFRESH_FEATURE_CANDIDATE_LIMIT]
         return candidates
 
     def _feature_profile_blocker_assessment(self, meta: Optional[Dict[str, Any]]) -> Dict[str, Any]:
