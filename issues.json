@@ -7,7 +7,7 @@
       "action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 2 勝，還差 13 勝；同時 streak 必須 < 50。",
       "status": "open",
       "created_at": "2026-04-24T21:47:06.227652",
-      "updated_at": "2026-04-25T05:35:20.960344",
+      "updated_at": "2026-04-25T06:22:01.775382",
       "hb_detected": null,
       "next_action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 2 勝，還差 13 勝；同時 streak 必須 < 50。",
       "summary": {
@@ -17,10 +17,10 @@
         "current_recent_window_wins": 2,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 13,
-        "streak": 3,
+        "streak": 7,
         "streak_must_be_below": 50,
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-        "current_live_structure_bucket_rows": 87,
+        "current_live_structure_bucket_rows": 84,
         "minimum_support_rows": 50,
         "gap_to_minimum": 0,
         "support_route_verdict": "exact_bucket_supported",
@@ -37,17 +37,17 @@
     {
       "id": "#H_AUTO_MODEL_STABILITY",
       "priority": "P1",
-      "title": "model stability still needs work (cv=0.5573, cv_std=0.0146, cv_worst=0.5426)",
+      "title": "model stability still needs work (cv=0.6319, cv_std=0.0711, cv_worst=0.5609)",
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-04-25T05:35:20.960366",
+      "updated_at": "2026-04-25T06:22:01.775413",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
-        "cv_accuracy": 0.5572761985574883,
-        "cv_std": 0.014637250742469243,
-        "cv_worst": 0.5426389478150191
+        "cv_accuracy": 0.6319473907509546,
+        "cv_std": 0.07106491302503182,
+        "cv_worst": 0.5608824777259228
       }
     },
     {
@@ -57,7 +57,7 @@
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132306",
-      "updated_at": "2026-04-25T05:35:20.960398",
+      "updated_at": "2026-04-25T06:22:01.775450",
       "hb_detected": null,
       "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "summary": {
@@ -100,7 +100,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3701,
+        "forward_archive_rows": 3705,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -108,7 +108,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-25T05:28:13.403167",
+      "updated_at": "2026-04-25T06:22:02.728638",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -126,10 +126,10 @@
         "governance_contract": "single_role_governance_ok",
         "current_closure": "single_profile_alignment",
         "leaderboard_payload_source": "latest_persisted_snapshot",
-        "leaderboard_payload_stale": false,
-        "leaderboard_payload_cache_age_sec": 48,
-        "leaderboard_payload_updated_at": "2026-04-25T05:33:51.408847Z",
-        "dual_profile_state": "aligned"
+        "leaderboard_payload_stale": true,
+        "leaderboard_payload_cache_age_sec": 1152,
+        "leaderboard_payload_updated_at": "2026-04-25T06:02:43.792902Z",
+        "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
       "verify": [
@@ -137,7 +137,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-25T05:35:20.960361",
+      "updated_at": "2026-04-25T06:22:01.775405",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -147,20 +147,20 @@
       "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "status": "open",
       "created_at": "2026-04-24T17:58:22.694575",
-      "updated_at": "2026-04-25T05:35:20.960392",
+      "updated_at": "2026-04-25T06:22:01.775444",
       "hb_detected": null,
       "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "summary": {
         "window": "100",
         "interpretation": "regime_concentration",
-        "win_rate": 0.25,
+        "win_rate": 0.21,
         "dominant_regime": "bull",
         "dominant_regime_share": 0.99,
-        "avg_pnl": -0.0034,
-        "avg_quality": -0.015,
-        "avg_drawdown_penalty": 0.1602,
+        "avg_pnl": -0.0037,
+        "avg_quality": -0.0391,
+        "avg_drawdown_penalty": 0.161,
         "spot_long_win_rate": 0.0,
-        "avg_time_underwater": 0.5231,
+        "avg_time_underwater": 0.5506,
         "alerts": [
           "regime_concentration",
           "regime_shift"
@@ -171,7 +171,7 @@
           "feat_4h_macd_hist"
         ],
         "new_compressed_feature": "feat_vix",
-        "tail_streak": "3x0",
+        "tail_streak": "7x0",
         "adverse_streak": "63x0",
         "live_regime_label": "chop",
         "current_live_scope": false,

@@ -105,6 +105,17 @@ def test_use_api_cancels_superseded_requests_and_ignores_stale_timeouts():
         assert snippet in source
 
 
+def test_execution_workspace_endpoints_have_longer_first_load_timeout():
+    source = _read("hooks/useApi.ts")
+    required_snippets = [
+        'const EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS = 20000;',
+        'if (endpoint.startsWith("/api/execution/overview")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;',
+        'if (endpoint.startsWith("/api/execution/runs")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
 def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout():
     source = _read("pages/ExecutionConsole.tsx")
     required_snippets = [

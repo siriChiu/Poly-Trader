@@ -1633,6 +1633,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "curl http://127.0.0.1:8000/api/models/leaderboard" not in issues_md
     assert "current-state docs overwrite sync 已自動化" in roadmap_md
     assert "Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）" in issues_md
+    assert "`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout" in issues_md
+    assert "把可用 payload 誤報成 `API timeout`" in issues_md
     assert "POST /api/trade` 對 `buy` / 加倉會先讀 current-live blocker" in issues_md
     assert "runtime/API guardrail：`POST /api/trade` 對 `buy` / 加倉會先讀 current-live blocker" in issues_md
     assert "Execution Status / Bot 營運 已顯示熔斷解除條件" in issues_md
@@ -1643,6 +1645,7 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows" in roadmap_md
     assert "manual_trade=paused_when_deployment_blocked" not in issues_md
     assert "Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）" in roadmap_md
+    assert "operator-workspace timeout" in roadmap_md
     assert "直接呼叫 `POST /api/trade` 的 buy/add-exposure 也必須依 current-live blocker fail-closed" in roadmap_md
     assert "`/api/trade` direct API 不能繞過 current-live blocker" in roadmap_md
     assert "Execution Status / Bot 營運 已顯示熔斷解除條件" in roadmap_md
@@ -1651,6 +1654,7 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式" in roadmap_md
     assert "browser `/execution`（含初次同步時買入 / 減碼 / 自動模式暫停）" in roadmap_md
     assert "`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed" in orid_md
+    assert "Bot 營運 payload 誤報成 `API timeout`" in orid_md
     assert "`/api/trade` buy/add-exposure 直接入口也會依 current-live blocker 409 fail-closed" in orid_md
     assert "直接 API buy/add-exposure 也必須 409 fail-closed" in orid_md
     assert "`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡" in orid_md

@@ -11,6 +11,7 @@ const DEV_LOCAL_API_CANDIDATE_PORTS = [8000, 8001] as const;
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 const CHART_REQUEST_TIMEOUT_MS = 15000;
 const LEADERBOARD_REQUEST_TIMEOUT_MS = 20000;
+const EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS = 20000;
 const DEV_API_DISCOVERY_TIMEOUT_MS = 1200;
 const DEV_API_STATUS_DISCOVERY_TIMEOUT_MS = 2000;
 
@@ -246,6 +247,8 @@ export async function prewarmActiveApiBase(): Promise<string | null> {
 function getRequestTimeoutMs(endpoint: string): number {
   if (endpoint.startsWith("/api/strategies/leaderboard")) return LEADERBOARD_REQUEST_TIMEOUT_MS;
   if (endpoint.startsWith("/api/models/leaderboard")) return LEADERBOARD_REQUEST_TIMEOUT_MS;
+  if (endpoint.startsWith("/api/execution/overview")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;
+  if (endpoint.startsWith("/api/execution/runs")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;
   return endpoint.startsWith("/api/chart/klines")
     ? CHART_REQUEST_TIMEOUT_MS
     : DEFAULT_REQUEST_TIMEOUT_MS;
