@@ -1,24 +1,24 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-25 12:16:24 CST_
+_最後更新：2026-04-25 12:42:57 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #20260425_1214 已完成 collect + diagnostics refresh**
-  - `Raw=32230 / Features=23648 / Labels=65017`
+- **full heartbeat #20260425_1232 已完成 collect + diagnostics refresh**
+  - `Raw=32231 / Features=23649 / Labels=65019`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
-  - `deployment_blocker=circuit_breaker_active` / `streak=2` / `recent_window_wins=1/50` / `additional_recent_window_wins_needed=14`
-  - `latest_window=100` / `win_rate=28.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0026` / `avg_pnl=-0.0032` / `alerts=regime_concentration,regime_shift`
+  - `deployment_blocker=circuit_breaker_active` / `streak=0` / `recent_window_wins=2/50` / `additional_recent_window_wins_needed=13`
+  - `latest_window=100` / `win_rate=28.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0026` / `avg_pnl=-0.0033` / `alerts=regime_concentration,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
 - **Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）**
   - `/api/status` 初次同步前或部署阻塞存在時，買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停並保持 disabled，只留下查看阻塞原因與重新整理；後端 `POST /api/trade` 對 `buy` / 加倉會先讀 current-live blocker，阻塞時回 409 `current_live_deployment_blocker`，只保留 `reduce/sell` 風險降低路徑
 - **Execution Status / Bot 營運 已顯示熔斷解除條件**
-  - `最近 50 筆目前 1/50，還差 14 勝；支持樣本 / q15 修補不可取代熔斷解除條件`；操作員執行介面先看熔斷解除條件，再看 support / q15 背景治理
+  - `最近 50 筆目前 2/50，還差 13 勝；支持樣本 / q15 修補不可取代熔斷解除條件`；操作員執行介面先看熔斷解除條件，再看 support / q15 背景治理
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
 
@@ -28,7 +28,7 @@ _最後更新：2026-04-25 12:16:24 CST_
 
 ### 目標 A：維持熔斷解除條件作為唯一即時部署阻塞點
 **目前真相**
-- `deployment_blocker=circuit_breaker_active` / `streak=2` / `recent_window_wins=1/50` / `additional_recent_window_wins_needed=14`
+- `deployment_blocker=circuit_breaker_active` / `streak=0` / `recent_window_wins=2/50` / `additional_recent_window_wins_needed=13`
 - `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=87/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`
 support progress：`status=exact_supported` / `regression_basis=current_identity` / `legacy_supported_reference=121/50@20260424a`
 **成功標準**
@@ -37,7 +37,7 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=100` / `win_rate=28.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0026` / `avg_pnl=-0.0032` / `alerts=regime_concentration,regime_shift`
+- `latest_window=100` / `win_rate=28.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=+0.0026` / `avg_pnl=-0.0033` / `alerts=regime_concentration,regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
@@ -51,8 +51,8 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
-- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_macro_plus_stable_4h` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment` / `payload_source=latest_persisted_snapshot` / `payload_stale=true` / `payload_age=54.9m`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3697` / `archive_window_coverage_pct=0.0`
+- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_macro_plus_stable_4h` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment` / `payload_source=latest_persisted_snapshot` / `payload_stale=true` / `payload_age=1.3h`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3698` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證；API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**

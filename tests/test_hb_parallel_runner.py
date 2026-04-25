@@ -1425,6 +1425,48 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
 
 
 
+def test_load_open_current_state_issues_keeps_non_duplicate_auto_issues(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "#H_AUTO_CIRCUIT_BREAKER",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "duplicate breaker auto issue",
+                    },
+                    {
+                        "id": "#H_AUTO_MODEL_STABILITY",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "model stability still needs work",
+                        "summary": {"cv_accuracy": 0.5548, "cv_worst": 0.5357},
+                    },
+                    {
+                        "id": "#H_AUTO_REGIME_DRIFT",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "TW-IC 26 vs Global IC 17 — 信號強依賴近期資料",
+                        "summary": {"global_pass": 17, "tw_pass": 26, "total_features": 30},
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    issues = hb_parallel_runner._load_open_current_state_issues()
+
+    issue_ids = [issue["id"] for issue in issues]
+    assert "#H_AUTO_CIRCUIT_BREAKER" not in issue_ids
+    assert "#H_AUTO_MODEL_STABILITY" in issue_ids
+    assert "#H_AUTO_REGIME_DRIFT" in issue_ids
+
+
+
 def test_collect_historical_coverage_confirmation_reports_two_year_backfill(tmp_path):
     db_path = tmp_path / "poly_trader.db"
     conn = hb_parallel_runner.sqlite3.connect(db_path)

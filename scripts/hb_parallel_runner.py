@@ -531,10 +531,24 @@ def _save_open_current_state_issues(issues: list[Dict[str, Any]]) -> None:
     )
 
 
+def _current_state_suppressed_auto_issue_ids() -> set[str]:
+    # Only hide auto-proposed IDs that are known duplicate aliases of curated
+    # current-state issues. Non-duplicate auto issues (for example model
+    # stability / regime-drift findings from auto_propose_fixes.py) must remain
+    # in issues.json and markdown docs; otherwise the runner prints them during
+    # auto-propose and then silently deletes them during docs overwrite sync.
+    return {
+        "#H_AUTO_CIRCUIT_BREAKER",
+        "#H_AUTO_RECENT_PATHOLOGY",
+        "#H_AUTO_CURRENT_BUCKET_SUPPORT",
+    }
+
+
 def _load_open_current_state_issues() -> list[Dict[str, Any]]:
     issues_path = Path(PROJECT_ROOT) / "issues.json"
     payload = _read_json_file(issues_path) or {}
     issues = payload.get("issues") or []
+    suppressed_auto_ids = _current_state_suppressed_auto_issue_ids()
     filtered: list[Dict[str, Any]] = []
     for issue in issues:
         if not isinstance(issue, dict):
@@ -542,7 +556,7 @@ def _load_open_current_state_issues() -> list[Dict[str, Any]]:
         if issue.get("status", "open") != "open":
             continue
         issue_id = str(issue.get("id") or "")
-        if issue_id.startswith("#H_AUTO_"):
+        if issue_id in suppressed_auto_ids:
             continue
         filtered.append(issue)
     priority_rank = {"P0": 0, "P1": 1, "P2": 2}
