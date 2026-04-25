@@ -840,7 +840,7 @@ def test_strategy_async_job_status_exposes_segmented_steps(monkeypatch):
 
 
 
-def test_api_trade_uses_execution_service(monkeypatch):
+def test_api_trade_uses_execution_service_when_buy_path_has_no_live_blocker(monkeypatch):
     class DummyService:
         def __init__(self, cfg, db_session=None):
             self.cfg = cfg
@@ -853,9 +853,13 @@ def test_api_trade_uses_execution_service(monkeypatch):
                 "order": {"id": "abc123", "symbol": symbol, "side": side, "qty": qty, "type": order_type, "reduce_only": reduce_only},
             }
 
+    async def no_current_live_buy_reject():
+        return None
+
     monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "binance"}, "trading": {"venue": "binance"}})
     monkeypatch.setattr(api_module, "get_db", lambda: object())
     monkeypatch.setattr(api_module, "ExecutionService", DummyService)
+    monkeypatch.setattr(api_module, "_load_current_live_buy_reject_payload", no_current_live_buy_reject)
 
     payload = asyncio.run(api_module.api_trade(api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.01), request=_local_request()))
 
@@ -867,7 +871,7 @@ def test_api_trade_uses_execution_service(monkeypatch):
 
 
 
-def test_api_trade_maps_execution_rejects_to_http_409(monkeypatch):
+def test_api_trade_maps_execution_rejects_to_http_409_when_buy_path_has_no_live_blocker(monkeypatch):
     from execution.execution_service import ExecutionRejectError
 
     class DummyService:
@@ -877,9 +881,13 @@ def test_api_trade_maps_execution_rejects_to_http_409(monkeypatch):
         def submit_order(self, **kwargs):
             raise ExecutionRejectError("kill_switch_active", "Kill switch active", context={"kill_switch": True})
 
+    async def no_current_live_buy_reject():
+        return None
+
     monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "binance"}, "trading": {"venue": "binance"}})
     monkeypatch.setattr(api_module, "get_db", lambda: object())
     monkeypatch.setattr(api_module, "ExecutionService", DummyService)
+    monkeypatch.setattr(api_module, "_load_current_live_buy_reject_payload", no_current_live_buy_reject)
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(api_module.api_trade(api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.01), request=_local_request()))
