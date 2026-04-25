@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from fastapi import HTTPException
 from server import main as server_main
 from server.routes import api as api_module
 
@@ -669,6 +670,94 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
         "order ack lifecycle 尚未驗證",
         "fill lifecycle 尚未驗證",
     ]
+
+
+def test_api_trade_rejects_buy_when_current_live_blocker_active(monkeypatch):
+    async def _blocked_confidence_payload():
+        return {
+            "signal": "CIRCUIT_BREAKER",
+            "deployment_blocker": "circuit_breaker_active",
+            "deployment_blocker_reason": "release condition still unmet",
+            "runtime_closure_state": "circuit_breaker_active",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "circuit_breaker_active",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 87,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_supported",
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "current_recent_window_wins": 0,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 15,
+                }
+            },
+        }
+
+    class ExplodingExecutionService:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("ExecutionService must not submit buy orders while current-live blocker is active")
+
+    monkeypatch.setattr(api_module, "get_confidence_prediction", _blocked_confidence_payload)
+    monkeypatch.setattr(api_module, "ExecutionService", ExplodingExecutionService)
+
+    import asyncio
+
+    req = api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.001)
+    try:
+        asyncio.run(api_module.api_trade(req, request=_local_request()))
+    except HTTPException as exc:
+        assert exc.status_code == 409
+        assert exc.detail["code"] == "current_live_deployment_blocker"
+        assert exc.detail["context"]["blocked_side"] == "buy"
+        assert exc.detail["context"]["allowed_sides"] == ["reduce", "sell"]
+        assert exc.detail["context"]["reduce_only_allowed"] is True
+        assert exc.detail["context"]["deployment_blocker"] == "circuit_breaker_active"
+        assert exc.detail["context"]["runtime_closure_state"] == "circuit_breaker_active"
+        assert exc.detail["context"]["current_live_structure_bucket_rows"] == 87
+        assert exc.detail["context"]["release_condition"]["additional_recent_window_wins_needed"] == 15
+    else:
+        raise AssertionError("buy/add-exposure trade must fail closed under current-live blocker")
+
+
+def test_api_trade_allows_reduce_when_current_live_blocker_active(monkeypatch):
+    calls = []
+
+    def _confidence_should_not_run():
+        raise AssertionError("reduce/de-risk orders must not depend on predictor availability")
+
+    class FakeExecutionService:
+        def __init__(self, cfg, db_session=None):
+            self.cfg = cfg
+            self.db_session = db_session
+
+        def submit_order(self, **kwargs):
+            calls.append(kwargs)
+            return {
+                "success": True,
+                "venue": "binance",
+                "guardrails": {"last_reject": None},
+                "order": {"id": "dry_reduce_1", "status": "accepted"},
+            }
+
+    monkeypatch.setattr(api_module, "get_confidence_prediction", _confidence_should_not_run)
+    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "binance"}, "trading": {"venue": "binance"}})
+    monkeypatch.setattr(api_module, "get_db", lambda: DummySession())
+    monkeypatch.setattr(api_module, "ExecutionService", FakeExecutionService)
+
+    import asyncio
+
+    req = api_module.TradeRequest(side="reduce", symbol="BTCUSDT", qty=0.001)
+    result = asyncio.run(api_module.api_trade(req, request=_local_request()))
+
+    assert result["order_id"] == "dry_reduce_1"
+    assert calls == [{
+        "side": "sell",
+        "symbol": "BTCUSDT",
+        "qty": 0.001,
+        "order_type": "market",
+        "reduce_only": True,
+    }]
 
 
 def test_overlay_confidence_with_live_predict_probe_prefers_fresh_probe_truth(tmp_path):

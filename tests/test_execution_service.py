@@ -107,7 +107,7 @@ def test_account_sync_service_returns_combined_snapshot(monkeypatch):
     assert snapshot["open_order_count"] == 1
     assert snapshot["degraded"] is False
     assert snapshot["captured_at"].endswith("Z")
-    assert "核對目前 venue" in snapshot["operator_message"]
+    assert "核對目前場館" in snapshot["operator_message"]
 
 
 def test_execution_service_normalizes_legacy_symbol_format(monkeypatch):

@@ -6290,6 +6290,96 @@ async def api_strategy_data_range() -> Dict[str, Any]:
     return _strategy_data_range_summary(_load_strategy_data())
 
 
+_NO_DEPLOY_RUNTIME_CLOSURE_STATES = {
+    "circuit_breaker_active",
+    "decision_quality_below_trade_floor",
+    "patch_active_but_execution_blocked",
+    "support_closed_but_trade_floor_blocked",
+    "unsupported_exact_live_structure_bucket",
+    "under_minimum_exact_live_structure_bucket",
+    "exact_bucket_unsupported_block",
+    "exact_live_lane_toxic_sub_bucket_current_bucket",
+    "exact_live_lane_toxic_allow_lane",
+}
+
+
+def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Return a structured reject payload when current-live truth forbids adding exposure."""
+    payload = live_runtime_truth if isinstance(live_runtime_truth, dict) else {}
+    deployment_blocker = payload.get("deployment_blocker")
+    runtime_closure_state = payload.get("runtime_closure_state")
+    signal = str(payload.get("signal") or "").upper()
+    allowed_layers = payload.get("allowed_layers")
+    allowed_layers_reason = payload.get("allowed_layers_reason")
+    deployment_blocker_reason = payload.get("deployment_blocker_reason")
+    execution_guardrail_reason = payload.get("execution_guardrail_reason")
+    blocker_reason = (
+        deployment_blocker_reason
+        or execution_guardrail_reason
+        or allowed_layers_reason
+        or runtime_closure_state
+        or deployment_blocker
+        or "current live runtime guardrail blocks add-exposure orders"
+    )
+
+    try:
+        numeric_allowed_layers = int(allowed_layers) if allowed_layers is not None else None
+    except (TypeError, ValueError):
+        numeric_allowed_layers = None
+
+    should_reject = bool(deployment_blocker) or signal == "CIRCUIT_BREAKER"
+    should_reject = should_reject or runtime_closure_state in _NO_DEPLOY_RUNTIME_CLOSURE_STATES
+    should_reject = should_reject or (numeric_allowed_layers is not None and numeric_allowed_layers <= 0 and bool(allowed_layers_reason))
+    if not should_reject:
+        return None
+
+    blocker_details = payload.get("deployment_blocker_details") if isinstance(payload.get("deployment_blocker_details"), dict) else {}
+    return {
+        "code": "current_live_deployment_blocker",
+        "message": "Current live blocker active: buy/add-exposure orders are paused; reduce/de-risk orders remain allowed.",
+        "context": {
+            "blocked_side": "buy",
+            "allowed_sides": ["reduce", "sell"],
+            "reduce_only_allowed": True,
+            "deployment_blocker": deployment_blocker,
+            "deployment_blocker_reason": deployment_blocker_reason,
+            "runtime_closure_state": runtime_closure_state,
+            "runtime_closure_summary": payload.get("runtime_closure_summary"),
+            "execution_guardrail_reason": execution_guardrail_reason,
+            "signal": payload.get("signal"),
+            "allowed_layers": allowed_layers,
+            "allowed_layers_reason": allowed_layers_reason,
+            "current_live_structure_bucket": payload.get("current_live_structure_bucket"),
+            "current_live_structure_bucket_rows": payload.get("current_live_structure_bucket_rows"),
+            "minimum_support_rows": payload.get("minimum_support_rows"),
+            "support_route_verdict": payload.get("support_route_verdict"),
+            "release_condition": blocker_details.get("release_condition"),
+            "operator_action": "Go to /execution/status, clear the current-live blocker/release condition, then retry buy exposure.",
+            "reason": blocker_reason,
+        },
+    }
+
+
+async def _load_current_live_buy_reject_payload() -> Optional[Dict[str, Any]]:
+    try:
+        maybe_confidence_payload = get_confidence_prediction()
+        confidence_payload = await maybe_confidence_payload if hasattr(maybe_confidence_payload, "__await__") else maybe_confidence_payload
+        live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload)
+    except Exception as exc:
+        return {
+            "code": "current_live_guardrail_unavailable",
+            "message": "Current live guardrail unavailable: buy/add-exposure orders fail closed; reduce/de-risk orders remain allowed.",
+            "context": {
+                "blocked_side": "buy",
+                "allowed_sides": ["reduce", "sell"],
+                "reduce_only_allowed": True,
+                "error": str(exc),
+                "operator_action": "Refresh /execution/status and restore /predict/confidence before retrying buy exposure.",
+            },
+        }
+    return _current_live_buy_reject_payload(live_runtime_truth)
+
+
 @router.post("/trade")
 async def api_trade(req: "TradeRequest", request: Request = None) -> Dict[str, Any]:
     _assert_local_operator_request(request)
@@ -6299,6 +6389,11 @@ async def api_trade(req: "TradeRequest", request: Request = None) -> Dict[str, A
 
     submit_side = "buy" if side == "buy" else "sell"
     reduce_only = side in {"reduce", "sell"}
+    if not reduce_only:
+        buy_reject = await _load_current_live_buy_reject_payload()
+        if buy_reject is not None:
+            raise HTTPException(status_code=409, detail=buy_reject)
+
     cfg = get_config() or {}
     db = get_db()
     try:
