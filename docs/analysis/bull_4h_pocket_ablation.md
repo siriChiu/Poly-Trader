@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-04-24 22:16:47 UTC**
+- generated_at: **2026-04-25 01:04:55 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -10,8 +10,8 @@
 
 ## Cohorts
 
-- bull_all rows: **2349** / win_rate **0.5292** / recommended **`core_plus_macro_plus_4h_trend`**
-- bull_collapse_q35 rows: **935** / win_rate **0.5401** / recommended **`core_plus_macro_plus_all_4h`**
+- bull_all rows: **2366** / win_rate **0.5254** / recommended **`core_plus_macro_plus_4h_trend`**
+- bull_collapse_q35 rows: **935** / win_rate **0.5219** / recommended **`core_plus_macro_plus_all_4h`**
 - bull_exact_live_lane_proxy rows: **782** / win_rate **0.5038** / recommended **`None`**
 - bull_live_exact_lane_bucket_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
 - bull_supported_neighbor_buckets_proxy rows: **5** / win_rate **1.0000** / recommended **`None`**
@@ -62,12 +62,12 @@
 - dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q00` rows=49
 - bucket gap vs dominant neighbor: **0**
 - exact bucket root cause: **exact_bucket_supported**
-- broader q65 rows / dominant regime: **111 / bull (0.5344)**
+- broader q65 rows / dominant regime: **93 / bull (0.5623)**
 - root cause interpretation: exact bucket 已獲支持，可直接驗證 exact lane。
 - bucket comparison takeaway: **exact_bucket_supported**
 - proxy boundary verdict: **exact_bucket_supported_proxy_not_required**
 - proxy boundary reason: current live structure bucket 已達 minimum support；後續治理與驗證應直接以 exact bucket 為主，proxy 只保留輔助比較，不再作 blocker 判讀。
-- decision-quality scope / label: **regime_label+regime_gate+entry_quality_label / C**
+- decision-quality scope / label: **regime_label+regime_gate+entry_quality_label / B**
 - narrowed pathology scope: **None**
 - worst pathology scope: **None**
 - shared pathology shift features: []
@@ -78,18 +78,18 @@
 
 | cohort | bucket | rows | win_rate | quality / cv | note |
 |---|---|---:|---:|---:|---|
-| exact live lane | CAUTION|base_caution_regime_or_bias|q15 | 169 | 0.9172 | 0.5416 | current bucket rows=111 |
-| exact bucket proxy | CAUTION|base_caution_regime_or_bias|q15 | 0 | 0.0 | None | proxy-vs-broader win Δ=-0.8919 |
-| broader same bucket | CAUTION|base_caution_regime_or_bias|q15 | 111 | 0.8919 | 0.4918 | dominant_regime=bull |
+| exact live lane | CAUTION|base_caution_regime_or_bias|q15 | 151 | 0.9801 | 0.6063 | current bucket rows=93 |
+| exact bucket proxy | CAUTION|base_caution_regime_or_bias|q15 | 0 | 0.0 | None | proxy-vs-broader win Δ=-0.9892 |
+| broader same bucket | CAUTION|base_caution_regime_or_bias|q15 | 93 | 0.9892 | 0.5872 | dominant_regime=bull |
 
 ## Proxy boundary diagnostics
 
 - recent exact current bucket rows / win_rate: **0 / None**
-- recent exact live lane rows / win_rate: **169 / 0.858**
+- recent exact live lane rows / win_rate: **151 / 0.8411**
 - historical exact-bucket proxy rows / win_rate: **0 / None**
-- recent broader same-bucket rows / dominant regime: **111 / chop**
+- recent broader same-bucket rows / dominant regime: **93 / chop**
 - proxy vs current bucket win Δ / row ratio: **None / None**
-- exact lane vs current bucket win Δ / quality Δ: **None / 0.0498**
+- exact lane vs current bucket win Δ / quality Δ: **None / 0.0191**
 - broader same-bucket vs current bucket win Δ / quality Δ: **None / 0.0**
 
 ## Exact lane sub-bucket diagnostics
@@ -98,13 +98,13 @@
 - reason: exact live lane 內部 bucket 有差異，但目前落差仍不足以下 toxic pocket 結論。
 - toxic bucket: **CAUTION|base_caution_regime_or_bias|q35**
 - toxic bucket rows / win_rate / avg_quality: **5 / 1.0 / None**
-- toxic bucket vs current win Δ / quality Δ: **0.1081 / None**
+- toxic bucket vs current win Δ / quality Δ: **0.0108 / None**
 
 ## Notes
 
 - collapse features under inspection: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
-- thresholds (bull q35): {"feat_4h_dist_swing_low": 5.0517, "feat_4h_dist_bb_lower": 4.6687, "feat_4h_bb_pct_b": 0.7134}
-- exact live structure bucket: `CAUTION|base_caution_regime_or_bias|q15` rows=111
+- thresholds (bull q35): {"feat_4h_dist_swing_low": 5.0388, "feat_4h_dist_bb_lower": 4.5348, "feat_4h_bb_pct_b": 0.7114}
+- exact live structure bucket: `CAUTION|base_caution_regime_or_bias|q15` rows=93
 - supported neighbor buckets from exact scope: ["CAUTION|base_caution_regime_or_bias|q65", "CAUTION|base_caution_regime_or_bias|q35", "CAUTION|base_caution_regime_or_bias|q00"]
 - best bull-all profile: **core_plus_macro_plus_4h_trend**
 - best bull-collapse profile: **core_plus_macro_plus_all_4h**

@@ -164,6 +164,27 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
     assert '進階診斷（需要時再展開）' not in source
 
 
+def test_execution_surfaces_show_structured_circuit_breaker_release_math_before_support_details():
+    status_source = _read("pages/ExecutionStatus.tsx")
+    console_source = _read("pages/ExecutionConsole.tsx")
+    shared_snippets = [
+        'deployment_blocker_details?: {',
+        'const breakerRelease = liveRuntimeTruth?.deployment_blocker_details?.release_condition ?? null;',
+        'const circuitBreakerActive = liveRuntimeTruth?.deployment_blocker === "circuit_breaker_active";',
+        'const breakerReleaseSummaryLabel = circuitBreakerActive',
+        'const breakerWins = typeof breakerRelease?.current_recent_window_wins === "number"',
+        'const breakerRequiredWins = typeof breakerRelease?.required_recent_window_wins === "number"',
+        'const breakerWinsGap = typeof breakerRelease?.additional_recent_window_wins_needed === "number"',
+        '熔斷解除條件',
+        '最近 {breakerRecentWindow ?? 50} 筆目前 {breakerWins ?? "—"}/{breakerRecentWindow ?? 50} 勝；解除門檻 {breakerRequiredWins ?? "—"} 勝',
+        '至少還差 {breakerWinsGap ?? "—"} 勝；連敗需低於 {breakerStreakLimit ?? 50}。',
+        '這是 current-live 唯一部署 blocker；支持樣本 / q15 修補不可取代 breaker release。',
+    ]
+    for snippet in shared_snippets:
+        assert snippet in status_source
+        assert snippet in console_source
+
+
 def test_execution_console_disables_manual_trade_and_auto_enable_shortcuts_while_syncing_or_blocked():
     source = _read("pages/ExecutionConsole.tsx")
     required_snippets = [

@@ -78,6 +78,26 @@ type LiveRuntimeTruth = {
   allowed_layers_raw_reason?: string | null;
   deployment_blocker?: string | null;
   deployment_blocker_reason?: string | null;
+  deployment_blocker_details?: {
+    recent_window?: {
+      window_size?: number | null;
+      wins?: number | null;
+      win_rate?: number | null;
+      floor?: number | null;
+    } | null;
+    release_condition?: {
+      release_ready?: boolean | null;
+      blocked_by?: string[] | null;
+      streak_must_be_below?: number | null;
+      current_streak?: number | null;
+      recent_window?: number | null;
+      recent_win_rate_must_be_at_least?: number | null;
+      current_recent_window_win_rate?: number | null;
+      current_recent_window_wins?: number | null;
+      required_recent_window_wins?: number | null;
+      additional_recent_window_wins_needed?: number | null;
+    } | null;
+  } | null;
   execution_guardrail_reason?: string | null;
   support_alignment_status?: string | null;
   support_alignment_summary?: string | null;
@@ -516,6 +536,30 @@ export default function ExecutionStatus() {
   const healthTone = getStatusTone(accountSummary?.degraded ? "degraded" : accountSummary?.health?.connected ? "connected" : "warning");
 
   const currentLiveBlocker = liveRuntimeTruth?.deployment_blocker || null;
+  const breakerRelease = liveRuntimeTruth?.deployment_blocker_details?.release_condition ?? null;
+  const breakerRecentWindowDetails = liveRuntimeTruth?.deployment_blocker_details?.recent_window ?? null;
+  const circuitBreakerActive = liveRuntimeTruth?.deployment_blocker === "circuit_breaker_active";
+  const breakerRecentWindow = typeof breakerRelease?.recent_window === "number"
+    ? breakerRelease.recent_window
+    : (typeof breakerRecentWindowDetails?.window_size === "number" ? breakerRecentWindowDetails.window_size : null);
+  const breakerWins = typeof breakerRelease?.current_recent_window_wins === "number"
+    ? breakerRelease.current_recent_window_wins
+    : (typeof breakerRecentWindowDetails?.wins === "number" ? breakerRecentWindowDetails.wins : null);
+  const breakerRequiredWins = typeof breakerRelease?.required_recent_window_wins === "number"
+    ? breakerRelease.required_recent_window_wins
+    : null;
+  const breakerWinsGap = typeof breakerRelease?.additional_recent_window_wins_needed === "number"
+    ? breakerRelease.additional_recent_window_wins_needed
+    : null;
+  const breakerStreakLimit = typeof breakerRelease?.streak_must_be_below === "number"
+    ? breakerRelease.streak_must_be_below
+    : null;
+  const breakerCurrentStreak = typeof breakerRelease?.current_streak === "number"
+    ? breakerRelease.current_streak
+    : null;
+  const breakerReleaseSummaryLabel = circuitBreakerActive
+    ? `canonical 1440m breaker：目前 ${breakerWins ?? "—"}/${breakerRecentWindow ?? 50} 勝，還差 ${breakerWinsGap ?? "—"} 勝；連敗 ${breakerCurrentStreak ?? "—"}/${breakerStreakLimit ?? 50}`
+    : "目前沒有 circuit-breaker release math blocker。";
   const primaryRuntimeMessage = runtimeStatusPending
     ? "正在同步 /api/status"
     : humanizeExecutionReason(
@@ -762,7 +806,7 @@ export default function ExecutionStatus() {
               </div>
             )}
           >
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">主要阻塞點</div>
                 <div className="mt-2 font-semibold text-white">{primaryRuntimeMessage}</div>
@@ -770,6 +814,15 @@ export default function ExecutionStatus() {
                 <div className="text-slate-400">執行保護欄 {executionGuardrailLabel}</div>
                 <div className="text-slate-400">場館阻塞 {venueBlockersLabel}</div>
               </div>
+              {circuitBreakerActive && (
+                <div className="rounded-[20px] border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-100">
+                  <div className="text-[11px] uppercase tracking-wide opacity-80">熔斷解除條件</div>
+                  <div className="mt-2 font-semibold text-white">{breakerReleaseSummaryLabel}</div>
+                  <div className="mt-2">最近 {breakerRecentWindow ?? 50} 筆目前 {breakerWins ?? "—"}/{breakerRecentWindow ?? 50} 勝；解除門檻 {breakerRequiredWins ?? "—"} 勝</div>
+                  <div>至少還差 {breakerWinsGap ?? "—"} 勝；連敗需低於 {breakerStreakLimit ?? 50}。</div>
+                  <div className="mt-2 text-amber-50/80">這是 current-live 唯一部署 blocker；支持樣本 / q15 修補不可取代 breaker release。</div>
+                </div>
+              )}
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">部署計算</div>
                 <div className="mt-2 font-semibold text-white">層數 {liveRuntimeTruth?.allowed_layers_raw ?? "—"} → {liveRuntimeTruth?.allowed_layers ?? "—"}</div>

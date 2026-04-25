@@ -4,23 +4,23 @@
       "id": "P0_current_live_deployment_blocker",
       "priority": "P0",
       "title": "canonical circuit breaker remains the only current-live deployment blocker",
-      "action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 1 勝，還差 14 勝；同時 streak 必須 < 50。",
+      "action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 0 勝，還差 15 勝；同時 streak 必須 < 50。",
       "status": "open",
       "created_at": "2026-04-24T21:47:06.227652",
-      "updated_at": "2026-04-25T00:46:49.855754",
+      "updated_at": "2026-04-25T01:38:35.430571",
       "hb_detected": null,
-      "next_action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 1 勝，還差 14 勝；同時 streak 必須 < 50。",
+      "next_action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 0 勝，還差 15 勝；同時 streak 必須 < 50。",
       "summary": {
         "deployment_blocker": "circuit_breaker_active",
         "horizon_minutes": 1440,
         "recent_window": 50,
-        "current_recent_window_wins": 1,
+        "current_recent_window_wins": 0,
         "required_recent_window_wins": 15,
-        "additional_recent_window_wins_needed": 14,
-        "streak": 49,
+        "additional_recent_window_wins_needed": 15,
+        "streak": 53,
         "streak_must_be_below": 50,
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-        "current_live_structure_bucket_rows": 93,
+        "current_live_structure_bucket_rows": 90,
         "minimum_support_rows": 50,
         "gap_to_minimum": 0,
         "support_route_verdict": "exact_bucket_supported",
@@ -62,7 +62,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3677,
+        "forward_archive_rows": 3683,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -70,7 +70,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-25T00:46:50.812776",
+      "updated_at": "2026-04-25T01:38:39.971610",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -82,13 +82,13 @@
         "leaderboard_count": 6,
         "comparable_count": 6,
         "placeholder_count": 0,
-        "top_model": "random_forest",
-        "top_profile": "core_only",
-        "top_deployment_profile": "stable_turning_point_all_regimes_relaxed_v1",
+        "top_model": "rule_baseline",
+        "top_profile": "core_plus_macro_plus_all_4h",
+        "top_deployment_profile": "scan_backed_best",
         "governance_contract": "single_role_governance_ok",
         "current_closure": "single_profile_alignment",
         "leaderboard_payload_source": "latest_persisted_snapshot",
-        "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
+        "dual_profile_state": "aligned"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
       "verify": [
@@ -96,7 +96,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-25T00:46:49.855771",
+      "updated_at": "2026-04-25T01:38:35.430588",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -106,7 +106,7 @@
       "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "status": "open",
       "created_at": "2026-04-24T17:58:22.694575",
-      "updated_at": "2026-04-25T00:46:49.855807",
+      "updated_at": "2026-04-25T01:38:35.430629",
       "hb_detected": null,
       "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "summary": {
@@ -115,11 +115,11 @@
         "win_rate": 0.27,
         "dominant_regime": "bull",
         "dominant_regime_share": 0.99,
-        "avg_pnl": -0.003,
-        "avg_quality": 0.0006,
-        "avg_drawdown_penalty": 0.1781,
+        "avg_pnl": -0.0033,
+        "avg_quality": -0.0055,
+        "avg_drawdown_penalty": 0.1792,
         "spot_long_win_rate": 0.0,
-        "avg_time_underwater": 0.4727,
+        "avg_time_underwater": 0.4932,
         "alerts": [
           "regime_concentration",
           "regime_shift"
@@ -129,13 +129,14 @@
           "feat_volume_exhaustion",
           "feat_4h_vol_ratio"
         ],
-        "new_compressed_feature": "feat_4h_bias200",
-        "tail_streak": "49x0",
-        "adverse_streak": "49x0",
+        "new_compressed_feature": "feat_vix",
+        "tail_streak": "53x0",
+        "adverse_streak": "53x0",
         "live_regime_label": "chop",
         "current_live_scope": false,
         "blocking_basis": [
           "avg_pnl<=0",
+          "avg_quality<=0",
           "spot_long_win_rate<=0.20"
         ]
       }
