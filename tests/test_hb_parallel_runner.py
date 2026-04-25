@@ -1590,23 +1590,23 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in issues_md
     assert "curl http://127.0.0.1:8000/api/models/leaderboard" not in issues_md
     assert "current-state docs overwrite sync 已自動化" in roadmap_md
-    assert "Execution Console 快捷操作已 fail-closed（同步中 + blocker）" in issues_md
+    assert "Execution Console 快捷操作已 fail-closed（同步中 + 阻塞）" in issues_md
     assert "Execution Status / Bot 營運 已顯示熔斷解除條件" in issues_md
-    assert "recent 50 目前 0/50，還差 15 勝；support/q15 修補不可取代 breaker release" in issues_md
+    assert "最近 50 筆目前 0/50，還差 15 勝；支持樣本 / q15 修補不可取代熔斷解除條件" in issues_md
     assert "manual_trade=paused_when_status_syncing_or_deployment_blocked" in issues_md
     assert "metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next" in orid_md
     assert "execution_metadata_smoke.venues[]` 已提供 per-venue `proof_state / blockers / operator_next_action / verify_next`" in issues_md
     assert "API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows" in roadmap_md
     assert "manual_trade=paused_when_deployment_blocked" not in issues_md
-    assert "Execution Console 快捷操作已 fail-closed（同步中 + blocker）" in roadmap_md
+    assert "Execution Console 快捷操作已 fail-closed（同步中 + 阻塞）" in roadmap_md
     assert "Execution Status / Bot 營運 已顯示熔斷解除條件" in roadmap_md
-    assert "初次同步前或 deployment blocker 存在時" in roadmap_md
+    assert "初次同步前或部署阻塞存在時" in roadmap_md
     assert "買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停" in roadmap_md
     assert "`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式" in roadmap_md
     assert "browser `/execution`（含初次同步時買入 / 減碼 / 自動模式暫停）" in roadmap_md
     assert "`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed" in orid_md
     assert "`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡" in orid_md
-    assert "syncing / blocked 兩種狀態都必須 fail-closed" in orid_md
+    assert "同步中 / 已阻塞兩種狀態都必須 fail-closed" in orid_md
     assert "browser `/execution`（同步中 / blocked 快捷操作 fail-closed）" in orid_md
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in roadmap_md
     assert "不要硬綁單一 port" in roadmap_md

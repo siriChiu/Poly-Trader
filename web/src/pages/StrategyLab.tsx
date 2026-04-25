@@ -2732,7 +2732,7 @@ export default function StrategyLab() {
     : humanizeLifecycleDiagnosticLabel(metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
   const venueReadinessBlockersLabel = liveExecutionSyncPending
     ? "同步中"
-    : (venueReadinessBlockers.length ? venueReadinessBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : humanizeExecutionReason(executionSurfaceContract?.operator_message || "目前沒有額外 venue blocker 摘要"));
+    : (venueReadinessBlockers.length ? venueReadinessBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : humanizeExecutionReason(executionSurfaceContract?.operator_message || "目前沒有額外場館阻塞摘要"));
   const lifecycleArtifactChecklist = Array.isArray(lifecycleContract?.artifact_checklist)
     ? lifecycleContract.artifact_checklist
     : [];
@@ -3545,8 +3545,8 @@ export default function StrategyLab() {
                                   <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${modelTierBadgeTone[String(model.model_tier || group.key)] || modelTierBadgeTone.control}`}>{modelTierLabel(model)}</span>
                                 </div>
                                 <div className="mt-1 text-[10px] text-slate-500">{model.model_tier_reason || describeRankingReason(model)}</div>
-                                <div className="mt-1 text-[10px] text-slate-600">deployment: {deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)} · {typeof model.rank_delta === "number" ? (model.rank_delta > 0 ? `↑${model.rank_delta}` : model.rank_delta < 0 ? `↓${Math.abs(model.rank_delta)}` : "—") : "—"}</div>
-                                <div className="mt-1 text-[10px] text-slate-600">feature: {featureProfileDisplayName(model)} · {featureProfileSourceLabel(model)}{model.selected_feature_profile_blocker_applied && model.selected_feature_profile_blocker_reason ? ` · blocker ${model.selected_feature_profile_blocker_reason}` : ""}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">部署設定：{deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)} · {typeof model.rank_delta === "number" ? (model.rank_delta > 0 ? `↑${model.rank_delta}` : model.rank_delta < 0 ? `↓${Math.abs(model.rank_delta)}` : "—") : "—"}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">特徵設定：{featureProfileDisplayName(model)} · {featureProfileSourceLabel(model)}{model.selected_feature_profile_blocker_applied && model.selected_feature_profile_blocker_reason ? ` · 阻塞 ${model.selected_feature_profile_blocker_reason}` : ""}</div>
                               </td>
                               <td className="px-2 py-2 text-right text-emerald-300">{formatDecimal(model.overall_score, 3)}</td>
                               <td className="px-2 py-2 text-right text-cyan-300">{formatDecimal(model.reliability_score, 3)}</td>
@@ -3592,7 +3592,7 @@ export default function StrategyLab() {
                                 </div>
                                 <div className="mt-1 text-[10px] text-slate-500">{describeRankingReason(model)}</div>
                                 <div className="mt-1 text-[10px] text-slate-600">部署設定：{deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)}</div>
-                                <div className="mt-1 text-[10px] text-slate-600">特徵設定：{featureProfileDisplayName(model)} · {featureProfileSourceLabel(model)}{model.selected_feature_profile_blocker_applied && model.selected_feature_profile_blocker_reason ? ` · blocker ${model.selected_feature_profile_blocker_reason}` : ""}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">特徵設定：{featureProfileDisplayName(model)} · {featureProfileSourceLabel(model)}{model.selected_feature_profile_blocker_applied && model.selected_feature_profile_blocker_reason ? ` · 阻塞 ${model.selected_feature_profile_blocker_reason}` : ""}</div>
                               </td>
                               <td className="px-2 py-2 text-right text-amber-200">{typeof model.raw_rank === "number" ? `#${model.raw_rank}` : "—"}</td>
                               <td className="px-2 py-2 text-right text-amber-200">{formatDecimal(model.overall_score, 3)}</td>

@@ -412,7 +412,7 @@ export default function ConfidenceIndicator({
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">操作員下一步</div>
-                  <div className="mt-1 font-medium text-white">先等 canonical 1440m 最近 50 筆恢復</div>
+                  <div className="mt-1 font-medium text-white">先等金字塔 24h 最近 50 筆恢復</div>
                   <div className="mt-1 text-slate-400">不要把支持樣本 / 元件修補方案當成熔斷解除替代品。</div>
                 </div>
               </>

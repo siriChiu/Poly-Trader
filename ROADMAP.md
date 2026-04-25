@@ -1,24 +1,24 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-25 10:28:51 CST_
+_最後更新：2026-04-25 11:17:54 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **fast heartbeat #20260425_1027 已完成 collect + diagnostics refresh**
-  - `Raw=32222 / Features=23640 / Labels=64998`
+- **full heartbeat #20260425_1113 已完成 collect + diagnostics refresh**
+  - `Raw=32225 / Features=23643 / Labels=65006`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
-  - `deployment_blocker=circuit_breaker_active` / `streak=57` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
-  - `latest_window=100` / `win_rate=27.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=-0.0076` / `avg_pnl=-0.0034` / `alerts=regime_concentration,regime_shift`
+  - `deployment_blocker=circuit_breaker_active` / `streak=61` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
+  - `latest_window=100` / `win_rate=27.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=-0.0045` / `avg_pnl=-0.0034` / `alerts=regime_concentration,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
-- **Execution Console 快捷操作已 fail-closed（同步中 + blocker）**
-  - `/api/status` 初次同步前或 deployment blocker 存在時，買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停並保持 disabled，只留下查看阻塞原因與重新整理
+- **Execution Console 快捷操作已 fail-closed（同步中 + 阻塞）**
+  - `/api/status` 初次同步前或部署阻塞存在時，買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停並保持 disabled，只留下查看阻塞原因與重新整理
 - **Execution Status / Bot 營運 已顯示熔斷解除條件**
-  - `recent 50 目前 0/50，還差 15 勝；support/q15 修補不可取代 breaker release`；operator-facing execution surfaces 先看 breaker release，再看 support / q15 背景治理
+  - `最近 50 筆目前 0/50，還差 15 勝；支持樣本 / q15 修補不可取代熔斷解除條件`；操作員執行介面先看熔斷解除條件，再看 support / q15 背景治理
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
 
@@ -26,18 +26,18 @@ _最後更新：2026-04-25 10:28:51 CST_
 
 ## 主目標
 
-### 目標 A：維持 breaker release math 作為唯一 current-live blocker
+### 目標 A：維持熔斷解除條件作為唯一即時部署阻塞點
 **目前真相**
-- `deployment_blocker=circuit_breaker_active` / `streak=57` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
+- `deployment_blocker=circuit_breaker_active` / `streak=61` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
 - `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=87/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`
 support progress：`status=exact_supported` / `regression_basis=current_identity` / `legacy_supported_reference=121/50@20260424a`
 **成功標準**
-- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式。
+- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把熔斷解除條件視為唯一即時部署阻塞點；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式。
 - q15 current-live bucket truth (`bucket / rows / minimum / gap / support route`) 仍在 top-level surfaces 可 machine-read。
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=100` / `win_rate=27.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=-0.0076` / `avg_pnl=-0.0034` / `alerts=regime_concentration,regime_shift`
+- `latest_window=100` / `win_rate=27.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=-0.0045` / `avg_pnl=-0.0034` / `alerts=regime_concentration,regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
@@ -51,8 +51,8 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
-- `leaderboard_count=6` / `selected_feature_profile=core_plus_macro_plus_all_4h` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment` / `payload_source=latest_persisted_snapshot` / `payload_stale=true` / `payload_age=21.7m`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3689` / `archive_window_coverage_pct=0.0`
+- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_macro_plus_stable_4h` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment` / `payload_source=latest_persisted_snapshot` / `payload_stale=true` / `payload_age=20.1m`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3692` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證；API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
@@ -61,9 +61,9 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 ---
 
 ## 下一輪 gate
-1. **維持 breaker-first truth + q15 current-live bucket visibility across API / UI / docs**
+1. **維持熔斷優先真相 + q15 current-live bucket visibility across API / UI / docs**
    - 驗證：browser `/`、browser `/execution`（含初次同步時買入 / 減碼 / 自動模式暫停）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`
-   - 升級 blocker：若 breaker release math 被 support / floor-gap / venue 話題覆蓋，或 q15 current-live bucket rows 再次從 top-level surfaces 消失
+   - 升級 blocker：若熔斷解除條件被 support / floor-gap / venue 話題覆蓋，或 q15 current-live bucket rows 再次從 top-level surfaces 消失
 2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**
    - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`
    - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據
@@ -74,7 +74,7 @@ support progress：`status=exact_supported` / `regression_basis=current_identity
 ---
 
 ## 成功標準
-- current-live blocker 清楚且唯一：**breaker release math**
+- 即時部署阻塞點清楚且唯一：**熔斷解除條件**
 - current live q15 truth 維持：**87/50 + exact_bucket_supported + —**
 - recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋
 - leaderboard single-role governance 維持；venue/source blockers 持續可見

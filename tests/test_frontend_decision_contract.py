@@ -178,11 +178,20 @@ def test_execution_surfaces_show_structured_circuit_breaker_release_math_before_
         '熔斷解除條件',
         '最近 {breakerRecentWindow ?? 50} 筆目前 {breakerWins ?? "—"}/{breakerRecentWindow ?? 50} 勝；解除門檻 {breakerRequiredWins ?? "—"} 勝',
         '至少還差 {breakerWinsGap ?? "—"} 勝；連敗需低於 {breakerStreakLimit ?? 50}。',
-        '這是 current-live 唯一部署 blocker；支持樣本 / q15 修補不可取代 breaker release。',
+        '這是目前即時路徑唯一部署阻塞點；支持樣本 / q15 修補不可取代熔斷解除條件。',
     ]
     for snippet in shared_snippets:
         assert snippet in status_source
         assert snippet in console_source
+    for leaked_copy in [
+        'current-live 唯一部署 blocker',
+        'breaker release',
+        'canonical 1440m breaker',
+        'circuit-breaker release math blocker',
+        '等待 current-live blocker 後再操作',
+    ]:
+        assert leaked_copy not in status_source
+        assert leaked_copy not in console_source
 
 
 def test_execution_console_disables_manual_trade_and_auto_enable_shortcuts_while_syncing_or_blocked():
@@ -191,7 +200,7 @@ def test_execution_console_disables_manual_trade_and_auto_enable_shortcuts_while
         'const manualTradeBlocked = runtimeStatusPending || hasBlockedState;',
         'const automationEnableBlocked = manualTradeBlocked && !automationEnabled;',
         'const operatorShortcutBlockedMessage = runtimeStatusPending',
-        '正在同步 /api/status：買入 / 減碼 / 自動模式切換暫停；等待 current-live blocker 後再操作。',
+        '正在同步 /api/status：買入 / 減碼 / 自動模式切換暫停；等待目前阻塞點同步後再操作。',
         '目前阻塞點啟動中：買入 / 減碼 / 自動模式切換暫停；請先查看阻塞原因。',
         'const operatorQuickCommands = [',
         '{ label: manualTradeBlocked ? "買入暫停" : "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualTradeBlocked },',
@@ -205,6 +214,29 @@ def test_execution_console_disables_manual_trade_and_auto_enable_shortcuts_while
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+def test_operator_surfaces_do_not_render_raw_blocker_copy():
+    feature_chart_source = _read("components/FeatureChart.tsx")
+    confidence_source = _read("components/ConfidenceIndicator.tsx")
+    strategy_lab_source = _read("pages/StrategyLab.tsx")
+
+    assert '阻塞原因: ${meta.backfill_blocker}' in feature_chart_source
+    assert '先等金字塔 24h 最近 50 筆恢復' in confidence_source
+    assert '目前沒有額外場館阻塞摘要' in strategy_lab_source
+    assert '部署設定：{deploymentProfileDisplayName(model)}' in strategy_lab_source
+    assert '` · 阻塞 ${model.selected_feature_profile_blocker_reason}`' in strategy_lab_source
+
+    for leaked_copy in [
+        'blocker: ${meta.backfill_blocker}',
+        '先等 canonical 1440m 最近 50 筆恢復',
+        '目前沒有額外 venue blocker 摘要',
+        'deployment: {deploymentProfileDisplayName(model)}',
+        '` · blocker ${model.selected_feature_profile_blocker_reason}`',
+    ]:
+        assert leaked_copy not in feature_chart_source
+        assert leaked_copy not in confidence_source
+        assert leaked_copy not in strategy_lab_source
 
 
 

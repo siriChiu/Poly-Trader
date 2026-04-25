@@ -558,8 +558,8 @@ export default function ExecutionStatus() {
     ? breakerRelease.current_streak
     : null;
   const breakerReleaseSummaryLabel = circuitBreakerActive
-    ? `canonical 1440m breaker：目前 ${breakerWins ?? "—"}/${breakerRecentWindow ?? 50} 勝，還差 ${breakerWinsGap ?? "—"} 勝；連敗 ${breakerCurrentStreak ?? "—"}/${breakerStreakLimit ?? 50}`
-    : "目前沒有 circuit-breaker release math blocker。";
+    ? `金字塔 24h 熔斷：目前 ${breakerWins ?? "—"}/${breakerRecentWindow ?? 50} 勝，還差 ${breakerWinsGap ?? "—"} 勝；連敗 ${breakerCurrentStreak ?? "—"}/${breakerStreakLimit ?? 50}`
+    : "目前沒有熔斷解除條件阻塞。";
   const primaryRuntimeMessage = runtimeStatusPending
     ? "正在同步 /api/status"
     : humanizeExecutionReason(
@@ -820,7 +820,7 @@ export default function ExecutionStatus() {
                   <div className="mt-2 font-semibold text-white">{breakerReleaseSummaryLabel}</div>
                   <div className="mt-2">最近 {breakerRecentWindow ?? 50} 筆目前 {breakerWins ?? "—"}/{breakerRecentWindow ?? 50} 勝；解除門檻 {breakerRequiredWins ?? "—"} 勝</div>
                   <div>至少還差 {breakerWinsGap ?? "—"} 勝；連敗需低於 {breakerStreakLimit ?? 50}。</div>
-                  <div className="mt-2 text-amber-50/80">這是 current-live 唯一部署 blocker；支持樣本 / q15 修補不可取代 breaker release。</div>
+                  <div className="mt-2 text-amber-50/80">這是目前即時路徑唯一部署阻塞點；支持樣本 / q15 修補不可取代熔斷解除條件。</div>
                 </div>
               )}
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">

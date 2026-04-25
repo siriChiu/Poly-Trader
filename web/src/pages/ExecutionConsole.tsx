@@ -793,8 +793,8 @@ export default function ExecutionConsole() {
     ? breakerRelease.current_streak
     : null;
   const breakerReleaseSummaryLabel = circuitBreakerActive
-    ? `canonical 1440m breaker：目前 ${breakerWins ?? "—"}/${breakerRecentWindow ?? 50} 勝，還差 ${breakerWinsGap ?? "—"} 勝；連敗 ${breakerCurrentStreak ?? "—"}/${breakerStreakLimit ?? 50}`
-    : "目前沒有 circuit-breaker release math blocker。";
+    ? `金字塔 24h 熔斷：目前 ${breakerWins ?? "—"}/${breakerRecentWindow ?? 50} 勝，還差 ${breakerWinsGap ?? "—"} 勝；連敗 ${breakerCurrentStreak ?? "—"}/${breakerStreakLimit ?? 50}`
+    : "目前沒有熔斷解除條件阻塞。";
   const rawPrimaryBlockedReason = liveRuntimeTruth?.deployment_blocker_reason
     || liveRuntimeTruth?.deployment_blocker
     || liveRuntimeTruth?.execution_guardrail_reason
@@ -815,7 +815,7 @@ export default function ExecutionConsole() {
   const manualTradeBlocked = runtimeStatusPending || hasBlockedState;
   const automationEnableBlocked = manualTradeBlocked && !automationEnabled;
   const operatorShortcutBlockedMessage = runtimeStatusPending
-    ? "正在同步 /api/status：買入 / 減碼 / 自動模式切換暫停；等待 current-live blocker 後再操作。"
+    ? "正在同步 /api/status：買入 / 減碼 / 自動模式切換暫停；等待目前阻塞點同步後再操作。"
     : manualTradeBlocked
       ? "目前阻塞點啟動中：買入 / 減碼 / 自動模式切換暫停；請先查看阻塞原因。"
       : null;
@@ -1585,7 +1585,7 @@ export default function ExecutionConsole() {
                   <div className="mt-1 font-semibold text-white">{breakerReleaseSummaryLabel}</div>
                   <div className="text-[11px]">最近 {breakerRecentWindow ?? 50} 筆目前 {breakerWins ?? "—"}/{breakerRecentWindow ?? 50} 勝；解除門檻 {breakerRequiredWins ?? "—"} 勝</div>
                   <div className="text-[11px]">至少還差 {breakerWinsGap ?? "—"} 勝；連敗需低於 {breakerStreakLimit ?? 50}。</div>
-                  <div className="mt-1 text-[11px] text-amber-50/80">這是 current-live 唯一部署 blocker；支持樣本 / q15 修補不可取代 breaker release。</div>
+                  <div className="mt-1 text-[11px] text-amber-50/80">這是目前即時路徑唯一部署阻塞點；支持樣本 / q15 修補不可取代熔斷解除條件。</div>
                 </div>
               )}
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">

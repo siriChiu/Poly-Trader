@@ -1417,7 +1417,7 @@ def overwrite_current_state_docs(
         f"`additional_recent_window_wins_needed={release_gap}`"
     )
     breaker_release_ui_line = (
-        f"`recent {release_window} 目前 {release_wins}/{release_window}，還差 {release_gap} 勝；support/q15 修補不可取代 breaker release`"
+        f"`最近 {release_window} 筆目前 {release_wins}/{release_window}，還差 {release_gap} 勝；支持樣本 / q15 修補不可取代熔斷解除條件`"
     )
     support_line = (
         f"`current_live_structure_bucket={live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
@@ -1593,19 +1593,19 @@ def overwrite_current_state_docs(
         "breaker_active",
     }
     if breaker_is_primary:
-        facts_blocker_heading = "- **canonical current-live blocker 仍是 breaker-first truth**"
-        current_priority_line1 = f"1. **維持 breaker-first truth，同時保留 {support_scope_label} support rows 可 machine-read**"
-        goal_a_title = "### 目標 A：維持 breaker release math 作為唯一 current-live blocker"
-        goal_a_success = "- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式。"
-        next_gate_line1 = f"1. **維持 breaker-first truth + {support_scope_label} visibility across API / UI / docs**"
-        next_gate_line1_blocker = f"   - 升級 blocker：若 breaker release math 被 support / floor-gap / venue 話題覆蓋，或 {support_scope_label} rows 再次從 top-level surfaces 消失"
-        success_primary_line = "- current-live blocker 清楚且唯一：**breaker release math**"
+        facts_blocker_heading = "- **canonical 即時部署阻塞仍是熔斷優先真相**"
+        current_priority_line1 = f"1. **維持熔斷優先真相，同時保留 {support_scope_label} support rows 可 machine-read**"
+        goal_a_title = "### 目標 A：維持熔斷解除條件作為唯一即時部署阻塞點"
+        goal_a_success = "- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把熔斷解除條件視為唯一即時部署阻塞點；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式。"
+        next_gate_line1 = f"1. **維持熔斷優先真相 + {support_scope_label} visibility across API / UI / docs**"
+        next_gate_line1_blocker = f"   - 升級 blocker：若熔斷解除條件被 support / floor-gap / venue 話題覆蓋，或 {support_scope_label} rows 再次從 top-level surfaces 消失"
+        success_primary_line = "- 即時部署阻塞點清楚且唯一：**熔斷解除條件**"
         orid_reflection_line = (
-            f"- 這輪最需要防止的誤讀，是把 `{support_current_rows}/{support_minimum_rows}` 的 same-bucket support 或 `{patch_reference_scope}` 參考 patch 誤讀成已可部署；breaker 仍是唯一 current-live blocker。"
+            f"- 這輪最需要防止的誤讀，是把 `{support_current_rows}/{support_minimum_rows}` 的 same-bucket support 或 `{patch_reference_scope}` 參考 patch 誤讀成已可部署；熔斷解除條件仍是唯一即時部署阻塞點。"
         )
-        orid_insight2 = "2. **真正主 blocker 仍是 breaker + recent pathological slice**：目前該追的是 release math 與 recent canonical pathology，不是把 q15/q35 support 或 venue 話題誤升級成唯一根因。"
-        orid_action_line = f"- **Action**：維持 breaker-first truth，{orid_support_action_clause}；下一步沿 recent pathological slice 與 release math 繼續追根因。"
-        orid_fail_line = f"- **If fail**：只要 docs / UI 再次隱藏 breaker-first truth、漏掉 {support_scope_label} rows，{orid_support_fail_clause}，就把 heartbeat 升級回 current-state governance blocker。"
+        orid_insight2 = "2. **真正主阻塞仍是熔斷 + recent pathological slice**：目前該追的是解除條件與 recent canonical pathology，不是把 q15/q35 support 或 venue 話題誤升級成唯一根因。"
+        orid_action_line = f"- **Action**：維持熔斷優先真相，{orid_support_action_clause}；下一步沿 recent pathological slice 與解除條件繼續追根因。"
+        orid_fail_line = f"- **If fail**：只要 docs / UI 再次隱藏熔斷優先真相、漏掉 {support_scope_label} rows，{orid_support_fail_clause}，就把 heartbeat 升級回 current-state governance blocker。"
     elif deployment_blocker in {"unsupported_exact_live_structure_bucket", "under_minimum_exact_live_structure_bucket"}:
         facts_blocker_heading = "- **canonical current-live blocker 已切到 current-live exact-support truth**"
         current_priority_line1 = f"1. **維持 current-live exact-support blocker truth，同時保留 {support_scope_label} support rows 可 machine-read**"
@@ -1674,10 +1674,10 @@ def overwrite_current_state_docs(
         f"  - `blocked_sparse_features={source_blockers.get('blocked_count', '—')}` / `{source_blockers.get('counts_by_history_class', {})}`",
         f"  - fin_netflow：{fin_line}",
         "  - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof；`execution_metadata_smoke.venues[]` 已提供 per-venue `proof_state / blockers / operator_next_action / verify_next` 給 Dashboard / Execution / Lab 直接顯示證據缺口",
-        "- **Execution Console 快捷操作已 fail-closed（同步中 + blocker）**",
+        "- **Execution Console 快捷操作已 fail-closed（同步中 + 阻塞）**",
         "  - `manual_trade=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間都只保留查看阻塞原因與重新整理入口",
         "- **Execution Status / Bot 營運 已顯示熔斷解除條件**",
-        f"  - {breaker_release_ui_line}；`/execution/status` 與 `/execution` 會先顯示 release math，再顯示 support / q15 治理背景",
+        f"  - {breaker_release_ui_line}；`/execution/status` 與 `/execution` 會先顯示熔斷解除條件，再顯示 support / q15 治理背景",
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
@@ -1745,10 +1745,10 @@ def overwrite_current_state_docs(
         "- **current-state docs overwrite sync 已自動化**",
         "  - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫",
-        "- **Execution Console 快捷操作已 fail-closed（同步中 + blocker）**",
-        "  - `/api/status` 初次同步前或 deployment blocker 存在時，買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停並保持 disabled，只留下查看阻塞原因與重新整理",
+        "- **Execution Console 快捷操作已 fail-closed（同步中 + 阻塞）**",
+        "  - `/api/status` 初次同步前或部署阻塞存在時，買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停並保持 disabled，只留下查看阻塞原因與重新整理",
         "- **Execution Status / Bot 營運 已顯示熔斷解除條件**",
-        f"  - {breaker_release_ui_line}；operator-facing execution surfaces 先看 breaker release，再看 support / q15 背景治理",
+        f"  - {breaker_release_ui_line}；操作員執行介面先看熔斷解除條件，再看 support / q15 背景治理",
         "- **本輪 current-state docs 已同步到最新 artifacts**",
         "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊",
         *parallel_failure_roadmap_lines,
@@ -1838,7 +1838,7 @@ def overwrite_current_state_docs(
         "",
         "### O｜客觀事實",
         f"- {orid_completion_phrase}：{counts_line}；歷史覆蓋確認：{history_line}；`simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`。",
-        f"- current-live blocker：{blocker_line}。",
+        f"- 即時部署阻塞點：{blocker_line}。",
         f"- {support_scope_label} truth：{support_line}。",
         *[f"- {line}。" for line in support_progress_doc_lines],
         f"- latest recent-window diagnostics：{pathology_line}。",
@@ -1856,11 +1856,11 @@ def overwrite_current_state_docs(
         "### I｜意義洞察",
         support_orid_insight_line,
         orid_insight2,
-        f"3. **docs overwrite sync 的角色是護欄，不是主 blocker**：{docs_sync_line} 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。",
+        f"3. **docs overwrite sync 的角色是護欄，不是主阻塞**：{docs_sync_line} 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。",
         "",
         "### D｜決策行動",
-        "- **Owner**：current-live runtime / governance lane",
-        orid_action_line.rstrip("。") + "；`/execution` 操作入口在 syncing / blocked 兩種狀態都必須 fail-closed。",
+        "- **Owner**：即時執行治理 lane",
+        orid_action_line.rstrip("。") + "；`/execution` 操作入口在同步中 / 已阻塞兩種狀態都必須 fail-closed。",
         "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。",
         "- **Verify**：browser `/`、browser `/execution`（同步中 / blocked 快捷操作 fail-closed）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。",
         orid_fail_line,
