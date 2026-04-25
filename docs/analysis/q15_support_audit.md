@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-25 05:00:06.858334**
+- generated_at: **2026-04-25 05:24:20.830184**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -45,9 +45,9 @@
 ## Floor-cross legality
 - verdict: **runtime_blocker_preempts_floor_analysis**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.1729**
+- remaining_gap_to_floor: **0.1524**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.5763**
+- best_single_component_required_score_delta: **0.508**
 - best_single_component_can_cross_floor: **True**
 - reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 4.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
