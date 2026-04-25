@@ -2749,6 +2749,9 @@ def test_sync_current_state_governance_issues_prefers_live_support_route_and_ref
     assert breaker_issue["summary"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
     assert breaker_issue["summary"]["runtime_closure_state"] == "circuit_breaker_active"
     assert breaker_issue["summary"]["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
+    assert breaker_issue["summary"]["api_trade_buy_guardrail"] == "current_live_deployment_blocker_409"
+    assert breaker_issue["summary"]["api_trade_allowed_risk_off_sides"] == ["reduce", "sell"]
+    assert "ExecutionService.submit_order" in breaker_issue["summary"]["api_trade_guardrail_context"]
 
 
 

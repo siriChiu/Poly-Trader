@@ -812,6 +812,9 @@ def sync_current_state_governance_issues(
             "support_route_verdict": support_route_verdict,
             "support_governance_route": support_governance_route,
             "runtime_closure_state": runtime_closure_state,
+            "api_trade_buy_guardrail": "current_live_deployment_blocker_409",
+            "api_trade_allowed_risk_off_sides": ["reduce", "sell"],
+            "api_trade_guardrail_context": "buy/add-exposure checks current-live runtime truth before ExecutionService.submit_order",
         }
         upsert_issue(
             tracker,

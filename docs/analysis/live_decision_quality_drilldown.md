@@ -1,6 +1,6 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-25 03:36:18.720559**
+- feature_timestamp: **2026-04-25 04:14:47.317373**
 - target: `simulated_pyramid_win`
 - live path: **chop / CAUTION / D**
 - signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
@@ -8,10 +8,10 @@
 - allowed_layers_raw_reason: `entry_quality_below_trade_floor`
 - allowed_layers_reason: `circuit_breaker_active`
 - execution_guardrail_reason: `circuit_breaker_active`
-- runtime_blocker: `circuit_breaker` | reason: `Consecutive loss streak: 63 >= 50; Recent 50-sample win rate: 0.00% < 30%`
-- deployment_blocker: `circuit_breaker_active` | reason: `Consecutive loss streak: 63 >= 50; Recent 50-sample win rate: 0.00% < 30%`
+- runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 2.00% < 30%`
+- deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 2.00% < 30%`
 - q15 exact-supported patch: **inactive** | support_route `exact_bucket_supported` | floor_cross `runtime_blocker_preempts_floor_analysis`
-- runtime closure summary: **circuit breaker active：Consecutive loss streak: 63 >= 50; Recent 50-sample win rate: 0.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 0/50，至少還差 15 勝。 exact-vs-spillover=同 quality 寬 scope 出現 bull|BLOCK spillover，757 rows / WR 20.9% / 品質 -0.044，明顯劣於 exact live lane WR 97.9% / 品質 0.616。**
+- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 2.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 1/50，至少還差 14 勝。 exact-vs-spillover=同 quality 寬 scope 出現 bull|BLOCK spillover，757 rows / WR 20.9% / 品質 -0.044，明顯劣於 exact live lane WR 97.9% / 品質 0.616。**
 - q35 scaling audit: overall=`None` / redesign=`None` / runtime_gap=`None` / mode=`None` / next_patch=`None`
 - q35 audit action: None
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
@@ -22,18 +22,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.417** / trade_floor **0.55** / gap **-0.133**
-- base_quality: **0.4792** × weight **0.75**
-- structure_quality: **0.2305** × weight **0.25**
-- base components: feat_4h_bias50=0.2237 (w=0.4, contrib=0.0895), feat_nose=0.29 (w=0.18, contrib=0.0522), feat_pulse=0.7044 (w=0.27, contrib=0.1902), feat_ear=0.9823 (w=0.15, contrib=0.1473)
-- structure components: feat_4h_bb_pct_b=0.4354 (w=0.34, contrib=0.1481), feat_4h_dist_bb_lower=0.1659 (w=0.33, contrib=0.0547), feat_4h_dist_swing_low=0.084 (w=0.33, contrib=0.0277)
+- final entry_quality: **0.3233** / trade_floor **0.55** / gap **-0.2267**
+- base_quality: **0.3481** × weight **0.75**
+- structure_quality: **0.2487** × weight **0.25**
+- base components: feat_4h_bias50=0.221 (w=0.4, contrib=0.0884), feat_nose=0.2858 (w=0.18, contrib=0.0514), feat_pulse=0.2246 (w=0.27, contrib=0.0606), feat_ear=0.9844 (w=0.15, contrib=0.1477)
+- structure components: feat_4h_bb_pct_b=0.4715 (w=0.34, contrib=0.1603), feat_4h_dist_bb_lower=0.1757 (w=0.33, contrib=0.058), feat_4h_dist_swing_low=0.0921 (w=0.33, contrib=0.0304)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.133**
-- base_group_max_entry_gain: **0.3907** | structure_group_max_entry_gain: **0.1924**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.4433, max_gain≈0.2329）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.4433)
+- remaining_gap_to_floor: **0.2267**
+- base_group_max_entry_gain: **0.4889** | structure_group_max_entry_gain: **0.1878**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.7557, max_gain≈0.2337）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.7557)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -44,7 +44,7 @@
 | chosen `regime_label+regime_gate+entry_quality_label` | 143 | 0.979 | 0.6158 | 0.1042 | 0.1881 | 87 | False |
 | exact `regime_label+regime_gate+entry_quality_label` | 143 | 0.979 | 0.6158 | 0.1042 | 0.1881 | 87 | False |
 | narrow `regime_label+entry_quality_label` | 143 | 0.979 | 0.6158 | 0.1042 | 0.1881 | 87 | False |
-| broad `regime_gate+entry_quality_label` | 335 | 0.8537 | 0.5008 | 0.1637 | 0.3579 | 87 | False |
+| broad `regime_gate+entry_quality_label` | 335 | 0.8478 | 0.4974 | 0.1612 | 0.3568 | 87 | False |
 
 ## Shared shifts
 
