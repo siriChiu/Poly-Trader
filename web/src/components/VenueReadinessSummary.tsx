@@ -1,4 +1,4 @@
-import { humanizeExecutionReason } from "../utils/runtimeCopy";
+import { humanizeExecutionReason, humanizeLifecycleDiagnosticLabel } from "../utils/runtimeCopy";
 
 type VenueReadinessItem = {
   venue?: string;
@@ -7,6 +7,10 @@ type VenueReadinessItem = {
   credentials_configured?: boolean;
   error?: string | null;
   blockers?: string[] | null;
+  proof_state?: string | null;
+  readiness_scope?: string | null;
+  operator_next_action?: string | null;
+  verify_next?: string | null;
   contract?: {
     step_size?: string | number | null;
     tick_size?: string | number | null;
@@ -61,6 +65,9 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
         const blockerSummary = (item.blockers?.length ? item.blockers : defaultProofSummary)
           .map((entry) => humanizeExecutionReason(entry))
           .join(" · ");
+        const proofStateLabel = humanizeLifecycleDiagnosticLabel(item.proof_state || item.readiness_scope || "unknown");
+        const operatorNextAction = item.operator_next_action ? humanizeExecutionReason(item.operator_next_action) : null;
+        const verifyNext = item.verify_next ? humanizeExecutionReason(item.verify_next) : null;
         if (compact) {
           return (
             <div
@@ -81,6 +88,9 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
                 數量步進 {item.contract?.step_size ?? "—"} · 價格刻度 {item.contract?.tick_size ?? "—"} · 最小數量 {formatScalar(item.contract?.min_qty)}
               </div>
               <div className="opacity-90">待補實單證據 · {blockerSummary}</div>
+              <div className="opacity-90">證據狀態 {proofStateLabel}</div>
+              {operatorNextAction ? <div className="opacity-90">下一步 {operatorNextAction}</div> : null}
+              {verifyNext ? <div className="opacity-90">驗證 {verifyNext}</div> : null}
               {item.error ? <div className="mt-1 opacity-90">{item.error}</div> : null}
             </div>
           );
@@ -102,6 +112,9 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
             <div className="opacity-90">數量步進 {item.contract?.step_size ?? "—"} · 價格刻度 {item.contract?.tick_size ?? "—"}</div>
             <div className="opacity-90">最小數量 {formatScalar(item.contract?.min_qty)} · 最小成本 {formatScalar(item.contract?.min_cost)}</div>
             <div className="mt-2 opacity-90">待補實單證據 · {blockerSummary}</div>
+            <div className="opacity-90">證據狀態 {proofStateLabel}</div>
+            {operatorNextAction ? <div className="opacity-90">下一步 {operatorNextAction}</div> : null}
+            {verifyNext ? <div className="opacity-90">驗證 {verifyNext}</div> : null}
             {item.error ? <div className="mt-1 opacity-90">{item.error}</div> : null}
           </div>
         );

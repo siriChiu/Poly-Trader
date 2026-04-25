@@ -7,6 +7,8 @@ const EXECUTION_REASON_MAPPINGS: Array<[string, string]> = [
   ["live exchange credential", "交易所憑證尚未驗證。"],
   ["order ack lifecycle", "委託確認流程尚未驗證。"],
   ["fill lifecycle", "成交回補流程尚未驗證。"],
+  ["場館設定停用", "場館設定尚未啟用。"],
+  ["元資料契約尚未通過", "交易所元資料契約尚未通過。"],
   ["under_minimum_exact_live_structure_bucket_blocks_trade", "目前精準樣本已開始累積，但仍低於最小可部署門檻，暫不交易。"],
   ["under_minimum_exact_live_structure_bucket", "目前精準樣本已開始累積，但仍低於最小可部署門檻。"],
   ["unsupported_exact_live_structure_bucket_blocks_trade", "目前精準樣本尚未建立，暫不交易。"],
@@ -538,6 +540,10 @@ const LIFECYCLE_DIAGNOSTIC_LABEL_MAPPINGS: Array<[string, string]> = [
   ["not-upgraded", "尚未升級"],
   ["unknown", "未知"],
   ["none", "無"],
+  ["metadata_contract_failed", "元資料契約失敗"],
+  ["config_disabled_metadata_only", "場館停用，僅元資料觀測"],
+  ["public_metadata_only", "僅公開元資料，尚無交易憑證"],
+  ["credentials_configured_missing_runtime_lifecycle", "已配置憑證，仍缺執行生命週期"],
 ];
 
 const STRUCTURE_BUCKET_TOKEN_REPLACEMENTS: Array<[string, string]> = [

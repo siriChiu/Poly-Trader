@@ -4,23 +4,23 @@
       "id": "P0_current_live_deployment_blocker",
       "priority": "P0",
       "title": "canonical circuit breaker remains the only current-live deployment blocker",
-      "action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 4 勝，還差 11 勝；同時 streak 必須 < 50。",
+      "action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 1 勝，還差 14 勝；同時 streak 必須 < 50。",
       "status": "open",
       "created_at": "2026-04-24T21:47:06.227652",
-      "updated_at": "2026-04-24T23:07:46.748549",
+      "updated_at": "2026-04-25T00:46:49.855754",
       "hb_detected": null,
-      "next_action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 4 勝，還差 11 勝；同時 streak 必須 < 50。",
+      "next_action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 1 勝，還差 14 勝；同時 streak 必須 < 50。",
       "summary": {
         "deployment_blocker": "circuit_breaker_active",
         "horizon_minutes": 1440,
         "recent_window": 50,
-        "current_recent_window_wins": 4,
+        "current_recent_window_wins": 1,
         "required_recent_window_wins": 15,
-        "additional_recent_window_wins_needed": 11,
-        "streak": 41,
+        "additional_recent_window_wins_needed": 14,
+        "streak": 49,
         "streak_must_be_below": 50,
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-        "current_live_structure_bucket_rows": 101,
+        "current_live_structure_bucket_rows": 93,
         "minimum_support_rows": 50,
         "gap_to_minimum": 0,
         "support_route_verdict": "exact_bucket_supported",
@@ -40,7 +40,8 @@
           "live exchange credential",
           "order ack lifecycle",
           "fill lifecycle"
-        ]
+        ],
+        "api_ui_contract": "execution_metadata_smoke.venues[] exposes proof_state/blockers/operator_next_action/verify_next/readiness_scope for per-venue proof-gap rendering"
       },
       "next_action": "Keep per-venue blockers explicitly visible on Dashboard, /lab, and /execution/status until credentials, order ack lifecycle, and fill lifecycle each have runtime-backed proof.",
       "verify": [
@@ -61,7 +62,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3671,
+        "forward_archive_rows": 3677,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -69,7 +70,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-24T23:07:47.704354",
+      "updated_at": "2026-04-25T00:46:50.812776",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -81,23 +82,22 @@
         "leaderboard_count": 6,
         "comparable_count": 6,
         "placeholder_count": 0,
-        "top_model": "rule_baseline",
-        "top_profile": "core_macro_plus_stable_4h",
-        "top_deployment_profile": "scan_backed_best",
+        "top_model": "random_forest",
+        "top_profile": "core_only",
+        "top_deployment_profile": "stable_turning_point_all_regimes_relaxed_v1",
         "governance_contract": "single_role_governance_ok",
         "current_closure": "single_profile_alignment",
         "leaderboard_payload_source": "latest_persisted_snapshot",
-        "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
-        "background_refresh_candidate_surface": "bounded_selected_plus_core_only"
+        "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
-      "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; background refresh must stay bounded to training-selected profile + core_only, and must not regress to placeholder-only, ambiguous backtest windows, or artifact-driven candidate explosions.",
+      "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
       "verify": [
         "browser /lab",
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-24T23:07:46.748568",
-      "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; background refresh must stay bounded to training-selected profile + core_only, and must not regress to placeholder-only, ambiguous backtest windows, or artifact-driven candidate explosions."
+      "updated_at": "2026-04-25T00:46:49.855771",
+      "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
       "id": "P1_recent_distribution_pathology_monitoring",
@@ -106,32 +106,32 @@
       "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "status": "open",
       "created_at": "2026-04-24T17:58:22.694575",
-      "updated_at": "2026-04-24T23:07:46.748608",
+      "updated_at": "2026-04-25T00:46:49.855807",
       "hb_detected": null,
       "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "summary": {
         "window": "100",
         "interpretation": "regime_concentration",
-        "win_rate": 0.31,
+        "win_rate": 0.27,
         "dominant_regime": "bull",
         "dominant_regime_share": 0.99,
-        "avg_pnl": -0.0021,
-        "avg_quality": 0.036,
-        "avg_drawdown_penalty": 0.1747,
+        "avg_pnl": -0.003,
+        "avg_quality": 0.0006,
+        "avg_drawdown_penalty": 0.1781,
         "spot_long_win_rate": 0.0,
-        "avg_time_underwater": 0.4256,
+        "avg_time_underwater": 0.4727,
         "alerts": [
           "regime_concentration",
           "regime_shift"
         ],
         "top_shift_features": [
-          "feat_local_top_score",
           "feat_4h_dist_bb_lower",
-          "feat_volume_exhaustion"
+          "feat_volume_exhaustion",
+          "feat_4h_vol_ratio"
         ],
-        "new_compressed_feature": "feat_dxy",
-        "tail_streak": "41x0",
-        "adverse_streak": "41x0",
+        "new_compressed_feature": "feat_4h_bias200",
+        "tail_streak": "49x0",
+        "adverse_streak": "49x0",
         "live_regime_label": "chop",
         "current_live_scope": false,
         "blocking_basis": [

@@ -112,6 +112,7 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         'const { data: executionOverview, loading: overviewLoading, error: overviewError, refresh: refreshExecutionOverview } = useApi<ExecutionOverviewResponse>("/api/execution/overview", 60000);',
         'const { data: executionRuns, loading: runsLoading, error: runsError, refresh: refreshExecutionRuns } = useApi<ExecutionRunsResponse>("/api/execution/runs", 60000);',
         'function formatSignedNumber(value: number | null | undefined, digits = 2): string {',
+        'import VenueReadinessSummary from "../components/VenueReadinessSummary";',
         'humanizeExecutionOperatorLabel',
         'humanizeExecutionReason',
         'humanizeExecutionReconciliationStatusLabel',
@@ -139,6 +140,8 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         '運行中',
         '自然語句操作',
         '部署狀態',
+        '場館實單證據缺口',
+        '<VenueReadinessSummary venues={venueChecks} compact />',
         '帳戶與成交',
         '共享預覽',
         '先解除阻塞點，再做操作',
@@ -1826,6 +1829,7 @@ def test_dashboard_humanizes_execution_mode_and_continuity_status_copy():
 
 def test_execution_status_reuses_shared_venue_readiness_component_and_explains_public_only_balances():
     source = _read("pages/ExecutionStatus.tsx")
+    component_source = _read("components/VenueReadinessSummary.tsx")
     required_snippets = [
         'import VenueReadinessSummary from "../components/VenueReadinessSummary";',
         '<VenueReadinessSummary venues={venueChecks} className="mt-4" />',
@@ -1834,7 +1838,20 @@ def test_execution_status_reuses_shared_venue_readiness_component_and_explains_p
     ]
     for snippet in required_snippets:
         assert snippet in source
+    required_component_snippets = [
+        'proof_state?: string | null;',
+        'readiness_scope?: string | null;',
+        'operator_next_action?: string | null;',
+        'verify_next?: string | null;',
+        'const proofStateLabel = humanizeLifecycleDiagnosticLabel(item.proof_state || item.readiness_scope || "unknown");',
+        '證據狀態 {proofStateLabel}',
+        '下一步 {operatorNextAction}',
+        '驗證 {verifyNext}',
+    ]
+    for snippet in required_component_snippets:
+        assert snippet in component_source
     assert 'item.ok ? "OK" : "FAIL"' not in source
+    assert '待補實單證據 · {blockerSummary}' in component_source
 
 
 def test_dashboard_execution_summary_explains_public_only_balance_unavailability():

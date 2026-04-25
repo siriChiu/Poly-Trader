@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { fetchApi, useApi } from "../hooks/useApi";
 import { ExecutionHero, ExecutionMetricCard, ExecutionPill, ExecutionSectionCard } from "../components/execution/ExecutionSurface";
+import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import {
   humanizeExecutionOperatorLabel,
   humanizeExecutionReason,
@@ -214,6 +215,11 @@ type ExecutionConsoleRuntimeStatusResponse = {
       enabled_in_config?: boolean;
       credentials_configured?: boolean;
       error?: string | null;
+      blockers?: string[] | null;
+      proof_state?: string | null;
+      readiness_scope?: string | null;
+      operator_next_action?: string | null;
+      verify_next?: string | null;
       contract?: {
         step_size?: string | number | null;
         tick_size?: string | number | null;
@@ -1549,6 +1555,12 @@ export default function ExecutionConsole() {
             {(runtimeStatusPending || liveReadyBlockers.length > 0) && (
               <div className="mt-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
                 {blockedReasonSummary}
+              </div>
+            )}
+            {venueChecks.length > 0 && (
+              <div className="mt-3">
+                <div className="mb-2 text-[11px] uppercase tracking-wide text-slate-500">場館實單證據缺口</div>
+                <VenueReadinessSummary venues={venueChecks} compact />
               </div>
             )}
             <div className="mt-4 space-y-3">

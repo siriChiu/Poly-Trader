@@ -1711,6 +1711,59 @@ def test_load_execution_metadata_smoke_summary_reports_freshness(tmp_path, monke
     assert summary["freshness"]["age_minutes"] is not None
     assert summary["freshness"]["age_minutes"] >= 0
     assert summary["freshness"]["stale_after_minutes"] == api_module._EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES
+    venue = summary["venues"][0]
+    assert venue["proof_state"] == "public_metadata_only"
+    assert venue["readiness_scope"] == "venue_runtime_proof_required"
+    assert venue["blockers"] == [
+        "live exchange credential 尚未驗證",
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+    ]
+    assert venue["operator_next_action"].startswith("先配置 binance 交易憑證")
+    assert "場館生命週期通道" in venue["verify_next"]
+
+
+def test_load_execution_metadata_smoke_summary_marks_disabled_venue_as_metadata_only(tmp_path, monkeypatch):
+    fresh_path = tmp_path / "execution_metadata_smoke.json"
+    fresh_path.write_text(json.dumps({
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "symbol": "BTC/USDT",
+        "all_ok": True,
+        "ok_count": 1,
+        "venues_checked": 1,
+        "results": {
+            "okx": {"ok": True, "enabled_in_config": False, "credentials_configured": False, "contract": {"step_size": "0.001", "tick_size": "0.1"}},
+        },
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_SMOKE_PATH", fresh_path)
+
+    summary = api_module._load_execution_metadata_smoke_summary()
+
+    assert summary is not None
+    venue = summary["venues"][0]
+    assert venue["proof_state"] == "config_disabled_metadata_only"
+    assert venue["blockers"] == [
+        "場館設定停用",
+        "live exchange credential 尚未驗證",
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+    ]
+    assert "先開啟場館設定" in venue["operator_next_action"]
+
+
+def test_build_venue_runtime_proof_contract_marks_credentials_configured_lifecycle_gap():
+    contract = api_module._build_venue_runtime_proof_contract("binance", {
+        "ok": True,
+        "enabled_in_config": True,
+        "credentials_configured": True,
+    })
+
+    assert contract["proof_state"] == "credentials_configured_missing_runtime_lifecycle"
+    assert contract["blockers"] == [
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+    ]
+    assert "極小額實單" in contract["operator_next_action"]
 
 
 def test_load_execution_metadata_smoke_summary_marks_stale_and_invalid_timestamps(tmp_path, monkeypatch):

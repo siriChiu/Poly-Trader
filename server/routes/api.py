@@ -686,6 +686,46 @@ def _build_execution_metadata_smoke_freshness(
     })
     return freshness
 
+def _build_venue_runtime_proof_contract(venue: str, item: Dict[str, Any]) -> Dict[str, Any]:
+    """Expose venue readiness as a proof contract, not just public metadata OK/FAIL."""
+    enabled = bool(item.get("enabled_in_config"))
+    credentials_configured = bool(item.get("credentials_configured"))
+    metadata_ok = bool(item.get("ok"))
+
+    blockers: List[str] = []
+    if not metadata_ok:
+        blockers.append("元資料契約尚未通過")
+    if not enabled:
+        blockers.append("場館設定停用")
+    if not credentials_configured:
+        blockers.append("live exchange credential 尚未驗證")
+    blockers.extend([
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+    ])
+
+    if not metadata_ok:
+        proof_state = "metadata_contract_failed"
+        operator_next_action = f"先修復 {venue} 元資料檢查，再評估憑證與實單生命週期。"
+    elif not enabled:
+        proof_state = "config_disabled_metadata_only"
+        operator_next_action = f"若要啟用 {venue}，先開啟場館設定並配置憑證；目前只能作公開元資料觀測。"
+    elif not credentials_configured:
+        proof_state = "public_metadata_only"
+        operator_next_action = f"先配置 {venue} 交易憑證，再用沙盒或極小額委託捕捉委託確認 / 成交 / 取消生命週期。"
+    else:
+        proof_state = "credentials_configured_missing_runtime_lifecycle"
+        operator_next_action = f"使用 {venue} 沙盒或極小額實單捕捉交易所回傳的委託確認 / 成交 / 取消生命週期。"
+
+    return {
+        "proof_state": proof_state,
+        "blockers": blockers,
+        "operator_next_action": operator_next_action,
+        "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。",
+        "readiness_scope": "venue_runtime_proof_required",
+    }
+
+
 def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
     if not _EXECUTION_METADATA_SMOKE_PATH.exists():
         return None
@@ -713,12 +753,14 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
     for venue, item in results.items():
         item = item if isinstance(item, dict) else {}
         contract = item.get("contract") if isinstance(item.get("contract"), dict) else {}
+        proof_contract = _build_venue_runtime_proof_contract(str(venue), item)
         venues.append({
             "venue": venue,
             "ok": bool(item.get("ok")),
             "enabled_in_config": bool(item.get("enabled_in_config")),
             "credentials_configured": bool(item.get("credentials_configured")),
             "error": item.get("error"),
+            **proof_contract,
             "contract": {
                 "symbol": contract.get("symbol"),
                 "min_qty": contract.get("min_qty"),

@@ -1589,6 +1589,9 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "current-state docs overwrite sync 已自動化" in roadmap_md
     assert "Execution Console 快捷操作已 fail-closed（同步中 + blocker）" in issues_md
     assert "manual_trade=paused_when_status_syncing_or_deployment_blocked" in issues_md
+    assert "metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next" in orid_md
+    assert "execution_metadata_smoke.venues[]` 已提供 per-venue `proof_state / blockers / operator_next_action / verify_next`" in issues_md
+    assert "API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows" in roadmap_md
     assert "manual_trade=paused_when_deployment_blocked" not in issues_md
     assert "Execution Console 快捷操作已 fail-closed（同步中 + blocker）" in roadmap_md
     assert "初次同步前或 deployment blocker 存在時" in roadmap_md
