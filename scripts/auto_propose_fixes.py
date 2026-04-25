@@ -991,6 +991,9 @@ def sync_current_state_governance_issues(
                 "governance_contract": governance.get("verdict"),
                 "current_closure": governance.get("current_closure"),
                 "leaderboard_payload_source": (leaderboard_probe or {}).get("leaderboard_payload_source"),
+                "leaderboard_payload_stale": (leaderboard_probe or {}).get("leaderboard_payload_stale"),
+                "leaderboard_payload_cache_age_sec": (leaderboard_probe or {}).get("leaderboard_payload_cache_age_sec"),
+                "leaderboard_payload_updated_at": (leaderboard_probe or {}).get("leaderboard_payload_updated_at"),
                 "dual_profile_state": alignment.get("dual_profile_state"),
             },
             verify=[

@@ -2011,6 +2011,10 @@ def test_sync_current_state_governance_issues_refreshes_leaderboard_recent_windo
         tracker,
         {
             "leaderboard_count": 6,
+            "leaderboard_payload_source": "latest_persisted_snapshot",
+            "leaderboard_payload_stale": True,
+            "leaderboard_payload_cache_age_sec": 4001,
+            "leaderboard_payload_updated_at": "2026-04-25T00:49:46.260944Z",
             "top_model": {
                 "model_name": "random_forest",
                 "selected_feature_profile": "core_only",
@@ -2043,6 +2047,10 @@ def test_sync_current_state_governance_issues_refreshes_leaderboard_recent_windo
     assert issue["summary"]["top_profile"] == "core_only"
     assert issue["summary"]["top_deployment_profile"] == "stable_turning_point_all_regimes_relaxed_v1"
     assert issue["summary"]["governance_contract"] == "dual_role_governance_active"
+    assert issue["summary"]["leaderboard_payload_source"] == "latest_persisted_snapshot"
+    assert issue["summary"]["leaderboard_payload_stale"] is True
+    assert issue["summary"]["leaderboard_payload_cache_age_sec"] == 4001
+    assert issue["summary"]["leaderboard_payload_updated_at"] == "2026-04-25T00:49:46.260944Z"
 
 
 def test_sync_current_state_governance_issues_reads_comparable_rows_from_top_model_probe_shape():

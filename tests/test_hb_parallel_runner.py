@@ -1567,6 +1567,9 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
             "support_aware_production_profile": "core_plus_macro",
             "governance_contract": "dual_role_governance_active",
             "current_closure": "global_ranking_vs_support_aware_production_split",
+            "leaderboard_payload_source": "latest_persisted_snapshot",
+            "leaderboard_payload_stale": True,
+            "leaderboard_payload_cache_age_sec": 4001,
         },
         run_mode="full",
     )
@@ -1607,6 +1610,10 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "browser `/execution`（同步中 / blocked 快捷操作 fail-closed）" in orid_md
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in roadmap_md
     assert "不要硬綁單一 port" in roadmap_md
+    assert "payload_source=latest_persisted_snapshot" in issues_md
+    assert "payload_stale=true" in issues_md
+    assert "payload_age=1.1h" in issues_md
+    assert "payload_stale=true" in roadmap_md
     assert "心跳 #20260420z ORID" in orid_md
     assert "support truth ≠ deployment closure" in orid_md
     assert "support=0/50" in orid_md

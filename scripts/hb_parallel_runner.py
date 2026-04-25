@@ -1043,13 +1043,15 @@ def _issue_current_lines(
         return lines
 
     if issue_id == "P1_leaderboard_recent_window_contract":
+        payload_state_line = _format_leaderboard_payload_state_for_docs(leaderboard_candidate_diagnostics)
         return [
             "目前真相："
             f"`leaderboard_count={leaderboard_candidate_diagnostics.get('leaderboard_count', '—')}` / "
             f"`selected_feature_profile={leaderboard_candidate_diagnostics.get('selected_feature_profile') or '—'}` / "
             f"`support_aware_profile={support_aware_profile or '—'}` / "
             f"`governance_contract={governance_verdict or '—'}` / "
-            f"`current_closure={governance_current_closure or '—'}`",
+            f"`current_closure={governance_current_closure or '—'}` / "
+            f"{payload_state_line}",
         ]
 
     if issue_id == "P1_execution_venue_readiness_unverified":
@@ -1189,6 +1191,45 @@ def _format_recent_pathology_docs_line(
 
 
 
+def _format_duration_seconds_for_docs(value: Any) -> str:
+    if not isinstance(value, (int, float)):
+        return "—"
+    if value < 0:
+        return "—"
+    if value < 3600:
+        return f"{round(value / 60, 1)}m"
+    return f"{round(value / 3600, 1)}h"
+
+
+
+def _format_bool_for_docs(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value in (None, ""):
+        return "—"
+    return str(value)
+
+
+
+def _format_leaderboard_payload_state_for_docs(
+    leaderboard_candidate_diagnostics: Dict[str, Any] | None,
+) -> str:
+    """Compactly expose leaderboard payload recency in current-state docs.
+
+    A leaderboard can be governance-aligned while still backed by an older
+    persisted payload. Surfacing source/staleness next to the profile verdict
+    prevents Strategy Lab readiness from being read as fresher than the
+    machine-readable probe artifact says it is.
+    """
+
+    context = leaderboard_candidate_diagnostics or {}
+    source = context.get("leaderboard_payload_source") or "—"
+    stale = _format_bool_for_docs(context.get("leaderboard_payload_stale"))
+    age = _format_duration_seconds_for_docs(context.get("leaderboard_payload_cache_age_sec"))
+    return f"`payload_source={source}` / `payload_stale={stale}` / `payload_age={age}`"
+
+
+
 def _docs_value_missing(value: Any) -> bool:
     return value is None or value == "" or value == [] or value == {} or value == ()
 
@@ -1240,6 +1281,9 @@ def _leaderboard_docs_context(
             or summary.get("governance_current_closure"),
             "dual_profile_state": summary.get("dual_profile_state"),
             "leaderboard_payload_source": summary.get("leaderboard_payload_source"),
+            "leaderboard_payload_stale": summary.get("leaderboard_payload_stale"),
+            "leaderboard_payload_cache_age_sec": summary.get("leaderboard_payload_cache_age_sec"),
+            "leaderboard_payload_updated_at": summary.get("leaderboard_payload_updated_at"),
         }
         for key, value in fallback_fields.items():
             if _docs_value_missing(context.get(key)) and not _docs_value_missing(value):
@@ -1440,12 +1484,14 @@ def overwrite_current_state_docs(
                 avg_pnl=recent_pathology_summary.get("avg_pnl"),
                 alerts=blocker_alerts,
             )
+    leaderboard_payload_state_line = _format_leaderboard_payload_state_for_docs(leaderboard_candidate_diagnostics)
     leaderboard_line = (
         f"`leaderboard_count={leaderboard_candidate_diagnostics.get('leaderboard_count', '—')}` / "
         f"`selected_feature_profile={leaderboard_candidate_diagnostics.get('selected_feature_profile') or '—'}` / "
         f"`support_aware_profile={support_aware_profile or '—'}` / "
         f"`governance_contract={governance_verdict or '—'}` / "
-        f"`current_closure={governance_current_closure or '—'}`"
+        f"`current_closure={governance_current_closure or '—'}` / "
+        f"{leaderboard_payload_state_line}"
     )
     governance_text = f"{governance_verdict or ''} {governance_current_closure or ''}".lower()
     if "single" in governance_text:
