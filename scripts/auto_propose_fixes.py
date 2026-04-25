@@ -780,10 +780,10 @@ def sync_current_state_governance_issues(
         additional_wins_needed = release_condition.get("additional_recent_window_wins_needed")
         streak_floor = release_condition.get("streak_must_be_below")
         release_text = (
-            f"recent {recent_window} 需至少 {required_recent_wins} 勝，當前 {current_recent_wins} 勝，還差 {additional_wins_needed} 勝；"
-            f"同時 streak 必須 < {streak_floor}。"
+            f"最近 {recent_window} 筆需至少 {required_recent_wins} 勝，當前 {current_recent_wins} 勝，還差 {additional_wins_needed} 勝；"
+            f"同時連續虧損必須 < {streak_floor}。"
             if recent_window is not None and required_recent_wins is not None and current_recent_wins is not None and additional_wins_needed is not None and streak_floor is not None
-            else "依 hb_circuit_breaker_audit / hb_predict_probe 的 release math 驗證解鎖條件。"
+            else "依 hb_circuit_breaker_audit / hb_predict_probe 的熔斷解除條件驗證解鎖。"
         )
         tracker.resolve("P0_q15_patch_active_but_execution_blocked")
         tracker.resolve("#H_AUTO_CURRENT_BUCKET_TOXICITY")

@@ -709,6 +709,8 @@ def test_api_trade_rejects_buy_when_current_live_blocker_active(monkeypatch):
     except HTTPException as exc:
         assert exc.status_code == 409
         assert exc.detail["code"] == "current_live_deployment_blocker"
+        assert "目前即時部署阻塞" in exc.detail["message"]
+        assert "Current live" not in exc.detail["message"]
         assert exc.detail["context"]["blocked_side"] == "buy"
         assert exc.detail["context"]["allowed_sides"] == ["reduce", "sell"]
         assert exc.detail["context"]["reduce_only_allowed"] is True
@@ -716,8 +718,40 @@ def test_api_trade_rejects_buy_when_current_live_blocker_active(monkeypatch):
         assert exc.detail["context"]["runtime_closure_state"] == "circuit_breaker_active"
         assert exc.detail["context"]["current_live_structure_bucket_rows"] == 87
         assert exc.detail["context"]["release_condition"]["additional_recent_window_wins_needed"] == 15
+        assert "前往 /execution/status" in exc.detail["context"]["operator_action"]
+        assert "Go to /execution/status" not in exc.detail["context"]["operator_action"]
     else:
         raise AssertionError("buy/add-exposure trade must fail closed under current-live blocker")
+
+
+def test_api_trade_rejects_buy_with_chinese_copy_when_current_live_guardrail_unavailable(monkeypatch):
+    def _confidence_unavailable():
+        raise RuntimeError("predictor offline")
+
+    class ExplodingExecutionService:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("ExecutionService must not submit buy orders while current-live guardrail is unavailable")
+
+    monkeypatch.setattr(api_module, "get_confidence_prediction", _confidence_unavailable)
+    monkeypatch.setattr(api_module, "ExecutionService", ExplodingExecutionService)
+
+    import asyncio
+
+    req = api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.001)
+    try:
+        asyncio.run(api_module.api_trade(req, request=_local_request()))
+    except HTTPException as exc:
+        assert exc.status_code == 409
+        assert exc.detail["code"] == "current_live_guardrail_unavailable"
+        assert "目前即時風控無法取得" in exc.detail["message"]
+        assert "Current live" not in exc.detail["message"]
+        assert exc.detail["context"]["blocked_side"] == "buy"
+        assert exc.detail["context"]["allowed_sides"] == ["reduce", "sell"]
+        assert exc.detail["context"]["reduce_only_allowed"] is True
+        assert "重新整理 /execution/status" in exc.detail["context"]["operator_action"]
+        assert "Refresh /execution/status" not in exc.detail["context"]["operator_action"]
+    else:
+        raise AssertionError("buy/add-exposure trade must fail closed when current-live guardrail is unavailable")
 
 
 def test_api_trade_allows_reduce_when_current_live_blocker_active(monkeypatch):

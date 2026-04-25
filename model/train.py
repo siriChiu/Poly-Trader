@@ -29,6 +29,10 @@ DEFAULT_TARGET_COL = "simulated_pyramid_win"
 MODEL_PATH = "model/xgb_model.pkl"
 DB_PATH = str(Path(__file__).parent.parent / "poly_trader.db")
 PROJECT_ROOT = Path(__file__).parent.parent
+# Heartbeat cron trains the final global model plus bounded rolling-CV folds.
+# Keep CPU parallelism explicit and bounded so the train lane can finish inside
+# the 10-minute full-heartbeat envelope without starving sibling diagnostics.
+DEFAULT_XGB_N_JOBS = max(1, min(4, os.cpu_count() or 1))
 DW_RESULT_PATH = PROJECT_ROOT / "data" / "dw_result.json"
 RECENT_DRIFT_REPORT_PATH = PROJECT_ROOT / "data" / "recent_drift_report.json"
 FEATURE_ABLATION_PATH = PROJECT_ROOT / "data" / "feature_group_ablation.json"
@@ -845,6 +849,8 @@ def train_xgboost(X: pd.DataFrame, y: pd.Series, params: Optional[dict] = None) 
             "reg_lambda": 10.0,
             "min_child_weight": 20,
             "gamma": 0.5,
+            "tree_method": "hist",
+            "n_jobs": DEFAULT_XGB_N_JOBS,
             "objective": "binary:logistic",
             "eval_metric": "logloss",
             "random_state": 42,
@@ -1151,6 +1157,8 @@ def train_regime_models(session: Session, target_col: str = DEFAULT_TARGET_COL) 
         "colsample_bytree": 0.6,
         "reg_alpha": 5.0,
         "gamma": 0.3,
+        "tree_method": "hist",
+        "n_jobs": DEFAULT_XGB_N_JOBS,
         "objective": "binary:logistic",
         "eval_metric": "logloss",
         "random_state": 42,

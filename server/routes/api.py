@@ -6319,7 +6319,7 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
         or allowed_layers_reason
         or runtime_closure_state
         or deployment_blocker
-        or "current live runtime guardrail blocks add-exposure orders"
+        or "目前即時風控阻止買入 / 加倉訂單"
     )
 
     try:
@@ -6336,7 +6336,7 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
     blocker_details = payload.get("deployment_blocker_details") if isinstance(payload.get("deployment_blocker_details"), dict) else {}
     return {
         "code": "current_live_deployment_blocker",
-        "message": "Current live blocker active: buy/add-exposure orders are paused; reduce/de-risk orders remain allowed.",
+        "message": "目前即時部署阻塞啟用：買入 / 加倉已暫停；減倉 / 賣出風險降低路徑仍允許。",
         "context": {
             "blocked_side": "buy",
             "allowed_sides": ["reduce", "sell"],
@@ -6354,7 +6354,7 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
             "minimum_support_rows": payload.get("minimum_support_rows"),
             "support_route_verdict": payload.get("support_route_verdict"),
             "release_condition": blocker_details.get("release_condition"),
-            "operator_action": "Go to /execution/status, clear the current-live blocker/release condition, then retry buy exposure.",
+            "operator_action": "前往 /execution/status，確認熔斷解除條件與即時部署阻塞點已解除後，再重試買入 / 加倉。",
             "reason": blocker_reason,
         },
     }
@@ -6368,13 +6368,13 @@ async def _load_current_live_buy_reject_payload() -> Optional[Dict[str, Any]]:
     except Exception as exc:
         return {
             "code": "current_live_guardrail_unavailable",
-            "message": "Current live guardrail unavailable: buy/add-exposure orders fail closed; reduce/de-risk orders remain allowed.",
+            "message": "目前即時風控無法取得：買入 / 加倉以失敗關閉暫停；減倉 / 賣出風險降低路徑仍允許。",
             "context": {
                 "blocked_side": "buy",
                 "allowed_sides": ["reduce", "sell"],
                 "reduce_only_allowed": True,
                 "error": str(exc),
-                "operator_action": "Refresh /execution/status and restore /predict/confidence before retrying buy exposure.",
+                "operator_action": "重新整理 /execution/status 並恢復 /predict/confidence 後，再重試買入 / 加倉。",
             },
         }
     return _current_live_buy_reject_payload(live_runtime_truth)

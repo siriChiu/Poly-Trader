@@ -1635,8 +1635,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）" in issues_md
     assert "`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout" in issues_md
     assert "把可用 payload 誤報成 `API timeout`" in issues_md
-    assert "POST /api/trade` 對 `buy` / 加倉會先讀 current-live blocker" in issues_md
-    assert "runtime/API guardrail：`POST /api/trade` 對 `buy` / 加倉會先讀 current-live blocker" in issues_md
+    assert "POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點" in issues_md
+    assert "runtime/API guardrail：`POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點" in issues_md
     assert "Execution Status / Bot 營運 已顯示熔斷解除條件" in issues_md
     assert "最近 50 筆目前 0/50，還差 15 勝；支持樣本 / q15 修補不可取代熔斷解除條件" in issues_md
     assert "manual_trade=paused_when_status_syncing_or_deployment_blocked" in issues_md
@@ -1646,8 +1646,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "manual_trade=paused_when_deployment_blocked" not in issues_md
     assert "Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）" in roadmap_md
     assert "operator-workspace timeout" in roadmap_md
-    assert "直接呼叫 `POST /api/trade` 的 buy/add-exposure 也必須依 current-live blocker fail-closed" in roadmap_md
-    assert "`/api/trade` direct API 不能繞過 current-live blocker" in roadmap_md
+    assert "直接呼叫 `POST /api/trade` 的買入 / 加倉也必須依即時部署阻塞點以 409 暫停" in roadmap_md
+    assert "`/api/trade` 直接 API 不能繞過即時部署阻塞點" in roadmap_md
     assert "Execution Status / Bot 營運 已顯示熔斷解除條件" in roadmap_md
     assert "初次同步前或部署阻塞存在時" in roadmap_md
     assert "買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停" in roadmap_md
@@ -1655,11 +1655,15 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "browser `/execution`（含初次同步時買入 / 減碼 / 自動模式暫停）" in roadmap_md
     assert "`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed" in orid_md
     assert "Bot 營運 payload 誤報成 `API timeout`" in orid_md
-    assert "`/api/trade` buy/add-exposure 直接入口也會依 current-live blocker 409 fail-closed" in orid_md
-    assert "直接 API buy/add-exposure 也必須 409 fail-closed" in orid_md
+    assert "`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停" in orid_md
+    assert "直接 API 買入 / 加倉也必須 409 暫停" in orid_md
     assert "`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡" in orid_md
     assert "同步中 / 已阻塞兩種狀態都必須 fail-closed" in orid_md
-    assert "browser `/execution`（同步中 / blocked 快捷操作 fail-closed）" in orid_md
+    assert "browser `/execution`（同步中 / 已阻塞快捷操作 fail-closed）" in orid_md
+    combined_docs = "\n".join([issues_md, roadmap_md, orid_md])
+    assert "buy/add-exposure" not in combined_docs
+    assert "current-live blocker" not in combined_docs
+    assert "`reduce/sell`" not in combined_docs
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in roadmap_md
     assert "不要硬綁單一 port" in roadmap_md
     assert "payload_source=latest_persisted_snapshot" in issues_md
@@ -4292,6 +4296,8 @@ def test_full_serial_timeout_caps_expensive_candidate_lanes(monkeypatch):
         ["python", "scripts/feature_group_ablation.py"],
         None,
     ) == hb_parallel_runner.FULL_SERIAL_TIMEOUTS["feature_group_ablation"]
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["feature_group_ablation"] == 90
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["feature_group_ablation"] < 600
     assert hb_parallel_runner._resolve_serial_timeout(
         ["python", "scripts/hb_predict_probe.py"],
         None,

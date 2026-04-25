@@ -1,31 +1,33 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-25 14:52:00 CST_
+_最後更新：2026-04-25 15:30:58 CST_
 
 ---
 
-## 心跳 #20260425_1441 ORID
+## 心跳 #20260425_1527 ORID
 
 ### O｜客觀事實
-- full heartbeat 已完成 collect + diagnostics refresh：`Raw=32239 / Features=23657 / Labels=65041`；歷史覆蓋 `2y_backfill_ok=True`；`simulated_pyramid_win=56.89%`。
-- parallel runner 5/5 通過：`full_ic / regime_ic / dynamic_window / tests / train`；comprehensive test 6/6；train `CV=64.00% ± 7.36%`。
-- 即時部署阻塞仍是 canonical circuit breaker：`deployment_blocker=circuit_breaker_active` / `streak=9` / recent 50 `2/50` 勝 / 還差 `13` 勝；q15 current-live support 已達 `82/50`，但 support closure 不等於 deployment closure。
-- recent canonical primary window 惡化：最近 100 筆 `win_rate=19.0%`、`dominant_regime=bull(99.0%)`、`avg_quality=-0.0506`、`avg_pnl=-0.0038`，alerts=`label_imbalance, regime_concentration, regime_shift`。
-- leaderboard governance 仍 single-role alignment，但 model leaderboard payload 仍 `payload_stale=true` / `payload_source=latest_persisted_snapshot` / `payload_age≈43.2m`。
-- 本輪產品化 patch：Strategy Lab 模型排行榜現在在 `modelMeta.stale=true` 時顯示 stale-while-revalidate lifecycle（背景重算/等待重試、cache age、refresh reason、next retry、cooldown）與 `重新整理模型排行榜`，避免 stale rows 被誤讀成 fresh production truth。
+- collect + diagnostics refresh 完成：`Raw=32242 / Features=23660 / Labels=65045`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=56.88%`。
+- 即時部署阻塞點：`deployment_blocker=circuit_breaker_active` / `streak=11` / `recent_window_wins=2/50` / `additional_recent_window_wins_needed=13`。
+- q15 current-live bucket truth：`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=80/50` / `gap=0` / `support_route_verdict=exact_bucket_supported`。
+- support progress：`status=exact_supported` / `regression_basis=current_identity` / `legacy_supported_reference=121/50@20260424a`。
+- latest recent-window diagnostics：`latest_window=100` / `win_rate=17.0%` / `dominant_regime=bull(99.0%)` / `avg_quality=-0.0621` / `avg_pnl=-0.0039` / `alerts=label_imbalance,regime_concentration,regime_shift`。
+- leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=current_full_no_bull_collapse_4h` / `support_aware_profile=core_plus_macro` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment` / `payload_source=latest_persisted_snapshot` / `payload_stale=true` / `payload_age=39.1m`。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3709` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle；metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next。
+- 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留減倉 / 賣出風險降低路徑；`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口；`recommended_patch=—` / `status=—` / `reference_scope=—`。
 
 ### R｜感受直覺
-- 最大風險不是 q15 support 不足，而是 operator 把已達 support、stale leaderboard 或 venue metadata OK 誤讀成可以部署；因此 UI 必須 breaker-first、freshness-first。
-- leaderboard stale 狀態若只藏在 API payload，Strategy Lab 仍會看起來像「有排行榜就正常」；這是產品化 deception，需要在 UI 明確揭露。
+- 這輪最需要防止的誤讀，是把 `80/50` 的 same-bucket support 或 `—` 參考 patch 誤讀成已可部署；熔斷解除條件仍是唯一即時部署阻塞點。
+- current live 已落在 `chop/CAUTION/CAUTION|base_caution_regime_or_bias|q15`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket、舊 bucket，或 `/api/status` 尚未返回的 loading 狀態誤讀成可操作 runtime 真相。
 
 ### I｜意義洞察
-1. **Circuit breaker 仍是唯一 current-live deployment gate**：q15 `82/50` 只代表 current bucket support ready，無法替代 recent 50 release math。
-2. **Recent pathology 是根因監控，不是當前 live 放行依據**：current live regime 為 chop/CAUTION，但 blocker pocket 最近 100 幾乎全 bull，需保留 drift evidence 而非泛化。
-3. **Stale leaderboard 必須產品化顯示**：stale-while-revalidate 是正確的 API 策略，但 UI 不顯示 lifecycle 時仍會造成 operator 誤讀。
+1. **support truth ≠ deployment closure**：`support=80/50` 且 `support_route_verdict=exact_bucket_supported` 只代表 same-bucket support 狀態，真正 deployment blocker 仍由 latest runtime truth 決定。
+2. **真正主阻塞仍是熔斷 + recent pathological slice**：目前該追的是解除條件與 recent canonical pathology，不是把 q15/q35 support 或 venue 話題誤升級成唯一根因。
+3. **docs overwrite sync 的角色是護欄，不是主阻塞**：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留減倉 / 賣出風險降低路徑；`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口；這會讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。
 
 ### D｜決策行動
-- **Owner**：Strategy Lab / leaderboard product surface。
-- **Action**：保留 async/stale-while-revalidate，不改成同步重算；把 stale lifecycle、快取年齡、重試時間與手動刷新動作直接呈現在 `/lab`。
-- **Artifacts**：`web/src/pages/StrategyLab.tsx`、`tests/test_frontend_decision_contract.py`、`ISSUES.md`、`ROADMAP.md`、`issues.json`。
-- **Verify**：`python -m pytest tests/test_frontend_decision_contract.py -q`、`python -m pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py -q`、`npm run build`、browser `/lab` DOM 檢查 stale lifecycle card。
-- **If fail**：若 `/lab` 再次只顯示 stale rows 而沒有 lifecycle / refresh action，升級為 P1 leaderboard freshness product blocker；若 breaker release math 被 leaderboard/support UI 蓋掉，升級回 P0 current-live blocker truth regression。
+- **Owner**：即時執行治理 lane
+- **Action**：維持熔斷優先真相，並把 q15 current-live bucket support truth 與 deployment closure 邊界持續顯示清楚；下一步沿 recent pathological slice 與解除條件繼續追根因；`/execution` 操作入口在同步中 / 已阻塞兩種狀態都必須 fail-closed；直接 API 買入 / 加倉也必須 409 暫停，減倉 / 賣出保留風險降低路徑。
+- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。
+- **Verify**：browser `/`、browser `/execution`（同步中 / 已阻塞快捷操作 fail-closed）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python -m pytest tests/test_server_startup.py -k api_trade -q`。
+- **If fail**：只要 docs / UI 再次隱藏熔斷優先真相、漏掉 q15 current-live bucket rows，或把 support closure 誤讀成 deployment closure，就把 heartbeat 升級回 current-state governance blocker。

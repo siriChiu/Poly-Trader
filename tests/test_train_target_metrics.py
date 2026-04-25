@@ -29,6 +29,30 @@ class _DummyFoldModel:
         return [1 if i % 2 else 0 for i in range(len(X))]
 
 
+class _CaptureXGBClassifier:
+    last_params = None
+
+    def __init__(self, **kwargs):
+        type(self).last_params = kwargs
+
+    def fit(self, X, y, sample_weight=None):
+        self.sample_weight = sample_weight
+        return self
+
+
+def test_train_xgboost_uses_hist_tree_method_for_heartbeat_budget(monkeypatch):
+    monkeypatch.setattr(train_module.xgb, "XGBClassifier", _CaptureXGBClassifier)
+    X = pd.DataFrame({"feat_a": [0.1, 0.2, 0.3, 0.4], "feat_b": [0.2, 0.3, 0.4, 0.5]})
+    y = pd.Series([0, 1, 0, 1])
+
+    train_module.train_xgboost(X, y)
+
+    params = _CaptureXGBClassifier.last_params
+    assert params["tree_method"] == "hist"
+    assert params["n_jobs"] == train_module.DEFAULT_XGB_N_JOBS
+    assert 1 <= params["n_jobs"] <= 4
+
+
 def test_run_training_writes_target_specific_last_metrics(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     Path("model").mkdir()
