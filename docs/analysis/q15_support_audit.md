@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-25 02:02:51.844753**
+- generated_at: **2026-04-25 02:27:12.762142**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -8,7 +8,7 @@
 - signal: **CIRCUIT_BREAKER**
 - regime / gate / label: **chop / CAUTION / D**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q15**
-- current_live_structure_bucket_rows: **89**
+- current_live_structure_bucket_rows: **87**
 - allowed_layers: **0** (circuit_breaker_active)
 - execution_guardrail_reason: **circuit_breaker_active**
 
@@ -33,10 +33,10 @@
 - release_condition: 保持 current_live_structure_bucket_rows >= minimum_support_rows，且 live row 仍通過 entry-quality / execution guardrail。
 - support_progress.status: **exact_supported**
 - support_progress.regression_basis: **current_identity**
-- support_progress.current_rows / minimum: **89 / 50**
-- support_progress.previous_rows: **89**
-- support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **2**
+- support_progress.current_rows / minimum: **87 / 50**
+- support_progress.previous_rows: **88**
+- support_progress.delta_vs_previous: **-1**
+- support_progress.stagnant_run_count: **0**
 - support_progress.escalate_to_blocker: **False**
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q15', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `{'heartbeat': '20260424a', 'timestamp': '2026-04-23T17:42:41.117933+00:00', 'live_current_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q15', 'live_current_structure_bucket_rows': 121, 'minimum_support_rows': 50, 'support_route_verdict': 'exact_bucket_supported', 'support_governance_route': 'exact_live_bucket_supported', 'support_identity': None, 'reference_only_reason': 'missing_or_different_support_identity_or_bucket_semantic_signature'}`
@@ -45,11 +45,11 @@
 ## Floor-cross legality
 - verdict: **runtime_blocker_preempts_floor_analysis**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.1782**
+- remaining_gap_to_floor: **0.1394**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.594**
+- best_single_component_required_score_delta: **0.4647**
 - best_single_component_can_cross_floor: **True**
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 55 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 57 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
@@ -59,7 +59,7 @@
 - entry_quality_ge_0_55: **False**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 55 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 57 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
 - verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Next action

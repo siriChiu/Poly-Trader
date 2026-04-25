@@ -3227,6 +3227,39 @@ def sync_fast_heartbeat_timeout_issue(
     }
 
 
+def refresh_summary_runtime_progress(summary_path: str | Path | None, progress_path: str | Path | None) -> Dict[str, Any]:
+    """Update an already-written heartbeat summary with the latest progress artifact.
+
+    The runner writes the terminal progress state after summary generation because the
+    final progress payload references the summary path. Without this second write,
+    heartbeat_<run>_summary.json can retain a stale in-progress snapshot such as
+    stage=auto_propose/status=running even though the progress artifact says finished.
+    Operator/runtime artifacts should never disagree about whether the heartbeat is
+    still running.
+    """
+    if not summary_path or not progress_path:
+        return {}
+    summary_file = Path(summary_path)
+    progress_file = Path(progress_path)
+    if not summary_file.exists() or not progress_file.exists():
+        return {}
+    try:
+        progress_snapshot = json.loads(progress_file.read_text())
+        summary_payload = json.loads(summary_file.read_text())
+    except Exception:
+        return {}
+
+    runtime_progress = summary_payload.setdefault("runtime_progress", {})
+    runtime_progress["path"] = str(progress_file)
+    runtime_progress["snapshot"] = progress_snapshot
+    runtime_progress["finalized"] = progress_snapshot.get("stage") == "finished"
+    try:
+        summary_file.write_text(json.dumps(summary_payload, indent=2, default=str))
+    except Exception:
+        return {}
+    return progress_snapshot
+
+
 def save_summary(
     run_label,
     counts,
@@ -5438,6 +5471,7 @@ def main(argv=None):
             "collect_success": collect_result.get("success", False),
         },
     )
+    refresh_summary_runtime_progress(summary_path, progress_path)
     _CURRENT_HEARTBEAT_RUN_LABEL = None
     print(f"\n📄 摘要已儲存：{os.path.relpath(summary_path, PROJECT_ROOT)}")
 

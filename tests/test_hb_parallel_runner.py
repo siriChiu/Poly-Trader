@@ -3115,6 +3115,48 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert saved["serial_results"]["recent_drift_report"]["timed_out"] is True
 
 
+def test_refresh_summary_runtime_progress_rewrites_stale_running_snapshot(tmp_path):
+    summary_path = tmp_path / "data" / "heartbeat_test_summary.json"
+    progress_path = tmp_path / "data" / "heartbeat_test_progress.json"
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(
+        json.dumps(
+            {
+                "heartbeat": "test",
+                "runtime_progress": {
+                    "path": str(progress_path),
+                    "snapshot": {
+                        "heartbeat": "test",
+                        "stage": "auto_propose",
+                        "status": "running",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    progress_path.write_text(
+        json.dumps(
+            {
+                "heartbeat": "test",
+                "stage": "finished",
+                "status": "success",
+                "details": {"summary_path": str(summary_path)},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = hb_parallel_runner.refresh_summary_runtime_progress(summary_path, progress_path)
+
+    assert snapshot["stage"] == "finished"
+    saved = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert saved["runtime_progress"]["snapshot"]["stage"] == "finished"
+    assert saved["runtime_progress"]["snapshot"]["status"] == "success"
+    assert saved["runtime_progress"]["finalized"] is True
+    assert saved["runtime_progress"]["path"] == str(progress_path)
+
+
 def test_collect_recent_drift_diagnostics_reads_primary_window(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
@@ -5091,7 +5133,9 @@ def test_main_writes_final_progress_artifact(tmp_path, monkeypatch):
     assert progress["status"] == "success"
     assert progress["details"]["summary_path"] == str(summary_path)
     assert summary["runtime_progress"]["path"] == str(progress_path)
-    assert summary["runtime_progress"]["snapshot"]["stage"] == "auto_propose"
+    assert summary["runtime_progress"]["snapshot"]["stage"] == "finished"
+    assert summary["runtime_progress"]["snapshot"]["status"] == "success"
+    assert summary["runtime_progress"]["finalized"] is True
 
 
 
