@@ -1,21 +1,4 @@
-# HEARTBEAT.md — Poly-Trader Productization Charter
-
-> 核心參考：`ISSUES.md`、`ROADMAP.md`、`issues.json`、`ARCHITECTURE.md`、`README.md`
-
----
-
-## 0. 心跳唯一目的
-**心跳唯一目的：把 Poly-Trader 往可運營、可驗證、可產品化的 P0/P1 主線推進。**
-
-若本輪沒有帶來以下任一項，視為不合格：
-- code / runtime / UI patch
-- 可重跑驗證證據
-- `ISSUES.md / ROADMAP.md / issues.json` 的 current-state overwrite sync
-- commit + push 到 git remote（若失敗，必須明記 blocker）
-
----
-
-## 本輪產品化事實摘要 (Heartbeat #1029)
+本輪產品化事實摘要 (Heartbeat #1029)
 - 數據收集管線恢復正常：+1 raw, +1 features, +2 labels (Raw=32257, Features=23675, Labels=65085)
 - 完成 regime labels 補齊：所有 23675 筆 features 具備 regime labels
 - 模型訓練完成：Global model Train=67.7%, CV=63.3% ± 8.0%
@@ -24,7 +7,7 @@
 - 生成 heartbeat summary：data/heartbeat_1029_summary.json
 - 更新 issues.json：包含 P0 與 P1 問題的機器可讀追蹤
 
-## 六帽摘要
+六帽摘要
 - 白帽 (事實)：數據增長+1/+1/+2，CV=63.3%，最近 100 筆 win_rate=9.0%，熔斷器激活中（streak=14，需 6 勝）
 - 紅帽 (感覺)：系統顯示出近期信號強度（TW-IC 26/30 通過）但長期穩定性受限，需要解決熔斷器條件
 - 黑帽 (批判)：熔斷器仍是唯一即時部署阻塞點，最近 100 筆 distribution pathology 嚴重，需要優先處理釋放條件
@@ -32,33 +15,33 @@
 - 綠帽 (創意)：考慮 regime-gated feature weighting 來利用近期信號強度；探索縮短特徵窗口以捕捉 N=100 的強信號
 - 藍帽 (控制)：優先解決 P0 熔斷器問題；保持文件 current-state 同步；下一輪聚焦在熔斷器釋放條件達成
 
-## ORID 決策
+ORID 決策
 - O (客觀)：熔斷器觸發條件：recent 50-sample win rate=18.0% < 30%，streak=14，需要 6 勝才能解除
 - R (反應)：系統目前處於被動阻塞狀態，雖有近期信號強度但無法轉換為交易機會
 - I (解釋)：熔斷器是設計用來防止連續虧損的安全機制，當前觸發原因是近期 win rate 過低
 - D (決定)：優先監控並等待熔滾器自然解除（達成 15/50 勝率）；同時準備好在解除後立即驗證交易恢復
 
-## Patch 清單
+Patch 清單
 1. 自動 overwrite sync ISSUES.md、ROADMAP.md、ORID_DECISIONS.md (由 hb_parallel_runner.py v5 完成)
 2. 生成 data/heartbeat_1029_summary.json
 3. 更新 issues.json 當前狀態
 4. 無代碼修改（本輪聚焦在診斷與文件同步）
 
-## 驗證證據
+驗證證據
 - 測試結果：6/6 全通過 (見 terminal 輸出 "總計: 6/6 通過")
 - 數據品質測試：所有特徵標準差 > 0，唯一值充足
 - 前端 TypeScript 編譯：通過
 - 模組導入測試：所有 8 個核心模組成功載入
 - 檔案結構檢查：所有 21 個必要文件存在
 
-## 文件覆蓋更新確認
+文件覆蓋更新確認
 - ISSUES.md：已 overwrite 為 current state (最後更新：2026-04-25 21:38:19 CST)
 - ROADMAP.md：已 overwrite 為 current state
 - ORID_DECISIONS.md：已 overwrite 為 current state
 - HEARTBEAT.md：本文件已更新為 current state
 - issues.json：已更新為機器可讀當前狀態
 
-## 下一輪 gate
+下一輪 gate
 1. **主要目標**：監控熔斷器解除條件達成 (最近 50 筆 win rate ≥ 30% 且 streak < 50)
    - 驗證方式：透過 hb_predict_probe.py 檢查 deployment_blocker 變為 false
    - 失敗升級：若連續 3 次心跳仍未解除，升級為 P0 blocker 需要主動介入方案

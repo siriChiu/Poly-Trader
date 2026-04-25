@@ -4,23 +4,23 @@
       "id": "P0_current_live_deployment_blocker",
       "priority": "P0",
       "title": "熔斷解除條件仍是唯一即時部署阻塞點",
-      "action": "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆需至少 15 勝，當前 2 勝，還差 13 勝；同時連續虧損必須 < 50。",
+      "action": "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆需至少 15 勝，當前 9 勝，還差 6 勝；同時連續虧損必須 < 50。",
       "status": "open",
       "created_at": "2026-04-24T21:47:06.227652",
-      "updated_at": "2026-04-25T07:34:02.976317",
+      "updated_at": "2026-04-25T14:01:57.596300",
       "hb_detected": null,
-      "next_action": "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆需至少 15 勝，當前 2 勝，還差 13 勝；同時連續虧損必須 < 50。",
+      "next_action": "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆需至少 15 勝，當前 9 勝，還差 6 勝；同時連續虧損必須 < 50。",
       "summary": {
         "deployment_blocker": "circuit_breaker_active",
         "horizon_minutes": 1440,
         "recent_window": 50,
-        "current_recent_window_wins": 2,
+        "current_recent_window_wins": 9,
         "required_recent_window_wins": 15,
-        "additional_recent_window_wins_needed": 13,
-        "streak": 11,
+        "additional_recent_window_wins_needed": 6,
+        "streak": 14,
         "streak_must_be_below": 50,
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-        "current_live_structure_bucket_rows": 80,
+        "current_live_structure_bucket_rows": 67,
         "minimum_support_rows": 50,
         "gap_to_minimum": 0,
         "support_route_verdict": "exact_bucket_supported",
@@ -37,32 +37,32 @@
     {
       "id": "#H_AUTO_MODEL_STABILITY",
       "priority": "P1",
-      "title": "model stability still needs work (cv=0.5948, cv_std=0.1228, cv_worst=0.4720)",
+      "title": "model stability still needs work (cv=0.6335, cv_std=0.0801, cv_worst=0.5534)",
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-04-25T07:34:02.976357",
+      "updated_at": "2026-04-25T14:01:57.596321",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
-        "cv_accuracy": 0.5947837150127226,
-        "cv_std": 0.12277353689567427,
-        "cv_worst": 0.4720101781170484
+        "cv_accuracy": 0.6334745762711864,
+        "cv_std": 0.08008474576271185,
+        "cv_worst": 0.5533898305084746
       }
     },
     {
       "id": "#H_AUTO_REGIME_DRIFT",
       "priority": "P1",
-      "title": "TW-IC 27 vs Global IC 17 — 信號強依賴近期資料",
+      "title": "TW-IC 26 vs Global IC 17 — 信號強依賴近期資料",
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132306",
-      "updated_at": "2026-04-25T07:34:02.976424",
+      "updated_at": "2026-04-25T14:01:57.596349",
       "hb_detected": null,
       "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "summary": {
         "global_pass": 17,
-        "tw_pass": 27,
+        "tw_pass": 26,
         "total_features": 30
       }
     },
@@ -100,7 +100,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3709,
+        "forward_archive_rows": 3723,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -108,7 +108,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-25T07:30:58.595067",
+      "updated_at": "2026-04-25T14:01:58.553515",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -127,9 +127,9 @@
         "current_closure": "single_profile_alignment",
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": true,
-        "leaderboard_payload_cache_age_sec": 2347,
+        "leaderboard_payload_cache_age_sec": 25805,
         "leaderboard_payload_updated_at": "2026-04-25T06:51:44.211926Z",
-        "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
+        "dual_profile_state": "aligned"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
       "verify": [
@@ -137,7 +137,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-25T07:34:02.976348",
+      "updated_at": "2026-04-25T14:01:57.596316",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -147,20 +147,20 @@
       "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "status": "open",
       "created_at": "2026-04-24T17:58:22.694575",
-      "updated_at": "2026-04-25T07:34:02.976413",
+      "updated_at": "2026-04-25T14:01:57.596343",
       "hb_detected": null,
       "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "summary": {
         "window": "100",
         "interpretation": "distribution_pathology",
-        "win_rate": 0.17,
+        "win_rate": 0.09,
         "dominant_regime": "bull",
-        "dominant_regime_share": 0.99,
-        "avg_pnl": -0.0039,
-        "avg_quality": -0.0621,
-        "avg_drawdown_penalty": 0.1601,
+        "dominant_regime_share": 0.97,
+        "avg_pnl": -0.0052,
+        "avg_quality": -0.1245,
+        "avg_drawdown_penalty": 0.1555,
         "spot_long_win_rate": 0.0,
-        "avg_time_underwater": 0.5782,
+        "avg_time_underwater": 0.6872,
         "alerts": [
           "label_imbalance",
           "regime_concentration",
@@ -169,11 +169,11 @@
         "top_shift_features": [
           "feat_4h_vol_ratio",
           "feat_4h_dist_bb_lower",
-          "feat_4h_macd_hist"
+          "feat_nw_width"
         ],
-        "new_compressed_feature": "feat_vix",
-        "tail_streak": "11x0",
-        "adverse_streak": "63x0",
+        "new_compressed_feature": "feat_4h_macd_hist",
+        "tail_streak": "14x0",
+        "adverse_streak": "62x0",
         "live_regime_label": "chop",
         "current_live_scope": false,
         "blocking_basis": [

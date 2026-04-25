@@ -1,0 +1,8 @@
+Poly-Trader 心跳 #1028 [2026-04-25 21:38 CST]
+- 本輪產品化事實摘要：完成數據收集管線刷新（Raw+1, Features+1, Labels+3）；執行完整平行心跳（regime_ic, dynamic_window, full_ic, train, tests）；自動 overwrite sync current-state docs 到 ISSUES.md, ROADMAP.md, ORID_DECISIONS.md；更新 model/xgb_model.pkl 與 model/ic_signs.json；驗證 API/UI contract 已 fail-closed 於熔斷解除條件。
+- 六帽摘要：白帽（事實）：數據增長正常，IC 呈現近期依賴強勢（TW-IC 26/30 vs Global 17/30），熔斷阻塞 active；綠帽（創造）：考慮 regime-gated feature weighting 以利用近期信號；黃帽（利益）：current-state docs 同步保護 operator-facing truth；黑帽（風險）：不要把 q15 support 誤讀為部署就緒；紅帽（感情）：維持熔斷優先真相的緊迫感；藍帽（控制）：下一輪聚焦熔斷解除條件與 recent canonical drift。
+- ORID 決策：O-數據顯示 recent 100 窗口 win_rate=9.0%，streak=13，需 6 勝解除熔斷；R-防止誤把 67/50 same-bucket support 誤為可部署；I-真正主阻塞仍是熔斷 + recent pathological slice；D-維持熔斷優先真相，保持 q15 current-live bucket support truth 可 machine-read，下一步沿 recent pathological slice 與解除條件追根因。
+- Patch 清單：HEARTBEAT.md（current-state overwrite）；ISSUES.md/ROADMAP.md/ORID_DECISIONS.md（auto-sync）；model/ic_signs.json（TW-IC 更新）；model/xgb_model.pkl（重新訓練）；data/* 產出的所有分析 artefacts。
+- 驗證證據：tests/comprehensive_test.py 6/6 PASS；hb_predict_probe.py 正確輸出 CIRCUIT_BREAKER；live_decision_quality_drilldown.py 驗證 runtime blocker；最近漂移報告顯示 distribution_pathology；API contract 測試通過。
+- 文件覆蓋更新確認：ISSUES.md, ROADMAP.md, ORID_DECISIONS.md 已完全 overwrite 為 current-state，無歷史流水帳；docs/analysis/* 與 latest JSON artefacts 對齊。
+- 下一輪 gate：1) 熔斷解除條件：最近 50 筆需達 15 勝（當前 9/50）；2) 最近 canonical drift 監控：window=100 的 distribution_pathology 需 current-window validation；3) venue readiness: 配置 COINGLASS_API_KEY 以啟用 fin_netflow。失敗時升級為 deployment blocker 記錄於 ISSUES.md。
