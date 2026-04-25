@@ -3,13 +3,13 @@
     {
       "id": "P0_current_live_deployment_blocker",
       "priority": "P0",
-      "title": "canonical circuit breaker remains the only current-live deployment blocker",
-      "action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 2 勝，還差 13 勝；同時 streak 必須 < 50。",
+      "title": "熔斷解除條件仍是唯一即時部署阻塞點",
+      "action": "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆需至少 15 勝，當前 2 勝，還差 13 勝；同時連續虧損必須 < 50。",
       "status": "open",
       "created_at": "2026-04-24T21:47:06.227652",
-      "updated_at": "2026-04-25T07:30:57.662573",
+      "updated_at": "2026-04-25T07:34:02.976317",
       "hb_detected": null,
-      "next_action": "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 2 勝，還差 13 勝；同時 streak 必須 < 50。",
+      "next_action": "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆需至少 15 勝，當前 2 勝，還差 13 勝；同時連續虧損必須 < 50。",
       "summary": {
         "deployment_blocker": "circuit_breaker_active",
         "horizon_minutes": 1440,
@@ -31,7 +31,7 @@
           "reduce",
           "sell"
         ],
-        "api_trade_guardrail_context": "buy/add-exposure checks current-live runtime truth before ExecutionService.submit_order"
+        "api_trade_guardrail_context": "買入 / 加倉會在 ExecutionService.submit_order 前先檢查即時部署阻塞點"
       }
     },
     {
@@ -41,7 +41,7 @@
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-04-25T07:30:57.662598",
+      "updated_at": "2026-04-25T07:34:02.976357",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
@@ -57,7 +57,7 @@
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132306",
-      "updated_at": "2026-04-25T07:30:57.662632",
+      "updated_at": "2026-04-25T07:34:02.976424",
       "hb_detected": null,
       "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "summary": {
@@ -137,7 +137,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-25T07:30:57.662592",
+      "updated_at": "2026-04-25T07:34:02.976348",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -147,7 +147,7 @@
       "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "status": "open",
       "created_at": "2026-04-24T17:58:22.694575",
-      "updated_at": "2026-04-25T07:30:57.662624",
+      "updated_at": "2026-04-25T07:34:02.976413",
       "hb_detected": null,
       "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "summary": {

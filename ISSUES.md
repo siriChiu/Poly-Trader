@@ -1,6 +1,6 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-25 15:30:58 CST_
+_最後更新：2026-04-25 15:34:21 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
@@ -35,12 +35,12 @@ _最後更新：2026-04-25 15:30:58 CST_
 
 ## Open Issues
 
-### P0. canonical circuit breaker remains the only current-live deployment blocker
+### P0. 熔斷解除條件仍是唯一即時部署阻塞點
 - 目前真相：`deployment_blocker=circuit_breaker_active` / `streak=11` / `recent 50 wins=2/50` / `additional_recent_window_wins_needed=13`
 - same-bucket truth：`bucket=CAUTION|base_caution_regime_or_bias|q15` / `support=80/50` / `support_route_verdict=exact_bucket_supported` / `support_governance_route=exact_live_bucket_supported`
 - support progress：`status=exact_supported` / `regression_basis=current_identity` / `legacy_supported_reference=121/50@20260424a`
 - runtime/API guardrail：`POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑。
-- 下一步：先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。 recent 50 需至少 15 勝，當前 2 勝，還差 13 勝；同時 streak 必須 < 50。
+- 下一步：先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆需至少 15 勝，當前 2 勝，還差 13 勝；同時連續虧損必須 < 50。
 
 ### P1. model stability still needs work (cv=0.5948, cv_std=0.1228, cv_worst=0.4720)
 - 目前真相：`cv_accuracy=0.5947837150127226` / `cv_std=0.12277353689567427` / `cv_worst=0.4720101781170484`

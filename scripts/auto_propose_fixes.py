@@ -788,12 +788,12 @@ def sync_current_state_governance_issues(
         tracker.resolve("P0_q15_patch_active_but_execution_blocked")
         tracker.resolve("#H_AUTO_CURRENT_BUCKET_TOXICITY")
         breaker_title = (
-            f"canonical circuit breaker active ({current_recent_wins}/{required_recent_wins} wins in recent {recent_window})"
+            f"熔斷解除條件未達（最近 {recent_window} 筆 {current_recent_wins}/{required_recent_wins} 勝）"
             if recent_window is not None and required_recent_wins is not None and current_recent_wins is not None
-            else "canonical circuit breaker active"
+            else "熔斷解除條件未達"
         )
         breaker_action = (
-            "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。"
+            "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。"
             f" {release_text}"
         )
         breaker_summary = {
@@ -814,7 +814,7 @@ def sync_current_state_governance_issues(
             "runtime_closure_state": runtime_closure_state,
             "api_trade_buy_guardrail": "current_live_deployment_blocker_409",
             "api_trade_allowed_risk_off_sides": ["reduce", "sell"],
-            "api_trade_guardrail_context": "buy/add-exposure checks current-live runtime truth before ExecutionService.submit_order",
+            "api_trade_guardrail_context": "買入 / 加倉會在 ExecutionService.submit_order 前先檢查即時部署阻塞點",
         }
         upsert_issue(
             tracker,
@@ -828,7 +828,7 @@ def sync_current_state_governance_issues(
             tracker,
             "P0",
             CURRENT_LIVE_BLOCKER_ISSUE_ID,
-            "canonical circuit breaker remains the only current-live deployment blocker",
+            "熔斷解除條件仍是唯一即時部署阻塞點",
             breaker_action,
             summary=breaker_summary,
         )
