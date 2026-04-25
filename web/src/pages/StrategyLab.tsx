@@ -779,6 +779,9 @@ interface ModelLeaderboardMeta {
   stale?: boolean;
   updated_at?: string | null;
   cache_age_sec?: number | null;
+  refresh_reason?: string | null;
+  refresh_cooldown_sec?: number | null;
+  next_retry_at?: string | null;
   warning?: string | null;
   leaderboard_warning?: string | null;
   error?: string | null;
@@ -948,6 +951,12 @@ const formatPct = (value: number | null | undefined, digits = 1, signed = false)
   return `${prefix}${(value * 100).toFixed(digits)}%`;
 };
 const formatDecimal = (value: number | null | undefined, digits = 2) => (isFiniteNumber(value) ? value.toFixed(digits) : "—");
+const formatDurationSeconds = (value: number | null | undefined) => {
+  if (!isFiniteNumber(value)) return "—";
+  if (value < 60) return `${Math.max(0, Math.round(value))} 秒`;
+  if (value < 3600) return `${Math.round(value / 60)} 分鐘`;
+  return `${(value / 3600).toFixed(1)} 小時`;
+};
 const formatMoney = (value: number | null | undefined) => (isFiniteNumber(value) ? `USDT ${value > 0 ? "+" : ""}${value.toFixed(0)}` : "—");
 const formatPenaltyHint = (value: number | null | undefined) => {
   if (!isFiniteNumber(value)) return "—";
@@ -1758,6 +1767,20 @@ export default function StrategyLab() {
   const leaderboardGovernance = modelMeta.leaderboard_governance ?? null;
   const governanceContract = leaderboardGovernance?.governance_contract ?? null;
   const profileSplit = leaderboardGovernance?.profile_split ?? null;
+  const modelLeaderboardStaleStateLabel = modelMeta.refreshing
+    ? "背景重算中"
+    : modelMeta.stale
+      ? "等待自動重試"
+      : "快取新鮮";
+  const modelLeaderboardCacheAgeLabel = formatDurationSeconds(modelMeta.cache_age_sec);
+  const modelLeaderboardNextRetryLabel = modelMeta.next_retry_at
+    ? new Date(modelMeta.next_retry_at).toLocaleString("zh-TW")
+    : null;
+  const modelLeaderboardRefreshDetail = [
+    modelMeta.refresh_reason ? `原因 ${humanizeRuntimeDetailText(modelMeta.refresh_reason)}` : null,
+    modelLeaderboardNextRetryLabel ? `下一次自動重試 ${modelLeaderboardNextRetryLabel}` : null,
+    isFiniteNumber(modelMeta.refresh_cooldown_sec) ? `冷卻 ${formatDurationSeconds(modelMeta.refresh_cooldown_sec)}` : null,
+  ].filter(Boolean).join(" · ");
   const modelFallbackCandidates = Array.isArray(modelStrategyParamScan?.best_strategy_candidates)
     ? modelStrategyParamScan.best_strategy_candidates.filter((candidate) => Boolean(candidate))
     : [];
@@ -2091,6 +2114,9 @@ export default function StrategyLab() {
         updated_at: data?.updated_at ?? null,
         cache_age_sec: data?.cache_age_sec ?? null,
         warning: data?.warning ?? null,
+        refresh_reason: data?.refresh_reason ?? null,
+        refresh_cooldown_sec: data?.refresh_cooldown_sec ?? null,
+        next_retry_at: data?.next_retry_at ?? null,
         leaderboard_warning: data?.leaderboard_warning ?? null,
         error: data?.error ?? null,
         target_col: data?.target_col ?? null,
@@ -3402,6 +3428,28 @@ export default function StrategyLab() {
                   {modelMeta.warning && (
                     <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
                       {modelMeta.warning}
+                    </div>
+                  )}
+                  {modelMeta.stale && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-50 space-y-2">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-amber-100">模型排行榜快取過期：{modelLeaderboardStaleStateLabel}</div>
+                          <div className="mt-1 text-[11px] text-amber-100/80">
+                            Strategy Lab 先顯示 stale-while-revalidate 快取，不把它當最新 production truth；背景重算完成前，請不要把目前排名當成剛刷新結果。
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => loadModelLeaderboard(true)}
+                          className="rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 text-[11px] font-medium text-amber-100 hover:border-amber-200/60 hover:text-amber-50"
+                        >
+                          重新整理模型排行榜
+                        </button>
+                      </div>
+                      <div className="text-[11px] text-amber-100/80">
+                        快取年齡 {modelLeaderboardCacheAgeLabel}{modelLeaderboardRefreshDetail ? ` · ${modelLeaderboardRefreshDetail}` : ""}
+                      </div>
                     </div>
                   )}
                   {modelMeta.leaderboard_warning && (
