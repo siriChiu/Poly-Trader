@@ -7,7 +7,7 @@
       "action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "status": "open",
       "created_at": "2026-04-27T14:50:29.532927",
-      "updated_at": "2026-04-27T17:35:21.502267",
+      "updated_at": "2026-04-27T19:05:02.676489",
       "hb_detected": null,
       "next_action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "summary": {
@@ -29,17 +29,17 @@
     {
       "id": "#H_AUTO_MODEL_STABILITY",
       "priority": "P1",
-      "title": "model stability still needs work (cv=0.5428, cv_std=0.0346, cv_worst=0.5082)",
+      "title": "model stability still needs work (cv=0.5440, cv_std=0.0373, cv_worst=0.5067)",
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-04-27T17:35:21.502289",
+      "updated_at": "2026-04-27T19:05:02.676513",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
-        "cv_accuracy": 0.5427728613569323,
-        "cv_std": 0.03455541508638854,
-        "cv_worst": 0.5082174462705437
+        "cv_accuracy": 0.5440185341196293,
+        "cv_std": 0.0372788542544229,
+        "cv_worst": 0.5067396798652064
       }
     },
     {
@@ -49,7 +49,7 @@
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132306",
-      "updated_at": "2026-04-27T17:35:21.502315",
+      "updated_at": "2026-04-27T19:05:02.676541",
       "hb_detected": null,
       "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "summary": {
@@ -65,7 +65,7 @@
       "action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
       "status": "open",
       "created_at": "2026-04-27T14:50:29.532918",
-      "updated_at": "2026-04-27T17:35:21.502259",
+      "updated_at": "2026-04-27T19:05:02.676482",
       "hb_detected": null,
       "next_action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
       "summary": {
@@ -73,7 +73,7 @@
         "reference_patch_scope": "bull|CAUTION",
         "current_live_regime_gate": "chop|CAUTION",
         "reference_only_cause": "non_current_live_scope",
-        "exact_live_lane_rows": 84,
+        "exact_live_lane_rows": 82,
         "recommended_patch": "core_plus_macro_plus_all_4h",
         "recommended_patch_status": "reference_only_non_current_live_scope",
         "support_route_verdict": "exact_bucket_unsupported_block",
@@ -123,7 +123,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3827,
+        "forward_archive_rows": 3831,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -131,7 +131,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-27T17:35:22.465982",
+      "updated_at": "2026-04-27T19:05:03.638574",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -143,15 +143,15 @@
         "leaderboard_count": 6,
         "comparable_count": 6,
         "placeholder_count": 0,
-        "top_model": "random_forest",
+        "top_model": "rule_baseline",
         "top_profile": "core_only",
         "top_deployment_profile": "scan_backed_best",
         "governance_contract": "dual_role_governance_active",
         "current_closure": "global_ranking_vs_support_aware_production_split",
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": false,
-        "leaderboard_payload_cache_age_sec": 1,
-        "leaderboard_payload_updated_at": "2026-04-27T17:35:15.307889Z",
+        "leaderboard_payload_cache_age_sec": 2,
+        "leaderboard_payload_updated_at": "2026-04-27T19:04:56.220207Z",
         "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
@@ -160,7 +160,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-27T17:35:21.502282",
+      "updated_at": "2026-04-27T19:05:02.676506",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     }
   ]

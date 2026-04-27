@@ -1,26 +1,26 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-28 01:35:22 CST_
+_最後更新：2026-04-28 03:05:03 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 full heartbeat #1079 已完成 collect + diagnostics refresh**
-  - `Raw=32386 / Features=23804 / Labels=65350`
+- **最新 full heartbeat #1083 已完成 collect + diagnostics refresh**
+  - `Raw=32390 / Features=23808 / Labels=65357`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
-  - `simulated_pyramid_win=56.91%`
+  - `simulated_pyramid_win=56.90%`
 - **canonical current-live blocker 已切到 current-live exact-support truth**
   - `deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
   - `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q00` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`
 - **recent canonical diagnostics 已刷新**
-  - `latest_window=100` / `win_rate=84.0%` / `dominant_regime=chop(84.0%)` / `avg_quality=+0.4189` / `avg_pnl=+0.0077` / `alerts=label_imbalance,regime_shift`
+  - `latest_window=100` / `win_rate=84.0%` / `dominant_regime=chop(82.0%)` / `avg_quality=+0.4164` / `avg_pnl=+0.0076` / `alerts=label_imbalance,regime_shift`
 - **leaderboard / governance 仍維持 dual-role contract**
   - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=0.0m`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3827` / `archive_window_coverage_pct=0.0`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3831` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof；`execution_metadata_smoke.venues[]` 已提供 per-venue `proof_state / blockers / operator_next_action / verify_next` 給 Dashboard / Execution / Lab 直接顯示證據缺口
 - **Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）**
   - 前端快捷：`manual_trade=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間都只保留查看阻塞原因與重新整理入口。`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`。後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑
@@ -40,8 +40,8 @@ _最後更新：2026-04-28 01:35:22 CST_
 - runtime/API guardrail：`POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑。
 - 下一步：把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。
 
-### P1. model stability still needs work (cv=0.5428, cv_std=0.0346, cv_worst=0.5082)
-- 目前真相：`cv_accuracy=0.5427728613569323` / `cv_std=0.03455541508638854` / `cv_worst=0.5082174462705437`
+### P1. model stability still needs work (cv=0.5440, cv_std=0.0373, cv_worst=0.5067)
+- 目前真相：`cv_accuracy=0.5440185341196293` / `cv_std=0.0372788542544229` / `cv_worst=0.5067396798652064`
 - 下一步：優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。
 
 ### P1. TW-IC 28 vs Global IC 16 — 信號強依賴近期資料
@@ -63,7 +63,7 @@ _最後更新：2026-04-28 01:35:22 CST_
   - data/execution_metadata_smoke.json
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3827` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3831` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json
