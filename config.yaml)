@@ -1,0 +1,41 @@
+database: 
+  url: sqlite:///poly_trader.db 
+ 
+
+binance:
+  api_key: ""
+  api_secret: ""
+
+okx:
+  api_key: ""
+  api_secret: ""
+  passphrase: ""
+
+trading:
+  symbol: "BTCUSDT"
+  confidence_threshold: 0.7
+  max_position_ratio: 0.05
+  dry_run: true
+  venue: "binance"
+
+execution:
+  mode: "paper"   # paper | live_canary | live
+  venue: "binance"
+  enable_live_trading: false
+  kill_switch: false
+  max_daily_loss_pct: 0.03
+  venues:
+    binance:
+      enabled: true
+      default_type: "spot"
+      api_key: ""
+      api_secret: ""
+    okx:
+      enabled: false
+      default_type: "spot"
+      api_key: ""
+      api_secret: ""
+      passphrase: ""
+
+coinalyze:
+  api_key: "a0cb4b29-39b6-4035-8474-d65103c76db6"

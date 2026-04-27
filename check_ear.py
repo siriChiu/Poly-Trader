@@ -1,0 +1,1 @@
+'import sqlite3; conn=sqlite3.connect("poly_trader.db"); c=conn.cursor(); c.execute("SELECT ear_prob FROM raw_market_data ORDER BY id DESC LIMIT 20"); rows=c.fetchall(); vals=[r[0] for r in rows]; print("Values:", vals); print("Unique:", set(vals)); conn.close()'  

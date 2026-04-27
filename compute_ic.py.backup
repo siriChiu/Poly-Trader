@@ -1,0 +1,99 @@
+import sqlite3
+import pandas as pd
+import numpy as np
+
+# Connect to the database
+conn = sqlite3.connect('poly_trader.db')
+
+# Query to get features and labels
+query = """
+SELECT 
+    f.feat_eye,
+    f.feat_ear,
+    f.feat_nose,
+    f.feat_tongue,
+    f.feat_body,
+    l.future_return_pct
+FROM features_normalized f
+JOIN labels l ON f.id = l.id
+"""
+
+df = pd.read_sql_query(query, conn)
+conn.close()
+df = df.dropna()   # Drop rows with NaN
+
+print(f'Rows after dropping NaN: {len(df)}')
+if len(df) == 0:
+    print('No data')
+    exit()
+
+features = ['feat_eye', 'feat_ear', 'feat_nose', 'feat_tongue', 'feat_body']
+names = ['Eye', 'Ear', 'Nose', 'Tongue', 'Body']
+
+print('')
+print('=== Sensory Performance Analysis ===')
+for f, name in zip(features, names):
+    series = df[f]
+    returns = df['future_return_pct']
+    ic = np.corrcoef(series, returns)[0,1] if len(series) > 1 else 0
+    mean = series.mean()
+    std = series.std()
+    rng = series.max() - series.min()
+    unique = series.nunique()
+    # trend: we don't have timestamp, so we can't compute trend over time.
+    # We'll set trend to 0 or compute difference between last and first as proxy (if ordered by id)
+    # Assuming the table is ordered by time (id increasing), we can compute:
+    if len(series) > 1:
+        trend = series.iloc[-1] - series.iloc[0]
+    else:
+        trend = 0
+    print(f'{name}:')
+    print(f'  IC: {ic:.6f}')
+    print(f'  Mean: {mean:.6f}')
+    print(f'  Std: {std:.6f}')
+    print(f'  Range: {rng:.6f}')
+    print(f'  Unique values: {unique}')
+    print(f'  Trend (last - first): {trend:.6f}')
+    # Anomaly detection per HEARTBEAT.md
+    if abs(ic) < 0.05:
+        print('  IC < 0.05 -> Sense ineffective, consider replacement')
+    elif abs(ic) < 0.03:
+        print('  IC < 0.03 -> Sense needs optimization')
+    if std < 1e-6:
+        print('  Std ~= 0 -> No variation, white noise')
+
+print('')
+print('=== Checking for duplicate IC (sense leakage) ===')
+ics = {}
+for f, name in zip(features, names):
+    series = df[f]
+    returns = df['future_return_pct']
+    ic = np.corrcoef(series, returns)[0,1] if len(series) > 1 else 0
+    ics[name] = ic
+tol = 1e-4
+for i in range(len(names)):
+    for j in range(i+1, len(names)):
+        ni, nj = names[i], names[j]
+        if abs(ics[ni] - ics[nj]) < tol:
+            print(f'!! {ni} and {nj} have nearly identical IC: {ics[ni]:.6f} vs {ics[nj]:.6f} (possible leakage)')
+
+# Also get latest raw data count, features count, labels count, BTC price, FNG, funding rate, OI ROC
+conn2 = sqlite3.connect('poly_trader.db')
+cursor = conn2.cursor()
+cursor.execute("PRAGMA table_info(raw_market_data)")
+raw_cols = [row[1] for row in cursor.fetchall()]
+print('')
+print(f'Raw market data columns: {raw_cols}')
+cursor.execute("PRAGMA table_info(labels)")
+label_cols = [row[1] for row in cursor.fetchall()]
+print(f'Labels columns: {label_cols}')
+# Get latest row from raw_market_data
+cursor.execute("SELECT * FROM raw_market_data ORDER BY id DESC LIMIT 1")
+latest_raw = cursor.fetchone()
+if latest_raw:
+    col_dict = dict(zip(raw_cols, latest_raw))
+    print('')
+    print('Latest raw market data:')
+    for k, v in col_dict.items():
+        print(f'  {k}: {v}')
+conn2.close()

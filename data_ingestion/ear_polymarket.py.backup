@@ -66,20 +66,20 @@ def get_ear_feature(symbol: str = "BTCUSDT") -> Optional[dict]:
         funding_hist = fetch_funding_history(symbol, limit=8)
         lsr_hist = fetch_lsr_history(symbol)
 
-        # 計算資金費率變化（最新兩筆）
+        # 計算資金費率變化（最舊到最新）
         fr_change = 0.0
         if funding_hist and len(funding_hist) >= 2:
-            fr_change = funding_hist[-1] - funding_hist[-2]
+            fr_change = funding_hist[-1] - funding_hist[0]
 
-        # 計算多空比變化（最新兩筆）
+        # 計算多空比變化（最舊到最新）
         lsr_change = 0.0
         if lsr_hist and len(lsr_hist) >= 2:
-            lsr_change = lsr_hist[-1] - lsr_hist[-2]
+            lsr_change = lsr_hist[-1] - lsr_hist[0]
 
-        # 組合得分：增加敏感度
-        # 資金費率通常在1e-4量級，所以乘以100000
-        # 多空比通常在1附近變化，所以乘以100
-        score = fr_change * 100000.0 + lsr_change * 100.0
+        # 組合得分：調整權重以使兩個分量具有相似的幅度
+        # 資金費率通常在1e-4量級，所以乘以10000
+        # 多空比通常在1附近變化，所以乘以1
+        score = fr_change * 10000.0 + lsr_change * 1.0
 
         logger.info(
             f"Ear v4: fr_change={fr_change:.6f}, lsr_change={lsr_change:.6f}, score={score:.6f}"

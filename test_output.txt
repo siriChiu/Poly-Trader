@@ -1,0 +1,109 @@
+
+============================================================
+Poly-Trader 全面驗證測試 (v3)
+時間: 2026-04-17T21:14:48.917684 UTC
+============================================================
+
+============================================================
+1. 檔案結構檢查
+============================================================
+[FAIL] 缺失: requirements.txt
+[FAIL] 缺失: config.yaml
+[FAIL] 缺失: config.py
+[FAIL] 缺失: database/models.py
+[FAIL] 缺失: utils/logger.py
+[FAIL] 缺失: data_ingestion/collector.py
+[FAIL] 缺失: data_ingestion/eye_binance.py
+[FAIL] 缺失: data_ingestion/ear_polymarket.py
+[FAIL] 缺失: data_ingestion/nose_futures.py
+[FAIL] 缺失: data_ingestion/tongue_sentiment.py
+[FAIL] 缺失: data_ingestion/body_liquidation.py
+[FAIL] 缺失: feature_engine/preprocessor.py
+[FAIL] 缺失: model/predictor.py
+[FAIL] 缺失: model/train.py
+[FAIL] 缺失: execution/risk_control.py
+[FAIL] 缺失: execution/order_manager.py
+[FAIL] 缺失: server/main.py
+[FAIL] 缺失: server/routes/api.py
+[FAIL] 缺失: server/senses.py
+[FAIL] 缺失: web/package.json
+[FAIL] 缺失: web/src/pages/Dashboard.tsx
+
+============================================================
+2. Python 語法檢查
+============================================================
+[FAIL] Poly-Trader\get_current_data.py:   File "C:\Users\Kazuha\repo\Poly-Trader\get_current_data.py", line 1
+    print('FNG:' + str(latest[1]))) 
+                                  ^
+SyntaxError: unmatched ')'
+
+[FAIL] Poly-Trader\get_current_data_fixed.py:   File "C:\Users\Kazuha\repo\Poly-Trader\get_current_data_fixed.py", line 1
+    print('FNG:' + str(latest[1]))) 
+                                  ^
+SyntaxError: unmatched ')'
+
+[FAIL] Poly-Trader\temp_ic.py:   File "C:\Users\Kazuha\repo\Poly-Trader\temp_ic.py", line 25
+    '    c.execute(f"""' >> temp_ic.py && echo '        SELECT f.{col_name}, l.future_return_pct' >> temp_ic.py && echo '        FROM features_normalized f' >> temp_ic.py && echo '        JOIN labels l ON f.timestamp = l.timestamp' >> temp_ic.py && echo '        WHERE l.horizon_minutes = 1440' >> temp_ic.py && echo '        ORDER BY f.timestamp DESC' >> temp_ic.py && echo '        LIMIT 1000' >> temp_ic.py && echo '    """)'  
+                                        ^
+SyntaxError: invalid syntax
+
+[FAIL] webui_forge_cu121_torch231\system\python\Lib\site-packages\aenum\_py2.py:   File "C:\Users\Kazuha\repo\webui_forge_cu121_torch231\system\python\Lib\site-packages\aenum\_py2.py", line 5
+    raise exc, None, tb
+             ^
+SyntaxError: invalid syntax
+
+[FAIL] webui_forge_cu121_torch231\webui\venv\Lib\site-packages\aenum\_py2.py:   File "C:\Users\Kazuha\repo\webui_forge_cu121_torch231\webui\venv\Lib\site-packages\aenum\_py2.py", line 5
+    raise exc, None, tb
+             ^
+SyntaxError: invalid syntax
+
+
+============================================================
+3. 模組導入測試
+============================================================
+[OK] database.models
+[OK] utils.logger
+[OK] config
+[OK] data_ingestion.collector
+[OK] feature_engine.preprocessor
+[OK] model.predictor
+[OK] execution.risk_control
+[OK] server.senses
+
+============================================================
+8. 感官引擎真實數據測試
+============================================================
+  感官分數: {'eye': 0.95, 'ear': 0.4557, 'nose': 0.8999, 'tongue': 0.95, 'body': 0.95, 'pulse': 0.2024, 'aura': 0.95, 'mind': 0.8408}
+[OK] 感官分數有真實變異
+[OK] 所有分數在 0~1 範圍內
+[OK] 建議: 72分, buy
+[OK] 正規化函數正確
+
+============================================================
+9. 前端 TypeScript 編譯檢查
+============================================================
+[FAIL] web/ 目錄不存在
+
+============================================================
+10. 數據品質測試
+============================================================
+  Raw: 6803, Features: 13258
+[OK] feat_eye_dist: std=4.1443, unique=100
+[OK] feat_ear_zscore: std=0.0018, unique=8
+[OK] feat_nose_sigmoid: std=0.1573, unique=97
+[OK] feat_tongue_pct: std=0.3144, unique=95
+[OK] feat_body_roc: std=0.4846, unique=88
+
+============================================================
+測試總結
+============================================================
+[FAIL] 檔案結構
+[FAIL] 語法檢查
+[PASS] 模組導入
+[PASS] 感官引擎真實數據
+[FAIL] 前端 TypeScript
+[PASS] 數據品質
+
+總計: 3/6 通過
+
+[FAIL] 3 項失敗: 檔案結構, 語法檢查, 前端 TypeScript

@@ -1,0 +1,23 @@
+from database.models import init_db  
+from config import load_config  
+cfg = load_config()  
+session = init_db(cfg["database"]["url"])  
+from database.models import RawMarketData, FeaturesNormalized, Labels  
+raw = session.query(RawMarketData).order_by(RawMarketData.timestamp.desc()).first()  
+feat = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp.desc()).first()  
+label = session.query(Labels).order_by(Labels.timestamp.desc()).first()  
+print('Raw timestamp:', raw.timestamp if raw else None)  
+print('Raw price:', raw.close_price if raw else None)  
+print('Raw FNG:', raw.fear_greed_index if raw else None)  
+print('Raw funding:', raw.funding_rate if raw else None)  
+print('Raw oi_roc:', raw.oi_roc if raw else None)  
+print('Feat timestamp:', feat.timestamp if feat else None)  
+print('Feat eye:', getattr(feat, 'feat_eye', None) if feat else None)  
+print('Feat ear:', getattr(feat, 'feat_ear', None) if feat else None)  
+print('Feat nose:', getattr(feat, 'feat_nose', None) if feat else None)  
+print('Feat tongue:', getattr(feat, 'feat_tongue', None) if feat else None)  
+print('Feat body:', getattr(feat, 'feat_body', None) if feat else None)  
+print('Label timestamp:', label.timestamp if label else None)  
+print('Label up:', getattr(label, 'label_up', None) if label else None)  
+print('Label sell_win:', getattr(label, 'label_sell_win', None) if label else None)  
+session.close()  
